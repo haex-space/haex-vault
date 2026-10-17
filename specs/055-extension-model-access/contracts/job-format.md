@@ -29,6 +29,8 @@ Step {
 }
 
 Image { mimeType: "image/jpeg" | "image/png" | "image/webp", data: string /* Base64, höchstens 25 MiB roh */ }
+// Base64 statt einer Zahlenliste: der alte Handler (Spec 047, nie aufgerufen) erwartete Bytes als JSON-Liste;
+// ein 25-MiB-Foto wären so rund 100 MB JSON, als Base64 rund 33 MB.
 ```
 
 - `from` darf nur auf einen **früheren** Schritt zeigen; der Teil unter `pointer` wird dem Modell als Text
@@ -44,11 +46,13 @@ Image { mimeType: "image/jpeg" | "image/png" | "image/webp", data: string /* Bas
 
 ## Schema-Teilmenge
 
-Gemeinsames Modul `S/schema_subset.rs` (aus Spec 018 gehoben).
+Modul `S/model_jobs/schema.rs` (nicht der Aktionsprüfer von Spec 018: dessen Teilmenge ist kleiner und im Frontend gespiegelt).
 
 - Typen: `object`, `array`, `string`, `integer`, `number`, `boolean`, `null` nur als Union mit einem anderen Typ.
 - Schlüsselwörter: `type`, `properties`, `required`, `items`, `enum`, `minimum`, `maximum`, `minLength`,
   `maxLength`, `minItems`, `maxItems`, `additionalProperties` (boolesch), `description`.
+- `enum` darf ohne `type` stehen. Ein Objekt mit `properties` erlaubt keine weiteren Schlüssel, außer
+  `additionalProperties: true`. Längen zählen Zeichen, nicht Bytes.
 - Nicht erlaubt: `$ref`, `pattern`, `oneOf`/`anyOf`/`allOf` (außer der Union mit `null`), Verweise, Rekursion.
 - Grenzen: Tiefe 8, höchstens 200 Eigenschaften insgesamt, Schema höchstens 32 KiB.
 - Ergebnisse höchstens 256 KiB; Zahlen als IEEE-754 ohne Sonderwerte.
@@ -57,10 +61,13 @@ Gemeinsames Modul `S/schema_subset.rs` (aus Spec 018 gehoben).
 
 - Die Erweiterung gibt höchstens einen Wunsch an. holzi bildet `min(Wunsch, höchster freigegebener Aufwand)`;
   fehlt der Wunsch, gilt `none`.
+- Die Stufen eines Modells kommen in der vom Anbieter gemeldeten Reihenfolge, die nicht als aufsteigend zugesichert
+  ist. Sind alle Namen bekannt (`none`/`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), ordnet holzi sie
+  nach Rang; sonst gilt die gemeldete Reihenfolge.
 - Zuordnung auf das Modell nach seiner Auskunft (`ModelCapabilities.reasoning`):
   - `Unavailable`: Aufwand wirkt nicht; Herkunft: `none`.
   - `ModelManaged`: das Modell regelt es selbst; Herkunft: `managed`.
-  - `Presets{options}` (geordnet vom kleinsten zum größten): `low` = erste, `high` = letzte, `medium` = mittlere
+  - `Presets{options}` (wie oben geordnet): `low` = erste, `high` = letzte, `medium` = mittlere
     (bei zwei Stufen die höhere); `none` = ausgeschaltet, wenn das Modell es anbietet, sonst die erste.
 - Die Herkunft nennt in `attempts[].effort` die Stufe nach dem Deckeln.
 
@@ -69,11 +76,17 @@ Gemeinsames Modul `S/schema_subset.rs` (aus Spec 018 gehoben).
 Reihenfolge je Versuch; der erste Verstoß beendet den Versuch mit `unusable` und einem Grund.
 
 1. **Leer**: nur Leerraum oder keine Ausgabe.
-2. **Schleife**: bei mindestens 12 Wörtern ein Anteil verschiedener Wörter unter 0,35, oder dieselbe Zeile
-   dreimal in Folge.
-3. **Schriftwechsel**: Die Ausgabe enthält ein Schriftsystem (CJK, Kyrillisch, Arabisch, Devanagari,
-   Tamil u. a.), das weder in `instruction` noch im Eingabetext vorkommt. Latein, Ziffern und Satzzeichen gelten
-   immer als bekannt.
+2. **Schleife**: Geprüft wird der Text der Zeichenketten der Antwort (bei ungültigem JSON der ganze Text).
+   Eine Schleife ist: bei mindestens 100 Wörtern weniger als ein verschiedenes Wort auf zehn; oder dieselbe
+   Wortfolge von 2 bis 8 Wörtern mindestens 6-mal hintereinander (und mindestens 12 Wörter), ein einzelnes
+   Wort mindestens 30-mal; oder dieselbe Zeile von mindestens 8 Zeichen dreimal in Folge. Die Schwellen sind
+   so weit, dass eine lange Seite ähnlicher Zeilen und eine Tabelle voller „ja“-Zellen nicht auffallen; eine
+   Tabelle, die zwölfmal „ja nein“ abwechselt, tut es (bekannter Preis).
+3. **Schriftwechsel**: Die Antwort enthält mindestens 3 Buchstaben eines Schriftsystems (Griechisch, Kyrillisch,
+   Armenisch, Hebräisch, Arabisch, Devanagari, Bengalisch, Tamil, Thai, Georgisch, Hangul, Kana, Han), das weder
+   Latein ist noch in Anweisung oder Eingabetext vorkommt, und diese Buchstaben sind mindestens ein Fünftel
+   aller Buchstaben. Ein griechisches Symbol in einer Physiknotiz ist kein Wechsel. Ziffern, Satzzeichen,
+   Symbole und Umlaute zählen nie als fremd.
 4. **JSON**: Die Ausgabe ist (nach Abziehen eines Codezauns) kein gültiges JSON.
 5. **Schema**: Der Wert verletzt `format.schema`.
 

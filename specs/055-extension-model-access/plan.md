@@ -24,7 +24,7 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
 - **Ziele und Ausweichweg** (R4, R6): Ort jedes Modells (`this_device`, `network`, `cloud`); alle Fragen stellt
   der Start; Ausweichmodelle ohne Einwilligung fallen weg.
 - **Wächter und Schema** (R10, R11): ein allgemeiner Prüfer (leer, Schleife, Schriftwechsel, JSON, Schema), die
-  Schema-Teilmenge aus Spec 018 als gemeinsames Modul.
+  eine eigene Schema-Teilmenge für Ergebnisformate.
 - **Anbieter** (R7): neuer Adapter `openai_compatible` (auch Gemini, Ollama, vLLM, Schul-Server), „nimmt Bilder
   an“ je Modell als Nutzerangabe.
 - **Lokale Bilder** (R8): zweiter Ladeweg über `MultimodalModelBuilder` mit Quantisierung beim Laden;
@@ -48,7 +48,7 @@ ist schon da (Adapter Anthropic).
 Aufträge selbst: nur Arbeitsspeicher.
 
 **Testing**: `cargo test` (neu `model_jobs/*_tests.rs`, `adapters/openai_compatible_tests.rs`,
-`schema_subset_tests.rs`, Erweiterungen in `extensions/permissions/*_tests.rs`, `providers/*_tests.rs`);
+Erweiterungen in `extensions/permissions/*_tests.rs`, `providers/*_tests.rs`);
 Integration `tests/extension_model_jobs.rs` mit einem Scheinanbieter; Vertragstests für `contracts/`; `pnpm check:*`
 für neue reine TS-Module; E2E-Szenario mit der Test-Erweiterung; Versuch zum lokalen Bildmodell als Test mit
 `#[ignore]` (braucht Modell und GPU).
@@ -118,13 +118,13 @@ src-tauri/src/
 │   ├── errors.rs                    # JobErrorCode (aus TaskErrorCode)
 │   ├── candidates.rs                # Kandidatenliste je Schritt: Freigaben, Rangfolge, Fähigkeit, Ort
 │   ├── effort.rs                    # Deckeln und Zuordnung auf Stufen
+│   ├── schema.rs                    # Schema-Teilmenge für Ergebnisformate (R11)
 │   ├── guard.rs                     # leer, Schleife, Schriftwechsel, JSON, Schema
 │   ├── runner.rs                    # Schritte ausführen, Ausweichweg, Abbruch, Dauer
 │   ├── model_source.rs              # Adapter für ein Modell beschaffen (Fern: build_adapter; lokal: Platz)
 │   ├── place.rs                     # Ort eines Anbieters (this_device/network/cloud)
 │   ├── bridge.rs                    # start, cancel, list (Handler)
 │   └── *_tests.rs
-├── schema_subset.rs                 # aus extensions/agent_tools/defs.rs gehoben (R11)
 ├── adapters/openai_compatible.rs    # neuer Adapter (R7) + openai_compatible_tests.rs
 ├── extensions/
 │   ├── permissions/{model,target,store}.rs      # Arten Model, ModelDestination (R3)

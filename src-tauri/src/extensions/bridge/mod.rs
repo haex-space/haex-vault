@@ -1,7 +1,6 @@
 //! The bridge between extension frames and holzi (ADR-0004 direction B, research R14): frame
 //! sessions, the allowlist of bridge methods and events to frames.
 
-pub(crate) mod agent_tasks;
 mod allowlist;
 pub mod blocking;
 pub mod database;
@@ -9,4 +8,5 @@ pub mod dispatch;
 pub mod events;
 pub mod frames;
 pub mod methods;
+pub(crate) mod model_jobs;
 pub mod permissions;

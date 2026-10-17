@@ -59,7 +59,7 @@ pub struct ExtensionHost {
     pub frames: FrameRegistry,
     /// Structured agent tasks owned by extension frames; credentials and provider state stay in
     /// the host and are never part of a frame session.
-    pub(crate) agent_tasks: crate::agent_tasks::TaskRegistry,
+    pub(crate) model_jobs: crate::model_jobs::TaskRegistry,
     /// Frames the agent's tool calls wait for (spec 018, research R9).
     pub agent_frames: super::agent_tools::frame_request::FrameRequests,
     /// Dialog choices per frame, holzi's protected places and folder watches (US9).
@@ -109,8 +109,8 @@ impl Drop for SqlSlot {
 
 impl ExtensionHost {
     /// The in-memory structured-task registry for this extension host.
-    pub(crate) fn agent_tasks(&self) -> crate::agent_tasks::TaskRegistry {
-        self.agent_tasks.clone()
+    pub(crate) fn model_jobs(&self) -> crate::model_jobs::TaskRegistry {
+        self.model_jobs.clone()
     }
 
     /// Sets what holzi does on the desktop; only the first call counts.

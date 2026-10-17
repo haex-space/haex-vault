@@ -1,5 +1,5 @@
 use super::{run_fixture, validate_paper_note_result};
-use crate::agent_tasks::model::{ImageInput, PaperNoteInput, PaperNoteOptions};
+use crate::model_jobs::model::{ImageInput, PaperNoteInput, PaperNoteOptions};
 
 fn input() -> PaperNoteInput {
     PaperNoteInput {
