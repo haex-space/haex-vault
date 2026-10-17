@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::openai_request::{build_chat_body, build_chat_body_with_limit, TokenLimitField};
+use super::openai_request::{build_chat_body_with_limit, TokenLimitField};
 use super::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 
@@ -48,6 +48,10 @@ fn presets(ids: &[&str]) -> ReasoningControl {
             })
             .collect(),
     )
+}
+
+fn build_chat_body(req: &ChatRequest) -> serde_json::Value {
+    build_chat_body_with_limit(req, TokenLimitField::MaxTokens)
 }
 
 #[test]
