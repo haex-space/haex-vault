@@ -6,7 +6,7 @@
 
 ## Summary
 
-Der Passwortmanager aus Spec 034 bekommt die Bedienung von haex-vault und zwei Dinge, die es
+Der Passwortmanager aus Spec 034 bekommt die Bedienung von haex-vault 2.x (Legacy) und zwei Dinge, die es
 dort nicht gibt: Verweise zwischen Einträgen (Platzhalter im Text, KeePass-Vorbild) und
 Passkey-Funktionen im Dienst. Den Umfang bestimmt die Spec (US1–US7); die External Bridge
 bleibt draußen. Es gibt **keine Änderung an vorhandenen Tabellen**; neu ist eine kleine
@@ -51,7 +51,7 @@ Node 22.19 für die Prüfskripte
 (`928d06a`), `keepass`; Frontend Pinia, `@nuxtjs/i18n`, `reka-ui`/haex-ui-Layer
 (`ShadcnTabs`, `ShadcnContextMenu`, `ShadcnBreadcrumb`, `ShadcnDropdownMenu`,
 `ShadcnDrawer`/`UiDrawerModal`, `ShadcnCheckbox`), `@vueuse/core` 15.
-**Neu**: `swiper` 14 (MIT), `photoswipe` 5.4 (MIT, wie haex-vault); Rust `ciborium`, `psl`,
+**Neu**: `swiper` 14 (MIT), `photoswipe` 5.4 (MIT, wie haex-vault 2.x); Rust `ciborium`, `psl`,
 direktes `url`. RS256 wird nicht signiert, deshalb **kein** `rsa` zur Laufzeit (R8).
 
 **Storage**: Migration `0026_passwords_refs` (geplant als `0024`; Spec 017 hat `0024` und `0025` zuerst belegt): eine CRDT-Tabelle
@@ -109,7 +109,7 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 | I Keine Geheimnisse in Git                                                 | ✅     | Testvektoren, Schlüssel und Fixtures sind erfunden (`SECRET-MARKER-…`, feste Testschlüssel ohne Bezug zu Konten); keine echten Passkeys                                            |
 | II Keine lokalen absoluten Pfade in versionierter Konfiguration            | ✅     | Quickstart nutzt repo-relative Pfade; keine Capability ändert sich                                                                                                                 |
 | III Projektidentität geräteunabhängig                                      | ✅     | Berührt nicht; keine Geräte-Kennung wird für den synchronisierten Signaturzähler benötigt                                                                                          |
-| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | haex-vault weiterhin `8dce379d94e18fcd42c3b73686a06f984ca3f574`; KeePass-Quelle nur als gelesener Beleg (Mirror), nicht als Abhängigkeit                                           |
+| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | haex-vault 2.x weiterhin `8dce379d94e18fcd42c3b73686a06f984ca3f574`; KeePass-Quelle nur als gelesener Beleg (Mirror), nicht als Abhängigkeit                                       |
 | V Externe Quellen nur per Opt-in                                           | ✅     | Keine neue Harness-Quelle; neue Bibliotheken sind Abhängigkeiten, keine Harness-Inhalte                                                                                            |
 | VI Selbstverändernde Anweisungen review-pflichtig                          | ✅     | Keine Änderung an Constitution, Skills oder Berechtigungen; Freigaben bleiben bei 017–019 und 021                                                                                  |
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                            | ✅     | Alles läuft lokal; der synchronisierte Zähler bleibt ohne Sync sicher bei 0                                                                                                        |
@@ -226,7 +226,7 @@ Commands; kein Teil der Grammatik liegt im Frontend.
 | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Eine neue CRDT-Tabelle und Migration                                      | Passkey-Verbindungen (FR-046, R6); synchronisierte Signaturzähler bleiben 0 (R5)                                                             |
 | Drei neue Rust-Abhängigkeiten (`ciborium`, `psl`, direkt `url`)           | CBOR für COSE und Beglaubigung, öffentliche Suffixliste für die Herkunftsprüfung, URL-Zerlegung (R8, R9)                                     |
-| Zwei neue Frontend-Abhängigkeiten (`swiper`, `photoswipe`)                | Wischgeste (Vorgabe) und Lightbox mit Zoom und Gesten; beides wie in haex-vault, nur bei Bedarf geladen (R1, R14)                            |
+| Zwei neue Frontend-Abhängigkeiten (`swiper`, `photoswipe`)                | Wischgeste (Vorgabe) und Lightbox mit Zoom und Gesten; beides wie in haex-vault 2.x, nur bei Bedarf geladen (R1, R14)                        |
 | Ein Auflöser mit Bereichsprüfung an der Quelle und Kreiserkennung         | FR-044 bis FR-049: ein Verweis darf kein Zugriffsrecht geben, nie leerer Text, nie ein aufgelöstes Geheimnis in Listen oder Verlauf (R3, R4) |
 | Zerlegen von `EntryEditor.vue`, `HistoryView.vue`, `SelectionToolbar.vue` | Die Tabs verlangen es; zugleich bringt es die Datei unter 500 Zeilen (R16)                                                                   |
 

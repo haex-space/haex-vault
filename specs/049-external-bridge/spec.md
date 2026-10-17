@@ -7,8 +7,8 @@
 **Status**: Draft
 
 **Input**: User description: "Eine External Bridge, damit die bestehende Browser-Erweiterung
-`haex-pass-browser` (haextension, `apps/haex-pass-browser`) mit holzi statt mit haex-vault
-arbeitet. Die Erweiterung spricht heute mit haex-vault über einen verschlüsselten WebSocket
+`haex-pass-browser` (haextension, `apps/haex-pass-browser`) mit holzi statt mit haex-vault 2.x (Legacy)
+arbeitet. Die Erweiterung spricht heute mit haex-vault 2.x über einen verschlüsselten WebSocket
 (Standardport 19455, Protokoll v2 mit erklärten Berechtigungen im Handshake, Umschläge mit
 Schlüsseltausch und AES-GCM, Zulassung je Client, Ping/Pong, `authorizationUpdate`). Ziel: Die
 unveränderte oder nur minimal veränderte Erweiterung verbindet sich mit holzi, wird in holzi
@@ -86,7 +86,7 @@ auszuschließen."
 - **Spec 043** (Android): Auf Android gibt es keine External Bridge (FR-043).
 - **Geplante Spec 021** (MCP-Server, externe Agenten): eigener Aufrufer mit eigenen Freigaben;
   diese Spec berührt sie nicht.
-- **Vorlage haex-vault**: Repository `https://github.com/haex-space/haex-vault`, Revision
+- **Vorlage haex-vault 2.x**: Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574` (dieselbe wie in 034 und 036), Pfade
   `src-tauri/src/external_bridge/` (Protokoll, Umschläge, Zulassung, Server),
   `src/composables/handlers/useCoreExternalRequestHandlers/` (Methoden für Passwörter, Passkeys und
@@ -97,7 +97,7 @@ auszuschließen."
   dass die Erweiterung es unverändert spricht, und schließt die Lücken der Vorlage: keine Prüfung
   der Herkunft (FR-005) und der Kennung (FR-006), UP und UV ohne Bestätigung (FR-031), Herkunft
   fest `https://<Kennung>` (FR-032), Aufgabe der Gegenstelle in falscher Kodierung (FR-035),
-  Prüfung ausgeschlossener Passkeys über den Bereich hinaus (036 FR-024). haex-vault ist kein
+  Prüfung ausgeschlossener Passkeys über den Bereich hinaus (036 FR-024). haex-vault 2.x ist kein
   Maßstab für Oberfläche.
 - **Client haex-pass-browser**: Repository `https://github.com/haex-space/haextension`, Revision
   `a365af8a89f57a31427b85bfef5fe0f510253d30`, Pfade `apps/haex-pass-browser/src/background/`
@@ -110,7 +110,7 @@ auszuschließen."
 
 ### Session 2026-10-10
 
-Die Antworten sind aus dem Freigabemodell von holzi und dem Verhalten von haex-vault begründet;
+Die Antworten sind aus dem Freigabemodell von holzi und dem Verhalten von haex-vault 2.x begründet;
 der Betreiber hat sie am 2026-10-10 bestätigt.
 
 - Q: Gehört die Lesezeichen-Synchronisation der Erweiterung dazu? → A: Nein. Sie läuft über
@@ -119,11 +119,11 @@ der Betreiber hat sie am 2026-10-10 bestätigt.
   unterstützt“, ohne zu fragen (FR-028). Eine eigene Spec kann sie später nachziehen.
 - Q: Läuft die Bridge nur bei offener Vault? → A: Ja. Ohne offene Vault gibt es weder Einträge
   noch Zulassungen. Schließen oder Sperren der Vault beendet alle Verbindungen und gibt den Port
-  frei (FR-003). haex-vault lauscht dagegen ab dem Start der App.
+  frei (FR-003). haex-vault 2.x lauscht dagegen ab dem Start der App.
 - Q: Ist die Bridge ab Werk eingeschaltet? → A: Nein. Sie öffnet einen Port auf dem Gerät; der
-  Nutzer schaltet sie je Gerät in den Einstellungen ein (FR-001). haex-vault startet sie ab Werk.
-- Q: Welcher Port? → A: Ab Werk 19455 wie in haex-vault, damit die Erweiterung ohne Änderung
-  ihrer Einstellung verbindet. Ist der Port belegt (etwa weil haex-vault läuft), sagt holzi das
+  Nutzer schaltet sie je Gerät in den Einstellungen ein (FR-001). haex-vault 2.x startet sie ab Werk.
+- Q: Welcher Port? → A: Ab Werk 19455 wie in haex-vault 2.x, damit die Erweiterung ohne Änderung
+  ihrer Einstellung verbindet. Ist der Port belegt (etwa weil haex-vault 2.x läuft), sagt holzi das
   und bietet an, einen anderen zu wählen; die Erweiterung hat dafür schon eine Einstellung.
 - Q: Auf welches Freigabemodell bildet holzi die Erklärung ab? → A: Auf die Freigabe aus 034
   (Art und Bereich), ohne Änderung der Semantik. Der Zulassungsdialog zeigt die Erklärung und
@@ -139,7 +139,7 @@ der Betreiber hat sie am 2026-10-10 bestätigt.
   Einzelabfrage des Dienstes (FR-020). So bleiben die Regeln des Dienstes unverändert, und die
   Erweiterung bekommt die Form, die sie erwartet.
 - Q: Wer bestätigt die Anwesenheit bei Passkeys? → A: Der Nutzer in einem Dialog von holzi, je
-  Zeremonie, ohne „Merken“ (FR-030). Die Auswahl in der Erweiterung („über haex-vault oder den
+  Zeremonie, ohne „Merken“ (FR-030). Die Auswahl in der Erweiterung („über haex-vault 2.x oder den
   Browser“, merkbar je Seite) zählt nicht als Nachweis: holzi kann sie nicht prüfen, und gemerkt
   ist sie nicht an eine Zeremonie gebunden.
 - Q: Setzt holzi nach der Anwesenheitsbestätigung auch UV (Nutzer verifiziert)? → A: Nur, wenn
@@ -148,8 +148,8 @@ der Betreiber hat sie am 2026-10-10 bestätigt.
   nur, dass jemand am entsperrten Gerät war, nicht wer; UV ohne erneute Prüfung wäre eine falsche
   Behauptung gegenüber der Gegenstelle (FR-033).
 - Q: Gibt es die Bridge auf Android? → A: Nein. holzi läuft auf Android nicht im Hintergrund
-  (043 FR-007), und haex-vault startet sie dort ebenfalls nicht.
-- Q: Leitet holzi Anfragen an installierte haextensions weiter (in haex-vault `requestedExtensions`
+  (043 FR-007), und haex-vault 2.x startet sie dort ebenfalls nicht.
+- Q: Leitet holzi Anfragen an installierte haextensions weiter (in haex-vault 2.x `requestedExtensions`
   mit Aktionen)? → A: Nein, nur an den Passwortmanager (Ziel `__core__`/`core`); alles andere wird
   abgelehnt (FR-029).
 
@@ -322,7 +322,7 @@ Verhalten offener Verbindungen prüfen.
 3. **Given** ein verbundener Client, **When** Anna Art oder Bereich ändert, **Then** gilt die
    Änderung ab der nächsten Anfrage.
 4. **Given** der Port ist belegt, **When** Anna die Bridge einschaltet, **Then** zeigt holzi „Port
-   belegt“ mit dem Hinweis, dass eine andere holzi-Instanz oder haex-vault ihn nutzen kann, und
+   belegt“ mit dem Hinweis, dass eine andere holzi-Instanz oder haex-vault 2.x ihn nutzen kann, und
    bietet an, einen anderen Port zu wählen.
 
 ---
@@ -355,7 +355,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 ### Edge Cases
 
-- **haex-vault läuft auf demselben Gerät**: Beide wollen Port 19455. Wer zuerst lauscht, hat ihn;
+- **haex-vault 2.x läuft auf demselben Gerät**: Beide wollen Port 19455. Wer zuerst lauscht, hat ihn;
   holzi meldet „Port belegt“ (US5). Die Erweiterung verbindet sich mit dem, der lauscht; welchen
   Dienst sie erreicht, sieht der Nutzer daran, wo der Zulassungsdialog erscheint.
 - **Zwei holzi-Instanzen** (Spec 030, je eine Vault): Nur eine kann die Bridge auf einem Port
@@ -428,8 +428,8 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   sprechen, dass die Erweiterung ohne Änderung verbindet, zugelassen wird und Passwort-Methoden
   aufruft: Nachrichtenarten Handshake, Handshake-Antwort, verschlüsselte Anfrage und Antwort,
   `authorizationUpdate`, Ping/Pong und Fehler; Umschläge mit Schlüsseltausch je Nachricht und
-  AES-256-GCM wie in haex-vault; Antworten mit `requestId`, `success`, `data`, `error` und, wo
-  haex-vault ihn sendet, `errorCode`.
+  AES-256-GCM wie in haex-vault 2.x; Antworten mit `requestId`, `success`, `data`, `error` und, wo
+  haex-vault 2.x ihn sendet, `errorCode`.
 - **FR-005**: holzi MUSS eine Verbindung vor dem Handshake schließen, wenn der Browser als Herkunft
   keine Browser-Erweiterung meldet (etwa `https://…`, `http://…`, `null`) oder keine Herkunft
   mitschickt. Andere Programme als Browser-Erweiterungen sind in dieser Spec keine Clients.
@@ -503,7 +503,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   ein.
 - **FR-020**: holzi MUSS die Treffer über die Kopfdaten des Dienstes finden und jeden Treffer mit
   einer Einzelabfrage des Dienstes lesen. Die Antwort MUSS je Treffer Kennung, Titel (ohne Titel
-  „Untitled“ wie haex-vault), Adresse, Felder (Benutzername, Passwort, eigene Felder und die Marke
+  „Untitled“ wie haex-vault 2.x), Adresse, Felder (Benutzername, Passwort, eigene Felder und die Marke
   `otp: "TOTP"`, wenn TOTP eingerichtet ist), den Hinweis auf TOTP und die Autofill-Aliase
   enthalten; nie das TOTP-Secret, Notiz, Anhänge oder Passkey-Schlüssel.
 - **FR-021**: Verweise in Feldern (ADR-0009) MUSS der Dienst auflösen; ein Feld, dessen Verweis eine
@@ -530,7 +530,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   ohne Anfrage und ohne Wirkung mit einer Ablehnung „nicht unterstützt“ beantworten; die Verbindung
   bleibt bestehen.
 - **FR-029**: Jede andere Methode und jede Anfrage an ein anderes Ziel als den Passwortmanager (in
-  haex-vault `__core__`/`core`) MUSS holzi ohne Anfrage und ohne Wirkung ablehnen.
+  haex-vault 2.x `__core__`/`core`) MUSS holzi ohne Anfrage und ohne Wirkung ablehnen.
 
 **Passkeys und Anwesenheitsbestätigung**
 
@@ -553,7 +553,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   der Vault erneut richtig eingegeben hat; nur dann MUSS die Anwesenheitsbestätigung danach fragen.
   Bei `"preferred"` und `"discouraged"` MUSS holzi UV nicht setzen und DARF nicht nach dem Passwort
   fragen. Ein falsches Passwort oder ein Abbruch der Eingabe MUSS wie Ablehnen wirken (FR-031).
-  Anders als haex-vault, das UV immer setzt, behauptet holzi UV nie ohne Prüfung.
+  Anders als haex-vault 2.x, das UV immer setzt, behauptet holzi UV nie ohne Prüfung.
 - **FR-034**: Für „Neuer Eintrag“ MUSS holzi zuerst einen Eintrag mit dem Namen der Gegenstelle als
   Titel, der Herkunft als Adresse, dem Benutzer als Benutzername und dem Standard-Tag der Zulassung
   anlegen und den Passkey daran; scheitert das Anlegen des Passkeys, MUSS auch der Eintrag
@@ -657,7 +657,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   aber keine Antwort lesen. Das ist eine bekannte Grenze der Vorlage; ein Nachweis braucht eine
   Änderung des Protokolls und ist nicht Teil dieser Spec.
 - Die Umschläge nehmen das gemeinsame Geheimnis des Schlüsseltauschs (X25519) unmittelbar als
-  AES-256-GCM-Schlüssel, ohne Ableitung (wie haex-vault und die Erweiterung). holzi übernimmt das
+  AES-256-GCM-Schlüssel, ohne Ableitung (wie haex-vault 2.x und die Erweiterung). holzi übernimmt das
   aus Kompatibilitätsgründen; der Plan bewertet es.
 - Die Verbindung selbst ist unverschlüsseltes `ws://` auf Loopback; vertraulich sind die Inhalte durch
   die Umschläge.
@@ -665,7 +665,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   FR-015 und Anwesenheitsbestätigungen brauchen länger. Ohne die Änderung 2 an der Erweiterung
   scheitern sie, wenn der Nutzer langsamer antwortet.
 - Die Erweiterung füllt heute die Marke `otp: "TOTP"` aus `get-items` in Felder für Einmalcodes und
-  ruft `get-totp` in der gepinnten Revision nicht auf. holzi liefert die Marke trotzdem wie haex-vault;
+  ruft `get-totp` in der gepinnten Revision nicht auf. holzi liefert die Marke trotzdem wie haex-vault 2.x;
   `get-totp` ist für eine korrigierte Erweiterung da.
 - Die registrierbare Domain bestimmt holzi mit der Liste öffentlicher Suffixe, die die Herkunftsprüfung
   des Passkey-Dienstes schon nutzt (ADR-0009).
@@ -685,8 +685,8 @@ Empfehlungen.
 2. **Längere Wartezeit (MUSS für Passkeys, SOLL sonst)**: `passkey-create` und `passkey-get` warten
    mindestens 120 Sekunden auf die Antwort statt 10 (Anwesenheitsbestätigung in holzi); `create-item`
    und `update-item` SOLLEN ebenso lange warten, weil holzi nach FR-015 fragen kann.
-3. **Neutrale Texte (SOLL)**: Texte wie „Bitte genehmige diese Verbindung in HaexVault“ und „Der Port,
-   auf dem HaexVault lauscht“ nennen „holzi oder haex-vault“ oder neutral „deine Vault-App“.
+3. **Neutrale Texte (SOLL)**: Texte wie „Bitte genehmige diese Verbindung in LegacyHaexVault“ und „Der Port,
+   auf dem LegacyHaexVault lauscht“ nennen „holzi oder haex-vault 2.x“ oder neutral „deine Vault-App“.
 4. **Lesezeichen (KANN)**: Antwortet der Dienst auf `bookmarks-*` mit „nicht unterstützt“, zeigt die
    Erweiterung die Lesezeichen-Synchronisation als nicht verfügbar, statt einen Fehler zu wiederholen.
 5. **Algorithmen (KANN)**: `passkey-create` schickt die Algorithmen der Gegenstelle mit und meldet den
@@ -697,13 +697,13 @@ Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, 
 ## Nicht im Umfang
 
 - Lesezeichen-Synchronisation (`bookmarks-*`); holzi hat keine Lesezeichen (FR-028).
-- Weiterleiten von Anfragen an installierte haextensions (in haex-vault `requestedExtensions` mit
+- Weiterleiten von Anfragen an installierte haextensions (in haex-vault 2.x `requestedExtensions` mit
   Aktionen) und andere Clients als Browser-Erweiterungen (Kommandozeile, Server).
 - Die External Bridge auf Android und anderen Mobilplattformen.
 - Löschen von Einträgen, Ordner, Tags verwalten, Papierkorb, Verlauf, Anhänge und Passkeys umbenennen
   oder löschen über die Bridge (FR-017).
 - Eine Änderung des Protokolls (Nachweis des Client-Schlüssels, Schlüsselableitung, TLS); sie
-  bräuchte eine abgestimmte Änderung an der Erweiterung und an haex-vault.
+  bräuchte eine abgestimmte Änderung an der Erweiterung und an haex-vault 2.x.
 - Benachrichtigungen an Clients über geänderte Einträge (FR-026).
 - Ein Anwesenheitsnachweis mit Biometrie oder Systemanmeldung; UV prüft holzi nur über das Passwort
   der Vault (FR-033).

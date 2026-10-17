@@ -34,7 +34,7 @@
 - Platform key conventions (Alt+Pfeil, Cmd+[/]), Android-Geste und Webview-Historie
   werden als nutzersichtbare Plattformkonventionen genannt, nicht als
   Implementierungsvorgabe.
-- Die Projektvorgaben (i18n-Stack, haex-vault-Referenz mit gepinntem SHA) stehen
+- Die Projektvorgaben (i18n-Stack, haex-vault-2.x-Referenz mit gepinntem SHA) stehen
   wie in Spec 015 als Randbedingungen unter „Annahmen“, nicht in den Anforderungen.
 - Die Aktions-Registry (FR-024–FR-033) ist agentenfähig beschrieben, gibt
   Agenten aber noch keinen Zugang (Spec 021); das Umbelegen von Kürzeln folgt in

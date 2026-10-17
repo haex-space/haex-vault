@@ -75,8 +75,8 @@ test('the reason of a failed import is read from the error, nothing else is', ()
   assert.equal(importFailureReason(null), null)
 })
 
-test('haex-vault asks for its vault password and no key file, KeePass for both', () => {
-  assert.deepEqual(sourceSecrets('haexvault'), {
+test('haex-vault 2.x (Legacy) asks for its vault password and no key file, KeePass for both', () => {
+  assert.deepEqual(sourceSecrets('legacyhaexvault'), {
     password: true,
     keyFile: false,
   })
@@ -88,17 +88,17 @@ test('haex-vault asks for its vault password and no key file, KeePass for both',
 })
 
 test('the preview needs the file and what the source needs to open it', () => {
-  assert.equal(canPreviewImport('haexvault', true, false, false), false)
-  assert.equal(canPreviewImport('haexvault', true, false, true), false)
-  assert.equal(canPreviewImport('haexvault', true, true, false), true)
-  assert.equal(canPreviewImport('haexvault', false, true, false), false)
+  assert.equal(canPreviewImport('legacyhaexvault', true, false, false), false)
+  assert.equal(canPreviewImport('legacyhaexvault', true, false, true), false)
+  assert.equal(canPreviewImport('legacyhaexvault', true, true, false), true)
+  assert.equal(canPreviewImport('legacyhaexvault', false, true, false), false)
   assert.equal(canPreviewImport('keepass', true, false, true), true)
   assert.equal(canPreviewImport('keepass', true, false, false), false)
   assert.equal(canPreviewImport('lastpass', true, false, false), true)
 })
 
-test('the reasons of the haex-vault source are read like the others', () => {
-  for (const reason of ['haex_vault_locked', 'no_passwords']) {
+test('the reasons of the haex-vault 2.x source are read like the others', () => {
+  for (const reason of ['legacy_haex_vault_locked', 'no_passwords']) {
     assert.equal(
       importFailureReason({ kind: 'PasswordsImportFailed', reason }),
       reason,

@@ -576,8 +576,8 @@ Dateien, und der Ordner steht nicht mehr in der Liste.
   zwischen eigenen Geräten und den Datensync der Vault. Diese Spec baut darauf auf und fügt keine
   eigene Anmeldung hinzu.
 - Übertragen wird über iroh, Dateiinhalte als geprüfte, fortsetzbare iroh-Blobs (Betreibervorgabe).
-  Wie Objekte zerlegt und verschlüsselt werden, legt der Plan fest; haex-vault
-  (`https://github.com/haex-space/haex-vault` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
+  Wie Objekte zerlegt und verschlüsselt werden, legt der Plan fest; haex-vault 2.x (Legacy)
+  (`https://github.com/haex-space/haex-vault-legacy` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
   `src-tauri/src/file_sync/crypto/envelope.rs`) dient als Vorbild, nicht als Vorlage.
 - Ob ein Gerät Objekte zum Weitergeben verschlüsselt aufbewahrt oder bei Bedarf aus der lokalen
   Datei erzeugt, entscheidet der Plan. FR-020, FR-021 und FR-047 gelten in beiden Fällen.

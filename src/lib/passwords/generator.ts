@@ -1,5 +1,5 @@
 // Password generator (spec 034-password-manager, US3, FR-013, FR-014, research R10): length,
-// character classes, excluded characters or a pattern. Written new instead of copied from haex-vault:
+// character classes, excluded characters or a pattern. Written new instead of copied from haex-vault 2.x (Legacy):
 // the choice has no modulo bias (rejection sampling), every chosen class occurs at least once, a
 // choice that allows no output returns an error code instead of an empty password, and the pattern
 // can escape its letters. The password exists only here, in the window, when the user asks for one.
@@ -38,7 +38,7 @@ const CLASS_CHARS = {
   symbols: '!@#$%^&*()_+-=[]{}|;:,.<>?',
 } as const
 
-/** The letters of pattern mode (the notation of haex-vault). */
+/** The letters of pattern mode (the notation of haex-vault 2.x). */
 const PATTERN_CHARS: Record<string, string> = {
   c: 'bcdfghjklmnpqrstvwxyz',
   C: 'BCDFGHJKLMNPQRSTVWXYZ',

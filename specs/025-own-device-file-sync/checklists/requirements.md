@@ -40,7 +40,7 @@
   domain terms shared with specs 027 and 028, not an implementation choice.
 - Operator decisions D1, D2, D8, D10, D11, D12, D13 and design §7 are recorded as Q → A in the
   Clarifications, dated by the design's decision table.
-- The haex-vault reference in the Assumptions is pinned as repository + full SHA + path; it is a
+- The haex-vault 2.x (Legacy) reference in the Assumptions is pinned as repository + full SHA + path; it is a
   model to learn from, not a requirement.
 - Plan material, deliberately left open: how objects are chunked and encrypted, whether a device
   keeps encrypted copies for serving or derives them from the local file (FR-020, FR-021, FR-047),

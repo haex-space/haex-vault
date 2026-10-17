@@ -13,7 +13,9 @@ use crate::error::{HolziError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::passwords::access::Caller;
 use crate::passwords::import::apply::{self, Control, OnDuplicate, Progress};
-use crate::passwords::import::haex_vault::{self, WARNING_CLOSE_FIRST, WARNING_HAEX_PASS_TABLES};
+use crate::passwords::import::legacy_haex_vault::{
+    self, WARNING_CLOSE_FIRST, WARNING_HAEX_PASS_TABLES,
+};
 use crate::passwords::import::{self, Credentials, ExistingKeys, ImportModel, ImportSource};
 use crate::passwords::model::{ImportPreview, ImportReport};
 use crate::passwords::{IMPORT_INPUT_LIMIT_BYTES, TRASH_GROUP_ID};
@@ -71,7 +73,7 @@ fn read_all_limited(reader: impl Read, limit: u64) -> Result<Zeroizing<Vec<u8>>>
     Ok(bytes)
 }
 
-/// Reads the file (and key file) and parses it, off the async threads. A haex-vault file is a
+/// Reads the file (and key file) and parses it, off the async threads. A haex-vault 2.x (Legacy) file is a
 /// database and is read from a path (spec 037): a chosen path as it is, together with its `-wal`;
 /// a provider address (Android, spec 043) is copied into the app's temporary folder first, and a
 /// `-wal` beside it cannot be reached (contract `picked-file.md`).
@@ -80,19 +82,21 @@ async fn read_model(
     request: ImportRequest,
 ) -> Result<ReadFile> {
     tauri::async_runtime::spawn_blocking(move || {
-        if request.source == ImportSource::HaexVault {
+        if request.source == ImportSource::LegacyHaexVault {
             let credentials = Credentials {
                 password: request.password,
                 key_file: None,
             };
             let read = match picked::resolve(&opener, &request.file)? {
-                tauri_plugin_fs::FilePath::Path(path) => haex_vault::read(&path, &credentials)?,
+                tauri_plugin_fs::FilePath::Path(path) => {
+                    legacy_haex_vault::read(&path, &credentials)?
+                }
                 tauri_plugin_fs::FilePath::Url(_) => {
                     let dir = tempfile::tempdir().map_err(|_| failed("unreadable"))?;
-                    let copy = dir.path().join("haex-vault.db");
+                    let copy = dir.path().join("legacy-haex-vault.db");
                     picked::copy_into(&opener, &request.file, &copy)
                         .map_err(|_| failed("unreadable"))?;
-                    haex_vault::read(&copy, &credentials)?
+                    legacy_haex_vault::read(&copy, &credentials)?
                 }
             };
             let mut warnings = vec![WARNING_CLOSE_FIRST.to_string()];

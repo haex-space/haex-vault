@@ -1,7 +1,7 @@
 # Research: Verschlüsselte Ordner in Speichern (048)
 
 Stand 2026-10-10. Zitate aus holzi beziehen sich auf den Stand von `main` bei `43b481d4`; Zitate aus
-haex-vault auf Repository `https://github.com/haex-space/haex-vault`, Revision
+haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfade unter `src-tauri/src/file_sync/`.
 
 ## R1 — Woher der Schlüssel der Vault kommt
@@ -33,7 +33,7 @@ haex-vault auf Repository `https://github.com/haex-space/haex-vault`, Revision
   bleiben über ihre alte Generation lesbar; ein entferntes Gerät, das einen Ordnerschlüssel schon
   kannte, behält ihn (Entzug ist nicht im Umfang). Die Spec wird um diesen Randfall ergänzt.
 - **Alternatives considered**:
-  - Identitätsgeheimnis wie haex-vault (`vault_key_derivation.rs:52-57`): nur auf Hauptgeräten.
+  - Identitätsgeheimnis wie haex-vault 2.x (`vault_key_derivation.rs:52-57`): nur auf Hauptgeräten.
   - Eigener, synchronisierter Dateischlüssel in einer neuen Tabelle: zweiter Schlüsseltausch neben
     `vault_key_envelopes`, verstößt gegen „eine Umsetzung je Regel“.
   - Köpfe bei jeder neuen Generation neu verpacken: bringt ohne Entzug nichts, weil entfernte Geräte
@@ -54,11 +54,11 @@ haex-vault auf Repository `https://github.com/haex-space/haex-vault`, Revision
   liefert); `age` oder `rage` (kein Lesen von Teilbereichen, eigenes Kopfformat ohne
   Schlüsselhierarchie).
 
-## R3 — Was holzi von haex-vault übernimmt und was nicht
+## R3 — Was holzi von haex-vault 2.x übernimmt und was nicht
 
 Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als Angreifer:
 
-| Befund in haex-vault                                                                                                                     | Folge für 048                                                                           |
+| Befund in haex-vault 2.x                                                                                                                 | Folge für 048                                                                           |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Kein AAD in Blöcken und Schlüsselumschlägen (`chunk.rs:108-110`, `:127-129`; `dek_wrap.rs:57`)                                           | Jeder Block bindet Kopf, Objekt-Id, Index und „letzter Block“ als AAD (FR-022)          |
 | Kürzen an einer Blockgrenze unerkannt; keine Prüfung gegen Größe oder Hash (`content.rs:59-66`, `:152-164`; `provider.rs:486-489`)       | Merker „letzter Block“ im AAD, Größe aus der Begleitdatei geprüft (FR-023)              |
@@ -74,7 +74,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 - **Decision**: holzi übernimmt das Modell (Umschlag mit Kopf, Blöcke, zufällige Objektnamen,
   verschlüsselte Begleitdateien, Schlüssel je Datei), nicht den Code und nicht das Format. Das Format
   heißt `HXEF` v1 und ist in [contracts/format.md](./contracts/format.md) beschrieben; es ist nicht mit
-  `HXFE` von haex-vault kompatibel (das wäre nur mit allen Lücken zu haben).
+  `HXFE` von haex-vault 2.x kompatibel (das wäre nur mit allen Lücken zu haben).
 - **Alternatives considered**: Code übernehmen und nachbessern (die Lücken stecken im Format selbst,
   Nachbessern bricht es ohnehin); Cryptomator-Format v8 (Dateinamen als einzelne Objekte je Ordner,
   Ordner-IDs als Dateien, Schlüsseldatei mit scrypt-Passwort: passt nicht zur Schlüsselhierarchie ohne
@@ -90,7 +90,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
   (SC-005: ≤ 1 %). Die Teile eines mehrteiligen Uploads (8 MiB, `transfer/remote.rs:32`) schneiden den
   verschlüsselten Strom ohne Rücksicht auf Blockgrenzen (128 Blöcke sind 8 MiB + 2 048 Byte); das ist
   ohne Belang, weil Teile nur Bytebereiche sind und ein neuer Versuch dieselben Bytes schickt.
-- **Alternatives considered**: 1 MiB wie haex-vault (grobe Teilbereiche, mehr Last bei Sprüngen);
+- **Alternatives considered**: 1 MiB wie haex-vault 2.x (grobe Teilbereiche, mehr Last bei Sprüngen);
   32 KiB wie Cryptomator (doppelt so viele Tags, kein spürbarer Vorteil bei S3-Latenzen).
 
 ## R5 — Teilbereiche lesen und Medien
@@ -100,7 +100,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
   lädt sie mit einem `get_range`, prüft und entschlüsselt sie und schneidet zu. Die letzten zwei Fenster
   bleiben im Arbeitsspeicher (höchstens 16 MiB je offener Datei, SC-004).
 - **Rationale**: Der Medienserver bleibt unverändert; Tokens, Range und Freigabe-URLs gelten wie in 044.
-- **Alternatives considered**: Ganze Datei in eine Temp-Datei wie haex-vault (Klartext auf der Platte,
+- **Alternatives considered**: Ganze Datei in eine Temp-Datei wie haex-vault 2.x (Klartext auf der Platte,
   Widerspruch zu FR-015 und FR-026).
 
 ## R6 — Ordneransicht aufbauen (Begleitdateien schnell lesen)
@@ -138,7 +138,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 - **Rationale**: Anbieter wie S3 kennen keine Transaktionen über mehrere Objekte; die Reihenfolge
   „neu schreiben, dann alt löschen“ verliert nie Daten, und `base` erkennt gleichzeitiges Schreiben ohne
   bedingte Schreibvorgänge.
-- **Alternatives considered**: Pfad als Schlüssel wie haex-vault (teures Umbenennen); bedingtes
+- **Alternatives considered**: Pfad als Schlüssel wie haex-vault 2.x (teures Umbenennen); bedingtes
   Schreiben mit `If-Match` (nicht von allen S3-kompatiblen Anbietern unterstützt).
 
 ## R8 — Verschlüsselte Ordner in gewöhnlichen Ordnern finden

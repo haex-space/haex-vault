@@ -1,9 +1,9 @@
 //! Parsing one statement of extension SQL.
 //!
-//! Ported from haex-space/haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
+//! Ported from haex-space/haex-vault-legacy `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
 //! `src-tauri/src/database/core/parsing.rs` (`parse_sql_statements`) and
 //! `src-tauri/src/extension/database/planner.rs` (`parse_single_statement`). Changed: the SQL is
-//! parsed as written (haex-vault collapsed all whitespace first, which also changed string
+//! parsed as written (haex-vault 2.x (Legacy) collapsed all whitespace first, which also changed string
 //! literals), and exactly one statement is accepted.
 
 use haex_crdt::sqlparser::ast::Statement;

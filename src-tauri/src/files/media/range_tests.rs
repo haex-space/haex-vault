@@ -4,7 +4,7 @@ fn part(start: u64, end: u64) -> Span {
     Span::Part { start, end }
 }
 
-// Cases taken over from haex-vault `remote_storage/streaming/protocol.rs` (revision
+// Cases taken over from haex-vault 2.x (Legacy) `remote_storage/streaming/protocol.rs` (revision
 // fc4e84b61a050576ba42e0dc832d04064a8605a3), where they still hold.
 
 #[test]
@@ -31,7 +31,7 @@ fn a_suffix_range_takes_the_last_bytes() {
     assert_eq!(span(Some("bytes=-5000"), 1000), part(0, 999));
 }
 
-/// Unlike haex-vault: an end past the file is cut to its last byte (RFC 7233 §2.1).
+/// Unlike haex-vault 2.x: an end past the file is cut to its last byte (RFC 7233 §2.1).
 #[test]
 fn an_end_past_the_file_is_cut() {
     assert_eq!(span(Some("bytes=0-1000"), 1000), part(0, 999));

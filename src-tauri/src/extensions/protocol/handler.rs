@@ -2,7 +2,7 @@
 //! an open frame of that extension runs, read from the vault and hashed again.
 //!
 //! The extension is chosen by the path alone, never by Origin, Referer or a "last extension" cache
-//! (the gap in haex-vault `protocol.rs:21-24, 498-560`). An HTML document is served only with the
+//! (the gap in haex-vault 2.x (Legacy) `protocol.rs:21-24, 498-560`). An HTML document is served only with the
 //! start token of an open frame of that extension (R13), gets the frame shim and, like every
 //! response, the CSP of its bundle. Paths without a file extension fall back to the entry page
 //! (SPA routes). Nothing is served while no frame of the extension is open.

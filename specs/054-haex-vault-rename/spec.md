@@ -158,8 +158,8 @@ App; eine Stichprobe von Specs 034 und 037 bestätigt es.
 **Acceptance Scenarios**:
 
 1. **Given** der Stand vor der Umbenennung, **When** der Betreiber nach „haex-vault“ sucht, **Then**
-   trägt jede Fundstelle, die die alte App meint, die Markierung „2.x (Legacy)“ oder den Zusatz
-   `legacy`.
+   trägt jede Fundstelle, die die alte App meint, die Markierung „2.x“ (beim ersten Auftreten je
+   Datei „2.x (Legacy)“) oder den Zusatz `legacy`.
 2. **Given** das Importmodul für die alte App, **When** der Betreiber es im Code sucht, **Then**
    heißt es `legacy_haex_vault`.
 
@@ -293,7 +293,10 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
 **Der alte Name haex-vault**
 
 - **FR-017**: Vor FR-001 wird jede Erwähnung der alten App in Specs, Doku, Kommentaren und Code als
-  „haex-vault 2.x (Legacy)“ gekennzeichnet; das Importmodul heißt `legacy_haex_vault`.
+  „haex-vault 2.x (Legacy)“ gekennzeichnet, in einer Datei beim ersten Auftreten mit dem Zusatz
+  „(Legacy)“, danach als „haex-vault 2.x“; Bezeichner und Dateinamen tragen `legacy`; das
+  Importmodul heißt `legacy_haex_vault`. Verweise auf das Repo der alten App zeigen auf
+  `haex-space/haex-vault-legacy`.
 - **FR-018**: Verzeichnisnamen der Specs (`specs/0xx-…`) bleiben, auch wenn sie den alten Namen
   tragen, weil Verweise und PR-Titel auf sie zeigen; die Dateien darin folgen FR-001.
 
@@ -358,7 +361,9 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
   Mehrgeräte-Tests aus [Spec 033](../033-multi-device-e2e/spec.md) laufen unverändert in ihren
   bisherigen Wartezeiten durch.
 - **SC-005**: Keine Fundstelle von „haex-vault“ in Specs, Doku und Code ist doppeldeutig: Jede, die
-  die alte App meint, trägt die Markierung „2.x (Legacy)“.
+  die alte App meint, trägt die Markierung „2.x“ (beim ersten Auftreten je Datei „2.x (Legacy)“)
+  oder `legacy`; bewusst ausgenommen sind Dateinamen und der Verzeichnisname
+  `037-haex-vault-import` (FR-018).
 - **SC-006**: Die Adresse `haexmas/holzi` und ein alter PR (#474) führen nach dem Umzug auf das
   neue Repo; das Legacy-Repo ist archiviert und verweist auf das neue.
 - **SC-007**: Jedes betroffene Geschwister-Repo baut und testet nach der Umstellung grün, und

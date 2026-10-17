@@ -3,4 +3,4 @@
 /**
  * The formats the import reads.
  */
-export type ImportSource = "keepass" | "bitwarden" | "lastpass" | "haexvault";
+export type ImportSource = "keepass" | "bitwarden" | "lastpass" | "legacyhaexvault";

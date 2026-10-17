@@ -5,7 +5,7 @@ Repository `https://github.com/haexmas/haex-crdt`. Umgesetzt in haexmas/haex-crd
 und BLOB-Schlüssel reisen typtreu) und #38 (Zeilen aus der Zeit vor dem HLC werden beim Öffnen
 gestempelt); holzi pinnt den Merge von #38, `d35d43f9250a7d9a7d2dca3a0c8ee7ffabc750a7`
 (Constitution IV). Die Änderung ist allgemein und
-enthält nichts holzi-Eigenes. Rückwärtsverträglichkeit war nicht verlangt: holzi löst haex-vault
+enthält nichts holzi-Eigenes. Rückwärtsverträglichkeit war nicht verlangt: holzi löst haex-vault 2.x (Legacy)
 ab (Betreiber-Entscheidung). Begründung: research R19.
 
 ## E1 Transaktion mit mehreren CRDT-Anweisungen

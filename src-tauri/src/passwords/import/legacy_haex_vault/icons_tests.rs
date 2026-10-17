@@ -30,7 +30,7 @@ fn every_table_entry_points_at_a_target() {
 }
 
 #[test]
-fn lucide_names_of_haex_vault_become_the_same_picture() {
+fn lucide_names_of_legacy_haex_vault_become_the_same_picture() {
     assert_eq!(map_icon("i-lucide-key"), Some("lucide:key"));
     assert_eq!(map_icon("i-lucide-trash-2"), Some("lucide:trash-2"));
     assert_eq!(map_icon("lucide:mail"), Some("lucide:mail"));

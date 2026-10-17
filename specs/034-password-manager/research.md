@@ -4,7 +4,7 @@
 
 Jede Entscheidung: **Entscheidung**, **Begründung**, **verworfene Alternativen**.
 Belege sind Dateien im Repository (Stand `main` am 2026-10-02) und im Quellstand von
-haex-vault (`8dce379d94e18fcd42c3b73686a06f984ca3f574`). Wo etwas aus allgemeinem
+haex-vault 2.x (Legacy) (`8dce379d94e18fcd42c3b73686a06f984ca3f574`). Wo etwas aus allgemeinem
 Wissen und nicht aus dem Code stammt, steht es dabei. **Nicht geprüft** wurde, ob die
 neuen bzw. direkt gemachten Crates (`keepass`, `csv`, `sha1`, `p256`, `ed25519-dalek`,
 `pkcs1`, `spki`, `unicode-normalization`, `tauri-plugin-clipboard-manager`) mit den
@@ -24,10 +24,10 @@ Migrationszahl und Triggerversion; Geräte mit ungleichem Stand synchronisieren 
 an. Das SQL liegt in einer neuen Datei `identity/migrations_passwords.rs` (Konstante),
 `migrations.rs` registriert sie mit einer Zeile. `HOLZI_TRIGGER_VERSION` wird auf 14
 erhöht, mit einer Zeile im Doc-Kommentar der Konstante. Die Tabellen heißen wie in
-haex-vault `haex_passwords_*`; haex-crdt behandelt das Präfix nicht besonders (nur
+haex-vault 2.x `haex_passwords_*`; haex-crdt behandelt das Präfix nicht besonders (nur
 `haex_crdt_*` und `haex_app_migrations_*` sind von den Änderungsereignissen
 ausgenommen, `db/connection_context.rs:53` im gepinnten Stand `aeb26eb`). Spalten und ihre
-Bedeutung wie in haex-vault; die Abweichungen listet [data-model.md](./data-model.md).
+Bedeutung wie in haex-vault 2.x; die Abweichungen listet [data-model.md](./data-model.md).
 
 **Begründung**: Eine Migration je Spec ist das Muster der Vorgänger. Der Trigger-Bump ist
 zwingend, sonst wären die Tabellen auf bestehenden Vaults nicht synchron (der Test
@@ -47,7 +47,7 @@ Das gilt für jede Schemaänderung und wird in den Hinweisen des Quickstarts gen
 
 **Befund**: haex-crdt bricht beim Anwenden entfernter Änderungen den **ganzen Abgleich** ab,
 wenn ein INSERT eine UNIQUE-, NOT-NULL- oder PK-Regel verletzt (`ApplyPolicy::on_insert_constraint`
-liefert `Abort`; `sync/inbound.rs:270` übergibt keine eigene Policy). In haex-vault gibt es
+liefert `Abort`; `sync/inbound.rs:270` übergibt keine eigene Policy). In haex-vault 2.x gibt es
 UNIQUE auf `haex_passwords_tags.name`, `haex_passwords_passkeys.credential_id` und dem Paar
 `(item_id, tag_id)`. Legen zwei Geräte unabhängig denselben Tagnamen an, hätten sie zwei
 Zeilen mit verschiedenen Kennungen, und der nächste Abgleich bräche ab. Gleiche
@@ -95,7 +95,7 @@ Aufrüstweg: eigene `ApplyPolicy` im Sync.
 
 ## R3 — Papierkorb: besonderer Ordner, Herkunft wird gemerkt, Kinder zuerst löschen
 
-**Befund**: haex-vault führt den Papierkorb als Ordner mit der festen Kennung `trash`,
+**Befund**: haex-vault 2.x führt den Papierkorb als Ordner mit der festen Kennung `trash`,
 legt ihn lazy an (Fehler beim Einfügen werden verschluckt, der Name ist fest deutsch) und
 **vergisst beim Wiederherstellen den früheren Ort** (`stores/passwords/groups.ts`:
 Wiederherstellen setzt die Gruppe auf `NULL`). Die Spec verlangt den früheren Ort (FR-016).
@@ -124,13 +124,13 @@ Backend-Recherche, Abschnitt 4).
   Anwendung verlässt sich nicht darauf. Ein Zwei-Geräte-Test belegt, dass jede Zeile ihren
   eigenen Löschmarker hat und beim Peer ankommt.
 - Ein Ordner, der im Papierkorb liegt, ist nicht als Ziel für Verschieben erlaubt; das
-  Zyklus-Verbot (FR-010) prüft Rust bei jedem Verschieben (haex-vault prüft nur beim
+  Zyklus-Verbot (FR-010) prüft Rust bei jedem Verschieben (haex-vault 2.x prüft nur beim
   Mehrfachverschieben).
 - Ein Eintrag oder Ordner, dessen Ordner bei einem Peer gelöscht wurde, hat einen hängenden
   Verweis. Abfragen behandeln unbekannte Ordner wie die Wurzel (`LEFT JOIN`).
 
 **Begründung**: Die zwei Spalten sind die kleinste Abweichung, die FR-016 erfüllt, und sie
-sind additiv (haex-vault-Abfragen laufen weiter). Explizites Löschen macht das Verhalten
+sind additiv (haex-vault-2.x-Abfragen laufen weiter). Explizites Löschen macht das Verhalten
 unabhängig von einer ungeprüften Annahme über die Kaskade.
 
 **Verworfen**:
@@ -155,14 +155,14 @@ unabhängig von einer ungeprüften Annahme über die Kaskade.
   laufen auf einer gesperrten Verbindung und große Abfragen werden vollständig geladen.
 - Beim Aufräumen entsteht ein **Wettlauf**: Gerät A sieht eine Binärzeile ohne Verweis,
   weil der Verweis von Gerät B noch nicht eingetroffen ist, löscht sie, und der Löschmarker
-  wandert zu B und löscht dort die Datei, die B braucht. haex-vault räumt beim Öffnen
+  wandert zu B und löscht dort die Datei, die B braucht. haex-vault 2.x räumt beim Öffnen
   ohne Rücksicht darauf auf.
 - Es gibt keinen Zugriff aus dem Webview auf das Dateisystem: `plugin-fs` ist deklariert,
   aber nicht registriert; `capabilities/default.json` erlaubt nur `dialog:allow-open`.
 
 **Entscheidung**:
 
-- Spalte `haex_passwords_binaries.data` ist `BLOB`, Größe und Hash wie in haex-vault; der Hash
+- Spalte `haex_passwords_binaries.data` ist `BLOB`, Größe und Hash wie in haex-vault 2.x; der Hash
   ist der SHA-256 der Rohdaten (nicht der Base64-Zeichen).
 - Das Limit von **25 MiB** prüft Rust über `metadata().len()` **bevor** es liest, und noch
   einmal an der gelesenen Länge. Fehler: `PasswordsAttachmentTooLarge { bytes, limit }`.
@@ -174,7 +174,7 @@ unabhängig von einer ungeprüften Annahme über die Kaskade.
 - Jeder Anhang wird in einem **eigenen** `write` geschrieben (Summe je Transaktion unter
   100 MiB); BLOB-Spalten werden nur in eigenen Abfragen gelesen, nie in Listen.
 - Die Fremdschlüssel von `item_binaries.binary_hash` und `snapshot_binaries.binary_hash`
-  auf `binaries.hash` sind `ON DELETE RESTRICT` (haex-vault: `CASCADE`). Lokal kann so keine
+  auf `binaries.hash` sind `ON DELETE RESTRICT` (haex-vault 2.x: `CASCADE`). Lokal kann so keine
   Binärzeile gelöscht werden, die noch einer braucht.
 - **Aufräumen** (`prune_binaries`) löscht nur Binärzeilen ohne Verweis, deren `orphaned_at` mindestens
   **sieben Tage** zurückliegt. `created_at` bezeichnet nur die Anlage und entscheidet nicht über
@@ -205,7 +205,7 @@ die Karenzzeit schließt den Wettlauf, ohne einen Sync-Eingriff zu verlangen.
 - _Sofortiges Aufräumen_: Datenverlust im Wettlauf (Befund).
 - _`plugin-fs` im Frontend_: zusätzliche Plugin-Registrierung und breite Rechte.
 - _Zeilenweise Aufteilung großer Dateien in Blöcke (Tabelle `…_chunks`)_: sauberer für den
-  Sync, aber ein anderes Datenmodell als haex-vault.
+  Sync, aber ein anderes Datenmodell als haex-vault 2.x.
 
 **ponytail**: Es gibt kein Gesamtbudget für Anhänge; ein erster Vollabruf lädt alle
 Binärzellen auf einmal in den Speicher (zwei Kopien je Zelle). Aufrüstweg: gestaffeltes
@@ -214,7 +214,7 @@ auf Mobilgeräten (Content-URIs) braucht es später `plugin-fs` oder einen Strea
 
 ## R5 — Verlauf: Stand nach der Änderung, ein Format, Wiederherstellen wird neu gebaut
 
-**Befund**: haex-vault speichert nach **jedem** Speichern einen Stand des **neuen**
+**Befund**: haex-vault 2.x speichert nach **jedem** Speichern einen Stand des **neuen**
 Zustands (auch beim Anlegen), ohne Obergrenze und ohne „unverändert überspringen“. Es gibt
 zwei Formate des Standes (die Bridge schreibt `tags: null` und die OTP-Felder; die
 Oberfläche liest `tagNames`). Die Oberfläche kann den Verlauf nur ansehen; ein
@@ -228,7 +228,7 @@ Wiederherstellen gibt es nicht.
 - **Ein** Format, `SnapshotData` mit `version: 1`, ein Obermengen-Format: Titel, Benutzername,
   Passwort, Adresse, Notiz, Symbol, Farbe, Ablaufdatum, `otpSecret`, `otpDigits`, `otpPeriod`,
   `otpAlgorithm`, `autofillAliases`, `tagNames`, `keyValues`, `attachments {fileName, binaryHash}`.
-  Der Leser toleriert fehlende Felder (Stände aus haex-vault).
+  Der Leser toleriert fehlende Felder (Stände aus haex-vault 2.x).
 - Ein Stand entsteht nicht, wenn er dem jüngsten gleicht.
 - **Wiederherstellen** ist ein Speichern mit den Werten des Standes (Tags werden per Name
   gesucht oder angelegt, Anhänge per Hash und Dateiname verknüpft, fehlt die Binärzeile,
@@ -237,7 +237,7 @@ Wiederherstellen gibt es nicht.
 - Die Liste zeigt je Stand nur, **welche Felder** sich gegenüber dem Vorgänger geändert haben;
   Werte holt `passwords_history_reveal` einzeln (FR-005).
 
-**Verworfen**: _Stand vor der Änderung speichern_ (haex-vault-Daten wären nicht lesbar
+**Verworfen**: _Stand vor der Änderung speichern_ (haex-vault-2.x-Daten wären nicht lesbar
 gleich), _Obergrenze der Stände_ (ohne Messung unnötig, siehe Annahmen der Spec).
 
 ## R6 — Zugriff: Aufrufer, Freigabe und Bereich als Rust-Modul; der Aufrufer ergibt sich aus dem Eingang
@@ -245,7 +245,7 @@ gleich), _Obergrenze der Stände_ (ohne Messung unnötig, siehe Annahmen der Spe
 **Befund**: Es gibt in Rust weder ein Aufrufer- noch ein Freigabe-Konzept; ein Tauri-Command
 sieht nur `State` und `AppHandle` (Bericht Abschnitt 9). Der Aktionsläufer im Frontend kennt
 `ActionCaller` (`user | builtinAgent | externalAgent`), aber keine Freigaben (Bericht
-Frontend, Abschnitt 3). haex-vault prüft Tag-Bereiche in `check/passwords.rs` mit den Regeln:
+Frontend, Abschnitt 3). haex-vault 2.x prüft Tag-Bereiche in `check/passwords.rs` mit den Regeln:
 Vereinigung der Tags, `*` deckt alles, `ReadWrite` deckt `Read`, Außerhalb des Bereichs ist
 nicht von „nicht vorhanden“ zu unterscheiden, beim Anlegen und Ändern muss ein Tag im
 Bereich bleiben.
@@ -280,8 +280,8 @@ Oberfläche (FR-024). Wichtig:
   bleiben unverändert** (Klärung): der Aufrufer sieht sie, kann sie aber weder entfernen noch
   hinzufügen noch umbenennen oder löschen; ein neues Tag außerhalb des Bereichs in der
   gesendeten Liste ist `Forbidden`, damit er einen Eintrag nicht in den Bereich eines anderen
-  Aufrufers hebt. haex-vault ersetzt dagegen die ganze Tagliste und entfernt unsichtbare Tags
-  still. Es gibt **keine** automatische Standard-Tag-Ergänzung wie in haex-vault.
+  Aufrufers hebt. haex-vault 2.x ersetzt dagegen die ganze Tagliste und entfernt unsichtbare Tags
+  still. Es gibt **keine** automatische Standard-Tag-Ergänzung wie in haex-vault 2.x.
 - **Löschen** durch andere Aufrufer als `User` verschiebt in den Papierkorb (FR-015); endgültiges
   Löschen, Wiederherstellen und Papierkorb leeren sind `User` vorbehalten (Z8, Z11).
 - **Nutzungsmeldung statt reservierter Tags** (Klärung): eine holzi-Funktion meldet über das Trait
@@ -330,12 +330,12 @@ die Liste der Konten an einen Cloud-Anbieter geht (R14, R20).
 liegt, liegt auch in Heap-Dumps, in der Verlaufsliste der Entwicklerwerkzeuge und in
 fehlerhaft geloggten Zuständen. Die Kosten (Teil-Update, Reveal-Command) sind klein.
 
-**Verworfen**: _Alle Felder im Klartext laden wie haex-vault_ (der Store dort lädt sogar
+**Verworfen**: _Alle Felder im Klartext laden wie haex-vault 2.x (Legacy)_ (der Store dort lädt sogar
 alle Passwörter aller Einträge in den Speicher).
 
 ## R8 — TOTP in Rust, ohne neue Bibliothek außer SHA-1
 
-**Befund**: `otpauth` im Frontend (haex-vault) rechnet im Webview. In holzi gibt es weder
+**Befund**: `otpauth` im Frontend (haex-vault 2.x) rechnet im Webview. In holzi gibt es weder
 `totp-rs` noch `base32`; `hmac` 0.13 und `sha2` 0.11 sind direkte Abhängigkeiten, `sha1` nur
 transitiv.
 
@@ -345,7 +345,7 @@ ignoriert) wird selbst geschrieben (rund 30 Zeilen, mit den Testvektoren der RFC
 kommt als direkte Abhängigkeit hinzu (RustCrypto, gleiche Familie wie `sha2`). Eingabe wird
 geprüft: Ziffern 6–10, Periode 1–300 s, Algorithmus aus der Liste, Secret dekodierbar;
 sonst `InvalidInput` mit Feldnamen. `parse_otp_input` nimmt `otpauth://totp/…` oder ein
-nacktes Secret (Verhalten von `parseOtpData` aus haex-vault, plus die Prüfung, die dort fehlt).
+nacktes Secret (Verhalten von `parseOtpData` aus haex-vault 2.x, plus die Prüfung, die dort fehlt).
 
 **Defaults und ungültige Daten**: Beim Anlegen und Ändern wird ein ungültiger Wert abgelehnt
 (`InvalidInput` mit Feldname) und ein fehlender bekommt den Standard (6, 30, `SHA1`). Gelesen
@@ -381,7 +381,7 @@ _`arboard` direkt_ (Plugin bringt Mobil-Unterstützung und Capability-Modell).
 
 ## R10 — Generator im Frontend, mit gleichmäßiger Auswahl und Klassengarantie
 
-**Befund**: Die Logik in haex-vault (74 Zeilen) hat Modulo-Verzerrung (`Uint32 % n`), keine
+**Befund**: Die Logik in haex-vault 2.x (74 Zeilen) hat Modulo-Verzerrung (`Uint32 % n`), keine
 Garantie je Zeichenklasse, keine Längenobergrenze und eine Musterschreibweise ohne
 Maskierung. Tests (323 Zeilen) sind auf Vitest und eine Mock-Zufallsquelle gebaut.
 
@@ -392,7 +392,7 @@ neu geschrieben statt kopiert:
 - Jede gewählte Klasse kommt mindestens einmal vor (FR-013); Länge kleiner als die Zahl der
   Klassen oder leere Auswahl ergibt `{ error: 'length_below_classes' | 'no_class' | … }`
   statt eines leeren Passworts (FR-014). Länge 1–256.
-- Mustermodus mit der Schreibweise aus haex-vault (`c C v V d a A s`, andere Zeichen
+- Mustermodus mit der Schreibweise aus haex-vault 2.x (`c C v V d a A s`, andere Zeichen
   buchstäblich) plus `\` zur Maskierung; `excludeChars` gilt wie dort nicht im Mustermodus.
 - Mischung der garantierten Zeichen per Fisher-Yates mit derselben Zufallsquelle.
 - Die Prüfungen laufen mit `node --test` und einer deterministischen Zufallsquelle, die der
@@ -403,7 +403,7 @@ es nicht. Reines TS passt zum Prüfmuster (`scripts/check-*.ts`). Rejection Samp
 bekannte, kleine Korrektur.
 
 **Verworfen**: _Generator in Rust_ (zusätzliche Command-Fläche, Tests nicht im vorhandenen
-Muster), _haex-vault-Code 1:1_ (Verzerrung, keine Garantien).
+Muster), _haex-vault-2.x-Code 1:1_ (Verzerrung, keine Garantien).
 
 ## R11 — Suche im Frontend über die Kopfdaten
 
@@ -435,7 +435,7 @@ Ordner), die Liste zeigte aber nur dessen direkte Einträge.
 
 ## R12 — Import in Rust: alles übernehmen, in Schritten, mit Bericht und Rückgängigmachen
 
-**Befund**: haex-vault importiert in der Oberfläche, schreibt Zeile für Zeile ohne
+**Befund**: haex-vault 2.x importiert in der Oberfläche, schreibt Zeile für Zeile ohne
 Transaktion (ein Abbruch hinterlässt Halbes), erkennt bei Bitwarden und LastPass keine
 Doppelten und dupliziert beim KeePass-Wiederholen die Kindzeilen. Es lässt dabei vieles weg: den
 KeePass-Papierkorb (er wird dort nur auf den eigenen Papierkorb abgebildet, der Inhalt geht
@@ -487,7 +487,7 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
 7. **Symbole**: KeePass-Standardsymbole (0–68) werden über eine Tabelle zu Symbolnamen von
    holzi (Literal in `src/lib/passwords/icons.ts`, die Tabelle liegt in `import/icons.rs`
    mit einem Test, dass jeder Zielname in der Liste der Oberfläche steht), eigene Symbole werden
-   Binärzeilen vom Typ `icon` mit `icon = 'binary:<hash>'` (wie in haex-vault); die Oberfläche
+   Binärzeilen vom Typ `icon` mit `icon = 'binary:<hash>'` (wie in haex-vault 2.x); die Oberfläche
    zeigt sie über `passwords_icon_preview`. Symbole sind der niedrigste Rang: schlägt eine
    Zuordnung fehl, bleibt das Symbol leer und der Bericht nennt es.
 8. **Passkeys**: Alle werden importiert. Die Quellen liefern nur den privaten Schlüssel (PKCS8);
@@ -501,10 +501,10 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
    nennt ihn; für Anmeldungen genügt der private Schlüssel. Schlüsselpaare für Tests entstehen zur
    Laufzeit im Test, nie als Datei im Repository (Constitution I). Die Kodierungen der Felder
    (Base64 oder Base64url bei Credential-ID und Benutzerkennung, UUID-Form der
-   Bitwarden-Credential-ID) und die Kodierung in haex-vault prüft Aufgabe T003, damit gespeicherte
+   Bitwarden-Credential-ID) und die Kodierung in haex-vault 2.x prüft Aufgabe T003, damit gespeicherte
    Passkeys zwischen beiden Produkten lesbar bleiben. Ein Passkey, dessen Credential-ID in der Vault
    schon vorkommt (gleiche abgeleitete Kennung), wird nicht doppelt angelegt und nicht still
-   übersprungen: der Bericht nennt ihn (Art `passkey_duplicate`). **Warum nicht wie in haex-vault**: haex-vault
+   übersprungen: der Bericht nennt ihn (Art `passkey_duplicate`). **Warum nicht wie in haex-vault 2.x**: haex-vault 2.x
    importiert keine Passkeys; es erzeugt sie selbst (`generatePasskeyPairAsync`, ES256) und hat
    deshalb beide Schlüssel.
 9. **Ungültiges TOTP** wird wie es ist als `otp_secret` übernommen (bei einer `otpauth://`-Adresse
@@ -553,7 +553,7 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
   `ed25519_dalek::SigningKey::from_pkcs8_der` und `verifying_key().to_public_key_der()`, RS256 ohne
   das `rsa`-Crate: `pkcs8::PrivateKeyInfoRef` → `pkcs1::RsaPrivateKey` (Modulus, Exponent) →
   `pkcs1::RsaPublicKey` → `spki::SubjectPublicKeyInfoRef` mit `pkcs1::ALGORITHM_OID` und NULL.
-- **Kodierung in haex-vault** (SHA `8dce379`, `passkeys.ts`, und `@haex-space/vault-sdk` 3.7.0, `dist/index.mjs`):
+- **Kodierung in haex-vault 2.x** (SHA `8dce379`, `passkeys.ts`, und `@haex-space/vault-sdk` 3.7.0, `dist/index.mjs`):
   `credential_id` ist Standard-Base64 (nicht Base64url) von 32 zufälligen Bytes; `private_key` ist
   Standard-Base64 des PKCS8-DER (WebCrypto `exportKey('pkcs8')`), `public_key` Standard-Base64 des
   SPKI-DER; `algorithm` ist -7 (ES256); `user_handle` wird als Text so gespeichert, wie die Anfrage ihn
@@ -577,7 +577,7 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
   abhängig (100 MiB) und lässt keine großen Anhänge zu.
 - _Anhänge über 25 MiB importieren_: das Limit schützt die Vault-Datenbank und den Sync; der
   Betreiber will die Ablehnung mit klarer Meldung (Klärung).
-- _Import im Frontend wie haex-vault_ (kein Rückgängigmachen, Passwörter und Anhänge durchlaufen
+- _Import im Frontend wie haex-vault 2.x (Legacy)_ (kein Rückgängigmachen, Passwörter und Anhänge durchlaufen
   den Webview, doppelte Parser für Test und Betrieb), _Import je Format als eigene App_.
 
 **Bewusste Grenze**: Das Modell hält alle Anhänge der Quelle im Speicher (je Anhang höchstens
@@ -704,7 +704,7 @@ Millisekunde würden nicht erkannt. Aufrüstweg: HLC der Zeile als Token.
 gleich), `wm.apps.passwords`, `actions.passwords.*`, `actions.scopes.passwords.read`,
 Fehler `errors.passwords.*`. Backend gibt keine lokalisierten Texte aus; `errString`
 (`composables/useErrorString.ts`) bekommt die neuen Fehlerarten. Die Texte stehen **mit**
-der Komponente in den zentralen Dateien (haex-vault hat Beschriftungen beim Aufteilen einer
+der Komponente in den zentralen Dateien (haex-vault 2.x hat Beschriftungen beim Aufteilen einer
 Komponente verloren).
 
 ## R18 — Dateidialoge und Berechtigungen
@@ -730,7 +730,7 @@ Nr. 0006 ist vergeben). Aufgabe in `tasks.md`.
 
 Die folgenden Punkte stehen jetzt in der Spec (eigener Commit, mit Begründung hier):
 
-1. **FR-036** nennt die Abweichungen vom Datenmodell von haex-vault vollständig: BLOB, zwei
+1. **FR-036** nennt die Abweichungen vom Datenmodell von haex-vault 2.x vollständig: BLOB, zwei
    Spalten für die Herkunft (R3), gewöhnliche Indizes statt UNIQUE (R2),
    `ON DELETE RESTRICT` bei den Binärverweisen (R4).
 2. **FR-037**: Eindeutigkeit durch abgeleitete Kennungen und Prüfung in der Anwendung, nicht durch
@@ -776,5 +776,5 @@ Die folgenden Punkte stehen jetzt in der Spec (eigener Commit, mit Begründung h
 
 **Entscheidungen, die der Betreiber bestätigen sollte** (im Bericht an ihn genannt):
 PDF-Vorschau entfällt (R18); der eingebaute Agent sieht nur Titel und Tags (R6, R14);
-Aufräumen mit Karenzzeit (R4); Abweichung von haex-vault bei UNIQUE und Fremdschlüsseln
+Aufräumen mit Karenzzeit (R4); Abweichung von haex-vault 2.x bei UNIQUE und Fremdschlüsseln
 (R2, R4).

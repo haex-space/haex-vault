@@ -76,18 +76,18 @@ ts-rs-Bindings.
      `storage/maintenance.rs:174`) → `journal_mode=DELETE` → `pragma_update("rekey", new)` →
      `journal_mode=WAL`.
 
-**Rationale**: Ablauf aus haex-vault `src-tauri/src/database/maintenance.rs:134` übernommen (dort belegt:
+**Rationale**: Ablauf aus haex-vault 2.x (Legacy) `src-tauri/src/database/maintenance.rs:134` übernommen (dort belegt:
 Rekey funktioniert im WAL-Modus nicht). holzi hält das Passwort nicht im Speicher (`SqlCipherKey::as_str`
 ist `pub(crate)` in haex-crdt), daher Prüfung über die Datei. Gleiche Cipher-Einstellungen wie beim Öffnen:
 haex-crdt setzt nur `PRAGMA key`, keine KDF-/Kompatibilitäts-Pragmas. Im DELETE-Modus ist der Rekey durch
 das Rollback-Journal atomar: Ein Absturz hinterlässt die Datei mit genau einem der beiden Passwörter
 `[Likely]`; der Integrationstest prüft mindestens Erfolg und Ablehnung.
 
-Das Passwort spielt im Sync keine Rolle (nur `instances/` und Link-Join), daher entfällt haex-vaults
+Das Passwort spielt im Sync keine Rolle (nur `instances/` und Link-Join), daher entfällt haex-vault-2.x-Vaults
 Schritt „Vault-Key auf Sync-Servern neu verschlüsseln“.
 
 ponytail: `pragma_update` rendert Schlüssel in SQL-Text, der nicht genullt wird — dieselbe Grenze wie
-`passwords/import/haex_vault/open.rs:170`; Upgrade-Pfad `sqlite3_rekey_v2` über `rusqlite::ffi`.
+`passwords/import/legacy_haex_vault/open.rs:170`; Upgrade-Pfad `sqlite3_rekey_v2` über `rusqlite::ffi`.
 Quoting ist sicher (rusqlite verdoppelt `'`).
 
 **Alternatives considered**: Neue Datei schreiben (`sqlcipher_export`) und tauschen — mehr Code, Datei

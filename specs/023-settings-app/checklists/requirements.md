@@ -36,5 +36,5 @@
   category that lists the vault's devices (US5, FR-017, FR-022), superseding the
   earlier "no category yet" answer. "Darstellung" holds only the color scheme;
   the background belongs to the desktop icons and grid spec (FR-015).
-- The spec names the haex-vault reference by commit SHA only; the file paths in
+- The spec names the haex-vault 2.x (Legacy) reference by commit SHA only; the file paths in
   the input line are references, not requirements.

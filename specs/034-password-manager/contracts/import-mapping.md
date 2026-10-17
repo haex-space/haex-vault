@@ -90,9 +90,9 @@ Identitäts-, Passkey- und Verlaufsdaten; das ist eine Eigenschaft der Quelle, k
 | `grouping`                    | Ordner, geschachtelt an `/` und `\`                                                                                                |
 | `fav`                         | Tag „Favorit“                                                                                                                      |
 
-## haex-vault (Spec 037)
+## haex-vault 2.x (Legacy) (Spec 037)
 
-Die Vault-Datei von haex-vault ist eine eigene Quelle (`haexvault`); ihre Abbildung steht in
+Die Vault-Datei von haex-vault 2.x ist eine eigene Quelle (`legacyhaexvault`); ihre Abbildung steht in
 [037 contracts/haex-vault-mapping.md](../../037-haex-vault-import/contracts/haex-vault-mapping.md).
 
 Seit Spec 037 (FR-017) gilt für **alle** Quellen: Ein Ordner der Quelle nimmt einen Ordner, den

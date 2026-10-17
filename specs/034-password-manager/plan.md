@@ -7,7 +7,7 @@
 ## Summary
 
 holzi bekommt einen festen Passwortmanager als App im Window Manager. Vorlage ist der
-Passwortmanager von haex-vault, dessen Datenmodell (zwölf Tabellen `haex_passwords_*`)
+Passwortmanager von haex-vault 2.x (Legacy), dessen Datenmodell (zwölf Tabellen `haex_passwords_*`)
 fast unverändert übernommen wird; Oberfläche, Datenzugriff und Zugriffsprüfung sind neu
 gebaut, weil holzi weder Drizzle im Frontend noch ein Freigabesystem hat. Den
 Umfang bestimmt die Spec (US1–US8); die External Bridge ist ausdrücklich nicht dabei.
@@ -17,7 +17,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in
 
 - **Datenmodell und Migration** (R1–R4): Migration `0022_passwords` (SQL in eigener Datei,
   `identity/migrations.rs` steht schon über 500 Zeilen), Triggerversion 14. Abweichungen von
-  haex-vault, alle begründet: Binärdaten als BLOB, zwei Spalten für die Herkunft im
+  haex-vault 2.x, alle begründet: Binärdaten als BLOB, zwei Spalten für die Herkunft im
   Papierkorb, **keine UNIQUE-Constraints** (ein UNIQUE-Konflikt hält den Sync an) und
   stattdessen abgeleitete Kennungen (UUIDv5) für Tags, Tag-Zuordnungen und Passkeys,
   `ON DELETE RESTRICT` bei den Binärverweisen. Endgültiges Löschen entfernt Kinder
@@ -36,7 +36,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in
   Handlung, Kopieren und TOTP-Code in Rust, Zwischenablage mit Löschen in Rust
   (`tauri-plugin-clipboard-manager` nur Rust-seitig), Teil-Update beim Speichern.
 - **Verlauf, Papierkorb, Konflikte** (R3, R5, R15): ein Verlaufsformat, Wiederherstellen neu
-  gebaut (haex-vault kann es nicht), Papierkorb merkt den früheren Ort, Speichern mit
+  gebaut (haex-vault 2.x kann es nicht), Papierkorb merkt den früheren Ort, Speichern mit
   `expectedUpdatedAt` erkennt Änderungen und Löschen durch ein anderes Gerät.
 - **Import** (R12): in Rust und **verlustfrei**: alles aus der Quelle (Papierkorb, Verlauf,
   Symbole, alle Passkeys, ungültiges TOTP, alle Typen und Felder; was kein Feld hat, wird ein
@@ -45,7 +45,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in
   oder Abbruch Rückgängigmachen, ein Bericht mit den Stellen zum Nacharbeiten (zum Beispiel
   Anhänge über 25 MiB). KeePass über `keepass`, Bitwarden und LastPass über `csv` und
   `serde_json`. Die Eignung von `keepass` prüft Aufgabe T003; zweite Wahl ist der Weg von
-  haex-vault.
+  haex-vault 2.x.
 - **Oberfläche** (R10, R11, R13, R17): App `system.passwords`, Mehrfachinstanz, Orte im Tab nur
   mit Kennungen, Generator und Suche als reines TS unter `src/lib/passwords/` (Node-Tests),
   vorhandene Bausteine (`SettingsGroup`/`Row`, `WmRouterView`, `onVaultTablesChanged`).
@@ -98,7 +98,7 @@ ein Anhang von 25 MiB und ein Import von 1.000 Einträgen dauern Sekunden, nicht
 Dateien; `src/lib/passwords/*` bleibt reines TS mit relativen `.ts`-Importen (Node-Harness);
 keine `unwrap`/`expect` auf Eingabedaten; kein lokalisierter Text im Backend; kein Geheimnis in
 Fehler, Protokoll, Ereignis, `Debug`-Ausgabe, Pfad, Abfrage oder Fenstertitel; eine
-Schreibtransaktion unter 100 MiB (Anhänge einzeln); Tabellen- und Spaltennamen von haex-vault;
+Schreibtransaktion unter 100 MiB (Anhänge einzeln); Tabellen- und Spaltennamen von haex-vault 2.x;
 Aufrufer nie als Command-Argument
 
 **Scale/Scope**: 12 Tabellen, rund 37 Commands, eine Aktion, rund 20 Rust-Module (dazu `service/`
@@ -118,7 +118,7 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 | I Keine Geheimnisse in Git                                                 | ✅     | Fixtures und Tests nutzen erfundene Werte (`SECRET-MARKER-…`, RFC-Testschlüssel); keine echten Konten in Beispieldateien; Prüfskript sucht Geheimnis-Muster in den Fixtures                                                                                             |
 | II Keine lokalen absoluten Pfade in versionierter Konfiguration            | ✅     | Quickstart nutzt Platzhalter und repo-relative Pfade; die Capability enthält keine Pfade                                                                                                                                                                                |
 | III Projektidentität geräteunabhängig                                      | ✅     | Berührt nicht                                                                                                                                                                                                                                                           |
-| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | Referenzen auf haex-vault tragen den SHA `8dce379d94e18fcd42c3b73686a06f984ca3f574`; haex-crdt bleibt auf `aeb26eb`                                                                                                                                                     |
+| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | Referenzen auf haex-vault 2.x tragen den SHA `8dce379d94e18fcd42c3b73686a06f984ca3f574`; haex-crdt bleibt auf `aeb26eb`                                                                                                                                                 |
 | V Externe Quellen nur per Opt-in                                           | ✅     | Keine neue Harness-Quelle; neue Crates sind Abhängigkeiten, keine Harness-Inhalte                                                                                                                                                                                       |
 | VI Selbstverändernde Anweisungen review-pflichtig                          | ✅     | Keine Änderung an Constitution, Skills oder Berechtigungen der Werkzeuge; die Freigaben von Agenten bleiben bei Spec 021; der eingebaute Agent bekommt keine neue Berechtigung                                                                                          |
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                            | ✅     | Der Passwortmanager arbeitet rein lokal; Sync ist Spec 024 und nicht Voraussetzung                                                                                                                                                                                      |
@@ -139,7 +139,7 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 
 **Ergebnis nach Phase 1**: unverändert. Das Design fügt zehn direkte Abhängigkeiten hinzu (Rust; einige schon transitiv im Lock) und eine
 Migration; beides begründet in research.md (R1, R8, R9, R12). Die Abweichungen vom Datenmodell von
-haex-vault sind in [data-model.md](./data-model.md) als A1–A6 gelistet. Die Spec wurde an sieben
+haex-vault 2.x sind in [data-model.md](./data-model.md) als A1–A6 gelistet. Die Spec wurde an sieben
 Stellen an die Planung angeglichen (R20).
 
 ## Project Structure
@@ -246,13 +246,13 @@ legt die Seitenleisten-Entscheidung in Aufgabe T002 (Graph-Abfrage), nicht jetzt
 
 ## Complexity Tracking
 
-| Verstoß / Aufwand                                                        | Warum nötig                                                                                                                                     | Einfachere Alternative verworfen, weil                                                                                                                                                                          |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Abweichung vom Datenmodell von haex-vault (A1–A6, vor allem kein UNIQUE) | UNIQUE-Konflikte halten den Sync an (R2); der Papierkorb soll den Ort merken (R3); BLOB statt Base64 und `orphaned_at` schützen den Sync (R4)   | 1:1-Übernahme brächte einen Sync, der wegen eines Tagnamens stehen bleibt, den Verlust des Ortes beim Wiederherstellen oder das Löschen einer verspäteten Referenz                                              |
-| Zehn Rust-Abhängigkeiten (mehrere schon transitiv im Lock)               | KDBX, RFC-4180-CSV, SHA-1 für TOTP, P-256, EdDSA und RSA-Schlüsselteile für den öffentlichen Passkey-Schlüssel, Zwischenablage mit Löschen, NFC | TOTP und Base32 selbst zu schreiben ist vertretbar (R8) und geschieht; KDBX/Argon2, CSV, Elliptische Kurven, ASN.1-Schlüsselformate und Unicode-Normalisierung selbst zu schreiben wäre riskanter als ein Crate |
-| Teil-Update und `reveal` statt Klartext-Detail                           | Geheimnisse bleiben im Backend (R7, FR-005, FR-040)                                                                                             | Alle Felder im Klartext zu laden ist einfacher, legt aber alle Geheimnisse in den Webview                                                                                                                       |
-| Aufrufer-/Freigabe-Modul und Dienst ohne Verwalter für Freigaben         | FR-024 bis FR-030 verlangen die Prüfung jetzt; Spec 029 braucht den Zugriff, 017–019/021 den Rest                                               | Prüfung später nachrüsten hieße, die Commands und den Dienst ein zweites Mal anzufassen; die Prüfung ist rein und klein                                                                                         |
-| `identity/migrations.rs` bleibt über 500 Zeilen                          | Bestehende Überschreitung (577), nicht von dieser Spec                                                                                          | Aufspaltung ist eine eigene Änderung; hier genügt eine neue Datei für das neue SQL                                                                                                                              |
+| Verstoß / Aufwand                                                            | Warum nötig                                                                                                                                     | Einfachere Alternative verworfen, weil                                                                                                                                                                          |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Abweichung vom Datenmodell von haex-vault 2.x (A1–A6, vor allem kein UNIQUE) | UNIQUE-Konflikte halten den Sync an (R2); der Papierkorb soll den Ort merken (R3); BLOB statt Base64 und `orphaned_at` schützen den Sync (R4)   | 1:1-Übernahme brächte einen Sync, der wegen eines Tagnamens stehen bleibt, den Verlust des Ortes beim Wiederherstellen oder das Löschen einer verspäteten Referenz                                              |
+| Zehn Rust-Abhängigkeiten (mehrere schon transitiv im Lock)                   | KDBX, RFC-4180-CSV, SHA-1 für TOTP, P-256, EdDSA und RSA-Schlüsselteile für den öffentlichen Passkey-Schlüssel, Zwischenablage mit Löschen, NFC | TOTP und Base32 selbst zu schreiben ist vertretbar (R8) und geschieht; KDBX/Argon2, CSV, Elliptische Kurven, ASN.1-Schlüsselformate und Unicode-Normalisierung selbst zu schreiben wäre riskanter als ein Crate |
+| Teil-Update und `reveal` statt Klartext-Detail                               | Geheimnisse bleiben im Backend (R7, FR-005, FR-040)                                                                                             | Alle Felder im Klartext zu laden ist einfacher, legt aber alle Geheimnisse in den Webview                                                                                                                       |
+| Aufrufer-/Freigabe-Modul und Dienst ohne Verwalter für Freigaben             | FR-024 bis FR-030 verlangen die Prüfung jetzt; Spec 029 braucht den Zugriff, 017–019/021 den Rest                                               | Prüfung später nachrüsten hieße, die Commands und den Dienst ein zweites Mal anzufassen; die Prüfung ist rein und klein                                                                                         |
+| `identity/migrations.rs` bleibt über 500 Zeilen                              | Bestehende Überschreitung (577), nicht von dieser Spec                                                                                          | Aufspaltung ist eine eigene Änderung; hier genügt eine neue Datei für das neue SQL                                                                                                                              |
 
 ## Bewusste Grenzen (aus research.md)
 

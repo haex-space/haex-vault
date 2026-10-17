@@ -133,7 +133,7 @@ Same value. "Gerätename" as German UI label. `alias` as the
 `known_devices` column and Rust/TypeScript identifier.
 
 **Window Manager (`wm`) / App / Fenster (Window) / Tab / Launcher** (spec 015):
-The in-app desktop concept, adopted from haex-vault. A **Workspace**
+The in-app desktop concept, adopted from haex-vault 2.x (Legacy). A **Workspace**
 (Arbeitsbereich) contains **Windows** (Fenster); each Window contains
 one or more **Tabs**, each Tab an instance of an **App** (Chat,
 Einstellungen; Föderation was an App in spec 015 and is a settings category
@@ -243,7 +243,7 @@ until the user picks one. **holzi-Adressen** are the vault identity, devices
 and Nostr-Relays of another vault, confirmed when they come from its signed
 Visitenkarte.
 _Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
-sharing identities of haex-vault, which holzi does not have.
+sharing identities of haex-vault 2.x, which holzi does not have.
 
 **Abgleich / Telefon-Adressbuch / Roh-Kontakt / Zuordnung** (spec 051 US2):
 The **Abgleich** keeps the Adressbuch and the **Telefon-Adressbuch** (Android's

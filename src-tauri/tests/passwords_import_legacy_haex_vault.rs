@@ -1,4 +1,4 @@
-//! The import from haex-vault (spec 037): every row of the mapping contract arrives (SC-001), the
+//! The import from haex-vault 2.x (Legacy) (spec 037): every row of the mapping contract arrives (SC-001), the
 //! vault file and its `-wal` are never touched (SC-002), every failure explains itself and writes
 //! nothing, a cancel leaves nothing, and a second run adds no folder, tag, passkey or preset
 //! (SC-003).
@@ -11,10 +11,10 @@ mod chosen_files;
 
 use chosen_files::{chosen, Paths};
 
-#[path = "common/haex_vault_fixture.rs"]
-mod haex_vault_fixture;
 #[path = "common/kdbx_fixture.rs"]
 mod kdbx_fixture;
+#[path = "common/legacy_haex_vault_fixture.rs"]
+mod legacy_haex_vault_fixture;
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -24,16 +24,12 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use zeroize::Zeroizing;
 
-use haex_vault_fixture::{
-    build, build_with_wal, create_schema, open, sha256_files, sha256_hex, ATTACHMENT,
-    HISTORY_ATTACHMENT, ICON, MARKER, PASSWORD, WAL_TITLE,
-};
 use holzi_lib::identity::{
     holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
-use holzi_lib::passwords::import::haex_vault;
+use holzi_lib::passwords::import::legacy_haex_vault;
 use holzi_lib::passwords::import::report::render_text;
 use holzi_lib::passwords::import::{Credentials, IconRef, ImportModel, ImportSource};
 use holzi_lib::passwords::model::{AttentionKind, ImportReport};
@@ -41,6 +37,10 @@ use holzi_lib::passwords::service::import::ImportRequest;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::vault_gate::VaultGate;
 use holzi_lib::HolziError;
+use legacy_haex_vault_fixture::{
+    build, build_with_wal, create_schema, open, sha256_files, sha256_hex, ATTACHMENT,
+    HISTORY_ATTACHMENT, ICON, MARKER, PASSWORD, WAL_TITLE,
+};
 
 struct Fixture {
     _dir: tempfile::TempDir,
@@ -52,7 +52,7 @@ fn fixture() -> Fixture {
     let dir = tempfile::tempdir().expect("tempdir");
     let db = Database::open(DatabaseConfig {
         path: dir.path().join("vault.db"),
-        key: SqlCipherKey::new("passwords-import-haex-vault"),
+        key: SqlCipherKey::new("passwords-import-legacy-haex-vault"),
         create_if_missing: true,
         bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
@@ -100,7 +100,7 @@ fn counts(db: &Database) -> BTreeMap<String, i64> {
 
 fn request(path: &Path, password: &str) -> ImportRequest {
     ImportRequest {
-        source: ImportSource::HaexVault,
+        source: ImportSource::LegacyHaexVault,
         file: chosen(path),
         password: Some(Zeroizing::new(password.to_string())),
         key_file: None,
@@ -129,7 +129,9 @@ fn read_model(path: &Path) -> ImportModel {
         password: Some(Zeroizing::new(PASSWORD.to_string())),
         key_file: None,
     };
-    haex_vault::read(path, &credentials).expect("read").model
+    legacy_haex_vault::read(path, &credentials)
+        .expect("read")
+        .model
 }
 
 fn reason(result: Result<impl Sized, HolziError>) -> String {
@@ -381,7 +383,7 @@ async fn the_import_writes_everything_the_contract_names() {
         (8, 2, 2, 2)
     );
     assert_eq!(preview.trashed_entries, 2);
-    assert_eq!(preview.warnings[0], "haex_vault_close_first");
+    assert_eq!(preview.warnings[0], "legacy_haex_vault_close_first");
     assert_eq!(
         count(&f.db, "SELECT COUNT(*) FROM haex_passwords_item_details"),
         0
@@ -503,7 +505,7 @@ async fn every_unreadable_file_explains_itself_and_writes_nothing() {
     let vault = build(dir.path());
     assert_eq!(
         reason(run(&f, request(&vault.path, "wrong"), OnDuplicate::Skip).await),
-        "haex_vault_locked"
+        "legacy_haex_vault_locked"
     );
 
     let other = source_dir();
@@ -514,7 +516,7 @@ async fn every_unreadable_file_explains_itself_and_writes_nothing() {
     std::fs::write(&random_path, random).expect("write");
     assert_eq!(
         reason(run(&f, request(&random_path, PASSWORD), OnDuplicate::Skip).await),
-        "haex_vault_locked"
+        "legacy_haex_vault_locked"
     );
     let empty_path = other.path().join("empty.db");
     std::fs::write(&empty_path, b"").expect("write");

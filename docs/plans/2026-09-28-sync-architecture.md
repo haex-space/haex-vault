@@ -19,7 +19,7 @@ requirements before code moves.
   carries state" no longer holds, because the `haex-crdt` sync channel runs over iroh (§6). The
   addendum at the end of v1-scope already named this tension.
 - Reference implementations (read for lessons, not ported):
-  - `haex-vault`: repository `https://github.com/haex-space/haex-vault`, revision
+  - `haex-vault 2.x (Legacy)`: repository `https://github.com/haex-space/haex-vault-legacy`, revision
     `8dce379d94e18fcd42c3b73686a06f984ca3f574`.
   - `haex-sync-server`: repository `https://github.com/haex-space/haex-sync-server`, revision
     `e20abeb26991d187fe1a4a8f1bc69029e5b12177`.
@@ -115,9 +115,9 @@ D33 is superseded in one point by [ADR-0014](../adr/0014-invitations-from-the-ad
   is mislabeled. The true origin is only in the HLC node suffix, and a node id says nothing about
   which vault authored a change in a shared context (§5.4).
 
-### 3.3 haex-vault: why MLS + CRDT was cumbersome
+### 3.3 haex-vault 2.x: why MLS + CRDT was cumbersome
 
-haex-vault ran one openmls group per space (a leaf per device), exported a per-epoch key, and synced
+haex-vault 2.x ran one openmls group per space (a leaf per device), exported a per-epoch key, and synced
 that key table through the CRDT. The friction is structural, not incidental:
 
 - **Two channels with different consistency models.** MLS needs a total order of commits; CRDT
@@ -134,7 +134,7 @@ that key table through the CRDT. The friction is structural, not incidental:
 **Lesson**: keep key management inside the CRDT's own consistency model. Key epochs become ordinary
 CRDT rows that may exist concurrently (§5.2); wrap to the _vault_, not the device (§5.3).
 
-haex-vault patterns worth keeping: the `{public_key}__{extension_name}__` table prefix
+haex-vault 2.x patterns worth keeping: the `{public_key}__{extension_name}__` table prefix
 (`src-tauri/src/extension/utils.rs`), the space-table whitelist `SPACE_SCOPED_CRDT_TABLES`
 (`src-tauri/src/crdt/scanner.rs`), per-object DEKs with chunked AEAD and opaque object names
 (`src-tauri/src/file_sync/crypto/envelope.rs`), and ADR 0002's decision that removed members keep
@@ -239,7 +239,7 @@ scope_keys(scope_id, key_id, epoch, created_by_vault, created_at_hlc,
   forward-only validity rule in §11 needs: an invitee's writes are valid under the first generation
   that lists them.
 - **New members also receive envelopes for the older generations**, so they can read content that
-  existed before they joined (the same history decision as haex-vault ADR 0002).
+  existed before they joined (the same history decision as haex-vault 2.x ADR 0002).
 - Only the scope's admin writes `scope_keys` for spaces and data shares (D6), so concurrent rotations
   can only come from the admin vault's own devices. The vault-internal scope gets a new generation
   whenever a device is removed (D27), wrapped to the remaining devices.
@@ -331,7 +331,7 @@ travels with ordinary plane-1 sync.
   entry**; no sidecars are needed on the storage side.
 
 - **Objects**: file content encrypted in chunks under the per-file DEK (the `HXFE` envelope pattern
-  from haex-vault). `object_id` is the hash of the ciphertext, so storage cannot swap content
+  from haex-vault 2.x). `object_id` is the hash of the ciphertext, so storage cannot swap content
   undetected. **Objects are immutable**: modifying a file writes a new object and points the entry
   at it; the old object is garbage-collected by an admin device once no index entry references it.
   Storage never sees an overwrite.
@@ -619,7 +619,7 @@ by ciphertext hash from a signed file index. Only the way a device obtains acces
 | Unsolicited invitations  | no invitation without an admin-created link; messages without a valid open secret are dropped silently (D33) | n/a (cannot read messages)                                                                           |
 | Authorization            | receivers enforce all rules; relay gate is additional                                                        | let an unauthorized request through (still not applied) or refuse a valid one                        |
 | Availability             | redundancy: direct iroh sync, several own devices, snapshots                                                 | delete, withhold, serve stale state — detected by version vectors and sequence gaps, not preventable |
-| Removed member           | key rotation, relay gate, token rotation                                                                     | — ; the removed member keeps what it could already decrypt (accepted, as in haex-vault ADR 0002)     |
+| Removed member           | key rotation, relay gate, token rotation                                                                     | — ; the removed member keeps what it could already decrypt (accepted, as in haex-vault 2.x ADR 0002) |
 | Stolen device            | SQLCipher passphrase; removal from the device list (D27)                                                     | —                                                                                                    |
 
 ## 14. Proposed spec cut

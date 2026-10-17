@@ -136,8 +136,8 @@ Zugangsschlüssel erzeugen kann), lässt sich für einen Space nicht verbinden
   027), den Speicher der eigenen Ordner in der Unteransicht „Ordner“ (Spec 025).
   Die Einstellung gilt nach der Auswahl ohne Knopf zum Übernehmen (FR-021 dort).
   Wo die gespeicherten Speicherverbindungen verwaltet werden, klärt der Plan.
-- Referenz (gelesen, nicht portiert): der Dateisync von haex-vault, Repository
-  `https://github.com/haex-space/haex-vault`, Revision
+- Referenz (gelesen, nicht portiert): der Dateisync von haex-vault 2.x (Legacy), Repository
+  `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad `src-tauri/src/file_sync/`.
   Dort hält der Server volle Zugangsdaten eines Buckets je Nutzer; diese Spec
   verlangt das Gegenteil.

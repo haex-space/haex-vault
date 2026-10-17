@@ -1,4 +1,4 @@
-# Implementation Plan: Passwörter aus haex-vault übernehmen
+# Implementation Plan: Passwörter aus haex-vault 2.x (Legacy) übernehmen
 
 **Branch**: `037-haex-vault-import` | **Date**: 2026-10-04 | **Spec**: [spec.md](./spec.md)
 
@@ -6,15 +6,15 @@
 
 ## Summary
 
-Der Import des Passwortmanagers (034) bekommt die Quelle „haex-vault“. haex-vault hat keinen
+Der Import des Passwortmanagers (034) bekommt die Quelle „haex-vault 2.x“. haex-vault 2.x hat keinen
 Export; holzi liest deshalb die verschlüsselte Vault-Datei direkt. Weil 034 das Datenmodell von
-haex-vault übernommen hat, ist die Abbildung fast 1:1. Die Arbeit liegt in drei Teilen
+haex-vault 2.x übernommen hat, ist die Abbildung fast 1:1. Die Arbeit liegt in drei Teilen
 (Begründungen in [research.md](./research.md)):
 
-- **Leser** (R1–R3, R5–R9): neues Modul `passwords/import/haex_vault/`. Es kopiert die Datei samt
+- **Leser** (R1–R3, R5–R9): neues Modul `passwords/import/legacy_haex_vault/`. Es kopiert die Datei samt
   `-wal` in ein temporäres Verzeichnis (die Quelle bleibt unberührt, der WAL-Stand kommt mit),
   öffnet die Kopie mit einer eigenen SQLCipher-Verbindung (`PRAGMA key`, Standardwerte wie
-  haex-vault, dieselbe SQLCipher-Version), prüft den Aufbau und baut das gemeinsame
+  haex-vault 2.x, dieselbe SQLCipher-Version), prüft den Aufbau und baut das gemeinsame
   `ImportModel`. `read_model` verzweigt für diese Quelle vor dem Lesen der Bytes; danach ist
   alles geteilt (Vorschau, Doppelte, `apply::run`, Bericht, Abbruch).
 - **Gemeinsames Importmodell und Schreiber** (R4): Farbe und Autofill-Aliase am Eintrag, Farbe
@@ -23,7 +23,7 @@ haex-vault übernommen hat, ist die Abbildung fast 1:1. Die Arbeit liegt in drei
   gleichem Namen am gleichen Ort wieder, statt sie zu verdoppeln; das behebt den doppelten
   Ordnerbaum bei wiederholtem Import für alle Quellen.
 - **Oberfläche** (Contract): Quelle im Wizard, Passwortfeld, zwei neue Zahlen in der Vorschau,
-  Hinweis zum Schließen von haex-vault, Texte für neue Berichtsarten und Fehlergründe.
+  Hinweis zum Schließen von haex-vault 2.x, Texte für neue Berichtsarten und Fehlergründe.
 
 Kein neues Tabellenschema, keine Migration, keine neue Abhängigkeit.
 
@@ -35,7 +35,7 @@ Kein neues Tabellenschema, keine Migration, keine neue Abhängigkeit.
 `bundled-sqlcipher-vendored-openssl`), `tempfile 3`, `base64 0.23`, `sha2`, `zeroize`, `serde_json`,
 `ts-rs`; Frontend `@tauri-apps/plugin-dialog`
 
-**Storage**: Vault von holzi (SQLCipher, unverändertes Schema); Quelle: Vault-Datei von haex-vault
+**Storage**: Vault von holzi (SQLCipher, unverändertes Schema); Quelle: Vault-Datei von haex-vault 2.x
 (SQLCipher 4, nur gelesen, als Kopie in `TempDir`)
 
 **Testing**: `cargo test` (Integrationstests unter `src-tauri/tests/`, Unit-Tests in eigenen
@@ -61,12 +61,12 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | Regel                                              | Bewertung                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I. Keine Geheimnisse in Git                        | ✅ Fixture wird zur Laufzeit erzeugt; im Repo nur Testpasswort-Konstanten und das Schema-SQL, keine echte Vault.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| II. Keine lokalen absoluten Pfade                  | ✅ Verweise auf haex-vault über Repo + SHA + relativen Pfad.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| IV. Fremde Verweise auf feste Revision             | ✅ haex-vault @ `8dce379d94e18fcd42c3b73686a06f984ca3f574` in Spec, Research, Mapping und im Kommentar der Fixture-SQL.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| II. Keine lokalen absoluten Pfade                  | ✅ Verweise auf haex-vault 2.x über Repo + SHA + relativen Pfad.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| IV. Fremde Verweise auf feste Revision             | ✅ haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574` in Spec, Research, Mapping und im Kommentar der Fixture-SQL.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Speckit-Ablauf                                     | ✅ specify → (Gate) → plan → (Gate) → tasks → implement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Worktree / PR / Conventional Commits / kein Squash | ✅ Worktree `.worktrees/037-haex-vault-import`, Branch `037-haex-vault-import`, Merge per PR.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Keine Agenten-Spuren in Artefakten                 | ✅ keine Co-Authored-By-Zeilen oder Hinweise auf Agenten.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Tests getrennt vom Produktionscode                 | ✅ `tests/passwords_import_haex_vault.rs`, `tests/common/haex_vault_fixture.rs`, Unit-Tests in `haex_vault/*_tests.rs`.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Tests getrennt vom Produktionscode                 | ✅ `tests/passwords_import_legacy_haex_vault.rs`, `tests/common/legacy_haex_vault_fixture.rs`, Unit-Tests in `legacy_haex_vault/*_tests.rs`.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 500 Zeilen je Datei                                | ✅ Leser in `open.rs`, `read.rs`, `icons.rs` getrennt nach Grund der Änderung. `apply.rs` (677 Zeilen) und `model.rs` (662) liegen schon heute über der Grenze. Die neuen Schreibschritte (Tag-Farben, Passkeys ohne Eintrag, Voreinstellungen) kommen deshalb nach `import/apply_extras.rs`. In `apply.rs` und `model.rs` kommen nur wenige Zeilen hinzu. Ihr Aufteilen ist ein eigener Refactor außerhalb dieser Spec.                                                                                                                                 |
 | graphify zuerst                                    | ⚠️ Geprüft (`graphify query`, Budget 1000). Der Graph lieferte nur Treffer aus `extensions/sql`, nichts zum Import. Die Kandidaten kamen aus gezielter Suche: `import::parse` und die drei Parser (anderes Eingabeformat, Bytes statt Datei), `presets::save`, `tags::set_color`, `passkeys::insert` und `binaries::ensure_binary` (werden wiederverwendet), `ensure_group_path` (nur innerhalb eines Modells, ersetzt nicht das Wiederverwenden vorhandener Ordner). Vor dem Anlegen neuer benannter Funktionen fragt die Umsetzung den Graphen erneut. |
 | Laziness ladder                                    | ✅ Wiederverwendung der ganzen Import-Pipeline; neue Felder nur, wo die Quelle sonst verliert; kein neues Crate.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -101,11 +101,11 @@ specs/037-haex-vault-import/
 ```text
 src-tauri/src/passwords/
 ├── import/
-│   ├── mod.rs                 # ImportSource::HaexVault, neue Modellfelder
+│   ├── mod.rs                 # ImportSource::LegacyHaexVault, neue Modellfelder
 │   ├── apply.rs               # color/aliases am Eintrag, Ordner wiederverwenden, Ledger
 │   ├── apply_extras.rs        # neu: Tag-Farben, Passkeys ohne Eintrag, Voreinstellungen (+ Rückbau)
 │   ├── report.rs              # neue AttentionKind-Namen
-│   └── haex_vault/            # neu
+│   └── legacy_haex_vault/            # neu
 │       ├── mod.rs             # pub fn read(path, &Credentials) -> Result<ImportModel>
 │       ├── open.rs            # Kopie in TempDir, Kopfprüfung, PRAGMA key, Aufbau prüfen
 │       ├── read.rs            # Zeilen → ImportModel
@@ -113,13 +113,13 @@ src-tauri/src/passwords/
 │       ├── open_tests.rs
 │       ├── read_tests.rs
 │       └── icons_tests.rs
-├── service/import.rs          # read_model verzweigt für HaexVault
+├── service/import.rs          # read_model verzweigt für LegacyHaexVault
 └── model.rs                   # ImportPreview + tags/presets, AttentionKind + 4 Arten
 
 src-tauri/tests/
-├── common/haex_vault_fixture.rs        # neu: SQLCipher-Vault von haex-vault zur Laufzeit
-├── fixtures/passwords/haex_vault_0000_passwords.sql   # neu: Auszug aus 0000 @ 8dce379
-├── passwords_import_haex_vault.rs      # neu: Leser + Dienst Ende-zu-Ende
+├── common/legacy_haex_vault_fixture.rs        # neu: SQLCipher-Vault von haex-vault 2.x zur Laufzeit
+├── fixtures/passwords/legacy_haex_vault_0000_passwords.sql   # neu: Auszug aus 0000 @ 8dce379
+├── passwords_import_legacy_haex_vault.rs      # neu: Leser + Dienst Ende-zu-Ende
 └── passwords_import.rs                 # + Ordner-Wiederverwendung für bestehende Quellen
 
 src/
@@ -133,7 +133,7 @@ scripts/check-passwords-import.ts           # Fälle für neue Hilfslogik
 ```
 
 **Structure Decision**: Der Leser sitzt als eigenes Untermodul neben den anderen Parsern im
-Import von 034. Er hat einen eigenen Grund zur Änderung (Aufbau von haex-vault) und als einziger
+Import von 034. Er hat einen eigenen Grund zur Änderung (Aufbau von haex-vault 2.x) und als einziger
 Parser Datei-I/O; seine Teile sind nach Öffnen, Abbilden und Symbolen getrennt.
 
 ## Complexity Tracking

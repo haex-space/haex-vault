@@ -1,5 +1,5 @@
 //! SQL of extensions (spec 017, US2, contracts/sql-policy.md, research R6–R8): a pre-check on the
-//! syntax tree, ported from haex-vault and closed where it had gaps, and the SQLite authorizer of
+//! syntax tree, ported from haex-vault 2.x (Legacy) and closed where it had gaps, and the SQLite authorizer of
 //! haex-crdt's `SqlGuard` that decides on what SQLite really accesses. Both use the rules of this
 //! module: which table is whose, and which functions exist for extensions.
 

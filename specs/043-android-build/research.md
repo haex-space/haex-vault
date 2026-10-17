@@ -98,7 +98,7 @@ Datei und liest oder schreibt über diesen Baustein, auf allen Plattformen gleic
 | ------------------------------------------------ | ----------------------------------------------- |
 | Anhänge im Passwortmanager                       | `components/passwords/Attachments.vue`          |
 | Anhänge im Chat                                  | `components/chat/ComposerAttachments.vue:39`    |
-| Import aus haex-vault (Spec 037)                 | `components/passwords/ImportWizard.vue:107`     |
+| Import aus haex-vault 2.x (Legacy) (Spec 037)    | `components/passwords/ImportWizard.vue:107`     |
 | Darstellung/Hintergrund importieren, exportieren | `components/settings/AppearanceFileButtons.vue` |
 | Erweiterung aus Datei installieren               | `components/extensions/InstallDialog.vue:74`    |
 | Modell aus Datei importieren                     | `models/commands.rs:503`                        |
@@ -475,7 +475,7 @@ Hinweis „superseded in part“.
 
 **Befund**: `std::env::temp_dir()` fällt auf Android ohne `TMPDIR` auf `/data/local/tmp` zurück,
 und dort darf eine App nicht schreiben. Das traf jede Stelle mit `tempfile::tempdir()` (etwa den
-Import aus haex-vault, der die Vault-Datei vor dem Öffnen kopiert) und SQLite selbst, das seine
+Import aus haex-vault 2.x, der die Vault-Datei vor dem Öffnen kopiert) und SQLite selbst, das seine
 Zwischendateien ebenfalls über `TMPDIR` ablegt.
 
 **Entscheidung**: `MainActivity.onCreate` setzt `TMPDIR` auf den Cache-Ordner der App

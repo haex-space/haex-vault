@@ -1407,7 +1407,7 @@
         "encrypted_export": "Der Export ist verschlüsselt und lässt sich ohne sein Kennwort nicht lesen.",
         "cancelled": "Der Import wurde abgebrochen.",
         "unwritable": "Die Datei ließ sich nicht schreiben.",
-        "haex_vault_locked": "Das Vault-Passwort passt nicht, oder die Datei ist keine haex-vault-Vault.",
+        "legacy_haex_vault_locked": "Das Vault-Passwort passt nicht, oder die Datei ist keine Vault-Datei von haex-vault 2.x.",
         "no_passwords": "Diese Vault enthält keine Passwörter."
       },
       "referenceMissing": "Die Quelle eines Verweises ist nicht verfügbar.",
@@ -1960,18 +1960,18 @@
         "keepass": "KeePass (kdbx)",
         "bitwarden": "Bitwarden (JSON oder CSV)",
         "lastpass": "LastPass (CSV)",
-        "haexvault": "haex-vault (Vault-Datei)"
+        "legacyhaexvault": "haex-vault 2.x (Legacy, Vault-Datei)"
       },
       "hints": {
         "keepass": "Datenbank von KeePass oder KeePassXC, mit Passwort und optional einer Schlüsseldatei.",
         "bitwarden": "Unverschlüsselter Export aus dem Tresor (JSON enthält mehr als CSV).",
         "lastpass": "Der CSV-Export aus dem Tresor.",
-        "haexvault": "Die Vault-Datei (.db) von haex-vault mit ihrem Vault-Passwort. Die Datei wird nur gelesen, nie verändert."
+        "legacyhaexvault": "Die Vault-Datei (.db) von haex-vault 2.x mit ihrem Vault-Passwort. Die Datei wird nur gelesen, nie verändert."
       },
       "noFile": "Noch keine Datei gewählt",
       "chooseFile": "Datei wählen",
       "fileHint": "Die Datei wird nur gelesen, nichts davon bleibt außerhalb der Vault.",
-      "fileHintAndroidHaexVault": "Auf Android liest holzi nur die gewählte Datei, keine Begleitdatei daneben. Schließe haex-vault, bevor du die Datei kopierst, damit alle Änderungen in ihr stehen.",
+      "fileHintAndroidLegacyHaexVault": "Auf Android liest holzi nur die gewählte Datei, keine Begleitdatei daneben. Schließe haex-vault 2.x, bevor du die Datei kopierst, damit alle Änderungen in ihr stehen.",
       "password": "Passwort der Datenbank",
       "noKeyFile": "Keine Schlüsseldatei",
       "chooseKeyFile": "Schlüsseldatei wählen",
@@ -2001,7 +2001,7 @@
         "icon_not_mapped": "Ein Symbol der Quelle ließ sich nicht zuordnen.",
         "value_not_storable": "Ein Wert ließ sich nicht speichern.",
         "source_setting": "Einstellungen der Quelle werden nicht übernommen.",
-        "haex_vault_close_first": "Schließe haex-vault, bevor du die Datei kopierst; sonst können die letzten Änderungen fehlen.",
+        "legacy_haex_vault_close_first": "Schließe haex-vault 2.x, bevor du die Datei kopierst; sonst können die letzten Änderungen fehlen.",
         "haex_pass_tables_ignored": "Die Datei enthält auch Daten der alten Erweiterung haex-pass; die werden nicht übernommen.",
         "history_unreadable": "Ein Verlaufsstand ließ sich nicht lesen.",
         "group_reparented": "Ein Ordner verwies auf einen fehlenden Oberordner und kommt nach oben.",

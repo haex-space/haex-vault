@@ -1,6 +1,6 @@
--- The tables of the built-in password manager of haex-vault, verbatim (only the drizzle
--- `--> statement-breakpoint` markers removed), for the haex-vault import tests of spec 037.
--- Source: https://github.com/haex-space/haex-vault @ 8dce379d94e18fcd42c3b73686a06f984ca3f574,
+-- The tables of the built-in password manager of haex-vault 2.x (Legacy), verbatim (only the drizzle
+-- `--> statement-breakpoint` markers removed), for the haex-vault 2.x import tests of spec 037.
+-- Source: https://github.com/haex-space/haex-vault-legacy @ 8dce379d94e18fcd42c3b73686a06f984ca3f574,
 -- src-tauri/database/migrations/0000_jazzy_chat.sql, lines 414-552.
 CREATE TABLE `haex_passwords_binaries` (
 	`hash` text PRIMARY KEY NOT NULL,

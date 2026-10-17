@@ -1,6 +1,6 @@
 # Contract: Lokaler Medienserver (044)
 
-Vorlage: haex-vault `src-tauri/src/media_server/mod.rs` (Revision
+Vorlage: haex-vault 2.x (Legacy) `src-tauri/src/media_server/mod.rs` (Revision
 `fc4e84b61a050576ba42e0dc832d04064a8605a3`). Läuft im Prozess der Vault-Sitzung und endet mit
 `gate.token()`.
 

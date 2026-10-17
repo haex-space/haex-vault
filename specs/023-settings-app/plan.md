@@ -6,7 +6,7 @@
 
 ## Summary
 
-Die Einstellungen bekommen den Aufbau aus haex-vault: links eine Seitenleiste
+Die Einstellungen bekommen den Aufbau aus haex-vault 2.x (Legacy): links eine Seitenleiste
 mit den Kategorien Allgemein, Darstellung, Modelle, Agenten und Föderation,
 rechts ein Kopf mit dem Titel und darunter der Inhalt als zentrierte Liste. Modelle und Agenten
 zeigen eine Übersicht mit Unteransichten. Jede Ansicht ist ein Ort im Tab (Spec
@@ -89,8 +89,8 @@ spaex-Constitution `.spaex/constitution.md`.
 | I Keine Geheimnisse in Git                                                 | ✅     | Keine berührt; `settings.get` liefert weiter keine Zugangsdaten                                                                                  |
 | II Keine lokalen absoluten Pfade in versionierter Konfiguration            | ✅     | Nur repo-relative Pfade                                                                                                                          |
 | III Projektidentität geräteunabhängig                                      | ✅     | Berührt nicht                                                                                                                                    |
-| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574`, haex-ui `db48f9a948522c18a00331aac232718825cc9317`                                        |
-| V Externe Quellen nur per Opt-in                                           | ✅     | Keine neue Quelle; haex-vault nur als Vorbild gelesen                                                                                            |
+| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                   | ✅     | haex-vault 2.x `8dce379d94e18fcd42c3b73686a06f984ca3f574`, haex-ui `db48f9a948522c18a00331aac232718825cc9317`                                    |
+| V Externe Quellen nur per Opt-in                                           | ✅     | Keine neue Quelle; haex-vault 2.x nur als Vorbild gelesen                                                                                        |
 | VI Selbstverändernde Anweisungen review-pflichtig                          | ✅     | Keine Änderung an Constitution oder Skills                                                                                                       |
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                            | ✅     | Rein lokal                                                                                                                                       |
 | VIII Keine Verheimlichung in Agent-Ausgaben                                | ✅     | –                                                                                                                                                |

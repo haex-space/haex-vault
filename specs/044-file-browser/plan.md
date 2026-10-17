@@ -17,7 +17,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Kern in Rust** (R3): neues Modul `files/` mit `FilesService` (Aufrufer aus dem Eingang wie
   ADR 0007), Quellen `Device` und `Storage` hinter einem Trait. Pfadauflösung, Sperrliste der eigenen
   Orte und Beobachtung ziehen aus `extensions/fs/` in `files/local/`; Erweiterungen nutzen sie weiter.
-- **Medien** (R4): lokaler HTTP-Server auf 127.0.0.1 mit Tokens nach haex-vault, Range, flacher
+- **Medien** (R4): lokaler HTTP-Server auf 127.0.0.1 mit Tokens nach haex-vault 2.x (Legacy), Range, flacher
   Speicher, Tokens je Tab; CSP und Android-Cleartext nur für 127.0.0.1.
 - **S3** (R5): `ObjectStore` lernt `head`, Range, gestreamtes Lesen, Ordner-Listen, Multipart und
   Kopieren.
@@ -69,22 +69,22 @@ Dateien“ gibt es dort nicht)
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Regel                                              | Stand                                                                                                                                                                                                        |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| I. Keine Geheimnisse in Git                        | ✅ Zugangsdaten der Speicher bleiben im Passwortmanager (038); Test-Zugangsdaten sind Platzhalter                                                                                                            |
-| II. Keine lokalen absoluten Pfade in Konfiguration | ✅ Pfade nur zur Laufzeit; Quickstart nutzt `/tmp`-Beispiele, keine Konfiguration                                                                                                                            |
-| III. Projektidentität geräteunabhängig             | ✅ nicht berührt                                                                                                                                                                                             |
-| IV. Fremde Inhalte mit unveränderlicher Revision   | ✅ haex-vault überall mit `fc4e84b61a050576ba42e0dc832d04064a8605a3` zitiert                                                                                                                                 |
-| V. Externe Quellen nur per Allowlist               | ✅ keine neuen Harness-Quellen                                                                                                                                                                               |
-| VI. Selbständernde Anweisungen nur mit Review      | ✅ keine Änderung an Constitution, Skills oder Berechtigungen; ADR 0011 kommt im PR                                                                                                                          |
-| VII. Relay blockiert lokale Arbeit nie             | ✅ Dateibrowser arbeitet ohne Netz; nur Speicher brauchen ihren Anbieter                                                                                                                                     |
-| VIII. Keine Verschleierung                         | ✅ nicht berührt                                                                                                                                                                                             |
-| Topic-Branch, Speckit-Ablauf                       | ✅ Branch `044-file-browser`; specify → clarify → plan; danach tasks, analyze, implement in einem Worktree je PR                                                                                             |
-| Tests in eigenen Dateien                           | ✅ jede neue Rust-Datei mit `*_tests.rs` daneben                                                                                                                                                             |
-| Wiederverwendung                                   | ✅ `extensions/fs` (Auflösen, Sperrliste, Beobachten), `remote_storage` (Zugriff, `FakeStore`), `thumbnails.ts`, `downscale.ts`, photoswipe, `onDragDropEvent`-Muster, haex-vault Medienserver und PdfViewer |
-| Abhängigkeiten begründet                           | ✅ jede neue Abhängigkeit in research.md mit verworfenen Alternativen; Probe für Android/Windows                                                                                                             |
-| ADR bei Prinzip-relevanten Entscheidungen          | ⚠️ Abweichung von ADR 0006 (Ausführung in Rust) → ADR 0011 im Docs-PR                                                                                                                                        |
-| Keine Agent-Attribution in Commits                 | ✅                                                                                                                                                                                                           |
+| Regel                                              | Stand                                                                                                                                                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Keine Geheimnisse in Git                        | ✅ Zugangsdaten der Speicher bleiben im Passwortmanager (038); Test-Zugangsdaten sind Platzhalter                                                                                                                |
+| II. Keine lokalen absoluten Pfade in Konfiguration | ✅ Pfade nur zur Laufzeit; Quickstart nutzt `/tmp`-Beispiele, keine Konfiguration                                                                                                                                |
+| III. Projektidentität geräteunabhängig             | ✅ nicht berührt                                                                                                                                                                                                 |
+| IV. Fremde Inhalte mit unveränderlicher Revision   | ✅ haex-vault 2.x überall mit `fc4e84b61a050576ba42e0dc832d04064a8605a3` zitiert                                                                                                                                 |
+| V. Externe Quellen nur per Allowlist               | ✅ keine neuen Harness-Quellen                                                                                                                                                                                   |
+| VI. Selbständernde Anweisungen nur mit Review      | ✅ keine Änderung an Constitution, Skills oder Berechtigungen; ADR 0011 kommt im PR                                                                                                                              |
+| VII. Relay blockiert lokale Arbeit nie             | ✅ Dateibrowser arbeitet ohne Netz; nur Speicher brauchen ihren Anbieter                                                                                                                                         |
+| VIII. Keine Verschleierung                         | ✅ nicht berührt                                                                                                                                                                                                 |
+| Topic-Branch, Speckit-Ablauf                       | ✅ Branch `044-file-browser`; specify → clarify → plan; danach tasks, analyze, implement in einem Worktree je PR                                                                                                 |
+| Tests in eigenen Dateien                           | ✅ jede neue Rust-Datei mit `*_tests.rs` daneben                                                                                                                                                                 |
+| Wiederverwendung                                   | ✅ `extensions/fs` (Auflösen, Sperrliste, Beobachten), `remote_storage` (Zugriff, `FakeStore`), `thumbnails.ts`, `downscale.ts`, photoswipe, `onDragDropEvent`-Muster, haex-vault 2.x Medienserver und PdfViewer |
+| Abhängigkeiten begründet                           | ✅ jede neue Abhängigkeit in research.md mit verworfenen Alternativen; Probe für Android/Windows                                                                                                                 |
+| ADR bei Prinzip-relevanten Entscheidungen          | ⚠️ Abweichung von ADR 0006 (Ausführung in Rust) → ADR 0011 im Docs-PR                                                                                                                                            |
+| Keine Agent-Attribution in Commits                 | ✅                                                                                                                                                                                                               |
 
 Nach dem Entwurf erneut geprüft: keine Verstöße; die eine Abweichung ist durch ADR 0011 gedeckt.
 
@@ -178,7 +178,7 @@ Jeder PR ist für sich prüfbar und lauffähig; die Reihenfolge folgt den Priori
 **Plattformen in der CI**: Linux mit den E2E-Szenarien; Windows, macOS und Android mit einer
 selbstprüfenden Plattform-Probe (Feature `platform-probe`, Jobs `platform-probe` und
 `platform-probe-android`), weil volles E2E dort noch nicht gebaut ist (`scripts/e2e/PLATFORMS.md`). Den
-Ausbau zu vollem E2E nach dem Vorbild von haex-vault führt `plans/README.md` als eigene Idee.
+Ausbau zu vollem E2E nach dem Vorbild von haex-vault 2.x führt `plans/README.md` als eigene Idee.
 
 ## Complexity Tracking
 

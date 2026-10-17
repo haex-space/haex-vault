@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The import (spec 034, US7, FR-023) at `/import`: choose the source and the file (KeePass also
- * asks for the password and an optional key file, haex-vault for its vault password, spec 037),
+ * asks for the password and an optional key file, haex-vault 2.x (Legacy) for its vault password, spec 037),
  * look at what the file holds (counts, folders,
  * trashed entries, history states, attachments, passkeys, duplicates, warnings), choose what to do
  * with duplicates, watch the progress (with cancel; a cancel or a fatal error removes what was
@@ -37,7 +37,7 @@ const SOURCES: { id: ImportSource; extensions: string[] }[] = [
   { id: 'keepass', extensions: ['kdbx'] },
   { id: 'bitwarden', extensions: ['json', 'csv'] },
   { id: 'lastpass', extensions: ['csv'] },
-  { id: 'haexvault', extensions: ['db'] },
+  { id: 'legacyhaexvault', extensions: ['db'] },
 ]
 const LIMIT_MIB = 25
 
@@ -288,8 +288,8 @@ onBeforeUnmount(() => {
           <SettingsRow
             :title="file ? fileName : t('passwords.import.noFile')"
             :description="
-              isAndroid && source === 'haexvault'
-                ? t('passwords.import.fileHintAndroidHaexVault')
+              isAndroid && source === 'legacyhaexvault'
+                ? t('passwords.import.fileHintAndroidLegacyHaexVault')
                 : t('passwords.import.fileHint')
             "
             icon="lucide:file"

@@ -3,8 +3,8 @@
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Datum**: 2026-09-28
 
 Jede Entscheidung nennt, was gewählt wurde, warum und was verworfen wurde. Fakten zu fremden
-Bibliotheken stammen aus deren veröffentlichten Quellen (crates.io, docs.rs) oder aus haex-vault
-(Repository `https://github.com/haex-space/haex-vault`, Revision
+Bibliotheken stammen aus deren veröffentlichten Quellen (crates.io, docs.rs) oder aus haex-vault 2.x (Legacy)
+(Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`) und sind mit „geprüft“ markiert; alles andere ist
 eine Entscheidung dieses Plans.
 
@@ -26,7 +26,7 @@ eine Entscheidung dieses Plans.
 `sha2`, `zeroize`, `base64`, `uuid`, `tokio`, `tokio-util`, `serde` sind schon da.
 
 **Begründung**: iroh ist Betreibervorgabe; geprüft: iroh 1.2.0 ist die aktuelle stabile Version
-(MSRV 1.91), haex-vault nutzt dieselbe Linie mit `tls-ring`. rust-nostr 0.45 hat die NIP-Features
+(MSRV 1.91), haex-vault 2.x nutzt dieselbe Linie mit `tls-ring`. rust-nostr 0.45 hat die NIP-Features
 nur noch im Crate `nostr`, nicht mehr in `nostr-sdk` (geprüft). `nostr::PublicKey` hat keine
 Prüfmethode für fremde Nutzdaten; dafür dient `secp256k1` 0.30 direkt (geprüft, dieselbe Version
 vermeidet doppelte Typen). postcard statt JSON für die Rahmen, weil Handshake, Geräteliste und
@@ -195,14 +195,14 @@ gespeicherte Bereiche wüchsen ohne Grenze).
   `.secret_key(..)`, `.alpns([b"holzi-sync/1", b"holzi-link/1"])`,
   `.relay_mode(RelayMode::custom(urls))` aus den Einstellungen (Standard: die öffentlichen
   iroh-Relays von n0), eigene Adresssuche über `MemoryLookup`, gefüllt aus Präsenzmeldungen (R7). `bind()`
-  mit 15 s Zeitgrenze (geprüft: haex-vault macht das, weil `bind` an der DNS-Auflösung der iroh-Relays hängen kann).
+  mit 15 s Zeitgrenze (geprüft: haex-vault 2.x macht das, weil `bind` an der DNS-Auflösung der iroh-Relays hängen kann).
 - Annehmen über `Router` mit je einem `ProtocolHandler` pro ALPN.
 - **Gegenseitiger Handshake** auf dem ersten Bi-Stream, den der Annehmende öffnet: Herausforderung
   mit 32 Byte Zufall in beide Richtungen; jede Seite signiert mit ihrem Geräteschlüssel (Schnorr)
   `SHA-256("holzi-device-auth/v1" || len‖nonce_a || len‖nonce_b || len‖eigene endpoint_id ||
 len‖fremde endpoint_id || len‖vault_pubkey)`. Geprüft wird: `endpoint_id` gleich
   `Connection::remote_id()`, Signatur passt zum Geräteschlüssel, dieser steht mit genau dieser
-  `endpoint_id` auf der aktuellen Geräteliste und gilt nicht als entfernt. Muster aus haex-vault
+  `endpoint_id` auf der aktuellen Geräteliste und gilt nicht als entfernt. Muster aus haex-vault 2.x
   `quic_did_auth` (geprüft), dort nur einseitig; hier gegenseitig, weil die Bindung
   `endpoint_id ↔ Geräteschlüssel` sonst nur an der Präsenzmeldung hinge.
 - **Nachrichten**: ein Bi-Stream je Anfrage, Rahmen `u32 BE Länge ‖ postcard`, die Länge wird vor
@@ -224,7 +224,7 @@ len‖fremde endpoint_id || len‖vault_pubkey)`. Geprüft wird: `endpoint_id` g
 
 **Verworfen**: `presets::N0` (veröffentlicht Adressen bei n0 über pkarr, widerspricht der
 Präsenz über Nostr), ein einseitiger Handshake, ein großer Rahmen je Sync (bis 200 MB in
-haex-vault; Seiten halten den Speicher klein), eine feste Obergrenze je Transaktionsgruppe im
+haex-vault 2.x; Seiten halten den Speicher klein), eine feste Obergrenze je Transaktionsgruppe im
 Protokoll (eine größere lokale Transaktion hielte den Abgleich ihres Ursprungs für immer an;
 `paginate_changes` liefert eine zu große Gruppe nach seiner „≥1-Regel“ ohnehin als eigene Seite,
 geprüft).
@@ -440,7 +440,7 @@ Aufnehmen, Ablehnen und Entfernen sind nicht für Agenten freigegeben (FR-036).
   R20, und je Speicher-Modul jede heutige Anweisung durch den Transformer von haex-crdt (R19).
 - **Rust-Integrationstests** unter `src-tauri/tests/`: mehrere Geräte im selben Prozess, jedes mit
   eigener Vault-Datei und eigenem iroh-Endpunkt (`presets::Minimal`, `RelayMode::Disabled`,
-  `MemoryLookup` mit den Loopback-Adressen, geprüft aus haex-vault
+  `MemoryLookup` mit den Loopback-Adressen, geprüft aus haex-vault 2.x
   `owner_sync_integration_tests/helpers.rs`), Präsenz über `nostr_sdk::local_relay::MockRelay`.
   SC-003 (drei Geräte, 1.000 Änderungen, wechselnde Wege) läuft hier.
 - **E2E** (Spec 016): zwei App-Prozesse, Nostr über ein kleines Test-Relay aus
@@ -482,7 +482,7 @@ Produktionsdatei stehen Tests.
 ## R19 Schreiben über den CRDT-Weg von haex-crdt (Betreiber-Entscheidung)
 
 **Befund** (geprüft): holzi hat keinen allgemeinen Befehl wie `sql_execute`/`sql_execute_with_crdt`
-in haex-vault. Chat, Einstellungen, Sitzung, Provider, Modelle, Wartung und Freigaben greifen mit
+in haex-vault 2.x. Chat, Einstellungen, Sitzung, Provider, Modelle, Wartung und Freigaben greifen mit
 56 Aufrufen in 15 Produktionsdateien selbst über `haex_crdt::Database::with_connection` zu (dazu
 14 Integrationstestdateien), den Notausgang hinter
 dem Feature `raw-connection`, jede mit eigenem `spawn_blocking` und eigener Fehlerumwandlung. Die
@@ -512,7 +512,7 @@ BLOBs) und hatte eine feste Größengrenze.
   `Database::read(|conn: &ReadOnlyConnection| …)` liest; `PRAGMA query_only` und ein Authorizer
   weisen dort jede Schreibung ab. Fehler kommen typisiert an (`Error::Database(DatabaseError)`,
   `Error::Consumer` für eigene Fehler aus dem Closure, `Error::sqlite_error()`). Die alte
-  `DbConnection`-Schicht aus haex-vault mit `execute_with_crdt`, `select_with_crdt` und den Hooks
+  `DbConnection`-Schicht aus haex-vault 2.x mit `execute_with_crdt`, `select_with_crdt` und den Hooks
   ist entfernt; `select_with_crdt` änderte unter harten Löschungen an einem `SELECT` nichts.
 - **holzi**: Ein Modul `src-tauri/src/storage/vault_db.rs` kapselt das asynchron (`spawn_blocking`,
   einheitliche Umwandlung in `HolziError`): `read(|conn| …)` und `write(|tx| …)`. Nach dem Commit
@@ -534,7 +534,7 @@ und Anstoß des Sync statt vieler; atomare Schreibvorgänge unabhängig vom Sync
 **Verworfen**: das damalige `execute_with_crdt` direkt (eine Anweisung je Transaktion, keine BLOBs),
 eine eigene `write`-Hülle über dem rohen Weg mit von Hand gesetztem HLC (die Konvention bliebe, die
 Größengrenze greift dort nicht), ein Commit-Beobachter in haex-crdt (behandelt das Symptom, die vielen
-Stellen blieben), ein allgemeiner SQL-Befehl für die Oberfläche wie in haex-vault (holzi schreibt
+Stellen blieben), ein allgemeiner SQL-Befehl für die Oberfläche wie in haex-vault 2.x (holzi schreibt
 nur aus dem Backend; ein SQL-Befehl wäre eine neue Angriffsfläche für Erweiterungen und Agenten).
 
 ## R20 Begrenztes Wachstum

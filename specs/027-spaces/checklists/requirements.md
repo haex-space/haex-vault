@@ -75,7 +75,7 @@
   read new content through the other device's generation.
 - Operator constraints (iroh, Nostr, NIP-44 v2, encrypted Nostr direct message
   for invites) are named in the Input line and, for the invite transport, in
-  FR-041. The haex-vault reference is given as repository, full SHA and path.
+  FR-041. The haex-vault 2.x (Legacy) reference is given as repository, full SHA and path.
 - Links to specs 024, 025, 026, 028 and 029 are plain references because those
   directories were written in parallel.
 

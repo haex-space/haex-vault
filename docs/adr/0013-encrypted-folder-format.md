@@ -11,8 +11,8 @@ encrypted", successor of 025) and the rework of spaces 027/029, where a folder i
 users. If each built its own encryption, holzi would have three formats, three key schemes and three
 sets of checks for one rule.
 
-haex-vault has a per-file scheme in `file_sync/crypto` (repository
-`https://github.com/haex-space/haex-vault`, revision `8dce379d94e18fcd42c3b73686a06f984ca3f574`). Its
+haex-vault 2.x (Legacy) has a per-file scheme in `file_sync/crypto` (repository
+`https://github.com/haex-space/haex-vault-legacy`, revision `8dce379d94e18fcd42c3b73686a06f984ca3f574`). Its
 model fits, but its format lets a provider truncate files at a block boundary, point a sidecar at
 another file's content and replay an old version under the current key (spec 048 research R3).
 
@@ -30,7 +30,7 @@ Spec 048 defines version 1.
   recipient to the head and never hands out the vault-derived key.
 - The format code is pure (no I/O) and lives in one module, `files/encrypted/format`. The file browser,
   agents, extensions, sync rules and spaces all use it; none carries a second implementation.
-- It is not compatible with haex-vault's `HXFE`. There is no reader for `HXFE` in holzi.
+- It is not compatible with haex-vault 2.x's `HXFE`. There is no reader for `HXFE` in holzi.
 
 ## Consequences
 
@@ -38,5 +38,5 @@ Spec 048 defines version 1.
   in a later version.
 - A change to the format needs a new version number, new test vectors and an update of this ADR's
   format document; readers reject unknown versions instead of guessing.
-- Data that haex-vault encrypted with `HXFE` has to be downloaded with haex-vault and stored again
+- Data that haex-vault 2.x encrypted with `HXFE` has to be downloaded with haex-vault 2.x and stored again
   through holzi.

@@ -1,6 +1,6 @@
 //! What an import writes besides folders, entries and attachments (spec 037, research R4): the
 //! colours of tags, passkeys that belong to no entry, and presets of the password generator. Only
-//! haex-vault delivers these today; for the other sources the lists are empty and nothing happens.
+//! haex-vault 2.x (Legacy) delivers these today; for the other sources the lists are empty and nothing happens.
 //! They are few and small, so they go in one write after the entries.
 
 use haex_crdt::rusqlite::params;

@@ -1,6 +1,6 @@
 //! Errors an extension receives over the bridge (spec 017, contracts/bridge.md §Fehlercodes).
 //!
-//! The codes are haex-vault's (`src-tauri/src/extension/error.rs` @ `8dce379`), so the vault-sdk
+//! The codes are haex-vault 2.x's (Legacy) (`src-tauri/src/extension/error.rs` @ `8dce379`), so the vault-sdk
 //! understands them unchanged — `1002` denied and `1004` prompt required drive its retry logic —
 //! plus three of holzi's own. A message never names a table, file or entry outside the caller's
 //! grants (FR-062): the caller learns that something is refused, not whether it exists.

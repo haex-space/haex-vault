@@ -86,8 +86,8 @@ PGP-Schlüssel, Serveradressen und was sonst noch so kommen wird."
   Abgleichsziel auf einem Telefon kommen in dessen Telefon-Adressbuch.
 - **Zielkonto**: das Telefonkonto, das holzi auf einem Telefon vorschlägt, wenn ein Kontakt dieses
   Telefon als Abgleichsziel bekommt.
-- Die „Kontakte“ aus haex-vault waren Identitäten zum Teilen (Schlüsselpaare anderer Vaults). Ihren
-  Zweck übernimmt hier die Visitenkarte; die Daten aus haex-vault werden nicht übernommen.
+- Die „Kontakte“ aus haex-vault 2.x (Legacy) waren Identitäten zum Teilen (Schlüsselpaare anderer Vaults). Ihren
+  Zweck übernimmt hier die Visitenkarte; die Daten aus haex-vault 2.x werden nicht übernommen.
 
 ## Beziehung zu bestehenden Specs
 
@@ -669,4 +669,4 @@ Empfänger beim Senden offline war.
 - Doppel im Adressbuch von Hand zusammenführen (über die Zusammenführung beim Einschalten hinaus).
 - Kontakte selbst mit anderen Vaults teilen und Nachrichten an Kontakte schicken.
 - Abgleich im Hintergrund, solange holzi nicht im Vordergrund ist.
-- Übernahme der Identitäten aus haex-vault („Kontakte“ dort).
+- Übernahme der Identitäten aus haex-vault 2.x („Kontakte“ dort).

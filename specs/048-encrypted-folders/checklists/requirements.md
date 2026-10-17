@@ -31,7 +31,7 @@
 
 ## Notes
 
-- The spec names the haex-vault template (repository, full revision, path) and, under Assumptions,
+- The spec names the haex-vault 2.x (Legacy) template (repository, full revision, path) and, under Assumptions,
   the cipher and block size it would carry over. That follows the house style of 038 and 044, which
   name their templates the same way; the requirements themselves stay at the level of behaviour
   (FR-015 asks for block-wise encryption with ranged reads, not for a cipher).

@@ -18,7 +18,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Format `HXEF` v1** (R2 bis R4, [contracts/format.md](./contracts/format.md)): XChaCha20-Poly1305 aus
   vorhandenen Abhängigkeiten, Blöcke zu 64 KiB mit Kopf, Index und „letzter Block“ im AAD;
   Einträge mit Eltern-Kennung (Umbenennen = eine Begleitdatei); Fassungen mit `base` für Konflikte.
-  Modell von haex-vault, ohne dessen Lücken.
+  Modell von haex-vault 2.x (Legacy), ohne dessen Lücken.
 - **Einbau in `files/`** (R9): neues Modul `files/encrypted/`; Weiche in `StorageFiles` für Pfade durch
   verschlüsselte Ordner; `Side::Encrypted` in Transfers; `EncryptedFileSource` für den Medienserver
   (R5).
@@ -73,7 +73,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | I. Keine Geheimnisse in Git                        | ✅ Testvektoren nutzen feste Testschlüssel ohne Bezug zu echten Daten; sie sind kein Schlüsselmaterial einer Identität                                                                            |
 | II. Keine lokalen absoluten Pfade in Konfiguration | ✅ Pfade nur zur Laufzeit                                                                                                                                                                         |
 | III. Projektidentität geräteunabhängig             | ✅ nicht berührt                                                                                                                                                                                  |
-| IV. Fremde Inhalte mit unveränderlicher Revision   | ✅ haex-vault mit `8dce379d94e18fcd42c3b73686a06f984ca3f574` zitiert                                                                                                                              |
+| IV. Fremde Inhalte mit unveränderlicher Revision   | ✅ haex-vault 2.x mit `8dce379d94e18fcd42c3b73686a06f984ca3f574` zitiert                                                                                                                          |
 | V. Externe Quellen nur per Allowlist               | ✅ keine neuen Harness-Quellen                                                                                                                                                                    |
 | VI. Selbständernde Anweisungen nur mit Review      | ✅ keine Änderung an Constitution oder Skills; die neue Berechtigungsart betrifft Erweiterungen, nicht Agent-Anweisungen                                                                          |
 | VII. Relay blockiert lokale Arbeit nie             | ✅ verschlüsselte Ordner brauchen nur ihren Anbieter; ein Gerät ohne Inhaltsschlüssel (vor dem ersten Sync) bekommt `noKey`                                                                       |
@@ -197,6 +197,6 @@ Jeder PR ist für sich prüfbar und lauffähig.
 
 | Abweichung                                               | Warum nötig                                                       | Einfachere Alternative verworfen, weil                                         |
 | -------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Eigenes Format statt Übernahme von haex-vault            | Kürzen, Umbiegen und Wiederverwenden der Schlüssel unerkannt (R3) | Nachbessern ändert das Format ohnehin; Kompatibilität bringt keinen Nutzer mit |
+| Eigenes Format statt Übernahme von haex-vault 2.x        | Kürzen, Umbiegen und Wiederverwenden der Schlüssel unerkannt (R3) | Nachbessern ändert das Format ohnehin; Kompatibilität bringt keinen Nutzer mit |
 | Zwei Zwischenspeicher-Tabellen neben dem Bucket          | SC-003 beim zweiten Öffnen < 1 s                                  | Jedes Mal alle Begleitdateien laden dauert bei 10 000 Einträgen ~16 s          |
 | Neue Berechtigungsart, die nicht im Manifest stehen darf | Betreiber: Freigabe nur durch den Nutzer (FR-037)                 | Ziel unter `remoteStorage` wäre über das Manifest erteilbar                    |

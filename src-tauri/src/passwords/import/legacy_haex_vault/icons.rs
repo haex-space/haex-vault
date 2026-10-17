@@ -1,11 +1,11 @@
-//! The icon names haex-vault stores (spec 037, research R8) as pictures of holzi. haex-vault keeps
+//! The icon names haex-vault 2.x (Legacy) stores (spec 037, research R8) as pictures of holzi. haex-vault 2.x keeps
 //! Iconify names in three spellings: `i-lucide-<name>` (its KeePass import, the defaults of folders
 //! and the trash), `mdi:<name>` (its icon picker, `editor/iconPicker.vue`) and the short names of
-//! the old haex-pass extension (`useIconComponents.ts`), all at haex-vault @ `8dce379`. Every
+//! the old haex-pass extension (`useIconComponents.ts`), all at haex-vault 2.x @ `8dce379`. Every
 //! picture holzi may end up with is in [`TARGETS`], and each of those is a literal of
 //! `src/lib/passwords/icons.ts` (checked by a test), so the build bundles it.
 
-/// The Lucide names a haex-vault icon can become.
+/// The Lucide names a haex-vault 2.x icon can become.
 const TARGETS: &[&str] = &[
     "lucide:app-window",
     "lucide:apple",
@@ -124,14 +124,14 @@ const TARGETS: &[&str] = &[
     "lucide:zap",
 ];
 
-/// Lucide names haex-vault uses that Lucide has since renamed.
+/// Lucide names haex-vault 2.x uses that Lucide has since renamed.
 const LUCIDE_RENAMED: &[(&str, &str)] = &[
     ("home", "house"),
     ("alert-triangle", "triangle-alert"),
     ("check-circle", "circle-check"),
 ];
 
-/// The names of the haex-vault icon picker and its KeePass import.
+/// The names of the haex-vault 2.x icon picker and its KeePass import.
 const MDI: &[(&str, &str)] = &[
     ("account", "lucide:user"),
     ("account-circle", "lucide:circle-user"),
@@ -219,7 +219,7 @@ const LEGACY: &[(&str, &str)] = &[
     ("message", "lucide:message-square"),
 ];
 
-/// The picture of holzi for a haex-vault icon name; `None` when there is none (the caller reports
+/// The picture of holzi for a haex-vault 2.x icon name; `None` when there is none (the caller reports
 /// it). `binary:` values are pictures of their own and not handled here.
 pub(super) fn map_icon(name: &str) -> Option<&'static str> {
     let name = name.trim();
@@ -238,7 +238,7 @@ pub(super) fn map_icon(name: &str) -> Option<&'static str> {
     lookup(LEGACY, name).or_else(|| known(name))
 }
 
-/// The target for a Lucide name, with haex-vault's older spellings renamed.
+/// The target for a Lucide name, with haex-vault 2.x's older spellings renamed.
 fn known(lucide: &str) -> Option<&'static str> {
     let lucide = lookup(LUCIDE_RENAMED, lucide).unwrap_or(lucide);
     let wanted = format!("lucide:{lucide}");

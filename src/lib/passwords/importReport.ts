@@ -58,20 +58,20 @@ export function progressPercent(done: number, total: number): number | null {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)))
 }
 
-/** What a source asks for besides the file: KeePass a password and/or a key file, haex-vault its
+/** What a source asks for besides the file: KeePass a password and/or a key file, haex-vault 2.x (Legacy) its
  * vault password (spec 037), the exports nothing. */
 export function sourceSecrets(source: string): {
   password: boolean
   keyFile: boolean
 } {
   return {
-    password: source === 'keepass' || source === 'haexvault',
+    password: source === 'keepass' || source === 'legacyhaexvault',
     keyFile: source === 'keepass',
   }
 }
 
 /** Whether the preview can start: a file, and what the source needs to open it (KeePass one of
- * password or key file, haex-vault its password). */
+ * password or key file, haex-vault 2.x its password). */
 export function canPreviewImport(
   source: string,
   hasFile: boolean,
@@ -80,7 +80,7 @@ export function canPreviewImport(
 ): boolean {
   if (!hasFile) return false
   if (source === 'keepass') return hasPassword || hasKeyFile
-  if (source === 'haexvault') return hasPassword
+  if (source === 'legacyhaexvault') return hasPassword
   return true
 }
 

@@ -1,7 +1,7 @@
-//! The history of haex-vault entries (spec 037, research R7). haex-vault writes the JSON of a state
+//! The history of haex-vault 2.x (Legacy) entries (spec 037, research R7). haex-vault 2.x writes the JSON of a state
 //! in three shapes (its editor, its KeePass import, its external API); holzi's [`SnapshotData`]
 //! reads all of them, unknown fields such as `tags` are ignored. The attachments of a state come
-//! from `snapshot_binaries`, because the KeePass import of haex-vault leaves the JSON list empty.
+//! from `snapshot_binaries`, because the KeePass import of haex-vault 2.x leaves the JSON list empty.
 
 use std::collections::HashMap;
 
@@ -21,7 +21,7 @@ struct Row {
     time: Option<String>,
 }
 
-/// The states of every entry, oldest first, keyed by the entry's id in haex-vault. A state that
+/// The states of every entry, oldest first, keyed by the entry's id in haex-vault 2.x. A state that
 /// cannot be read is left out and reported at its entry.
 pub(super) fn read_history(
     conn: &Connection,

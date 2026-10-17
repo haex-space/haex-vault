@@ -13,7 +13,7 @@ Entscheidungen enthält: ganzes Dateisystem des Geräts plus S3-Speicher aus Spe
 Drop ins Fenster); Viewer für Text, PDF (pdf.js), Bild, Video, Audio, sonst "Mit System-App öffnen";
 Live-Suche ohne Index mit Filtern; Agents dürfen alles lesen, Schreiben über Approval-Gate,
 holzi-eigene Daten für Agents gesperrt; Android mit MANAGE_EXTERNAL_STORAGE; Inhalte über lokalen
-HTTP-Server mit Tokens (aus haex-vault), nie ganze Datei im RAM."
+HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 
 ## Begriffe
 
@@ -45,8 +45,8 @@ HTTP-Server mit Tokens (aus haex-vault), nie ganze Datei im RAM."
 ## Beziehung zu bestehenden Specs
 
 - **Design**: [`docs/plans/2026-10-07-file-browser-design.md`](../../docs/plans/2026-10-07-file-browser-design.md)
-  hält Aufbau, Datenfluss und Testansatz fest und nennt die Vorlagen aus haex-vault (Repository
-  `https://github.com/haex-space/haex-vault`, Revision `fc4e84b6`). haex-files ist obsolet und kein
+  hält Aufbau, Datenfluss und Testansatz fest und nennt die Vorlagen aus haex-vault 2.x (Repository
+  `https://github.com/haex-space/haex-vault-legacy`, Revision `fc4e84b6`). haex-files ist obsolet und kein
   Maßstab.
 - **Spec 038** (Speicherverbindungen): liefert die Speicher, die der Dateibrowser als Quelle zeigt.
   Zugangsdaten bleiben wie dort in holzi; der Dateibrowser zeigt sie nie. Agents erreichen einen
@@ -157,7 +157,7 @@ das PNG hat ein Vorschaubild.
 Anna öffnet ein 4-GB-Video und ein MP3. Beide starten sofort, ohne vorher ganz geladen zu werden, und
 sie kann im Video vor- und zurückspringen.
 
-**Why this priority**: Abspielen war ausdrücklich gewünscht, und genau hier ist haex-vault unter
+**Why this priority**: Abspielen war ausdrücklich gewünscht, und genau hier ist haex-vault 2.x unter
 Linux gescheitert (MP3 lud erst ganz, MP4 startete nicht).
 
 **Independent Test**: Ein großes MP4 und ein MP3 öffnen; beide starten in wenigen Sekunden, das Video

@@ -1,4 +1,4 @@
-# Data Model: Passwörter aus haex-vault übernehmen
+# Data Model: Passwörter aus haex-vault 2.x (Legacy) übernehmen
 
 Diese Spec ändert **kein** Tabellenschema von holzi und braucht keine Migration. Sie ändert nur
 das Importmodell im Speicher (`src-tauri/src/passwords/import/mod.rs`) und Werte, die über
@@ -6,7 +6,7 @@ die Tauri-Grenze gehen.
 
 ## 1. Quelle (nur gelesen)
 
-Tabellen von haex-vault @ `8dce379d94e1`, `src-tauri/database/migrations/0000_jazzy_chat.sql:414-552`.
+Tabellen von haex-vault 2.x @ `8dce379d94e1`, `src-tauri/database/migrations/0000_jazzy_chat.sql:414-552`.
 Die genaue Abbildung jeder Spalte steht in [contracts/haex-vault-mapping.md](contracts/haex-vault-mapping.md).
 
 | Tabelle                                           | Rolle                              | Pflicht                        |
@@ -32,7 +32,7 @@ Alle neuen Felder haben einen leeren Standardwert; KeePass, Bitwarden und LastPa
 nicht und verhalten sich unverändert.
 
 ```text
-ImportSource      + HaexVault                        // serde "haexvault", ts-rs-Binding neu erzeugt
+ImportSource      + LegacyHaexVault                        // serde "legacyhaexvault", ts-rs-Binding neu erzeugt
 
 ImportItem        + color: Option<String>            // "#rrggbb" wie in der Quelle
                   + autofill_aliases: Option<serde_json::Value>   // Record<string, string[]>
@@ -68,8 +68,8 @@ ImportPreview     + tags: u32
 ```
 
 `passkeys` zählt künftig Passkeys an Einträgen **und** ohne Eintrag. `warnings` bekommt für
-diese Quelle den festen Hinweis zum Schließen von haex-vault (Schlüssel
-`haex_vault_close_first`) und, falls vorhanden, den Hinweis auf Tabellen der alten Erweiterung
+diese Quelle den festen Hinweis zum Schließen von haex-vault 2.x (Schlüssel
+`legacy_haex_vault_close_first`) und, falls vorhanden, den Hinweis auf Tabellen der alten Erweiterung
 (`haex_pass_tables_ignored`).
 
 ## 5. Bericht (`AttentionKind`, `model.rs:177-187`)
@@ -88,7 +88,7 @@ Weiterverwendet: `IconNotMapped` (unbekannter Name, Bild fehlt), `AttachmentUnre
 
 ## 6. Fehlergründe (`PasswordsImportFailed.reason`)
 
-Neu: `haex_vault_locked`, `no_passwords`. Weiterverwendet: `unreadable`, `unsupported_format`,
+Neu: `legacy_haex_vault_locked`, `no_passwords`. Weiterverwendet: `unreadable`, `unsupported_format`,
 `cancelled`. Texte unter `errors.passwords.importReason` in `de.json`/`en.json`.
 
 ## 7. Zustände

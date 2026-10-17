@@ -1,10 +1,10 @@
 //! Mail of extensions (spec 017, US11, T108, FR-056, FR-058, research R21): the SDK's
 //! `client.mail` on IMAP (`async-imap`) and SMTP (`lettre`), TLS through rustls with ring.
 //!
-//! Ported from haex-space/haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574`
+//! Ported from haex-space/haex-vault-legacy `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 //! (`src-tauri/src/mail/`, `src-tauri/src/extension/mail/`) and closed where it had gaps:
-//! STARTTLS for IMAP (haex-vault spoke implicit TLS only), no unencrypted connection except to
-//! this device, flags and keywords checked as IMAP atoms (haex-vault put them into the command
+//! STARTTLS for IMAP (haex-vault 2.x (Legacy) spoke implicit TLS only), no unencrypted connection except to
+//! this device, flags and keywords checked as IMAP atoms (haex-vault 2.x put them into the command
 //! unchecked), a permission per mail server **and port** (FR-056), answers within the
 //! extension's response limit, and no credential in any answer, error or log line.
 //!

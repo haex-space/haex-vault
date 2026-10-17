@@ -158,7 +158,7 @@ ohne e2e-Hook und ohne Gruppen; Stufe 1 hängt nicht daran.
 Webview als Farbwähler gezeigt) in einem Popover der „+“-Kachel, daneben ein Hex-Feld
 (`UiInput`, geprüft). Export/Import über `@tauri-apps/plugin-dialog` (`save`/`open`) für den
 Pfad und `@tauri-apps/plugin-fs` (`readTextFile`/`writeTextFile`, vorher `stat` für die
-16-KiB-Grenze) im Frontend, wie in haex-vault (`useIdentityExport.ts`, `useIdentitiesActions.ts`).
+16-KiB-Grenze) im Frontend, wie in haex-vault 2.x (Legacy) (`useIdentityExport.ts`, `useIdentitiesActions.ts`).
 Der Passwortimport in `ImportWizard.vue` liest dagegen nicht im Frontend, sondern gibt den Pfad an
 einen Befehl im Backend; er ist hier kein Vorbild. Die Datei ist klein (< 2 KiB) und wird im
 Speicher geprüft.
@@ -169,7 +169,7 @@ Registrierung in `lib.rs` und genau drei Rechte: `fs:allow-read-text-file`,
 `fs:allow-write-text-file`, `fs:allow-stat`, ohne `fs:default` und ohne `fs:scope`. `open()` und
 `save()` des Dialog-Plugins tragen die gewählte Datei zur Laufzeit in den Scope von `plugin-fs` ein
 (`try_fs_scope().allow_file`), darum darf die App nur die Datei anfassen, die der Nutzer gewählt
-hat. haex-vault erlaubt `fs:scope` mit `**` und breite Schreibrechte; das wird nicht übernommen.
+hat. haex-vault 2.x erlaubt `fs:scope` mit `**` und breite Schreibrechte; das wird nicht übernommen.
 Auf Android liefert die Auswahl eine Content-URI; Lesen und Schreiben dort prüft die Handprüfung.
 
 **Verworfen**: Eigener Farbwähler (Aufwand ohne Nutzen für Stufe 2); Anzeigen und Einfügen von

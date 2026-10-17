@@ -1,6 +1,6 @@
 //! The password manager (spec 034-password-manager): entries, folders, tags, history, attachments,
 //! passkeys as data, the generator presets, the import and the access check for every caller.
-//! Table and column names follow haex-vault (`haex_passwords_*`, data-model.md); every access goes
+//! Table and column names follow haex-vault 2.x (Legacy) (`haex_passwords_*`, data-model.md); every access goes
 //! through [`service`] (added with the stories), never around it.
 
 /// The attachment limit (FR-020): 25 MiB per attachment, checked before the file is read.

@@ -1,6 +1,6 @@
 # Contract: Shared Types (Rust ↔ TypeScript)
 
-**Status**: Draft. All types are generated from Rust `#[derive(ts_rs::TS)]` structs and exported to `src/types/bindings/` via `cargo test` (per haex-vault's `generate:ts-types` script).
+**Status**: Draft. All types are generated from Rust `#[derive(ts_rs::TS)]` structs and exported to `src/types/bindings/` via `cargo test` (per haex-vault 2.x's (Legacy) `generate:ts-types` script).
 
 **V1 contract note**: Backup restore is a plain `open_instance` of a copied `.db`. No `Recover` mode, no second database, no restore-pairing handoff.
 
@@ -64,7 +64,7 @@ See [`tauri-commands.md`](./tauri-commands.md) → "Error type". Serialized as a
 1. Rust structs live in `src-tauri/src/instances/types.rs`, `src-tauri/src/error.rs`, `src-tauri/src/pairing/types.rs`.
 2. `#[derive(TS)]` + `#[ts(export)]` writes them to `src-tauri/bindings/` when `cargo test` runs (per `ts-rs` default; the `generate:ts-types` script wraps this).
 3. A post-generation step (npm script or Rust build helper) copies or symlinks `src-tauri/bindings/` to `src/types/bindings/` so the frontend's `@bindings/*` alias resolves without walking out of `src/`.
-4. CI has a check that the generated files under `src/types/bindings/` match a fresh regeneration — drift fails the build. haex-vault uses `test:constants` for the same purpose.
+4. CI has a check that the generated files under `src/types/bindings/` match a fresh regeneration — drift fails the build. haex-vault 2.x uses `test:constants` for the same purpose.
 
 ## Naming rules
 

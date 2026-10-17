@@ -33,7 +33,7 @@
 
 - Die Spec nennt SQL, Drizzle, iframe, Ed25519 und das vault-sdk-Protokoll. Das ist keine
   Umsetzungsvorgabe, sondern der Gegenstand: Das Feature ist SQL-Zugriff für Erweiterungen,
-  die mit vault-sdk und Drizzle gebaut sind, und die Kompatibilität mit haex-vault ist eine
+  die mit vault-sdk und Drizzle gebaut sind, und die Kompatibilität mit haex-vault 2.x (Legacy) ist eine
   Anforderung (FR-002, FR-013). Wie geprüft, gespeichert und übertragen wird, bleibt dem Plan.
 - Die drei Entscheidungen mit großer Wirkung (Umfang, mehrere Geräte, Tabellenzugriff) sind in
   den Clarifications vom 2026-10-02 festgehalten; offen ist nichts.

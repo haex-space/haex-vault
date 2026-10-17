@@ -55,7 +55,7 @@ Auf einem echten Telefon (Bildschirmbreite auf 360 dp stellen, z. B. Anzeigegrö
 6. App-Übersicht öffnen → Vorschau leer; Bildschirmfoto → verweigert; Einstellungen →
    Allgemein → Bildschirmschutz aus → beides geht wieder (FR-011a).
 7. Dateiauswahl: Anhang aus „Downloads“ und aus einem Cloud-Anbieter hinzufügen; Darstellung
-   exportieren und wieder importieren; Import aus haex-vault (FR-015).
+   exportieren und wieder importieren; Import aus haex-vault 2.x (Legacy) (FR-015).
 8. Tresordatei öffnen: Eine Tresordatei vom Desktop in „Downloads“ legen, in der Tresorauswahl
    „Tresordatei öffnen“ → Datei wählen → Passwort → Tresor offen; dieselbe Datei noch einmal →
    „gibt es schon“ (FR-002a).

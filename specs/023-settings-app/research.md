@@ -3,7 +3,7 @@
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Datum**:
 2026-09-26
 
-Referenz haex-vault @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
+Referenz haex-vault 2.x (Legacy) @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 (`src/components/haex/system/settings/`,
 `src/components/haex/system/settings-layout/`).
 

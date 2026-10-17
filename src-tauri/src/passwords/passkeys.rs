@@ -2,7 +2,7 @@
 //! import, and the derivation of the public key from the private one. The window never creates a
 //! passkey and nothing here signs; a key is never listed and never printed.
 //!
-//! Encodings follow haex-vault (research R12, spike T003): `credential_id` is standard Base64 of
+//! Encodings follow haex-vault 2.x (Legacy) (research R12, spike T003): `credential_id` is standard Base64 of
 //! the credential's bytes, `private_key` standard Base64 of the PKCS8 DER, `public_key` standard
 //! Base64 of the SPKI DER, `algorithm` a COSE number (-7 ES256, -8 EdDSA, -257 RS256).
 

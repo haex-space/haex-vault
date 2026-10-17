@@ -26,7 +26,7 @@ The `useInstancesStore` Pinia store subscribes in its factory and calls `syncAsy
 
 **Why an event and not polling**:
 
-Every in-scope mutation is owned by a Tauri command, so the command handler is the authoritative producer. Polling would be wasteful. haex-vault uses the same pattern for `vault-list-changed` (see [`stores/vault/lastVaults.ts:37`](../../../../haex-vault/src/stores/vault/lastVaults.ts#L37)).
+Every in-scope mutation is owned by a Tauri command, so the command handler is the authoritative producer. Polling would be wasteful. haex-vault 2.x (Legacy) uses the same pattern for `vault-list-changed` (see [`stores/vault/lastVaults.ts:37`](../../../../haex-vault-legacy/src/stores/vault/lastVaults.ts#L37)).
 
 **Explicitly not in v1**: a filesystem watcher on the instances directory for changes made outside the app (CLI drop-in, third-party file managers). v1 has no CLI, no share-intent code path that bypasses `import_instance_file`, and no other in-scope mutator. If such a path is introduced later, a watcher with a debounce and platform-specific backend can reuse this event topic and payload envelope; its producer and new `reason` value must then be added to this contract.
 

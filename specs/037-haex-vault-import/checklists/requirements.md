@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Passwörter aus haex-vault übernehmen
+# Specification Quality Checklist: Passwörter aus haex-vault 2.x (Legacy) übernehmen
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-04
@@ -31,10 +31,10 @@
 
 ## Notes
 
-- The spec deliberately names the haex-vault reference revision and source files in **Input**
+- The spec deliberately names the haex-vault 2.x reference revision and source files in **Input**
   so that planning can reproduce the source format. Those are references, not implementation
   choices for holzi.
-- FR-002 requires opening the file "the way haex-vault does it" without naming the encryption
+- FR-002 requires opening the file "the way haex-vault 2.x does it" without naming the encryption
   library. The concrete parameters (SQLCipher 4 defaults, key = vault password) belong in
   research.md for `/speckit-plan`.
 - No clarification markers: the operator already decided on the approach (an import source

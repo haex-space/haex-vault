@@ -8,7 +8,7 @@ Date: 2026-10-02
 The password manager (spec 034) stores passwords, TOTP secrets, private passkey
 keys and the values of custom fields **as plain values in the vault database**.
 There is no second encryption layer and no master password of the password
-manager. This is the model of haex-vault, and it keeps the data an ordinary,
+manager. This is the model of haex-vault 2.x (Legacy), and it keeps the data an ordinary,
 synced, recoverable part of the vault.
 
 What protects the secrets instead:

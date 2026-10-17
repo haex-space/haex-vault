@@ -16,8 +16,8 @@ key blocks and token patterns.
 The KeePass database and every passkey (a key pair per algorithm) are built **at run time** by
 `tests/common/kdbx_fixture.rs`; nothing of that is stored.
 
-## haex-vault (spec 037)
+## haex-vault 2.x (Legacy) (spec 037)
 
-- `haex_vault_0000_passwords.sql`: the twelve `haex_passwords_*` tables and their three unique
-  indexes of haex-vault, verbatim from the pinned migration (see its header). Schema only, no data.
-  The encrypted vault with its rows is built **at run time** by `tests/common/haex_vault_fixture.rs`.
+- `legacy_haex_vault_0000_passwords.sql`: the twelve `haex_passwords_*` tables and their three unique
+  indexes of haex-vault 2.x, verbatim from the pinned migration (see its header). Schema only, no data.
+  The encrypted vault with its rows is built **at run time** by `tests/common/legacy_haex_vault_fixture.rs`.

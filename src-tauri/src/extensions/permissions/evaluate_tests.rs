@@ -184,7 +184,7 @@ fn a_permission_of_another_kind_never_counts() {
 
 #[test]
 fn unknown_stored_values_are_absent_never_another_permission() {
-    // FR-022: haex-vault fell back to "database read" for unknown values (`crud.rs:246-255`).
+    // FR-022: haex-vault 2.x (Legacy) fell back to "database read" for unknown values (`crud.rs:246-255`).
     for (kind, action, target, status) in [
         ("spaces", "read", "*", "granted"),
         ("database", "delete", "x", "granted"),
