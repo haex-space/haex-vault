@@ -310,11 +310,25 @@ fn pointer_tokens(pointer: &str) -> Option<Vec<String>> {
     if pointer.is_empty() {
         return Some(Vec::new());
     }
-    pointer.strip_prefix('/').map(|rest| {
-        rest.split('/')
-            .map(|token| token.replace("~1", "/").replace("~0", "~"))
-            .collect()
-    })
+    let rest = pointer.strip_prefix('/')?;
+    let mut tokens = Vec::new();
+    for raw in rest.split('/') {
+        let mut token = String::with_capacity(raw.len());
+        let mut chars = raw.chars();
+        while let Some(character) = chars.next() {
+            if character != '~' {
+                token.push(character);
+                continue;
+            }
+            match chars.next() {
+                Some('0') => token.push('~'),
+                Some('1') => token.push('/'),
+                _ => return None,
+            }
+        }
+        tokens.push(token);
+    }
+    Some(tokens)
 }
 
 /// Whether a pointer can lead somewhere in a value that has this schema: a name must be a declared
@@ -329,8 +343,14 @@ fn pointer_fits(schema: &Value, tokens: &[String]) -> bool {
     {
         return pointer_fits(child, rest);
     }
-    match (schema.get("items"), token.parse::<usize>()) {
-        (Some(items), Ok(_)) => pointer_fits(items, rest),
+    if schema.get("additionalProperties").and_then(Value::as_bool) == Some(true) {
+        return true;
+    }
+    let index = !token.is_empty()
+        && token.bytes().all(|byte| byte.is_ascii_digit())
+        && (token == "0" || !token.starts_with('0'));
+    match schema.get("items") {
+        Some(items) if index => pointer_fits(items, rest),
         _ => false,
     }
 }

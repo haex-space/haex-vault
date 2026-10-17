@@ -213,6 +213,7 @@ fn from_must_name_an_earlier_step_and_a_pointer_that_can_occur() {
         "regions",
         "/colour",
         "/regions/x",
+        "/regions/01/text",
         "/regions/0/colour",
         "/regions/0/text/1",
     ] {
@@ -227,6 +228,28 @@ fn from_must_name_an_earlier_step_and_a_pointer_that_can_occur() {
         });
         assert!(parse(&job(vec![read_step(), step])).is_ok(), "{pointer}");
     }
+
+    let malformed_source = step_with(read_step(), |s| {
+        s["format"]["schema"] = json!({
+            "type": "object",
+            "properties": { "a~2": { "type": "string" } }
+        })
+    });
+    let malformed_pointer = step_with(fix_step(), |s| {
+        s["input"]["from"]["pointer"] = json!("/a~2")
+    });
+    assert!(parse(&job(vec![malformed_source, malformed_pointer])).is_err());
+
+    let open_source = step_with(read_step(), |s| {
+        s["format"]["schema"] = json!({
+            "type": "object",
+            "additionalProperties": true
+        })
+    });
+    let arbitrary_pointer = step_with(fix_step(), |s| {
+        s["input"]["from"]["pointer"] = json!("/created-by-extension")
+    });
+    assert!(parse(&job(vec![open_source, arbitrary_pointer])).is_ok());
 }
 
 #[test]
