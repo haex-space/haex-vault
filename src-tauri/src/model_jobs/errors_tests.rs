@@ -20,6 +20,8 @@ fn a_transport_error_loses_its_url_and_address() {
         "error sending request for url (http://192.168.1.5:8000/v1/chat/completions): connection refused",
         "POST https://api.example.com/v1/chat failed: timeout",
         "connect to 10.0.0.7 failed",
+        "connect to fe80::1 failed",
+        "connect to fd12:3456::7 failed",
         "tcp connect error to school-server:11434: refused",
         "GET http://localhost:11434/v1/models: error",
     ];
@@ -30,6 +32,8 @@ fn a_transport_error_loses_its_url_and_address() {
             "8000",
             "api.example.com",
             "10.0.0.7",
+            "fe80::1",
+            "fd12:3456::7",
             "school-server",
             "11434",
             "localhost",

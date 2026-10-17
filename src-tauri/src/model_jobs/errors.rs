@@ -87,6 +87,13 @@ fn looks_like_address(token: &str) -> bool {
     if token.contains("://") {
         return true;
     }
+    if token.matches(':').count() >= 2
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b':' || byte == b'.' || byte == b'%')
+    {
+        return true;
+    }
     let host = match token.rsplit_once(':') {
         Some((host, port))
             if (2..=5).contains(&port.len()) && port.bytes().all(|b| b.is_ascii_digit()) =>
