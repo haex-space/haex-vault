@@ -108,7 +108,7 @@ data: {
 - Schließt oder lädt ein Rahmen neu, bricht `cancel_owned_by(TaskOwner)` alle Aufträge dieses Rahmens ab
   (vorhandener Haken in `extensions/commands/frames.rs`); es folgt kein Ereignis an den toten Rahmen.
 - Höchstens 2 laufende Aufträge je Rahmen (`MAX_ACTIVE_TASKS_PER_FRAME`); ein dritter: `LimitExceeded`
-  (`activeJobs`).
+  (`active_jobs`).
 - Entfernt der Nutzer eine Freigabe, während ein Auftrag läuft, endet der laufende Modellaufruf wie vorgesehen;
   der nächste Schritt startet nicht mehr und das Ereignis meldet `NoCapableModel` für diesen Schritt (Randfall
   der Spec).
