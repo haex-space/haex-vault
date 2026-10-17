@@ -36,7 +36,10 @@ fn task_error(error: TaskError) -> BridgeError {
         | TaskErrorCode::UnsupportedCapability
         | TaskErrorCode::ProfileUnavailable
         | TaskErrorCode::Timeout
-        | TaskErrorCode::InferenceFailed => ExtensionErrorCode::NotAvailable,
+        | TaskErrorCode::InferenceFailed
+        | TaskErrorCode::NoCapableModel
+        | TaskErrorCode::Unusable
+        | TaskErrorCode::Unavailable => ExtensionErrorCode::NotAvailable,
     };
     BridgeError::new(code, error.message)
 }
@@ -128,7 +131,7 @@ fn emit_completion(
 pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let input = parse_input(params)?;
     let owner = owner(ctx);
-    let registry = ctx.host.agent_tasks();
+    let registry = ctx.host.model_jobs();
     let record = registry.start(owner.clone()).map_err(task_error)?;
     let task_id = record.id;
     let provenance = provenance();
@@ -201,7 +204,7 @@ pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeE
         .parse::<Uuid>()
         .map_err(|_| validation("taskId must be a UUID"))?;
     let owner = owner(ctx);
-    let registry = ctx.host.agent_tasks();
+    let registry = ctx.host.model_jobs();
     let Some(record) = registry.get(task_id) else {
         return Ok(json!({ "cancelled": false }));
     };

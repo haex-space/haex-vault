@@ -107,8 +107,8 @@ pub async fn extension_frame_close(
     let host = state.extensions();
     if let Some(closed) = host.frames.close(&frame) {
         host.permissions.frame_ended(closed.extension_id);
-        host.agent_tasks()
-            .cancel_owned_by(&crate::agent_tasks::TaskOwner {
+        host.model_jobs()
+            .cancel_owned_by(&crate::model_jobs::TaskOwner {
                 extension_id: closed.extension_id,
                 frame: closed.frame.clone(),
             });
@@ -141,8 +141,8 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
     if let Some(session) = host.frames.get(&frame) {
         // The new page runs a new MCP server; the agent's next call connects to it.
         session.mcp.reset();
-        host.agent_tasks()
-            .cancel_owned_by(&crate::agent_tasks::TaskOwner {
+        host.model_jobs()
+            .cancel_owned_by(&crate::model_jobs::TaskOwner {
                 extension_id: session.extension_id,
                 frame: session.frame.clone(),
             });
