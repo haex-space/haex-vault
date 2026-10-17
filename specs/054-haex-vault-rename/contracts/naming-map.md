@@ -35,8 +35,7 @@ Der Name in der Konvention der Umgebung. Die Version eines festen Textes (`/v1`,
 
 | Fundstelle                                         | Regel ergäbe                                | Wird                       | Grund                                              |
 | -------------------------------------------------- | ------------------------------------------- | -------------------------- | -------------------------------------------------- |
-| `HOLZI_VAULT` (Konstante, Umgebungsvariable)       | `HAEX_VAULT_VAULT`                          | `HAEX_VAULT_VAULT`         | eindeutig; kein freier Name (research.md, R2)      |
-| Kontaktart `holzi_vault`                           | `haex_vault_vault`                          | `haex_vault`               | meint die Vault-Identität; kein Doppelwort         |
+| Kontaktart `holzi_vault`, Konstante `HOLZI_VAULT`  | `haex_vault_vault`, `HAEX_VAULT_VAULT`      | `haex_vault`, `HAEX_VAULT` | meint die Vault-Identität; kein Doppelwort         |
 | Kontaktart `holzi_nostr_relay`, `holzi_iroh`       | `haex_vault_nostr_relay`, `haex_vault_iroh` | wie die Regel              | –                                                  |
 | Herkunft `OriginKind::Holzi` (`'holzi'`)           | `HaexVault` / `haex_vault`                  | `HaexVault` / `haex_vault` | Variantenname trägt den Namen voll                 |
 | Typpräfix bei Kollision mit vorhandenem `Vault<X>` | –                                           | `HaexVault<X>`             | der Compiler und die Suche zeigen es beim Anwenden |
