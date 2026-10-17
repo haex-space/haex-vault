@@ -17,6 +17,7 @@ pub(super) enum TokenLimitField {
 }
 
 /// Serializes a provider-neutral chat request for `POST {base}/chat/completions`.
+#[cfg(test)]
 pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
     build_chat_body_with_limit(req, TokenLimitField::MaxTokens)
 }
