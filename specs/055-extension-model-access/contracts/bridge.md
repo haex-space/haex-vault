@@ -41,14 +41,14 @@ Der Rückgabewert kommt sofort; das Ergebnis folgt als Ereignis.
 Fehler bei der Vorprüfung kommen als Antwort der Methode (`BridgeError`), nicht als Ereignis. Die Zahlencodes
 sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere Grund steht in `details.reason`:
 
-| `code`                          | `details.reason`                                                          | Bedeutung                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 3001 `Validation`               | `invalid_input`                                                           | Form von `job` falsch (kein Schritt, `id`, Schema außerhalb der Teilmenge oder unerfüllbar, `from` verweist ins Leere, Bild kein gültiges Base64) |
-| 7000 `LimitExceeded`            | `image_bytes`, `image_count`, `instruction_bytes`, `input_bytes`, `steps`, `active_jobs` | Grenze überschritten; `details.limit` nennt sie                                                                           |
-| 8001 `NotAvailable`             | `no_capable_model`                                                        | Für einen Schritt gibt es kein freigegebenes Modell mit den `needs`                                                       |
-| 1002 `PermissionDenied`         | `consent_denied`                                                          | Der Nutzer hat die Freigabe oder die Einwilligung abgelehnt                                                               |
-| 1004 `PermissionPromptRequired` |                                                                           | holzi fragt den Nutzer; die Erweiterung ruft nach `extension:permission-resolved` erneut                                  |
-| 1000 `SecurityViolation`        |                                                                           | `cancel` mit einer fremden Auftragskennung                                                                                |
+| `code`                          | `details.reason`                                                                         | Bedeutung                                                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3001 `Validation`               | `invalid_input`                                                                          | Form von `job` falsch (kein Schritt, `id`, Schema außerhalb der Teilmenge oder unerfüllbar, `from` verweist ins Leere, Bild kein gültiges Base64) |
+| 7000 `LimitExceeded`            | `image_bytes`, `image_count`, `instruction_bytes`, `input_bytes`, `steps`, `active_jobs` | Grenze überschritten; `details.limit` nennt sie                                                                                                   |
+| 8001 `NotAvailable`             | `no_capable_model`                                                                       | Für einen Schritt gibt es kein freigegebenes Modell mit den `needs`                                                                               |
+| 1002 `PermissionDenied`         | `consent_denied`                                                                         | Der Nutzer hat die Freigabe oder die Einwilligung abgelehnt                                                                                       |
+| 1004 `PermissionPromptRequired` |                                                                                          | holzi fragt den Nutzer; die Erweiterung ruft nach `extension:permission-resolved` erneut                                                          |
+| 1000 `SecurityViolation`        |                                                                                          | `cancel` mit einer fremden Auftragskennung                                                                                                        |
 
 `PermissionPromptRequired` trägt `details`:
 
