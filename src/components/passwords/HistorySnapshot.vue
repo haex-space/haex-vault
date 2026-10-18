@@ -10,6 +10,7 @@ import type { SnapshotView } from '@bindings/SnapshotView'
 defineProps<{
   snapshot: SnapshotView
   restoring: boolean
+  readonly?: boolean
   /** Changes when the secrets must hide again (the Verlauf tab was left). */
   resetKey: number
 }>()
@@ -43,6 +44,7 @@ function when(stamp: string | null): string {
         }}
       </p>
       <UiButton
+        v-if="!readonly"
         :loading="restoring"
         data-testid="passwords-history-restore"
         @click="emit('restore')"

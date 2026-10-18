@@ -121,6 +121,7 @@ function edit() {
 
 /** Removes an invalid TOTP secret without touching anything else of the entry. */
 async function removeOtpAsync() {
+  if (inTrash.value) return
   if (!detail.value?.updatedAt) return
   try {
     await updateItemAsync(props.itemId, detail.value.updatedAt, {
@@ -276,6 +277,7 @@ async function removeOtpAsync() {
             <PasswordsViewExtra
               :item-id="itemId"
               :detail="detail"
+              :readonly="inTrash"
               @changed="loadAsync"
             />
           </template>
@@ -284,6 +286,7 @@ async function removeOtpAsync() {
               :item-id="itemId"
               :updated-at="detail.updatedAt"
               :active="activeTab === 'history'"
+              :readonly="inTrash"
               @restored="onRestored"
             />
           </template>

@@ -113,14 +113,16 @@ test('a stored address opens with its own scheme when that is a known one, else 
   assert.equal(openableUrl(' http://example.com '), 'http://example.com')
   assert.equal(openableUrl('example.com/login'), 'https://example.com/login')
   assert.equal(openableUrl('localhost:8080'), 'https://localhost:8080')
-  assert.equal(openableUrl('FTP://example.com'), 'FTP://example.com')
+  assert.equal(openableUrl('FTP://example.com'), 'ftp://example.com')
   assert.equal(openableUrl('ssh://me@host:22'), 'ssh://me@host:22')
   assert.equal(
     openableUrl('file:///home/me/notes.txt'),
     'file:///home/me/notes.txt',
   )
   assert.equal(openableUrl('javascript://%0Aalert(1)'), null)
+  assert.equal(openableUrl('javascript:alert(1)'), null)
   assert.equal(openableUrl('data://text/html,x'), null)
+  assert.equal(openableUrl('mailto:person@example.com'), null)
   assert.equal(openableUrl('foo://example.com'), null)
   assert.equal(openableUrl('  '), null)
   assert.equal(openableUrl(null), null)

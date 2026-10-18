@@ -14,6 +14,7 @@ import { displayTitle, relativeTime } from '~/lib/passwords/format'
 const props = defineProps<{
   itemId: string
   passkeys: PasskeyView[]
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -61,11 +62,13 @@ function sourceTitle(passkey: PasskeyView): string {
 }
 
 function startRename(passkey: PasskeyView) {
+  if (props.readonly) return
   editing.value = passkey.id
   nickname.value = passkey.nickname ?? ''
 }
 
 async function saveRenameAsync(passkey: PasskeyView) {
+  if (props.readonly) return
   try {
     await renamePasskeyAsync(passkey.id, nickname.value.trim() || null)
     editing.value = null
@@ -76,6 +79,7 @@ async function saveRenameAsync(passkey: PasskeyView) {
 }
 
 async function unlinkAsync(passkey: PasskeyView) {
+  if (props.readonly) return
   try {
     await passkeyUnlinkAsync(props.itemId, passkey.id)
     emit('changed')
@@ -85,6 +89,7 @@ async function unlinkAsync(passkey: PasskeyView) {
 }
 
 async function confirmDeleteAsync() {
+  if (props.readonly) return
   const target = deleting.value
   if (!target) return
   deleting.value = null
@@ -119,6 +124,7 @@ async function confirmDeleteAsync() {
     >
       <template v-if="passkey.linkedFrom">
         <UiButton
+          v-if="!readonly"
           type="button"
           variant="ghost"
           size="sm"
@@ -128,7 +134,7 @@ async function confirmDeleteAsync() {
           {{ t('passwords.passkeys.unlink') }}
         </UiButton>
       </template>
-      <template v-else-if="editing === passkey.id">
+      <template v-else-if="!readonly && editing === passkey.id">
         <div class="w-40">
           <UiInput
             v-model="nickname"
@@ -142,7 +148,7 @@ async function confirmDeleteAsync() {
           t('passwords.save')
         }}</UiButton>
       </template>
-      <template v-else>
+      <template v-else-if="!readonly">
         <UiButton
           type="button"
           variant="ghost"

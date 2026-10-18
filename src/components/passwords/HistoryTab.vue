@@ -15,6 +15,7 @@ const props = defineProps<{
   updatedAt: string | null
   /** Whether this is the tab on show. */
   active: boolean
+  readonly?: boolean
 }>()
 const emit = defineEmits<{ restored: [] }>()
 
@@ -61,6 +62,7 @@ async function loadAsync() {
 }
 
 async function restoreAsync() {
+  if (props.readonly) return
   const view = selected.value
   if (!view) return
   restoring.value = true
@@ -127,6 +129,7 @@ onMounted(loadAsync)
           :snapshot="selected"
           :restoring="restoring"
           :reset-key="resetKey"
+          :readonly="readonly"
           @restore="confirming = true"
         />
       </div>
