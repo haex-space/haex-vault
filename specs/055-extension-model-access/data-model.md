@@ -49,7 +49,8 @@ Gleiche Ablage wie die übrigen Grenzwerte (`extensions/registry/limits.rs`); di
 ### `providers` und `models` (vorhanden)
 
 - `providers.adapter` bekommt den Wert `openai_compatible` (neben `anthropic`, `claude`, `codex`).
-  `base_url` und `credentials` wie bei `api_key`-Anbietern.
+  `base_url` und `credentials` wie bei `api_key`-Anbietern; `credentials` darf fehlen (ein Server im eigenen Netz
+  will oft keinen Schlüssel), dann geht keine `Authorization` mit.
 - `models.capabilities_json` (`ModelCapabilities`) trägt ein Feld `user` mit der Nutzerangabe („nimmt Bilder
   an“, Aufwandstufen). Die Angabe wird über die gewöhnlichen Felder gelegt (`with_user_applied`), damit alle
   Leser sie sehen, und überlebt das Auffrischen der Modellliste: `replace_provider_models` mischt sie unter die

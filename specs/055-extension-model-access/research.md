@@ -13,7 +13,7 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   samt Nutzlast und die Fehlercodes (Einwilligung, Fähigkeit, Grenze). Ersetzt werden: `TaskInput`,
   `definitions.rs`, `validation.rs` (alle fest auf Papiernotizen) und `fixture.rs`.
 - **Begründung**: Der Rest ist Lebenszyklus und taugt für jeden Auftrag. Alles, was ein Modell berührt, ist
-  Fixture (`bridge.rs:251`: „Real profile resolution is deliberately added behind the same lifecycle“). Weder
+  Fixture (`bridge.rs`: „Real profile resolution is deliberately added behind the same lifecycle“). Weder
   das SDK noch das Frontend rufen `extension_ai_task_*` auf, deshalb entfällt eine Übergangslösung (holzi hat
   noch keine Nutzer).
 - **Namen**: Methoden `extension_model_job_start`, `extension_model_job_cancel`, `extension_model_list`;
@@ -90,10 +90,13 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 ## R6 — Ort eines Ziels
 
 - **Entscheidung**: Jedes Modell hat einen Ort: `this_device`, `network` (anderes Gerät oder Server im
-  eigenen Netz), `cloud`. Ableitung: `ProviderKind::Local` und Adresse auf Loopback sind `this_device`; Adresse
-  in privatem Bereich (RFC 1918, `.local`, Link-Local) ist `network`; alles andere und alle
-  `CliDelegate`-Anbieter sind `cloud`. Einwilligung (`modelDestination`) verlangt jeder Ort außer
-  `this_device`.
+  eigenen Netz), `cloud`. Ableitung (`S/model_jobs/place.rs`): `ProviderKind::Local`, Loopback, `0.0.0.0`/`::`
+  und genau der Name `localhost` sind `this_device`; RFC 1918, Link-Local, IPv6-ULA, `100.64.0.0/10` (Carrier-NAT,
+  Tailscale), Namen auf `.local`, `.lan` und `.localhost` (nicht jeder Resolver hält RFC 6761 ein) und Namen
+  ohne Punkt (`school-server`) sind `network`; eine IPv4-Adresse in IPv6 (`::ffff:10.0.0.1`) zählt als ihre
+  IPv4-Adresse. Alles andere, eine unlesbare Adresse und alle `CliDelegate`-Anbieter sind `cloud`. Einwilligung
+  (`modelDestination`) verlangt jeder Ort außer `this_device`; eine Fehleinordnung zwischen `network` und
+  `cloud` ändert daher nur die Anzeige.
 - **Begründung**: Die vorhandene `Locality` (`S/chat/tools/agent_task.rs`) kennt nur Local und Cloud und zählt
   jeden `ApiKey`-Anbieter als Cloud. Ein Ollama auf `localhost` verließe aber kein Byte das Gerät (SC-003),
   und ein Schul-Server im Heimnetz ist weder dieses Gerät noch Cloud. Die Anzeige braucht die Unterscheidung
@@ -110,12 +113,18 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
     `delta.reasoning_content`, stückweise `tool_calls`, `usage`.
   - Bilder als `image_url` mit Base64-Data-URI.
   - `reasoning_effort` aus `ChatRequest.reasoning_option`.
-  - `Authorization: Bearer`, Fehlerzuordnung wie bei Anthropic (401/403 → `InvalidCredentials`, 429/5xx
-    vorübergehend, TLS über `transport_error`).
+  - `Authorization: Bearer` nur mit Schlüssel: der Schlüssel ist optional (`key_is_optional`), weil ein Ollama
+    oder ein Schul-Server im eigenen Netz oft keinen will. Fehlerzuordnung wie bei Anthropic (401/403 →
+    `InvalidCredentials`, 429/5xx vorübergehend, TLS über `transport_error`); ein Fehlerobjekt im Stream ist
+    vorübergehend, wenn `type` oder `code` Überlast, Ratenlimit oder Serverfehler nennt oder `code` 429/5xx ist.
+    Ein Datenstück, das kein JSON ist, beendet den Stream; Teilaufrufe ohne `index` (Gemini) werden nach `id`
+    getrennt.
 - **Fähigkeiten**: `/models` meldet sie fast nie. Der Adapter liefert `ModelCapabilities` unbestimmt; der Nutzer
-  kann je Modell „nimmt Bilder an“ setzen (überschreibt `accepted_attachment_kinds` in `capabilities_json`,
-  FR-019). Aufwandstufen: feste Liste `low`, `medium`, `high`, die der Adapter nur sendet, wenn der Nutzer sie
-  für den Anbieter eingeschaltet hat.
+  macht je Modell eines OpenAI-kompatiblen Anbieters Angaben (`set_model_user_capabilities`, FR-019): „nimmt
+  Bilder an“ und die Aufwandstufen als freie Kennungen des Servers (höchstens 8, je höchstens 32 Zeichen, ohne
+  Leerraum, keine doppelt, niedrigste zuerst). Die Angaben liegen in `ModelCapabilities.user`, überleben eine
+  Aktualisierung der Modellliste und lassen sich zurücknehmen. Modelle anderer Anbieter nehmen keine Angabe an:
+  ihre Fähigkeiten meldet der Anbieter selbst, und eine zurückgenommene Angabe brächte sie nicht zurück.
 - **Gemini**: Google bietet eine OpenAI-kompatible Schnittstelle (Beta) unter
   `https://generativelanguage.googleapis.com/v1beta/openai/` mit Modellliste, Streaming, Bildern als
   `image_url`, `reasoning_effort` (`minimal`, `low`, `medium`, `high`) und Bearer-Schlüssel; geprüft an der
@@ -153,11 +162,12 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
 
 - **Grenzen** (FR-029): Konstanten in `S/model_jobs/limits.rs`, Werte im Plan:
   - Bildgröße höchstens 25 MiB je Bild (wie `MAX_IMAGE_BYTES`), höchstens 8 Bilder je Auftrag, Anweisung höchstens
-    16 KiB, Ergebnis höchstens 256 KiB.
+    16 KiB, Eingabetext höchstens 256 KiB je Schritt (`input_bytes`), Ergebnis höchstens 256 KiB.
   - Dauer: Voreinstellung 300 s je Auftrag (lokale Bildmodelle brauchten im Test bis zu 130 s je Seite).
     Der Nutzer ändert sie je Erweiterung in der vorhandenen Limits-Ansicht: neues Feld `model_job_timeout_ms` in
     `ExtensionLimits` (`S/extensions/registry/limits.rs`) mit Grenzen in `MIN`/`MAX`.
-  - `MAX_ACTIVE_TASKS_PER_FRAME = 2` bleibt.
+  - Höchstens 2 laufende Aufträge je Rahmen (`limits::MAX_ACTIVE_JOBS_PER_FRAME`; ersetzt mit der Registry
+    `MAX_ACTIVE_TASKS_PER_FRAME` in `state.rs`, ebenso `MAX_IMAGE_BYTES` im alten `bridge.rs`).
     Überschreitung der Bildgrenzen lehnt vor der Verarbeitung ab; die Dauer bricht den Auftrag ab und gibt den
     Lauf frei (Abbruch über das Token, bei Anbietern durch Verwerfen des `AdapterStream`).
 - **Nichts speichern** (FR-028, SC-011): Aufträge existieren nur im Arbeitsspeicher; die Registry entfernt einen
@@ -171,8 +181,8 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
   2. **Schleife** (Zahlen in `contracts/job-format.md`): zu wenig verschiedene Wörter bei langem Text, dieselbe
      Wortfolge oder dieselbe Zeile mehrfach hintereinander;
   3. **Schriftwechsel**: mindestens ein Fünftel der Buchstaben in einem Schriftsystem, das weder Latein ist noch in
-     Anweisung oder Eingabe vorkommt (Beispiel: CJK in einer deutschen Anweisung); ein griechisches Symbol in einer
-     Physiknotiz zählt nicht;
+     Anweisung oder Eingabe vorkommt (Beispiel: CJK in einer deutschen Anweisung); nur Buchstaben in Wörtern mit
+     mindestens zwei Buchstaben dieser Schrift zählen, so dass `α = 30°` in einer Physiknotiz keiner ist;
   4. kein gültiges JSON oder Verstoß gegen das Schema (R11).
      Jeder Verstoß ist `Unusable` mit Grund; danach greift der Ausweichweg (FR-027).
 - **Begründung aus dem Test**: Qwen3-VL-4B lief auf einem unscharfen Poster in eine Schleife („1.00 Uhr“
@@ -207,7 +217,10 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
   nur an die Erweiterung.
 - **Zugang zu Schlüsseln**: Adapter werden bei Bedarf aus `providers`+`models` gebaut (`build_adapter`); die
   Erweiterung sieht weder Schlüssel noch Adressen (FR-021). Fehlertexte des Anbieters werden vor der Rückgabe
-  bereinigt (Adresse, Schlüssel, Antwortkörper entfernt).
+  bereinigt (`S/model_jobs/errors.rs::sanitize`): der Schlüssel und die Adresse des Anbieters, die der Aufrufer
+  kennt, URLs, IP-Adressen, Host mit Port, Namen des eigenen Netzes und schlüsselartige Zeichenketten werden
+  ersetzt, der Rest auf 200 Zeichen gekürzt. Den Antwortkörper gibt der Lauf nie weiter, er nimmt nur die
+  Meldung des Adapters.
 
 ## R13 — SDK und Erweiterung
 
