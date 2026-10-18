@@ -106,7 +106,7 @@ Reihenfolge je Versuch; der erste Verstoß beendet den Versuch mit `unusable` un
    `α = 30°`, `Δx` oder die Ecken `a b c α β γ` sind kein Wechsel. Ziffern, Satzzeichen, Symbole und Umlaute
    zählen nie als fremd. Wer Russisch oder Altgriechisch erwartet, nennt die Schrift in der Anweisung.
 4. **JSON**: Die Ausgabe ist kein gültiges JSON. Ist sie es nicht als Ganzes, gilt der Inhalt des ersten
-   Codezauns, auch mit einem Satz davor oder danach (```` ```json ````-Kennung wird abgezogen).
+   Codezauns, auch mit einem Satz davor oder danach (` ```json `-Kennung wird abgezogen).
 5. **Schema**: Der Wert verletzt `format.schema`.
 
 Nach `unusable`, `unavailable` oder `timeout` versucht holzi das nächste Modell der Rangfolge (nur mit
