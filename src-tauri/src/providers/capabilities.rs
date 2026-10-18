@@ -7,11 +7,13 @@
 use serde::Deserialize;
 use tauri::State;
 
+use super::OPENAI_COMPATIBLE;
 use crate::error::{HolziError, Result};
 use crate::model_capabilities::{ModelCapabilities, UserCapabilities};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::models as models_store;
+use crate::storage::providers as providers_store;
 use crate::vault_gate::VaultDb;
 
 /// Most effort levels a model can be given by hand, and the longest id.
@@ -54,7 +56,16 @@ fn checked_levels(levels: Vec<String>) -> Result<Vec<String>> {
     Ok(levels)
 }
 
-/// Stores the statement and returns the model's record with it laid over.
+/// Why a statement was not stored.
+enum Refused {
+    NoModel,
+    /// The provider says itself what the model can do; a statement would replace that and
+    /// withdrawing it would not bring it back.
+    NotOpenAiCompatible,
+}
+
+/// Stores the statement and returns the model's record with it laid over. Only a model of an
+/// OpenAI-compatible provider takes a statement: its server reports nothing about it.
 pub(crate) async fn set_user_capabilities(
     db: &VaultDb,
     args: SetUserCapabilitiesArgs,
@@ -66,10 +77,26 @@ pub(crate) async fn set_user_capabilities(
     let id = args.model_id;
     let lookup = id.clone();
     let stored = db
-        .write(move |tx| models_store::set_user_capabilities(tx, &lookup, user))
+        .write(move |tx| {
+            let Some(model) = models_store::get_model(tx, &lookup)? else {
+                return Ok(Err(Refused::NoModel));
+            };
+            let adapter = providers_store::get_provider(tx, model.provider_id)?
+                .and_then(|provider| provider.adapter);
+            if adapter.as_deref() != Some(OPENAI_COMPATIBLE) {
+                return Ok(Err(Refused::NotOpenAiCompatible));
+            }
+            models_store::set_user_capabilities(tx, &lookup, user)
+                .map(|stored| stored.ok_or(Refused::NoModel))
+        })
         .await?;
-    stored.ok_or_else(|| HolziError::InvalidInput {
-        reason: format!("model {id} not found"),
+    stored.map_err(|refused| HolziError::InvalidInput {
+        reason: match refused {
+            Refused::NoModel => format!("model {id} not found"),
+            Refused::NotOpenAiCompatible => {
+                format!("model {id} is not served by an OpenAI-compatible provider")
+            }
+        },
     })
 }
 

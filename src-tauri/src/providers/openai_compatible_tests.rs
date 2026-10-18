@@ -15,7 +15,9 @@ use crate::adapters::AttachmentKind;
 use crate::error::HolziError;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 use crate::storage::models as models_store;
-use crate::storage::providers::{Provider, ProviderCapability, ProviderKind};
+use crate::storage::providers::{
+    self as providers_store, Provider, ProviderCapability, ProviderKind,
+};
 use crate::storage::query;
 use crate::vault_gate::VaultGate;
 
@@ -135,6 +137,10 @@ async fn with_one_model(
     let server = serve_models(&["qwen3-vl"]).await;
     let provider = provider(format!("{}/v1", server.uri()), None);
     let gate = VaultGate::new().vault_db(Arc::clone(&db)).expect("gate");
+    let stored = provider.clone();
+    gate.write(move |tx| providers_store::insert_provider(tx, &stored))
+        .await
+        .expect("store provider");
     do_refresh(&gate, &provider).await.expect("refresh");
     // The double must outlive the refresh only; later refreshes mount their own.
     drop(server);
@@ -267,4 +273,32 @@ async fn bad_effort_levels_and_an_unknown_model_are_refused() {
         .await,
         Err(HolziError::InvalidInput { .. })
     ));
+}
+
+#[tokio::test]
+async fn a_model_of_another_provider_kind_takes_no_statement() {
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let (db, gate, provider, id) = with_one_model(dir.path()).await;
+    // The same model, now served by a provider that reports its capabilities itself.
+    let mut anthropic = provider.clone();
+    anthropic.adapter = Some("anthropic".to_string());
+    gate.write(move |tx| providers_store::update_provider(tx, &anthropic))
+        .await
+        .expect("change adapter");
+
+    let refused = set_user_capabilities(
+        &gate,
+        SetUserCapabilitiesArgs {
+            model_id: id.clone(),
+            accepts_images: Some(true),
+            effort_levels: None,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(refused, Err(HolziError::InvalidInput { ref reason }) if reason.contains("OpenAI-compatible")),
+        "{refused:?}"
+    );
+    assert_eq!(stored(&db, &id), None, "nothing written");
 }
