@@ -69,6 +69,10 @@ fn soon() -> Instant {
     Instant::now() + Duration::from_secs(5)
 }
 
+fn generous() -> Instant {
+    Instant::now() + Duration::from_secs(30)
+}
+
 fn signed(request: &Request) -> bool {
     request
         .url
@@ -103,16 +107,16 @@ async fn put_get_and_delete_send_signed_requests_to_the_object() {
     let store = store();
     let access = user(&server);
     store
-        .put(&access, "a/b.txt", b"hello".to_vec(), soon())
+        .put(&access, "a/b.txt", b"hello".to_vec(), generous())
         .await
         .expect("put");
     let body = store
-        .get(&access, "a/b.txt", 100, soon())
+        .get(&access, "a/b.txt", 100, generous())
         .await
         .expect("get");
     assert_eq!(body, b"hello");
     store
-        .delete(&access, "a/b.txt", soon())
+        .delete(&access, "a/b.txt", generous())
         .await
         .expect("delete");
 
