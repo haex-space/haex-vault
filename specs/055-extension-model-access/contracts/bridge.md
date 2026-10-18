@@ -43,8 +43,8 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
 
 | `code`                          | `details.reason`                                                          | Bedeutung                                                                                                                 |
 | ------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 3001 `Validation`               | `invalid_input`                                                           | Form von `job` falsch (Schritte, `id`, Schema außerhalb der Teilmenge, `from` verweist ins Leere, Bild nicht dekodierbar) |
-| 7000 `LimitExceeded`            | `image_bytes`, `image_count`, `instruction_bytes`, `steps`, `active_jobs` | Grenze überschritten; `details.limit` nennt sie                                                                           |
+| 3001 `Validation`               | `invalid_input`                                                           | Form von `job` falsch (kein Schritt, `id`, Schema außerhalb der Teilmenge oder unerfüllbar, `from` verweist ins Leere, Bild kein gültiges Base64) |
+| 7000 `LimitExceeded`            | `image_bytes`, `image_count`, `instruction_bytes`, `input_bytes`, `steps`, `active_jobs` | Grenze überschritten; `details.limit` nennt sie                                                                           |
 | 8001 `NotAvailable`             | `no_capable_model`                                                        | Für einen Schritt gibt es kein freigegebenes Modell mit den `needs`                                                       |
 | 1002 `PermissionDenied`         | `consent_denied`                                                          | Der Nutzer hat die Freigabe oder die Einwilligung abgelehnt                                                               |
 | 1004 `PermissionPromptRequired` |                                                                           | holzi fragt den Nutzer; die Erweiterung ruft nach `extension:permission-resolved` erneut                                  |
@@ -90,27 +90,30 @@ data: {
                   attempts: [ { model: string, place: "this_device"|"network"|"cloud",
                                 effort: "none"|"low"|"medium"|"high"|"managed",
                                 outcome: "used" | "unusable" | "unavailable" | "timeout", reason?: string } ] } ],
-  error?: { code: "Unusable"|"Unavailable"|"Timeout"|"Cancelled"|"ConsentDenied"|"NoCapableModel",
+  error?: { code: "unusable"|"unavailable"|"timeout"|"cancelled"|"consent_denied"|"no_capable_model",
             message: string, stepId?: string }
 }
 ```
 
 - `provenance` gibt je Schritt alle versuchten Modelle mit Ausgang an (FR-023, FR-027). `effort` ist der
   tatsächlich verwendete Aufwand nach dem Deckeln (FR-006).
-- Fehlercodes des Ereignisses: `Unusable` (Wächter oder Schema, Grund in `message`), `Unavailable` (kein
-  Modell erreichbar), `Timeout`, `Cancelled`, `ConsentDenied` und `NoCapableModel` (eine Freigabe wurde während
-  des Auftrags entzogen). `Unusable` ist von den anderen unterscheidbar
-  (FR-011). `message` enthält nie Adresse, Schlüssel oder Antwortkörper des Anbieters.
+- Fehlercodes des Ereignisses (snake_case wie `details.reason` und die Ausgänge in `attempts`): `unusable`
+  (Wächter oder Schema, Grund in `message`), `unavailable` (kein Modell erreichbar), `timeout`, `cancelled`,
+  `consent_denied` und `no_capable_model` (eine Freigabe wurde während des Auftrags entzogen). `unusable` ist von
+  den anderen unterscheidbar (FR-011). `message` enthält nie Adresse, Schlüssel oder Antwortkörper des
+  Anbieters: holzi ersetzt den Schlüssel und die Adresse des Anbieters, URLs, IP-Adressen, Host mit Port, Namen
+  des eigenen Netzes (`localhost`, `.local`, `.lan`, `.internal`) und schlüsselartige Zeichenketten, und kürzt
+  auf 200 Zeichen (`model_jobs/errors.rs::sanitize`).
 - Nach dem Ereignis kennt holzi den Auftrag nicht mehr; die Erweiterung hält Ergebnis und Herkunft selbst.
 
 ## Lebenszyklus
 
 - Schließt oder lädt ein Rahmen neu, bricht `cancel_owned_by(TaskOwner)` alle Aufträge dieses Rahmens ab
   (vorhandener Haken in `extensions/commands/frames.rs`); es folgt kein Ereignis an den toten Rahmen.
-- Höchstens 2 laufende Aufträge je Rahmen (`MAX_ACTIVE_TASKS_PER_FRAME`); ein dritter: `LimitExceeded`
+- Höchstens 2 laufende Aufträge je Rahmen (`limits::MAX_ACTIVE_JOBS_PER_FRAME`, ersetzt `MAX_ACTIVE_TASKS_PER_FRAME` in `state.rs`); ein dritter: `LimitExceeded`
   (`active_jobs`).
 - Entfernt der Nutzer eine Freigabe, während ein Auftrag läuft, endet der laufende Modellaufruf wie vorgesehen;
-  der nächste Schritt startet nicht mehr und das Ereignis meldet `NoCapableModel` für diesen Schritt (Randfall
+  der nächste Schritt startet nicht mehr und das Ereignis meldet `no_capable_model` für diesen Schritt (Randfall
   der Spec).
 - Ein Wechsel des Rahmens oder Neustart von holzi verwirft laufende Aufträge ohne Spur.
 

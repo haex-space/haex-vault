@@ -6,7 +6,7 @@ mit `pnpm tauri:dev` und der Test-Erweiterung `model-jobs.xt` (`src-tauri/tests/
 Voraussetzung: ein Anbieter mit Bildmodell, zum Beispiel ein lokaler Ollama auf `localhost` oder ein Testserver mit
 OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im Netz.
 
-1. **Anbieter eintragen**: Einstellungen → Anbieter → „OpenAI-kompatibel“: Adresse, Schlüssel. Die Modelle
+1. **Anbieter eintragen**: Einstellungen → Anbieter → „OpenAI-kompatibel“: Adresse, Schlüssel (optional). Die Modelle
    erscheinen. Bei einem Bildmodell „nimmt Bilder an“ setzen. _(FR-018, FR-019, SC-007)_
 2. **Erweiterung installieren** und öffnen. Sie stellt ohne Freigabe einen Auftrag. _(FR-002, SC-001)_
    - Erwartet: holzi fragt nach der Freigabe eines Modells (Auswahl und höchster Aufwand), Antwort „für die
@@ -23,7 +23,7 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    der Test-Erweiterung: Schleife). Das zweite liefert; ohne Einwilligung für dessen Ziel endet der Auftrag mit
    einem Fehler und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_
 8. **Kaputte Ausgabe**: Leere Ausgabe, Schleife, chinesische Zeichen und Schemaverstoß liefern jeweils einen
-   Fehler `Unusable`, nie ein Ergebnis. _(FR-010, FR-011, SC-005)_
+   Fehler `unusable`, nie ein Ergebnis. _(FR-010, FR-011, SC-005)_
 9. **Mehrere Schritte**: Der Auftrag „lesen, dann korrigieren“ liefert beide Ergebnisse; fehlt für den zweiten Schritt
    ein Modell, scheitert der Start vor dem ersten Schritt. _(FR-009, FR-025)_
 10. **Grenzen und Abbruch**: Ein Bild über 25 MiB und ein neuntes Bild werden vor der Verarbeitung abgelehnt (Name

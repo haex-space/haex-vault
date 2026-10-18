@@ -92,7 +92,7 @@ holzi berücksichtigt zuerst geeignete lokale Modelle. Sind mehrere geeignete Mo
 
 ### User Story 5 - Ein Modell auf einem anderen Gerät, auf einem Server oder in der Cloud nutzen (Priority: P2)
 
-Der Nutzer kann holzi um einen allgemeinen Anbieter nach verbreitetem Schnittstellenstandard („OpenAI-kompatibel“) ergänzen, indem er eine Adresse und einen Zugangsschlüssel einträgt. So lassen sich ein eigener Rechner mit Grafikkarte, ein Server (etwa ein Schul-Server mit lokalem Modell) oder ein Cloud-Dienst mit dieser Schnittstelle nutzen. Das Handy nimmt nur das Foto auf; die Analyse läuft dort, wo der Nutzer sie erlaubt hat.
+Der Nutzer kann holzi um einen allgemeinen Anbieter nach verbreitetem Schnittstellenstandard („OpenAI-kompatibel“) ergänzen, indem er eine Adresse und, falls der Dienst einen verlangt, einen Zugangsschlüssel einträgt. So lassen sich ein eigener Rechner mit Grafikkarte, ein Server (etwa ein Schul-Server mit lokalem Modell) oder ein Cloud-Dienst mit dieser Schnittstelle nutzen. Das Handy nimmt nur das Foto auf; die Analyse läuft dort, wo der Nutzer sie erlaubt hat.
 
 **Why this priority**: Auf dem Handy ist ein lokales Bildmodell heute unbefriedigend. Schüler brauchen einen Weg, ihre Fotos auf einem leistungsfähigeren Ziel auswerten zu lassen.
 
@@ -168,7 +168,7 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - **FR-015**: Vor dem ersten Versand von Auftragsdaten (Text oder Bilder) an ein Ziel außerhalb des Geräts MUST holzi die Datenübertragung und das Ziel sichtbar machen und die Einwilligung des Nutzers einholen; ohne Einwilligung MUST nichts gesendet werden.
 - **FR-016**: Die Einwilligung MUST wie jede andere Berechtigungsabfrage in holzi funktionieren: Sie gilt pro Erweiterung und Ziel und wird für die Tresorsitzung oder dauerhaft erteilt. Eine dauerhafte Einwilligung MUST in den Einstellungen widerrufbar sein, eine Sitzungs-Einwilligung endet beim Schließen der Tresorsitzung.
 - **FR-017**: holzi MUST NICHT von einem Modell auf ein Ziel ohne erteilte Einwilligung wechseln, auch nicht nach einem Fehler. Ohne Einwilligung endet der Auftrag mit einem Fehler.
-- **FR-018**: Der Nutzer MUST einen allgemeinen Anbieter nach einem verbreiteten Schnittstellenstandard (OpenAI-kompatibel) mit Adresse und Zugangsschlüssel eintragen können; dessen Modelle MUST in der Freigabeliste erscheinen.
+- **FR-018**: Der Nutzer MUST einen allgemeinen Anbieter nach einem verbreiteten Schnittstellenstandard (OpenAI-kompatibel) mit Adresse und einem Zugangsschlüssel, falls der Dienst einen verlangt, eintragen können; dessen Modelle MUST in der Freigabeliste erscheinen.
 - **FR-019**: Zu jedem Modell MUST bekannt sein, ob es Bilder annimmt (erkannt oder vom Nutzer angegeben); Bildaufträge an Modelle ohne Bildfähigkeit MUST vor der Übertragung abgelehnt werden.
 - **FR-020**: Lokale Modelle MUST Bilder annehmen können, wenn das Modell dazu fähig ist.
 - **FR-021**: Zugangsdaten, Schlüssel und Adressen interner Dienste MUST der Erweiterung, Fehlermeldungen, Ergebnissen und synchronisierten Daten fernbleiben.

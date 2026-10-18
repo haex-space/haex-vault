@@ -126,12 +126,14 @@ src-tauri/src/
 │   ├── bridge.rs                    # start, cancel, list (Handler)
 │   └── *_tests.rs
 ├── adapters/openai_compatible.rs    # neuer Adapter (R7) + openai_compatible_tests.rs
+├── adapters/openai_request.rs       # Rumpf der Anfrage (Nachrichten, Bilder, Aufwand, Werkzeuge)
 ├── extensions/
 │   ├── permissions/{model,target,store}.rs      # Arten Model, ModelDestination (R3)
 │   ├── bridge/{allowlist,model_jobs}.rs         # ersetzt agent_tasks.rs, neue Methoden
 │   ├── registry/limits.rs                       # + model_job_timeout_ms
 │   └── commands/model_grants.rs                 # Freigabe, Rangfolge, Widerruf (Einstellungen)
 ├── providers/mod.rs                 # validate_adapter/build_adapter/add_provider: openai_compatible
+├── providers/capabilities.rs        # set_model_user_capabilities: Angaben des Nutzers je Modell
 ├── llm/local/{loader,stream}.rs     # Ladeweg multimodal, Bildanhänge (R8, Lieferung C)
 ├── catalog/model_catalog.json       # format, vision, isq
 ├── model_capabilities.rs            # lokale Fähigkeiten aus dem Katalog
