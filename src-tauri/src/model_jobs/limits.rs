@@ -1,5 +1,6 @@
 //! The upper limits of a model job (spec 055 FR-029, research R9). An extension may stay below
-//! them, never above; the duration is the one the user can change per extension.
+//! them, never above. The duration is not here: the user changes it per extension
+//! (`ExtensionLimits.model_job_timeout_ms`, default `default_limits::MODEL_JOB_TIMEOUT_MS`).
 
 /// Steps in one job.
 pub const MAX_STEPS: usize = 4;
@@ -18,5 +19,3 @@ pub const DEFAULT_OUTPUT_TOKENS: usize = 4_096;
 pub const MAX_RESULT_BYTES: usize = 256 * 1024;
 /// Running jobs of one frame.
 pub const MAX_ACTIVE_JOBS_PER_FRAME: usize = 2;
-/// The default duration of a job, which the user can change per extension.
-pub const DEFAULT_TIMEOUT_MS: u32 = 300_000;

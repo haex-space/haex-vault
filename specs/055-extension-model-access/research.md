@@ -7,7 +7,7 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 ## R1 — `agent_tasks` wird zu `model_jobs` umgebaut, nicht ergänzt
 
 - **Entscheidung**: Das Modul `S/agent_tasks/` (Spec 047, PR #410) wird in `S/model_jobs/` umbenannt und
-  verallgemeinert. Behalten werden: `TaskRegistry` (Besitzer-Schlüssel `TaskOwner{extension_id, frame}`,
+  verallgemeinert. Behalten werden: die Registry (jetzt `JobRegistry`, Besitzer-Schlüssel `JobOwner{extension_id, frame}`,
   Abbruch-Token, `cancel_owned_by`), die Haken beim Schließen und Neuladen eines Rahmens
   (`extensions/commands/frames.rs`), die Eintragung in `extensions/bridge/allowlist.rs`, das Abschluss-Ereignis
   samt Nutzlast und die Fehlercodes (Einwilligung, Fähigkeit, Grenze). Ersetzt werden: `TaskInput`,
@@ -18,8 +18,8 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   noch keine Nutzer).
 - **Namen**: Methoden `extension_model_job_start`, `extension_model_job_cancel`, `extension_model_list`;
   Ereignis `haextension:model-job:completed`.
-- **Zu beheben**: Fertige Einträge bleiben heute in der Registry (`state.rs`, kein Entfernen). Das ist ein
-  Speicherleck und widerspricht FR-028; der Eintrag wird nach dem Abschluss-Ereignis entfernt (R9).
+- **Zu beheben**: Fertige Einträge blieben in der Registry (`state.rs`, kein Entfernen). Das war ein
+  Speicherleck und widerspricht FR-028; jetzt verschwindet der Eintrag, wenn der Auftrag endet (R9).
 - **Verworfen**: Neben `agent_tasks` ein zweites Modul bauen. Es gäbe zwei Wege mit zwei Registries.
 
 ## R2 — Auftrag, Schritt und Eingabe

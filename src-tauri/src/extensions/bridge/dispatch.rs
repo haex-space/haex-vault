@@ -94,4 +94,4 @@ pub fn answer(id: Value, outcome: Result<Value, BridgeError>) -> Value {
 
 #[cfg(test)]
 #[path = "dispatch_tests.rs"]
-mod tests;
+pub(in crate::extensions::bridge) mod tests;

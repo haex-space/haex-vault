@@ -108,7 +108,7 @@ data: {
 
 ## Lebenszyklus
 
-- Schließt oder lädt ein Rahmen neu, bricht `cancel_owned_by(TaskOwner)` alle Aufträge dieses Rahmens ab
+- Schließt oder lädt ein Rahmen neu, bricht `cancel_owned_by(JobOwner)` alle Aufträge dieses Rahmens ab
   (vorhandener Haken in `extensions/commands/frames.rs`); es folgt kein Ereignis an den toten Rahmen.
 - Höchstens 2 laufende Aufträge je Rahmen (`limits::MAX_ACTIVE_JOBS_PER_FRAME`, ersetzt `MAX_ACTIVE_TASKS_PER_FRAME` in `state.rs`); ein dritter: `LimitExceeded`
   (`active_jobs`).
