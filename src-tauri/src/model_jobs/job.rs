@@ -137,7 +137,7 @@ const MIME_TYPES: [&str; 3] = ["image/jpeg", "image/png", "image/webp"];
 /// Parses and checks the `job` of `extension_model_job_start`.
 pub fn parse(job: &Value) -> Result<Job, JobError> {
     let raw: RawJob =
-        serde_json::from_value(job.clone()).map_err(|error| invalid(error.to_string()))?;
+        serde_json::from_value(job.clone()).map_err(|error| invalid(shortened(&error)))?;
     if raw.steps.is_empty() {
         return Err(invalid("a job has at least one step"));
     }
@@ -195,7 +195,12 @@ fn parse_step(raw: RawStep, earlier: &[Step], images_in_all: &mut usize) -> Resu
         .from
         .map(|from| check_from(&id, from, earlier))
         .transpose()?;
-    if raw.input.text.is_none() && images.is_empty() && from.is_none() {
+    let no_text = raw
+        .input
+        .text
+        .as_deref()
+        .is_none_or(|text| text.trim().is_empty());
+    if no_text && images.is_empty() && from.is_none() {
         return Err(invalid(format!("step {id}: the input is empty")));
     }
 
@@ -226,6 +231,17 @@ fn parse_step(raw: RawStep, earlier: &[Step], images_in_all: &mut usize) -> Resu
         effort,
         max_output_tokens,
     })
+}
+
+/// A serde message quotes the offending value, which can be megabytes of Base64.
+fn shortened(error: &serde_json::Error) -> String {
+    const MAX_CHARS: usize = 300;
+    let text = error.to_string();
+    if text.chars().count() <= MAX_CHARS {
+        return text;
+    }
+    let cut: String = text.chars().take(MAX_CHARS).collect();
+    format!("{cut}…")
 }
 
 fn valid_id(id: &str) -> bool {
@@ -331,8 +347,9 @@ fn pointer_tokens(pointer: &str) -> Option<Vec<String>> {
     Some(tokens)
 }
 
-/// Whether a pointer can lead somewhere in a value that has this schema: a name must be a declared
-/// property, an index needs an array schema.
+/// Whether a pointer can lead somewhere in a value that has this schema, judged as
+/// [`schema::validate`] judges the value: a name must be a declared property or the object must be
+/// open, an index needs an array (whose `items`, if given, take the rest).
 fn pointer_fits(schema: &Value, tokens: &[String]) -> bool {
     let Some((token, rest)) = tokens.split_first() else {
         return true;
@@ -343,20 +360,22 @@ fn pointer_fits(schema: &Value, tokens: &[String]) -> bool {
     {
         return pointer_fits(child, rest);
     }
-    if schema.get("additionalProperties").and_then(Value::as_bool) == Some(true) {
+    if schema::allows_type(schema, "object") && schema::is_open_object(schema) {
         return true;
     }
     let index = !token.is_empty()
         && token.bytes().all(|byte| byte.is_ascii_digit())
         && (token == "0" || !token.starts_with('0'));
-    match schema.get("items") {
-        Some(items) if index => pointer_fits(items, rest),
-        _ => false,
+    if !index || !schema::allows_type(schema, "array") {
+        return false;
     }
+    schema
+        .get("items")
+        .is_none_or(|items| pointer_fits(items, rest))
 }
 
 fn parse_format(step: &str, raw: RawFormat) -> Result<Format, JobError> {
-    if raw.name.trim().is_empty() || raw.name.len() > 64 {
+    if raw.name.trim().is_empty() || raw.name.chars().count() > 64 {
         return Err(invalid(format!(
             "step {step}: the format name is 1 to 64 characters"
         )));

@@ -29,6 +29,20 @@ fn a_code_fence_is_taken_off() {
     assert!(check(&fenced, CONTEXT, &schema()).is_ok());
     let bare = format!("```\n{}\n```", texts(&["ok"]));
     assert!(check(&bare, CONTEXT, &schema()).is_ok());
+    // Small models put a sentence before or after the fence, or write it on one line.
+    let chatty = format!(
+        "Hier ist das JSON:\n```json\n{}\n```\nViel Erfolg!",
+        texts(&["ok"])
+    );
+    assert!(check(&chatty, CONTEXT, &schema()).is_ok());
+    let one_line = format!("```{}```", texts(&["ok"]));
+    assert!(check(&one_line, CONTEXT, &schema()).is_ok());
+    // A fence inside a string of valid JSON is content, not a wrapper.
+    let quoting = texts(&["Code: ```x```"]);
+    assert_eq!(
+        check(&quoting, CONTEXT, &schema()).expect("valid")["texts"][0],
+        "Code: ```x```"
+    );
 }
 
 #[test]
@@ -167,4 +181,52 @@ fn every_reason_has_a_short_text() {
         Unusable::Schema("/a: nope".into()).reason(),
         "schema: /a: nope"
     );
+}
+
+#[test]
+fn equal_cells_and_answer_lines_of_a_worksheet_are_not_loops() {
+    // A timetable row: maths three days running in the same period.
+    let row = texts(&["1", "Mathematik", "Mathematik", "Mathematik", "Englisch"]);
+    assert!(check(&row, CONTEXT, &schema()).is_ok());
+    // Answer lines to fill in, drawn with underscores or dots.
+    let lines = texts(&["Antwort:\n________________\n________________\n________________"]);
+    assert!(check(&lines, CONTEXT, &schema()).is_ok());
+    let dots = texts(&["................\n................\n................"]);
+    assert!(check(&dots, CONTEXT, &schema()).is_ok());
+}
+
+#[test]
+fn the_loop_thresholds_hold_at_their_edges() {
+    let pair = |times| "rote Rose ".repeat(times);
+    assert!(check(&texts(&[&pair(5)]), CONTEXT, &schema()).is_ok());
+    assert_eq!(
+        check(&texts(&[&pair(6)]), CONTEXT, &schema()),
+        Err(Unusable::Loop)
+    );
+    let word = |times| "ja ".repeat(times);
+    assert!(check(&texts(&[&word(29)]), CONTEXT, &schema()).is_ok());
+    assert_eq!(
+        check(&texts(&[&word(30)]), CONTEXT, &schema()),
+        Err(Unusable::Loop)
+    );
+    let line = |times| "Das ist eine Zeile\n".repeat(times);
+    assert!(check(&texts(&[&line(2)]), CONTEXT, &schema()).is_ok());
+}
+
+#[test]
+fn single_greek_letters_of_a_formula_are_no_switch() {
+    let angles = texts(&["α = 30°", "β = 60°", "γ = 90°"]);
+    assert!(check(&angles, CONTEXT, &schema()).is_ok());
+    let triangle = texts(&["a b c α β γ", "Δx = 2 cm"]);
+    assert!(check(&triangle, CONTEXT, &schema()).is_ok());
+}
+
+#[test]
+fn the_script_share_holds_at_its_edge() {
+    // Three foreign letters against twelve Latin ones are a fifth; one Latin letter more is not.
+    assert_eq!(
+        check(&texts(&["мир abcdefghijkl"]), CONTEXT, &schema()),
+        Err(Unusable::ScriptSwitch)
+    );
+    assert!(check(&texts(&["мир abcdefghijklm"]), CONTEXT, &schema()).is_ok());
 }

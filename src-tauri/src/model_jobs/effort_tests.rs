@@ -39,11 +39,18 @@ fn the_wish_is_capped_at_the_ceiling() {
 }
 
 #[test]
-fn no_wish_means_none_which_is_the_first_option() {
+fn no_wish_means_none_which_is_the_off_switch_or_else_the_lowest_option() {
     let caps = presets(&["low", "medium", "high"]);
     let applied = effective(None, Level::High, Some(&caps));
     assert_eq!(option(&applied), Some("low"));
-    assert_eq!(applied.reported(), "none");
+    // Something was switched on after all, and the provenance says what.
+    assert_eq!(applied.reported(), "low");
+    let caps = presets(&["off", "low", "high"]);
+    let applied = effective(None, Level::High, Some(&caps));
+    assert_eq!(
+        (option(&applied), applied.reported()),
+        (Some("off"), "none")
+    );
 
     // An unknown provider preset keeps its reported order, but an explicit off switch still wins
     // for a `none` wish even when it is not the first option.
@@ -60,12 +67,11 @@ fn no_wish_means_none_which_is_the_first_option() {
 }
 
 #[test]
-fn two_three_and_five_options_map_to_the_first_the_middle_and_the_last() {
+fn known_names_never_exceed_the_level() {
+    // `high` would exceed `medium`, so the step goes down, not up.
     let two = presets(&["low", "high"]);
-    assert_eq!(
-        option(&effective(Some(Level::Medium), Level::High, Some(&two))),
-        Some("high")
-    );
+    let applied = effective(Some(Level::Medium), Level::High, Some(&two));
+    assert_eq!((option(&applied), applied.reported()), (Some("low"), "low"));
     let three = presets(&["low", "medium", "high"]);
     assert_eq!(
         option(&effective(Some(Level::Medium), Level::High, Some(&three))),
@@ -74,15 +80,37 @@ fn two_three_and_five_options_map_to_the_first_the_middle_and_the_last() {
     let five = presets(&["minimal", "low", "medium", "high", "xhigh"]);
     assert_eq!(
         option(&effective(Some(Level::Low), Level::High, Some(&five))),
-        Some("minimal")
+        Some("low")
     );
     assert_eq!(
         option(&effective(Some(Level::Medium), Level::High, Some(&five))),
         Some("medium")
     );
+    // `xhigh` and `max` lie above the highest level the user can grant.
     assert_eq!(
         option(&effective(Some(Level::High), Level::High, Some(&five))),
-        Some("xhigh")
+        Some("high")
+    );
+    let anthropic = presets(&["low", "medium", "high", "max"]);
+    assert_eq!(
+        option(&effective(
+            Some(Level::Medium),
+            Level::High,
+            Some(&anthropic)
+        )),
+        Some("medium")
+    );
+    // All options above the level: the lowest is the nearest.
+    let upper = presets(&["medium", "high"]);
+    assert_eq!(
+        option(&effective(Some(Level::Low), Level::High, Some(&upper))),
+        Some("medium")
+    );
+    // The off switch is only for `none`.
+    let off = presets(&["off", "low", "medium", "high"]);
+    assert_eq!(
+        option(&effective(Some(Level::Low), Level::High, Some(&off))),
+        Some("low")
     );
     let one = presets(&["only"]);
     for level in [Level::Low, Level::Medium, Level::High] {
@@ -102,16 +130,40 @@ fn known_names_are_put_in_order_even_when_reported_out_of_order() {
     );
     assert_eq!(
         option(&effective(Some(Level::High), Level::High, Some(&shuffled))),
-        Some("max")
+        Some("high")
+    );
+    assert_eq!(
+        option(&effective(
+            Some(Level::Medium),
+            Level::High,
+            Some(&shuffled)
+        )),
+        Some("medium")
     );
 }
 
 #[test]
 fn the_reported_order_stays_when_a_name_is_the_providers_own() {
     let own = presets(&["turbo", "low", "deep"]);
+    // An option named like the level wins over its position.
+    assert_eq!(
+        option(&effective(Some(Level::Low), Level::High, Some(&own))),
+        Some("low")
+    );
+    let own = presets(&["turbo", "fast", "deep"]);
     assert_eq!(
         option(&effective(Some(Level::Low), Level::High, Some(&own))),
         Some("turbo")
+    );
+    assert_eq!(
+        option(&effective(Some(Level::Medium), Level::High, Some(&own))),
+        Some("fast")
+    );
+    let two = presets(&["fast", "deep"]);
+    assert_eq!(
+        option(&effective(Some(Level::Medium), Level::High, Some(&two))),
+        Some("deep"),
+        "the upper of two"
     );
     assert_eq!(
         option(&effective(Some(Level::High), Level::High, Some(&own))),
