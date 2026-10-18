@@ -1,125 +1,125 @@
+//! The jobs of extension frames that are running (spec 055 R1, R9, FR-028): in memory only, one
+//! record per running job, removed the moment the job ends. A record holds what is needed to
+//! cancel the job and to enforce its limits, never what the job is about: no provenance, no
+//! result, no input.
+
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{
-    errors::{TaskError, TaskErrorCode},
-    model::TaskProvenance,
-};
+use super::limits::MAX_ACTIVE_JOBS_PER_FRAME;
 
-pub(crate) type TaskId = Uuid;
+pub(crate) type JobId = Uuid;
 
-pub(crate) const MAX_ACTIVE_TASKS_PER_FRAME: usize = 2;
-
+/// Who started a job: a frame of an extension. A job belongs to its frame alone.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct TaskOwner {
+pub(crate) struct JobOwner {
     pub extension_id: Uuid,
     pub frame: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TaskRunStatus {
-    Running,
-    Completed,
-    Failed,
-    Cancelled,
+/// A running job. It exists in the registry only while it runs.
+#[derive(Debug, Clone)]
+pub(crate) struct JobRecord {
+    pub id: JobId,
+    pub owner: JobOwner,
+    pub cancel: CancellationToken,
+    /// After this moment the job is over time ([`JobRegistry::expire`]).
+    pub deadline: Instant,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct TaskRecord {
-    pub id: TaskId,
-    pub owner: TaskOwner,
-    pub status: TaskRunStatus,
-    pub cancel: CancellationToken,
-    pub provenance: Option<TaskProvenance>,
-}
+/// The frame already runs [`MAX_ACTIVE_JOBS_PER_FRAME`] jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TooManyJobs;
 
 #[derive(Clone, Default)]
-pub(crate) struct TaskRegistry {
-    records: Arc<Mutex<HashMap<TaskId, TaskRecord>>>,
+pub(crate) struct JobRegistry {
+    records: Arc<Mutex<HashMap<JobId, JobRecord>>>,
 }
 
-impl TaskRegistry {
-    pub(crate) fn start(&self, owner: TaskOwner) -> Result<TaskRecord, TaskError> {
-        let mut records = self.records.lock().unwrap_or_else(|e| e.into_inner());
-        let active = records
-            .values()
-            .filter(|record| record.owner == owner && record.status.is_active())
-            .count();
-        if active >= MAX_ACTIVE_TASKS_PER_FRAME {
-            return Err(TaskError::new(
-                TaskErrorCode::LimitExceeded,
-                "too many active tasks for this frame",
-            ));
-        }
+fn lock(records: &Mutex<HashMap<JobId, JobRecord>>) -> MutexGuard<'_, HashMap<JobId, JobRecord>> {
+    records.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
-        let record = TaskRecord {
+impl JobRegistry {
+    /// Registers a job of `owner` that may run for `timeout`.
+    pub(crate) fn start(
+        &self,
+        owner: JobOwner,
+        timeout: Duration,
+    ) -> Result<JobRecord, TooManyJobs> {
+        let mut records = lock(&self.records);
+        let running = records
+            .values()
+            .filter(|record| record.owner == owner)
+            .count();
+        if running >= MAX_ACTIVE_JOBS_PER_FRAME {
+            return Err(TooManyJobs);
+        }
+        let record = JobRecord {
             id: Uuid::new_v4(),
             owner,
-            status: TaskRunStatus::Running,
             cancel: CancellationToken::new(),
-            provenance: None,
+            deadline: Instant::now() + timeout,
         };
         records.insert(record.id, record.clone());
         Ok(record)
     }
 
-    pub(crate) fn get(&self, id: TaskId) -> Option<TaskRecord> {
-        self.records
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(&id)
-            .cloned()
+    pub(crate) fn get(&self, id: JobId) -> Option<JobRecord> {
+        lock(&self.records).get(&id).cloned()
     }
 
-    pub(crate) fn transition(
-        &self,
-        id: TaskId,
-        status: TaskRunStatus,
-        provenance: Option<TaskProvenance>,
-    ) -> bool {
-        let mut records = self.records.lock().unwrap_or_else(|e| e.into_inner());
-        let Some(record) = records.get_mut(&id) else {
-            return false;
-        };
-        if !record.status.is_active() {
-            return false;
-        }
-        record.status = status;
-        if provenance.is_some() {
-            record.provenance = provenance;
-        }
-        true
+    /// Removes a job that ended on its own, after its completion event went out. `false` when it
+    /// is gone already (cancelled or over time first): then somebody else reports its end.
+    pub(crate) fn finish(&self, id: JobId) -> bool {
+        lock(&self.records).remove(&id).is_some()
     }
 
-    pub(crate) fn cancel(&self, id: TaskId, owner: &TaskOwner) -> bool {
-        let Some(record) = self.get(id) else {
-            return false;
-        };
-        if &record.owner != owner || !record.status.is_active() {
+    /// Cancels a job of `owner`: its token fires and the record is gone. `false` for a job that
+    /// does not exist or belongs to another owner; a second cancel is `false`.
+    pub(crate) fn cancel(&self, id: JobId, owner: &JobOwner) -> bool {
+        let mut records = lock(&self.records);
+        if records.get(&id).is_none_or(|record| &record.owner != owner) {
             return false;
         }
-        record.cancel.cancel();
-        self.transition(id, TaskRunStatus::Cancelled, None)
+        records
+            .remove(&id)
+            .map(|record| record.cancel.cancel())
+            .is_some()
     }
 
-    pub(crate) fn cancel_owned_by(&self, owner: &TaskOwner) -> usize {
-        let ids: Vec<_> = self
-            .records
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+    /// Cancels every job of `owner` (its frame closed or loaded another page). Returns how many.
+    pub(crate) fn cancel_owned_by(&self, owner: &JobOwner) -> usize {
+        let mut records = lock(&self.records);
+        let ids: Vec<JobId> = records
             .values()
-            .filter(|record| &record.owner == owner && record.status.is_active())
+            .filter(|record| &record.owner == owner)
             .map(|record| record.id)
             .collect();
-        ids.into_iter().filter(|id| self.cancel(*id, owner)).count()
+        for id in &ids {
+            if let Some(record) = records.remove(id) {
+                record.cancel.cancel();
+            }
+        }
+        ids.len()
     }
-}
 
-impl TaskRunStatus {
-    pub(crate) fn is_active(self) -> bool {
-        matches!(self, Self::Running)
+    /// Takes the jobs whose deadline is before `now` out of the registry and fires their tokens.
+    /// The caller reports their end.
+    pub(crate) fn expire(&self, now: Instant) -> Vec<JobRecord> {
+        let mut records = lock(&self.records);
+        let over: Vec<JobId> = records
+            .values()
+            .filter(|record| record.deadline <= now)
+            .map(|record| record.id)
+            .collect();
+        over.iter()
+            .filter_map(|id| records.remove(id))
+            .inspect(|record| record.cancel.cancel())
+            .collect()
     }
 }

@@ -10,3 +10,6 @@ pub mod frames;
 pub mod methods;
 pub(crate) mod model_jobs;
 pub mod permissions;
+
+#[cfg(test)]
+mod model_jobs_tests;

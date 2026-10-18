@@ -11,13 +11,18 @@ use crate::extensions::{
 /// The allowlist (contracts/bridge.md §Methoden).
 pub static METHODS: &[Method] = &[
     Method {
-        name: "extension_ai_task_start",
+        name: "extension_model_job_start",
         handler: model_jobs::start,
         module: model_jobs::MODULE,
     },
     Method {
-        name: "extension_ai_task_cancel",
+        name: "extension_model_job_cancel",
         handler: model_jobs::cancel,
+        module: model_jobs::MODULE,
+    },
+    Method {
+        name: "extension_model_list",
+        handler: model_jobs::list,
         module: model_jobs::MODULE,
     },
     Method {

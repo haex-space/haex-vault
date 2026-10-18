@@ -15,7 +15,9 @@ use crate::storage::known_devices;
 use crate::vault_gate::VaultGate;
 
 #[derive(Default)]
-struct Recorded(Mutex<Vec<(String, Value)>>);
+pub(in crate::extensions::bridge) struct Recorded(
+    pub(in crate::extensions::bridge) Mutex<Vec<(String, Value)>>,
+);
 
 impl Emit for Recorded {
     fn emit(&self, event: &str, payload: Value) {
@@ -23,14 +25,14 @@ impl Emit for Recorded {
     }
 }
 
-struct Setup {
+pub(in crate::extensions::bridge) struct Setup {
     _dir: tempfile::TempDir,
     db: Database,
-    ctx: CallContext,
-    recorded: Arc<Recorded>,
+    pub(in crate::extensions::bridge) ctx: CallContext,
+    pub(in crate::extensions::bridge) recorded: Arc<Recorded>,
 }
 
-fn setup() -> Setup {
+pub(in crate::extensions::bridge) fn setup() -> Setup {
     let (dir, db) = open_test_vault();
     let vault = VaultGate::new().vault_db(Arc::new(db.clone())).unwrap();
     let device = vault

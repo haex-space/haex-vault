@@ -57,9 +57,9 @@ pub trait Desktop: Send + Sync {
 #[derive(Default)]
 pub struct ExtensionHost {
     pub frames: FrameRegistry,
-    /// Structured agent tasks owned by extension frames; credentials and provider state stay in
-    /// the host and are never part of a frame session.
-    pub(crate) model_jobs: crate::model_jobs::TaskRegistry,
+    /// The model jobs running for extension frames; credentials and provider state stay in the
+    /// host and are never part of a frame session.
+    pub(crate) model_jobs: crate::model_jobs::JobRegistry,
     /// Frames the agent's tool calls wait for (spec 018, research R9).
     pub agent_frames: super::agent_tools::frame_request::FrameRequests,
     /// Dialog choices per frame, holzi's protected places and folder watches (US9).
@@ -108,8 +108,8 @@ impl Drop for SqlSlot {
 }
 
 impl ExtensionHost {
-    /// The in-memory structured-task registry for this extension host.
-    pub(crate) fn model_jobs(&self) -> crate::model_jobs::TaskRegistry {
+    /// The in-memory registry of running model jobs.
+    pub(crate) fn model_jobs(&self) -> crate::model_jobs::JobRegistry {
         self.model_jobs.clone()
     }
 

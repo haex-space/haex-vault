@@ -1,255 +1,104 @@
-use std::sync::Arc;
+//! The bridge methods of model jobs (spec 055, `contracts/bridge.md`): start, cancel and list. They
+//! belong to the calling frame alone. The preflight is here; the run of a job and the list of
+//! models follow with the stories (`runner`, `candidates`), so until then a job that passes the
+//! preflight and the list answer "not available" rather than a job that never ends.
 
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use super::{
-    definitions::definition_for,
-    errors::{TaskError, TaskErrorCode},
-    model::{ProcessingMode, TaskInput, TaskProvenance},
-    run_fixture, validate_paper_note_result, TaskId, TaskOwner, TaskRunStatus,
-};
+use super::errors::{bridge_error, refusal, JobErrorCode, JobFailure};
+use super::job::{self, JobError};
+use super::state::{JobId, JobOwner};
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
+use crate::extensions::host::ExtensionHost;
 
-pub(crate) const COMPLETED_EVENT: &str = "haextension:ai-task:completed";
+pub(crate) const COMPLETED_EVENT: &str = "haextension:model-job:completed";
 
-const FIXTURE_PROFILE: &str = "fixture-paper-note";
-const FIXTURE_MODEL: &str = "fixture-paper-note-recognition";
-const FIXTURE_HARNESS: &str = "fixture";
-const MAX_IMAGE_BYTES: usize = 25 * 1024 * 1024;
-
-fn validation(message: impl Into<String>) -> BridgeError {
-    BridgeError::new(ExtensionErrorCode::Validation, message)
-}
-
-fn task_error(error: TaskError) -> BridgeError {
-    let code = match error.code {
-        TaskErrorCode::LimitExceeded => ExtensionErrorCode::LimitExceeded,
-        TaskErrorCode::InvalidInput | TaskErrorCode::InvalidResult => {
-            ExtensionErrorCode::Validation
-        }
-        TaskErrorCode::Cancelled
-        | TaskErrorCode::ConsentRequired
-        | TaskErrorCode::ConsentDenied
-        | TaskErrorCode::UnsupportedCapability
-        | TaskErrorCode::ProfileUnavailable
-        | TaskErrorCode::Timeout
-        | TaskErrorCode::InferenceFailed
-        | TaskErrorCode::NoCapableModel
-        | TaskErrorCode::Unusable
-        | TaskErrorCode::Unavailable => ExtensionErrorCode::NotAvailable,
-    };
-    BridgeError::new(code, error.message)
-}
-
-fn parse_input(params: &Value) -> Result<TaskInput, BridgeError> {
-    let input: TaskInput = serde_json::from_value(params.clone())
-        .map_err(|_| validation("invalid structured task input"))?;
-    let definition =
-        definition_for(&input).ok_or_else(|| validation("unsupported task or schema version"))?;
-    if !definition.accepts_image {
-        return Err(validation("task does not accept image input"));
-    }
-    if definition.allows_general_tools {
-        return Err(validation("task definition may not enable general tools"));
-    }
-    if input.input.image.bytes.is_empty() {
-        return Err(validation("image bytes must not be empty"));
-    }
-    if input.input.image.bytes.len() > MAX_IMAGE_BYTES {
-        return Err(validation("image is too large"));
-    }
-    if input.input.image.width == 0 || input.input.image.height == 0 {
-        return Err(validation("image dimensions must be positive"));
-    }
-    if !input.input.image.mime_type.starts_with("image/") {
-        return Err(validation("mimeType must describe an image"));
-    }
-    if input.input.locale.trim().is_empty() {
-        return Err(validation("locale must not be empty"));
-    }
-    Ok(input)
-}
-
-fn owner(ctx: &CallContext) -> TaskOwner {
-    TaskOwner {
+fn owner(ctx: &CallContext) -> JobOwner {
+    JobOwner {
         extension_id: ctx.session.extension_id,
         frame: ctx.session.frame.clone(),
     }
 }
 
-fn provenance() -> TaskProvenance {
-    TaskProvenance {
-        task_version: super::TASK_SCHEMA_VERSION,
-        profile_id: FIXTURE_PROFILE.to_owned(),
-        model_id: FIXTURE_MODEL.to_owned(),
-        harness_id: FIXTURE_HARNESS.to_owned(),
-        mode: ProcessingMode::Local,
-        destination: None,
-    }
-}
-
-fn completion_payload(
-    task_id: TaskId,
+/// The data of the completion event (`contracts/bridge.md` §Ereignis). A job that ends without
+/// a result has no `result`; `provenance` lists the attempts of each step.
+pub(crate) fn completion_payload(
+    job_id: JobId,
     status: &str,
-    processing: &TaskProvenance,
+    provenance: Value,
     result: Option<Value>,
-    error: Option<TaskError>,
+    failure: Option<&JobFailure>,
 ) -> Value {
     let mut payload = json!({
-        "taskId": task_id.to_string(),
+        "jobId": job_id.to_string(),
         "status": status,
-        "processing": processing,
+        "provenance": provenance,
     });
     if let Some(result) = result {
         payload["result"] = result;
     }
-    if let Some(error) = error {
-        payload["error"] = serde_json::to_value(error).unwrap_or_else(|_| {
-            json!({
-                "code": "inference_failed",
-                "message": "structured task failed"
-            })
-        });
+    if let Some(failure) = failure {
+        payload["error"] = serde_json::to_value(failure).unwrap_or(Value::Null);
     }
     payload
 }
 
-fn emit_completion(
-    emitter: &dyn Emit,
-    host: &crate::extensions::host::ExtensionHost,
-    extension_id: Uuid,
-    payload: &Value,
-) {
+fn emit_completion(emitter: &dyn Emit, host: &ExtensionHost, extension_id: Uuid, payload: &Value) {
     emit_to_frames(emitter, host, extension_id, COMPLETED_EVENT, payload);
 }
 
-/// Starts the deterministic first-release task path. Real profile resolution
-/// is deliberately added behind the same lifecycle in the provider phase.
-pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
-    let input = parse_input(params)?;
-    let owner = owner(ctx);
-    let registry = ctx.host.model_jobs();
-    let record = registry.start(owner.clone()).map_err(task_error)?;
-    let task_id = record.id;
-    let provenance = provenance();
-    let host = Arc::clone(&ctx.host);
-    let emitter = Arc::clone(&ctx.emitter);
-    let extension_id = owner.extension_id;
-    let cancellation = record.cancel.clone();
-    let registry_for_task = registry.clone();
-    let task_input = input.input;
-    let task_provenance = provenance.clone();
-
-    tauri::async_runtime::spawn(async move {
-        if cancellation.is_cancelled() {
-            return;
-        }
-        let result = run_fixture(&task_input);
-        if cancellation.is_cancelled() {
-            return;
-        }
-        if let Err(error) = validate_paper_note_result(&result) {
-            if !registry_for_task.transition(
-                task_id,
-                TaskRunStatus::Failed,
-                Some(task_provenance.clone()),
-            ) {
-                return;
-            }
-            emit_completion(
-                emitter.as_ref(),
-                &host,
-                extension_id,
-                &completion_payload(task_id, "failed", &task_provenance, None, Some(error)),
-            );
-            return;
-        }
-        if !registry_for_task.transition(
-            task_id,
-            TaskRunStatus::Completed,
-            Some(task_provenance.clone()),
-        ) {
-            return;
-        }
-        emit_completion(
-            emitter.as_ref(),
-            &host,
-            extension_id,
-            &completion_payload(
-                task_id,
-                "completed",
-                &task_provenance,
-                Some(serde_json::to_value(result).unwrap_or(Value::Null)),
-                None,
-            ),
-        );
-    });
-
-    Ok(json!({
-        "taskId": task_id.to_string(),
-        "status": "running",
-        "processing": provenance,
-    }))
+/// `{job}`: parses and checks the job before any model is asked. A form that is wrong answers
+/// 3001, a limit 7000.
+pub(crate) fn start(_ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let job = params
+        .get("job")
+        .ok_or_else(|| refusal(&JobError::Invalid("the call needs a job".into())))?;
+    job::parse(job).map_err(|error| refusal(&error))?;
+    Err(BridgeError::not_available())
 }
 
-/// Cancels a task only when the request comes from its originating frame.
+/// `{jobId}`: cancels a job of the calling frame; `{cancelled: false}` for an unknown id and
+/// 1000 for the job of another frame.
 pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
-    let task_id = params
-        .get("taskId")
+    let id = params
+        .get("jobId")
         .and_then(Value::as_str)
-        .ok_or_else(|| validation("taskId must be a string"))?
-        .parse::<Uuid>()
-        .map_err(|_| validation("taskId must be a UUID"))?;
+        .and_then(|text| text.parse::<Uuid>().ok())
+        .ok_or_else(|| {
+            bridge_error(
+                JobErrorCode::InvalidInput,
+                "jobId must be a UUID",
+                "invalid_input",
+            )
+        })?;
     let owner = owner(ctx);
     let registry = ctx.host.model_jobs();
-    let Some(record) = registry.get(task_id) else {
+    let Some(record) = registry.get(id) else {
         return Ok(json!({ "cancelled": false }));
     };
     if record.owner != owner {
         return Err(BridgeError::new(
             ExtensionErrorCode::SecurityViolation,
-            "task does not belong to this frame",
+            "job does not belong to this frame",
         ));
     }
-    let cancelled = registry.cancel(task_id, &owner);
+    let cancelled = registry.cancel(id, &owner);
     if cancelled {
-        let provenance = record.provenance.unwrap_or_else(provenance);
+        let failure = JobFailure::new(JobErrorCode::Cancelled, "the job was cancelled", &[]);
         emit_completion(
             ctx.emitter.as_ref(),
             &ctx.host,
             owner.extension_id,
-            &completion_payload(
-                task_id,
-                "cancelled",
-                &provenance,
-                None,
-                Some(TaskError::new(TaskErrorCode::Cancelled, "task cancelled")),
-            ),
+            &completion_payload(id, "cancelled", json!([]), None, Some(&failure)),
         );
     }
     Ok(json!({ "cancelled": cancelled }))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::parse_input;
-    use crate::extensions::error::ExtensionErrorCode;
-    use serde_json::json;
-
-    #[test]
-    fn rejects_non_image_input_before_task_creation() {
-        let error = parse_input(&json!({
-            "task": "paper-note-recognition",
-            "schemaVersion": 1,
-            "input": {
-                "image": {"bytes": [1], "mimeType": "text/plain", "width": 1, "height": 1},
-                "locale": "de-DE"
-            }
-        }))
-        .expect_err("non-image MIME type must be rejected");
-        assert_eq!(error.code, ExtensionErrorCode::Validation);
-    }
+/// The models the extension may use. Not yet: they come with the candidates of the first story.
+pub(crate) fn list(_ctx: &CallContext, _params: &Value) -> Result<Value, BridgeError> {
+    Err(BridgeError::not_available())
 }

@@ -75,14 +75,13 @@ Ein Eintrag bekommt `format` (`gguf` | `multimodal_dir`), `vision` (bool) und be
 | Feld       | Bedeutung                                           |
 | ---------- | --------------------------------------------------- |
 | `id`       | UUID des Auftrags                                   |
-| `owner`    | `{extension_id, frame}` (wie `TaskOwner`)           |
-| `status`   | `running` \| `completed` \| `failed` \| `cancelled` |
+| `owner`    | `{extension_id, frame}` (`JobOwner`)                |
 | `cancel`   | Abbruch-Token                                       |
 | `deadline` | Zeitpunkt, an dem der Auftrag abbricht              |
 
-- Der Eintrag verschwindet nach dem Abschluss-Ereignis. Er trägt keine Eingabe, keine Anweisung, kein
-  Ergebnis und keine Herkunft.
-- Zustände: `running` → `completed` | `failed` | `cancelled`; kein Zurück.
+- Der Eintrag besteht nur, solange der Auftrag läuft (daher kein Zustand), und verschwindet, wenn er endet:
+  nach dem Abschluss-Ereignis (`finish`), beim Abbruch (`cancel`, `cancel_owned_by`) und bei Zeitüberschreitung
+  (`expire`). Er trägt keine Eingabe, keine Anweisung, kein Ergebnis und keine Herkunft.
 
 ### Auftrag, Schritt, Herkunft (nur in der Anfrage und im Ergebnis)
 

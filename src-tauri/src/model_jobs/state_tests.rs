@@ -1,75 +1,127 @@
+//! Tests for the registry of running model jobs (spec 055 FR-022, FR-028, R9).
+
+use std::time::{Duration, Instant};
+
 use uuid::Uuid;
 
-use super::{
-    state::{TaskOwner, TaskRegistry, TaskRunStatus, MAX_ACTIVE_TASKS_PER_FRAME},
-    TaskErrorCode,
-};
+use super::limits::MAX_ACTIVE_JOBS_PER_FRAME;
+use super::state::{JobOwner, JobRegistry, TooManyJobs};
 
-fn owner() -> TaskOwner {
-    TaskOwner {
+const LONG: Duration = Duration::from_secs(300);
+
+fn owner(frame: &str) -> JobOwner {
+    JobOwner {
         extension_id: Uuid::new_v4(),
-        frame: "frame-1".to_owned(),
+        frame: frame.to_owned(),
     }
 }
 
 #[test]
-fn limits_active_tasks_per_frame() {
-    let registry = TaskRegistry::default();
-    let owner = owner();
-    for _ in 0..MAX_ACTIVE_TASKS_PER_FRAME {
-        registry.start(owner.clone()).expect("within frame limit");
+fn a_frame_runs_at_most_two_jobs() {
+    let registry = JobRegistry::default();
+    let frame = owner("frame-1");
+    for _ in 0..MAX_ACTIVE_JOBS_PER_FRAME {
+        registry
+            .start(frame.clone(), LONG)
+            .expect("within the limit");
     }
-    let error = registry.start(owner).expect_err("limit must be enforced");
-    assert_eq!(error.code, TaskErrorCode::LimitExceeded);
+    assert_eq!(
+        registry.start(frame.clone(), LONG).unwrap_err(),
+        TooManyJobs
+    );
+    // Another frame has its own two.
+    registry
+        .start(owner("frame-2"), LONG)
+        .expect("another frame");
 }
 
 #[test]
-fn cancellation_is_owner_scoped_and_idempotent() {
-    let registry = TaskRegistry::default();
-    let owner = owner();
-    let other = TaskOwner {
-        extension_id: Uuid::new_v4(),
+fn a_finished_job_is_gone_and_frees_its_place() {
+    let registry = JobRegistry::default();
+    let frame = owner("frame-1");
+    let first = registry.start(frame.clone(), LONG).unwrap();
+    registry.start(frame.clone(), LONG).unwrap();
+    assert!(registry.start(frame.clone(), LONG).is_err());
+
+    assert!(registry.finish(first.id));
+    assert!(registry.get(first.id).is_none(), "nothing of it is kept");
+    assert!(!registry.finish(first.id), "a second finish finds nothing");
+    registry
+        .start(frame, LONG)
+        .expect("the place is free again");
+}
+
+#[test]
+fn a_job_is_cancelled_by_its_own_frame_only_and_only_once() {
+    let registry = JobRegistry::default();
+    let frame = owner("frame-1");
+    let other = JobOwner {
+        extension_id: frame.extension_id,
         frame: "frame-2".to_owned(),
     };
-    let record = registry.start(owner.clone()).unwrap();
+    let record = registry.start(frame.clone(), LONG).unwrap();
 
-    assert!(!registry.cancel(record.id, &other));
-    assert!(registry.cancel(record.id, &owner));
-    assert_eq!(
-        registry.get(record.id).unwrap().status,
-        TaskRunStatus::Cancelled
+    assert!(
+        !registry.cancel(record.id, &other),
+        "another frame of the same extension"
     );
-    assert!(!registry.cancel(record.id, &owner));
-}
-
-#[test]
-fn cancelled_task_cannot_transition_to_completion() {
-    let registry = TaskRegistry::default();
-    let owner = owner();
-    let record = registry.start(owner.clone()).unwrap();
-
-    assert!(registry.cancel(record.id, &owner));
-    assert!(!registry.transition(record.id, TaskRunStatus::Completed, None));
-    assert_eq!(
-        registry.get(record.id).unwrap().status,
-        TaskRunStatus::Cancelled
+    assert!(!record.cancel.is_cancelled());
+    assert!(registry.cancel(record.id, &frame));
+    assert!(record.cancel.is_cancelled());
+    assert!(registry.get(record.id).is_none());
+    assert!(
+        !registry.cancel(record.id, &frame),
+        "an unknown id is not cancelled"
     );
 }
 
 #[test]
-fn closing_a_frame_cancels_all_owned_tasks() {
-    let registry = TaskRegistry::default();
-    let owner = owner();
-    let first = registry.start(owner.clone()).unwrap();
-    let second = registry.start(owner.clone()).unwrap();
+fn closing_a_frame_cancels_all_its_jobs_and_no_other() {
+    let registry = JobRegistry::default();
+    let frame = owner("frame-1");
+    let first = registry.start(frame.clone(), LONG).unwrap();
+    let second = registry.start(frame.clone(), LONG).unwrap();
+    let elsewhere = registry.start(owner("frame-2"), LONG).unwrap();
 
-    assert_eq!(registry.cancel_owned_by(&owner), 2);
+    assert_eq!(registry.cancel_owned_by(&frame), 2);
+    assert!(first.cancel.is_cancelled() && second.cancel.is_cancelled());
+    assert!(!elsewhere.cancel.is_cancelled());
+    assert!(registry.get(first.id).is_none() && registry.get(second.id).is_none());
+    assert!(registry.get(elsewhere.id).is_some());
+    assert_eq!(registry.cancel_owned_by(&frame), 0);
+}
+
+#[test]
+fn a_job_over_its_deadline_is_taken_out_and_cancelled() {
+    let registry = JobRegistry::default();
+    let quick = registry
+        .start(owner("frame-1"), Duration::from_millis(10))
+        .unwrap();
+    let slow = registry.start(owner("frame-2"), LONG).unwrap();
+    let later = Instant::now() + Duration::from_secs(1);
+
+    let over = registry.expire(later);
+
     assert_eq!(
-        registry.get(first.id).unwrap().status,
-        TaskRunStatus::Cancelled
+        over.iter().map(|record| record.id).collect::<Vec<_>>(),
+        [quick.id]
     );
-    assert_eq!(
-        registry.get(second.id).unwrap().status,
-        TaskRunStatus::Cancelled
-    );
+    assert!(quick.cancel.is_cancelled());
+    assert!(registry.get(quick.id).is_none());
+    assert!(!slow.cancel.is_cancelled() && registry.get(slow.id).is_some());
+    assert!(registry.expire(later).is_empty(), "each job expires once");
+}
+
+#[test]
+fn a_record_holds_no_more_than_what_cancels_and_limits_it() {
+    // The record's fields are the whole of what is kept; this fails to compile when one is added
+    // without a decision (FR-028: no input, result or provenance in the registry).
+    let registry = JobRegistry::default();
+    let record = registry.start(owner("frame-1"), LONG).unwrap();
+    let super::state::JobRecord {
+        id: _,
+        owner: _,
+        cancel: _,
+        deadline: _,
+    } = record;
 }

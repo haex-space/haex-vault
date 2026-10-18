@@ -1,16 +1,101 @@
-//! Tests for the error codes of a model job and the message sanitiser (spec 055 FR-021).
+//! Tests for the errors of a model job and the message sanitiser (spec 055 FR-021, FR-011,
+//! `contracts/bridge.md` §Fehlercodes).
 
-use super::errors::{sanitize, TaskErrorCode};
+use serde_json::json;
+
+use super::errors::{refusal, sanitize, too_many, JobErrorCode, JobFailure};
+use super::job::JobError;
+use super::state::TooManyJobs;
+use crate::extensions::error::ExtensionErrorCode;
 
 #[test]
-fn the_new_codes_are_named_in_snake_case() {
+fn every_code_is_written_in_snake_case() {
     for (code, name) in [
-        (TaskErrorCode::NoCapableModel, "no_capable_model"),
-        (TaskErrorCode::Unusable, "unusable"),
-        (TaskErrorCode::Unavailable, "unavailable"),
-        (TaskErrorCode::ConsentDenied, "consent_denied"),
+        (JobErrorCode::InvalidInput, "invalid_input"),
+        (JobErrorCode::LimitExceeded, "limit_exceeded"),
+        (JobErrorCode::NoCapableModel, "no_capable_model"),
+        (JobErrorCode::ConsentDenied, "consent_denied"),
+        (JobErrorCode::Unusable, "unusable"),
+        (JobErrorCode::Unavailable, "unavailable"),
+        (JobErrorCode::Timeout, "timeout"),
+        (JobErrorCode::Cancelled, "cancelled"),
     ] {
         assert_eq!(serde_json::to_value(code).expect("serialize"), name);
+        assert_eq!(code.as_str(), name);
+    }
+}
+
+#[test]
+fn a_refused_start_answers_with_the_fixed_codes_and_a_reason() {
+    let invalid = refusal(&JobError::Invalid(
+        "step read: the instruction is empty".into(),
+    ));
+    assert_eq!(invalid.code, ExtensionErrorCode::Validation);
+    assert_eq!(invalid.code.as_u16(), 3001);
+    assert_eq!(invalid.details, Some(json!({"reason": "invalid_input"})));
+
+    for name in [
+        "steps",
+        "image_count",
+        "image_bytes",
+        "instruction_bytes",
+        "input_bytes",
+    ] {
+        let limit = refusal(&JobError::Limit(name));
+        assert_eq!(limit.code.as_u16(), 7000, "{name}");
+        assert_eq!(limit.details, Some(json!({"reason": name, "limit": name})));
+    }
+
+    let busy = too_many(TooManyJobs);
+    assert_eq!(busy.code.as_u16(), 7000);
+    assert_eq!(
+        busy.details,
+        Some(json!({"reason": "active_jobs", "limit": "active_jobs"}))
+    );
+}
+
+#[test]
+fn a_failure_of_a_started_job_maps_to_the_answer_of_a_call() {
+    for (code, number, reason) in [
+        (JobErrorCode::NoCapableModel, 8001, "no_capable_model"),
+        (JobErrorCode::ConsentDenied, 1002, "consent_denied"),
+        (JobErrorCode::InvalidInput, 3001, "invalid_input"),
+        (JobErrorCode::LimitExceeded, 7000, "limit_exceeded"),
+        (JobErrorCode::Unusable, 8001, "unusable"),
+        (JobErrorCode::Unavailable, 8001, "unavailable"),
+        (JobErrorCode::Timeout, 8001, "timeout"),
+        (JobErrorCode::Cancelled, 8001, "cancelled"),
+    ] {
+        let answer = JobFailure::new(code, "no model fits", &[]).to_bridge();
+        assert_eq!(answer.code.as_u16(), number, "{code:?}");
+        assert_eq!(answer.details, Some(json!({"reason": reason})));
+    }
+}
+
+#[test]
+fn the_event_error_has_a_code_a_message_and_perhaps_a_step() {
+    let failure = JobFailure::new(JobErrorCode::Unusable, "loop", &[]).at_step("read");
+    assert_eq!(
+        serde_json::to_value(&failure).expect("serialize"),
+        json!({"code": "unusable", "message": "loop", "stepId": "read"})
+    );
+    let without = JobFailure::new(JobErrorCode::Cancelled, "cancelled", &[]);
+    assert_eq!(
+        serde_json::to_value(&without).expect("serialize"),
+        json!({"code": "cancelled", "message": "cancelled"})
+    );
+}
+
+#[test]
+fn no_failure_carries_an_address_a_key_or_a_value_the_caller_knows_to_be_secret() {
+    let key = "school2026";
+    let message =
+        "POST http://10.1.2.3:8000/v1/chat failed: 401 key school2026 sk-abc123def456ghi789jkl012";
+    let failure = JobFailure::new(JobErrorCode::Unavailable, message, &[key, "10.1.2.3"]);
+    let shown = serde_json::to_string(&failure).expect("serialize");
+    for leak in ["10.1.2.3", "8000", "school2026", "sk-abc123", "http://"] {
+        assert!(!shown.contains(leak), "{leak} leaked: {shown}");
+        assert!(!failure.to_bridge().message.contains(leak), "{leak} leaked");
     }
 }
 
