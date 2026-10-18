@@ -9,7 +9,7 @@
 **Input**: User description: "Verschlüsselte Ordner in S3-Speichern (Spec 038) für den Dateibrowser
 (Spec 044). Nicht der ganze Speicher, sondern einzelne Ordner werden transparent verschlüsselt; jedes
 Lesen und Schreiben von Dateien und Ordnern darin läuft durch eine Verschlüsselungsschicht (Modell
-Cryptomator/gocryptfs, je Datei, kein Container wie VeraCrypt/LVM). Vorbild ist haex-vault
+Cryptomator/gocryptfs, je Datei, kein Container wie VeraCrypt/LVM). Vorbild ist haex-vault 2.x (Legacy)
 `file_sync/crypto`. Schlüsselhierarchie Vault → Ordner → Datei, damit ein Ordner später geteilt werden
 kann, ohne den Vault-Schlüssel preiszugeben; alle eigenen Geräte lesen ohne Passwort. Die Zuordnung
 Pfad → Objekt liegt im Bucket. Erweiterungen und Agents brauchen für einen verschlüsselten Ordner immer
@@ -83,11 +83,11 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
   Nummer): sollen dasselbe Format nutzen. Ein Space verschlüsselt den Ordnerschlüssel zusätzlich für
   seine Mitglieder; die Sync-Regeln legen „Cloud verschlüsselt“ als verschlüsselten Ordner an. Beides
   ist nicht Teil dieser Spec, das Format MUSS es aber zulassen (FR-040, FR-041).
-- **Vorlage haex-vault**: Repository `https://github.com/haex-space/haex-vault`, Revision
+- **Vorlage haex-vault 2.x**: Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad `src-tauri/src/file_sync/crypto/` (Envelope `HXFE`,
   Blöcke zu 1 MiB mit XChaCha20-Poly1305, zufällige Objektnamen, Begleitdateien `.m`, Dateischlüssel
   verschlüsselt mit dem Schlüssel der Stufe darüber). holzi übernimmt das Modell und schließt seine
-  Lücken (FR-022 bis FR-025); haex-vault ist kein Maßstab für Oberfläche.
+  Lücken (FR-022 bis FR-025); haex-vault 2.x ist kein Maßstab für Oberfläche.
 
 ## Clarifications
 
@@ -696,7 +696,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   einer ganzen früheren Fassung. Ebenso wenig erkennt holzi, wenn der Anbieter ganze Einträge
   (Begleitdatei samt Inhaltsobjekt) entfernt; es gibt kein signiertes Verzeichnis des Ordners.
 - Verfahren und Blockgröße legt der Plan fest (research R2, R4: XChaCha20-Poly1305, Blöcke zu
-  64 KiB); das Modell kommt aus haex-vault, das Format nicht (research R3).
+  64 KiB); das Modell kommt aus haex-vault 2.x, das Format nicht (research R3).
 - Ein Speicher hat keine Benachrichtigung über Änderungen; Änderungen anderer Geräte erscheinen wie in
   044 beim Neuladen oder Zurückkehren. Auf dem Gerät beobachtet holzi das Verzeichnis.
 - Auf dem Gerät gilt für andere Programme dieselbe Grenze wie für einen Anbieter: Sie sehen Zahl,

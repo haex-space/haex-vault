@@ -3,7 +3,7 @@
 **Feature Branch**: `015-workspace-shell`
 **Created**: 2026-09-21
 **Status**: Implemented (T057 offen)
-**Input**: holzi übernimmt aus haex-vault das Shell-Konzept aus Workspaces (Arbeitsbereichen), Apps und Fenstern. Die heutige Workspace-Seite ist nur ein Stub mit Vault-Name und Chat-Einstieg; Chat, Einstellungen und Föderation sind eigene Vollseiten. Nach dieser Spec öffnet der Nutzer Apps als Fenster in einem Arbeitsbereich, bündelt mehrere Apps oder Ansichten als Tabs in einem Fenster (Bedienung wie in Firefox), kann mehrere Arbeitsbereiche pro Gerät verwalten, und sein Layout überlebt einen Neustart.
+**Input**: holzi übernimmt aus haex-vault 2.x (Legacy) das Shell-Konzept aus Workspaces (Arbeitsbereichen), Apps und Fenstern. Die heutige Workspace-Seite ist nur ein Stub mit Vault-Name und Chat-Einstieg; Chat, Einstellungen und Föderation sind eigene Vollseiten. Nach dieser Spec öffnet der Nutzer Apps als Fenster in einem Arbeitsbereich, bündelt mehrere Apps oder Ansichten als Tabs in einem Fenster (Bedienung wie in Firefox), kann mehrere Arbeitsbereiche pro Gerät verwalten, und sein Layout überlebt einen Neustart.
 
 ## Beziehung zu bestehenden Specs
 
@@ -662,19 +662,19 @@ den ausgelieferten Apps öffnet ein zweiter Aufruf keine zweite Instanz.
   CSS-Pixeln gilt die Kompaktdarstellung (Vollbild-Fenster). Der Wert ist eine
   übliche Tablet-Grenze und in der Planung veränderbar.
 - **Tabs in Fenstern, Bedienung wie Firefox** (Vorgabe des Betreibers). Anders
-  als in haex-vault sitzt das „+“ nicht rechts bei den Fenster-Schaltflächen,
+  als in haex-vault 2.x sitzt das „+“ nicht rechts bei den Fenster-Schaltflächen,
   sondern unmittelbar hinter dem letzten Tab; an seiner alten Stelle steht der
-  Chevron mit der Tab-Liste. Das „+“ öffnet wie in haex-vault eine Liste der
+  Chevron mit der Tab-Liste. Das „+“ öffnet wie in haex-vault 2.x eine Liste der
   Apps (kein automatisches Duplizieren des aktiven Tabs).
-- **Ein Tab zeigt keinen Tab-Rahmen** (wie haex-vault): Icon und Titel, ohne
+- **Ein Tab zeigt keinen Tab-Rahmen** (wie haex-vault 2.x): Icon und Titel, ohne
   eigene Schließen-Schaltfläche; ab zwei Tabs erscheint die Tab-Leiste mit
   Schließen-Schaltflächen je Tab.
 - **Fenster- und Tab-Titel** kommen aus der App-Definition; ein dynamischer Titel
   der App (etwa Thread-Name) ist möglich, aber kein Anforderungsinhalt.
 - **Maximieren füllt den Arbeitsbereich**, nicht den Bildschirm; Doppelklick auf
-  die Titelleiste schaltet um (wie haex-vault).
+  die Titelleiste schaltet um (wie haex-vault 2.x).
 - **Kein Desktop-Raster.** Symbole oder Verknüpfungen direkt auf dem
-  Arbeitsbereich (haex-vault) sind nicht Teil dieser Spec; Apps starten aus dem
+  Arbeitsbereich (haex-vault 2.x) sind nicht Teil dieser Spec; Apps starten aus dem
   Launcher.
 - **Wiederherstellung betrifft Fenster und Tabs, nicht deren Inhalte.** Ein
   wiederhergestellter Chat-Tab beginnt mit einer neuen Unterhaltung, weil
@@ -695,10 +695,10 @@ den ausgelieferten Apps öffnet ein zweiter Aufruf keine zweite Instanz.
   - Persistenz liegt im Vault-Storage auf der Rust-Seite (Tauri-Commands,
     ts-rs-Bindings, wie Preferences und Threads) und folgt der
     Geräte-Konvention aus ADR-0001 — nicht per Drizzle aus dem Frontend wie
-    in haex-vault.
+    in haex-vault 2.x.
   - Die Oberfläche nutzt den im Projekt gesetzten Stack (haex-ui-Layer mit
     shadcn-vue/reka-ui, Tailwind, `@lucide/vue`), nicht Nuxt UI wie
-    haex-vault; deshalb werden dessen Komponenten portiert, nicht kopiert.
+    haex-vault 2.x; deshalb werden dessen Komponenten portiert, nicht kopiert.
   - Sichtbare Texte laufen über `@nuxtjs/i18n` in `de.json` und `en.json`
     (CONTEXT.md, Abschnitt Internationalisierung).
   - Ein Design-Beschluss zum Zuschnitt (Rust-seitiger Speicher, Fenstermodell mit
@@ -732,7 +732,7 @@ aber nicht im Weg stehen.
 1. **Navigation im Tab**: Jeder Tab hat einen Ort innerhalb seiner App und
    eine eigene Vor/Zurück-Historie wie ein Browser-Tab; dazu eine
    Befehls-Registry mit festen Standard-Tastenkürzeln.
-2. **Einstellungs-App im Stil von haex-vault**: Kategorien-Seitenleiste,
+2. **Einstellungs-App im Stil von haex-vault 2.x**: Kategorien-Seitenleiste,
    Unteransichten als Navigation im Tab, Föderation als Kategorie,
    Erscheinungsbild.
 3. **Befehle und Tastenkürzel**: einheitliches Konzept, zur Laufzeit vom
@@ -752,7 +752,7 @@ dargestellt werden können.
 Zum Portieren von Verhalten, nicht zum 1:1-Kopieren. Unveränderlich gepinnt
 (Constitution: Cross-Repo-Referenzen):
 
-- `haex-space/haex-vault` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
+- `haex-space/haex-vault-legacy` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
   - `src/stores/desktop/windowManager/state.ts`, `lifecycle.ts`, `tabs.ts`
     — Fenstermodell, Lebenszyklus, Tab-Logik (Singleton-Suche über alle
     Fenster, Nachbar-Aktivierung beim Schließen; die aus dem aktiven Tab

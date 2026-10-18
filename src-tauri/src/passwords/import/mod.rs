@@ -10,10 +10,10 @@ pub mod apply_extras;
 pub mod apply_references;
 pub mod bitwarden;
 pub mod csv;
-pub mod haex_vault;
 pub mod icons;
 pub mod keepass;
 pub mod lastpass;
+pub mod legacy_haex_vault;
 pub mod passkey;
 pub mod references;
 #[cfg(test)]
@@ -42,9 +42,9 @@ pub enum ImportSource {
     Keepass,
     Bitwarden,
     Lastpass,
-    /// The vault file of haex-vault (spec 037); read from disk, not from bytes.
-    #[serde(rename = "haexvault")]
-    HaexVault,
+    /// The vault file of haex-vault 2.x (Legacy) (spec 037); read from disk, not from bytes.
+    #[serde(rename = "legacyhaexvault")]
+    LegacyHaexVault,
 }
 
 /// The password and key file of a KeePass database. Both are zeroed when dropped and `Debug` prints
@@ -234,14 +234,14 @@ pub struct ImportModel {
 }
 
 /// Reads a file of `source`. Pure: no database, no clock. `Bitwarden` is told apart by its first
-/// character (`{` is the JSON export, anything else the CSV). `HaexVault` is a database file and is
-/// read by [`haex_vault::read`] from its path, not from bytes.
+/// character (`{` is the JSON export, anything else the CSV). `LegacyHaexVault` is a database file and is
+/// read by [`legacy_haex_vault::read`] from its path, not from bytes.
 pub fn parse(source: ImportSource, bytes: &[u8], credentials: &Credentials) -> Result<ImportModel> {
     match source {
         ImportSource::Keepass => keepass::parse(bytes, credentials),
         ImportSource::Bitwarden => bitwarden::parse(bytes),
         ImportSource::Lastpass => lastpass::parse(bytes),
-        ImportSource::HaexVault => Err(failed("unsupported_format")),
+        ImportSource::LegacyHaexVault => Err(failed("unsupported_format")),
     }
 }
 

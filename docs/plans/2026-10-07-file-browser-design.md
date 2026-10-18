@@ -1,7 +1,7 @@
 # File browser and viewer
 
 **Status**: Design agreed with the operator on 2026-10-07; to be specified as spec 044.
-Reuses what haex-vault already solved (media streaming, range reads, PDF viewer, search walk);
+Reuses what haex-vault 2.x (Legacy) already solved (media streaming, range reads, PDF viewer, search walk);
 haex-files is obsolete and no reference.
 
 ## Context
@@ -28,8 +28,8 @@ work agreed in the same session:
 | 4   | Sources in v1                   | This device and the S3 storages of spec 038. Other own devices come later.                                                                                                                                                                                                                                                                                       |
 | 5   | Search                          | Live walk from the current folder, no index. Name (fuzzy), type, size, date. An index comes with the embeddings spec.                                                                                                                                                                                                                                            |
 | 6   | Formats the webview can't play  | Info view with "open with system app". PDF through pdf.js (WebKitGTK shows no PDFs). No ffmpeg, no HEIC conversion.                                                                                                                                                                                                                                              |
-| 7   | Android file access             | `MANAGE_EXTERNAL_STORAGE` ("all files access"): real paths, one code path with desktop. Play Store is out of scope ([spec 043](../../specs/043-android-build/spec.md)). haex-vault's SAF/content-URI path is not taken.                                                                                                                                          |
-| 8   | How content reaches the webview | A loopback HTTP server with opaque tokens (haex-vault `media_server`). Not `asset://`, not a custom scheme: WebKitGTK's GStreamer backend refuses custom schemes for media and `asset://` has no range support.                                                                                                                                                  |
+| 7   | Android file access             | `MANAGE_EXTERNAL_STORAGE` ("all files access"): real paths, one code path with desktop. Play Store is out of scope ([spec 043](../../specs/043-android-build/spec.md)). haex-vault 2.x's SAF/content-URI path is not taken.                                                                                                                                      |
+| 8   | How content reaches the webview | A loopback HTTP server with opaque tokens (haex-vault 2.x `media_server`). Not `asset://`, not a custom scheme: WebKitGTK's GStreamer backend refuses custom schemes for media and `asset://` has no range support.                                                                                                                                              |
 
 ## Architecture
 
@@ -44,7 +44,7 @@ work agreed in the same session:
   sees it read-only.
 - **Sources** behind a `FileSource` trait: `LocalSource` (device file system, Android with real
   paths) and `S3Source` (storages of 038; folders are key prefixes; credentials stay in Rust).
-- **`StreamingSource`** (`size`, `read_range`) taken over from haex-vault, one implementation per
+- **`StreamingSource`** (`size`, `read_range`) taken over from haex-vault 2.x, one implementation per
   source. The 038 S3 client gains ranged GET.
 - **`MediaServer`** on `127.0.0.1` with a random port. It serves only registered files under a
   random token; anything else is 404. It serves media, images, PDFs and thumbnails. **A file is
@@ -82,7 +82,7 @@ short ADR of its own.
   fetched once; above a limit (about 50 MB) only an icon.
 - **Open**: `files_open` checks access, registers the file with the `MediaServer` and returns kind
   and token URL. **Share URLs** (the token URLs) belong to the tab: dropped when the viewer or tab
-  closes, all of them when the vault locks. (haex-vault keeps them until the app exits.)
+  closes, all of them when the vault locks. (haex-vault 2.x keeps them until the app exits.)
 - **Change**: copy and move work across sources (local → S3 upload, S3 → local download), streamed
   with progress events and cancellable, listed in a transfer bar. Name clash: replace, keep both,
   or skip, with "apply to all". Delete: system trash on desktop (`trash` crate); on Android and on
@@ -117,7 +117,7 @@ short ADR of its own.
   insensitivity on Windows and macOS, Android paths); `LocalSource` against a temp dir (list, copy,
   move, trash, name clash, copy into itself, abort without half target); `S3Source` against the 038
   test storage (`remote_storage/test_support.rs`; prefixes, ranged GET, multipart abort);
-  `MediaServer` (range parser cases from haex-vault, unknown token → 404, tokens invalid after vault
+  `MediaServer` (range parser cases from haex-vault 2.x, unknown token → 404, tokens invalid after vault
   lock, flat memory reading a 1 GB file); search (cancel by new search, agent limit with
   `truncated`, symlink loop not followed); thumbnails (cache key, broken image not retried).
 - **Frontend** (`scripts/check-files-*.ts`, `node --test`): browser state (navigation, restore per
@@ -125,14 +125,14 @@ short ADR of its own.
   media error → info); `files.*` actions and gates in `check-agent-actions.ts`.
 - **E2E** (spec 016), one scene: a folder with text, PNG, PDF, MP3, MP4; browse, search, open each,
   rename, copy, delete. The MP4 plays and seeks (range request visible in the server log, the bug
-  haex-vault had on Linux). The chat agent finds a file with `files.search`; `files.read` on the
+  haex-vault 2.x had on Linux). The chat agent finds a file with `files.search`; `files.read` on the
   vault file ends with `files_blocked`.
 - **Manual**: playback on Linux (WebKitGTK/GStreamer), Windows and Android, since codecs differ per
   system.
 
-## haex-vault references
+## haex-vault 2.x references
 
-Repository `https://github.com/haex-space/haex-vault`, local checkout at `fc4e84b6`:
+Repository `https://github.com/haex-space/haex-vault-legacy`, local checkout at `fc4e84b6`:
 
 - `src-tauri/src/media_server/mod.rs`: loopback range server with tokens, and why it exists.
 - `src-tauri/src/remote_storage/streaming/{source,s3_source,protocol}.rs`: `StreamingSource`, S3

@@ -3,7 +3,7 @@
 **Feature Branch**: `035-ui-foundation`
 **Created**: 2026-10-02
 **Status**: Draft
-**Input**: holzi bekommt überall dieselben Eingabefelder im Stil von haex-vault (schwebendes
+**Input**: holzi bekommt überall dieselben Eingabefelder im Stil von haex-vault 2.x (Legacy) (schwebendes
 Label, Ring in der Primärfarbe, Fehlertext, Löschen und Kopieren) und eine Darstellung, die
 der Nutzer zur Laufzeit wie in GNOME und COSMIC einstellt: Akzentfarbe aus Farbfeldern oder
 eigener Farbe, Fenster- und Container-Hintergrund, Hell, Dunkel oder automatisch, Zurücksetzen

@@ -24,7 +24,7 @@ exists. A call invokes the extension's functions directly and need not be
 visible in its UI.
 
 **Direction B.** The extension calls typed host methods (the protocol the
-haex-vault SDK already speaks). The frontend only relays JSON between the
+haex-vault 2.x (Legacy) SDK already speaks). The frontend only relays JSON between the
 iframe port and one Tauri command. A single Rust chokepoint identifies the
 extension from its window (never from the payload), checks the permission, and
 calls the host function directly. Host operations never pass through the agent.
@@ -53,7 +53,7 @@ methods and fails if any reaches chat or model code.
 
 The permission model the operator wants — manifest declaration, install-time
 confirmation, silent pass for confirmed grants, prompt with "remember" for the
-rest — already exists in haex-vault. MCP adds nothing to it, so direction B
+rest — already exists in haex-vault 2.x. MCP adds nothing to it, so direction B
 keeps that design instead of re-expressing it.
 
 Using MCP for direction B would also weaken the wall around the LLM. A "host
@@ -61,8 +61,8 @@ MCP server for extensions" would sit beside the agent's tool registry, one
 wiring mistake from exposing it. Separate protocols and code paths make the
 wall structural rather than a convention.
 
-Direction B keeps the haex-vault SDK protocol, so the same extensions run in
-haex-vault and holzi. The SDK gains an MCP server part for direction A and
+Direction B keeps the haex-vault 2.x SDK protocol, so the same extensions run in
+haex-vault 2.x and holzi. The SDK gains an MCP server part for direction A and
 loses nothing.
 
 MCP fits direction A: the agent already consumes MCP tools, and `tools/list`
@@ -87,7 +87,7 @@ are that direction's normal traffic.
   port model leaves one chokepoint and needs no per-command Tauri ACL
   allowlist.
 - Prompt handling for direction B needs the queue and duplicate-request
-  handling that haex-vault's prompt code already has.
+  handling that haex-vault 2.x's prompt code already has.
 - The bundle format and the two independent checks of extension SQL that spec 017
   settled are recorded in
   [ADR-0008](./0008-extension-bundle-signature-and-sql-authorizer.md).
@@ -120,7 +120,7 @@ are that direction's normal traffic.
 ## Considered alternatives
 
 - **MCP in both directions.** Rejected: it blurs the wall around the LLM,
-  breaks compatibility with haex-vault's extensions, fits streaming and binary
+  breaks compatibility with haex-vault 2.x's extensions, fits streaming and binary
   traffic poorly, and does not simplify a permission model that is already
   specified.
 - **Host operations routed through the agent.** Rejected: the LLM must never be
@@ -134,7 +134,7 @@ are that direction's normal traffic.
 
 Pinned, for porting behavior rather than copying:
 
-- `haex-space/haex-vault` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`:
+- `haex-space/haex-vault-legacy` @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`:
   `src-tauri/src/extension/permissions/` (checker and manager),
   `src/composables/usePermissionPrompt.ts` (prompt queue and decisions),
   `src/composables/extensionMessageHandler.ts` (request routing).

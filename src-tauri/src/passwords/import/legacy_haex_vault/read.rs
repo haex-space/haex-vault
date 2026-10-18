@@ -1,6 +1,6 @@
-//! The rows of haex-vault's password manager as an [`ImportModel`] (spec 037,
+//! The rows of the haex-vault 2.x (Legacy) password manager as an [`ImportModel`] (spec 037,
 //! `contracts/haex-vault-mapping.md`). Columns are always named, never `SELECT *`: the sync layer
-//! of haex-vault adds columns of its own at run time.
+//! of haex-vault 2.x adds columns of its own at run time.
 
 use std::collections::{HashMap, HashSet};
 
@@ -20,7 +20,7 @@ use crate::passwords::import::{
 use crate::passwords::model::{AttentionKind, KeyValueInput, PresetInput};
 use crate::passwords::passkeys::PasskeyInput;
 
-/// Reads binary rows on demand. haex-vault stores them as standard Base64 text; holzi hashes the
+/// Reads binary rows on demand. haex-vault 2.x stores them as standard Base64 text; holzi hashes the
 /// decoded bytes again when it writes them.
 pub(super) struct Binaries<'c> {
     conn: &'c Connection,
@@ -57,7 +57,7 @@ impl<'c> Binaries<'c> {
     }
 }
 
-/// The picture holzi shows for a haex-vault icon name; `binary:` values are kept as they are
+/// The picture holzi shows for a haex-vault 2.x icon name; `binary:` values are kept as they are
 /// (holzi derives the same SHA-256 of the same bytes).
 pub(super) fn icon_name(icon: &str) -> Option<String> {
     if icon.starts_with("binary:") {
@@ -220,7 +220,7 @@ pub(super) fn to_model(conn: &Connection) -> Result<ImportModel> {
     })
 }
 
-/// `expires_at` is a date (`YYYY-MM-DD`) in haex-vault; another form is read as a time.
+/// `expires_at` is a date (`YYYY-MM-DD`) in haex-vault 2.x; another form is read as a time.
 fn expiry(text: Option<&str>, problems: &mut Vec<Problem>) -> Option<String> {
     let text = text.map(str::trim).filter(|t| !t.is_empty())?;
     let is_date = text.len() == 10
@@ -336,7 +336,7 @@ fn attachment_rows(conn: &Connection) -> Result<HashMap<String, Vec<(String, Str
     Ok(map)
 }
 
-/// Every passkey 1:1, keyed by the entry it belongs to (`None` for none). haex-vault stores the
+/// Every passkey 1:1, keyed by the entry it belongs to (`None` for none). haex-vault 2.x stores the
 /// public key next to the private one, so nothing is derived.
 fn passkeys(conn: &Connection) -> Result<HashMap<Option<String>, Vec<PasskeyInput>>> {
     let mut statement = conn

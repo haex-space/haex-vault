@@ -247,7 +247,7 @@ the dead base branch).
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [x] T091 [P] Update `CONTEXT.md` with the terms Adressbuch, Kontakt, Angabe, Herkunft, Abgleichsziel, Visitenkarte, holzi-Adressen (and the note that haex-vault "Kontakte" were sharing identities)
+- [x] T091 [P] Update `CONTEXT.md` with the terms Adressbuch, Kontakt, Angabe, Herkunft, Abgleichsziel, Visitenkarte, holzi-Adressen (and the note that haex-vault 2.x (Legacy) "Kontakte" were sharing identities)
 - [x] T092 [P] Update the 051 row in `plans/README.md` after each merged PR
 - [ ] T093 Manual checks M1–M7 of quickstart.md on real phones (operator); record results in the PR of the last story
 - [x] T094 Keep each new source file under 500 lines; split `contacts/phone/` or the Vue views further if one grows — every file of 051 is below 500 lines (largest `contacts/store.rs` 492, `contacts/phone/apply.rs` 474); `src/lib/actions/settingsActions.ts`, over 500 before 051, gave its agent permission actions to `settingsAgentActions.ts`

@@ -43,16 +43,16 @@ display_name(file) -> String
 
 ## Umgestellte Abläufe
 
-| Ablauf                              | Command (neu oder geändert)                                                   |
-| ----------------------------------- | ----------------------------------------------------------------------------- |
-| Anhang im Passwortmanager           | `passwords_attachment_add`, `passwords_attachment_save` (Feld `file`)         |
-| Anhang im Chat                      | `inspect_attachment`, `send_message` (Feld `path`, jetzt eine gewählte Datei) |
-| Import aus haex-vault und Formaten  | `passwords_import_*` (Felder `file`, `keyFile`; Begleitdatei siehe unten)     |
-| Darstellung importieren/exportieren | bleibt beim Datei-Plugin im Fenster (siehe unten)                             |
-| Erweiterung aus Datei               | `extension_install_preview`, `extension_install` (Feld `file`)                |
-| Modell aus Datei                    | `import_model_from_file` (Feld `sourcePath`, jetzt eine gewählte Datei)       |
-| Dateidialoge der Erweiterungen      | Bridge `filesystem.open/save` → Inhalt bzw. Schreiben über `file` (Stufe 3)   |
-| Tresordatei                         | `import_instance(file: PickedFile, passphrase)`                               |
+| Ablauf                                          | Command (neu oder geändert)                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| Anhang im Passwortmanager                       | `passwords_attachment_add`, `passwords_attachment_save` (Feld `file`)         |
+| Anhang im Chat                                  | `inspect_attachment`, `send_message` (Feld `path`, jetzt eine gewählte Datei) |
+| Import aus haex-vault 2.x (Legacy) und Formaten | `passwords_import_*` (Felder `file`, `keyFile`; Begleitdatei siehe unten)     |
+| Darstellung importieren/exportieren             | bleibt beim Datei-Plugin im Fenster (siehe unten)                             |
+| Erweiterung aus Datei                           | `extension_install_preview`, `extension_install` (Feld `file`)                |
+| Modell aus Datei                                | `import_model_from_file` (Feld `sourcePath`, jetzt eine gewählte Datei)       |
+| Dateidialoge der Erweiterungen                  | Bridge `filesystem.open/save` → Inhalt bzw. Schreiben über `file` (Stufe 3)   |
+| Tresordatei                                     | `import_instance(file: PickedFile, passphrase)`                               |
 
 Darstellung (umgesetzt in Stufe 1c): `readTextFile`/`writeTextFile` des Datei-Plugins öffnen eine
 `content://`-Adresse selbst, und der Dialog gibt nur die gewählte Datei frei. Eigene Commands
@@ -60,7 +60,7 @@ brächten nichts außer einem zweiten Weg; geändert wurde nur, dass die Größe
 wird, wo der Anbieter keine meldet, und dass Android ohne Filter fragt. Das Hintergrundbild nimmt
 ein `<input type="file">` im Fenster und braucht keinen Command.
 
-Grenze: Der Import aus haex-vault liest am Desktop eine Begleitdatei neben der Vault-Datei
+Grenze: Der Import aus haex-vault 2.x liest am Desktop eine Begleitdatei neben der Vault-Datei
 (Spec 037 FR-002). Über `content://` gibt es kein „daneben“; auf Android wird die Begleitdatei
 deshalb nicht gelesen, und der Import-Assistent weist darauf hin (Spec 037 bleibt am Desktop
 unverändert).

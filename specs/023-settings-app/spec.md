@@ -10,12 +10,12 @@
 > in diesem Dokument sind der Stand bei der Umsetzung. „Darstellung“ gehört
 > seit Spec 042 zu „Allgemein“.
 
-**Input**: Die Einstellungen von holzi bekommen den Aufbau aus haex-vault: links
+**Input**: Die Einstellungen von holzi bekommen den Aufbau aus haex-vault 2.x (Legacy): links
 eine Seitenleiste mit Kategorien, rechts der Inhalt der gewählten Kategorie mit
 Titel und Beschreibung, Übersichten mit Unteransichten. Föderation wird eine
 Kategorie der Einstellungen statt einer eigenen App, Darstellung kommt als
 Kategorie hinzu. (Präzisiert in den Clarifications: Die Föderations-App
-entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referenz: haex-vault @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
+entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referenz: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
 `src/components/haex/system/settings/` und
 `src/components/haex/system/settings-layout/`.
 
@@ -28,7 +28,7 @@ entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referen
   Einstellungen.
 - [`020-tab-navigation`](../020-tab-navigation/spec.md): Jede Kategorie und jede
   Unteransicht ist ein Ort im Tab. Vor, Zurück, Verlaufsliste, Öffnen an einem
-  Ort und Deep-Links gelten ohne Sonderregeln. Das haex-vault-Muster
+  Ort und Deep-Links gelten ohne Sonderregeln. Das haex-vault-2.x-Muster
   `useDrillDownNavigation` wird nicht übernommen (Begründung in Spec 020). Jede
   Änderung einer Einstellung bleibt eine Aktion im Katalog von Spec 020.
 - [`022-session-restore`](../022-session-restore/spec.md): Die Einstellung
@@ -57,7 +57,7 @@ entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referen
   aufzuschieben und alte Wege nach „Allgemein“ zu führen, wurde beim
   Plan-Review durch die folgende Entscheidung ersetzt.
 - Q: Gehört ein Hintergrund des Arbeitsbereichs (Bild oder Farbverlauf wie in
-  haex-vault) zu dieser Spec? → A: Nein. „Darstellung“ enthält hier nur das
+  haex-vault 2.x) zu dieser Spec? → A: Nein. „Darstellung“ enthält hier nur das
   Farbschema; der Hintergrund kommt mit der Spec Desktop-Symbole und Raster.
 - Q: (Betreiber-Rückmeldung beim Testen von Spec 022) Brauchen Einstellungen
   einen Knopf zum Speichern? → A: Nein. Was ausgewählt ist, ist gespeichert;
@@ -396,7 +396,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   | Föderation  | Geräte der Vault (US5)                                                                                                                                                           |
 
 - **FR-006**: Es DÜRFEN nur Kategorien erscheinen, die Inhalt haben. Kategorien
-  aus haex-vault ohne Gegenstück in holzi (Erweiterungen, Kontakte, Identitäten,
+  aus haex-vault 2.x ohne Gegenstück in holzi (Erweiterungen, Kontakte, Identitäten,
   Speicher, Sicherheit, Protokolle, Entwickler und ähnliche) entfallen, bis eine
   eigene Spec sie füllt.
 - **FR-007**: Jede Einstellung, die es vor dieser Spec gab, MUSS mit
@@ -533,13 +533,13 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
 - Die Kategorie-Namen „Allgemein“, „Darstellung“, „Modelle“, „Agenten“,
   „Föderation“ sind Arbeitstitel; die Beschreibungen formuliert der Plan.
 - Der Wechsel der Kategorie ist eine Navigation im Tab wie jeder andere Klick zu
-  einer neuen Ansicht (Spec 020); das entspricht auch haex-vault, wo Zurück einen
+  einer neuen Ansicht (Spec 020); das entspricht auch haex-vault 2.x, wo Zurück einen
   Kategoriewechsel rückgängig macht.
 - Das Farbschema gilt wie alle Einstellungen außer Gerätename und Modellen für
   die Vault (FR-024); die ursprüngliche Annahme „Gerät vor Vault“ hat der
   Betreiber am 2026-09-26 verworfen.
 - Eine Akzentfarbe, die Schriftgröße und eine Sprachwahl sind nicht Teil dieser
-  Spec; haex-vault hat die ersten beiden auch nicht. holzi zeigt die Oberfläche
+  Spec; haex-vault 2.x hat die ersten beiden auch nicht. holzi zeigt die Oberfläche
   heute immer auf Deutsch; die englischen Texte (FR-020) liegen trotzdem vor.
 - Die zu große Komponente der HuggingFace-Modellverwaltung (Complexity Tracking
   aus Spec 020) wird bei der Aufteilung in Bereiche zerlegt; das ist eine Folge

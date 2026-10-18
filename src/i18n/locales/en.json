@@ -1407,7 +1407,7 @@
         "encrypted_export": "The export is encrypted and cannot be read without its password.",
         "cancelled": "The import was cancelled.",
         "unwritable": "The file could not be written.",
-        "haex_vault_locked": "The vault password does not match, or the file is no haex-vault vault.",
+        "legacy_haex_vault_locked": "The vault password does not match, or the file is no vault file of haex-vault 2.x.",
         "no_passwords": "This vault holds no passwords."
       },
       "referenceMissing": "The source of a reference is not available.",
@@ -1960,18 +1960,18 @@
         "keepass": "KeePass (kdbx)",
         "bitwarden": "Bitwarden (JSON or CSV)",
         "lastpass": "LastPass (CSV)",
-        "haexvault": "haex-vault (vault file)"
+        "legacyhaexvault": "haex-vault 2.x (Legacy, vault file)"
       },
       "hints": {
         "keepass": "A database from KeePass or KeePassXC, with its password and optionally a key file.",
         "bitwarden": "An unencrypted export from the vault (JSON holds more than CSV).",
         "lastpass": "The CSV export from the vault.",
-        "haexvault": "The vault file (.db) of haex-vault with its vault password. The file is only read, never changed."
+        "legacyhaexvault": "The vault file (.db) of haex-vault 2.x with its vault password. The file is only read, never changed."
       },
       "noFile": "No file chosen yet",
       "chooseFile": "Choose file",
       "fileHint": "The file is only read; nothing of it stays outside the vault.",
-      "fileHintAndroidHaexVault": "On Android holzi reads only the chosen file, no companion file beside it. Close haex-vault before you copy the file, so all changes are in it.",
+      "fileHintAndroidLegacyHaexVault": "On Android holzi reads only the chosen file, no companion file beside it. Close haex-vault 2.x before you copy the file, so all changes are in it.",
       "password": "Database password",
       "noKeyFile": "No key file",
       "chooseKeyFile": "Choose key file",
@@ -2001,7 +2001,7 @@
         "icon_not_mapped": "An icon of the source could not be matched.",
         "value_not_storable": "A value could not be stored.",
         "source_setting": "Settings of the source are not taken over.",
-        "haex_vault_close_first": "Close haex-vault before you copy the file; otherwise the latest changes may be missing.",
+        "legacy_haex_vault_close_first": "Close haex-vault 2.x before you copy the file; otherwise the latest changes may be missing.",
         "haex_pass_tables_ignored": "The file also holds data of the old haex-pass extension; it is not taken over.",
         "history_unreadable": "A history state could not be read.",
         "group_reparented": "A folder pointed at a missing parent folder and goes to the top.",

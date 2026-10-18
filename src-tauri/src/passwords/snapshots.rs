@@ -4,7 +4,7 @@
 //! when nothing changed. Restoring a state makes it the current one and adds a state of its own, so
 //! no state is ever lost. A state does not hold the folder or the passkeys.
 //!
-//! Reading tolerates states written by haex-vault, which know neither `version` nor the TOTP
+//! Reading tolerates states written by haex-vault 2.x (Legacy), which know neither `version` nor the TOTP
 //! parameters nor `autofillAliases`.
 //!
 //! Maintainability exception (spaex 500-LoC rule): taking, reading and restoring a state share the

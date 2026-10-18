@@ -13,8 +13,8 @@ Rechte und entfernt Mitglieder, wobei eine neue Schlüsselgeneration entsteht. D
 Space nutzt die Maschinerie der Ordner-Synchronisierung eigener Geräte (Spec 025) für mehrere Nutzer. Vorgaben des Betreibers: Übertragung über iroh,
 Identität, Anmeldung und Schlüsselumschläge über Nostr-Schlüssel, Umschläge im
 Format NIP-44 v2, Einladungen als Einladungslink des Admins, die Antworten darauf
-als verschlüsselte Nostr-Direktnachricht. Kein MLS. Referenz für den Umgang mit entfernten Mitgliedern: haex-vault ADR 0002,
-Repository `https://github.com/haex-space/haex-vault`, Revision
+als verschlüsselte Nostr-Direktnachricht. Kein MLS. Referenz für den Umgang mit entfernten Mitgliedern: haex-vault 2.x (Legacy) ADR 0002,
+Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad
 `docs/adr/0002-shared-space-authenticity-and-confidentiality.md`.
 
@@ -182,7 +182,7 @@ Repository `https://github.com/haex-space/haex-vault`, Revision
 - Q: Wird MLS für die Schlüssel der Spaces verwendet? → A: Nein (D13).
 - Q: Warum kein MLS? → A: MLS braucht eine feste Reihenfolge aller
   Mitgliedschaftsänderungen, die CRDT-Synchronisierung führt Änderungen dagegen
-  ohne Reihenfolge zusammen. In haex-vault führte das zu Geräten, die dieselbe
+  ohne Reihenfolge zusammen. In haex-vault 2.x führte das zu Geräten, die dieselbe
   Änderung unterschiedlich annahmen, zu Lücken, die das Abholen ganzer
   Änderungsgruppen blockierten, und zu Geräten, die dauerhaft ausgesperrt
   blieben. Schlüsselgenerationen werden deshalb gewöhnliche synchronisierte
@@ -202,7 +202,7 @@ Repository `https://github.com/haex-space/haex-vault`, Revision
 - Q: Was bedeutet der Entzug für ein entferntes Mitglied? → A: Das Relay und der
   Speicher weisen es sofort ab, Dateien, die nach dem Entzug hinzukommen oder
   geändert werden, kann es nicht lesen. Was es schon entschlüsseln konnte,
-  behält es, wie in haex-vault ADR 0002. Ein vollständiges Neuverschlüsseln
+  behält es, wie in haex-vault 2.x ADR 0002. Ein vollständiges Neuverschlüsseln
   alter Dateien ist nicht Teil von v1.
 - Q: Was passiert, wenn die Vault des Admins verloren geht? → A: Der Space ist
   dann eingefroren: Inhalte bleiben, Mitglieder arbeiten mit ihren bisherigen

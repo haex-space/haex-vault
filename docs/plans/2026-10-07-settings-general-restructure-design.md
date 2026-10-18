@@ -2,8 +2,8 @@
 
 **Status**: Design agreed with the operator on 2026-10-07; specified and planned in
 [`specs/042-settings-general-restructure/`](../../specs/042-settings-general-restructure/).
-Follows the haex-vault settings layout (`components/haex/system/settings/general/{basic,appearance}.vue`)
-as part of the ongoing alignment with haex-vault's look.
+Follows the haex-vault 2.x (Legacy) settings layout (`components/haex/system/settings/general/{basic,appearance}.vue`)
+as part of the ongoing alignment with haex-vault 2.x's look.
 
 ## Decisions
 
@@ -48,16 +48,16 @@ scenarios get the new paths.
 
 ## Vault password
 
-Ported from haex-vault (`src-tauri/src/database/maintenance.rs`, `change_vault_password`):
+Ported from haex-vault 2.x (`src-tauri/src/database/maintenance.rs`, `change_vault_password`):
 
 1. Verify the current passphrase by opening a second, read-only connection with it (holzi does not
-   keep the passphrase in memory; pattern: `passwords/import/haex_vault/open.rs`).
+   keep the passphrase in memory; pattern: `passwords/import/legacy_haex_vault/open.rs`).
 2. Under `Database::with_connection` (haex-crdt holds one connection behind a mutex, so sync and
    every other access wait): `wal_checkpoint(TRUNCATE)` → `journal_mode=DELETE` (SQLCipher `rekey`
    does not work in WAL mode) → `PRAGMA rekey` → `journal_mode=WAL`.
 
 The new passphrase must be at least `MIN_PASSPHRASE_LEN`. Each linked device has its own
-passphrase, and the passphrase plays no part in sync, so haex-vault's "re-encrypt the vault key on
+passphrase, and the passphrase plays no part in sync, so haex-vault 2.x's "re-encrypt the vault key on
 sync backends" step has no counterpart here.
 
 The Tauri command `change_vault_passphrase` is **not** registered in the action registry, so it

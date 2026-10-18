@@ -294,7 +294,7 @@ Modellprüfung mit den Beispielsätzen der Test-Erweiterung laufen lassen und di
   ohne dass die Erweiterung das Protokoll selbst umsetzt. Der Baustein MUSS
   Eingaben gegen das erklärte Schema prüfen, bevor er die Funktion aufruft, und einen Abbruch durch
   holzi an die Funktion weitergeben. Erweiterungen ohne Werkzeuge MÜSSEN mit dem neuen vault-sdk
-  unverändert laufen, in holzi wie in haex-vault.
+  unverändert laufen, in holzi wie in haex-vault 2.x (Legacy).
 
 ### Key Entities
 

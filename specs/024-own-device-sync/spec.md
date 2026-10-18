@@ -210,7 +210,7 @@ Wiederherstellung kommen mit Spec 026.
 - Q: Wen identifiziert ein Nostr-Schlüssel, die Vault oder das Gerät? → A: Das
   Gerät. Dieselbe Vault läuft gleichzeitig auf mehreren Geräten, jedes mit
   eigener Nostr-Identität; die Vault-Identität ist auf allen dieselbe (D1).
-- Q: Werden Schlüssel wie in haex-vault über MLS verteilt? → A: Nein. Die feste
+- Q: Werden Schlüssel wie in haex-vault 2.x (Legacy) über MLS verteilt? → A: Nein. Die feste
   Reihenfolge der MLS-Epochen passt nicht zu einem CRDT ohne Reihenfolge (D13).
   Schlüsselgenerationen sind gewöhnliche CRDT-Zeilen, die nebeneinander bestehen
   dürfen.

@@ -18,7 +18,7 @@ are replaced. That document lists what is kept from here.
   sharing post-v1. That line is unchanged. §4 of that document also predicted that a stable
   federation-scope identity would resurface here; it did, and it is this document's largest open
   question (§8).
-- Source material is `haex-vault`: ADR 0002 (shared-space authenticity and confidentiality),
+- Source material is `haex-vault 2.x (Legacy)`: ADR 0002 (shared-space authenticity and confidentiality),
   `CONTEXT.md`, and `docs/plans/2026-08-27-phase4-sharing-content-addressable-iam.md`.
 
 **Sequencing decision**: closed federation first (one operator, multiple paired instances, data and
@@ -29,7 +29,7 @@ federation established.
 
 ## 1. The question this answers
 
-`haex-vault` implements shared spaces with MLS (group key agreement) and UCAN (capability
+`haex-vault 2.x` implements shared spaces with MLS (group key agreement) and UCAN (capability
 delegation chains). Can holzi have cross-user sharing without adopting either stack?
 
 **Yes.** What MLS and UCAN provide is replaceable with primitives holzi already needs for other
@@ -119,7 +119,7 @@ The one-to-one rule survives, restricted to peers. Buffer relays are not peers.
 Nostr gives integrity here for free: every event carries a Schnorr signature over its hash by its
 author, so a buffer relay that alters content produces an event every receiver rejects. What
 encryption does _not_ prevent is **withholding** — a buffer relay can serve stale state. The
-mitigation is the same one `haex-vault` uses: HLC cursors and compaction anchors.
+mitigation is the same one `haex-vault 2.x` uses: HLC cursors and compaction anchors.
 
 ## 4. Data plane
 
@@ -131,9 +131,9 @@ encrypted Nostr event tagged with `space_id`. It is attractive (one transport, o
 the event signature would replace `haex_column_sigs` for free) but fails on three counts:
 
 1. **Compaction.** Nostr events are immutable and NIP-09 deletion is advisory. A long-lived space
-   accumulates millions of column changes with no reliable way to prune. `haex-vault` needed
+   accumulates millions of column changes with no reliable way to prune. `haex-vault 2.x` needed
    compaction anchors for exactly this reason.
-2. **Event size.** Relays cap event size; `haex-vault` ADR 0001 already deals with maximum CRDT
+2. **Event size.** Relays cap event size; `haex-vault 2.x` ADR 0001 already deals with maximum CRDT
    transaction size.
 3. **Cursors.** Nostr `since` filters are wall-clock; HLC is not.
 
@@ -166,7 +166,7 @@ per-space member list rather than serving anyone who knows a `space_id`. Rationa
 of the content-addressable IAM plan: enforcement must exist at the storage layer, not only at the
 encryption layer, or a removed member can keep listing and hoarding ciphertext against a future key
 compromise. The price is that the operator of a buffer relay learns the participant set per space —
-the same metadata trade `haex-vault`'s sync server already makes through whitelist filtering.
+the same metadata trade `haex-vault 2.x`'s sync server already makes through whitelist filtering.
 
 The list is a signed **relay-readable authorization projection**, not a second CRDT. After a peer
 relay has committed a valid membership merge, an instance holding `sharing-authority` publishes a
@@ -207,7 +207,7 @@ artifact — a user entitled to both chooses where to fetch from:
 the accept handler refuses, and nothing but what was already fetched exists elsewhere. On object
 storage it is bounded by key rotation and IAM, and works forward only.
 
-For the object-storage path, `haex-vault`'s content-addressable IAM design ports nearly unchanged:
+For the object-storage path, `haex-vault 2.x`'s content-addressable IAM design ports nearly unchanged:
 
 - Content at `content/o/<random-hex>`, encrypted under a fresh per-object DEK.
 - A grant is a ~200-byte sidecar under a per-space prefix, carrying the DEK wrapped under the
@@ -216,7 +216,7 @@ For the object-storage path, `haex-vault`'s content-addressable IAM design ports
   LIST on the content prefix. Without a sidecar, an object cannot even be enumerated.
 - The KEK/DEK split makes multi-space grants free: one physical object, N sidecars.
 
-**The only change holzi needs** is the KEK source. `haex-vault` resolves it from the MLS group
+**The only change holzi needs** is the KEK source. `haex-vault 2.x` resolves it from the MLS group
 state (`FileKeySource::SpaceEpoch`); holzi resolves it from the NIP-44-wrapped space epoch key of
 §2. Everything else — envelope format, sidecars, opaque object keys, IAM policy shape — is
 transport- and identity-agnostic.
@@ -228,7 +228,7 @@ is in it, and all of them apply **at the sender, before encryption**. A member n
 owner's database; they receive a stream from which everything else was already excluded.
 
 1. **Table whitelist.** A canonical list of tables permitted to cross a space channel at all
-   (`SPACE_SCOPED_CRDT_TABLES` in `haex-vault`, Rust as source of truth). Vault-private tables never
+   (`SPACE_SCOPED_CRDT_TABLES` in `haex-vault 2.x`, Rust as source of truth). Vault-private tables never
    leave the device regardless of any grant. This is the structural guard against exfiltration.
 2. **Row register.** Within a whitelisted table, only rows explicitly registered into the space are
    emitted — an M:N mapping, a push declaration by the owner ("row R belongs to space X").
@@ -257,12 +257,12 @@ not a new format.
   member npub at the current epoch. The recipient adds or retires devices by publishing further
   attestations and revocations under the same key; the granter never has to act.
 
-**DIDs were considered and rejected.** In `haex-vault` they are load-bearing because UCAN's issuer
+**DIDs were considered and rejected.** In `haex-vault 2.x` they are load-bearing because UCAN's issuer
 and audience fields _are_ DIDs. Without UCAN they stop paying for themselves: a `did:key` over the
 same secp256k1 key is the npub with an extra encoding to keep consistent, and the customary Ed25519
 `did:key` would introduce a second keypair that NIP-42 and NIP-44 cannot verify natively — working
 against the decision that Nostr carries authentication and authorization. Note also that
-`haex-vault`'s owner DID spans devices because a device-attestation layer sits beneath it, not
+`haex-vault 2.x`'s owner DID spans devices because a device-attestation layer sits beneath it, not
 because it is a DID; the spanning comes from the attestations, which is exactly what is kept here.
 
 **Why this is not the federation root v1-scope §4 removed.** That decision on 2026-09-06 turned on
@@ -294,7 +294,7 @@ instance whose loss forces a re-invite.
    cannot be solved inside the encrypted database.
 2. **Metadata exposure at the buffer relay.** §4 accepts that the operator learns the participant
    set. Revisit if that is too high a price.
-3. **Compaction across a multi-operator space.** `haex-vault` elects a leader per mode; who advances
+3. **Compaction across a multi-operator space.** `haex-vault 2.x` elects a leader per mode; who advances
    the anchor when the space spans two federations is unresolved.
 4. **Re-delegation.** Whether a member may share onward to a third person at all, and if so under
    what limit. Nothing in §7 provides it: a federation identity spans one person's instances, not a

@@ -1,4 +1,4 @@
-//! Opening the vault file of haex-vault (spec 037, research R1, R2, R5, R10). The file and its
+//! Opening the vault file of haex-vault 2.x (Legacy) (spec 037, research R1, R2, R5, R10). The file and its
 //! `-wal` are **copied** into a temporary directory and only the copy is opened: a reader of a WAL
 //! database creates `-shm` next to it and may checkpoint into it on close, and `immutable=1` would
 //! skip the changes still in the `-wal`. The copies stay encrypted with the vault password.
@@ -18,10 +18,10 @@ use crate::passwords::model::AttentionKind;
 const MIN_FILE_BYTES: u64 = 4096;
 const PLAIN_SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
-/// The columns haex-vault's sync layer adds to every table at run time; known and ignored.
+/// The columns haex-vault 2.x's sync layer adds to every table at run time; known and ignored.
 const CRDT_COLUMNS: [&str; 3] = ["haex_hlc", "haex_column_hlcs", "haex_column_sigs"];
 
-/// The tables of the password manager and their columns, exactly as haex-vault @ `8dce379`
+/// The tables of the password manager and their columns, exactly as haex-vault 2.x @ `8dce379`
 /// creates them (`0000_jazzy_chat.sql:414-552`). A missing one means a layout the reader cannot
 /// read; anything beyond these and the sync columns is reported.
 pub(super) const COLUMNS: &[(&str, &[&str])] = &[
@@ -178,7 +178,7 @@ pub(super) fn open(path: &Path, password: &str) -> Result<Source> {
     }) {
         Ok(_) => Ok(Source { conn, _dir: dir }),
         Err(error) if error.sqlite_error_code() == Some(ErrorCode::NotADatabase) => {
-            Err(failed("haex_vault_locked"))
+            Err(failed("legacy_haex_vault_locked"))
         }
         Err(error) => Err(corrupt(error)),
     }

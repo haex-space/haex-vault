@@ -13,13 +13,13 @@ This spec is the first surface-level feature spec; it consumes decisions from bo
 
 ## UI-Framework decision: shadcn-vue vs `@nuxt/ui`
 
-`haex-vault` uses `@nuxt/ui` v4 (`package.json` deps, `UApp`, `UButton`, `UDrawer` throughout `src/`). The natural default for "orientate holzi at haex-vault UI/UX" would be `@nuxt/ui` — same component set, near-zero Look/Feel work, tight Tailwind v4 integration.
+`haex-vault 2.x (Legacy)` uses `@nuxt/ui` v4 (`package.json` deps, `UApp`, `UButton`, `UDrawer` throughout `src/`). The natural default for "orientate holzi at haex-vault 2.x UI/UX" would be `@nuxt/ui` — same component set, near-zero Look/Feel work, tight Tailwind v4 integration.
 
 The operator chose **shadcn-vue** instead. Consequences accepted:
 
-- Look/Feel of haex-vault is a _target_, not a _derivation_. Achieved by borrowing haex-vault's layout structure, spacing, and copy hierarchy, but with shadcn-vue's own visual defaults as the starting palette.
+- Look/Feel of haex-vault 2.x is a _target_, not a _derivation_. Achieved by borrowing haex-vault 2.x's layout structure, spacing, and copy hierarchy, but with shadcn-vue's own visual defaults as the starting palette.
 - Component maintenance: shadcn-vue is copy-in, so every added component is source we own and update deliberately. `@nuxt/ui` upgrades via `pnpm update`.
-- More design control up front, more design work up front. Acceptable because holzi's surface is smaller than haex-vault's, so the upfront cost is bounded.
+- More design control up front, more design work up front. Acceptable because holzi's surface is smaller than haex-vault 2.x's, so the upfront cost is bounded.
 
 ## Storage-file model: multi-file, single-active
 
@@ -30,22 +30,22 @@ The operator chose **shadcn-vue** instead. Consequences accepted:
 Rationale:
 
 - Portability. `.db` files are the natural export/backup unit (SQLCipher single-file), and holzi has no other export mechanism (nor needs one). Being able to hold several files without switching installs makes migration between machines trivial.
-- Symmetric with `haex-vault`, which manages a `vaults/` directory the same way.
+- Symmetric with `haex-vault 2.x`, which manages a `vaults/` directory the same way.
 - Cost: two DBs open simultaneously would collide on relay ports and iroh endpoints. Enforcing single-active in `AppState` prevents that structurally.
 
 This revision does not touch `founding.md`'s trust boundaries — the _active_ instance still binds one identity to one relay to one iroh peer.
 
-## File-handling: haex-vault pattern verbatim
+## File-handling: haex-vault 2.x pattern verbatim
 
-Studied [`haex-vault src-tauri/src/database/paths.rs`](../../../../haex-vault/src-tauri/src/database/paths.rs) and [`haex-vault src/stores/vault/lastVaults.ts`](../../../../haex-vault/src/stores/vault/lastVaults.ts). Adopted decisions:
+Studied [`haex-vault 2.x src-tauri/src/database/paths.rs`](../../../../haex-vault-legacy/src-tauri/src/database/paths.rs) and [`haex-vault 2.x src/stores/vault/lastVaults.ts`](../../../../haex-vault-legacy/src/stores/vault/lastVaults.ts). Adopted decisions:
 
 - Files under `<AppLocalData>/instances/`. Backend resolves paths; frontend passes only names.
-- Rust ensures the directory exists on every path resolution (haex-vault does this — cheap and idempotent).
+- Rust ensures the directory exists on every path resolution (haex-vault 2.x does this — cheap and idempotent).
 - List is a directory scan, not a persisted JSON. This removes an entire class of drift bugs between persisted list metadata and actual files. Changes outside holzi are unsupported in v1 and become visible only on the next scan; in-scope imports go through the backend command and trigger a scan through `instance-list-changed`.
 - Backend emits `instance-list-changed` on every mutation; frontend Pinia store subscribes.
 - Soft-delete (`.trash/` subdirectory) is the only destructive path exposed in v1.
 
-Departures from haex-vault:
+Departures from haex-vault 2.x:
 
 - No `Import` component that reads a `.kdbx`-style file — holzi's "Öffnen" is the closest analog and always copies (never imports/converts).
 - No `Connect` component talking to a sync backend — holzi's "Verbinden" is peer-pairing.
@@ -56,7 +56,7 @@ Departures from haex-vault:
 
 QR and text entry carry the same opaque pairing-token string. The scanner uses `html5-qrcode` over the standard `navigator.mediaDevices.getUserMedia()` Web API on every platform Tauri targets — desktop (Linux/macOS/Windows) and mobile (Android/iOS). Rationale:
 
-- **Consistency with haex-vault.** haex-vault ships `html5-qrcode` and targets the same platform matrix; matching keeps knowledge, patched versions, and issue-space shared.
+- **Consistency with haex-vault 2.x.** haex-vault 2.x ships `html5-qrcode` and targets the same platform matrix; matching keeps knowledge, patched versions, and issue-space shared.
 - **No desktop path for `@tauri-apps/plugin-barcode-scanner`.** That plugin is mobile-only (MLKit on Android, Vision on iOS). Adopting it as the primary would force a dual-stack solution — two libraries, doubled tests, and platform-branching in `ConnectSheet` — for a QR-decoded string that is byte-identical on either path.
 - **`getUserMedia` works in Tauri WebViews.** Android's system WebView (Chromium ≥ 43) supports it once the app has requested and received the OS `CAMERA` runtime grant and the WebView's `PermissionRequest` handler allows only `RESOURCE_VIDEO_CAPTURE`; iOS's WKWebView supports it from iOS 14.3 given `NSCameraUsageDescription`. The Android manifest declaration alone is insufficient because the runtime grant and WebView permission bridge are also required.
 
@@ -115,9 +115,9 @@ Cost: manual transcription is slower. Acceptable for a one-time genesis step. If
 
 - Federation view (`/federation/<name>` beyond a placeholder page). Own spec.
 - LLM chat UI, MCP surfaces, per-device policy screens. Own specs.
-- Biometric unlock (`@choochmeque/tauri-plugin-biometry-api` in haex-vault). Post-v1.
+- Biometric unlock (`@choochmeque/tauri-plugin-biometry-api` in haex-vault 2.x). Post-v1.
 - Instance rename / merge / export. Post-v1; export is intentionally absent (see above).
 - List removal while retaining the file. The v1 list is a directory scan with no exclusion metadata, so the only removal action is moving an instance to `.trash`.
 - Filesystem watcher on `<AppLocalData>/instances/`. All v1 mutations go through Tauri commands that emit `instance-list-changed`; no CLI, share-intent bypass, or third-party file-manager path is in scope. If one is later added, a watcher can reuse the event topic and payload envelope, with its producer and reason added explicitly to the event contract.
-- Tour / onboarding walkthrough (`driver.js` in haex-vault). Post-v1.
+- Tour / onboarding walkthrough (`driver.js` in haex-vault 2.x). Post-v1.
 - Font choice + hosting. Assumed system-font stack for v1; if we later add a custom font, it MUST ship locally (same SC-006 rule).

@@ -6,7 +6,7 @@
 
 ## Summary
 
-holzi bekommt eine Shell nach dem Vorbild von haex-vault: Arbeitsbereiche
+holzi bekommt eine Shell nach dem Vorbild von haex-vault 2.x (Legacy): Arbeitsbereiche
 enthalten Fenster, jedes Fenster enthält einen oder mehrere Tabs, jeder Tab ist
 eine App-Instanz. Chat, Einstellungen und Föderation (Platzhalter) wandern von
 Vollseiten zu Apps; die alten Routen bleiben als Redirects. Die Titelleiste
@@ -81,7 +81,7 @@ spaex-Constitution `.spaex/constitution.md`.
 | I Keine Geheimnisse in Git                                                                      | ✅     | Keine Geheimnisse, keine Schlüsselmaterialien                                                                                                                                                                                                                                 |
 | II Keine lokalen absoluten Pfade in versionierter Konfiguration                                 | ✅     | Spec/Plan/Verträge nutzen repo-relative Pfade                                                                                                                                                                                                                                 |
 | III Projektidentität geräteunabhängig                                                           | ✅     | Berührt nicht                                                                                                                                                                                                                                                                 |
-| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                                        | ✅     | haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574` in Spec und Research; haex-ui-Layer bleibt im bestehenden Pin                                                                                                                                                           |
+| IV Cross-Repo-Referenzen an unveränderliche SHAs gepinnt                                        | ✅     | haex-vault 2.x `8dce379d94e18fcd42c3b73686a06f984ca3f574` in Spec und Research; haex-ui-Layer bleibt im bestehenden Pin                                                                                                                                                       |
 | V Externe Quellen nur per Opt-in                                                                | ✅     | Keine neue Quelle                                                                                                                                                                                                                                                             |
 | VI Selbstverändernde Anweisungen review-pflichtig                                               | ✅     | Keine Änderung an Constitution, Skills oder Anweisungen; `CONTEXT.md` (Glossar) läuft durch den PR-Review                                                                                                                                                                     |
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                                                 | ✅     | Rein lokal                                                                                                                                                                                                                                                                    |

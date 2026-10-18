@@ -1,5 +1,5 @@
 //! The local media server (spec 044 FR-012, FR-013, FR-016, research R4, contracts/media-server.md;
-//! after haex-vault `src-tauri/src/media_server/mod.rs`, revision
+//! after haex-vault 2.x (Legacy) `src-tauri/src/media_server/mod.rs`, revision
 //! fc4e84b61a050576ba42e0dc832d04064a8605a3).
 //!
 //! WebKitGTK plays `<video>`/`<audio>` only from http(s), and `asset://` has no ranges, so holzi

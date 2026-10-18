@@ -21,7 +21,7 @@ und iOS, weil nichts davon an eine Plattform gebunden ist.
 
 - `aws-sdk-s3`: eigene HTTP- und TLS-Schicht, standardmäßig aws-lc-rs (holzi lehnt aws-lc-rs ab),
   groß, eigene Laufzeitannahmen.
-- `rust-s3` (haex-vault, 0.37): bringt eine eigene HTTP-Schicht mit; zwei HTTP-Stacks im Build.
+- `rust-s3` (haex-vault 2.x (Legacy), 0.37): bringt eine eigene HTTP-Schicht mit; zwei HTTP-Stacks im Build.
 - `object_store`: viel Umfang (mehrere Clouds, Multipart, Retry-Logik), der hier nicht gebraucht wird.
 - Eigenes Signieren nach SigV4 über `hmac`/`sha2`: wenige hundert Zeilen, aber ein Signaturverfahren mit
   vielen Randfällen (Kodierung, kanonische Kopfzeilen); ein gepflegtes kleines Crate ist das bessere

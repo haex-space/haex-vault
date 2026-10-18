@@ -32,7 +32,7 @@ fn exists(q: &mut impl Query, sql: &str, id: &str) -> Result<bool> {
         > 0)
 }
 
-/// Creates the trash row if it is missing; an error is passed on (unlike haex-vault, which
+/// Creates the trash row if it is missing; an error is passed on (unlike haex-vault 2.x (Legacy), which
 /// ignores it and then fails later on a missing folder).
 pub fn ensure_trash(tx: &mut CrdtTransaction<'_>) -> Result<()> {
     if !exists(

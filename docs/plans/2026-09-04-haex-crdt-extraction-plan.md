@@ -21,29 +21,29 @@ Known drift between this plan and what shipped:
 
 **Original status**: Draft. Written 2026-09-04. Companion to [`2026-09-04-v1-scope-design.md`](./2026-09-04-v1-scope-design.md), which decided that holzi consumes `haex-crdt` as a Rust crate dependency and that the crate must exist before holzi's first implementation slice.
 
-**Scope of this document**: how `haex-crdt` gets extracted from `haex-vault` into a standalone repository (`haexmas/haex-crdt`), what its crate boundary is, and what stays behind in `haex-vault`. Not a spec; a refactor + release plan.
+**Scope of this document**: how `haex-crdt` gets extracted from `haex-vault 2.x (Legacy)` into a standalone repository (`haexmas/haex-crdt`), what its crate boundary is, and what stays behind in `haex-vault 2.x`. Not a spec; a refactor + release plan.
 
-**Ownership**: haex-vault owns the source. This plan is written from holzi's side because holzi is the consumer whose timeline depends on it. Cross-link into haex-vault when the extraction actually starts.
+**Ownership**: haex-vault 2.x owns the source. This plan is written from holzi's side because holzi is the consumer whose timeline depends on it. Cross-link into haex-vault 2.x when the extraction actually starts.
 
 ---
 
-## 1. Source: what `haex-vault` has today
+## 1. Source: what `haex-vault 2.x` has today
 
-`haex-vault` is a single Rust crate under `src-tauri/` (Tauri app). No workspace, no `crates/` directory. Storage and CRDT logic sit inside the same crate as the Tauri app itself.
+`haex-vault 2.x` is a single Rust crate under `src-tauri/` (Tauri app). No workspace, no `crates/` directory. Storage and CRDT logic sit inside the same crate as the Tauri app itself.
 
 Verified today via a code-mapping pass:
 
 - **Storage**: `rusqlite = "0.40"` with the `bundled-sqlcipher-vendored-openssl` + `functions` + `hooks` features. At-rest encryption is **SQLCipher**, activated via `PRAGMA key`. Home-grown migration engine tied to Drizzle-generated SQL files.
-- **CRDT model**: home-grown column-level Last-Write-Wins over SQLite triggers, keyed by `uhlc` Hybrid Logical Clocks. Every CRDT-managed table gets three implicit columns (`haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`) via a `CrdtTransformer` that rewrites `CREATE TABLE` statements. No `automerge`/`yrs`/`loro` — the CRDT is a haex-vault original.
+- **CRDT model**: home-grown column-level Last-Write-Wins over SQLite triggers, keyed by `uhlc` Hybrid Logical Clocks. Every CRDT-managed table gets three implicit columns (`haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`) via a `CrdtTransformer` that rewrites `CREATE TABLE` statements. No `automerge`/`yrs`/`loro` — the CRDT is a haex-vault 2.x original.
 - **Sync transport**: not part of the CRDT core. Iroh QUIC is used for peer sync (`space_delivery/local/`), for large-file transfer (`peer_storage/`), and for backend/cloud file-sync (`file_sync/`). Sync is a separate module that consumes the CRDT layer's scanner and apply APIs.
 - **Auth-signed extensions**: `column_sig/` and `registry_row_sig/` add Ed25519 signatures over CRDT column values, tied to UCAN identity. Deeply coupled to `crate::ucan::` and `crate::mls::`.
 - **Tauri coupling in CRDT/storage**: narrow. Confined to `HlcService::try_initialize` (reads device ID from `tauri_plugin_store`), the migration loader (`tauri::path::BaseDirectory`), and a scattering of `#[tauri::command]` shims. The internal logic of `trigger.rs`, `scanner.rs`, `cleanup.rs`, `transformer/`, `apply/` uses no `tauri::` imports.
 - **Tests**: extensive, mostly inline `#[cfg(test)]` next to the implementation, plus integration tests in `src-tauri/tests/`. The CRDT and storage tests use `Connection::open_in_memory` and `HlcService::new_for_testing` — they do not need a Tauri harness.
-- **Change velocity**: the extraction candidates are the calmer surface of haex-vault. Recent churn (103 commits touching `src-tauri/src/{crdt,database}` in ~8 weeks) is concentrated in `column_sig`, sync transport, DoS defences, and UCAN — all of which stay in `haex-vault`.
+- **Change velocity**: the extraction candidates are the calmer surface of haex-vault 2.x. Recent churn (103 commits touching `src-tauri/src/{crdt,database}` in ~8 weeks) is concentrated in `column_sig`, sync transport, DoS defences, and UCAN — all of which stay in `haex-vault 2.x`.
 
 ## 2. Target: what `haex-crdt` is
 
-A standalone Rust crate published as `haexmas/haex-crdt` on GitHub, versioned independently. Consumed by `haex-vault` and `holzi` as a git-tagged dependency (crates.io is deferred until the API stabilizes).
+A standalone Rust crate published as `haexmas/haex-crdt` on GitHub, versioned independently. Consumed by `haex-vault 2.x` and `holzi` as a git-tagged dependency (crates.io is deferred until the API stabilizes).
 
 The crate provides:
 
@@ -63,21 +63,21 @@ The crate does **not** provide:
 - Any Tauri or async framework opinion beyond what `rusqlite` already implies (blocking I/O; consumers wrap in `spawn_blocking` if they want async).
 - Frontend or IPC surface.
 
-## 3. What stays in `haex-vault`
+## 3. What stays in `haex-vault 2.x`
 
-Left behind in `haex-vault` after the extraction:
+Left behind in `haex-vault 2.x` after the extraction:
 
-- `crdt/column_sig/` and `crdt/registry_row_sig/` — Ed25519 signing coupled to `crate::ucan::`. In the new world, these become `haex-vault`'s implementation of `haex-crdt`'s `SignatureProvider` trait, plus their own local storage tables and UCAN plumbing.
-- `space_delivery/local/` — iroh + MLS sync loop. Uses `haex-crdt`'s scanner/apply. Stays as `haex-vault`'s sync transport.
+- `crdt/column_sig/` and `crdt/registry_row_sig/` — Ed25519 signing coupled to `crate::ucan::`. In the new world, these become `haex-vault 2.x`'s implementation of `haex-crdt`'s `SignatureProvider` trait, plus their own local storage tables and UCAN plumbing.
+- `space_delivery/local/` — iroh + MLS sync loop. Uses `haex-crdt`'s scanner/apply. Stays as `haex-vault 2.x`'s sync transport.
 - `peer_storage/` — iroh QUIC for large-file peer transfer. Unrelated to CRDT.
 - `file_sync/` — cloud/S3-backed backup sync. Consumes CRDT data but is not part of it.
 - `owner_sync/`, `mls/`, `ucan/` — identity and encryption plane.
 - `external_bridge/`, `extension/` — Tauri-app-scoped concerns.
-- All `#[tauri::command]` shims — remain in `haex-vault` as the Tauri entry-point layer over `haex-crdt`'s pure-Rust API.
+- All `#[tauri::command]` shims — remain in `haex-vault 2.x` as the Tauri entry-point layer over `haex-crdt`'s pure-Rust API.
 
 ## 4. Abstraction points
 
-Three coupling surfaces between the extraction candidates and `haex-vault`'s wider system need to be broken by introducing traits/callbacks in the new crate.
+Three coupling surfaces between the extraction candidates and `haex-vault 2.x`'s wider system need to be broken by introducing traits/callbacks in the new crate.
 
 ### 4.1 `DeviceIdProvider`
 
@@ -91,7 +91,7 @@ pub trait DeviceIdProvider {
 }
 ```
 
-Consumers implement it however they wish. `haex-vault` wraps its existing store-based lookup; `holzi` provides one backed by its own device-key generation. `haex-crdt` ships a `StaticDeviceId(Uuid)` implementation for tests and simple consumers.
+Consumers implement it however they wish. `haex-vault 2.x` wraps its existing store-based lookup; `holzi` provides one backed by its own device-key generation. `haex-crdt` ships a `StaticDeviceId(Uuid)` implementation for tests and simple consumers.
 
 **Contract**:
 
@@ -132,7 +132,7 @@ impl SignatureProvider for NoopSignatureProvider {
 }
 ```
 
-`haex-vault` implements the trait against its UCAN/DID stack (reusing today's `column_sig` + `registry_row_sig` code, now living inside haex-vault). `holzi` uses `NoopSignatureProvider` in v1 (no per-column signing needed while the closed federation trusts every attested device equally); it can graduate to a real provider post-v1 if needed. The crate's storage schema reserves the `haex_column_sigs` column even for no-op providers, so a future upgrade does not require a migration.
+`haex-vault 2.x` implements the trait against its UCAN/DID stack (reusing today's `column_sig` + `registry_row_sig` code, now living inside haex-vault 2.x). `holzi` uses `NoopSignatureProvider` in v1 (no per-column signing needed while the closed federation trusts every attested device equally); it can graduate to a real provider post-v1 if needed. The crate's storage schema reserves the `haex_column_sigs` column even for no-op providers, so a future upgrade does not require a migration.
 
 **Trust contract**:
 
@@ -140,9 +140,9 @@ impl SignatureProvider for NoopSignatureProvider {
   1. Call `SignatureProvider::on_before_apply(&changes)`. On `Err`, roll back and return.
   2. **Preflight-verify every incoming column change** via `SignatureProvider::verify_column(preimage, sig, author)` before writing anything. Any verification failure rolls back the transaction and returns `Error::SignatureVerificationFailed { first_failed_change, .. }`. No column is written before every column has been verified.
   3. Apply the writes. Any apply-side error (constraint violation, disk error, HLC clock issue) rolls back the transaction and returns the corresponding `Error`; no earlier writes remain.
-- The provider decides whether an empty `sig` is acceptable — the crate itself has no policy. `NoopSignatureProvider::sign_column` returns `Ok(Vec::new())`, so local writes persist an empty byte string in `haex_column_sigs`; `NoopSignatureProvider::verify_column` accepts empty signatures (`sig.is_empty() → Ok`) and rejects non-empty ones it cannot verify. Local scan and remote apply between two `NoopSignatureProvider` stores therefore round-trip cleanly. It performs no transport attestation itself; consumers using `NoopSignatureProvider` MUST deliver remote changes over an already-authenticated transport (an MLS group in `haex-vault`, an authenticated iroh channel in `holzi`). The crate documents this precondition prominently so a consumer cannot silently accept unsigned changes from an unauthenticated source.
-- A signing provider (haex-vault's UCAN-backed one) rejects empty signatures on already-signed vaults, so downgrading to `NoopSignatureProvider` on an existing signed vault is not silently possible.
-- **Row-level trust** — today's `registry_row_sig/` — is **not** something `haex-crdt`'s apply pipeline validates on its own. Since `registry_row_sig` stays in `haex-vault`, the trait exposes the pre-apply hook (`on_before_apply`) declared above; `haex-vault`'s hook enforces registry-row-sig policy against the incoming batch; `NoopSignatureProvider`'s inherited default is a no-op.
+- The provider decides whether an empty `sig` is acceptable — the crate itself has no policy. `NoopSignatureProvider::sign_column` returns `Ok(Vec::new())`, so local writes persist an empty byte string in `haex_column_sigs`; `NoopSignatureProvider::verify_column` accepts empty signatures (`sig.is_empty() → Ok`) and rejects non-empty ones it cannot verify. Local scan and remote apply between two `NoopSignatureProvider` stores therefore round-trip cleanly. It performs no transport attestation itself; consumers using `NoopSignatureProvider` MUST deliver remote changes over an already-authenticated transport (an MLS group in `haex-vault 2.x`, an authenticated iroh channel in `holzi`). The crate documents this precondition prominently so a consumer cannot silently accept unsigned changes from an unauthenticated source.
+- A signing provider (haex-vault 2.x's UCAN-backed one) rejects empty signatures on already-signed vaults, so downgrading to `NoopSignatureProvider` on an existing signed vault is not silently possible.
+- **Row-level trust** — today's `registry_row_sig/` — is **not** something `haex-crdt`'s apply pipeline validates on its own. Since `registry_row_sig` stays in `haex-vault 2.x`, the trait exposes the pre-apply hook (`on_before_apply`) declared above; `haex-vault 2.x`'s hook enforces registry-row-sig policy against the incoming batch; `NoopSignatureProvider`'s inherited default is a no-op.
 
 ### 4.3 Migration SQL loader
 
@@ -157,7 +157,7 @@ pub trait MigrationSource {
 }
 ```
 
-`haex-vault` wraps its Tauri resource lookup. `holzi` provides an implementation backed by its own bundled resources (Tauri or otherwise). A `StaticMigrationSource(BTreeMap<MigrationName, String>)` ships with the crate for tests.
+`haex-vault 2.x` wraps its Tauri resource lookup. `holzi` provides an implementation backed by its own bundled resources (Tauri or otherwise). A `StaticMigrationSource(BTreeMap<MigrationName, String>)` ships with the crate for tests.
 
 **Contract**:
 
@@ -180,13 +180,13 @@ Today `crdt::mod::notify_dirty_tables_changed` emits a Tauri event when a scan d
 pub type DirtyTablesCallback = Arc<dyn Fn(&[String]) + Send + Sync>;
 ```
 
-`haex-vault` registers a callback that fires a Tauri event. `holzi` registers one that pokes its own state store or MCP surface.
+`haex-vault 2.x` registers a callback that fires a Tauri event. `holzi` registers one that pokes its own state store or MCP surface.
 
-## 5. Module inventory (haex-vault → haex-crdt)
+## 5. Module inventory (haex-vault 2.x → haex-crdt)
 
 Working proposal; final paths decided at extraction time.
 
-| haex-vault path                                                                                                                         | haex-crdt path                   | Notes                                      |
+| haex-vault 2.x path                                                                                                                     | haex-crdt path                   | Notes                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------ |
 | `src-tauri/src/database/mod.rs` (minus `#[tauri::command]`s)                                                                            | `src/db/mod.rs`                  | Re-exports adjusted                        |
 | `src-tauri/src/database/core/*`                                                                                                         | `src/db/core/*`                  | Whole subtree                              |
@@ -201,12 +201,12 @@ Working proposal; final paths decided at extraction time.
 | `src-tauri/src/crdt/transformer/*`                                                                                                      | `src/crdt/transformer/*`         | Direct move                                |
 | `src-tauri/src/crdt/insert_transformer.rs`                                                                                              | `src/crdt/insert_transformer.rs` | Direct move                                |
 | `src-tauri/src/crdt/commands/apply/*` (minus command shims)                                                                             | `src/crdt/apply/*`               | Rename from `commands/apply`               |
-| `src-tauri/src/crdt/column_sig/*`                                                                                                       | **stays in haex-vault**          | Becomes `SignatureProvider` impl           |
-| `src-tauri/src/crdt/registry_row_sig/*`                                                                                                 | **stays in haex-vault**          | Same                                       |
+| `src-tauri/src/crdt/column_sig/*`                                                                                                       | **stays in haex-vault 2.x**      | Becomes `SignatureProvider` impl           |
+| `src-tauri/src/crdt/registry_row_sig/*`                                                                                                 | **stays in haex-vault 2.x**      | Same                                       |
 | Table name constants used by CRDT (`TABLE_CRDT_*`, `COL_CRDT_*`)                                                                        | `src/db/constants.rs`            | These name generic CRDT bookkeeping tables |
-| Vault-specific constants (`vault_settings_key`)                                                                                         | **stays in haex-vault**          |                                            |
+| Vault-specific constants (`vault_settings_key`)                                                                                         | **stays in haex-vault 2.x**      |                                            |
 
-Tests travel with the modules. Integration tests in `src-tauri/tests/` that touch column_sig or registry_row_sig split: pure CRDT round-trips move to `tests/` in the new crate; sig-specific vectors stay in haex-vault.
+Tests travel with the modules. Integration tests in `src-tauri/tests/` that touch column_sig or registry_row_sig split: pure CRDT round-trips move to `tests/` in the new crate; sig-specific vectors stay in haex-vault 2.x.
 
 ## 6. Public API sketch
 
@@ -265,23 +265,23 @@ Either way, `Store::hlc`, `apply_migrations`, `install_crdt`, `scan_local_change
 3. Record every backfilled row in the local-changes journal so the next `scan_local_changes` returns them. `install_crdt` on an existing table is equivalent, sync-wise, to "these rows were just created here, first time"; peers receive them via the normal apply path.
 4. Refuse (`Error::CrdtAlreadyInstalled`) if the three metadata columns already exist, unless the caller passed `InstallCrdtOptions::allow_reinstall = true`, in which case only triggers are re-installed and no backfill runs.
 
-## 7. Extraction sequence (source-of-change side, in `haex-vault`)
+## 7. Extraction sequence (source-of-change side, in `haex-vault 2.x`)
 
 Concrete steps whoever owns the extraction will take. Not this PR's work; captured so the timing is legible.
 
-1. **Refactor pass in `haex-vault`, no new repo yet.** Introduce the three traits (`DeviceIdProvider`, `SignatureProvider`, `MigrationSource`) inside `haex-vault` itself. Rewrite `HlcService`, migration loader, and column_sig call-sites to go through the traits. Ship no functional change. Verify with existing tests.
-2. **Cut the crate as a `haex-vault` sub-crate first.** Turn `haex-vault` into a Cargo workspace; create `crates/haex-crdt/` and move the identified modules there. `haex-vault` imports it as a `path` dependency. All existing tests keep passing.
-3. **Move to standalone repo.** Create `haexmas/haex-crdt` on GitHub, copy the crate over with its full git history if possible (`git filter-repo` or manual), open a first release tag (`v0.1.0`). `haex-vault` switches its dependency from `path` to `git = "...", tag = "v0.1.0"`.
+1. **Refactor pass in `haex-vault 2.x`, no new repo yet.** Introduce the three traits (`DeviceIdProvider`, `SignatureProvider`, `MigrationSource`) inside `haex-vault 2.x` itself. Rewrite `HlcService`, migration loader, and column_sig call-sites to go through the traits. Ship no functional change. Verify with existing tests.
+2. **Cut the crate as a `haex-vault 2.x` sub-crate first.** Turn `haex-vault 2.x` into a Cargo workspace; create `crates/haex-crdt/` and move the identified modules there. `haex-vault 2.x` imports it as a `path` dependency. All existing tests keep passing.
+3. **Move to standalone repo.** Create `haexmas/haex-crdt` on GitHub, copy the crate over with its full git history if possible (`git filter-repo` or manual), open a first release tag (`v0.1.0`). `haex-vault 2.x` switches its dependency from `path` to `git = "...", tag = "v0.1.0"`.
 4. **First integration for `holzi`.** `holzi`'s first implementation slice adds `haex-crdt` as a git dependency, implements its own `DeviceIdProvider`, uses `NoopSignatureProvider`, supplies a `MigrationSource` for its own schema.
 
-Steps 1 and 2 are the invasive ones inside `haex-vault`. Step 3 is a repo-mechanics operation. Step 4 is holzi's job.
+Steps 1 and 2 are the invasive ones inside `haex-vault 2.x`. Step 3 is a repo-mechanics operation. Step 4 is holzi's job.
 
 ## 8. Testing strategy
 
-- The crate's own test suite is the inline `#[cfg(test)]` tests moved from `haex-vault` plus the pure-CRDT integration tests. All use in-memory SQLite (`Connection::open_in_memory`) or a temp-file SQLCipher DB.
-- Tests that require UCAN identity or MLS group state stay in `haex-vault`.
-- After Step 2 above, `haex-vault`'s full test suite must still pass with `haex-crdt` as a workspace member. This is the acceptance bar for Step 3.
-- **Standalone-git-tag acceptance test (gates Step 3 → Step 4)**: before `haex-vault` flips its dependency from `path = "crates/haex-crdt"` to `git = "...", tag = "v0.1.0"`, a throwaway consumer crate in a clean directory (no workspace, no path deps) pulls `haex-crdt` from the tagged commit and exercises the following. The setup opens **two independent stores** on **two separate SQLCipher database files** in a `tempdir`, each configured with its own durable `DeviceIdProvider` returning a **distinct**, stable `Uuid` (`device_a`, `device_b`). Both stores share the same `MigrationSource` and use `NoopSignatureProvider`.
+- The crate's own test suite is the inline `#[cfg(test)]` tests moved from `haex-vault 2.x` plus the pure-CRDT integration tests. All use in-memory SQLite (`Connection::open_in_memory`) or a temp-file SQLCipher DB.
+- Tests that require UCAN identity or MLS group state stay in `haex-vault 2.x`.
+- After Step 2 above, `haex-vault 2.x`'s full test suite must still pass with `haex-crdt` as a workspace member. This is the acceptance bar for Step 3.
+- **Standalone-git-tag acceptance test (gates Step 3 → Step 4)**: before `haex-vault 2.x` flips its dependency from `path = "crates/haex-crdt"` to `git = "...", tag = "v0.1.0"`, a throwaway consumer crate in a clean directory (no workspace, no path deps) pulls `haex-crdt` from the tagged commit and exercises the following. The setup opens **two independent stores** on **two separate SQLCipher database files** in a `tempdir`, each configured with its own durable `DeviceIdProvider` returning a **distinct**, stable `Uuid` (`device_a`, `device_b`). Both stores share the same `MigrationSource` and use `NoopSignatureProvider`.
   - (a) `Store::open` succeeds on both fresh databases.
   - (b) Crate-owned bookkeeping migrations run on both (journal in `haex_crdt_migrations`).
   - (c) A consumer-owned toy migration runs on both (journal in `haex_app_migrations`).
@@ -296,23 +296,23 @@ Steps 1 and 2 are the invasive ones inside `haex-vault`. Step 3 is a repo-mechan
 ## 9. Versioning, release, distribution
 
 - Semver from the start.
-- `v0.1.0` is the initial release once `haex-vault` fully uses the standalone repo. Behavior is expected to be identical to pre-extraction `haex-vault`; the version reflects "this is a new artifact and its API may still change" rather than an API bump.
+- `v0.1.0` is the initial release once `haex-vault 2.x` fully uses the standalone repo. Behavior is expected to be identical to pre-extraction `haex-vault 2.x`; the version reflects "this is a new artifact and its API may still change" rather than an API bump.
 - Git tags on `haexmas/haex-crdt` are the distribution mechanism. Both consumers use `git = ..., tag = "vX.Y.Z"` in their `Cargo.toml`.
 - crates.io publication is deferred until the API has been used by more than one non-example consumer and has settled. Not v1-blocking for holzi.
-- License: matches `haex-vault`'s license (to confirm during extraction).
+- License: matches `haex-vault 2.x`'s license (to confirm during extraction).
 
 ## 10. Open questions
 
 - **Ed25519 signature schema forward-compat.** Resolved in §4.2: `haex_column_sigs` is always present as a column and populated (empty byte string under `NoopSignatureProvider`). Schema is provider-independent so a vault can graduate to a real provider without a schema migration. `NoopSignatureProvider` rejects non-empty incoming sigs it cannot verify.
 - **`AuthorId` shape.** UCAN uses DIDs; a simpler `holzi` federation could use device pubkeys directly. Whether `haex-crdt`'s `AuthorId` is a `String`, an enum, or a trait matters for how tightly downstream code binds to it. Working proposal: `String` newtype, treated as opaque by the crate.
-- **Retention / tombstone policy.** `haex-vault` has its own retention logic in `crdt/cleanup.rs` tuned to space membership. Does the crate expose a `RetentionPolicy` enum with variants like `TimeBased`, `Manual`, or does it hand the tombstone table to the consumer to reap? Working proposal: parameterized retention, defaults to time-based.
-- **Async story.** `rusqlite` is blocking. `haex-vault` today wraps calls in Tokio `spawn_blocking` at the command boundary. Does `haex-crdt` stay blocking-only and let consumers wrap, or provide a thin async wrapper? Working proposal: blocking-only in v0; async wrapper post-v1 if needed.
+- **Retention / tombstone policy.** `haex-vault 2.x` has its own retention logic in `crdt/cleanup.rs` tuned to space membership. Does the crate expose a `RetentionPolicy` enum with variants like `TimeBased`, `Manual`, or does it hand the tombstone table to the consumer to reap? Working proposal: parameterized retention, defaults to time-based.
+- **Async story.** `rusqlite` is blocking. `haex-vault 2.x` today wraps calls in Tokio `spawn_blocking` at the command boundary. Does `haex-crdt` stay blocking-only and let consumers wrap, or provide a thin async wrapper? Working proposal: blocking-only in v0; async wrapper post-v1 if needed.
 - **Multi-consumer compatibility for the migration engine.** Resolved in §4.3: crate-owned CRDT bookkeeping migrations live in `haex_crdt_migrations` (shipped by the crate); consumer-owned schema migrations live in `haex_app_migrations` (shipped by the consumer). Remaining sub-question for Step 1: whether `haex_app_migrations` is one table or is further partitioned when a single database is opened by two different consumer identities — not a concern for v1 (one database is opened by one consumer).
 - **Repo-history preservation.** `git filter-repo` to keep commit history of the moved files vs a clean-start commit in the new repo. Working proposal: preserve history when reasonably practical; clean-start is the fallback.
 
 ## 11. What this plan does not do
 
-- Does not schedule the work. Timing is up to whoever owns `haex-vault`.
+- Does not schedule the work. Timing is up to whoever owns `haex-vault 2.x`.
 - Does not commit to the exact API. The traits and `Store` sketch are working proposals; the final shape is decided during Step 1.
 - Does not decide whether `holzi` writes its own tests against `haex-crdt`'s pre-1.0 API or waits. Working assumption: it does, and lives with the churn.
 
@@ -320,12 +320,12 @@ Steps 1 and 2 are the invasive ones inside `haex-vault`. Step 3 is a repo-mechan
 
 For holzi (this repo), immediate:
 
-- None until Step 1 or Step 2 above has begun in `haex-vault`.
+- None until Step 1 or Step 2 above has begun in `haex-vault 2.x`.
 
-For `haex-vault` (whoever owns it):
+For `haex-vault 2.x` (whoever owns it):
 
-- Step 1 (introduce the three traits inside `haex-vault`, no new repo yet) is the smallest reversible move and unblocks everything after it. It is a self-contained refactor that ships with no functional change and can happen at any time.
+- Step 1 (introduce the three traits inside `haex-vault 2.x`, no new repo yet) is the smallest reversible move and unblocks everything after it. It is a self-contained refactor that ships with no functional change and can happen at any time.
 
 For the operator:
 
-- When ready to trigger the extraction, coordinate with the `haex-vault` project. This plan can be cross-linked from a `haex-vault` issue or ADR at that point.
+- When ready to trigger the extraction, coordinate with the `haex-vault 2.x` project. This plan can be cross-linked from a `haex-vault 2.x` issue or ADR at that point.

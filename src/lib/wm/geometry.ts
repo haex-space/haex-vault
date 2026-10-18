@@ -5,7 +5,7 @@ import type { WmWindow, Size } from './types.ts'
 
 type Rect = { x: number; y: number; width: number; height: number }
 
-/** New windows cascade by this offset per step (haex-vault reference, research R12), wrapping
+/** New windows cascade by this offset per step (haex-vault 2.x (Legacy) reference, research R12), wrapping
  * once they would run off the visible area. */
 const CASCADE_STEP = 24
 const CASCADE_WRAP_MARGIN = 160

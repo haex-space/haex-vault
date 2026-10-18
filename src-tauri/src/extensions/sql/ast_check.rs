@@ -1,7 +1,7 @@
 //! The pre-check of extension SQL at run time (contracts/sql-policy.md §Vorprüfung): what a
 //! statement may be and which tables it reads and writes.
 //!
-//! Ported from haex-space/haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
+//! Ported from haex-space/haex-vault-legacy `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
 //! `src-tauri/src/database/core/extract.rs` (`extract_table_names_from_statement`) and
 //! `src-tauri/src/extension/permissions/validator.rs` (`validate_sql`). The gaps of research R6
 //! point 1 are closed: tables come from sqlparser's visitor over the whole tree (`WITH`,

@@ -3,10 +3,10 @@
 //! `exec::prepare_unchecked`), both. Every forbidden form must fail each way; every allowed form
 //! must pass each way.
 //!
-//! Starting set ported from haex-space/haex-vault `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
+//! Starting set ported from haex-space/haex-vault-legacy `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
 //! `src-tauri/src/extension/database/tests/sql_injection_tests/` (comment_smuggling,
 //! dangerous_statements, edge_cases, multi_statement, extraction, table_prefix, union_select) with
-//! holzi's tables in place of haex-vault's (`haex_extensions` → `chat_threads` and `haex_*`).
+//! holzi's tables in place of the haex-vault 2.x (Legacy) tables (`haex_extensions` → `chat_threads` and `haex_*`).
 //! These run here as unit tests because they need the crate's test vault and the pre-check skip.
 
 // The corpus reads what was stored to show nothing changed.
@@ -69,7 +69,7 @@ const FORBIDDEN: &[&str] = &[
     "SELECT * FROM t:pages; DELETE FROM chat_threads",
     "SELECT * FROM t:pages /* ; */ ; DELETE FROM chat_threads",
     "INSERT INTO t:pages (id) VALUES ('m');INSERT INTO chat_threads (id) VALUES ('m');",
-    // haex-vault's union and extraction cases.
+    // haex-vault 2.x's union and extraction cases.
     "SELECT id FROM t:pages UNION SELECT id FROM chat_threads",
     "UPDATE t:pages SET body = (SELECT id FROM chat_threads LIMIT 1)",
     "DELETE FROM t:pages WHERE id IN (SELECT id FROM chat_threads)",

@@ -132,7 +132,7 @@ durchgehen, den Tresor schließen und erneut entsperren; die Einträge sind unve
     Fensterübersicht; bei offener Fensterübersicht schließt sie sich; die App wird dabei nie
     verlassen (Spec 020 FR-019).
 11. **Given** ein Dialog, der eine Datei erwartet (z. B. Anhang hinzufügen, Import aus
-    haex-vault, Hintergrundbild), **When** die Person ihn öffnet, **Then** erscheint die
+    haex-vault 2.x (Legacy), Hintergrundbild), **When** die Person ihn öffnet, **Then** erscheint die
     Dateiauswahl von Android, und die gewählte Datei wird übernommen, auch wenn sie aus einem
     Cloud-Speicher oder dem Download-Ordner stammt.
 12. **Given** eine Funktion ohne Android-Gegenstück (Ordner wählen, Terminal, CLI-Delegate,
@@ -379,7 +379,7 @@ Spracheingabe einen Satz diktieren und ihn im Eingabefeld sehen.
   MUSS sie auf Android die Dateiauswahl des Systems bekommen, und holzi MUSS Dateien aus allen
   dort angebotenen Quellen (lokaler Speicher, Download-Ordner, Cloud-Anbieter) lesen und dorthin
   speichern können. Das betrifft mindestens: Anhänge im Passwortmanager und im Chat, Import aus
-  haex-vault, Hintergrundbild und Darstellung importieren und exportieren, Erweiterung aus Datei
+  haex-vault 2.x, Hintergrundbild und Darstellung importieren und exportieren, Erweiterung aus Datei
   installieren.
 - **FR-016**: Funktionen ohne Android-Gegenstück MÜSSEN „Auf diesem Gerät nicht verfügbar“
   melden, statt abzustürzen oder still nichts zu tun: Ordner wählen, Schreibtisch-Ordner und

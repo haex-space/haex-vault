@@ -47,7 +47,7 @@ fn random_bytes_look_like_a_wrong_password() {
         .collect();
     assert_eq!(
         reason(open(&file_with(&dir, "random.db", &bytes), "pw")),
-        "haex_vault_locked"
+        "legacy_haex_vault_locked"
     );
 }
 
@@ -73,7 +73,7 @@ fn encrypted(dir: &tempfile::TempDir, sql: &str) -> std::path::PathBuf {
 fn the_right_password_opens_the_copy_and_a_wrong_one_does_not() {
     let dir = tempfile::tempdir().expect("dir");
     let path = encrypted(&dir, "CREATE TABLE t (x); INSERT INTO t VALUES (1);");
-    assert_eq!(reason(open(&path, "wrong")), "haex_vault_locked");
+    assert_eq!(reason(open(&path, "wrong")), "legacy_haex_vault_locked");
     let source = open(&path, "pw").expect("open");
     let x: i64 = source
         .conn

@@ -32,7 +32,7 @@ export const ENTRY_ICONS = [
 ] as const
 
 /** The pictures the import maps the KeePass standard icons (`import/icons.rs`) and the icon names
- * of haex-vault (`import/haex_vault/icons.rs`, spec 037) to. They are not in the picker, but an
+ * of haex-vault 2.x (Legacy) (`import/legacy_haex_vault/icons.rs`, spec 037) to. They are not in the picker, but an
  * entry may hold them, so they are literals here for the icon scan. */
 export const IMPORT_ICONS = [
   'lucide:app-window',

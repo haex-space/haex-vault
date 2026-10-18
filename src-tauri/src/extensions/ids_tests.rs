@@ -116,7 +116,7 @@ fn a_table_name_splits_into_exactly_three_parts() {
 
 #[test]
 fn the_prefix_of_one_extension_never_covers_another() {
-    // `a` and `a__b` would collide with a plain `starts_with` (haex-vault `utils.rs:202-210`); an
+    // `a` and `a__b` would collide with a plain `starts_with` (haex-vault 2.x (Legacy) `utils.rs:202-210`); an
     // extension name cannot contain `__`, and a table name with four parts is not an extension
     // table at all.
     assert!(ExtensionTable::parse(&format!("{PK}__a__b__t")).is_err());

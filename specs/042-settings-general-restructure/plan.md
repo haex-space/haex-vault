@@ -19,7 +19,7 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
 - **Sprache** (R2, R3): T001 bestätigt zuerst, ob `@nuxtjs/i18n` die Systemsprache ohne Persistenz
   erkennt; andernfalls übernimmt eine reine Funktion plus Plugin diese Aufgabe. Die Vault-Präferenz
   `general.language` wird über neues `useLanguage` nach dem Muster `useColorScheme` gelesen und geschrieben.
-- **Passwort** (R4, R5): Command `change_vault_passphrase`, Ablauf aus haex-vault (Checkpoint → DELETE →
+- **Passwort** (R4, R5): Command `change_vault_passphrase`, Ablauf aus haex-vault 2.x (Legacy) (Checkpoint → DELETE →
   rekey → WAL), Prüfung des aktuellen Passworts über eine zweite, nur lesende Connection; nicht im
   Action-Katalog.
 - **Hintergrund** (R6–R8): Vault-Präferenz `appearance.background` als WebP-Data-URL, nativer File-Input,
@@ -49,7 +49,7 @@ Nuxt 4 (SPA)
 Sekunden (skaliert linear mit der Dateigröße, blockiert in der Zeit alle DB-Zugriffe)
 
 **Constraints**: offline-fähig; Passwort nie geloggt (`Passphrase`-`Debug` ist redacted, keine `println!`
-wie in haex-vault); Hintergrund ≤ 4 MiB als Präferenzwert
+wie in haex-vault 2.x); Hintergrund ≤ 4 MiB als Präferenzwert
 
 **Scale/Scope**: 4 neue/umgebaute Settings-Locations, 1 Command, 2 Aktionen, 2 Präferenzschlüssel,
 ~6 E2E-Szenarien anzupassen
@@ -64,7 +64,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | I No secrets in git                                          | ✅ Passwörter nur zur Laufzeit; Tests nutzen Wegwerf-Passwörter in Tempdirs                                                                                                    |
 | II No local absolute paths                                   | ✅ keine                                                                                                                                                                       |
-| III–V Identity / pinned refs / opt-in                        | ✅ nicht berührt; haex-vault nur als Vorbild zitiert, kein Code-Import                                                                                                         |
+| III–V Identity / pinned refs / opt-in                        | ✅ nicht berührt; haex-vault 2.x nur als Vorbild zitiert, kein Code-Import                                                                                                     |
 | VI Self-modifying instructions                               | ✅ keine Agent-Konfiguration geändert                                                                                                                                          |
 | VII Relay unavailability                                     | ✅ alles lokal; Sync nur für Präferenzen wie bisher                                                                                                                            |
 | VIII No concealment                                          | ✅                                                                                                                                                                             |
@@ -72,7 +72,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | spaex: pr-required-for-main, conventional commits, no squash | ✅ Topic-Branch, PR                                                                                                                                                            |
 | spaex: graphify-first-authoring                              | ✅ Kandidaten geprüft: `useColorScheme` (Muster für `useLanguage`), `scaledUrl` (Extraktion R7, Operator-Freigabe mit diesem Plan), MIN_PASSPHRASE-Duplikat (→ `validate_new`) |
 | spaex: ponytail                                              | ✅ zwei `ponytail:`-Kommentare (Rekey-Key im SQL-Text, Präferenz-Refresh liest ganzen Wert)                                                                                    |
-| spaex: phasing-discipline                                    | ✅ Teil der laufenden haex-vault-Angleichung                                                                                                                                   |
+| spaex: phasing-discipline                                    | ✅ Teil der laufenden haex-vault-2.x-Angleichung                                                                                                                               |
 | ADR nötig?                                                   | Nein — keine Core-Principle-Änderung                                                                                                                                           |
 
 **Post-Design Re-Check**: ✅ bestanden mit einer dokumentierten Abweichung vom Entwurf: kein

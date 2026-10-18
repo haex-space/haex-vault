@@ -13,7 +13,7 @@ that open.
 
 ## Summary
 
-Deliver the holzi Tauri app's first-impression surfaces: a landing page with three primary actions (Anlegen, Öffnen, Verbinden) mirroring haex-vault's landing pattern, plus a Zuletzt-verwendet list and an Unlock sheet for existing instances. Frontend is Nuxt 4 (SPA) with Tailwind v4, shadcn-vue components (copy-in), Pinia stores, `@nuxtjs/i18n`, and `@nuxt/icon` fed from a locally-bundled Lucide icon set. Backend is a set of Tauri commands over the `haex-crdt` layer that manage `<name>.db` files under `<AppLocalData>/instances/`, including atomic Genesis creation, direct opening of imported databases without rekey or restore pairing, Verbinden pairing, and active-instance switching. The full federation sync/ping walking skeleton is a separate integration milestone; this plan defines the onboarding contracts that lead to it.
+Deliver the holzi Tauri app's first-impression surfaces: a landing page with three primary actions (Anlegen, Öffnen, Verbinden) mirroring the haex-vault 2.x (Legacy) landing pattern, plus a Zuletzt-verwendet list and an Unlock sheet for existing instances. Frontend is Nuxt 4 (SPA) with Tailwind v4, shadcn-vue components (copy-in), Pinia stores, `@nuxtjs/i18n`, and `@nuxt/icon` fed from a locally-bundled Lucide icon set. Backend is a set of Tauri commands over the `haex-crdt` layer that manage `<name>.db` files under `<AppLocalData>/instances/`, including atomic Genesis creation, direct opening of imported databases without rekey or restore pairing, Verbinden pairing, and active-instance switching. The full federation sync/ping walking skeleton is a separate integration milestone; this plan defines the onboarding contracts that lead to it.
 
 ## Technical Context
 
@@ -26,7 +26,7 @@ Deliver the holzi Tauri app's first-impression surfaces: a landing page with thr
 
 - Nuxt modules: `@nuxtjs/i18n`, `@nuxt/icon`, `@pinia/nuxt`, `@vueuse/nuxt`.
 - Styling: Tailwind v4 via `@tailwindcss/vite`, `tw-animate-css`.
-- UI: `shadcn-vue` (Radix Vue-based, copy-in), `class-variance-authority`, `tailwind-merge`, `@lucide/vue`, `html5-qrcode` (QR scanner in the Verbinden Sheet on every platform, same version haex-vault uses).
+- UI: `shadcn-vue` (Radix Vue-based, copy-in), `class-variance-authority`, `tailwind-merge`, `@lucide/vue`, `html5-qrcode` (QR scanner in the Verbinden Sheet on every platform, same version haex-vault 2.x uses).
 - Tauri plugins: `@tauri-apps/plugin-dialog` (file picker for Öffnen), `@tauri-apps/plugin-store` (only for non-secret preferences — not for instance list), `@tauri-apps/plugin-fs` (limited to `AppLocalData` scope).
 - Rust-side: [`haex-crdt` at `1c069ef0ea19143af2748f40fc41cba05c94dbe1` (`Cargo.toml`, package 0.4.0)](https://github.com/haexmas/haex-crdt/blob/1c069ef0ea19143af2748f40fc41cba05c94dbe1/Cargo.toml) as a git dependency, `tauri`, `serde`, `ts-rs` (for type sharing), `thiserror`.
 
@@ -43,7 +43,7 @@ Deliver the holzi Tauri app's first-impression surfaces: a landing page with thr
 
 **Target Platform**: Desktop (Linux, macOS, Windows), Android, iOS. SPA mode (`ssr: false`) required because Tauri renders into a native WebView, not against a Node server.
 
-**Project Type**: Desktop-app (Tauri) with an embedded web frontend. Uses the "Web application" project structure inside `src/` (frontend) + `src-tauri/` (backend), matching `haex-vault`'s layout.
+**Project Type**: Desktop-app (Tauri) with an embedded web frontend. Uses the "Web application" project structure inside `src/` (frontend) + `src-tauri/` (backend), matching `haex-vault 2.x`'s layout.
 
 **Performance Goals**:
 
@@ -83,7 +83,7 @@ No violations to justify in Complexity Tracking.
 specs/001-frontend-onboarding/
 ├── spec.md                          # Feature specification (P1..P3 stories)
 ├── plan.md                          # This file
-├── research.md                      # Rationale for stack choices and haex-vault deltas
+├── research.md                      # Rationale for stack choices and haex-vault 2.x deltas
 ├── quickstart.md                    # Fresh-clone → running landing in <5 minutes
 ├── contracts/
 │   ├── tauri-commands.md            # Rust command signatures + error enum
@@ -164,7 +164,7 @@ e2e/                                 # Playwright
 └── onboarding.spec.ts
 ```
 
-**Structure Decision**: Adopt haex-vault's directory layout (`src/` + `src-tauri/`, Pinia under `src/stores/`, Tauri plugins consumed from `@tauri-apps/plugin-*`). Component auto-import uses Nuxt's `pathPrefix: true` so `src/components/ui/button/Button.vue` becomes `<UiButton>` and `src/components/onboarding/CreateSheet.vue` becomes `<OnboardingCreateSheet>` — no manual imports in templates.
+**Structure Decision**: Adopt haex-vault 2.x's directory layout (`src/` + `src-tauri/`, Pinia under `src/stores/`, Tauri plugins consumed from `@tauri-apps/plugin-*`). Component auto-import uses Nuxt's `pathPrefix: true` so `src/components/ui/button/Button.vue` becomes `<UiButton>` and `src/components/onboarding/CreateSheet.vue` becomes `<OnboardingCreateSheet>` — no manual imports in templates.
 
 ## Complexity Tracking
 

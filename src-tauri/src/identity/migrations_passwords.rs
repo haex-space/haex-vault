@@ -1,6 +1,6 @@
 //! SQL of migration `0022_passwords` (spec 034-password-manager, data-model.md): the twelve
 //! `haex_passwords_*` tables of the password manager and their indexes. Table and column names are
-//! those of haex-vault; the deviations are A1–A6 of the data model (BLOB data, two columns for the
+//! those of haex-vault 2.x (Legacy); the deviations are A1–A6 of the data model (BLOB data, two columns for the
 //! place before the trash, `orphaned_at`, `ON DELETE RESTRICT` for the binary links, and no UNIQUE
 //! constraint, because a UNIQUE conflict halts the sync of haex-crdt and the uniqueness of tags, tag
 //! links and passkeys comes from derived ids instead, research R2).

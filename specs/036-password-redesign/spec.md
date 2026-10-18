@@ -4,13 +4,13 @@
 **Created**: 2026-10-03
 **Status**: Draft
 **Input**: Der Passwortmanager aus Spec 034 bekommt die Bedienung des Passwortmanagers von
-haex-vault: einen Eintrag in drei Tabs (Details, Extra, Verlauf) mit Wischgeste zwischen
+haex-vault 2.x (Legacy): einen Eintrag in drei Tabs (Details, Extra, Verlauf) mit Wischgeste zwischen
 den Tabs, Brotkrumen, Auswahlleiste, Kontextmenüs, Ausschneiden, Kopieren und Einfügen und
 Tastaturkürzel in der Liste, Passkeys als Dienstfunktionen (anlegen, abrufen und signieren,
 auflisten) mit Aufrufer und Bereich (ein Passkey gehört immer zu einem Eintrag und folgt
 dessen Tags), und Dateianhänge als Karten mit Vorschau und Lightbox. Die Felder und die
 Darstellung aus Spec 035 sind die Grundlage der Oberfläche. Die External Bridge (Autofill,
-Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault @
+Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, `src/components/haex/system/passwords/`.
 
 ## Beziehung zu bestehenden Specs
@@ -71,10 +71,10 @@ Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault @
   `{$<Eintrag>:extra:<Schlüssel>}` für das Feld eines eigenen Schlüssel/Wert-Paares. Das ist ein
   einheitliches System für Verweise zwischen Einträgen, nicht nur beim Kopieren; der Kopier-Dialog
   setzt solche Platzhalter. Passkeys sind kein Text und werden per Verbindung verwiesen (FR-046).
-  In haex-vault, vault-sdk, haextension und atoms gibt es kein solches System (nur Anhänge
+  In haex-vault 2.x, vault-sdk, haextension und atoms gibt es kein solches System (nur Anhänge
   verweisen dort über die Prüfsumme); es ist neu. Die Tiefe ist wie in KeePass 12 Stufen. Beim
   KeePass-Import werden dessen Verweise `{REF:…}` in dieses System umgewandelt, soweit
-  eindeutig (haex-vault tut das nicht).
+  eindeutig (haex-vault 2.x tut das nicht).
 
 ### Session 2026-10-11
 
@@ -612,7 +612,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   Aufgabe samt Zähler signieren. Ohne einen erfolgreichen, zeremoniegebundenen Presence-Nachweis
   werden UP und UV nicht gesetzt. Die **Herkunft** der Anfrage MUSS zur Kennung der Gegenstelle
   des Passkeys passen (gleiche Domäne oder eine Oberdomäne der Herkunft); andernfalls MUSS
-  abgelehnt und nichts signiert werden. Das schließt die feste Annahme von haex-vault aus,
+  abgelehnt und nichts signiert werden. Das schließt die feste Annahme von haex-vault 2.x aus,
   die Herkunft sei immer `https://<Kennung>`.
 - **FR-026**: Der **Zähler** eines synchronisierten Passkeys MUSS bei Anlegen und Bestätigen 0
   bleiben. Der Dienst führt keine unzuverlässige globale Nicht-Null-Reihenfolge über offline
@@ -790,7 +790,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
 ## Assumptions
 
 - Die **Tab-Wischgeste** bekommt eine eigene Bibliothek für Gesten und Übergänge; welche, wird
-  im Plan entschieden. haex-vault hat dort nur Tippen, die Wischgeste ist neu.
+  im Plan entschieden. haex-vault 2.x hat dort nur Tippen, die Wischgeste ist neu.
 - Der **Kopier-Dialog** erscheint beim Einfügen, denn dann entsteht die Kopie; die Auswahl beim
   Kopieren selbst bleibt ohne Dialog.
 - **Verweise** sind zunächst auf Benutzername, Passwort und eigene Felder beschränkt, wie die
@@ -799,7 +799,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   erkennt holzi Kreise beim Speichern und liefert nie leeren Text.
 - Die **Kürzel** sind feste Voreinstellungen; das Umbelegen kommt mit dem Umbelegen der
   wm-Kürzel in einer Folge-Spec (Befehle und Tastenkürzel; Spec 020 nimmt es ausdrücklich aus). Die Auswahl der Zeile mit Pfeiltasten gilt nur im Passwortmanager.
-- Ein **Passkey ohne Eintrag** kann in der Tabelle von 034 (und in haex-vault) vorkommen; holzi
+- Ein **Passkey ohne Eintrag** kann in der Tabelle von 034 (und in haex-vault 2.x) vorkommen; holzi
   legt nie einen an und behandelt einen vorgefundenen als nicht vorhanden (siehe Randfälle).
 - Wer **Passkeys anlegen und bestätigen** darf, sind die Aufrufer mit Freigabe für ein Tag des
   Eintrags (Erweiterungen, externe Agenten über MCP, später die External Bridge); der

@@ -4,7 +4,7 @@
 
 Jede Entscheidung: **Entscheidung**, **Begründung**, **verworfene Alternativen**. Belege sind
 Dateien im Repository (Stand `main` am 2026-10-03, nach den PRs #228, #229, #234) und der
-Quellstand von haex-vault (`8dce379d94e18fcd42c3b73686a06f984ca3f574`); KeePass steht auf dem
+Quellstand von haex-vault 2.x (Legacy) (`8dce379d94e18fcd42c3b73686a06f984ca3f574`); KeePass steht auf dem
 GitHub-Mirror `dlech/KeePass2.x`. Die neuen Crates (`ciborium`, `psl`, `url`) sind mit T003
 am 2026-10-04 geprüft (R8, R9). Nicht geprüft: das Verhalten der Wischgeste in der
 WebKit-Webview unter Linux und Android; das prüft der manuelle Quickstart (R1).
@@ -34,7 +34,7 @@ Zustand (`activeTab`) gekoppelt: Tippen auf einen Trigger ruft `slideTo`, ein Wi
 - Im Bearbeiten gibt es zwei Folien (Details, Extra); Verlauf ist dort nicht wählbar (FR-008).
   Die Folien werden mit `v-if` auf die Tab-Liste gebaut, nicht per CSS versteckt.
 
-**Begründung**: Die Spec und der Auftrag nennen Swiper; haex-vault benutzt dieselbe
+**Begründung**: Die Spec und der Auftrag nennen Swiper; haex-vault 2.x benutzt dieselbe
 Bibliothek (14.2.0), die Gesten sind dort erprobt. `noSwiping` löst die Randfälle aus der
 Spec (Eingabefelder) ohne eigenen Code.
 
@@ -220,7 +220,7 @@ wenn die Herkunft darauf endet.
 
 **Begründung**: Eine bloße „endet auf“-Prüfung lässt einen Aufrufer die Kennung `com` melden
 und einen Passkey für jede `.com`-Seite signieren; die öffentliche Suffixliste ist die
-Standard-Abwehr (der Browser macht dasselbe). haex-vault nimmt `https://<Kennung>` fest an
+Standard-Abwehr (der Browser macht dasselbe). haex-vault 2.x nimmt `https://<Kennung>` fest an
 und prüft nichts.
 
 **Verworfen**: Ohne Suffixliste, nur „mindestens zwei Labels“ (lässt `co.uk` durch).
@@ -342,14 +342,14 @@ riesiger Fläche die Webview zum Absturz), verkleinert mit `createImageBitmap` u
 320 px (doppelte Kartenbreite für scharfe Bilder auf dichten Bildschirmen), hält das Ergebnis
 als WebP-Blob-URL in einem LRU-Zwischenspeicher (200 Stück, nach Prüfsumme) und gibt die vollen
 Bytes sofort frei; höchstens zwei gleichzeitig. Ein Bild, das nicht dekodiert, bleibt als
-Fehler gemerkt; konnten nur die Bytes nicht gelesen werden, versucht die nächste Anfrage es neu. Die Lightbox ist `photoswipe` 5.4 (MIT, auch in haex-vault),
+Fehler gemerkt; konnten nur die Bytes nicht gelesen werden, versucht die nächste Anfrage es neu. Die Lightbox ist `photoswipe` 5.4 (MIT, auch in haex-vault 2.x),
 zur Laufzeit geladen (`import()`), mit den Bildern des Eintrags in Kartenreihenfolge;
 volle Größe wird erst beim Öffnen einer Folie geholt (`passwords_attachment_preview`).
 Anhänge ohne Vorschau (PDF, Text, anderes, auch SVG) bieten „Speichern unter“
 (`passwords_attachment_save`, vorhanden).
 
 **Begründung**: PhotoSwipe liefert Zoom, Zwicken, Mausrad, Wischen, Pfeiltasten und
-Escape (FR-038), erprobt in haex-vault. Eine Rust-Verkleinerung bräuchte das `image`-Crate
+Escape (FR-038), erprobt in haex-vault 2.x. Eine Rust-Verkleinerung bräuchte das `image`-Crate
 direkt (es steht transitiv im Lock, mit unbekannten Features); das Frontend kann
 JPEG, PNG, GIF und WebP ohnehin dekodieren.
 

@@ -6,11 +6,11 @@ Alle Tabellen entstehen in Migration `0022_passwords` (SQL in
 `src-tauri/src/identity/migrations_passwords.rs`), sind CRDT-synchronisiert (kein
 `_no_sync`-Suffix) und gehören der ganzen Vault, nicht einem Gerät (ADR-0001: kein
 `vault_device_uuid`). haex-crdt ergänzt Spalten für HLC und Spaltensignaturen selbst; sie
-stehen nicht im SQL. Tabellen- und Spaltennamen sind die von haex-vault
+stehen nicht im SQL. Tabellen- und Spaltennamen sind die von haex-vault 2.x (Legacy)
 (`src/database/schemas/passwords.ts`, Stand `8dce379`). Alle Kennungen sind `TEXT`,
 Zeitstempel `TEXT` (`CURRENT_TIMESTAMP`, wo nicht anders gesagt).
 
-**Abweichungen von haex-vault** (alle Gründe in research.md):
+**Abweichungen von haex-vault 2.x** (alle Gründe in research.md):
 
 | Nr. | Abweichung                                                                                                   | Grund |
 | --- | ------------------------------------------------------------------------------------------------------------ | ----- |
@@ -149,7 +149,7 @@ die Quellen nur den privaten Schlüssel; `public_key` wird aus ihm abgeleitet (`
 ES256, EdDSA, RS256), bei einem anderen Algorithmus oder unlesbarem Schlüssel bleibt er leer
 (`''`; der Passkey wird trotzdem gespeichert, zum Anmelden genügt der private Schlüssel, der
 Bericht nennt ihn). Die Kodierung von `credential_id`,
-`user_handle` und der Schlüssel entspricht der von haex-vault (Prüfung in T003).
+`user_handle` und der Schlüssel entspricht der von haex-vault 2.x (Prüfung in T003).
 
 ## Abgeleitete Kennungen
 
@@ -166,7 +166,7 @@ verschiedene Kennungen bekämen).
 ## SnapshotData
 
 JSON in `item_snapshots.snapshot_data`, Format `version: 1`. Leser tolerieren fehlende Felder
-(Stände aus haex-vault kennen weder `version` noch die OTP-Parameter noch `autofillAliases`).
+(Stände aus haex-vault 2.x kennen weder `version` noch die OTP-Parameter noch `autofillAliases`).
 
 ```text
 SnapshotData {

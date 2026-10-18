@@ -3,8 +3,8 @@
 Phase 0 von [plan.md](./plan.md). Jede Entscheidung nennt Begründung und verworfene Alternativen.
 Quellen (alle gepinnt):
 
-- haex-vault @ `8dce379d94e18fcd42c3b73686a06f984ca3f574` (kurz **HV**). Vorlage für Verhalten; Prüfcode in
-  Rust wird übernommen, wo er trägt, und dabei um die gefundenen Lücken korrigiert (R6). haex-vault selbst wird
+- haex-vault 2.x (Legacy) @ `8dce379d94e18fcd42c3b73686a06f984ca3f574` (kurz **HV**). Vorlage für Verhalten; Prüfcode in
+  Rust wird übernommen, wo er trägt, und dabei um die gefundenen Lücken korrigiert (R6). haex-vault 2.x selbst wird
   nicht geändert (Spec, Clarifications 2026-10-02).
 - vault-sdk @ `502593e84b8d289b0986a2777754d6bd8f52da5e` (v3.7.0, kurz **SDK**).
 - haextension @ `db48f9a948522c18a00331aac232718825cc9317`.
@@ -143,7 +143,7 @@ bei gleichzeitiger Installation).
 
 **Entscheidung**:
 
-1. **Vorprüfung in Rust, portiert aus haex-vault** (`src-tauri/src/extensions/sql/`): Grundlage ist die
+1. **Vorprüfung in Rust, portiert aus haex-vault 2.x** (`src-tauri/src/extensions/sql/`): Grundlage ist die
    vorhandene Prüfung von HV, rund 900 Zeilen und 1.180 Zeilen Tests — `database/core/parsing.rs` (eine
    Anweisung), `extension/database/planner.rs` (Art der Anweisung, Platzhalter), `database/core/extract.rs`
    (Tabellen aus dem AST), `extension/permissions/validator.rs` (Lesen oder Schreiben je Tabelle),

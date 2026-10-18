@@ -52,8 +52,8 @@ Synchronisierung oder Rechten in Berührung.
   angewendet hatte (Spec 024).
 - **Erweiterung**: eine haextension im Sinne von ADR-0004. **Eigene Tabellen**
   einer Erweiterung sind die Tabellen mit ihrem Präfix aus öffentlichem
-  Schlüssel und Name der Erweiterung (dieselbe Konvention wie haex-vault,
-  Repository `https://github.com/haex-space/haex-vault`, Revision
+  Schlüssel und Name der Erweiterung (dieselbe Konvention wie haex-vault 2.x (Legacy),
+  Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad
   `src-tauri/src/extension/utils.rs`, `get_extension_table_prefix`).
 - **Datenfreigabe**: das Teilen von SQLite-Daten einer Erweiterung mit
@@ -143,7 +143,7 @@ Synchronisierung oder Rechten in Berührung.
 - Q: Darf ein Empfänger weiterteilen? → A: Nein (D7). Nur der Eigentümer lädt
   ein. Dass ein Empfänger Inhalte kopiert und selbst neu teilt, verhindert holzi
   nicht; das ist nicht im Umfang.
-- Q: Werden die Schlüssel einer Datenfreigabe wie in haex-vault mit MLS
+- Q: Werden die Schlüssel einer Datenfreigabe wie in haex-vault 2.x mit MLS
   verwaltet? → A: Nein (D13). MLS braucht eine feste Reihenfolge, die zu einer
   reihenfolgefreien Synchronisierung nicht passt. Schlüsselgenerationen sind
   gewöhnliche synchronisierte Einträge; zwei gleichzeitig entstandene
@@ -964,8 +964,8 @@ angezeigter ursprünglicher Autorin.
   selbst weitergibt, oder aus dem Adressbuch (Spec 051). Den Namen in der
   Einladung gibt der Eigentümer für sich selbst an.
 - Ein entfernter Empfänger behält, was er schon entschlüsseln konnte, wie beim
-  Entfernen aus einem Space (Entwurf §13; haex-vault ADR 0002, Repository
-  `https://github.com/haex-space/haex-vault`, Revision
+  Entfernen aus einem Space (Entwurf §13; haex-vault 2.x ADR 0002, Repository
+  `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad
   `docs/adr/0002-shared-space-authenticity-and-confidentiality.md`).
 - Anlegen von Datenfreigaben und Ändern von Rechten sind dem Nutzer

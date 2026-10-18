@@ -5,7 +5,7 @@
 Alle Punkte aus dem Technical Context sind hier aufgelöst; es bleiben keine
 `NEEDS CLARIFICATION`. Jeder Abschnitt: Entscheidung, Begründung, verworfene
 Alternativen. Belege stammen aus dem Stand von `main` (c52c1c3) und dem
-gepinnten haex-vault-Commit `8dce379d94e18fcd42c3b73686a06f984ca3f574`.
+gepinnten haex-vault-2.x-Commit `8dce379d94e18fcd42c3b73686a06f984ca3f574`.
 
 ## Graphify-Konsultation (Constitution)
 
@@ -142,7 +142,7 @@ Verstöße gegen Invarianten → `HolziError::InvalidInput { reason }`, fehlende
   Oberfläche zeigt „Arbeitsbereich N“ bzw. „Workspace N“ mit N = Position + 1; das
   Backend liefert nie lokalisierte Texte (CONTEXT.md, i18n) und muss deshalb auch
   keinen Standardnamen vergeben. Das Löschen eines mittleren Arbeitsbereichs
-  verdichtet die Positionen, die Nummern bleiben lückenlos (Vorbild haex-vault: dort
+  verdichtet die Positionen, die Nummern bleiben lückenlos (Vorbild haex-vault 2.x (Legacy): dort
   `Workspace ${n}` als gespeicherter Name mit Umbenennen; hier bewusst einfacher).
 - `appId`: 1–128 Zeichen, keine Steuerzeichen; sonst **opak** (kein CHECK auf
   bekannte Werte), damit künftige App-Arten (`extension.*`, Specs 017/018) keine
@@ -179,7 +179,7 @@ Abhängigkeiten als Parameter, keine Store-Untermodule.
 **Konsequenz**: Module in `src/lib/shell/` importieren einander mit expliziter
 `.ts`-Endung und **ohne** `~/`-Alias, damit `node scripts/…` sie auflösen kann.
 
-**Alternatives considered**: Ein großer Store wie in haex-vault (`windowManager/
+**Alternatives considered**: Ein großer Store wie in haex-vault 2.x (`windowManager/
 {index,lifecycle,tabs,state}.ts`, 1 000+ Zeilen mit Nuxt-Auto-Imports mitten in
 den Reduktionen, z. B. `useWorkspaceStore()` in `activateSingletonTab`) —
 verworfen: nicht ohne Nuxt-Runtime testbar. Die Tab-Logik wird trotzdem portiert
@@ -363,7 +363,7 @@ leistet die Reihenfolge oben.
 - Arbeitsbereichs-Aktionen (löschen, Fenster verschieben), das „+“-Menü und
   die Tab-Liste (Chevron): `ShadcnDropdownMenu` (Tastaturbedienung und Fokus
   liefert reka-ui).
-- Kein Karussell/Swipe zwischen Arbeitsbereichen (haex-vault nutzt Swiper): nicht
+- Kein Karussell/Swipe zwischen Arbeitsbereichen (haex-vault 2.x nutzt Swiper): nicht
   gefordert, Wechsel läuft über Auswahl und Übersicht.
 - Aufmerksamkeitshinweis: Punkt-Badge am Tab, im Chevron-Eintrag, am Eintrag in
   Fensterübersicht und Launcher-Leiste und an der Arbeitsbereichs-Auswahl.
@@ -438,7 +438,7 @@ Eintrag (Aufgabe in `tasks.md`).
   hinter dem letzten Tab und bleibt bei Überlauf am rechten Ende der Leiste
   stehen (Firefox-Verhalten, FR-032).
 - **Scroll-Pfeile** (`lucide:chevron-left`/`-right`) erscheinen nur bei Überlauf an
-  den Leistenkanten (wie haex-vault). Der **Chevron der Tab-Liste**
+  den Leistenkanten (wie haex-vault 2.x). Der **Chevron der Tab-Liste**
   (`lucide:chevron-down`) sitzt dagegen immer im rechten Schaltflächenblock, vor
   Minimieren/Maximieren/Schließen (FR-034) und ist damit klar vom Scroll-Pfeil zu
   unterscheiden (Tooltip und `aria-label` „Alle Tabs“).
@@ -456,12 +456,12 @@ Eintrag (Aufgabe in `tasks.md`).
   (FR-033). **Tab-Liste**: ein Eintrag je Tab in Leistenreihenfolge, aktiver Tab mit
   Häkchen, Aufmerksamkeits-Badge.
 
-**Rationale**: Die Rechte-Seite des „+“ in haex-vault (`window/index.vue`,
+**Rationale**: Die Rechte-Seite des „+“ in haex-vault 2.x (`window/index.vue`,
 `newTabMenuItems`) bleibt inhaltlich erhalten; verschoben wird nur die Stelle, und
 der frei gewordene Platz gehört dem Chevron. Die Anordnung ist reines CSS-Flex ohne
 JavaScript-Messung.
 
-**Alternatives considered**: „+“ dupliziert direkt den aktiven Tab (haex-vault
+**Alternatives considered**: „+“ dupliziert direkt den aktiven Tab (haex-vault 2.x
 `addNewTabFromActive`) — verworfen: bei Einzelinstanz-Apps wirkungslos und für
 Chat/Einstellungen/Föderation in dieser Spec immer ein No-op; das Menü ist
 einheitlich. Tabs per Drag umsortieren oder herauslösen — verworfen (nicht im

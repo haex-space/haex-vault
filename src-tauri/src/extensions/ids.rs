@@ -5,9 +5,9 @@
 //! extension or remember the same permission produce the same row and merge.
 //!
 //! An extension is identified by its publisher key and name. Its tables are named
-//! `<publicKey>__<name>__<table>` (the convention of haex-vault and the vault-sdk); [`ExtensionTable`]
+//! `<publicKey>__<name>__<table>` (the convention of haex-vault 2.x (Legacy) and the vault-sdk); [`ExtensionTable`]
 //! splits such a name **exactly** into its three parts, so the prefix of one extension can never
-//! cover the tables of another (haex-vault compared with `starts_with`, which let `a` own the
+//! cover the tables of another (haex-vault 2.x compared with `starts_with`, which let `a` own the
 //! tables of `a__b`).
 
 use std::fmt;

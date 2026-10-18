@@ -1,7 +1,7 @@
 # Vertrag: Manifest-Block `tools`
 
 Gilt für vault-sdk (Crate `haex-bundle`, Typ `ExtensionManifest`, Werkzeug `haex sign`), holzi und
-haex-vault. Normativ für das Format ist das Crate; holzi prüft zusätzlich die Schema-Teilmenge.
+haex-vault 2.x (Legacy). Normativ für das Format ist das Crate; holzi prüft zusätzlich die Schema-Teilmenge.
 
 ## Beispiel
 

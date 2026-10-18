@@ -30,7 +30,7 @@ reiner Pfad-Matcher unter `src/lib/wm/`, dazu zwei Vue-Bausteine
 
 - _vue-router mit `createMemoryHistory` je Tab_: siehe oben (Injection-Konflikte,
   Historie nicht serialisierbar, an Komponentenlebensdauer gebunden).
-- _haex-vault-Modell (`navigation.ts`, `useDrillDownNavigation`)_: Einträge sind
+- _haex-vault-2.x-Modell (`navigation.ts`, `useDrillDownNavigation`)_: Einträge sind
   `undo`/`redo`-Closures, die beim Unmount verwaisen; alle Tabs teilen
   `window.history` samt `navIndex`-Trick; verschachtelte Navigatoren mischen sich
   in einem Stack; keine Adressen. Genau diese Punkte schließt die Spec aus.
@@ -81,7 +81,7 @@ Routentabelle erweitert (`appRoutes.ts`).
 Eltern-Route (`/` mit Seitenleiste), die Kategorien sind Kinder
 (`/models`, `/federation`), ihre Unteransichten Enkel (`/models/hf/:repo`). Alle
 Wechsel schreiben in dieselbe Tab-Historie (FR-003); die aktive Kategorie ergibt
-sich aus dem gematchten Kind — die in haex-vault getrennten Navigatoren entfallen.
+sich aus dem gematchten Kind — die in haex-vault 2.x (Legacy) getrennten Navigatoren entfallen.
 
 **Alternatives considered**: flache Routen mit manueller Layout-Wahl in jeder App
 (Wiederholung, keine gemeinsame Seitenleisten-Logik).
@@ -122,7 +122,7 @@ navigiert.
 
 **Rationale**: Jede Eingabe hat genau eine Zielregel (FR-018, SC-002). Das Ziel
 wird bei der Eingabe aufgelöst, nicht aus einem globalen „aktiven Tab“ (Fehler
-in haex-vault).
+in haex-vault 2.x).
 
 **Offener Punkt (Spike in tasks)**: Ob die Maus-Seitentasten unter WebKitGTK
 (Linux), WKWebView (macOS) und WebView2 (Windows) als DOM-Ereignis ankommen oder
@@ -159,7 +159,7 @@ Zurück eines Tabs gedeutet — ein Verstoß gegen FR-034. Mit flacher Historie 
 
 **Alternatives considered**: Sperr-Eintrag im Router mit Deutung als
 System-Zurück (erste Planfassung) — von iframes auslösbar; roher
-`popstate`-Listener mit eigenem `pushState` (haex-vault) — kollidiert zusätzlich
+`popstate`-Listener mit eigenem `pushState` (haex-vault 2.x) — kollidiert zusätzlich
 mit vue-router.
 
 **Spike (tasks)**: Die genaue Tauri-2-Schnittstelle für die Android-Zurück-Taste

@@ -11,7 +11,7 @@ ausgelieferten Apps wird als beschriebene, aufrufbare Aktion geführt — für
 Oberfläche, Tastenkürzel und später für Agenten (eingebaut und extern über MCP);
 Leitplanken-Einstellungen bleiben Agenten verschlossen. Inhalte in Tabs,
 insbesondere haextensions, können die Navigation von holzi nicht verändern. Das
-haex-vault-Modell (`useDrillDownNavigation`, Navigation-Store) wird bewusst
+haex-vault-2.x-Modell (`useDrillDownNavigation`, Navigation-Store) wird bewusst
 nicht 1:1 übernommen.
 
 > **Begriff (2026-09-25):** Die „Shell“ aus Spec 015 heißt im Code seit dem
@@ -66,7 +66,7 @@ einem einzelnen Modell. Mit Zurück gelangt er Schritt für Schritt wieder zur
 
 **Why this priority**: Das ist der Kern des Features. Ohne Vor/Zurück müssen
 Apps mit Unteransichten eigene Zurück-Knöpfe erfinden, und genau das hat in
-haex-vault zu inkonsistentem Verhalten geführt.
+haex-vault 2.x (Legacy) zu inkonsistentem Verhalten geführt.
 
 **Independent Test**: Einen Tab öffnen, drei Ansichten nacheinander aufrufen,
 zweimal Zurück, einmal Vor: der Tab zeigt jeweils die erwartete Ansicht, und die
@@ -107,7 +107,7 @@ Tab, den er gerade meint; die Historie anderer Tabs bleibt unberührt, auch wenn
 er Tabs wechselt, Fenster minimiert oder den Arbeitsbereich wechselt.
 
 **Why this priority**: Eine geteilte Historie ist der Hauptfehler des
-haex-vault-Modells: Zurück landet dort im falschen Tab oder bewirkt gar nichts.
+haex-vault-2.x-Modells: Zurück landet dort im falschen Tab oder bewirkt gar nichts.
 Ohne saubere Trennung ist User Story 1 im Mehrfensterbetrieb wertlos.
 
 **Independent Test**: Zwei Fenster mit je einem Tab öffnen, in beiden je zwei
@@ -645,7 +645,7 @@ Spec noch keinen Zugang)
   Einzelinstanz-App bleibt unbeantwortet und ist weiterhin nicht Teil dieser
   Spec._
 - **Vorgaben aus dem Projekt** (Randbedingungen an die Planung):
-  - Referenz zum Verhalten, nicht zum Übernehmen: `haex-space/haex-vault` @
+  - Referenz zum Verhalten, nicht zum Übernehmen: `haex-space/haex-vault-legacy` @
     `8dce379d94e18fcd42c3b73686a06f984ca3f574`, `src/stores/navigation.ts` und
     `src/composables/useDrillDownNavigation.ts`. Bewusst anders als dort:
     Einträge sind Daten statt Rückgängig-Funktionen, jeder Tab hat seine eigene

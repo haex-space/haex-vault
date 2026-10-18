@@ -1,7 +1,7 @@
 //! Instance lifecycle: create, open, close, list.
 //!
 //! Contract: `specs/001-frontend-onboarding/contracts/tauri-commands.md`.
-//! One file per command mirrors haex-vault's convention.
+//! One file per command mirrors the haex-vault 2.x (Legacy) convention.
 
 pub mod cleanup;
 pub mod close;

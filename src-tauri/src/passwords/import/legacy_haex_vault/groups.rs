@@ -1,5 +1,5 @@
-//! Folders and tags of haex-vault (spec 037, `contracts/haex-vault-mapping.md` §Ordner, §Tags).
-//! The folder rows can hold a parent that does not exist or a cycle (haex-vault checks neither);
+//! Folders and tags of haex-vault 2.x (Legacy) (spec 037, `contracts/haex-vault-mapping.md` §Ordner, §Tags).
+//! The folder rows can hold a parent that does not exist or a cycle (haex-vault 2.x checks neither);
 //! such a folder goes to the top and is reported. The row `trash` is the recycle bin, and anything
 //! whose chain reaches it is in the trash.
 

@@ -1,7 +1,7 @@
 # Research: Dateibrowser und Viewer (044)
 
-Stand 2026-10-07. Quellen: Code von holzi auf `origin/main` (`0486fb9d` und folgende), haex-vault
-(Repository `https://github.com/haex-space/haex-vault`, Revision
+Stand 2026-10-07. Quellen: Code von holzi auf `origin/main` (`0486fb9d` und folgende), haex-vault 2.x (Legacy)
+(Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `fc4e84b61a050576ba42e0dc832d04064a8605a3`), crates.io/npm am 2026-10-07, developer.android.com.
 „Probe“ heißt: `cargo check` für `aarch64-linux-android` und `x86_64-pc-windows-gnu`; das beweist
 Kompilieren, nicht Verhalten zur Laufzeit.
@@ -61,15 +61,15 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 
 ## R4 Medien über einen lokalen HTTP-Server (FR-012, FR-013, FR-016)
 
-- **Decision**: `files/media_server.rs` nach haex-vault `src-tauri/src/media_server/mod.rs` (eigener
+- **Decision**: `files/media_server.rs` nach haex-vault 2.x `src-tauri/src/media_server/mod.rs` (eigener
   HTTP/1.1 auf `tokio::net::TcpStream`, 127.0.0.1, zufälliger Port, UUIDv4-Tokens, Range `bytes=N-M`,
-  `N-` und `-N`, gestückelt mit flachem Speicher). Neu gegenüber haex-vault: `release(token)` und
+  `N-` und `-N`, gestückelt mit flachem Speicher). Neu gegenüber haex-vault 2.x: `release(token)` und
   `release_tab(tab_id)`; Antwort auf `OPTIONS`; CORS-Kopfzeilen `Access-Control-Allow-Origin`,
   `Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length` für pdf.js; der
   Accept-Loop endet mit `gate.token()`. Quellen hinter dem Trait `StreamingSource { size, read_range }`
-  (haex-vault `remote_storage/streaming/source.rs`).
+  (haex-vault 2.x `remote_storage/streaming/source.rs`).
 - **Rationale**: WebKitGTK spielt `<video>`/`<audio>` nicht aus eigenen Schemata, und `asset://` hat kein
-  Range (haex-vault `docs/plans/2026-06-03-unified-media-playback-and-filebrowser-refactor-design.md`).
+  Range (haex-vault 2.x `docs/plans/2026-06-03-unified-media-playback-and-filebrowser-refactor-design.md`).
   Ein Prozess je Vault-Sitzung (ADR 0003) heißt: Sperren beendet den Prozess, alle Tokens verfallen.
 - **CSP** (`tauri.conf.json`): `media-src 'self' http://127.0.0.1:*`, `http://127.0.0.1:*` in `img-src`
   und `connect-src`. Kein `useHttpsScheme` (bleibt `false`, sonst Mixed Content auf Windows/Android).
@@ -79,7 +79,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 - **Risiko** [Guessing]: „Local Network Access“ in Chromium 142+ könnte Anfragen von
   `http://tauri.localhost` an `127.0.0.1` in WebView2/Android WebView sperren. Erste Aufgabe der
   Umsetzung ist eine selbstprüfende Plattform-Probe in der CI auf Windows, macOS und Android (Feature
-  `platform-probe`, tasks.md T007; Android im Emulator wie haex-vault mit
+  `platform-probe`, tasks.md T007; Android im Emulator wie haex-vault 2.x mit
   `reactivecircus/android-emulator-runner`); Ausweichweg: WebView2-Argument, das LNA abschaltet.
 - **Ergebnis der Plattform-Probe** (T007, PR #328, 2026-10-08): `fetch` aus der Webview an
   `127.0.0.1` gelingt unter Windows (WebView2, Edge 153, also nach Einführung von LNA in Chromium 142) und macOS (WKWebView). Im Android-Emulator (Android 15, WebView 124, Debug-APK mit erlaubtem
@@ -205,7 +205,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
   `pdfjs-dist/build/pdf.worker.min.mjs?url`; `cmaps/` und `standard_fonts/` als statische Assets. Kein
   `'wasm-unsafe-eval'` in `script-src`: pdf.js nutzt dann seine Nicht-Wasm-Ersatzwege (JPX/JBIG2
   langsamer) [Likely]. Laden über die Freigabe-URL mit Range (`rangeChunkSize` 1 MiB); dafür braucht der
-  Server die CORS-Kopfzeilen aus R4. Vorlage: haex-vault `src/components/haex/system/files/PdfViewer.vue`
+  Server die CORS-Kopfzeilen aus R4. Vorlage: haex-vault 2.x `src/components/haex/system/files/PdfViewer.vue`
   (dort `pdfjs-dist ^6.2`).
 
 ## R13 Einbindung ins Fenster

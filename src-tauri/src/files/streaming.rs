@@ -1,4 +1,4 @@
-//! Where the media server reads a file from (spec 044 FR-012, FR-013, research R4; after haex-vault
+//! Where the media server reads a file from (spec 044 FR-012, FR-013, research R4; after haex-vault 2.x (Legacy)
 //! `remote_storage/streaming/source.rs`): its size, its media type and a reader for one byte range.
 //! The server copies that reader through a fixed buffer, so no file is ever held whole in memory.
 //! Storages (US5) add a source that reads ranges from S3.

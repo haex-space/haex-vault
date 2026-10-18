@@ -1,5 +1,5 @@
 //! The log of an extension (spec 017, US5, T086, contracts/bridge.md `extension_logging_*`, method
-//! names as in haex-vault): an extension writes and reads only its own entries on this device;
+//! names as in the haex-vault 2.x (Legacy): an extension writes and reads only its own entries on this device;
 //! holzi's settings read them with [`read`]. The entries stay on this device
 //! (`extension_logs_no_sync`), at most [`MAX_ENTRIES`] per extension and device: the oldest go
 //! first.

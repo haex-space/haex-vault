@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * PDFs (spec 044 FR-009, FR-010; after haex-vault `src/components/haex/system/files/PdfViewer.vue`):
+ * PDFs (spec 044 FR-009, FR-010; after haex-vault 2.x (Legacy) `src/components/haex/system/files/PdfViewer.vue`):
  * one page at a time with page buttons and zoom, the same on every platform. Loading and drawing
  * live in `lib/files/pdf.ts`. Used as `LazyFilesPdfViewer`, so pdf.js stays out of the main bundle.
  * Takes the focus when it opens, so PageUp and PageDown turn pages; the other keys reach the viewer.

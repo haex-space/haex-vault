@@ -104,7 +104,7 @@ Anzeige. Schema-Hash im `target` — macht die Anzeige unlesbar.
 
 1. **Format** im Crate `haex-bundle` (`assert_valid_manifest`, vault-sdk): Struktur, Namen, Grenzen,
    `effect`-Werte → sonst `manifest_invalid`. Neue Testvektoren `bad-tools-*.xt`. Damit lehnen holzi, das
-   Werkzeug `haex sign` und haex-vault dasselbe ab.
+   Werkzeug `haex sign` und haex-vault 2.x (Legacy) dasselbe ab.
 2. **Schema-Teilmenge** in holzi (`schema_in_subset`, `action_tool.rs`): ein Werkzeug außerhalb der Teilmenge
    wird nicht angeboten und in der Einstellungs-Ansicht als „nicht unterstützt“ gezeigt; die Erweiterung
    installiert trotzdem (wie `unsupported_categories` bei Berechtigungen).

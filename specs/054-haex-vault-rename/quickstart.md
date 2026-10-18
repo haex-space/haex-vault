@@ -28,7 +28,9 @@ git grep -n -i -E "haex[-_ ]vault" -- src src-tauri docs specs ':!specs/054-haex
   | grep -v -i -E "legacy|2\.x"                # liefert nur noch Zeilen, die die neue App meinen (nach S6 alle)
 ```
 
-Erwartung (nach S1): jede Fundstelle, die die alte App meint, trägt „2.x (Legacy)“ oder `legacy`;
+Erwartung (nach S1): jede Fundstelle, die die alte App meint, trägt „2.x“ (beim ersten Auftreten je
+Datei „2.x (Legacy)“) oder `legacy`; ausgenommen sind Dateinamen wie `haex-vault-mapping.md`, der
+Verzeichnisname `037-haex-vault-import` und das Logo `haex-vault-icon.png` der neuen App;
 das Modul heißt `src-tauri/src/passwords/import/legacy_haex_vault/`. Stichprobe in
 `specs/034-password-manager/spec.md` und `specs/037-haex-vault-import/spec.md`.
 

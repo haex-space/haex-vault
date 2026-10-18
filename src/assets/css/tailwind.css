@@ -9,7 +9,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Roomier than Tailwind's 0.25rem, closer to haex-vault: every spacing utility (h-9, p-3, gap-2 …)
+/* Roomier than Tailwind's 0.25rem, closer to haex-vault 2.x (Legacy): every spacing utility (h-9, p-3, gap-2 …)
    scales with it, including the UI layer's controls, which compile through this stylesheet. */
 @theme {
   --spacing: 0.275rem;

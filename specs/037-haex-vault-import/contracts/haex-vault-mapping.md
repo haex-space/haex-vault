@@ -1,8 +1,8 @@
-# Vertrag: Abbildung haex-vault → Importmodell
+# Vertrag: Abbildung haex-vault 2.x (Legacy) → Importmodell
 
-Quelle: haex-vault @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`. Ergänzt
+Quelle: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`. Ergänzt
 [034 contracts/import-mapping.md](../../034-password-manager/contracts/import-mapping.md) um die
-Quelle `haexvault`. Alle Abfragen nennen Spalten beim Namen.
+Quelle `legacyhaexvault`. Alle Abfragen nennen Spalten beim Namen.
 
 ## Einträge (`haex_passwords_item_details` → `ImportItem`)
 
@@ -83,7 +83,7 @@ Alle Spalten 1:1: `credential_id`, `relying_party_id`, `relying_party_name`, `us
 | `mdi:<name>`, Kurznamen der alten Erweiterung | Tabellen-Eintrag → `lucide:…`                                                  |
 | sonst                                         | kein Symbol, `IconNotMapped`                                                   |
 
-Die Tabelle steht in `src-tauri/src/passwords/import/haex_vault/icons.rs`. Jedes Ziel steht in
+Die Tabelle steht in `src-tauri/src/passwords/import/legacy_haex_vault/icons.rs`. Jedes Ziel steht in
 `IMPORT_ICONS` (`src/lib/passwords/icons.ts`); ein Test prüft das.
 
 ## Ignoriert (FR-015)

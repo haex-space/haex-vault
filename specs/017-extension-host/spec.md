@@ -3,14 +3,14 @@
 **Feature Branch**: `017-extension-host`
 **Created**: 2026-10-02
 **Status**: Draft
-**Input**: holzi soll haextensions so einbinden können, wie haex-vault es heute tut, aber auf
+**Input**: holzi soll haextensions so einbinden können, wie haex-vault 2.x (Legacy) es heute tut, aber auf
 holzi angepasst: signierte Web-Bundles laufen in abgeschotteten iframes als Apps im Window
 Manager (wm), bekommen Berechtigungen, die der Nutzer bei der Installation bestätigt und zur
 Laufzeit erteilt oder verweigert, und dürfen SQL-Abfragen auf ihre eigenen Tabellen absetzen
 (Drizzle über das vault-sdk), auf Tabellen anderer Erweiterungen nur mit Berechtigung. Dazu
-kommen alle weiteren Host-Funktionen, die haex-vault Erweiterungen anbietet (Netzwerk,
+kommen alle weiteren Host-Funktionen, die haex-vault 2.x Erweiterungen anbietet (Netzwerk,
 Dateien, Benachrichtigungen, Passwörter, entfernter Speicher, Mail, Shell, Protokolle,
-Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: haex-vault @
+Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: haex-vault 2.x @
 `8dce379d94e18fcd42c3b73686a06f984ca3f574` (`src-tauri/src/extension/`,
 `src/composables/extensionMessageHandler.ts`, `src/composables/usePermissionPrompt.ts`,
 `src/stores/extensions/broadcast.ts`), vault-sdk @
@@ -30,7 +30,7 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
   Einstiegsdatei, Symbol, Beschreibung, Darstellung (eine oder mehrere Instanzen),
   Migrationen und den **erklärten Berechtigungen**.
 - **Eigene Tabellen**: die Tabellen mit dem Präfix der Erweiterung,
-  `<Herausgeberschlüssel>__<Name>__`. Das Präfix ist dasselbe wie in haex-vault
+  `<Herausgeberschlüssel>__<Name>__`. Das Präfix ist dasselbe wie in haex-vault 2.x
   (`src-tauri/src/extension/utils.rs`, `get_extension_table_prefix`) und im vault-sdk
   (`src/types.ts`, `getTableName`) und wird schon von Spec 028 vorausgesetzt.
 - **Kerntabellen**: alle Tabellen, die keine Tabellen einer Erweiterung sind: die Tabellen von
@@ -60,7 +60,7 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
 - [ADR-0004](../../docs/adr/0004-extension-protocol-split.md): Diese Spec ist die dort
   geplante Spec 017, die Richtung B (Erweiterung → holzi) mit der einen Prüfstelle. Sie
   übernimmt das Protokoll des vault-sdk unverändert, damit dieselben Erweiterungen in
-  haex-vault und holzi laufen. Die Richtung A (Werkzeuge einer Erweiterung für den Agenten
+  haex-vault 2.x und holzi laufen. Die Richtung A (Werkzeuge einer Erweiterung für den Agenten
   über MCP) ist Spec 018, das Ergänzen von Werkzeugen in den bestehenden haextensions ist
   Spec 019.
 - [ADR-0008](../../docs/adr/0008-extension-bundle-signature-and-sql-authorizer.md): hält das
@@ -112,11 +112,11 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
 
 ### Session 2026-10-02
 
-- Q: Welche Host-Funktionen deckt die Spec neben SQL ab? → A: Alle, die haex-vault
+- Q: Welche Host-Funktionen deckt die Spec neben SQL ab? → A: Alle, die haex-vault 2.x
   Erweiterungen anbietet: Datenbank, Kontext, Schlüssel-Wert-Speicher, Dateisystem, Netzwerk,
   Benachrichtigungen, Passwörter, entfernter Speicher, Mail, Shell und Protokolle. Bewusst
   ausgenommen sind die Space-Zuordnung von Datenzeilen (holzi teilt Daten über 028, nicht
-  über Spaces), die External Bridge (034) und Funktionen, die auch haex-vault Erweiterungen
+  über Spaces), die External Bridge (034) und Funktionen, die auch haex-vault 2.x Erweiterungen
   nicht zugänglich macht (LocalSend, Identitäten, Lesezeichen, Sync-Server).
 - Q: Wie verhalten sich Erweiterungen über mehrere eigene Geräte? → A: Eine Installation gilt
   für die Vault. Bundle, Registrierung und gemerkte Berechtigungen sind Vault-Daten und gehen
@@ -130,15 +130,15 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
 - Q: Gelten gemerkte Berechtigungen für Shell und Dateisystem auch auf allen eigenen Geräten?
   → A: Überholt durch die Klärung vom 2026-10-06 (unten). Ursprünglich: standardmäßig nur auf
   dem Gerät, auf dem sie erteilt wurden, mit der Wahl „für alle Geräte merken“.
-- Q: Übernimmt holzi das Signaturformat von haex-vault? → A: Nein. haex-vault signiert nur die
+- Q: Übernimmt holzi das Signaturformat von haex-vault 2.x? → A: Nein. haex-vault 2.x signiert nur die
   aneinandergehängten Dateiinhalte, ohne Pfade und Dateigrenzen; Inhalte lassen sich so ohne
   Schlüssel zwischen Dateien verschieben, Dateien umbenennen oder leere Dateien ergänzen. holzi
   verlangt ein eigenes, strenges Format, in dem Pfad, Länge und Inhalt jeder Datei sowie das
   kanonische Manifest signiert sind. Das Werkzeug `haex` im vault-sdk bekommt dieses Format;
   Bundles im alten Format lehnt holzi ab, auch im Entwicklermodus gibt es dafür keine
   Ausnahme (dort wird ohnehin nicht signiert).
-- Q: Wo werden die Schwachstellen behoben, die die Analyse von haex-vault gefunden hat? → A:
-  Nur in holzi. holzi löst haex-vault ab; haex-vault wird dafür nicht geändert. Jede gefundene
+- Q: Wo werden die Schwachstellen behoben, die die Analyse von haex-vault 2.x gefunden hat? → A:
+  Nur in holzi. holzi löst haex-vault 2.x ab; haex-vault 2.x wird dafür nicht geändert. Jede gefundene
   Schwachstelle ist in holzi von Anfang an ausgeschlossen und hat einen Test (SC-002), bevor
   eine Lieferung von 017 als fertig gilt.
 - Q: (Planung) Wie wird festgehalten, welche Migrationen auf einem Gerät angewendet sind? → A: In
@@ -381,7 +381,7 @@ Aufgaben-Erweiterung. Sie erklärt in ihrem Manifest, dass sie die Tabellen von 
 lesen will. Der Nutzer bestätigt das bei der Installation, und die Wochenübersicht liest die
 Termine per SQL, kann sie aber nicht ändern.
 
-**Why this priority**: haex-vault erlaubt das, und es macht Erweiterungen kombinierbar. Für
+**Why this priority**: haex-vault 2.x erlaubt das, und es macht Erweiterungen kombinierbar. Für
 die erste Erweiterung braucht es niemand, deshalb P2.
 
 **Independent Test**: Zwei Test-Bundles installieren. Das zweite liest mit Berechtigung
@@ -664,7 +664,7 @@ erscheint), Entwicklermodus ausschalten (Erweiterung verschwindet).
   Die Signatur MUSS Pfad, Länge und Inhalt jeder Datei des Bundles und das kanonische
   Manifest decken, so dass weder Inhalte zwischen Dateien verschoben noch Dateien umbenannt,
   ergänzt oder entfernt werden können, ohne dass die Prüfung scheitert. Das Format MUSS eine
-  Kennung seiner Fassung tragen. Bundles im Signaturformat von haex-vault MUSS holzi mit dem
+  Kennung seiner Fassung tragen. Bundles im Signaturformat von haex-vault 2.x MUSS holzi mit dem
   Hinweis ablehnen, dass sie mit dem aktuellen Werkzeug `haex` neu signiert werden müssen.
 - **FR-003**: holzi MUSS die Signatur vor jedem Start der Erweiterung erneut prüfen, nicht nur
   bei der Installation, und eine Erweiterung mit veränderten Dateien nicht starten.
@@ -1004,28 +1004,28 @@ erscheint), Entwicklermodus ausschalten (Erweiterung verschwindet).
 - Es gibt keine Liste vertrauenswürdiger Herausgeber. Die Signatur beweist, dass das Bundle
   unverändert ist und von diesem Herausgeberschlüssel stammt, nicht, dass er vertrauenswürdig
   ist. Die Installation zeigt den Herausgeber, damit der Nutzer vergleichen kann.
-- Das Präfix `<Herausgeberschlüssel>__<Name>__` und das Protokoll werden aus haex-vault und
+- Das Präfix `<Herausgeberschlüssel>__<Name>__` und das Protokoll werden aus haex-vault 2.x und
   vault-sdk übernommen, damit der Code der Erweiterungen unverändert bleibt. Das
   Signaturformat übernimmt holzi nicht (FR-002); die Änderung am Werkzeug `haex` ist Arbeit im
-  Repository `vault-sdk`, auf die holzi mit voller Revision verweist. Wo haex-vault
+  Repository `vault-sdk`, auf die holzi mit voller Revision verweist. Wo haex-vault 2.x
   von dieser Spec abweicht (Prüfung von Migrationen, Tabellen in `WITH` und Unterabfragen,
   vorläufige Berechtigungen für Kerntabellen, Abruf am Host vorbei, gemeinsamer Ursprung,
   Speicher je Fenster, Funktionen deaktivierter Erweiterungen, Löschmarken aus
-  `_no_sync`-Tabellen), gilt diese Spec. Das sind Schwächen von haex-vault, die holzi nicht
-  übernimmt. haex-vault selbst wird nicht korrigiert, weil holzi es ablöst; Code aus
-  haex-vault ist Vorlage für Verhalten; seine Prüfungen in Rust werden übernommen, wo sie tragen, und dabei um
+  `_no_sync`-Tabellen), gilt diese Spec. Das sind Schwächen von haex-vault 2.x, die holzi nicht
+  übernimmt. haex-vault 2.x selbst wird nicht korrigiert, weil holzi es ablöst; Code aus
+  haex-vault 2.x ist Vorlage für Verhalten; seine Prüfungen in Rust werden übernommen, wo sie tragen, und dabei um
   die gefundenen Lücken korrigiert.
-- Die Bundle-Datei bleibt ein Archiv wie in haex-vault; nur die Signatur ändert sich.
+- Die Bundle-Datei bleibt ein Archiv wie in haex-vault 2.x; nur die Signatur ändert sich.
 - Kerntabellen sind per SQL nie erreichbar. Für Kerndaten gibt es typisierte Funktionen
   (Passwörter aus 034); weitere kommen mit eigenen Specs.
 - „Daten löschen“ beim Entfernen ist ein Löschen von Vault-Daten und wirkt über den Sync auf
   allen eigenen Geräten.
 - Die Bundles sind klein genug für die Vault-Datenbank (wie Anhänge in 034, mit einer Grenze,
   die der Plan festlegt). Übertragen werden sie über den Sync aus 024.
-- Wie in haex-vault gibt eine Mail-Erweiterung die Zugangsdaten des Mailservers bei jedem
+- Wie in haex-vault 2.x gibt eine Mail-Erweiterung die Zugangsdaten des Mailservers bei jedem
   Aufruf mit; die Berechtigung gilt für den Server. Wo die Erweiterung die Zugangsdaten
   aufbewahrt (eigene Tabellen oder Passwortmanager über FR-053), ist ihre Sache.
-- Mail und Shell setzt holzi selbst um, wie haex-vault; die Spec 017 nimmt dafür keine
+- Mail und Shell setzt holzi selbst um, wie haex-vault 2.x; die Spec 017 nimmt dafür keine
   weiteren holzi-Funktionen (wie ein Mail-Programm) an.
 - Agenten erreichen Erweiterungen erst mit Spec 018 (Werkzeuge über MCP). Die Meldung
   „Aktion angefordert“ des vault-sdk beantwortet holzi bis dahin nicht.
@@ -1043,6 +1043,6 @@ erscheint), Entwicklermodus ausschalten (Erweiterung verschwindet).
   an eine Erweiterung (034).
 - Zeilen einem Space zuordnen. Daten teilen geht über Spec 028.
 - LocalSend, Identitäten, Lesezeichen und Sync-Server als Funktionen für Erweiterungen.
-  haex-vault macht sie Erweiterungen auch nicht zugänglich.
+  haex-vault 2.x macht sie Erweiterungen auch nicht zugänglich.
 - Native Fenster für Erweiterungen (ADR-0004).
 - Aufrufe von einer Erweiterung zu einer anderen außer über SQL auf deren Tabellen.

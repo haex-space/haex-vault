@@ -47,9 +47,9 @@ def check_local_markdown_links(errors: list[str]) -> None:
             target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
             if not target or re.match(r"^[a-z][a-z0-9+.-]*:", target) or target.startswith("#"):
                 continue
-            # These links intentionally point at the sibling haex-vault repository,
+            # These links intentionally point at the sibling haex-vault 2.x (Legacy) repository,
             # which is not checked out in this repository's CI workspace.
-            if target.startswith("../../../../haex-vault/"):
+            if target.startswith("../../../../haex-vault-legacy/"):
                 continue
             target_path = (document.parent / target.split("#", 1)[0]).resolve()
             if not target_path.exists():

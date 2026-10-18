@@ -16,7 +16,7 @@ Die Umsetzung erweitert das bestehende haex-notes-Dokumentmodell und bindet die 
 
 **Language/Version**: TypeScript strict, Vue 3.5, Nuxt 4.2 SPA, haex-notes package 0.1.7
 
-**Primary Dependencies**: Bestehender haex-vault SDK einschließlich der Holzi-Agent-Task-Brücke, Drizzle ORM, VueUse, perfect-freehand; zusätzlich `pdf-lib` für den PDF-Export. Die OCR-/Korrekturkomponente wird über den strukturierten Agent-Task angesprochen und nicht als konkretes Modell oder Anbieter-SDK in die Extension eingebaut.
+**Primary Dependencies**: Bestehender haex-vault 2.x (Legacy) SDK einschließlich der Holzi-Agent-Task-Brücke, Drizzle ORM, VueUse, perfect-freehand; zusätzlich `pdf-lib` für den PDF-Export. Die OCR-/Korrekturkomponente wird über den strukturierten Agent-Task angesprochen und nicht als konkretes Modell oder Anbieter-SDK in die Extension eingebaut.
 
 **Storage**: Bestehende SQLite-Seitentabelle für strukturiertes Import- und Prüfdaten-JSON; bestehender dateibasierter Asset-Store für Originalfoto, lokale Arbeitskopie und erzeugte Ausschnitte. Große Binärdaten und Font-Dateien werden nicht in der Datenbank oder als Data-URL gespeichert. Die Datenbank speichert nur Font-ID und Version/Hash.
 

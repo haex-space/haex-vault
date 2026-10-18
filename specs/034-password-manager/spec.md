@@ -4,13 +4,13 @@
 **Created**: 2026-10-02
 **Status**: Draft
 **Input**: holzi bekommt einen festen Passwortmanager, der Zugangsdaten und andere
-Geheimnisse in der Vault verwahrt. Vorlage ist der Passwortmanager von haex-vault
+Geheimnisse in der Vault verwahrt. Vorlage ist der Passwortmanager von haex-vault 2.x (Legacy)
 (Einträge, Ordner, Tags, eigene Felder, TOTP, Passkeys als Daten, Passwortgenerator,
 Verlauf, Anhänge, Papierkorb, Import aus KeePass, Bitwarden und LastPass, Zugriff für
 Erweiterungen über Tag-Berechtigungen). Das Datenmodell wird möglichst 1:1 übernommen;
 die Oberfläche wird ein App-Fenster im Window Manager (wm) im Stil von holzi. Die
 Anbindung der External Bridge (Autofill, Passkey-Signieren, Browser-Erweiterung) ist
-ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault @
+ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, `src/database/schemas/passwords.ts`,
 `src/components/haex/system/passwords/`, `src-tauri/src/passwords/` und
 `src-tauri/src/extension/permissions/manager/check/passwords.rs`.
@@ -48,16 +48,16 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault @
 
 - Q: Werden Geheimnisse zusätzlich zur Vault-Verschlüsselung verschlüsselt? → A: Nein.
   Passwörter, TOTP-Secrets und private Passkey-Schlüssel liegen unverschlüsselt in der
-  Vault-Datenbank (wie in haex-vault); geschützt sind sie durch die Verschlüsselung der
+  Vault-Datenbank (wie in haex-vault 2.x); geschützt sind sie durch die Verschlüsselung der
   Vault und durch Berechtigungen für jeden Zugriff von außen.
 - Q: Gehört die External Bridge (Browser-Erweiterung, Autofill, Passkey-Signieren) zum
   ersten Wurf? → A: Nein, sie kommt später. Der Passwortmanager wird so gebaut, dass sie
   als weiterer Aufrufer an dieselbe Zugriffsprüfung andocken kann, ohne das Datenmodell
   zu ändern.
-- Q: Wie liegen Dateianhänge in der Datenbank? → A: Wie in haex-vault in der Vault-Datenbank
+- Q: Wie liegen Dateianhänge in der Datenbank? → A: Wie in haex-vault 2.x in der Vault-Datenbank
   und per SHA-256 dedupliziert, aber als Binärdaten (BLOB) statt als Base64-Text. Das ist
-  ein bewusster Bruch mit haex-vault: Die Tabelle der Binärdaten ist nicht mit der von
-  haex-vault austauschbar.
+  ein bewusster Bruch mit haex-vault 2.x: Die Tabelle der Binärdaten ist nicht mit der von
+  haex-vault 2.x austauschbar.
 - Q: Über welchen Weg synchronisieren Passwörter und Anhänge? → A: Wie alle Vault-Daten
   über den Datensync von Spec 024 (iroh direkt zwischen den eigenen Geräten, Relay
   optional). Das Sync-Postfach eines Relays ist nur ein zusätzlicher Weg; ein zu großer
@@ -65,14 +65,14 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault @
 - Q: Wie groß darf ein einzelner Anhang höchstens sein? → A: 25 MiB. Der Wert schützt die
   Größe der Vault-Datenbank, nicht den Sync: Ein Anhang über der Obergrenze des Relay-Postfachs
   (Spec 026) käme weiter direkt über iroh an.
-- Q: (Planung) Welche Abweichungen vom Datenmodell von haex-vault sind nötig? → A: Keine
+- Q: (Planung) Welche Abweichungen vom Datenmodell von haex-vault 2.x sind nötig? → A: Keine
   UNIQUE-Constraints (ein Konflikt hält den Sync an; abgeleitete Kennungen für Tags,
   Tag-Zuordnungen und Passkeys), zwei Spalten für den früheren Ort im Papierkorb, `RESTRICT` bei
   den Verweisen auf Binärdaten. Der Verlauf speichert den neuen Zustand; Aufräumen mit Karenzzeit
   von sieben Tagen ab dem Verlust des letzten bekannten Verweises (geprüft beim nächsten Öffnen); PDFs nur zum Herunterladen; der eingebaute Agent sieht nur Titel, Tags und
   Ordnernamen (Plan, R2–R6, R18).
 - Q: (Analyse) Müssen Passkeys im ersten Wurf auch aus Importen kommen? → A: Ja (Bitwarden
-  und KeePassXC). haex-vault importiert keine Passkeys; es erzeugt sie selbst über die Bridge und
+  und KeePassXC). haex-vault 2.x importiert keine Passkeys; es erzeugt sie selbst über die Bridge und
   hat deshalb beide Schlüssel. Importquellen liefern nur den privaten Schlüssel, der öffentliche
   wird abgeleitet (ES256, EdDSA, RS256; Details im Plan).
 - Q: (Analyse) Läuft die Oberfläche am Dienst vorbei? → A: Nein. Alles läuft über den Dienst; die
@@ -108,7 +108,7 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault @
   Credential-ID steht im Importbericht.
 - Q: (Analyse) Wie hart sind Zeitvorgaben? → A: Grobe Zielgrenzen genügen; es gibt keine
   Messaufgaben für Zeiten.
-- Q: Soll das Datenmodell von haex-vault 1:1 übernommen werden? → A: Ja, Tabellen- und
+- Q: Soll das Datenmodell von haex-vault 2.x 1:1 übernommen werden? → A: Ja, Tabellen- und
   Spaltennamen und deren Bedeutung bleiben, mit der einen Ausnahme der Binärdaten.
 
 ## User Scenarios & Testing _(mandatory)_
@@ -261,7 +261,7 @@ Scan, ein Zertifikat), sieht Bilder als Vorschau, benennt Anhänge um, lädt sie
 eine Datei herunter und entfernt sie. Dieselbe Datei an mehreren Einträgen belegt nur einmal
 Platz.
 
-**Why this priority**: Anhänge sind in haex-vault vorhanden und gehören für viele
+**Why this priority**: Anhänge sind in haex-vault 2.x vorhanden und gehören für viele
 Nutzer zu den Daten, die sie sonst nirgends sicher ablegen. Sie sind nicht nötig, damit der
 Passwortmanager nützlich ist.
 
@@ -667,7 +667,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 
 **Daten, Sync und Fenster**
 
-- **FR-036**: Tabellen- und Spaltennamen des Datenmodells MÜSSEN die von haex-vault
+- **FR-036**: Tabellen- und Spaltennamen des Datenmodells MÜSSEN die von haex-vault 2.x
   übernehmen (`haex_passwords_item_details`, `_item_key_values`, `_groups`, `_group_items`,
   `_binaries`, `_item_binaries`, `_item_snapshots`, `_snapshot_binaries`,
   `_generator_presets`, `_tags`, `_item_tags`, `_passkeys`), mit gleicher Bedeutung. Die
@@ -766,7 +766,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   Leerlauf ist nicht Teil dieser Spec.
 - Die Tabellennamen mit dem Präfix `haex_` weichen vom Muster der übrigen holzi-Tabellen ab
   (zum Beispiel `chat_threads`). Das ist bewusst, damit Datenmodell und Werkzeuge mit
-  haex-vault vergleichbar bleiben; der Plan prüft, dass das Präfix in haex-crdt keine
+  haex-vault 2.x vergleichbar bleiben; der Plan prüft, dass das Präfix in haex-crdt keine
   Sonderbehandlung auslöst.
 - Passkeys entstehen in dieser Spec nur durch Import, Sync oder später durch die External
   Bridge; die Oberfläche kann sie anzeigen, umbenennen und löschen, aber nicht neu anlegen.

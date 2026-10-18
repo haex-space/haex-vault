@@ -1,6 +1,6 @@
 //! Tests for the history of an entry (spec 034, US4, FR-017, FR-018, research R5): a state with
 //! the new values after every change, none when nothing changed, the names of what changed, reading
-//! states from haex-vault, and restoring a state without losing any.
+//! states from haex-vault 2.x (Legacy), and restoring a state without losing any.
 
 // The tests read raw columns that the CRDT write path does not expose.
 #![allow(clippy::disallowed_methods, clippy::redundant_closure)]
@@ -268,7 +268,7 @@ fn attachments_of_the_entry_are_mirrored_into_the_state() {
 }
 
 #[test]
-fn a_state_from_haex_vault_without_version_or_otp_parameters_reads_fine() {
+fn a_state_from_legacy_haex_vault_without_version_or_otp_parameters_reads_fine() {
     let (_dir, db) = open_test_vault();
     let id = create(&db);
     write(&db, |tx| {

@@ -87,7 +87,7 @@ fn verify_current(path: &Path, current: &Passphrase) -> haex_crdt::Result<()> {
     }
 }
 
-/// The sequence from haex-vault (`database/maintenance.rs`, `change_vault_password`): SQLCipher's
+/// The sequence from haex-vault 2.x (Legacy) (`database/maintenance.rs`, `change_vault_password`): SQLCipher's
 /// `rekey` does not work in WAL mode, so the WAL is folded into the file and the journal switched
 /// to DELETE first, whose rollback journal also makes the re-key atomic.
 fn rekey(conn: &Connection, new: &Passphrase) -> haex_crdt::Result<()> {
@@ -100,7 +100,7 @@ fn rekey(conn: &Connection, new: &Passphrase) -> haex_crdt::Result<()> {
     }
     conn.pragma_update_and_check(None, "journal_mode", "DELETE", |r| r.get::<_, String>(0))?;
     // ponytail: rusqlite renders the key into the text of a `PRAGMA rekey` statement that is not
-    // zeroed, like `PRAGMA key` on open (`passwords/import/haex_vault/open.rs`). Ceiling: a plain
+    // zeroed, like `PRAGMA key` on open (`passwords/import/legacy_haex_vault/open.rs`). Ceiling: a plain
     // copy of the new passphrase in freed memory until it is reused. Upgrade path:
     // `sqlite3_rekey_v2` through `rusqlite::ffi` with a zeroizing buffer.
     let rekeyed = conn.pragma_update(None, "rekey", new.as_str());

@@ -36,7 +36,7 @@
   „Zugriff auf alle Dateien“ (Name der Android-Berechtigung) und die Freigabe-URL als
   Sicherheitsgrenze. Lösungen wie lokaler HTTP-Server, Range-Anfragen, pdf.js und Rust-Module stehen
   nur im Design-Dokument, nicht in der Spec.
-- SC-008 nennt Plattformen, keine Technik; das ist der Kern des Fehlers, der haex-vault unter Linux
+- SC-008 nennt Plattformen, keine Technik; das ist der Kern des Fehlers, der haex-vault 2.x (Legacy) unter Linux
   getroffen hat.
 - Alle Entscheidungen stammen aus der Brainstorming-Sitzung vom 2026-10-07 (Clarifications);
   es gibt keine offenen Fragen.

@@ -61,7 +61,7 @@ pub fn build(raw: RawPasskey, problems: &mut Vec<Problem>) -> PasskeyInput {
         None => problems.push(Problem::field(AttentionKind::PasskeyKeyUnreadable, &place)),
         Some(der) => {
             let der = Zeroizing::new(der);
-            // The key is stored the way haex-vault stores it: standard Base64 of the PKCS8 DER.
+            // The key is stored the way haex-vault 2.x (Legacy) stores it: standard Base64 of the PKCS8 DER.
             private_key = Zeroizing::new(STANDARD.encode(&*der));
             let candidates: Vec<i64> = match raw.algorithm {
                 Some(a) => vec![a],

@@ -23,7 +23,7 @@ the file (`#[cfg(test)] #[path = "…_tests.rs"] mod tests;`), never inline. No 
 or command, run a bounded `graphify query "<intent>" --budget 1200` and extend an existing candidate
 where one fits; name the evaluated candidates in the PR.
 
-**haex-vault references** use repository `https://github.com/haex-space/haex-vault` at revision
+**haex-vault 2.x (Legacy) references** use repository `https://github.com/haex-space/haex-vault-legacy` at revision
 `8dce379d94e18fcd42c3b73686a06f984ca3f574` (constitution IV). holzi takes the model, not the code or
 the format (research R3).
 
