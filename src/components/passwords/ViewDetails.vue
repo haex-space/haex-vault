@@ -6,7 +6,10 @@
  * field copies (`usePasswordsCopy`), a stored value by its field, so no value passes through here
  * except what the masked value asks for.
  */
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { toast } from 'vue-sonner'
 import type { ItemDetail } from '@bindings/ItemDetail'
+import { openableUrl } from '~/lib/passwords/format'
 
 const props = defineProps<{
   itemId: string
@@ -20,6 +23,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { revealAsync } = usePasswords()
 const { copyField, copyText } = usePasswordsCopy()
+
+/** Opens the address in the browser; an address with references is resolved first. */
+async function openUrlAsync() {
+  try {
+    const value = props.detail.references.url.length
+      ? (await revealAsync(props.itemId, { kind: 'url' })).value
+      : props.detail.url
+    const url = openableUrl(value)
+    if (!url) throw new Error('not a web address')
+    await openUrl(url)
+  } catch {
+    toast.error(t('passwords.openUrlFailed'))
+  }
+}
 
 const isEmpty = computed(
   () =>
@@ -144,6 +161,16 @@ const isEmpty = computed(
           data-testid="passwords-value-url"
           >{{ detail.url }}</span
         >
+        <UiButton
+          variant="ghost"
+          size="icon"
+          :aria-label="t('passwords.openUrl')"
+          :tooltip="t('passwords.openUrl')"
+          data-testid="passwords-open-url"
+          @click="openUrlAsync"
+        >
+          <Icon name="lucide:external-link" class="size-4" />
+        </UiButton>
         <PasswordsCopyButton
           :label="t('passwords.fields.url')"
           data-testid="passwords-copy-url"

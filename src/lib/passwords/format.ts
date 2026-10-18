@@ -26,6 +26,32 @@ export function isExpired(
   return expiresAt < today
 }
 
+/** The schemes a stored address may open with their system handler. Keep in step with the
+ * `opener:allow-open-url` scope in `src-tauri/capabilities/default.json`. */
+const OPENABLE_SCHEMES = [
+  'http',
+  'https',
+  'ftp',
+  'ftps',
+  'sftp',
+  'ssh',
+  'file',
+  'smb',
+  'vnc',
+  'rdp',
+  'telnet',
+]
+
+/** The address the system opens for a stored URL: `https://` is added when no scheme is written,
+ * and `null` when the scheme is not one of `OPENABLE_SCHEMES` or nothing is left to open. */
+export function openableUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(trimmed)?.[1]
+  if (!scheme) return trimmed.includes('://') ? null : `https://${trimmed}`
+  return OPENABLE_SCHEMES.includes(scheme.toLowerCase()) ? trimmed : null
+}
+
 /** `1.50 KiB`, `3.00 MiB`, … with two decimals; plain bytes below 1 KiB. */
 export function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 Bytes'

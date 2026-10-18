@@ -11,6 +11,7 @@ import type { ItemDetail } from '@bindings/ItemDetail'
 import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { entryFreshness, type EntryFreshness } from '~/lib/passwords/remote'
+import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
 import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
 
 const props = defineProps<{
@@ -97,6 +98,12 @@ const crumbPlace = computed<BreadcrumbPlace>(() => ({
     detail.value?.groupId ??
     null,
 }))
+/** An entry in the trash can be looked at, not changed or deleted again. */
+const inTrash = computed(() => {
+  const groupId =
+    store.headersById.get(props.itemId)?.groupId ?? detail.value?.groupId
+  return isInTrash(groupId, trashGroupIds(store.groups))
+})
 const expired = computed(() =>
   isExpired(detail.value?.expiresAt, localDay(new Date())),
 )
@@ -108,6 +115,7 @@ async function onRestored() {
 }
 
 function edit() {
+  if (inTrash.value) return
   router.push(withEntryTab(props.itemId, activeTab.value, { edit: '' }))
 }
 
@@ -167,7 +175,7 @@ async function removeOtpAsync() {
           }}
         </ShadcnBadge>
         <UiButton
-          v-if="detail"
+          v-if="detail && !inTrash"
           variant="ghost"
           size="icon"
           class="ml-auto shrink-0"
@@ -179,7 +187,7 @@ async function removeOtpAsync() {
           <Icon name="lucide:pencil" class="size-4" />
         </UiButton>
         <UiButton
-          v-if="detail"
+          v-if="detail && !inTrash"
           variant="ghost"
           size="icon"
           class="shrink-0"
@@ -239,6 +247,16 @@ async function removeOtpAsync() {
           >
             {{ t('passwords.stale.back') }}
           </UiButton>
+        </div>
+
+        <div
+          v-if="inTrash"
+          class="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
+          role="status"
+          data-testid="passwords-entry-in-trash"
+        >
+          <Icon name="lucide:trash-2" class="size-4 shrink-0" />
+          <span class="min-w-0 flex-1">{{ t('passwords.inTrashNote') }}</span>
         </div>
 
         <ShadcnBadge v-if="expired" variant="destructive" class="self-start">

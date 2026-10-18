@@ -1839,6 +1839,7 @@
       "entries": "Entries",
       "cameFrom": "From: {path}",
       "entriesInside": "no entries | {count} entry | {count} entries",
+      "view": "View",
       "restore": "Restore",
       "restored": "Restored.",
       "deleteForGood": "Delete for good",
@@ -2059,6 +2060,9 @@
         "unknown_source_data": "“{field}” of the source is unknown to holzi; the value was not taken over."
       }
     },
+    "openUrl": "Open address",
+    "openUrlFailed": "The address could not be opened.",
+    "inTrashNote": "This entry is in the trash. Restore it to change it.",
     "stale": {
       "changed": "This entry was changed on another device.",
       "deleted": "This entry was deleted on another device.",
