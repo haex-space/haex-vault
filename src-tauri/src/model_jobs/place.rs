@@ -52,11 +52,21 @@ fn place_of_address(address: &str) -> Place {
 }
 
 fn of_ip(ip: IpAddr) -> Place {
+    // `::ffff:10.0.0.1` is the IPv4 address it carries.
+    if let IpAddr::V6(v6) = ip {
+        if let Some(v4) = v6.to_ipv4_mapped() {
+            return of_ip(IpAddr::V4(v4));
+        }
+    }
     if ip.is_loopback() || ip.is_unspecified() {
         return Place::ThisDevice;
     }
     let private = match ip {
-        IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
+        // 100.64.0.0/10 is the shared space of carrier NAT and of Tailscale, never the internet.
+        IpAddr::V4(v4) => {
+            let [a, b, ..] = v4.octets();
+            v4.is_private() || v4.is_link_local() || (a == 100 && (64..128).contains(&b))
+        }
         IpAddr::V6(v6) => v6.is_unique_local() || v6.is_unicast_link_local(),
     };
     if private {
@@ -68,10 +78,15 @@ fn of_ip(ip: IpAddr) -> Place {
 
 fn of_name(name: &str) -> Place {
     let name = name.trim_end_matches('.');
-    if name == "localhost" || name.ends_with(".localhost") {
+    if name == "localhost" {
         Place::ThisDevice
-    } else if name.ends_with(".local") || name.ends_with(".lan") || !name.contains('.') {
+    } else if name.ends_with(".local")
+        || name.ends_with(".lan")
+        || name.ends_with(".localhost")
+        || !name.contains('.')
+    {
         // A name without a dot (`school-server`) or in a local zone lives in the own network.
+        // `*.localhost` should be this device (RFC 6761), but not every resolver keeps to it.
         Place::Network
     } else {
         Place::Cloud

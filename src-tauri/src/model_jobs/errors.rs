@@ -56,22 +56,32 @@ const MAX_MESSAGE_CHARS: usize = 200;
 /// Makes a message safe to hand to an extension (spec 055 FR-021): no address, no key and no
 /// piece of an answer body. Provider and transport errors carry the URL they failed on (often an
 /// address in the own network) and sometimes the key; both are replaced, the rest is cut short.
+/// `known` are the values the caller knows to be secret (the provider's key and address): they go
+/// first, whatever their shape; the shapes below catch the rest.
 #[allow(
     dead_code,
     reason = "used by the job runner of the next step of delivery B"
 )]
-pub fn sanitize(message: &str) -> String {
+pub fn sanitize(message: &str, known: &[&str]) -> String {
+    let mut message = message.to_string();
+    for secret in known.iter().filter(|secret| secret.trim().len() >= 4) {
+        message = message.replace(secret, "[redacted]");
+    }
     let cleaned: Vec<String> = message
         .split_whitespace()
         .map(|token| {
             let bare = token.trim_matches(|c: char| "()[]{}<>\"',;:.".contains(c));
             if looks_like_address(bare) {
-                token.replace(bare, "[address]")
-            } else if looks_like_secret(bare) {
-                token.replace(bare, "[redacted]")
-            } else {
-                token.to_string()
+                return token.replace(bare, "[address]");
             }
+            // `api_key=sk-…` or `"key":"sk-…"`: the value is a part of the token.
+            let mut token = token.to_string();
+            for part in bare.split(|c: char| "=:\"'".contains(c)) {
+                if looks_like_secret(part) {
+                    token = token.replace(part, "[redacted]");
+                }
+            }
+            token
         })
         .collect();
     let text = cleaned.join(" ");
@@ -82,12 +92,25 @@ pub fn sanitize(message: &str) -> String {
     format!("{cut}…")
 }
 
-/// A URL, an IPv4 address or a host with a port.
+/// Host names that only exist in the own network.
+const PRIVATE_SUFFIXES: [&str; 5] = [".local", ".lan", ".internal", ".home.arpa", ".localhost"];
+
+/// A URL, an IP address, a host with a port or a host name of the own network.
 fn looks_like_address(token: &str) -> bool {
     if token.contains("://") {
         return true;
     }
-    if token.matches(':').count() >= 2
+    let lower = token.to_ascii_lowercase();
+    if lower == "localhost"
+        || PRIVATE_SUFFIXES
+            .iter()
+            .any(|suffix| lower.ends_with(suffix))
+    {
+        return true;
+    }
+    // IPv6 is written with `::` or in full with seven colons; a time like `00:05:00` is neither.
+    let ipv6_shape = token.contains("::") || token.matches(':').count() == 7;
+    if ipv6_shape
         && token
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit() || byte == b':' || byte == b'.' || byte == b'%')
@@ -96,7 +119,9 @@ fn looks_like_address(token: &str) -> bool {
     }
     let host = match token.rsplit_once(':') {
         Some((host, port))
-            if (2..=5).contains(&port.len()) && port.bytes().all(|b| b.is_ascii_digit()) =>
+            if (2..=5).contains(&port.len())
+                && port.bytes().all(|b| b.is_ascii_digit())
+                && host.bytes().any(|b| b.is_ascii_alphabetic() || b == b'.') =>
         {
             host
         }
@@ -109,12 +134,19 @@ fn looks_like_address(token: &str) -> bool {
     is_ipv4 || (host != token && !host.is_empty())
 }
 
-/// A long opaque string made of letters, digits and a few signs: a key or a token.
+/// A long opaque string: a key or a token. Model names (`qwen2.5-vl-7b-instruct`) and paths are
+/// lower case and stay; a key mixes cases, is very long or carries a key prefix.
 fn looks_like_secret(token: &str) -> bool {
-    token.len() >= 20
+    let shape = token.len() >= 20
         && token
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.')
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/' | b'+'))
         && token.bytes().any(|b| b.is_ascii_digit())
-        && token.bytes().any(|b| b.is_ascii_alphabetic())
+        && token.bytes().any(|b| b.is_ascii_alphabetic());
+    let mixed_case = token.bytes().any(|b| b.is_ascii_uppercase())
+        && token.bytes().any(|b| b.is_ascii_lowercase());
+    let key_prefix = ["sk-", "sk_", "hf_", "AIza", "ghp_", "gsk_", "xai-"]
+        .iter()
+        .any(|prefix| token.starts_with(prefix));
+    shape && (mixed_case || key_prefix || token.len() >= 32)
 }

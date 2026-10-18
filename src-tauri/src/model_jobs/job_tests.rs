@@ -282,3 +282,53 @@ fn effort_and_the_answer_length_are_checked() {
     let edge = step_with(read_step(), |s| s["maxOutputTokens"] = json!(16_384));
     assert!(parse(&job(vec![edge])).is_ok());
 }
+
+#[test]
+fn a_pointer_into_an_open_object_or_an_array_without_items_fits() {
+    for (schema, pointer) in [
+        (json!({"type": "object"}), "/anything"),
+        (json!({"type": "array"}), "/0"),
+    ] {
+        let source = step_with(read_step(), |s| s["format"]["schema"] = schema.clone());
+        let pointing = step_with(fix_step(), |s| {
+            s["input"]["from"]["pointer"] = json!(pointer)
+        });
+        assert!(parse(&job(vec![source, pointing])).is_ok(), "{pointer}");
+    }
+    // A closed object knows no other names.
+    let closed = step_with(read_step(), |s| {
+        s["format"]["schema"] = json!({"type": "object", "additionalProperties": false})
+    });
+    let pointing = step_with(fix_step(), |s| s["input"]["from"]["pointer"] = json!("/x"));
+    assert!(parse(&job(vec![closed, pointing])).is_err());
+}
+
+#[test]
+fn blank_input_text_alone_is_no_input() {
+    let blank = step_with(fix_step(), |s| s["input"] = json!({"text": "  "}));
+    assert!(matches!(
+        parse(&job(vec![blank])),
+        Err(JobError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_format_name_is_counted_in_characters_and_a_bad_value_is_not_echoed_whole() {
+    let umlauts = step_with(fix_step(), |s| {
+        s["input"] = json!({"text": "x"});
+        s["format"]["name"] = json!("ä".repeat(64))
+    });
+    assert!(parse(&job(vec![umlauts])).is_ok());
+
+    let huge = step_with(fix_step(), |s| {
+        s["format"]["version"] = json!("x".repeat(100_000))
+    });
+    let Err(JobError::Invalid(message)) = parse(&job(vec![huge])) else {
+        panic!("a string version must be refused");
+    };
+    assert!(
+        message.chars().count() <= 301,
+        "{}",
+        message.chars().count()
+    );
+}

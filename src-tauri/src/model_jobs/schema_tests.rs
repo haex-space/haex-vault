@@ -160,3 +160,31 @@ fn a_null_pair_makes_a_value_optional() {
     assert_eq!(validate(&schema, &json!(2)), Ok(()));
     assert!(validate(&schema, &json!("2")).is_err());
 }
+
+#[test]
+fn a_schema_no_value_can_satisfy_is_refused() {
+    for unsatisfiable in [
+        json!({"type": "integer", "enum": ["a"]}),
+        json!({"type": "string", "minLength": 10, "maxLength": 2}),
+        json!({"type": "array", "minItems": 5, "maxItems": 1}),
+        json!({"type": "number", "minimum": 3, "maximum": 1}),
+        json!({"type": "string", "items": {"type": "string"}}),
+        json!({"type": "string", "properties": {}}),
+        json!({"type": "array", "minLength": 1}),
+        json!({"enum": ["a"], "minimum": 1}),
+    ] {
+        assert!(check_subset(&unsatisfiable).is_err(), "{unsatisfiable}");
+    }
+    // The same keywords with their own type are fine; `null` in an enum fits the null pair.
+    assert!(check_subset(&json!({"type": ["string", "null"], "enum": ["a", null]})).is_ok());
+    assert!(check_subset(&json!({"type": "integer", "minimum": 1, "maximum": 1})).is_ok());
+}
+
+#[test]
+fn an_object_without_properties_is_open_unless_it_says_otherwise() {
+    let open = json!({"type": "object"});
+    assert_eq!(validate(&open, &json!({"x": 1})), Ok(()));
+    let closed = json!({"type": "object", "additionalProperties": false});
+    assert!(validate(&closed, &json!({"x": 1})).is_err());
+    assert_eq!(validate(&closed, &json!({})), Ok(()));
+}

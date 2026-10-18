@@ -18,7 +18,7 @@ fn loopback_addresses_are_this_device() {
         "http://127.0.0.1:8000/v1",
         "http://127.1.2.3/v1",
         "http://[::1]:8080/v1",
-        "http://app.localhost/v1",
+        "http://[::ffff:127.0.0.1]:8080/v1",
         "http://0.0.0.0:8000/v1",
     ] {
         assert_eq!(
@@ -43,6 +43,10 @@ fn private_and_local_names_are_the_own_network() {
         "http://gpu-box.local:8000/v1",
         "http://ollama.lan/v1",
         "http://school-server./v1",
+        "http://[::ffff:10.0.0.1]/v1",
+        "http://100.101.102.103:11434/v1",
+        // Not every resolver keeps `*.localhost` on this device: consent is asked.
+        "http://app.localhost/v1",
     ] {
         assert_eq!(place_of(ApiKey, Some(address)), Place::Network, "{address}");
     }
@@ -55,6 +59,8 @@ fn everything_else_is_the_cloud() {
         "https://generativelanguage.googleapis.com/v1beta/openai",
         "http://8.8.8.8/v1",
         "http://172.32.0.1/v1",
+        "http://100.128.0.1/v1",
+        "http://localhost.example.com/v1",
         "http://[2001:db8::1]/v1",
         "https://models.school.example/v1",
     ] {

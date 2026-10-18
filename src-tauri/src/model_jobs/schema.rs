@@ -9,9 +9,11 @@
 //! Allowed: `type` (one of `object`, `array`, `string`, `integer`, `number`, `boolean`, or a pair
 //! with `"null"`), `properties`, `required`, `items`, `enum`, `minimum`, `maximum`, `minLength`,
 //! `maxLength`, `minItems`, `maxItems`, `additionalProperties` (boolean) and `description`. Not
-//! allowed: `$ref`, `pattern`, `oneOf`/`anyOf`/`allOf`, anything recursive.
+//! allowed: `$ref`, `pattern`, `oneOf`/`anyOf`/`allOf`, anything recursive. A schema no value can
+//! satisfy (an `enum` value of another type, a minimum above the maximum, a keyword of another
+//! type) is refused, so it never costs a model call.
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 /// How deep a schema may nest.
 pub const MAX_DEPTH: usize = 8;
@@ -64,16 +66,46 @@ fn check_node(
         return Err(format!("{here}: the keyword `{keyword}` is not supported"));
     }
     let has_enum = object.contains_key("enum");
-    match object.get("type") {
+    let types = match object.get("type") {
         Some(declared) => {
-            types_of(declared).ok_or_else(|| format!("{here}: unsupported `type`"))?;
+            types_of(declared).ok_or_else(|| format!("{here}: unsupported `type`"))?
         }
-        None if has_enum => {}
+        None if has_enum => Vec::new(),
         None => return Err(format!("{here}: a schema needs a `type` or an `enum`")),
+    };
+    // A keyword of another type than the declared one would make the schema unsatisfiable or
+    // meaningless; either way no model output could be judged by it.
+    for (keywords, wanted) in [
+        (
+            &["properties", "required", "additionalProperties"][..],
+            &["object"][..],
+        ),
+        (&["items", "minItems", "maxItems"], &["array"]),
+        (&["minLength", "maxLength"], &["string"]),
+        (&["minimum", "maximum"], &["integer", "number"]),
+    ] {
+        if let Some(keyword) = keywords.iter().find(|k| object.contains_key(**k)) {
+            if !types.iter().any(|t| wanted.contains(t)) {
+                return Err(format!(
+                    "{here}: `{keyword}` needs the type {}",
+                    wanted.join(" or ")
+                ));
+            }
+        }
     }
     if let Some(values) = object.get("enum") {
         match values.as_array() {
-            Some(list) if !list.is_empty() => {}
+            Some(list) if !list.is_empty() => {
+                let typed = json!({ "type": object.get("type") });
+                if let Some(value) = list
+                    .iter()
+                    .find(|value| object.contains_key("type") && validate(&typed, value).is_err())
+                {
+                    return Err(format!(
+                        "{here}: the `enum` value {value} is not of the `type`"
+                    ));
+                }
+            }
             _ => return Err(format!("{here}: `enum` is a non-empty list")),
         }
     }
@@ -124,7 +156,37 @@ fn check_node(
     {
         return Err(format!("{here}: `additionalProperties` is true or false"));
     }
+    for (low, high) in [
+        ("minimum", "maximum"),
+        ("minLength", "maxLength"),
+        ("minItems", "maxItems"),
+    ] {
+        let bound = |name| object.get(name).and_then(Value::as_f64);
+        if let (Some(low_value), Some(high_value)) = (bound(low), bound(high)) {
+            if low_value > high_value {
+                return Err(format!("{here}: `{low}` is above `{high}`"));
+            }
+        }
+    }
     Ok(())
+}
+
+/// Whether a value of this schema may be of the named type.
+pub fn allows_type(schema: &Value, name: &str) -> bool {
+    schema
+        .get("type")
+        .and_then(types_of)
+        .is_some_and(|types| types.contains(&name))
+}
+
+/// Whether an object of this schema may hold keys it does not declare: with `properties` only
+/// when `additionalProperties` is `true`, without them unless it is `false`.
+pub fn is_open_object(schema: &Value) -> bool {
+    let declared = schema.get("properties").is_some();
+    match schema.get("additionalProperties").and_then(Value::as_bool) {
+        Some(open) => open,
+        None => !declared,
+    }
 }
 
 /// The types a `type` value names, or `None` when it names something outside the subset. A pair
@@ -230,12 +292,13 @@ fn validate_at(schema: &Value, value: &Value, path: &str) -> Result<(), String> 
             }
         }
     }
-    if let (Some(object), Some(properties)) = (
-        value.as_object(),
-        schema.get("properties").and_then(Value::as_object),
-    ) {
-        let open = schema.get("additionalProperties").and_then(Value::as_bool) == Some(true);
-        if !open {
+    if let Some(object) = value.as_object() {
+        let empty = serde_json::Map::new();
+        let properties = schema
+            .get("properties")
+            .and_then(Value::as_object)
+            .unwrap_or(&empty);
+        if !is_open_object(schema) {
             if let Some(extra) = object.keys().find(|key| !properties.contains_key(*key)) {
                 return Err(format!("{here}: the key `{extra}` is not declared"));
             }

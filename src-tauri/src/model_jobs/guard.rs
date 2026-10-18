@@ -23,10 +23,13 @@ const LOOP_MIN_REPEATS: usize = 6;
 const LOOP_MIN_RUN_WORDS: usize = 12;
 const LOOP_SINGLE_WORD_REPEATS: usize = 30;
 const LOOP_LONGEST_RUN: usize = 8;
-/// The same line (of at least this many characters) three times in a row is a loop.
+/// The same line (with at least this many letters or digits) three times in a row inside one text
+/// is a loop. Lines of separate values (three equal table cells) and lines of underscores or dots
+/// (a worksheet's answer lines) are none.
 const LOOP_LINE_MIN_CHARS: usize = 8;
-/// Foreign letters make a script switch from this share on (and from this many letters on), so a
-/// Greek symbol in a physics note is not one.
+/// Foreign letters make a script switch from this share on (and from this many letters on). Only
+/// letters in a word of at least two letters of their script count, so `α = 30°` or `Δx` in a
+/// physics note is not one.
 const SWITCH_MIN_LETTERS: usize = 3;
 const SWITCH_SHARE_DIVISOR: usize = 5;
 
@@ -57,21 +60,27 @@ impl Unusable {
 /// Checks an output. `context` is the text the model was given (instruction and input text): the
 /// scripts in it are the scripts the answer may use.
 pub fn check(output: &str, context: &str, schema: &Value) -> Result<Value, Unusable> {
-    let body = strip_fence(output.trim());
+    let output = output.trim();
+    // A fence is looked for only when the whole answer is not JSON: a string inside may hold one.
+    let body = match serde_json::from_str::<Value>(output) {
+        Ok(_) => output,
+        Err(_) => strip_fence(output),
+    };
     if body.is_empty() {
         return Err(Unusable::Empty);
     }
     let parsed = serde_json::from_str::<Value>(body).ok();
     // Judge the text the answer is made of: with valid JSON its strings, otherwise everything.
-    let text = match &parsed {
+    let texts = match &parsed {
         Some(value) => {
             let mut strings = Vec::new();
             collect_strings(value, &mut strings);
-            strings.join("\n")
+            strings
         }
-        None => body.to_string(),
+        None => vec![body],
     };
-    if is_loop(&text) {
+    let text = texts.join("\n");
+    if is_loop(&text) || texts.iter().any(|text| has_repeated_line(text)) {
         return Err(Unusable::Loop);
     }
     if is_script_switch(&text, context) {
@@ -82,16 +91,19 @@ pub fn check(output: &str, context: &str, schema: &Value) -> Result<Value, Unusa
     Ok(value)
 }
 
-/// A reply in a code fence (```` ```json ````) is the JSON inside it.
+/// A reply with a code fence (```` ```json ````) is the content of the first fence, also with a
+/// sentence before or after it, as small models write it. A language tag on the opening line is
+/// dropped.
 fn strip_fence(text: &str) -> &str {
-    let Some(rest) = text.strip_prefix("```") else {
+    let Some((_, rest)) = text.split_once("```") else {
         return text;
     };
-    let rest = rest
-        .split_once('\n')
-        .map_or("", |(_, after)| after)
-        .trim_end();
-    rest.strip_suffix("```").unwrap_or(rest).trim()
+    let inner = rest.split_once("```").map_or(rest, |(inner, _)| inner);
+    let inner = match inner.split_once('\n') {
+        Some((tag, body)) if tag.trim().chars().all(|c| c.is_ascii_alphanumeric()) => body,
+        _ => inner,
+    };
+    inner.trim()
 }
 
 fn collect_strings<'a>(value: &'a Value, out: &mut Vec<&'a str>) {
@@ -117,7 +129,7 @@ fn is_loop(text: &str) -> bool {
             return true;
         }
     }
-    has_repeated_run(&words) || has_repeated_line(text)
+    has_repeated_run(&words)
 }
 
 /// Whether some run of 1 to [`LOOP_LONGEST_RUN`] words repeats back to back often enough (a table
@@ -154,7 +166,9 @@ fn has_repeated_line(text: &str) -> bool {
     let mut previous: Option<&str> = None;
     let mut run = 1;
     for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        if line.chars().count() >= LOOP_LINE_MIN_CHARS && previous == Some(line) {
+        let substantial =
+            line.chars().filter(|c| c.is_alphanumeric()).count() >= LOOP_LINE_MIN_CHARS;
+        if substantial && previous == Some(line) {
             run += 1;
             if run >= 3 {
                 return true;
@@ -215,10 +229,14 @@ fn is_script_switch(text: &str, context: &str) -> bool {
     let known: HashSet<Script> = context.chars().filter_map(script_of).collect();
     let mut letters = 0usize;
     let mut foreign = 0usize;
-    for script in text.chars().filter_map(script_of) {
-        letters += 1;
-        if script != Script::Latin && !known.contains(&script) {
-            foreign += 1;
+    for word in words(text) {
+        let scripts: Vec<Script> = word.chars().filter_map(script_of).collect();
+        letters += scripts.len();
+        for script in &scripts {
+            let alone = scripts.iter().filter(|other| *other == script).count() < 2;
+            if *script != Script::Latin && !known.contains(script) && !alone {
+                foreign += 1;
+            }
         }
     }
     foreign >= SWITCH_MIN_LETTERS && foreign * SWITCH_SHARE_DIVISOR >= letters
