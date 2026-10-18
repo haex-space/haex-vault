@@ -44,6 +44,19 @@ fn no_wish_means_none_which_is_the_first_option() {
     let applied = effective(None, Level::High, Some(&caps));
     assert_eq!(option(&applied), Some("low"));
     assert_eq!(applied.reported(), "none");
+
+    // An unknown provider preset keeps its reported order, but an explicit off switch still wins
+    // for a `none` wish even when it is not the first option.
+    let caps = presets(&["turbo", "none"]);
+    assert_eq!(
+        option(&effective(None, Level::High, Some(&caps))),
+        Some("none")
+    );
+    let caps = presets(&["turbo", "off"]);
+    assert_eq!(
+        option(&effective(Some(Level::None), Level::High, Some(&caps))),
+        Some("off")
+    );
 }
 
 #[test]
