@@ -89,6 +89,7 @@ function openImage(attachment: AttachmentView) {
 }
 
 async function renameAsync(attachment: AttachmentView, name: string) {
+  if (props.readonly) return
   try {
     await attachmentRenameAsync(attachment.id, name)
     emit('changed')
@@ -98,6 +99,7 @@ async function renameAsync(attachment: AttachmentView, name: string) {
 }
 
 async function removeAsync(attachment: AttachmentView) {
+  if (props.readonly) return
   try {
     await attachmentRemoveAsync(attachment.id)
     emit('changed')

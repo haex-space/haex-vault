@@ -26,6 +26,49 @@ export function isExpired(
   return expiresAt < today
 }
 
+/** The schemes a stored address may open with their system handler. Keep in step with the
+ * `opener:allow-open-url` scope in `src-tauri/capabilities/default.json`. */
+const OPENABLE_SCHEMES = [
+  'http',
+  'https',
+  'ftp',
+  'ftps',
+  'sftp',
+  'ssh',
+  'file',
+  'smb',
+  'vnc',
+  'rdp',
+  'telnet',
+]
+
+/** The address the system opens for a stored URL: `https://` is added when no scheme is written,
+ * and `null` when the scheme is not one of `OPENABLE_SCHEMES` or nothing is left to open. */
+export function openableUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):(\/\/)?/i.exec(trimmed)
+  if (!schemeMatch) return `https://${trimmed}`
+
+  const schemePart = schemeMatch[1]
+  if (!schemePart) return `https://${trimmed}`
+  const scheme = schemePart.toLowerCase()
+  if (!schemeMatch[2]) {
+    // A hostname with a numeric port is the one useful no-scheme form that also matches the
+    // URI scheme grammar. Other colon-prefixed values are schemes and must be rejected.
+    const rest = trimmed.slice(schemeMatch[0].length)
+    const isHostPort =
+      /^\d+(?:[/?#]|$)/.test(rest) &&
+      (scheme === 'localhost' ||
+        scheme.includes('.') ||
+        /^[\d.]+$/.test(scheme))
+    return isHostPort ? `https://${trimmed}` : null
+  }
+
+  if (!OPENABLE_SCHEMES.includes(scheme)) return null
+  return `${scheme}${trimmed.slice(schemePart.length)}`
+}
+
 /** `1.50 KiB`, `3.00 MiB`, … with two decimals; plain bytes below 1 KiB. */
 export function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 Bytes'

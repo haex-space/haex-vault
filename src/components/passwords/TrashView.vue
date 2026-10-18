@@ -272,6 +272,14 @@ function titleOf(header: ItemHeader): string {
             :data-testid="`passwords-trash-entry-${entry.header.id}`"
           >
             <UiButton
+              variant="ghost"
+              size="sm"
+              :data-testid="`passwords-trash-view-${entry.header.id}`"
+              @click="router.push(`/entry/${entry.header.id}`)"
+            >
+              {{ t('passwords.trash.view') }}
+            </UiButton>
+            <UiButton
               variant="outline"
               size="sm"
               :data-testid="`passwords-trash-restore-${entry.header.id}`"

@@ -12,6 +12,7 @@ import {
   localDay,
   relativeTime,
   safeFileName,
+  openableUrl,
 } from '../src/lib/passwords/format.ts'
 
 test('an entry without a title has no display title, a spaced one is trimmed', () => {
@@ -105,4 +106,24 @@ test('an attachment has a kind by its extension: image, pdf, text or other', () 
   ]) {
     assert.equal(fileKind(name), 'other', name)
   }
+})
+
+test('a stored address opens with its own scheme when that is a known one, else never', () => {
+  assert.equal(openableUrl('https://example.com/a'), 'https://example.com/a')
+  assert.equal(openableUrl(' http://example.com '), 'http://example.com')
+  assert.equal(openableUrl('example.com/login'), 'https://example.com/login')
+  assert.equal(openableUrl('localhost:8080'), 'https://localhost:8080')
+  assert.equal(openableUrl('FTP://example.com'), 'ftp://example.com')
+  assert.equal(openableUrl('ssh://me@host:22'), 'ssh://me@host:22')
+  assert.equal(
+    openableUrl('file:///home/me/notes.txt'),
+    'file:///home/me/notes.txt',
+  )
+  assert.equal(openableUrl('javascript://%0Aalert(1)'), null)
+  assert.equal(openableUrl('javascript:alert(1)'), null)
+  assert.equal(openableUrl('data://text/html,x'), null)
+  assert.equal(openableUrl('mailto:person@example.com'), null)
+  assert.equal(openableUrl('foo://example.com'), null)
+  assert.equal(openableUrl('  '), null)
+  assert.equal(openableUrl(null), null)
 })

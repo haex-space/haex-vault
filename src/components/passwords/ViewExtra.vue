@@ -15,6 +15,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   itemId: string
   detail: ItemDetail
+  readonly?: boolean
 }>()
 
 const { t } = useI18n()
@@ -89,12 +90,14 @@ function marksOf(id: string) {
     <PasswordsAttachments
       :item-id="itemId"
       :attachments="detail.attachments"
+      :readonly="readonly"
       @changed="emit('changed')"
     />
 
     <PasswordsPasskeys
       :item-id="itemId"
       :passkeys="detail.passkeys"
+      :readonly="readonly"
       @changed="emit('changed')"
     />
   </div>

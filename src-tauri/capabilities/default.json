@@ -23,7 +23,16 @@
         { "url": "mailto:*" },
         { "url": "geo:*" },
         { "url": "https://*" },
-        { "url": "http://*" }
+        { "url": "http://*" },
+        { "url": "ftp://*" },
+        { "url": "ftps://*" },
+        { "url": "sftp://*" },
+        { "url": "ssh://*" },
+        { "url": "file://*" },
+        { "url": "smb://*" },
+        { "url": "vnc://*" },
+        { "url": "rdp://*" },
+        { "url": "telnet://*" }
       ]
     }
   ]

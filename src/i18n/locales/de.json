@@ -1839,6 +1839,7 @@
       "entries": "Einträge",
       "cameFrom": "Aus: {path}",
       "entriesInside": "kein Eintrag | {count} Eintrag | {count} Einträge",
+      "view": "Anzeigen",
       "restore": "Wiederherstellen",
       "restored": "Wiederhergestellt.",
       "deleteForGood": "Endgültig löschen",
@@ -2059,6 +2060,9 @@
         "unknown_source_data": "„{field}“ der Quelle kennt holzi nicht; der Wert wurde nicht übernommen."
       }
     },
+    "openUrl": "Adresse öffnen",
+    "openUrlFailed": "Die Adresse konnte nicht geöffnet werden.",
+    "inTrashNote": "Dieser Eintrag liegt im Papierkorb. Stelle ihn wieder her, um ihn zu ändern.",
     "stale": {
       "changed": "Dieser Eintrag wurde auf einem anderen Gerät geändert.",
       "deleted": "Dieser Eintrag wurde auf einem anderen Gerät gelöscht.",
@@ -2580,7 +2584,7 @@
       "message": "Nachricht an {what}",
       "mail": "E-Mail schreiben",
       "map": "In der Karte öffnen",
-      "web": "Im Browser öffnen"
+      "web": "Adresse öffnen"
     },
     "sidebar": {
       "show": "Seitenleiste zeigen",
