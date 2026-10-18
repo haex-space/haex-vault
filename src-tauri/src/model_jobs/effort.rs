@@ -89,7 +89,11 @@ pub fn effective(
                 return Applied::NotSet;
             };
             let index = match level {
-                Level::None | Level::Low => 0,
+                Level::None => ids
+                    .iter()
+                    .position(|id| matches!(*id, "none" | "off"))
+                    .unwrap_or(0),
+                Level::Low => 0,
                 Level::Medium => (ids.len() / 2).min(last),
                 Level::High => last,
             };
