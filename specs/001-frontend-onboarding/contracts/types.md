@@ -1,6 +1,6 @@
 # Contract: Shared Types (Rust ↔ TypeScript)
 
-**Status**: Draft. All types are generated from Rust `#[derive(ts_rs::TS)]` structs and exported to `src/types/bindings/` via `cargo test` (per haex-vault 2.x's (Legacy) `generate:ts-types` script).
+**Status**: Draft. All types are generated from Rust `#[derive(ts_rs::TS)]` structs and exported to `src/types/bindings/` via `cargo test` (per the haex-vault 2.x (Legacy) `generate:ts-types` script).
 
 **V1 contract note**: Backup restore is a plain `open_instance` of a copied `.db`. No `Recover` mode, no second database, no restore-pairing handoff.
 

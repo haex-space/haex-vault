@@ -15,7 +15,7 @@ every other entry. The Ed25519 signature covers the domain prefix
 `"haextension-bundle/2\n"` followed by the canonical form of that file without
 its `signature` field. holzi verifies the list against the archive and the
 signature against the manifest's public key before installation and before
-every start. Bundles in haex-vault 2.x's (Legacy) format, which signs only the
+every start. Bundles in the haex-vault 2.x (Legacy) format, which signs only the
 concatenated file contents, are rejected with a hint to re-sign them with the
 `haex` tool of the vault-sdk. The archive rules (paths, duplicates, sizes,
 compression ratio) are in `specs/017-extension-host/contracts/bundle-format.md`.

@@ -1,4 +1,4 @@
-//! The rows of haex-vault 2.x's (Legacy) password manager as an [`ImportModel`] (spec 037,
+//! The rows of the haex-vault 2.x (Legacy) password manager as an [`ImportModel`] (spec 037,
 //! `contracts/haex-vault-mapping.md`). Columns are always named, never `SELECT *`: the sync layer
 //! of haex-vault 2.x adds columns of its own at run time.
 

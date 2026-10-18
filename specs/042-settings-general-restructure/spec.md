@@ -138,7 +138,7 @@ Als Nutzer lege ich ein Bild als Hintergrund für meine Workspaces fest oder ent
 
 - The vault name from the original request is out of scope: no screen would show it (operator decision 2026-10-07). It can be added later as one more vault setting.
 - Supported languages stay German and English.
-- The password change follows haex-vault 2.x's (Legacy) proven sequence for re-encrypting a vault; holzi does not keep the password in memory, so the current one is verified against the vault file.
+- The password change follows the proven haex-vault 2.x (Legacy) sequence for re-encrypting a vault; holzi does not keep the password in memory, so the current one is verified against the vault file.
 - The password plays no part in synchronization, so a change needs no step on sync servers.
 - A background of a few hundred kilobytes fits the existing synchronized preference/page budget; T037
   covers that boundary with a two-device regression check.

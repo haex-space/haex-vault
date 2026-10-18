@@ -13,7 +13,7 @@ that open.
 
 ## Summary
 
-Deliver the holzi Tauri app's first-impression surfaces: a landing page with three primary actions (Anlegen, Öffnen, Verbinden) mirroring haex-vault 2.x's (Legacy) landing pattern, plus a Zuletzt-verwendet list and an Unlock sheet for existing instances. Frontend is Nuxt 4 (SPA) with Tailwind v4, shadcn-vue components (copy-in), Pinia stores, `@nuxtjs/i18n`, and `@nuxt/icon` fed from a locally-bundled Lucide icon set. Backend is a set of Tauri commands over the `haex-crdt` layer that manage `<name>.db` files under `<AppLocalData>/instances/`, including atomic Genesis creation, direct opening of imported databases without rekey or restore pairing, Verbinden pairing, and active-instance switching. The full federation sync/ping walking skeleton is a separate integration milestone; this plan defines the onboarding contracts that lead to it.
+Deliver the holzi Tauri app's first-impression surfaces: a landing page with three primary actions (Anlegen, Öffnen, Verbinden) mirroring the haex-vault 2.x (Legacy) landing pattern, plus a Zuletzt-verwendet list and an Unlock sheet for existing instances. Frontend is Nuxt 4 (SPA) with Tailwind v4, shadcn-vue components (copy-in), Pinia stores, `@nuxtjs/i18n`, and `@nuxt/icon` fed from a locally-bundled Lucide icon set. Backend is a set of Tauri commands over the `haex-crdt` layer that manage `<name>.db` files under `<AppLocalData>/instances/`, including atomic Genesis creation, direct opening of imported databases without rekey or restore pairing, Verbinden pairing, and active-instance switching. The full federation sync/ping walking skeleton is a separate integration milestone; this plan defines the onboarding contracts that lead to it.
 
 ## Technical Context
 

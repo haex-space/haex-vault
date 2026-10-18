@@ -6,7 +6,7 @@
 //! Starting set ported from haex-space/haex-vault-legacy `8dce379d94e18fcd42c3b73686a06f984ca3f574`,
 //! `src-tauri/src/extension/database/tests/sql_injection_tests/` (comment_smuggling,
 //! dangerous_statements, edge_cases, multi_statement, extraction, table_prefix, union_select) with
-//! holzi's tables in place of haex-vault 2.x's (Legacy) (`haex_extensions` → `chat_threads` and `haex_*`).
+//! holzi's tables in place of the haex-vault 2.x (Legacy) tables (`haex_extensions` → `chat_threads` and `haex_*`).
 //! These run here as unit tests because they need the crate's test vault and the pre-check skip.
 
 // The corpus reads what was stored to show nothing changed.
