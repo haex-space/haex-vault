@@ -358,10 +358,20 @@ impl ProviderAdapter for AnthropicAdapter {
                             .and_then(Value::as_u64)
                             .unwrap_or(0);
                         if let Some((id, name, partial_json)) = tool_use_bufs.remove(&index) {
+                            // Arguments that are not JSON (cut off, say) must not run the tool
+                            // with empty ones.
                             let input: Value = if partial_json.trim().is_empty() {
                                 serde_json::json!({})
                             } else {
-                                serde_json::from_str(&partial_json).unwrap_or(serde_json::json!({}))
+                                match serde_json::from_str(&partial_json) {
+                                    Ok(input) => input,
+                                    Err(error) => {
+                                        let _ = tx.send(Err(StreamError::Model(format!(
+                                            "invalid tool arguments for {name}: {error}"
+                                        ))));
+                                        return;
+                                    }
+                                }
                             };
                             tool_calls.push(ToolCall { id, name, input });
                         }
