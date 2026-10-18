@@ -38,9 +38,11 @@ fn the_limits_start_at_the_defaults_and_keep_what_the_settings_store() {
         "the defaults lie within the bounds"
     );
 
+    assert_eq!(defaults.model_job_timeout_ms, 300_000);
     let changed = ExtensionLimits {
         max_rows: 500,
         timeout_ms: 10_000,
+        model_job_timeout_ms: 600_000,
         ..defaults
     };
     set(&vault, ext, changed).unwrap();
@@ -62,6 +64,14 @@ fn a_value_outside_its_bounds_is_refused_and_nothing_changes() {
         },
         ExtensionLimits {
             timeout_ms: 60_001,
+            ..defaults
+        },
+        ExtensionLimits {
+            model_job_timeout_ms: 9_999,
+            ..defaults
+        },
+        ExtensionLimits {
+            model_job_timeout_ms: 1_800_001,
             ..defaults
         },
     ] {

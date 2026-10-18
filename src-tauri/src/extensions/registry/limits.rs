@@ -28,6 +28,8 @@ pub struct ExtensionLimits {
     pub timeout_ms: u32,
     /// Bytes of one answer.
     pub max_response_bytes: u32,
+    /// Run time of one model job in milliseconds (spec 055).
+    pub model_job_timeout_ms: u32,
 }
 
 /// The smallest values the settings accept (contracts/tauri-commands.md §Grenzwerte).
@@ -37,6 +39,7 @@ pub const MIN: ExtensionLimits = ExtensionLimits {
     max_sql_bytes: 1_000,
     timeout_ms: 100,
     max_response_bytes: 64 * 1024,
+    model_job_timeout_ms: 10_000,
 };
 
 /// The largest values the settings accept.
@@ -46,6 +49,7 @@ pub const MAX: ExtensionLimits = ExtensionLimits {
     max_sql_bytes: 16 * 1024 * 1024,
     timeout_ms: 60_000,
     max_response_bytes: 256 * 1024 * 1024,
+    model_job_timeout_ms: 1_800_000,
 };
 
 /// The limits with the bounds the settings show next to them; the bounds are only checked here.
@@ -73,19 +77,21 @@ impl From<Limits> for ExtensionLimits {
             max_sql_bytes: clamp_u32(limits.max_sql_bytes),
             timeout_ms: clamp_u32(limits.timeout_ms),
             max_response_bytes: clamp_u32(limits.max_response_bytes),
+            model_job_timeout_ms: clamp_u32(limits.model_job_timeout_ms),
         }
     }
 }
 
 impl ExtensionLimits {
     /// Every value with its field name.
-    fn fields(&self) -> [(&'static str, u32); 5] {
+    fn fields(&self) -> [(&'static str, u32); 6] {
         [
             ("maxRows", self.max_rows),
             ("maxConcurrent", self.max_concurrent),
             ("maxSqlBytes", self.max_sql_bytes),
             ("timeoutMs", self.timeout_ms),
             ("maxResponseBytes", self.max_response_bytes),
+            ("modelJobTimeoutMs", self.model_job_timeout_ms),
         ]
     }
 
@@ -150,7 +156,8 @@ pub fn set(db: &VaultDb, extension_id: Uuid, limits: ExtensionLimits) -> Result<
             limits.max_concurrent,
             limits.max_sql_bytes,
             limits.timeout_ms,
-            limits.max_response_bytes
+            limits.max_response_bytes,
+            limits.model_job_timeout_ms
         ];
         let exists = tx
             .query_row(
@@ -164,14 +171,14 @@ pub fn set(db: &VaultDb, extension_id: Uuid, limits: ExtensionLimits) -> Result<
             tx.execute(
                 "UPDATE extension_limits SET extension_id = ?2, max_rows = ?3, \
                  max_concurrent = ?4, max_sql_bytes = ?5, timeout_ms = ?6, \
-                 max_response_bytes = ?7 WHERE id = ?1",
+                 max_response_bytes = ?7, model_job_timeout_ms = ?8 WHERE id = ?1",
                 values,
             )?;
         } else {
             tx.execute(
                 "INSERT INTO extension_limits (id, extension_id, max_rows, max_concurrent, \
-                 max_sql_bytes, timeout_ms, max_response_bytes) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 max_sql_bytes, timeout_ms, max_response_bytes, model_job_timeout_ms) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 values,
             )?;
         }

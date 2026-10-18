@@ -952,6 +952,7 @@
         "maxSqlBytes": "Size of a statement (bytes)",
         "timeoutMs": "Run time of a request (milliseconds)",
         "maxResponseBytes": "Size of an answer (bytes)",
+        "modelJobTimeoutMs": "Run time of a model job (milliseconds)",
         "range": "{min} to {max}"
       },
       "logs": {

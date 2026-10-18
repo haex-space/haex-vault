@@ -43,6 +43,10 @@ pub enum Target {
     EncryptedFolder(FolderRef),
     /// An agent tool, by its manifest name (`^[a-z][a-z0-9_]{0,31}$`).
     Tool(String),
+    /// A model, by its `models.id` (spec 055).
+    Model(String),
+    /// A provider, by its id in the canonical spelling of a UUID (spec 055).
+    Provider(String),
 }
 
 /// An encrypted folder of a storage: the storage's id and the Base32 id of the folder.
@@ -119,6 +123,10 @@ pub enum RequestTarget {
         port: u16,
     },
     EncryptedFolder(FolderRef),
+    /// A model, by its `models.id`.
+    Model(String),
+    /// A provider, by its id.
+    Provider(String),
 }
 
 /// A parsed http(s) request URL.
@@ -183,6 +191,9 @@ impl Target {
             }
             K::AgentTool if value == "*" => Some(Self::Any),
             K::AgentTool => is_tool_name(value).then(|| Self::Tool(value.to_owned())),
+            K::Model if value == "*" => Some(Self::Any),
+            K::Model => is_model_id(value).then(|| Self::Model(value.to_owned())),
+            K::ModelDestination => is_provider_id(value).then(|| Self::Provider(value.to_owned())),
         }
     }
 
@@ -211,6 +222,8 @@ impl Target {
             (Self::Tag(tag), RequestTarget::Tag(asked)) => *tag == fold(asked),
             (Self::StorageId(id), RequestTarget::StorageId(asked)) => id == asked,
             (Self::EncryptedFolder(own), RequestTarget::EncryptedFolder(asked)) => own == asked,
+            (Self::Model(own), RequestTarget::Model(asked)) => own == asked,
+            (Self::Provider(own), RequestTarget::Provider(asked)) => own == asked,
             (Self::StorageId(host), RequestTarget::Endpoint { host: asked, port }) => {
                 parse_endpoint_host(host).is_some_and(|server| {
                     server.matches(&RequestTarget::MailServer {
@@ -230,6 +243,24 @@ fn is_tool_name(value: &str) -> bool {
     bytes.next().is_some_and(|b| b.is_ascii_lowercase())
         && value.len() <= 32
         && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// A `models.id`: `<provider id>:<id the provider gave>` or the id of a catalog model. The id a
+/// provider gives is free text, so only what cannot be shown or compared safely is refused: an
+/// empty or overlong id, a control character and blanks at either end.
+fn is_model_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().count() <= MAX_MODEL_ID_CHARS
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
+}
+
+const MAX_MODEL_ID_CHARS: usize = 512;
+
+/// A provider id as `providers.id` is written: a UUID, lower case, with hyphens. Another spelling
+/// of the same UUID would be a second row for one provider.
+fn is_provider_id(value: &str) -> bool {
+    uuid::Uuid::parse_str(value).is_ok_and(|id| id.to_string() == value)
 }
 
 impl HostPattern {

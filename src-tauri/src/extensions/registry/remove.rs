@@ -62,6 +62,7 @@ pub fn remove(db: &VaultDb, extension_id: Uuid, delete_data: bool, now_ms: i64) 
             "DELETE FROM extension_bundles WHERE extension_id = ?1",
             "DELETE FROM extension_permissions WHERE extension_id = ?1",
             "DELETE FROM extension_limits WHERE extension_id = ?1",
+            "DELETE FROM extension_model_order WHERE extension_id = ?1",
             "DELETE FROM extension_device_status WHERE extension_id = ?1",
         ] {
             tx.execute(sql, params![ext])?;

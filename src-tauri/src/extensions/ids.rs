@@ -27,6 +27,8 @@ pub const NS_MIG: Uuid = Uuid::from_u128(0xde67adbe_900d_4593_9804_d446abcbc409)
 pub const NS_PERM: Uuid = Uuid::from_u128(0x52070bbb_8251_459f_8289_2309ad641897);
 /// Namespace of `extension_limits.id`. Never change.
 pub const NS_LIM: Uuid = Uuid::from_u128(0x4301fbb4_1b61_4014_a904_401b47498c48);
+/// Namespace of `extension_model_order.id`. Never change.
+pub const NS_MODEL_ORDER: Uuid = Uuid::from_u128(0x7dd2d12a_d2f4_405b_a53b_3b08271c5102);
 /// Namespace of `extension_device_status.id`. Never change.
 pub const NS_DEVST: Uuid = Uuid::from_u128(0x2577efb5_6122_41eb_bf81_8827fd63a8b7);
 /// Namespace of `dev_extensions_no_sync.id`. Never change.
@@ -209,6 +211,15 @@ pub fn permission_id(
 /// `extension_limits.id`: `UUIDv5(NS_LIM, extension_id)`.
 pub fn limits_id(extension_id: Uuid) -> Uuid {
     Uuid::new_v5(&NS_LIM, extension_id.to_string().as_bytes())
+}
+
+/// `extension_model_order.id`: `UUIDv5(NS_MODEL_ORDER, extension_id "|" model_id)`. The extension
+/// id has a fixed form, so a `|` inside the model id cannot make two keys equal.
+pub fn model_order_id(extension_id: Uuid, model_id: &str) -> Uuid {
+    Uuid::new_v5(
+        &NS_MODEL_ORDER,
+        format!("{extension_id}|{model_id}").as_bytes(),
+    )
 }
 
 /// `extension_device_status.id`: `UUIDv5(NS_DEVST, extension_id ":" vault_device_uuid)`.

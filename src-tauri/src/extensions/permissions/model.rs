@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use super::target::{RequestTarget, Target};
 use crate::identity::VAULT_SCOPE_UUID;
+use crate::model_jobs::effort::Level;
 
 /// The `vault_device_uuid` of a permission that holds on every own device (ADR-0001 sentinel).
 pub const VAULT_WIDE: Uuid = VAULT_SCOPE_UUID;
@@ -28,10 +29,17 @@ pub enum PermissionKind {
     /// A tool the extension offers to the agent (spec 018): declared in the manifest's `tools`,
     /// the action is its effect and the target its name; `*` stands for every tool.
     AgentTool,
+    /// Use of one model of holzi, or of every model (`*`), up to an effort (spec 055 R3): the
+    /// action is the highest effort the extension may ask for. Granted only by the user, when
+    /// asked, never from a manifest.
+    Model,
+    /// Sending the data of a model job to one provider outside this device (spec 055 R3): the
+    /// action is `send`, the target the provider's id. Never a wildcard.
+    ModelDestination,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 11] = [
+    pub const ALL: [PermissionKind; 13] = [
         Self::Database,
         Self::Filesystem,
         Self::Web,
@@ -43,6 +51,8 @@ impl PermissionKind {
         Self::EncryptedFolder,
         Self::Contacts,
         Self::AgentTool,
+        Self::Model,
+        Self::ModelDestination,
     ];
 
     /// The stored name; anything else is not a kind holzi knows (FR-022).
@@ -64,6 +74,8 @@ impl PermissionKind {
             Self::EncryptedFolder => "encryptedFolder",
             Self::Contacts => "contacts",
             Self::AgentTool => "agentTool",
+            Self::Model => "model",
+            Self::ModelDestination => "modelDestination",
         }
     }
 
@@ -111,6 +123,9 @@ pub enum Action {
     Destructive,
     /// Every effect: the `*` row of an extension's agent tools.
     AnyEffect,
+    /// The highest effort a model may be used with (spec 055): `none` < `low` < `medium` < `high`,
+    /// a higher one covers a lower one.
+    Effort(Level),
 }
 
 impl Action {
@@ -139,6 +154,8 @@ impl Action {
             (K::AgentTool, "change") => Some(Self::Change),
             (K::AgentTool, "destructive") => Some(Self::Destructive),
             (K::AgentTool, "*") => Some(Self::AnyEffect),
+            (K::Model, effort) => Level::parse(effort).map(Self::Effort),
+            (K::ModelDestination, "send") => Some(Self::Send),
             _ => None,
         }
     }
@@ -158,16 +175,19 @@ impl Action {
             Self::Add => "add".to_owned(),
             Self::Change => "change".to_owned(),
             Self::Destructive => "destructive".to_owned(),
+            Self::Effort(level) => level.as_str().to_owned(),
         }
     }
 
     /// Whether a permission for `self` covers a request for `requested`: `readWrite` covers
-    /// `read`, `*` covers every method or every effect, everything else only itself.
+    /// `read`, `*` covers every method or every effect, a higher effort covers a lower one,
+    /// everything else only itself.
     pub fn covers(&self, requested: &Action) -> bool {
         match (self, requested) {
             (Self::ReadWrite, Self::Read) => true,
             (Self::AnyMethod, Self::Method(_)) => true,
             (Self::AnyEffect, Self::Read | Self::Change | Self::Destructive) => true,
+            (Self::Effort(granted), Self::Effort(asked)) => granted >= asked,
             _ => self == requested,
         }
     }

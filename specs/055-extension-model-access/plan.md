@@ -43,7 +43,7 @@ Baum über mistralrs, wird bei Bedarf direkte Abhängigkeit). Keine neue Fremdab
 ist schon da (Adapter Anthropic).
 
 **Storage**: `extension_permissions` (zwei neue Arten, keine Schemaänderung); neue Tabelle
-`extension_model_order` (Migration `0036`); neues Feld `model_job_timeout_ms` in `ExtensionLimits`;
+`extension_model_order` (Migration `0037`); neues Feld `model_job_timeout_ms` in `ExtensionLimits`;
 `providers.adapter = openai_compatible`; Katalogfelder `format`, `vision`, `isq` ([data-model.md](./data-model.md)).
 Aufträge selbst: nur Arbeitsspeicher.
 
@@ -137,7 +137,7 @@ src-tauri/src/
 ├── llm/local/{loader,stream}.rs     # Ladeweg multimodal, Bildanhänge (R8, Lieferung C)
 ├── catalog/model_catalog.json       # format, vision, isq
 ├── model_capabilities.rs            # lokale Fähigkeiten aus dem Katalog
-└── identity/migrations.rs           # 0036_extension_model_order, Trigger-Version
+└── identity/migrations.rs           # 0037_extension_model_access, Trigger-Version
 
 src/
 ├── components/extensions/PermissionRequestDialog.vue   # Zweige model, modelDestination

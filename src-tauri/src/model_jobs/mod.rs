@@ -21,7 +21,7 @@ mod definitions;
     dead_code,
     reason = "used by the job runner of the next step of delivery B"
 )]
-mod effort;
+pub(crate) mod effort;
 mod errors;
 mod fixture;
 #[allow(

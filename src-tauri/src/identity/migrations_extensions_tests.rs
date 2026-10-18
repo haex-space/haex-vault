@@ -81,6 +81,7 @@ const COLUMNS: [(&str, &[&str]); 15] = [
             "max_sql_bytes",
             "timeout_ms",
             "max_response_bytes",
+            "model_job_timeout_ms",
         ],
     ),
     (

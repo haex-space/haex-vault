@@ -85,7 +85,11 @@ fn default_action(kind: PermissionKind) -> Option<&'static str> {
         PermissionKind::Web => Some("*"),
         PermissionKind::Notifications => Some("show"),
         PermissionKind::Shell => Some("execute"),
-        PermissionKind::Mail | PermissionKind::EncryptedFolder | PermissionKind::AgentTool => None,
+        PermissionKind::Mail
+        | PermissionKind::EncryptedFolder
+        | PermissionKind::AgentTool
+        | PermissionKind::Model
+        | PermissionKind::ModelDestination => None,
     }
 }
 

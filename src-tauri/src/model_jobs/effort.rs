@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 
 /// An effort the user may allow and an extension may wish for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Level {
     None,
