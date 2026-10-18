@@ -7,7 +7,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::openai_compatible::{token_limit_field_for_endpoint, OpenAiCompatibleAdapter};
 use super::openai_request::TokenLimitField;
-use super::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError};
+use super::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError, ToolCall};
 use super::{AdapterError, ProviderAdapter};
 
 #[test]
@@ -365,6 +365,14 @@ async fn an_error_inside_the_stream_is_classified() {
             json!({"message": "bad model", "type": "invalid_request_error"}),
             false,
         ),
+        // OpenRouter names the kind in `code` only; others send the status as a number.
+        (
+            json!({"message": "Provider disconnected", "code": "server_error"}),
+            true,
+        ),
+        (json!({"message": "overloaded", "code": 503}), true),
+        (json!({"message": "too many", "code": "429"}), true),
+        (json!({"message": "no such model", "code": 404}), false),
     ] {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -381,4 +389,113 @@ async fn an_error_inside_the_stream_is_classified() {
         };
         assert_eq!(error.is_transient(), transient, "{error}");
     }
+}
+
+/// Collects the tool calls handed out before `Done`.
+fn tool_calls(chunks: &[Result<StreamChunk, StreamError>]) -> Vec<ToolCall> {
+    chunks
+        .iter()
+        .filter_map(|c| match c {
+            Ok(StreamChunk::ToolCalls(calls)) => Some(calls.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+#[tokio::test]
+async fn whole_calls_without_an_index_stay_apart() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(sse(
+            &[
+                json!({"choices": [{"delta": {"tool_calls": [
+                    {"id": "a", "type": "function",
+                     "function": {"name": "get_time", "arguments": "{}"}}]}}]}),
+                json!({"choices": [{"delta": {"tool_calls": [
+                    {"id": "b", "type": "function",
+                     "function": {"name": "get_date", "arguments": "{\"d\":1}"}}]},
+                    "finish_reason": "tool_calls"}]}),
+            ],
+            true,
+        ))
+        .mount(&server)
+        .await;
+    let adapter = OpenAiCompatibleAdapter::new(server.uri(), String::new()).expect("adapter");
+
+    let calls = tool_calls(&collect(&adapter, request(false)).await);
+
+    let names: Vec<_> = calls.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["get_time", "get_date"]);
+    assert_eq!(calls[1].input, json!({"d": 1}));
+}
+
+#[tokio::test]
+async fn a_chunk_that_is_not_json_ends_the_stream() {
+    let server = MockServer::start().await;
+    let body = "data: {\"choices\": [{\"delta\": {\"content\": \"Hal\"}}]}\n\n\
+                data: {\"choices\": [{\"del\n\n\
+                data: [DONE]\n\n";
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+        .mount(&server)
+        .await;
+    let adapter = OpenAiCompatibleAdapter::new(server.uri(), String::new()).expect("adapter");
+
+    let chunks = collect(&adapter, request(false)).await;
+
+    assert!(
+        matches!(chunks.last(), Some(Err(StreamError::Internal(_)))),
+        "{chunks:?}"
+    );
+    assert!(!chunks
+        .iter()
+        .any(|c| matches!(c, Ok(StreamChunk::Done { .. }))));
+}
+
+#[tokio::test]
+async fn arguments_cut_by_the_token_limit_say_so() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(sse(
+            &[json!({"choices": [{"delta": {"tool_calls": [
+                {"index": 0, "id": "call_1", "type": "function",
+                 "function": {"name": "weather", "arguments": "{\"city\": \"Bo"}}]},
+                "finish_reason": "length"}]})],
+            true,
+        ))
+        .mount(&server)
+        .await;
+    let adapter = OpenAiCompatibleAdapter::new(server.uri(), String::new()).expect("adapter");
+
+    let chunks = collect(&adapter, request(false)).await;
+
+    assert!(
+        matches!(chunks.last(), Some(Err(StreamError::Model(m))) if m.contains("token limit")),
+        "{chunks:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_cannot_be_reached_is_a_transport_error() {
+    // Bind and drop a listener, so the port is known to be closed.
+    let address = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("bind")
+        .local_addr()
+        .expect("address");
+    let adapter = OpenAiCompatibleAdapter::new(format!("http://{address}/v1"), String::new())
+        .expect("adapter");
+
+    let error = match adapter.list_models().await {
+        Err(error) => error,
+        Ok(_) => panic!("a closed port must fail"),
+    };
+
+    // `transport_error` sorts it; a refused certificate would be `UntrustedCertificate`
+    // (`tls_tests.rs`).
+    assert!(matches!(error, AdapterError::Http { .. }), "{error:?}");
+    assert!(error.is_transient());
 }

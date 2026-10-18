@@ -202,8 +202,16 @@ impl ProviderAdapter for OpenAiCompatibleAdapter {
                     }
                     return;
                 }
-                let Ok(payload) = serde_json::from_str::<Value>(data) else {
+                if data.is_empty() {
                     continue;
+                }
+                // A chunk that is not JSON lost part of the answer (a proxy cut it, say): ending the
+                // stream is better than a reply with a silent gap.
+                let Ok(payload) = serde_json::from_str::<Value>(data) else {
+                    let _ = tx.send(Err(StreamError::Internal(
+                        "a stream chunk is not JSON".to_string(),
+                    )));
+                    return;
                 };
                 if let Some(error) = error_of(&payload) {
                     let _ = tx.send(Err(error));
@@ -235,8 +243,9 @@ impl ProviderAdapter for OpenAiCompatibleAdapter {
     }
 }
 
-/// An error object inside the stream (`data: {"error": {...}}`). A rate limit or an overload is
-/// transient, everything else reproduces for the same request.
+/// An error object inside the stream (`data: {"error": {...}}`). A rate limit, an overload or a
+/// server fault is transient (as 429 and 5xx before the stream), everything else reproduces for
+/// the same request. Servers name it in `type`, in a string `code` (OpenRouter) or as a number.
 fn error_of(payload: &Value) -> Option<StreamError> {
     let error = payload.get("error")?;
     let message = error
@@ -244,16 +253,22 @@ fn error_of(payload: &Value) -> Option<StreamError> {
         .and_then(Value::as_str)
         .unwrap_or("provider error")
         .to_string();
-    let kind = error
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
     let code = error.get("code");
-    let transient = ["rate_limit", "overloaded", "server_error"]
-        .iter()
-        .any(|word| kind.contains(word))
-        || code.and_then(Value::as_u64) == Some(429)
-        || code.and_then(Value::as_str) == Some("rate_limit_exceeded");
+    let names = [
+        error.get("type").and_then(Value::as_str),
+        code.and_then(Value::as_str),
+    ];
+    let named_transient = names.iter().flatten().any(|name| {
+        let name = name.to_ascii_lowercase();
+        ["rate_limit", "overloaded", "server_error", "unavailable"]
+            .iter()
+            .any(|word| name.contains(word))
+    });
+    let status = code
+        .and_then(Value::as_u64)
+        .or_else(|| code.and_then(Value::as_str)?.parse().ok());
+    let transient = named_transient
+        || status.is_some_and(|status| status == 429 || (500..600).contains(&status));
     Some(if transient {
         StreamError::Transient(message)
     } else {
@@ -328,7 +343,10 @@ impl Run {
         }
         if let Some(fragments) = delta.get("tool_calls").and_then(Value::as_array) {
             for fragment in fragments {
-                let index = fragment.get("index").and_then(Value::as_u64).unwrap_or(0);
+                let index = match fragment.get("index").and_then(Value::as_u64) {
+                    Some(index) => index,
+                    None => self.index_without_number(fragment),
+                };
                 let entry = self.tool_calls.entry(index).or_default();
                 if let Some(id) = fragment.get("id").and_then(Value::as_str) {
                     entry.0 = id.to_string();
@@ -347,6 +365,19 @@ impl Run {
         out
     }
 
+    /// Where a fragment without `index` belongs (Gemini's compatibility layer sends whole calls
+    /// without one): a fragment with an id other than the last call's starts a new call, the rest
+    /// continue the last one.
+    fn index_without_number(&self, fragment: &Value) -> u64 {
+        let Some((&last, (last_id, ..))) = self.tool_calls.last_key_value() else {
+            return 0;
+        };
+        match fragment.get("id").and_then(Value::as_str) {
+            Some(id) if !id.is_empty() && id != last_id => last + 1,
+            _ => last,
+        }
+    }
+
     /// The closing chunks. A tool call is complete only now, when all its fragments are in; the
     /// calls go out as one chunk right before `Done`, like with Anthropic.
     fn finish(&mut self) -> Result<Vec<StreamChunk>, StreamError> {
@@ -357,7 +388,14 @@ impl Run {
                 serde_json::json!({})
             } else {
                 serde_json::from_str(&arguments).map_err(|error| {
-                    StreamError::Model(format!("invalid tool arguments for {name}: {error}"))
+                    // Arguments cut off by the token limit are not the model's mistake to repeat.
+                    if self.finish_reason.as_deref() == Some("length") {
+                        StreamError::Model(format!(
+                            "the token limit ended the answer inside the arguments for {name}"
+                        ))
+                    } else {
+                        StreamError::Model(format!("invalid tool arguments for {name}: {error}"))
+                    }
                 })?
             };
             calls.push(ToolCall { id, name, input });
