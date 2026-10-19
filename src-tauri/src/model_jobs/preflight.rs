@@ -25,6 +25,7 @@ use crate::chat::default_model::PREF_DEFAULT_MODEL;
 use crate::error::Result as VaultResult;
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
+use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store;
 use crate::extensions::permissions::{
     evaluate, Action, Decision, Permission, PermissionKind, PermissionRequest, RequestTarget,
@@ -32,6 +33,7 @@ use crate::extensions::permissions::{
 use crate::extensions::sql::exec::limits_of;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
+use crate::vault_gate::VaultDb;
 
 /// A job that passed the preflight: each step with its candidates.
 pub(crate) struct Ready {
@@ -52,17 +54,68 @@ pub(crate) struct Facts {
     pub timeout: Duration,
 }
 
+/// The model and destination decisions held for the session.
+fn held(host: &ExtensionHost, extension_id: Uuid) -> (Vec<Permission>, Vec<Permission>) {
+    let permissions = &host.permissions;
+    (
+        permissions.temporary(extension_id, PermissionKind::Model),
+        permissions.temporary(extension_id, PermissionKind::ModelDestination),
+    )
+}
+
 /// Reads the [`Facts`] of the calling extension, with the decisions held for the session.
 pub(crate) fn read_facts(ctx: &CallContext) -> Result<Facts, BridgeError> {
     let (extension_id, device) = (ctx.session.extension_id, ctx.device);
-    let permissions = &ctx.host.permissions;
-    let held = permissions.temporary(extension_id, PermissionKind::Model);
-    let destinations = permissions.temporary(extension_id, PermissionKind::ModelDestination);
+    let (held, destinations) = held(&ctx.host, extension_id);
     ctx.db
         .read_blocking(move |q| {
             facts_of(q, extension_id, device, held, destinations).map_err(Into::into)
         })
         .map_err(|_| bridge_error(JobErrorCode::Unavailable, "the models could not be read"))
+}
+
+/// [`read_facts`] for a running job, between two of its steps.
+pub(crate) async fn reread_facts(
+    db: &VaultDb,
+    host: &ExtensionHost,
+    extension_id: Uuid,
+    device: Uuid,
+) -> VaultResult<Facts> {
+    let (held, destinations) = held(host, extension_id);
+    db.read(move |q| facts_of(q, extension_id, device, held, destinations).map_err(Into::into))
+        .await
+}
+
+/// The candidates of a later step that may still be tried: the ones planned at the start that
+/// the extension may still use (with the ceiling as it is now) and, outside this device, whose
+/// destination still has the user's consent. A model granted since the start is not added: the
+/// user was asked about the job as it started (FR-025).
+pub(crate) fn still_allowed(planned: &[Candidate], facts: &Facts, device: Uuid) -> Vec<Candidate> {
+    planned
+        .iter()
+        .filter_map(|candidate| {
+            let now = facts
+                .granted
+                .iter()
+                .find(|granted| granted.model.id == candidate.model.id)?;
+            let consented = !candidate.model.place.needs_consent()
+                || evaluate(&facts.destinations, &destination(candidate), device)
+                    == Decision::Allow;
+            consented.then(|| Candidate {
+                model: candidate.model.clone(),
+                ceiling: now.ceiling,
+            })
+        })
+        .collect()
+}
+
+/// The question whether the job may be sent to the provider of `candidate`.
+fn destination(candidate: &Candidate) -> PermissionRequest {
+    PermissionRequest {
+        kind: PermissionKind::ModelDestination,
+        action: Action::Send,
+        target: RequestTarget::Provider(candidate.model.provider.id.to_string()),
+    }
 }
 
 fn facts_of(
@@ -127,12 +180,7 @@ pub(crate) fn choose(
             kept.push(candidate);
             continue;
         }
-        let request = PermissionRequest {
-            kind: PermissionKind::ModelDestination,
-            action: Action::Send,
-            target: RequestTarget::Provider(candidate.model.provider.id.to_string()),
-        };
-        match evaluate(&facts.destinations, &request, device) {
+        match evaluate(&facts.destinations, &destination(&candidate), device) {
             Decision::Allow => kept.push(candidate),
             Decision::Deny => refused = true,
             Decision::Prompt if kept.is_empty() => {

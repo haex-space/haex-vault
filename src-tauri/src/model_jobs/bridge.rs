@@ -5,22 +5,24 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use super::candidates::takes_images;
+use super::candidates::{takes_images, Candidate};
 use super::errors::{bridge_error, refusal, too_many, JobErrorCode, JobFailure};
 use super::job::{self, JobError};
 use super::model_source::ModelSource;
-use super::preflight::{preflight, read_facts, Ready};
-use super::runner::{run_job, JobEnd, JobRun};
+use super::preflight::{preflight, read_facts, reread_facts, still_allowed, Ready};
+use super::runner::{run_job, JobEnd, JobRun, Recheck};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::model_capabilities::ReasoningControl;
+use crate::vault_gate::VaultDb;
 
 pub(crate) const COMPLETED_EVENT: &str = "haextension:model-job:completed";
 
@@ -78,17 +80,44 @@ pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeEr
         registry,
         host: Arc::clone(&ctx.host),
         emitter: Arc::clone(&ctx.emitter),
+        grants: Grants {
+            db: ctx.db.clone(),
+            host: Arc::clone(&ctx.host),
+            extension_id: ctx.session.extension_id,
+            device: ctx.device,
+        },
     };
     tauri::async_runtime::spawn(async move { run.job(record, ready).await });
     Ok(json!({ "jobId": id.to_string(), "status": "running" }))
 }
 
-/// What the background run of a job holds: no database, so a job never keeps the vault open.
+/// What the background run of a job holds. Its database handle is for the grants between steps;
+/// a close of the vault cancels every job first (`instances::close::begin_close`), so a run never
+/// keeps the vault open.
 struct Run {
     source: Arc<dyn ModelSource>,
     registry: JobRegistry,
     host: Arc<ExtensionHost>,
     emitter: Arc<dyn Emit>,
+    grants: Grants,
+}
+
+/// The grants and consents of the job's extension as they are now.
+struct Grants {
+    db: VaultDb,
+    host: Arc<ExtensionHost>,
+    extension_id: Uuid,
+    device: Uuid,
+}
+
+#[async_trait]
+impl Recheck for Grants {
+    async fn still_allowed(&self, planned: &[Candidate]) -> Option<Vec<Candidate>> {
+        let facts = reread_facts(&self.db, &self.host, self.extension_id, self.device)
+            .await
+            .ok()?;
+        Some(still_allowed(planned, &facts, self.device))
+    }
 }
 
 impl Run {
@@ -96,6 +125,7 @@ impl Run {
         let run = run_job(
             self.source.as_ref(),
             &ready.steps,
+            &self.grants,
             &record.cancel,
             Instant::from_std(record.deadline),
         )

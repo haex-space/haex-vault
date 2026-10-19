@@ -92,6 +92,17 @@ impl JobRegistry {
             .is_some()
     }
 
+    /// Cancels every job: the vault closes, and no run may keep it open (a run reads the grants
+    /// between its steps). Returns how many.
+    pub(crate) fn cancel_all(&self) -> usize {
+        let mut records = lock(&self.records);
+        let count = records.len();
+        for (_, record) in records.drain() {
+            record.cancel.cancel();
+        }
+        count
+    }
+
     /// Cancels every job of `owner` (its frame closed or loaded another page). Returns how many.
     pub(crate) fn cancel_owned_by(&self, owner: &JobOwner) -> usize {
         let mut records = lock(&self.records);

@@ -104,3 +104,16 @@ fn a_record_holds_no_more_than_what_cancels_and_limits_it() {
         deadline: _,
     } = record;
 }
+
+#[test]
+fn closing_the_vault_cancels_every_job_of_every_frame() {
+    let registry = JobRegistry::default();
+    let first = registry.start(owner("frame-1"), LONG).unwrap();
+    let second = registry.start(owner("frame-2"), LONG).unwrap();
+
+    assert_eq!(registry.cancel_all(), 2);
+
+    assert!(first.cancel.is_cancelled() && second.cancel.is_cancelled());
+    assert!(registry.get(first.id).is_none() && registry.get(second.id).is_none());
+    assert_eq!(registry.cancel_all(), 0);
+}

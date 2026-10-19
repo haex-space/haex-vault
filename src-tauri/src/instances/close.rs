@@ -109,6 +109,8 @@ pub fn begin_close(ctx: &CloseContext<'_>) -> bool {
         log::warn!("could not cancel the running turn: {error}");
     }
     ctx.voice.cancel_for_close();
+    // A model job reads the grants between its steps; it must not hold the vault open.
+    ctx.app_state.extensions().model_jobs().cancel_all();
     // A copied password does not outlive the vault (spec 034, FR-006).
     ctx.app_state.clipboard().clear_now();
     ctx.chat.cancel_preload();

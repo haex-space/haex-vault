@@ -1,8 +1,12 @@
 //! Tests for a job of several steps (spec 055 T040): the result of a step reaches a later one
-//! through `from` and its pointer, a part missing at run time ends the step without a model, and
-//! the first step without a result ends the job.
+//! through `from` and its pointer, a part missing at run time ends the step without a model, the
+//! first step without a result ends the job, and a grant withdrawn while the job runs holds from
+//! the next step on.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+
+use async_trait::async_trait;
 
 use serde_json::{json, Value};
 use tokio::time::Instant;
@@ -13,7 +17,7 @@ use super::effort::Level;
 use super::errors::JobErrorCode;
 use super::job::{self, Step};
 use super::model_source::JobModel;
-use super::runner::{run_job, JobEnd, JobRun, Outcome};
+use super::runner::{run_job, JobEnd, JobRun, Outcome, Recheck};
 use super::test_support::{model_row, provider, FakeSource, Script};
 use crate::storage::providers::ProviderKind;
 
@@ -65,14 +69,53 @@ fn steps(regions_required: bool) -> Vec<Step> {
     job::parse(&job).unwrap().steps
 }
 
-async fn run(source: &FakeSource, steps: Vec<Step>, models: [&Candidate; 2]) -> JobRun {
+/// The grants as they are between two steps: every planned candidate, except the `withdrawn`
+/// ones; `None` for grants that cannot be read.
+#[derive(Default)]
+struct Grants {
+    withdrawn: Vec<String>,
+    unreadable: bool,
+    asked: AtomicUsize,
+}
+
+#[async_trait]
+impl Recheck for Grants {
+    async fn still_allowed(&self, planned: &[Candidate]) -> Option<Vec<Candidate>> {
+        self.asked.fetch_add(1, Ordering::SeqCst);
+        (!self.unreadable).then(|| {
+            planned
+                .iter()
+                .filter(|c| !self.withdrawn.contains(&c.model.id))
+                .cloned()
+                .collect()
+        })
+    }
+}
+
+async fn run_with(
+    source: &FakeSource,
+    steps: Vec<Step>,
+    models: [&Candidate; 2],
+    grants: &Grants,
+) -> JobRun {
     let planned: Vec<(Step, Vec<Candidate>)> = steps
         .into_iter()
         .zip(models)
         .map(|(step, model)| (step, vec![model.clone()]))
         .collect();
     let deadline = Instant::now() + Duration::from_secs(60);
-    run_job(source, &planned, &CancellationToken::new(), deadline).await
+    run_job(
+        source,
+        &planned,
+        grants,
+        &CancellationToken::new(),
+        deadline,
+    )
+    .await
+}
+
+async fn run(source: &FakeSource, steps: Vec<Step>, models: [&Candidate; 2]) -> JobRun {
+    run_with(source, steps, models, &Grants::default()).await
 }
 
 fn ids(run: &JobRun) -> Vec<(String, usize)> {
@@ -178,4 +221,71 @@ async fn the_script_of_a_handed_part_may_come_back_in_the_answer() {
         run.end,
         JobEnd::Completed(vec![("read".into(), greek), ("fix".into(), fixed)])
     );
+}
+
+fn two_answers(reader: &Candidate, fixer: &Candidate) -> std::sync::Arc<FakeSource> {
+    FakeSource::with(&[
+        (
+            &reader.model.id,
+            Script::Answer(json!({ "regions": [{ "text": "Tsest" }] }).to_string()),
+        ),
+        (
+            &fixer.model.id,
+            Script::Answer(r#"{"texts":["Test"]}"#.into()),
+        ),
+    ])
+}
+
+#[tokio::test]
+async fn the_grants_are_asked_again_before_every_later_step_only() {
+    let (reader, fixer) = (candidate("reader"), candidate("fixer"));
+    let source = two_answers(&reader, &fixer);
+    let grants = Grants::default();
+
+    let run = run_with(&source, steps(true), [&reader, &fixer], &grants).await;
+
+    assert!(matches!(run.end, JobEnd::Completed(_)));
+    // The first step runs on what the start checked a moment ago.
+    assert_eq!(grants.asked.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn a_grant_withdrawn_while_the_job_runs_ends_the_next_step() {
+    let (reader, fixer) = (candidate("reader"), candidate("fixer"));
+    let source = two_answers(&reader, &fixer);
+    let grants = Grants {
+        withdrawn: vec![fixer.model.id.clone()],
+        ..Grants::default()
+    };
+
+    let run = run_with(&source, steps(true), [&reader, &fixer], &grants).await;
+
+    assert_eq!(
+        run.end,
+        JobEnd::Failed {
+            step_id: "fix".into(),
+            code: JobErrorCode::NoCapableModel,
+            message: "a grant was withdrawn".into(),
+        }
+    );
+    assert_eq!(ids(&run), [("read".into(), 1), ("fix".into(), 0)]);
+    assert_eq!(source.asked(), std::slice::from_ref(&reader.model.id));
+}
+
+#[tokio::test]
+async fn grants_that_cannot_be_read_end_the_next_step_unavailable() {
+    let (reader, fixer) = (candidate("reader"), candidate("fixer"));
+    let source = two_answers(&reader, &fixer);
+    let grants = Grants {
+        unreadable: true,
+        ..Grants::default()
+    };
+
+    let run = run_with(&source, steps(true), [&reader, &fixer], &grants).await;
+
+    assert!(matches!(
+        &run.end,
+        JobEnd::Failed { step_id, code: JobErrorCode::Unavailable, .. } if step_id == "fix"
+    ));
+    assert_eq!(source.asked(), std::slice::from_ref(&reader.model.id));
 }
