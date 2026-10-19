@@ -337,7 +337,7 @@ fn a_successful_result_never_carries_a_key_or_an_address() {
         &s,
         &[(
             &rows[0].id,
-            Script::Answer(format!(r#"{"texts":["{KEY} {address}"]}"#)),
+            Script::Answer(format!(r#"{{"texts":["{KEY} {address}"]}}"#)),
         )],
     );
     allow(&s, "model", "low", &rows[0].id, "granted");
