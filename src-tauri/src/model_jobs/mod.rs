@@ -3,16 +3,10 @@
 //! and the format of its answer; holzi picks the models, checks what they answer and gives the
 //! extension only a result that fits its format.
 //!
-//! A job of one step runs: the parts of a job (`job`, `schema`, `guard`, `effort`, `place`,
-//! `limits`), the errors (`errors`), the registry of running jobs (`state`), the models a step
-//! may go to (`candidates`, `model_source`), the preflight (`preflight`), the run (`runner`) and
-//! the bridge methods (`bridge`). Jobs of several steps follow with user story 3.
-
-// The parts for several steps (`from`) and the registry's `expire` are not reached yet.
-#![allow(
-    dead_code,
-    reason = "the steps of user story 3 use the rest of the job parts"
-)]
+//! The parts of a job (`job`, `schema`, `guard`, `effort`, `place`, `limits`), the errors
+//! (`errors`), the registry of running jobs (`state`), the models a step may go to (`candidates`,
+//! `model_source`), the preflight (`preflight`), the run (`runner`) and the bridge methods
+//! (`bridge`).
 
 pub(crate) mod bridge;
 mod candidates;
@@ -44,6 +38,8 @@ mod job_tests;
 mod model_source_tests;
 #[cfg(test)]
 mod place_tests;
+#[cfg(test)]
+mod runner_steps_tests;
 #[cfg(test)]
 mod runner_tests;
 #[cfg(test)]

@@ -83,7 +83,7 @@ Ein Eintrag bekommt `format` (`gguf` | `multimodal_dir`), `vision` (bool) und be
 
 - Der Eintrag besteht nur, solange der Auftrag läuft (daher kein Zustand), und verschwindet, wenn er endet:
   nach dem Abschluss-Ereignis (`finish`), beim Abbruch (`cancel`, `cancel_owned_by`) und bei Zeitüberschreitung
-  (`expire`). Er trägt keine Eingabe, keine Anweisung, kein Ergebnis und keine Herkunft.
+  (der Lauf selbst wartet bis `deadline`, meldet `timeout` und nimmt den Eintrag mit `finish`). Er trägt keine Eingabe, keine Anweisung, kein Ergebnis und keine Herkunft.
 
 ### Auftrag, Schritt, Herkunft (nur in der Anfrage und im Ergebnis)
 

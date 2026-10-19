@@ -1,6 +1,7 @@
-//! The preflight of a start (spec 055 R4): before any model is asked, the step must have a model
-//! the extension may use, and the first one outside this device must have the user's consent.
-//! Every question to the user is asked here, in the synchronous part, where the 1004 path works.
+//! The preflight of a start (spec 055 R4, FR-025): before any model is asked, every step must have
+//! a model the extension may use, and the first one of each step outside this device must have the
+//! user's consent. Every question to the user is asked here, in the synchronous part, where the
+//! 1004 path works; a job never fails half way for a grant that was missing from the start.
 //!
 //! - No granted model fits the step: holzi asks for a grant (1004 `model`) when some model of the
 //!   vault fits and the user has not refused it, else `consent_denied` (1002) or
@@ -32,10 +33,9 @@ use crate::extensions::sql::exec::limits_of;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 
-/// A job that passed the preflight.
+/// A job that passed the preflight: each step with its candidates.
 pub(crate) struct Ready {
-    pub step: Step,
-    pub candidates: Vec<Candidate>,
+    pub steps: Vec<(Step, Vec<Candidate>)>,
     pub timeout: Duration,
 }
 
@@ -62,13 +62,7 @@ pub(crate) fn read_facts(ctx: &CallContext) -> Result<Facts, BridgeError> {
         .read_blocking(move |q| {
             facts_of(q, extension_id, device, held, destinations).map_err(Into::into)
         })
-        .map_err(|_| {
-            bridge_error(
-                JobErrorCode::Unavailable,
-                "the models could not be read",
-                "unavailable",
-            )
-        })
+        .map_err(|_| bridge_error(JobErrorCode::Unavailable, "the models could not be read"))
 }
 
 fn facts_of(
@@ -99,23 +93,19 @@ fn facts_of(
     })
 }
 
-/// Checks a parsed job and finds its candidates.
+/// Checks a parsed job and finds the candidates of every step, in the order of the steps.
 pub(crate) fn preflight(ctx: &CallContext, job: Job) -> Result<Ready, BridgeError> {
-    // Jobs of several steps come with the steps of user story 3.
-    if job.steps.len() > 1 {
-        return Err(BridgeError::new(
-            ExtensionErrorCode::NotAvailable,
-            "jobs of several steps are not available yet",
-        ));
-    }
-    let Some(step) = job.steps.into_iter().next() else {
-        return Err(BridgeError::not_available());
-    };
     let facts = read_facts(ctx)?;
-    let candidates = choose(&step, &facts, ctx.device)?;
+    let steps = job
+        .steps
+        .into_iter()
+        .map(|step| {
+            let candidates = choose(&step, &facts, ctx.device)?;
+            Ok((step, candidates))
+        })
+        .collect::<Result<_, BridgeError>>()?;
     Ok(Ready {
-        step,
-        candidates,
+        steps,
         timeout: facts.timeout,
     })
 }
@@ -162,18 +152,13 @@ pub(crate) fn choose(
 }
 
 fn consent_denied() -> BridgeError {
-    bridge_error(
-        JobErrorCode::ConsentDenied,
-        "the user refused",
-        "consent_denied",
-    )
+    bridge_error(JobErrorCode::ConsentDenied, "the user refused")
 }
 
 fn no_capable_model() -> BridgeError {
     bridge_error(
         JobErrorCode::NoCapableModel,
         "no model the extension may use can do what the step needs",
-        "no_capable_model",
     )
 }
 

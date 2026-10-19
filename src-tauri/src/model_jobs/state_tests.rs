@@ -1,6 +1,6 @@
 //! Tests for the registry of running model jobs (spec 055 FR-022, FR-028, R9).
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use uuid::Uuid;
 
@@ -89,27 +89,6 @@ fn closing_a_frame_cancels_all_its_jobs_and_no_other() {
     assert!(registry.get(first.id).is_none() && registry.get(second.id).is_none());
     assert!(registry.get(elsewhere.id).is_some());
     assert_eq!(registry.cancel_owned_by(&frame), 0);
-}
-
-#[test]
-fn a_job_over_its_deadline_is_taken_out_and_cancelled() {
-    let registry = JobRegistry::default();
-    let quick = registry
-        .start(owner("frame-1"), Duration::from_millis(10))
-        .unwrap();
-    let slow = registry.start(owner("frame-2"), LONG).unwrap();
-    let later = Instant::now() + Duration::from_secs(1);
-
-    let over = registry.expire(later);
-
-    assert_eq!(
-        over.iter().map(|record| record.id).collect::<Vec<_>>(),
-        [quick.id]
-    );
-    assert!(quick.cancel.is_cancelled());
-    assert!(registry.get(quick.id).is_none());
-    assert!(!slow.cancel.is_cancelled() && registry.get(slow.id).is_some());
-    assert!(registry.expire(later).is_empty(), "each job expires once");
 }
 
 #[test]

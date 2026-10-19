@@ -11,10 +11,10 @@ use uuid::Uuid;
 
 use super::candidates::takes_images;
 use super::errors::{bridge_error, refusal, too_many, JobErrorCode, JobFailure};
-use super::job::{self, JobError, Step};
+use super::job::{self, JobError};
 use super::model_source::ModelSource;
 use super::preflight::{preflight, read_facts, Ready};
-use super::runner::{run_step, StepEnd, StepRun};
+use super::runner::{run_job, JobEnd, JobRun};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
@@ -93,20 +93,20 @@ struct Run {
 
 impl Run {
     async fn job(self, record: JobRecord, ready: Ready) {
-        let run = run_step(
+        let run = run_job(
             self.source.as_ref(),
-            &ready.step,
-            &ready.candidates,
+            &ready.steps,
             &record.cancel,
             Instant::from_std(record.deadline),
         )
         .await;
         let secrets: Vec<String> = ready
-            .candidates
+            .steps
             .iter()
+            .flat_map(|(_, candidates)| candidates)
             .flat_map(|c| c.model.secrets())
             .collect();
-        let Some(payload) = report(record.id, &ready.step, run, &secrets) else {
+        let Some(payload) = report(record.id, run, &secrets) else {
             return;
         };
         // Cancelled or over time first: whoever took the record reports the end.
@@ -123,26 +123,45 @@ impl Run {
 
 /// The completion event of a run; `None` for a cancelled one (the cancel reports it, a closed
 /// frame hears nothing).
-fn report(id: JobId, step: &Step, run: StepRun, secrets: &[String]) -> Option<Value> {
-    let provenance = json!([{
-        "stepId": step.id,
-        "formatName": step.format.name,
-        "formatVersion": step.format.version,
-        "attempts": run.attempts,
-    }]);
+fn report(id: JobId, run: JobRun, secrets: &[String]) -> Option<Value> {
+    let provenance: Vec<Value> = run
+        .steps
+        .iter()
+        .map(|step| {
+            json!({
+                "stepId": step.step_id,
+                "formatName": step.format_name,
+                "formatVersion": step.format_version,
+                "attempts": step.attempts,
+            })
+        })
+        .collect();
     Some(match run.end {
-        StepEnd::Cancelled => return None,
-        StepEnd::Used(value) => completion_payload(
-            id,
-            "completed",
-            provenance,
-            Some(json!({ "steps": [{ "id": step.id, "result": value }], "final": value })),
-            None,
-        ),
-        StepEnd::Failed(code, message) => {
+        JobEnd::Cancelled => return None,
+        JobEnd::Completed(results) => {
+            let last = results
+                .last()
+                .map_or(Value::Null, |(_, value)| value.clone());
+            let steps: Vec<Value> = results
+                .into_iter()
+                .map(|(id, result)| json!({ "id": id, "result": result }))
+                .collect();
+            completion_payload(
+                id,
+                "completed",
+                Value::Array(provenance),
+                Some(json!({ "steps": steps, "final": last })),
+                None,
+            )
+        }
+        JobEnd::Failed {
+            step_id,
+            code,
+            message,
+        } => {
             let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
-            let failure = JobFailure::new(code, &message, &known).at_step(&step.id);
-            completion_payload(id, "failed", provenance, None, Some(&failure))
+            let failure = JobFailure::new(code, &message, &known).at_step(&step_id);
+            completion_payload(id, "failed", Value::Array(provenance), None, Some(&failure))
         }
     })
 }
@@ -154,13 +173,7 @@ pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeE
         .get("jobId")
         .and_then(Value::as_str)
         .and_then(|text| text.parse::<Uuid>().ok())
-        .ok_or_else(|| {
-            bridge_error(
-                JobErrorCode::InvalidInput,
-                "jobId must be a UUID",
-                "invalid_input",
-            )
-        })?;
+        .ok_or_else(|| bridge_error(JobErrorCode::InvalidInput, "jobId must be a UUID"))?;
     let owner = owner(ctx);
     let registry = ctx.host.model_jobs();
     let Some(record) = registry.get(id) else {

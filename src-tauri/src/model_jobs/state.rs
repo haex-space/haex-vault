@@ -27,7 +27,7 @@ pub(crate) struct JobRecord {
     pub id: JobId,
     pub owner: JobOwner,
     pub cancel: CancellationToken,
-    /// After this moment the job is over time ([`JobRegistry::expire`]).
+    /// After this moment the job is over time: its run ends it and reports `timeout`.
     pub deadline: Instant,
 }
 
@@ -106,20 +106,5 @@ impl JobRegistry {
             }
         }
         ids.len()
-    }
-
-    /// Takes the jobs whose deadline is before `now` out of the registry and fires their tokens.
-    /// The caller reports their end.
-    pub(crate) fn expire(&self, now: Instant) -> Vec<JobRecord> {
-        let mut records = lock(&self.records);
-        let over: Vec<JobId> = records
-            .values()
-            .filter(|record| record.deadline <= now)
-            .map(|record| record.id)
-            .collect();
-        over.iter()
-            .filter_map(|id| records.remove(id))
-            .inspect(|record| record.cancel.cancel())
-            .collect()
     }
 }
