@@ -72,12 +72,12 @@ Ein Eintrag bekommt `format` (`gguf` | `multimodal_dir`), `vision` (bool) und be
 
 ### `JobRecord` (Registry `model_jobs::state`)
 
-| Feld       | Bedeutung                                           |
-| ---------- | --------------------------------------------------- |
-| `id`       | UUID des Auftrags                                   |
-| `owner`    | `{extension_id, frame}` (`JobOwner`)                |
-| `cancel`   | Abbruch-Token                                       |
-| `deadline` | Zeitpunkt, an dem der Auftrag abbricht              |
+| Feld       | Bedeutung                              |
+| ---------- | -------------------------------------- |
+| `id`       | UUID des Auftrags                      |
+| `owner`    | `{extension_id, frame}` (`JobOwner`)   |
+| `cancel`   | Abbruch-Token                          |
+| `deadline` | Zeitpunkt, an dem der Auftrag abbricht |
 
 - Der Eintrag besteht nur, solange der Auftrag läuft (daher kein Zustand), und verschwindet, wenn er endet:
   nach dem Abschluss-Ereignis (`finish`), beim Abbruch (`cancel`, `cancel_owned_by`) und bei Zeitüberschreitung
