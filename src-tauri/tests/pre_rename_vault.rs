@@ -104,6 +104,13 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         .await
         .expect("read the router entry");
     assert_eq!(secret.password.as_deref(), Some("pre-rename-router-secret"));
+    let router_detail = passwords
+        .get_item(&Caller::User, router.id.clone())
+        .await
+        .expect("read the router entry details");
+    assert_eq!(router_detail.attachments.len(), 1);
+    assert_eq!(router_detail.attachments[0].file_name, "router-notes.txt");
+    assert!(router_detail.attachments[0].size > 0);
 
     // The overview also carries the entry in the trash, and the folder.
     let overview = passwords
@@ -122,6 +129,25 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         .filter_map(|header| header.title.as_deref())
         .collect();
     assert_eq!(in_trash, ["Old shop"]);
+    let old_shop = overview
+        .headers
+        .iter()
+        .find(|header| header.title.as_deref() == Some("Old shop"))
+        .expect("the trashed entry");
+    let old_shop_detail = passwords
+        .get_item(&Caller::User, old_shop.id.clone())
+        .await
+        .expect("read the trashed entry details");
+    assert_eq!(old_shop_detail.header.title.as_deref(), Some("Old shop"));
+    let old_shop_secret = passwords
+        .read_secret_item(&Caller::User, &[], old_shop.id.clone())
+        .await
+        .expect("read the trashed entry");
+    assert_eq!(old_shop_secret.username.as_deref(), Some("bob"));
+    assert_eq!(
+        old_shop_secret.password.as_deref(),
+        Some("pre-rename-shop-secret")
+    );
     assert!(
         overview
             .groups
@@ -143,6 +169,16 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         .await
         .expect("read the contact");
     assert_eq!(contact.values.len(), 4, "e-mail and the three addresses");
+    assert!(contact.values.iter().all(|value| !value.value.is_empty()));
+    assert_eq!(
+        contact
+            .values
+            .iter()
+            .filter(|value| value.value.contains('@'))
+            .count(),
+        1,
+        "the e-mail value is still present"
+    );
 
     // The attachment and the provider.
     let db = vault.database();
