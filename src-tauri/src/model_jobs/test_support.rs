@@ -42,10 +42,12 @@ pub(crate) enum Script {
 struct Dropped {
     count: Arc<AtomicUsize>,
     changed: Arc<Condvar>,
+    lock: Arc<Mutex<Vec<(String, ChatRequest)>>>,
 }
 
 impl Drop for Dropped {
     fn drop(&mut self) {
+        let _held = self.lock.lock().unwrap();
         self.count.fetch_add(1, Ordering::SeqCst);
         self.changed.notify_all();
     }
@@ -158,6 +160,8 @@ impl ProviderAdapter for ScriptedAdapter {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let script = self.script.clone();
         let dropped = Arc::clone(&self.dropped);
+        let dropped_changed = Arc::clone(&self.dropped_changed);
+        let seen = Arc::clone(&self.seen);
         let task = tokio::spawn(async move {
             match script {
                 Script::Answer(text) => {
@@ -188,6 +192,7 @@ impl ProviderAdapter for ScriptedAdapter {
                     let _guard = Dropped {
                         count: dropped,
                         changed: dropped_changed,
+                        lock: seen,
                     };
                     let _tx = tx;
                     std::future::pending::<()>().await;
