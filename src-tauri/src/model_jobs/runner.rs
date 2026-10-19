@@ -19,6 +19,7 @@ use super::model_source::ModelSource;
 use super::place::Place;
 use crate::adapters::types::{
     Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk,
+    StreamError,
 };
 use crate::adapters::AdapterError;
 
@@ -125,7 +126,26 @@ fn start_failure(error: &AdapterError) -> String {
         AdapterError::Status { status, .. } => {
             format!("the provider answered with status {status}")
         }
-        other => other.to_string(),
+        AdapterError::InvalidCredentials => "invalid provider credentials".into(),
+        AdapterError::Http { .. } => "the provider transport failed".into(),
+        AdapterError::Parse { .. } => "the provider response could not be parsed".into(),
+        AdapterError::Unavailable { .. } => "the provider is unavailable".into(),
+        AdapterError::UntrustedCertificate { .. } => {
+            "the provider certificate is not trusted".into()
+        }
+    }
+}
+
+/// Stream errors may contain provider response bodies. Keep their category, never their details:
+/// the extension must not receive an answer body or arbitrary provider text.
+fn stream_failure(error: &StreamError) -> &'static str {
+    match error {
+        StreamError::Validation(_) => "the provider response was invalid",
+        StreamError::Model(_) => "the provider rejected the request",
+        StreamError::Internal(_) => "the provider stream failed",
+        StreamError::UnexpectedEnd => "the provider stream ended unexpectedly",
+        StreamError::StartFailed(_) => "the model failed to start",
+        StreamError::Transient(_) => "the provider is temporarily unavailable",
     }
 }
 
@@ -137,7 +157,7 @@ async fn answer(
 ) -> Result<String, Miss> {
     let adapter = source
         .adapter(&candidate.model)
-        .map_err(Miss::Unavailable)?;
+        .map_err(|_| Miss::Unavailable("the model adapter is unavailable".into()))?;
     let mut stream = adapter
         .stream_chat(request)
         .await
@@ -155,7 +175,7 @@ async fn answer(
             Ok(StreamChunk::ToolCalls(_)) => return Err(Miss::Unusable("tool call".into())),
             Ok(StreamChunk::AgentActivity { .. }) => {}
             Ok(StreamChunk::Done { .. }) => break,
-            Err(error) => return Err(Miss::Unavailable(error.to_string())),
+            Err(error) => return Err(Miss::Unavailable(stream_failure(&error).into())),
         }
     }
     Ok(text)

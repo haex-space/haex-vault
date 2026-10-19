@@ -2,7 +2,7 @@
 #![allow(clippy::disallowed_methods)]
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 
 use haex_crdt::Database;
 
@@ -14,14 +14,36 @@ use crate::passwords::test_support::open_test_vault;
 use crate::storage::known_devices;
 use crate::vault_gate::VaultGate;
 
-#[derive(Default)]
 pub(in crate::extensions::bridge) struct Recorded(
     pub(in crate::extensions::bridge) Mutex<Vec<(String, Value)>>,
+    Condvar,
 );
+
+impl Default for Recorded {
+    fn default() -> Self {
+        Self(Mutex::new(Vec::new()), Condvar::new())
+    }
+}
 
 impl Emit for Recorded {
     fn emit(&self, event: &str, payload: Value) {
         self.0.lock().unwrap().push((event.to_owned(), payload));
+        self.1.notify_all();
+    }
+}
+
+impl Recorded {
+    pub(in crate::extensions::bridge) fn wait_for(
+        &self,
+        predicate: impl Fn(&(String, Value)) -> bool,
+    ) -> Value {
+        let mut events = self.0.lock().unwrap();
+        loop {
+            if let Some((_, payload)) = events.iter().find(|event| predicate(event)) {
+                return payload.clone();
+            }
+            events = self.1.wait(events).unwrap();
+        }
     }
 }
 

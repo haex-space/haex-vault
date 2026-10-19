@@ -201,7 +201,7 @@ async fn when_every_model_fails_the_step_ends_with_the_last_reason() {
             (
                 "gone".into(),
                 Outcome::Unavailable,
-                Some("cannot build".into())
+                Some("the model adapter is unavailable".into())
             ),
         ]
     );
@@ -209,7 +209,7 @@ async fn when_every_model_fails_the_step_ends_with_the_last_reason() {
         run.end,
         StepEnd::Failed(
             super::errors::JobErrorCode::Unavailable,
-            "cannot build".into()
+            "the model adapter is unavailable".into()
         )
     );
 }
