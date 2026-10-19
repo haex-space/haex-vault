@@ -24,12 +24,12 @@ werden nie gespeichert (FR-028).
 
 ### `extension_model_order` (neu, CRDT-getrackt)
 
-| Spalte         | Typ     |               |
-| -------------- | ------- | ------------- |
+| Spalte         | Typ     |                                                                            |
+| -------------- | ------- | -------------------------------------------------------------------------- |
 | `id`           | TEXT    | `UUIDv5(NS_MODEL_ORDER, extension_id \| model_id)` (`ids::model_order_id`) |
-| `extension_id` | TEXT    | Erweiterung (Fremdschlüssel, bei Entfernen der Erweiterung gelöscht)         |
-| `model_id`     | TEXT    | `models.id`   |
-| `position`     | INTEGER | 0 = bevorzugt |
+| `extension_id` | TEXT    | Erweiterung (Fremdschlüssel, bei Entfernen der Erweiterung gelöscht)       |
+| `model_id`     | TEXT    | `models.id`                                                                |
+| `position`     | INTEGER | 0 = bevorzugt                                                              |
 
 - Primärschlüssel `id`, keine UNIQUE-Bedingung (wie jede synchronisierte Tabelle: ein Konflikt hielte den Sync
   an); die abgeleitete Kennung hält eine Zeile je Erweiterung und Modell. Gleiche `position` zweier Geräte
