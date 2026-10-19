@@ -30,10 +30,32 @@ das Gewicht. Ein Wortverfahren überbrückt keine Synonyme. Mögliche Wege (Ents
 
 ## SC-002, SC-003: Aufruf des Werkzeugs und kein `run_command` (Modell nötig)
 
-**Noch nicht gemessen.** Das braucht einen Lauf mit Qwen3-4B (`cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture`,
-Aufbau mit CUDA wie in Spec 046) und trägt `called` und `runCommandCalls` des Berichts in diese Datei ein.
-Der Lauf ist als Test vorbereitet (`model_tool_eval.rs` übergibt die Fixture); die Bewertung selbst ist mit einem
-Orakel und einem Modell, das nur `run_command` ruft, getestet.
+**Stand: beide erreicht.** Gemessen am 2026-10-19 mit Qwen3-4B Q4_K_M auf CUDA (RTX A2000), deterministisch,
+Satz Version 4 (55 Sätze), mit `run_command` im Angebot:
+
+```bash
+HOLZI_TEST_GGUF=<pfad>/Qwen_Qwen3-4B-Q4_K_M.gguf HOLZI_TEST_GGUF_TOKENIZER=Qwen/Qwen3-4B \
+  cargo test --manifest-path src-tauri/Cargo.toml --features llm-cuda --test model_tool_eval -- --ignored --nocapture
+```
+
+Zwei Läufe ergaben denselben Bericht (99 und 61 Sekunden).
+
+|                                          | Ergebnis         | Verlangt   |
+| ---------------------------------------- | ---------------- | ---------- |
+| SC-002 Werkzeug aufgerufen (`called`)    | 10 von 12 (83 %) | ≥ 7 von 10 |
+| SC-003 `run_command` (`runCommandCalls`) | 0                | 0          |
+
+Jedes angebotene Werkzeug wurde auch aufgerufen. Die zwei Fehlschläge sind die zwei Sätze ohne passendes
+Angebot (SC-001):
+
+- `extension-calendar-de-1`: Das Modell sucht mit `find_actions` nach „Kalender“. Die Suche findet nichts, weil
+  sie wie das Angebot Wörter vergleicht (`not_found`). Ein fehlendes Synonym trifft also Angebot und Suche.
+- `extension-shopping-en-1`: Das Modell ruft `x_trips_add_packing_item` mit `trip: "grocery list"` (`wrong_tool`).
+
+Der Kern bleibt gegenüber Spec 046 (`eval-results.md` dort) unverändert: ohne die Erweiterungssätze 25 von 43, je
+Art gleich (`read` 8/12, `change` 11/19, `smalltalk` 6/6, `clarify` 0/6). Erweiterungswerkzeuge und `run_command` im
+Angebot kosten also keinen Treffer im Kern. Gesamt 35 von 55 (64 %), `reachRate` 0,78, `extraSteps` 4, keine
+unnötigen Aufrufe.
 
 ## SC-004: Aufruf ohne offenes Fenster
 
