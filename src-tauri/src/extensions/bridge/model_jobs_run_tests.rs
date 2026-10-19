@@ -329,6 +329,38 @@ fn no_answer_or_event_holds_a_key_or_an_address() {
 }
 
 #[test]
+fn a_successful_result_never_carries_a_key_or_an_address() {
+    let s = setup();
+    let address = "http://10.0.0.5:8080/v1";
+    let (server, rows) = models(&s, address, &["school"], false);
+    scripted(
+        &s,
+        &[(
+            &rows[0].id,
+            Script::Answer(format!(r#"{"texts":["{KEY} {address}"]}"#)),
+        )],
+    );
+    allow(&s, "model", "low", &rows[0].id, "granted");
+    allow(
+        &s,
+        "modelDestination",
+        "send",
+        &server.id.to_string(),
+        "granted",
+    );
+
+    let answer = start(&s, &job(vec![step()])).unwrap();
+    let data = completion(&s);
+
+    assert_eq!(data["status"], "failed");
+    assert_eq!(data["error"]["code"], "unusable");
+    for secret in [KEY, address, "10.0.0.5"] {
+        assert!(!answer.to_string().contains(secret));
+        assert!(!data.to_string().contains(secret));
+    }
+}
+
+#[test]
 fn the_list_names_the_granted_models_with_place_capabilities_and_ceiling() {
     let s = setup();
     let models_of = |s: &Setup| call(&s.ctx, "extension_model_list", &json!({})).unwrap();
