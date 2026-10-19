@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::candidates::Candidate;
 use super::effort::{effective, Applied};
-use super::errors::{sanitize, JobErrorCode};
+use super::errors::{contains_sensitive, sanitize, JobErrorCode};
 use super::guard;
 use super::job::Step;
 use super::limits::MAX_RESULT_BYTES;
@@ -227,6 +227,9 @@ pub(crate) async fn run_step(
         };
         let miss = match outcome {
             Ok(text) => match guard::check(&text, &context, &step.format.schema) {
+                Ok(value) if contains_sensitive(&value, &known) => {
+                    Miss::Unusable("sensitive output".into())
+                }
                 Ok(value) => {
                     attempts.push(attempt(Outcome::Used, None));
                     return StepRun {

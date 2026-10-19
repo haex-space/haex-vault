@@ -163,6 +163,38 @@ pub fn sanitize(message: &str, known: &[&str]) -> String {
     format!("{cut}…")
 }
 
+/// Whether a JSON value contains an address or credential that must not reach an extension.
+pub(crate) fn contains_sensitive(value: &serde_json::Value, known: &[&str]) -> bool {
+    match value {
+        serde_json::Value::String(text) => contains_sensitive_text(text, known),
+        serde_json::Value::Array(items) => items.iter().any(|item| contains_sensitive(item, known)),
+        serde_json::Value::Object(fields) => {
+            fields.keys().any(|key| contains_sensitive_text(key, known))
+                || fields.values().any(|item| contains_sensitive(item, known))
+        }
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+            false
+        }
+    }
+}
+
+fn contains_sensitive_text(text: &str, known: &[&str]) -> bool {
+    if known
+        .iter()
+        .filter(|secret| secret.trim().len() >= 4)
+        .any(|secret| text.contains(secret))
+    {
+        return true;
+    }
+    text.split_whitespace().any(|token| {
+        let bare = token.trim_matches(|c: char| "()[]{}<>\"',;:.".contains(c));
+        looks_like_address(bare)
+            || bare
+                .split(|c: char| "=:\"'".contains(c))
+                .any(looks_like_secret)
+    })
+}
+
 /// Host names that only exist in the own network.
 const PRIVATE_SUFFIXES: [&str; 5] = [".local", ".lan", ".internal", ".home.arpa", ".localhost"];
 
