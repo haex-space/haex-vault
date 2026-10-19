@@ -78,6 +78,9 @@ fn only_changes_to_extensions_and_their_permissions_refresh_the_tools() {
         "extension_bundles",
         "extension_device_status",
         "extension_permissions",
+        "dev_extensions_no_sync",
+        "dev_extension_permissions_no_sync",
+        "preferences",
     ] {
         assert!(touches_tools(&[table.to_owned()]), "{table}");
     }

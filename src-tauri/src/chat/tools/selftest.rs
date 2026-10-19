@@ -55,6 +55,7 @@ pub async fn find_tool_use(
         true,
         &embedded_set(),
         &embedded_tools(),
+        &[],
         Which::SelfTest,
         cancel,
     )

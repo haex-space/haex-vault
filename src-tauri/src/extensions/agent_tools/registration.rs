@@ -16,12 +16,15 @@ use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
 
 /// Tables whose changes can change which tools are offered.
-const WATCHED: [&str; 5] = [
+const WATCHED: [&str; 7] = [
     "extensions",
     "extension_bundles",
     "extension_device_status",
     "extension_permissions",
+    "dev_extensions_no_sync",
     "dev_extension_permissions_no_sync",
+    // Developer mode is a preference of the device (spec 018 FR-020).
+    "preferences",
 ];
 
 pub(crate) fn touches_tools(tables: &[String]) -> bool {

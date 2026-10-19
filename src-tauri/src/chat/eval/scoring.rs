@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::adapters::types::ToolSpec;
 use crate::chat::tools::action_tool::AgentActionDef;
 use crate::chat::tools::ask_user::{AskUserTool, ASK_USER_TOOL_NAME};
 use crate::chat::tools::Tool;
@@ -27,6 +28,9 @@ pub enum Kind {
     Smalltalk,
     /// Ambiguous instructions where the agent should ask instead of acting (spec 046).
     Clarify,
+    /// A request for a tool of an installed extension (spec 018 FR-019): the expected tool is
+    /// one of `extension_tools.json`, named `x_<slug>_<tool>`.
+    Extension,
 }
 
 /// One expected tool call and the argument fields that matter for scoring.
@@ -107,6 +111,11 @@ pub struct Observed {
     pub reached: bool,
     /// What the model wrote in the scored step, to see what it said instead of a call.
     pub text: String,
+    /// Every tool the sentence expects was in the offer of the first step (spec 018 SC-001): for
+    /// an extension's tool that is the matched offer, which needs no model.
+    pub first_offer_hit: bool,
+    /// The model tried to run a command on the device in any step (spec 018 SC-003).
+    pub ran_command: bool,
 }
 
 /// Classification assigned to one sentence after scoring.
@@ -207,8 +216,20 @@ fn builtin_schema(tool: &str) -> Option<Value> {
     (tool == ASK_USER_TOOL_NAME).then(|| AskUserTool.input_schema())
 }
 
-/// How one sentence counts (contracts/eval-format.md, "Bewertung je Satz").
+/// How one sentence counts (contracts/eval-format.md, "Bewertung je Satz"), for a sentence whose
+/// tools are all actions of `defs`.
 pub fn score(sentence: &Sentence, observed: &Observed, defs: &[AgentActionDef]) -> SentenceResult {
+    score_with(sentence, observed, defs, &[])
+}
+
+/// [`score`] for a set that also has the tools of extensions: their arguments are checked against
+/// the schemas of `extension_tools`.
+pub fn score_with(
+    sentence: &Sentence,
+    observed: &Observed,
+    defs: &[AgentActionDef],
+    extension_tools: &[ToolSpec],
+) -> SentenceResult {
     let expected = match &sentence.expect {
         Expect::None => {
             return if observed.calls.is_empty() {
@@ -237,6 +258,12 @@ pub fn score(sentence: &Sentence, observed: &Observed, defs: &[AgentActionDef]) 
             .iter()
             .find(|def| def.tool_name == call.tool)
             .map(|def| def.input_schema.clone())
+            .or_else(|| {
+                extension_tools
+                    .iter()
+                    .find(|tool| tool.name == call.tool)
+                    .map(|tool| tool.input_schema.clone())
+            })
             .or_else(|| builtin_schema(&call.tool));
         if !schema.is_some_and(|schema| valid_against(&schema, &call.args)) {
             return SentenceResult::BadArgs;
@@ -308,7 +335,38 @@ pub struct EvalReport {
     pub extra_steps: usize,
     /// Sentences that expected no call and got one.
     pub spurious_calls: usize,
+    /// Of the sentences of the kind `extension`, those whose tool was in the first step's offer
+    /// (spec 018 SC-001).
+    pub offered: Rate,
+    /// Of the sentences of the kind `extension`, those in which the model called the expected
+    /// tool (spec 018 SC-002); the arguments are judged by `total`, not here.
+    pub called: Rate,
+    /// Sentences, of any kind, in which the model tried to run a command on the device (spec 018
+    /// SC-003).
+    pub run_command_calls: usize,
+    /// One entry per sentence of the kind `extension`.
+    pub extension_sentences: Vec<ExtensionOutcome>,
     pub failures: Vec<Failure>,
+}
+
+/// What happened to the tool of one extension sentence.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionOutcome {
+    pub id: String,
+    pub offered: bool,
+    pub called: bool,
+    pub ran_command: bool,
+}
+
+/// Whether every tool a sentence expects is among the calls of the scored step.
+fn called_all(sentence: &Sentence, observed: &Observed) -> bool {
+    match &sentence.expect {
+        Expect::None => false,
+        Expect::Calls(expected) => expected
+            .iter()
+            .all(|call| observed.calls.iter().any(|seen| seen.tool == call.tool)),
+    }
 }
 
 /// One scored sentence, as the runner collects it before report aggregation.
@@ -344,6 +402,19 @@ pub fn report(
         .filter(|s| matches!(s.sentence.expect, Expect::Calls(_)))
         .collect();
     let reached = acting.iter().filter(|s| s.observed.reached).count();
+    let extension: Vec<&Scored<'_>> = scored
+        .iter()
+        .filter(|s| s.sentence.kind == Kind::Extension)
+        .collect();
+    let extension_sentences: Vec<ExtensionOutcome> = extension
+        .iter()
+        .map(|s| ExtensionOutcome {
+            id: s.sentence.id.clone(),
+            offered: s.observed.first_offer_hit,
+            called: called_all(s.sentence, &s.observed),
+            ran_command: s.observed.ran_command,
+        })
+        .collect();
     EvalReport {
         set_version,
         model: model.to_owned(),
@@ -367,6 +438,16 @@ pub fn report(
             .iter()
             .filter(|s| s.result == SentenceResult::Spurious)
             .count(),
+        offered: Rate::new(
+            extension_sentences.iter().filter(|e| e.offered).count(),
+            extension_sentences.len(),
+        ),
+        called: Rate::new(
+            extension_sentences.iter().filter(|e| e.called).count(),
+            extension_sentences.len(),
+        ),
+        run_command_calls: scored.iter().filter(|s| s.observed.ran_command).count(),
+        extension_sentences,
         failures: scored
             .iter()
             .filter(|s| !passed(s))

@@ -390,6 +390,20 @@ function evalSet(): { version: number; sentences: EvalSentence[] } {
   return JSON.parse(readFileSync(new URL('eval_set.json', EVAL_DIR), 'utf8'))
 }
 
+type EvalExtension = { name: string; title: string; tools: { name: string }[] }
+
+/** The model-facing names `x_<slug>_<tool>` of the invented extensions (spec 018 R8, R14). */
+function extensionToolNames(): string[] {
+  const { extensions } = JSON.parse(
+    readFileSync(new URL('extension_tools.json', EVAL_DIR), 'utf8'),
+  ) as { extensions: EvalExtension[] }
+  const slug = (name: string) =>
+    name.replace(/[^a-z0-9]/g, '').slice(0, 20) || 'ext'
+  return extensions.flatMap((e) =>
+    e.tools.map((tool) => `x_${slug(e.name)}_${tool.name}`),
+  )
+}
+
 test('the tool snapshot of the evaluation is the catalog as it is (run pnpm export:eval-tools)', () => {
   const snapshot = JSON.parse(readFileSync(TOOLS_PATH, 'utf8'))
   assert.deepEqual(snapshot, JSON.parse(JSON.stringify(evalTools())))
@@ -398,13 +412,16 @@ test('the tool snapshot of the evaluation is the catalog as it is (run pnpm expo
 test('every sentence of the evaluation set is well formed and names tools of the snapshot', () => {
   const { version, sentences } = evalSet()
   const tools = evalTools()
-  assert.equal(version, 3)
+  assert.equal(version, 4)
   assert.equal(new Set(sentences.map((x) => x.id)).size, sentences.length)
+  const extensionTools = new Set(extensionToolNames())
   const runtimeIds = new Set([...Object.values(TARGET_FIELD), 'threadId'])
   for (const sentence of sentences) {
     assert.ok(['de', 'en'].includes(sentence.lang), sentence.id)
     assert.ok(
-      ['read', 'change', 'smalltalk', 'clarify'].includes(sentence.kind),
+      ['read', 'change', 'smalltalk', 'clarify', 'extension'].includes(
+        sentence.kind,
+      ),
       sentence.id,
     )
     assert.ok(sentence.text.trim().length > 0, sentence.id)
@@ -418,8 +435,10 @@ test('every sentence of the evaluation set is well formed and names tools of the
       // `ask_user` is a built-in tool of the chat turn, not an action of the snapshot (spec 046).
       assert.ok(
         call.tool === 'ask_user' ||
-          tools.some((tool) => tool.toolName === call.tool),
-        `${sentence.id}: ${call.tool} is not in the snapshot`,
+          (sentence.kind === 'extension'
+            ? extensionTools.has(call.tool)
+            : tools.some((tool) => tool.toolName === call.tool)),
+        `${sentence.id}: ${call.tool} is not in the snapshot or the extension tools`,
       )
       for (const field of Object.keys(call.args ?? {}))
         assert.ok(
@@ -449,4 +468,24 @@ test('the evaluation set covers both languages, smalltalk and tools outside the 
     'en',
   ])
   assert.ok(selfTest.some((x) => x.kind === 'smalltalk'))
+})
+
+test('the invented extensions are thirty, with two to four distinct tools each', () => {
+  const { extensions } = JSON.parse(
+    readFileSync(new URL('extension_tools.json', EVAL_DIR), 'utf8'),
+  ) as { extensions: EvalExtension[] }
+  assert.equal(extensions.length, 30)
+  for (const extension of extensions) {
+    assert.ok(
+      extension.tools.length >= 2 && extension.tools.length <= 4,
+      extension.name,
+    )
+  }
+  const names = extensionToolNames()
+  assert.equal(new Set(names).size, names.length)
+  assert.ok(names.includes('x_mailbox_count_unread'))
+  const extensionSentences = evalSet().sentences.filter(
+    (x) => x.kind === 'extension',
+  )
+  assert.ok(extensionSentences.length >= 10)
 })

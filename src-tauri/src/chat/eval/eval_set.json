@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "sentences": [
     {
       "id": "read-tabs-de-1",
@@ -534,6 +534,162 @@
       "expect": [
         {
           "tool": "ask_user"
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Wie viele ungelesene Mails habe ich?",
+      "expect": [
+        {
+          "tool": "x_mailbox_count_unread",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "How many unread emails do I have?",
+      "expect": [
+        {
+          "tool": "x_mailbox_count_unread",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-calendar-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Was steht heute in meinem Kalender?",
+      "expect": [
+        {
+          "tool": "x_calendar_list_events",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-shopping-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Please put oat flakes on my grocery list.",
+      "expect": [
+        {
+          "tool": "x_shoppinglist_add_item",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-library-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Wann muss ich die Bücher zurückgeben?",
+      "expect": [
+        {
+          "tool": "x_library_loans_due",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-pets-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "When is my cat due at the vet again?",
+      "expect": [
+        {
+          "tool": "x_pets_next_vet",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-budget-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Wie viel Geld ist diesen Monat schon draufgegangen?",
+      "expect": [
+        {
+          "tool": "x_budget_month_total",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-training-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Log a 30 minute bike ride.",
+      "expect": [
+        {
+          "tool": "x_training_log_workout",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-plants-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Muss ich heute irgendwelche Pflanzen gießen?",
+      "expect": [
+        {
+          "tool": "x_plants_water_due",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-medication-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Which pill is next, and when?",
+      "expect": [
+        {
+          "tool": "x_medication_next_dose",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-vocab-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Frag den Vokabeltrainer, was heute zu üben ist.",
+      "expect": [
+        {
+          "tool": "x_vocab_words_due",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-garden-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Was sagt der Gartenkalender, was ich diesen Monat im Beet tun muss?",
+      "expect": [
+        {
+          "tool": "x_garden_tasks_this_month",
+          "args": {}
         }
       ],
       "selfTest": false

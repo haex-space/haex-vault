@@ -82,7 +82,10 @@
 
 Regeln:
 
-- `lang` ∈ `de`, `en`; `kind` ∈ `read`, `change`, `smalltalk`.
+- `lang` ∈ `de`, `en`; `kind` ∈ `read`, `change`, `smalltalk`, `clarify`, `extension`. Ein Satz der
+  Art `extension` (Version 4, Spec 018 FR-019) erwartet ein Werkzeug einer Erweiterung aus
+  `extension_tools.json` (Name `x_<slug>_<tool>`) statt eines Eintrags von `tools.json`; der Lauf bietet
+  dafür im ersten Schritt das passende Angebot und `run_command` an (Spec 018 R14).
 - `expect` ist `"none"` (kein Werkzeugaufruf erwartet) oder eine nicht leere
   Liste; die Liste darf mehrere Werkzeugaufrufe eines Batches enthalten. Die
   Reihenfolge zählt nicht, aber die beobachtete Menge muss am bewerteten
@@ -100,8 +103,8 @@ Regeln:
   nutzt.
 - Zielwerte, die von Laufzeitdaten abhängen (Tab-IDs), kommen nicht vor: Sätze
   mit Ziel bewerten nur die Wahl der Aktion und der festen Felder.
-- Jeder `expect.tool` muss in `tools.json` vorkommen (Prüfung in
-  `check:agent-actions`).
+- Jeder `expect.tool` muss in `tools.json` vorkommen, bei der Art `extension` in
+  `extension_tools.json` (Prüfung in `check:agent-actions`).
 - Erhöhung von `version` bei jeder inhaltlichen Änderung; der Selbsttest wird
   dann einmal neu durchgeführt, wenn die Änderung die `selfTest`-Teilmenge
   betrifft.
@@ -136,6 +139,17 @@ Regeln:
   "reachRate": 0.964,
   "extraSteps": 7,
   "spuriousCalls": 1,
+  "offered": { "pass": 11, "of": 12, "rate": 0.917 },
+  "called": { "pass": 9, "of": 12, "rate": 0.75 },
+  "runCommandCalls": 0,
+  "extensionSentences": [
+    {
+      "id": "extension-mail-de-1",
+      "offered": true,
+      "called": true,
+      "ranCommand": false
+    }
+  ],
   "failures": [
     {
       "id": "change-scheme-en-1",
@@ -150,6 +164,11 @@ Regeln:
   bei denen die Aktion spätestens im zweiten Schritt zur Verfügung stand
   (Kernangebot oder Suche, SC-005); `extraSteps` = Zahl der Sätze, die einen
   zusätzlichen Suchschritt brauchten (höchstens einer je Satz).
+- `offered`, `called` und `extensionSentences` (Spec 018) betreffen nur Sätze der Art `extension`:
+  `offered` = das erwartete Werkzeug lag im Angebot des ersten Schritts (das passende Angebot, ohne Modell
+  messbar, SC-001), `called` = das Modell hat das erwartete Werkzeug aufgerufen (SC-002; die Eingabe
+  beurteilt `total`). `runCommandCalls` zählt Sätze jeder Art, in denen das Modell `run_command`
+  versuchte (SC-003).
 - Zwei Läufe mit demselben Modell und festem Sampler weichen um höchstens 10
   Prozentpunkte in `total.rate` ab (SC-008). Bei Modellen, die deterministisches
   Sampling nicht zulassen (Cloud), ist das die Mess­grenze und der Bericht

@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use holzi_lib::adapters::anthropic::AnthropicAdapter;
 use holzi_lib::adapters::ProviderAdapter;
 use holzi_lib::chat::eval::runner::{run_eval, Which};
-use holzi_lib::chat::eval::{embedded_set, embedded_tools};
+use holzi_lib::chat::eval::{embedded_extension_tools, embedded_set, embedded_tools};
 use tokio_util::sync::CancellationToken;
 
 /// The adapter for the model named in the environment, its request id, and whether the sampler
@@ -75,6 +75,7 @@ async fn measure_tool_calling_of_one_model() {
         deterministic,
         &embedded_set(),
         &embedded_tools(),
+        &embedded_extension_tools(),
         Which::All,
         &CancellationToken::new(),
     )

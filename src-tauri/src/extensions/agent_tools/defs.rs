@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::extensions::bundle::{ManifestTool, ToolEffect};
+use crate::extensions::dev;
 use crate::extensions::permissions::store::rows_of;
 use crate::extensions::registry::list::effective_manifest;
 use crate::storage::query::Query;
@@ -126,8 +127,57 @@ pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
     defs
 }
 
+/// The agent-tool rows of an extension, installed or in development.
+fn tool_rows(q: &mut impl Query, extension_id: Uuid) -> Result<Vec<ToolRow>> {
+    Ok(rows_of(q, extension_id)?
+        .into_iter()
+        .filter(|r| r.kind == AGENT_TOOL)
+        .map(|r| ToolRow {
+            action: r.action,
+            target: r.target,
+            status: r.status,
+        })
+        .collect())
+}
+
+/// The development versions registered on `device` while developer mode is on (spec 018 US4,
+/// FR-020). Their tools come from the project's manifest as it reads now, so an edit is offered at
+/// once; a project that cannot be read any more offers none. Confirmation is the developer's own,
+/// from `dev_extension_permissions_no_sync`.
+fn dev_sources(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSource>> {
+    if !dev::mode(q, device)? {
+        return Ok(Vec::new());
+    }
+    let mut sources = Vec::new();
+    for registration in dev::registrations(q, device)? {
+        let project = match dev::current_project(&registration) {
+            Ok(project) => project,
+            Err(error) => {
+                log::warn!(
+                    "agent tools: development version {} is not offered: {error}",
+                    registration.title
+                );
+                continue;
+            }
+        };
+        let manifest = project.manifest;
+        if manifest.tools.is_empty() {
+            continue;
+        }
+        sources.push(ExtensionSource {
+            id: registration.id,
+            name: manifest.name.as_str().to_owned(),
+            title: manifest.title().to_owned(),
+            rows: tool_rows(q, registration.id)?,
+            tools: manifest.tools,
+            dev: true,
+        });
+    }
+    Ok(sources)
+}
+
 /// The offerable tools of the vault on `device`: installed, enabled extensions whose state here
-/// lets them start (not yet started, or ready).
+/// lets them start (not yet started, or ready), and the development versions of this device.
 pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
     let ids = q.query_map(
         "SELECT e.id FROM extensions e \
@@ -150,23 +200,15 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
         if manifest.tools.is_empty() {
             continue;
         }
-        let rows = rows_of(q, id)?
-            .into_iter()
-            .filter(|r| r.kind == AGENT_TOOL)
-            .map(|r| ToolRow {
-                action: r.action,
-                target: r.target,
-                status: r.status,
-            })
-            .collect();
         sources.push(ExtensionSource {
             id,
             name: manifest.name.as_str().to_owned(),
             title: manifest.title().to_owned(),
+            rows: tool_rows(q, id)?,
             tools: manifest.tools,
-            rows,
             dev: false,
         });
     }
+    sources.extend(dev_sources(q, device)?);
     Ok(tool_defs(sources))
 }

@@ -1,11 +1,13 @@
 use serde_json::{json, Value};
 
 use super::scoring::{
-    report, score, valid_against, EvalSet, Expect, Observed, ObservedCall, Scored, Sentence,
+    report, score, score_with, valid_against, EvalSet, Expect, Observed, ObservedCall, Scored,
+    Sentence,
     SentenceResult::{self, *},
 };
 use super::scoring::{Kind, Lang};
 use super::{embedded_set, embedded_tools};
+use crate::adapters::types::ToolSpec;
 use crate::chat::tools::action_tool::AgentActionDef;
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 
@@ -280,7 +282,7 @@ fn an_expectation_must_be_none_or_a_non_empty_list() {
 fn the_embedded_set_and_snapshot_are_well_formed() {
     let set = embedded_set();
     let tools = embedded_tools();
-    assert_eq!(set.version, 3);
+    assert_eq!(set.version, 4);
     assert!(!tools.is_empty());
     for lang in [Lang::De, Lang::En] {
         assert!(
@@ -297,8 +299,11 @@ fn the_embedded_set_and_snapshot_are_well_formed() {
         assert!(ids.insert(&sentence.id), "duplicate id {}", sentence.id);
         if let Expect::Calls(calls) = &sentence.expect {
             for call in calls {
+                // The tools of extensions are in the fixture, not in the catalog snapshot
+                // (checked in `extension_tools_tests`).
                 assert!(
                     call.tool == ASK_USER_TOOL_NAME
+                        || sentence.kind == Kind::Extension
                         || tools.iter().any(|t| t.tool_name == call.tool),
                     "{}: unknown tool {}",
                     sentence.id,
@@ -328,4 +333,154 @@ fn an_expected_question_of_the_agent_is_checked_against_ask_user() {
         result_of(&ask, &asked(json!({ "options": ["A", "B"] }))),
         BadArgs
     );
+}
+
+fn mail_tools() -> Vec<ToolSpec> {
+    vec![ToolSpec {
+        name: "x_mailbox_count_unread".to_owned(),
+        description: "d".to_owned(),
+        input_schema: json!({ "type": "object", "properties": { "folder": { "type": "string" } } }),
+    }]
+}
+
+fn unread() -> Sentence {
+    serde_json::from_value(json!({
+        "id": "mail", "lang": "de", "kind": "extension", "text": "Wie viele ungelesene Mails habe ich?",
+        "expect": [{ "tool": "x_mailbox_count_unread" }],
+    }))
+    .unwrap()
+}
+
+#[test]
+fn the_arguments_of_an_extension_tool_are_judged_by_its_own_schema() {
+    let tools = mail_tools();
+    let call_with = |args: Value| observed(vec![call("x_mailbox_count_unread", args)]);
+
+    assert_eq!(
+        score_with(&unread(), &call_with(json!({})), &defs(), &tools),
+        Pass
+    );
+    assert_eq!(
+        score_with(
+            &unread(),
+            &call_with(json!({ "folder": "INBOX" })),
+            &defs(),
+            &tools
+        ),
+        Pass
+    );
+    assert_eq!(
+        score_with(
+            &unread(),
+            &call_with(json!({ "folder": 3 })),
+            &defs(),
+            &tools
+        ),
+        BadArgs
+    );
+    assert_eq!(
+        score_with(&unread(), &call_with(json!({ "nope": 1 })), &defs(), &tools),
+        BadArgs
+    );
+    // Without the tool's schema it cannot pass: nothing is guessed.
+    assert_eq!(score(&unread(), &call_with(json!({})), &defs()), BadArgs);
+    // Another extension's tool is the wrong tool.
+    let other = observed(vec![call("x_calendar_list_events", json!({}))]);
+    assert_eq!(score_with(&unread(), &other, &defs(), &tools), WrongTool);
+}
+
+#[test]
+fn the_report_counts_offered_called_and_commands_over_the_extension_sentences() {
+    let set = set_of(json!([
+        { "id": "m1", "lang": "de", "kind": "extension", "text": "t",
+          "expect": [{ "tool": "x_mailbox_count_unread" }] },
+        { "id": "m2", "lang": "en", "kind": "extension", "text": "t",
+          "expect": [{ "tool": "x_mailbox_count_unread" }] },
+        { "id": "m3", "lang": "en", "kind": "extension", "text": "t",
+          "expect": [{ "tool": "x_mailbox_count_unread" }] },
+        { "id": "r", "lang": "en", "kind": "read", "text": "t",
+          "expect": [{ "tool": "wm_state_get" }] },
+    ]));
+    let defs = defs();
+    let tools = mail_tools();
+    let runs = [
+        // Offered and called.
+        Observed {
+            calls: vec![call("x_mailbox_count_unread", json!({}))],
+            reached: true,
+            first_offer_hit: true,
+            ..Default::default()
+        },
+        // Offered, but the model tried a shell command instead.
+        Observed {
+            calls: vec![call("run_command", json!({ "command": "mail -H" }))],
+            reached: true,
+            first_offer_hit: true,
+            ran_command: true,
+            ..Default::default()
+        },
+        // Not offered in the first step, the model talked.
+        Observed {
+            reached: true,
+            ..Default::default()
+        },
+        // A core sentence: its first-step offer and command count only for the totals.
+        Observed {
+            calls: vec![call("wm_state_get", json!({}))],
+            reached: true,
+            first_offer_hit: true,
+            ..Default::default()
+        },
+    ];
+    let scored: Vec<Scored<'_>> = set
+        .sentences
+        .iter()
+        .zip(runs)
+        .map(|(sentence, observed)| Scored {
+            result: score_with(sentence, &observed, &defs, &tools),
+            sentence,
+            observed,
+        })
+        .collect();
+
+    let report = report(4, "m", true, &scored);
+
+    assert_eq!((report.offered.pass, report.offered.of), (2, 3));
+    assert_eq!((report.called.pass, report.called.of), (1, 3));
+    assert_eq!(report.run_command_calls, 1);
+    let rows: Vec<(&str, bool, bool, bool)> = report
+        .extension_sentences
+        .iter()
+        .map(|e| (e.id.as_str(), e.offered, e.called, e.ran_command))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("m1", true, true, false),
+            ("m2", true, false, true),
+            ("m3", false, false, false)
+        ]
+    );
+    let shown = serde_json::to_value(&report).unwrap();
+    assert!(shown["runCommandCalls"].is_number() && shown["offered"].is_object());
+    assert_eq!(shown["extensionSentences"][0]["id"], "m1");
+}
+
+#[test]
+fn a_set_without_extension_sentences_reports_empty_extension_rates() {
+    let set = set_of(json!([
+        { "id": "a", "lang": "de", "kind": "read", "text": "t",
+          "expect": [{ "tool": "wm_state_get" }] },
+    ]));
+    let defs = defs();
+    let observed = observed(vec![call("wm_state_get", json!({}))]);
+    let scored = vec![Scored {
+        result: score(&set.sentences[0], &observed, &defs),
+        sentence: &set.sentences[0],
+        observed,
+    }];
+    let report = report(4, "m", true, &scored);
+    assert_eq!((report.offered.of, report.called.of), (0, 0));
+    assert!(report.extension_sentences.is_empty());
+    assert_eq!(report.run_command_calls, 0);
 }
