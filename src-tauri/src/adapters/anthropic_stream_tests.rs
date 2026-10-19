@@ -390,3 +390,52 @@ fn stream_error_classifies_transient_vs_terminal() {
     assert!(!StreamError::Validation("x".into()).is_transient());
     assert!(!StreamError::StartFailed("x".into()).is_transient());
 }
+
+#[tokio::test]
+async fn tool_arguments_that_are_not_json_end_the_stream_with_a_model_error() {
+    let server = MockServer::start().await;
+    let body = sse_body(&[
+        (
+            "content_block_start",
+            serde_json::json!({
+                "type": "content_block_start", "index": 0,
+                "content_block": {"type": "tool_use", "id": "toolu_1", "name": "weather", "input": {}}
+            }),
+        ),
+        (
+            "content_block_delta",
+            serde_json::json!({
+                "type": "content_block_delta", "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": "{\"city\": \"Bo"}
+            }),
+        ),
+        (
+            "content_block_stop",
+            serde_json::json!({"type": "content_block_stop", "index": 0}),
+        ),
+        ("message_stop", serde_json::json!({"type": "message_stop"})),
+    ]);
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+        .mount(&server)
+        .await;
+    let adapter = AnthropicAdapter::new(server.uri(), "key".to_string()).expect("adapter");
+    let mut stream = adapter
+        .stream_chat(sample_request("claude-x"))
+        .await
+        .expect("stream starts");
+
+    let mut chunks = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        chunks.push(chunk);
+    }
+
+    assert!(
+        matches!(chunks.last(), Some(Err(StreamError::Model(m))) if m.contains("invalid tool arguments for weather")),
+        "{chunks:?}"
+    );
+    assert!(!chunks
+        .iter()
+        .any(|c| matches!(c, Ok(StreamChunk::ToolCalls(_)))));
+}
