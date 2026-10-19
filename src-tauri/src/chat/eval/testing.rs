@@ -97,17 +97,32 @@ fn oracle_args(call: &ExpectedCall) -> serde_json::Value {
         return json!({ "question": "Which one?", "options": ["One", "Other"] });
     }
     let mut args = call.args.clone();
-    let tools = super::embedded_tools();
-    let required = tools
-        .iter()
+    let schema = super::embedded_tools()
+        .into_iter()
         .find(|def| def.tool_name == call.tool)
-        .and_then(|def| def.input_schema.get("required"))
+        .map(|def| def.input_schema)
+        .or_else(|| {
+            super::embedded_extension_tools()
+                .into_iter()
+                .find(|def| def.model_name == call.tool)
+                .map(|def| def.tool.input_schema)
+        });
+    let required = schema
+        .as_ref()
+        .and_then(|schema| schema.get("required"))
         .and_then(serde_json::Value::as_array)
         .cloned()
         .unwrap_or_default();
     if let Some(object) = args.as_object_mut() {
         for field in required.iter().filter_map(serde_json::Value::as_str) {
-            object.entry(field).or_insert_with(|| json!("x"));
+            let kind = schema
+                .as_ref()
+                .and_then(|schema| schema.pointer(&format!("/properties/{field}/type")))
+                .and_then(serde_json::Value::as_str);
+            object.entry(field).or_insert_with(|| match kind {
+                Some("integer" | "number") => json!(1),
+                _ => json!("x"),
+            });
         }
     }
     args

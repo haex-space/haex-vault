@@ -6,20 +6,33 @@
 //! offers the hits as the app does, and scores the whole batch of calls of the second step.
 //! No action is ever executed, so a run cannot change any data (FR-021).
 
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
+
+use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
 use crate::chat::tools::action_tool::AgentActionDef;
-use crate::chat::tools::ask_user::{AskUserTool, ASK_USER_TOOL_NAME};
+use crate::chat::tools::ask_user::AskUserTool;
+use crate::chat::tools::cli::CliTool;
+use crate::chat::tools::extension_offer::matched_offer;
 use crate::chat::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
 use crate::chat::tools::offer::{extend_offer, found_tools, tool_spec, ExtensionScope};
 use crate::chat::tools::prompt::system_prompt;
-use crate::chat::tools::Tool;
+use crate::chat::tools::{Tool, ToolRegistry};
+use crate::extensions::agent_tools::defs::ExtensionToolDef;
+use crate::extensions::agent_tools::slot::McpLink;
+use crate::extensions::agent_tools::tool::{ExtensionTool, Links};
+use crate::extensions::bridge::frames::FrameSession;
 
-use super::scoring::{report, score, EvalReport, EvalSet, Expect, Observed, ObservedCall, Scored};
+use super::scoring::{
+    report, score_with, EvalReport, EvalSet, Expect, Observed, ObservedCall, Scored,
+};
 
 /// Cap on a model's answer per step: enough for any call, bounded for a model that rambles.
 const MAX_NEW_TOKENS: usize = 1024;
@@ -51,12 +64,43 @@ fn spec_of(def: &AgentActionDef) -> ToolSpec {
     }
 }
 
-/// What a chat turn offers first: the core tools, the search and `ask_user`.
+/// What a chat turn offers first, whatever the message: the core tools, the search, `ask_user` and
+/// `run_command`, which every chat turn offers too and which spec 018 SC-003 watches.
 fn core_offer(tools: &[AgentActionDef]) -> Vec<ToolSpec> {
     let mut offer: Vec<ToolSpec> = tools.iter().filter(|d| d.core).map(spec_of).collect();
     offer.push(tool_spec(&FindActionsTool::new(tools.to_vec())));
     offer.push(tool_spec(&AskUserTool));
+    offer.push(tool_spec(&CliTool::default()));
     offer
+}
+
+/// A link that never opens: the evaluation offers the tools of extensions but runs none.
+struct NoLinks;
+
+#[async_trait]
+impl Links for NoLinks {
+    async fn open(&self, _extension_id: Uuid) -> Result<(Arc<FrameSession>, Arc<McpLink>), String> {
+        Err("the evaluation runs no extension".to_owned())
+    }
+}
+
+/// The registry the chat turn would hold for `extensions`, so the matched offer and the search
+/// read the same texts as in the app.
+fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry>> {
+    let links: Arc<dyn Links> = Arc::new(NoLinks);
+    let mut registry = ToolRegistry::new();
+    for def in extensions {
+        registry.register(Arc::new(ExtensionTool::new(
+            def.clone(),
+            Arc::clone(&links),
+        )));
+    }
+    Arc::new(Mutex::new(registry))
+}
+
+/// Whether a tool is the one that runs a command on the device.
+fn is_command(name: &str) -> bool {
+    name == CliTool::default().name()
 }
 
 /// Builds a history message without attachments for an evaluation request.
@@ -146,18 +190,35 @@ fn observed_calls(calls: &[ToolCall]) -> Vec<ObservedCall> {
 }
 
 /// Asks the sentences of `which` and scores them. `model` is the id the adapter expects;
-/// `deterministic` asks for greedy decoding where the adapter can do it.
+/// `deterministic` asks for greedy decoding where the adapter can do it. `extensions` are the
+/// tools of installed extensions (spec 018): each sentence gets the matched offer for its text in
+/// the first step, and the search finds them.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_eval(
     adapter: &dyn ProviderAdapter,
     model: &str,
     deterministic: bool,
     set: &EvalSet,
     tools: &[AgentActionDef],
+    extensions: &[ExtensionToolDef],
     which: Which,
     cancel: &CancellationToken,
 ) -> Result<EvalReport, EvalError> {
-    let offer = core_offer(tools);
-    let search = FindActionsTool::new(tools.to_vec());
+    let core = core_offer(tools);
+    let registry = extension_registry(extensions);
+    let search = FindActionsTool::with_extensions(tools.to_vec(), &registry);
+    let extension_specs: Vec<ToolSpec> = {
+        let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+        registry
+            .iter()
+            .map(|tool| tool_spec(tool.as_ref()))
+            .collect()
+    };
+    let entries = registry
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .match_entries();
+    let all_names: HashSet<String> = extension_specs.iter().map(|s| s.name.clone()).collect();
     let mut scored = Vec::new();
 
     for sentence in set
@@ -166,6 +227,15 @@ pub async fn run_eval(
         .filter(|s| which == Which::All || s.self_test)
     {
         let user = message(ChatRole::User, &sentence.text);
+        // The offer of the first step: the core and the tools that fit the message (spec 018 R6).
+        let matched = matched_offer(&sentence.text, &entries);
+        let mut offer = core.clone();
+        offer.extend(
+            extension_specs
+                .iter()
+                .filter(|spec| matched.contains(&spec.name))
+                .cloned(),
+        );
         let first = ask(
             adapter,
             request(model, vec![user.clone()], offer.clone(), deterministic),
@@ -178,11 +248,16 @@ pub async fn run_eval(
             Expect::None => Vec::new(),
             Expect::Calls(calls) => calls.iter().map(|c| c.tool.as_str()).collect(),
         };
-        // `ask_user` is offered from the first step on, like the core actions.
-        let needs_search = expected.iter().any(|name| {
-            *name != ASK_USER_TOOL_NAME
-                && !tools.iter().any(|def| def.core && def.tool_name == *name)
-        });
+        // What the first step offered is what the model can call without a search (the core,
+        // `ask_user`, the matched tools).
+        let first_offer_hit = expected
+            .iter()
+            .all(|name| offer.iter().any(|spec| spec.name == *name));
+        let needs_search = !first_offer_hit;
+        let scope = ExtensionScope {
+            names: all_names.clone(),
+            pinned: matched.iter().cloned().collect(),
+        };
 
         let observed = if !needs_search {
             Observed {
@@ -190,6 +265,7 @@ pub async fn run_eval(
                 searched: false,
                 reached: true,
                 text: first.text.clone(),
+                ..Default::default()
             }
         } else if let [lone] = first.calls.as_slice() {
             if lone.name == FIND_ACTIONS_TOOL_NAME {
@@ -197,7 +273,7 @@ pub async fn run_eval(
                 let mut next = offer.clone();
                 // A result that is no list of tools leaves the offer as it is, as in a chat turn.
                 if let Some(found) = found_tools(&result.content).filter(|_| !result.is_error) {
-                    extend_offer(&mut next, &found, tools, &ExtensionScope::default());
+                    extend_offer(&mut next, &found, tools, &scope);
                 }
                 let reached = expected
                     .iter()
@@ -238,6 +314,7 @@ pub async fn run_eval(
                     searched: true,
                     reached,
                     text,
+                    ..Default::default()
                 }
             } else {
                 Observed {
@@ -245,6 +322,7 @@ pub async fn run_eval(
                     searched: false,
                     reached: false,
                     text: first.text.clone(),
+                    ..Default::default()
                 }
             }
         } else {
@@ -253,10 +331,16 @@ pub async fn run_eval(
                 searched: false,
                 reached: false,
                 text: first.text.clone(),
+                ..Default::default()
             }
         };
 
-        let result = score(sentence, &observed, tools);
+        let mut observed = observed;
+        observed.first_offer_hit = first_offer_hit;
+        // A command the model tried in the first step counts even when it searched afterwards.
+        observed.ran_command = first.calls.iter().any(|call| is_command(&call.name))
+            || observed.calls.iter().any(|call| is_command(&call.tool));
+        let result = score_with(sentence, &observed, tools, &extension_specs);
         scored.push(Scored {
             sentence,
             observed,

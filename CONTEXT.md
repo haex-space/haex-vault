@@ -380,6 +380,23 @@ and nobody chooses. A temporary one
 lasts until the vault closes. Spec 034 calls the same thing "Freigabe".
 _Avoid_: grant for the stored row (use it only for the password manager's `Grant`).
 
+**Erweiterungswerkzeug** (extension tool, spec 018):
+A tool an extension declares in its signed manifest and the built-in agent may call. The user
+confirms it when the extension is installed or updated; its effect (`read`, `change`,
+`destructive`) sets how a call is approved, and an unticked tool is on "ask": every call needs the
+user's consent. The model sees it as `x_<slug>_<tool>`; holzi calls it over the MCP connection of a
+frame of the extension, and the history names the extension (a development version is marked as
+such). Not an action of holzi's own catalog.
+_Avoid_: plugin tool, skill.
+
+**Passendes Angebot** (matched offer, spec 018):
+The up to three extension tools that fit the user's message, which holzi adds to the first step's
+offer so a small model does not have to search for them. Deterministic and without a model: the
+words of the message against the titles, description and examples of every tool, each word
+weighted by how rare it is; naming the extension offers its tools. Measured by the model
+evaluation as `offered`.
+_Avoid_: recommendation, suggestion.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and

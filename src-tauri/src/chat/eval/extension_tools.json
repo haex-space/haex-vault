@@ -1,0 +1,2120 @@
+{
+  "extensions": [
+    {
+      "name": "mailbox",
+      "title": "Postfach",
+      "tools": [
+        {
+          "name": "count_unread",
+          "title": {
+            "de": "Ungelesene zählen",
+            "en": "Count unread"
+          },
+          "description": "Counts the unread emails in the inbox.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "folder": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Wie viele ungelesene Nachrichten liegen im Posteingang?",
+              "Zähle meine neuen E-Mails."
+            ],
+            "en": [
+              "How many unread messages are in the inbox?",
+              "Count my new emails."
+            ]
+          }
+        },
+        {
+          "name": "list_recent",
+          "title": {
+            "de": "Neueste Mails",
+            "en": "Latest mails"
+          },
+          "description": "Lists the most recent emails with sender and subject.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Zeige mir die letzten Nachrichten mit Absender und Betreff.",
+              "Von wem kam die neueste E-Mail?"
+            ],
+            "en": [
+              "Show me the latest messages with sender and subject.",
+              "Who sent the newest email?"
+            ]
+          }
+        },
+        {
+          "name": "mark_all_read",
+          "title": {
+            "de": "Alles als gelesen markieren",
+            "en": "Mark all as read"
+          },
+          "description": "Marks every email of a folder as read.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "folder": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Markiere den ganzen Posteingang als gelesen."],
+            "en": ["Mark the whole inbox as read."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "calendar",
+      "title": "Terminplaner",
+      "tools": [
+        {
+          "name": "list_events",
+          "title": {
+            "de": "Termine anzeigen",
+            "en": "List events"
+          },
+          "description": "Lists the appointments of a day or a date range.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Welche Termine stehen für morgen an?",
+              "Was habe ich am Freitag vor?"
+            ],
+            "en": [
+              "Which appointments are coming up tomorrow?",
+              "What do I have planned on Friday?"
+            ]
+          }
+        },
+        {
+          "name": "add_event",
+          "title": {
+            "de": "Termin anlegen",
+            "en": "Add event"
+          },
+          "description": "Creates an appointment with a title, a date and a time.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "time": {
+                "type": "string"
+              }
+            },
+            "required": ["title", "date"]
+          },
+          "examples": {
+            "de": ["Trag einen Termin beim Zahnarzt am Montag um 9 Uhr ein."],
+            "en": ["Put a dentist appointment on Monday at 9 am in my planner."]
+          }
+        },
+        {
+          "name": "cancel_event",
+          "title": {
+            "de": "Termin absagen",
+            "en": "Cancel event"
+          },
+          "description": "Deletes an appointment.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Lösche den Termin am Donnerstag wieder."],
+            "en": ["Delete the Thursday appointment again."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "recipes",
+      "title": "Kochbuch",
+      "tools": [
+        {
+          "name": "find_recipe",
+          "title": {
+            "de": "Rezept suchen",
+            "en": "Find recipe"
+          },
+          "description": "Searches the saved recipes by ingredient or dish name.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": ["query"]
+          },
+          "examples": {
+            "de": [
+              "Welches Rezept habe ich mit Kürbis gespeichert?",
+              "Suche etwas Vegetarisches mit Linsen."
+            ],
+            "en": [
+              "Which recipe with pumpkin did I save?",
+              "Find something vegetarian with lentils."
+            ]
+          }
+        },
+        {
+          "name": "scale_recipe",
+          "title": {
+            "de": "Rezept umrechnen",
+            "en": "Scale recipe"
+          },
+          "description": "Recalculates the ingredient amounts of a recipe for a number of servings.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "recipe": {
+                "type": "string"
+              },
+              "servings": {
+                "type": "integer"
+              }
+            },
+            "required": ["recipe", "servings"]
+          },
+          "examples": {
+            "de": ["Rechne die Lasagne auf sechs Portionen um."],
+            "en": ["Recalculate the lasagne for six servings."]
+          }
+        },
+        {
+          "name": "add_to_menu",
+          "title": {
+            "de": "In den Speiseplan",
+            "en": "Add to menu"
+          },
+          "description": "Puts a recipe on the weekly menu.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "recipe": {
+                "type": "string"
+              },
+              "day": {
+                "type": "string"
+              }
+            },
+            "required": ["recipe", "day"]
+          },
+          "examples": {
+            "de": ["Setze das Chili auf den Speiseplan für Mittwoch."],
+            "en": ["Put the chili on the menu for Wednesday."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "shoppinglist",
+      "title": "Einkaufszettel",
+      "tools": [
+        {
+          "name": "show_items",
+          "title": {
+            "de": "Liste zeigen",
+            "en": "Show items"
+          },
+          "description": "Shows what is still on the shopping list.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was steht noch auf dem Zettel für den Supermarkt?"],
+            "en": ["What is still on the list for the supermarket?"]
+          }
+        },
+        {
+          "name": "add_item",
+          "title": {
+            "de": "Artikel hinzufügen",
+            "en": "Add item"
+          },
+          "description": "Adds an article to the shopping list.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "integer"
+              }
+            },
+            "required": ["item"]
+          },
+          "examples": {
+            "de": [
+              "Schreib Milch und Eier auf die Einkaufsliste.",
+              "Wir brauchen noch Butter zum Einkaufen."
+            ],
+            "en": [
+              "Add milk and eggs to the shopping list.",
+              "We still need butter from the store."
+            ]
+          }
+        },
+        {
+          "name": "remove_item",
+          "title": {
+            "de": "Artikel streichen",
+            "en": "Remove item"
+          },
+          "description": "Removes an article from the shopping list.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              }
+            },
+            "required": ["item"]
+          },
+          "examples": {
+            "de": ["Streich die Bananen von der Liste."],
+            "en": ["Cross the bananas off the list."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "title": "Aufgabenliste",
+      "tools": [
+        {
+          "name": "list_tasks",
+          "title": {
+            "de": "Aufgaben zeigen",
+            "en": "List tasks"
+          },
+          "description": "Lists the open tasks with their due dates.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "project": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Welche Aufgaben sind noch offen?",
+              "Was ist bis Ende der Woche fällig?"
+            ],
+            "en": [
+              "Which tasks are still open?",
+              "What is due by the end of the week?"
+            ]
+          }
+        },
+        {
+          "name": "add_task",
+          "title": {
+            "de": "Aufgabe anlegen",
+            "en": "Add task"
+          },
+          "description": "Creates a task with an optional due date.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "due": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Erinnere mich daran, die Steuererklärung abzugeben."],
+            "en": ["Remind me to hand in the tax return."]
+          }
+        },
+        {
+          "name": "complete_task",
+          "title": {
+            "de": "Aufgabe abhaken",
+            "en": "Complete task"
+          },
+          "description": "Marks a task as done.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Hak die Aufgabe mit dem Fahrradreifen ab."],
+            "en": ["Tick off the bicycle tire task."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "diary",
+      "title": "Tagebuch",
+      "tools": [
+        {
+          "name": "add_entry",
+          "title": {
+            "de": "Eintrag schreiben",
+            "en": "Write entry"
+          },
+          "description": "Adds a diary entry for today.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "mood": {
+                "type": "string"
+              }
+            },
+            "required": ["text"]
+          },
+          "examples": {
+            "de": ["Schreib in mein Tagebuch, dass der Tag anstrengend war."],
+            "en": ["Write in my diary that the day was exhausting."]
+          }
+        },
+        {
+          "name": "search_entries",
+          "title": {
+            "de": "Einträge durchsuchen",
+            "en": "Search entries"
+          },
+          "description": "Searches the diary entries for a word.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": ["query"]
+          },
+          "examples": {
+            "de": ["Wann habe ich zuletzt über den Urlaub geschrieben?"],
+            "en": ["When did I last write about the vacation?"]
+          }
+        },
+        {
+          "name": "mood_summary",
+          "title": {
+            "de": "Stimmungsübersicht",
+            "en": "Mood summary"
+          },
+          "description": "Summarises the moods noted in the diary over a period.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie war meine Stimmung in den letzten Wochen?"],
+            "en": ["How was my mood over the past weeks?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "budget",
+      "title": "Haushaltsbuch",
+      "tools": [
+        {
+          "name": "add_expense",
+          "title": {
+            "de": "Ausgabe buchen",
+            "en": "Add expense"
+          },
+          "description": "Records an expense with an amount and a category.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number"
+              },
+              "category": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": ["amount"]
+          },
+          "examples": {
+            "de": ["Buch 45 Euro fürs Tanken."],
+            "en": ["Record 45 euros for gas."]
+          }
+        },
+        {
+          "name": "month_total",
+          "title": {
+            "de": "Monatssumme",
+            "en": "Month total"
+          },
+          "description": "Gives the sum of the expenses of a month.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Wie viel Geld habe ich diesen Monat ausgegeben?",
+              "Was kosteten mich die letzten vier Wochen?"
+            ],
+            "en": [
+              "How much money did I spend this month?",
+              "What did the last four weeks cost me?"
+            ]
+          }
+        },
+        {
+          "name": "top_categories",
+          "title": {
+            "de": "Größte Kategorien",
+            "en": "Top categories"
+          },
+          "description": "Lists the categories with the highest spending.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wofür gebe ich am meisten aus?"],
+            "en": ["What do I spend the most on?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "habits",
+      "title": "Gewohnheiten",
+      "tools": [
+        {
+          "name": "log_habit",
+          "title": {
+            "de": "Gewohnheit abhaken",
+            "en": "Log habit"
+          },
+          "description": "Records that a habit was done today.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "habit": {
+                "type": "string"
+              }
+            },
+            "required": ["habit"]
+          },
+          "examples": {
+            "de": ["Hak für heute das Meditieren ab."],
+            "en": ["Check off meditating for today."]
+          }
+        },
+        {
+          "name": "streaks",
+          "title": {
+            "de": "Serien",
+            "en": "Streaks"
+          },
+          "description": "Shows how many days in a row each habit was kept.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wie viele Tage in Folge mache ich schon Yoga?"],
+            "en": ["How many days in a row have I been doing yoga?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "training",
+      "title": "Trainingslog",
+      "tools": [
+        {
+          "name": "log_workout",
+          "title": {
+            "de": "Training eintragen",
+            "en": "Log workout"
+          },
+          "description": "Records a workout with its type and duration.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "minutes": {
+                "type": "integer"
+              }
+            },
+            "required": ["kind", "minutes"]
+          },
+          "examples": {
+            "de": ["Trag einen Lauf über dreißig Minuten ein."],
+            "en": ["Log a thirty minute run."]
+          }
+        },
+        {
+          "name": "weekly_summary",
+          "title": {
+            "de": "Wochenübersicht",
+            "en": "Weekly summary"
+          },
+          "description": "Summarises the workouts of the past week.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wie oft war ich diese Woche beim Sport?"],
+            "en": ["How often did I exercise this week?"]
+          }
+        },
+        {
+          "name": "last_workout",
+          "title": {
+            "de": "Letztes Training",
+            "en": "Last workout"
+          },
+          "description": "Shows the most recent workout.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was habe ich beim letzten Mal trainiert?"],
+            "en": ["What did I do in my last session?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "plants",
+      "title": "Zimmerpflanzen",
+      "tools": [
+        {
+          "name": "water_due",
+          "title": {
+            "de": "Gießen fällig",
+            "en": "Watering due"
+          },
+          "description": "Lists the plants that need water today.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Pflanzen brauchen heute Wasser?"],
+            "en": ["Which plants need water today?"]
+          }
+        },
+        {
+          "name": "mark_watered",
+          "title": {
+            "de": "Als gegossen markieren",
+            "en": "Mark watered"
+          },
+          "description": "Records that a plant was watered.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "plant": {
+                "type": "string"
+              }
+            },
+            "required": ["plant"]
+          },
+          "examples": {
+            "de": ["Die Monstera ist gegossen."],
+            "en": ["The monstera has been watered."]
+          }
+        },
+        {
+          "name": "add_plant",
+          "title": {
+            "de": "Pflanze anlegen",
+            "en": "Add plant"
+          },
+          "description": "Adds a plant with its watering interval.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "every_days": {
+                "type": "integer"
+              }
+            },
+            "required": ["name"]
+          },
+          "examples": {
+            "de": ["Neue Pflanze: ein Gummibaum, alle zehn Tage gießen."],
+            "en": ["New plant: a rubber tree, water every ten days."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "library",
+      "title": "Bücherei",
+      "tools": [
+        {
+          "name": "loans_due",
+          "title": {
+            "de": "Fällige Ausleihen",
+            "en": "Loans due"
+          },
+          "description": "Lists the borrowed books and when they are due back.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wann muss ich meine Bücher zurückbringen?"],
+            "en": ["When do I have to bring my books back?"]
+          }
+        },
+        {
+          "name": "renew_loan",
+          "title": {
+            "de": "Leihfrist verlängern",
+            "en": "Renew loan"
+          },
+          "description": "Extends the loan period of a borrowed book.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Verlängere die Leihfrist für den Krimi."],
+            "en": ["Extend the loan period for the thriller."]
+          }
+        },
+        {
+          "name": "search_catalog",
+          "title": {
+            "de": "Katalog durchsuchen",
+            "en": "Search catalog"
+          },
+          "description": "Searches the library catalog.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": ["query"]
+          },
+          "examples": {
+            "de": ["Gibt es das neue Buch von Juli Zeh bei uns?"],
+            "en": ["Does our library have the new Stephen King novel?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "player",
+      "title": "Musikbox",
+      "tools": [
+        {
+          "name": "now_playing",
+          "title": {
+            "de": "Läuft gerade",
+            "en": "Now playing"
+          },
+          "description": "Tells which song is playing right now.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welches Lied läuft gerade?"],
+            "en": ["Which song is playing right now?"]
+          }
+        },
+        {
+          "name": "play_playlist",
+          "title": {
+            "de": "Playlist abspielen",
+            "en": "Play playlist"
+          },
+          "description": "Starts a playlist.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["name"]
+          },
+          "examples": {
+            "de": ["Spiel meine Playlist zum Joggen ab."],
+            "en": ["Play my running playlist."]
+          }
+        },
+        {
+          "name": "skip",
+          "title": {
+            "de": "Überspringen",
+            "en": "Skip"
+          },
+          "description": "Skips to the next song.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Das nächste Lied bitte."],
+            "en": ["Next song please."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "trips",
+      "title": "Reiseplaner",
+      "tools": [
+        {
+          "name": "list_trips",
+          "title": {
+            "de": "Reisen anzeigen",
+            "en": "List trips"
+          },
+          "description": "Lists the planned trips with their dates.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Reisen habe ich geplant?"],
+            "en": ["Which trips have I planned?"]
+          }
+        },
+        {
+          "name": "days_until",
+          "title": {
+            "de": "Tage bis zur Reise",
+            "en": "Days until trip"
+          },
+          "description": "Counts the days until the next trip.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "trip": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie lange dauert es noch bis zum Urlaub?"],
+            "en": ["How long until the holiday?"]
+          }
+        },
+        {
+          "name": "add_packing_item",
+          "title": {
+            "de": "Packliste ergänzen",
+            "en": "Add packing item"
+          },
+          "description": "Adds an item to the packing list of a trip.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              },
+              "trip": {
+                "type": "string"
+              }
+            },
+            "required": ["item"]
+          },
+          "examples": {
+            "de": ["Setz Sonnencreme auf die Packliste."],
+            "en": ["Put sunscreen on the packing list."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "timers",
+      "title": "Kurzzeitwecker",
+      "tools": [
+        {
+          "name": "start_timer",
+          "title": {
+            "de": "Timer starten",
+            "en": "Start timer"
+          },
+          "description": "Starts a countdown timer.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "minutes": {
+                "type": "integer"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": ["minutes"]
+          },
+          "examples": {
+            "de": ["Stell einen Wecker auf zehn Minuten für die Nudeln."],
+            "en": ["Set a countdown for ten minutes for the pasta."]
+          }
+        },
+        {
+          "name": "list_timers",
+          "title": {
+            "de": "Timer zeigen",
+            "en": "List timers"
+          },
+          "description": "Lists the running timers and their remaining time.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wie lange läuft der Wecker noch?"],
+            "en": ["How much time is left on the countdown?"]
+          }
+        },
+        {
+          "name": "cancel_timer",
+          "title": {
+            "de": "Timer abbrechen",
+            "en": "Cancel timer"
+          },
+          "description": "Stops a running timer.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Brich den Wecker ab."],
+            "en": ["Stop the countdown."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "flashcards",
+      "title": "Karteikarten",
+      "tools": [
+        {
+          "name": "cards_due",
+          "title": {
+            "de": "Fällige Karten",
+            "en": "Cards due"
+          },
+          "description": "Counts the flashcards due for review today.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deck": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie viele Karten muss ich heute wiederholen?"],
+            "en": ["How many cards do I have to review today?"]
+          }
+        },
+        {
+          "name": "add_card",
+          "title": {
+            "de": "Karte anlegen",
+            "en": "Add card"
+          },
+          "description": "Creates a flashcard with a front and a back.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "front": {
+                "type": "string"
+              },
+              "back": {
+                "type": "string"
+              },
+              "deck": {
+                "type": "string"
+              }
+            },
+            "required": ["front", "back"]
+          },
+          "examples": {
+            "de": ["Mach eine Karte: Hauptstadt von Peru, Lima."],
+            "en": ["Make a card: capital of Peru, Lima."]
+          }
+        },
+        {
+          "name": "review_stats",
+          "title": {
+            "de": "Lernstatistik",
+            "en": "Review stats"
+          },
+          "description": "Shows how many cards were reviewed and how many were right.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie gut habe ich letzte Woche gelernt?"],
+            "en": ["How well did I study last week?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "bookmarks",
+      "title": "Linksammlung",
+      "tools": [
+        {
+          "name": "save_bookmark",
+          "title": {
+            "de": "Link speichern",
+            "en": "Save bookmark"
+          },
+          "description": "Saves a web address with a title.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["url"]
+          },
+          "examples": {
+            "de": ["Speicher diese Seite für später."],
+            "en": ["Save this page for later."]
+          }
+        },
+        {
+          "name": "find_bookmark",
+          "title": {
+            "de": "Link finden",
+            "en": "Find bookmark"
+          },
+          "description": "Finds saved links by a word.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": ["query"]
+          },
+          "examples": {
+            "de": [
+              "Wo war der Artikel über Sauerteig, den ich gespeichert habe?"
+            ],
+            "en": ["Where was the article about sourdough I saved?"]
+          }
+        },
+        {
+          "name": "list_unread",
+          "title": {
+            "de": "Ungelesene Links",
+            "en": "Unread links"
+          },
+          "description": "Lists the saved links that were not opened yet.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was habe ich noch nicht gelesen von meinen Merkzetteln?"],
+            "en": ["What have I not read yet from my saved pages?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "carlog",
+      "title": "Fahrzeugakte",
+      "tools": [
+        {
+          "name": "log_fuel",
+          "title": {
+            "de": "Tanken eintragen",
+            "en": "Log fuel"
+          },
+          "description": "Records a refuelling with liters, price and odometer.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "liters": {
+                "type": "number"
+              },
+              "price": {
+                "type": "number"
+              },
+              "odometer": {
+                "type": "integer"
+              }
+            },
+            "required": ["liters"]
+          },
+          "examples": {
+            "de": ["Ich habe vierzig Liter getankt, Kilometerstand 81200."],
+            "en": ["I filled up forty liters, odometer 81200."]
+          }
+        },
+        {
+          "name": "consumption",
+          "title": {
+            "de": "Verbrauch",
+            "en": "Consumption"
+          },
+          "description": "Calculates the average fuel consumption.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wie viel verbraucht mein Auto im Schnitt?"],
+            "en": ["What is my car's average consumption?"]
+          }
+        },
+        {
+          "name": "next_service",
+          "title": {
+            "de": "Nächste Inspektion",
+            "en": "Next service"
+          },
+          "description": "Tells when the next service or inspection is due.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wann ist das Auto wieder zur Inspektion dran?"],
+            "en": ["When is the car due for its next service?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "medication",
+      "title": "Medikamentenplan",
+      "tools": [
+        {
+          "name": "next_dose",
+          "title": {
+            "de": "Nächste Einnahme",
+            "en": "Next dose"
+          },
+          "description": "Tells when the next medication has to be taken.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wann muss ich meine nächste Tablette nehmen?"],
+            "en": ["When do I have to take my next pill?"]
+          }
+        },
+        {
+          "name": "log_dose",
+          "title": {
+            "de": "Einnahme eintragen",
+            "en": "Log dose"
+          },
+          "description": "Records that a medication was taken.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "medication": {
+                "type": "string"
+              }
+            },
+            "required": ["medication"]
+          },
+          "examples": {
+            "de": ["Ich habe die Blutdrucktablette genommen."],
+            "en": ["I took the blood pressure pill."]
+          }
+        },
+        {
+          "name": "refill_needed",
+          "title": {
+            "de": "Nachschub nötig",
+            "en": "Refill needed"
+          },
+          "description": "Lists medications that will run out soon.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Medikamente gehen bald zur Neige?"],
+            "en": ["Which medicines are running low?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "babylog",
+      "title": "Babytagebuch",
+      "tools": [
+        {
+          "name": "log_feeding",
+          "title": {
+            "de": "Mahlzeit eintragen",
+            "en": "Log feeding"
+          },
+          "description": "Records a feeding of the baby with the amount.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "ml": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Die Kleine hat gerade 120 Milliliter getrunken."],
+            "en": ["The baby just drank 120 milliliters."]
+          }
+        },
+        {
+          "name": "last_feeding",
+          "title": {
+            "de": "Letzte Mahlzeit",
+            "en": "Last feeding"
+          },
+          "description": "Tells when the baby was fed last.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Wann hat das Baby zuletzt getrunken?"],
+            "en": ["When was the baby fed last?"]
+          }
+        },
+        {
+          "name": "sleep_summary",
+          "title": {
+            "de": "Schlafübersicht",
+            "en": "Sleep summary"
+          },
+          "description": "Summarises how long the baby slept.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie viel hat das Baby heute Nacht geschlafen?"],
+            "en": ["How much did the baby sleep last night?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "timetable",
+      "title": "Stundenplan",
+      "tools": [
+        {
+          "name": "today_lessons",
+          "title": {
+            "de": "Heutiger Unterricht",
+            "en": "Today's lessons"
+          },
+          "description": "Lists today's lessons in order.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Fächer habe ich heute?"],
+            "en": ["Which subjects do I have today?"]
+          }
+        },
+        {
+          "name": "next_lesson",
+          "title": {
+            "de": "Nächste Stunde",
+            "en": "Next lesson"
+          },
+          "description": "Tells which lesson comes next and where.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was kommt nach der Pause?"],
+            "en": ["What is the lesson after the break?"]
+          }
+        },
+        {
+          "name": "move_lesson",
+          "title": {
+            "de": "Stunde verschieben",
+            "en": "Move lesson"
+          },
+          "description": "Moves a lesson to another slot.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string"
+              },
+              "day": {
+                "type": "string"
+              },
+              "slot": {
+                "type": "integer"
+              }
+            },
+            "required": ["subject", "day", "slot"]
+          },
+          "examples": {
+            "de": ["Verleg Physik auf die dritte Stunde am Dienstag."],
+            "en": ["Move physics to third period on Tuesday."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "grades",
+      "title": "Notenbuch",
+      "tools": [
+        {
+          "name": "add_grade",
+          "title": {
+            "de": "Note eintragen",
+            "en": "Add grade"
+          },
+          "description": "Records a grade for a subject.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string"
+              },
+              "grade": {
+                "type": "number"
+              }
+            },
+            "required": ["subject", "grade"]
+          },
+          "examples": {
+            "de": ["Trag eine 2 in Mathe ein."],
+            "en": ["Enter a 2 in math."]
+          }
+        },
+        {
+          "name": "average",
+          "title": {
+            "de": "Durchschnitt",
+            "en": "Average"
+          },
+          "description": "Calculates the average grade, overall or for a subject.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie steht mein Schnitt in Englisch?"],
+            "en": ["What is my average in English?"]
+          }
+        },
+        {
+          "name": "list_grades",
+          "title": {
+            "de": "Noten auflisten",
+            "en": "List grades"
+          },
+          "description": "Lists the grades of a subject.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Welche Noten habe ich in Biologie?"],
+            "en": ["Which grades do I have in biology?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "garden",
+      "title": "Gartenkalender",
+      "tools": [
+        {
+          "name": "sow_calendar",
+          "title": {
+            "de": "Aussaatkalender",
+            "en": "Sowing calendar"
+          },
+          "description": "Tells what can be sown or planted in a month.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Was kann ich im April aussäen?"],
+            "en": ["What can I sow in April?"]
+          }
+        },
+        {
+          "name": "log_harvest",
+          "title": {
+            "de": "Ernte eintragen",
+            "en": "Log harvest"
+          },
+          "description": "Records a harvest with the amount.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "crop": {
+                "type": "string"
+              },
+              "kilograms": {
+                "type": "number"
+              }
+            },
+            "required": ["crop"]
+          },
+          "examples": {
+            "de": ["Ich habe drei Kilo Tomaten geerntet."],
+            "en": ["I harvested three kilos of tomatoes."]
+          }
+        },
+        {
+          "name": "tasks_this_month",
+          "title": {
+            "de": "Gartenarbeit im Monat",
+            "en": "Tasks this month"
+          },
+          "description": "Lists the garden jobs for the current month.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was steht diesen Monat im Beet an?"],
+            "en": ["What needs doing in the beds this month?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "pets",
+      "title": "Tierakte",
+      "tools": [
+        {
+          "name": "next_vet",
+          "title": {
+            "de": "Nächster Tierarzttermin",
+            "en": "Next vet visit"
+          },
+          "description": "Tells when the next visit to the vet is due for a pet.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "pet": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wann muss die Katze wieder zum Tierarzt?"],
+            "en": ["When does the cat have to see the vet again?"]
+          }
+        },
+        {
+          "name": "log_pet_feeding",
+          "title": {
+            "de": "Fütterung eintragen",
+            "en": "Log pet feeding"
+          },
+          "description": "Records that a pet was fed.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "pet": {
+                "type": "string"
+              }
+            },
+            "required": ["pet"]
+          },
+          "examples": {
+            "de": ["Der Hund hat gefressen."],
+            "en": ["The dog has eaten."]
+          }
+        },
+        {
+          "name": "add_vaccination",
+          "title": {
+            "de": "Impfung eintragen",
+            "en": "Add vaccination"
+          },
+          "description": "Records a vaccination of a pet.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "pet": {
+                "type": "string"
+              },
+              "vaccine": {
+                "type": "string"
+              }
+            },
+            "required": ["pet", "vaccine"]
+          },
+          "examples": {
+            "de": ["Trag die Tollwutimpfung für den Kater ein."],
+            "en": ["Record the rabies shot for the tomcat."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "watchlist",
+      "title": "Filmliste",
+      "tools": [
+        {
+          "name": "show_watchlist",
+          "title": {
+            "de": "Merkliste zeigen",
+            "en": "Show watchlist"
+          },
+          "description": "Shows the films and series still to watch.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Filme wollten wir noch schauen?"],
+            "en": ["Which films did we want to watch?"]
+          }
+        },
+        {
+          "name": "add_movie",
+          "title": {
+            "de": "Film vormerken",
+            "en": "Add movie"
+          },
+          "description": "Adds a film or series to the watchlist.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Merk dir den neuen Nolan Film vor."],
+            "en": ["Put the new Nolan film on the list."]
+          }
+        },
+        {
+          "name": "pick_random",
+          "title": {
+            "de": "Zufallsvorschlag",
+            "en": "Pick random"
+          },
+          "description": "Picks a random title from the watchlist.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Such uns etwas für heute Abend aus."],
+            "en": ["Pick something for tonight."]
+          }
+        },
+        {
+          "name": "mark_watched",
+          "title": {
+            "de": "Als gesehen markieren",
+            "en": "Mark watched"
+          },
+          "description": "Marks a title as watched.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": ["title"]
+          },
+          "examples": {
+            "de": ["Den haben wir schon gesehen."],
+            "en": ["We have seen that one."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "invoices",
+      "title": "Rechnungsmappe",
+      "tools": [
+        {
+          "name": "unpaid",
+          "title": {
+            "de": "Offene Rechnungen",
+            "en": "Unpaid invoices"
+          },
+          "description": "Lists the invoices that are not paid yet.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Rechnungen muss ich noch überweisen?"],
+            "en": ["Which invoices do I still have to pay?"]
+          }
+        },
+        {
+          "name": "mark_paid",
+          "title": {
+            "de": "Als bezahlt markieren",
+            "en": "Mark paid"
+          },
+          "description": "Marks an invoice as paid.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "invoice": {
+                "type": "string"
+              }
+            },
+            "required": ["invoice"]
+          },
+          "examples": {
+            "de": ["Die Stromrechnung ist bezahlt."],
+            "en": ["The electricity bill is paid."]
+          }
+        },
+        {
+          "name": "add_invoice",
+          "title": {
+            "de": "Rechnung erfassen",
+            "en": "Add invoice"
+          },
+          "description": "Records a new invoice with amount and due date.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "sender": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "due": {
+                "type": "string"
+              }
+            },
+            "required": ["sender", "amount"]
+          },
+          "examples": {
+            "de": [
+              "Erfasse die Handyrechnung über 29 Euro, fällig am Zehnten."
+            ],
+            "en": ["Record the phone bill of 29 euros, due on the tenth."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "subscriptions",
+      "title": "Abo-Übersicht",
+      "tools": [
+        {
+          "name": "monthly_cost",
+          "title": {
+            "de": "Monatliche Kosten",
+            "en": "Monthly cost"
+          },
+          "description": "Adds up what all subscriptions cost per month.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was kosten mich alle meine Streamingdienste im Monat?"],
+            "en": ["What do all my streaming services cost per month?"]
+          }
+        },
+        {
+          "name": "renewals_soon",
+          "title": {
+            "de": "Bald verlängert",
+            "en": "Renewals soon"
+          },
+          "description": "Lists subscriptions that renew in the next days.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Welche Verträge verlängern sich demnächst?"],
+            "en": ["Which contracts renew soon?"]
+          }
+        },
+        {
+          "name": "add_subscription",
+          "title": {
+            "de": "Abo anlegen",
+            "en": "Add subscription"
+          },
+          "description": "Records a subscription with its price and billing day.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "price": {
+                "type": "number"
+              }
+            },
+            "required": ["name", "price"]
+          },
+          "examples": {
+            "de": ["Neu: Cloudspeicher für drei Euro im Monat."],
+            "en": ["New: cloud storage for three euros a month."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "gifts",
+      "title": "Geschenkeideen",
+      "tools": [
+        {
+          "name": "add_idea",
+          "title": {
+            "de": "Idee notieren",
+            "en": "Add idea"
+          },
+          "description": "Notes a gift idea for a person.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "person": {
+                "type": "string"
+              },
+              "idea": {
+                "type": "string"
+              }
+            },
+            "required": ["person", "idea"]
+          },
+          "examples": {
+            "de": ["Für Opa wäre ein Gartenhandschuh-Set nett."],
+            "en": ["A set of garden gloves would be nice for grandpa."]
+          }
+        },
+        {
+          "name": "ideas_for",
+          "title": {
+            "de": "Ideen für",
+            "en": "Ideas for"
+          },
+          "description": "Shows the gift ideas noted for a person.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "person": {
+                "type": "string"
+              }
+            },
+            "required": ["person"]
+          },
+          "examples": {
+            "de": ["Was wollte ich Mama zum Geburtstag schenken?"],
+            "en": ["What did I want to give mom for her birthday?"]
+          }
+        },
+        {
+          "name": "mark_bought",
+          "title": {
+            "de": "Als gekauft markieren",
+            "en": "Mark bought"
+          },
+          "description": "Marks a gift idea as bought.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "idea": {
+                "type": "string"
+              }
+            },
+            "required": ["idea"]
+          },
+          "examples": {
+            "de": ["Das Geschenk für Tante Inge ist besorgt."],
+            "en": ["The gift for aunt Inge is taken care of."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "homework",
+      "title": "Hausaufgabenheft",
+      "tools": [
+        {
+          "name": "due_this_week",
+          "title": {
+            "de": "Diese Woche fällig",
+            "en": "Due this week"
+          },
+          "description": "Lists the homework due this week.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Was muss ich bis Freitag abgeben?"],
+            "en": ["What do I have to hand in by Friday?"]
+          }
+        },
+        {
+          "name": "add_homework",
+          "title": {
+            "de": "Hausaufgabe notieren",
+            "en": "Add homework"
+          },
+          "description": "Notes a homework with subject and due date.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string"
+              },
+              "task": {
+                "type": "string"
+              },
+              "due": {
+                "type": "string"
+              }
+            },
+            "required": ["subject", "task"]
+          },
+          "examples": {
+            "de": ["Notier: Deutsch, Aufsatz bis Mittwoch."],
+            "en": ["Note: German, essay due Wednesday."]
+          }
+        },
+        {
+          "name": "mark_done",
+          "title": {
+            "de": "Erledigt markieren",
+            "en": "Mark done"
+          },
+          "description": "Marks a homework as done.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "task": {
+                "type": "string"
+              }
+            },
+            "required": ["task"]
+          },
+          "examples": {
+            "de": ["Die Matheaufgaben sind fertig."],
+            "en": ["The math exercises are finished."]
+          }
+        }
+      ]
+    },
+    {
+      "name": "sleep",
+      "title": "Schlafprotokoll",
+      "tools": [
+        {
+          "name": "log_sleep",
+          "title": {
+            "de": "Schlaf eintragen",
+            "en": "Log sleep"
+          },
+          "description": "Records when and how long the user slept.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "hours": {
+                "type": "number"
+              },
+              "quality": {
+                "type": "string"
+              }
+            },
+            "required": ["hours"]
+          },
+          "examples": {
+            "de": ["Ich habe sieben Stunden geschlafen."],
+            "en": ["I slept seven hours."]
+          }
+        },
+        {
+          "name": "average_sleep",
+          "title": {
+            "de": "Durchschnittlicher Schlaf",
+            "en": "Average sleep"
+          },
+          "description": "Calculates the average sleep over a number of days.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Wie lange schlafe ich im Durchschnitt?"],
+            "en": ["How long do I sleep on average?"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "vocab",
+      "title": "Vokabeltrainer",
+      "tools": [
+        {
+          "name": "words_due",
+          "title": {
+            "de": "Fällige Wörter",
+            "en": "Words due"
+          },
+          "description": "Counts the vocabulary words due for practice today.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object"
+          },
+          "examples": {
+            "de": ["Welche Vokabeln stehen heute zum Üben an?"],
+            "en": ["Which vocabulary words are due for practice today?"]
+          }
+        },
+        {
+          "name": "add_word",
+          "title": {
+            "de": "Wort hinzufügen",
+            "en": "Add word"
+          },
+          "description": "Adds a word with its translation.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "word": {
+                "type": "string"
+              },
+              "translation": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              }
+            },
+            "required": ["word", "translation"]
+          },
+          "examples": {
+            "de": [
+              "Füge das Wort Fernweh mit der Übersetzung wanderlust hinzu."
+            ],
+            "en": [
+              "Add the word sobremesa with the translation after-meal talk."
+            ]
+          }
+        },
+        {
+          "name": "quiz_me",
+          "title": {
+            "de": "Abfragen",
+            "en": "Quiz me"
+          },
+          "description": "Starts a short quiz with the words due.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              }
+            }
+          },
+          "examples": {
+            "de": ["Frag mich zehn Vokabeln ab."],
+            "en": ["Quiz me on ten words."]
+          }
+        }
+      ]
+    }
+  ]
+}

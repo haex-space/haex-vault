@@ -34,6 +34,10 @@ mod frame_request_tests;
 mod defs_tests;
 
 #[cfg(test)]
+#[path = "defs_dev_tests.rs"]
+mod defs_dev_tests;
+
+#[cfg(test)]
 #[path = "tool_tests.rs"]
 mod tool_tests;
 
