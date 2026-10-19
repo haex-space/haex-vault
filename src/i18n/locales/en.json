@@ -2223,7 +2223,9 @@
         "shell": "Run programs",
         "encryptedFolder": "Encrypted folder",
         "contacts": "Contacts",
-        "agentTool": "Tool for the agent"
+        "agentTool": "Tool for the agent",
+        "model": "Use a model",
+        "modelDestination": "Send data to a destination outside this device"
       },
       "effect": {
         "read": "only reads",

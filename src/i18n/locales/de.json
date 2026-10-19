@@ -2223,7 +2223,9 @@
         "shell": "Programme ausführen",
         "encryptedFolder": "Verschlüsselter Ordner",
         "contacts": "Kontakte",
-        "agentTool": "Werkzeug für den Agenten"
+        "agentTool": "Werkzeug für den Agenten",
+        "model": "Modell nutzen",
+        "modelDestination": "Daten an ein Ziel außerhalb des Geräts senden"
       },
       "effect": {
         "read": "liest nur",

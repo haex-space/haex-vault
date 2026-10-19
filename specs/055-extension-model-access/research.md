@@ -215,6 +215,9 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
   Dateizugriff und keinen Befehl. Das Modell sieht nur `instruction`, `input` und das Schema. Text im Foto kann
   die Ausgabe verändern, aber nie eine Handlung auslösen; die Ausgabe wird gegen das Schema geprüft und geht
   nur an die Erweiterung.
+- **Befehlszeilen-Agenten** (`cli_delegate`, etwa Claude Code oder Codex) sind nie Kandidaten eines
+  Auftrags: Sie arbeiten mit eigenen Werkzeugen und Dateizugriff. Cloud-Modelle kommen über einen Anbieter mit
+  Adresse und Schlüssel (`anthropic`, `openai_compatible`).
 - **Zugang zu Schlüsseln**: Adapter werden bei Bedarf aus `providers`+`models` gebaut (`build_adapter`); die
   Erweiterung sieht weder Schlüssel noch Adressen (FR-021). Fehlertexte des Anbieters werden vor der Rückgabe
   bereinigt (`S/model_jobs/errors.rs::sanitize`): der Schlüssel und die Adresse des Anbieters, die der Aufrufer

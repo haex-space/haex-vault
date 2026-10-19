@@ -116,7 +116,8 @@ pub struct Asked {
 #[derive(Default)]
 pub struct PermissionState {
     pending: Mutex<HashMap<String, Pending>>,
-    /// Decisions without "remember", per extension; they end with the process.
+    /// Decisions without "remember", per extension; they end with the vault session, which a close
+    /// ends together with the process (spec 013).
     temporary: Mutex<HashMap<Uuid, Vec<HeldDecision>>>,
 }
 
@@ -178,7 +179,7 @@ impl PermissionState {
         gone
     }
 
-    /// Holds a decision for the rest of the process.
+    /// Holds a decision until the vault closes (the close ends the process, spec 013).
     pub fn hold(&self, question: &Question, status: PermissionStatus) {
         let mut temporary = lock(&self.temporary);
         let list = temporary.entry(question.extension_id).or_default();

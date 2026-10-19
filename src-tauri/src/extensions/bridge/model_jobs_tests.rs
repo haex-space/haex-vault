@@ -103,23 +103,6 @@ fn a_job_with_a_wrong_form_answers_3001_and_one_over_a_limit_7000() {
 }
 
 #[test]
-fn a_job_that_passes_the_preflight_is_not_available_before_the_runner_exists() {
-    let s = setup();
-    let (code, _) = error_of(call(
-        &s.ctx,
-        "extension_model_job_start",
-        &job(vec![step()]),
-    ));
-    assert_eq!(code, ExtensionErrorCode::NotAvailable.as_u16());
-    let (code, _) = error_of(call(&s.ctx, "extension_model_list", &json!({})));
-    assert_eq!(code, ExtensionErrorCode::NotAvailable.as_u16());
-    assert!(
-        s.ctx.host.model_jobs().get(uuid::Uuid::nil()).is_none(),
-        "nothing was registered"
-    );
-}
-
-#[test]
 fn an_unknown_job_is_not_cancelled_and_a_bad_id_is_refused() {
     let s = setup();
     let id = uuid::Uuid::nil().to_string();
