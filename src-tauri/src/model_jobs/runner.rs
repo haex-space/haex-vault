@@ -1,9 +1,11 @@
-//! The run of one step (spec 055 T027, T039, T043): the candidates are tried in order, each at
-//! most once, until one gives an output the guard and the format accept. The request carries no
-//! tools (FR-026); the instruction is the system prompt, the images are attachments and the schema
-//! is a hint. The deadline of the job and its cancel token end the run at once: the stream is
-//! dropped, which aborts the generation.
+//! The run of a job (spec 055 T027, T039, T041, T043): its steps in order, each step's candidates
+//! in order and each at most once, until one gives an output the guard and the format accept. A
+//! step with `from` gets the selected part of an earlier step's result as text. The request carries
+//! no tools (FR-026); the instruction is the system prompt, the images are attachments and the
+//! schema is a hint. The deadline of the job and its cancel token end the run at once: the stream
+//! is dropped, which aborts the generation.
 
+use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value;
 use tokio::time::Instant;
@@ -65,23 +67,70 @@ pub(crate) struct StepRun {
     pub end: StepEnd,
 }
 
+/// One step of a job as it ran, for the provenance.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RanStep {
+    pub step_id: String,
+    pub format_name: String,
+    pub format_version: u32,
+    pub attempts: Vec<Attempt>,
+}
+
+/// How a job ended.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum JobEnd {
+    /// Every step's result, in the order of the steps.
+    Completed(Vec<(String, Value)>),
+    Failed {
+        step_id: String,
+        code: JobErrorCode,
+        message: String,
+    },
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct JobRun {
+    pub steps: Vec<RanStep>,
+    pub end: JobEnd,
+}
+
+/// Asked before every step but the first: which of the step's planned candidates the extension
+/// may still use. A grant or consent the user withdrew while the job ran holds from the next step
+/// on (`contracts/bridge.md` §Lebenszyklus).
+#[async_trait]
+pub(crate) trait Recheck: Send + Sync {
+    /// `None` when the grants could not be read.
+    async fn still_allowed(&self, planned: &[Candidate]) -> Option<Vec<Candidate>>;
+}
+
 /// Why one try gave nothing.
 enum Miss {
     Unusable(String),
     Unavailable(String),
 }
 
-/// The text the model reads besides the instruction: the input and the format.
-fn user_text(step: &Step) -> String {
+/// The text the model reads besides the instruction: the input text, the part `handed` over from
+/// an earlier step (as JSON), and the format.
+fn user_text(step: &Step, handed: Option<&str>) -> String {
     let schema = step.format.schema.to_string();
-    match &step.input.text {
-        Some(text) => format!("{text}\n\n{FORMAT_SENTENCE}\n{schema}"),
-        None => format!("{FORMAT_SENTENCE}\n{schema}"),
-    }
+    step.input
+        .text
+        .iter()
+        .map(String::as_str)
+        .chain(handed)
+        .chain([format!("{FORMAT_SENTENCE}\n{schema}").as_str()])
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 /// The request for one candidate. No tools, ever (FR-026).
-pub(crate) fn request(step: &Step, candidate: &Candidate, applied: &Applied) -> ChatRequest {
+pub(crate) fn request(
+    step: &Step,
+    candidate: &Candidate,
+    applied: &Applied,
+    handed: Option<&str>,
+) -> ChatRequest {
     let attachments = step
         .input
         .images
@@ -106,7 +155,7 @@ pub(crate) fn request(step: &Step, candidate: &Candidate, applied: &Applied) -> 
         system_prompt: Some(step.instruction.clone()),
         messages: vec![ChatMessage {
             role: ChatRole::User,
-            content: user_text(step),
+            content: user_text(step, handed),
             attachments,
         }],
         reasoning_requested: reasons && !switched_off,
@@ -182,18 +231,25 @@ async fn answer(
 }
 
 /// Runs `step` over `candidates` until one gives a usable output, the deadline passes or the job
-/// is cancelled.
+/// is cancelled. `handed` is the part of an earlier step's result the step reads (`from`).
 pub(crate) async fn run_step(
     source: &dyn ModelSource,
     step: &Step,
     candidates: &[Candidate],
     cancel: &CancellationToken,
     deadline: Instant,
+    handed: Option<&str>,
 ) -> StepRun {
-    let context = match &step.input.text {
-        Some(text) => format!("{}\n{text}", step.instruction),
-        None => step.instruction.clone(),
-    };
+    // The scripts of everything the model reads may come back in its answer.
+    let context = [
+        Some(step.instruction.as_str()),
+        step.input.text.as_deref(),
+        handed,
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n");
     let mut attempts = Vec::new();
     let mut last = (JobErrorCode::Unavailable, "no model was tried".to_owned());
     for candidate in candidates {
@@ -211,7 +267,11 @@ pub(crate) async fn run_step(
             outcome,
             reason: reason.map(|r| sanitize(&r, &known)),
         };
-        let asked = answer(source, candidate, request(step, candidate, &applied));
+        let asked = answer(
+            source,
+            candidate,
+            request(step, candidate, &applied, handed),
+        );
         // `biased`: a job cancelled or over time before this try must not start a request.
         let outcome = tokio::select! {
             biased;
@@ -252,5 +312,93 @@ pub(crate) async fn run_step(
     StepRun {
         attempts,
         end: StepEnd::Failed(last.0, last.1),
+    }
+}
+
+/// Runs the steps of a job in order. Before every step but the first, `recheck` says which of its
+/// candidates the extension may still use; none left ends the step with `no_capable_model`. A
+/// step reads the result of an earlier one through `from`; when the part is missing from that
+/// result, the step ends `unusable` without trying a model, since another model cannot change what
+/// the earlier step gave. The first step that ends without a result ends the job.
+pub(crate) async fn run_job(
+    source: &dyn ModelSource,
+    steps: &[(Step, Vec<Candidate>)],
+    recheck: &dyn Recheck,
+    cancel: &CancellationToken,
+    deadline: Instant,
+) -> JobRun {
+    let mut ran = Vec::new();
+    let mut results: Vec<(String, Value)> = Vec::new();
+    for (index, (step, planned)) in steps.iter().enumerate() {
+        let record = |attempts: Vec<Attempt>| RanStep {
+            step_id: step.id.clone(),
+            format_name: step.format.name.clone(),
+            format_version: step.format.version,
+            attempts,
+        };
+        let fail = |steps: Vec<RanStep>, code, message: &str| JobRun {
+            steps,
+            end: JobEnd::Failed {
+                step_id: step.id.clone(),
+                code,
+                message: message.into(),
+            },
+        };
+        let candidates = if index == 0 {
+            planned.clone()
+        } else {
+            match recheck.still_allowed(planned).await {
+                Some(left) if !left.is_empty() => left,
+                checked => {
+                    ran.push(record(Vec::new()));
+                    return match checked {
+                        None => fail(
+                            ran,
+                            JobErrorCode::Unavailable,
+                            "the grants could not be read",
+                        ),
+                        Some(_) => fail(ran, JobErrorCode::NoCapableModel, "a grant was withdrawn"),
+                    };
+                }
+            }
+        };
+        let handed = match &step.input.from {
+            None => None,
+            Some(from) => {
+                let part = results
+                    .iter()
+                    .find(|(id, _)| *id == from.step)
+                    .and_then(|(_, result)| result.pointer(&from.pointer));
+                let Some(part) = part else {
+                    ran.push(record(Vec::new()));
+                    return fail(ran, JobErrorCode::Unusable, "from missing");
+                };
+                Some(part.to_string())
+            }
+        };
+        let run = run_step(
+            source,
+            step,
+            &candidates,
+            cancel,
+            deadline,
+            handed.as_deref(),
+        )
+        .await;
+        ran.push(record(run.attempts));
+        match run.end {
+            StepEnd::Used(value) => results.push((step.id.clone(), value)),
+            StepEnd::Failed(code, message) => return fail(ran, code, &message),
+            StepEnd::Cancelled => {
+                return JobRun {
+                    steps: ran,
+                    end: JobEnd::Cancelled,
+                }
+            }
+        }
+    }
+    JobRun {
+        steps: ran,
+        end: JobEnd::Completed(results),
     }
 }

@@ -23,11 +23,11 @@ use crate::storage::models::ModelRow;
 use crate::storage::preferences::{insert_or_update, PrefScope};
 use crate::storage::providers::{Provider, ProviderKind};
 
-const GOOD: &str = r#"{"texts":["Das ist ein Test."]}"#;
+pub(super) const GOOD: &str = r#"{"texts":["Das ist ein Test."]}"#;
 const KEY: &str = "sk-school-0123456789abcdef";
 const PROVIDER_BODY: &str = "student answer body";
 
-fn step() -> Value {
+pub(super) fn step() -> Value {
     json!({
         "id": "fix",
         "needs": ["text"],
@@ -40,19 +40,24 @@ fn step() -> Value {
     })
 }
 
-fn image_step() -> Value {
+pub(super) fn image_step() -> Value {
     let mut read = step();
     read["needs"] = json!(["text", "image"]);
     read["input"]["images"] = json!([{ "mimeType": "image/png", "data": "iVBORw0KGgo=" }]);
     read
 }
 
-fn job(steps: Vec<Value>) -> Value {
+pub(super) fn job(steps: Vec<Value>) -> Value {
     json!({ "job": { "steps": steps } })
 }
 
 /// Stores a provider at `address` with one model per name, and returns the model rows.
-fn models(s: &Setup, address: &str, names: &[&str], images: bool) -> (Provider, Vec<ModelRow>) {
+pub(super) fn models(
+    s: &Setup,
+    address: &str,
+    names: &[&str],
+    images: bool,
+) -> (Provider, Vec<ModelRow>) {
     let server = provider(ProviderKind::ApiKey, Some(address), Some(KEY));
     let capabilities = Some(ModelCapabilities {
         accepted_attachment_kinds: Some(if images {
@@ -70,7 +75,7 @@ fn models(s: &Setup, address: &str, names: &[&str], images: bool) -> (Provider, 
     (server, rows)
 }
 
-fn allow(s: &Setup, kind: &str, action: &str, target: &str, status: &str) {
+pub(super) fn allow(s: &Setup, kind: &str, action: &str, target: &str, status: &str) {
     remember(
         &s.ctx.db,
         s.ctx.session.extension_id,
@@ -80,23 +85,23 @@ fn allow(s: &Setup, kind: &str, action: &str, target: &str, status: &str) {
     );
 }
 
-fn scripted(s: &Setup, scripts: &[(&str, Script)]) -> Arc<FakeSource> {
+pub(super) fn scripted(s: &Setup, scripts: &[(&str, Script)]) -> Arc<FakeSource> {
     let source = FakeSource::with(scripts);
     s.ctx.host.set_model_source(source.clone());
     source
 }
 
-fn start(s: &Setup, params: &Value) -> Result<Value, BridgeError> {
+pub(super) fn start(s: &Setup, params: &Value) -> Result<Value, BridgeError> {
     call(&s.ctx, "extension_model_job_start", params)
 }
 
-fn prompt_of(outcome: Result<Value, BridgeError>) -> Value {
+pub(super) fn prompt_of(outcome: Result<Value, BridgeError>) -> Value {
     let error = outcome.expect_err("the user is asked");
     assert_eq!(error.code.as_u16(), 1004, "{error:?}");
     error.details.unwrap()
 }
 
-fn refused(outcome: Result<Value, BridgeError>) -> (u16, Value) {
+pub(super) fn refused(outcome: Result<Value, BridgeError>) -> (u16, Value) {
     let error = outcome.expect_err("refused");
     (
         error.code.as_u16(),
@@ -105,7 +110,7 @@ fn refused(outcome: Result<Value, BridgeError>) -> (u16, Value) {
 }
 
 /// Waits for the completion event of the job without polling wall-clock time.
-fn completion(s: &Setup) -> Value {
+pub(super) fn completion(s: &Setup) -> Value {
     s.recorded
         .wait_for(|(name, payload)| name == FRAME_EVENT && payload["type"] == COMPLETED_EVENT)
         ["data"]
@@ -387,21 +392,6 @@ fn the_list_names_the_granted_models_with_place_capabilities_and_ceiling() {
     assert_eq!(cloud_entry["place"], "cloud");
     assert_eq!(cloud_entry["capabilities"]["image"], false);
     assert_eq!(cloud_entry["maxEffort"], "low");
-}
-
-#[test]
-fn a_job_of_several_steps_is_not_available_yet() {
-    let s = setup();
-    let (_, rows) = models(&s, "http://localhost:11434/v1", &["m"], false);
-    let source = scripted(&s, &[(&rows[0].id, Script::Answer(GOOD.into()))]);
-    allow(&s, "model", "low", &rows[0].id, "granted");
-    let mut second = step();
-    second["id"] = json!("again");
-
-    let error = start(&s, &job(vec![step(), second])).unwrap_err();
-
-    assert_eq!(error.code.as_u16(), 8001);
-    assert!(source.asked().is_empty());
 }
 
 #[test]

@@ -89,25 +89,18 @@ impl JobFailure {
         self.step_id = Some(step_id.to_owned());
         self
     }
-
-    /// The same failure as the answer of a call.
-    pub fn to_bridge(&self) -> BridgeError {
-        bridge_error(self.code, &self.message, self.code.as_str())
-    }
 }
 
-/// An answer of a call: the fixed number of `code`, the message, and `details.reason`.
-pub fn bridge_error(code: JobErrorCode, message: &str, reason: &str) -> BridgeError {
-    BridgeError::new(code.bridge_code(), message).with_details(json!({ "reason": reason }))
+/// An answer of a call: the fixed number of `code`, the message, and the code as `details.reason`.
+pub fn bridge_error(code: JobErrorCode, message: &str) -> BridgeError {
+    BridgeError::new(code.bridge_code(), message).with_details(json!({ "reason": code.as_str() }))
 }
 
 /// The answer to a start whose job was refused before any model was asked: a form that is wrong
 /// is `invalid_input`, a limit is named in `reason` and in `limit`.
 pub fn refusal(error: &JobError) -> BridgeError {
     match error {
-        JobError::Invalid(message) => {
-            bridge_error(JobErrorCode::InvalidInput, message, "invalid_input")
-        }
+        JobError::Invalid(message) => bridge_error(JobErrorCode::InvalidInput, message),
         JobError::Limit(name) => limit_exceeded(name),
     }
 }
@@ -119,7 +112,7 @@ pub fn too_many(_: TooManyJobs) -> BridgeError {
 
 fn limit_exceeded(name: &str) -> BridgeError {
     BridgeError::new(
-        ExtensionErrorCode::LimitExceeded,
+        JobErrorCode::LimitExceeded.bridge_code(),
         format!("the limit {name} is exceeded"),
     )
     .with_details(json!({ "reason": name, "limit": name }))

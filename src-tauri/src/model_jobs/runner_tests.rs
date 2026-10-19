@@ -58,6 +58,7 @@ async fn run(source: &dyn ModelSource, step: &Step, candidates: &[Candidate]) ->
         candidates,
         &CancellationToken::new(),
         deadline,
+        None,
     )
     .await
 }
@@ -280,6 +281,7 @@ async fn the_deadline_ends_the_try_and_drops_the_stream() {
         &models,
         &CancellationToken::new(),
         deadline,
+        None,
     )
     .await;
 
@@ -318,6 +320,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
         &models,
         &cancel,
         deadline,
+        None,
     )
     .await;
 
@@ -336,6 +339,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
         &models[1..],
         &cancel,
         deadline,
+        None,
     )
     .await;
     assert_eq!(run.end, StepEnd::Cancelled);

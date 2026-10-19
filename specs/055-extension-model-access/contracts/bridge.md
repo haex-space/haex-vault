@@ -116,6 +116,9 @@ data: {
   der nächste Schritt startet nicht mehr und das Ereignis meldet `no_capable_model` für diesen Schritt (Randfall
   der Spec).
 - Ein Wechsel des Rahmens oder Neustart von holzi verwirft laufende Aufträge ohne Spur.
+- Vor jedem Schritt außer dem ersten liest holzi Freigaben und Einwilligungen neu; versucht werden nur die beim
+  Start geplanten Modelle, die noch erlaubt sind. Das Schließen des Tresors bricht alle laufenden Aufträge ab,
+  ohne Ereignis (`instances/close.rs::begin_close`), damit kein Auftrag den Tresor offen hält.
 
 ## Prüfung (Vertragstests)
 

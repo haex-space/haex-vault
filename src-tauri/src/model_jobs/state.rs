@@ -27,7 +27,7 @@ pub(crate) struct JobRecord {
     pub id: JobId,
     pub owner: JobOwner,
     pub cancel: CancellationToken,
-    /// After this moment the job is over time ([`JobRegistry::expire`]).
+    /// After this moment the job is over time: its run ends it and reports `timeout`.
     pub deadline: Instant,
 }
 
@@ -92,6 +92,17 @@ impl JobRegistry {
             .is_some()
     }
 
+    /// Cancels every job: the vault closes, and no run may keep it open (a run reads the grants
+    /// between its steps). Returns how many.
+    pub(crate) fn cancel_all(&self) -> usize {
+        let mut records = lock(&self.records);
+        let count = records.len();
+        for (_, record) in records.drain() {
+            record.cancel.cancel();
+        }
+        count
+    }
+
     /// Cancels every job of `owner` (its frame closed or loaded another page). Returns how many.
     pub(crate) fn cancel_owned_by(&self, owner: &JobOwner) -> usize {
         let mut records = lock(&self.records);
@@ -106,20 +117,5 @@ impl JobRegistry {
             }
         }
         ids.len()
-    }
-
-    /// Takes the jobs whose deadline is before `now` out of the registry and fires their tokens.
-    /// The caller reports their end.
-    pub(crate) fn expire(&self, now: Instant) -> Vec<JobRecord> {
-        let mut records = lock(&self.records);
-        let over: Vec<JobId> = records
-            .values()
-            .filter(|record| record.deadline <= now)
-            .map(|record| record.id)
-            .collect();
-        over.iter()
-            .filter_map(|id| records.remove(id))
-            .inspect(|record| record.cancel.cancel())
-            .collect()
     }
 }

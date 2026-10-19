@@ -36,6 +36,8 @@ pub(crate) enum Script {
     Unbuildable(String),
     /// Never answers.
     Hang,
+    /// Answers this text once the test notifies.
+    AnswerWhen(Arc<tokio::sync::Notify>, String),
 }
 
 /// Counts streams that were dropped while still running.
@@ -196,6 +198,14 @@ impl ProviderAdapter for ScriptedAdapter {
                     };
                     let _tx = tx;
                     std::future::pending::<()>().await;
+                }
+                Script::AnswerWhen(go, text) => {
+                    go.notified().await;
+                    let _ = tx.send(Ok(StreamChunk::Delta {
+                        content: text,
+                        reasoning: None,
+                    }));
+                    let _ = tx.send(Ok(done()));
                 }
                 Script::Status(..) | Script::Unbuildable(_) => {}
             }

@@ -14,4 +14,6 @@ pub mod permissions;
 #[cfg(test)]
 mod model_jobs_run_tests;
 #[cfg(test)]
+mod model_jobs_steps_tests;
+#[cfg(test)]
 mod model_jobs_tests;

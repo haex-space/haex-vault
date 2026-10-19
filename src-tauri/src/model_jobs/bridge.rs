@@ -5,22 +5,24 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use super::candidates::takes_images;
+use super::candidates::{takes_images, Candidate};
 use super::errors::{bridge_error, refusal, too_many, JobErrorCode, JobFailure};
-use super::job::{self, JobError, Step};
+use super::job::{self, JobError};
 use super::model_source::ModelSource;
-use super::preflight::{preflight, read_facts, Ready};
-use super::runner::{run_step, StepEnd, StepRun};
+use super::preflight::{preflight, read_facts, reread_facts, still_allowed, Ready};
+use super::runner::{run_job, JobEnd, JobRun, Recheck};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::model_capabilities::ReasoningControl;
+use crate::vault_gate::VaultDb;
 
 pub(crate) const COMPLETED_EVENT: &str = "haextension:model-job:completed";
 
@@ -78,35 +80,63 @@ pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeEr
         registry,
         host: Arc::clone(&ctx.host),
         emitter: Arc::clone(&ctx.emitter),
+        grants: Grants {
+            db: ctx.db.clone(),
+            host: Arc::clone(&ctx.host),
+            extension_id: ctx.session.extension_id,
+            device: ctx.device,
+        },
     };
     tauri::async_runtime::spawn(async move { run.job(record, ready).await });
     Ok(json!({ "jobId": id.to_string(), "status": "running" }))
 }
 
-/// What the background run of a job holds: no database, so a job never keeps the vault open.
+/// What the background run of a job holds. Its database handle is for the grants between steps;
+/// a close of the vault cancels every job first (`instances::close::begin_close`), so a run never
+/// keeps the vault open.
 struct Run {
     source: Arc<dyn ModelSource>,
     registry: JobRegistry,
     host: Arc<ExtensionHost>,
     emitter: Arc<dyn Emit>,
+    grants: Grants,
+}
+
+/// The grants and consents of the job's extension as they are now.
+struct Grants {
+    db: VaultDb,
+    host: Arc<ExtensionHost>,
+    extension_id: Uuid,
+    device: Uuid,
+}
+
+#[async_trait]
+impl Recheck for Grants {
+    async fn still_allowed(&self, planned: &[Candidate]) -> Option<Vec<Candidate>> {
+        let facts = reread_facts(&self.db, &self.host, self.extension_id, self.device)
+            .await
+            .ok()?;
+        Some(still_allowed(planned, &facts, self.device))
+    }
 }
 
 impl Run {
     async fn job(self, record: JobRecord, ready: Ready) {
-        let run = run_step(
+        let run = run_job(
             self.source.as_ref(),
-            &ready.step,
-            &ready.candidates,
+            &ready.steps,
+            &self.grants,
             &record.cancel,
             Instant::from_std(record.deadline),
         )
         .await;
         let secrets: Vec<String> = ready
-            .candidates
+            .steps
             .iter()
+            .flat_map(|(_, candidates)| candidates)
             .flat_map(|c| c.model.secrets())
             .collect();
-        let Some(payload) = report(record.id, &ready.step, run, &secrets) else {
+        let Some(payload) = report(record.id, run, &secrets) else {
             return;
         };
         // Cancelled or over time first: whoever took the record reports the end.
@@ -123,26 +153,45 @@ impl Run {
 
 /// The completion event of a run; `None` for a cancelled one (the cancel reports it, a closed
 /// frame hears nothing).
-fn report(id: JobId, step: &Step, run: StepRun, secrets: &[String]) -> Option<Value> {
-    let provenance = json!([{
-        "stepId": step.id,
-        "formatName": step.format.name,
-        "formatVersion": step.format.version,
-        "attempts": run.attempts,
-    }]);
+fn report(id: JobId, run: JobRun, secrets: &[String]) -> Option<Value> {
+    let provenance: Vec<Value> = run
+        .steps
+        .iter()
+        .map(|step| {
+            json!({
+                "stepId": step.step_id,
+                "formatName": step.format_name,
+                "formatVersion": step.format_version,
+                "attempts": step.attempts,
+            })
+        })
+        .collect();
     Some(match run.end {
-        StepEnd::Cancelled => return None,
-        StepEnd::Used(value) => completion_payload(
-            id,
-            "completed",
-            provenance,
-            Some(json!({ "steps": [{ "id": step.id, "result": value }], "final": value })),
-            None,
-        ),
-        StepEnd::Failed(code, message) => {
+        JobEnd::Cancelled => return None,
+        JobEnd::Completed(results) => {
+            let last = results
+                .last()
+                .map_or(Value::Null, |(_, value)| value.clone());
+            let steps: Vec<Value> = results
+                .into_iter()
+                .map(|(id, result)| json!({ "id": id, "result": result }))
+                .collect();
+            completion_payload(
+                id,
+                "completed",
+                Value::Array(provenance),
+                Some(json!({ "steps": steps, "final": last })),
+                None,
+            )
+        }
+        JobEnd::Failed {
+            step_id,
+            code,
+            message,
+        } => {
             let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
-            let failure = JobFailure::new(code, &message, &known).at_step(&step.id);
-            completion_payload(id, "failed", provenance, None, Some(&failure))
+            let failure = JobFailure::new(code, &message, &known).at_step(&step_id);
+            completion_payload(id, "failed", Value::Array(provenance), None, Some(&failure))
         }
     })
 }
@@ -154,13 +203,7 @@ pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeE
         .get("jobId")
         .and_then(Value::as_str)
         .and_then(|text| text.parse::<Uuid>().ok())
-        .ok_or_else(|| {
-            bridge_error(
-                JobErrorCode::InvalidInput,
-                "jobId must be a UUID",
-                "invalid_input",
-            )
-        })?;
+        .ok_or_else(|| bridge_error(JobErrorCode::InvalidInput, "jobId must be a UUID"))?;
     let owner = owner(ctx);
     let registry = ctx.host.model_jobs();
     let Some(record) = registry.get(id) else {
