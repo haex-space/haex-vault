@@ -41,7 +41,9 @@ pub(crate) fn completion_payload(
         payload["result"] = result;
     }
     if let Some(failure) = failure {
-        payload["error"] = serde_json::to_value(failure).unwrap_or(Value::Null);
+        // `JobFailure` contains only infallibly serializable primitive fields. Keep the invariant
+        // explicit instead of silently dropping the required error object on a serialization bug.
+        payload["error"] = serde_json::to_value(failure).expect("JobFailure is serializable");
     }
     payload
 }

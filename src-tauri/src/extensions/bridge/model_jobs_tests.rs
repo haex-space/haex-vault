@@ -122,7 +122,7 @@ fn a_job_that_passes_the_preflight_is_not_available_before_the_runner_exists() {
 #[test]
 fn an_unknown_job_is_not_cancelled_and_a_bad_id_is_refused() {
     let s = setup();
-    let id = uuid::Uuid::new_v4().to_string();
+    let id = uuid::Uuid::nil().to_string();
     let answer = call(
         &s.ctx,
         "extension_model_job_cancel",
