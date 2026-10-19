@@ -54,6 +54,9 @@ pub mod default_limits {
     pub const MAX_SQL_BYTES: u64 = 1_000_000;
     pub const TIMEOUT_MS: u64 = 5_000;
     pub const MAX_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
+    /// Run time of one model job in milliseconds (spec 055 R9): local image models need up to
+    /// 130 s a page.
+    pub const MODEL_JOB_TIMEOUT_MS: u64 = 300_000;
     /// Run-time limit of one migration (contracts/sql-policy.md §Migrationen).
     pub const MIGRATION_TIMEOUT_MS: u64 = 60_000;
 }

@@ -26,6 +26,9 @@ mod migrations_extensions_tests;
 mod migrations_icon_sets;
 #[cfg(test)]
 mod migrations_icon_sets_tests;
+mod migrations_model_access;
+#[cfg(test)]
+mod migrations_model_access_tests;
 mod migrations_passwords;
 mod migrations_passwords_owner;
 #[cfg(test)]

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * The limits of one extension (spec 017, FR-031, T092): rows, parallel requests, size of a
- * statement, run time and size of an answer. A value is saved when its field loses focus or on
- * Enter, for every own device (spec 023 FR-021); one outside its bounds is refused with the reason
- * and the stored value comes back.
+ * statement, run time and size of an answer, and the run time of a model job (spec 055). A value
+ * is saved when its field loses focus or on Enter, for every own device (spec 023 FR-021); one
+ * outside its bounds is refused with the reason and the stored value comes back.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionLimits } from '@bindings/ExtensionLimits'
@@ -23,6 +23,7 @@ const FIELDS: Field[] = [
   'maxSqlBytes',
   'timeoutMs',
   'maxResponseBytes',
+  'modelJobTimeoutMs',
 ]
 
 const view = ref<ExtensionLimitsView | null>(null)

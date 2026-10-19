@@ -24,18 +24,23 @@ werden nie gespeichert (FR-028).
 
 ### `extension_model_order` (neu, CRDT-getrackt)
 
-| Spalte         | Typ     |               |
-| -------------- | ------- | ------------- |
-| `extension_id` | TEXT    | Erweiterung   |
-| `model_id`     | TEXT    | `models.id`   |
-| `position`     | INTEGER | 0 = bevorzugt |
+| Spalte         | Typ     |                                                                            |
+| -------------- | ------- | -------------------------------------------------------------------------- |
+| `id`           | TEXT    | `UUIDv5(NS_MODEL_ORDER, extension_id \| model_id)` (`ids::model_order_id`) |
+| `extension_id` | TEXT    | Erweiterung (Fremdschlüssel, bei Entfernen der Erweiterung gelöscht)       |
+| `model_id`     | TEXT    | `models.id`                                                                |
+| `position`     | INTEGER | 0 = bevorzugt                                                              |
 
-- Primärschlüssel `(extension_id, model_id)`. Neue Freigaben hängen ans Ende; ohne Zeile ordnet die Anlagezeit
-  der Freigabe.
+- Primärschlüssel `id`, keine UNIQUE-Bedingung (wie jede synchronisierte Tabelle: ein Konflikt hielte den Sync
+  an); die abgeleitete Kennung hält eine Zeile je Erweiterung und Modell. Gleiche `position` zweier Geräte
+  liest sich nach `model_id` geordnet. Neue Freigaben hängen ans Ende; ohne Zeile ordnet die Anlagezeit der
+  Freigabe. Entwicklungsversionen haben keine Rangfolge (wie keine Grenzwerte): es gilt die Reihenfolge der
+  Freigaben.
 - Löscht der Nutzer ein Modell oder widerruft die Freigabe, bleibt die Zeile bis zum nächsten Aufräumen
   folgenlos (nur freigegebene Modelle zählen).
-- Migration `0036_extension_model_order`; CRDT-Tracking und `HOLZI_TRIGGER_VERSION` wie bei den anderen
-  synchronisierten Tabellen.
+- Migration `0037_extension_model_access` (0036 gehört seit Spec 053 `haex_file_icon_sets`): die Tabelle und die
+  Spalte `extension_limits.model_job_timeout_ms` (`INTEGER NOT NULL DEFAULT 300000`); `HOLZI_TRIGGER_VERSION`
+  24 → 25 (neue getrackte Tabelle und neue Spalte einer getrackten Tabelle).
 
 ### `ExtensionLimits` (vorhanden): ein Feld mehr
 
@@ -43,7 +48,8 @@ werden nie gespeichert (FR-028).
 | ---------------------- | --- | -------------- | --------------------- |
 | `model_job_timeout_ms` | u32 | 300 000        | 10 000 bis 1 800 000  |
 
-Gleiche Ablage wie die übrigen Grenzwerte (`extensions/registry/limits.rs`); die Einstellungen zeigen es in
+Gleiche Ablage wie die übrigen Grenzwerte (`extensions/registry/limits.rs`, Spalte in `extension_limits`, daher
+die Migration oben; `sql::exec::Limits` trägt das Feld mit); die Einstellungen zeigen es in
 `ExtensionLimitsView.vue`.
 
 ### `providers` und `models` (vorhanden)

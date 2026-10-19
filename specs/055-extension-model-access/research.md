@@ -79,8 +79,8 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 
 ## R5 — Rangfolge pro Erweiterung
 
-- **Entscheidung**: Neue Tabelle `extension_model_order(extension_id, model_id, position)`, vom Sync erfasst
-  (neue Migration; ist sie eine CRDT-Tabelle, wird `HOLZI_TRIGGER_VERSION` in `identity/migrations.rs` erhöht). Neue Freigaben hängen ans Ende.
+- **Entscheidung**: Neue Tabelle `extension_model_order(id, extension_id, model_id, position)`, vom Sync erfasst
+  (Migration `0037_extension_model_access`, `HOLZI_TRIGGER_VERSION` 25; die Nummer 0036 war mit Spec 053 vergeben). Neue Freigaben hängen ans Ende.
   Ohne Eintrag gilt die Reihenfolge der Freigaben nach Anlagezeit.
 - **Begründung**: FR-007 verlangt eine Rangfolge des Nutzers pro Erweiterung. Berechtigungszeilen haben keine
   Ordnung. Eine kleine Tabelle ist einfacher als eine Ordnungszahl, die in `action` oder `target` versteckt

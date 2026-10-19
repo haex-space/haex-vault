@@ -23,4 +23,8 @@ timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, };
+maxResponseBytes: number,
+/**
+ * Run time of one model job in milliseconds (spec 055).
+ */
+modelJobTimeoutMs: number, };

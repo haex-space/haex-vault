@@ -952,6 +952,7 @@
         "maxSqlBytes": "Größe einer Anweisung (Bytes)",
         "timeoutMs": "Laufzeit einer Anfrage (Millisekunden)",
         "maxResponseBytes": "Größe einer Antwort (Bytes)",
+        "modelJobTimeoutMs": "Laufzeit eines Modellauftrags (Millisekunden)",
         "range": "{min} bis {max}"
       },
       "logs": {

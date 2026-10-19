@@ -35,6 +35,8 @@ pub struct Limits {
     pub max_sql_bytes: u64,
     pub timeout_ms: u64,
     pub max_response_bytes: u64,
+    /// Run time of one model job in milliseconds (spec 055).
+    pub model_job_timeout_ms: u64,
 }
 
 impl Default for Limits {
@@ -45,6 +47,7 @@ impl Default for Limits {
             max_sql_bytes: default_limits::MAX_SQL_BYTES,
             timeout_ms: default_limits::TIMEOUT_MS,
             max_response_bytes: default_limits::MAX_RESPONSE_BYTES,
+            model_job_timeout_ms: default_limits::MODEL_JOB_TIMEOUT_MS,
         }
     }
 }
@@ -52,8 +55,8 @@ impl Default for Limits {
 /// The limits of an extension; without a row the defaults.
 pub fn limits_of(q: &mut impl Query, extension_id: Uuid) -> haex_crdt::Result<Limits> {
     let row = q.query_row(
-        "SELECT max_rows, max_concurrent, max_sql_bytes, timeout_ms, max_response_bytes \
-         FROM extension_limits WHERE extension_id = ?1",
+        "SELECT max_rows, max_concurrent, max_sql_bytes, timeout_ms, max_response_bytes, \
+         model_job_timeout_ms FROM extension_limits WHERE extension_id = ?1",
         &[&extension_id.to_string()],
         |r| {
             Ok(Limits {
@@ -62,6 +65,7 @@ pub fn limits_of(q: &mut impl Query, extension_id: Uuid) -> haex_crdt::Result<Li
                 max_sql_bytes: r.get::<_, i64>(2)?.max(0) as u64,
                 timeout_ms: r.get::<_, i64>(3)?.max(1) as u64,
                 max_response_bytes: r.get::<_, i64>(4)?.max(0) as u64,
+                model_job_timeout_ms: r.get::<_, i64>(5)?.max(1) as u64,
             })
         },
     )?;

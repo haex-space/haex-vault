@@ -5,6 +5,7 @@
 mod evaluate;
 pub mod manifest_map;
 mod model;
+pub mod order;
 pub mod prompts;
 pub mod store;
 mod target;
@@ -18,6 +19,9 @@ pub use target::{FolderRef, HostPattern, RequestTarget, Target, UrlPattern, WebR
 #[cfg(test)]
 #[path = "evaluate_tests.rs"]
 mod evaluate_tests;
+#[cfg(test)]
+#[path = "model_tests.rs"]
+mod model_tests;
 #[cfg(test)]
 #[path = "target_tests.rs"]
 mod target_tests;

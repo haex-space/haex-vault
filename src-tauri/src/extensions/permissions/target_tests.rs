@@ -403,3 +403,60 @@ fn a_contacts_target_is_all_or_a_group_by_its_folded_name() {
     .is_none());
     assert!(!PermissionKind::Contacts.is_device_scoped());
 }
+
+#[test]
+fn a_model_target_is_an_id_or_every_model_and_a_destination_target_is_a_provider() {
+    for id in [
+        "*",
+        "4b5f0c3e-6c11-4c8e-8e4f-9b1c2d3e4f50:qwen3-vl",
+        "4b5f0c3e-6c11-4c8e-8e4f-9b1c2d3e4f50:models/gemini-2.5-pro",
+        "qwen3-4b",
+    ] {
+        assert!(Target::parse(PermissionKind::Model, id).is_some(), "{id}");
+    }
+    for id in ["", " m", "m ", "a\nb", &"x".repeat(513)] {
+        assert!(Target::parse(PermissionKind::Model, id).is_none(), "{id:?}");
+    }
+    assert_eq!(Target::parse(PermissionKind::Model, "*"), Some(Target::Any));
+    assert!(matches(
+        PermissionKind::Model,
+        "m1",
+        &RequestTarget::Model("m1".to_owned())
+    ));
+    assert!(!matches(
+        PermissionKind::Model,
+        "m1",
+        &RequestTarget::Model("m10".to_owned())
+    ));
+    assert!(matches(
+        PermissionKind::Model,
+        "*",
+        &RequestTarget::Model("anything".to_owned())
+    ));
+    // A model target never matches the request of another kind of target.
+    assert!(!matches(
+        PermissionKind::Model,
+        "m1",
+        &RequestTarget::Provider("m1".to_owned())
+    ));
+
+    let provider = "4b5f0c3e-6c11-4c8e-8e4f-9b1c2d3e4f50";
+    assert!(matches(
+        PermissionKind::ModelDestination,
+        provider,
+        &RequestTarget::Provider(provider.to_owned())
+    ));
+    // Only the canonical spelling is a provider id; a destination is never a wildcard.
+    for bad in [
+        "*",
+        "",
+        "4B5F0C3E-6C11-4C8E-8E4F-9B1C2D3E4F50",
+        "4b5f0c3e6c114c8e8e4f9b1c2d3e4f50",
+        "{4b5f0c3e-6c11-4c8e-8e4f-9b1c2d3e4f50}",
+    ] {
+        assert!(
+            Target::parse(PermissionKind::ModelDestination, bad).is_none(),
+            "{bad}"
+        );
+    }
+}

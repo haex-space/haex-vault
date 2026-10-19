@@ -23,7 +23,11 @@ timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, }, min: {
+maxResponseBytes: number,
+/**
+ * Run time of one model job in milliseconds (spec 055).
+ */
+modelJobTimeoutMs: number, }, min: {
 /**
  * Rows one query may return.
  */
@@ -43,7 +47,11 @@ timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, }, max: {
+maxResponseBytes: number,
+/**
+ * Run time of one model job in milliseconds (spec 055).
+ */
+modelJobTimeoutMs: number, }, max: {
 /**
  * Rows one query may return.
  */
@@ -63,4 +71,8 @@ timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, }, };
+maxResponseBytes: number,
+/**
+ * Run time of one model job in milliseconds (spec 055).
+ */
+modelJobTimeoutMs: number, }, };
