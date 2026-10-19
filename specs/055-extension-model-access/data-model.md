@@ -13,13 +13,15 @@ werden nie gespeichert (FR-028).
 | `modelDestination` | `providers.id`       | `send`                                | Die Erweiterung darf Bilder und Texte an das Ziel dieses Anbieters senden.                  |
 
 - `status` ist `granted`, `denied` oder `ask`; `denied` schlägt `granted` (wie in `evaluate.rs`).
+  Eine abgelehnte `model`-Zeile nimmt das Modell ganz heraus, gleich mit welchem Aufwand: Ein Auftrag darf jede
+  Stufe bis zur Obergrenze nutzen, also muss jede darunter erlaubt sein.
 - Aufwand ist geordnet: `none` < `low` < `medium` < `high`. Eine Zeile mit höherem Wert deckt niedrigere ab
   (`Action::covers`). Die Zuordnung auf die Stufen des Modells steht in `contracts/job-format.md` §Aufwand.
 - Beide Arten sind vault-weit (nicht gerätegebunden); sie synchronisieren wie jede Berechtigung
   (`extension_permissions`, Entwicklungsversionen in `dev_extension_permissions_no_sync`).
 - „Nur für die Sitzung“ erzeugt keine Zeile. Die Entscheidung liegt im Arbeitsspeicher (`PermissionState::hold`)
-  und endet beim Schließen der Tresorsitzung; die Lieferung muss den derzeit prozessweiten Holder an diesen
-  Lebenszyklus binden.
+  und endet beim Schließen der Tresorsitzung: Das Schließen beendet den Prozess (Spec 013,
+  `instances/close.rs`), und ein Prozess hat genau eine Tresorsitzung.
 - Lokale Ziele (`this_device`) haben nie eine `modelDestination`-Zeile.
 
 ### `extension_model_order` (neu, CRDT-getrackt)

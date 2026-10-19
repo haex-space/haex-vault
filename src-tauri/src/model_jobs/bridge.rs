@@ -1,18 +1,26 @@
 //! The bridge methods of model jobs (spec 055, `contracts/bridge.md`): start, cancel and list. They
-//! belong to the calling frame alone. The preflight is here; the run of a job and the list of
-//! models follow with the stories (`runner`, `candidates`), so until then a job that passes the
-//! preflight and the list answer "not available" rather than a job that never ends.
+//! belong to the calling frame alone. A start answers at once with the job's id after the
+//! preflight (`preflight`); the run goes on in the background (`runner`) and ends with the
+//! completion event, after which holzi forgets the job.
+
+use std::sync::Arc;
 
 use serde_json::{json, Value};
+use tokio::time::Instant;
 use uuid::Uuid;
 
-use super::errors::{bridge_error, refusal, JobErrorCode, JobFailure};
-use super::job::{self, JobError};
-use super::state::{JobId, JobOwner};
+use super::candidates::takes_images;
+use super::errors::{bridge_error, refusal, too_many, JobErrorCode, JobFailure};
+use super::job::{self, JobError, Step};
+use super::model_source::ModelSource;
+use super::preflight::{preflight, read_facts, Ready};
+use super::runner::{run_step, StepEnd, StepRun};
+use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
+use crate::model_capabilities::ReasoningControl;
 
 pub(crate) const COMPLETED_EVENT: &str = "haextension:model-job:completed";
 
@@ -52,14 +60,91 @@ fn emit_completion(emitter: &dyn Emit, host: &ExtensionHost, extension_id: Uuid,
     emit_to_frames(emitter, host, extension_id, COMPLETED_EVENT, payload);
 }
 
-/// `{job}`: parses and checks the job before any model is asked. A form that is wrong answers
-/// 3001, a limit 7000.
-pub(crate) fn start(_ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+/// `{job}`: parses and checks the job before any model is asked (a wrong form answers 3001, a
+/// limit 7000, a missing grant or consent 1004), registers it and starts the run.
+pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let job = params
         .get("job")
         .ok_or_else(|| refusal(&JobError::Invalid("the call needs a job".into())))?;
-    job::parse(job).map_err(|error| refusal(&error))?;
-    Err(BridgeError::not_available())
+    let job = job::parse(job).map_err(|error| refusal(&error))?;
+    let ready = preflight(ctx, job)?;
+    let registry = ctx.host.model_jobs();
+    let record = registry
+        .start(owner(ctx), ready.timeout)
+        .map_err(too_many)?;
+    let id = record.id;
+    let run = Run {
+        source: ctx.host.model_source(),
+        registry,
+        host: Arc::clone(&ctx.host),
+        emitter: Arc::clone(&ctx.emitter),
+    };
+    tauri::async_runtime::spawn(async move { run.job(record, ready).await });
+    Ok(json!({ "jobId": id.to_string(), "status": "running" }))
+}
+
+/// What the background run of a job holds: no database, so a job never keeps the vault open.
+struct Run {
+    source: Arc<dyn ModelSource>,
+    registry: JobRegistry,
+    host: Arc<ExtensionHost>,
+    emitter: Arc<dyn Emit>,
+}
+
+impl Run {
+    async fn job(self, record: JobRecord, ready: Ready) {
+        let run = run_step(
+            self.source.as_ref(),
+            &ready.step,
+            &ready.candidates,
+            &record.cancel,
+            Instant::from_std(record.deadline),
+        )
+        .await;
+        let secrets: Vec<String> = ready
+            .candidates
+            .iter()
+            .flat_map(|c| c.model.secrets())
+            .collect();
+        let Some(payload) = report(record.id, &ready.step, run, &secrets) else {
+            return;
+        };
+        // Cancelled or over time first: whoever took the record reports the end.
+        if self.registry.finish(record.id) {
+            emit_completion(
+                self.emitter.as_ref(),
+                &self.host,
+                record.owner.extension_id,
+                &payload,
+            );
+        }
+    }
+}
+
+/// The completion event of a run; `None` for a cancelled one (the cancel reports it, a closed
+/// frame hears nothing).
+fn report(id: JobId, step: &Step, run: StepRun, secrets: &[String]) -> Option<Value> {
+    let provenance = json!([{
+        "stepId": step.id,
+        "formatName": step.format.name,
+        "formatVersion": step.format.version,
+        "attempts": run.attempts,
+    }]);
+    Some(match run.end {
+        StepEnd::Cancelled => return None,
+        StepEnd::Used(value) => completion_payload(
+            id,
+            "completed",
+            provenance,
+            Some(json!({ "steps": [{ "id": step.id, "result": value }], "final": value })),
+            None,
+        ),
+        StepEnd::Failed(code, message) => {
+            let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
+            let failure = JobFailure::new(code, &message, &known).at_step(&step.id);
+            completion_payload(id, "failed", provenance, None, Some(&failure))
+        }
+    })
 }
 
 /// `{jobId}`: cancels a job of the calling frame; `{cancelled: false}` for an unknown id and
@@ -100,7 +185,28 @@ pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeE
     Ok(json!({ "cancelled": cancelled }))
 }
 
-/// The models the extension may use. Not yet: they come with the candidates of the first story.
-pub(crate) fn list(_ctx: &CallContext, _params: &Value) -> Result<Value, BridgeError> {
-    Err(BridgeError::not_available())
+/// The models the extension may use, first choice first, without address or key (FR-030). No
+/// grant gives an empty list.
+pub(crate) fn list(ctx: &CallContext, _params: &Value) -> Result<Value, BridgeError> {
+    let models: Vec<Value> = read_facts(ctx)?
+        .granted
+        .iter()
+        .map(|c| {
+            let capabilities = c.model.capabilities.as_ref();
+            let effort = match capabilities.and_then(|c| c.reasoning.as_ref()) {
+                Some(ReasoningControl::Presets { .. }) => "levels",
+                Some(ReasoningControl::ModelManaged) => "managed",
+                Some(ReasoningControl::Unavailable) | None => "none",
+            };
+            json!({
+                "id": c.model.id,
+                "name": c.model.name,
+                "provider": c.model.provider.name,
+                "place": c.model.place,
+                "capabilities": { "image": takes_images(capabilities), "effort": effort },
+                "maxEffort": c.ceiling.as_str(),
+            })
+        })
+        .collect();
+    Ok(json!({ "models": models }))
 }

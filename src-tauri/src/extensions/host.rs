@@ -12,6 +12,7 @@ use super::bridge::frames::FrameRegistry;
 use super::notifications::{NotificationSpec, NotificationState, Respond, ShownNotification};
 use super::permissions::prompts::PermissionState;
 use super::registry::start::Started;
+use crate::model_jobs::model_source::{ModelSource, Providers};
 
 /// What holzi's window reports about itself for `extension_context_get`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +91,8 @@ pub struct ExtensionHost {
     /// The document holzi's window shows was served with the development origins.
     served_dev_frames: AtomicBool,
     desktop: OnceLock<Arc<dyn Desktop>>,
+    /// Where model jobs get their adapters; holzi's providers unless a test sets a scripted one.
+    model_source: OnceLock<Arc<dyn ModelSource>>,
 }
 
 /// A running SQL call; dropping it frees its place.
@@ -111,6 +114,19 @@ impl ExtensionHost {
     /// The in-memory registry of running model jobs.
     pub(crate) fn model_jobs(&self) -> crate::model_jobs::JobRegistry {
         self.model_jobs.clone()
+    }
+
+    /// Where model jobs get their adapters.
+    pub(crate) fn model_source(&self) -> Arc<dyn ModelSource> {
+        self.model_source
+            .get_or_init(|| Arc::new(Providers))
+            .clone()
+    }
+
+    /// Sets where model jobs get their adapters; only the first call counts.
+    #[cfg(test)]
+    pub(crate) fn set_model_source(&self, source: Arc<dyn ModelSource>) {
+        let _ = self.model_source.set(source);
     }
 
     /// Sets what holzi does on the desktop; only the first call counts.

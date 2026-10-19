@@ -24,7 +24,7 @@ use super::model_loading::{
 };
 use super::session::{ChatState, ModelLoadStatus};
 
-const PREF_DEFAULT_MODEL: &str = "chat.default_model_id";
+pub(crate) const PREF_DEFAULT_MODEL: &str = "chat.default_model_id";
 
 /// Which fallback branch the session resolver picked. Wire payload for
 /// `resolve_default_model`.
