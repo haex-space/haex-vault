@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -39,11 +39,15 @@ pub(crate) enum Script {
 }
 
 /// Counts streams that were dropped while still running.
-struct Dropped(Arc<AtomicUsize>);
+struct Dropped {
+    count: Arc<AtomicUsize>,
+    changed: Arc<Condvar>,
+}
 
 impl Drop for Dropped {
     fn drop(&mut self) {
-        self.0.fetch_add(1, Ordering::SeqCst);
+        self.count.fetch_add(1, Ordering::SeqCst);
+        self.changed.notify_all();
     }
 }
 
@@ -54,6 +58,8 @@ pub(crate) struct FakeSource {
     pub seen: Arc<Mutex<Vec<(String, ChatRequest)>>>,
     /// Streams of [`Script::Hang`] that ended because they were dropped.
     pub dropped: Arc<AtomicUsize>,
+    asked_changed: Arc<Condvar>,
+    dropped_changed: Arc<Condvar>,
 }
 
 impl FakeSource {
@@ -75,6 +81,21 @@ impl FakeSource {
             .map(|(id, _)| id.clone())
             .collect()
     }
+
+    pub fn wait_until_asked(&self, expected: usize) {
+        let mut seen = self.seen.lock().unwrap();
+        while seen.len() < expected {
+            seen = self.asked_changed.wait(seen).unwrap();
+        }
+    }
+
+    pub fn wait_until_dropped(&self, expected: usize) {
+        let guard = self.seen.lock().unwrap();
+        let _guard = self
+            .dropped_changed
+            .wait_while(guard, |_| self.dropped.load(Ordering::SeqCst) < expected)
+            .unwrap();
+    }
 }
 
 impl ModelSource for FakeSource {
@@ -94,6 +115,8 @@ impl ModelSource for FakeSource {
             script,
             seen: Arc::clone(&self.seen),
             dropped: Arc::clone(&self.dropped),
+            asked_changed: Arc::clone(&self.asked_changed),
+            dropped_changed: Arc::clone(&self.dropped_changed),
         }))
     }
 }
@@ -103,6 +126,8 @@ struct ScriptedAdapter {
     script: Script,
     seen: Arc<Mutex<Vec<(String, ChatRequest)>>>,
     dropped: Arc<AtomicUsize>,
+    asked_changed: Arc<Condvar>,
+    dropped_changed: Arc<Condvar>,
 }
 
 fn done() -> StreamChunk {
@@ -129,6 +154,7 @@ impl ProviderAdapter for ScriptedAdapter {
             });
         }
         self.seen.lock().unwrap().push((self.model_id.clone(), req));
+        self.asked_changed.notify_all();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let script = self.script.clone();
         let dropped = Arc::clone(&self.dropped);
@@ -159,7 +185,10 @@ impl ProviderAdapter for ScriptedAdapter {
                     let _ = tx.send(Err(StreamError::Model(message)));
                 }
                 Script::Hang => {
-                    let _guard = Dropped(dropped);
+                    let _guard = Dropped {
+                        count: dropped,
+                        changed: dropped_changed,
+                    };
                     let _tx = tx;
                     std::future::pending::<()>().await;
                 }

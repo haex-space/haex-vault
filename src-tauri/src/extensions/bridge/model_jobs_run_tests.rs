@@ -2,10 +2,8 @@
 //! the extension hears the result with its provenance; without a grant or a consent the user is
 //! asked and no model is called; no answer or event carries a key or an address.
 
-use std::sync::Arc;
-use std::time::Duration;
-
 use serde_json::{json, Value};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use super::dispatch::call;
@@ -27,6 +25,7 @@ use crate::storage::providers::{Provider, ProviderKind};
 
 const GOOD: &str = r#"{"texts":["Das ist ein Test."]}"#;
 const KEY: &str = "sk-school-0123456789abcdef";
+const PROVIDER_BODY: &str = "student answer body";
 
 fn step() -> Value {
     json!({
@@ -105,23 +104,12 @@ fn refused(outcome: Result<Value, BridgeError>) -> (u16, Value) {
     )
 }
 
-/// Waits for the completion event of the job.
+/// Waits for the completion event of the job without polling wall-clock time.
 fn completion(s: &Setup) -> Value {
-    for _ in 0..500 {
-        let found = s
-            .recorded
-            .0
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|(name, payload)| name == FRAME_EVENT && payload["type"] == COMPLETED_EVENT)
-            .map(|(_, payload)| payload["data"].clone());
-        if let Some(data) = found {
-            return data;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("no completion event");
+    s.recorded
+        .wait_for(|(name, payload)| name == FRAME_EVENT && payload["type"] == COMPLETED_EVENT)
+        ["data"]
+        .clone()
 }
 
 fn job_id(answer: &Value) -> Uuid {
@@ -312,7 +300,9 @@ fn no_answer_or_event_holds_a_key_or_an_address() {
         &s,
         &[(
             &rows[0].id,
-            Script::StreamFails(format!("POST {address}/chat/completions with {KEY} failed")),
+            Script::StreamFails(format!(
+                "POST {address}/chat/completions with {KEY}: {PROVIDER_BODY}"
+            )),
         )],
     );
     allow(&s, "model", "low", &rows[0].id, "granted");
@@ -332,7 +322,7 @@ fn no_answer_or_event_holds_a_key_or_an_address() {
     assert_eq!(data["error"]["code"], "unavailable");
     assert_eq!(data["error"]["stepId"], "fix");
     for text in [answer.to_string(), data.to_string(), list.to_string()] {
-        for secret in [KEY, address, "10.0.0.5"] {
+        for secret in [KEY, address, "10.0.0.5", PROVIDER_BODY] {
             assert!(!text.contains(secret), "{secret} in {text}");
         }
     }
@@ -400,19 +390,9 @@ fn a_frame_runs_two_jobs_at_most_and_a_closed_frame_hears_nothing() {
         extension_id: s.ctx.session.extension_id,
         frame: s.ctx.session.frame.clone(),
     };
-    for _ in 0..500 {
-        if source.asked().len() == 2 {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    source.wait_until_asked(2);
     assert_eq!(s.ctx.host.model_jobs().cancel_owned_by(&owner), 2);
-    for _ in 0..500 {
-        if source.dropped.load(std::sync::atomic::Ordering::SeqCst) == 2 {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    source.wait_until_dropped(2);
     assert_eq!(source.dropped.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert!(
         !s.recorded
