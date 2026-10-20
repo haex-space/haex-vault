@@ -7,6 +7,6 @@ nicht als aktueller Vertrag.
 
 Für die aktuelle Prüfung bitte verwenden:
 
-- [Spec-055-Quickstart](../../055-extension-model-access/quickstart.md)
-- [Brückenvertrag](../../055-extension-model-access/contracts/bridge.md)
-- [Auftrags- und Ergebnisformat](../../055-extension-model-access/contracts/job-format.md)
+- [Spec-055-Quickstart](../055-extension-model-access/quickstart.md)
+- [Brückenvertrag](../055-extension-model-access/contracts/bridge.md)
+- [Auftrags- und Ergebnisformat](../055-extension-model-access/contracts/job-format.md)
