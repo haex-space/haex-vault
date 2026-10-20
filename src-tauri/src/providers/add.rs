@@ -2,6 +2,7 @@
 //! refresh of its models. A failed refresh keeps the row, so the user can fix the key and retry.
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 use uuid::Uuid;
 
 use super::{do_refresh, format_holzi_error, key_is_optional, validate_adapter, ProviderPayload};
@@ -61,6 +62,9 @@ pub(crate) async fn add(
                 return Err(HolziError::InvalidInput {
                     reason: "api_key provider requires base_url".into(),
                 });
+            }
+            if args.adapter.as_deref() == Some(super::OPENAI_COMPATIBLE) {
+                validate_openai_compatible_base_url(args.base_url.as_deref().unwrap())?;
             }
             // A server in the own network (Ollama, a school server) often wants no key.
             if !key_is_optional(args.adapter.as_deref())
@@ -159,4 +163,28 @@ pub(crate) async fn add(
         model_count,
         refresh_error,
     })
+}
+
+/// Validates the user-controlled endpoint before it is stored or used for a request.
+/// Credentials and query/fragment data must stay in their dedicated fields and never become
+/// part of an endpoint URL.
+fn validate_openai_compatible_base_url(base_url: &str) -> Result<()> {
+    let url = Url::parse(base_url.trim()).map_err(|_| HolziError::InvalidInput {
+        reason: "openai_compatible provider requires a valid http(s) base_url".into(),
+    })?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err(HolziError::InvalidInput {
+            reason: "openai_compatible provider requires a valid http(s) base_url".into(),
+        });
+    }
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(HolziError::InvalidInput {
+            reason: "base_url must not contain credentials, a query, or a fragment".into(),
+        });
+    }
+    Ok(())
 }

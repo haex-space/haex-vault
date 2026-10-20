@@ -138,6 +138,25 @@ async fn an_address_is_required_and_another_vendor_still_needs_its_key() {
     let refused = |outcome| matches!(outcome, Err(HolziError::InvalidInput { .. }));
 
     assert!(refused(add(&gate(&db), args("", None), 1).await));
+    assert!(refused(
+        add(&gate(&db), args("ftp://example.com/v1", None), 1).await
+    ));
+    assert!(refused(
+        add(
+            &gate(&db),
+            args("https://user:password@example.com/v1", None),
+            1,
+        )
+        .await
+    ));
+    assert!(refused(
+        add(
+            &gate(&db),
+            args("https://example.com/v1?key=secret", None),
+            1,
+        )
+        .await
+    ));
     let mut anthropic = args("https://api.anthropic.com", None);
     anthropic.adapter = Some("anthropic".into());
     assert!(refused(add(&gate(&db), anthropic, 1).await));

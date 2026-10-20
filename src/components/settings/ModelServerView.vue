@@ -13,6 +13,7 @@ import {
   imagesChoice,
   levelsText,
   parseLevels,
+  OPENAI_COMPATIBLE,
   type ImagesChoice,
 } from '~/lib/models/servers'
 
@@ -46,7 +47,9 @@ const imagesOptions = computed<SettingsSelectOption[]>(() =>
 async function reloadAsync() {
   try {
     server.value =
-      (await listAsync()).find((p) => p.id === providerId.value) ?? null
+      (await listAsync()).find(
+        (p) => p.id === providerId.value && p.adapter === OPENAI_COMPATIBLE,
+      ) ?? null
     models.value = server.value ? await listModelsAsync(server.value.id) : []
     levels.value = Object.fromEntries(
       models.value.map((m) => [

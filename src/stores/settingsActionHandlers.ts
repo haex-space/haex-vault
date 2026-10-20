@@ -250,7 +250,14 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     }
   })
   on('settings.servers.remove', async ({ input }) => {
-    await providers.deleteAsync(String(input.providerId))
+    const providerId = String(input.providerId)
+    const provider = (await providers.listAsync()).find(
+      (candidate) => candidate.id === providerId,
+    )
+    if (provider?.adapter !== OPENAI_COMPATIBLE) {
+      throw new Error('the provider is not an OpenAI-compatible model server')
+    }
+    await providers.deleteAsync(providerId)
     return done
   })
   on('settings.servers.setModelCapabilities', async ({ input }) => {
