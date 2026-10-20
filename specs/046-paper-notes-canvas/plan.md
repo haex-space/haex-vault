@@ -4,6 +4,13 @@
 
 **Input**: Feature specification from `/specs/046-paper-notes-canvas/spec.md`
 
+**Hinweis (2026-10-20)**: Die Erkennung läuft über Spec 055 (Modellaufträge, im vault-sdk `models.runAsync`),
+nicht über den strukturierten Agent-Task von Spec 047. haex-notes beschreibt den Auftrag „Seitenerkennung“ mit
+eigener Anweisung und eigenem Ergebnisformat (Beispiel in
+[055 job-format.md](../055-extension-model-access/contracts/job-format.md)); Modellwahl, Einwilligung vor dem
+Versand und die Prüfung der Ausgabe übernimmt holzi. Wo dieser Plan vom „Agent-Task“, von Profilen oder Harness
+spricht, ist er entsprechend umzubauen.
+
 **Implementation target**: `haex-space/haextension` at revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8`, path `apps/haex-notes/`. This holzi repository contains the design artifacts; implementation must be proposed in the target repository's own worktree.
 
 ## Summary

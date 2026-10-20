@@ -174,8 +174,8 @@ remote-model tests in B, which use a fake adapter.
 - [ ] T065 [US7] Signed test extension `src-tauri/tests/fixtures/extension_e2e/model-jobs/` (with `.xt`, built like `agent-tools.xt`, the released vault-sdk bundled) that sends the two steps of `contracts/job-format.md` §Beispiel and has test modes for a loop, empty output and CJK output; add its build to the fixture script
 - [ ] T066 [US7] Integration test in `src-tauri/tests/extension_model_jobs.rs`: the page format with a table passes; a table row with a missing cell is `Unusable`; the sideways-photo case returns the model's own hint without a holzi-side rotation
 - [ ] T067 [US7] E2E scenario `scripts/e2e/scenarios/extension-model-jobs.test.ts`: grant, consent for a session, a job with the test extension, revocation (quickstart steps 2–6)
-- [ ] T068 [US7] vault-sdk (own repo, own PR): `sdk.models.list()`, `sdk.models.run(job)`, `sdk.models.cancel(id)` and the completion event in TypeScript with vitest tests against the contract; holzi pins the released version in the fixture build
-- [ ] T069 [US7] Update `specs/047-structured-agent-tasks/spec.md` status and `specs/017-extension-host/contracts/bridge.md` (the three new methods, the removed `extension_ai_task_*`); note in `specs/046-paper-notes-canvas/plan.md` that recognition goes through spec 055
+- [ ] T068 [US7] (in review: haex-space/vault-sdk#76, `models.listAsync`, `runAsync`, `startAsync`, `cancelAsync`, `onCompleted`; the permission retry now allows up to eight different prompts per request, three for the same one) vault-sdk (own repo, own PR): `sdk.models.list()`, `sdk.models.run(job)`, `sdk.models.cancel(id)` and the completion event in TypeScript with vitest tests against the contract; holzi pins the released version in the fixture build
+- [x] T069 [US7] Update `specs/047-structured-agent-tasks/spec.md` status and `specs/017-extension-host/contracts/bridge.md` (the three new methods, the removed `extension_ai_task_*`); note in `specs/046-paper-notes-canvas/plan.md` that recognition goes through spec 055
 
 ---
 
@@ -183,7 +183,7 @@ remote-model tests in B, which use a fake adapter.
 
 - [ ] T070 [P] Storage test `src-tauri/tests/extension_model_jobs_storage.rs`: after completed, cancelled and failed jobs the content of every table equals the content before, except permissions and consents (SC-011); and no `tracing` field logs an image, instruction or answer (grep test over `model_jobs/`)
 - [ ] T071 [P] Check every new or changed file stays under 500 lines (`wc -l` over the plan's structure tree)
-- [ ] T072 Remove leftovers of `agent_tasks` and `extension_ai_task_*` in code, comments and docs (`rg "agent_tasks|extension_ai_task|ai-task"`)
+- [x] T072 (what remains names the rename in `plan.md`, `research.md` and `contracts/bridge.md` of 055, the replacement note in 017, and the test that the old methods are off the allowlist) Remove leftovers of `agent_tasks` and `extension_ai_task_*` in code, comments and docs (`rg "agent_tasks|extension_ai_task|ai-task"`)
 - [ ] T073 Run the checks through the devShell: `nix develop --command scripts/with-nix-host-bridge.sh cargo fmt --check`, `nix develop --command scripts/with-nix-host-bridge.sh cargo check --manifest-path src-tauri/Cargo.toml` and the corresponding `cargo test --manifest-path src-tauri/Cargo.toml` commands for both default and `--no-default-features`, `nix develop --command pnpm lint:rust` (both feature sets), and `nix develop --command pnpm <script>` for every `check:*`, `typecheck`, `typecheck:scripts`, `lint`, `format:check` and the E2E scenario; run clippy for the Android target as well and keep Rust builds memory-limited
 - [ ] T074 Walk through `specs/055-extension-model-access/quickstart.md` steps 1–12 (and the local-image step with delivery C); record skipped steps in the PR description
 - [ ] T075 Add **Modellauftrag**, **Modellfreigabe** and **Ziel (Ort)** to `CONTEXT.md` (extensions section)
