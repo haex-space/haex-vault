@@ -36,14 +36,16 @@ export const useExtensionPermissionsStore = defineStore(
       ])
     }
 
+    /** `model` is the user's pick in a question about a model (spec 055 US2). */
     async function answerAsync(
       requestId: string,
       decision: 'allow' | 'deny',
       remember: boolean,
+      model?: { modelId: string; effort: string },
     ): Promise<void> {
       queue.value = remove(queue.value, requestId)
       await invoke('extension_permission_resolve', {
-        args: { requestId, decision, remember },
+        args: { requestId, decision, remember, model },
       })
     }
 

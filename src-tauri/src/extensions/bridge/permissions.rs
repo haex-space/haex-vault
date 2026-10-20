@@ -13,6 +13,8 @@ use crate::extensions::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
 };
 use crate::files::access::is_device_storage;
+use crate::model_jobs::grants;
+use crate::model_jobs::Need;
 use crate::storage::query::Query;
 
 /// Event to holzi's window: a question for the user.
@@ -66,6 +68,16 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
     if !new {
         return;
     }
+    // A question about a model offers the models that fit the job (spec 055, US2).
+    let needs: Vec<Need> = details
+        .get("needs")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|need| need.as_str().and_then(Need::parse))
+                .collect()
+        })
+        .unwrap_or_default();
     let ext = extension_id.to_string();
     let (lookup_action, lookup_target) = (action.clone(), target.clone());
     let facts = ctx.db.read_blocking(move |q| {
@@ -81,9 +93,13 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
             .iter()
             .any(|r| r.declared && r.is_about(kind.as_str(), &lookup_action, &lookup_target));
         let missing = kind == PermissionKind::Database && !target_installed(q, &lookup_target)?;
-        Ok((display.unwrap_or_default(), declared, missing))
+        let models = (kind == PermissionKind::Model)
+            .then(|| grants::choices(q, &needs, &lookup_target))
+            .transpose()
+            .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
+        Ok((display.unwrap_or_default(), declared, missing, models))
     });
-    let Ok((display_name, declared, target_missing)) = facts else {
+    let Ok((display_name, declared, target_missing, models)) = facts else {
         // Nobody was told: the question must not stay open, or every retry would be merged into it.
         ctx.host.permissions.take(&request_id);
         return;
@@ -100,6 +116,7 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         target_missing,
         by_agent: ctx.session.mcp.calls_in_flight() > 0,
         encrypted_folder: folder,
+        models,
     };
     if let Ok(payload) = serde_json::to_value(event) {
         ctx.emitter.emit(PERMISSION_REQUEST, payload);

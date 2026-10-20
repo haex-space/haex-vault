@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use super::{Permission, PermissionKind, PermissionStatus, VAULT_WIDE};
 use crate::extensions::protocol::token;
+use crate::model_jobs::grants::ExtensionModelChoice;
 
 /// One open question, as holzi's window shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
@@ -46,6 +47,11 @@ pub struct PermissionRequestEvent {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encrypted_folder: Option<FolderNames>,
+    /// For `model` (spec 055): the models of the vault that fit the job, the proposed one
+    /// (`target`) first. The user picks one and the highest effort it may be used with.
+    #[ts(optional, inline)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ExtensionModelChoice>>,
 }
 
 /// What a question about an encrypted folder names for the user.

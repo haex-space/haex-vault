@@ -13,7 +13,7 @@ use super::permissions::PERMISSION_REQUEST;
 use crate::adapters::AttachmentKind;
 use crate::chat::default_model::PREF_DEFAULT_MODEL;
 use crate::extensions::error::BridgeError;
-use crate::model_capabilities::ModelCapabilities;
+use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 use crate::model_jobs::bridge::COMPLETED_EVENT;
 use crate::model_jobs::test_support::{
     model_row, provider, remember, store_models, FakeSource, Script,
@@ -172,7 +172,9 @@ fn without_a_grant_the_user_is_asked_for_a_fitting_model_and_no_model_is_called(
 
     assert_eq!(
         details,
-        json!({ "resourceType": "model", "action": "low", "target": rows[1].id })
+        json!({
+            "resourceType": "model", "action": "low", "target": rows[1].id, "needs": ["text"]
+        })
     );
     assert!(source.asked().is_empty());
     let asked = s.recorded.0.lock().unwrap().clone();
@@ -425,4 +427,39 @@ fn a_frame_runs_two_jobs_at_most_and_a_closed_frame_hears_nothing() {
             .any(|(_, payload)| payload["type"] == COMPLETED_EVENT),
         "no event to a closed frame"
     );
+}
+
+#[test]
+fn a_wish_above_the_ceiling_is_capped_and_the_provenance_names_what_was_sent() {
+    let s = setup();
+    let server = provider(
+        ProviderKind::ApiKey,
+        Some("http://localhost:11434/v1"),
+        None,
+    );
+    let levels = ModelCapabilities {
+        reasoning: Some(ReasoningControl::Presets {
+            options: ["low", "medium", "high"]
+                .iter()
+                .map(|id| ReasoningOption {
+                    id: (*id).into(),
+                    label: (*id).into(),
+                })
+                .collect(),
+        }),
+        ..Default::default()
+    };
+    let row = model_row(&server, "thinker", Some(levels));
+    store_models(&s.ctx.db, &server, std::slice::from_ref(&row));
+    let source = scripted(&s, &[(&row.id, Script::Answer(GOOD.into()))]);
+    allow(&s, "model", "medium", &row.id, "granted");
+    let mut wish = step();
+    wish["effort"] = json!("high");
+
+    start(&s, &job(vec![wish])).unwrap();
+    let data = completion(&s);
+
+    assert_eq!(data["provenance"][0]["attempts"][0]["effort"], "medium");
+    let seen = source.seen.lock().unwrap();
+    assert_eq!(seen[0].1.reasoning_option.as_deref(), Some("medium"));
 }

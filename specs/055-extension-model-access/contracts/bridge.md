@@ -52,7 +52,11 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
 
 `PermissionPromptRequired` trägt `details`:
 
-- `{ resourceType: "model", action: "<Aufwand>", target: "<models.id>" }`: Freigabe eines Modells.
+- `{ resourceType: "model", action: "<Aufwand>", target: "<models.id>", needs: ["text"|"image"] }`: Freigabe eines
+  Modells. `target` ist der Vorschlag (das Standardmodell, wenn es passt), `needs` das, was der Schritt braucht. Die
+  Frage an den Nutzer bietet alle Modelle an, die dazu passen (`PermissionRequestEvent.models`); er wählt eines und
+  den höchsten Aufwand, und die Antwort gilt diesem Modell (`extension_permission_resolve` mit `model`). Eine
+  gemerkte Freigabe ersetzt jede frühere Zeile des Modells und kommt ans Ende der Rangfolge.
 - `modelDestination` trägt für die Einwilligung zusätzlich die Datenübersicht:
 
   ```text

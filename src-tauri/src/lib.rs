@@ -96,6 +96,10 @@ use extensions::commands::manage::{
     extension_icon, extension_limits_get, extension_limits_set, extension_list,
     extension_logs_read, extension_purge_kept_data, extension_remove, extension_set_enabled,
 };
+use extensions::commands::model_grants::{
+    extension_model_grants_list, extension_model_grants_reorder, extension_model_grants_revoke,
+    extension_model_grants_set,
+};
 use extensions::commands::permissions::{
     extension_permission_cancel, extension_permission_remove, extension_permission_resolve,
     extension_permission_set, extension_permissions_list,
@@ -656,6 +660,10 @@ pub fn run() {
             extension_permission_remove,
             extension_permission_resolve,
             extension_permission_cancel,
+            extension_model_grants_list,
+            extension_model_grants_set,
+            extension_model_grants_revoke,
+            extension_model_grants_reorder,
         ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
