@@ -301,6 +301,21 @@ pub static METHODS: &[Method] = &[
         module: mail::commands::MODULE,
     },
     Method {
+        name: "extension_mail_search",
+        handler: mail::commands::search,
+        module: mail::commands::MODULE,
+    },
+    Method {
+        name: "extension_mail_create_mailbox",
+        handler: mail::commands::create_mailbox,
+        module: mail::commands::MODULE,
+    },
+    Method {
+        name: "extension_mail_delete_messages",
+        handler: mail::commands::delete_messages,
+        module: mail::commands::MODULE,
+    },
+    Method {
         name: "extension_mail_append_message",
         handler: mail::commands::append_message,
         module: mail::commands::MODULE,

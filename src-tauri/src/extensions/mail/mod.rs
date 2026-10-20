@@ -14,6 +14,7 @@
 pub mod commands;
 mod connect;
 mod imap;
+mod imap_manage;
 mod parsing;
 mod smtp;
 mod types;
@@ -126,6 +127,63 @@ pub fn check_mailbox(name: &str) -> Result<(), MailError> {
     Ok(())
 }
 
+/// The longest search text, mailbox-independent: a hit on a longer text is a hit on its start.
+pub const MAX_SEARCH_TEXT: usize = 200;
+
+/// `YYYY-MM-DD` as year, month, day, when it names a real day.
+pub fn parse_date(text: &str) -> Option<(u32, u32, u32)> {
+    let mut parts = text.split('-');
+    let (year, month, day) = (parts.next()?, parts.next()?, parts.next()?);
+    if parts.next().is_some() || year.len() != 4 || month.len() != 2 || day.len() != 2 {
+        return None;
+    }
+    let (year, month, day): (u32, u32, u32) =
+        (year.parse().ok()?, month.parse().ok()?, day.parse().ok()?);
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let longest = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return None,
+    };
+    (year >= 1900 && (1..=longest).contains(&day)).then_some((year, month, day))
+}
+
+/// A search that is allowed to reach the server: at least one criterion, texts without control
+/// characters and at most [`MAX_SEARCH_TEXT`] long, dates that exist.
+pub fn check_criteria(criteria: &SearchCriteria) -> Result<(), MailError> {
+    let texts = [
+        &criteria.text,
+        &criteria.from,
+        &criteria.to,
+        &criteria.subject,
+    ];
+    for text in texts.into_iter().flatten() {
+        if text.trim().is_empty()
+            || text.chars().count() > MAX_SEARCH_TEXT
+            || text.chars().any(char::is_control)
+        {
+            return Err(MailError::Invalid("search text not allowed".into()));
+        }
+    }
+    for date in [&criteria.since, &criteria.before].into_iter().flatten() {
+        if parse_date(date).is_none() {
+            return Err(MailError::Invalid("date must be YYYY-MM-DD".into()));
+        }
+    }
+    let any = texts.iter().any(|t| t.is_some())
+        || criteria.since.is_some()
+        || criteria.before.is_some()
+        || criteria.unseen.is_some()
+        || criteria.flagged.is_some();
+    if any {
+        Ok(())
+    } else {
+        Err(MailError::Invalid("a search needs a criterion".into()))
+    }
+}
+
 /// What the permissions of `extension_id` on `device` say to `action` on `server:port`, the held
 /// decisions of this process included.
 pub fn decision(
@@ -188,6 +246,8 @@ pub fn check_permission(
     )
 }
 
+#[cfg(test)]
+mod mail_manage_tests;
 #[cfg(test)]
 mod mail_tests;
 #[cfg(test)]
