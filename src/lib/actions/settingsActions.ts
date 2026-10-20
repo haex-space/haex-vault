@@ -4,6 +4,7 @@
 // deny rules are guardrails — never callable by agents (FR-032). `settings.get` never returns
 // provider credentials.
 import { SETTINGS_AGENT_ACTIONS } from './settingsAgentActions.ts'
+import { SETTINGS_SERVER_ACTIONS } from './settingsServerActions.ts'
 import type { JsonSchema, ActionDefinition } from './types.ts'
 
 const DONE: JsonSchema = {
@@ -477,4 +478,5 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   ...SETTINGS_AGENT_ACTIONS,
+  ...SETTINGS_SERVER_ACTIONS,
 ]

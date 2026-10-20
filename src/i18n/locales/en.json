@@ -589,6 +589,14 @@
           "description": "Use your Claude Code or Codex subscription as a chat backend.",
           "keywords": "subscription provider connect Claude Code Codex CLI"
         },
+        "servers": {
+          "title": "Model servers",
+          "description": "Your own servers and services with an OpenAI-compatible API.",
+          "keywords": "server OpenAI compatible Ollama vLLM llama.cpp school server address key API images effort",
+          "server": {
+            "title": "Model server"
+          }
+        },
         "autonomy": {
           "title": "Delegate autonomy",
           "description": "How much a delegate may do without asking.",
@@ -1222,6 +1230,45 @@
         "since": "Blocked since {at}",
         "unblock": "Unblock"
       }
+    },
+    "modelServers": {
+      "intro": "A machine with a graphics card, a school server or a service with an OpenAI-compatible API (Ollama, vLLM, llama.cpp and others). holzi reads the server's models and offers them like the others.",
+      "models": "no models | one model | {n} models",
+      "add": "Add a server",
+      "name": "Name",
+      "address": "Address",
+      "addressHint": "Up to and including /v1, such as http://192.168.1.20:11434/v1.",
+      "addressProblem": {
+        "empty": "Enter the server's address.",
+        "invalid": "This is not a valid address.",
+        "scheme": "The address starts with http:// or https://.",
+        "credentials": "A key goes into the field “Key”, not into the address.",
+        "query": "The address ends without ? or #."
+      },
+      "key": "Key (optional)",
+      "keyHint": "Many servers in your own network need none. holzi stores it encrypted in the vault.",
+      "addButton": "Add",
+      "adding": "Adding …",
+      "readFailed": "“{name}” was added, but its models could not be read: {reason}. If the key is wrong, remove the server and add it again.",
+      "missing": "This server no longer exists.",
+      "withKey": "With a key",
+      "withoutKey": "Without a key",
+      "refresh": "Read models again",
+      "refreshing": "Reading …",
+      "statementsIntro": "The server does not say whether a model understands images or which effort levels it knows. State it here; it stays after the next read.",
+      "modelsTitle": "Models",
+      "noModels": "The server named no models.",
+      "images": {
+        "unstated": "Images: not stated",
+        "yes": "Takes images",
+        "no": "Takes no images"
+      },
+      "imagesOf": "Images for {name}",
+      "levels": "Effort levels, lowest first",
+      "saveLevels": "Apply",
+      "removeConfirm": "Remove the server and its models?",
+      "cancel": "Cancel",
+      "remove": "Remove"
     }
   },
   "models": {
@@ -1589,6 +1636,11 @@
         "servers": {
           "set": "Set the connection servers"
         }
+      },
+      "servers": {
+        "add": "Add a model server",
+        "remove": "Remove a model server",
+        "setModelCapabilities": "Set statements about a model"
       }
     },
     "scopes": {

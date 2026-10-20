@@ -13,6 +13,7 @@ import { useProviders, type DelegateVendor } from '~/composables/useProviders'
 import { useSync } from '~/composables/useSync'
 import { useSttModels } from '~/composables/useSttModels'
 import { useWorkspaceBackground } from '~/composables/useWorkspaceBackground'
+import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import type { useWindowManagerStore } from '~/stores/windowManager'
@@ -230,6 +231,46 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   })
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
+    return done
+  })
+  on('settings.servers.add', async ({ input }) => {
+    const added = await providers.addAsync({
+      kind: 'api_key',
+      adapter: OPENAI_COMPATIBLE,
+      name: String(input.name),
+      baseUrl: String(input.baseUrl),
+      apiKey: typeof input.apiKey === 'string' ? input.apiKey : undefined,
+    })
+    return {
+      providerId: added.provider.id,
+      ...(added.modelCount === null ? {} : { modelCount: added.modelCount }),
+      ...(added.refreshError === null
+        ? {}
+        : { refreshError: added.refreshError }),
+    }
+  })
+  on('settings.servers.remove', async ({ input }) => {
+    const providerId = String(input.providerId)
+    const provider = (await providers.listAsync()).find(
+      (candidate) => candidate.id === providerId,
+    )
+    if (provider?.adapter !== OPENAI_COMPATIBLE) {
+      throw new Error('the provider is not an OpenAI-compatible model server')
+    }
+    await providers.deleteAsync(providerId)
+    return done
+  })
+  on('settings.servers.setModelCapabilities', async ({ input }) => {
+    await providers.setModelCapabilitiesAsync({
+      modelId: String(input.modelId),
+      acceptsImages:
+        typeof input.acceptsImages === 'boolean'
+          ? input.acceptsImages
+          : undefined,
+      effortLevels: Array.isArray(input.effortLevels)
+        ? input.effortLevels.map(String)
+        : undefined,
+    })
     return done
   })
   on('settings.delegate.connectProvider', async ({ input }) => {

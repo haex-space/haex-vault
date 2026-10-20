@@ -38,6 +38,12 @@ export interface ModelCapabilities {
     support: 'supported' | 'unsupported'
     basis: 'provider' | 'curated' | 'template' | 'self_test'
   } | null
+  /** What the user stated about a model of an OpenAI-compatible server (spec 055 FR-019), already
+   * laid over the fields above; absent when nothing was stated. */
+  user?: {
+    acceptsImages: boolean | null
+    effortLevels: string[] | null
+  }
 }
 
 export interface InstalledModel {

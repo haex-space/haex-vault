@@ -143,7 +143,7 @@ src/
 ├── components/extensions/PermissionRequestDialog.vue   # Zweige model, modelDestination
 ├── components/settings/extensions/ExtensionModelsView.vue   # Freigaben, Rangfolge, Aufwand, Widerruf
 ├── components/settings/extensions/ExtensionLimitsView.vue   # + Dauer
-├── components/settings/providers/…                          # Anbieter openai_compatible, „nimmt Bilder an“
+├── components/settings/ModelServer{s,}View.vue              # Modell-Server (openai_compatible), „nimmt Bilder an“
 ├── lib/extensions/modelGrants.ts                       # reine Logik (Rangfolge, Aufwandsstufen)
 └── i18n/…                                              # Texte de/en
 

@@ -82,6 +82,12 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.providers': defineAsyncComponent(
     () => import('~/components/settings/ConnectDelegateProvider.vue'),
   ),
+  'ai.servers': defineAsyncComponent(
+    () => import('~/components/settings/ModelServersView.vue'),
+  ),
+  'ai.servers.server': defineAsyncComponent(
+    () => import('~/components/settings/ModelServerView.vue'),
+  ),
   'ai.autonomy': defineAsyncComponent(
     () => import('~/components/settings/AutonomyModeSetting.vue'),
   ),
