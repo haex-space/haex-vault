@@ -5,12 +5,15 @@ Stand der geprüften Quellen (Constitution IV: Repository, voller Commit, Pfad):
 - holzi: Commit `1b02229c` (Basis dieses Branchs), `src-tauri/src/extensions/mail/`,
   `src-tauri/src/extensions/bridge/allowlist.rs`, `src-tauri/src/chat/tools/action_tool.rs`.
 - haex-space/haextension, Commit `e2622baefd4c4b1c0e93e6cbe53bc6feff8751f5`, `apps/haex-mail/`.
-- haex-space/vault-sdk, Branch `feat/agent-tools` Commit `cf2dbcb8849f8be62d71fa957dbfa43d131756ab`
-  (MCP-Baustein), `main` Commit `ee0a0306a938d785a95a4eed76e8cde29205880d` (ohne ihn).
+- haex-space/vault-sdk: Der MCP-Baustein ist seit Release 4.6.0 (Commit
+  `74a8ff96cff606600e134fe4df9f6d14441c1d53`, Pull Request #64, Commit `280cebf`) auf `main`. Zum Zeitpunkt der
+  ersten Planung (2026-10-20) lag er nur auf dem Branch `feat/agent-tools` (Commit
+  `cf2dbcb8849f8be62d71fa957dbfa43d131756ab`, `main` Commit `ee0a0306a938d785a95a4eed76e8cde29205880d`); der
+  Stand wurde vor dem Start der Umsetzung neu geprüft.
 
 ## R1: Lieferung in drei Etappen, Reihenfolge
 
-**Entscheidung**: E1 vault-sdk veröffentlicht `feat/agent-tools`. E2 besteht aus zwei unabhängigen Teilen:
+**Entscheidung**: E1 (vault-sdk veröffentlicht den MCP-Baustein) ist erledigt: Release 4.6.0. E2 besteht aus zwei unabhängigen Teilen:
 holzi bekommt drei Bridge-Methoden, vault-sdk bekommt die Gegenstücke. E3 ist haex-mail und hängt an der
 veröffentlichten Version aus E1 und E2b.
 

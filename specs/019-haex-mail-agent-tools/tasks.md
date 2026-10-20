@@ -31,8 +31,8 @@ tools of haex-mail`), T058 runs per pull request, T060 and T061 close the spec a
 
 ## Phase 1: Setup
 
-- [ ] T001 (vault-sdk) Create a worktree from `origin/main`, rebase `feat/agent-tools` (head `cf2dbcb8849f8be62d71fa957dbfa43d131756ab` when planned) on it and run the repository's checks (`vitest`, type check, lint, crate tests); note the result under this task
-- [ ] T002 (vault-sdk) **operator** Open the pull request `feat/agent-tools` → `main`, merge it, let the release process publish the version; note the published version (V1) and the merge SHA under this task
+- [x] T001 (vault-sdk) Erledigt ohne Zutun: `feat/agent-tools` ist als Pull Request #64 (Commit `280cebf`) auf `origin/main`; geprüft am 2026-10-20 mit `git ls-tree v4.6.0 src/api/tools/`
+- [x] T002 (vault-sdk) Erledigt: veröffentlicht als Release 4.6.0, Commit `74a8ff96cff606600e134fe4df9f6d14441c1d53` (V1 = 4.6.0)
 - [ ] T003 (haextension) Create a worktree for the topic branch `019-haex-mail-agent-tools` from `origin/main`, run `pnpm install --frozen-lockfile`, run `pnpm test` in `apps/haex-mail` once and note the baseline under this task
 - [ ] T004 (holzi) **operator** Check `df -h` and `.worktrees/*/target` sizes, remove merged worktree targets if the disk is tight, then agree to one baseline run of `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail`; note the baseline under this task
 

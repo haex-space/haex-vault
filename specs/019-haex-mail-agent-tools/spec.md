@@ -15,8 +15,8 @@ Entwurf und Begründungen: [docs/plans/2026-10-20-haex-mail-agent-tools-design.m
 - [`018-extension-agent-tools`](../018-extension-agent-tools/spec.md): Diese Spec ist die dort angekündigte
   Spec 019. 018 liefert Manifest-Block, Bestätigung bei der Installation, Angebot an das Modell,
   Freigabe je Aufruf, Verlauf und den MCP-Baustein im vault-sdk (FR-021). 019 nutzt das, ohne es zu
-  ändern, und ergänzt die Werkzeuge in haex-mail. Der Baustein ist im vault-sdk noch nicht
-  veröffentlicht; seine Veröffentlichung ist die erste Etappe dieser Spec.
+  ändern, und ergänzt die Werkzeuge in haex-mail. Der Baustein ist seit
+  vault-sdk 4.6.0 (Commit `74a8ff96cff606600e134fe4df9f6d14441c1d53`, der Baustein kam mit Pull Request #64, Commit `280cebf`) veröffentlicht; die erste Etappe dieser Spec ist damit erledigt.
 - [`017-extension-host`](../017-extension-host/spec.md): Mail-Berechtigungen (`fetch`, `send`), die
   Zugangsdaten im Passwortmanager mit Schlagwort `haex-mail` und die Prüfung jeder Host-Funktion gegen
   die Berechtigungen der Erweiterung gelten unverändert. Die drei neuen Host-Befehle fallen unter die
@@ -367,7 +367,7 @@ auf.
 - **FR-033**: Das vault-sdk MUSS die drei Funktionen mit den übrigen Mail-Methoden anbieten; eine
   Erweiterung, die sie nicht nutzt, MUSS unverändert laufen.
 - **FR-034**: Die Lieferung erfolgt in drei Etappen, jede mit eigenem Pull Request und prüfbar ohne die
-  folgenden: (1) das vault-sdk veröffentlicht den MCP-Baustein; (2) Host und vault-sdk bekommen die drei
+  folgenden: (1) das vault-sdk veröffentlicht den MCP-Baustein (erledigt, siehe Annahmen); (2) Host und vault-sdk bekommen die drei
   Funktionen; (3) haex-mail bekommt Werkzeuge, Regeln und Oberfläche. Die dritte Etappe setzt die erste
   und zweite voraus.
 - **FR-035**: Die Prüfung der Werkzeuge MUSS die Modellprüfung (018 FR-019) um Sätze für die Mailwerkzeuge
@@ -413,9 +413,9 @@ auf.
 
 ## Assumptions
 
-- Der MCP-Baustein im vault-sdk liegt auf dem Branch `feat/agent-tools` und ist die Grundlage der dritten
-  Etappe; seine Veröffentlichung ist Teil dieser Spec (FR-034). haex-mail hängt aktuell an `^4.1.0` und
-  hebt auf die veröffentlichte Version an.
+- Der MCP-Baustein im vault-sdk ist die Grundlage der dritten Etappe und seit vault-sdk 4.6.0 (Commit `74a8ff96cff606600e134fe4df9f6d14441c1d53`, der Baustein kam mit Pull Request #64, Commit `280cebf`) veröffentlicht
+  (Stand 2026-10-20, zuvor als offen geplant). haex-mail hängt aktuell an `^4.1.0` und hebt auf die Version
+  an, die auch die drei neuen Mail-Methoden enthält.
 - Regeln laufen nur, solange haex-mail läuft, also als Erweiterung in holzi geladen ist. Es gibt keinen
   Dienst auf dem Mailserver (Sieve). Mails, die bei ausgeschaltetem holzi eintreffen, werden beim nächsten
   Abruf einsortiert. Bis eine Benachrichtigung greift, kann es bis zu 90 Sekunden dauern, weil die
