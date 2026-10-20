@@ -14,8 +14,9 @@ use crate::extensions::bridge::dispatch::{call, CallContext, Emit};
 use crate::extensions::bridge::events::FRAME_EVENT;
 use crate::extensions::commands::permissions::{resolve, PermissionResolveArgs};
 use crate::extensions::permissions::order::ordered;
-use crate::extensions::permissions::prompts::PermissionDecision;
+use crate::extensions::permissions::prompts::{PermissionDecision, Question};
 use crate::extensions::permissions::store::rows_of;
+use crate::extensions::permissions::{PermissionKind, PermissionStatus};
 use crate::extensions::registry::effective::effective_bundle;
 use crate::extensions::registry::install::install;
 use crate::model_capabilities::ModelCapabilities;
@@ -124,6 +125,7 @@ impl Setup {
     fn grant(&self, index: usize, effort: &str) {
         set(
             &self.ctx.db,
+            &self.ctx.host,
             ExtensionModelGrantArgs {
                 extension_id: self.extension.to_string(),
                 model_id: self.id(index),
@@ -295,6 +297,42 @@ fn a_grant_replaces_every_earlier_row_of_the_model_and_comes_last_in_the_rank() 
 }
 
 #[test]
+fn stored_model_updates_forget_conflicting_session_decisions() {
+    let s = setup();
+    let held = |model_id: String, action: &str| Question {
+        extension_id: s.extension,
+        kind: PermissionKind::Model,
+        action: action.into(),
+        target: model_id,
+    };
+    let granted = held(s.id(0), "high");
+    s.ctx
+        .host
+        .permissions
+        .hold(&granted, PermissionStatus::Granted);
+    let denied = held(s.id(1), "medium");
+    s.ctx
+        .host
+        .permissions
+        .hold(&denied, PermissionStatus::Denied);
+    s.grant(0, "low");
+    s.grant(1, "none");
+    assert!(s
+        .ctx
+        .host
+        .permissions
+        .temporary(s.extension, PermissionKind::Model)
+        .is_empty());
+    assert_eq!(
+        s.usable(),
+        [
+            ("vision".to_owned(), "low".to_owned()),
+            ("text".to_owned(), "none".to_owned())
+        ]
+    );
+}
+
+#[test]
 fn revoking_and_reordering_hold_from_the_next_start() {
     let s = setup();
     s.grant(0, "low");
@@ -338,6 +376,7 @@ fn a_wrong_effort_or_model_id_is_refused() {
     ] {
         let refused = set(
             &s.ctx.db,
+            &s.ctx.host,
             ExtensionModelGrantArgs {
                 extension_id: s.extension.to_string(),
                 model_id,

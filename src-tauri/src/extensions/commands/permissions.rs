@@ -348,7 +348,7 @@ pub fn record(
         return Ok(());
     }
     if question.kind == PermissionKind::Model {
-        return remember_model(db, question, status, now_ms);
+        return remember_model(db, host, question, status, now_ms);
     }
     let scope = question.kind.scope_on(device);
     let Question {

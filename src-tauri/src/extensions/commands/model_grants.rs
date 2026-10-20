@@ -83,15 +83,21 @@ pub(crate) fn as_answered(
 /// place in the rank (spec 055 R5).
 pub(crate) fn remember_model(
     db: &VaultDb,
+    host: &ExtensionHost,
     question: &Question,
     status: PermissionStatus,
     now_ms: i64,
 ) -> Result<()> {
     let effort = Level::parse(&question.action).ok_or_else(|| invalid("unknown effort"))?;
     let (extension_id, model_id) = (question.extension_id, question.target.clone());
-    db.write_blocking(move |tx| {
-        grants::put(tx, extension_id, &model_id, status, effort, now_ms).map_err(Into::into)
-    })
+    db.write_blocking({
+        let model_id = model_id.clone();
+        move |tx| {
+            grants::put(tx, extension_id, &model_id, status, effort, now_ms).map_err(Into::into)
+        }
+    })?;
+    grants::forget_held(host, extension_id, &model_id);
+    Ok(())
 }
 
 fn invalid(reason: &str) -> HolziError {
@@ -124,11 +130,17 @@ pub fn list(
 }
 
 /// Lets the extension use a model up to `effort`, for every own device.
-pub fn set(db: &VaultDb, args: ExtensionModelGrantArgs, now_ms: i64) -> Result<()> {
+pub fn set(
+    db: &VaultDb,
+    host: &ExtensionHost,
+    args: ExtensionModelGrantArgs,
+    now_ms: i64,
+) -> Result<()> {
     let extension_id = parse_id(&args.extension_id)?;
     let effort = Level::parse(&args.effort).ok_or_else(|| HolziError::InvalidInput {
         reason: "unknown effort".into(),
     })?;
+    let model_id = args.model_id.clone();
     db.write_blocking(move |tx| {
         grants::put(
             tx,
@@ -139,7 +151,9 @@ pub fn set(db: &VaultDb, args: ExtensionModelGrantArgs, now_ms: i64) -> Result<(
             now_ms,
         )
         .map_err(Into::into)
-    })
+    })?;
+    grants::forget_held(host, extension_id, &model_id);
+    Ok(())
 }
 
 /// Takes the model away again, remembered or held for the session: the next job asks.
@@ -180,8 +194,9 @@ pub async fn extension_model_grants_set(
     args: ExtensionModelGrantArgs,
 ) -> Result<()> {
     let db = active_database(&state)?;
+    let host = state.extensions();
     tauri::async_runtime::spawn_blocking(move || {
-        set(&db, args, unix_millis(std::time::SystemTime::now()))
+        set(&db, &host, args, unix_millis(std::time::SystemTime::now()))
     })
     .await
     .map_err(task_error)?

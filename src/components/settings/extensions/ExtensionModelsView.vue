@@ -40,13 +40,13 @@ async function loadAsync() {
       'extension_model_grants_list',
       { extensionId: props.extensionId },
     )
-    failure.value = null
   } catch (error) {
     failure.value = errString(error)
   }
 }
 
 async function runAsync(action: () => Promise<unknown>) {
+  failure.value = null
   try {
     await action()
   } catch (error) {
