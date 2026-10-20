@@ -59,6 +59,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "packaging/linux/main.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "packaging/linux/main.desktop"
+      }
+    },
     "android": {
       "minSdkVersion": 26
     }
