@@ -1,5 +1,9 @@
 # Data Model: Structured Agent Tasks
 
+> **Abgelöst:** Dieses Datenmodell ist ein historischer Entwurf aus Spec 047.
+> Für neue Arbeit gilt ausschließlich das Datenmodell in
+> [Spec 055](../055-extension-model-access/contracts/job-format.md).
+
 ## `AgentTaskDefinition`
 
 | Field                  | Type             | Rules                                                                      |

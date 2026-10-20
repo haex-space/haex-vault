@@ -1,5 +1,9 @@
 # Research: Structured Agent Tasks for Extensions
 
+> **Abgelöst:** Diese Recherche dokumentiert Entscheidungen des verworfenen
+> Spec-047-Entwurfs. Aktuelle Modellaufträge, Freigaben und Einwilligungen
+> stehen in [Spec 055](../055-extension-model-access/).
+
 **Stand**: 2026-10-09
 
 ## R1 — Asynchroner Extension-Task statt blockierender Bridge-Antwort

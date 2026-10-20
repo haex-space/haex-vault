@@ -34,11 +34,11 @@
 - **Alternatives considered**: Direkter SDK-Aufruf eines einzelnen KI-Anbieters (verworfen: Bindung und Geheimnisverwaltung); generatives Bild-zu-Bild-„Schönmachen“ (verworfen: nicht nachvollziehbare Textänderungen und schlechte Editierbarkeit); OCR ohne Region-/Konfidenzdaten (verworfen: keine sinnvolle Review-UI).
 - **Evidence**: Der Vertrag ist in [contracts/recognition-provider.md](./contracts/recognition-provider.md) festgelegt; die Spezifikation fordert Bestätigung für Korrekturen und einen manuellen Fallback.
 
-## R9 — Holzi-Agent als Modell-/Harness-Vermittler
+## R9 — Holzi als Modell-/Auftragsvermittler
 
-- **Decision**: haex-notes ruft für die automatische Aufbereitung einen dedizierten, strukturierten Holzi-Agent-Task `paper-note-recognition` auf. Die Extension kennt weder Qwen, einen Cloud-Anbieter noch ein Harness direkt.
-- **Rationale**: Holzi besitzt bereits die gemeinsame Provider-/Modellabstraktion und Nutzerkonfiguration. Dadurch kann derselbe Task lokal oder extern ausgeführt werden, ohne dass haex-notes Zugangsdaten, Modell-Ladecode oder Anbieterlogik dupliziert.
-- **Important boundary**: Der bestehende Holzi-Agent-Chat und seine freien Antworten sind nicht das Datenformat des Canvas. Der Task muss Bildinput, Fähigkeitsprüfung und JSON-Schema-Validierung kapseln.
+- **Decision**: haex-notes ruft für die automatische Aufbereitung `models.runAsync` aus Spec 055 mit dem Auftrag „Seitenerkennung“ auf. Die Extension kennt weder Qwen, einen Cloud-Anbieter noch ein Harness direkt.
+- **Rationale**: Holzi besitzt bereits die gemeinsame Provider-/Modellabstraktion und Nutzerkonfiguration. Dadurch kann derselbe Auftrag lokal oder extern ausgeführt werden, ohne dass haex-notes Zugangsdaten, Modell-Ladecode oder Anbieterlogik dupliziert.
+- **Important boundary**: Der bestehende Holzi-Agent-Chat und seine freien Antworten sind nicht das Datenformat des Canvas. Der Auftrag muss Bildinput, Fähigkeitsprüfung und JSON-Schema-Validierung kapseln.
 - **Model implication**: Das vorhandene textbasierte Qwen3-Profil reicht für eine Fotoseite nicht aus. Ein lokales Vision-/OCR-Modell, zum Beispiel ein Qwen-VL-Modell, oder ein spezialisiertes OCR-Modell muss als für diesen Task geeignet registriert sein. Qwen3-VL dokumentiert OCR, Layout-/Positionsinformationen und mehrere Modellgrößen; die konkrete Modellwahl bleibt Holzi-Konfiguration.
 - **Alternatives considered**: Direkter HTTP-Aufruf aus haex-notes (verworfen: doppelte Provider-/Credentiallogik); generischer Chat-Aufruf ohne Schema (verworfen: nicht zuverlässig in Canvas-Regionen überführbar); nur die vorhandene SDK-Aktion `actions.register` (verworfen als Primärpfad: sie beschreibt aktuell Agent→Extension-Aktionsaufrufe, während der Button Extension→Agent startet).
 
