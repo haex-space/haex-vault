@@ -1,5 +1,9 @@
 # Implementation Plan: Structured Agent Tasks for Extensions
 
+> **Abgelöst:** Dieser Plan ist ein historischer Entwurf aus Spec 047 und darf
+> nicht als aktueller Implementierungsplan verwendet werden. Die Nachfolge ist
+> in [Spec 055](../055-extension-model-access/plan.md) beschrieben.
+
 **Branch**: `feat/structured-agent-tasks` | **Date**: 2026-10-09 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/047-structured-agent-tasks/spec.md`

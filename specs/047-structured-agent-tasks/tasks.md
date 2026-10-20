@@ -1,5 +1,9 @@
 # Tasks: Structured Agent Tasks for Extensions
 
+> **Abgelöst:** Diese Aufgabenliste ist ein historischer Entwurf aus Spec 047.
+> Sie ist nicht ausführbar; neue Aufgaben gehören in
+> [Spec 055](../055-extension-model-access/tasks.md).
+
 ## Phase 1: Setup
 
 - [ ] T001 [P] Create the `agent_tasks` module skeleton and register it from `src-tauri/src/lib.rs`, keeping task lifecycle, bridge handlers, validation, and provider execution in separate files below the 500-LoC project limit.

@@ -1,5 +1,11 @@
 # Structured Agent Task Contract
 
+> **Abgelöst:** Dieser Vertrag ist ein historischer Entwurf aus Spec 047. Die
+> aktuelle Brücke und das aktuelle Auftragsformat stehen in
+> [Spec 055](../../055-extension-model-access/contracts/bridge.md). Die unten
+> genannten `extension_ai_task_*`-Methoden dürfen nicht implementiert oder
+> aufgerufen werden.
+
 This contract describes the host boundary used by extensions such as
 haex-notes. It is model- and harness-neutral and intentionally asynchronous.
 
