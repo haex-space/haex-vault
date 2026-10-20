@@ -121,6 +121,12 @@ test('minimizeWindow activates the next visible front-most window in the same wo
   assert.equal(state.activeWindowId, first.id)
 })
 
+test('openApp opens the window maximized', () => {
+  const state = emptyState()
+  openApp(state, ALPHA.id, APPS)
+  assert.equal(state.windows[0]?.maximized, true)
+})
+
 test('toggleMaximizeWindow flips the flag without touching stored geometry, and focuses the window', () => {
   const state = emptyState()
   openApp(state, ALPHA.id, APPS)
@@ -128,13 +134,13 @@ test('toggleMaximizeWindow flips the flag without touching stored geometry, and 
   assert.ok(window)
   const { x, y, width, height } = window
   toggleMaximizeWindow(state, window.id)
-  assert.equal(window.maximized, true)
+  assert.equal(window.maximized, false)
   assert.deepEqual(
     { x: window.x, y: window.y, width: window.width, height: window.height },
     { x, y, width, height },
   )
   toggleMaximizeWindow(state, window.id)
-  assert.equal(window.maximized, false)
+  assert.equal(window.maximized, true)
 })
 
 test('updateWindowGeometry writes the given rect directly', () => {

@@ -111,7 +111,8 @@ export function activateExistingSingleton(
   return true
 }
 
-/** A new window of `app` with one tab, placed like every new window in the active workspace. */
+/** A new window of `app` with one tab, placed like every new window in the active workspace. It
+ * opens maximized; its normal geometry is still stored, so "Wiederherstellen" shows it. */
 function newAppWindow(
   state: WmState,
   app: AppDefinition,
@@ -139,7 +140,7 @@ function newAppWindow(
     width: geometry.width,
     height: geometry.height,
     minimized,
-    maximized: false,
+    maximized: true,
     stack: ++state.nextStack,
     tabs: [{ id: tabId, appId }],
     activeTabId: tabId,
