@@ -34,10 +34,11 @@ höchstens 200 Zeichen lang; der Host maskiert `"` und `\`. `since` und `before`
 Antwort: `{ uids: number[], total: number }`. `uids` sind die neuesten `limit` Treffer, absteigend nach UID;
 `total` ist die Zahl aller Treffer.
 
-Nicht-ASCII-Text: Der Host sendet `CHARSET UTF-8`. Kann er das nicht gültig übertragen (siehe research R2),
-antwortet er mit 3001 „text not searchable on this connection“; die Erweiterung filtert dann lokal.
+Nicht-ASCII-Text: Der Host sendet gequoteten UTF-8-Text unter `CHARSET UTF-8` (research R2, `async-imap`
+kennt kein Literal). Lehnt der Server das ab, antwortet der Host wie bei jedem IMAP-Fehler mit 2005 und die
+Erweiterung filtert lokal.
 
-Nicht vorhandener Ordner: 1001.
+Nicht vorhandener Ordner: der Fehler des Servers, 2005 wie bei den übrigen Befehlen.
 
 ## `extension_mail_create_mailbox`
 

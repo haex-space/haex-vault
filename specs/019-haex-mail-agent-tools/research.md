@@ -38,10 +38,15 @@ IMAP-Ausdruck. Der Host baut `UID SEARCH` selbst, maskiert Zeichenketten und ver
 vorhandenen `fetch_envelopes` (`uidList`). Die Berechtigung ist `fetch` wie bei allen IMAP-Befehlen
 (FR-032).
 
-**Risiko (erste Aufgabe in E2a)**: Nicht-ASCII-Suchtext. IMAP verlangt `CHARSET UTF-8` und ein Literal
-oder `UTF8=ACCEPT`. Der Test klärt, ob `async-imap` ein Literal im `UID SEARCH` unterstützt. Fällt das
-aus, antwortet der Host mit Fehler 3001 für Nicht-ASCII, und haex-mail filtert dann Umschläge der
-neuesten 1000 Mails lokal (Rückfall, in der Antwort gekennzeichnet).
+**Ergebnis der Prüfung (T005, 2026-10-20)**: Nicht-ASCII-Suchtext. `async-imap` 0.11.3 sendet
+`uid_search(query)` als eine Zeile (`UID SEARCH <query>`) und kennt kein Literal. Der Host sendet Text, der nicht
+ASCII ist, deshalb als gequoteten UTF-8-Text unter `CHARSET UTF-8` und ASCII-Text ohne Zusatz. Strenggenommen
+verlangt RFC 3501 ein 7-Bit-Quoted-String oder ein Literal; Server mit UTF-8-Unterstützung nehmen den
+gequoteten Text meist an, andere antworten mit einem Fehler (2005, `IMAP: …`). In diesem Fall filtert
+haex-mail Umschläge der neuesten 1000 Mails lokal (Rückfall, in der Antwort gekennzeichnet; SC-004 gilt dann für
+diese Server nur für ASCII). Der Test gegen den Testserver belegt den Weg mit `grün`; ob ein echter Server ihn
+annimmt, zeigt der Quickstart (Schritt 2) mit einem echten Konto. Kein Stopp nach T005 nötig: Das Ergebnis ist
+nicht negativ, und FR-005 gilt für Server, die den Weg annehmen.
 
 **Verworfen**: Roher IMAP-String (Injektion); Suche in der Erweiterung über alle Umschläge (SC-004 verlangt
 Treffer außerhalb der geladenen 50, und 5000 Umschläge je Suche sind zu teuer).
