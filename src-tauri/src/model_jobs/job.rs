@@ -34,6 +34,24 @@ pub enum Need {
     Image,
 }
 
+impl Need {
+    /// The spelling of the job format.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Need::Text => "text",
+            Need::Image => "image",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "text" => Some(Need::Text),
+            "image" => Some(Need::Image),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     pub mime_type: String,
@@ -254,11 +272,8 @@ fn valid_id(id: &str) -> bool {
 fn parse_needs(id: &str, raw: &[String]) -> Result<Vec<Need>, JobError> {
     let mut needs = Vec::new();
     for text in raw {
-        let need = match text.as_str() {
-            "text" => Need::Text,
-            "image" => Need::Image,
-            other => return Err(invalid(format!("step {id}: unknown need {other:?}"))),
-        };
+        let need = Need::parse(text)
+            .ok_or_else(|| invalid(format!("step {id}: unknown need {text:?}")))?;
         if needs.contains(&need) {
             return Err(invalid(format!("step {id}: `needs` names {text:?} twice")));
         }

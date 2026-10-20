@@ -70,6 +70,7 @@ fn without_a_permission_holzi_asks_about_the_canonical_program_by_the_name_given
             request_id: requests[0]["requestId"].as_str().unwrap().to_owned(),
             decision: PermissionDecision::Allow,
             remember: true,
+            model: None,
         },
         2,
     )

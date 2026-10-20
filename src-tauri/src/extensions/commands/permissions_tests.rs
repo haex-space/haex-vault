@@ -107,6 +107,7 @@ fn resolve_open(s: &Setup, decision: PermissionDecision, remember: bool) {
             request_id: request["requestId"].as_str().unwrap().to_owned(),
             decision,
             remember,
+            model: None,
         },
         2,
     )

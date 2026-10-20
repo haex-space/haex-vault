@@ -9,6 +9,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::frames::WindowEmitter;
+use super::model_grants::{as_answered, remember_model, ExtensionModelPick};
 use crate::error::{HolziError, Result};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::events::emit_to_frames;
@@ -320,8 +321,12 @@ pub fn remove(
 pub struct PermissionResolveArgs {
     pub request_id: String,
     pub decision: PermissionDecision,
-    /// Store the decision; else it holds until holzi is closed.
+    /// Store the decision; else it holds until the vault closes.
     pub remember: bool,
+    /// For a question about a model (spec 055): the user's pick instead of the proposed one.
+    #[serde(default)]
+    #[ts(optional)]
+    pub model: Option<ExtensionModelPick>,
 }
 
 /// Keeps the user's decision on `question`: as a row with "remember", else held in memory (for an
@@ -341,6 +346,9 @@ pub fn record(
         end_revoked_watches(db, host, device);
         end_revoked_mail_watches(db, host, device);
         return Ok(());
+    }
+    if question.kind == PermissionKind::Model {
+        return remember_model(db, question, status, now_ms);
     }
     let scope = question.kind.scope_on(device);
     let Question {
@@ -389,7 +397,8 @@ pub fn resolve(
         PermissionDecision::Allow => PermissionStatus::Granted,
         PermissionDecision::Deny => PermissionStatus::Denied,
     };
-    record(db, host, device, &question, status, args.remember, now_ms)?;
+    let answered = as_answered(&question, args.model)?;
+    record(db, host, device, &answered, status, args.remember, now_ms)?;
     // The SDK waits for the target its 1004 named.
     for target in told {
         emit_to_frames(

@@ -975,6 +975,17 @@
         "load": "Load project",
         "loadHint": "Folder with haextension/manifest.json",
         "unload": "Unload"
+      },
+      "models": {
+        "title": "Models",
+        "none": "holzi knows no model yet.",
+        "notAllowed": "Not allowed",
+        "takesImages": "takes images",
+        "denied": "refused",
+        "held": "for this session only",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "ceiling": "Highest effort for {name}"
       }
     },
     "agentFiles": {
@@ -2270,7 +2281,13 @@
       "allow": "Allow",
       "deny": "Deny",
       "encryptedFolder": "Folder “{folder}” in the cloud storage “{storage}”",
-      "encryptedFolderDevice": "Folder “{folder}” on this device"
+      "encryptedFolderDevice": "Folder “{folder}” on this device",
+      "model": {
+        "intro": "The extension wants to use one of holzi's models. Pick one that fits the job:",
+        "models": "Models",
+        "effort": "Highest effort",
+        "effortHint": "The extension can ask for less effort, never more."
+      }
     },
     "statusError": {
       "migration_changed": "An applied migration was changed",
@@ -2322,6 +2339,19 @@
       "for": "“{name}” wants to use a cloud storage at {provider}.",
       "onlyHere": "holzi asks for credentials only in this window over the whole app, never in an extension's tab. They go to the password manager; the extension never gets them.",
       "confirm": "Test and save"
+    },
+    "models": {
+      "effort": {
+        "none": "None",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "place": {
+        "this_device": "This device",
+        "network": "Own network",
+        "cloud": "Cloud"
+      }
     }
   },
   "files": {

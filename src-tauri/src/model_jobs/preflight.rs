@@ -247,10 +247,12 @@ fn ask_for_model(step: &Step, facts: &Facts, device: Uuid) -> BridgeError {
         .as_deref()
         .and_then(|id| open.iter().find(|m| m.id == id))
         .unwrap_or(first);
+    let needs: Vec<&str> = step.needs.iter().map(|need| need.as_str()).collect();
     prompt(json!({
         "resourceType": PermissionKind::Model.as_str(),
         "action": wish.as_str(),
         "target": target.id,
+        "needs": needs,
     }))
 }
 

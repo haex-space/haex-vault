@@ -19,13 +19,20 @@ laufen über `VaultDb` und sind nach dem Schließen der Vault gesperrt (ADR-0003
 
 ## Berechtigungen (L1)
 
-| Command                        | Eingabe                                                                    | Ausgabe                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `extension_permissions_list`   | `{extensionId}`                                                            | `PermissionView[]` (gemerkt mit Geltungsbereich und Gerätename, vorläufig) |
-| `extension_permission_set`     | `{extensionId, kind, action, target, status, replaces?}`                   | –                                                                          |
-| `extension_permission_remove`  | `{permissionId}` oder `{temporaryKey}`                                     | –                                                                          |
-| `extension_permission_resolve` | `{requestId, decision: allow \| deny, remember}`                           | –                                                                          |
-| `extension_permission_cancel`  | `{requestId}` (Dialog geschlossen; die nächste gleiche Frage kommt wieder) | –                                                                          |
+| Command                        | Eingabe                                                                     | Ausgabe                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `extension_permissions_list`   | `{extensionId}`                                                             | `PermissionView[]` (gemerkt mit Geltungsbereich und Gerätename, vorläufig) |
+| `extension_permission_set`     | `{extensionId, kind, action, target, status, replaces?}`                    | –                                                                          |
+| `extension_permission_remove`  | `{permissionId}` oder `{temporaryKey}`                                      | –                                                                          |
+| `extension_permission_resolve` | `{requestId, decision: allow \| deny, remember, model?: {modelId, effort}}` | – (`model`: Wahl des Nutzers bei einer Frage nach einem Modell, Spec 055)  |
+| `extension_permission_cancel`  | `{requestId}` (Dialog geschlossen; die nächste gleiche Frage kommt wieder)  | –                                                                          |
+
+Modelle einer Erweiterung (Spec 055 US2): `extension_model_grants_list {extensionId}` →
+`ExtensionModelEntry[]` (erst die erlaubten in ihrer Rangfolge, dann die übrigen nach Namen);
+`extension_model_grants_set {args: {extensionId, modelId, effort}}` erlaubt ein Modell bis zu diesem Aufwand und
+ersetzt jede frühere Zeile des Modells; `extension_model_grants_revoke {args: {extensionId, modelId}}` nimmt es
+zurück, auch eine Entscheidung für die Sitzung; `extension_model_grants_reorder {args: {extensionId, modelIds}}`
+ordnet die erlaubten.
 
 Ereignis `extension-permission-request` (siehe [permissions.md](./permissions.md)).
 

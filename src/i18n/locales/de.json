@@ -975,6 +975,17 @@
         "load": "Projekt laden",
         "loadHint": "Ordner mit haextension/manifest.json",
         "unload": "Entladen"
+      },
+      "models": {
+        "title": "Modelle",
+        "none": "holzi kennt noch kein Modell.",
+        "notAllowed": "Nicht erlaubt",
+        "takesImages": "nimmt Bilder",
+        "denied": "verweigert",
+        "held": "nur für diese Sitzung",
+        "moveUp": "Nach oben",
+        "moveDown": "Nach unten",
+        "ceiling": "Höchster Aufwand für {name}"
       }
     },
     "agentFiles": {
@@ -2270,7 +2281,13 @@
       "allow": "Erlauben",
       "deny": "Verweigern",
       "encryptedFolder": "Ordner „{folder}“ im Cloud-Speicher „{storage}“",
-      "encryptedFolderDevice": "Ordner „{folder}“ auf diesem Gerät"
+      "encryptedFolderDevice": "Ordner „{folder}“ auf diesem Gerät",
+      "model": {
+        "intro": "Die Erweiterung möchte ein Modell von holzi nutzen. Wähle eines, das zum Auftrag passt:",
+        "models": "Modelle",
+        "effort": "Höchster Aufwand",
+        "effortHint": "Die Erweiterung kann weniger Aufwand verlangen, nie mehr."
+      }
     },
     "statusError": {
       "migration_changed": "Eine angewendete Migration wurde geändert",
@@ -2322,6 +2339,19 @@
       "for": "„{name}“ möchte einen Cloud-Speicher bei {provider} nutzen.",
       "onlyHere": "holzi fragt Zugangsdaten nur in diesem Fenster über der ganzen App, nie im Tab einer Erweiterung. Sie landen im Passwortmanager; die Erweiterung bekommt sie nie.",
       "confirm": "Testen und speichern"
+    },
+    "models": {
+      "effort": {
+        "none": "Kein",
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch"
+      },
+      "place": {
+        "this_device": "Dieses Gerät",
+        "network": "Eigenes Netz",
+        "cloud": "Cloud"
+      }
     }
   },
   "files": {

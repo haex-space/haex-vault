@@ -12,6 +12,7 @@ pub(crate) mod bridge;
 mod candidates;
 pub(crate) mod effort;
 mod errors;
+pub(crate) mod grants;
 mod guard;
 mod job;
 mod limits;
@@ -47,4 +48,5 @@ mod schema_tests;
 #[cfg(test)]
 mod state_tests;
 
+pub(crate) use job::Need;
 pub(crate) use state::{JobOwner, JobRegistry};
