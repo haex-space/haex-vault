@@ -51,6 +51,8 @@ const LOCATION_PATHS: Record<string, string> = {
   ai: '/ai',
   'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
+  'ai.servers': '/ai/servers',
+  'ai.servers.server': '/ai/servers/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',
   'ai.installed': '/ai/installed',
   'ai.download': '/ai/download',
   'ai.download.search': '/ai/download/search',
@@ -154,6 +156,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
   assert.deepEqual(rows('ai'), [
     'ai.default',
     'ai.providers',
+    'ai.servers',
     'ai.installed',
     'ai.download',
     'ai.speech',
@@ -174,7 +177,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
   assert.deepEqual(
     overviewGroups('ai').map((g) => [g.group, g.rows.map((row) => row.id)]),
     [
-      ['chat', ['ai.default', 'ai.providers']],
+      ['chat', ['ai.default', 'ai.providers', 'ai.servers']],
       ['local', ['ai.installed', 'ai.download']],
       ['speech', ['ai.speech']],
       ['agents', ['ai.autonomy', 'ai.denyRules', 'ai.files']],

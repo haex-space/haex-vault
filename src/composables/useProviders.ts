@@ -45,6 +45,14 @@ export interface ProviderModel {
   capabilities: ModelCapabilities | null
 }
 
+/** What the user states about a model of an OpenAI-compatible server (spec 055 FR-019); a field
+ * left out is not stated, both left out withdraw the statement. */
+export interface SetModelCapabilitiesArgs {
+  modelId: string
+  acceptsImages?: boolean
+  effortLevels?: string[]
+}
+
 export interface RefreshProviderModelsResult {
   providerId: string
   modelCount: number
@@ -122,6 +130,15 @@ export function useProviders() {
     return await invoke<ProviderModel[]>('list_provider_models', { providerId })
   }
 
+  /** Stores what the user states about a model; returns the record every reader now sees. */
+  async function setModelCapabilitiesAsync(
+    args: SetModelCapabilitiesArgs,
+  ): Promise<ModelCapabilities> {
+    return await invoke<ModelCapabilities>('set_model_user_capabilities', {
+      args,
+    })
+  }
+
   /**
    * Starts a `cli_delegate` connect flow. For `codex` this resolves once
    * fully connected; for `claude` it resolves as soon as the OAuth URL is
@@ -158,6 +175,7 @@ export function useProviders() {
     deleteAsync,
     refreshModelsAsync,
     listModelsAsync,
+    setModelCapabilitiesAsync,
     connectCliDelegateAsync,
     submitCliDelegateCodeAsync,
     onDelegateConnectProgress,

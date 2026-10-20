@@ -177,6 +177,14 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'chat',
     overviewRow: true,
   }),
+  // Spec 055 US5: OpenAI-compatible model servers (a GPU machine, a school server, a cloud API);
+  // a server's page is reached from its row, never searched for.
+  subView('ai.servers', 'ai/servers', 'ai', {
+    icon: 'lucide:server',
+    group: 'chat',
+    overviewRow: true,
+  }),
+  subView('ai.servers.server', 'ai/servers/:providerId', 'ai.servers'),
   subView('ai.installed', 'ai/installed', 'ai', {
     icon: 'lucide:hard-drive',
     group: 'local',

@@ -6,7 +6,7 @@ use serde_json::json;
 
 use super::{
     local_model_reasoning, ModelCapabilities, ReasoningControl, ReasoningOption, ThinkingStyle,
-    ToolSupport, ToolUse, ToolUseBasis,
+    ToolSupport, ToolUse, ToolUseBasis, UserCapabilities,
 };
 use crate::adapters::AttachmentKind;
 
@@ -284,4 +284,49 @@ fn a_finding_never_replaces_one_of_higher_rank() {
     assert!(!self_test.may_replace(&template));
     assert!(!template.may_replace(&curated));
     assert!(!self_test.may_replace(&provider));
+}
+
+#[test]
+fn what_the_user_states_wins_over_what_the_provider_said() {
+    let said = ModelCapabilities {
+        accepted_attachment_kinds: Some(vec![AttachmentKind::Text, AttachmentKind::Image]),
+        reasoning: Some(ReasoningControl::presets(vec![option("minimal")])),
+        ..ModelCapabilities::default()
+    };
+    let stated = |user: UserCapabilities| {
+        ModelCapabilities {
+            user: Some(user),
+            ..said.clone()
+        }
+        .with_user_applied()
+    };
+
+    let no_images = stated(UserCapabilities {
+        accepts_images: Some(false),
+        effort_levels: Some(vec!["low".into(), "high".into()]),
+    });
+    assert_eq!(
+        no_images.accepted_attachment_kinds,
+        Some(vec![AttachmentKind::Text])
+    );
+    assert_eq!(
+        no_images.reasoning,
+        Some(ReasoningControl::presets(vec![
+            option("low"),
+            option("high")
+        ]))
+    );
+
+    // What the user left unstated stays as the provider said it.
+    let images_only = stated(UserCapabilities {
+        accepts_images: Some(true),
+        effort_levels: None,
+    });
+    assert_eq!(images_only.reasoning, said.reasoning);
+
+    // Withdrawn, the provider's answer comes back with the next refresh, not the statement.
+    let withdrawn = no_images.without_user();
+    assert_eq!(withdrawn.user, None);
+    assert_eq!(withdrawn.accepted_attachment_kinds, None);
+    assert_eq!(withdrawn.reasoning, None);
 }

@@ -589,6 +589,14 @@
           "description": "Dein Claude-Code- oder Codex-Abo als Chat-Backend nutzen.",
           "keywords": "Abo Anbieter verbinden Claude Code Codex CLI"
         },
+        "servers": {
+          "title": "Modell-Server",
+          "description": "Eigene Server und Dienste mit OpenAI-kompatibler Schnittstelle.",
+          "keywords": "Server OpenAI kompatibel Ollama vLLM llama.cpp Schulserver Adresse Schlüssel API Bilder Aufwand",
+          "server": {
+            "title": "Modell-Server"
+          }
+        },
         "autonomy": {
           "title": "Autonomie für Delegaten",
           "description": "Wie viel ein Delegat ohne Rückfrage tun darf.",
@@ -1222,6 +1230,45 @@
         "since": "Blockiert seit {at}",
         "unblock": "Freigeben"
       }
+    },
+    "modelServers": {
+      "intro": "Ein Rechner mit Grafikkarte, ein Schul-Server oder ein Dienst mit OpenAI-kompatibler Schnittstelle (Ollama, vLLM, llama.cpp und andere). holzi liest die Modelle des Servers und bietet sie wie die übrigen an.",
+      "models": "keine Modelle | ein Modell | {n} Modelle",
+      "add": "Server hinzufügen",
+      "name": "Name",
+      "address": "Adresse",
+      "addressHint": "Bis einschließlich /v1, etwa http://192.168.1.20:11434/v1.",
+      "addressProblem": {
+        "empty": "Gib die Adresse des Servers an.",
+        "invalid": "Das ist keine gültige Adresse.",
+        "scheme": "Die Adresse beginnt mit http:// oder https://.",
+        "credentials": "Ein Schlüssel gehört ins Feld „Schlüssel“, nicht in die Adresse.",
+        "query": "Die Adresse endet ohne ? oder #."
+      },
+      "key": "Schlüssel (optional)",
+      "keyHint": "Viele Server im eigenen Netz brauchen keinen. holzi speichert ihn verschlüsselt im Tresor.",
+      "addButton": "Hinzufügen",
+      "adding": "Wird hinzugefügt …",
+      "readFailed": "„{name}“ ist angelegt, aber seine Modelle ließen sich nicht lesen: {reason}. Stimmt der Schlüssel nicht, entferne den Server und lege ihn neu an.",
+      "missing": "Diesen Server gibt es nicht mehr.",
+      "withKey": "Mit Schlüssel",
+      "withoutKey": "Ohne Schlüssel",
+      "refresh": "Modelle neu lesen",
+      "refreshing": "Wird gelesen …",
+      "statementsIntro": "Der Server sagt nicht, ob ein Modell Bilder versteht und welche Aufwandsstufen es kennt. Gib es hier an; es bleibt auch nach dem nächsten Lesen erhalten.",
+      "modelsTitle": "Modelle",
+      "noModels": "Der Server hat keine Modelle genannt.",
+      "images": {
+        "unstated": "Bilder: nicht angegeben",
+        "yes": "Nimmt Bilder an",
+        "no": "Nimmt keine Bilder an"
+      },
+      "imagesOf": "Bilder bei {name}",
+      "levels": "Aufwandsstufen, niedrigste zuerst",
+      "saveLevels": "Übernehmen",
+      "removeConfirm": "Server und seine Modelle entfernen?",
+      "cancel": "Abbrechen",
+      "remove": "Entfernen"
     }
   },
   "models": {
@@ -1589,6 +1636,11 @@
         "servers": {
           "set": "Verbindungsserver setzen"
         }
+      },
+      "servers": {
+        "add": "Modell-Server hinzufügen",
+        "remove": "Modell-Server entfernen",
+        "setModelCapabilities": "Angaben zu einem Modell setzen"
       }
     },
     "scopes": {
