@@ -63,10 +63,20 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         action: action.clone(),
         target: target.clone(),
     };
-    let (request_id, new) = ctx
-        .host
-        .permissions
-        .ask(question, &ctx.session.frame, &told);
+    // A consent is reusable for the destination, but simultaneous requests with different
+    // transfer summaries must each show their own data before they are merged.
+    let transfer = details
+        .get("transfer")
+        .and_then(|transfer| ExtensionModelTransfer::deserialize(transfer).ok());
+    let context = transfer
+        .as_ref()
+        .and_then(|transfer| serde_json::to_string(transfer).ok());
+    let (request_id, new) = ctx.host.permissions.ask_with_context(
+        question,
+        &ctx.session.frame,
+        &told,
+        context.as_deref(),
+    );
     if !new {
         return;
     }
@@ -80,10 +90,6 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
                 .collect()
         })
         .unwrap_or_default();
-    // A consent names what the step would send (spec 055, US4).
-    let transfer = details
-        .get("transfer")
-        .and_then(|transfer| ExtensionModelTransfer::deserialize(transfer).ok());
     let ext = extension_id.to_string();
     let (lookup_action, lookup_target) = (action.clone(), target.clone());
     let facts = ctx.db.read_blocking(move |q| {

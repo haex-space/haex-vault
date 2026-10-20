@@ -116,6 +116,10 @@ impl HeldDecision {
 
 struct Pending {
     question: Question,
+    /// Some permission prompts carry request-specific facts that must be shown before the user
+    /// consents. Those facts are part of the pending-question identity, but not of the permission
+    /// that is held after answering.
+    context: Option<String>,
     frames: HashSet<String>,
     told: BTreeSet<String>,
 }
@@ -149,8 +153,23 @@ impl PermissionState {
     /// Registers that `frame` waits for `question`, told as `told`. Returns the request id and
     /// whether the question is new (only then holzi's window is told).
     pub fn ask(&self, question: Question, frame: &str, told: &str) -> (String, bool) {
+        self.ask_with_context(question, frame, told, None)
+    }
+
+    /// Registers a question with optional request-specific context. Questions with different
+    /// context are not merged, even when they result in the same stored permission.
+    pub fn ask_with_context(
+        &self,
+        question: Question,
+        frame: &str,
+        told: &str,
+        context: Option<&str>,
+    ) -> (String, bool) {
         let mut pending = lock(&self.pending);
-        if let Some((id, open)) = pending.iter_mut().find(|(_, p)| p.question == question) {
+        if let Some((id, open)) = pending
+            .iter_mut()
+            .find(|(_, p)| p.question == question && p.context.as_deref() == context)
+        {
             open.frames.insert(frame.to_owned());
             if open.told.len() < MAX_TOLD {
                 open.told.insert(told.to_owned());
@@ -162,6 +181,7 @@ impl PermissionState {
             id.clone(),
             Pending {
                 question,
+                context: context.map(str::to_owned),
                 frames: HashSet::from([frame.to_owned()]),
                 told: BTreeSet::from([told.to_owned()]),
             },

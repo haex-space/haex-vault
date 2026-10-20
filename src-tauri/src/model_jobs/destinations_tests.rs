@@ -109,6 +109,7 @@ fn a_destination_names_the_provider_its_host_with_the_port_and_its_place() {
 #[test]
 fn a_provider_that_is_gone_or_a_target_that_is_none_names_nothing() {
     let (_dir, db) = vault();
-    assert_eq!(destination_of(&db, &Uuid::new_v4().to_string()), None);
+    let gone = Uuid::from_u128(0x123456789abcdef0123456789abcdef0);
+    assert_eq!(destination_of(&db, &gone.to_string()), None);
     assert_eq!(destination_of(&db, "not-a-provider"), None);
 }

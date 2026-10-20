@@ -299,6 +299,50 @@ fn a_model_with_consent_runs_and_a_fallback_without_consent_is_never_tried() {
 }
 
 #[test]
+fn a_refused_remote_destination_does_not_prompt_for_a_remote_fallback() {
+    let s = setup();
+    let (first, first_model) = models(&s, "https://first.example.com/v1", &["first"], false);
+    let (_, second_model) = models(&s, "https://second.example.com/v1", &["second"], false);
+    scripted(&s, &[]);
+    allow(&s, "model", "none", "*", "granted");
+    let extension = s.ctx.session.extension_id;
+    let ranked = vec![first_model[0].id.clone(), second_model[0].id.clone()];
+    s.ctx
+        .db
+        .write_blocking(move |tx| {
+            crate::extensions::permissions::order::set_order(tx, extension, &ranked)
+                .map_err(Into::into)
+        })
+        .unwrap();
+
+    let first_prompt = prompt_of(start(&s, &job(vec![step()])));
+    assert_eq!(first_prompt["target"], first.id.to_string());
+    allow(
+        &s,
+        "modelDestination",
+        "send",
+        &first.id.to_string(),
+        "denied",
+    );
+
+    assert_eq!(
+        refused(start(&s, &job(vec![step()]))),
+        (1002, json!("consent_denied"))
+    );
+    assert_eq!(
+        s.recorded
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(name, _)| name == PERMISSION_REQUEST)
+            .count(),
+        1,
+        "the fallback must not trigger another consent prompt"
+    );
+}
+
+#[test]
 fn no_answer_or_event_holds_a_key_or_an_address() {
     let s = setup();
     let address = "http://10.0.0.5:8080/v1";

@@ -26,6 +26,25 @@ fn identical_questions_of_several_frames_are_one_and_vanish_with_their_frames() 
 }
 
 #[test]
+fn questions_with_different_context_are_not_merged() {
+    let state = PermissionState::default();
+    let ext = Uuid::new_v4();
+    let first_question = question(ext, "provider");
+
+    let (first, new) =
+        state.ask_with_context(first_question.clone(), "f1", "provider", Some("text"));
+    assert!(new);
+
+    let (same, new) =
+        state.ask_with_context(first_question.clone(), "f2", "provider", Some("text"));
+    assert_eq!((same, new), (first.clone(), false));
+
+    let (different, new) = state.ask_with_context(first_question, "f3", "provider", Some("image"));
+    assert!(new);
+    assert_ne!(different, first);
+}
+
+#[test]
 fn a_question_remembers_every_target_its_callers_were_told() {
     let state = PermissionState::default();
     let ext = Uuid::new_v4();

@@ -184,10 +184,11 @@ pub(crate) fn choose(
         match evaluate(&facts.destinations, &destination(&candidate), device) {
             Decision::Allow => kept.push(candidate),
             Decision::Deny => refused = true,
-            Decision::Prompt if kept.is_empty() => {
+            Decision::Prompt if kept.is_empty() && !refused => {
                 return Err(ask_for_destination(step, &candidate))
             }
-            // A later candidate without consent is never tried.
+            // A later candidate without consent is never tried. Once a destination was refused,
+            // do not prompt for another remote fallback on retry either (FR-017).
             Decision::Prompt => {}
         }
     }

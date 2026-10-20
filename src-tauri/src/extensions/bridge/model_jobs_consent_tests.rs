@@ -162,6 +162,24 @@ fn the_question_names_the_provider_its_host_and_place_and_what_would_be_sent() {
 }
 
 #[test]
+fn simultaneous_jobs_with_different_transfers_get_separate_questions() {
+    let c = consent();
+    prompt_of(c.start(&c.s.ctx));
+    let first = c.question();
+
+    prompt_of(call(
+        &c.s.ctx,
+        "extension_model_job_start",
+        &job(vec![image_step()]),
+    ));
+    let second = c.question();
+
+    assert_ne!(first["requestId"], second["requestId"]);
+    assert_eq!(first["transfer"]["imageCount"], 0);
+    assert_eq!(second["transfer"]["imageCount"], 1);
+}
+
+#[test]
 fn a_consent_for_the_session_holds_until_the_vault_closes_and_writes_no_row() {
     let c = consent();
     prompt_of(c.start(&c.s.ctx));
