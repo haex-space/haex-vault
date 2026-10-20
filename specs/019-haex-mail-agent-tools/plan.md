@@ -126,13 +126,13 @@ src-tauri/src/extensions/mail/
 └── mail_tests.rs        # + Fälle laut contracts/host-mail-commands.md
 src-tauri/src/extensions/bridge/allowlist.rs    # + drei Methoden
 specs/017-extension-host/contracts/bridge.md     # + drei Namen in der Mail-Zeile
-src-tauri/src/chat/eval/tools.json               # + Sätze für Mailwerkzeuge (FR-035)
+src-tauri/src/chat/eval/{eval_set,extension_tools}.json   # + Sätze und Werkzeuge von haex-mail (FR-035)
 
 # E1, E2b — vault-sdk (haex-space/vault-sdk)
 src/commands/mail.ts                 # + search, createMailbox, deleteMessages
 src/api/mail.ts                      # + searchMessagesAsync, createMailboxAsync, deleteMessagesAsync
 src/types/mail.ts                    # + MailSearchCriteria, MailSearchResult
-src/api/__tests__/mail.test.ts       # Methoden gegen gespielten Client
+src/api/__tests__/mail.test.ts       # vorhanden; + Methoden gegen gespielten Client
 
 # E3 — haextension (haex-space/haextension), apps/haex-mail
 haextension/manifest.json            # + tools (15), neu signieren

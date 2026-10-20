@@ -192,7 +192,7 @@ Das passende Angebot liefert höchstens drei Erweiterungswerkzeuge je Nachricht 
 beruht auf den Beispielsätzen. Deshalb bekommt jedes Werkzeug mindestens vier deutsche und vier
 englische Beispielsätze, die sich zwischen Werkzeugen mit ähnlichem Zweck unterscheiden
 (`find_messages` gegen `list_mailboxes`, `move_messages` gegen `add_rule`). Die Modellprüfung bekommt
-mindestens 24 Sätze (`src-tauri/src/chat/eval/tools.json`); SC-001 und SC-002 messen mit
+mindestens 24 Sätze der Art `extension` (`src-tauri/src/chat/eval/eval_set.json`, die Werkzeuge von haex-mail als Eintrag in `extension_tools.json`); SC-001 und SC-002 messen mit
 `cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture`.
 
 **Risiko**: 15 Werkzeuge einer Erweiterung gegen ein Angebot von drei. Zeigt die Messung, dass
@@ -206,7 +206,7 @@ Erweiterung statt nach Einzelwerkzeug), nicht für diese Spec.
 - holzi: neue Fälle in `extensions/mail/mail_tests.rs` gegen den erweiterten Testserver (`test_server.rs`
   lernt `SEARCH` mit Kriterien, `CREATE`, `UID STORE \Deleted`, `UID EXPUNGE`), Eintrag in
   `bridge/allowlist.rs` samt dortigem Test, Zeilen in `specs/017-extension-host/contracts/bridge.md`.
-- vault-sdk: `src/api/__tests__/mail.test.ts` für die drei Methoden; Bundle- und
+- vault-sdk: `src/api/__tests__/mail.test.ts` (vorhanden, wird um die drei Methoden erweitert); Bundle- und
   Transkript-Tests bleiben.
 - haex-mail (vitest): `lib/rules.test.ts` (Bedingungen, Aktionen, Konflikte, fehlendes Ziel, alle Konten),
   `tools/*.test.ts` mit gespieltem Client (Schema, Kürzung, kein Passwort in Ergebnissen), ein Test, der
