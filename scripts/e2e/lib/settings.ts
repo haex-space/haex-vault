@@ -60,6 +60,7 @@ export async function runAction(
 export interface WmSnapshot {
   windows: Array<{
     id: string
+    maximized: boolean
     activeTabId: string
     tabs: Array<{ id: string; appId: string }>
   }>
@@ -68,7 +69,7 @@ export interface WmSnapshot {
 export async function wmSnapshot(instance: FlowInstance): Promise<WmSnapshot> {
   return withMounted(instance, () =>
     instance.exec<WmSnapshot>(
-      `const wm = ${WM}; return JSON.parse(JSON.stringify({ windows: wm.windows.map((w) => ({ id: w.id, activeTabId: w.activeTabId, tabs: w.tabs.map((t) => ({ id: t.id, appId: t.appId })) })) }))`,
+      `const wm = ${WM}; return JSON.parse(JSON.stringify({ windows: wm.windows.map((w) => ({ id: w.id, maximized: w.maximized, activeTabId: w.activeTabId, tabs: w.tabs.map((t) => ({ id: t.id, appId: t.appId })) })) }))`,
     ),
   )
 }
@@ -144,6 +145,35 @@ export async function choose(
   await instance.click(`[role="option"][data-value="${value}"]`)
 }
 
+/** Gives the window the rect through `wm.window.setGeometry`. New windows open maximized and a
+ * maximized window renders at the full area whatever its stored rect is, so it is restored first. */
+export async function setWindowGeometry(
+  instance: FlowInstance,
+  windowId: string,
+  rect: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  const window = (await wmSnapshot(instance)).windows.find(
+    (w) => w.id === windowId,
+  )
+  if (window?.maximized) {
+    const restored = await runAction(instance, 'wm.window.toggleMaximize', {
+      windowId,
+    })
+    if (!restored.ok) {
+      throw new Error(
+        `wm.window.toggleMaximize failed: ${JSON.stringify(restored)}`,
+      )
+    }
+  }
+  const outcome = await runAction(instance, 'wm.window.setGeometry', {
+    windowId,
+    ...rect,
+  })
+  if (!outcome.ok) {
+    throw new Error(`wm.window.setGeometry failed: ${JSON.stringify(outcome)}`)
+  }
+}
+
 /** Resizes the window holding the app's first tab through `wm.window.setGeometry` (FR-004 is about the
  * window's width, not the screen's). */
 export async function resizeAppWindow(
@@ -158,16 +188,12 @@ export async function resizeAppWindow(
     )
     .at(0)
   if (!tab) throw new Error(`no ${appId} window to resize`)
-  const outcome = await runAction(instance, 'wm.window.setGeometry', {
-    windowId: tab.windowId,
+  await setWindowGeometry(instance, tab.windowId, {
     x: 20,
     y: 20,
     width,
     height,
   })
-  if (!outcome.ok) {
-    throw new Error(`wm.window.setGeometry failed: ${JSON.stringify(outcome)}`)
-  }
 }
 
 /** Resizes the window holding the settings. */

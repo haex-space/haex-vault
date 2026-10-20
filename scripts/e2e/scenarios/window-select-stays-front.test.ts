@@ -5,6 +5,7 @@ import {
   WM,
   openSettings,
   runAction,
+  setWindowGeometry,
   waitForLocation,
 } from '../lib/settings.ts'
 
@@ -35,14 +36,12 @@ scenario('window-select-stays-front', {}, async (ctx) => {
   )
   // The files window lies right behind the settings, under the select's trigger.
   for (const windowId of [files, settings]) {
-    const outcome = await runAction(instance, 'wm.window.setGeometry', {
-      windowId,
+    await setWindowGeometry(instance, windowId, {
       x: 40,
       y: 40,
       width: 900,
       height: 600,
     })
-    assert.ok(outcome.ok, `wm.window.setGeometry: ${JSON.stringify(outcome)}`)
   }
   await runAction(instance, 'wm.window.focus', { windowId: settings })
   ctx.step('the settings in front of the files')

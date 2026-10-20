@@ -476,7 +476,9 @@ den ausgelieferten Apps öffnet ein zweiter Aufruf keine zweite Instanz.
   maximiert und wiederhergestellt werden können (Schaltfläche oder
   Doppelklick auf die Titelleiste); ein maximiertes Fenster füllt den
   Arbeitsbereich, Wiederherstellen kehrt zur Geometrie vor dem Maximieren
-  zurück, und der Maximierungszustand wird wie die Geometrie persistiert.
+  zurück, und der Maximierungszustand wird wie die Geometrie persistiert. Neue
+  Fenster öffnen maximiert; ihre normale Geometrie wird trotzdem gespeichert,
+  sodass Wiederherstellen sie dort zeigt.
 
 **Apps und Instanzen**
 
