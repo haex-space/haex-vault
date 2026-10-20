@@ -24,34 +24,34 @@ ein Werkzeug beantworten statt eines geratenen `run_command`.
 
 ## Entscheidungen
 
-| Thema | Entscheidung |
-| --- | --- |
-| Konto anlegen | Nie mit Passwort durchs Modell. Entweder importiert der Agent einen Passwortmanager-Eintrag mit Tag `haex-mail` (`import_account`), oder `open_account_setup` öffnet den Assistenten, und der Nutzer tippt das Passwort selbst. |
-| Sortieren | Verschieben in Ordner, Reihenfolge beim Auflisten und dauerhafte Regeln. |
-| Senden | `create_draft` ist `change`; `send_mail` ist `destructive` und fragt je Aufruf mit Empfänger, Betreff und Text. |
-| Host-Befehle | Alles in 019: SEARCH, CREATE und endgültiges Löschen kommen als neue Host-Befehle. |
-| Regel-Aktionen | Verschieben, als gelesen markieren, markieren. Keine Weiterleitung (würde Prompt-Injection zu dauerhaftem Datenabfluss machen). |
-| Regel-Bedingungen | Absender, Empfänger, Betreff enthält Text, hat Anhang; mit UND verknüpft. Kein ODER, keine Regex. |
+| Thema             | Entscheidung                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Konto anlegen     | Nie mit Passwort durchs Modell. Entweder importiert der Agent einen Passwortmanager-Eintrag mit Tag `haex-mail` (`import_account`), oder `open_account_setup` öffnet den Assistenten, und der Nutzer tippt das Passwort selbst. |
+| Sortieren         | Verschieben in Ordner, Reihenfolge beim Auflisten und dauerhafte Regeln.                                                                                                                                                        |
+| Senden            | `create_draft` ist `change`; `send_mail` ist `destructive` und fragt je Aufruf mit Empfänger, Betreff und Text.                                                                                                                 |
+| Host-Befehle      | Alles in 019: SEARCH, CREATE und endgültiges Löschen kommen als neue Host-Befehle.                                                                                                                                              |
+| Regel-Aktionen    | Verschieben, als gelesen markieren, markieren. Keine Weiterleitung (würde Prompt-Injection zu dauerhaftem Datenabfluss machen).                                                                                                 |
+| Regel-Bedingungen | Absender, Empfänger, Betreff enthält Text, hat Anhang; mit UND verknüpft. Kein ODER, keine Regex.                                                                                                                               |
 
 ## Werkzeugsatz (15, Manifest-Limit 32)
 
-| Wirkung | Werkzeug | Zweck |
-| --- | --- | --- |
-| read | `list_accounts` | Konten mit Adresse und Anzeigename |
-| read | `list_mailboxes` | Ordner mit Rolle, ungelesen/gesamt |
-| read | `find_messages` | Filter (Konto, Ordner/Rolle, ungelesen, markiert, Absender, Empfänger, Zeitraum, Anhang), Freitext, Sortierung, `limit`/`offset`; liefert Umschläge ohne Text |
-| read | `get_message` | Text und Anhangsliste; setzt nicht automatisch auf gelesen |
-| read | `list_rules` | vorhandene Regeln |
-| change | `mark_messages` | gelesen/ungelesen, markiert |
-| change | `move_messages` | in Ordner oder Rolle |
-| change | `create_mailbox` | Ordner anlegen |
-| change | `create_draft` | Entwurf, auch als Antwort oder Weiterleitung |
-| change | `remove_rule` | Regel entfernen |
-| change | `import_account` | Konto aus Passwortmanager-Eintrag übernehmen |
-| change | `open_account_setup` | Assistent öffnen, optional mit Host und Ports vorbelegt |
-| destructive | `add_rule` | dauerhafte Regel anlegen; Abfrage zeigt die Regel im Klartext, auch im Modus „Auto“ (Spec 019, Clarification 2026-10-20) |
-| destructive | `send_mail` | Entwurf senden |
-| destructive | `delete_messages` | endgültig löschen |
+| Wirkung     | Werkzeug             | Zweck                                                                                                                                                         |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| read        | `list_accounts`      | Konten mit Adresse und Anzeigename                                                                                                                            |
+| read        | `list_mailboxes`     | Ordner mit Rolle, ungelesen/gesamt                                                                                                                            |
+| read        | `find_messages`      | Filter (Konto, Ordner/Rolle, ungelesen, markiert, Absender, Empfänger, Zeitraum, Anhang), Freitext, Sortierung, `limit`/`offset`; liefert Umschläge ohne Text |
+| read        | `get_message`        | Text und Anhangsliste; setzt nicht automatisch auf gelesen                                                                                                    |
+| read        | `list_rules`         | vorhandene Regeln                                                                                                                                             |
+| change      | `mark_messages`      | gelesen/ungelesen, markiert                                                                                                                                   |
+| change      | `move_messages`      | in Ordner oder Rolle                                                                                                                                          |
+| change      | `create_mailbox`     | Ordner anlegen                                                                                                                                                |
+| change      | `create_draft`       | Entwurf, auch als Antwort oder Weiterleitung                                                                                                                  |
+| change      | `remove_rule`        | Regel entfernen                                                                                                                                               |
+| change      | `import_account`     | Konto aus Passwortmanager-Eintrag übernehmen                                                                                                                  |
+| change      | `open_account_setup` | Assistent öffnen, optional mit Host und Ports vorbelegt                                                                                                       |
+| destructive | `add_rule`           | dauerhafte Regel anlegen; Abfrage zeigt die Regel im Klartext, auch im Modus „Auto“ (Spec 019, Clarification 2026-10-20)                                      |
+| destructive | `send_mail`          | Entwurf senden                                                                                                                                                |
+| destructive | `delete_messages`    | endgültig löschen                                                                                                                                             |
 
 Filtern, Suchen und Sortieren sind bewusst ein Werkzeug (`find_messages`): wenige klare Werkzeuge nutzen
 kleine Modelle verlässlicher als viele ähnliche (vgl. 046 R16).
