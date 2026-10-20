@@ -211,8 +211,9 @@ auf.
    der noch kein Konto ist, **When** der Agent ihn übernimmt (im Modus „Manuell“ nach Zustimmung), **Then**
    erscheint ein
    Konto in haex-mail, und der Agent sieht kein Passwort.
-2. **Given** kein passender Eintrag, **When** der Agent den Assistenten öffnet, **Then** erscheint er mit
-   den genannten Angaben vorbelegt (Adresse, Server, Ports), das Passwortfeld ist leer, und der Nutzer
+2. **Given** kein passender Eintrag, **When** der Agent den Assistenten öffnet und der Nutzer das Fenster
+   von haex-mail öffnet (das Ergebnis des Werkzeugs sagt es dem Agenten), **Then** erscheint der Assistent
+   mit den genannten Angaben vorbelegt (Adresse, Server, Ports), das Passwortfeld ist leer, und der Nutzer
    schließt die Einrichtung selbst ab.
 3. **Given** der Chat-Verlauf, die Zustimmungsabfrage und das Modell, **When** ein Konto eingerichtet
    wurde, **Then** enthält keiner davon ein Passwort.
@@ -398,7 +399,8 @@ auf.
 - **SC-004**: Eine Suche nach einem Stichwort findet eine Mail, die nicht unter den zuletzt geladenen 50
   Mails des Ordners liegt, in 100 % der Tests mit einem Testserver.
 - **SC-005**: Es wird nie eine Mail gesendet, endgültig gelöscht oder eine Regel angelegt, ohne dass die
-  Zustimmung für diesen Aufruf vorlag (automatisch geprüft mit einem Testserver, in allen drei Modi).
+  Zustimmung für diesen Aufruf vorlag. Geprüft wird, dass genau diese drei Werkzeuge im Manifest als
+  „zerstörend“ stehen; die Durchsetzung je Modus gilt aus 018 und 032 und ist dort geprüft.
 - **SC-006**: In keinem Test (Verlauf, Zustimmungsabfrage, Modelleingabe, Logs) taucht ein Passwort auf.
 - **SC-007**: Ein Nutzer legt in den Einstellungen in unter 1 Minute eine Regel an und sieht eine passende
   neue Mail im Zielordner beim nächsten Abruf bzw. nach der nächsten Benachrichtigung.

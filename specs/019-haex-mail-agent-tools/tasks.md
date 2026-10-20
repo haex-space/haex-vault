@@ -24,9 +24,10 @@ fall back to `gh api -X POST …/pulls` when `gh pr create` fails with the Graph
 **Repositories** (label in each description): `(holzi)` this repository, `(vault-sdk)` haex-space/vault-sdk,
 `(haextension)` haex-space/haextension, app `apps/haex-mail`.
 
-**Deliveries** (plan, research R1): E1 = T001–T002; E2a = T005–T012; E2b = T013–T016; E3 = T017–T054 plus T057–T059 as three
+**Deliveries** (plan, research R1): E1 = T001–T002; E2a = T005–T012; E2b = T013–T016; E3 = T017–T054, T062 plus T057–T059 as three
 pull requests: 3a tools (Phases 3–5), 3b rules (Phases 6–7), 3c accounts (Phase 8), each followed by Phase 9 items
-that belong to it.
+that belong to it. Phase 9 outside these: T055 is its own holzi pull request (`test(chat): evaluate the mail
+tools of haex-mail`), T058 runs per pull request, T060 and T061 close the spec after the last merge.
 
 ## Phase 1: Setup
 
@@ -44,7 +45,7 @@ search, US2 needs "create mailbox", US3 needs "delete". Nothing in Phases 3 to 8
 
 ### E2a — holzi: three bridge methods
 
-- [ ] T005 (holzi) Spike for non-ASCII search text (research R2): read `async-imap`'s `uid_search` and literal support in the cargo registry source, write the first test in `src-tauri/src/extensions/mail/mail_manage_tests.rs` that sends a UTF-8 text to the test server, and replace the "Risiko" paragraph in `research.md` R2 and the matching paragraph in `contracts/host-mail-commands.md` by the outcome (literal works, or error 3001 plus local fallback)
+- [ ] T005 (holzi) Spike for non-ASCII search text (research R2): read `async-imap`'s `uid_search` and literal support in the cargo registry source, write the first test in `src-tauri/src/extensions/mail/mail_manage_tests.rs` that sends a UTF-8 text to the test server, and replace the "Risiko" paragraph in `research.md` R2 and the matching paragraph in `contracts/host-mail-commands.md` by the outcome (literal works, or error 3001 plus local fallback) If the outcome is negative, **stop** and run `/speckit-clarify` for FR-005 and SC-004 before E2a continues, so the implementation does not drift silently from the spec.
 - [ ] T006 [P] (holzi) Add `SearchCriteria` and `SearchResult` to `src-tauri/src/extensions/mail/types.rs` and `check_criteria` to `src-tauri/src/extensions/mail/mod.rs` (at least one criterion, no control characters, ≤ 200 characters, valid `YYYY-MM-DD`, error `MailError::Invalid` → 3001); cases in `mod_tests.rs` first
 - [ ] T007 [P] (holzi) Add `src-tauri/src/extensions/mail/test_server_manage.rs` (SEARCH with `FROM`/`TO`/`SUBJECT`/`TEXT`/`SINCE`/`BEFORE`/`SEEN`/`UNSEEN`/`FLAGGED`/`UNFLAGGED`, `CREATE` with `ALREADYEXISTS`, `UID STORE … \Deleted` kept per message, `UID EXPUNGE` of the named UIDs only, `UIDPLUS` switchable in `CAPABILITY`) and only the dispatch hook in `test_server.rs`
 - [ ] T008 (holzi) Write the failing tests in `src-tauri/src/extensions/mail/mail_manage_tests.rs` per `contracts/host-mail-commands.md`: every criterion alone and combined; more hits than `limit` with the right `total`; missing mailbox → 1001; `create_mailbox` new, existing (`created: false`), invalid name; `delete_messages` removes only the named UIDs and leaves other `\Deleted` mails, refuses without `UIDPLUS` and leaves every flag unchanged; each of the three needs `fetch` for its own host and port (pattern: `each_server_and_port_needs_its_own_permission`)
@@ -64,7 +65,8 @@ search, US2 needs "create mailbox", US3 needs "delete". Nothing in Phases 3 to 8
 
 - [ ] T017 (haextension) Raise `@haex-space/vault-sdk` in `apps/haex-mail/package.json` to V2 (needs T002 and T016), refresh the lockfile, run `pnpm test` and `pnpm build`; the baseline from T003 must not get worse
 - [ ] T018 [P] (haextension) Add `apps/haex-mail/app/tools/context.ts` with `context.test.ts`: `withMailContext(fn)` awaits `haexVault.initializeAsync()` and `accountsStore.loadAccountsAsync()` before `fn`; result helpers (`jsonResult`, `toolError` with a short message and no credentials, no server detail); `parseMessageId` and `formatMessageId` for `accountId::mailbox::uid`; `resolveMailbox(accountId, nameOrRole)` over the cached mailboxes and `assignRoles`
-- [ ] T019 [P] (haextension) Add `apps/haex-mail/app/tools/manifest.test.ts` (fails until the tools exist): `manifest.tools` meets rules 1–8 of 018 `contracts/manifest-tools.md` and the schema subset; `effect` is `destructive` for exactly `add_rule`, `send_mail`, `delete_messages`, `read` for exactly `list_accounts`, `list_mailboxes`, `find_messages`, `get_message`, `list_rules`, otherwise `change`; every declared tool has a handler in the registry and every handler a declaration
+- [ ] T019 [P] (haextension) Add `apps/haex-mail/app/tools/manifest.test.ts` (fails until the tools exist): `manifest.tools` meets rules 1–8 of 018 `contracts/manifest-tools.md` and the schema subset; `effect` is `destructive` for exactly `add_rule`, `send_mail`, `delete_messages`, `read` for exactly `list_accounts`, `list_mailboxes`, `find_messages`, `get_message`, `list_rules`, otherwise `change`; every declared tool has a handler in the registry and every handler a declaration This test pins SC-005: the approval per mode comes from 018 and 032, here only the declared effects are checked.
+- [ ] T062 [P] (haextension) Add `apps/haex-mail/app/tools/noSecrets.test.ts`: an account whose password is a recognisable marker, every handler runs against a mocked client, and neither results nor error messages contain the marker; `manifest.test.ts` additionally checks that no `inputSchema` has a property whose name starts with `password` (FR-018, FR-019, SC-006)
 - [ ] T020 (haextension) Add `apps/haex-mail/app/tools/index.ts` (registry: name → handler, empty at first) and `apps/haex-mail/app/plugins/agent-tools.client.ts` that registers each registry entry with `client.tools.register(name, handler)` once the client exists, through `useNuxtApp().$haexVault`
 - [ ] T021 (haextension) Propose, before touching code, extracting non-reloading variants of `bulkSetFlagAsync` and `bulkMoveToMailboxAsync` (`app/stores/mail/bulk.ts`) so tools and rules can change messages without reloading the visible list: cite `file:line` of the candidates, the proposed signatures, estimated lines saved against a parallel version and one rewritten call site as proof of concept; **wait for the operator to approve, redirect or ask for more** (constitution, graphify-first authoring; research R14). Blocks T029 and T041
 
@@ -80,7 +82,7 @@ von haex-mail, auch bei geschlossenem Fenster.
 **Independent Test**: Quickstart steps 1–4 (count, search beyond the loaded 50, read without marking read, injection text
 stays data).
 
-- [ ] T022 [P] [US1] Add `apps/haex-mail/app/lib/messageQuery.ts` with `messageQuery.test.ts` first: `toSearchCriteria(input)` (dates, flags, text), mailbox role or name, page clamp (default 25, at most 50), merge across accounts by date, sort window of 200 for `sender` and `subject`, `window`/`hasMore`/`total` in the page
+- [ ] T022 [P] [US1] Add `apps/haex-mail/app/lib/messageQuery.ts` with `messageQuery.test.ts` first: `toSearchCriteria(input)` (dates, flags, text), mailbox role or name, page clamp (default 25, at most 50), merge across accounts by date, sort window of 200 for `sender` and `subject`, `window`/`hasMore`/`total` in the page Include a two-account case for paging: every account supplies `offset + limit` candidates, the merge is sorted and cut at `offset`/`limit`, `total` is the sum and `hasMore` means `total > offset + limit`.
 - [ ] T023 [P] [US1] Add `list_accounts` (accounts only for now: `{ id, displayName, email }`, never credentials) in `apps/haex-mail/app/tools/accounts.ts` with `accounts.test.ts`
 - [ ] T024 [US1] Add `list_mailboxes` in `apps/haex-mail/app/tools/mailboxes.ts` with `mailboxes.test.ts`: live `listMailboxesAsync(…, { includeStatus: true })` per account, roles from `assignRoles`, a failing account returns its cached counts with `cached: true` and the reason while the others stay unaffected
 - [ ] T025 [US1] Add `find_messages` in `apps/haex-mail/app/tools/messages.ts` with `messages.test.ts`: `searchMessagesAsync` per account and mailbox, envelopes of the requested page through `fetchEnvelopesAsync` with `uidList` (chunks within the 1000 bound), `hasAttachment` filter on the fetched envelopes, all accounts in parallel when `account` is missing, a mailbox name an account lacks skips that account, the non-ASCII behaviour of T005 (local fallback marked in the result when chosen)
@@ -128,7 +130,7 @@ stays data).
 - [ ] T038 [US4] Add `apps/haex-mail/app/lib/rules.ts` with `rules.test.ts` first: types, `validateRule` (rules of `data-model.md`), `matchRule` (case-insensitive substring, `to` over `to` and `cc`, `Name <address>` text via `senderText`), `summarizeRule` (structured parts for the UI), `planActions` (all matching rules, move last, earliest-created move wins, a moved mail is not run again, all-account rules only with roles), `targetMissing`, `planRuleRun(through, uids)` (first run sets the mark without running, later runs for UIDs above it)
 - [ ] T039 [US4] Add the `rules` table and `rulesUidThrough` on `mailboxes` in `apps/haex-mail/app/database/schemas/index.ts`, generate `app/database/migrations/0003_*.sql` with `pnpm db:generate`, read the generated SQL and the journal and snapshot before committing
 - [ ] T040 [US4] Add `apps/haex-mail/app/stores/rules.ts` (list, create, update, delete, enable; validates with `validateRule`; `origin` kept on edit); logic stays in `lib/rules.ts`, the store only reads and writes
-- [ ] T041 [US4] Add `apps/haex-mail/app/stores/mail/rules.ts` `applyRulesToNewInboxAsync` and call it after `persistEnvelopesAsync` in `stores/mail/watch.ts` and for INBOX in `refreshMessagesAsync` (`stores/mail/sync.ts`); reset `rulesUidThrough` in `invalidateMailboxCacheAsync`; changes go through the helpers of T021; a missing target skips the whole rule (needs T021 approved)
+- [ ] T041 [US4] Add `apps/haex-mail/app/stores/mail/rules.ts` `applyRulesToNewInboxAsync` and call it after `persistEnvelopesAsync` in `stores/mail/watch.ts` and for INBOX in `refreshMessagesAsync` (`stores/mail/sync.ts`); reset `rulesUidThrough` in `invalidateMailboxCacheAsync`; changes go through the helpers of T021; a missing target skips the whole rule (needs T021 approved) Call it **before** the visible list is reloaded (`loadMessagesAsync`), so a sorted-away mail never shows up in the inbox first (FR-022).
 - [ ] T042 [US4] Add `applyRuleToExistingAsync(ruleId)` to `app/stores/mail/rules.ts`: the 1000 newest INBOX envelopes, local matching, result `{ applied, limited }`; leaves `rulesUidThrough` unchanged
 - [ ] T043 [P] [US4] Add `apps/haex-mail/app/components/RuleDialog.vue` (name, account, condition rows with +/−, action list, checkbox „Auf vorhandene Mails in INBOX anwenden“, validation messages; de/en `<i18n>` block)
 - [ ] T044 [P] [US4] Add `apps/haex-mail/app/components/RulesSection.vue` (list with name, plain-language summary, on/off switch, edit, delete confirmation, „Zielordner fehlt“ mark, „vom Agenten angelegt“ badge; de/en `<i18n>` block), following `pages/settings.vue` for accounts
@@ -181,7 +183,7 @@ stays data).
 
 - Phase 1 has no dependency. T002 gates T016 and T017; T003 gates every haextension task.
 - Phase 2: T005 → T006/T007 → T008 → T009 → T010 → T012 (E2a). T013 ∥ T014 → T015 → T016 (E2b, after T002).
-  T017 needs T002 and T016. T018 ∥ T019 → T020 (all after T017). T021 can start after T003 and blocks T029 and T041.
+  T017 needs T002 and T016. T018 ∥ T019 ∥ T062 → T020 (all after T017). T021 can start after T003 and blocks T029 and T041.
 - Phase 3 (US1) needs T017–T020. Phase 4 (US2) needs T021 and T017–T020; `create_mailbox` (T030) also needs E2a for real
   servers, not for its unit test. Phase 5 (US3) needs E2a (`delete_messages`) and T033 before T034.
 - Phase 6 (US4) needs T017–T021; Phase 7 (US5) needs Phase 6 (T040, T042); Phase 8 (US6) is independent of Phases 4–7
@@ -195,7 +197,7 @@ registry entry in the same task as the last handler of the group so `manifest.te
 
 ### Parallel Opportunities
 
-- T006 ∥ T007; T011 alongside T009 and T010; T013 ∥ T014; T018 ∥ T019.
+- T006 ∥ T007; T011 alongside T009 and T010; T013 ∥ T014; T018 ∥ T019 ∥ T062.
 - T022 ∥ T023 (different files); T030 ∥ T029 once T021 is approved; T035 alongside T033 and T034.
 - T043 ∥ T044; Phase 8 alongside Phases 6–7 when two people work.
 - T055 ∥ T058.

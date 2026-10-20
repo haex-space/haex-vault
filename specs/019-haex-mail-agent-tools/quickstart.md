@@ -48,3 +48,7 @@ erscheinen erst, wenn der Dialog der Installation bzw. des Entwicklungsmodus sie
     ```sh
     cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail
     ```
+
+14. **Regel auf einem zweiten Gerät (US4/6, FR-021)**: Zweites Gerät derselben Vault verknüpfen, Sync abwarten →
+    die Regeln aus Schritt 8 stehen auch dort in den Einstellungen. Eine dort eintreffende passende Mail wird
+    einsortiert, sofern haex-mail auf diesem Gerät läuft.

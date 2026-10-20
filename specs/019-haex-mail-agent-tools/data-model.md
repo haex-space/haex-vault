@@ -73,6 +73,15 @@ Zustände:
 | bereit             | UID  | Abruf mit Mails oberhalb: Regeln laufen für diese UIDs, dann rückt der Wert auf die höchste                                 |
 | zurückgesetzt      | leer | `UIDVALIDITY` ändert sich (`invalidateMailboxCacheAsync`): Zeile verliert den Wert, nächster Abruf wie „nicht eingerichtet“ |
 
+## Geräteumfang (ADR-0001)
+
+`rules` und `mailboxes.rules_uid_through` sind vault-weit und tragen kein `vault_device_uuid`. Antwort auf die
+Frage von ADR-0001, „wessen Zeilen gelten nach dem Kopieren der Vault auf ein anderes Gerät“: Regeln gelten für
+den Nutzer, nicht für ein Gerät, und der UID-Stand beschreibt den Zustand des Mailservers, der für alle
+Geräte derselbe ist. Beim Zusammenführen gewinnt der spätere Wert (CRDT). Ein veralteter Wert lässt Regeln
+für schon bearbeitete UIDs erneut laufen, was harmlos ist, weil alle Aktionen idempotent sind; ein zu hoher
+Wert kann nicht entstehen, weil ein Gerät den Wert erst nach der Bearbeitung setzt.
+
 ## Ergebnisformen der Werkzeuge (kein Speicher)
 
 Alle Ergebnisse sind JSON im Textblock (018 contracts/mcp-port.md), höchstens 64 KiB.

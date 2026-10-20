@@ -80,7 +80,9 @@ die Erweiterung die Umschläge der angeforderten Seite. Den Filter „Anhang“ 
 wirkt nach dem Holen auf die Umschläge der Treffer (höchstens 1000). Sortierung: `date` (Standard, UID
 absteigend, ohne Zusatzkosten), `sender` und `subject` wirken auf die 200 neuesten Treffer
 (`window: 200` im Ergebnis). Ohne `account` laufen die Abfragen parallel über alle Konten und werden nach
-Datum zusammengeführt. Seitengröße: Standard 25, Obergrenze 50 (die Eingabe darf das Schema nicht
+Datum zusammengeführt: Jedes Konto liefert die Umschläge für `offset + limit` Treffer, die Liste wird
+sortiert und ab `offset` auf `limit` gekürzt; `total` ist die Summe der Treffer aller Konten, `hasMore`
+gilt bei `total > offset + limit`. Seitengröße: Standard 25, Obergrenze 50 (die Eingabe darf das Schema nicht
 begrenzen, der Handler kürzt auf 50).
 
 **Begründung**: Der Cache enthält nur geladene Umschläge (SC-004). Die Obergrenze 50 hält das Ergebnis bei
@@ -159,7 +161,8 @@ Wert auf die höchste vorhandene UID gesetzt, ohne Regeln zu laufen (sonst würd
 Bestand umsortieren). Danach laufen Regeln für UIDs oberhalb des Werts; der Wert rückt nach, und ein
 `UIDVALIDITY`-Wechsel setzt ihn mit dem Cache zurück (`invalidateMailboxCacheAsync`). Aufruf an zwei
 Stellen: im Watch-Handler (`stores/mail/watch.ts`) und im normalen Abruf (`refreshMessagesAsync`), jeweils
-nach `persistEnvelopesAsync`, nur für INBOX.
+nach `persistEnvelopesAsync` und **vor** dem Neuladen der sichtbaren Liste (`loadMessagesAsync`), damit eine
+einsortierte Mail nie kurz im Posteingang erscheint (FR-022); nur für INBOX.
 
 **Begründung**: Sonst gäbe es keine Aussage, was „neu“ heißt (`persistEnvelopesAsync` upsertet ohne zu
 unterscheiden). Der Wert liegt auf dem Postfach, das mit der Vault synchronisiert wird, so läuft eine Mail
@@ -212,8 +215,10 @@ Erweiterung statt nach Einzelwerkzeug), nicht für diese Spec.
   `tools/*.test.ts` mit gespieltem Client (Schema, Kürzung, kein Passwort in Ergebnissen), ein Test, der
   `manifest.tools` gegen die Formatregeln und gegen die registrierten Handler abgleicht (jedes erklärte
   Werkzeug hat einen Handler und umgekehrt).
-- SC-005 (nie ohne Zustimmung): Test in holzi mit der Test-Erweiterung und dem Testserver in allen drei
-  Modi, für `send_mail`, `delete_messages` und `add_rule` (alle drei `destructive`).
+- SC-005 (nie ohne Zustimmung): Das Manifest-Test in haex-mail prüft, dass genau `send_mail`, `delete_messages`
+  und `add_rule` `destructive` sind. Die Zuordnung von Wirkungsart zu Freigabe je Modus ist 018 und 032 und
+  dort geprüft (`agent_tools/tool_tests.rs`, `chat/tools/action_tool_tests.rs`); ein eigener Modus-Test für
+  haex-mail bräuchte ein zerstörendes Werkzeug in der signierten Test-Erweiterung von 018.
 
 ## R14: Graphify-Abfrage vor neuen Artefakten
 

@@ -141,7 +141,8 @@ app/database/migrations/0003_*.sql   # drizzle-kit generate
 app/lib/rules.ts (+ rules.test.ts)   # Prüfung, Auswertung, Zusammenfassung
 app/stores/rules.ts                  # Regeln lesen und schreiben (Oberfläche und Werkzeuge)
 app/stores/mail/rules.ts             # Regeln auf neue INBOX-Mails (Watermark)
-app/tools/{accounts,mailboxes,messages,drafts,rules}.ts (+ *.test.ts)
+app/lib/messageQuery.ts (+ .test.ts)   # Suchkriterien, Seiten, Zusammenführen über Konten
+app/tools/{accounts,mailboxes,messages,readMessage,messageChanges,drafts,sendMail,deleteMessages,rules}.ts (+ *.test.ts)
 app/plugins/agent-tools.client.ts    # registriert die Handler
 app/components/{RulesSection,RuleDialog}.vue
 app/pages/settings.vue               # + Abschnitt „Regeln“

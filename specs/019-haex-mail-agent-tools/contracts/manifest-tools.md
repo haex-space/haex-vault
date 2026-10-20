@@ -17,18 +17,18 @@ Baustein des vault-sdk vor dem Handler ab. Beschreibungen sind englisch (Modells
 | `list_accounts`      | read            | `accounts.ts`          |
 | `list_mailboxes`     | read            | `mailboxes.ts`         |
 | `find_messages`      | read            | `messages.ts`          |
-| `get_message`        | read            | `messages.ts`          |
+| `get_message`        | read            | `readMessage.ts`       |
 | `list_rules`         | read            | `rules.ts`             |
-| `mark_messages`      | change          | `messages.ts`          |
-| `move_messages`      | change          | `messages.ts`          |
+| `mark_messages`      | change          | `messageChanges.ts`    |
+| `move_messages`      | change          | `messageChanges.ts`    |
 | `create_mailbox`     | change          | `mailboxes.ts`         |
 | `create_draft`       | change          | `drafts.ts`            |
 | `remove_rule`        | change          | `rules.ts`             |
 | `import_account`     | change          | `accounts.ts`          |
 | `open_account_setup` | change          | `accounts.ts`          |
 | `add_rule`           | **destructive** | `rules.ts`             |
-| `send_mail`          | **destructive** | `drafts.ts`            |
-| `delete_messages`    | **destructive** | `messages.ts`          |
+| `send_mail`          | **destructive** | `sendMail.ts`          |
+| `delete_messages`    | **destructive** | `deleteMessages.ts`    |
 
 15 Werkzeuge (Grenze 32). Die drei zerstörenden fragen auch im Modus „Auto“ (032 FR-007, Clarification
 2026-10-20); ein Test im Repository haex-mail prüft die Zuordnung (siehe unten).
@@ -85,7 +85,9 @@ ist. `ids` sind Mail-Kennungen `accountId::mailbox::uid` aus `find_messages`. Fe
 }
 ```
 
-Ergebnis: `Seite` (`messages`, `total`, `hasMore`, `window: 200` bei `sort` ≠ `date`). `mailbox` als Rolle oder
+Ergebnis: `Seite` (`messages`, `total`, `hasMore`, `window: 200` bei `sort` ≠ `date`). Bei mehreren Konten
+liefert jedes die Umschläge für `offset + limit` Treffer; `total` ist die Summe, `hasMore` gilt bei
+`total > offset + limit`. `mailbox` als Rolle oder
 Name; ohne `account` und mit Ordnername, den ein Konto nicht hat, überspringt das Werkzeug dieses Konto.
 
 **`get_message`** — Eingabe: `{ id: string }` (Pflicht). Ergebnis: `Mail`. Setzt nichts auf gelesen (R8).
