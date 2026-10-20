@@ -6,6 +6,7 @@ pub mod frames;
 pub mod install;
 pub mod manage;
 pub mod model_grants;
+mod permission_list;
 pub mod permissions;
 
 use serde::Serialize;

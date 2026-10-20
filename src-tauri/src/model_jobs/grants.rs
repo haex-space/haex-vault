@@ -60,10 +60,7 @@ pub struct ExtensionModelChoice {
 }
 
 fn place_of(model: &JobModel) -> String {
-    serde_json::to_value(model.place)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
+    model.place.as_str().to_owned()
 }
 
 fn denies(permissions: &[Permission], model_id: &str) -> bool {

@@ -81,3 +81,10 @@ fn only_this_device_needs_no_consent() {
     assert!(Place::Network.needs_consent());
     assert!(Place::Cloud.needs_consent());
 }
+
+#[test]
+fn a_place_is_named_as_it_is_serialised() {
+    for place in [Place::ThisDevice, Place::Network, Place::Cloud] {
+        assert_eq!(serde_json::to_value(place).unwrap(), place.as_str());
+    }
+}

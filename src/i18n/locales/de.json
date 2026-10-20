@@ -2287,6 +2287,14 @@
         "models": "Modelle",
         "effort": "Höchster Aufwand",
         "effortHint": "Die Erweiterung kann weniger Aufwand verlangen, nie mehr."
+      },
+      "modelDestination": {
+        "intro": "Die Erweiterung möchte einen Auftrag an ein Modell außerhalb dieses Geräts senden:",
+        "data": "Gesendet würden:",
+        "text": "Text ({size})",
+        "images": "Ein Bild ({size}) | {count} Bilder ({size})",
+        "earlierResult": "Das Ergebnis eines früheren Schritts",
+        "hint": "holzi sendet erst etwas, wenn du erlaubst. Die Erweiterung erfährt das Ziel nicht."
       }
     },
     "statusError": {

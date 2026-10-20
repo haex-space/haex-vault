@@ -216,7 +216,7 @@ fn a_model_outside_the_device_needs_consent_before_anything_is_sent() {
             "resourceType": "modelDestination", "action": "send",
             "target": cloud.id.to_string(),
             "transfer": { "kinds": ["text", "image"], "textBytes": 49, "imageCount": 1,
-                          "imageBytes": 8 }
+                          "imageBytes": 8, "earlierResult": false }
         })
     );
     assert!(source.asked().is_empty(), "nothing leaves without consent");

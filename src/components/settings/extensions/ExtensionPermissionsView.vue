@@ -9,6 +9,8 @@
  * by its cloud storage and decrypted name.
  * The tools it offers to the agent (spec 018) come first, with their title and effect, under the
  * switch "Für den Agenten verfügbar", which takes all of them from the agent and gives them back.
+ * A consent to send model jobs outside this device (spec 055 US4, T049) is named by its provider,
+ * host and place; the models themselves have their own list (`ExtensionModelsView.vue`).
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { PermissionView } from '@bindings/PermissionView'
@@ -19,6 +21,7 @@ import {
   splitAgentTools,
   toolTitle,
 } from '~/lib/extensions/agentTools'
+import { withoutModels } from '~/lib/extensions/modelGrants'
 
 const props = defineProps<{ extensionId: string }>()
 const { t, locale } = useI18n()
@@ -26,7 +29,9 @@ const { errString } = useErrorString()
 
 const permissions = ref<PermissionView[]>([])
 const failure = ref<string | null>(null)
-const split = computed(() => splitAgentTools(permissions.value, locale.value))
+const split = computed(() =>
+  splitAgentTools(withoutModels(permissions.value), locale.value),
+)
 const available = computed(() => agentToolsAvailable(permissions.value))
 
 const statusOptions = computed<SettingsSelectOption[]>(() =>
@@ -175,6 +180,7 @@ onMounted(loadAsync)
           :action="permission.action"
           :target="permission.target"
           :folder="permission.folder"
+          :destination="permission.destination"
         />
         <span class="text-xs text-muted-foreground">
           {{ scopeText(permission) }}

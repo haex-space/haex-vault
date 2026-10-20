@@ -41,4 +41,21 @@ onDevice: boolean, },
  * For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
  * from the manifest of the effective bundle.
  */
-titleDe?: string, titleEn?: string, supported?: boolean, };
+titleDe?: string, titleEn?: string, supported?: boolean,
+/**
+ * For `modelDestination` (spec 055): the provider the consent sends to, with its host and
+ * place; absent when the provider is gone.
+ */
+destination?: {
+/**
+ * The display name of the provider.
+ */
+provider: string,
+/**
+ * The host of its address with the port, if it names one.
+ */
+host?: string,
+/**
+ * `this_device`, `network` or `cloud`.
+ */
+place: string, }, };

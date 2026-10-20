@@ -11,6 +11,7 @@ import {
   placeLabelKey,
   proposedEffort,
   rankOf,
+  withoutModels,
 } from '../src/lib/extensions/modelGrants.ts'
 
 test('the efforts go from none to high, and only they are levels', () => {
@@ -52,4 +53,16 @@ test('a model moves one place and stays at an edge', () => {
 test('effort and place have their own labels', () => {
   assert.equal(effortLabelKey('low'), 'extensions.models.effort.low')
   assert.equal(placeLabelKey('cloud'), 'extensions.models.place.cloud')
+})
+
+test('the permissions list leaves the models to their own list', () => {
+  const rows = [
+    { kind: 'model', target: 'a' },
+    { kind: 'modelDestination', target: 'p' },
+    { kind: 'web', target: 'https://a.example/*' },
+  ]
+  assert.deepEqual(
+    withoutModels(rows).map((row) => row.kind),
+    ['modelDestination', 'web'],
+  )
 })

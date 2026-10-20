@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use super::{Permission, PermissionKind, PermissionStatus, VAULT_WIDE};
 use crate::extensions::protocol::token;
+use crate::model_jobs::destinations::{ExtensionModelDestination, ExtensionModelTransfer};
 use crate::model_jobs::grants::ExtensionModelChoice;
 
 /// One open question, as holzi's window shows it.
@@ -52,6 +53,14 @@ pub struct PermissionRequestEvent {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub models: Option<Vec<ExtensionModelChoice>>,
+    /// For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
+    /// and place, and what the step would send.
+    #[ts(optional, inline)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<ExtensionModelDestination>,
+    #[ts(optional, inline)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transfer: Option<ExtensionModelTransfer>,
 }
 
 /// What a question about an encrypted folder names for the user.

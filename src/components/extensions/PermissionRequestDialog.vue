@@ -6,9 +6,12 @@
  * desktop, following the controlled dialog of `chat/PermissionPrompt.vue`. For an encrypted folder
  * (spec 048 FR-036) it names the cloud storage and the folder, and "Erlaubnis merken" starts off:
  * without it the answer holds until the extension reloads. For a model (spec 055 US2) the user picks
- * one of the models that fit the job and the highest effort; the answer is about that model.
+ * one of the models that fit the job and the highest effort; the answer is about that model. A
+ * consent to send a job outside this device (US4) names the provider, its host and place and what
+ * would be sent.
  */
-import { proposedEffort } from '~/lib/extensions/modelGrants'
+import { MODEL_DESTINATION_KIND } from '~/lib/extensions/modelConsent'
+import { MODEL_KIND, proposedEffort } from '~/lib/extensions/modelGrants'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -19,7 +22,10 @@ const rememberByDefault = () => store.shown?.kind !== 'encryptedFolder'
 const remember = ref(rememberByDefault())
 const failure = ref<string | null>(null)
 const folderKind = computed(() => store.shown?.kind === 'encryptedFolder')
-const modelKind = computed(() => store.shown?.kind === 'model')
+const modelKind = computed(() => store.shown?.kind === MODEL_KIND)
+const destinationKind = computed(
+  () => store.shown?.kind === MODEL_DESTINATION_KIND,
+)
 const modelId = ref('')
 const effort = ref('none')
 
@@ -71,6 +77,11 @@ function onUpdateOpen(open: boolean) {
           v-model:effort="effort"
           :models="store.shown.models"
         />
+        <ExtensionsModelDestination
+          v-else-if="destinationKind && store.shown.destination"
+          :destination="store.shown.destination"
+          :transfer="store.shown.transfer"
+        />
         <ExtensionsPermissionSummary
           v-else
           :kind="store.shown.kind"
@@ -86,7 +97,12 @@ function onUpdateOpen(open: boolean) {
           {{ t('extensions.permissionRequest.byAgent') }}
         </p>
         <p
-          v-if="!store.shown.declared && !folderKind && !modelKind"
+          v-if="
+            !store.shown.declared &&
+            !folderKind &&
+            !modelKind &&
+            !destinationKind
+          "
           class="text-xs text-muted-foreground"
         >
           {{ t('extensions.permissionRequest.notDeclared') }}

@@ -2287,6 +2287,14 @@
         "models": "Models",
         "effort": "Highest effort",
         "effortHint": "The extension can ask for less effort, never more."
+      },
+      "modelDestination": {
+        "intro": "The extension wants to send a job to a model outside this device:",
+        "data": "This would be sent:",
+        "text": "Text ({size})",
+        "images": "One image ({size}) | {count} images ({size})",
+        "earlierResult": "The result of an earlier step",
+        "hint": "holzi sends nothing until you allow it. The extension does not learn the destination."
       }
     },
     "statusError": {

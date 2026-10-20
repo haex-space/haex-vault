@@ -5,11 +5,12 @@
 //!
 //! The parts of a job (`job`, `schema`, `guard`, `effort`, `place`, `limits`), the errors
 //! (`errors`), the registry of running jobs (`state`), the models a step may go to (`candidates`,
-//! `model_source`), the preflight (`preflight`), the run (`runner`) and the bridge methods
-//! (`bridge`).
+//! `model_source`), the grants and consents the user gives (`grants`, `destinations`), the
+//! preflight (`preflight`), the run (`runner`) and the bridge methods (`bridge`).
 
 pub(crate) mod bridge;
 mod candidates;
+pub(crate) mod destinations;
 pub(crate) mod effort;
 mod errors;
 pub(crate) mod grants;
@@ -27,6 +28,8 @@ pub(crate) mod test_support;
 
 #[cfg(test)]
 mod candidates_tests;
+#[cfg(test)]
+mod destinations_tests;
 #[cfg(test)]
 mod effort_tests;
 #[cfg(test)]

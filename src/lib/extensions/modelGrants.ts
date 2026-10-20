@@ -1,9 +1,18 @@
 // The models an extension may use (spec 055 US2): the effort levels the user can allow, the rank
-// of the granted models and the labels of a model's place. Pure: the question of a job
-// (`components/extensions/PermissionRequestDialog.vue`) and the settings
-// (`components/settings/extensions/ExtensionModelsView.vue`) use it,
-// `scripts/check-extensions-model-grants.ts` tests it. Which models fit a job holzi decides; the
-// question only shows the ones it offers.
+// of the granted models and the labels of a model's place; the permissions list leaves them out.
+// Pure: the question of a job (`components/extensions/PermissionRequestDialog.vue`) and the
+// settings (`components/settings/extensions/ExtensionModelsView.vue`, `ExtensionPermissionsView`)
+// use it, `scripts/check-extensions-model-grants.ts` tests it. Which models fit a job holzi
+// decides; the question only shows the ones it offers.
+
+export const MODEL_KIND = 'model'
+
+/** The permissions the settings list apart from the models, which have their own list. */
+export function withoutModels<T extends { kind: string }>(
+  rows: readonly T[],
+): T[] {
+  return rows.filter((row) => row.kind !== MODEL_KIND)
+}
 
 /** The efforts a grant can allow, lowest first. */
 export const EFFORT_LEVELS = ['none', 'low', 'medium', 'high'] as const

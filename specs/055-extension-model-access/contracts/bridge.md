@@ -62,10 +62,13 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
   ```text
   { resourceType: "modelDestination", action: "send", target: "<providers.id>",
     transfer: { kinds: ["text"|"image"], textBytes: number,
-                imageCount: number, imageBytes: number } }
+                imageCount: number, imageBytes: number, earlierResult: boolean } }
   ```
 
-  Sie nennt die übertragenen Datentypen und Größen, aber keine Inhalte.
+  Sie nennt die übertragenen Datentypen und Größen, aber keine Inhalte. `earlierResult` heißt, dass der Schritt
+  dazu das Ergebnis eines früheren Schritts sendet (`from`), dessen Größe erst dann feststeht. holzis Frage an den
+  Nutzer nennt außerdem Anbieter, Host und Ort des Ziels (`PermissionRequestEvent.destination`); die Erweiterung
+  erfährt sie nicht.
 
 Eine Ablehnung des Nutzers liefert `consent_denied` (1002); bleibt danach kein Modell übrig, `no_capable_model` (8001).
 

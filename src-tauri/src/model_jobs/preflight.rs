@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use super::candidates::Candidate;
 use super::candidates::{fits, for_step, granted, job_models, model_permissions, model_request};
+use super::destinations::ExtensionModelTransfer;
 use super::effort::Level;
 use super::errors::{bridge_error, JobErrorCode};
 use super::job::{Job, Step};
@@ -258,21 +259,10 @@ fn ask_for_model(step: &Step, facts: &Facts, device: Uuid) -> BridgeError {
 
 /// The first candidate leaves the device: ask with what would be sent, never the content.
 fn ask_for_destination(step: &Step, candidate: &Candidate) -> BridgeError {
-    let images = &step.input.images;
-    let mut kinds = vec!["text"];
-    if !images.is_empty() {
-        kinds.push("image");
-    }
-    let text_bytes = step.instruction.len() + step.input.text.as_ref().map_or(0, String::len);
     prompt(json!({
         "resourceType": PermissionKind::ModelDestination.as_str(),
         "action": "send",
         "target": candidate.model.provider.id.to_string(),
-        "transfer": {
-            "kinds": kinds,
-            "textBytes": text_bytes,
-            "imageCount": images.len(),
-            "imageBytes": images.iter().map(|i| i.bytes.len()).sum::<usize>(),
-        },
+        "transfer": ExtensionModelTransfer::of(step),
     }))
 }

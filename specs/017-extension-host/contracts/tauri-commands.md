@@ -32,7 +32,12 @@ Modelle einer Erweiterung (Spec 055 US2): `extension_model_grants_list {extensio
 `extension_model_grants_set {args: {extensionId, modelId, effort}}` erlaubt ein Modell bis zu diesem Aufwand und
 ersetzt jede frühere Zeile des Modells; `extension_model_grants_revoke {args: {extensionId, modelId}}` nimmt es
 zurück, auch eine Entscheidung für die Sitzung; `extension_model_grants_reorder {args: {extensionId, modelIds}}`
-ordnet die erlaubten.
+ordnet die erlaubten. Die Liste der Berechtigungen in den Einstellungen zeigt die Modelle deshalb nicht.
+
+Einwilligungen für Modellaufträge (Spec 055 US4) sind Berechtigungen der Art `modelDestination` mit der
+Anbieterkennung als Ziel; sie laufen über die Befehle oben. `PermissionView.destination` und
+`PermissionRequestEvent.destination` nennen Anbieter, Host und Ort, die Frage dazu mit `transfer`, was der Schritt
+senden würde.
 
 Ereignis `extension-permission-request` (siehe [permissions.md](./permissions.md)).
 

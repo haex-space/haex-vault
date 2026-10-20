@@ -2,6 +2,7 @@
 //! T068). The extension can ask what it may do; it can never grant, resolve or change anything
 //! (FR-021).
 
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::dispatch::CallContext;
@@ -13,6 +14,7 @@ use crate::extensions::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
 };
 use crate::files::access::is_device_storage;
+use crate::model_jobs::destinations::{self, ExtensionModelTransfer};
 use crate::model_jobs::grants;
 use crate::model_jobs::Need;
 use crate::storage::query::Query;
@@ -78,6 +80,10 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
                 .collect()
         })
         .unwrap_or_default();
+    // A consent names what the step would send (spec 055, US4).
+    let transfer = details
+        .get("transfer")
+        .and_then(|transfer| ExtensionModelTransfer::deserialize(transfer).ok());
     let ext = extension_id.to_string();
     let (lookup_action, lookup_target) = (action.clone(), target.clone());
     let facts = ctx.db.read_blocking(move |q| {
@@ -97,9 +103,19 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
             .then(|| grants::choices(q, &needs, &lookup_target))
             .transpose()
             .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
-        Ok((display.unwrap_or_default(), declared, missing, models))
+        let destination = match kind {
+            PermissionKind::ModelDestination => destinations::destination(q, &lookup_target)?,
+            _ => None,
+        };
+        Ok((
+            display.unwrap_or_default(),
+            declared,
+            missing,
+            models,
+            destination,
+        ))
     });
-    let Ok((display_name, declared, target_missing, models)) = facts else {
+    let Ok((display_name, declared, target_missing, models, destination)) = facts else {
         // Nobody was told: the question must not stay open, or every retry would be merged into it.
         ctx.host.permissions.take(&request_id);
         return;
@@ -117,6 +133,8 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         by_agent: ctx.session.mcp.calls_in_flight() > 0,
         encrypted_folder: folder,
         models,
+        destination,
+        transfer,
     };
     if let Ok(payload) = serde_json::to_value(event) {
         ctx.emitter.emit(PERMISSION_REQUEST, payload);
