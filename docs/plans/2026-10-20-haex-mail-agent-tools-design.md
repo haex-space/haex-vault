@@ -46,9 +46,10 @@ ein Werkzeug beantworten statt eines geratenen `run_command`.
 | change | `move_messages` | in Ordner oder Rolle |
 | change | `create_mailbox` | Ordner anlegen |
 | change | `create_draft` | Entwurf, auch als Antwort oder Weiterleitung |
-| change | `add_rule`, `remove_rule` | dauerhafte Regeln; Freigabe zeigt die Regel im Klartext |
+| change | `remove_rule` | Regel entfernen |
 | change | `import_account` | Konto aus Passwortmanager-Eintrag übernehmen |
 | change | `open_account_setup` | Assistent öffnen, optional mit Host und Ports vorbelegt |
+| destructive | `add_rule` | dauerhafte Regel anlegen; Abfrage zeigt die Regel im Klartext, auch im Modus „Auto“ (Spec 019, Clarification 2026-10-20) |
 | destructive | `send_mail` | Entwurf senden |
 | destructive | `delete_messages` | endgültig löschen |
 

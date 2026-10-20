@@ -46,6 +46,15 @@ Entwurf und Begründungen: [docs/plans/2026-10-20-haex-mail-agent-tools-design.m
 - **Hostseitig neu**: die drei Mail-Funktionen, die holzi heute einer Erweiterung nicht bietet: Suche in
   einem ganzen Ordner auf dem Server, Ordner anlegen, Mails endgültig löschen.
 
+## Clarifications
+
+### Session 2026-10-20
+
+- Q: Welche Wirkungsart hat „Regel anlegen“? → A: „zerstörend“. Eine Regel wirkt dauerhaft auf alle
+  künftigen Mails; deshalb fragt holzi auch im Modus „Auto“ je Aufruf. „Regel entfernen“ bleibt „ändernd“.
+- Q: Sollen Regeln auch laufen, wenn haex-mail nie geöffnet wird (Autostart beim holzi-Start)? → A: Nein.
+  Regeln laufen nur, solange haex-mail geladen ist; ein Autostart ohne Fenster ist eine spätere Spec.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Der Agent liest, filtert und sucht Mails (Priority: P1)
@@ -171,9 +180,9 @@ ich?“ und „Lösch die Regel für shop.de“.
 
 **Acceptance Scenarios**:
 
-1. **Given** die Bitte um eine Regel, **When** der Agent sie anlegen will, **Then** zeigen
-   Zustimmungsabfrage (Modus „Manuell“) und Verlauf (alle Modi) Name, Bedingungen und Aktionen in
-   Klartext; im Modus „Plan“ entsteht sie nicht.
+1. **Given** die Bitte um eine Regel, **When** der Agent sie anlegen will, **Then** zeigt die
+   Zustimmungsabfrage Name, Bedingungen und Aktionen in Klartext, auch im Modus „Auto“; erst nach
+   Zustimmung entsteht die Regel, im Modus „Plan“ entsteht sie nicht.
 2. **Given** eine vom Agenten angelegte Regel, **When** der Nutzer die Liste öffnet, **Then** ist sie als
    „vom Agenten angelegt“ erkennbar und kann wie jede andere geändert oder gelöscht werden.
 3. **Given** der Agent bietet keine Weiterleitung als Aktion an, **When** ein Mailtext ihn dazu bringen
@@ -251,9 +260,9 @@ auf.
   - Lesen: Konten auflisten (lesend), Ordner mit Rolle und Anzahl ungelesener und aller Mails auflisten
     (lesend), Mails finden (lesend), eine Mail lesen (lesend), Regeln auflisten (lesend).
   - Ändern: Mails markieren (ändernd), Mails verschieben (ändernd), Ordner anlegen (ändernd), Entwurf
-    anlegen (ändernd), Regel anlegen und Regel entfernen (ändernd), Konto aus dem Passwortmanager
-    übernehmen (ändernd), Einrichtungsassistent öffnen (ändernd).
-  - Zerstörend: Entwurf senden und Mails endgültig löschen (zerstörend).
+    anlegen (ändernd), Regel entfernen (ändernd), Konto aus dem Passwortmanager übernehmen (ändernd),
+    Einrichtungsassistent öffnen (ändernd).
+  - Zerstörend: Entwurf senden, Mails endgültig löschen und Regel anlegen (zerstörend).
 - **FR-003**: Die Wirkungsart MUSS die im signierten Manifest erklärte sein; eine Aufnahme weiterer
   Werkzeuge oder eine geänderte Wirkungsart MUSS der Nutzer bei Update bestätigen (018 FR-002).
 
@@ -327,9 +336,9 @@ auf.
 - **FR-024**: Zeigt die Aktion einer Regel auf einen nicht mehr vorhandenen Ordner, MUSS die Regel
   übersprungen und in der Liste als „Zielordner fehlt“ gekennzeichnet werden; es DARF keine Mail an einen
   anderen Ort bewegt werden.
-- **FR-025**: Zustimmungsabfrage und Verlaufseintrag für „Regel anlegen“ MÜSSEN Name, Bedingungen und
-  Aktionen in Klartext zeigen. Der Verlauf zeigt die Regel auch dort, wo die Wirkungsart „ändernd“ keine
-  Abfrage auslöst.
+- **FR-025**: „Regel anlegen“ folgt der Wirkungsart „zerstörend“ (032 FR-007): Die Zustimmungsabfrage MUSS
+  Name, Bedingungen und Aktionen in Klartext zeigen und gilt nur für diesen Aufruf; ohne Zustimmung
+  entsteht keine Regel.
 - **FR-026**: „Regeln auflisten“ und „Regel entfernen“ MÜSSEN Regeln über Name oder Kennung ansprechen und
   für den Nutzer wie für den Agenten dieselben Regeln sehen. Eine Regel, die beim Entfernen nicht
   gefunden wird, MUSS gemeldet werden.
@@ -388,8 +397,8 @@ auf.
   Anzeige in haex-mail ab.
 - **SC-004**: Eine Suche nach einem Stichwort findet eine Mail, die nicht unter den zuletzt geladenen 50
   Mails des Ordners liegt, in 100 % der Tests mit einem Testserver.
-- **SC-005**: Es wird nie eine Mail gesendet oder endgültig gelöscht, ohne dass die Zustimmung für diesen
-  Aufruf vorlag (automatisch geprüft mit einem Testserver, in allen drei Modi).
+- **SC-005**: Es wird nie eine Mail gesendet, endgültig gelöscht oder eine Regel angelegt, ohne dass die
+  Zustimmung für diesen Aufruf vorlag (automatisch geprüft mit einem Testserver, in allen drei Modi).
 - **SC-006**: In keinem Test (Verlauf, Zustimmungsabfrage, Modelleingabe, Logs) taucht ein Passwort auf.
 - **SC-007**: Ein Nutzer legt in den Einstellungen in unter 1 Minute eine Regel an und sieht eine passende
   neue Mail im Zielordner beim nächsten Abruf bzw. nach der nächsten Benachrichtigung.
@@ -412,9 +421,9 @@ auf.
 - Die Überwachung neuer Mails gilt nur für den Posteingang; Regeln wirken nur auf neue Mails dort und auf
   Wunsch einmal auf den vorhandenen Bestand des Posteingangs.
 - Eine Weiterleitungs-Aktion gibt es bewusst nicht, weil sie eine Anweisung in einer Mail zu einem
-  dauerhaften Datenabfluss machen würde. Eine Regel, die Mails in Papierkorb oder Spam schiebt, bleibt
-  möglich und im Modus „Auto“ ohne Rückfrage anlegbar; sie ist im Verlauf und mit dem Kennzeichen
-  „vom Agenten angelegt“ in der Oberfläche sichtbar (FR-025, FR-028).
+  dauerhaften Datenabfluss machen würde. Eine Regel, die Mails in Papierkorb oder Spam schiebt, ist
+  möglich, braucht aber auch im Modus „Auto“ die Zustimmung des Nutzers (FR-025) und ist danach mit dem
+  Kennzeichen „vom Agenten angelegt“ in der Oberfläche sichtbar (FR-028).
 - Die Obergrenzen für Trefferseiten, Textlänge und Anzahl je Aufruf legt der Plan fest.
 - Das Verhalten bei sehr großen Ordnern und die Frage, ob die Zähler ungelesener Mails live vom Server
   oder aus dem lokalen Speicher kommen, entscheidet der Plan; es gilt FR-008.
@@ -427,6 +436,7 @@ auf.
 
 - Eine Weiterleitungs-Aktion in Regeln und beliebige ODER-Verknüpfungen oder reguläre Ausdrücke.
 - Ein Regeldienst auf dem Mailserver (Sieve) oder Regeln für andere Ordner als den Posteingang.
+- Ein Autostart von haex-mail beim Start von holzi, damit Regeln ohne geöffnete App laufen (spätere Spec).
 - Werkzeuge in haex-notes und haex-files (eigene Spezifikationen).
 - Werkzeuge von haex-mail für externe Agenten: Spec 021.
 - Das Anhängen von Dateien an Entwürfe und das Herunterladen von Anhängen durch den Agenten.
