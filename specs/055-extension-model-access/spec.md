@@ -18,6 +18,10 @@
 - Q: Was gilt für Größe und Dauer eines Auftrags? → A: holzi legt Obergrenzen für Bildgröße, Bildzahl und Dauer fest; die Erweiterung darf sie unterschreiten, nicht überschreiten; der Nutzer kann die Dauer pro Erweiterung ändern (Option B).
 - Q: Was darf eine Erweiterung über die Modelle in holzi erfahren? → A: Die Liste der für sie freigegebenen Modelle mit Namen und Fähigkeiten, ohne Adressen und Schlüssel (Option C).
 
+### Session 2026-10-20
+
+- Q: Dürfen Aufträge Werkzeuge nutzen, etwa Webabrufe über ein lokales Modell? → A: Ja, aber nicht in dieser Spec. Eine eigene Spec regelt das zusammen mit holzis späterer Websuche: Die Erweiterung muss jedes Werkzeug in ihrem Manifest erklären, der Nutzer gibt es frei, und zuerst gibt es nur Web-Werkzeuge. Bis dahin gilt FR-026.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Eine Erweiterung stellt eine Anfrage an ein Modell (Priority: P1)
@@ -176,7 +180,7 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - **FR-023**: Das Ergebnis MUST die Herkunft nennen: Ergebnisformat samt Version, je Schritt Modell, Aufwand und Ort (lokal, anderes Gerät, Server, Cloud).
 - **FR-024**: Das Format „Seitenerkennung“, das haex-notes vorgibt, MUST Regionen mit Art (Text, Bild, Tabelle), Position, Lesereihenfolge und Inhalt beschreiben; Tabellen MUST Zeilen und Zellen enthalten. holzi prüft dieses wie jedes andere Format.
 - **FR-025**: Ein Auftrag mit mehreren Schritten MUST vor dem ersten Schritt prüfen, dass für alle Schritte ein freigegebenes Modell vorhanden ist.
-- **FR-026**: Aufträge MUST ohne Werkzeuge, Dateizugriff und Befehlsausführung laufen, da die Anweisung von der Erweiterung stammt und nicht vertraut wird. Ein Auftrag sieht nur die Eingabe, die die Erweiterung mitsendet.
+- **FR-026**: Aufträge MUST ohne Werkzeuge, Dateizugriff und Befehlsausführung laufen, da die Anweisung von der Erweiterung stammt und nicht vertraut wird. Ein Auftrag sieht nur die Eingabe, die die Erweiterung mitsendet. Werkzeuge in Aufträgen, zuerst Webabruf und Websuche, regelt eine eigene spätere Spec mit eigener, im Manifest erklärter Berechtigung (Clarifications 2026-10-20).
 - **FR-027**: Fällt das bevorzugte Modell aus oder liefert es unbrauchbare Ausgabe, MUST holzi automatisch das nächste freigegebene Modell der Rangfolge versuchen, dessen Ziel schon eine Einwilligung hat, mit höchstens einem Versuch pro Modell. Die Herkunft MUST alle versuchten Modelle und die Gründe des Scheiterns nennen.
 - **FR-028**: holzi MUST über Aufträge nichts dauerhaft speichern, weder Inhalte (Bilder, Anweisungen, Antworten) noch Metadaten (Zeit, Modell, Ziel, Ergebnis). Ergebnis und Herkunft gehen nur an die Erweiterung. Der Zustand laufender Aufträge liegt im Arbeitsspeicher und endet mit dem Auftrag. Gespeichert bleiben nur die Berechtigungen und Einwilligungen des Nutzers.
 - **FR-029**: holzi MUST Obergrenzen für Bildgröße, Zahl der Bilder pro Auftrag und Dauer eines Auftrags durchsetzen. Die Erweiterung darf sie unterschreiten, aber nicht überschreiten. Der Nutzer MUST die Höchstdauer pro Erweiterung ändern können. Eine Überschreitung der Bildgrenzen MUST vor der Verarbeitung abgelehnt werden, ein Überschreiten der Dauer bricht den Auftrag ab.
@@ -200,6 +204,7 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - Das Canvas in haex-notes (Tafelbild, Neuanordnen, Bearbeiten, PDF-Export); das bleibt Spec 046.
 - Die Wahl des konkreten Modells. Sie ist eine Einstellung und wird gemessen, nicht festgeschrieben.
 - Ein allgemeiner Chat für Erweiterungen mit Gesprächsverlauf und freie Agenten mit beliebigen Werkzeugen.
+- Werkzeuge in Aufträgen (Webabruf, Websuche). Sie kommen mit einer eigenen Spec zusammen mit holzis Websuche (Clarifications 2026-10-20).
 - Persönliche Handschriftprofile und Training mit Schülerdaten.
 - Das Weiterleiten von Aufträgen an ein anderes Gerät desselben Nutzers über den Tresor. Aufträge laufen auf einem eingetragenen Anbieter.
 

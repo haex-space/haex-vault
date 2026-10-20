@@ -8,9 +8,11 @@ use serde_json::Value;
 
 use super::*;
 use crate::extensions::bridge::dispatch::{call, CallContext};
+use crate::extensions::permissions::VAULT_WIDE;
 use crate::extensions::registry::effective::effective_bundle;
 use crate::extensions::registry::install::install;
 use crate::passwords::test_support::open_test_vault;
+use crate::storage::known_devices;
 use crate::vault_gate::VaultGate;
 
 #[derive(Default)]

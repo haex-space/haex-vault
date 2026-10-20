@@ -34,4 +34,33 @@ onDevice: boolean, },
  * For `model` (spec 055): the models of the vault that fit the job, the proposed one
  * (`target`) first. The user picks one and the highest effort it may be used with.
  */
-models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean, }>, };
+models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean, }>,
+/**
+ * For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
+ * and place, and what the step would send.
+ */
+destination?: {
+/**
+ * The display name of the provider.
+ */
+provider: string,
+/**
+ * The host of its address with the port, if it names one.
+ */
+host?: string,
+/**
+ * `this_device`, `network` or `cloud`.
+ */
+place: string, }, transfer?: {
+/**
+ * `text`, and `image` when the step carries images.
+ */
+kinds: Array<string>,
+/**
+ * The instruction and the text input.
+ */
+textBytes: number, imageCount: number, imageBytes: number,
+/**
+ * The step also sends the result of an earlier step, whose size is known only then.
+ */
+earlierResult: boolean, }, };

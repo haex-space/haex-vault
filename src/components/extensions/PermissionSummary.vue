@@ -2,7 +2,7 @@
 /**
  * Kind, action and target of one extension permission, as the install dialog, the permission
  * question and the settings show it; an encrypted folder by its storage and name, a group of the
- * address book by its name. A wildcard (`*`) is spelled out and marked, so nobody mistakes
+ * address book by its name, the destination of a model job by its provider, host and place. A wildcard (`*`) is spelled out and marked, so nobody mistakes
  * it for a narrow target: it allows everything of its kind.
  */
 import {
@@ -11,7 +11,9 @@ import {
   isEveryAction,
 } from '~/lib/extensions/permissionScope'
 
+import type { ExtensionModelDestination } from '@bindings/ExtensionModelDestination'
 import type { FolderNames } from '@bindings/FolderNames'
+import { placeLabelKey } from '~/lib/extensions/modelGrants'
 
 const props = defineProps<{
   kind: string
@@ -20,6 +22,9 @@ const props = defineProps<{
   /** For an encrypted folder: its cloud storage and decrypted name (spec 048), shown instead of the
    * raw target. */
   folder?: FolderNames | null
+  /** For a model job's destination: its provider, host and place (spec 055), instead of the
+   * provider's id. */
+  destination?: ExtensionModelDestination | null
 }>()
 const { t } = useI18n()
 
@@ -59,6 +64,15 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
           { folder: folder.folderName, storage: folder.storageName },
         )
       }}
+    </span>
+    <span
+      v-else-if="destination"
+      class="text-xs break-all"
+      data-testid="extension-permission-destination"
+    >
+      {{ destination.provider }} ·
+      <template v-if="destination.host">{{ destination.host }} · </template>
+      {{ t(placeLabelKey(destination.place)) }}
     </span>
     <span
       v-else-if="kind === 'contacts'"

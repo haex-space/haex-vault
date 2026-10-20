@@ -24,6 +24,15 @@ impl Place {
     pub fn needs_consent(self) -> bool {
         self != Place::ThisDevice
     }
+
+    /// As the extension and the user see it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Place::ThisDevice => "this_device",
+            Place::Network => "network",
+            Place::Cloud => "cloud",
+        }
+    }
 }
 
 /// The place of a provider. A provider whose address cannot be read counts as `Cloud`: the safe
