@@ -10,6 +10,7 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:net'
 import type { AddressInfo } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import { promisify } from 'node:util'
 import { createAdb, realAdbRunner } from './adb.ts'
 import type { Adb, AdbRunner } from './adb.ts'
@@ -65,6 +66,22 @@ export function reachFromDevice(
   } else {
     adb.reverse(port)
   }
+}
+
+/** The first RFC 1918 or carrier-NAT address of this machine, for a server on the private network. */
+export function privateNetworkAddress(): string {
+  const candidates = Object.values(networkInterfaces())
+    .flat()
+    .filter((address) => address?.family === 'IPv4' && !address.internal)
+    .map((address) => address!.address)
+  const found = candidates.find((address) =>
+    /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(
+      address,
+    ),
+  )
+  if (!found)
+    throw new Error(`no private network address among ${candidates.join(', ')}`)
+  return found
 }
 
 /** Runs `adb -s <serial> shell <command>` without blocking, so a server of this process can answer. */

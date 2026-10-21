@@ -5,10 +5,16 @@ import { unwrap, type FlowInstance } from './flows.ts'
 import type { Page } from './page.ts'
 import { runAction } from './settings.ts'
 import { onDevice } from './platform/device-files.ts'
-import { reachFromDevice } from './platform/reach.ts'
+import {
+  privateNetworkAddress as findPrivateNetworkAddress,
+  reachFromDevice,
+} from './platform/reach.ts'
 
 /** Makes a local server of a scenario reachable from the device under test at the same address. */
 export const reachableFromDevice = (port: number): void => reachFromDevice(port)
+
+/** Returns this machine's private-network address for a server used by an extension scene. */
+export const privateNetworkAddress = (): string => findPrivateNetworkAddress()
 
 /** A fixture bundle: `vectors/<name>.xt` from the shared vectors or `e2e/<name>.xt`. */
 export function fixture(kind: 'vectors' | 'e2e', name: string): string {
