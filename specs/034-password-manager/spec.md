@@ -31,9 +31,9 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
   eigenen Geräte (iroh direkt, Relay optional). Diese Spec baut keinen eigenen Sync.
 - [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md): Dateisync betrifft
   Ordner im Dateisystem, nicht die Anhänge der Einträge; sie liegen in der Vault-Datenbank.
-- [`029-own-s3-storage`](../029-own-s3-storage/spec.md): Diese Spec liefert den
-  Passwortmanager, den 029 voraussetzt. Die Hauptzugangsdaten des Admins und die
-  Zugangsschlüssel liegen dort als gewöhnliche Einträge (FR-033 bis FR-035).
+- [`038-storage-connections`](../038-storage-connections/spec.md): Diese Spec liefert den
+  Passwortmanager, den 038 voraussetzt. Die Zugangsdaten der Speicherverbindungen liegen dort als
+  gewöhnliche Einträge (FR-033 bis FR-035).
 - [`032-model-operates-holzi`](../032-model-operates-holzi/spec.md): Dessen Regel, dass
   Zugangsdaten und Schlüssel nie im Ergebnis einer Aktion an ein Modell gelangen
   (FR-010 dort), gilt hier für den eingebauten Agenten ohne Ausnahme (FR-027).
@@ -292,14 +292,14 @@ Binärdaten gespeichert ist; Datei herunterladen und byteweise mit dem Original 
 
 ### User Story 6 - Zugriff für Erweiterungen, Agenten und holzi-Funktionen mit Berechtigungen (Priority: P1)
 
-Eine haextension, ein externer Agent über MCP oder eine Funktion von holzi (etwa der eigene
-S3-Speicher aus Spec 029) braucht Zugangsdaten aus dem Passwortmanager. Der Nutzer erlaubt
+Eine haextension, ein externer Agent über MCP oder eine Funktion von holzi (etwa die
+Speicherverbindungen aus Spec 038) braucht Zugangsdaten aus dem Passwortmanager. Der Nutzer erlaubt
 das nicht pauschal, sondern für Einträge mit bestimmten Tags und für Lesen oder Lesen und
 Schreiben. Wer anfragt, bekommt in Listen nur Kopfdaten ohne Geheimnisse; das Geheimnis eines
 einzelnen Eintrags gibt es nur auf eine einzelne Anfrage und nur, wenn eine Freigabe es
 deckt. Der eingebaute Agent im Chat bekommt nie Geheimnisse.
 
-**Why this priority**: Spec 029 setzt diesen Zugriff voraus, und ohne ihn wäre die Aussage
+**Why this priority**: Spec 038 setzt diesen Zugriff voraus, und ohne ihn wäre die Aussage
 „der Schutz der Geheimnisse sind die Berechtigungen“ leer. Die Verwaltung der Freigaben
 selbst kommt mit den Specs 017–019 und 021.
 
@@ -327,7 +327,7 @@ anfordern (abgelehnt) und einen Eintrag schreiben wollen (abgelehnt).
 7. **Given** der eingebaute Agent im Chat, **When** er den Passwortmanager benutzt, **Then**
    kann er höchstens Kopfdaten ohne Geheimnisse sehen; kein Aktionsergebnis, keine
    Fehlermeldung und kein Eintrag im Chatverlauf enthält je ein Geheimnis.
-8. **Given** eine holzi-Funktion, die einen Eintrag selbst angelegt hat (029), **When** der
+8. **Given** eine holzi-Funktion, die einen Eintrag selbst angelegt hat (038), **When** der
    Nutzer ihn im Passwortmanager öffnet, **Then** sieht er ihn wie jeden anderen Eintrag und
    kann ihn ändern oder löschen.
 9. **Given** ein Eintrag im Papierkorb, der noch ein Tag aus dem Bereich einer Freigabe trägt,
@@ -436,8 +436,8 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 - **Ein Anhang ist leer, sehr groß oder hat einen ungewöhnlichen Namen** (Sonderzeichen,
   Pfadtrenner, sehr lang). holzi behandelt den Namen als Text, nie als Pfad.
 - **Ein Ordner wird in seinen eigenen Unterordner verschoben.** holzi verbietet es.
-- **Ein in Benutzung befindlicher Eintrag** (etwa die Zugangsdaten des eigenen S3-Speichers
-  nach Spec 029) wird gelöscht. holzi warnt vorher, dass eine Funktion ihn nutzt, und
+- **Ein in Benutzung befindlicher Eintrag** (etwa die Zugangsdaten einer Speicherverbindung
+  nach Spec 038) wird gelöscht. holzi warnt vorher, dass eine Funktion ihn nutzt, und
   verhindert das Löschen nicht.
 - **Der Nutzer legt zwei Tags mit gleichem Namen an** oder benennt ein Tag um in einen
   bestehenden Namen. holzi verhindert die Doppelung.
@@ -654,7 +654,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 
 **Nutzung durch holzi-Funktionen**
 
-- **FR-033**: holzi-Funktionen (zunächst Spec 029) MÜSSEN Einträge im Passwortmanager als
+- **FR-033**: holzi-Funktionen (zunächst Spec 038) MÜSSEN Einträge im Passwortmanager als
   gewöhnliche Einträge mit einem frei gewählten Tag anlegen, lesen und ändern können; es gibt
   keine für holzi reservierten Tags oder Tagnamen. Der Nutzer MUSS sie in der Oberfläche sehen,
   ändern und löschen können.
@@ -759,8 +759,8 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 ## Assumptions
 
 - holzi hat nur einen Nutzer pro Vault; es gibt keine Freigabe von Einträgen an andere
-  Nutzer. Das Teilen mit anderen Personen folgt später über Spaces (Spec 027), nicht über
-  einzelne Einträge.
+  Nutzer. Das Teilen mit anderen Personen ist nicht Teil dieser Spec; Dateien teilt Spec 056,
+  nicht einzelne Einträge.
 - Die Vault-Verschlüsselung im Ruhezustand genügt; es gibt keine zweite Hülle oder
   Hauptpasswort des Passwortmanagers. Eine zusätzliche Sperre des Passwortmanagers nach
   Leerlauf ist nicht Teil dieser Spec.
@@ -778,7 +778,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   Stände je Eintrag legt der Plan fest, falls Messungen sie nötig machen.
 - Für Aufrufer von außen bestimmt Spec 021 (und 017–019), wie eine Freigabe vergeben und
   angezeigt wird. Bis dahin gibt es keinen Weg für Erweiterungen und Agenten, Freigaben zu
-  erhalten; die internen holzi-Funktionen (Spec 029) tragen ihren Bereich fest.
+  erhalten; die internen holzi-Funktionen (Spec 038) tragen ihren Bereich fest.
 - Die Datei- und Anhang-Aufnahme geht über den Dateidialog des Systems; Ziehen und Ablegen
   ist eine Verbesserung, keine Bedingung.
 - Beim Import werden auch der Papierkorb der Quelle und der Verlauf der Einträge übernommen. Ein

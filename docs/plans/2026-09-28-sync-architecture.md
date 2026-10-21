@@ -316,6 +316,11 @@ travels with ordinary plane-1 sync.
 
 ## 8. Plane 2: spaces (network folders for files)
 
+> **Superseded (2026-10-21)** for files by
+> [`2026-10-21-file-access-and-sharing-design.md`](./2026-10-21-file-access-and-sharing-design.md)
+> and spec 056: files are shared live with single contacts, without spaces, group keys or stored
+> ciphertext. Kept here as the basis spec 028 still refers to.
+
 ### 8.1 Model
 
 - A space is a file tree plus a member list: `{vault_npub → capabilities}`, written only by the
