@@ -66,9 +66,8 @@ die Migration oben; `sql::exec::Limits` trägt das Feld mit); die Einstellungen 
 
 ### Katalog lokaler Modelle (`S/catalog/model_catalog.json`)
 
-Ein Eintrag bekommt `format` (`gguf` | `multimodal_dir`), `vision` (bool) und bei `multimodal_dir` `isq`
-(Quantisierung beim Laden). Bei `multimodal_dir` ist `hf_filename` ein Verzeichnis. Die Tabelle
-`device_downloaded_models_no_sync` führt dann `relative_path` auf ein Verzeichnis und `size_bytes` als Summe.
+Bleibt unverändert. Die geplanten Felder `format`, `vision` und `isq` entfallen mit dem Rückfall nach dem
+Versuch T057 (research R8): Lokale Bildmodelle sind Modelle eines OpenAI-kompatiblen Anbieters auf `localhost`.
 
 ## Nur im Arbeitsspeicher
 

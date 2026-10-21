@@ -27,8 +27,8 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
   eine eigene Schema-Teilmenge für Ergebnisformate.
 - **Anbieter** (R7): neuer Adapter `openai_compatible` (auch Gemini, Ollama, vLLM, Schul-Server), „nimmt Bilder
   an“ je Modell als Nutzerangabe.
-- **Lokale Bilder** (R8): zweiter Ladeweg über `MultimodalModelBuilder` mit Quantisierung beim Laden;
-  Katalogfelder; zuerst ein Versuch, mit dem lokalen OpenAI-kompatiblen Anbieter als Rückfall.
+- **Lokale Bilder** (R8): nach dem Versuch T057 über einen OpenAI-kompatiblen Anbieter auf `localhost`
+  (Ollama oder llama.cpp-Server); der geplante zweite Ladeweg über `MultimodalModelBuilder` entfällt.
 - **Grenzen, nichts speichern** (R9): feste Obergrenzen, Dauer je Erweiterung in den Limits, Registry räumt auf.
 - **SDK** (R13): `sdk.models.*` im vault-sdk, eigene Lieferung.
 
@@ -134,9 +134,7 @@ src-tauri/src/
 │   └── commands/model_grants.rs                 # Freigabe, Rangfolge, Widerruf (Einstellungen)
 ├── providers/mod.rs                 # validate_adapter/build_adapter/add_provider: openai_compatible
 ├── providers/capabilities.rs        # set_model_user_capabilities: Angaben des Nutzers je Modell
-├── llm/local/{loader,stream}.rs     # Ladeweg multimodal, Bildanhänge (R8, Lieferung C)
-├── catalog/model_catalog.json       # format, vision, isq
-├── model_capabilities.rs            # lokale Fähigkeiten aus dem Katalog
+├── llm/local/multimodal_spike_tests.rs  # Versuch T057, ignoriert (R8); der Ladeweg entfällt
 └── identity/migrations.rs           # 0037_extension_model_access, Trigger-Version
 
 src/
@@ -170,10 +168,8 @@ Jede Lieferung ist ein eigener PR mit grünen Prüfungen (Vorbild: Spec 018).
 
 ## Risiken
 
-- **Lokales Bildmodell über mistral.rs** ist nicht erprobt (R8). Frühester Versuch der Lieferung C; Rückfall
-  über einen lokalen OpenAI-kompatiblen Anbieter, ohne die Spec zu verletzen.
-- **Ein lokaler Platz**: Ein Auftrag mit anderem lokalen Modell verdrängt das Chatmodell (R8). Das kann dem Nutzer
-  auffallen; die Oberfläche sagt es beim Freigeben, und der Chat lädt nach.
+- **Lokales Bildmodell über mistral.rs** war zu langsam (Versuch T057, R8). Lokale Bilder laufen über einen
+  OpenAI-kompatiblen Anbieter auf `localhost`, den der Nutzer selbst einrichtet.
 - **Qualität**: Der Wächter erkennt nur Offensichtliches (R10). Ob ein Modell Handschrift und Tabellen gut genug
   liest, entscheidet die Messung außerhalb dieser Spec.
 - **Aufräumen der Registry** (R1) und **nichts speichern** (R9) brauchen Tests auf Datenbankinhalt (SC-011).

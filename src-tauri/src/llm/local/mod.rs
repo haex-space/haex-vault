@@ -9,6 +9,8 @@
 mod loader;
 #[cfg(test)]
 mod loader_tests;
+#[cfg(test)]
+mod multimodal_spike_tests;
 mod probe;
 #[cfg(test)]
 mod probe_tests;

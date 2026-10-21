@@ -34,8 +34,21 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
 12. **Modellliste**: Die Erweiterung ruft `extension_model_list`: nur freigegebene Modelle, mit Name, Fähigkeiten und
     Ort, ohne Adresse oder Schlüssel. _(FR-030)_
 
-Nur mit Lieferung C: **Lokal mit Bild** — ein lokales Bildmodell lesen lassen, bei laufendem Netzwerkmitschnitt
-darf kein Bildbyte das Gerät verlassen (SC-003); ein reines Textmodell lehnt denselben Auftrag vor dem Senden ab
-(SC-006).
+**Lokal mit Bild**: Ein lokales Bildmodell lesen lassen. Bei laufendem Netzwerkmitschnitt darf kein Bildbyte das
+Gerät verlassen (SC-003). Ein reines Textmodell lehnt denselben Auftrag vor dem Senden ab (SC-006).
+
+### Lokales Bildmodell einrichten (Ollama)
+
+holzi lädt Bildmodelle nicht selbst (research R8). Sie laufen in einem Ollama auf demselben Gerät:
+
+1. Ollama installieren und mit genug Kontext starten. Ein Seitenfoto braucht rund 3300 Tokens Eingabe, die
+   Antwort bis zu 3000: `OLLAMA_CONTEXT_LENGTH=8192 ollama serve`.
+2. `ollama pull qwen3-vl:4b-instruct`. Die Fassung ohne `-instruct` denkt zuerst und liefert bei begrenzter Länge
+   leeren Inhalt.
+3. In holzi: Einstellungen → Modell-Server → hinzufügen, Adresse `http://localhost:11434/v1`, ohne Schlüssel. Am
+   Modell „nimmt Bilder an“ setzen.
+4. Der Ort ist „dieses Gerät“, daher fragt holzi nicht nach einer Einwilligung zum Versand.
+
+Gemessen auf einer 8-GB-Karte: 5,5 GB Grafikspeicher, 12–18 s je Seite.
 
 Übersprungene Schritte kommen in die Beschreibung des PR.
