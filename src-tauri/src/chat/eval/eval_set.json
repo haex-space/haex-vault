@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "sentences": [
     {
       "id": "read-tabs-de-1",
@@ -539,32 +539,6 @@
       "selfTest": false
     },
     {
-      "id": "extension-mail-de-1",
-      "lang": "de",
-      "kind": "extension",
-      "text": "Wie viele ungelesene Mails habe ich?",
-      "expect": [
-        {
-          "tool": "x_mailbox_count_unread",
-          "args": {}
-        }
-      ],
-      "selfTest": false
-    },
-    {
-      "id": "extension-mail-en-1",
-      "lang": "en",
-      "kind": "extension",
-      "text": "How many unread emails do I have?",
-      "expect": [
-        {
-          "tool": "x_mailbox_count_unread",
-          "args": {}
-        }
-      ],
-      "selfTest": false
-    },
-    {
       "id": "extension-calendar-de-1",
       "lang": "de",
       "kind": "extension",
@@ -689,6 +663,396 @@
       "expect": [
         {
           "tool": "x_garden_tasks_this_month",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-1",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Wie viele ungelesene Mails habe ich?",
+      "expect": [
+        {
+          "tool": "x_mail_list_mailboxes",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-1",
+      "lang": "en",
+      "kind": "extension",
+      "text": "How many unread emails do I have?",
+      "expect": [
+        {
+          "tool": "x_mail_list_mailboxes",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-2",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Habe ich neue Mails bekommen?",
+      "expect": [
+        {
+          "tool": "x_mail_list_mailboxes",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-2",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Is there any unread mail in my inbox?",
+      "expect": [
+        {
+          "tool": "x_mail_list_mailboxes",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-3",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Zeig mir die Mails von Anna.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-3",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Show me the mails from Anna.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-4",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Suche die Mail, in der das Wort Elektriker vorkommt.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-4",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Find the mail that mentions the electrician.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-5",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Schieb alle Newsletter ins Archiv.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-5",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Move all the newsletters to the archive.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-6",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Lösche die Mail mit dem Betreff Test endgültig.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-6",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Delete the mail with the subject Test for good.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-7",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Antworte Anna, dass ich am Donnerstag komme.",
+      "expect": [
+        {
+          "tool": "x_mail_create_draft",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-7",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Reply to Anna that I will come on Thursday.",
+      "expect": [
+        {
+          "tool": "x_mail_create_draft",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-8",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Markiere die Mails von meiner Bank als gelesen.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-8",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Mark the mails from my bank as read.",
+      "expect": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-9",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Leg einen Ordner Steuer an.",
+      "expect": [
+        {
+          "tool": "x_mail_create_mailbox",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-9",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Create a folder called Taxes.",
+      "expect": [
+        {
+          "tool": "x_mail_create_mailbox",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-10",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Welche Mailkonten habe ich eingerichtet?",
+      "expect": [
+        {
+          "tool": "x_mail_list_accounts",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-10",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Which mail accounts have I set up?",
+      "expect": [
+        {
+          "tool": "x_mail_list_accounts",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-11",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Richte mein Postfach bei example.org ein.",
+      "expect": [
+        {
+          "tool": "x_mail_list_accounts",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-11",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Set up my mailbox at example.org.",
+      "expect": [
+        {
+          "tool": "x_mail_list_accounts",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-12",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Ich will ein neues Mailkonto hinzufügen, öffne mir den Assistenten.",
+      "expect": [
+        {
+          "tool": "x_mail_open_account_setup",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-12",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Open the setup for a new mail account.",
+      "expect": [
+        {
+          "tool": "x_mail_open_account_setup",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-13",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Lege eine Regel an, die Newsletter von shop.de künftig ins Archiv schiebt.",
+      "expect": [
+        {
+          "tool": "x_mail_add_rule",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-13",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Always archive newsletters from shop.de from now on.",
+      "expect": [
+        {
+          "tool": "x_mail_add_rule",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-14",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Welche Regeln für meine Mails gibt es?",
+      "expect": [
+        {
+          "tool": "x_mail_list_rules",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-14",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Which rules do my mails follow?",
+      "expect": [
+        {
+          "tool": "x_mail_list_rules",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-de-15",
+      "lang": "de",
+      "kind": "extension",
+      "text": "Lösche die Regel für shop.de.",
+      "expect": [
+        {
+          "tool": "x_mail_remove_rule",
+          "args": {}
+        }
+      ],
+      "selfTest": false
+    },
+    {
+      "id": "extension-mail-en-15",
+      "lang": "en",
+      "kind": "extension",
+      "text": "Delete the rule for shop.de.",
+      "expect": [
+        {
+          "tool": "x_mail_remove_rule",
           "args": {}
         }
       ],

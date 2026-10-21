@@ -32,8 +32,10 @@ const EVAL_SET_JSON: &str = include_str!("eval_set.json");
 /// `pnpm check:agent-actions` fails when it differs from the catalog.
 const TOOLS_JSON: &str = include_str!("tools.json");
 
-/// Thirty invented extensions with two to four tools each, as their manifests would declare them
-/// (spec 018 R14, FR-019): the tools the sentences of the kind `extension` are measured against.
+/// Thirty extensions as their manifests would declare them (spec 018 R14, FR-019): twenty-nine
+/// invented ones with two to four tools each and haex-mail with its fifteen real tools (spec 019
+/// FR-035, copied from the manifest of haex-mail). The tools the sentences of the kind `extension`
+/// are measured against.
 const EXTENSION_TOOLS_JSON: &str = include_str!("extension_tools.json");
 
 /// The embedded set. Panics on a malformed file: it is built in, and a test parses it.

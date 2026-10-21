@@ -1,82 +1,696 @@
 {
   "extensions": [
     {
-      "name": "mailbox",
-      "title": "Postfach",
+      "name": "mail",
+      "title": "haex-mail",
       "tools": [
         {
-          "name": "count_unread",
+          "name": "list_mailboxes",
           "title": {
-            "de": "Ungelesene zählen",
-            "en": "Count unread"
+            "de": "Mail-Ordner und ungelesene Mails zählen",
+            "en": "List mail folders and count unread mail"
           },
-          "description": "Counts the unread emails in the inbox.",
+          "description": "Lists the mail folders of one or all accounts with their role (inbox, sent, drafts, trash, junk, archive) and the number of unread and of all messages in each, read from the mail server now. Use it to answer how many unread mails there are. An account that cannot be reached answers from the cache and is named in errors.",
           "effect": "read",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "folder": {
-                "type": "string"
+              "account": {
+                "type": "string",
+                "description": "Account id from list_accounts; every account when omitted."
               }
             }
           },
           "examples": {
             "de": [
-              "Wie viele ungelesene Nachrichten liegen im Posteingang?",
-              "Zähle meine neuen E-Mails."
+              "Wie viele ungelesene Mails habe ich?",
+              "Habe ich neue Mails?",
+              "Welche Ordner gibt es in meinem Postfach?",
+              "Wie viele Mails liegen im Posteingang?"
             ],
             "en": [
-              "How many unread messages are in the inbox?",
-              "Count my new emails."
+              "How many unread mails do I have?",
+              "Do I have new mail?",
+              "Which folders are in my mailbox?",
+              "How many mails are in my inbox?"
             ]
           }
         },
         {
-          "name": "list_recent",
+          "name": "get_message",
           "title": {
-            "de": "Neueste Mails",
-            "en": "Latest mails"
+            "de": "Eine Mail lesen",
+            "en": "Read a mail"
           },
-          "description": "Lists the most recent emails with sender and subject.",
+          "description": "Returns one mail: sender, recipients, subject, date, whether it is unread or flagged, its text (at most 12000 characters, truncated says if it was cut) and its attachments. Reading does not mark the mail as read. Take the id from find_messages.",
           "effect": "read",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "limit": {
-                "type": "integer"
+              "id": {
+                "type": "string",
+                "description": "The message id from find_messages."
               }
-            }
+            },
+            "required": ["id"]
           },
           "examples": {
             "de": [
-              "Zeige mir die letzten Nachrichten mit Absender und Betreff.",
-              "Von wem kam die neueste E-Mail?"
+              "Was steht in der Mail von Anna?",
+              "Lies mir die letzte Mail vor",
+              "Fass die Mail mit der Rechnung zusammen",
+              "Hat die Mail einen Anhang und was steht drin?"
             ],
             "en": [
-              "Show me the latest messages with sender and subject.",
-              "Who sent the newest email?"
+              "What does the mail from Anna say?",
+              "Read me the latest mail",
+              "Summarize the mail with the invoice",
+              "Does the mail have an attachment and what does it say?"
             ]
           }
         },
         {
-          "name": "mark_all_read",
+          "name": "mark_messages",
           "title": {
-            "de": "Alles als gelesen markieren",
-            "en": "Mark all as read"
+            "de": "Mails als gelesen oder markiert setzen",
+            "en": "Mark mails as read or flagged"
           },
-          "description": "Marks every email of a folder as read.",
+          "description": "Marks up to 100 mails as read or unread and/or as flagged or not flagged. Answers per mail which were changed and which failed with a reason.",
           "effect": "change",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "folder": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "read": {
+                "type": "boolean",
+                "description": "true marks the mails as read, false as unread."
+              },
+              "flagged": {
+                "type": "boolean",
+                "description": "true flags the mails, false removes the flag."
+              }
+            },
+            "required": ["ids"]
+          },
+          "examples": {
+            "de": [
+              "Markiere diese Mails als gelesen",
+              "Setz die Mail von meiner Bank auf ungelesen",
+              "Markiere die Rechnung mit einem Stern",
+              "Hake alle Mails von heute als gelesen ab"
+            ],
+            "en": [
+              "Mark these mails as read",
+              "Set the mail from my bank back to unread",
+              "Flag the invoice mail",
+              "Mark all of today's mails as read"
+            ]
+          }
+        },
+        {
+          "name": "move_messages",
+          "title": {
+            "de": "Mails in einen Ordner verschieben",
+            "en": "Move mails to a folder"
+          },
+          "description": "Moves up to 100 mails to a folder of their own account, named by role (inbox, sent, drafts, trash, junk, archive) or by folder name. A mail already in the target counts as done. Answers per mail which were moved and which failed with a reason.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "to": {
+                "type": "string",
+                "description": "A mailbox role or the name of a folder."
+              }
+            },
+            "required": ["ids", "to"]
+          },
+          "examples": {
+            "de": [
+              "Verschieb diese Mails ins Archiv",
+              "Leg die Belege in den Ordner Steuer",
+              "Schieb die Newsletter in den Papierkorb",
+              "Sortier die Mail von Anna in den Ordner Arbeit"
+            ],
+            "en": [
+              "Move these mails to the archive",
+              "Put the receipts into the Steuer folder",
+              "Move the newsletters to the trash",
+              "File the mail from Anna into the Work folder"
+            ]
+          }
+        },
+        {
+          "name": "create_draft",
+          "title": {
+            "de": "Mail-Entwurf anlegen",
+            "en": "Create a mail draft"
+          },
+          "description": "Stores a new mail, a reply or a forward as a draft in the drafts folder of an account. It never sends. With replyTo (a message id) the recipient, subject, thread and the quoted original are taken from that message; to, cc and subject override them. Attachments of the original are not carried over. Returns the draft id and what the draft says (to lists every recipient, cc included); send_mail sends it.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "string",
+                "description": "Account id from list_accounts."
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Recipient addresses, also as Name <address>."
+              },
+              "cc": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subject": {
                 "type": "string"
+              },
+              "body": {
+                "type": "string",
+                "description": "What you write; the quoted original follows it."
+              },
+              "replyTo": {
+                "type": "string",
+                "description": "The id of the message to answer or forward."
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["reply", "reply-all", "forward"],
+                "description": "With replyTo; reply when omitted."
+              }
+            },
+            "required": ["account", "body"]
+          },
+          "examples": {
+            "de": [
+              "Schreib Anna eine Antwort auf ihre letzte Mail: ich komme am Donnerstag",
+              "Entwirf eine Mail an ben@example.org wegen der Rechnung",
+              "Leite die Mail mit dem Vertrag an meine Kollegin weiter",
+              "Leg einen Entwurf an, in dem ich mich für die Einladung bedanke"
+            ],
+            "en": [
+              "Write Anna a reply to her last mail: I'll come on Thursday",
+              "Draft a mail to ben@example.org about the invoice",
+              "Forward the mail with the contract to my colleague",
+              "Create a draft thanking them for the invitation"
+            ]
+          }
+        },
+        {
+          "name": "list_accounts",
+          "title": {
+            "de": "Mail-Konten auflisten",
+            "en": "List mail accounts"
+          },
+          "description": "Lists the mail accounts set up in haex-mail (id, display name, address) and, under importable, the password manager entries tagged for haex-mail that could become an account (id, title, user name). Never returns a password or server credentials. Start here when the user wants to set up a mail account: importable shows whether a saved login can be used.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          },
+          "examples": {
+            "de": [
+              "Welche Mail-Konten habe ich?",
+              "Zeig mir meine E-Mail-Adressen in haex-mail",
+              "Wie viele Mailkonten sind eingerichtet?",
+              "Gibt es Zugangsdaten, aus denen ich ein Mailkonto machen kann?",
+              "Richte meine Mail bei example.org ein"
+            ],
+            "en": [
+              "Which mail accounts do I have?",
+              "Show me my email addresses in haex-mail",
+              "How many mail accounts are set up?",
+              "Are there saved logins I could turn into a mail account?",
+              "Set up my mail at example.org"
+            ]
+          }
+        },
+        {
+          "name": "import_account",
+          "title": {
+            "de": "Mailkonto aus dem Passwortmanager übernehmen",
+            "en": "Import a mail account from the password manager"
+          },
+          "description": "Turns a password manager entry tagged for haex-mail into a mail account. The entry must hold the mail server settings. Take the entry id from the importable list of list_accounts. The password is read by haex-mail itself and never passes through the agent.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "passwordItemId": {
+                "type": "string",
+                "description": "The entry id from list_accounts, importable."
+              }
+            },
+            "required": ["passwordItemId"]
+          },
+          "examples": {
+            "de": [
+              "Übernimm meinen gespeicherten Arbeits-Login als Mailkonto",
+              "Richte das Konto aus dem Passwortmanager in haex-mail ein",
+              "Mach aus dem Eintrag Arbeit ein Mailkonto",
+              "Importiere das vorhandene Mailkonto aus dem Passwort-Tresor"
+            ],
+            "en": [
+              "Turn my saved work login into a mail account",
+              "Set up the account from the password manager in haex-mail",
+              "Make the entry Work a mail account",
+              "Import the existing mail account from the password vault"
+            ]
+          }
+        },
+        {
+          "name": "open_account_setup",
+          "title": {
+            "de": "Einrichtung eines Mailkontos vorbereiten",
+            "en": "Prepare the setup of a mail account"
+          },
+          "description": "Prepares the new mail account form in haex-mail with the given address and server settings. It has no password field: the user opens the haex-mail window and types the password into the form themselves. Use it when no saved login can be imported.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "description": "The mail address."
+              },
+              "displayName": {
+                "type": "string",
+                "description": "A name for the account."
+              },
+              "imapHost": {
+                "type": "string"
+              },
+              "imapPort": {
+                "type": "integer"
+              },
+              "imapSecurity": {
+                "type": "string",
+                "enum": ["tls"]
+              },
+              "smtpHost": {
+                "type": "string"
+              },
+              "smtpPort": {
+                "type": "integer"
+              },
+              "smtpSecurity": {
+                "type": "string",
+                "enum": ["tls", "startTls"]
               }
             }
           },
           "examples": {
-            "de": ["Markiere den ganzen Posteingang als gelesen."],
-            "en": ["Mark the whole inbox as read."]
+            "de": [
+              "Öffne mir den Assistenten für ein neues Mailkonto",
+              "Leg ein neues E-Mail-Konto für anna@example.org an",
+              "Ich möchte ein weiteres Mailkonto in haex-mail hinzufügen",
+              "Bereite die Kontoeinrichtung für meine Gmail-Adresse vor"
+            ],
+            "en": [
+              "Open the setup assistant for a new mail account",
+              "Add a new email account for anna@example.org",
+              "I want to add another mail account in haex-mail",
+              "Prepare the account setup for my Gmail address"
+            ]
+          }
+        },
+        {
+          "name": "list_rules",
+          "title": {
+            "de": "Mail-Regeln auflisten",
+            "en": "List mail rules"
+          },
+          "description": "Lists the mail rules of haex-mail: id, name, account, whether it is switched on, its conditions and actions, who created it (user or agent) and whether its target folder is gone.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          },
+          "examples": {
+            "de": [
+              "Welche Mail-Regeln habe ich?",
+              "Zeig mir meine Regeln in haex-mail",
+              "Gibt es Regeln, die Mails automatisch einsortieren?",
+              "Welche Regeln hat der Agent angelegt?"
+            ],
+            "en": [
+              "Which mail rules do I have?",
+              "Show me my rules in haex-mail",
+              "Are there rules that sort mail automatically?",
+              "Which rules did the agent create?"
+            ]
+          }
+        },
+        {
+          "name": "add_rule",
+          "title": {
+            "de": "Mail-Regel anlegen",
+            "en": "Create a mail rule"
+          },
+          "description": "Creates a permanent mail rule: when a new inbox message meets ALL conditions, the actions run. Conditions: sender, recipient or subject contains a text, or the message has an attachment. Actions: move to a mailbox role (inbox excluded: sent, drafts, trash, junk, archive) or, for a rule on one account, to a folder name; mark as read; flag. There is no action that forwards or sends a message. Optionally runs once on the newest 1000 messages already in the inbox. The user is asked before every call.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "A short name for the rule."
+              },
+              "account": {
+                "type": "string",
+                "description": "Account id from list_accounts; the rule covers every account when omitted."
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "enum": ["from", "to", "subject", "attachment"]
+                    },
+                    "contains": {
+                      "type": "string",
+                      "description": "The text to look for, ignoring case; not used with attachment."
+                    }
+                  },
+                  "required": ["field"]
+                }
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["move", "markRead", "flag"]
+                    },
+                    "to": {
+                      "type": "string",
+                      "description": "For move: a mailbox role (archive, trash, junk, sent, drafts) or, for one account, a folder name."
+                    }
+                  },
+                  "required": ["type"]
+                }
+              },
+              "applyToExisting": {
+                "type": "boolean",
+                "description": "Also run the rule once on the existing inbox messages."
+              }
+            },
+            "required": ["name", "conditions", "actions"]
+          },
+          "examples": {
+            "de": [
+              "Schieb Newsletter von shop.de künftig automatisch ins Archiv",
+              "Lege eine Regel an, die Mails von meiner Bank markiert",
+              "Erstelle eine Regel: Mails mit Anhang von Anna als gelesen markieren",
+              "Sortiere ab jetzt alle Rechnungen automatisch in den Ordner Steuer"
+            ],
+            "en": [
+              "Always archive newsletters from shop.de",
+              "Create a rule that flags mail from my bank",
+              "Make a rule: mark mail with attachments from Anna as read",
+              "From now on sort all invoices into the Steuer folder automatically"
+            ]
+          }
+        },
+        {
+          "name": "remove_rule",
+          "title": {
+            "de": "Mail-Regel entfernen",
+            "en": "Remove a mail rule"
+          },
+          "description": "Removes one mail rule by id or by name. When a name fits several rules nothing is removed and the ids are returned. Messages the rule already sorted stay where they are.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The rule id from list_rules."
+              },
+              "name": {
+                "type": "string",
+                "description": "The rule name, ignoring case."
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Lösch die Regel für shop.de",
+              "Entferne die Regel Newsletter",
+              "Ich brauche die Regel für meine Bank nicht mehr",
+              "Schalte die Regel mit dem Namen Rechnungen ab und lösch sie"
+            ],
+            "en": [
+              "Delete the rule for shop.de",
+              "Remove the rule named Newsletter",
+              "I no longer need the rule for my bank",
+              "Remove the rule called Invoices"
+            ]
+          }
+        },
+        {
+          "name": "find_messages",
+          "title": {
+            "de": "Mails suchen und filtern",
+            "en": "Search and filter mails"
+          },
+          "description": "Finds mails of one or all accounts in a folder (the inbox when omitted) by sender, recipient, subject, free text in the whole mailbox, date range, unread, flagged or attachment, searched on the server so older mails are found too. Newest first by default, one page at a time (at most 50). Returns ids to use with get_message, mark_messages, move_messages and delete_messages, plus total and hasMore. window says only the newest hits were looked at; fallback says the server refused the text and only sender, recipients and subject were checked.",
+          "effect": "read",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "string",
+                "description": "Account id from list_accounts; every account when omitted."
+              },
+              "mailbox": {
+                "type": "string",
+                "description": "A mailbox role (inbox, sent, drafts, trash, junk, archive) or a folder name; the inbox when omitted."
+              },
+              "unread": {
+                "type": "boolean",
+                "description": "true for unread mails only, false for read ones only."
+              },
+              "flagged": {
+                "type": "boolean"
+              },
+              "from": {
+                "type": "string",
+                "description": "Part of the sender name or address."
+              },
+              "to": {
+                "type": "string",
+                "description": "Part of a recipient name or address."
+              },
+              "subject": {
+                "type": "string",
+                "description": "Part of the subject."
+              },
+              "text": {
+                "type": "string",
+                "description": "Free text searched in the whole mailbox on the server."
+              },
+              "since": {
+                "type": "string",
+                "description": "YYYY-MM-DD, this day and later."
+              },
+              "before": {
+                "type": "string",
+                "description": "YYYY-MM-DD, earlier than this day."
+              },
+              "hasAttachment": {
+                "type": "boolean"
+              },
+              "sort": {
+                "type": "string",
+                "enum": ["date", "sender", "subject"],
+                "description": "date when omitted."
+              },
+              "descending": {
+                "type": "boolean",
+                "description": "true (newest first, Z to A) when omitted."
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Page size, 25 when omitted, at most 50."
+              },
+              "offset": {
+                "type": "integer",
+                "description": "Hits to skip, for the next page."
+              }
+            }
+          },
+          "examples": {
+            "de": [
+              "Zeig mir die Mails von Anna",
+              "Suche die Mail mit dem Wort Elektriker",
+              "Was ist letzte Woche angekommen?",
+              "Welche ungelesenen Mails habe ich von meiner Bank?",
+              "Finde alle Mails mit Anhang von shop.de",
+              "Finde alle Newsletter im Archiv",
+              "Finde die Mail mit dem Betreff Rechnung"
+            ],
+            "en": [
+              "Show me the mails from Anna",
+              "Find the mail that mentions the electrician",
+              "What arrived last week?",
+              "Which unread mails do I have from my bank?",
+              "Find all mails with an attachment from shop.de",
+              "Find all newsletters in the archive",
+              "Find the mail with the subject Invoice"
+            ]
+          }
+        },
+        {
+          "name": "create_mailbox",
+          "title": {
+            "de": "Mail-Ordner anlegen",
+            "en": "Create a mail folder"
+          },
+          "description": "Creates a new folder in one account. If the folder already exists nothing changes and created is false. Afterwards move_messages and find_messages can use it by name.",
+          "effect": "change",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "string",
+                "description": "Account id from list_accounts."
+              },
+              "name": {
+                "type": "string",
+                "description": "The folder name as the user writes it; a slash makes a subfolder on most servers."
+              }
+            },
+            "required": ["account", "name"]
+          },
+          "examples": {
+            "de": [
+              "Leg einen Ordner Steuer an",
+              "Erstelle einen neuen Mail-Ordner für Rechnungen",
+              "Mach mir einen Unterordner Versicherungen",
+              "Ich brauche einen neuen Ordner Reisen"
+            ],
+            "en": [
+              "Create a folder called Taxes",
+              "Make a new mail folder for invoices",
+              "Add a subfolder Insurance",
+              "I need a new folder named Travel"
+            ]
+          }
+        },
+        {
+          "name": "send_mail",
+          "title": {
+            "de": "Entwurf senden",
+            "en": "Send a draft"
+          },
+          "description": "Sends a draft made with create_draft; this cannot be undone. The user is asked to agree to what the input says, so pass the draft exactly as create_draft returned it: draftId, to (every recipient, cc included), subject and body. If anything differs from the stored draft nothing is sent and the error names the draft's values. A copy goes to the sent folder and the draft is removed.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "draftId": {
+                "type": "string",
+                "description": "The draftId create_draft returned."
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "All recipients of the draft."
+              },
+              "subject": {
+                "type": "string",
+                "description": "The subject of the draft."
+              },
+              "body": {
+                "type": "string",
+                "description": "The text of the draft."
+              }
+            },
+            "required": ["draftId", "to", "subject", "body"]
+          },
+          "examples": {
+            "de": [
+              "Sende den Entwurf an Anna",
+              "Schick die Antwort ab",
+              "Verschicke die Mail, die du vorbereitet hast",
+              "Versende den Entwurf jetzt"
+            ],
+            "en": [
+              "Send the draft to Anna",
+              "Send the reply now",
+              "Mail out the draft you prepared",
+              "Dispatch the draft"
+            ]
+          }
+        },
+        {
+          "name": "delete_messages",
+          "title": {
+            "de": "Mails endgültig löschen",
+            "en": "Delete mails for good"
+          },
+          "description": "Removes mails from the server for good, with no way back and not into the trash. To delete in the usual way use move_messages with the trash. The user is asked to agree, so pass each mail with its id and its exact subject; a mail whose subject differs on the server is not deleted. At most 100 mails. Answers per mail which were deleted and which failed with a reason.",
+          "effect": "destructive",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The message id from find_messages."
+                    },
+                    "subject": {
+                      "type": "string",
+                      "description": "The subject of that mail."
+                    }
+                  },
+                  "required": ["id", "subject"]
+                }
+              }
+            },
+            "required": ["messages"]
+          },
+          "examples": {
+            "de": [
+              "Lösche die Mail mit dem Betreff Test endgültig",
+              "Entferne diese Mails unwiderruflich vom Server",
+              "Wirf die Mails von shop.de ganz weg, nicht in den Papierkorb",
+              "Lösch die Werbung dauerhaft"
+            ],
+            "en": [
+              "Delete the mail with the subject Test permanently",
+              "Remove these mails from the server for good",
+              "Erase the mails from shop.de, not into the trash",
+              "Permanently delete the ads"
+            ]
           }
         }
       ]
