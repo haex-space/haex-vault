@@ -180,3 +180,10 @@ von haex-mail, `haex dev`).
 5. **Zustimmung zeigt nur die Eingabe** (R9a): Wir lösen es mit Eingaben, die der Handler prüft. Weicht das
    Modell im Text leicht ab, scheitert das Senden mit Fehler und neuer Versuch; die Messung (FR-035) deckt auf,
    ob kleine Modelle das schaffen.
+6. **Doppelte Kopie in „Gesendet“** (E3, `send_mail`): Die Spec verlangt die Kopie (FR-014), und der Dialog zum
+   Verfassen legt keine an. Server, die gesendete Mails selbst ablegen (zum Beispiel Gmail), zeigen sie danach
+   zweimal. Zeigt die Erprobung (Quickstart Schritt 6) das, braucht es eine Erkennung dieser Server oder eine
+   Einstellung je Konto; das ist dann eine eigene Entscheidung.
+7. **Angebot der Werkzeuge** (E3): Die Beispielsätze der vier Werkzeuge für Suche, Konten und Zweischritt-Aufgaben
+   wurden mit dem Angebotsvergleich (`matched_offer`) abgestimmt, so dass jeder der 30 Sätze für haex-mail das
+   erste Angebot erreicht. Ob das Modell dann richtig aufruft, zeigt erst die Messung mit Qwen3-4B (T056).
