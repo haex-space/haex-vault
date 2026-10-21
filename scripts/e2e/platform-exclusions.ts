@@ -32,6 +32,14 @@ export const MINIMUM_COVERAGE = 0.8
 
 export const EXCLUSIONS: PlatformExclusion[] = [
   {
+    scenario: 'browser-bridge',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the External Bridge for browser extensions is not offered on a phone (FR-016, spec 049 FR-043)',
+    counterCase: 'android-not-available',
+  },
+  {
     scenario: 'extension-files',
     platform: 'android',
     kind: 'excluded',

@@ -18,6 +18,11 @@ name = "e2e_nostr_relay"
 path = "src/bin/e2e_nostr_relay.rs"
 required-features = ["e2e"]
 
+[[bin]]
+name = "e2e_bridge_client"
+path = "src/bin/e2e_bridge_client.rs"
+required-features = ["e2e"]
+
 [build-dependencies]
 tauri-build = { version = "2.3.0", features = [] }
 
