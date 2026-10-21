@@ -44,7 +44,7 @@ verlangen, dass keine Erweiterung je Zugangsdaten erreicht. Der Eigentümer sitz
 läuft durch denselben Pfad wie der Papierkorb (`ItemState`, `visible`, `headers_in_scope`,
 `agent_headers`, Verweise über `references_db::visible`), also eine Regel an einer Stelle. Der Nutzer
 sieht die Einträge weiter im Passwortmanager (Z1); ändert er dort die Zugangsdaten, gilt das für die
-Verbindung. `Caller::Internal` gibt es schon für genau solche holzi-Funktionen (029 „s3-storage“), es
+Verbindung. `Caller::Internal` gibt es schon für genau solche holzi-Funktionen (interne Speicherfunktionen), es
 wird hier zum ersten Mal benutzt. Auf anderen Geräten hält Z14, weil der Sync nur zwischen Geräten mit
 gleichem Schema läuft (Migrationszahl und Trigger-Version, Spec 024 FR-029, `sync/handshake.rs`): Ein
 Gerät ohne die Regel bekommt die Einträge nicht.
@@ -53,8 +53,8 @@ Gerät ohne die Regel bekommt die Einträge nicht.
 
 - Ein reserviertes Tag: 034 schließt reservierte Tags ausdrücklich aus (`contracts/access.md`), und ein
   Tag lässt sich vom Nutzer entfernen; dann wären die Zugangsdaten offen.
-- Eine eigene Tabelle für Zugangsdaten außerhalb von 034: widerspricht Spec 038 FR-005 und 029
-  (Zugangsdaten im Passwortmanager).
+- Eine eigene Tabelle für Zugangsdaten außerhalb von 034: widerspricht Spec 038 FR-005 und dem
+  Grundsatz, dass Zugangsdaten im Passwortmanager liegen.
 - Eine eigene Tabelle `item_owners` neben `haex_passwords_item_details`: zwei Zeilen, die zusammen
   angelegt und gelöscht werden müssen; ein Sync-Zwischenstand ohne Eigentümer-Zeile würde den Eintrag
   kurz offenlegen. Die Spalte im Eintrag hat diesen Zwischenstand nicht.
@@ -69,10 +69,10 @@ erhöht. Kennungen als UUID, keine UNIQUE-Constraints in synchronisierten
 Tabellen (wie `migrations_extensions.rs`). SQL in einer eigenen Datei
 `src-tauri/src/identity/migrations_storage.rs`, registriert in `migrations.rs`.
 
-**Begründung**: Spec FR-006 (vault-weit, 029 FR-033). Das letzte Testergebnis ist eine Beobachtung eines
+**Begründung**: Spec FR-006 (vault-weit). Das letzte Testergebnis ist eine Beobachtung eines
 Geräts (ein Gerät ohne Netz soll nicht allen anderen „Fehler“ melden), daher `_no_sync`.
 
-**Verworfen**: Verbindung und Speicher in einer Tabelle (SDK-„Backend“ = beides): 029 legt Buckets auf
+**Verworfen**: Verbindung und Speicher in einer Tabelle (SDK-„Backend“ = beides): Eine spätere S3-Verwaltung legt Buckets auf
 einer Verbindung an, die Verbindung muss ohne Bucket bestehen können (Spec Annahme, Begriffe).
 
 ## R4 — Bereich einer Erweiterung im Bucket
