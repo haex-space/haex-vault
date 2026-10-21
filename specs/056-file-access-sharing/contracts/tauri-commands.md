@@ -23,19 +23,22 @@ Erteilen bestätigt der Nutzer immer in einem Dialog (FR-045, research R17). Der
 
 ## Neu: Dateifreigaben (Aktionen `files.shares.*`, Scope `files.shares`)
 
-| Aktion / Command                                    | Eingabe                                                    | Ausgabe             |
-| --------------------------------------------------- | ---------------------------------------------------------- | ------------------- |
-| `files.shares.list` / `file_shares_list`            | —                                                          | `FileShare[]`       |
-| `files.shares.of` / `file_share_of`                 | `{ source: SourceRef, path }`                              | `FileShare \| null` |
-| `files.shares.save` / `file_share_save`             | `{ source, path, name, grants: { vaultPubkey, level }[] }` | `FileShare`         |
-| `files.shares.revoke` / `file_share_revoke`         | `{ shareId, vaultPubkey }`                                 | `FileShare`         |
-| `files.shares.delete` / `file_share_delete`         | `{ shareId }`                                              | `()`                |
-| `files.shares.ofContact` / `file_shares_of_contact` | `{ contactId }`                                            | `FileShare[]`       |
+| Aktion / Command                                    | Eingabe                                                              | Ausgabe             |
+| --------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+| `files.shares.list` / `file_shares_list`            | —                                                                    | `FileShare[]`       |
+| `files.shares.of` / `file_share_of`                 | `{ source: SourceRef, path }`                                        | `FileShare \| null` |
+| `files.shares.save` / `file_share_save`             | `{ shareId?, source, path, name, grants: { vaultPubkey, level }[] }` | `FileShare`         |
+| `files.shares.revoke` / `file_share_revoke`         | `{ shareId, vaultPubkey }`                                           | `FileShare`         |
+| `files.shares.delete` / `file_share_delete`         | `{ shareId }`                                                        | `()`                |
+| `files.shares.ofContact` / `file_shares_of_contact` | `{ contactId }`                                                      | `FileShare[]`       |
 
 Regeln:
 
-- `save` nur für Quellen dieses Geräts: `source` ist `device` oder ein Speicher aus `haex_storages`;
-  `peer:`/`share:` → `Refused` (FR-015). Bedienendes Gerät = dieses Gerät (FR-018).
+- `save` ohne vorhandene Freigabe (Neuanlage) nur für Quellen dieses Geräts: `source` ist `device`
+  oder ein Speicher aus `haex_storages`; `peer:`/`share:` → `Refused` (FR-015). Bedienendes Gerät =
+  dieses Gerät (FR-018).
+- `save` mit `shareId` einer vorhandenen Freigabe (Name, Kontakte, Stufen) von jedem eigenen Gerät;
+  Quelle und bedienendes Gerät bleiben unverändert (FR-019).
 - `save` auf eine schon freigegebene Quelle aktualisiert dieselbe Freigabe (FR-017).
 - `grants` nur für Kontakte mit gespeicherter Karte (FR-016).
 - Jede Änderung setzt `changed_at`; auf dem bedienenden Gerät setzt der Abonnent `served_at`.

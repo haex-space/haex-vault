@@ -59,7 +59,8 @@ für `vault_pubkey` eine Karte in `haex_contacts_cards` liegt und die Vault nich
 | `last_reached_at`     | TEXT | ISO-8601 oder NULL                                                        |
 
 Lebenszyklus: angelegt oder aktualisiert bei jeder erfolgreichen Abfrage `shares` (FR-030); fehlt eine
-Freigabe in der Antwort des bedienenden Geräts, wird die Zeile gelöscht (FR-031). Wird der Kontakt
+Freigabe in der Antwort eines bedienenden Geräts, wird nur die Zeile mit demselben
+`owner_device_pubkey` gelöscht (FR-031). Wird der Kontakt
 gelöscht, löscht ein Abonnent auf `haex_contacts_cards` die Zeilen dieser Vault.
 
 ## Nur dieses Gerät (`_no_sync`)

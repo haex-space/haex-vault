@@ -47,8 +47,8 @@ Kontakte. Grundlage ist das abgestimmte Design docs/plans/2026-10-21-file-access
   Nostr-Relays aus der Visitenkarte eines Kontakts, mit der es die aktuelle Adresse eines Geräts
   dieses Kontakts erfragt. Ein Gerät antwortet nur, wenn es dem anfragenden Gerät etwas zugänglich
   macht.
-- **Versionsstand**: Größe und Änderungszeit einer Datei, so wie das anfragende Gerät sie zuletzt
-  gesehen hat. Ein Schreibvorgang auf eine vorhandene Datei nennt ihn; stimmt er nicht mehr, ist das
+- **Versionsstand**: die Kennung des Stands einer Datei (etwa aus Größe und Änderungszeit), so wie das
+  anfragende Gerät sie zuletzt gesehen hat. Ein Schreibvorgang auf eine vorhandene Datei nennt ihn; stimmt er nicht mehr, ist das
   ein **Schreibkonflikt**.
 
 _Nicht verwechseln_: Eine **Dateifreigabe** ist keine **Freigabe** im Sinne von Spec 034 (Grant für
@@ -215,8 +215,8 @@ und bringt Konflikte, die erst danach sinnvoll prüfbar sind.
 1. **Given** Stufe „Lesen und Schreiben“, **When** Ben eine Datei anlegt, umbenennt, verschiebt oder
    löscht, **Then** wirkt das sofort auf Annas Gerät, und Clara sieht es beim nächsten Auflisten.
 2. **Given** eine Datei, die Anna nach Bens letztem Öffnen geändert hat, **When** Ben seine Fassung
-   speichert, **Then** meldet holzi einen Schreibkonflikt und Ben wählt „Überschreiben“ oder „Als
-   Kopie speichern“; ohne Wahl ändert sich nichts.
+   speichert, **Then** meldet holzi einen Schreibkonflikt und Ben wählt „Ersetzen“ oder „Beide
+   behalten“; ohne Wahl ändert sich nichts.
 3. **Given** Ben löscht eine Datei, **When** Annas Laptop sie entfernt, **Then** liegt sie auf dem
    Desktop im Papierkorb des Laptops.
 4. **Given** eine Dateifreigabe einer einzelnen Datei mit „Lesen und Schreiben“, **When** Ben sie
@@ -353,7 +353,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **Beide Geräte im Ruhezustand oder Android im Hintergrund**: Zugriff nur, solange auf beiden
   Geräten holzi läuft und die Vault geöffnet ist; ein Hintergrunddienst ist nicht Teil dieser Spec.
 - **Gleichzeitiger Zugriff vieler Kontakte**: Das bedienende Gerät bedient alle; die eigene Bedienung
-  von holzi auf diesem Gerät bleibt flüssig (SC-006).
+  von holzi auf diesem Gerät bleibt bedienbar (SC-006).
 
 ## Requirements _(mandatory)_
 
@@ -410,7 +410,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-015**: Der Nutzer MUSS im Dateibrowser jeden Ordner und jede Datei jeder Quelle des aktuellen
   Geräts über „Freigeben …“ freigeben können, auch in Speichern und verschlüsselten Ordnern. Quellen
   anderer Geräte (über den Geräte-Dateizugriff) DÜRFEN NICHT freigegeben werden; dafür gibt der
-  Nutzer auf dem Gerät frei, auf dem die Quelle liegt.
+  Nutzer auf dem Gerät frei, auf dem die Quelle liegt. Anlegen DARF der Nutzer eine Dateifreigabe nur
+  auf dem Gerät, auf dem die Quelle liegt; eine bestehende Dateifreigabe ändern, entziehen und löschen
+  DARF er auf jedem eigenen Gerät (FR-019).
 - **FR-016**: Der Dialog „Freigeben …“ MUSS zur Auswahl nur Kontakte mit bestätigten holzi-Adressen
   anbieten, je Kontakt die Stufe „Lesen“ (Vorgabe) oder „Lesen und Schreiben“, einen änderbaren Namen
   (Vorgabe: Name des Ordners bzw. der Datei) und die vorhandenen Zugriffsrechte zum Ändern und
@@ -454,8 +456,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-030**: Eine abgefragte Dateifreigabe MUSS als empfangene Dateifreigabe gespeichert werden und
   mit dem Datensync auf alle eigenen Geräte kommen; jedes eigene Gerät MUSS sie öffnen können.
 - **FR-031**: Eine bekannte empfangene Dateifreigabe MUSS sichtbar bleiben, wenn der Kontakt nicht
-  erreichbar ist, ausgegraut mit „nicht erreichbar“. Meldet der Kontakt sie bei einer Abfrage nicht
-  mehr, MUSS holzi sie entfernen.
+  erreichbar ist, ausgegraut mit „nicht erreichbar“. Meldet das bedienende Gerät des Kontakts sie bei
+  einer Abfrage nicht mehr, MUSS holzi sie entfernen; Freigaben anderer Geräte desselben Kontakts
+  bleiben davon unberührt.
 - **FR-032**: Eine empfangene Dateifreigabe MUSS sich im Dateibrowser wie eine Quelle verhalten:
   Auflisten, Viewer mit Wiedergabe vor vollständiger Übertragung und Springen (Spec 044 FR-012),
   Transfers mit Fortschritt und Abbruch, Kopieren heraus in eigene Quellen.
@@ -470,8 +473,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-035**: Ein Schreibvorgang MUSS am Ziel vollständig oder gar nicht wirken; ein Abbruch DARF keine
   halbe Datei hinterlassen.
 - **FR-036**: Ein Schreibvorgang auf eine vorhandene Datei MUSS den Versionsstand nennen. Weicht er ab,
-  MUSS das bedienende Gerät mit „Schreibkonflikt“ ablehnen, und das anfragende Gerät MUSS „Überschreiben“
-  oder „Als Kopie speichern“ anbieten.
+  MUSS das bedienende Gerät mit „Schreibkonflikt“ ablehnen, und das anfragende Gerät MUSS „Ersetzen“ oder
+  „Beide behalten“ anbieten (wie Spec 044 FR-021).
 - **FR-037**: Die Wurzel einer Dateifreigabe DARF ein Kontakt weder umbenennen noch verschieben noch
   löschen; bei einer freigegebenen Datei DARF er nur den Inhalt ändern.
 - **FR-038**: Löschen durch ein anderes Gerät MUSS auf einem Desktop-Gerät in dessen Papierkorb gehen,
@@ -533,8 +536,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **SC-005**: Jeder Fall aus einer Testsammlung von Pfadausbrüchen (`..`, symbolische Links,
   Verknüpfungen, Schreibvarianten, Ziele von Verschieben und Umbenennen) wird abgelehnt: 100 %.
 - **SC-006**: Während fünf Kontakte gleichzeitig große Dateien aus Dateifreigaben eines Geräts lesen,
-  bleibt holzi auf diesem Gerät bedienbar (Wechsel von Tabs und Öffnen von Ordnern ohne spürbare
-  Verzögerung).
+  öffnet holzi auf diesem Gerät einen lokalen Ordner mit 1 000 Einträgen und wechselt Tabs jeweils in
+  höchstens 1 Sekunde.
 - **SC-007**: Kein Geräte- oder Vault-Zugriff gelingt ohne gültige Geräteliste: Ein Gerät, das nicht
   auf der aktuellen Liste seiner Vault steht, erhält in 100 % der Versuche keine Datei.
 - **SC-008**: Ein abgebrochener oder gescheiterter Transfer hinterlässt in 100 % der Fälle keine halbe
