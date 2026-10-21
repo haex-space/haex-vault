@@ -321,9 +321,10 @@ Dienst (`reveal::totp_code`, `reveal.rs:201`), das Secret verlässt ihn nicht (F
   des SDK (Fehler 1004, dann `extension:permission-resolved`). Der Client der Bridge kennt das
   nicht; er wartet auf genau eine Antwort.
 - Das geparkte Muster gibt es zweimal: `files/agent/prompt.rs` mit 60 s und
-  `chat/tools/action_bridge.rs`. Ob die Bridge das dritte Exemplar bekommt oder ob der Mechanismus
-  in ein gemeinsames Modul wandert, entscheidet der Betreiber am Plan-Gate (Kandidat K1 im
-  Constitution Check).
+  `chat/tools/action_bridge.rs`. Der Betreiber hat am Plan-Gate entschieden (2026-10-21, Kandidat K1): Der
+  Mechanismus (Kennung → `oneshot`, Frist, Abbruch über Token) wandert mit Typparametern nach
+  `src-tauri/src/prompt_park.rs`. Die Bridge nutzt ihn zuerst; die zwei vorhandenen Nutzer ziehen in
+  einem eigenen Refactor-PR nach.
 
 ## R11 Passkeys über die Bridge (FR-030 bis FR-036)
 
