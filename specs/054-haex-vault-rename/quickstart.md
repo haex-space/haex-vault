@@ -77,7 +77,7 @@ Gerät.
 - Eine Erweiterung installieren und öffnen: sie lädt über `haex-ext://` und erreicht ihre Daten
   (Szenario `extension-lifecycle` des E2E-Rigs).
 - Android: die Debug-APK trägt den Paketnamen `space.haex.vault`, das Eichhörnchen-Icon und den
-  Namen „haex-vault“ (`adb shell pm list packages | grep space.haex.vault`,
+  Namen „HaexVault“ (`adb shell pm list packages | grep space.haex.vault`,
   `aapt dump badging <apk>`); die Android-End-to-End-Tests laufen mit
   `nix develop --command pnpm test:e2e --platform android --apk <apk> --shard 1/3` (wie `scripts/ci/android-e2e.sh`); den
   Emulator liefert der devShell-Befehl, der heute `holzi-emulator` heißt und nach S4 den neuen Namen

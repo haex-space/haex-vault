@@ -43,12 +43,21 @@ aus haex-vault ist als Vorarbeit mit PR #474 eingebaut.
   alten Datenordner von Hand vor dem ersten Start; es gibt keine Code-Logik dafür (Betreiber,
   2026-10-16).
 
+### Session 2026-10-21
+
+- Q: Wie schreibt sich der Name, den die Nutzer sehen? → A: „HaexVault“. holzi ist der Nachfolger
+  von HaexVault und wird zu HaexVault; Oberflächentexte, Fenstertitel und Produktname heißen
+  „HaexVault“. „haex-vault“ bleibt nur in technischen Schreibweisen (Repo, Pakete, Crate,
+  Binärdatei, Verzeichnisse) (Betreiber, 2026-10-21).
+
 ## Begriffe
 
 - **holzi**: der bisherige Name dieser App und dieses Repos, bis zum Tag `holzi-final`.
 - **haex-vault 2.x (Legacy)**: die alte App, bisher im Repo `haex-space/haex-vault`, Version 2.17.0,
   Identifier `space.haex.vault`. Sie wird nicht weiterentwickelt.
 - **haex-vault 3**: diese App nach der Umbenennung, Version 3.0.0.
+- **HaexVault**: der Anzeigename dieser App in der Oberfläche, im Fenstertitel und als Produktname;
+  „haex-vault“ ist die technische Schreibweise (FR-003).
 - **Alte Vault-Datei**: die Vault-Datenbank `test.db` des Betreibers aus der Zeit unter dem Namen
   holzi. Eine Sicherung liegt außerhalb des Repos vor.
 - **Ausnahmeliste**: die Orte, an denen „holzi“ danach noch vorkommen darf (FR-004).
@@ -71,7 +80,7 @@ aus haex-vault ist als Vorarbeit mit PR #474 eingebaut.
 ### User Story 1 - Ein Name überall (Priority: P1)
 
 Der Betreiber öffnet das Repo, die App, die Doku und die Werkzeuge und trifft nur noch auf den
-Namen haex-vault. Wer den Namen später aus Versehen wieder einführt, bekommt das von der CI gesagt.
+Namen der App: „HaexVault“ in der Oberfläche, „haex-vault“ in technischen Namen. Wer den Namen später aus Versehen wieder einführt, bekommt das von der CI gesagt.
 
 **Why this priority**: Das ist der Kern der Aufgabe. Ohne ihn gibt es keine umbenannte App.
 
@@ -86,7 +95,7 @@ Quelldatei schreibt, scheitert in der CI.
 2. **Given** ein PR, der „holzi“ in Quellcode, Skripte oder CI-Konfiguration einführt, **When** die
    CI läuft, **Then** schlägt eine Prüfung fehl und nennt die Fundstellen.
 3. **Given** die gestartete App, **When** der Betreiber Fenstertitel, Programmname, Einstellungen
-   und Meldungen ansieht, **Then** steht überall „haex-vault“.
+   und Meldungen ansieht, **Then** steht überall „HaexVault“.
 
 ---
 
@@ -138,7 +147,7 @@ synchronisieren; eine Erweiterung lädt über `haex-ext://`.
 3. **Given** eine installierte Erweiterung, **When** sie geöffnet wird, **Then** lädt sie über das
    neue Schema und erreicht ihre Daten.
 4. **Given** die Android-App, **When** sie installiert wird, **Then** trägt sie den Identifier
-   `space.haex.vault`, das Logo des Eichhörnchens und den Namen „haex-vault“.
+   `space.haex.vault`, das Logo des Eichhörnchens und den Namen „HaexVault“.
 
 ---
 
@@ -237,11 +246,12 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
   `HOLZI`, `holzi_…`, `holzi-…`, `Holzi…`), in Code, Typen, Dateinamen, Konfiguration, Skripten,
   CI, Texten der Oberfläche, Kommentaren, Specs und Doku. Dabei folgt jede Schreibweise der
   Konvention der Umgebung (Rust-Crate `haex_vault`, Typ `VaultError`, Umgebungsvariable
-  `HAEX_VAULT_…`).
+  `HAEX_VAULT_…`); in Texten der Oberfläche heißt die App „HaexVault“ (FR-003).
 - **FR-002**: Es gibt keinen Alias für einen alten Namen: kein Re-Export, keine zweite Variable,
   kein zusätzliches Schema.
-- **FR-003**: Version, Produktname, Fenstertitel und Paketnamen der App stehen auf „haex-vault“
-  und 3.0.0.
+- **FR-003**: Produktname, Fenstertitel und App-Name auf Android heißen „HaexVault“; Paketnamen,
+  Crate, Binärdatei und Verzeichnisse tragen die technische Schreibweise „haex-vault“ (bzw.
+  `haex_vault`); die Version ist 3.0.0.
 - **FR-004**: Die Ausnahmeliste ist abschließend: Git-Historie und der Tag `holzi-final`, das
   Verzeichnis dieser Spec (sie beschreibt die Umbenennung und braucht den alten Namen), und die
   Textstellen, an denen der alte Name ausdrücklich als Vergangenheit benannt wird (Begriffe,
@@ -338,6 +348,8 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
 ### Key Entities
 
 - **Alter Name (holzi)**: die Zeichenfolge in jeder Schreibweise, die verschwindet.
+- **Anzeigename (HaexVault)**: der Name, den Nutzer in der App sehen; technische Namen schreiben
+  sich „haex-vault“.
 - **Ausnahmeliste**: die abschließende Liste der Orte, an denen der alte Name bleibt (FR-004).
 - **Alte Vault-Datei**: die Datenbank des Betreibers mit seinen Passwörtern; Quelle der einzigen
   Übernahme.

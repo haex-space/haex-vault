@@ -47,8 +47,9 @@ Sonderfälle, die die Regel nicht von selbst löst:
   ist im Code frei. Die zwei anderen Arten folgen der Regel: `haex_vault_nostr_relay` und
   `haex_vault_iroh`. Der Name `haex_vault` meint hier eine
   Vault-Identität dieser App; die alte App spielt in dieser Liste keine Rolle (R4).
-- **Anzeigename**: Die Spec verlangt „haex-vault“ in der Oberfläche. Die Schreibweise „Haex Vault“
-  des Produktnamens der alten App wird nicht übernommen.
+- **Anzeigename**: In der Oberfläche, im Fenstertitel und als Produktname heißt die App „HaexVault“
+  (Entscheidung des Betreibers, 2026-10-21); „haex-vault“ bleibt die technische Schreibweise. Die
+  Schreibweise „Haex Vault“ des Produktnamens der alten App wird nicht übernommen.
 
 **Alternativen.** Ein „schönerer“ neuer Name pro Sonderfall (mehr Entscheidungen, mehr Review);
 `Holzi…`-Typen zu `HaexVault…` (lang, ohne Gewinn).

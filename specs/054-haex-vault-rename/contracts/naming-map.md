@@ -27,8 +27,8 @@ Der Name in der Konvention der Umgebung. Die Version eines festen Textes (`/v1`,
 | CSS-Variable, -Klasse                                    | `--holzi-<x>`, `.holzi-<x>`                            | `--haex-vault-<x>`, `.haex-vault-<x>`                                      | S5     |
 | Manifest-Schlüssel, MCP-Name, Dateiendung                | `x-holzi`, `holzi-approve`, `.holzi-part-`             | `x-haex-vault`, `haex-vault-approve`, `.haex-vault-part-`                  | S2     |
 | Bilddatei, Bildordner                                    | `holzi-<x>.svg`, `holzi-states/`                       | `haex-vault-<x>.svg`, `haex-vault-states/`                                 | S2     |
-| Anzeigetext                                              | `Holzi`, `holzi` im Satz, `holzi's`                    | `haex-vault`, `haex-vault's`                                               | S6     |
-| Titel, Produktname, Version                              | `Holzi`/`holzi`, `0.1.0`                               | `haex-vault`, `3.0.0`                                                      | S6     |
+| Anzeigetext                                              | `Holzi`, `holzi` im Satz, `holzi's`                    | `HaexVault`, `HaexVault's`                                                 | S6     |
+| Titel, Produktname, Version                              | `Holzi`/`holzi`, `0.1.0`                               | `HaexVault`, `3.0.0`                                                       | S6     |
 | Kommentare und Doku                                      | beliebig                                               | `haex-vault`                                                               | S6, S7 |
 
 ## Sonderfälle
