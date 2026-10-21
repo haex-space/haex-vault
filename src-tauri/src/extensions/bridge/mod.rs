@@ -16,8 +16,12 @@ mod model_jobs_capabilities_tests;
 #[cfg(test)]
 mod model_jobs_consent_tests;
 #[cfg(test)]
+mod model_jobs_local_tests;
+#[cfg(test)]
 mod model_jobs_run_tests;
 #[cfg(test)]
 mod model_jobs_steps_tests;
+#[cfg(test)]
+mod model_jobs_storage_tests;
 #[cfg(test)]
 mod model_jobs_tests;

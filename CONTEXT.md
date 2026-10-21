@@ -423,6 +423,28 @@ account), mark it read, or flag it. A rule has at most one of each; of all match
 earliest created one decides the move, and a rule whose target folder is gone is skipped as a whole.
 _Avoid_: action without "rule" (see **Aktion** for the catalog of holzi).
 
+**Modellauftrag** (model job, spec 055):
+What an extension asks of holzi's language and vision models through the SDK (`models.runAsync`):
+up to four steps, each with the extension's instruction, text or images or the result of an earlier
+step, and the format of the answer as a schema. holzi picks a granted model per step, drops broken
+output (empty, a loop, a switch of script, not the format) and tries the next granted model; only an
+answer in the format is a result. A job has no tools, lives only in memory and leaves no trace in
+the vault.
+_Avoid_: agent task (the earlier spec 047), prompt, request.
+
+**Modellfreigabe** (model grant, spec 055):
+The **Berechtigung** of kind `model`: an extension may use this model up to this effort (`none` to
+`high`). The user answers a first job's question or sets it in the extension's settings, where the
+granted models also get their rank. A wish above the ceiling is capped, not refused.
+_Avoid_: model permission, model access.
+
+**Ziel (Ort)** (destination and its place, spec 055):
+Where a model runs, seen from this device: `this_device` (local, or a server on loopback such as
+Ollama), `network` (another device or a server in the own network) or `cloud`. Before a job sends
+anything to a destination outside this device, the user consents (`modelDestination`, per provider,
+for the session or remembered) and sees the provider, the address and what would be sent.
+_Avoid_: location, region.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and

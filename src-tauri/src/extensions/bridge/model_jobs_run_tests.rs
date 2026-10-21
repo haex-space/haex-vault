@@ -1,4 +1,4 @@
-//! A model job through the bridge (spec 055 T021, T028, T029, T045): a granted model answers and
+//! A model job through the bridge (spec 055 T021, T028, T045): a granted model answers and
 //! the extension hears the result with its provenance; without a grant or a consent the user is
 //! asked and no model is called; no answer or event carries a key or an address.
 
@@ -409,35 +409,6 @@ fn a_successful_result_never_carries_a_key_or_an_address() {
         assert!(!answer.to_string().contains(secret));
         assert!(!data.to_string().contains(secret));
     }
-}
-
-#[test]
-fn the_list_names_the_granted_models_with_place_capabilities_and_ceiling() {
-    let s = setup();
-    let models_of = |s: &Setup| call(&s.ctx, "extension_model_list", &json!({})).unwrap();
-    let (_, vision) = models(&s, "http://localhost:11434/v1", &["vision"], true);
-    let (_, cloud) = models(&s, "https://api.example.com/v1", &["cloud"], false);
-    assert_eq!(models_of(&s), json!({ "models": [] }), "no grant, no model");
-
-    allow(&s, "model", "high", &vision[0].id, "granted");
-    allow(&s, "model", "low", &cloud[0].id, "granted");
-
-    let listed = models_of(&s);
-    let entries = listed["models"].as_array().unwrap();
-    assert_eq!(entries.len(), 2);
-    let vision_entry = entries.iter().find(|m| m["name"] == "vision").unwrap();
-    assert_eq!(
-        *vision_entry,
-        json!({
-            "id": vision[0].id, "name": "vision", "provider": "Test provider",
-            "place": "this_device", "capabilities": { "image": true, "effort": "none" },
-            "maxEffort": "high"
-        })
-    );
-    let cloud_entry = entries.iter().find(|m| m["name"] == "cloud").unwrap();
-    assert_eq!(cloud_entry["place"], "cloud");
-    assert_eq!(cloud_entry["capabilities"]["image"], false);
-    assert_eq!(cloud_entry["maxEffort"], "low");
 }
 
 #[test]

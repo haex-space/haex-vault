@@ -2,6 +2,7 @@
 
 use serde_json::json;
 
+use super::openai_compatible::token_limit_field_for_endpoint;
 use super::openai_request::{build_chat_body_with_limit, TokenLimitField};
 use super::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
@@ -294,4 +295,20 @@ fn the_images_of_a_tool_result_follow_as_a_user_message() {
     assert_eq!(messages[0]["role"], "tool");
     assert_eq!(messages[1]["role"], "user");
     assert_eq!(messages[1]["content"][0]["type"], "image_url");
+}
+
+#[test]
+fn token_limit_field_is_selected_by_endpoint() {
+    assert_eq!(
+        token_limit_field_for_endpoint("https://api.openai.com/v1"),
+        TokenLimitField::MaxCompletionTokens
+    );
+    assert_eq!(
+        token_limit_field_for_endpoint("http://localhost:11434/v1"),
+        TokenLimitField::MaxTokens
+    );
+    assert_eq!(
+        token_limit_field_for_endpoint("http://school-server/v1"),
+        TokenLimitField::MaxTokens
+    );
 }
