@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-10
 
-**Status**: Draft
+**Status**: Planned (2026-10-21)
 
 **Input**: User description: "Eine External Bridge, damit die bestehende Browser-Erweiterung
 `haex-pass-browser` (haextension, `apps/haex-pass-browser`) mit holzi statt mit haex-vault 2.x (Legacy)
@@ -42,7 +42,8 @@ auszuschließen."
 - **Sperre**: die gemerkte Ablehnung eines Clients. Ein gesperrter Client wird abgewiesen, ohne
   dass holzi fragt, bis der Nutzer die Sperre aufhebt.
 - **Methode**: eine benannte Anfrage des Clients, etwa `get-items`. Die Namen sind die von
-  `HAEX_PASS_METHODS` aus `@haex-pass/api` (haextension, siehe unten).
+  `HAEX_PASS_METHODS` aus `apps/haex-pass-browser/src/logic/haexPassApi.ts` (haextension, siehe
+  unten).
 - **Anwesenheitsbestätigung**: ein Dialog von holzi für genau eine Passkey-Zeremonie (Anlegen oder
   Anmelden), in dem der Nutzer die Gegenstelle, die Herkunft und das Konto sieht und bestätigt.
   Erst sie erlaubt dem Passkey-Dienst, in den Authenticator-Daten „Nutzer anwesend“ (UP) zu
@@ -100,11 +101,15 @@ auszuschließen."
   Prüfung ausgeschlossener Passkeys über den Bereich hinaus (036 FR-024). haex-vault 2.x ist kein
   Maßstab für Oberfläche.
 - **Client haex-pass-browser**: Repository `https://github.com/haex-space/haextension`, Revision
-  `a365af8a89f57a31427b85bfef5fe0f510253d30`, Pfade `apps/haex-pass-browser/src/background/`
-  (`protocol.ts`, `connection.ts`, `crypto.ts`, `keypairStorage.ts`, `main.ts`),
-  `apps/haex-pass-browser/src/contentScripts/` (`webauthn-inject.ts`, `webauthn-bridge.ts`,
-  `passkey-consent.ts`), `apps/haex-pass-browser/src/bookmarks/vaultClient.ts` und
-  `apps/haex-pass/app/api/external.ts` (`@haex-pass/api`, `HAEX_PASS_METHODS`).
+  `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0` (neu gepinnt 2026-10-21; die erste Pin
+  `a365af8a89f57a31427b85bfef5fe0f510253d30` spricht dasselbe Protokoll, aber
+  `apps/haex-pass/app/api/external.ts` gibt es seitdem nicht mehr), Pfade
+  `apps/haex-pass-browser/src/background/` (`protocol.ts`, `connection.ts`, `crypto.ts`,
+  `keypairStorage.ts`, `main.ts`, `passkeyOrigin.ts`), `apps/haex-pass-browser/src/contentScripts/`
+  (`webauthn-inject.ts`, `webauthn-bridge.ts`, `passkey-consent.ts`),
+  `apps/haex-pass-browser/src/logic/haexPassApi.ts` (`HAEX_PASS_METHODS`, Eingaben und Antworten der
+  Passwort-Methoden) und `apps/haex-pass-browser/src/bookmarks/vaultClient.ts`. Nach dem
+  Begleit-PR (Abschnitt „Änderungen an haex-pass-browser“) gilt dessen Merge-Revision.
 
 ## Clarifications
 
@@ -152,6 +157,24 @@ der Betreiber hat sie am 2026-10-10 bestätigt.
 - Q: Leitet holzi Anfragen an installierte haextensions weiter (in haex-vault 2.x `requestedExtensions`
   mit Aktionen)? → A: Nein, nur an den Passwortmanager (Ziel `__core__`/`core`); alles andere wird
   abgelehnt (FR-029).
+
+### Session 2026-10-21
+
+Beim Planen gegen den Stand der Erweiterung auf haextension `main` (`c8133b94`) bestätigt der
+Betreiber:
+
+- Q: Die Erweiterung ruft `update-item` nicht mehr auf, und `create-item` schickt nur Titel,
+  Adresse, Benutzername und Passwort. Baut holzi trotzdem Ändern, TOTP-Angaben und Symbol? → A:
+  Nein. holzi bietet nur, was der Client nutzt: `update-item` wird wie die Lesezeichen mit „nicht
+  unterstützt“ beantwortet (FR-028), `create-item` übernimmt nur die vier Felder (FR-022), alles
+  andere in der Anfrage wird übergangen.
+- Q: Gehört eine Änderung an der Erweiterung zu 049? → A: Ja, ein kleiner Begleit-PR in
+  haextension: die Antwort von `passkey-list` im Hintergrund korrigieren (ohne sie erreicht keine
+  Passkey-Anmeldung holzi), neutrale Texte statt „HaexVault“ und die Lesezeichen-Synchronisation
+  bei „nicht unterstützt“ als nicht verfügbar zeigen. Danach wird die Erweiterung neu
+  veröffentlicht.
+- Q: Wo liegen die Einstellungen der Bridge? → A: In der vorhandenen Kategorie „Erweiterungen“ als
+  Abschnitt „Browser-Erweiterungen“ mit eigener Unterseite; keine neue Kategorie.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -236,9 +259,9 @@ Der Eintrag erscheint sofort im Passwortmanager von holzi, mit dem Tag „web“
 US1 auf.
 
 **Independent Test**: Mit Freigabe „Lesen und Schreiben“ für Tag „web“ und Standard-Tag „web“
-Voreinstellungen holen, einen Eintrag anlegen, ändern und prüfen, dass er Tag, Verlauf und Werte
-hat; dasselbe mit „Lesen“ (Anfrage in holzi) und für einen Eintrag außerhalb des Bereichs
-(abgelehnt).
+Voreinstellungen holen, einen Eintrag anlegen und prüfen, dass er Tag, Verlauf und Werte hat und
+übergangene Felder (Ordner, TOTP, Symbol) nicht übernommen sind; dasselbe mit „Lesen“ (Anfrage in
+holzi); `update-item` scheitert mit „nicht unterstützt“.
 
 **Acceptance Scenarios**:
 
@@ -247,13 +270,14 @@ hat; dasselbe mit „Lesen“ (Anfrage in holzi) und für einen Eintrag außerha
 2. **Given** eine Zulassung „Lesen und Schreiben“ mit Standard-Tag „web“, **When** der Client einen
    Eintrag anlegt, **Then** entsteht er mit dem Tag „web“ und einem ersten Stand im Verlauf, und
    der Passwortmanager zeigt ihn ohne Neuladen.
-3. **Given** derselbe Client, **When** er einen Eintrag im Bereich ändert, **Then** gelten die Regeln
-   aus 034 (Z7, Z12): Tags außerhalb seines Bereichs bleiben, der Verlauf bekommt einen Stand.
+3. **Given** derselbe Client, **When** er `update-item` schickt, **Then** antwortet holzi „nicht
+   unterstützt“, ohne zu fragen, und nichts ändert sich (FR-028).
 4. **Given** eine Zulassung nur mit „Lesen“, **When** der Client anlegen will, **Then** zeigt holzi
    eine Anfrage wie in 017; erlaubt Anna, gelingt es, lehnt sie ab oder antwortet sie nicht
    rechtzeitig, scheitert es und nichts ändert sich.
-5. **Given** ein ungültiges TOTP-Secret im Anlegen, **When** der Client speichert, **Then** lehnt
-   holzi ab wie in 034 FR-003.
+5. **Given** eine Anlege-Anfrage mit zusätzlichen Feldern (`groupId`, TOTP-Angaben, `iconBase64`,
+   `tags`), **When** der Client speichert, **Then** legt holzi den Eintrag nur mit Titel, Adresse,
+   Benutzername, Passwort und Standard-Tag an.
 
 ---
 
@@ -266,7 +290,7 @@ sie sich mit dem Passkey an; holzi fragt wieder, diesmal mit der Wahl zwischen i
 bei der Seite.
 
 **Why this priority**: Passkeys sind der zweite Zweck der Erweiterung, aber ohne US1 und US2 nicht
-nutzbar; sie brauchen zwei kleine Änderungen an der Erweiterung (siehe unten).
+nutzbar; die Anmeldung braucht den Begleit-PR an der Erweiterung (siehe unten).
 
 **Independent Test**: Gegen eine Test-Gegenstelle mit einer gängigen WebAuthn-Server-Bibliothek, die
 UP verlangt: Passkey über die Bridge anlegen (mit Bestätigung), anmelden (mit Bestätigung),
@@ -380,18 +404,17 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **Feld mit einem Verweis, dessen Kette zu tief ist oder einen Kreis bildet**: Das Feld fehlt in
   der Antwort, wie bei einem Verweis außerhalb des Bereichs; holzi liefert nie einen leeren oder
   wörtlichen Platzhalter als Wert (ADR-0009).
-- **Symbol beim Anlegen** (`iconBase64`): Ist es kein Bild oder größer als die Grenze aus FR-022,
-  speichert holzi den Eintrag ohne Symbol und lehnt ihn nicht ab.
-- **Ordner beim Anlegen** (`groupId`): Ordner zu wählen steht Aufrufern von außen nicht offen
-  (034 Z11); holzi legt neue Einträge immer in der obersten Ebene an und übergeht `groupId`.
-- **Passkey-Anfrage ohne Herkunft** (heutige Erweiterung): Abgelehnt (036 FR-025 schließt die
+- **Weitere Felder beim Anlegen** (`groupId`, `iconBase64`, `otpSecret` und Verwandte, `tags`):
+  holzi übergeht sie und legt den Eintrag ohne sie an (FR-022). Ordner zu wählen steht Aufrufern von
+  außen ohnehin nicht offen (034 Z11).
+- **Passkey-Anfrage ohne Herkunft** (Erweiterungen vor `e0ee77f`): Abgelehnt (036 FR-025 schließt die
   Annahme `https://<Kennung>` aus). Die Erweiterung fällt bei jedem Fehler auf den Passkey-Dialog
   des Browsers zurück; der Nutzer sieht also den Browser-Dialog statt eines Fehlers.
 - **Client gibt vor der Anwesenheitsbestätigung auf** (Zeitlimit der Erweiterung): holzi bemerkt das
   nur, wenn die Verbindung endet; dann schließt es den Dialog. Bestätigt der Nutzer einen
   Passkey-Anlegen-Dialog, nachdem der Client aufgegeben hat, bleibt ein Passkey am Eintrag, den die
-  Gegenstelle nie bekommen hat; der Nutzer kann ihn im Tab Extra löschen. Die Änderung 2 an der
-  Erweiterung (unten) macht das selten.
+  Gegenstelle nie bekommen hat; der Nutzer kann ihn im Tab Extra löschen. Die Wartezeit der
+  Erweiterung von 130 Sekunden macht das selten.
 - **Gleichzeitige Passkey-Zeremonien**: Anwesenheitsbestätigungen stehen nacheinander in der
   Warteschlange; jede gehört zu genau einer Anfrage.
 - **Ausgeschlossener Passkey existiert schon** (`excludeCredentials`): Es entsteht kein neuer, der
@@ -417,7 +440,8 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Einstellungen ein- und ausschaltet; ab Werk ist sie aus. Die Einstellung und der Port MÜSSEN
   geräteeigen sein.
 - **FR-002**: Die Bridge MUSS ausschließlich auf der Loopback-Schnittstelle des Geräts lauschen
-  (nie auf anderen Netzschnittstellen), ab Werk auf Port 19455; der Nutzer MUSS den Port ändern
+  (nie auf anderen Netzschnittstellen; IPv4 und, wo vorhanden, IPv6, weil die Erweiterung
+  `localhost` aufruft), ab Werk auf Port 19455; der Nutzer MUSS den Port ändern
   können. Ist der Port belegt, MUSS holzi das in den Einstellungen anzeigen und DARF NICHT still
   auf einen anderen Port ausweichen.
 - **FR-003**: Die Bridge DARF nur lauschen, solange eine Vault offen ist. Schließen oder Sperren der
@@ -438,8 +462,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   kleiner als 2 oder ohne Erklärung mit `PERMISSIONS_DECLARATION_REQUIRED` beantworten und
   schließen.
 - **FR-007**: holzi MUSS Nachrichten über einer festen Größe und unlesbare Nachrichten ablehnen,
-  ohne abzustürzen; die Grenze legt der Plan fest, mindestens so groß, dass ein Symbol bis zur
-  Grenze aus FR-022 in eine Anlege-Anfrage passt. Ein Client DARF höchstens einen offenen
+  ohne abzustürzen; die Grenze legt der Plan fest. Ein Client DARF höchstens einen offenen
   Zulassungsdialog haben, egal wie oft er sich verbindet.
 
 **Zulassung**
@@ -490,12 +513,12 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 **Methoden für Passwörter**
 
-- **FR-018**: Die Bridge MUSS die Methoden `get-items`, `get-totp`, `create-item`, `update-item`,
+- **FR-018**: Die Bridge MUSS die Methoden `get-items`, `get-totp`, `create-item`,
   `get-password-config`, `get-password-presets`, `passkey-create`, `passkey-get` und `passkey-list`
-  mit den Eingaben und Antworten aus `@haex-pass/api` in der gepinnten Revision anbieten. Verlangte
-  Art: „Lesen“ für `get-items`, `get-totp`, `get-password-config`, `get-password-presets`,
-  `passkey-get` und `passkey-list`; „Lesen und Schreiben“ für `create-item`, `update-item` und
-  `passkey-create`.
+  mit den Eingaben und Antworten anbieten, die die Erweiterung in der gepinnten Revision schickt und
+  liest (`logic/haexPassApi.ts`, `background/connection.ts`). Verlangte Art: „Lesen“ für
+  `get-items`, `get-totp`, `get-password-config`, `get-password-presets`, `passkey-get` und
+  `passkey-list`; „Lesen und Schreiben“ für `create-item` und `passkey-create`.
 - **FR-019**: `get-items` MUSS eine Adresse verlangen und sonst ablehnen. Treffer sind Einträge im
   Bereich, deren Adresse dieselbe registrierbare Domain hat wie die angefragte (bei IP-Adressen und
   `localhost` derselbe Host); Einträge, die nur im Text ähnlich sind (`bad-example.de`), sind keine
@@ -509,13 +532,11 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **FR-021**: Verweise in Feldern (ADR-0009) MUSS der Dienst auflösen; ein Feld, dessen Verweis eine
   Quelle außerhalb des Bereichs hat oder nicht auflösbar ist, MUSS in der Antwort fehlen.
 - **FR-022**: `create-item` MUSS einen Eintrag mit Titel (ohne Titel der Host der Adresse),
-  Adresse, Benutzername, Passwort und TOTP-Angaben anlegen, mit dem Standard-Tag der Zulassung, in
-  der obersten Ebene, mit erstem Stand im Verlauf, und Kennung und Titel zurückgeben. Ungültige
-  TOTP-Angaben MÜSSEN wie in 034 FR-003 abgelehnt werden. Ein Symbol MUSS holzi nur übernehmen,
-  wenn es ein Bild unterhalb einer Größengrenze ist, die der Plan festlegt (höchstens die Grenze für
-  Anhänge aus 034); sonst speichert es den Eintrag ohne Symbol.
-- **FR-023**: `update-item` MUSS nur die mitgeschickten Felder ändern, nach den Regeln aus 034 Z7 und
-  Z12, mit neuem Stand im Verlauf; Tags ändert die Methode nicht.
+  Adresse, Benutzername und Passwort anlegen, mit dem Standard-Tag der Zulassung, in der obersten
+  Ebene, mit erstem Stand im Verlauf, und Kennung und Titel zurückgeben. Alle anderen Felder der
+  Anfrage MUSS holzi übergehen (Clarification 2026-10-21).
+- **FR-023**: _(entfallen 2026-10-21)_ `update-item` gehört zu den nicht unterstützten Methoden
+  (FR-028).
 - **FR-024**: `get-totp` MUSS für einen Eintrag im Bereich den aktuellen Code und die Restzeit in
   Sekunden liefern, berechnet im Dienst; das Secret DARF den Dienst nicht verlassen. Für einen
   Eintrag ohne TOTP oder außerhalb des Bereichs antwortet holzi gleich (nicht gefunden).
@@ -525,7 +546,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   aus schicken; der Client fragt bei Bedarf neu.
 - **FR-027**: `get-password-config` und `get-password-presets` MÜSSEN die Voreinstellungen des
   Generators (034) mit jeder Passwort-Freigabe liefern; sie enthalten keine Geheimnisse.
-- **FR-028**: Die Methoden `bookmarks-collections-list`, `bookmarks-collection-create`,
+- **FR-028**: Die Methoden `update-item`, `bookmarks-collections-list`, `bookmarks-collection-create`,
   `bookmarks-list`, `bookmarks-upsert`, `bookmarks-delete` und `bookmarks-device-upsert` MUSS holzi
   ohne Anfrage und ohne Wirkung mit einer Ablehnung „nicht unterstützt“ beantworten; die Verbindung
   bleibt bestehen.
@@ -608,7 +629,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **Einstellung der Bridge**: je Gerät Ein/Aus und Port.
 - **Anwesenheitsbestätigung**: Client, Art der Zeremonie, Gegenstelle, Herkunft, Aufgabe der
   Gegenstelle, gewähltes Konto oder gewählter Eintrag, Frist, Ergebnis; nie gespeichert.
-- **Methode**: Name, verlangte Art, Eingabe und Antwort nach `@haex-pass/api`.
+- **Methode**: Name, verlangte Art, Eingabe und Antwort nach `logic/haexPassApi.ts` der Erweiterung.
 
 ## Success Criteria _(mandatory)_
 
@@ -627,7 +648,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Passkey-Schlüssel, Einträge außerhalb des Bereichs und angefragte Adressen 0-mal in Antworten,
   Fehlermeldungen oder Protokollen vor, wo sie nicht hingehören.
 - **SC-005**: Gegen eine Test-Gegenstelle, die UP verlangt, gelingen Registrierung und Anmeldung über
-  die Bridge nach Bestätigung in 100 % der Läufe (mit den Änderungen 1 und 2 an der Erweiterung);
+  die Bridge nach Bestätigung in 100 % der Läufe (mit dem Begleit-PR an der Erweiterung);
   ohne Bestätigung, nach Ablehnen, nach Verfallen und mit unpassender oder fehlender Herkunft
   entstehen 0 Passkeys und 0 Signaturen.
 - **SC-006**: 100 % der Verbindungen mit einer Webseiten-Herkunft oder ohne Herkunft und 100 % der
@@ -642,8 +663,8 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 ## Assumptions
 
-- Die Erweiterung legt ihr Schlüsselpaar im lokalen Speicher ihres Browserprofils ab
-  (`keypairStorage.ts`); es wird nicht zwischen Browsern synchronisiert. Wer diesen Speicher liest,
+- Die Erweiterung legt ihr Schlüsselpaar als nicht exportierbare Schlüssel in der IndexedDB ihres
+  Browserprofils ab (`keypairStorage.ts`); es wird nicht zwischen Browsern synchronisiert. Wer diesen Speicher liest,
   kann sich als der Client ausgeben; das ist dieselbe Grenze wie in ADR-0007 (ein Prozess, der die
   offene Vault lesen kann, liest ihre Geheimnisse).
 - Browser schicken beim Aufbau einer WebSocket-Verbindung aus einer Erweiterung deren Herkunft
@@ -661,12 +682,12 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   aus Kompatibilitätsgründen; der Plan bewertet es.
 - Die Verbindung selbst ist unverschlüsseltes `ws://` auf Loopback; vertraulich sind die Inhalte durch
   die Umschläge.
-- Die Erweiterung wartet auf die meisten Antworten nur 10 Sekunden (`sendRequest`); Anfragen nach
-  FR-015 und Anwesenheitsbestätigungen brauchen länger. Ohne die Änderung 2 an der Erweiterung
-  scheitern sie, wenn der Nutzer langsamer antwortet.
-- Die Erweiterung füllt heute die Marke `otp: "TOTP"` aus `get-items` in Felder für Einmalcodes und
-  ruft `get-totp` in der gepinnten Revision nicht auf. holzi liefert die Marke trotzdem wie haex-vault 2.x;
-  `get-totp` ist für eine korrigierte Erweiterung da.
+- Die Erweiterung wartet auf die meisten Antworten 10 Sekunden, auf `create-item`,
+  `passkey-create` und `passkey-get` 130 Sekunden (`connection.ts`), auf `passkey-list` 3 Sekunden.
+  Die 120 Sekunden für Anfragen nach FR-015 und Anwesenheitsbestätigungen passen hinein.
+- Die Erweiterung ruft `get-totp` auf, wenn ein Eintrag `hasTotp` meldet und die Seite ein Feld für
+  Einmalcodes hat, und tippt die Marke `otp: "TOTP"` nie ein. holzi liefert die Marke trotzdem wie
+  haex-vault 2.x, weil die Erweiterung Einträge verwirft, deren Felder keine Zeichenketten sind.
 - Die registrierbare Domain bestimmt holzi mit der Liste öffentlicher Suffixe, die die Herkunftsprüfung
   des Passkey-Dienstes schon nutzt (ADR-0009).
 - Ein Eintrag hat genau ein Adressfeld (034 FR-001); weitere Adressen je Eintrag sind nicht
@@ -675,24 +696,28 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 ## Änderungen an haex-pass-browser
 
 Ausfüllen, TOTP und Speichern (US1 bis US3, US5, US6) funktionieren mit der gepinnten Revision ohne
-Änderung. Für Passkeys (US4) braucht die Erweiterung zwei kleine Änderungen; die übrigen sind
-Empfehlungen.
+Änderung. Stand der Änderungen an der Erweiterung am 2026-10-21 (Revision `c8133b94`):
 
-1. **Herkunft mitschicken (MUSS für Passkeys)**: `passkey-create` und `passkey-get` tragen ein Feld
-   `origin` mit der Herkunft des Rahmens, der WebAuthn aufgerufen hat. Der Hintergrund der
-   Erweiterung bestimmt sie aus dem Absender der Nachricht (Tab und Rahmen), nicht aus Angaben des
-   Seitenskripts. Ohne sie lehnt holzi ab (FR-032), und die Erweiterung fällt auf den Browser zurück.
-2. **Längere Wartezeit (MUSS für Passkeys, SOLL sonst)**: `passkey-create` und `passkey-get` warten
-   mindestens 120 Sekunden auf die Antwort statt 10 (Anwesenheitsbestätigung in holzi); `create-item`
-   und `update-item` SOLLEN ebenso lange warten, weil holzi nach FR-015 fragen kann.
-3. **Neutrale Texte (SOLL)**: Texte wie „Bitte genehmige diese Verbindung in LegacyHaexVault“ und „Der Port,
-   auf dem LegacyHaexVault lauscht“ nennen „holzi oder haex-vault 2.x“ oder neutral „deine Vault-App“.
-4. **Lesezeichen (KANN)**: Antwortet der Dienst auf `bookmarks-*` mit „nicht unterstützt“, zeigt die
-   Erweiterung die Lesezeichen-Synchronisation als nicht verfügbar, statt einen Fehler zu wiederholen.
-5. **Algorithmen (KANN)**: `passkey-create` schickt die Algorithmen der Gegenstelle mit und meldet den
-   tatsächlich verwendeten statt fest ES256; bis dahin legt holzi ES256 an (FR-034).
+1. **Herkunft mitschicken (MUSS für Passkeys)**: erledigt (`e0ee77f`). `passkey-create` und
+   `passkey-get` tragen `origin`, die der Hintergrund aus Tab und Rahmen des Absenders bestimmt
+   (`background/passkeyOrigin.ts`, nur der oberste Rahmen). Ohne sie lehnt holzi ab (FR-032).
+2. **Längere Wartezeit (MUSS für Passkeys, SOLL sonst)**: erledigt. `create-item`, `passkey-create`
+   und `passkey-get` warten 130 Sekunden.
+3. **Antwort von `passkey-list` (MUSS für die Anmeldung)**: offen, Begleit-PR. Der Hintergrund
+   antwortet `{ success, passkeys }`, das Inhaltsskript liest `response.data`
+   (`background/main.ts`, `contentScripts/webauthn-bridge.ts`); die Liste ist immer leer, und jede
+   Anmeldung fällt auf den Browser zurück, ohne holzi zu fragen.
+4. **Neutrale Texte (SOLL)**: offen, Begleit-PR. Texte mit „HaexVault“ und „haex-vault“
+   (`locales/`, `PasskeyConsentPrompt.vue`, `connection.ts`) nennen neutral „deine Vault-App“
+   oder „holzi“.
+5. **Lesezeichen (SOLL)**: offen, Begleit-PR. Antwortet der Dienst auf `bookmarks-*` mit „nicht
+   unterstützt“, zeigt die Erweiterung die Lesezeichen-Synchronisation als nicht verfügbar, statt den
+   Fehler alle fünf Minuten zu wiederholen.
+6. **Algorithmen (KANN)**: nicht Teil des Begleit-PR. `passkey-create` meldet weiter fest ES256; holzi
+   legt ES256 an (FR-034).
 
-Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, wie sie sind.
+Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, wie sie sind. Nach dem
+Begleit-PR wird die Erweiterung neu veröffentlicht (Chrome Web Store, addons.mozilla.org).
 
 ## Nicht im Umfang
 
@@ -708,4 +733,6 @@ Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, 
 - Ein Anwesenheitsnachweis mit Biometrie oder Systemanmeldung; UV prüft holzi nur über das Passwort
   der Vault (FR-033).
 - Andere Beglaubigungsformate als `none` und ein Zähler ungleich 0 (036, Folgearbeiten).
-- Änderungen an der Erweiterung selbst; diese Spec nennt sie nur (Abschnitt oben).
+- Änderungen an der Erweiterung über den Begleit-PR hinaus (Abschnitt oben, Punkte 3 bis 5).
+- Ändern von Einträgen (`update-item`), TOTP-Angaben und Symbole beim Anlegen (Clarification
+  2026-10-21).
