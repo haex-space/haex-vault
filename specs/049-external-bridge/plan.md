@@ -49,7 +49,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   (ADR-0001).
 - **Lebenszyklus** (R14): Start bei jedem Öffnen der Vault, Stopp über das Gate-Token.
 - **Plattformen** (R15): Android über `PlatformCapabilities.browser_bridge = false`.
-- **Begleit-PR in haextension** (R19): Antwort von `passkey-list`, neutrale Texte, Lesezeichen als
+- **Begleit-PR in haextension** (R19): Antwort von `passkey-list`, Name „haex-vault“ in den Texten, Lesezeichen als
   „nicht verfügbar“. Danach ein neuer Pin und Release `haex-pass-browser-v1.3.0`.
 
 ## Technical Context

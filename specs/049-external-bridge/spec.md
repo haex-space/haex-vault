@@ -170,8 +170,9 @@ Betreiber:
   andere in der Anfrage wird übergangen.
 - Q: Gehört eine Änderung an der Erweiterung zu 049? → A: Ja, ein kleiner Begleit-PR in
   haextension: die Antwort von `passkey-list` im Hintergrund korrigieren (ohne sie erreicht keine
-  Passkey-Anmeldung holzi), neutrale Texte statt „HaexVault“ und die Lesezeichen-Synchronisation
-  bei „nicht unterstützt“ als nicht verfügbar zeigen. Danach wird die Erweiterung neu
+  Passkey-Anmeldung holzi), den Namen „haex-vault“ statt „HaexVault“ in den Texten (holzi
+  übernimmt nach Spec 054 den Namen haex-vault) und die Lesezeichen-Synchronisation bei „nicht
+  unterstützt“ als nicht verfügbar zeigen. Danach wird die Erweiterung neu
   veröffentlicht.
 - Q: Wo liegen die Einstellungen der Bridge? → A: In der vorhandenen Kategorie „Erweiterungen“ als
   Abschnitt „Browser-Erweiterungen“ mit eigener Unterseite; keine neue Kategorie.
@@ -707,12 +708,13 @@ Ausfüllen, TOTP und Speichern (US1 bis US3, US5, US6) funktionieren mit der gep
    antwortet `{ success, passkeys }`, das Inhaltsskript liest `response.data`
    (`background/main.ts`, `contentScripts/webauthn-bridge.ts`); die Liste ist immer leer, und jede
    Anmeldung fällt auf den Browser zurück, ohne holzi zu fragen.
-4. **Neutrale Texte (SOLL)**: offen, Begleit-PR. Texte mit „HaexVault“ und „haex-vault“
-   (`locales/`, `PasskeyConsentPrompt.vue`, `connection.ts`) nennen neutral „deine Vault-App“
-   oder „holzi“.
-5. **Lesezeichen (SOLL)**: offen, Begleit-PR. Antwortet der Dienst auf `bookmarks-*` mit „nicht
-   unterstützt“, zeigt die Erweiterung die Lesezeichen-Synchronisation als nicht verfügbar, statt den
-   Fehler alle fünf Minuten zu wiederholen.
+4. **Name der Vault-App (SOLL)**: Begleit-PR. Die Texte nennen „haex-vault“ statt „HaexVault“.
+   Neutrale Texte braucht es nicht: holzi übernimmt nach Spec 054 den Namen haex-vault, und
+   haex-vault 2.x (Legacy) ist abgelöst.
+5. **Lesezeichen (SOLL)**: Begleit-PR. Antwortet der Dienst auf `bookmarks-*` mit „nicht
+   unterstützt“, zeigen Einrichtung und Optionen der Erweiterung einen Satz statt des rohen Fehlers.
+   Die Wiederholung alle fünf Minuten bleibt; sie läuft nur mit einer aktiven Sammlung, die es mit
+   holzi nicht geben kann.
 6. **Algorithmen (KANN)**: nicht Teil des Begleit-PR. `passkey-create` meldet weiter fest ES256; holzi
    legt ES256 an (FR-034).
 

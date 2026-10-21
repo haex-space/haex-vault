@@ -548,11 +548,12 @@ Das Ergebnis liegt in `src-tauri/tests/fixtures/browser_bridge/webcrypto.json`.
 1. **`passkey-list`**: Der Hintergrund antwortet `{ success, data: { passkeys } }`, oder das
    Inhaltsskript liest `passkeys`. Gewählt wird die Form, die zu `relayVaultRequest` passt; ein
    Vitest-Test belegt, dass die Liste ankommt.
-2. **Neutrale Texte** in `locales/de.ts`/`en.ts`, `PasskeyConsentPrompt.vue` und
-   `connection.ts:193`.
-3. **Lesezeichen**: Liefert `bookmarks-*` den Fehler „nicht unterstützt“ (siehe Vertrag), zeigt
-   die Erweiterung „In dieser Vault-App nicht verfügbar“ und stellt die Wiederholung alle fünf
-   Minuten ein.
+2. **Name**: „haex-vault“ statt „HaexVault“ in `locales/de.ts`/`en.ts`. holzi übernimmt nach
+   Spec 054 den Namen haex-vault; neutrale Texte wären falsch.
+3. **Lesezeichen**: Liefert `bookmarks-*` den Fehler `NOT_SUPPORTED` (siehe Vertrag), halten die
+   Lesezeichen-Aufrufe die Marke `BOOKMARKS_NOT_SUPPORTED`, und Einrichtung und Optionen zeigen
+   „Deine Vault-App synchronisiert keine Lesezeichen.“ Die Wiederholung bleibt, weil sie nur mit
+   einer aktiven Sammlung läuft, die es mit holzi nicht gibt.
 
 Danach wird die Spec auf die Merge-Revision gepinnt, und die Erweiterung wird veröffentlicht
 (`haex-pass-browser-v1.3.0`, Release-Workflow `browser-extension-release.yml`).
