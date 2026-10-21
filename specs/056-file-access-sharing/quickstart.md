@@ -22,8 +22,10 @@ nix develop --command pnpm format:check
    < 3 s).
 3. A2: ein Bild nach A1 kopieren, mittendrin abbrechen → auf A1 keine halbe Datei (SC-008).
 4. A2: auf A1 eine Datei löschen → liegt im Papierkorb von A1.
-5. A2: das Datenverzeichnis von holzi auf A1 öffnen → gesperrt (FR-007).
-6. A1: Einstellungen → Föderation → „Geräte-Dateizugriff“ aus. A2 zeigt „Dateizugriff auf diesem Gerät
+5. A2: das Datenverzeichnis von holzi auf A1 öffnen → sichtbar, nur lesend (FR-007).
+6. A2: `Downloads` von A1 offen lassen, auf A1 eine Datei dort ablegen → erscheint auf A2 ohne
+   Aktualisieren (SC-009: < 2 s).
+7. A1: Einstellungen → Föderation → „Geräte-Dateizugriff“ aus. A2 zeigt „Dateizugriff auf diesem Gerät
    ausgeschaltet“. Wieder an.
 
 ## 2. Freigabe an einen Kontakt (US2)
@@ -53,4 +55,7 @@ nix develop --command pnpm format:check
 
 1. A2: Chat-Agent ohne Berechtigung für „A1“ → fragt bzw. lehnt ab.
 2. Mit „Lesen“: Zusammenfassung einer Datei auf A1 gelingt; Schreiben wird abgelehnt.
-3. Agent bitten, einen Ordner an Ben freizugeben → nicht möglich (FR-045).
+3. Agent ohne „Dateifreigaben verwalten“ bitten, einen Ordner an Ben freizugeben → abgelehnt.
+4. Berechtigung erteilen, erneut bitten → Bestätigungsdialog mit Ordner, Gerät, Ben, Stufe; erst
+   „Freigeben“ legt die Freigabe an, auch im Modus „Auto“ (SC-010).
+5. Agent bitten, Ben das Recht zu entziehen → ohne Rückfrage.

@@ -21,12 +21,13 @@ consequences reach beyond the spec:
 **Every device on the vault's current device list may read and write the whole file system of every
 other own device, unless that device switched it off.** The switch is per device, on by default, and
 stored only on that device (`haex_file_device_access_no_sync`), so no other device can turn it back
-on. holzi's own data stays blocked for every remote caller.
+on. A remote own device sees exactly what the serving device's file browser shows, holzi's own data
+included and with the same rules: read-only for the user, blocked for agents.
 
 **Devices of other vaults connect over a separate ALPN, `holzi-files/1`, never over
 `holzi-sync/1`.** They prove a device key on a device list signed by their vault identity, the vault
 identity must belong to a contact with a verified business card, and they reach only the roots shared
-with that identity, checked on every request. A serving device answers a Nostr knock only for an
+with that identity, checked on every request; holzi's own data stays blocked for them. A serving device answers a Nostr knock only for an
 entitled vault, so its address is not revealed to anyone else. Public iroh address discovery stays
 off.
 

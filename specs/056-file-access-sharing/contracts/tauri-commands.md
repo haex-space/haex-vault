@@ -1,8 +1,9 @@
 # Vertrag: Commands und Katalog-Aktionen
 
-Neue und geänderte Tauri-Commands. Alle Commands, die Dateifreigaben anlegen, ändern oder entziehen
-oder den Schalter umlegen, laufen über Katalog-Aktionen mit `scope: 'guardrails'`: Agents können sie
-nicht aufrufen (FR-045). Fehler als `FilesError` mit den bestehenden Codes plus `Conflict` und
+Neue und geänderte Tauri-Commands. Dateifreigaben laufen über Katalog-Aktionen mit eigenem Scope
+`files.shares`: Agents erreichen sie nur mit der Agent-Berechtigung „Dateifreigaben verwalten“, und
+Erteilen bestätigt der Nutzer immer in einem Dialog (FR-045, research R17). Der Schalter läuft über
+`scope: 'guardrails'` (kein Agent). Fehler als `FilesError` mit den bestehenden Codes plus `Conflict` und
 `Unreachable` (neu, research R7, R13).
 
 ## Dateibrowser (geändert)
@@ -11,6 +12,7 @@ nicht aufrufen (FR-045). Fehler als `FilesError` mit den bestehenden Codes plus 
 | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `files_sources`                                                                                  | `Sources` + `devices: FilesPeerDevice[]` und `contacts: FilesContactShares[]` (data-model.md)                        |
 | `files_list`, `files_stat`, `files_open`, `files_thumbnail`, `files_read_text`, Transfers, Suche | unverändert; `SourceRef::Storage { storageId: "peer:…" \| "share:…" }` wird über `PeerStore` aufgelöst (research R2) |
+| `files_watch`                                                                                    | nimmt auch `peer:`/`share:` an; Meldungen kommen über `Watch` vom bedienenden Gerät (FR-046, research R16)           |
 | `files_open_system`                                                                              | für `peer:`/`share:` erst herunterladen in den Zwischenspeicher wie bei Speichern                                    |
 
 ## Neu: Kontakte im Dateibrowser
@@ -19,7 +21,7 @@ nicht aufrufen (FR-045). Fehler als `FilesError` mit den bestehenden Codes plus 
 | --------------------- | --------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
 | `files_contact_query` | `{ contactId }` | `FilesContactShares` | klopft an (nostr-knock.md), fragt `Shares`, speichert empfangene Freigaben (FR-028, FR-030, FR-031) |
 
-## Neu: Dateifreigaben (Aktionen `files.shares.*`, `scope: 'guardrails'`)
+## Neu: Dateifreigaben (Aktionen `files.shares.*`, Scope `files.shares`)
 
 | Aktion / Command                                    | Eingabe                                                    | Ausgabe             |
 | --------------------------------------------------- | ---------------------------------------------------------- | ------------------- |
@@ -37,6 +39,10 @@ Regeln:
 - `save` auf eine schon freigegebene Quelle aktualisiert dieselbe Freigabe (FR-017).
 - `grants` nur für Kontakte mit gespeicherter Karte (FR-016).
 - Jede Änderung setzt `changed_at`; auf dem bedienenden Gerät setzt der Abonnent `served_at`.
+- Aufruf durch einen Agent: ohne `AgentFileKind::FileShares` → `Refused`; Anlegen, neuer Kontakt oder
+  höhere Stufe → Bestätigungsdialog `FileShareConfirmRequest` über das Fenster, Antwort bestätigen oder
+  ablehnen; ohne Antwort in 120 s oder ohne Fenster → `Refused`; Entziehen, Löschen und Herabstufen
+  ohne Dialog.
 
 ## Neu: Schalter „Geräte-Dateizugriff“
 

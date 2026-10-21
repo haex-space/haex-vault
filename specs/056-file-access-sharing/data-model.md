@@ -84,6 +84,12 @@ Gerät lehnt ab, bis eine höhere Generation kommt.
 | `enabled`    | INTEGER | 0 oder 1; fehlende Zeile = 1 |
 | `updated_at` | TEXT    | ISO-8601                     |
 
+## Geändert: `agent_file_permissions`
+
+Neue Art `fileShares` in `AgentFileKind` (`files/permissions.rs:28`): Ziel leer, Status `granted` oder
+`denied`, keine Zeile = nicht erteilt; ID wie bisher `UUIDv5(agent\nkind\ntarget)`. Keine Migration
+nötig (Spalte `kind` ist Text).
+
 ## Laufzeitzustand (nicht gespeichert)
 
 - **Verbindungen** je Gegenstelle mit `Mode::OwnDevice` oder `Mode::Contact { vault }` (research R4).
@@ -91,6 +97,7 @@ Gerät lehnt ab, bis eine höhere Generation kommt.
   bricht sie ab (FR-024).
 - **Adressen von Kontakt-Geräten**: aus Antworten auf das Anklopfen, in der `MemoryLookup` des
   Endpoints, verfallen mit der Sitzung.
+- **Beobachtungen** (`Watch`) je Stream: ein Watcher auf dem bedienenden Gerät, endet mit dem Stream.
 - **Upload-Sitzungen** des bedienenden Geräts: je Upload-ID Ziel, erwarteter Versionsstand und
   Zwischendatei; beim Abbruch, Entzug oder Sperren aufgeräumt.
 
@@ -105,5 +112,8 @@ FileShareGrant[], state: FileShareState }`
 - `FilesPeerState = "reachable" | "unreachable" | "accessOff"`
 - `FilesContactShares { contactId, contactName, vaultPubkey, shares: FilesReceivedShare[] }`
 - `FilesReceivedShare { storageId, name, itemKind, level, reachable }`
+
+- `FileShareConfirmRequest { requestId, sourceLabel, path, deviceName, contactName, level }` für den
+  Bestätigungsdialog bei Agents (research R17)
 
 `Sources` bekommt `devices: FilesPeerDevice[]` und `contacts: FilesContactShares[]`.
