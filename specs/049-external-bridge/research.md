@@ -548,8 +548,8 @@ Das Ergebnis liegt in `src-tauri/tests/fixtures/browser_bridge/webcrypto.json`.
 1. **`passkey-list`**: Der Hintergrund antwortet `{ success, data: { passkeys } }`, oder das
    Inhaltsskript liest `passkeys`. Gewählt wird die Form, die zu `relayVaultRequest` passt; ein
    Vitest-Test belegt, dass die Liste ankommt.
-2. **Name**: „haex-vault“ statt „HaexVault“ in `locales/de.ts`/`en.ts`. holzi übernimmt nach
-   Spec 054 den Namen haex-vault; neutrale Texte wären falsch.
+2. **Name**: keine Änderung; „HaexVault“ ist der Produktname, den holzi übernimmt (die
+   Umbenennung in #113 wurde in #114 zurückgenommen).
 3. **Lesezeichen**: Liefert `bookmarks-*` den Fehler `NOT_SUPPORTED` (siehe Vertrag), halten die
    Lesezeichen-Aufrufe die Marke `BOOKMARKS_NOT_SUPPORTED`, und Einrichtung und Optionen zeigen
    „Deine Vault-App synchronisiert keine Lesezeichen.“ Die Wiederholung bleibt, weil sie nur mit

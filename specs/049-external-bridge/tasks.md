@@ -499,9 +499,9 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 - [x] T069 Worktree in `haex-space/haextension` on branch `fix/haex-pass-browser-holzi` from `origin/main` (`c8133b94` or later). Run the app's install there.
 - [x] T070 [P] Test first, then the fix for the passkey-list reply. `apps/haex-pass-browser/src/background/main.ts:233-242` answers `{ success, passkeys }` while `contentScripts/webauthn-bridge.ts:141-150` reads `response.data`. Make both use the `BridgeResult` shape `{ success, data: { passkeys } }` of `background/vaultResponse.ts`. Add a vitest case: a vault reply with one passkey for the RP makes `vaultHasPasskeyFor` return true. Done as `passkeyListReply` in `contentScripts/webauthn-routing.ts`, tested in `webauthn-routing.test.ts`.
-- [x] T071 [P] Name: replace "HaexVault" with "haex-vault" in `apps/haex-pass-browser/src/locales/en.ts` and `de.ts` (holzi takes over the name haex-vault, spec 054; neutral texts would be wrong).
+- [x] T071 [P] Name: no change in the end. #113 renamed "HaexVault" to "haex-vault"; #114 reverted it, because HaexVault is the product name holzi takes over.
 - [x] T072 Bookmarks: when a `bookmarks-*` reply has `errorCode === 'NOT_SUPPORTED'`, the bookmark calls keep the marker `BOOKMARKS_NOT_SUPPORTED` (`bookmarks/messages.ts` `bookmarkErrorText`) and onboarding and options show "Deine Vault-App synchronisiert keine Lesezeichen." (`shownBookmarkError`). The 5-minute retry stays: it only runs with an active collection, which holzi never creates. Vitest `bookmarks/__tests__/messages.test.ts`.
-- [ ] T073 (PR haex-space/haextension#113 open 2026-10-21; merge and re-pin outstanding) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next holzi PR or a small docs PR.
+- [x] T073 (haex-space/haextension#113 merged 2026-10-21, #114 after it; pinned to `ab4e0b0ac9a05488659836a7526a250beab9dfd9`) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next holzi PR or a small docs PR.
 
 ---
 
