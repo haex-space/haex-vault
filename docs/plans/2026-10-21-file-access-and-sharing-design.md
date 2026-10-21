@@ -2,10 +2,10 @@
 
 **Status**: Design agreed with the operator on 2026-10-21; to be specified as spec 056.
 
-**Replaces** the spaces drafts [027](../../specs/027-spaces/spec.md) and
-[029](../../specs/029-own-s3-storage/spec.md), and the "spaces as a frame of entries" rework agreed
-on 2026-10-07 ([file browser design](./2026-10-07-file-browser-design.md), context table). Both
-drafts are deleted with spec 056. [025](../../specs/025-own-device-file-sync/spec.md) stays as the
+**Replaces** the spaces draft [027](../../specs/027-spaces/spec.md) and the former 029 own-S3 draft,
+and the "spaces as a frame of entries" rework agreed on 2026-10-07 ([file browser design](./2026-10-07-file-browser-design.md),
+context table). Both drafts are replaced by spec [056](../../specs/056-file-access-sharing/spec.md).
+[025](../../specs/025-own-device-file-sync/spec.md) stays as the
 draft for later sync rules (mirroring). Supersedes in part
 [`2026-09-28-sync-architecture.md`](./2026-09-28-sync-architecture.md) §8 (spaces).
 

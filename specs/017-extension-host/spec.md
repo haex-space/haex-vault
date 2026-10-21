@@ -96,8 +96,8 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
 - [`038-storage-connections`](../038-storage-connections/spec.md): Die Funktionen für entfernten
   Speicher nutzen die Speicher aus 038, mit einer Berechtigung `remoteStorage` je Speicher
   (`backendId`) oder für `*`. Zugangsdaten gibt nur der Nutzer in holzi ein, keine Erweiterung
-  bekommt oder schickt sie. [`029-own-s3-storage`](../029-own-s3-storage/spec.md) baut für Spaces
-  auf denselben Speicherverbindungen auf (Review 2026-10-06).
+  bekommt oder schickt sie. [`056-file-access-sharing`](../056-file-access-sharing/spec.md) baut für
+  Dateifreigaben auf denselben Speicherverbindungen auf (Review 2026-10-06).
 - [`032-model-operates-holzi`](../032-model-operates-holzi/spec.md): Kein Weg aus einer
   Erweiterung erreicht den eingebauten Agenten oder ein Modell (ADR-0004, FR-009).
 - [`034-password-manager`](../034-password-manager/spec.md): Diese Spec erteilt, speichert,
