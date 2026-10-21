@@ -457,6 +457,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   einen Speicher (Spec 044 FR-031a, FR-031b).
 - **FR-041**: Wirksam ist für einen Agent die engere der beiden Stufen: seine Agent-Berechtigung und
   das Zugriffsrecht der eigenen Vault. Ändern läuft über die Freigabestufe (Spec 044 FR-032).
+- **FR-045**: Agents DÜRFEN Dateifreigaben weder anlegen noch ändern noch entziehen und den Schalter
+  „Geräte-Dateizugriff“ nicht umlegen; das tut nur der Nutzer.
 
 **Fehler und Grenzen**
 
