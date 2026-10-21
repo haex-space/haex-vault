@@ -69,23 +69,23 @@ code it creates the page with the original and the contract's hint.
 
 ### Tests first
 
-- [ ] T015 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/pageJob.test.ts`: the job has the two steps, instructions, formats, efforts and `from` pointer of contracts/page-job.md; the image is the working copy as JPEG
-- [ ] T016 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/layout.test.ts`: boxes 0–1000 map to page coordinates; left edges within 2 % align; overlapping regions move down in reading order; font size follows box height and line count within bounds
-- [ ] T017 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/mapResult.test.ts`: text, table (rows padded to the longest) and image regions become elements; empty regions and invalid boxes are skipped; `fix` texts replace the texts in order and a count mismatch keeps the read texts; the provenance gives model and place of the `read` attempt with `outcome: "used"`
-- [ ] T018 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/workingCopy.test.ts`: turning by 90, 180 and 270 degrees; the longest edge is at most 2048 px; a dark or blurred photo gives the quality hint; the original bytes are never changed
-- [ ] T019 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/importPage.test.ts`: layers in the order of data-model.md, the original layer locked and never active, `paperImport` filled; a rotation hint starts exactly one second job with the turned copy; each error code (`no_capable_model`, `consent_denied`, `unusable`, `timeout`, `unavailable`) and a cancel give the page with the original and the state of data-model.md
+- [x] T015 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/pageJob.test.ts`: the job has the two steps, instructions, formats, efforts and `from` pointer of contracts/page-job.md; the image is the working copy as JPEG
+- [x] T016 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/layout.test.ts`: boxes 0–1000 map to page coordinates; left edges within 2 % align; overlapping regions move down in reading order; font size follows box height and line count within bounds
+- [x] T017 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/mapResult.test.ts`: text, table (rows padded to the longest) and image regions become elements; empty regions and invalid boxes are skipped; `fix` texts replace the texts in order and a count mismatch keeps the read texts; the provenance gives model and place of the `read` attempt with `outcome: "used"`
+- [x] T018 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/workingCopy.test.ts`: turning by 90, 180 and 270 degrees; the longest edge is at most 2048 px; a dark or blurred photo gives the quality hint; the original bytes are never changed (turning is tested by the sizes of the copy; drawing it needs a canvas and is checked by hand)
+- [x] T019 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/importPage.test.ts`: layers in the order of data-model.md, the original layer locked and never active, `paperImport` filled; a rotation hint starts exactly one second job with the turned copy; each error code (`no_capable_model`, `consent_denied`, `unusable`, `timeout`, `unavailable`) and a cancel give the page with the original and the state of data-model.md
 
 ### Implementation
 
-- [ ] T020 [US1] Build the job from contracts/page-job.md in `apps/haex-notes/app/lib/paperNotes/pageJob.ts`
-- [ ] T021 [US1] Map boxes to the page and tidy edges and overlaps in `apps/haex-notes/app/lib/paperNotes/layout.ts` (research R11)
-- [ ] T022 [US1] Map the result to elements, provenance and hints in `apps/haex-notes/app/lib/paperNotes/mapResult.ts` (research R9, R12)
-- [ ] T023 [US1] Make the working copy (crop, perspective, turn, JPEG, quality hint) in `apps/haex-notes/app/lib/paperNotes/workingCopy.ts`
-- [ ] T024 [US1] Create the page from original, working copy and result, with the one re-read after a rotation hint, in `apps/haex-notes/app/lib/paperNotes/importPage.ts` (research R10)
-- [ ] T025 [US1] `runPageJob(job)` over `sdk.models.runAsync`, the state while reading and the cancel over `cancelAsync` in `apps/haex-notes/app/composables/usePaperNoteRecognition.ts`
-- [ ] T026 [US1] `apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue`: camera or file, turn by 90°, quality hint with "take again" and "read anyway", reading with cancel, the hint of each error, the provenance (model and place) after reading; open it from the notebook page
-- [ ] T027 [P] [US1] Texts of the dialog and the hints in German and English in the locale files of haex-notes
-- [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest
+- [x] T020 [US1] Build the job from contracts/page-job.md in `apps/haex-notes/app/lib/paperNotes/pageJob.ts`
+- [x] T021 [US1] Map boxes to the page and tidy edges and overlaps in `apps/haex-notes/app/lib/paperNotes/layout.ts` (research R11)
+- [x] T022 [US1] Map the result to elements, provenance and hints in `apps/haex-notes/app/lib/paperNotes/mapResult.ts` (research R9, R12)
+- [ ] T023 [US1] Make the working copy (crop, perspective, turn, JPEG, quality hint) in `apps/haex-notes/app/lib/paperNotes/workingCopy.ts` — turn, size, JPEG and quality hint done; crop and perspective open (need corner detection)
+- [x] T024 [US1] Create the page from original, working copy and result, with the one re-read after a rotation hint, in `apps/haex-notes/app/lib/paperNotes/importPage.ts` (research R10)
+- [x] T025 [US1] `runPageJob(job)` over `sdk.models.runAsync`, the state while reading and the cancel over `cancelAsync` in `apps/haex-notes/app/composables/usePaperNoteRecognition.ts` (cancelled with `runAsync(job, { signal })` from vault-sdk 4.8.0, which calls `cancelAsync`)
+- [x] T026 [US1] `apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue`: camera or file, turn by 90°, quality hint with "take again" and "read anyway", reading with cancel, the hint of each error, the provenance (model and place) after reading; open it from the notebook page
+- [x] T027 [P] [US1] Texts of the dialog and the hints in German and English in the locale files of haex-notes (in the `<i18n>` blocks of the components, as elsewhere in haex-notes)
+- [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest — open: no de-identified photos yet
 
 **Checkpoint**: US1 works against the fake; quickstart steps 1–4, 9 and 10 against holzi.
 
