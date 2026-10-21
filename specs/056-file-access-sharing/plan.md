@@ -1,0 +1,196 @@
+# Implementation Plan: Dateizugriff zwischen eigenen Geräten und Dateifreigaben an Kontakte
+
+**Branch**: `056-file-access-sharing` | **Date**: 2026-10-21 | **Spec**: [spec.md](./spec.md)
+
+**Input**: Feature specification from `/specs/056-file-access-sharing/spec.md`
+
+## Summary
+
+Eigene Geräte erreichen gegenseitig ihr ganzes Dateisystem, Kontakte die Ordner und Dateien, die
+ihnen freigegeben wurden; beides live über die direkte iroh-Verbindung, ohne Inhaltsschlüssel und ohne
+Ablage bei Dritten (Design 2026-10-21, ADR 0015).
+
+Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
+
+- **Ein Protokoll, zwei Modi** (R4, R5): neue ALPN `holzi-files/1` am Endpoint der Sitzung mit eigenem
+  Handshake (Geräteliste mit Vault-Unterschrift, Geräteschlüssel an die QUIC-Gegenstelle gebunden).
+  Ergebnis `OwnDevice` (ganzes Dateisystem, Schalter je Gerät) oder `Contact` (nur ihre Wurzeln).
+  `holzi-sync/1` bleibt nur für eigene Geräte.
+- **Bedienende Seite in Fensterpfaden** (R1, R3): jede Anfrage läuft über `StorageFiles` mit Scope für
+  verschlüsselte Ordner, das Gerät als `LocalStore`-Speicher wie in 048; Einschluss über
+  `local_fs::resolve`/`resolve_below`, Sperre der eigenen Daten über `OwnPlaces`. Entschlüsseln und
+  Proxy zu S3/WebDAV/SFTP geschehen beim Eigentümer.
+- **Anfragende Seite als Speicher** (R2): `PeerStore: ObjectStore` mit `Protocol::Peer`; Kennungen
+  `peer:<gerät>` und `share:<freigabe>` laufen durch `storage_files`. Viewer, Transfers, Suche,
+  Vorschaubilder und Agent-Berechtigungen je Speicher funktionieren damit ohne neue Verzweigungen.
+- **Schreiben** (R7, R8): Upload-Sitzungen mit Versionsstand und Prüfung bei `finish` → `Conflict`,
+  auf die bestehende Konfliktfrage der Transfers abgebildet; Löschen auf dem Gerät in den Papierkorb.
+- **Anklopfen** (R9): Gift-Wraps der Präsenz an die Geräteschlüssel der Visitenkarte, Arten
+  24103/24104; Antwort nur an Berechtigte, mit eigenem Nostr-Client in `sync::service::run`.
+- **Daten** (R10, data-model.md): `haex_file_shares`, `haex_file_share_grants`,
+  `haex_file_shares_received` (synchronisiert), `haex_file_peer_lists_no_sync`,
+  `haex_file_device_access_no_sync` (lokal); Quittung `served_at` für „wartet auf Gerät“.
+
+## Technical Context
+
+**Language/Version**: Rust (Tauri 2.12, Edition und MSRV wie `src-tauri/Cargo.toml`); TypeScript 6
+(strict), Vue 3.5, Nuxt 4.5 (SPA)
+
+**Primary Dependencies**: vorhanden `iroh` 1.3.0, `nostr` 0.45.5 (nip44, nip59), `nostr-sdk` 0.45.4,
+`postcard`, `tokio`, `tokio-util`, `trash`, `uuid`, `ts-rs`, `async-trait`; Dev: `tempfile`,
+`nostr-sdk` `local-relay` (MockRelay). **Keine neue Abhängigkeit.** Frontend: haex-ui
+(SettingsGroup/Row, Dialoge, Switch), keine neue Abhängigkeit
+
+**Storage**: Vault-Datenbank über haex-crdt, Migration `0039_file_shares`, Trigger-Version 26 → 27
+([data-model.md](./data-model.md)); keine Dateiinhalte in der Datenbank
+
+**Testing**: `cargo test` (Lib-Tests in `*_tests.rs`; zwei Vaults im Prozess mit Loopback-Endpoints
+und MockRelay; Gleichstand-Katalog `ObjectStore` auch gegen `PeerStore`), `pnpm typecheck`,
+`pnpm lint`, `pnpm format:check`, `pnpm typecheck:scripts`; E2E nach Spec 033 mit zweiter Vault;
+Handprüfung [quickstart.md](./quickstart.md)
+
+**Target Platform**: Linux, macOS, Windows, Android (nichts `cfg(desktop)`; Papierkorb nur wo
+vorhanden, R8)
+
+**Project Type**: Desktop- und Mobil-App (Tauri)
+
+**Performance Goals**: Ordner mit 1 000 Einträgen < 2 s im selben Netz (SC-001); Video startet < 3 s
+(SC-002); Entzug wirkt < 2 s (SC-004); bedienendes Gerät bleibt bedienbar bei 5 lesenden Kontakten
+(SC-006)
+
+**Constraints**: Inhalte nur über die iroh-Verbindung (FR-001); keine Zugangsdaten und Schlüssel nach
+außen (FR-043); Prüfung bei jeder Anfrage (FR-005); keine halbe Datei (SC-008); Dateisystemarbeit nie
+auf dem Executor; höchstens 16 Streams je Verbindung, 64 je Gerät (R6); keine Netzdienste und kein
+`sleep` in `cargo test`; ts-rs-Typen mit Präfix `FileShare`/`FilesPeer`
+
+**Scale/Scope**: wenige eigene Geräte, Dutzende Freigaben und Kontakte je Vault; Listen bis
+`MAX_ENTRIES` (100 000)
+
+## Constitution Check
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
+
+| Regel                                                          | Stand                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worktree auf Topic-Branch, PR nach `main`                      | ✅ `.worktrees/056-file-access-sharing`, Branch `056-file-access-sharing`; Rebase- oder Merge-Commit, kein Squash                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Speckit-Ablauf                                                 | ✅ Brainstorming und Design 2026-10-21 → specify → Freigabe des Betreibers („erst plan“) → plan; danach tasks, analyze, implement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Tests in eigenen Dateien                                       | ✅ jede neue Rust-Datei mit `*_tests.rs` daneben; Testaufbau zweier Vaults in eigener Test-Support-Datei                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 500 LoC je Datei                                               | ✅ Aufteilung unten (Handshake, Server, Anfragen, Upload, Anklopfen je eigene Datei)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Graphify zuerst / Wiederverwendung                             | ✅ Graph des Abzweigs (Schnappschuss `7d813aa`) abgefragt nach Bedienen über iroh, atomarem Schreiben, Pfad-Einschluss, Nachricht per Gift-Wrap; dazu Code-Recherche. Wiederverwendet: `StorageFiles`, `LocalStore` + `local_fs::resolve*`, `DeviceRoot`, `OwnPlaces`, Transfers mit `Hooks`, `StorageFileSource`, `presence::wrap_payload`/`unwrap_rumor`, `LinkMeeting`-Form, `device_list::check_pushed`/`valid_lists`, Transkript-Muster aus `handshake.rs`, `AgentFileKind::Storage`, `vault_changes()`. Geprüft und nicht passend: `holzi-sync/1`-Handshake (lehnt fremde Vaults ab), `picked::write` (nicht atomar), `preferences` mit `PrefScope::Device` (synchronisiert), Präsenz-Client (beendet alle Abos) |
+| Laziness Ladder / keine unnötige Abhängigkeit                  | ✅ keine neue Abhängigkeit; anfragende Seite als `ObjectStore` statt neuer Quellenart (R2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Eine Implementierung je Regel                                  | ✅ Pfad-Einschluss, Sperre eigener Daten, Listenprüfung, Gift-Wrap und Transfers bleiben je eine Stelle; neue Prüfung je Anfrage an genau einer Stelle (`files/peer/serve/check.rs`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Kein `unwrap`/`expect` auf Eingaben, Fehler nicht verschlucken | ✅ Draht-Eingaben werden einmal geparst und begrenzt (64 KiB Kopf); Fehler nach außen ohne Text (FR-042), intern mit Ursache geloggt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| I. No Secrets in Git                                           | ✅ Testschlüssel zur Laufzeit erzeugt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| II./III. Keine lokalen Pfade, Identität geräteunabhängig       | ✅ Pfade nur als Daten in der Vault, keine in Konfiguration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| IV. Fremde Inhalte mit fester Revision                         | ✅ keine fremden Harness-Inhalte                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| VII. Ohne Relay weiterarbeiten                                 | ✅ Ohne Nostr-Relay bleibt alles Lokale nutzbar; eigene Geräte im selben Netz finden sich weiter, Kontakte sind dann „nicht erreichbar“                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| VIII. Keine Verschleierung                                     | ✅ nicht berührt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ADR für prinzipielle Entscheidungen                            | ✅ ADR 0015 (Zugriff zwischen eigenen Geräten, fremde Vaults am Endpoint)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Keine Hinweise auf Agents in Commits und PRs                   | ✅ Commits und PR ohne Trailer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Phasen-Reihenfolge                                             | ✅ baut auf 024, 044, 048, 050 und 051 auf, alle in Benutzung (051 US1–US6 gemergt, PR B–G; US7 von 051 wird nicht gebraucht)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+Nach Phase 1 erneut geprüft: keine Verletzung, Complexity Tracking leer. Hinweis: `CLAUDE.md` mit
+Speckit-Markern gibt es im Repository nicht; der Schritt „agent context update“ entfällt.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/056-file-access-sharing/
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   ├── files-protocol.md    # holzi-files/1: Handshake, Anfragen, Fehler, Grenzen
+│   ├── nostr-knock.md       # Anklopfen 24103 / Antwort 24104
+│   └── tauri-commands.md    # Commands und Katalog-Aktionen
+├── checklists/requirements.md
+└── tasks.md                 # /speckit-tasks
+docs/adr/0015-file-access-between-devices-and-contacts.md
+```
+
+### Source Code (repository root)
+
+```text
+src-tauri/src/
+├── identity/
+│   ├── migrations.rs                     # 0039 registrieren, HOLZI_TRIGGER_VERSION 27
+│   └── migrations_file_shares.rs (+ _tests)
+├── sync/
+│   ├── wire.rs                           # FILES_ALPN
+│   ├── signing.rs                        # Domain::FilesAuth
+│   ├── endpoint.rs                       # weitere Handler in bind, dial_files
+│   └── service.rs                        # Server-Zustand und Anklopf-Hörer starten
+├── files/
+│   ├── peer/
+│   │   ├── mod.rs                        # Modus, Fehler, gemeinsame Typen
+│   │   ├── frame.rs (+ _tests)           # Kopf mit Länge, Rohstrom, Grenzen
+│   │   ├── handshake.rs (+ _tests)       # Hello/Challenge/Proof/Accept, Listenprüfung, Generation
+│   │   ├── knock.rs (+ _tests)           # 24103/24104, eigener Nostr-Client, Frische, Drosselung
+│   │   ├── serve/
+│   │   │   ├── mod.rs (+ _tests)         # FilesProtocol: ProtocolHandler, Streams, Grenzen
+│   │   │   ├── check.rs (+ _tests)       # Prüfung je Anfrage: Modus, Recht, Stufe, Wurzel, eigene Daten
+│   │   │   ├── roots.rs (+ _tests)       # Fensterpfad → StorageFiles (Gerät je Laufwerk, Speicher, Freigabe)
+│   │   │   ├── ops.rs (+ _tests)         # ListDir/Stat/Read/CreateFolder/Rename/Move/Delete
+│   │   │   └── upload.rs (+ _tests)      # Upload-Sitzungen, Versionsstand, Aufräumen
+│   │   ├── store.rs (+ _tests)           # PeerStore: ObjectStore
+│   │   ├── connect.rs (+ _tests)         # Verbindungen je Ziel, Adressen aus Präsenz/Anklopfen
+│   │   └── test_support.rs               # zwei Vaults, Loopback, MockRelay
+│   ├── share/
+│   │   ├── mod.rs                        # Typen FileShare*, Stufen
+│   │   ├── store.rs (+ _tests)           # Tabellen lesen/schreiben, abgeleitete IDs, changed_at
+│   │   ├── served.rs (+ _tests)          # Abonnent: served_at, source_state, Entzug → Streams abbrechen
+│   │   ├── received.rs (+ _tests)        # empfangene Freigaben aus Shares-Antworten
+│   │   ├── device_access.rs (+ _tests)   # Schalter (no_sync)
+│   │   └── commands.rs                   # file_share_*, files_contact_query, files_device_access_*
+│   ├── browser_commands/
+│   │   ├── mod.rs                        # storage_files: peer:/share: → PeerStore
+│   │   └── navigate.rs                   # Sources.devices, Sources.contacts
+│   ├── transfer/
+│   │   ├── entries.rs                    # remove → pub(crate)
+│   │   └── remote*.rs                    # Conflict → Konfliktfrage
+│   └── mod.rs                            # FilesErrorCode::Conflict, ::Unreachable
+├── remote_storage/
+│   ├── mod.rs                            # Protocol::Peer (serde/ts skip), StorageError::Conflict
+│   └── protocol.rs                       # ProtocolStore: Peer → PeerStore
+├── contacts/service/                     # Lookup per Vault-Identität (Caller::Internal), delete_impact
+└── lib.rs                                # Commands registrieren
+
+src/
+├── components/files/
+│   ├── Sidebar.vue                       # Gruppen „Meine Geräte“, „Von Kontakten“
+│   ├── ShareDialog.vue                   # „Freigeben …“
+│   └── SharesOverview.vue                # „Meine Dateifreigaben“
+├── components/contacts/EntryPage.vue     # Abschnitt „Dateifreigaben“ auf der Kontaktseite
+├── components/contacts/DeleteDialog.vue  # betroffene Dateifreigaben nennen (FR-023)
+├── components/settings/FileDeviceAccessSetting.vue  # Schalter in FederationView
+├── composables/useFileShares.ts
+├── lib/actions/filesActions.ts           # files.shares.* (guardrails)
+├── lib/actions/settingsActions.ts        # settings.files.deviceAccess.*
+├── stores/…ActionHandlers.ts
+├── lib/files/registry.ts                 # Routen für peer:/share: (OPAQUE_ID prüfen)
+└── i18n/locales/{de,en}.json             # files.shares.*, files.sidebar.devices/contacts, settings.federation.deviceAccess
+```
+
+**Structure Decision**: Netz und Bedienen unter `files/peer/`, Daten und Commands der Dateifreigaben
+unter `files/share/`; `sync/` bekommt nur ALPN, Domäne und die Registrierung im Endpoint, damit die
+Grenze von 024 bleibt. Frontend in den bestehenden Ordnern des Dateibrowsers.
+
+## Lieferungen (PRs)
+
+Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt.
+
+| PR  | Inhalt                                                                                                                                                                                                              | Stories / FRs                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| A   | ADR 0015, Migration und Tabellen, `files/share/store`, Schalter mit UI, `file_share_*`-Commands, Dialog „Freigeben …“, Übersicht „Meine Dateifreigaben“ (Zustand nur „wartet“/„aktiv“), Katalog-Aktionen guardrails | US4 (ohne Netz), US5 (Schalter), FR-014–FR-023, FR-026, FR-045   |
+| B   | Rahmen, Handshake, `FilesProtocol` mit Lese-Anfragen, `PeerStore` lesend, `peer:` in `storage_files`, „Meine Geräte“ in der Seitenleiste                                                                            | US1 lesend, FR-001–FR-007, FR-011–FR-013, FR-032, FR-042, FR-044 |
+| C   | Schreiben: Upload-Sitzungen, Versionsstand, `Conflict` in Transfers, CreateFolder/Rename/Move/Delete, Papierkorb                                                                                                    | US1 schreibend, US3, FR-035–FR-039                               |
+| D   | Anklopfen, Modus `Contact`, `share:` in `storage_files`, `files_contact_query`, „Von Kontakten“, empfangene Freigaben                                                                                               | US2, FR-008–FR-010, FR-028–FR-034                                |
+| E   | Entzug mit Stream-Abbruch, `served_at`/`source_state`, Kontaktseite, Löschdialog, Aufräumen bei gelöschter Karte                                                                                                    | US4 vollständig, FR-024, FR-025, FR-027, FR-023                  |
+| F   | Agents über `peer:`/`share:` (engere Stufe), E2E mit zweiter Vault, Handprüfung                                                                                                                                     | US6, FR-040, FR-041, SC-001–SC-008                               |
+
+## Complexity Tracking
+
+Keine Verletzungen.
