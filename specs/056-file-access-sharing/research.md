@@ -18,6 +18,12 @@ es. Eine einzige Ausführungsschicht deckt Gerät, Speicher und verschlüsselte 
 eigenen Daten von holzi (`OwnPlaces`, `files/local/places.rs:25`) und `has_raw_part`
 (`files/encrypted/device.rs:128`) gelten an derselben Stelle.
 
+**Eigene Daten von holzi** (Betreiber 2026-10-22): Für `Mode::OwnDevice` gelten dieselben Regeln wie
+im lokalen Dateibrowser — sichtbar, nur lesend (`access::check` mit dem Aufrufer „Nutzer“ ergibt
+`ReadOnly`, `files/access.rs:106`), für Agents gesperrt (`access::agent`, `:153`); der Aufrufer des
+anfragenden Geräts wird dafür mitgeschickt (`User` oder `Agent`). Für `Mode::Contact` sind sie immer
+gesperrt (`OwnPlaces::touches`), auch innerhalb einer Freigabe.
+
 **Alternatives considered**: Ein Spiegel des Traits `ObjectStore` auf dem Draht (rohe Schlüssel).
 Verworfen: Ein Kontakt bekäme bei einem verschlüsselten Ordner nur Chiffrat, und das bedienende Gerät
 müsste Speicher roh herausreichen; die Prüfung der Wurzel wäre auf Schlüssel- statt Pfadebene.
@@ -211,6 +217,43 @@ angeklopft (FR-029). Neue Typnamen mit Präfix `FilesPeer`/`FileShare` (ts-rs-Ko
 **Decision**: ADR 0015 „Datei-Zugriff zwischen eigenen Geräten“ hält das akzeptierte Risiko fest
 (Spec Assumptions), dazu, dass `holzi-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
 
+## R16 Live-Aktualisierung
+
+**Decision**: Neue Anfrage `Watch { share?, path }` auf einem eigenen, lang laufenden Stream: Das
+bedienende Gerät beobachtet den Ordner mit `local::watch::watch_folder` (`files/local/watch.rs:60`,
+500 ms Entprellung; für verschlüsselte Ordner auf dem Gerät wie `files_watch` in
+`files/browser_commands/navigate.rs:205`) und schickt je Stapel `FolderChanged { paths }` als
+Fensterpfade; schließt der Stream, endet die Beobachtung. Beim anfragenden Gerät nimmt `files_watch`
+auch `peer:`/`share:` an und reicht die Meldungen an denselben `Channel<FolderChanged>` weiter; das
+Fenster (`src/composables/useFilesFolder.ts:67`) beobachtet diese Quellen wie das Gerät. Speicher-
+Quellen beim Eigentümer (S3, WebDAV, SFTP) lehnen `Watch` mit `Unsupported` ab — lokal gibt es dort
+auch keine Live-Aktualisierung. Jeder `Watch` zählt gegen die Stream-Grenzen (R6); ein Entzug beendet
+ihn wie jeden Stream (FR-024).
+
+**Rationale**: Der Watcher existiert und ist entprellt; eine Push-Meldung über den offenen Stream
+braucht kein Abfragen im Takt und erfüllt SC-009 (≤ 2 s).
+
+**Alternatives considered**: Regelmäßiges Neu-Auflisten. Verworfen: Last auf dem bedienenden Gerät
+und Verzögerung bis zum nächsten Takt.
+
+## R17 Agents verwalten Dateifreigaben
+
+**Decision** (Betreiber 2026-10-22): Neue `AgentFileKind::FileShares` (`files/permissions.rs:28`),
+Ziel leer, Status `granted`/`denied`, ohne Zeile = nicht erteilt; nur der Nutzer setzt sie
+(Einstellungen der Agent-Berechtigungen). Die Aktionen `files.shares.*` werden für Agents aufrufbar
+(eigener Scope `files.shares`); der Executor prüft die Berechtigung. Anlegen, Kontakt hinzufügen und
+Stufe erhöhen öffnen **immer** einen Bestätigungsdialog im Fenster (Quelle, Gerät, Kontakt, Stufe), ohne
+„merken“ und unabhängig von der Freigabestufe; ohne Fenster oder ohne Antwort in 120 s → abgelehnt.
+Entziehen, Herabstufen und Löschen laufen ohne Rückfrage. Den Kontakt nennt der Agent über seine
+Kontakte-Berechtigung (Spec 051, `AgentFileKind::Contacts`); der Dialog zeigt den aufgelösten Kontakt
+mit Namen.
+
+**Rationale**: Eine Freigabe gibt Daten nach außen und lässt sich nicht zurückholen; eine präparierte
+Datei könnte einen Agent dazu anweisen. Entziehen verringert nur Zugriff und braucht keine Hürde.
+
+**Alternatives considered**: Freigabestufe allein (im Modus „Auto“ ohne Rückfrage). Verworfen vom
+Betreiber.
+
 ## R15 Testansatz
 
 **Decision**:
@@ -222,6 +265,9 @@ angeklopft (FR-029). Neue Typnamen mit Präfix `FilesPeer`/`FileShare` (ts-rs-Ko
   (`sync/test_support.rs:110`, `sync/endpoint_tests.rs:18`), Anklopfen über `MockRelay`
   (`presence_loop_tests.rs:104`); Gleichstand-Katalog des `ObjectStore`-Verhaltens auch gegen
   `PeerStore`.
+- Live: Änderung im beobachteten Ordner kommt als `FolderChanged` an; Entzug beendet `Watch`.
+- Agents: ohne Berechtigung abgelehnt; mit Berechtigung ohne Bestätigung keine Freigabe (SC-010),
+  Entziehen ohne Dialog.
 - E2E: Spec 033 um eine zweite Vault erweitert (eigene Geräte und Kontakt).
 
 Keine Netzdienste in `cargo test`, keine Wartezeiten mit `sleep`.

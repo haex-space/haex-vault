@@ -24,7 +24,7 @@ operator before a full workspace build (OOM risk on the 31 GB machine).
 **Organization**: Grouped by user story in priority order (P1: US1, US2; P2: US3, US4; P3: US5, US6).
 
 **Shipping note** (plan.md, Lieferungen): PR A = Phase 1 + Phase 2 (foundation, no visible change);
-PR B = US1; PR C = US2; PR D = US3; PR E = US4 + US5; PR F = US6 + Polish. Each PR is reviewed and
+PR B = US1; PR C = US2; PR D = US3; PR E = US4 + US5; PR F = US6 (incl. agents managing shares) + Polish. Each PR is reviewed and
 merged before the next one starts on top of `main`. Work in `.worktrees/056-file-access-sharing` (other
 sessions switch branches in the main checkout).
 
@@ -78,9 +78,9 @@ story builds on these.
 
 ### Server skeleton and check
 
-- [ ] T019 Per-request check in a new `src-tauri/src/files/peer/serve/check.rs`: `check(mode, request, db) -> Result<Target, WireError>` re-reading grant and level from the database on every call (FR-005), mapping the request to a share root (contact) or the device (own), refusing write requests for `Read`, root rename/move/delete (FR-037), anything but `Read`/`Stat`/upload with `expected = Version` on a file share; pure decisions separated from I/O
-- [ ] T020 Roots in a new `src-tauri/src/files/peer/serve/roots.rs`: window path → `StorageFiles` + inner path (research R3): device paths `/` and `/C:/…` to a `LocalStore` per drive like `DeviceRoot` (`src-tauri/src/files/encrypted/device.rs:32`) with the encrypted-folder scope; `storage:<id>` sources through `storage_files` with scope; a share root becomes the `LocalStore` root or the storage prefix; every resolved device path checked with `OwnPlaces::contains_resolved`/`touches` (`src-tauri/src/files/local/places.rs:48`) and `has_raw_part` (FR-007)
-- [ ] T021 Path containment catalog in `src-tauri/src/files/peer/serve/roots_tests.rs` (SC-005): `..` in every position, absolute paths, symlink out of the root (file and folder), symlink inside the root allowed, link into holzi's own data, Windows `:` and `\`, case variants on a case-insensitive temp dir where supported, move and rename targets outside the root; every case refused
+- [ ] T019 Per-request check in a new `src-tauri/src/files/peer/serve/check.rs`: `check(mode, caller, request, db) -> Result<Target, WireError>` (`caller: User | Agent` sent with every request) re-reading grant and level from the database on every call (FR-005), mapping the request to a share root (contact) or the device (own), refusing write requests for `Read`, root rename/move/delete (FR-037), anything but `Read`/`Stat`/upload with `expected = Version` on a file share; holzi's own data: `OwnDevice` + `User` read-only like the local file browser (`access::check`, `src-tauri/src/files/access.rs:106`), `OwnDevice` + `Agent` and every `Contact` blocked (FR-007); pure decisions separated from I/O
+- [ ] T020 Roots in a new `src-tauri/src/files/peer/serve/roots.rs`: window path → `StorageFiles` + inner path (research R3): device paths `/` and `/C:/…` to a `LocalStore` per drive like `DeviceRoot` (`src-tauri/src/files/encrypted/device.rs:32`) with the encrypted-folder scope; `storage:<id>` sources through `storage_files` with scope; a share root becomes the `LocalStore` root or the storage prefix; every resolved device path checked with `OwnPlaces::contains_resolved`/`touches` (`src-tauri/src/files/local/places.rs:48`) and `has_raw_part`, the decision taken by T019
+- [ ] T021 Path containment catalog in `src-tauri/src/files/peer/serve/roots_tests.rs` (SC-005): `..` in every position, absolute paths, symlink out of the root (file and folder), symlink inside the root allowed, link into holzi's own data, Windows `:` and `\`, case variants on a case-insensitive temp dir where supported, move and rename targets outside the root; every case refused; holzi's own data readable but not writable for `OwnDevice` + `User`, refused for `OwnDevice` + `Agent` and for `Contact`
 - [ ] T022 Server in a new `src-tauri/src/files/peer/serve/mod.rs`: `FilesProtocol` implementing iroh `ProtocolHandler`; per connection run the handshake on the first stream, then accept bi-streams, each request on the session tracker; limits 16 streams per connection, 64 per device → `Busy` (research R6); file-system work on `spawn_blocking`; errors to the peer as `WireError` without text, logged locally with cause (FR-042)
 - [ ] T023 Endpoint wiring: `SyncNode::bind` (`src-tauri/src/sync/endpoint.rs:167`) takes optional extra handlers and registers `.accept(FILES_ALPN, …)` on the same `Router`; `SyncNode::dial_files(addr) -> Result<Connection, NodeError>` modelled on `dial_link` (`:261`); `sync::service::run` (`src-tauri/src/sync/service.rs:164`) builds the `FilesProtocol` state (db, keys, vault, `FilesState`, storage service, cancel token) and passes it; endpoint test in `src-tauri/src/sync/endpoint_tests.rs` that both ALPNs are accepted on one endpoint
 
@@ -106,20 +106,22 @@ story builds on these.
 - [ ] T028 [US1] Read operations in a new `src-tauri/src/files/peer/serve/ops.rs`: `Shares` for `OwnDevice` answers `roots` (drives and known places, same data as `files_sources` for the device, `src-tauri/src/files/browser_commands/navigate.rs:63`), `ListDir`, `Stat`, `Read` (head with size and content type, then raw body from `StorageFiles::read_start`/`get_range`) over T020
 - [ ] T029 [US1] Upload sessions in a new `src-tauri/src/files/peer/serve/upload.rs`: `BeginUpload` (records target and `expected`), `UploadPart` (raw body), `FinishUpload` (re-checks `expected` against the current `head().etag`/absence → `Conflict`, then finishes through the target's upload path: `LocalStore` temp + rename, storage multipart, encrypted `write_version`), `AbortUpload`; sessions belong to the connection and are cleaned up on close, cancel or lock (FR-035, FR-044)
 - [ ] T030 [US1] Change operations in `src-tauri/src/files/peer/serve/ops.rs`: `CreateFolder`, `Rename`, `Move` (same root only), `Delete` (device: `transfer::entries::remove(path, Removal::Trash)` made `pub(crate)` in `src-tauri/src/files/transfer/entries.rs:20`; storages and encrypted folders: their delete); `Challenge.trash` from `platform_removal()` (`src-tauri/src/files/transfer/mod.rs:434`) (research R8)
-- [ ] T031 [P] [US1] Tests in `src-tauri/src/files/peer/serve/ops_tests.rs` and `upload_tests.rs`: listing equals the local listing; a range read returns exactly the bytes; upload aborted mid-way leaves no file and no temp file (SC-008); finish with a stale `expected` → `Conflict` and the old file intact; delete goes to the trash where `trash = true` (fake removal hook), holzi's own data refused for every operation
+- [ ] T031 [US1] Watch on the server in a new `src-tauri/src/files/peer/serve/watch.rs`: `Watch { share?, path }` on its own long-lived stream starts `local::watch::watch_folder` (`src-tauri/src/files/local/watch.rs:60`; encrypted folders on the device as in `files_watch`, `src-tauri/src/files/browser_commands/navigate.rs:205`), sends `FolderChanged { paths }` as window paths per debounced batch, ends with the stream; storage sources answer `Unsupported` (FR-046, research R16)
+- [ ] T032 [P] [US1] Tests in `src-tauri/src/files/peer/serve/ops_tests.rs` and `upload_tests.rs`: listing equals the local listing; a range read returns exactly the bytes; upload aborted mid-way leaves no file and no temp file (SC-008); finish with a stale `expected` → `Conflict` and the old file intact; delete goes to the trash where `trash = true` (fake removal hook), holzi's own data refused for every operation
 
 ### Client
 
-- [ ] T032 [US1] Write methods of `PeerStore` in `src-tauri/src/files/peer/store.rs`: `begin_upload` heads the target first and sends `expected`, `upload_part`, `finish_upload`, `abort_upload`, `put` as one-part upload, `delete`/`remove_tree` → `Delete`, `rename_tree` → `Move`/`Rename`, `copy` → `Unsupported`; extend the catalog run of T027 to the write methods
-- [ ] T033 [US1] Resolve `peer:<vault_device_uuid>` in `storage_files` (`src-tauri/src/files/browser_commands/mod.rs:34`) and `window_storage` without `haex_storages`: `StorageFiles::new(stores(), peer_access(id))` with the encrypted-folder scope off (the serving device decrypts); unknown or own device → `NotFound`
-- [ ] T034 [US1] `Sources.devices: Vec<FilesPeerDevice>` in `src-tauri/src/files/browser_commands/navigate.rs:37`: every other device of the effective list with name (from `known_devices`) and state `reachable` / `unreachable` (presence) / `accessOff` (handshake refused because of the switch, remembered per session)
-- [ ] T035 [P] [US1] Integration test in `src-tauri/src/files/peer/own_device_tests.rs`: linked device browses, reads a range, uploads, renames, deletes on the other device through `storage_files("peer:…")` and `StorageFiles`; switch off on the serving device → refused; holzi's own data refused (spec US1 scenarios 2, 4, 5, 7)
+- [ ] T033 [US1] Write methods of `PeerStore` in `src-tauri/src/files/peer/store.rs`: `begin_upload` heads the target first and sends `expected`, `upload_part`, `finish_upload`, `abort_upload`, `put` as one-part upload, `delete`/`remove_tree` → `Delete`, `rename_tree` → `Move`/`Rename`, `copy` → `Unsupported`; extend the catalog run of T027 to the write methods
+- [ ] T034 [US1] Resolve `peer:<vault_device_uuid>` in `storage_files` (`src-tauri/src/files/browser_commands/mod.rs:34`) and `window_storage` without `haex_storages`: `StorageFiles::new(stores(), peer_access(id))` with the encrypted-folder scope off (the serving device decrypts); unknown or own device → `NotFound`
+- [ ] T035 [US1] `files_watch` (`src-tauri/src/files/browser_commands/navigate.rs:205`) accepts `peer:`/`share:` storages: opens a `Watch` stream through `files/peer/connect.rs` and forwards each `FolderChanged` to the window's `Channel<FolderChanged>`; on stream end sends a final event so the window shows "nicht erreichbar"; `src/composables/useFilesFolder.ts:67,77` watches these sources like the device
+- [ ] T036 [US1] `Sources.devices: Vec<FilesPeerDevice>` in `src-tauri/src/files/browser_commands/navigate.rs:37`: every other device of the effective list with name (from `known_devices`) and state `reachable` / `unreachable` (presence) / `accessOff` (handshake refused because of the switch, remembered per session)
+- [ ] T037 [P] [US1] Integration test in `src-tauri/src/files/peer/own_device_tests.rs`: linked device browses, reads a range, uploads, renames, deletes on the other device through `storage_files("peer:…")` and `StorageFiles`; switch off on the serving device → refused; holzi's own data listed and readable but not writable (scenario 7); a file created in a watched folder arrives as `FolderChanged` within 2 s (scenario 8, SC-009) (spec US1 scenarios 2, 4, 5, 7, 8)
 
 ### Frontend
 
-- [ ] T036 [US1] Sidebar group "Meine Geräte" in `src/components/files/Sidebar.vue`: one row per `FilesPeerDevice` with state badge, unreachable and `accessOff` rows not clickable (FR-011); `pickStorage` with the `peer:` id; i18n `files.sidebar.devices`, `files.peer.reachable`, `files.peer.unreachable`, `files.peer.accessOff` in `src/i18n/locales/de.json` and `en.json`
-- [ ] T037 [US1] Routing and titles: check that `OPAQUE_ID` in `src/lib/files/registry.ts` accepts `peer:` ids (and later `share:`); tab title from the device name; `src/lib/files/encrypted.ts` `canCreateEncrypted` false for `peer:` sources (the serving device owns encryption)
-- [ ] T038 [US1] Run `nix develop --command pnpm typecheck`, `pnpm lint`, `pnpm typecheck:scripts`, `pnpm format:check`, and all `check:*` scripts; trim trailing whitespace in `src/types/bindings/*.ts` as CI does
+- [ ] T038 [US1] Sidebar group "Meine Geräte" in `src/components/files/Sidebar.vue`: one row per `FilesPeerDevice` with state badge, unreachable and `accessOff` rows not clickable (FR-011); `pickStorage` with the `peer:` id; i18n `files.sidebar.devices`, `files.peer.reachable`, `files.peer.unreachable`, `files.peer.accessOff` in `src/i18n/locales/de.json` and `en.json`
+- [ ] T039 [US1] Routing and titles: check that `OPAQUE_ID` in `src/lib/files/registry.ts` accepts `peer:` ids (and later `share:`); tab title from the device name; `src/lib/files/encrypted.ts` `canCreateEncrypted` false for `peer:` sources (the serving device owns encryption)
+- [ ] T040 [US1] Run `nix develop --command pnpm typecheck`, `pnpm lint`, `pnpm typecheck:scripts`, `pnpm format:check`, and all `check:*` scripts; trim trailing whitespace in `src/types/bindings/*.ts` as CI does
 
 **Checkpoint**: PR B — US1 testable on two own devices (quickstart.md §1 steps 1–5).
 
@@ -133,28 +135,28 @@ story builds on these.
 
 ### Owner side
 
-- [ ] T039 [US2] Share commands in a new `src-tauri/src/files/share/commands.rs` per contracts/tauri-commands.md: `file_shares_list`, `file_share_of`, `file_share_save` (only sources of this device: `device` or a `haex_storages` id, else `Refused`; grants only for vaults with a stored card; serving device = this device; FR-015–FR-018), `file_share_revoke`, `file_share_delete`, `file_shares_of_contact`; register in `src-tauri/src/lib.rs`
-- [ ] T040 [P] [US2] Catalog actions `files.shares.list|of|save|revoke|delete|ofContact` with `scope: 'guardrails'` in `src/lib/actions/filesActions.ts` and handlers in `src/stores/filesActionHandlers.ts` (FR-045); test in the existing catalog test that none of them is agent-callable
-- [ ] T041 [US2] Share dialog in a new `src/components/files/ShareDialog.vue` and `src/composables/useFileShares.ts`: opened from "Freigeben …" in the context menu of a folder or file of this device (not on `peer:`/`share:` sources); contact picker only with confirmed cards; level per contact (default "Lesen"); name (default item name); existing grants editable (FR-016, FR-017); i18n `files.shares.*`
+- [ ] T041 [US2] Share commands in a new `src-tauri/src/files/share/commands.rs` per contracts/tauri-commands.md: `file_shares_list`, `file_share_of`, `file_share_save` (only sources of this device: `device` or a `haex_storages` id, else `Refused`; grants only for vaults with a stored card; serving device = this device; FR-015–FR-018), `file_share_revoke`, `file_share_delete`, `file_shares_of_contact`; register in `src-tauri/src/lib.rs`
+- [ ] T042 [P] [US2] Catalog actions `files.shares.list|of|save|revoke|delete|ofContact` with a new scope `files.shares` (`src/lib/actions/scopes.ts`) in `src/lib/actions/filesActions.ts` and handlers in `src/stores/filesActionHandlers.ts`; until US6 the agent executor refuses every `files.shares.*` call (FR-045); test that an agent call is refused
+- [ ] T043 [US2] Share dialog in a new `src/components/files/ShareDialog.vue` and `src/composables/useFileShares.ts`: opened from "Freigeben …" in the context menu of a folder or file of this device (not on `peer:`/`share:` sources); contact picker only with confirmed cards; level per contact (default "Lesen"); name (default item name); existing grants editable (FR-016, FR-017); i18n `files.shares.*`
 
 ### Knock
 
-- [ ] T042 [US2] Knock in a new `src-tauri/src/files/peer/knock.rs` per contracts/nostr-knock.md: kinds 24103/24104 inside `presence::wrap_payload`/`unwrap_rumor` (`src-tauri/src/sync/presence.rs:225`, `:283`) addressed to device keys; own `nostr_sdk` client subscribing to gift wraps for the own device key on `effective_nostr_relays()`; answer only after list check (T011, T016 helpers), card stored and not blocked, ≥ 1 grant on a share served by this device; freshness 150 s / 30 s, nonce replay set, at most one answer per vault in 5 s; start it in `sync::service::run` next to the presence loop and reconnect on the same relay wakeups
-- [ ] T043 [US2] Knocking side in `src-tauri/src/files/peer/knock.rs`: `knock(contact) -> Result<Vec<EndpointAddr>>` to every device of the card on the card's relays, waits up to 10 s for answers whose nonce and signer match, adds addresses to the endpoint's `MemoryLookup` (`note_candidate`, `src-tauri/src/sync/endpoint.rs:354`)
-- [ ] T044 [P] [US2] Knock tests in `src-tauri/src/files/peer/knock_tests.rs` with `MockRelay`: entitled vault gets an answer with the endpoint address; no grant, no card, blocked vault, stale `ts`, replayed nonce, wrong list → no answer; throttling per vault
+- [ ] T044 [US2] Knock in a new `src-tauri/src/files/peer/knock.rs` per contracts/nostr-knock.md: kinds 24103/24104 inside `presence::wrap_payload`/`unwrap_rumor` (`src-tauri/src/sync/presence.rs:225`, `:283`) addressed to device keys; own `nostr_sdk` client subscribing to gift wraps for the own device key on `effective_nostr_relays()`; answer only after list check (T011, T016 helpers), card stored and not blocked, ≥ 1 grant on a share served by this device; freshness 150 s / 30 s, nonce replay set, at most one answer per vault in 5 s; start it in `sync::service::run` next to the presence loop and reconnect on the same relay wakeups
+- [ ] T045 [US2] Knocking side in `src-tauri/src/files/peer/knock.rs`: `knock(contact) -> Result<Vec<EndpointAddr>>` to every device of the card on the card's relays, waits up to 10 s for answers whose nonce and signer match, adds addresses to the endpoint's `MemoryLookup` (`note_candidate`, `src-tauri/src/sync/endpoint.rs:354`)
+- [ ] T046 [P] [US2] Knock tests in `src-tauri/src/files/peer/knock_tests.rs` with `MockRelay`: entitled vault gets an answer with the endpoint address; no grant, no card, blocked vault, stale `ts`, replayed nonce, wrong list → no answer; throttling per vault
 
 ### Contact side
 
-- [ ] T045 [US2] `Shares` for `Mode::Contact` in `src-tauri/src/files/peer/serve/ops.rs`: the shares of this device with a grant for that vault (id, name, item kind, level); every other request needs `share` and goes through T019/T020 with the share root
-- [ ] T046 [US2] Received shares in a new `src-tauri/src/files/share/received.rs`: `apply_answer(tx, owner_vault, device, shares)` creates/updates rows and deletes those missing from the answer (FR-030, FR-031); `files_contact_query { contactId }` in `src-tauri/src/files/share/commands.rs` knocks (T043), connects, asks `Shares`, applies the answer, returns `FilesContactShares`; test in `src-tauri/src/files/share/received_tests.rs`
-- [ ] T047 [US2] Resolve `share:<received_id>` in `storage_files`/`window_storage` (`src-tauri/src/files/browser_commands/mod.rs`): `PeerStore` targeting the owner device with the share id; opening a known share reconnects (knock if no address) — the only knock without an explicit expand (FR-029)
-- [ ] T048 [US2] `Sources.contacts: Vec<FilesContactShares>` in `src-tauri/src/files/browser_commands/navigate.rs`: contacts with a stored card, their known received shares with `reachable` from the last contact
-- [ ] T049 [P] [US2] Integration test in `src-tauri/src/files/peer/contact_tests.rs`: vault B with card and read grant lists and reads A's share root through `storage_files("share:…")`; listing above or beside the root refused; write requests refused at level read even when sent directly; second device of B gets access without anything done on A (spec US2 scenarios 2–4, 6); share of a storage folder and of an encrypted folder returns plain text (scenario 7, with `FakeStore` and the encrypted test scene); single-file share shows exactly that file (scenario 8)
+- [ ] T047 [US2] `Shares` for `Mode::Contact` in `src-tauri/src/files/peer/serve/ops.rs`: the shares of this device with a grant for that vault (id, name, item kind, level); every other request needs `share` and goes through T019/T020 with the share root
+- [ ] T048 [US2] Received shares in a new `src-tauri/src/files/share/received.rs`: `apply_answer(tx, owner_vault, device, shares)` creates/updates rows and deletes those missing from the answer (FR-030, FR-031); `files_contact_query { contactId }` in `src-tauri/src/files/share/commands.rs` knocks (T045), connects, asks `Shares`, applies the answer, returns `FilesContactShares`; test in `src-tauri/src/files/share/received_tests.rs`
+- [ ] T049 [US2] Resolve `share:<received_id>` in `storage_files`/`window_storage` (`src-tauri/src/files/browser_commands/mod.rs`): `PeerStore` targeting the owner device with the share id; opening a known share reconnects (knock if no address) — the only knock without an explicit expand (FR-029)
+- [ ] T050 [US2] `Sources.contacts: Vec<FilesContactShares>` in `src-tauri/src/files/browser_commands/navigate.rs`: contacts with a stored card, their known received shares with `reachable` from the last contact
+- [ ] T051 [P] [US2] Integration test in `src-tauri/src/files/peer/contact_tests.rs`: vault B with card and read grant lists and reads A's share root through `storage_files("share:…")`; listing above or beside the root refused; write requests refused at level read even when sent directly; second device of B gets access without anything done on A (spec US2 scenarios 2–4, 6); share of a storage folder and of an encrypted folder returns plain text (scenario 7, with `FakeStore` and the encrypted test scene); single-file share shows exactly that file (scenario 8); holzi's own data inside a shared folder refused; `Watch` on a shared device folder delivers changes
 
 ### Frontend
 
-- [ ] T050 [US2] Sidebar group "Von Kontakten" in `src/components/files/Sidebar.vue`: contacts expandable; expanding calls `files_contact_query`; shares listed with level; known but unreachable shares greyed out (FR-028, FR-031); path bar ends at the share root (FR-033) in `src/components/apps/FilesApp.vue`; read-only shares hide write actions (FR-034)
-- [ ] T051 [US2] Run the frontend checks of T038
+- [ ] T052 [US2] Sidebar group "Von Kontakten" in `src/components/files/Sidebar.vue`: contacts expandable; expanding calls `files_contact_query`; shares listed with level; known but unreachable shares greyed out (FR-028, FR-031); path bar ends at the share root (FR-033) in `src/components/apps/FilesApp.vue`; read-only shares hide write actions (FR-034)
+- [ ] T053 [US2] Run the frontend checks of T040
 
 **Checkpoint**: PR C — US2 testable with two vaults (quickstart.md §2).
 
@@ -166,10 +168,10 @@ story builds on these.
 
 **Independent Test**: Share read-write with two contacts; both write; change a file at the owner while a contact uploads it (spec US3).
 
-- [ ] T052 [US3] Contact writes in `src-tauri/src/files/peer/serve/check.rs` and `ops.rs`: `ReadWrite` allows upload, create folder, rename, move, delete below the root; root protected; file share only content upload with `expected = Version` (FR-037)
-- [ ] T053 [US3] Conflict in transfers: in `src-tauri/src/files/transfer/remote.rs` and `remote_upload.rs` map `StorageError::Conflict` at `finish_upload` to the existing conflict question (`Hooks.ask`): "Ersetzen" retries without `expected`, "Beide behalten" uploads under `free_name`, "Überspringen" aborts the upload (research R7); `ponytail:` comment on the unchecked window between question and `begin_upload`
-- [ ] T054 [US3] Delete without trash: when the connection reported `trash = false`, `StorageFiles::delete` on a `peer:`/`share:` source asks first like `asksBeforeDelete` in `src/lib/files/encrypted.ts:60` (FR-038); the answer `trashed` is shown in the transfer bar
-- [ ] T055 [P] [US3] Tests in `src-tauri/src/files/peer/contact_write_tests.rs`: two contacts write into one share; root rename/delete refused; file share rename/delete refused, content upload allowed; owner changes a file during a contact upload → `Conflict`, old content intact; "Ersetzen" and "Beide behalten" paths in `src-tauri/src/files/transfer/remote_tests.rs` with a fake store answering `Conflict` once
+- [ ] T054 [US3] Contact writes in `src-tauri/src/files/peer/serve/check.rs` and `ops.rs`: `ReadWrite` allows upload, create folder, rename, move, delete below the root; root protected; file share only content upload with `expected = Version` (FR-037)
+- [ ] T055 [US3] Conflict in transfers: in `src-tauri/src/files/transfer/remote.rs` and `remote_upload.rs` map `StorageError::Conflict` at `finish_upload` to the existing conflict question (`Hooks.ask`): "Ersetzen" retries without `expected`, "Beide behalten" uploads under `free_name`, "Überspringen" aborts the upload (research R7); `ponytail:` comment on the unchecked window between question and `begin_upload`
+- [ ] T056 [US3] Delete without trash: when the connection reported `trash = false`, `StorageFiles::delete` on a `peer:`/`share:` source asks first like `asksBeforeDelete` in `src/lib/files/encrypted.ts:60` (FR-038); the answer `trashed` is shown in the transfer bar
+- [ ] T057 [P] [US3] Tests in `src-tauri/src/files/peer/contact_write_tests.rs`: two contacts write into one share; root rename/delete refused; file share rename/delete refused, content upload allowed; owner changes a file during a contact upload → `Conflict`, old content intact; "Ersetzen" and "Beide behalten" paths in `src-tauri/src/files/transfer/remote_tests.rs` with a fake store answering `Conflict` once
 
 **Checkpoint**: PR D — US3 testable (quickstart.md §3).
 
@@ -181,14 +183,14 @@ story builds on these.
 
 **Independent Test**: Revoke while the contact reads a large file; revoke from another own device while the serving device is off (spec US4).
 
-- [ ] T056 [US4] Served watcher in a new `src-tauri/src/files/share/served.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`) for `haex_file_shares*` on the serving device, sets `served_at = changed_at` for its shares, cancels the stream tokens of (share, vault) pairs whose grant is gone or downgraded (FR-024); started with the files server in `sync::service::run`
-- [ ] T057 [US4] Stream tokens in `src-tauri/src/files/peer/serve/mod.rs`: every request of a contact runs under a child token per (share, vault); `served.rs` cancels them; a cancelled `Read` ends with `STREAM_CANCELLED`, an upload aborts and removes its temp file
-- [ ] T058 [US4] Source state: the serving device writes `source_state` (`ok` / `missing` / `unavailable`) on vault open, on save and whenever a request fails at the source (`NotFound` on the root → `missing`, storage or encrypted errors → `unavailable`) in `src-tauri/src/files/share/served.rs` (FR-022)
-- [ ] T059 [P] [US4] Tests in `src-tauri/src/files/share/served_tests.rs` and `src-tauri/src/files/peer/revoke_tests.rs` (SC-004): revoke during a range read ends the stream and the next request is refused; downgrade refuses the next write; change written on another device leaves the share pending until the serving device applies it; missing root sets `missing`
-- [ ] T060 [US4] Contact cleanup: subscriber on `haex_contacts_cards` in `src-tauri/src/files/share/served.rs` deletes grants and received shares of vaults without a card (FR-023); `contacts_delete_impact { contactId }` in `src-tauri/src/files/share/commands.rs`; test in `src-tauri/src/files/share/served_tests.rs`
-- [ ] T061 [US4] Overview "Meine Dateifreigaben" in a new `src/components/files/SharesOverview.vue` (reachable from the file browser sidebar): name, source, serving device, contacts with level, state `active` / `pending` ("Änderung wartet auf ‹Gerät›") / `sourceMissing` / `sourceUnavailable`; edit opens `ShareDialog.vue`, revoke per contact (FR-020)
-- [ ] T062 [P] [US4] Contact page section "Dateifreigaben" in `src/components/contacts/EntryPage.vue` (shares given to this contact, change and revoke, FR-021) and the list of affected shares in `src/components/contacts/DeleteDialog.vue` from `contacts_delete_impact` (FR-023); i18n `contacts.fileShares.*`
-- [ ] T063 [US4] Run the frontend checks of T038
+- [ ] T058 [US4] Served watcher in a new `src-tauri/src/files/share/served.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`) for `haex_file_shares*` on the serving device, sets `served_at = changed_at` for its shares, cancels the stream tokens of (share, vault) pairs whose grant is gone or downgraded (FR-024); started with the files server in `sync::service::run`
+- [ ] T059 [US4] Stream tokens in `src-tauri/src/files/peer/serve/mod.rs`: every request of a contact runs under a child token per (share, vault); `served.rs` cancels them; a cancelled `Read` ends with `STREAM_CANCELLED`, an upload aborts and removes its temp file
+- [ ] T060 [US4] Source state: the serving device writes `source_state` (`ok` / `missing` / `unavailable`) on vault open, on save and whenever a request fails at the source (`NotFound` on the root → `missing`, storage or encrypted errors → `unavailable`) in `src-tauri/src/files/share/served.rs` (FR-022)
+- [ ] T061 [P] [US4] Tests in `src-tauri/src/files/share/served_tests.rs` and `src-tauri/src/files/peer/revoke_tests.rs` (SC-004): revoke during a range read ends the stream and the next request is refused; downgrade refuses the next write; change written on another device leaves the share pending until the serving device applies it; missing root sets `missing`
+- [ ] T062 [US4] Contact cleanup: subscriber on `haex_contacts_cards` in `src-tauri/src/files/share/served.rs` deletes grants and received shares of vaults without a card (FR-023); `contacts_delete_impact { contactId }` in `src-tauri/src/files/share/commands.rs`; test in `src-tauri/src/files/share/served_tests.rs`
+- [ ] T063 [US4] Overview "Meine Dateifreigaben" in a new `src/components/files/SharesOverview.vue` (reachable from the file browser sidebar): name, source, serving device, contacts with level, state `active` / `pending` ("Änderung wartet auf ‹Gerät›") / `sourceMissing` / `sourceUnavailable`; edit opens `ShareDialog.vue`, revoke per contact (FR-020)
+- [ ] T064 [P] [US4] Contact page section "Dateifreigaben" in `src/components/contacts/EntryPage.vue` (shares given to this contact, change and revoke, FR-021) and the list of affected shares in `src/components/contacts/DeleteDialog.vue` from `contacts_delete_impact` (FR-023); i18n `contacts.fileShares.*`
+- [ ] T065 [US4] Run the frontend checks of T040
 
 ---
 
@@ -198,9 +200,9 @@ story builds on these.
 
 **Independent Test**: Switch off on device A; device B cannot open A; contacts still reach A's shares (spec US5).
 
-- [ ] T064 [US5] Commands `files_device_access_get`/`files_device_access_set` in `src-tauri/src/files/share/commands.rs` over T010; actions `settings.files.deviceAccess.get|set` with `scope: 'guardrails'` in `src/lib/actions/settingsActions.ts` and handlers in `src/stores/settingsActionHandlers.ts`
-- [ ] T065 [US5] Switch UI in a new `src/components/settings/FileDeviceAccessSetting.vue` following `ScreenCaptureSetting.vue:57-74` (SettingsGroup > SettingsRow > ShadcnSwitch, hint `settings.deviceOnly`), rendered in `src/components/settings/FederationView.vue`; `settingKeys` in `src/lib/settings/registry.ts` for search; i18n `settings.federation.deviceAccess.*`
-- [ ] T066 [P] [US5] Test in `src-tauri/src/files/peer/own_device_tests.rs`: switch off refuses own devices with the `accessOff` state and leaves contact shares working (spec US5 scenarios 2–4)
+- [ ] T066 [US5] Commands `files_device_access_get`/`files_device_access_set` in `src-tauri/src/files/share/commands.rs` over T010; actions `settings.files.deviceAccess.get|set` with `scope: 'guardrails'` in `src/lib/actions/settingsActions.ts` and handlers in `src/stores/settingsActionHandlers.ts`
+- [ ] T067 [US5] Switch UI in a new `src/components/settings/FileDeviceAccessSetting.vue` following `ScreenCaptureSetting.vue:57-74` (SettingsGroup > SettingsRow > ShadcnSwitch, hint `settings.deviceOnly`), rendered in `src/components/settings/FederationView.vue`; `settingKeys` in `src/lib/settings/registry.ts` for search; i18n `settings.federation.deviceAccess.*`
+- [ ] T068 [P] [US5] Test in `src-tauri/src/files/peer/own_device_tests.rs`: switch off refuses own devices with the `accessOff` state and leaves contact shares working (spec US5 scenarios 2–4)
 
 **Checkpoint**: PR E — US4 and US5 testable (quickstart.md §1 step 6, §4).
 
@@ -212,19 +214,22 @@ story builds on these.
 
 **Independent Test**: Grant or deny an agent "Laptop" and a received share; read and write through agent actions (spec US6).
 
-- [ ] T067 [US6] Agent reach in `src-tauri/src/files/agent/reach.rs` and `src-tauri/src/files/access.rs`: `storage:peer:…` and `storage:share:…` targets work like storages (`AgentFileKind::Storage`); the source name for questions and settings comes from the device name or the received share name instead of `haex_storages`; a write by an agent on a `share:` source with level `Read` is refused locally before sending (FR-041)
-- [ ] T068 [US6] Agent settings UI: `src/lib/files/agentPermissions.ts` and `src/components/settings/AgentFilesSetting.vue` list own devices and received shares as storages with their names
-- [ ] T069 [P] [US6] Tests in `src-tauri/src/files/agent/` (`FakeEnv`, `src-tauri/src/files/agent/test_env.rs`): no permission → question/refusal; `Read` permission refuses write; read-write permission on a read share refuses write (spec US6 scenarios 1–3); no catalog action creates or changes a share (FR-045)
+- [ ] T069 [US6] Agent reach in `src-tauri/src/files/agent/reach.rs` and `src-tauri/src/files/access.rs`: `storage:peer:…` and `storage:share:…` targets work like storages (`AgentFileKind::Storage`); the source name for questions and settings comes from the device name or the received share name instead of `haex_storages`; a write by an agent on a `share:` source with level `Read` is refused locally before sending (FR-041)
+- [ ] T070 [US6] Permission kind: `AgentFileKind::FileShares` in `src-tauri/src/files/permissions.rs:28` (`as_str`/`parse` `fileShares`, target empty, status `granted`/`denied`, `fits`, `set` target check, `grants_of` → new field in `AgentGrants`, `src-tauri/src/files/access.rs:75`); test in `src-tauri/src/files/permissions_tests.rs`
+- [ ] T071 [US6] Agent gate in the executor for `files.shares.*` (`src-tauri/src/files/agent/`): no `FileShares` grant → refused with the missing permission named; create, new contact or higher level → confirmation question `FileShareConfirmRequest` (data-model.md) through the window like `FilesAgentPermissionRequest` (`src-tauri/src/files/agent/prompt.rs:93`), always, no "remember", independent of the approval mode; no window or no answer in 120 s → refused; revoke, delete, downgrade without question; the contact resolved through the agent's contacts permission (spec 051) (FR-045, research R17)
+- [ ] T072 [US6] Confirmation dialog in a new `src/components/files/ShareConfirmDialog.vue`: source, path, device, contact name, level; buttons "Freigeben" / "Ablehnen", no remember option; i18n `files.shares.confirm.*`
+- [ ] T073 [US6] Agent settings UI: `src/lib/files/agentPermissions.ts` and `src/components/settings/AgentFilesSetting.vue` list own devices and received shares as storages with their names, plus the switch "Dateifreigaben verwalten" per agent (default off)
+- [ ] T074 [P] [US6] Tests in `src-tauri/src/files/agent/` (`FakeEnv`, `src-tauri/src/files/agent/test_env.rs`): no permission → question/refusal; `Read` permission refuses write; read-write permission on a read share refuses write (spec US6 scenarios 1–3); without `FileShares` a share action is refused (scenario 4); with it, create without confirmation never creates a share, also in mode "Auto" (scenario 5, SC-010); revoke runs without question (scenario 6)
 
 ---
 
 ## Phase 9: Polish & Cross-Cutting Concerns (PR F)
 
-- [ ] T070 E2E per spec 033 in `tests/e2e/` (or the existing multi-device suite): second vault, card exchange, own-device browse and copy, contact share read, revoke; run locally only after asking (OOM risk), otherwise via CI
-- [ ] T071 [P] Performance check against SC-001/SC-002/SC-006 on two devices in one network; note results in the PR (quickstart.md)
-- [ ] T072 [P] Docs: mark the 056 row in `plans/README.md` per merged PR; `specs/044-file-browser/spec.md` "Folgende Specs" points to the built feature; `CONTEXT.md` entries from T005 checked against the final names
-- [ ] T073 Size and structure: every new or touched hand-written file ≤ 500 LoC (`files/peer/serve/*`, `files/peer/store.rs`, `sync/endpoint.rs` already has a documented exception — do not grow it beyond the handler registration)
-- [ ] T074 Run quickstart.md §1–§5 by hand on two devices and two vaults; record open findings
+- [ ] T075 E2E per spec 033 in `tests/e2e/` (or the existing multi-device suite): second vault, card exchange, own-device browse and copy, contact share read, revoke; run locally only after asking (OOM risk), otherwise via CI
+- [ ] T076 [P] Performance check against SC-001/SC-002/SC-006 on two devices in one network; note results in the PR (quickstart.md)
+- [ ] T077 [P] Docs: mark the 056 row in `plans/README.md` per merged PR; `specs/044-file-browser/spec.md` "Folgende Specs" points to the built feature; `CONTEXT.md` entries from T005 checked against the final names
+- [ ] T078 Size and structure: every new or touched hand-written file ≤ 500 LoC (`files/peer/serve/*`, `files/peer/store.rs`, `sync/endpoint.rs` already has a documented exception — do not grow it beyond the handler registration)
+- [ ] T079 Run quickstart.md §1–§5 by hand on two devices and two vaults; record open findings
 
 ---
 
@@ -234,26 +239,26 @@ story builds on these.
 
 - **Setup (Phase 1)**: none; T003 before any code.
 - **Foundational (Phase 2)**: after Setup; blocks all stories. T006 → T008–T011; T012–T013 before T025; T014–T015 before T016; T016–T017 before T018; T019–T021 before T022; T022 before T023; T024–T025 before T027.
-- **US1 (Phase 3)**: after Phase 2. T028–T030 before T031; T032 after T029; T033 after T025; T034 before T036.
-- **US2 (Phase 4)**: after US1 (reuses server ops and `PeerStore` writes are not needed, but the connection layer and `Shares` are). T039 before T041; T042 before T043/T044; T045–T047 before T049.
+- **US1 (Phase 3)**: after Phase 2. T028–T031 before T032; T033 after T029; T034 and T035 after T025; T036 before T038.
+- **US2 (Phase 4)**: after US1 (connection layer, server ops, `Shares`). T041 before T043; T044 before T045/T046; T047–T050 before T051.
 - **US3 (Phase 5)**: after US2 (contact mode) and US1 (upload sessions).
 - **US4 (Phase 6)**: after US2 (grants and contact streams).
 - **US5 (Phase 7)**: after Phase 2 only (T010 exists); shipped with PR E for review size.
-- **US6 (Phase 8)**: after US1 and US2.
+- **US6 (Phase 8)**: after US1 and US2. T070 before T071; T071 before T072 and T074.
 - **Polish (Phase 9)**: after all stories.
 
 ### Parallel Opportunities
 
 - Phase 2: T007, T009, T010, T011 in parallel after T006; T014 parallel to T012/T013; T017 parallel to T016.
-- US1: T031 and T035 in parallel once T028–T030 and T033 are done.
-- US2: T040 parallel to T039; T044 parallel to T045–T047.
-- US4: T059 and T062 in parallel after T056–T058.
+- US1: T032 and T037 in parallel once T028–T031 and T034–T035 are done.
+- US2: T042 parallel to T041; T046 parallel to T047–T050.
+- US4: T061 and T064 in parallel after T058–T060.
 
 ## Parallel Example: User Story 1
 
 ```text
-Task: "T031 [P] [US1] Tests in src-tauri/src/files/peer/serve/ops_tests.rs and upload_tests.rs"
-Task: "T035 [P] [US1] Integration test in src-tauri/src/files/peer/own_device_tests.rs"
+Task: "T032 [P] [US1] Tests in src-tauri/src/files/peer/serve/ops_tests.rs and upload_tests.rs"
+Task: "T037 [P] [US1] Integration test in src-tauri/src/files/peer/own_device_tests.rs"
 ```
 
 ## Implementation Strategy

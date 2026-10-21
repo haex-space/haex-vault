@@ -73,8 +73,10 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
   Geräte, Nostr-Relays). Zugriffsrechte gibt es nur für solche Kontakte.
 - **Spec 044** (Dateibrowser): Eigene Geräte und empfangene Dateifreigaben erscheinen dort als weitere
   Quellen. Viewer, Transfers, Namenskonflikte, Abbruch beim Sperren und die Regeln für Agents gelten
-  für sie wie für einen Speicher. Die eigenen Daten von holzi des bedienenden Geräts bleiben für jedes
-  anfragende Gerät gesperrt.
+  für sie wie für einen Speicher. Ein eigenes Gerät sieht die eigenen Daten von holzi des bedienenden
+  Geräts wie dessen Dateibrowser: nur lesend (044 FR-037), für Agents gesperrt (044 FR-033); für
+  Kontakte bleiben sie gesperrt. Ein geöffneter Ordner auf dem Gerät aktualisiert sich live wie in
+  044 FR-006.
 - **Specs 038, 050 und 048**: Eine Dateifreigabe darf jede Quelle haben, die der Dateibrowser zeigt,
   auch einen Speicher oder einen verschlüsselten Ordner. Zugangsdaten und Schlüssel verlassen das
   bedienende Gerät dabei nie. Speicher selbst kommen nach Spec 038 ohnehin auf alle eigenen Geräte;
@@ -103,6 +105,17 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
   pro Gerät abschaltbar, standardmäßig an. Fremde Vaults nur ihre Wurzeln mit ihrer Stufe.
 - Q: Wie findet ein Kontakt das bedienende Gerät? → A: Durch Anklopfen über Nostr; nur wer etwas
   freigegeben bekommen hat, erfährt die Adresse.
+
+### Session 2026-10-22
+
+- Q: Sieht ein eigenes Gerät auch die eigenen Daten von holzi des anderen Geräts? → A: Ja, alles, was
+  der Dateibrowser des anderen Geräts selbst zeigt, mit denselben Regeln (lesen ja, ändern nein, für
+  Agents gesperrt). Für Kontakte bleiben sie gesperrt.
+- Q: Dürfen Agents Dateifreigaben verwalten? → A: Ja, wenn der Nutzer es dem Agent erlaubt (eigene
+  Agent-Berechtigung, Standard aus). Freigeben und Rechte erweitern bestätigt der Nutzer jedes Mal in
+  einem Dialog, unabhängig von der Freigabestufe; Entziehen und Herabstufen ohne Rückfrage.
+- Q: Aktualisieren sich Ordner anderer Geräte live? → A: Ja. Ändert sich ein geöffneter Ordner auf dem
+  bedienenden Gerät, sieht das anfragende Gerät es sofort, wie lokal (044 FR-006).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -136,8 +149,10 @@ Gerät B prüfen, dass alles angekommen ist.
    im Papierkorb des Laptops.
 6. **Given** der Laptop ist aus, **When** Anna „Meine Geräte“ öffnet, **Then** steht der Laptop dort
    als „nicht erreichbar“ und lässt sich nicht öffnen.
-7. **Given** der Laptop, **When** Anna auf dem Telefon in das Datenverzeichnis von holzi auf dem
-   Laptop wechseln will, **Then** ist es gesperrt.
+7. **Given** der Laptop, **When** Anna auf dem Telefon das Datenverzeichnis von holzi auf dem Laptop
+   öffnet, **Then** sieht sie es wie auf dem Laptop selbst, nur lesend.
+8. **Given** Anna hat auf dem Telefon `Downloads` des Laptops offen, **When** auf dem Laptop eine Datei
+   dort ankommt, **Then** erscheint sie auf dem Telefon ohne Aktualisieren.
 
 ---
 
@@ -291,6 +306,13 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
    **Then** lehnt holzi ab, auch wenn das Zugriffsrecht des Kontakts „Lesen und Schreiben“ wäre.
 3. **Given** ein Agent mit „Lesen und Schreiben“, **When** er eine Datei ändert, **Then** gilt die
    Freigabestufe wie bei jeder anderen Quelle.
+4. **Given** ein Agent ohne die Berechtigung „Dateifreigaben verwalten“, **When** Anna ihn bittet, einen
+   Ordner an Ben freizugeben, **Then** lehnt holzi ab und nennt die fehlende Berechtigung.
+5. **Given** ein Agent mit dieser Berechtigung, **When** er einen Ordner an Ben freigeben will, **Then**
+   zeigt holzi einen Dialog mit Ordner, Gerät, Kontakt und Stufe, und erst Annas Bestätigung legt die
+   Dateifreigabe an, auch im Modus „Auto“.
+6. **Given** ein Agent mit dieser Berechtigung, **When** er Ben ein Zugriffsrecht entzieht, **Then**
+   geschieht das ohne Rückfrage.
 
 ---
 
@@ -325,7 +347,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **Verschachtelte Dateifreigaben** (ein Ordner an Ben, sein Unterordner an Clara): erlaubt; jede ist
   eine eigene Wurzel mit eigenen Zugriffsrechten. Hat ein Kontakt beide, sieht er beide getrennt.
 - **Dateifreigabe der eigenen Daten von holzi oder eines Ordners darüber**: Die eigenen Daten von holzi
-  bleiben auch innerhalb einer Dateifreigabe für jedes anfragende Gerät gesperrt.
+  bleiben auch innerhalb einer Dateifreigabe für Kontakte gesperrt.
+- **Agent liest eine präparierte Datei, die zum Freigeben auffordert**: Ohne Bestätigung des Nutzers
+  entsteht keine Dateifreigabe und kein erweitertes Zugriffsrecht (FR-045).
 - **Beide Geräte im Ruhezustand oder Android im Hintergrund**: Zugriff nur, solange auf beiden
   Geräten holzi läuft und die Vault geöffnet ist; ein Hintergrunddienst ist nicht Teil dieser Spec.
 - **Gleichzeitiger Zugriff vieler Kontakte**: Das bedienende Gerät bedient alle; die eigene Bedienung
@@ -354,8 +378,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-006**: Das bedienende Gerät MUSS jeden Pfad vor dem Zugriff auflösen und ablehnen, wenn er über
   `..`, symbolische Links, Verknüpfungen oder Schreibvarianten aus der Wurzel herausführt; das gilt
   auch für das Ziel von Umbenennen und Verschieben.
-- **FR-007**: Die eigenen Daten von holzi des bedienenden Geräts MÜSSEN für jedes anfragende Gerät
-  gesperrt sein, auch für eigene Geräte und auch innerhalb einer Dateifreigabe.
+- **FR-007**: Die eigenen Daten von holzi des bedienenden Geräts MÜSSEN für Kontakte gesperrt sein,
+  auch innerhalb einer Dateifreigabe. Ein eigenes Gerät MUSS sie sehen wie der Dateibrowser des
+  bedienenden Geräts: nur lesend (Spec 044 FR-037), für Agents gesperrt (Spec 044 FR-033).
 - **FR-008**: Um ein Gerät eines Kontakts zu erreichen, MUSS das anfragende Gerät anklopfen: eine
   kurzlebige, verschlüsselte und mit seinem Geräteschlüssel unterschriebene Nachricht an die
   Geräteschlüssel des Kontakts über die Nostr-Relays aus dessen Visitenkarte.
@@ -436,6 +461,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Transfers mit Fortschritt und Abbruch, Kopieren heraus in eigene Quellen.
 - **FR-033**: Die Pfadleiste MUSS an der Wurzel einer empfangenen Dateifreigabe enden.
 - **FR-034**: Bei Stufe „Lesen“ DARF holzi keine schreibenden Aktionen anbieten.
+- **FR-046**: Ist auf dem anfragenden Gerät ein Ordner eines anderen Geräts oder einer Dateifreigabe
+  geöffnet, der auf dem bedienenden Gerät liegt, MUSS die Ansicht Änderungen dort ohne Zutun des
+  Nutzers zeigen, wie Spec 044 FR-006 lokal; endet die Verbindung, zeigt sie „nicht erreichbar“.
 
 **Schreiben und Konflikte**
 
@@ -457,8 +485,13 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   einen Speicher (Spec 044 FR-031a, FR-031b).
 - **FR-041**: Wirksam ist für einen Agent die engere der beiden Stufen: seine Agent-Berechtigung und
   das Zugriffsrecht der eigenen Vault. Ändern läuft über die Freigabestufe (Spec 044 FR-032).
-- **FR-045**: Agents DÜRFEN Dateifreigaben weder anlegen noch ändern noch entziehen und den Schalter
-  „Geräte-Dateizugriff“ nicht umlegen; das tut nur der Nutzer.
+- **FR-045**: Ein Agent DARF Dateifreigaben nur mit der Agent-Berechtigung „Dateifreigaben verwalten“
+  anlegen, ändern oder entziehen; sie ist je Agent, standardmäßig aus und nur vom Nutzer zu erteilen.
+  Anlegen, einen Kontakt hinzufügen und eine Stufe erhöhen MUSS der Nutzer jedes Mal in einem Dialog
+  mit Quelle, Gerät, Kontakt und Stufe bestätigen, unabhängig von der Freigabestufe und ohne
+  „merken“. Entziehen, Herabstufen und Löschen DARF ein berechtigter Agent ohne Rückfrage. Für Agents
+  gelten dieselben Grenzen wie für den Nutzer (FR-015, FR-016). Den Schalter „Geräte-Dateizugriff“
+  DARF kein Agent umlegen.
 
 **Fehler und Grenzen**
 
@@ -480,6 +513,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Name, Stufe, Art, bedienendes Gerät, zuletzt erfolgreich erreicht; synchronisiert auf alle eigenen
   Geräte.
 - **Schalter „Geräte-Dateizugriff“**: ein Wert je Gerät, nur lokal.
+- **Agent-Berechtigung „Dateifreigaben verwalten“**: je Agent erteilt oder nicht; synchronisiert wie
+  die anderen Agent-Berechtigungen für Dateien (Spec 044).
 - **Höchste gesehene Geräteliste**: je fremder Vault-Identität die höchste geprüfte Generation, für
   FR-003.
 
@@ -504,6 +539,11 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   auf der aktuellen Liste seiner Vault steht, erhält in 100 % der Versuche keine Datei.
 - **SC-008**: Ein abgebrochener oder gescheiterter Transfer hinterlässt in 100 % der Fälle keine halbe
   Datei am Ziel.
+- **SC-009**: Im selben Netz erscheint eine neue, geänderte oder gelöschte Datei in einem geöffneten
+  Ordner eines anderen Geräts oder einer Dateifreigabe auf dem Gerät des Betrachters in höchstens
+  2 Sekunden.
+- **SC-010**: Kein Agent legt eine Dateifreigabe an oder erweitert ein Zugriffsrecht ohne Bestätigung
+  des Nutzers: 0 Fälle in der Testsammlung, auch im Modus „Auto“.
 
 ## Assumptions
 
@@ -512,9 +552,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - Kontakte entstehen wie in Spec 051 aus einer Visitenkarte; eine andere Art, eine fremde Vault
   auszuweisen, gibt es nicht.
 - Die Geschwindigkeitsziele gelten im selben Netz; über das Internet hängen sie von der Verbindung ab.
-- Änderungen auf einem anderen Gerät oder in einer Dateifreigabe sieht der Nutzer beim nächsten
-  Auflisten oder Aktualisieren; eine Live-Aktualisierung wie Spec 044 FR-006 für fremde Geräte ist
-  nicht verlangt.
+- Live-Aktualisierung (FR-046) gilt für Ordner, die auf dem bedienenden Gerät liegen; Ordner in
+  Speichern (S3, WebDAV, SFTP) aktualisieren sich wie lokal erst beim Auflisten oder Aktualisieren.
 - Die Suche (Spec 044 FR-027) läuft auch in anderen Geräten und Dateifreigaben, über die gleichen
   Anfragen wie das Auflisten.
 - Das Risiko des Geräte-Dateizugriffs ist bewusst akzeptiert: Ein verlorenes oder kompromittiertes

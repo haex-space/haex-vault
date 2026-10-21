@@ -36,4 +36,7 @@
   üblich. Protokollname, Nachrichtenformat und Speicherorte bleiben dem Plan überlassen.
 - Bekannte Grenze bewusst festgehalten (Edge Cases): Ein Entzug von einem anderen Gerät wirkt erst,
   wenn das bedienende Gerät ihn per Datensync erhalten hat.
+- Klärung 2026-10-22 eingearbeitet: eigene Daten von holzi für eigene Geräte wie lokal (FR-007),
+  Agents verwalten Freigaben nur mit Berechtigung und Bestätigung (FR-045), Live-Aktualisierung
+  (FR-046, SC-009, SC-010).
 - Das akzeptierte Risiko des Geräte-Dateizugriffs braucht bei der Planung ein ADR (Assumptions).

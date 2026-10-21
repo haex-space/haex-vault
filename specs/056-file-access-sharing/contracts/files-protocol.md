@@ -52,6 +52,7 @@ Stufe und Pfad (FR-005, FR-006, FR-007).
 | `Rename`       | `{ share?, path, new_name }`                                | `WireEntry`                                                                          | Schreiben |
 | `Move`         | `{ share?, from, to }`                                      | `()`                                                                                 | Schreiben |
 | `Delete`       | `{ share?, path }`                                          | `{ trashed: bool }`                                                                  | Schreiben |
+| `Watch`        | `{ share?, path }` (eigener Stream, bleibt offen)           | je Stapel `FolderChanged { paths }`, bis der Stream schließt                         | Lesen     |
 
 `WireEntry { name, path, kind: File|Folder, size, modified_ms, etag }`.
 
@@ -64,6 +65,10 @@ Regeln:
 - `Read` streamt ohne Zeitlimit; ein Entzug, Sperren oder Abbruch beendet den Stream mit
   `STREAM_CANCELLED`.
 - `Delete` auf dem Gerät geht in den Papierkorb, wo `trash = true` (research R8).
+- `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern `Unsupported`. Ein Entzug
+  oder das Sperren schließt den Stream (research R16).
+- Aufrufer: Jede Anfrage trägt `caller: User | Agent`. Eigene Daten von holzi: bei `OwnDevice` für
+  `User` nur lesend, für `Agent` gesperrt; bei `Contact` immer gesperrt (FR-007).
 - Upload-Sitzungen gehören der Verbindung; schließt sie, räumt das bedienende Gerät ihre
   Zwischendateien auf.
 
