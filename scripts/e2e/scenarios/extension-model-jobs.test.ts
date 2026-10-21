@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { networkInterfaces } from 'node:os'
 import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
 import type { Page } from '../lib/page.ts'
@@ -10,6 +9,7 @@ import {
   inFrame,
   install,
   openFromLauncher,
+  privateNetworkAddress,
   reachableFromDevice,
   type InstalledExtension,
 } from '../lib/extensions.ts'
@@ -91,22 +91,6 @@ async function standIn(): Promise<{
   const { port } = server.address() as AddressInfo
   reachableFromDevice(port)
   return { server, port, hosts }
-}
-
-/** This machine's address in a private network (RFC 1918 or carrier NAT): a server for holzi. */
-function privateAddress(): string {
-  const candidates = Object.values(networkInterfaces())
-    .flat()
-    .filter((a) => a?.family === 'IPv4' && !a.internal)
-    .map((a) => a!.address)
-  const found = candidates.find((address) =>
-    /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(
-      address,
-    ),
-  )
-  if (!found)
-    throw new Error(`no private network address among ${candidates.join(', ')}`)
-  return found
 }
 
 /** Adds the stand-in at `address` as an OpenAI-compatible server and states that it takes images. */
@@ -199,7 +183,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
 
     // Quickstart step 5: a model on a server in the private network, granted and ranked first,
     // asks for consent before anything is sent; allowed for the session only.
-    const server = `${privateAddress()}:${stand.port}`
+    const server = `${privateNetworkAddress()}:${stand.port}`
     const school = await addServer(page, 'Schul-Server', `http://${server}/v1`)
     unwrap(
       'extension_model_grants_set',
