@@ -54,6 +54,10 @@ fn outside_callers() -> Vec<Caller> {
             id: "agent-1".to_string(),
         },
         Caller::Internal { feature: "test" },
+        // Spec 049: a browser extension through the External Bridge.
+        Caller::BrowserClient {
+            id: "3f1c0000000000000000000000000000".to_string(),
+        },
     ]
 }
 

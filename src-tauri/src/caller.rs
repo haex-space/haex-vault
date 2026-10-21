@@ -14,4 +14,7 @@ pub enum Caller {
     ExternalAgent { id: String },
     /// A holzi function, such as the own S3 storage (spec 029), with a grant fixed in the code.
     Internal { feature: &'static str },
+    /// A browser extension connected through the External Bridge (spec 049); `id` is its
+    /// fingerprint.
+    BrowserClient { id: String },
 }
