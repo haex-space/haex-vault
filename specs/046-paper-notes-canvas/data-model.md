@@ -22,18 +22,18 @@ leer, entfernte Zellen gehen mit. Eine geteilte Seite nimmt die Zelltexte im Sei
 
 Optionales Feld der Seite (neue JSON-Spalte `paper_import`, Migration `0005`). Es fehlt bei gewöhnlichen Seiten.
 
-| Feld                           | Typ                     | Regeln                                                               |
-| ------------------------------ | ----------------------- | -------------------------------------------------------------------- |
-| `version`                      | integer                 | Beginnt bei `1`; eine unbekannte Version wird nicht still verworfen. |
-| `originalAssetId`              | string                  | Das unveränderte importierte Foto im Asset-Store.                    |
+| Feld                           | Typ                     | Regeln                                                                                                                          |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                      | integer                 | Beginnt bei `1`; eine unbekannte Version wird nicht still verworfen.                                                            |
+| `originalAssetId`              | string                  | Das unveränderte importierte Foto im Asset-Store.                                                                               |
 | `workingAssetId`               | string, optional        | Die entzerrte, gedrehte Arbeitskopie, die gelesen wurde; fehlt, wenn sie wegen `processing_failed` nicht erzeugt werden konnte. |
-| `rotation`                     | `0 \| 90 \| 180 \| 270` | Drehung der Arbeitskopie gegenüber dem Original, im Uhrzeigersinn.   |
-| `sourceMimeType`               | string                  | Ein vom Import unterstütztes Bildformat.                             |
-| `sourceWidth` / `sourceHeight` | positive integer        | Pixelmaße des Originals.                                             |
-| `processing`                   | `PaperNoteProcessing`   | Stand der Erkennung und Herkunft.                                    |
-| `regions`                      | `RecognizedRegion[]`    | Eine Zeile je übernommener Region.                                   |
-| `closeUps`                     | `PaperNoteCloseUp[]`    | Optional; ein Eintrag je erfolgreich gelesenem Nahfoto.              |
-| `createdAt` / `updatedAt`      | ISO timestamp           | `updatedAt` ändert sich mit jeder Erkennung.                         |
+| `rotation`                     | `0 \| 90 \| 180 \| 270` | Drehung der Arbeitskopie gegenüber dem Original, im Uhrzeigersinn.                                                              |
+| `sourceMimeType`               | string                  | Ein vom Import unterstütztes Bildformat.                                                                                        |
+| `sourceWidth` / `sourceHeight` | positive integer        | Pixelmaße des Originals.                                                                                                        |
+| `processing`                   | `PaperNoteProcessing`   | Stand der Erkennung und Herkunft.                                                                                               |
+| `regions`                      | `RecognizedRegion[]`    | Eine Zeile je übernommener Region.                                                                                              |
+| `closeUps`                     | `PaperNoteCloseUp[]`    | Optional; ein Eintrag je erfolgreich gelesenem Nahfoto.                                                                         |
+| `createdAt` / `updatedAt`      | ISO timestamp           | `updatedAt` ändert sich mit jeder Erkennung.                                                                                    |
 
 `collectAssetIds()` nimmt `originalAssetId`, `workingAssetId`, die Nahfotos und die Ausschnitte der Bildregionen auf,
 damit eine geteilte Seite ihre Bilder mitbringt.

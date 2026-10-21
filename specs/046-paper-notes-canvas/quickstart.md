@@ -44,9 +44,9 @@ Erwartet:
 5. Eine Zelle der Tabelle ändern, eine Zeile einfügen, die Zeichnung verschieben und vergrößern, einen Text ändern und
    den Handschriftstil wechseln.
 6. Zwischen Original, Entwurf und Vergleich umschalten; das Original bleibt Byte für Byte gleich.
-6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
-    im Rechteck sind ersetzt, eigene Striche und das Original sind unverändert; Rückgängig stellt den alten Stand her.
-    Abbrechen während des Lesens ändert nichts.
+   6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
+   im Rechteck sind ersetzt, eigene Striche und das Original sind unverändert; Rückgängig stellt den alten Stand her.
+   Abbrechen während des Lesens ändert nichts.
 7. Speichern, schließen, neu öffnen: Ebenen, Zellen, Positionen und Herkunft sind erhalten.
 8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung, Qualität und eingeblendetem
    Original.
