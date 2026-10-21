@@ -22,6 +22,7 @@
 - Q: Worüber läuft die Erkennung? → A: Über die Modellaufträge von Spec 055 (vault-sdk `models.runAsync`, ab 4.7.1). haex-notes beschreibt den Auftrag „Seitenerkennung“ mit eigener Anweisung und eigenem Format; holzi wählt das freigegebene Modell, fragt vor dem Versand außerhalb des Geräts und verwirft kaputte Ausgabe. Die feste Aufgabe aus Spec 047 und die Profile entfallen.
 - Q: Was passiert mit einem Drehhinweis des Modells? → A: haex-notes dreht die Arbeitskopie um den gemeldeten Winkel und liest einmal neu; das Original bleibt unverändert. Zusätzlich kann der Schüler das Foto vor dem Lesen selbst drehen.
 - Q: Welche Ausgabe gilt als unbrauchbar? → A: Was holzi verwirft (leer, Schleife, Schriftwechsel, falsches Format), liefert gar kein Ergebnis; die Seite enthält dann nur das Original. haex-notes übergeht zusätzlich einzelne Regionen ohne Inhalt.
+- Q: Wie liest man eine schlecht erkannte Stelle neu? → A: Der Schüler zieht auf der Seite ein Rechteck über die Stelle und macht davon ein Nahfoto. Es läuft durch denselben Auftrag; das Ergebnis wird in das Rechteck eingepasst und ersetzt die erzeugten Elemente, die ganz darin liegen. Ein ganzes Blatt erneut zu lesen und alte und neue Regionen einander zuzuordnen, entfällt: auf einem neuen Foto stimmen Lage und Zuschnitt nicht mehr überein.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -59,6 +60,7 @@ Ein Schüler bearbeitet den erzeugten Entwurf wie eine digitale Notizseite. Er k
 2. **Given** eine Zeichnung oder ein Diagramm, **When** der Schüler es auswählt, **Then** kann er es verschieben und in der Größe verändern.
 3. **Given** ein Entwurf mit mehreren Ebenen, **When** der Schüler zwischen Original, bereinigter Ansicht und Vergleichsansicht wechselt, **Then** werden die entsprechenden Inhalte ein- oder ausgeblendet, ohne Daten zu verlieren.
 4. **Given** ein gespeicherter Entwurf, **When** der Schüler ihn später erneut öffnet, **Then** sind Text, visuelle Inhalte, Bearbeitungen und Ebenenzustände weiterhin vorhanden.
+5. **Given** eine Stelle des Entwurfs, die schlecht oder gar nicht erkannt wurde, **When** der Schüler ein Rechteck darüber zieht und ein Nahfoto der Stelle lesen lässt, **Then** ersetzt das Ergebnis die erzeugten Elemente, die ganz im Rechteck liegen, eigene Ergänzungen und das Original bleiben, und ein Rückgängig stellt den vorherigen Stand her.
 
 ### User Story 4 - Eine lesbare Version exportieren (Priority: P2)
 
@@ -83,6 +85,8 @@ Ein Schüler exportiert den fertig bearbeiteten Canvas als PDF, um ihn abzugeben
 - Der Nutzer hat in holzi kein Modell mit Bildern freigegeben, lehnt die Übertragung ab oder bricht ab. Das Original bleibt als Seite, und der Schüler kann manuell weiterarbeiten.
 - Zeichnungen, Tabellen und Text werden falsch klassifiziert. Der Schüler muss die betroffenen Bereiche weiterhin als bearbeitbare Inhalte korrigieren können.
 - Die Verarbeitung schlägt fehl oder ist vorübergehend nicht verfügbar. Das Originalbild muss trotzdem als Canvas-Inhalt gespeichert werden können.
+- Das Nahfoto zeigt mehr oder etwas anderes als die Stelle unter dem Rechteck. Das Ergebnis wird trotzdem in das Rechteck eingepasst; der Schüler nimmt es zurück oder verschiebt die Elemente.
+- Das Lesen eines Nahfotos schlägt fehl oder wird abgebrochen. Die Seite bleibt unverändert, und das Nahfoto wird nicht gespeichert.
 - Eine verwendete Handschrift-Darstellung ist nicht verfügbar. Der Text muss mit einer neutralen Fallback-Darstellung lesbar bleiben.
 - Bilder werden einzeln verarbeitet; ein Batch- oder Mehrseitenimport ist nicht Bestandteil der ersten Ausbaustufe. Ein Fehler bei Dekodierung oder Aufbereitung darf nicht zum Verlust bereits gespeicherter Seiten führen.
 
@@ -111,6 +115,7 @@ Ein Schüler exportiert den fertig bearbeiteten Canvas als PDF, um ihn abzugeben
 - **FR-018**: Der Auftrag „Seitenerkennung“ MUST aus zwei Schritten bestehen: Lesen der Seite in ein Format mit Regionen (Art Text, Bild oder Tabelle; Position; Text; Zeilen und Zellen; Drehhinweis) und Korrektur der gelesenen Texte. haex-notes übernimmt nur ein Ergebnis, das holzi gegen dieses Format geprüft hat; freier Modelltext wird nie als Seite gedeutet.
 - **FR-019**: Modellwahl, Aufwand und Einwilligung MUST in holzi liegen (Spec 055). Die Seite speichert als Herkunft nur Modellname, Ort und Zeitpunkt der Erkennung, niemals Adresse oder Zugangsdaten.
 - **FR-020**: Das System MUST ein seitlich oder kopfüber aufgenommenes Foto aufrecht auswerten. Meldet das Modell einen Drehwinkel, dreht haex-notes die Arbeitskopie und liest einmal neu; der Schüler kann das Foto vor dem Lesen auch selbst drehen. Das Original wird nie gedreht gespeichert.
+- **FR-021**: Das System MUST auf einer Seite aus einem Foto das Nachlesen einer Stelle über ein Nahfoto ermöglichen: Der Schüler wählt die Stelle als Rechteck auf der Seite, das Nahfoto läuft durch denselben Auftrag „Seitenerkennung“, und das Ergebnis ersetzt die erzeugten Elemente, die ganz im Rechteck liegen. Eigene Ergänzungen und das Original bleiben unverändert. Das Ersetzen ist ein Undo-Schritt; ein Fehler oder Abbruch ändert die Seite nicht.
 
 ### Key Entities
 
@@ -122,6 +127,7 @@ Ein Schüler exportiert den fertig bearbeiteten Canvas als PDF, um ihn abzugeben
 - **Canvas-Entwurf**: Die zusammengesetzte, speicherbare Seite aus Original, Textbereichen, visuellen Objekten und Sichtbarkeitseinstellungen.
 - **Tabelle**: Ein Bereich aus Zeilen und Zellen mit Text, auch leeren Zellen, der als Ganzes verschoben und in seinen Zellen bearbeitet wird.
 - **Seitenerkennungsauftrag**: Der Modellauftrag, den haex-notes an holzi gibt (Anweisung und Format je Schritt, das Foto); er existiert nur während der Erkennung.
+- **Nahaufnahme**: Ein zusätzliches Foto einer Stelle der Seite mit dem Rechteck, das es ersetzt hat, und der Herkunft seiner Erkennung.
 - **Herkunft**: Modellname, Ort (dieses Gerät, eigenes Netz, Cloud) und Zeitpunkt der Erkennung einer Seite.
 
 ### Out of Scope for the First Release
