@@ -6,227 +6,147 @@ description: 'Task list for Paper Notes to Editable Canvas'
 
 **Input**: Design documents from `/specs/046-paper-notes-canvas/`
 
-**Implementation target**: `https://github.com/haex-space/haextension.git` at revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8`, under `apps/haex-notes/`
+**Implementation target**: `https://github.com/haex-space/haextension.git` at revision
+`6dfb015198c99018236f5a8e958a916942ab971c`, under `apps/haex-notes/`
 
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/recognition-provider.md, quickstart.md
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/page-job.md, quickstart.md; holzi with
+spec 055 and vault-sdk 4.7.1
 
-**Tests**: Included because the project constitution requires runnable checks for non-trivial logic. Tests remain in separate `*.test.ts` files.
+**Tests**: Included; the project constitution requires runnable checks for non-trivial logic. Tests stay in separate
+`*.test.ts` files.
 
-> **Stand 2026-10-16:** Alle Haken sind zurückgesetzt. Im Zielrepo `haex-space/haextension` gibt es weder `app/lib/paperNotes/` noch `pdf-lib` in `apps/haex-notes/package.json`, nichts davon ist gebaut. Diese Liste wird neu erzeugt, sobald Spec 055 geplant ist; sie folgt dann den Änderungen in `spec.md` (Abschnitt „Änderungen nach Messung und Entscheidung“).
+> Regenerated 2026-10-21 for recognition through spec 055 and without the review part. The previous list (51 tasks,
+> none built) was based on the agent task of spec 047.
 
-## Phase 1: Setup (Shared Infrastructure)
+## Format: `[ID] [P?] [Story] Description`
 
-**Purpose**: Prepare the target extension and the small set of new runtime assets.
-
-- [ ] T001 Prepare a dedicated implementation worktree for `haex-space/haextension` at revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8` and verify `apps/haex-notes/package.json` is based on that revision.
-- [ ] T002 Add `pdf-lib` to `apps/haex-notes/package.json` and update the target lockfile without adding a provider-specific OCR or KI SDK.
-- [ ] T003 [P] Add only permissively licensed handwriting font files and their license notices under `apps/haex-notes/public/fonts/`.
-- [ ] T004 [P] Add the initial handwriting style registry and fallback names in `apps/haex-notes/app/lib/paperNotes/fonts.ts`.
+- **[P]**: can run in parallel (different files, no open dependency)
+- **[Story]**: US1 (photo to draft), US3 (edit the draft), US4 (PDF export); US2 was dropped
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 1: Setup
 
-**Purpose**: Establish the persisted page model, asset/rendering primitives, and provider boundary required by all user stories.
+- [ ] T001 Create an implementation worktree of `haex-space/haextension` at `6dfb015198c99018236f5a8e958a916942ab971c` and confirm `apps/haex-notes/package.json` is version 0.1.7
+- [ ] T002 Raise `@haex-space/vault-sdk` to exactly `4.7.1` and add `pdf-lib` in `apps/haex-notes/package.json`; update the lockfile; add no provider, OCR or model SDK
+- [ ] T003 [P] Add permissively licensed handwriting fonts with their license notices under `apps/haex-notes/public/fonts/`
+- [ ] T004 [P] Add the handwriting style registry with a neutral fallback in `apps/haex-notes/app/lib/paperNotes/fonts.ts`
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete.
+---
+
+## Phase 2: Foundational (blocking)
+
+**Purpose**: the page model, the renderer for text, images and cells, and the storage every story needs.
 
 ### Tests first
 
-- [ ] T005 [P] Add model validation tests for `PaperNoteProcessing`, `RecognitionRegion`, normalized source boxes, review states, and the rule that failed processing retains `originalAssetId` in `apps/haex-notes/app/lib/paperNotes/model.test.ts`.
-- [ ] T006 [P] Add page migration and serialization tests for ordinary pages and pages with `paperImport` in `apps/haex-notes/app/lib/migratePage.test.ts`.
-- [ ] T007 [P] Add provider contract tests for preparation/capability responses, valid and invalid recognition results, low-confidence and unknown regions, and the typed failure envelope in `apps/haex-notes/app/lib/paperNotes/recognition.test.ts`.
-- [ ] T008 [P] Add text/image renderer tests covering font selection, opacity, asset loading, missing assets, and page-coordinate placement in `apps/haex-notes/app/lib/render/elements.test.ts`.
-- [ ] T009 [P] Extend asset collection tests to cover original-photo and drawing-crop asset IDs in `apps/haex-notes/app/lib/collectAssets.test.ts`.
+- [ ] T005 [P] Tests in `apps/haex-notes/app/lib/migratePage.test.ts`: a page without `paperImport` and a table without `cells` load unchanged; a page with both survives save and load; an unknown `paperImport.version` is kept
+- [ ] T006 [P] Tests in `apps/haex-notes/app/lib/tableActions.test.ts`: adding and removing rows and columns keeps `cells` at `rows` × `columns`, new cells empty
+- [ ] T007 [P] Tests in `apps/haex-notes/app/lib/render/elements.test.ts`: `text` with font, size and wrap width; `image` with opacity and rotation; a missing asset draws a placeholder; cell text inside its cell
+- [ ] T008 [P] Tests in `apps/haex-notes/app/lib/collectAssets.test.ts`: the original, the working copy and image crops of `paperImport` are collected
 
 ### Implementation
 
-- [ ] T010 Extend `PageDoc`, `PageElement` metadata, and page-layer types with the optional `paperImport` model while preserving existing `TextElement`, `ImageElement`, and `PageLayer` compatibility in `apps/haex-notes/app/types/document.ts`.
-- [ ] T011 Add schema storage for the optional `paper_import` page field and keep the existing legacy stroke/table/background columns in `apps/haex-notes/app/database/schemas/index.ts`.
-- [ ] T012 Implement migration and serialization for `paperImport`; ordinary pages without the field must load unchanged and unknown import versions must not become empty pages in `apps/haex-notes/app/lib/migratePage.ts`.
-- [ ] T013 Implement the two-stage provider-neutral contract (`prepare`/`recognize`), capability and normalized-box validation, processing-state transitions, typed failures, and the deterministic no-network fixture provider in `apps/haex-notes/app/lib/paperNotes/recognition.ts` and `apps/haex-notes/app/lib/paperNotes/fixtureProvider.ts`.
-- [ ] T014 Extend asset reference collection and page-sharing preparation so every original and generated image asset remains discoverable in `apps/haex-notes/app/lib/collectAssets.ts`.
-- [ ] T015 Implement asynchronous image loading and a missing-asset placeholder using the existing asset store in `apps/haex-notes/app/composables/useAssetStore.ts` and `apps/haex-notes/app/lib/paperNotes/assets.ts`.
-- [ ] T016 Extend the shared renderer to draw `TextElement` and `ImageElement` with page coordinates, rotation, opacity, handwriting font fallback, and cached asset images in `apps/haex-notes/app/lib/render/elements.ts`.
-- [ ] T017 Extend notebook commands and store integration so adding, replacing, mutating, hiding, and locking imported elements remains undoable and persists through `apps/haex-notes/app/lib/commands.ts` and `apps/haex-notes/app/stores/notebook.ts`.
+- [ ] T009 Add `TableElement.cells` and the `PaperNoteImport`, `PaperNoteProcessing` and `RecognizedRegion` types (data-model.md) in `apps/haex-notes/app/types/document.ts`
+- [ ] T010 Add the column `paper_import` in `apps/haex-notes/app/database/schemas/index.ts` and the migration `apps/haex-notes/app/database/migrations/0005_*.sql` with its snapshot and journal entry
+- [ ] T011 Read and write `paperImport` and `cells` in `apps/haex-notes/app/lib/migratePage.ts` and `apps/haex-notes/app/stores/notebook.ts`
+- [ ] T012 Keep `cells` in step with rows and columns in `apps/haex-notes/app/lib/tableActions.ts`
+- [ ] T013 Draw `text`, `image` (assets loaded asynchronously, placeholder when missing) and cell text in `apps/haex-notes/app/lib/render/elements.ts`
+- [ ] T014 Collect the new asset sources in `apps/haex-notes/app/lib/collectAssets.ts`
 
-**Checkpoint**: Existing pages still render, imported model data has deterministic tests, and text/image elements can be rendered and saved without a recognition provider.
+**Checkpoint**: Pages with text, images and filled tables draw, save and load; nothing reads a photo yet.
 
 ---
 
-## Phase 3: User Story 1 - Foto in einen sauberen Entwurf umwandeln (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Photo to a clean draft (P1) 🎯 MVP
 
-**Goal**: Import one paper photo, preserve the original, and create a first clean draft with text and visual regions separated.
+**Goal**: A photo becomes a page with the original on a locked layer and a draft of texts, tables and image crops,
+read through holzi; every failure leaves a usable page with the original.
 
-**Independent Test**: Import a representative single-page photo with text, a drawing, and a crossed-out passage; verify that a page with a locked original layer and separated draft elements is created even when automatic processing fails.
+**Independent Test**: With a fake `runPageJob` that returns the fixture result, importing a fixture photo creates a
+page with the original layer and one text, one table and one image element at the expected places; with each error
+code it creates the page with the original and the contract's hint.
 
-### Tests for User Story 1
+### Tests first
 
-- [ ] T018 [P] [US1] Add import mapping tests for local working-copy preprocessing, quality warnings, original asset creation, page-fit geometry, locked original layer, text regions, drawing crops, and manual fallback in `apps/haex-notes/app/lib/paperNotes/importPage.test.ts`.
-- [ ] T019 [P] [US1] Add provider lifecycle tests for preparation before byte transfer, capability negotiation, consent metadata, local/remote processing status, schema rejection, success, and typed failure in `apps/haex-notes/app/lib/paperNotes/recognitionAdapter.test.ts`.
+- [ ] T015 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/pageJob.test.ts`: the job has the two steps, instructions, formats, efforts and `from` pointer of contracts/page-job.md; the image is the working copy as JPEG
+- [ ] T016 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/layout.test.ts`: boxes 0–1000 map to page coordinates; left edges within 2 % align; overlapping regions move down in reading order; font size follows box height and line count within bounds
+- [ ] T017 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/mapResult.test.ts`: text, table (rows padded to the longest) and image regions become elements; empty regions and invalid boxes are skipped; `fix` texts replace the texts in order and a count mismatch keeps the read texts; the provenance gives model and place of the `read` attempt with `outcome: "used"`
+- [ ] T018 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/workingCopy.test.ts`: turning by 90, 180 and 270 degrees; the longest edge is at most 2048 px; a dark or blurred photo gives the quality hint; the original bytes are never changed
+- [ ] T019 [P] [US1] Tests in `apps/haex-notes/app/lib/paperNotes/importPage.test.ts`: layers in the order of data-model.md, the original layer locked and never active, `paperImport` filled; a rotation hint starts exactly one second job with the turned copy; each error code (`no_capable_model`, `consent_denied`, `unusable`, `timeout`, `unavailable`) and a cancel give the page with the original and the state of data-model.md
 
-### Implementation for User Story 1
+### Implementation
 
-- [ ] T020 [US1] Implement single-image import, local working-copy preprocessing, quality warnings with retake/best-effort choices, original-asset persistence, page-size normalization, and creation of the visible locked original layer in `apps/haex-notes/app/lib/paperNotes/importPage.ts` and `apps/haex-notes/app/lib/paperNotes/preprocess.ts`.
-- [ ] T021 [US1] Implement local cropping of drawing/unknown regions into asset-store images and map recognized text regions into `TextElement`s with source-region IDs in `apps/haex-notes/app/lib/paperNotes/importPage.ts`.
-- [ ] T022 [US1] Implement the provider adapter lifecycle with preflight before byte transfer, processing status, remote-destination metadata, validation failure, and manual fallback in `apps/haex-notes/app/composables/usePaperNoteRecognition.ts`.
-- [ ] T023 [US1] Build the import dialog with mandatory file selection, optional in-runtime camera capture, image preview, quality warning, processing destination disclosure, explicit remote-processing consent, progress, and failure recovery in `apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue`.
-- [ ] T024 [US1] Add the paper-note import action to the notebook toolbar and connect successful imports to the current page/notebook flow in `apps/haex-notes/app/pages/notebook/[id].vue`.
-- [ ] T025 [US1] Add localized labels and error messages for import, processing location, fallback, original layer, and unsupported images in the page-local `<i18n>` block of `apps/haex-notes/app/pages/notebook/[id].vue` and the import dialog.
+- [ ] T020 [US1] Build the job from contracts/page-job.md in `apps/haex-notes/app/lib/paperNotes/pageJob.ts`
+- [ ] T021 [US1] Map boxes to the page and tidy edges and overlaps in `apps/haex-notes/app/lib/paperNotes/layout.ts` (research R11)
+- [ ] T022 [US1] Map the result to elements, provenance and hints in `apps/haex-notes/app/lib/paperNotes/mapResult.ts` (research R9, R12)
+- [ ] T023 [US1] Make the working copy (crop, perspective, turn, JPEG, quality hint) in `apps/haex-notes/app/lib/paperNotes/workingCopy.ts`
+- [ ] T024 [US1] Create the page from original, working copy and result, with the one re-read after a rotation hint, in `apps/haex-notes/app/lib/paperNotes/importPage.ts` (research R10)
+- [ ] T025 [US1] `runPageJob(job)` over `sdk.models.runAsync`, the state while reading and the cancel over `cancelAsync` in `apps/haex-notes/app/composables/usePaperNoteRecognition.ts`
+- [ ] T026 [US1] `apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue`: camera or file, turn by 90°, quality hint with "take again" and "read anyway", reading with cancel, the hint of each error, the provenance (model and place) after reading; open it from the notebook page
+- [ ] T027 [P] [US1] Texts of the dialog and the hints in German and English in the locale files of haex-notes
+- [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest
 
-**Checkpoint**: User Story 1 is independently usable: a student can import a photo, see a preserved original and a first structured draft, or continue manually after provider failure.
-
----
-
-## Phase 4: User Story 2 - Erkannte Inhalte prüfen und korrigieren (Priority: P1)
-
-**Goal**: Make recognition uncertainty, spelling suggestions, crossed-out passages, and source provenance easy to review and correct.
-
-**Independent Test**: With a fixture page containing one low-confidence word, one spelling suggestion, and one ambiguous crossed-out region, accept one suggestion, edit one word, reject one candidate, and open each original source crop without changing the original layer.
-
-### Tests for User Story 2
-
-- [ ] T026 [P] [US2] Add review-state tests for accept, edit, reject, undo, source-region lookup, and preservation of `recognizedText` in `apps/haex-notes/app/lib/paperNotes/review.test.ts`.
-- [ ] T027 [US2] Add UI mapping cases for confidence markers and candidate lists to `apps/haex-notes/app/lib/paperNotes/review.test.ts`.
-
-### Implementation for User Story 2
-
-- [ ] T028 [US2] Implement undoable review operations that apply or reject suggestions, update `TextElement.text`, preserve the recognized candidate, and set the documented review state in `apps/haex-notes/app/lib/paperNotes/review.ts`.
-- [ ] T029 [US2] Build the review panel with low-confidence markers, spelling/recognition suggestions, custom correction input, review notes, and explicit crossed-out ambiguity in `apps/haex-notes/app/components/notes/PaperNoteReviewPanel.vue`.
-- [ ] T030 [US2] Add original-region lookup and a crop preview that reads the original asset without mutating the original layer in `apps/haex-notes/app/components/notes/PaperNoteReviewPanel.vue` and `apps/haex-notes/app/lib/paperNotes/assets.ts`.
-- [ ] T031 [US2] Connect region selection, review overlays, and source-crop opening to the canvas without allowing selection or mutation of the locked original layer in `apps/haex-notes/app/components/notes/PageCanvas.vue`.
-- [ ] T032 [US2] Add localized review labels, confidence explanations, suggestion actions, and provider-error messages in the page-local `<i18n>` block of `apps/haex-notes/app/pages/notebook/[id].vue` and the review panel.
-
-**Checkpoint**: User Story 2 is independently testable with the fixture provider and produces a reversible, user-confirmed clean text result.
+**Checkpoint**: US1 works against the fake; quickstart steps 1–4, 9 and 10 against holzi.
 
 ---
 
-## Phase 5: User Story 3 - Den Entwurf als Canvas weiterbearbeiten (Priority: P1)
+## Phase 4: User Story 3 - Edit the draft as a canvas (P1)
 
-**Goal**: Let students edit text, move/resize drawings, switch original/clean/compare views, and reopen the saved page without data loss.
+**Goal**: Texts, cells, images and tables of the draft are edited like other canvas content; the original stays.
 
-**Independent Test**: Open a fixture page with at least one text and one image object, edit the text, move and resize the image, toggle the three views, save/reopen, and verify that all objects and visibility states remain intact.
+**Independent Test**: After a fixture import one text, one cell and one image are changed, the page is saved and
+reopened, and every change and the unchanged original are there.
 
-### Tests for User Story 3
+- [ ] T029 [P] [US3] Tests in `apps/haex-notes/app/lib/commands.test.ts`: editing a text, a cell, moving and resizing an image and changing the handwriting style are undoable commands that never touch the original layer
+- [ ] T030 [US3] Edit cell text by double click with the text editor in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [ ] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [ ] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [ ] T033 [US3] Original, draft and compare views (layer visibility) in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [ ] T034 [US3] "Read again" on a page with `paperImport`: ask before replacing generated elements the student changed; replace only generated, unchanged ones, in `apps/haex-notes/app/lib/paperNotes/importPage.ts`
 
-- [ ] T033 [P] [US3] Add hit-testing and transform tests for text/image selection, move, resize, rotation, locked-layer exclusion, and BBox updates in `apps/haex-notes/app/lib/paperNotes/geometry.test.ts`.
-- [ ] T034 [P] [US3] Add handwriting-style registry tests for available styles, missing-font fallback, and persisted `fontFamily` values in `apps/haex-notes/app/lib/paperNotes/fonts.test.ts`.
-- [ ] T035 [P] [US3] Add save/reopen tests for text/image layers, original visibility, review metadata, and asset references in `apps/haex-notes/app/lib/paperNotes/persistence.test.ts`.
-
-### Implementation for User Story 3
-
-- [ ] T036 [US3] Add selection, hit testing, drag, resize, and locked-layer protection for text and image elements in `apps/haex-notes/app/components/notes/PageCanvas.vue`.
-- [ ] T037 [US3] Implement the handwriting-style registry, system-font fallback, and user-selectable styles in `apps/haex-notes/app/lib/paperNotes/fonts.ts`, `apps/haex-notes/app/components/notes/PaperNoteReviewPanel.vue`, and `apps/haex-notes/app/components/notes/PageCanvas.vue`.
-- [ ] T038 [US3] Add Original, Clean, and Compare visibility controls while keeping the original layer visible-but-locked by default in `apps/haex-notes/app/components/notes/PageCanvas.vue` and `apps/haex-notes/app/pages/notebook/[id].vue`.
-- [ ] T039 [US3] Ensure text/image transforms, visibility changes, and style changes use existing undoable commands and survive save/reopen in `apps/haex-notes/app/stores/notebook.ts` and `apps/haex-notes/app/lib/commands.ts`.
-- [ ] T040 [US3] Add accessible labels, keyboard focus, and localized controls for selecting, moving, resizing, hiding, and comparing imported content in `apps/haex-notes/app/components/notes/PageCanvas.vue` and `apps/haex-notes/app/i18n/locales/de.json`.
-
-**Checkpoint**: User Story 3 is independently testable with fixture data and delivers the editable Canvas experience even without a live recognition service.
+**Checkpoint**: Quickstart steps 5–7.
 
 ---
 
-## Phase 6: User Story 4 - Eine lesbare Version exportieren (Priority: P2)
+## Phase 5: User Story 4 - Export a readable version (P2)
 
-**Goal**: Export the currently visible page composition to a readable PDF with original visibility respected.
+**Goal**: The visible canvas becomes a PDF with sensible defaults.
 
-**Independent Test**: Export one page with the original layer hidden and once with it visible; both PDFs open successfully and contain exactly the respective visible composition.
+**Independent Test**: A fixture page exports to a PDF that opens and shows the visible layers; with the original
+layer hidden, the original is not in it.
 
-### Tests for User Story 4
+- [ ] T035 [P] [US4] Tests in `apps/haex-notes/app/lib/paperNotes/exportPdf.test.ts`: defaults of plan.md, each setting changes the output, a hidden original layer is left out, one page per PDF page
+- [ ] T036 [US4] Raster the visible page and embed it with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`
+- [ ] T037 [US4] Export dialog with paper size, orientation, margins, quality and original visibility, opened from the notebook page
 
-- [ ] T041 [P] [US4] Add PDF export tests for visible-layer filtering, page dimensions, image embedding, export failure, and non-empty PDF output in `apps/haex-notes/app/lib/paperNotes/exportPdf.test.ts`.
-
-### Implementation for User Story 4
-
-- [ ] T042 [US4] Implement a configurable high-resolution export renderer with sensible defaults for paper size, orientation, margins, quality, visible layers, page coordinates, text fonts, image assets, and opacity in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`.
-- [ ] T043 [US4] Implement configurable PDF creation, default settings, download naming, and user-visible export errors with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts` and `apps/haex-notes/app/pages/notebook/[id].vue`.
-- [ ] T044 [US4] Add the export action and disabled/loading/error states to `apps/haex-notes/app/pages/notebook/[id].vue`.
-- [ ] T045 [US4] Add localized export labels, progress, success, and error messages in the page-local `<i18n>` block of `apps/haex-notes/app/pages/notebook/[id].vue`.
-
-**Checkpoint**: User Story 4 is independently testable with a saved fixture page and produces a valid PDF matching the selected visibility state.
+**Checkpoint**: Quickstart step 8.
 
 ---
 
-## Phase 7: Polish & Cross-Cutting Concerns
+## Phase 6: Polish
 
-**Purpose**: Validate the complete feature, harden failure handling, and document the pilot workflow.
-
-- [ ] T046 [P] Add unsupported-mime, decode/preprocessing-failure, missing-asset, malformed-provider-response, capability, consent, and provider-timeout tests in `apps/haex-notes/app/lib/paperNotes/errorHandling.test.ts`.
-- [ ] T047 [P] Add a set of consented/de-identified representative reference photos with a manifest and expected region annotations under `apps/haex-notes/app/lib/paperNotes/fixtures/`, covering clear writing, poor lighting, perspective, crossed-out text, drawings, tables, and unknown regions without including student-identifying data.
-- [ ] T048 Review all user-visible processing disclosures and confirm no provider credential, local absolute path, or personal handwriting sample is persisted in `apps/haex-notes/app/lib/paperNotes/` and `apps/haex-notes/app/database/schemas/index.ts`.
-- [ ] T049 Run `pnpm test` and `pnpm build` from `apps/haex-notes/`, fixing regressions without weakening original-preservation or review invariants.
-- [ ] T050 Execute the manual scenarios for one image at a time against the target extension and record deterministic fixture evidence for SC-001 through SC-006; record SC-007 only as optional later pilot feedback.
-- [ ] T051 Update `specs/046-paper-notes-canvas/quickstart.md` with any environment-specific prerequisites discovered during the manual run.
+- [ ] T038 [P] Check every new or changed file of haex-notes stays under 500 lines
+- [ ] T039 Run `pnpm test` and `pnpm build` in `apps/haex-notes/`
+- [ ] T040 Walk through quickstart.md against holzi with Ollama and record the evidence of its last section in the PR description
+- [ ] T041 Update the state of spec 046 in holzi (`spec.md`, ticks in this file) after the merge in haextension
 
 ---
 
 ## Dependencies & Execution Order
 
-### Phase Dependencies
+- Phase 1 → Phase 2 → US1 → US3 → US4 → Polish. US3 and US4 need the draft of US1 to be useful, but T030–T033 and
+  T035–T036 only need Phase 2 and can start alongside US1.
+- Within a phase the tests come first and must fail before the implementation.
+- T025 and T026 need holzi with spec 055 for the manual check only; the automated tests use the fake `runPageJob`.
 
-- **Setup (Phase 1)**: No feature-code dependency; must pin the target revision and prepare the PDF/font assets.
-- **Foundational (Phase 2)**: Depends on Setup and blocks all user-story phases.
-- **User Story 1 (Phase 3)**: Depends on Foundational; this is the strict MVP increment.
-- **User Story 2 (Phase 4)**: Depends on Foundational and the imported region/provenance output from US1, but can be tested with the fixture provider.
-- **User Story 3 (Phase 5)**: Depends on Foundational and the element/layer shape from US1; its editing tests use fixture pages and do not require a live provider.
-- **User Story 4 (Phase 6)**: Depends on the shared renderer from Foundational and the visible-layer behavior from US3.
-- **Polish (Phase 7)**: Depends on all desired stories being complete.
+### Parallel examples
 
-### User Story Dependencies
-
-```text
-Foundational
-    ├── US1 Import and first draft
-    │      └── US2 Review and correction
-    ├── US3 Canvas editing
-    │      └── US4 PDF export
-    └── Polish / pilot validation
-```
-
-### Parallel Opportunities
-
-- T003 and T004 can run in parallel after T001.
-- T005–T009 are independent test additions and can run in parallel before T010–T017.
-- T018 and T019 can run in parallel; T020–T022 then implement their tested boundaries.
-- T026 and T027 are separate review-test groups but share `review.test.ts`; complete them before T028–T030 implement review behavior and UI.
-- T033–T035 can run in parallel; T036–T039 then implement Canvas editing and persistence.
-- T046 and T047 can run in parallel with final documentation review.
-
-## Parallel Example: User Story 1
-
-```text
-T018: import mapping tests in apps/haex-notes/app/lib/paperNotes/importPage.test.ts
-T019: provider lifecycle tests in apps/haex-notes/app/lib/paperNotes/recognitionAdapter.test.ts
-T023: import dialog in apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue
-```
-
-T023 can be developed against the fixture provider while T020–T022 stabilize the
-mapping and adapter implementation; integration is required before the story
-checkpoint.
+- Phase 2 tests: T005, T006, T007, T008.
+- US1 tests: T015, T016, T017, T018, T019; then T020, T021, T023 side by side.
 
 ## Implementation Strategy
 
-### Strict MVP
-
-1. Complete Setup and Foundational phases.
-2. Complete User Story 1.
-3. Validate that a paper photo becomes a structured draft and that provider failure leaves a usable original/manual Canvas.
-4. Stop for a pilot review before adding personalization or a live provider model.
-
-### Usable classroom increment
-
-1. Add User Story 2 so students can correct uncertain words safely.
-2. Add User Story 3 so text and drawings can be edited and saved.
-3. Validate with real student-created, de-identified sample pages.
-
-### Delivery after the classroom increment
-
-1. Add User Story 4 for PDF export.
-2. Run the complete quickstart and collect the success-criterion evidence.
-3. Consider a separate later feature for a device-local personal handwriting profile; do not add it to this task list retroactively.
-
-## Notes
-
-- `[P]` tasks touch separate files and have no dependency on incomplete work in the same phase.
-- Every user-story task includes its story label and an exact target path.
-- Tests are kept in separate files from production code.
-- The original image is never overwritten; reprocessing requires an explicit user action.
+1. MVP: Phases 1, 2 and US1. A photo becomes a draft, read through holzi; every failure leaves the original.
+2. Then US3 (editing) and US4 (PDF), each its own PR in haextension.
+3. Each delivery is its own PR in haextension; this list is ticked in holzi after each merge (T041).

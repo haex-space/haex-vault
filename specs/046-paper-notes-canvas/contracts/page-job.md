@@ -1,0 +1,175 @@
+# Seitenerkennung: Auftrag der Erweiterung
+
+haex-notes gibt die Erkennung einer Seite als Modellauftrag an holzi (Spec 055, vault-sdk ab 4.7.1,
+`sdk.models.runAsync`). Brücke, Freigaben und Einwilligung stehen in
+[055 bridge.md](../../055-extension-model-access/contracts/bridge.md), Auftrags- und Schemaregeln in
+[055 job-format.md](../../055-extension-model-access/contracts/job-format.md). Dieser Vertrag legt fest, was
+haex-notes sendet und wie es das Ergebnis abbildet. Anweisungen und Formate sind dieselben wie in der
+Test-Erweiterung von Spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/`, dort mit Testmodi).
+
+## Auftrag
+
+```json
+{
+  "steps": [
+    {
+      "id": "read",
+      "needs": ["text", "image"],
+      "instruction": "<READ>",
+      "input": {
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "data": "<Base64 der Arbeitskopie>"
+          }
+        ]
+      },
+      "format": "<page-recognition v1>",
+      "effort": "medium",
+      "maxOutputTokens": 8192
+    },
+    {
+      "id": "fix",
+      "needs": ["text"],
+      "instruction": "<FIX>",
+      "input": {
+        "from": {
+          "step": "read",
+          "pointer": "/regions"
+        }
+      },
+      "format": "<text-fix v1>",
+      "effort": "low"
+    }
+  ]
+}
+```
+
+Die Arbeitskopie ist das entzerrte, bei Bedarf gedrehte JPEG (höchstens 25 MiB, längste Kante 2048 px).
+
+### Anweisung `READ`
+
+```text
+This is a photo of a student's handwritten notes, a blackboard picture or a worksheet, in German.
+Split the page into regions and return ONLY a JSON object:
+{"regions": [{"kind": "text" | "table" | "image", "box": [x1, y1, x2, y2], "text": "...", "rows": [["cell", ...], ...]}], "rotation": 0}
+Rules:
+- box uses coordinates 0-1000 relative to the image width and height.
+- "text": transcribe the handwriting exactly as written, keep line breaks, do not correct anything.
+- "table": give "rows" as a list of rows of cell strings, an empty cell as "", no "text".
+- "image": drawings, diagrams, sketches and photos, no "text".
+- List regions in reading order. Do not invent content that is not on the page.
+- "rotation": the clockwise degrees (0, 90, 180 or 270) the photo must be turned to stand upright.
+```
+
+### Anweisung `FIX`
+
+```text
+These are the regions of a German page read from handwriting. Correct only spelling and words
+that were clearly misread in their "text"; keep abbreviations, line breaks and the wording otherwise.
+Return ONLY {"texts": [...]} with one corrected text per region that has a "text", in the same order.
+```
+
+### Format `page-recognition` v1
+
+```json
+{
+  "name": "page-recognition",
+  "version": 1,
+  "schema": {
+    "type": "object",
+    "required": ["regions"],
+    "properties": {
+      "regions": {
+        "type": "array",
+        "maxItems": 512,
+        "items": {
+          "type": "object",
+          "required": ["kind", "box"],
+          "properties": {
+            "kind": {
+              "enum": ["text", "image", "table"]
+            },
+            "box": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "rotation": {
+        "enum": [0, 90, 180, 270],
+        "description": "Clockwise degrees the photo must be turned to stand upright"
+      }
+    }
+  }
+}
+```
+
+### Format `text-fix` v1
+
+```json
+{
+  "name": "text-fix",
+  "version": 1,
+  "schema": {
+    "type": "object",
+    "required": ["texts"],
+    "properties": {
+      "texts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+```
+
+Ändert sich eine Anweisung so, dass ältere Ergebnisse anders zu lesen wären, steigt die `version` des Formats.
+
+## Abbildung des Ergebnisses
+
+| Teil von `read`                                       | Wird zu                                                                                             |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `kind: "text"` mit `text`                             | `TextElement` auf der Textebene; Text aus `fix` (research R12), Font des gewählten Handschriftstils |
+| `kind: "table"` mit `rows`                            | `TableElement` mit `cells` auf der Objektebene (research R9)                                        |
+| `kind: "image"`                                       | `ImageElement` mit dem Ausschnitt der Quellbox aus der Arbeitskopie (Asset)                         |
+| `box`                                                 | Seitenkoordinaten nach research R11; eine Box mit `x2 <= x1` oder `y2 <= y1` wird übergangen        |
+| `rotation` ungleich 0                                 | Arbeitskopie drehen, Auftrag einmal neu starten (research R10)                                      |
+| Region ohne Inhalt (leerer `text`, `rows` ohne Zelle) | wird übergangen                                                                                     |
+
+Die `provenance` des Auftrags ergibt die Herkunft der Seite: Name und Ort des Modells aus dem Versuch mit
+`outcome: "used"` im Schritt `read`.
+
+## Fehler
+
+| Ende                                        | haex-notes                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------- |
+| Start abgelehnt `8001` (`no_capable_model`) | Hinweis: in holzi ein Modell freigeben, das Bilder annimmt; Seite mit Original  |
+| Start abgelehnt `1002` (`consent_denied`)   | Hinweis: Übertragung abgelehnt; Seite mit Original                              |
+| `failed` mit `unusable`                     | Hinweis: nichts Brauchbares erkannt, neues Foto empfohlen; Seite mit Original   |
+| `failed` mit `timeout` oder `unavailable`   | Hinweis: Modell nicht erreichbar oder zu langsam; „Erneut lesen“ bleibt möglich |
+| `cancelled`                                 | keine Meldung; Seite mit Original                                               |
+
+In keinem Fall wird das Original verändert, und der Schüler kann manuell weiterarbeiten (FR-016).
