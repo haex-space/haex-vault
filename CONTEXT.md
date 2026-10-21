@@ -397,6 +397,32 @@ weighted by how rare it is; naming the extension offers its tools. Measured by t
 evaluation as `offered`.
 _Avoid_: recommendation, suggestion.
 
+**Mailwerkzeug** (mail tool, spec 019):
+One of the fifteen **Erweiterungswerkzeuge** that haex-mail declares: accounts, folders, finding,
+reading, marking, moving, drafting, sending, deleting and rules. Sending a draft, deleting for good
+and creating a **Regel** are `destructive`, so they ask even in "Auto"; the consent shows only the
+tool's input, so those inputs repeat what the user agrees to (recipients, subject and text of the
+draft, the subject of each mail to delete) and the tool refuses when the stored mail says
+otherwise. A password never passes through a mail tool: an account comes from a tagged password
+manager entry or from a form the user fills in.
+_Avoid_: mail action (an **Aktion** is holzi's own catalog), mail plugin.
+
+**Regel** (mail rule, spec 019):
+A lasting instruction of haex-mail: all its conditions (sender, recipient or subject contains a text,
+has an attachment) hold, so its **Aktionen** run on a new message of the inbox. It covers one
+account or all, is switched on or off, and is vault data that syncs to every device; it runs on a
+device only while haex-mail runs there. The user makes it in the settings of haex-mail, the agent
+through the tool `add_rule` (marked "created by the agent"). There is no action that forwards or
+sends a message. The first look at a mailbox only sets the mark of what is new; an existing mail is
+touched only when the user asks for it.
+_Avoid_: filter (that is the search of `find_messages`), automation.
+
+**Aktion (einer Regel)** (rule action, spec 019):
+What a **Regel** does to a matching message: move it to a mailbox (by role, or by name for a single
+account), mark it read, or flag it. A rule has at most one of each; of all matching rules the
+earliest created one decides the move, and a rule whose target folder is gone is skipped as a whole.
+_Avoid_: action without "rule" (see **Aktion** for the catalog of holzi).
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and

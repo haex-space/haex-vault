@@ -155,12 +155,12 @@ gemeinsame Aufgabenliste (`tasks.md`) markiert je Aufgabe das Repository (wie 01
 
 ## Etappen
 
-| Etappe | Repository  | Inhalt                                                             | Abhängigkeit                                                                 |
-| ------ | ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| E1     | vault-sdk   | **erledigt**: Release 4.6.0 (`74a8ff96…`), MCP-Baustein aus PR #64 | keine                                                                        |
-| E2a    | holzi       | drei Bridge-Methoden, Testserver, Tests, Verträge                  | keine                                                                        |
-| E2b    | vault-sdk   | drei Methoden und Typen, Tests, Veröffentlichung                   | E1 veröffentlicht; Namen aus E2a festgelegt                                  |
-| E3     | haextension | Manifest, Migration, Regeln, Werkzeuge, Oberfläche; SDK anheben    | E1 und E2b veröffentlicht, E2a in der holzi-Version, gegen die getestet wird |
+| Etappe | Repository  | Inhalt                                                                                                                                                                                                               | Abhängigkeit                                                                 |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| E1     | vault-sdk   | **erledigt**: Release 4.6.0 (`74a8ff96…`), MCP-Baustein aus PR #64                                                                                                                                                   | keine                                                                        |
+| E2a    | holzi       | **erledigt**: drei Bridge-Methoden, Testserver, Tests, Verträge (haex-space/haex-vault, Merge `a1f3ae20b6538cdddb66b2c718ccf0660c04d68e`, PR #507)                                                                   | keine                                                                        |
+| E2b    | vault-sdk   | **erledigt**: drei Methoden und Typen, Tests (haex-space/vault-sdk, Commit `3dde451472376ee7bcd834b690431e712b01743d`, PR #78), veröffentlicht als Release 4.7.0 (Commit `ccdaadd06e9a0dd3bd392a31e45f3f0d99ac4f2e`) | E1 veröffentlicht; Namen aus E2a festgelegt                                  |
+| E3     | haextension | Manifest, Migration, Regeln, Werkzeuge, Oberfläche; SDK anheben                                                                                                                                                      | E1 und E2b veröffentlicht, E2a in der holzi-Version, gegen die getestet wird |
 
 E2a und E2b gelten erst zusammen. Tests von E3 laufen gegen eine holzi-Version aus E2a (Entwicklungsmodus
 von haex-mail, `haex dev`).
