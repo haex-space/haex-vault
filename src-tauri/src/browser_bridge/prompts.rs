@@ -1,5 +1,6 @@
 //! The questions of the bridge to the user (spec 049, research R10, `contracts/tauri-commands.md`):
-//! approval of a client (FR-008 to FR-010), parked on [`crate::prompt_park`] for at most 120 s.
+//! approval of a client (FR-008 to FR-010) and writing with a read-only approval (FR-015), parked
+//! on [`crate::prompt_park`] for at most 120 s.
 //! Only the window answers them; no client, extension or agent reaches the answer command (FR-013).
 
 use std::time::Duration;
@@ -45,6 +46,21 @@ pub struct BridgeDeclaredGrant {
 pub enum BridgeQuestion {
     /// May this client connect, and with which grant (FR-008 to FR-010)?
     Approval(ApprovalQuestion),
+    /// May a client with a read-only approval write this once or from now on (FR-015)?
+    Write(WriteQuestion),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct WriteQuestion {
+    pub client: BridgeClientRef,
+    /// The method that writes, as the extension named it (`create-item`, `passkey-create`).
+    pub method: String,
+    /// The scope of the approval; `null`: every entry.
+    pub scope_tags: Option<Vec<String>>,
+    /// Whether allowing needs a default tag inside the scope (a tag scope without one).
+    pub needs_default_tag: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
@@ -83,6 +99,19 @@ pub struct BridgePromptCancelled {
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum BridgeAnswer {
     Approval(ApprovalAnswer),
+    Write(WriteAnswer),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct WriteAnswer {
+    pub allow: bool,
+    /// With `allow` the approval reads and writes from now on; without it, a "no" is remembered.
+    pub remember: bool,
+    /// Required with `allow` when the question says so.
+    #[serde(default)]
+    pub default_tag: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]

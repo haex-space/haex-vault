@@ -14,8 +14,13 @@ use tokio_util::sync::CancellationToken;
 use super::approvals::{Approval, ClientIdentity, Decision};
 use super::protocol::{ErrorCode, Reply, RequestEnvelope};
 use super::runtime::BridgeCore;
+use super::write_access::ensure_write;
 use crate::caller::Caller;
+use crate::error::HolziError;
 use crate::passwords::access::GrantAction;
+use crate::passwords::service::PasswordsService;
+
+pub mod items;
 
 /// What a method gets: the bridge, the caller, the approval in force and the request's payload.
 pub struct Call<'a> {
@@ -27,7 +32,8 @@ pub struct Call<'a> {
 }
 
 pub type Outcome = Result<Value, ErrorCode>;
-pub type Handler = for<'a> fn(Call<'a>) -> Pin<Box<dyn Future<Output = Outcome> + Send + 'a>>;
+pub type BoxedOutcome<'a> = Pin<Box<dyn Future<Output = Outcome> + Send + 'a>>;
+pub type Handler = for<'a> fn(Call<'a>) -> BoxedOutcome<'a>;
 
 /// One method: its name on the wire, the kind of grant it needs, its handler and the module the
 /// handler lives in, which the contract test checks against the wall around the model (FR-041).
@@ -38,8 +44,71 @@ pub struct Method {
     pub module: &'static str,
 }
 
-/// The methods of the password manager (FR-018). Filled by the deliveries of US2 to US4.
-pub const METHODS: &[Method] = &[];
+/// The methods of the password manager (FR-018). The passkey methods join with US4.
+pub const METHODS: &[Method] = &[
+    Method {
+        name: "get-items",
+        need: GrantAction::Read,
+        handler: items::get_items,
+        module: items::MODULE,
+    },
+    Method {
+        name: "get-totp",
+        need: GrantAction::Read,
+        handler: items::get_totp,
+        module: items::MODULE,
+    },
+    Method {
+        name: "create-item",
+        need: GrantAction::ReadWrite,
+        handler: items::create_item,
+        module: items::MODULE,
+    },
+    Method {
+        name: "get-password-config",
+        need: GrantAction::Read,
+        handler: items::get_password_config,
+        module: items::MODULE,
+    },
+    Method {
+        name: "get-password-presets",
+        need: GrantAction::Read,
+        handler: items::get_password_presets,
+        module: items::MODULE,
+    },
+];
+
+/// The password service over the bridge's vault.
+fn service_of(core: &BridgeCore) -> PasswordsService {
+    PasswordsService::new(core.db.clone())
+}
+
+/// A service error as the client hears it: fixed codes, never the service's text (FR-039), and
+/// "not found" the same as "outside the scope" (FR-042).
+fn to_code(error: HolziError) -> ErrorCode {
+    match error {
+        HolziError::PasswordsNotFound => ErrorCode::NotFound,
+        HolziError::PasswordsForbidden => ErrorCode::PermissionDenied,
+        HolziError::InvalidInput { .. } => ErrorCode::InvalidRequest,
+        other => {
+            log::warn!(
+                "browser bridge: the password service failed ({})",
+                error_kind(&other)
+            );
+            ErrorCode::ServerError
+        }
+    }
+}
+
+/// The variant name of an error, without its fields, for a log line without content.
+fn error_kind(error: &HolziError) -> String {
+    let debug = format!("{error:?}");
+    debug
+        .split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or("unknown")
+        .to_owned()
+}
 
 /// Methods the extension knows that holzi answers with `NOT_SUPPORTED` (FR-028).
 pub const NOT_SUPPORTED: &[&str] = &[
@@ -77,13 +146,34 @@ pub(super) async fn dispatch(
         );
         return Reply::fail(request_id, ErrorCode::NotSupported);
     };
-    let approval = match core.decide(client).await {
-        Ok(Decision::Authorized { approval, .. }) => approval,
+    let (approval, remembered) = match core.decide(client).await {
+        Ok(Decision::Authorized {
+            approval,
+            remembered,
+        }) => (
+            core.session().effective(&client.client_id, approval),
+            remembered,
+        ),
         Ok(_) => return Reply::fail(request_id, ErrorCode::PermissionDenied),
         Err(error) => {
             log::warn!("browser bridge: could not read the approval: {error}");
             return Reply::fail(request_id, ErrorCode::ServerError);
         }
+    };
+    let approval = if method.need == GrantAction::ReadWrite {
+        match ensure_write(core, client, approval, remembered, method.name, cancel).await {
+            Ok(approval) => approval,
+            Err(code) => {
+                log::info!(
+                    "browser bridge: {short} {} -> {}",
+                    method.name,
+                    code.message()
+                );
+                return Reply::fail(request_id, code);
+            }
+        }
+    } else {
+        approval
     };
     let call = Call {
         core,

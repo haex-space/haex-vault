@@ -15,6 +15,7 @@ pub mod protocol;
 pub mod runtime;
 pub mod server;
 pub mod settings;
+pub mod write_access;
 
 #[cfg(test)]
 mod approvals_tests;

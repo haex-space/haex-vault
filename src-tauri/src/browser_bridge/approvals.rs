@@ -2,7 +2,7 @@
 //! `haex_browser_clients` for this device, session ones in memory until the bridge stops or the
 //! vault closes. Denial beats approval.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::{CrdtTransaction, Result};
@@ -333,6 +333,10 @@ pub struct SessionApproval {
 pub struct SessionDecisions {
     allowed: HashMap<String, SessionApproval>,
     blocked: HashMap<String, (ClientIdentity, i64)>,
+    /// Writing allowed once without "remember", with the default tag for new entries (FR-015).
+    write_allowed: HashMap<String, Option<String>>,
+    /// Writing declined without "remember" (FR-015).
+    write_denied: HashSet<String>,
 }
 
 impl SessionDecisions {
@@ -349,9 +353,38 @@ impl SessionDecisions {
 
     /// Forgets everything about one client; `true` when there was something.
     pub fn forget(&mut self, client_id: &str) -> bool {
+        self.write_allowed.remove(client_id);
+        self.write_denied.remove(client_id);
         let allowed = self.allowed.remove(client_id).is_some();
         let blocked = self.blocked.remove(client_id).is_some();
         allowed || blocked
+    }
+
+    /// Lets a read-only client write until the bridge stops (FR-015).
+    pub fn allow_write(&mut self, client_id: &str, default_tag: Option<String>) {
+        self.write_denied.remove(client_id);
+        self.write_allowed.insert(client_id.to_owned(), default_tag);
+    }
+
+    /// Declines writing for a client until the bridge stops (FR-015).
+    pub fn deny_write(&mut self, client_id: &str) {
+        self.write_allowed.remove(client_id);
+        self.write_denied.insert(client_id.to_owned());
+    }
+
+    /// The approval with this session's answers about writing applied.
+    pub fn effective(&self, client_id: &str, approval: Approval) -> Approval {
+        match self.write_allowed.get(client_id) {
+            Some(default_tag) if approval.access == BridgeAccess::Read => Approval {
+                access: BridgeAccess::ReadWrite,
+                default_tag: default_tag.clone().or(approval.default_tag),
+                ..approval
+            },
+            _ => Approval {
+                write_denied: approval.write_denied || self.write_denied.contains(client_id),
+                ..approval
+            },
+        }
     }
 
     pub fn allowed(&self, client_id: &str) -> Option<&SessionApproval> {

@@ -233,6 +233,8 @@ impl BridgeCore {
                 Ok(BridgeAnswer::Approval(answer)) => {
                     core.apply_approval(&identity, &declared, answer).await
                 }
+                // An answer of another kind to this question counts as declining once.
+                Ok(_) => Control::Denied,
                 Err(end) => {
                     if end != PromptEnd::NoWindow {
                         core.notify(Notice::PromptCancelled(prompt_id));

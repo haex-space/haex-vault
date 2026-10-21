@@ -229,3 +229,31 @@ fn the_claimed_name_is_trimmed_and_cut() {
     assert_eq!(kept_name(None), "");
     assert_eq!(kept_name(Some(&"x".repeat(300))).chars().count(), 100);
 }
+
+#[test]
+fn writing_allowed_in_this_session_widens_a_read_only_approval() {
+    let mut session = SessionDecisions::default();
+    assert_eq!(session.effective("fp", read_web()), read_web());
+    session.allow_write("fp", Some("web".into()));
+    let widened = session.effective("fp", read_web());
+    assert_eq!(widened.access, BridgeAccess::ReadWrite);
+    assert_eq!(widened.default_tag.as_deref(), Some("web"));
+    assert_eq!(
+        widened.scope_tags,
+        read_web().scope_tags,
+        "never a wider scope"
+    );
+    // Another client is not touched.
+    assert_eq!(session.effective("other", read_web()), read_web());
+}
+
+#[test]
+fn a_session_no_to_writing_marks_the_approval_and_forget_clears_it() {
+    let mut session = SessionDecisions::default();
+    session.deny_write("fp");
+    assert!(session.effective("fp", read_web()).write_denied);
+    session.allow_write("fp", None);
+    assert!(!session.effective("fp", read_web()).write_denied);
+    session.forget("fp");
+    assert_eq!(session.effective("fp", read_web()), read_web());
+}
