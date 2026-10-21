@@ -151,13 +151,12 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
   dekodiert, höchstens 3000 neue Tokens, gleiche Anweisung wie die Python-Messung. Jede Seite ergibt 3259
   Prompt-Tokens, die mit rund 180 Tokens/s gelesen werden.
 
-  | ISQ | VRAM geladen / Spitze | Seite 007 (Text) | Seite 005 (lange Liste) | Seite 002 (Zeichnung) |
-  |-----|-----------------------|------------------|-------------------------|-----------------------|
-  | Q4K | 4,2 / 6,2 GB | 60 s, 270 Tokens, richtig | 684 s, Schleife bis 3000 Tokens | 685 s, Schleife aus Zeilenumbrüchen |
-  | Q8_0 | 6,1 / 7,8 GB | 113 s, 544 Tokens, richtig | 141 s, 690 Tokens, richtig | nach 392 s kein Grafikspeicher mehr (Schleife) |
-  | Python NF4 (Vergleich) | 3,1 / 3,7 GB | 18,8 s | 23,2 s | 3,1 s (nur ein Bildbereich) |
-  | Ollama Q4_K_M | 5,1 / 5,5 GB | 15 s, 543 Tokens, richtig | 18 s, 688 Tokens, richtig | 13 s, 409 Tokens, zehn Bildbereiche |
-
+  | ISQ                    | VRAM geladen / Spitze | Seite 007 (Text)           | Seite 005 (lange Liste)         | Seite 002 (Zeichnung)                          |
+  | ---------------------- | --------------------- | -------------------------- | ------------------------------- | ---------------------------------------------- |
+  | Q4K                    | 4,2 / 6,2 GB          | 60 s, 270 Tokens, richtig  | 684 s, Schleife bis 3000 Tokens | 685 s, Schleife aus Zeilenumbrüchen            |
+  | Q8_0                   | 6,1 / 7,8 GB          | 113 s, 544 Tokens, richtig | 141 s, 690 Tokens, richtig      | nach 392 s kein Grafikspeicher mehr (Schleife) |
+  | Python NF4 (Vergleich) | 3,1 / 3,7 GB          | 18,8 s                     | 23,2 s                          | 3,1 s (nur ein Bildbereich)                    |
+  | Ollama Q4_K_M          | 5,1 / 5,5 GB          | 15 s, 543 Tokens, richtig  | 18 s, 688 Tokens, richtig       | 13 s, 409 Tokens, zehn Bildbereiche            |
   - Die Antworten erzeugt mistral.rs mit 4,5–6,5 Tokens/s, gleich bei Q4K und Q8_0, im Debug- und im
     Release-Build. Die Karte ist dabei zu 96–100 % ausgelastet und läuft am Leistungslimit (60 W). Es bremst
     also die Rechenarbeit auf der Karte, nicht der Prozessor. Das ist 3–6-mal langsamer als transformers mit NF4.
@@ -169,6 +168,7 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
     alle drei Seiten als gültiges JSON und mit dem Text der Python-Messung, 33–38 Tokens/s über die ganze
     Seite. `qwen3-vl:4b` ohne Zusatz ist die denkende Fassung: Sie verbrauchte alle 3000 Tokens beim Denken und
     gab leeren Inhalt zurück.
+
 - **Entscheidung (2026-10-21): Rückfall.** Lokale Bildmodelle laufen als OpenAI-kompatibler Anbieter auf
   `localhost` (Ollama oder llama.cpp-Server); holzi bekommt keinen zweiten Ladeweg. Der Ort ist
   `this_device` (R6), also ohne Einwilligung, und der Nutzer setzt am Modell „nimmt Bilder an“ (FR-019). Die
