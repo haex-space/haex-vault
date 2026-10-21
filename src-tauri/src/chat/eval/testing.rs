@@ -121,6 +121,9 @@ fn oracle_args(call: &ExpectedCall) -> serde_json::Value {
                 .and_then(serde_json::Value::as_str);
             object.entry(field).or_insert_with(|| match kind {
                 Some("integer" | "number") => json!(1),
+                Some("boolean") => json!(true),
+                // An empty list fits every array schema of the subset, even one of objects.
+                Some("array") => json!([]),
                 _ => json!("x"),
             });
         }

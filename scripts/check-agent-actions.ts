@@ -392,7 +392,7 @@ function evalSet(): { version: number; sentences: EvalSentence[] } {
 
 type EvalExtension = { name: string; title: string; tools: { name: string }[] }
 
-/** The model-facing names `x_<slug>_<tool>` of the invented extensions (spec 018 R8, R14). */
+/** The model-facing names `x_<slug>_<tool>` of the extensions (spec 018 R8, R14). */
 function extensionToolNames(): string[] {
   const { extensions } = JSON.parse(
     readFileSync(new URL('extension_tools.json', EVAL_DIR), 'utf8'),
@@ -412,7 +412,7 @@ test('the tool snapshot of the evaluation is the catalog as it is (run pnpm expo
 test('every sentence of the evaluation set is well formed and names tools of the snapshot', () => {
   const { version, sentences } = evalSet()
   const tools = evalTools()
-  assert.equal(version, 4)
+  assert.equal(version, 5)
   assert.equal(new Set(sentences.map((x) => x.id)).size, sentences.length)
   const extensionTools = new Set(extensionToolNames())
   const runtimeIds = new Set([...Object.values(TARGET_FIELD), 'threadId'])
@@ -470,20 +470,24 @@ test('the evaluation set covers both languages, smalltalk and tools outside the 
   assert.ok(selfTest.some((x) => x.kind === 'smalltalk'))
 })
 
-test('the invented extensions are thirty, with two to four distinct tools each', () => {
+test('the extensions are thirty and have the declared tool counts', () => {
   const { extensions } = JSON.parse(
     readFileSync(new URL('extension_tools.json', EVAL_DIR), 'utf8'),
   ) as { extensions: EvalExtension[] }
   assert.equal(extensions.length, 30)
   for (const extension of extensions) {
-    assert.ok(
-      extension.tools.length >= 2 && extension.tools.length <= 4,
-      extension.name,
-    )
+    if (extension.name === 'mail') {
+      assert.equal(extension.tools.length, 15, extension.name)
+    } else {
+      assert.ok(
+        extension.tools.length >= 2 && extension.tools.length <= 4,
+        extension.name,
+      )
+    }
   }
   const names = extensionToolNames()
   assert.equal(new Set(names).size, names.length)
-  assert.ok(names.includes('x_mailbox_count_unread'))
+  assert.ok(names.includes('x_mail_list_mailboxes'))
   const extensionSentences = evalSet().sentences.filter(
     (x) => x.kind === 'extension',
   )

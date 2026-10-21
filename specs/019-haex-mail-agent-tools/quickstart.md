@@ -20,7 +20,8 @@ erscheinen erst, wenn der Dialog der Installation bzw. des Entwicklungsmodus sie
 6. **Entwurf und Senden (US3)**: „Antworte Anna: ich komme am Donnerstag“ → Entwurf im Ordner „Entwürfe“. Dann
    „Sende den Entwurf“ → Zustimmungsabfrage mit Empfänger, Betreff und Text, auch im Modus „Auto“;
    „Ablehnen“ → nichts wird gesendet; erneut, „Zustimmen“ → Mail in „Gesendet“, Entwurf weg. Modus „Plan“
-   lehnt das Senden ab.
+   lehnt das Senden ab. Mit einem Gmail-Konto zusätzlich zählen: liegt die Mail einmal oder zweimal in „Gesendet“?
+   Zweimal wäre Risiko 6 des Plans (Server legt selbst eine Kopie ab, haex-mail auch).
 7. **Endgültig löschen (US3/5)**: „Lösche die Mail mit dem Betreff Test endgültig“ → Abfrage mit dem Betreff;
    nach Zustimmung ist die Mail weg; andere Mails des Ordners bleiben.
 8. **Regeln von Hand (US4)**: haex-mail → Einstellungen → „Regeln“ → neue Regel „Absender enthält newsletter“

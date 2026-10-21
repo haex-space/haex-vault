@@ -282,7 +282,7 @@ fn an_expectation_must_be_none_or_a_non_empty_list() {
 fn the_embedded_set_and_snapshot_are_well_formed() {
     let set = embedded_set();
     let tools = embedded_tools();
-    assert_eq!(set.version, 4);
+    assert_eq!(set.version, 5);
     assert!(!tools.is_empty());
     for lang in [Lang::De, Lang::En] {
         assert!(

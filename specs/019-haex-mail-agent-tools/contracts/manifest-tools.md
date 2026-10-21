@@ -85,9 +85,16 @@ ist. `ids` sind Mail-Kennungen `accountId::mailbox::uid` aus `find_messages`. Fe
 }
 ```
 
-Ergebnis: `Seite` (`messages`, `total`, `hasMore`, `window: 200` bei `sort` ≠ `date`). Bei mehreren Konten
-liefert jedes die Umschläge für `offset + limit` Treffer; `total` ist die Summe, `hasMore` gilt bei
-`total > offset + limit`. `mailbox` als Rolle oder
+Ergebnis: `Seite` (`messages`, `total`, `hasMore`; `window`, `fallback`/`note`, `errors` nur, wenn sie
+zutreffen). Bei mehreren Konten liefert jedes die Umschläge für `offset + limit` Treffer; `total` ist die
+Summe, `hasMore` gilt bei `total > offset + limit`. Ohne jedes Kriterium wird alles seit 1900-01-01
+gesucht (der Host verlangt mindestens eins). `offset + limit` darf bei neueste-zuerst höchstens 1000 sein.
+`sort` ≠ `date` und `hasAttachment` brauchen die Umschläge selbst: das Werkzeug sieht die neuesten 200
+Treffer je Ordner an (`window: 200` sagt es, wenn es mehr gab), `total` zählt dann die Treffer im Fenster.
+Älteste zuerst (`descending: false`) holt alle Treffer (bis 1000), `window: 1000` bei mehr. Verweigert der
+Server einen Suchtext mit Nicht-ASCII-Zeichen, prüft das Werkzeug die Umschläge der neuesten 1000 Mails selbst
+(Absender, Empfänger, Betreff; `fallback: "local"` mit `note`). Ein Konto, das nicht antwortet, steht in
+`errors`; antwortet keines, ist es ein Fehler. `mailbox` als Rolle oder
 Name; ohne `account` und mit Ordnername, den ein Konto nicht hat, überspringt das Werkzeug dieses Konto.
 
 **`get_message`** — Eingabe: `{ id: string }` (Pflicht). Ergebnis: `Mail`. Setzt nichts auf gelesen (R8).
@@ -101,22 +108,26 @@ eines von `read`/`flagged`; höchstens 100 `ids`, der Handler lehnt mehr ab). Er
 **`move_messages`** — Eingabe: `{ ids: string[], to: string }` (`to` Rolle oder Ordnername des Kontos der Mail;
 höchstens 100 `ids`). Ergebnis wie `mark_messages` (Fehler je Mail, FR-010).
 
-**`create_mailbox`** — Eingabe: `{ account: string, name: string }`. Ergebnis: `{ created: boolean, name }`.
+**`create_mailbox`** — Eingabe: `{ account: string, name: string }`. Ergebnis: `{ created: boolean, name }`. Der Name
+ist der, den der Nutzer schreibt (Umlaute eingeschlossen); an den Server geht er in IMAPs modifiziertem UTF-7. Danach
+wird die Ordnerliste von haex-mail neu gelesen.
 
 **`create_draft`** — Eingabe: `{ account: string, to?: string[], cc?: string[], subject?: string, body: string,
 replyTo?: string, mode?: "reply" | "reply-all" | "forward" }`. `replyTo` ist die Kennung der Vorlage;
 mit `mode` übernimmt der Handler Empfänger, Betreff und Bezug nach `buildReplyContextAsync`; `to`, `cc`,
 `subject` überschreiben. Anhänge der Vorlage werden nicht übernommen. Ergebnis: `{ draftId, to, subject,
-body }`. Legt nur ab, sendet nie.
+body }`, `to` mit allen Empfängern (to und cc). Legt nur ab, sendet nie.
 
 **`send_mail`** — Eingabe: `{ draftId: string, to: string[], subject: string, body: string }` (alle
-Pflicht). Ergebnis: `{ sent: true, to, subject }`. Die Zustimmungsabfrage zeigt nur die Eingabe (018
+Pflicht; `to` nennt alle Empfänger des Entwurfs, cc eingeschlossen, damit die Abfrage alle zeigt). Ergebnis: `{ sent: true, to, subject }`. Die Zustimmungsabfrage zeigt nur die Eingabe (018
 FR-011); damit sie Empfänger, Betreff und Text zeigt (FR-015), gehören diese Felder in die Eingabe. Der
 Handler liest den Entwurf und vergleicht Empfänger, Betreff und Text (ohne Unterschiede in Leerraum und
 Zeilenenden). Weicht etwas ab, sendet er nichts und antwortet mit Fehler und den Werten des Entwurfs, damit
 das Modell es neu versuchen kann. Gesendet wird immer der Entwurf, nie die Eingabe: Was die Abfrage zeigt, ist
 damit das, was geht. `create_draft` liefert dem Modell `to`, `subject` und `body` des Entwurfs zurück, damit es
-sie übernehmen kann.
+sie übernehmen kann. Ein Entwurf mit Anhängen, ohne Empfänger oder außerhalb eines
+Entwurfsordners wird nicht gesendet (Fehler); schlägt die Kopie nach „Gesendet“ oder das Entfernen des Entwurfs
+nach dem Senden fehl, steht es im Ergebnis (`copySaved`, `draftRemoved`).
 
 **`delete_messages`** — Eingabe: `{ messages: { id: string, subject: string }[] }` (höchstens 100). Die Abfrage
 zeigt nur die Eingabe; mit Betreff statt nackter Kennung kann der Nutzer verständlich zustimmen (032
