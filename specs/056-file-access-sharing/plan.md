@@ -180,16 +180,16 @@ Grenze von 024 bleibt. Frontend in den bestehenden Ordnern des Dateibrowsers.
 
 ## Lieferungen (PRs)
 
-Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt.
+Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt (Aufgaben in [tasks.md](./tasks.md)).
 
-| PR  | Inhalt                                                                                                                                                                                                              | Stories / FRs                                                    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| A   | ADR 0015, Migration und Tabellen, `files/share/store`, Schalter mit UI, `file_share_*`-Commands, Dialog „Freigeben …“, Übersicht „Meine Dateifreigaben“ (Zustand nur „wartet“/„aktiv“), Katalog-Aktionen guardrails | US4 (ohne Netz), US5 (Schalter), FR-014–FR-023, FR-026, FR-045   |
-| B   | Rahmen, Handshake, `FilesProtocol` mit Lese-Anfragen, `PeerStore` lesend, `peer:` in `storage_files`, „Meine Geräte“ in der Seitenleiste                                                                            | US1 lesend, FR-001–FR-007, FR-011–FR-013, FR-032, FR-042, FR-044 |
-| C   | Schreiben: Upload-Sitzungen, Versionsstand, `Conflict` in Transfers, CreateFolder/Rename/Move/Delete, Papierkorb                                                                                                    | US1 schreibend, US3, FR-035–FR-039                               |
-| D   | Anklopfen, Modus `Contact`, `share:` in `storage_files`, `files_contact_query`, „Von Kontakten“, empfangene Freigaben                                                                                               | US2, FR-008–FR-010, FR-028–FR-034                                |
-| E   | Entzug mit Stream-Abbruch, `served_at`/`source_state`, Kontaktseite, Löschdialog, Aufräumen bei gelöschter Karte                                                                                                    | US4 vollständig, FR-024, FR-025, FR-027, FR-023                  |
-| F   | Agents über `peer:`/`share:` (engere Stufe), E2E mit zweiter Vault, Handprüfung                                                                                                                                     | US6, FR-040, FR-041, SC-001–SC-008                               |
+| PR  | Inhalt                                                                                                                                                       | Stories / FRs                                            |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| A   | Migration und Tabellen, Fehlercodes, `Protocol::Peer`, Rahmen, Handshake, Server-Gerüst mit Prüfung je Anfrage, `PeerStore` lesend; keine sichtbare Änderung | Grundlage für alle; FR-001–FR-007, FR-042                |
+| B   | Eigene Geräte: Lesen und Schreiben, Papierkorb, „Meine Geräte“                                                                                               | US1; FR-011–FR-013, FR-032, FR-035, FR-038, FR-044       |
+| C   | Dateifreigaben anlegen (Dialog, Aktionen guardrails), Anklopfen, Modus `Contact`, „Von Kontakten“                                                            | US2; FR-008–FR-010, FR-015–FR-019, FR-028–FR-034, FR-045 |
+| D   | Schreiben für Kontakte, Schreibkonflikt in Transfers, Löschen ohne Papierkorb                                                                                | US3; FR-036–FR-039                                       |
+| E   | Übersicht, Entzug mit Stream-Abbruch, „wartet auf Gerät“, Quelle fehlt, Kontaktseite, Löschdialog; Schalter                                                  | US4, US5; FR-014, FR-020–FR-027                          |
+| F   | Agents, E2E, Handprüfung                                                                                                                                     | US6; FR-040, FR-041, SC-001–SC-008                       |
 
 ## Complexity Tracking
 
