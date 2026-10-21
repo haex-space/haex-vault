@@ -2,7 +2,10 @@
 
 **Feature Branch**: `026-blind-relay`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: Draft. Teilweise überholt (2026-10-21): Dateien teilt Spec 056 direkt zwischen den
+Geräten, ohne Relay, Postfächer oder Inhaltsschlüssel; Spec 029 (Speicher-Backend B) ist gelöscht,
+Spec 027 nur noch Grundlage für 028. Die Verweise auf 027 und 029 unten beschreiben den alten
+Entwurf. Ob und wofür 026 bleibt, ist offen.
 **Input**: Zeile 026 des Spec-Schnitts im Sync-Design
 ([`docs/plans/2026-09-28-sync-architecture.md`](../../docs/plans/2026-09-28-sync-architecture.md)
 §14): ein Relay mit Postfächern, Sequenznummern als Lesestand, vom Client

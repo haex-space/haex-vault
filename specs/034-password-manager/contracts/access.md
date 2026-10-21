@@ -3,7 +3,7 @@
 **Spec**: [../spec.md](../spec.md) (FR-024 bis FR-035) | **Commands**: [tauri-commands.md](./tauri-commands.md)
 
 Dieser Vertrag legt fest, wie jeder Zugriff auf Passwortmanager-Daten geprüft wird. Er ist
-die Schnittstelle, die Spec 029 (holzi-Funktion), 017–019 (haextensions) und 021 (externe
+die Schnittstelle, die Spec 038 (holzi-Funktion), 017–019 (haextensions) und 021 (externe
 Agenten, External Bridge später) benutzen. Wo Freigaben **gespeichert, erteilt, angezeigt und
 widerrufen** werden, regeln diese Specs, nicht diese (FR-030).
 
@@ -15,7 +15,7 @@ enum Caller {
   BuiltinAgent,                       // Modell im Chat (Spec 032)
   Extension { id },                   // haextension (017–019)
   ExternalAgent { id },               // MCP-Client (021)
-  Internal { feature: &'static str }, // holzi-Funktion, z. B. "storage" (038, auch für 029)
+  Internal { feature: &'static str }, // holzi-Funktion, z. B. "storage" (038)
 }
 enum GrantAction { Read, ReadWrite }  // ReadWrite deckt Read
 enum Scope {                                  // Tag-Namen nach fold; "*" in einer Freigabe ergibt All
@@ -56,8 +56,7 @@ Code ab (zum Beispiel `Grant { ReadWrite, Tags({"backup"}) }`); es gibt keine f�
 Tags. Einträge, die einer holzi-Funktion gehören (Spalte `owner`, etwa die Zugangsdaten einer
 Speicherverbindung aus Spec 038), legt die Funktion über `create_owned_item` an und löscht sie über
 `delete_owned_item` (`service/owned.rs`); sie gelten nach Z14. Die Zugangsdaten der Speicher liest
-nur die Funktion `storage` (038); auch 029 liest sie über `remote_storage::credentials`, nicht unter
-eigenem Namen. Eine Kopie eines solchen Eintrags durch den Nutzer behält den Eigentümer. Wird er
+nur die Funktion `storage` (038). Eine Kopie eines solchen Eintrags durch den Nutzer behält den Eigentümer. Wird er
 endgültig gelöscht, werden Platzhalter in Einträgen des Nutzers, die auf ihn zeigen, nicht in
 eigene Werte umgewandelt (anders als FR-048); sie zeigen dann „fehlt“. Welche Einträge eine holzi-Funktion nutzt, meldet sie über `EntryUsage` (`usage.rs`,
 Hinweis vor dem Löschen, FR-034): ein Trait, das die Funktion beim Start anmeldet und das zu einer
@@ -88,7 +87,7 @@ Eintragskennung die Namen der nutzenden Funktionen liefert.
 | ---------------------------------------------------------- | ---------------------------- | ------------------------- | ------------------------------------------------------- |
 | Commands der Oberfläche (`passwords_*`)                    | `User`                       | —                         | gebaut                                                  |
 | `passwords_agent_search` (Aktion `passwords.items.search`) | `BuiltinAgent`               | —                         | gebaut                                                  |
-| Rust-Aufruf einer holzi-Funktion                           | `Internal{…}`                | fest im Code              | Schnittstelle gebaut, erster Nutzer ist Spec 029        |
+| Rust-Aufruf einer holzi-Funktion                           | `Internal{…}`                | fest im Code              | Schnittstelle gebaut, erster Nutzer ist Spec 038        |
 | haextension                                                | `Extension{id}`              | aus 017–019               | nicht gebaut                                            |
 | MCP-Client                                                 | `ExternalAgent{id}`          | aus 021                   | nicht gebaut                                            |
 | External Bridge (Autofill, Passkeys)                       | `Extension` oder eigener Typ | aus 017–019 / eigene Spec | nicht gebaut; Schnittstelle bleibt unverändert (FR-032) |

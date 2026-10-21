@@ -49,7 +49,7 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
 - **Download- und Sync-Steuerung (Datenvolumen)**: Große Downloads (Modelle)
   und die Dateisynchronisation pausieren zu können, um auf Mobilgeräten das
   Datenvolumen zu schonen, ist ein eigenes Vorhaben mit eigener Spec (berührt
-  005, 025 und 029) und nicht Teil dieser Spec. Bis dahin gilt: Ein Modell
+  005 und 025) und nicht Teil dieser Spec. Bis dahin gilt: Ein Modell
   darf Downloads im Modus „Auto“ wie jede andere ändernde Aktion ohne
   Rückfrage anstoßen (Desktop ist heute das einzige Ziel).
 

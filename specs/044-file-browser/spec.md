@@ -67,9 +67,9 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 - **Spec 036** (Anhänge mit Vorschau): verwandter Viewer für Anhänge von Passwörtern. Bild- und
   PDF-Viewer DÜRFEN geteilt werden; 036 FR-039 („keine PDF-Vorschau“) bleibt bis zu einer eigenen
   Änderung dort bestehen.
-- **Folgende Specs**: 045 (Sync-Regeln, ersetzt 025) und der Umbau von 027/029 (Spaces) bauen auf
-  dem Dateibrowser auf, etwa mit „Zu Space hinzufügen“ oder einem Sync-Status je Ordner. Sie sind
-  nicht Teil dieser Spec.
+- **Folgende Specs**: Spec 056 (Dateizugriff zwischen eigenen Geräten und Dateifreigaben an Kontakte)
+  und die Sync-Regeln (ersetzen 025, noch ohne Nummer) bauen auf dem Dateibrowser auf, etwa mit
+  „Freigeben …“ oder einem Sync-Status je Ordner. Sie sind nicht Teil dieser Spec.
 
 ## Clarifications
 
@@ -568,8 +568,8 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - Texterkennung (OCR) in gescannten PDFs und Bildern; Video und Audio für Agents.
 - Bearbeiten von Dateien in holzi, auch von Text.
 - Ziehen aus holzi heraus in andere Programme.
-- Sync-Regeln, Spaces und Freigaben an andere Personen (Specs 045, 027, 029); der Dateibrowser zeigt
-  dazu in dieser Spec nichts.
+- Sync-Regeln und Dateifreigaben an andere Personen (Spec 056); der Dateibrowser zeigt dazu in dieser
+  Spec nichts.
 - Zugriff über einzeln gewählte Ordner auf Android (Storage Access Framework).
 - Änderungen am Dateizugriff von Erweiterungen (Spec 017).
 - Andere Protokolle als S3 (SMB, FTP). WebDAV- und SFTP-Speicher bringt Spec 050

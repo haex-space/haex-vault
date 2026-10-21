@@ -2,7 +2,9 @@
 
 **Feature Branch**: `027-spaces`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: Ersetzt für Dateien durch [Spec 056](../056-file-access-sharing/spec.md)
+(2026-10-21). Gilt nur noch als Grundlage für Spec 028 (Einladungslink, Antworten darauf,
+Mitgliederliste, Rechtestufen) und wird mit deren Umbau gelöscht.
 **Input**: Zeile 027 des Sync-Entwurfs
 [`docs/plans/2026-09-28-sync-architecture.md`](../../docs/plans/2026-09-28-sync-architecture.md)
 (§5, §8, §10.3, §11, §12, §13, §15): Ein Nutzer legt einen Space an, einen
