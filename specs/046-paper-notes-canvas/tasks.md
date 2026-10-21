@@ -103,9 +103,13 @@ reopened, and every change and the unchanged original are there.
 - [x] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
 - [x] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue` (a picker above the selected text)
 - [x] T033 [US3] Original, draft and compare views (layer visibility) in `apps/haex-notes/app/components/notes/PageCanvas.vue`
-- [ ] T034 [US3] "Read again" on a page with `paperImport`: ask before replacing generated elements the student changed; replace only generated, unchanged ones, in `apps/haex-notes/app/lib/paperNotes/importPage.ts`
+- [ ] T034 [P] [US3] Tests in `apps/haex-notes/app/lib/paperNotes/closeUp.test.ts`: the regions of a close-up fit into the rectangle with the rules of research R11; generated elements fully inside the rectangle are replaced, generated elements partly outside, the student's own elements and the locked original stay; `paperImport` gets the close-up and the new regions and loses the replaced ones; one undo restores elements and `paperImport`; a failed or cancelled job changes nothing and stores no asset (research R13)
+- [ ] T042 [P] [US3] `setPaperImport(page, next, label)` command with tests in `apps/haex-notes/app/lib/commands.ts` and `apps/haex-notes/app/lib/commands.test.ts`
+- [ ] T043 [US3] `PaperNoteCloseUp`, `RecognizedRegion.closeUpId` and the parsing of `paperImport.closeUps` in `apps/haex-notes/app/types/document.ts` and `apps/haex-notes/app/lib/migratePage.ts`; close-up assets in `apps/haex-notes/app/lib/collectAssets.ts`
+- [ ] T044 [US3] Read a close-up and replace the elements of the rectangle in `apps/haex-notes/app/lib/paperNotes/closeUp.ts`, reusing the job, the working copy and the mapping of US1
+- [ ] T045 [US3] "Photograph this area again": draw the rectangle on a photo page, then `PaperNoteImportDialog.vue` in close-up mode (camera or file, turn, quality hint, read with cancel, the hint of each error)
 
-**Checkpoint**: Quickstart steps 5–7.
+**Checkpoint**: Quickstart steps 5–7, including 6a.
 
 ---
 
@@ -135,6 +139,8 @@ layer hidden, the original is not in it.
 
 ## Dependencies & Execution Order
 
+- The close-up tasks T042–T045 were added to US3 later (research R13); they replace "read again" and need US1 and
+  T029–T033. T034 holds their tests.
 - Phase 1 → Phase 2 → US1 → US3 → US4 → Polish. US3 and US4 need the draft of US1 to be useful, but T030–T033 and
   T035–T036 only need Phase 2 and can start alongside US1.
 - Within a phase the tests come first and must fail before the implementation.
