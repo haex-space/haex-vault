@@ -56,10 +56,7 @@ fn relying_party(rp_id: &str) -> Option<String> {
     }
     // A name that is its own public suffix belongs to nobody; signing for it would sign for every
     // site below it (R9).
-    match psl::suffix_str(&domain) {
-        Some(suffix) if suffix != domain => Some(domain),
-        _ => None,
-    }
+    (!super::site::is_public_suffix(&domain)).then_some(domain)
 }
 
 /// The origin in its serialised ASCII form and the relying party id in its ASCII form, when the

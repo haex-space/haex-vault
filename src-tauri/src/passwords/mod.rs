@@ -70,6 +70,9 @@ pub mod sets;
 pub mod settings;
 #[cfg(test)]
 mod settings_tests;
+pub mod site;
+#[cfg(test)]
+mod site_tests;
 pub mod snapshots;
 #[cfg(test)]
 mod snapshots_tests;
