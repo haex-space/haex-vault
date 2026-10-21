@@ -75,6 +75,7 @@ const backgroundStyle = computed(() =>
     <WmWorkspaceOverview v-model:open="wm.overlays.workspaces" />
     <WmCloseConfirm />
     <ExtensionsPermissionRequestDialog />
+    <BrowserBridgePrompts />
     <ExtensionsEncryptedFolderChooser />
     <StorageCredentialsModal />
   </div>

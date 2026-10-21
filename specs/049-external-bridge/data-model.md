@@ -14,7 +14,7 @@ legt das Gerät fest, und die Bridge liest nur die Zeilen des eigenen Geräts.
 
 | Spalte              | Typ                        | Regeln                                                                      |
 | ------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `id`                | TEXT PK                    | UUID v4                                                                     |
+| `id`                | TEXT PK                    | `UUIDv5(NS, vault_device_uuid ":" client_id)` (`approvals::row_id`)         |
 | `vault_device_uuid` | TEXT NOT NULL              | FK `known_devices(vault_device_uuid)` ON DELETE CASCADE                     |
 | `client_id`         | TEXT NOT NULL              | Fingerabdruck, 32 Kleinbuchstaben-Hex, `= hex(SHA-256(public_key)[0..16])`  |
 | `public_key`        | TEXT NOT NULL              | Standard-Base64 von 32 Byte X25519                                          |
@@ -29,7 +29,8 @@ legt das Gerät fest, und die Bridge liest nur die Zeilen des eigenen Geräts.
 | `decided_at`        | INTEGER NOT NULL           | Unix-Millisekunden der Zulassung oder Sperre                                |
 | `last_seen_at`      | INTEGER                    | Unix-Millisekunden des letzten zugelassenen Handshakes                      |
 
-Eindeutig: `(vault_device_uuid, client_id)`.
+Keine UNIQUE-Constraint: Ein Konflikt hielte die Synchronisation an (wie in
+`identity/migrations_storage.rs`). Eine Zeile je Client und Gerät folgt aus der abgeleiteten `id`.
 
 **Regeln beim Schreiben**:
 

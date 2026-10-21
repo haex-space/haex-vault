@@ -53,4 +53,8 @@ modelPresets: ModelPresets,
 /**
  * A phone address book the address book can sync with (spec 051 FR-015).
  */
-phoneContacts: boolean, };
+phoneContacts: boolean,
+/**
+ * The External Bridge for browser extensions (spec 049 FR-043).
+ */
+browserBridge: boolean, };

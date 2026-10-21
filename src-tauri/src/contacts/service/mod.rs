@@ -52,5 +52,6 @@ fn caller_text(caller: &Caller) -> String {
         Caller::Extension { id } => format!("extension:{id}"),
         Caller::ExternalAgent { id } => format!("external_agent:{id}"),
         Caller::Internal { feature } => format!("internal:{feature}"),
+        Caller::BrowserClient { id } => format!("browser_client:{id}"),
     }
 }

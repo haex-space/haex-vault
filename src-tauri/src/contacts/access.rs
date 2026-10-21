@@ -137,6 +137,8 @@ impl From<Denied> for HolziError {
 fn reach(caller: &Caller, grants: &[Grant], needed: GrantAction) -> Result<Scope, Denied> {
     match caller {
         Caller::User | Caller::Internal { .. } => Ok(Scope::All),
+        // A browser extension reaches the password manager only (spec 049 FR-014).
+        Caller::BrowserClient { .. } => Err(Denied::Forbidden),
         Caller::BuiltinAgent | Caller::Extension { .. } | Caller::ExternalAgent { .. } => grants
             .iter()
             .filter(|grant| grant.action == GrantAction::ReadWrite || needed == GrantAction::Read)

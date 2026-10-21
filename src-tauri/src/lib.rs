@@ -1,6 +1,7 @@
 pub mod adapters;
 #[cfg(feature = "voice")]
 pub mod audio;
+pub mod browser_bridge;
 pub mod caller;
 pub mod catalog;
 pub mod chat;
@@ -22,6 +23,7 @@ pub mod platform;
 #[cfg(feature = "platform-probe")]
 pub mod platform_probe;
 pub mod privacy;
+pub mod prompt_park;
 pub mod providers;
 pub mod remote_storage;
 pub mod state;
@@ -385,6 +387,10 @@ pub fn run() {
             app.manage(files::search::SearchManager::default());
             // Spec 044 US6 (ADR 0011): the file actions of the built-in agent run here, without a
             // window; a storage without a grant is asked for through the window.
+            // Spec 049: the External Bridge asks the window; it starts when a vault opens.
+            let browser_bridge = browser_bridge::BrowserBridge::default();
+            browser_bridge.attach(app.handle());
+            app.manage(browser_bridge);
             let prompt = files::agent::prompt::PermissionPrompt::default();
             app.manage(prompt.clone());
             let files_agent: files::agent::commands::BuiltinFilesAgent =
@@ -449,6 +455,10 @@ pub fn run() {
             files::browser_commands::encrypted::files_encrypted_notice_ack,
             files::browser_commands::encrypted::files_encrypted_refresh,
             files::agent::commands::files_agent_permission_answer,
+            browser_bridge::commands::browser_bridge_overview,
+            browser_bridge::commands::browser_bridge_configure,
+            browser_bridge::commands::browser_bridge_answer,
+            browser_bridge::commands::browser_bridge_notify,
             files::agent::commands::files_agent_permissions,
             files::agent::commands::files_agent_permission_set,
             files::agent::commands::files_agent_permission_remove,

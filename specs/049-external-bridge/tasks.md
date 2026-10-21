@@ -63,7 +63,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 - [x] T001 Worktree `.worktrees/049-external-bridge-plan` on branch `049-external-bridge-plan` from `main` (`35e1c34e`); `.specify/feature.json` points at `specs/049-external-bridge`
 - [x] T002 Re-pin the client to haextension `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0` and record the 2026-10-21 clarifications in `specs/049-external-bridge/spec.md` (update-item unsupported, create-item four fields, companion PR, settings under Extensions)
 - [x] T003 Plan, research, data model, contracts, quickstart in `specs/049-external-bridge/`; roadmap row in `plans/README.md`; K1 decided as (b) `prompt_park.rs`
-- [ ] T004 This task list; open PR A against `main` (rebase-merge, no squash)
+- [x] T004 This task list; open PR A against `main` (rebase-merge, no squash)
 
 ---
 
@@ -71,46 +71,46 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Purpose**: The pieces every story uses: dependencies, envelope crypto, wire types, the new caller, the parked-prompt module, the table, the platform flag and the bridge lifecycle.
 
-- [ ] T005 New worktree `.worktrees/049-b` on branch `049-external-bridge-b` from `main` after PR A. Inside `nix develop`, run `pnpm install --frozen-lockfile`; do not symlink `node_modules`.
-- [ ] T006 Add the direct dependencies in `src-tauri/Cargo.toml` at the versions already in `Cargo.lock` (research R1, R3):
+- [x] T005 New worktree `.worktrees/049-b` on branch `049-external-bridge-b` from `main` after PR A. Inside `nix develop`, run `pnpm install --frozen-lockfile`; do not symlink `node_modules`.
+- [x] T006 Add the direct dependencies in `src-tauri/Cargo.toml` at the versions already in `Cargo.lock` (research R1, R3):
   - `tokio-tungstenite = "0.28"` with default features off plus `handshake`;
   - `aes-gcm = "0.11"`;
   - `curve25519-dalek = "5"`.
 
   Then check that `cargo tree -d` shows no new duplicate. Run `cargo check -j 4` in both configurations (default and `--no-default-features`).
 
-- [ ] T007 [P] Write the tests first, in `src-tauri/src/browser_bridge/envelope_tests.rs`:
+- [x] T007 [P] Write the tests first, in `src-tauri/src/browser_bridge/envelope_tests.rs`:
   - the X25519 vectors of RFC 7748 §5.2 and §6.1 through `x25519(secret, public)`;
   - an all-zero shared secret (low-order public key) is refused;
   - an AES-256-GCM round trip with a 12-byte IV, tag appended, standard padded base64;
   - `client_id_of(public_key)` equals `hex(SHA-256(pk)[0..16])` in lowercase and refuses keys that are not 32 bytes;
   - decrypting with a wrong key or a wrong IV length is an error, never a panic.
-- [ ] T008 [P] Implement `src-tauri/src/browser_bridge/envelope.rs` (≤ 200 lines) and make T007 pass:
+- [x] T008 [P] Implement `src-tauri/src/browser_bridge/envelope.rs` (≤ 200 lines) and make T007 pass:
   - `ServerKeys` holds a random static secret, zeroized on drop, and exposes `public_b64()`.
   - `open_request(&ServerKeys, ephemeral_pub_b64, iv_b64, message_b64) -> Result<Vec<u8>>`.
   - `seal_response(client_pub: &[u8;32], plaintext) -> (ephemeral_pub_b64, iv_b64, message_b64)` uses a fresh ephemeral key per call.
   - Use `curve25519-dalek` `MontgomeryPoint::mul_clamped`, `aes-gcm` 0.11 and `base64` STANDARD.
   - Add a `ponytail:` comment on using the raw shared secret as the key (ceiling: no KDF, no AAD; upgrade path: protocol v3 with HKDF, research R3).
-- [ ] T009 [P] Tests in `src-tauri/src/browser_bridge/protocol_tests.rs`:
+- [x] T009 [P] Tests in `src-tauri/src/browser_bridge/protocol_tests.rs`:
   - The literal JSON of every message in [contracts/wire-protocol.md](./contracts/wire-protocol.md) parses into its type, including a handshake without `requestedExtensions`.
   - Unknown `type` → `PARSE_ERROR`.
   - `response` serializes `extensionPublicKey: null` and `extensionName: null` and `clientId: ""` exactly as the contract shows.
   - The error frame shape `{type:"error",code,message}`.
-- [ ] T010 [P] Implement `src-tauri/src/browser_bridge/protocol.rs`: `serde` types with `#[serde(tag = "type", rename_all = "camelCase")]` for handshake, handshakeResponse, request, response, authorizationUpdate, ping, pong and error, plus the `ErrorCode` enum of the contract (frame-level and request-level codes, serialized `SCREAMING_SNAKE_CASE`). Make T009 pass.
-- [ ] T011 [P] Tests in `src-tauri/src/browser_bridge/declaration_tests.rs`:
+- [x] T010 [P] Implement `src-tauri/src/browser_bridge/protocol.rs`: `serde` types with `#[serde(tag = "type", rename_all = "camelCase")]` for handshake, handshakeResponse, request, response, authorizationUpdate, ping, pong and error, plus the `ErrorCode` enum of the contract (frame-level and request-level codes, serialized `SCREAMING_SNAKE_CASE`). Make T009 pass.
+- [x] T011 [P] Tests in `src-tauri/src/browser_bridge/declaration_tests.rs`:
   - `canonical(declaration)` is independent of key order and list order.
   - `max_grant(declaration)` reads only `permissions.core.passwords`: `readWrite` + `*` → (ReadWrite, All); `read` + tags → (Read, Tags).
   - A missing or empty `passwords` → `DeclarationRequired`.
   - `database`, `bookmarks` and similar entries are kept in the canonical form but never granted (research R5).
   - `fits(access, scope_tags, declaration)` refuses anything wider than declared.
-- [ ] T012 [P] Implement `src-tauri/src/browser_bridge/declaration.rs` and make T011 pass.
-- [ ] T013 Add the variant `BrowserClient { id: String }` to `Caller` in `src-tauri/src/caller.rs`, then fix every exhaustive match:
+- [x] T012 [P] Implement `src-tauri/src/browser_bridge/declaration.rs` and make T011 pass.
+- [x] T013 Add the variant `BrowserClient { id: String }` to `Caller` in `src-tauri/src/caller.rs`, then fix every exhaustive match:
   - `passwords/access.rs:211` `reach()` treats it like `Extension` (union of grant scopes, never trash);
   - `contacts/access.rs:140`, `contacts/service/mod.rs:52-53` and `files/access.rs:133,136,205,271,282` → `Forbidden`.
 
   Extend `src-tauri/src/passwords/access_tests.rs` (or its existing test file) with a case: a `BrowserClient` with a tag grant sees only that tag and never trash.
 
-- [ ] T014 [P] Tests in `src-tauri/src/prompt_park_tests.rs` (K1, research R10):
+- [x] T014 [P] Tests in `src-tauri/src/prompt_park_tests.rs` (K1, research R10):
   - `park(kind) -> (PromptId, Receiver)` and `answer(id, value)` deliver once; a second answer is ignored.
   - Timeout → `Expired`.
   - Cancelling the parent `CancellationToken` → `Cancelled`.
@@ -119,7 +119,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Use `tokio::time::pause` and no sleeps.
 
-- [ ] T015 [P] Implement `src-tauri/src/prompt_park.rs` (≤ 150 lines) and make T014 pass:
+- [x] T015 [P] Implement `src-tauri/src/prompt_park.rs` (≤ 150 lines) and make T014 pass:
   - generic `PromptPark<A>` holding `Mutex<HashMap<PromptId, oneshot::Sender<A>>>`;
   - `ask(&self, timeout, token) -> Result<A, PromptEnd>`;
   - `answer`, `cancel_all`;
@@ -127,7 +127,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Leave `files/agent/prompt.rs` and `chat/tools/action_bridge.rs` untouched; follow-up T080 migrates them.
 
-- [ ] T016 Migration `src-tauri/src/identity/migrations_browser_clients.rs`, constant `BROWSER_CLIENTS_0038` (use the next free number on `main` at the time; rename if `0038` is taken). Columns exactly as in [data-model.md](./data-model.md):
+- [x] T016 Migration `src-tauri/src/identity/migrations_browser_clients.rs`, constant `BROWSER_CLIENTS_0038` (use the next free number on `main` at the time; rename if `0038` is taken). Columns exactly as in [data-model.md](./data-model.md):
 
   | Column              | Definition                                                                  |
   | ------------------- | --------------------------------------------------------------------------- |
@@ -146,34 +146,34 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   | `decided_at`        | INTEGER NOT NULL                                                            |
   | `last_seen_at`      | INTEGER                                                                     |
 
-  Add `UNIQUE (vault_device_uuid, client_id)`. Register the migration in `src-tauri/src/identity/migrations.rs`. Raise `HOLZI_TRIGGER_VERSION` 25 → 26 with a changelog line ("26: `0038_browser_clients` (spec 049) introduced the CRDT-tracked `haex_browser_clients`"). Extend `src-tauri/tests/vault_upgrade.rs`: reopening a pre-0038 vault creates the table and its triggers.
+  No UNIQUE constraint (it would halt the sync): `id` is `UUIDv5(NS, device ":" client_id)` (`approvals::row_id`), so one client has one row per device. Register the migration in `src-tauri/src/identity/migrations.rs`. Raise `HOLZI_TRIGGER_VERSION` 25 → 26 with a changelog line ("26: `0038_browser_clients` (spec 049) introduced the CRDT-tracked `haex_browser_clients`"). The migration tests in `identity/migrations_browser_clients_tests.rs` cover a fresh vault and an upgrade from the schema before.
 
-- [ ] T017 [P] Tests in `src-tauri/src/browser_bridge/approvals_tests.rs`:
+- [x] T017 [P] Tests in `src-tauri/src/browser_bridge/approvals_tests.rs`:
   - Store and load by `(device, client_id)`.
   - A row matches a handshake only if `client_id`, `public_key`, `origin` and canonical `declaration` are equal (data-model, "Abgleich beim Handshake").
   - `blocked` rows have `access`, `scope_tags` and `default_tag` NULL and `write_denied` 0.
   - `readWrite` with `scope_tags` requires `default_tag` ∈ `scope_tags`.
   - Session decisions shadow nothing that is remembered as blocked ("Verweigerung schlägt Erteilung").
   - `grants_of(approval, session)` returns exactly one `Grant` (data-model, "Aufrufer und Freigabe").
-- [ ] T018 Implement `src-tauri/src/browser_bridge/approvals.rs` and make T017 pass:
+- [x] T018 Implement `src-tauri/src/browser_bridge/approvals.rs` and make T017 pass:
   - remembered rows through `VaultDb` on `gate.spawn_blocking`, only rows of `current_device_uuid` (`storage/wm_session_commands.rs:80`);
   - session decisions in memory (`SessionDecisions`);
   - `decide(handshake) -> Decision { Authorized(Approval) | Blocked | Unknown | Changed }`.
-- [ ] T019 [P] Add `browser_bridge: bool` to `PlatformCapabilities` in `src-tauri/src/platform/mod.rs` (`desktop()` true, `ANDROID` false) and extend its existing test. Expose it as `browserBridge` in `src/composables/useDeviceCapabilities.ts`.
-- [ ] T020 Device preferences `browserBridge.enabled` (bool, default false) and `browserBridge.port` (u16, default 19455, valid 1024–65535) in `src-tauri/src/browser_bridge/settings.rs`, read and written with `storage/preferences.rs` `PrefScope::Device`. Write a unit test for the defaults and port validation in `settings_tests.rs`.
-- [ ] T021 `src-tauri/src/browser_bridge/mod.rs`: `BridgeRuntime` with state `Off | Running{port} | PortInUse{port} | NoVault | NotAvailable`, server keys, child token of `gate.token()` and the connection registry. Add:
+- [x] T019 [P] Add `browser_bridge: bool` to `PlatformCapabilities` in `src-tauri/src/platform/mod.rs` (`desktop()` true, `ANDROID` false) and extend its existing test. Expose it as `browserBridge` in `src/composables/useDeviceCapabilities.ts`.
+- [x] T020 Device preferences `browserBridge.enabled` (bool, default false) and `browserBridge.port` (u16, default 19455, valid 1024–65535) in `src-tauri/src/browser_bridge/settings.rs`, read and written with `storage/preferences.rs` `PrefScope::Device`. Write a unit test for the defaults and port validation in `settings_tests.rs`.
+- [x] T021 `src-tauri/src/browser_bridge/mod.rs`: `BridgeRuntime` with state `Off | Running{port} | PortInUse{port} | NoVault | NotAvailable`, server keys, child token of `gate.token()` and the connection registry. Add:
   - `start_for_active_instance(app)`: reads the settings and starts when enabled;
   - `stop()`: cancel token, `prompt_park.cancel_all()`, clear session decisions, emit `browser-bridge-changed`.
 
   Call `start_for_active_instance` from all three open paths: `src-tauri/src/instances/open.rs:133-163`, `instances/create.rs:147-152` and `instances/import.rs:204-216`, next to `sync::start_for_active_instance`. Register the module in `src-tauri/src/lib.rs`.
 
-- [ ] T022 `src-tauri/src/browser_bridge/methods/mod.rs`:
+- [x] T022 `src-tauri/src/browser_bridge/methods/mod.rs`:
   - `pub struct Method { name, need: GrantAction, handler, module: &'static str }`;
   - `METHODS: &[Method]` (empty in PR B);
   - `NOT_SUPPORTED: &[&str]` with `update-item`, `bookmarks-collections-list`, `bookmarks-collection-create`, `bookmarks-list`, `bookmarks-upsert`, `bookmarks-delete` and `bookmarks-device-upsert`;
   - `dispatch(ctx, action, target, payload) -> Reply`: target other than `__core__`/`core` → `NOT_SUPPORTED`; unknown method → `NOT_SUPPORTED`; listed unsupported → `NOT_SUPPORTED`; no prompt and no effect (FR-028, FR-029);
   - `Reply` → `{requestId, success, data|error, errorCode}` with the fixed strings of the contract (research R16).
-- [ ] T023 Contract test `src-tauri/tests/browser_bridge_contract.rs`, after `tests/extension_bridge_contract.rs`. It parses the method and "Nicht unterstützt" lists out of `specs/049-external-bridge/contracts/wire-protocol.md` and checks:
+- [x] T023 Contract test `src-tauri/tests/browser_bridge_contract.rs`, after `tests/extension_bridge_contract.rs`. It parses the method and "Nicht unterstützt" lists out of `specs/049-external-bridge/contracts/wire-protocol.md` and checks:
   - `METHODS` names equal the contract's method headings that are implemented so far (PR B: none; each later PR adds its names);
   - `NOT_SUPPORTED` equals the contract list;
   - every `module` starts with `holzi_lib::browser_bridge::` and contains none of `::chat`, `::llm`, `::adapters`, `::providers`;
@@ -189,7 +189,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: Integration test with the Rust test client (below), then quickstart M1–M2 with the real extension.
 
-- [ ] T024 [US1] Integration test first, `src-tauri/tests/browser_bridge.rs` part 1. The test client lives in this file: a `tokio-tungstenite` client that sends `Origin: chrome-extension://test`, builds X25519 keys and seals requests per the contract. The test starts a vault and the bridge on port 0. Scenarios:
+- [x] T024 [US1] Integration test first, `src-tauri/tests/browser_bridge.rs` part 1. The test client lives in this file: a `tokio-tungstenite` client that sends `Origin: chrome-extension://test`, builds X25519 keys and seals requests per the contract. The test starts a vault and the bridge on port 0. Scenarios:
   - unknown client → `handshakeResponse(false, true)` and exactly one `browser-bridge-prompt` with `kind: 'approval'` (capture the emitted events through the test app handle);
   - answer allow + remember → `authorizationUpdate(true)` on the open socket without reconnect;
   - reconnect → `handshakeResponse(true, false)` without prompt;
@@ -197,13 +197,13 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - deny + remember → reconnect gets `(false,false)` and is closed, with no prompt;
   - changed declaration (extra `bookmarks` entry) → asks again, and requests before the answer get `UNAUTHORIZED`;
   - bridge off or no vault → connection refused.
-- [ ] T025 [US1] `src-tauri/src/browser_bridge/server.rs` (≤ 250 lines):
+- [x] T025 [US1] `src-tauri/src/browser_bridge/server.rs` (≤ 250 lines):
   - Bind `127.0.0.1:<port>`; `AddrInUse` → `PortInUse`.
   - Bind `[::1]:<port>` too: `AddrNotAvailable` → IPv4 only; `AddrInUse` → `PortInUse` and drop the IPv4 listener (research R1).
   - Accept loop under `gate.spawn`, `select!` on the bridge token, at most 16 connections.
   - `accept_hdr_async` with `WebSocketConfig { max_message_size: 64 KiB, max_frame_size: 64 KiB }`.
   - The header callback is implemented in T037 (US6). Until then it accepts only `chrome-extension://` and `moz-extension://`.
-- [ ] T026 [US1] `src-tauri/src/browser_bridge/connection.rs` (≤ 400 lines), the state machine of data-model "Verbindung":
+- [x] T026 [US1] `src-tauri/src/browser_bridge/connection.rs` (≤ 400 lines), the state machine of data-model "Verbindung":
   - writer task fed by a bounded `mpsc` (capacity 32);
   - 10 s handshake deadline;
   - repeated handshakes on the same socket answer the current state without a second prompt; a different `clientId` closes;
@@ -212,25 +212,25 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - `requestId` required, otherwise the request is dropped (research R4);
   - replies sealed to the handshake key;
   - on close: cancel the connection's child token so its prompts and requests end.
-- [ ] T027 [US1] Pending approvals in `src-tauri/src/browser_bridge/pending.rs`: at most one approval prompt per fingerprint across all connections (`PendingApprovals`, FR-007). On answer, notify every waiting connection of that fingerprint (`authorizationUpdate`, or close on deny). Prompt timeout 120 s → treated as deny without remember.
-- [ ] T028 [US1] `src-tauri/src/browser_bridge/prompts.rs`: the bridge's prompt kinds on top of `prompt_park`.
+- [x] T027 [US1] Pending approvals in `src-tauri/src/browser_bridge/pending.rs`: at most one approval prompt per fingerprint across all connections (`PendingApprovals`, FR-007). On answer, notify every waiting connection of that fingerprint (`authorizationUpdate`, or close on deny). Prompt timeout 120 s → treated as deny without remember.
+- [x] T028 [US1] `src-tauri/src/browser_bridge/prompts.rs`: the bridge's prompt kinds on top of `prompt_park`.
   - `BridgePrompt` and `BridgeAnswer` with `ts-rs` exactly as in [contracts/tauri-commands.md](./contracts/tauri-commands.md); the `presence` variants are added in Phase 8.
   - Events `browser-bridge-prompt` and `browser-bridge-prompt-cancelled`.
   - Command `browser_bridge_answer(prompt_id, answer)`. It validates an approval answer like `browser_bridge_client_update` (T066 reuses the same validator in `approvals.rs`); an invalid answer counts as deny.
-- [ ] T029 [US1] `src-tauri/src/browser_bridge/commands.rs`:
+- [x] T029 [US1] `src-tauri/src/browser_bridge/commands.rs`:
   - `browser_bridge_overview` (read-only part: `enabled`, `port`, `state`, empty lists until Phase 7);
   - `browser_bridge_configure { enabled, port }` (validates the port, saves both, starts, stops or restarts, emits `browser-bridge-changed`);
   - `browser_bridge_answer`.
 
   On Android every command returns `NotAvailable`. Register them in `src-tauri/src/lib.rs` and `capabilities` as the other commands are.
 
-- [ ] T030 [P] [US1] `src/lib/actions/browserBridgeActions.ts` (new): `settings.browserBridge.set` with scope `guardrails`, so not agent-callable (FR-013), input `{ enabled, port }`, calling `browser_bridge_configure`. Spread it into the settings catalog next to `SETTINGS_ACTIONS` without adding lines to `settingsActions.ts`. Extend `scripts/check-agent-actions.ts` (or its existing guardrails case) so the new id is asserted non-agent-callable.
-- [ ] T031 [P] [US1] `src/stores/browserBridge.ts` (new):
+- [x] T030 [P] [US1] `src/lib/actions/browserBridgeActions.ts` (new): `settings.browserBridge.set` with scope `guardrails`, so not agent-callable (FR-013), input `{ enabled, port }`, calling `browser_bridge_configure`. Spread it into the settings catalog next to `SETTINGS_ACTIONS` without adding lines to `settingsActions.ts`. Extend `scripts/check-agent-actions.ts` (or its existing guardrails case) so the new id is asserted non-agent-callable.
+- [x] T031 [P] [US1] `src/stores/browserBridge.ts` (new):
   - listens to `browser-bridge-prompt`, `-cancelled` and `-changed`;
   - keeps a FIFO of prompts and shows one at a time;
   - before showing, calls `raiseWindowAsync()` (`src/composables/useExtensionHost.ts:53-66`); if the window is still not focused, sends one system notification through `tauri-plugin-notification` that opens the window;
   - `answerAsync(promptId, answer)`.
-- [ ] T032 [US1] `src/components/browserBridge/ApprovalDialog.vue` (new, ≤ 300 lines), using haex-ui `ShadcnDialog`, `OptionRow`, tag picker of the password manager. Content:
+- [x] T032 [US1] `src/components/browserBridge/ApprovalDialog.vue` (new, ≤ 300 lines), using haex-ui `ShadcnDialog`, `OptionRow`, tag picker of the password manager. Content:
   - the client name marked as the client's own claim ("Angabe des Clients", "ohne Namen" if empty);
   - the fingerprint in groups of four;
   - origin;
@@ -243,16 +243,18 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Usable at 360 px without horizontal scroll (FR-044). Test ids `bridge-approval-*`. Mount it in `src/components/wm/Desktop.vue` next to `PermissionRequestDialog`.
 
-- [ ] T033 [US1] Settings page skeleton `src/components/settings/BrowserBridgeSettings.vue` (new), registered as section "Browser-Erweiterungen" with `subView('extensions.browserBridge', 'extensions/browser-bridge', 'extensions')` in `src/lib/settings/registry.ts` and the views map in `src/components/wm/appRoutes.ts`. It shows the on/off switch (saves on change, no save button), the port field and the state (`off`, `running`, `portInUse` with a hint about another holzi or haex-vault 2.x, `noVault`). On Android it shows `NotOnThisDevice.vue`. Update `scripts/check-settings.ts` for the new location.
-- [ ] T034 [P] [US1] i18n: `browserBridge.*` keys in `src/i18n/locales/de.json` and `en.json` for the dialog, settings, states and errors. No `<…>` in messages (vue-i18n).
-- [ ] T035 [US1] `src-tauri/src/bin/e2e_bridge_client.rs` (feature `e2e`, after `bin/e2e_nostr_relay.rs`): a CLI that connects with `Origin: chrome-extension://e2e`, performs the handshake with a fixed test key, waits for `authorized`, then sends one request given on the command line and prints the decrypted reply as JSON. Reuse the client code by moving the T024 client into `src-tauri/tests/support/bridge_client.rs` only if the e2e binary needs the same code. Otherwise keep both small and local (constitution: test helpers local).
-- [ ] T036 [US1] e2e scenario `scripts/e2e/scenarios/browser-bridge.test.ts` part 1:
+- [x] T033 [US1] Settings page skeleton `src/components/settings/BrowserBridgeSettings.vue` (new), registered as section "Browser-Erweiterungen" with `subView('extensions.browserBridge', 'extensions/browser-bridge', 'extensions')` in `src/lib/settings/registry.ts` and the views map in `src/components/wm/appRoutes.ts`. It shows the on/off switch (saves on change, no save button), the port field and the state (`off`, `running`, `portInUse` with a hint about another holzi or haex-vault 2.x, `noVault`). On Android it shows `NotOnThisDevice.vue`. Update `scripts/check-settings.ts` for the new location.
+- [x] T034 [P] [US1] i18n: `browserBridge.*` keys in `src/i18n/locales/de.json` and `en.json` for the dialog, settings, states and errors. No `<…>` in messages (vue-i18n).
+- [x] T035 [US1] `src-tauri/src/bin/e2e_bridge_client.rs` (feature `e2e`, after `bin/e2e_nostr_relay.rs`): a CLI that connects with `Origin: chrome-extension://e2e`, performs the handshake with a fixed test key, waits for `authorized`, then sends one request given on the command line and prints the decrypted reply as JSON. Reuse the client code by moving the T024 client into `src-tauri/tests/support/bridge_client.rs` only if the e2e binary needs the same code. Otherwise keep both small and local (constitution: test helpers local).
+- [x] T036 [US1] e2e scenario `scripts/e2e/scenarios/browser-bridge.test.ts` part 1:
   1. Enable the bridge in Settings → Erweiterungen → Browser-Erweiterungen (port from the e2e port helper, not 19455).
   2. Run `e2e_bridge_client`.
   3. The approval dialog shows name, fingerprint and origin.
   4. Approve with tag scope and default tag, remember.
   5. The client prints authorized.
   6. Run the client again: no dialog.
+
+**As built (PR B)**: the shared state of a running bridge (keys, session decisions, connections per client, the one approval question per client of T027) is `browser_bridge/runtime.rs` (`BridgeCore`); `browser_bridge/mod.rs` holds the Tauri state `BrowserBridge` and `start_for_active_instance`; `server.rs` binds and accepts. The prompt event carries the question as `question` (`BridgePromptEvent`, contracts updated). The window raises itself and falls back to the command `browser_bridge_notify` with its own text (Rust holds no text).
 
 **Checkpoint**: US1 works with the test client. Run quickstart M1 and M2 with real Chromium and Firefox before merging PR B.
 
@@ -264,13 +266,13 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: `cargo test --test browser_bridge` part 2.
 
-- [ ] T037 [US6] Tests first in `src-tauri/src/browser_bridge/origin_tests.rs`. `accepts_origin(header)` is:
+- [x] T037 [US6] Tests first in `src-tauri/src/browser_bridge/origin_tests.rs`. `accepts_origin(header)` is:
   - true for `chrome-extension://abc` and `moz-extension://8c2…`;
   - false for `https://evil.example`, `http://localhost`, `null`, an empty string, a missing header, `chrome-extension:` without host, mixed case `Chrome-Extension://` and `file://`.
 
   Implement `src-tauri/src/browser_bridge/origin.rs` and use it in the `accept_hdr_async` callback of T025, which answers HTTP 403 with an empty body.
 
-- [ ] T038 [US6] `src-tauri/tests/browser_bridge.rs` part 2 (SC-006):
+- [x] T038 [US6] `src-tauri/tests/browser_bridge.rs` part 2 (SC-006):
   - origins `https://…`, `http://…`, `null` and none → upgrade refused, no prompt event;
   - handshake `version: 1` → `error PERMISSIONS_DECLARATION_REQUIRED`, then `handshakeResponse(false,false)`, then close;
   - handshake without `permissions.core.passwords` → same;
@@ -280,7 +282,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - 20 parallel sockets → the 17th is closed;
   - no handshake within 10 s → closed (use paused time or an injected deadline, no sleep);
   - a binary frame → closed.
-- [ ] T039 [US6] Handshake checks in `connection.rs`:
+- [x] T039 [US6] Handshake checks in `connection.rs`:
   - `version < 2` or `declaration::max_grant` fails → `PERMISSIONS_DECLARATION_REQUIRED` then close;
   - `envelope::client_id_of(publicKey) != clientId` → `(false,false)` then close;
   - a remembered or session block → `(false,false)` then close.
@@ -497,9 +499,9 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 - [x] T069 Worktree in `haex-space/haextension` on branch `fix/haex-pass-browser-holzi` from `origin/main` (`c8133b94` or later). Run the app's install there.
 - [x] T070 [P] Test first, then the fix for the passkey-list reply. `apps/haex-pass-browser/src/background/main.ts:233-242` answers `{ success, passkeys }` while `contentScripts/webauthn-bridge.ts:141-150` reads `response.data`. Make both use the `BridgeResult` shape `{ success, data: { passkeys } }` of `background/vaultResponse.ts`. Add a vitest case: a vault reply with one passkey for the RP makes `vaultHasPasskeyFor` return true. Done as `passkeyListReply` in `contentScripts/webauthn-routing.ts`, tested in `webauthn-routing.test.ts`.
-- [x] T071 [P] Name: replace "HaexVault" with "haex-vault" in `apps/haex-pass-browser/src/locales/en.ts` and `de.ts` (holzi takes over the name haex-vault, spec 054; neutral texts would be wrong).
+- [x] T071 [P] Name: no change in the end. #113 renamed "HaexVault" to "haex-vault"; #114 reverted it, because HaexVault is the product name holzi takes over.
 - [x] T072 Bookmarks: when a `bookmarks-*` reply has `errorCode === 'NOT_SUPPORTED'`, the bookmark calls keep the marker `BOOKMARKS_NOT_SUPPORTED` (`bookmarks/messages.ts` `bookmarkErrorText`) and onboarding and options show "Deine Vault-App synchronisiert keine Lesezeichen." (`shownBookmarkError`). The 5-minute retry stays: it only runs with an active collection, which holzi never creates. Vitest `bookmarks/__tests__/messages.test.ts`.
-- [ ] T073 (PR haex-space/haextension#113 open 2026-10-21; merge and re-pin outstanding) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next holzi PR or a small docs PR.
+- [x] T073 (haex-space/haextension#113 merged 2026-10-21, #114 after it; pinned to `ab4e0b0ac9a05488659836a7526a250beab9dfd9`) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next holzi PR or a small docs PR.
 
 ---
 

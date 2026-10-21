@@ -4655,6 +4655,7 @@ dependencies = [
 name = "holzi"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm 0.11.1",
  "anyhow",
  "async-imap",
  "async-trait",
@@ -4667,6 +4668,7 @@ dependencies = [
  "ciborium",
  "cpal",
  "csv",
+ "curve25519-dalek",
  "data-encoding",
  "dav-server",
  "dunce",
@@ -4742,6 +4744,7 @@ dependencies = [
  "tokenizers 0.23.2",
  "tokio",
  "tokio-rustls",
+ "tokio-tungstenite",
  "tokio-util",
  "trash",
  "ts-rs",

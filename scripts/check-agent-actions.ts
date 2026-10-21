@@ -493,3 +493,9 @@ test('the extensions are thirty and have the declared tool counts', () => {
   )
   assert.ok(extensionSentences.length >= 10)
 })
+
+test('turning on the browser bridge is a guardrail no agent can call (spec 049 FR-013)', () => {
+  const action = ALL_ACTIONS.find((a) => a.id === 'settings.browserBridge.set')
+  assert.equal(action?.scope, 'guardrails')
+  assert.equal(action?.agentCallable, false)
+})

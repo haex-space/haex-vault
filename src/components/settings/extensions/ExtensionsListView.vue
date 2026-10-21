@@ -38,6 +38,20 @@ function description(version: string | undefined, status: string | undefined) {
     </SettingsGroup>
 
     <SettingsGroup
+      :label="t('settings.locations.extensions.browserBridge.title')"
+    >
+      <SettingsRow
+        icon="lucide:globe"
+        :title="t('settings.locations.extensions.browserBridge.title')"
+        :description="
+          t('settings.locations.extensions.browserBridge.description')
+        "
+        to="/extensions/browser-bridge"
+        data-testid="extensions-browser-bridge"
+      />
+    </SettingsGroup>
+
+    <SettingsGroup
       v-if="installed.length > 0"
       :label="t('settings.extensions.installed')"
     >

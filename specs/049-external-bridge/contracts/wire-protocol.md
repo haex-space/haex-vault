@@ -3,7 +3,7 @@
 **Spec**: [../spec.md](../spec.md) | **Research**: R1 bis R4, R6, R16
 
 Gegenstück: `haex-pass-browser` in `https://github.com/haex-space/haextension`, Revision
-`c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0`. Die Pfade unten liegen unter
+`ab4e0b0ac9a05488659836a7526a250beab9dfd9`. Die Pfade unten liegen unter
 `apps/haex-pass-browser/src/`.
 
 - Die Form der Nachrichten ist die der Vorlage haex-vault 2.x

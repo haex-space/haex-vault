@@ -208,7 +208,10 @@ fn reach(caller: &Caller, grants: &[Grant], needed: GrantAction) -> Result<Reach
             sees_trash: true,
         }),
         Caller::BuiltinAgent => Err(Denied::Forbidden),
-        Caller::Extension { .. } | Caller::ExternalAgent { .. } | Caller::Internal { .. } => grants
+        Caller::Extension { .. }
+        | Caller::ExternalAgent { .. }
+        | Caller::Internal { .. }
+        | Caller::BrowserClient { .. } => grants
             .iter()
             .filter(|grant| covers(grant.action, needed))
             .map(|grant| grant.scope.clone())

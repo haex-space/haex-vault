@@ -222,6 +222,10 @@ pub enum HolziError {
     #[error("This device has no phone address book")]
     PhoneContactsUnavailable,
 
+    /// This platform offers no External Bridge for browser extensions (spec 049 FR-043).
+    #[error("The browser bridge is not available on this platform")]
+    BrowserBridgeUnavailable,
+
     /// A Visitenkarte that is not one, or whose signature does not verify (FR-011).
     #[error("Invalid business card: {reason}")]
     CardInvalid { reason: String },

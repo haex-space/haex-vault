@@ -150,6 +150,8 @@ pub async fn create_instance(
     // Spec 051 (FR-021): changes of contacts reach the phone's address book.
     crate::contacts::phone::trigger::watch(&app);
     crate::sync::start_for_active_instance(&app, &state).await;
+    // Spec 049: the External Bridge, when this device turned it on.
+    crate::browser_bridge::start_for_active_instance(&app, &state);
 
     *chat.session.lock().unwrap_or_else(|e| e.into_inner()) = None;
     voice.invalidate_whisper_cache().await;

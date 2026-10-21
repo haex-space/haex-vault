@@ -37,6 +37,7 @@ use std::sync::Arc;
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
@@ -100,7 +101,8 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 /// - 24: `0036_file_icon_sets` (spec 053) added the CRDT-tracked `haex_file_icon_sets`.
 /// - 25: `0037_extension_model_access` (spec 055) added the CRDT-tracked `extension_model_order`
 ///   and `model_job_timeout_ms` to `extension_limits`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 25;
+/// - 26: `0038_browser_clients` (spec 049) added the CRDT-tracked `haex_browser_clients`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 26;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -667,6 +669,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0037_extension_model_access"),
         MODEL_ACCESS_0037.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0038_browser_clients"),
+        BROWSER_CLIENTS_0038.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

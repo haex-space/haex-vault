@@ -207,6 +207,8 @@ pub async fn import_instance(
     crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     crate::sync::start_for_active_instance(&app, &state).await;
+    // Spec 049: the External Bridge, when this device turned it on.
+    crate::browser_bridge::start_for_active_instance(&app, &state);
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.
     crate::contacts::maintenance::start_after_open(&state);

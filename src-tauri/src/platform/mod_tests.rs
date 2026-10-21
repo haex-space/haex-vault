@@ -16,6 +16,7 @@ fn desktop_offers_every_desktop_facility() {
     assert!(!table.screen_capture);
     assert!(!table.back_gesture);
     assert!(!table.phone_contacts);
+    assert!(table.browser_bridge);
     assert_eq!(table.model_presets, ModelPresets::Desktop);
 }
 
@@ -43,7 +44,17 @@ fn android_has_none_of_the_desktop_facilities() {
             back_gesture: true,
             model_presets: ModelPresets::Phone,
             phone_contacts: true,
+            browser_bridge: false,
         }
+    );
+}
+
+#[test]
+fn mobile_systems_offer_no_browser_bridge() {
+    // Spec 049 FR-043: holzi does not run in the background there (043 FR-007).
+    assert_eq!(
+        [ANDROID, IOS].map(|table| table.browser_bridge),
+        [false, false]
     );
 }
 

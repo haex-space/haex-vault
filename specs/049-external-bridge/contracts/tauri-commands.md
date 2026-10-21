@@ -34,6 +34,7 @@ type BridgeOverview = {
   enabled: boolean
   port: number
   state: 'off' | 'running' | 'portInUse' | 'noVault' | 'notAvailable'
+  // ab PR D (US5):
   clients: BridgeClientView[] // zugelassen, gemerkt und vorläufig
   blocked: BridgeClientView[] // gesperrt, gemerkt und vorläufig
 }
@@ -56,14 +57,17 @@ type BridgeClientView = {
 ### Ereignis `browser-bridge-prompt` (Rust → Fenster)
 
 ```ts
-type BridgePrompt = {
+// Rust-Typ BridgePromptEvent; die Frage selbst ist BridgeQuestion.
+type BridgePromptEvent = {
   promptId: string
   expiresAt: number
-  client: BridgeClientRef
-} & (
+  question: BridgeQuestion
+}
+type BridgeQuestion = { client: BridgeClientRef } & (
   | {
       kind: 'approval'
       declared: { access: 'read' | 'readWrite'; scopeTags: string[] | null }
+      declaresWrite: boolean
     }
   | {
       kind: 'write'
@@ -148,6 +152,12 @@ Regeln:
 
 Kein Inhalt. Die Einstellungen laden `browser_bridge_overview` neu. Rust sendet es, wenn sich der
 Zustand, eine Zulassung, eine Sperre oder `connected` ändert.
+
+### Command `browser_bridge_notify(title, body) -> ()`
+
+Eine Systembenachrichtigung, die zur Rückfrage führt, wenn holzi nicht nach vorn kommen konnte
+(Edge Case „holzi-Fenster minimiert“). Das Fenster schickt den Text in der Sprache des Nutzers, weil
+Rust keine eigenen Texte hat.
 
 ## Plattform
 
