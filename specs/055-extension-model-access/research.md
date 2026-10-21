@@ -140,23 +140,47 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   `gemma3`, `mistral3` u. a.) über `MultimodalModelBuilder` und `RequestBuilder::add_image_message(role, text,
 Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safetensors mit
   Quantisierung beim Laden (`with_isq`) oder als `.uqff`.
-- **Entscheidung**:
-  - Zweiter Ladeweg `LocalModel::load_multimodal(dir, isq)` neben dem GGUF-Weg; `build_request` entschlüsselt
-    Bildanhänge zu `DynamicImage` und nutzt `add_image_message`.
-  - Der Katalog (`S/catalog/model_catalog.json`, bisher drei Qwen3-Texteinträge) bekommt ein Format-Feld
-    (`gguf` | `multimodal_dir`), `vision` und `isq`; der Download lädt dann ein Verzeichnis, nicht eine Datei.
-    `device_downloaded_models_no_sync` führt bisher eine einzelne Datei (`relative_path`).
-  - `ModelCapabilities` kommt für lokale Modelle aus dem Katalog (`vision` → `Image`).
-  - **Zuerst ein Versuch** (erste Aufgabe der Lieferung C): Läuft Qwen3-VL-4B über mistral.rs mit 4-Bit-ISQ auf
-    der Entwicklungskarte (8 GB) und liest eine Testseite? Gemessen mit transformers und bitsandbytes (NF4)
-    waren es 3,1 GB Gewichte und 3,7 GB Spitze; mit mistral.rs ist es nicht gemessen.
-- **Rückfall, falls der Versuch scheitert**: Lokale Bildmodelle laufen als OpenAI-kompatibler Anbieter auf
-  `localhost` (Ollama oder llama.cpp-Server). Das deckt FR-018 und FR-020 teilweise ab und kostet keinen
-  neuen Ladeweg in holzi. Die Spec bleibt erfüllt, die Einrichtung ist dann Sache des Nutzers.
-- **Ein lokaler Platz**: Heute hält `ChatState` genau eine geladene lokale Sitzung (`chat/session.rs:104`).
-  Ein Auftrag mit einem anderen lokalen Modell ersetzt das Chatmodell in diesem Platz; der Chat lädt beim
-  nächsten Senden nach. Läuft gerade ein Chat-Zug, wird der Auftrag zurückgestellt (kurze Warteschlange,
-  Obergrenze durch die Dauer, R9). Zwei Modelle gleichzeitig passen auf die Zielhardware nicht.
+- **Plan vor dem Versuch** (nach T057 verworfen): ein zweiter Ladeweg `LocalModel::load_multimodal(dir, isq)`
+  neben dem GGUF-Weg, Bildanhänge als `DynamicImage` über `add_image_message`, Katalogfelder `format`
+  (`gguf` | `multimodal_dir`), `vision` und `isq` mit dem Download eines Verzeichnisses, Fähigkeiten lokaler
+  Modelle aus dem Katalog. Vorher sollte ein Versuch zeigen, ob Qwen3-VL-4B über mistral.rs mit 4-Bit-ISQ auf
+  der Entwicklungskarte (8 GB) läuft und eine Seite liest. Mit transformers und bitsandbytes (NF4) waren es
+  3,1 GB Gewichte und 3,7 GB Spitze.
+- **Messung (T057, 2026-10-21)**: `S/llm/local/multimodal_spike_tests.rs`, Qwen3-VL-4B-Instruct über
+  `MultimodalModelBuilder`, Release-Build mit `llm-cuda` (ohne `flash-attn`), RTX A2000 Laptop 8 GB, gierig
+  dekodiert, höchstens 3000 neue Tokens, gleiche Anweisung wie die Python-Messung. Jede Seite ergibt 3259
+  Prompt-Tokens, die mit rund 180 Tokens/s gelesen werden.
+
+  | ISQ | VRAM geladen / Spitze | Seite 007 (Text) | Seite 005 (lange Liste) | Seite 002 (Zeichnung) |
+  |-----|-----------------------|------------------|-------------------------|-----------------------|
+  | Q4K | 4,2 / 6,2 GB | 60 s, 270 Tokens, richtig | 684 s, Schleife bis 3000 Tokens | 685 s, Schleife aus Zeilenumbrüchen |
+  | Q8_0 | 6,1 / 7,8 GB | 113 s, 544 Tokens, richtig | 141 s, 690 Tokens, richtig | nach 392 s kein Grafikspeicher mehr (Schleife) |
+  | Python NF4 (Vergleich) | 3,1 / 3,7 GB | 18,8 s | 23,2 s | 3,1 s (nur ein Bildbereich) |
+  | Ollama Q4_K_M | 5,1 / 5,5 GB | 15 s, 543 Tokens, richtig | 18 s, 688 Tokens, richtig | 13 s, 409 Tokens, zehn Bildbereiche |
+
+  - Die Antworten erzeugt mistral.rs mit 4,5–6,5 Tokens/s, gleich bei Q4K und Q8_0, im Debug- und im
+    Release-Build. Die Karte ist dabei zu 96–100 % ausgelastet und läuft am Leistungslimit (60 W). Es bremst
+    also die Rechenarbeit auf der Karte, nicht der Prozessor. Das ist 3–6-mal langsamer als transformers mit NF4.
+  - Wenn eine Seite gelesen wird, stimmt der Text mit der Python-Messung überein. Q4K neigt aber stärker zu
+    Schleifen als NF4. Q8_0 lässt neben sich keinen Platz auf einer 8-GB-Karte.
+  - Das Laden dauert 7–27 s; die Quantisierung beim Laden läuft auf allen Prozessorkernen.
+  - Ollama v0.40.1 mit `qwen3-vl:4b-instruct` (Q4_K_M) über `/v1/chat/completions`, also den Weg des
+    Adapters `openai_compatible`, mit `temperature: 0`, `max_tokens: 3000` und `OLLAMA_CONTEXT_LENGTH=8192`:
+    alle drei Seiten als gültiges JSON und mit dem Text der Python-Messung, 33–38 Tokens/s über die ganze
+    Seite. `qwen3-vl:4b` ohne Zusatz ist die denkende Fassung: Sie verbrauchte alle 3000 Tokens beim Denken und
+    gab leeren Inhalt zurück.
+- **Entscheidung (2026-10-21): Rückfall.** Lokale Bildmodelle laufen als OpenAI-kompatibler Anbieter auf
+  `localhost` (Ollama oder llama.cpp-Server); holzi bekommt keinen zweiten Ladeweg. Der Ort ist
+  `this_device` (R6), also ohne Einwilligung, und der Nutzer setzt am Modell „nimmt Bilder an“ (FR-019). Die
+  Einrichtung ist Sache des Nutzers (`quickstart.md`). Das deckt FR-018 und FR-020 ab, ohne die Spec zu verletzen.
+  - Begründung: mistral.rs liest richtig, braucht aber 4–8-mal so lange wie Ollama und mit Q8_0 fast die ganze
+    Karte; Q4K gerät in Schleifen, die erst an der Längengrenze enden.
+  - Der Versuch bleibt als ignorierter Test liegen (Q4K oder `HOLZI_SPIKE_ISQ_BITS=8`) und wird nach einem
+    mistral.rs-Update wiederholt. Nicht versucht: das Feature `flash-attn`; das Erzeugen der Antwort hängt
+    aber schon an der Karte.
+  - Die Frage nach einem lokalen Platz (ein Auftrag verdrängt das Chatmodell aus `ChatState`) entfällt damit.
+    Ollama hält sein Modell selbst und gibt es nach `OLLAMA_KEEP_ALIVE` (Voreinstellung 5 min) frei. Auf einer
+    8-GB-Karte teilen sich holzis Chatmodell und das Bildmodell den Grafikspeicher.
 
 ## R9 — Grenzen und nichts speichern
 
