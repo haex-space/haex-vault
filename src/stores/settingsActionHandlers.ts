@@ -17,6 +17,7 @@ import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import type { useWindowManagerStore } from '~/stores/windowManager'
+import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
@@ -136,6 +137,12 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       enabled: input.enabled === true,
     }),
   }))
+  // Spec 049: the External Bridge of this device; Rust validates the port.
+  on('settings.browserBridge.set', async ({ input }) =>
+    invoke<BridgeOverview>('browser_bridge_configure', {
+      args: { enabled: input.enabled === true, port: Number(input.port) },
+    }),
+  )
   on('settings.sessionRestore.set', async ({ input }) =>
     wm.setSessionRestore(input.enabled === true),
   )

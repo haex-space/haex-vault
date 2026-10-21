@@ -98,6 +98,8 @@ export function useErrorString() {
       // Spec 051: the sync with the phone's address book.
       if (kind === 'ContactsDenied') return t('contacts.error.contactsDenied')
       if (kind === 'PhoneContactsUnavailable') return t('errors.notAvailable')
+      // Spec 049: the External Bridge exists on the desktop only.
+      if (kind === 'BrowserBridgeUnavailable') return t('errors.notAvailable')
       if (kind === 'CardInvalid') return t('contacts.error.cardInvalid')
       if (kind === 'CardOwn') return t('contacts.error.cardOwn')
       if (kind === 'CardOlder') return t('contacts.error.cardOlder')

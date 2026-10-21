@@ -626,6 +626,11 @@
       "extensions": {
         "detail": {
           "title": "Erweiterung"
+        },
+        "browserBridge": {
+          "title": "Browser-Erweiterungen",
+          "description": "haex-pass im Browser mit dieser Vault verbinden",
+          "keywords": "Browser Erweiterung haex-pass Firefox Chrome Ausfüllen Passwörter Port Bridge"
         }
       },
       "storage": {
@@ -1641,6 +1646,9 @@
         "add": "Modell-Server hinzufügen",
         "remove": "Modell-Server entfernen",
         "setModelCapabilities": "Angaben zu einem Modell setzen"
+      },
+      "browserBridge": {
+        "set": "Browser-Erweiterungen ein- oder ausschalten"
       }
     },
     "scopes": {
@@ -2891,6 +2899,71 @@
       "accepted": "Visitenkarte bei {name} gespeichert",
       "confirmed": "Bestätigte holzi-Adressen",
       "confirmedAt": "bestätigt am {at}"
+    }
+  },
+  "browserBridge": {
+    "approval": {
+      "title": "Browser-Erweiterung zulassen?",
+      "declared": "Erklärt: {access}, {scope}.",
+      "remember": "Erlaubnis merken",
+      "rememberedHint": "Gilt auf diesem Gerät, bis du sie in den Einstellungen widerrufst.",
+      "sessionHint": "Gilt, bis die Vault geschlossen wird.",
+      "deny": "Ablehnen",
+      "allow": "Zulassen"
+    },
+    "client": {
+      "name": "Name",
+      "noName": "ohne Namen",
+      "claimed": "Angabe der Erweiterung",
+      "fingerprint": "Fingerabdruck",
+      "origin": "Herkunft"
+    },
+    "access": {
+      "label": "Art",
+      "read": "Lesen",
+      "readWrite": "Lesen und Schreiben"
+    },
+    "scope": {
+      "label": "Bereich",
+      "all": "alle Einträge",
+      "tags": "Einträge mit bestimmten Tags",
+      "newTag": "Neues Tag",
+      "addTag": "Hinzufügen"
+    },
+    "defaultTag": {
+      "label": "Standard-Tag für neue Einträge",
+      "none": "Keins",
+      "hint": "Einträge, die die Erweiterung anlegt, bekommen dieses Tag."
+    },
+    "notification": {
+      "title": "Browser-Erweiterung wartet",
+      "body": "Eine Browser-Erweiterung möchte sich mit holzi verbinden. Öffne holzi, um zu antworten."
+    },
+    "settings": {
+      "enabled": "Browser-Erweiterungen verbinden",
+      "enabledHint": "Öffnet auf diesem Gerät einen Port, über den Browser-Erweiterungen wie haex-pass Passwörter ausfüllen und speichern können.",
+      "port": "Port",
+      "portHint": "Muss in der Erweiterung gleich eingestellt sein. Standard: 19455",
+      "state": "Zustand",
+      "portInUseHint": "Port {port} ist belegt, etwa von einer anderen holzi-Instanz oder von haex-vault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
+      "portInvalid": "Der Port muss zwischen 1024 und 65535 liegen."
+    },
+    "state": {
+      "off": "Aus",
+      "running": "Läuft",
+      "portInUse": "Port belegt",
+      "noVault": "Keine Vault offen",
+      "notAvailable": "Auf dieser Plattform nicht verfügbar"
+    },
+    "write": {
+      "title": "Schreiben erlauben?",
+      "body": "„{name}“ (Angabe der Erweiterung) darf bisher nur lesen und möchte {action}.",
+      "methods": {
+        "create-item": "einen Eintrag anlegen",
+        "passkey-create": "einen Passkey anlegen"
+      },
+      "remember": "Merken",
+      "allow": "Erlauben"
     }
   }
 }

@@ -1,14 +1,16 @@
-//! Generator preset methods of the service (spec 034, US3, FR-014): for the user alone (Z11).
+//! Generator preset methods of the service (spec 034, US3, FR-014): for the user alone (Z11), except
+//! the list, which every caller with a password grant reads (spec 049 FR-027); presets hold no
+//! secret.
 
 use super::{require_user, PasswordsService};
 use crate::error::Result;
-use crate::passwords::access::Caller;
+use crate::passwords::access::{authorize_any_grant, Caller, Grant};
 use crate::passwords::model::{Preset, PresetInput};
 use crate::passwords::presets;
 
 impl PasswordsService {
-    pub async fn preset_list(&self, caller: &Caller) -> Result<Vec<Preset>> {
-        require_user(caller)?;
+    pub async fn preset_list(&self, caller: &Caller, grants: &[Grant]) -> Result<Vec<Preset>> {
+        authorize_any_grant(caller, grants)?;
         self.db()
             .read(|q| presets::list(q).map_err(Into::into))
             .await

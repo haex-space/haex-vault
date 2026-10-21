@@ -208,7 +208,10 @@ fn reach(caller: &Caller, grants: &[Grant], needed: GrantAction) -> Result<Reach
             sees_trash: true,
         }),
         Caller::BuiltinAgent => Err(Denied::Forbidden),
-        Caller::Extension { .. } | Caller::ExternalAgent { .. } | Caller::Internal { .. } => grants
+        Caller::Extension { .. }
+        | Caller::ExternalAgent { .. }
+        | Caller::Internal { .. }
+        | Caller::BrowserClient { .. } => grants
             .iter()
             .filter(|grant| covers(grant.action, needed))
             .map(|grant| grant.scope.clone())
@@ -232,6 +235,12 @@ pub fn require_user(caller: &Caller) -> Result<(), Denied> {
         Caller::User => Ok(()),
         _ => Err(Denied::Forbidden),
     }
+}
+
+/// Methods without entries that every password grant covers (spec 049 FR-027: the generator
+/// presets): the user, and any other caller with a grant; never the built-in agent.
+pub fn authorize_any_grant(caller: &Caller, grants: &[Grant]) -> Result<(), Denied> {
+    reach(caller, grants, GrantAction::Read).map(|_| ())
 }
 
 /// `list_headers`: the user and any caller with a read grant see items (the user all of them, also

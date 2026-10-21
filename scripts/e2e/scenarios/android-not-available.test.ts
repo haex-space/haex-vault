@@ -36,6 +36,8 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
     'folderWatch',
     'freePaths',
     'folderPick',
+    // Spec 049 FR-043: no External Bridge for browser extensions.
+    'browserBridge',
   ]) {
     assert.equal(table[facility], false, facility)
   }

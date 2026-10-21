@@ -1,8 +1,9 @@
 //! Item methods of the service (spec 034, `contracts/access.md` §Dienst): the overview, the
 //! entries, the single-entry secret read, reveal, TOTP, copy, create and update. The five item
 //! methods are open to every caller that a grant covers (Z3–Z9, Z12, Z13); everything else here is
-//! for the user alone (Z11). A caller that is not the user gets only what its grants cover, and
-//! never a secret in a list (Z4).
+//! for the user alone (Z11), except the TOTP code, which a read grant covers since spec 049
+//! (FR-024). A caller that is not the user gets only what its grants cover, and never a secret in
+//! a list (Z4).
 
 use zeroize::Zeroizing;
 
@@ -148,22 +149,7 @@ impl PasswordsService {
         let (caller, grants) = (caller.clone(), grants.to_vec());
         self.db()
             .read(move |q| {
-                let Some(state) = items::item_state(q, &item_id)? else {
-                    // Forbidden without a read grant, otherwise indistinguishable from outside the
-                    // scope (Z3, Z5).
-                    authorize_read(
-                        &caller,
-                        &grants,
-                        &ItemState {
-                            tags: &[],
-                            in_trash: false,
-                            owner: None,
-                        },
-                    )
-                    .map_err(HolziError::from)?;
-                    return Err(HolziError::PasswordsNotFound.into());
-                };
-                authorize_read(&caller, &grants, &state.view()).map_err(HolziError::from)?;
+                authorize_item_read(q, &caller, &grants, &item_id)?;
                 let mut item =
                     reveal::secret_item(q, &item_id)?.ok_or(HolziError::PasswordsNotFound)?;
                 reveal::resolve_secret_item(
@@ -192,11 +178,27 @@ impl PasswordsService {
             .await
     }
 
-    /// The current TOTP code of an entry and the seconds until it changes. Z11.
-    pub async fn totp_code(&self, caller: &Caller, item_id: String) -> Result<TotpCode> {
-        require_user(caller)?;
+    /// The current TOTP code of an entry and the seconds until it changes, never the secret. The
+    /// user sees every entry; another caller needs a read grant for it (spec 049 FR-024, which
+    /// changes Z11 for this method). An entry without TOTP is `PasswordsNotFound` for a caller from
+    /// outside, the same as one outside the scope (FR-042).
+    pub async fn totp_code(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+        item_id: String,
+    ) -> Result<TotpCode> {
+        let (caller, grants) = (caller.clone(), grants.to_vec());
         self.db()
-            .read(move |q| reveal::totp_code(q, &item_id, reveal::unix_now()).map_err(Into::into))
+            .read(move |q| {
+                authorize_item_read(q, &caller, &grants, &item_id)?;
+                match reveal::totp_code(q, &item_id, reveal::unix_now()) {
+                    Err(_) if !matches!(caller, Caller::User) => {
+                        Err(HolziError::PasswordsNotFound.into())
+                    }
+                    result => result.map_err(Into::into),
+                }
+            })
             .await
     }
 
@@ -367,4 +369,29 @@ impl PasswordsService {
             })
             .await
     }
+}
+
+/// Checks that the caller may read one entry. A missing entry is forbidden without a read grant
+/// and otherwise indistinguishable from one outside the scope (Z3, Z5).
+fn authorize_item_read(
+    q: &mut impl crate::storage::query::Query,
+    caller: &Caller,
+    grants: &[Grant],
+    item_id: &str,
+) -> haex_crdt::Result<()> {
+    let Some(state) = items::item_state(q, item_id)? else {
+        authorize_read(
+            caller,
+            grants,
+            &ItemState {
+                tags: &[],
+                in_trash: false,
+                owner: None,
+            },
+        )
+        .map_err(HolziError::from)?;
+        return Err(HolziError::PasswordsNotFound.into());
+    };
+    authorize_read(caller, grants, &state.view()).map_err(HolziError::from)?;
+    Ok(())
 }

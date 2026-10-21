@@ -626,6 +626,11 @@
       "extensions": {
         "detail": {
           "title": "Extension"
+        },
+        "browserBridge": {
+          "title": "Browser extensions",
+          "description": "Connect haex-pass in the browser to this vault",
+          "keywords": "browser extension haex-pass Firefox Chrome autofill passwords port bridge"
         }
       },
       "storage": {
@@ -1641,6 +1646,9 @@
         "add": "Add a model server",
         "remove": "Remove a model server",
         "setModelCapabilities": "Set statements about a model"
+      },
+      "browserBridge": {
+        "set": "Turn browser extensions on or off"
       }
     },
     "scopes": {
@@ -2891,6 +2899,71 @@
       "accepted": "Business card saved on {name}",
       "confirmed": "Confirmed holzi addresses",
       "confirmedAt": "confirmed on {at}"
+    }
+  },
+  "browserBridge": {
+    "approval": {
+      "title": "Allow a browser extension?",
+      "declared": "Declared: {access}, {scope}.",
+      "remember": "Remember permission",
+      "rememberedHint": "Holds on this device until you revoke it in the settings.",
+      "sessionHint": "Holds until the vault is closed.",
+      "deny": "Decline",
+      "allow": "Allow"
+    },
+    "client": {
+      "name": "Name",
+      "noName": "no name",
+      "claimed": "as stated by the extension",
+      "fingerprint": "Fingerprint",
+      "origin": "Origin"
+    },
+    "access": {
+      "label": "Kind",
+      "read": "Read",
+      "readWrite": "Read and write"
+    },
+    "scope": {
+      "label": "Scope",
+      "all": "all entries",
+      "tags": "entries with certain tags",
+      "newTag": "New tag",
+      "addTag": "Add"
+    },
+    "defaultTag": {
+      "label": "Default tag for new entries",
+      "none": "None",
+      "hint": "Entries the extension creates get this tag."
+    },
+    "notification": {
+      "title": "Browser extension waiting",
+      "body": "A browser extension wants to connect to holzi. Open holzi to answer."
+    },
+    "settings": {
+      "enabled": "Connect browser extensions",
+      "enabledHint": "Opens a port on this device through which browser extensions such as haex-pass fill in and save passwords.",
+      "port": "Port",
+      "portHint": "Must be set the same in the extension. Default: 19455",
+      "state": "State",
+      "portInUseHint": "Port {port} is in use, for example by another holzi instance or by haex-vault 2.x. Choose another port and set it in the extension too.",
+      "portInvalid": "The port must be between 1024 and 65535."
+    },
+    "state": {
+      "off": "Off",
+      "running": "Running",
+      "portInUse": "Port in use",
+      "noVault": "No vault open",
+      "notAvailable": "Not available on this platform"
+    },
+    "write": {
+      "title": "Allow writing?",
+      "body": "\"{name}\" (as stated by the extension) may only read so far and wants to {action}.",
+      "methods": {
+        "create-item": "create an entry",
+        "passkey-create": "create a passkey"
+      },
+      "remember": "Remember",
+      "allow": "Allow"
     }
   }
 }

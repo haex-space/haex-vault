@@ -190,7 +190,7 @@ async fn no_result_error_or_debug_print_carries_a_planted_value() {
         .expect("copy");
     let code = f
         .service
-        .totp_code(&Caller::User, id.clone())
+        .totp_code(&Caller::User, &[], id.clone())
         .await
         .expect("code");
 

@@ -101,15 +101,15 @@ auszuschließen."
   Prüfung ausgeschlossener Passkeys über den Bereich hinaus (036 FR-024). haex-vault 2.x ist kein
   Maßstab für Oberfläche.
 - **Client haex-pass-browser**: Repository `https://github.com/haex-space/haextension`, Revision
-  `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0` (neu gepinnt 2026-10-21; die erste Pin
-  `a365af8a89f57a31427b85bfef5fe0f510253d30` spricht dasselbe Protokoll, aber
+  `ab4e0b0ac9a05488659836a7526a250beab9dfd9` (Merge des Begleit-PR haex-space/haextension#113 und seiner
+  Korrektur #114, 2026-10-21; die Planung lief gegen `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0`,
+  die erste Pin `a365af8a89f57a31427b85bfef5fe0f510253d30` spricht dasselbe Protokoll, aber
   `apps/haex-pass/app/api/external.ts` gibt es seitdem nicht mehr), Pfade
   `apps/haex-pass-browser/src/background/` (`protocol.ts`, `connection.ts`, `crypto.ts`,
   `keypairStorage.ts`, `main.ts`, `passkeyOrigin.ts`), `apps/haex-pass-browser/src/contentScripts/`
   (`webauthn-inject.ts`, `webauthn-bridge.ts`, `passkey-consent.ts`),
   `apps/haex-pass-browser/src/logic/haexPassApi.ts` (`HAEX_PASS_METHODS`, Eingaben und Antworten der
-  Passwort-Methoden) und `apps/haex-pass-browser/src/bookmarks/vaultClient.ts`. Nach dem
-  Begleit-PR (Abschnitt „Änderungen an haex-pass-browser“) gilt dessen Merge-Revision.
+  Passwort-Methoden) und `apps/haex-pass-browser/src/bookmarks/vaultClient.ts`.
 
 ## Clarifications
 
@@ -170,8 +170,9 @@ Betreiber:
   andere in der Anfrage wird übergangen.
 - Q: Gehört eine Änderung an der Erweiterung zu 049? → A: Ja, ein kleiner Begleit-PR in
   haextension: die Antwort von `passkey-list` im Hintergrund korrigieren (ohne sie erreicht keine
-  Passkey-Anmeldung holzi), neutrale Texte statt „HaexVault“ und die Lesezeichen-Synchronisation
-  bei „nicht unterstützt“ als nicht verfügbar zeigen. Danach wird die Erweiterung neu
+  Passkey-Anmeldung holzi) und die Lesezeichen-Synchronisation bei „nicht unterstützt“ als nicht
+  verfügbar zeigen. Die Texte nennen weiter „HaexVault“: Das ist der Produktname, den holzi
+  übernimmt (haextension#114). Danach wird die Erweiterung neu
   veröffentlicht.
 - Q: Wo liegen die Einstellungen der Bridge? → A: In der vorhandenen Kategorie „Erweiterungen“ als
   Abschnitt „Browser-Erweiterungen“ mit eigener Unterseite; keine neue Kategorie.
@@ -696,23 +697,24 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 ## Änderungen an haex-pass-browser
 
 Ausfüllen, TOTP und Speichern (US1 bis US3, US5, US6) funktionieren mit der gepinnten Revision ohne
-Änderung. Stand der Änderungen an der Erweiterung am 2026-10-21 (Revision `c8133b94`):
+Änderung. Stand der Änderungen an der Erweiterung am 2026-10-21 (Revision `ab4e0b0a`):
 
 1. **Herkunft mitschicken (MUSS für Passkeys)**: erledigt (`e0ee77f`). `passkey-create` und
    `passkey-get` tragen `origin`, die der Hintergrund aus Tab und Rahmen des Absenders bestimmt
    (`background/passkeyOrigin.ts`, nur der oberste Rahmen). Ohne sie lehnt holzi ab (FR-032).
 2. **Längere Wartezeit (MUSS für Passkeys, SOLL sonst)**: erledigt. `create-item`, `passkey-create`
    und `passkey-get` warten 130 Sekunden.
-3. **Antwort von `passkey-list` (MUSS für die Anmeldung)**: offen, Begleit-PR. Der Hintergrund
+3. **Antwort von `passkey-list` (MUSS für die Anmeldung)**: erledigt (#113). Der Hintergrund
    antwortet `{ success, passkeys }`, das Inhaltsskript liest `response.data`
    (`background/main.ts`, `contentScripts/webauthn-bridge.ts`); die Liste ist immer leer, und jede
    Anmeldung fällt auf den Browser zurück, ohne holzi zu fragen.
-4. **Neutrale Texte (SOLL)**: offen, Begleit-PR. Texte mit „HaexVault“ und „haex-vault“
-   (`locales/`, `PasskeyConsentPrompt.vue`, `connection.ts`) nennen neutral „deine Vault-App“
-   oder „holzi“.
-5. **Lesezeichen (SOLL)**: offen, Begleit-PR. Antwortet der Dienst auf `bookmarks-*` mit „nicht
-   unterstützt“, zeigt die Erweiterung die Lesezeichen-Synchronisation als nicht verfügbar, statt den
-   Fehler alle fünf Minuten zu wiederholen.
+4. **Name der Vault-App**: keine Änderung. Die Texte nennen „HaexVault“, den Produktnamen, den
+   holzi übernimmt; haex-vault 2.x (Legacy) ist abgelöst. Eine Umbenennung im Begleit-PR (#113)
+   wurde in #114 zurückgenommen.
+5. **Lesezeichen (SOLL)**: erledigt (#113). Antwortet der Dienst auf `bookmarks-*` mit „nicht
+   unterstützt“, zeigen Einrichtung und Optionen der Erweiterung einen Satz statt des rohen Fehlers.
+   Die Wiederholung alle fünf Minuten bleibt; sie läuft nur mit einer aktiven Sammlung, die es mit
+   holzi nicht geben kann.
 6. **Algorithmen (KANN)**: nicht Teil des Begleit-PR. `passkey-create` meldet weiter fest ES256; holzi
    legt ES256 an (FR-034).
 

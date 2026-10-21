@@ -133,10 +133,12 @@ pub fn check(
         Caller::BuiltinAgent | Caller::ExternalAgent { .. } => {
             agent(caller, target, want, own, grants)
         }
-        Caller::Extension { .. } | Caller::Internal { .. } => refuse(
-            FilesErrorCode::NotGranted,
-            "this caller reaches files through its own entrance",
-        ),
+        Caller::Extension { .. } | Caller::Internal { .. } | Caller::BrowserClient { .. } => {
+            refuse(
+                FilesErrorCode::NotGranted,
+                "this caller reaches files through its own entrance",
+            )
+        }
     }
 }
 
