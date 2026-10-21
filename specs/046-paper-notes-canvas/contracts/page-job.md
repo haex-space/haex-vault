@@ -45,7 +45,9 @@ Test-Erweiterung von Spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-job
 }
 ```
 
-Die Arbeitskopie ist das entzerrte, bei Bedarf gedrehte JPEG (höchstens 25 MiB, längste Kante 2048 px).
+Die Arbeitskopie ist das entzerrte, bei Bedarf gedrehte JPEG (höchstens 25 MiB, längste Kante 2048 px). Ein
+Nahfoto einer Stelle (research R13) läuft unverändert durch denselben Auftrag; seine Boxen beziehen sich auf das
+Nahfoto und werden in das gewählte Rechteck der Seite eingepasst.
 
 ### Anweisung `READ`
 

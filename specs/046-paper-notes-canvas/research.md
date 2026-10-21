@@ -146,11 +146,27 @@
 - **Rationale**: Die Korrektur ist eine Verbesserung, kein Pflichtteil. holzi prüft das Format, nicht die Anzahl.
 - **Alternatives considered**: die Seite verwerfen (verworfen: der gelesene Text ist schon brauchbar).
 
+## R13 — Eine Stelle über ein Nahfoto neu lesen
+
+- **Decision**: Der Schüler zieht auf einer Fotoseite ein Rechteck über eine schlecht oder nicht erkannte Stelle und
+  macht davon ein Nahfoto. Es läuft durch denselben Auftrag „Seitenerkennung“ (contracts/page-job.md); die Regionen
+  werden mit den Regeln aus R11 in das Rechteck statt in die Seite eingepasst. Ersetzt werden die erzeugten Elemente
+  (aus `paperImport.regions`), die ganz im Rechteck liegen und auf einer nicht gesperrten Ebene stehen. Elemente,
+  Regionen und `paperImport.closeUps` ändern sich in einem Kommando. Das Nahfoto wird erst nach Erfolg gespeichert.
+- **Rationale**: Der Schüler bestimmt selbst, was ersetzt wird; eine Zuordnung alter und neuer Regionen entfällt, und
+  eine Erkennung von Änderungen des Schülers auch: ein Fehlgriff lässt sich zurücknehmen. Ein Nahfoto hat mehr Pixel
+  pro Zeichen als das Seitenfoto und wird deshalb besser gelesen.
+- **Alternatives considered**: das ganze Blatt erneut fotografieren und alte und neue Regionen zuordnen (verworfen:
+  Lage und Zuschnitt eines neuen Fotos stimmen nicht mit dem alten überein); dasselbe Original erneut lesen und nur
+  unveränderte Elemente über einen Fingerabdruck ersetzen (verworfen: hilft nicht bei einem schlechten Foto, und ein
+  anderes Modell wählt man in holzi); immer vor dem Ersetzen fragen (verworfen: Undo genügt).
+
 ## Resolved unknowns
 
 - Erkennung: Modellauftrag über holzi in zwei Schritten (R4), kein Agent-Task, kein Profil.
 - Tabellen: eigenes Zellfeld im `TableElement` (R9).
 - Gedrehte Fotos: Drehhinweis des Modells oder Drehen durch den Schüler, einmal nachlesen (R10).
 - Anordnung: Lage auf dem Foto mit Kanten- und Überlappungsregeln (R11).
+- Neu lesen: ein Nahfoto einer Stelle ersetzt die erzeugten Elemente im gewählten Rechteck (R13).
 - Das Original ist eine gesperrte Bildebene; der Text ist ein `TextElement` mit Handschrift-Font; Zeichnungen sind
   Rasterausschnitte; der PDF-Export rastert die sichtbare Seite.

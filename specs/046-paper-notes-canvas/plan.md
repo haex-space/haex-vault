@@ -111,6 +111,7 @@ apps/haex-notes/
 │   │   ├── layout.ts                   # Quellboxen → Seitenkoordinaten, Kanten, Überlappungen
 │   │   ├── workingCopy.ts              # Zuschnitt, Perspektive, Drehung, Qualitätshinweis, JPEG
 │   │   ├── importPage.ts               # Assets, Ebenen, paperImport
+│   │   ├── closeUp.ts                  # Nahfoto einer Stelle: einpassen, erzeugte Elemente ersetzen
 │   │   ├── exportPdf.ts                # sichtbarer Canvas → PDF
 │   │   ├── fonts.ts                    # Handschriftstile und Fallback
 │   │   └── fixtures/                   # de-identifizierte Fotos und erwartete Ergebnisse

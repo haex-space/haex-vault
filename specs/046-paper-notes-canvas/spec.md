@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-08
 
-**Status**: Überarbeitet 2026-10-21 (Erkennung über Spec 055)
+**Status**: Überarbeitet 2026-10-21 (Erkennung über Spec 055; Nahfoto einer Stelle)
 
 **Input**: User description: "Schüler fotografieren handschriftliche Notizen auf normalem Papier. Haex-notes erstellt daraus ein aufgeräumtes, bearbeitbares Canvas mit korrigiertem Text in einer auswählbaren Handschrift, erhaltenen Zeichnungen und PDF-Export. Das Original bleibt erhalten; eine persönliche Handschrift-Erkennung ist ausdrücklich nicht Bestandteil des ersten Schritts."
 
