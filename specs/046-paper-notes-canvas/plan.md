@@ -1,65 +1,79 @@
 # Implementation Plan: Paper Notes to Editable Canvas
 
-**Branch**: `feat/paper-notes-canvas` | **Date**: 2026-10-08 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat/paper-notes-canvas` | **Date**: 2026-10-21 (überarbeitet; erste Fassung 2026-10-08) | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/046-paper-notes-canvas/spec.md`
 
-**Hinweis (2026-10-20)**: Die Erkennung läuft über Spec 055 (Modellaufträge, im vault-sdk `models.runAsync`),
-nicht über den strukturierten Agent-Task von Spec 047. haex-notes beschreibt den Auftrag „Seitenerkennung“ mit
-eigener Anweisung und eigenem Ergebnisformat (Beispiel in
-[055 job-format.md](../055-extension-model-access/contracts/job-format.md)); Modellwahl, Einwilligung vor dem
-Versand und die Prüfung der Ausgabe übernimmt holzi. Wo dieser Plan vom „Agent-Task“, von Profilen oder Harness
-spricht, ist er entsprechend umzubauen.
-
-**Implementation target**: `haex-space/haextension` at revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8`, path `apps/haex-notes/`. This holzi repository contains the design artifacts; implementation must be proposed in the target repository's own worktree.
+**Implementation target**: `haex-space/haextension` at revision `6dfb015198c99018236f5a8e958a916942ab971c`, path
+`apps/haex-notes/`. This holzi repository contains the design artifacts; implementation must be proposed in the target
+repository's own worktree.
 
 ## Summary
 
-Schüler können ein Foto handschriftlicher Notizen importieren und daraus einen aufgeräumten, weiterhin bearbeitbaren Canvas-Entwurf erzeugen. Das unveränderte Foto bleibt als Asset auf einer gesperrten Originalebene erhalten. Erkannter Text wird als editierbarer Text mit auswählbarer Handschrift-Darstellung angelegt; Zeichnungen und Diagramme werden als eigenständige Bildobjekte übernommen. Unsichere Erkennung und Rechtschreibvorschläge bleiben überprüfbar und dürfen nicht stillschweigend den Inhalt ändern.
+Schüler importieren ein Foto handschriftlicher Notizen, eines Tafelbilds oder eines Arbeitsblatts und erhalten einen
+aufgeräumten, bearbeitbaren Canvas-Entwurf. Das unveränderte Foto bleibt auf einer gesperrten Originalebene. Texte
+werden zu bearbeitbarem Text in einer wählbaren Handschrift, Tabellen zu Zeilen und Zellen, Zeichnungen zu
+verschiebbaren Bildausschnitten. Es gibt keinen Prüfteil: Ein Korrekturschritt setzt Rechtschreibung und eindeutige
+Lesefehler direkt ein.
 
-Die Umsetzung erweitert das bestehende haex-notes-Dokumentmodell und bindet die Erkennung über einen anbieterneutralen Vertrag an den strukturierten Agent-Task von Holzi. haex-notes übernimmt Dateiauswahl, lokale Aufbereitung einer Arbeitskopie, Qualitätswarnungen, Originalerhalt, Canvas-Mapping und Export. Der Agent-Task übernimmt ausschließlich die strukturierte Interpretation des aufbereiteten Bildes und liefert Provenienz sowie Verarbeitungsstatus zurück. Der erste Release enthält keine persönliche Handschriftprofilierung und keinen direkten Anbieter-SDK in der Extension. Holzi wählt anhand des Nutzerprofils das Harness und das Vision-/OCR-fähige Modell; der Verarbeitungsort wird vor einer externen Übertragung ermittelt und angezeigt. Der PDF-Export rendert zunächst den konfigurierten sichtbaren Canvas als hochauflösendes Bild in eine PDF, damit Darstellung und Handschrift-Fonts mit dem Canvas übereinstimmen.
+Die Erkennung ist ein Modellauftrag an holzi (Spec 055, vault-sdk `models.runAsync`). haex-notes beschreibt zwei
+Schritte, Lesen und Korrigieren, mit eigener Anweisung und eigenem Format
+([contracts/page-job.md](./contracts/page-job.md)). holzi wählt das freigegebene Modell, fragt vor dem Versand
+außerhalb des Geräts und verwirft kaputte Ausgabe. haex-notes übernimmt Import, Arbeitskopie (Zuschnitt,
+Perspektive, Drehung), Abbildung auf den Canvas, Neuaufbau der Seite und PDF-Export.
 
 ## Technical Context
 
-**Language/Version**: TypeScript strict, Vue 3.5, Nuxt 4.2 SPA, haex-notes package 0.1.7
+**Language/Version**: TypeScript strict, Vue 3.5, Nuxt 4.2 SPA, haex-notes 0.1.7
 
-**Primary Dependencies**: Bestehender haex-vault 2.x (Legacy) SDK einschließlich der Holzi-Agent-Task-Brücke, Drizzle ORM, VueUse, perfect-freehand; zusätzlich `pdf-lib` für den PDF-Export. Die OCR-/Korrekturkomponente wird über den strukturierten Agent-Task angesprochen und nicht als konkretes Modell oder Anbieter-SDK in die Extension eingebaut.
+**Primary Dependencies**: `@haex-space/vault-sdk` ab 4.7.1 (heute `^4.1.0`; `models.runAsync` kam mit 4.6.0, die
+Wiederholung nach der Antwort des Nutzers auf eine Frage von holzi mit 4.7.1), Drizzle ORM, VueUse, perfect-freehand;
+neu `pdf-lib` für den PDF-Export. Kein Anbieter- oder OCR-SDK.
 
-**Storage**: Bestehende SQLite-Seitentabelle für strukturiertes Import- und Prüfdaten-JSON; bestehender dateibasierter Asset-Store für Originalfoto, lokale Arbeitskopie und erzeugte Ausschnitte. Große Binärdaten und Font-Dateien werden nicht in der Datenbank oder als Data-URL gespeichert. Die Datenbank speichert nur Font-ID und Version/Hash.
+**Storage**: Seitentabelle mit neuer JSON-Spalte `paper_import` (Migration `0005`); `TableElement.cells` im
+vorhandenen `layers`-JSON. Original, Arbeitskopie und Bildausschnitte im Asset-Store; keine Data-URLs für Fotos.
 
-**Testing**: Vitest im haex-notes-Paket; reine Daten-, Mapping-, Command-, Asset- und Renderer-Tests in separaten `*.test.ts`-Dateien. Ein manueller End-to-End-Durchlauf folgt [quickstart.md](./quickstart.md), da echte Provider, Dateiauswahl und PDF-Betrachter Umgebungsgrenzen haben.
+**Testing**: Vitest im Paket, Tests in eigenen `*.test.ts`-Dateien. Die SDK-Schicht steckt hinter `runPageJob(job)`
+und wird im Test durch eine Attrappe ersetzt. Ein Handtest gegen holzi mit Ollama folgt
+[quickstart.md](./quickstart.md).
 
-**Target Platform**: Von haex unterstützte Desktop- und Mobilumgebungen, in denen die haex-notes-Extension läuft. Der Import erfolgt innerhalb der Extension mindestens über Dateiauswahl; eine verfügbare Kamera kann zusätzlich genutzt werden. Drag-and-drop ist optional und keine MVP-Voraussetzung.
+**Target Platform**: Alle Plattformen, auf denen holzi haex-notes ausführt. Import über die Dateiauswahl, die Kamera
+zusätzlich, wo vorhanden. Das Handy nimmt nur das Foto auf; gelesen wird dort, wo der Nutzer in holzi ein Modell
+freigegeben hat.
 
-**Project Type**: Private Nuxt/Vue-Extension mit Canvas-Editor, lokaler Datenbank und Dateisystem-Assets.
+**Project Type**: Nuxt/Vue-Erweiterung mit Canvas-Editor, Datenbank und Datei-Assets.
 
-**Performance Goals**: Der Editor bleibt bei einer normalen Einzelnotiz während Auswahl, Verschieben und Skalieren flüssig; Import und Erkennung liefern für die annotierten Einzelbild-Fixtures innerhalb des in SC-001 gesetzten Drei-Minuten-Ziels einen ersten Entwurf oder eine verständliche Warnung. Bilder werden einzeln verarbeitet; Verarbeitung und Asset-Laden dürfen die UI nicht blockieren.
+**Performance Goals**: Erster Entwurf oder verständlicher Hinweis innerhalb von drei Minuten je Foto (SC-001).
+Gemessen: `qwen3-vl:4b-instruct` über Ollama liest eine Seite auf einer 8-GB-Karte in 12–18 s (Spec 055 research R8).
+Die Oberfläche blockiert während der Erkennung nicht; ein Abbruch ist jederzeit möglich (`cancelAsync`).
 
-**Constraints**: Originaldaten bleiben unverändert; Korrekturen benötigen Bestätigung; externe Verarbeitung wird vorab angezeigt; Provider-Fehler dürfen den manuellen Canvas nicht verhindern; keine Geheimnisse in Git; keine großen Data-URLs für dauerhaft gespeicherte Fotos; keine persönliche Handschrift im ersten Release.
+**Constraints**: Das Original bleibt unverändert; Fehler verhindern nie den manuellen Canvas; keine Zugangsdaten in
+haex-notes; keine Geheimnisse in Git; keine persönliche Handschrift im ersten Release.
 
-**PDF Defaults**: Der Export startet mit automatischer Seitengröße und Ausrichtung, beibehaltener Seitenproportion, hoher Qualität, aktuellem sichtbarem Canvas-Zustand und einer Notizseite pro PDF-Seite. Papierformat, Ausrichtung, Ränder, Qualität und Originalebenen-Sichtbarkeit bleiben konfigurierbar.
+**PDF Defaults**: automatische Seitengröße und Ausrichtung, beibehaltene Proportion, hohe Qualität, sichtbarer
+Canvas-Zustand, eine Notizseite je PDF-Seite. Papierformat, Ausrichtung, Ränder, Qualität und die Sichtbarkeit der
+Originalebene sind einstellbar.
 
-**Scale/Scope**: Erste Ausbaustufe für einzelne Notizbilder mit mehreren Text- und Bildregionen. Batch- und Mehrseitenimporte sowie persönliche Handschriftprofile sind nicht Teil der ersten Implementierung.
+**Scale/Scope**: Einzelne Fotos mit mehreren Text-, Tabellen- und Bildregionen. Kein Batch- oder Mehrseitenimport.
 
 ## Constitution Check
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Regel                                                 | Stand                                                                                                                                                                                                                          |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| I. Keine Geheimnisse in Git                           | ✅ Provider-Verträge enthalten keine Schlüssel; Zugangsdaten werden ausschließlich zur Laufzeit aus der Geräte-/Nutzerkonfiguration verwendet.                                                                                 |
-| II. Keine lokalen absoluten Pfade in Versioned Config | ✅ Spezifikation, Plan und Verträge verwenden nur Repository-Pfade und Laufzeitbegriffe.                                                                                                                                       |
-| III. Geräteunabhängige Projektidentität               | ✅ Das Implementierungsziel wird über Repository-URL und vollständige Revision referenziert, nicht über einen lokalen Pfad.                                                                                                    |
-| IV. Fremde Inhalte mit unveränderlicher Revision      | ✅ haex-space/haextension ist mit Revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8` und konkreten Pfaden referenziert.                                                                                                       |
-| V. Externe Quellen nur per Allowlist                  | ✅ Es wird keine neue Harness-Quelle aktiviert.                                                                                                                                                                                |
-| VI. Selbständernde Anweisungen reviewen               | ✅ Keine Constitution-, Skill- oder Berechtigungsdatei wird geändert.                                                                                                                                                          |
-| VII. Relay blockiert lokale Arbeit nie                | ✅ Originalimport, Canvas-Speicherung und manueller Fallback bleiben auch bei nicht verfügbarem Provider nutzbar.                                                                                                              |
-| VIII. Keine Verschleierung                            | ✅ Externe Verarbeitung und ihr Ziel werden dem Nutzer sichtbar gemacht.                                                                                                                                                       |
-| Worktree und PR-Workflow                              | ✅ Spec und Plan liegen auf `feat/paper-notes-canvas` in einem eigenen Worktree; Implementierung folgt später im Zielrepository über dessen Review-Workflow.                                                                   |
-| Tests getrennt von Produktion                         | ✅ Neue Tests werden in separaten Vitest-Dateien geplant.                                                                                                                                                                      |
-| Graphify-first                                        | ✅ Die begrenzte Graph-Abfrage wurde ausgeführt. Im holzi-Graphen gab es keine passende haex-notes-Implementierung; im Zielrepository werden die vorhandenen Dokument-, Command-, Asset- und Renderer-Abstraktionen erweitert. |
+| Regel                                                 | Stand                                                                                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Keine Geheimnisse in Git                           | ✅ haex-notes kennt weder Anbieter noch Schlüssel; holzi hält sie (Spec 055).                                                               |
+| II. Keine lokalen absoluten Pfade in Versioned Config | ✅ Nur Repository-Pfade und Laufzeitbegriffe.                                                                                               |
+| III. Geräteunabhängige Projektidentität               | ✅ Zielrepository über URL und vollständige Revision.                                                                                       |
+| IV. Fremde Inhalte mit unveränderlicher Revision      | ✅ haex-space/haextension mit Revision `6dfb015198c99018236f5a8e958a916942ab971c`; vault-sdk mit fester Version und Integrität im Lockfile. |
+| V. Externe Quellen nur per Allowlist                  | ✅ Keine neue Quelle; Modelle und Ziele kommen über holzis Freigaben.                                                                       |
+| VI. Selbständernde Anweisungen reviewen               | ✅ Keine Constitution-, Skill- oder Berechtigungsdatei wird geändert.                                                                       |
+| VII. Relay blockiert lokale Arbeit nie                | ✅ Import, Speichern und manuelle Bearbeitung gehen ohne Modell.                                                                            |
+| VIII. Keine Verschleierung                            | ✅ holzi fragt vor dem Versand außerhalb des Geräts; haex-notes zeigt Modell und Ort der Erkennung.                                         |
+| Worktree und PR-Workflow                              | ✅ Umsetzung im Zielrepository in eigenem Worktree über dessen Review.                                                                      |
+| Tests getrennt von Produktion                         | ✅ Eigene Vitest-Dateien.                                                                                                                   |
 
-**Gate-Ergebnis vor der Recherche**: PASS. Es gibt keine offene Verfassungsabweichung, die eine Planänderung oder ein ADR erfordert.
+**Gate-Ergebnis vor der Recherche**: PASS.
 
 ## Project Structure
 
@@ -68,13 +82,13 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 ```text
 specs/046-paper-notes-canvas/
 ├── plan.md
-├── research.md
+├── research.md          # R1–R12
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   └── recognition-provider.md
+│   └── page-job.md      # Auftrag, Anweisungen, Formate, Abbildung, Fehler
 ├── checklists/requirements.md
-└── tasks.md             # folgt in der Tasks-Phase
+└── tasks.md
 ```
 
 ### Source Code (target repository at the pinned revision)
@@ -82,44 +96,55 @@ specs/046-paper-notes-canvas/
 ```text
 apps/haex-notes/
 ├── app/components/notes/
-│   ├── PageCanvas.vue                 # Text-/Bild-Rendering, Auswahl und Ebenenansicht
-│   ├── PaperNoteImportDialog.vue      # Kamera, Dateiimport, Verarbeitungsort und Aufbereitung
-│   └── PaperNoteReviewPanel.vue       # Unsicherheiten, Vorschläge und Originalausschnitte
+│   ├── PageCanvas.vue                  # Text, Bild und Tabellenzellen zeichnen und bearbeiten, Ebenenansicht
+│   └── PaperNoteImportDialog.vue       # Kamera/Datei, Drehen, Qualitätshinweis, Lesen, Abbrechen, Herkunft
 ├── app/composables/
-│   ├── useAssetStore.ts                # bestehend: Bytes und Metadaten
-│   └── usePaperNoteRecognition.ts      # Holzi-Agent-Task-Adapter und Status
-├── app/database/schemas/index.ts       # paper_import-Seitenfeld
+│   ├── useAssetStore.ts                # bestehend
+│   └── usePaperNoteRecognition.ts      # runPageJob über sdk.models, Stand und Abbruch
+├── app/database/
+│   ├── schemas/index.ts                # Spalte paper_import
+│   └── migrations/0005_*.sql           # neue Spalte
 ├── app/lib/
 │   ├── paperNotes/
-│   │   ├── importPage.ts               # Asset, Ebenen und Recognition-Mapping
-│   │   ├── preprocess.ts               # lokale Arbeitskopie und Qualitätswarnungen
-│   │   ├── recognition.ts              # provider-neutrale Typen/Validierung
-│   │   ├── review.ts                   # Vorschlags- und Review-Zustände
-│   │   ├── exportPdf.ts                # konfigurierter sichtbarer Canvas → PDF
-│   │   └── fonts.ts                    # gebündelte Fonts, IDs und Fallbacks
-│   │   └── fixtures/                    # annotierte, de-identifizierte Referenzbilder
-│   │       └── manifest.json            # erwartete Regionen und Unsicherheiten
-│   ├── render/elements.ts              # bestehend: Text- und Bild-Rendering ergänzen
-│   └── migratePage.ts                  # bestehend: paper_import serialisieren
-├── app/stores/notebook.ts              # bestehende Commands/Save-Flows erweitern
-├── app/types/document.ts               # bestehende Element- und Seitenmodelle erweitern
-├── public/fonts/                       # nur lizenzierte, gebündelte Fonts
-└── app/lib/paperNotes/*.test.ts        # Tests getrennt von Produktionsdateien
+│   │   ├── pageJob.ts                  # Auftrag bauen (Anweisungen, Formate aus contracts/page-job.md)
+│   │   ├── mapResult.ts                # Ergebnis → Elemente, Herkunft, Fehler
+│   │   ├── layout.ts                   # Quellboxen → Seitenkoordinaten, Kanten, Überlappungen
+│   │   ├── workingCopy.ts              # Zuschnitt, Perspektive, Drehung, Qualitätshinweis, JPEG
+│   │   ├── importPage.ts               # Assets, Ebenen, paperImport
+│   │   ├── exportPdf.ts                # sichtbarer Canvas → PDF
+│   │   ├── fonts.ts                    # Handschriftstile und Fallback
+│   │   └── fixtures/                   # de-identifizierte Fotos und erwartete Ergebnisse
+│   ├── render/elements.ts              # bestehend: text, image, Zelltext ergänzen
+│   ├── tableActions.ts                 # bestehend: cells beim Einfügen/Entfernen
+│   ├── collectAssets.ts                # bestehend: neue Asset-Quellen
+│   └── migratePage.ts                  # bestehend: paperImport und cells
+├── app/stores/notebook.ts              # bestehende Commands und Speichern
+├── app/types/document.ts               # TableElement.cells, PaperNoteImport
+├── public/fonts/                       # nur frei lizenzierte Handschrift-Fonts
+└── app/lib/**/*.test.ts                # Tests getrennt von Produktion
 ```
 
-**Structure Decision**: Die Funktion bleibt innerhalb der bestehenden haex-notes-Extension. Das vorhandene `PageDoc`-/`PageLayer`-/`PageElement`-Modell wird erweitert; es wird kein paralleles Dokumentmodell eingeführt. Ein eigener `paperNotes/`-Bereich kapselt Import, Provider-Mapping, Review und Export. Die UI nutzt den bestehenden Notebook-Store, die Undo-Kommandos und den Asset-Store.
+**Structure Decision**: Alles bleibt in haex-notes. Das vorhandene `PageDoc`-Modell wird erweitert, kein paralleles
+Dokumentmodell. `paperNotes/` kapselt Auftrag, Abbildung, Layout, Arbeitskopie, Import und Export; die Oberfläche
+nutzt Notebook-Store, Undo-Commands und Asset-Store.
 
 ### Delivery slices
 
-1. **Canvas-Basis**: Text- und Bild-Elemente rendern, Assets asynchron laden, auswählen/verschieben/skaliert bearbeiten und mit bestehenden Commands speichern.
-2. **Papierimport**: Original-Asset, lokale Arbeitskopie, Qualitätswarnung, gesperrte Originalebene, normalisierte Seitengröße, Importfehler und manueller Fallback.
-3. **Recognition und Review**: zweistufiger Agent-Task-Vertrag, Fixture-Provider für Tests, Region-Mapping, Konfidenzmarkierungen, Vorschläge, Originalausschnitte und Font-Auswahl.
-4. **Export und Durchlauf**: konfigurierbare PDF-Ausgabe mit sinnvollen Defaults, Persistenz-/Wiederöffnen-Tests, annotierte Referenz-Fixtures und manueller Quickstart.
+1. **Canvas-Basis**: `text` und `image` zeichnen, Assets asynchron laden, Tabellenzellen (`cells`) zeichnen und
+   bearbeiten, auswählen, verschieben, skalieren, speichern.
+2. **Import**: Original-Asset, Arbeitskopie mit Drehen und Qualitätshinweis, gesperrte Originalebene, `paperImport`,
+   manueller Weg bei jedem Fehler.
+3. **Erkennung**: vault-sdk auf 4.7.1, `runPageJob`, Auftrag mit zwei Schritten, Abbildung mit Layout, Drehhinweis
+   und einmaliges Nachlesen, Herkunft, Fehlerhinweise, Abbruch.
+4. **Export und Durchlauf**: PDF mit Voreinstellungen, Speichern und Wiederöffnen, Fixtures, Handtest gegen holzi
+   mit Ollama.
 
 ### Post-design Constitution Check
 
-**Gate-Ergebnis nach Phase 1**: PASS. Das Design speichert keine Zugangsdaten, referenziert das externe Zielrepository unveränderlich, trennt Tests von Produktionscode, bewahrt Originale und macht externe Verarbeitung sichtbar. Die Agent-Auswahl bleibt in Holzi; die Extension erhält nur die für den Task nötige strukturierte Antwort. Die neuen Artefakte enthalten keine lokalen absoluten Pfade und keine Änderung an Anweisungs- oder Verfassungsdateien.
+**Gate-Ergebnis nach Phase 1**: PASS. haex-notes speichert keine Zugangsdaten und keine Adresse eines Modells,
+verweist auf das Zielrepository unveränderlich, trennt Tests von Produktion, bewahrt das Original und überlässt
+Modellwahl und Einwilligung holzi.
 
 ## Complexity Tracking
 
-Keine Verfassungsabweichungen. Die separate `paperNotes/`-Kapselung ist eine konkrete Domänenstruktur innerhalb der bestehenden Extension und kein paralleles Dokumentmodell.
+Keine Verfassungsabweichungen.

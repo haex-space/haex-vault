@@ -32,4 +32,5 @@
 ## Notes
 
 - The first release deliberately excludes personal handwriting profiling and keeps the original image as an authoritative reference.
+- Re-checked 2026-10-21 after the rework onto spec 055: the requirements name what holzi does (model choice, consent, dropping broken output) only as a dependency, not as an implementation of haex-notes.
 - The plan stage must check the specification against the project constitution, especially privacy, external processing disclosure, and phase sequencing.

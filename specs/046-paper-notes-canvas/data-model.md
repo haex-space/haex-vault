@@ -1,114 +1,102 @@
 # Data Model: Paper Notes to Editable Canvas
 
+**Stand**: 2026-10-21 (Erkennung über Spec 055, ohne Prüfteil)
+
 ## Existing model to extend
 
-The implementation target already stores a page as `PageDoc` with `PageLayer[]`,
-`PageElement[]`, a `PageBackground`, and page dimensions. `TextElement` and
-`ImageElement` are the canonical visual elements. Existing commands provide
-undoable add, remove, replace, and mutate operations.
+Revision `6dfb015` von haex-notes speichert eine Seite als `PageDoc` mit `PageLayer[]`, `PageElement[]`, einem
+`PageBackground` und den Seitenmaßen (`app/types/document.ts`, Spalten `layers` und `background` der
+Seitentabelle). `TextElement`, `ImageElement` und `TableElement` sind die Elemente, die eine erkannte Seite
+braucht. Die Commands in `app/lib/commands.ts` fügen hinzu, entfernen, ersetzen und ändern rückgängig machbar.
+
+## `TableElement.cells` (neu)
+
+| Feld    | Typ          | Regeln                                                                                                |
+| ------- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| `cells` | `string[][]` | `rows` Zeilen zu je `columns` Zellen; eine leere Zelle ist `""`. Fehlt das Feld, ist jede Zelle leer. |
+
+Zeilen oder Spalten hinzufügen und entfernen (`app/lib/tableActions.ts`) hält `cells` passend: neue Zellen sind
+leer, entfernte Zellen gehen mit. Eine geteilte Seite nimmt die Zelltexte im Seiten-JSON mit.
 
 ## `PaperNoteImport`
 
-Optional metadata on a page. It is absent for ordinary handwritten or blank pages.
+Optionales Feld der Seite (neue JSON-Spalte `paper_import`, Migration `0005`). Es fehlt bei gewöhnlichen Seiten.
 
-| Field                          | Type                  | Rules                                                                  |
-| ------------------------------ | --------------------- | ---------------------------------------------------------------------- |
-| `version`                      | integer               | Starts at `1`; unknown future versions must not be silently discarded. |
-| `originalAssetId`              | string                | References the unchanged imported image in the asset store.            |
-| `sourceMimeType`               | string                | Must describe an imported image supported by the import flow.          |
-| `sourceWidth` / `sourceHeight` | positive integer      | Original pixel dimensions used to interpret normalized source boxes.   |
-| `processing`                   | `PaperNoteProcessing` | Tracks readiness, failure and processing destination.                  |
-| `regions`                      | `RecognitionRegion[]` | One entry per recognized or reviewable source area.                    |
-| `createdAt`                    | ISO timestamp         | Set once when the import is created.                                   |
-| `updatedAt`                    | ISO timestamp         | Updated when recognition or review state changes.                      |
+| Feld                           | Typ                     | Regeln                                                               |
+| ------------------------------ | ----------------------- | -------------------------------------------------------------------- |
+| `version`                      | integer                 | Beginnt bei `1`; eine unbekannte Version wird nicht still verworfen. |
+| `originalAssetId`              | string                  | Das unveränderte importierte Foto im Asset-Store.                    |
+| `workingAssetId`               | string                  | Die entzerrte, gedrehte Arbeitskopie, die gelesen wurde.             |
+| `rotation`                     | `0 \| 90 \| 180 \| 270` | Drehung der Arbeitskopie gegenüber dem Original, im Uhrzeigersinn.   |
+| `sourceMimeType`               | string                  | Ein vom Import unterstütztes Bildformat.                             |
+| `sourceWidth` / `sourceHeight` | positive integer        | Pixelmaße des Originals.                                             |
+| `processing`                   | `PaperNoteProcessing`   | Stand der Erkennung und Herkunft.                                    |
+| `regions`                      | `RecognizedRegion[]`    | Eine Zeile je übernommener Region.                                   |
+| `createdAt` / `updatedAt`      | ISO timestamp           | `updatedAt` ändert sich mit jeder Erkennung.                         |
 
-The object is persisted with the page and must be included when a page is shared,
-provided the referenced assets are included by `collectAssetIds()`.
+`collectAssetIds()` nimmt `originalAssetId`, `workingAssetId` und die Ausschnitte der Bildregionen auf, damit eine
+geteilte Seite ihre Bilder mitbringt.
 
 ## `PaperNoteProcessing`
 
 ```text
 state: "manual" | "processing" | "ready" | "failed"
-mode: "local" | "remote" | "unknown"
-destination?: string
-provider?: string
-error?: string
+model?: string           // Name des Modells, das gelesen hat (provenance, Schritt read, outcome "used")
+place?: "this_device" | "network" | "cloud"
+error?: "no_capable_model" | "consent_denied" | "unusable" | "timeout" | "unavailable"
 startedAt?: ISO timestamp
 finishedAt?: ISO timestamp
 ```
 
-Validation rules:
+Regeln:
 
-- `destination` is user-facing metadata only; credentials and access tokens are never stored here.
-- `state = "failed"` requires a non-empty `error` while retaining the original asset.
-- `state = "ready"` requires a non-empty region list or an explicit empty-page result.
-- A remote `mode` requires the import UI to show the destination before processing.
+- Es gibt kein Feld für Adresse, Anbieter oder Schlüssel; holzi gibt sie der Erweiterung nicht (Spec 055 FR-030).
+- `state = "failed"` braucht `error` und behält `originalAssetId`.
+- `state = "ready"` braucht `model` und `place`; die Liste der Regionen darf leer sein (leere Seite).
+- Ein abgebrochener Auftrag führt zurück zu `manual`, ohne `error`.
 
-## `RecognitionRegion`
+## `RecognizedRegion`
 
-Each region links source coordinates to one or more generated canvas elements.
+| Feld         | Typ                            | Regeln                                                           |
+| ------------ | ------------------------------ | ---------------------------------------------------------------- |
+| `id`         | string                         | Eindeutig innerhalb des Imports.                                 |
+| `kind`       | `"text" \| "table" \| "image"` | Aus dem Ergebnis von `read`.                                     |
+| `sourceBox`  | `[x1, y1, x2, y2]`, je 0–1000  | Relativ zur Arbeitskopie; `x2 > x1` und `y2 > y1`.               |
+| `elementIds` | string[]                       | Die erzeugten Elemente; leer, wenn der Schüler sie gelöscht hat. |
 
-| Field            | Type                                                   | Rules                                                                                            |
-| ---------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `id`             | string                                                 | Stable within the import.                                                                        |
-| `kind`           | `"text" \| "drawing" \| "unknown"`                     | Unknown regions remain reviewable.                                                               |
-| `sourceBox`      | normalized `BBox`                                      | `[x, y, width, height]`, each coordinate between `0` and `1`; width and height must be positive. |
-| `elementIds`     | string[]                                               | IDs of generated `TextElement`/`ImageElement`s; may be empty for unresolved regions.             |
-| `recognizedText` | string?                                                | Raw text returned by recognition for text regions.                                               |
-| `suggestions`    | `TextSuggestion[]`                                     | Ordered spelling or interpretation suggestions; never applied automatically.                     |
-| `confidence`     | number?                                                | Provider confidence in `[0, 1]`; absent means unknown, not zero.                                 |
-| `review`         | `"unreviewed" \| "accepted" \| "edited" \| "rejected"` | `rejected` hides the generated candidate but keeps the source reference.                         |
-| `reviewNote`     | string?                                                | Optional user note for unresolved content.                                                       |
+Es gibt keine Vorschläge, Konfidenzwerte oder Prüfzustände (kein Prüfteil). Der Text vor der Korrektur wird nicht
+aufgehoben.
 
-`TextElement.text` is the current canonical text after a user accepts or edits a
-candidate. `recognizedText` is retained to make the change reversible and
-auditable. A drawing region points to an `ImageElement` cropped from the original
-asset; the original region is never deleted.
-
-## `TextSuggestion`
+## Ebenen einer importierten Seite
 
 ```text
-text: string
-kind: "spelling" | "recognition" | "manual"
-confidence?: number
+Papierhintergrund
+Original (sichtbar, gesperrt; ImageElement mit rotation, damit es aufrecht steht)
+Text (TextElements)
+Objekte (TableElements und ImageElement-Ausschnitte)
+Eigene Ergänzungen (aktive Ebene für neue Striche)
 ```
 
-Suggestions are display data. Applying one is an undoable element mutation and
-changes the region review state to `accepted` or `edited`.
+Die Originalebene ist nie die aktive Ebene; Änderungen aus dem Editor erreichen sie nicht.
 
-## Layer arrangement
-
-An imported page is composed in this order:
+## Zustandsübergänge
 
 ```text
-paper background
-original import layer (visible, locked by default)
-clean text layer (visible, editable)
-visual objects layer (visible, editable)
-user additions layer (visible, editable)
+manual ──Lesen starten───────────> processing
+processing ──Ergebnis────────────> ready
+processing ──Drehhinweis─────────> processing (einmal, mit gedrehter Arbeitskopie)
+processing ──Fehler / Ablehnung──> failed
+processing ──Abbruch─────────────> manual
+failed ──Erneut lesen────────────> processing
+ready ──Erneut lesen─────────────> processing (ersetzt nur die erzeugten, unveränderten Elemente)
 ```
 
-The exact order may be represented by existing `PageLayer[]` order. The original
-layer must not be the active drawing layer and must be excluded from element
-mutations originating in the editor.
-
-## State transitions
-
-```text
-manual ──start processing──> processing
-processing ──success────────> ready
-processing ──failure────────> failed
-failed ──manual editing─────> manual
-ready ──user edits──────────> ready (region review state changes independently)
-```
-
-All transitions retain `originalAssetId`. Reprocessing must create a new candidate
-set or replace only generated elements after an explicit user action; it must not
-overwrite the original layer or confirmed user edits silently.
+Jeder Übergang behält `originalAssetId`. Erneutes Lesen nach Änderungen des Schülers fragt vorher, ob die
+erzeugten Elemente ersetzt werden sollen.
 
 ## Migration and compatibility
 
-- Ordinary pages without `paperImport` load exactly as before.
-- Page serialization must preserve legacy stroke/table/background columns while adding the new JSON field.
-- Unknown `paperImport.version` values are kept as opaque metadata or surfaced as unsupported; they must not be converted to an empty page.
-- Missing image assets render a placeholder and keep the element metadata so the page can recover if the asset becomes available.
+- Seiten ohne `paperImport` und Tabellen ohne `cells` laden wie bisher.
+- Die Migration `0005` fügt nur die Spalte `paper_import` hinzu.
+- Eine unbekannte `paperImport.version` bleibt als Metadaten erhalten und wird als nicht unterstützt angezeigt.
+- Ein fehlendes Bild-Asset zeigt einen Platzhalter und behält die Element-Daten.
