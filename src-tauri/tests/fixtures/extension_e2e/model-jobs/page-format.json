@@ -1,0 +1,36 @@
+{
+  "name": "page-recognition",
+  "version": 1,
+  "schema": {
+    "type": "object",
+    "required": ["regions"],
+    "properties": {
+      "regions": {
+        "type": "array",
+        "maxItems": 512,
+        "items": {
+          "type": "object",
+          "required": ["kind", "box"],
+          "properties": {
+            "kind": { "enum": ["text", "image", "table"] },
+            "box": {
+              "type": "array",
+              "items": { "type": "number", "minimum": 0, "maximum": 1000 },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "text": { "type": "string", "maxLength": 20000 },
+            "rows": {
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "rotation": {
+        "enum": [0, 90, 180, 270],
+        "description": "Clockwise degrees the photo must be turned to stand upright"
+      }
+    }
+  }
+}

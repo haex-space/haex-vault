@@ -17,6 +17,7 @@ mod model_jobs_capabilities_tests;
 mod model_jobs_consent_tests;
 #[cfg(test)]
 mod model_jobs_local_tests;
+mod model_jobs_page_tests;
 #[cfg(test)]
 mod model_jobs_run_tests;
 #[cfg(test)]
