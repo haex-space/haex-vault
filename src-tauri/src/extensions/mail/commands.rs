@@ -10,7 +10,11 @@ use base64::Engine as _;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{check_permission, imap, smtp, FetchRange, MailError, OutgoingMessage, ServerConfig};
+use super::imap_manage::{self, MAX_UIDS};
+use super::{
+    check_permission, imap, smtp, FetchRange, MailError, OutgoingMessage, SearchCriteria,
+    ServerConfig,
+};
 use crate::extensions::bridge::blocking::block_on;
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
@@ -169,6 +173,37 @@ pub fn append_message(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
     })?;
     let flags: Vec<String> = optional(params, "flags")?.unwrap_or_default();
     run(imap::append_message(&config, &mailbox, &rfc822, &flags))?;
+    Ok(Value::Null)
+}
+
+/// `{imap, mailbox, criteria, limit?}` → `{uids, total}`: the newest hits (at most `limit`, by
+/// default as many as one answer holds), newest first, and how many there are in all.
+pub fn search(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let config = imap_server(ctx, params)?;
+    let mailbox: String = field(params, "mailbox")?;
+    let criteria: SearchCriteria = field(params, "criteria")?;
+    let limit = optional::<usize>(params, "limit")?.unwrap_or(MAX_UIDS);
+    to_json(
+        ctx,
+        run(imap_manage::search(&config, &mailbox, &criteria, limit))?,
+    )
+}
+
+/// `{imap, mailbox}` → `{created}`; `created` is `false`, and no error, when the mailbox was there.
+pub fn create_mailbox(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let config = imap_server(ctx, params)?;
+    let mailbox: String = field(params, "mailbox")?;
+    let created = run(imap_manage::create_mailbox(&config, &mailbox))?;
+    Ok(serde_json::json!({ "created": created }))
+}
+
+/// `{imap, mailbox, uids}`: removes exactly these messages for good; more than one answer's worth
+/// of UIDs is refused (7000).
+pub fn delete_messages(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let config = imap_server(ctx, params)?;
+    let mailbox: String = field(params, "mailbox")?;
+    let uids: Vec<u32> = field(params, "uids")?;
+    run(imap_manage::delete_messages(&config, &mailbox, &uids))?;
     Ok(Value::Null)
 }
 

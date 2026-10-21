@@ -1,6 +1,7 @@
 //! A small IMAP and SMTP server on this device for the mail tests (no TLS, which holzi allows only
-//! towards this device). It knows what the tests need: LOGIN, LIST, STATUS, SELECT, UID SEARCH,
-//! UID FETCH, UID STORE, UID MOVE, APPEND, LOGOUT; EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.
+//! towards this device). It knows what the tests need: LOGIN, LIST, STATUS, SELECT, CREATE,
+//! UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE, APPEND, LOGOUT;
+//! EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -28,6 +29,8 @@ pub struct State {
     pub commands: Vec<String>,
     /// Whether the server offers IDLE.
     pub no_idle: bool,
+    /// Whether the server lacks UIDPLUS (and with it UID EXPUNGE).
+    pub no_uidplus: bool,
     /// Wakes the sessions in IDLE when a message arrives.
     pub arrived: Option<tokio::sync::broadcast::Sender<()>>,
 }
@@ -49,6 +52,8 @@ pub fn deliver(state: &Shared, mailbox: &str, subject: &str) {
 
 pub type Shared = Arc<Mutex<State>>;
 
+#[path = "test_server_manage.rs"]
+mod manage;
 #[path = "test_server_smtp.rs"]
 mod smtp;
 
@@ -212,11 +217,10 @@ async fn imap_session(stream: TcpStream, state: Shared) {
         let ok = |text: &str| format!("{tag} OK {text}\r\n").into_bytes();
         match command.to_ascii_uppercase().as_str() {
             "CAPABILITY" => {
-                if state.lock().unwrap().no_idle {
-                    out.extend(b"* CAPABILITY IMAP4rev1 MOVE\r\n");
-                } else {
-                    out.extend(b"* CAPABILITY IMAP4rev1 MOVE IDLE\r\n");
-                }
+                let s = state.lock().unwrap();
+                let plus = if s.no_uidplus { "" } else { " UIDPLUS" };
+                let idle = if s.no_idle { "" } else { " IDLE" };
+                out.extend(format!("* CAPABILITY IMAP4rev1 MOVE{plus}{idle}\r\n").into_bytes());
             }
             "NOOP" => {
                 let n = state
@@ -253,6 +257,22 @@ async fn imap_session(stream: TcpStream, state: Shared) {
                 {
                     out.extend(format!("{tag} NO [AUTHENTICATIONFAILED] wrong\r\n").into_bytes());
                     let _ = write.write_all(&out).await;
+                    continue;
+                }
+            }
+            "CREATE" => {
+                let name = words(args).remove(0);
+                let exists = {
+                    let mut s = state.lock().unwrap();
+                    let exists = s.boxes.contains_key(&name);
+                    if !exists {
+                        s.boxes.insert(name, Vec::new());
+                    }
+                    exists
+                };
+                if exists {
+                    let refusal = format!("{tag} NO [ALREADYEXISTS] Mailbox already exists\r\n");
+                    let _ = write.write_all(refusal.as_bytes()).await;
                     continue;
                 }
             }
@@ -307,7 +327,9 @@ async fn imap_session(stream: TcpStream, state: Shared) {
                 match sub.to_ascii_uppercase().as_str() {
                     "SEARCH" => {
                         let set = rest.trim_start_matches("UID ").trim();
-                        let found: Vec<u32> = if rest.starts_with("UID ") {
+                        let found: Vec<u32> = if manage::is_criteria(rest) {
+                            manage::search(rest, &messages)
+                        } else if rest.starts_with("UID ") {
                             uids_of(set, &messages)
                         } else {
                             // A sequence set.
@@ -383,6 +405,7 @@ async fn imap_session(stream: TcpStream, state: Shared) {
                             .retain(|m| !uids.contains(&m.uid));
                         s.boxes.entry(w[1].clone()).or_default().extend(moved);
                     }
+                    "EXPUNGE" => out.extend(manage::expunge(&mut s, &selected, rest)),
                     _ => out.extend(format!("{tag} BAD unknown\r\n").into_bytes()),
                 }
             }

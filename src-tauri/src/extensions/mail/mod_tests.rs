@@ -62,3 +62,50 @@ fn errors_name_no_secret_and_map_to_bridge_codes() {
     let invalid: BridgeError = MailError::Invalid("x".into()).into();
     assert_eq!(invalid.code.as_u16(), 3001);
 }
+
+#[test]
+fn a_date_is_a_real_day_written_year_month_day() {
+    assert_eq!(parse_date("2026-01-02"), Some((2026, 1, 2)));
+    assert_eq!(parse_date("2024-02-29"), Some((2024, 2, 29)), "a leap year");
+    for bad in [
+        "2026-02-29",
+        "2026-13-01",
+        "2026-00-10",
+        "2026-04-31",
+        "26-01-02",
+        "2026-1-2",
+        "2026-01-02-03",
+        "yesterday",
+        "",
+    ] {
+        assert_eq!(parse_date(bad), None, "{bad:?}");
+    }
+}
+
+#[test]
+fn a_search_needs_a_criterion_and_texts_that_cannot_end_the_command() {
+    let text = |t: &str| SearchCriteria {
+        text: Some(t.into()),
+        ..SearchCriteria::default()
+    };
+    assert!(check_criteria(&SearchCriteria::default()).is_err());
+    assert!(check_criteria(&text("Rechnung")).is_ok());
+    assert!(check_criteria(&text(&"a".repeat(MAX_SEARCH_TEXT))).is_ok());
+    assert!(check_criteria(&text(&"a".repeat(MAX_SEARCH_TEXT + 1))).is_err());
+    for bad in ["", "  ", "a\r\nA1 DELETE INBOX", "a\0b", "tab\there"] {
+        assert!(check_criteria(&text(bad)).is_err(), "{bad:?}");
+    }
+    let flags = SearchCriteria {
+        unseen: Some(false),
+        ..SearchCriteria::default()
+    };
+    assert!(
+        check_criteria(&flags).is_ok(),
+        "a flag alone is a criterion"
+    );
+    let date = SearchCriteria {
+        before: Some("2026-02-30".into()),
+        ..SearchCriteria::default()
+    };
+    assert!(check_criteria(&date).is_err());
+}

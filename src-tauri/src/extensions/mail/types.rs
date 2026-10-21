@@ -162,3 +162,31 @@ pub struct OutgoingMessage {
     #[serde(default)]
     pub references: Vec<String>,
 }
+
+/// The criteria of `extension_mail_search`, all of which must hold (AND). Not an IMAP expression:
+/// the host builds the command itself, so text from a message or a model never becomes a command.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SearchCriteria {
+    /// Header and body text.
+    pub text: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub subject: Option<String>,
+    /// `YYYY-MM-DD`, inclusive.
+    pub since: Option<String>,
+    /// `YYYY-MM-DD`, exclusive.
+    pub before: Option<String>,
+    /// `true` for unread, `false` for read.
+    pub unseen: Option<bool>,
+    /// `true` for flagged, `false` for not flagged.
+    pub flagged: Option<bool>,
+}
+
+/// The newest hits of a search, newest first, and how many there are in all.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResult {
+    pub uids: Vec<u32>,
+    pub total: u32,
+}

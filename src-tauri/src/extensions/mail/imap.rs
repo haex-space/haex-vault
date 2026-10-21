@@ -15,7 +15,7 @@ use super::{
 };
 
 /// Converts an async-IMAP protocol error into the mail boundary error.
-fn imap_err(error: async_imap::error::Error) -> MailError {
+pub(super) fn imap_err(error: async_imap::error::Error) -> MailError {
     MailError::Imap(error.to_string())
 }
 
@@ -28,6 +28,7 @@ macro_rules! with_session {
         result
     }};
 }
+pub(super) use with_session;
 
 /// The most envelopes one `fetchEnvelopes` returns; a larger range is refused, the extension asks
 /// in pages.
@@ -58,7 +59,7 @@ fn bare_id(id: String) -> String {
 }
 
 /// Formats UIDs as the comma-separated IMAP set used by commands.
-fn uid_list(uids: &[u32]) -> String {
+pub(super) fn uid_list(uids: &[u32]) -> String {
     uids.iter()
         .map(u32::to_string)
         .collect::<Vec<_>>()
