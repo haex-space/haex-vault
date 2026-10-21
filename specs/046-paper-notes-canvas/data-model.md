@@ -26,7 +26,7 @@ Optionales Feld der Seite (neue JSON-Spalte `paper_import`, Migration `0005`). E
 | ------------------------------ | ----------------------- | -------------------------------------------------------------------- |
 | `version`                      | integer                 | Beginnt bei `1`; eine unbekannte Version wird nicht still verworfen. |
 | `originalAssetId`              | string                  | Das unveränderte importierte Foto im Asset-Store.                    |
-| `workingAssetId`               | string                  | Die entzerrte, gedrehte Arbeitskopie, die gelesen wurde.             |
+| `workingAssetId`               | string, optional        | Die entzerrte, gedrehte Arbeitskopie, die gelesen wurde; fehlt, wenn sie wegen `processing_failed` nicht erzeugt werden konnte. |
 | `rotation`                     | `0 \| 90 \| 180 \| 270` | Drehung der Arbeitskopie gegenüber dem Original, im Uhrzeigersinn.   |
 | `sourceMimeType`               | string                  | Ein vom Import unterstütztes Bildformat.                             |
 | `sourceWidth` / `sourceHeight` | positive integer        | Pixelmaße des Originals.                                             |
