@@ -152,6 +152,12 @@ ciborium = "0.2.2"
 psl = "2.1.239"
 url = "2.5.8"
 percent-encoding = "2.3"
+# External Bridge for haex-pass-browser (spec 049, research R1, R3): the WebSocket server with access
+# to the upgrade request (Origin check), X25519 and AES-256-GCM as the unchanged client speaks them.
+# All three are already in the lock (via nostr-sdk, ed25519-dalek and other crates); no new crate.
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
+aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
+curve25519-dalek = "5"
 
 # haex-crdt 0.4.0, originally pinned per plans/001-desktop-mvp.md at commit
 # 1c069ef; no tagged releases past v0.1.0 exist yet, so holzi pins main by
