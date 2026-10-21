@@ -67,6 +67,8 @@ pub struct PlatformCapabilities {
     pub model_presets: ModelPresets,
     /// A phone address book the address book can sync with (spec 051 FR-015).
     pub phone_contacts: bool,
+    /// The External Bridge for browser extensions (spec 049 FR-043).
+    pub browser_bridge: bool,
 }
 
 /// A desktop system; only a release build restarts at the vault picker after closing.
@@ -85,6 +87,7 @@ pub const fn desktop(platform: PlatformName, release: bool) -> PlatformCapabilit
         back_gesture: false,
         model_presets: ModelPresets::Desktop,
         phone_contacts: false,
+        browser_bridge: true,
     }
 }
 
@@ -103,6 +106,7 @@ pub const ANDROID: PlatformCapabilities = PlatformCapabilities {
     back_gesture: true,
     model_presets: ModelPresets::Phone,
     phone_contacts: true,
+    browser_bridge: false,
 };
 
 /// iOS is not a target yet (spec 043 is Android only); it gets the mobile limits without the
