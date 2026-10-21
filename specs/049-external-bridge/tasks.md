@@ -299,8 +299,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: The access matrix in `src-tauri/tests/browser_bridge.rs` part 3, then quickstart M3.
 
-- [ ] T040 [US2] New worktree `.worktrees/049-c` on branch `049-external-bridge-c` from `main` after PR B, with a real `pnpm install`.
-- [ ] T041 [P] [US2] Tests first in `src-tauri/src/passwords/site_tests.rs`. `site_of(host)`:
+- [x] T040 [US2] New worktree `.worktrees/049-c` on branch `049-external-bridge-c` from `main` after PR B, with a real `pnpm install`.
+- [x] T041 [P] [US2] Tests first in `src-tauri/src/passwords/site_tests.rs`. `site_of(host)`:
   - `www.example.de` and `login.example.de` → `example.de`;
   - `bad-example.de` → `bad-example.de`;
   - `example.co.uk` and `a.example.co.uk` → `example.co.uk`;
@@ -310,9 +310,9 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   `is_public_suffix("co.uk")` is true.
 
-- [ ] T042 [US2] K2: create `src-tauri/src/passwords/site.rs` with `site_of` (`psl::domain_str`, IP/localhost rule) and `is_public_suffix`. Move the suffix logic of `webauthn.rs:45-63` (`relying_party`) there and rewrite `checked_origin` to call it. `webauthn_tests` and `tests/passwords_passkeys.rs` stay green unchanged. Make T041 pass.
-- [ ] T043 [US2] K4: change `PasswordsService::totp_code` in `src-tauri/src/passwords/service/items.rs:196` to `totp_code(&caller, &grants, item_id)`, using `authorize_read` instead of `require_user`. An item without TOTP returns the same `PasswordsNotFound` as one out of scope (FR-024, FR-042). Update every call site; the user commands pass `&[]`. Add a test to the existing service test file: a `BrowserClient` with a tag grant gets a code for an entry in scope and `PasswordsNotFound` for one outside and for one without TOTP.
-- [ ] T044 [US2] Integration test first, `src-tauri/tests/browser_bridge.rs` part 3 (SC-002, SC-003). Fixture vault:
+- [x] T042 [US2] K2: create `src-tauri/src/passwords/site.rs` with `site_of` (`psl::domain_str`, IP/localhost rule) and `is_public_suffix`. Move the suffix logic of `webauthn.rs:45-63` (`relying_party`) there and rewrite `checked_origin` to call it. `webauthn_tests` and `tests/passwords_passkeys.rs` stay green unchanged. Make T041 pass.
+- [x] T043 [US2] K4: change `PasswordsService::totp_code` in `src-tauri/src/passwords/service/items.rs:196` to `totp_code(&caller, &grants, item_id)`, using `authorize_read` instead of `require_user`. An item without TOTP returns the same `PasswordsNotFound` as one out of scope (FR-024, FR-042). Update every call site; the user commands pass `&[]`. Add a test to the existing service test file: a `BrowserClient` with a tag grant gets a code for an entry in scope and `PasswordsNotFound` for one outside and for one without TOTP.
+- [x] T044 [US2] Integration test first, `src-tauri/tests/browser_bridge.rs` part 3 (SC-002, SC-003). Fixture vault:
   - `https://example.de` [web];
   - `https://www.example.de/login` [web, TOTP];
   - `https://bad-example.de` [web];
@@ -329,7 +329,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - `get-totp` for the untagged entry or a non-TOTP entry → `NOT_FOUND` with the same error string.
   - A vault with 5 000 entries and 20 matches answers `get-items` in under 500 ms in release-free debug as a rough bound. Mark it `#[ignore]` if CI is slower and note it in the test.
 
-- [ ] T045 [US2] `src-tauri/src/browser_bridge/methods/items.rs`: `get-items` per research R7.
+- [x] T045 [US2] `src-tauri/src/browser_bridge/methods/items.rs`: `get-items` per research R7.
   1. Parse the URL with `url`, adding `https://` when there is no scheme.
   2. `list_headers(&caller, &grants)`.
   3. Filter on `site_of(host)` and `fields`.
@@ -338,7 +338,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Add a `ponytail:` comment on filtering in the bridge (upgrade path: a service method when a second caller needs it). Register it in `METHODS` with `need: Read` and `module: MODULE`.
 
-- [ ] T046 [US2] `get-totp` in the same file, `need: Read`, `{ entryId }` → `{ code, validFor }`. Map service errors to `NOT_FOUND`, `PERMISSION_DENIED` or `SERVER_ERROR` in `methods/mod.rs` (research R16). Make T044 pass. Add `get-items` and `get-totp` to the expected list in `tests/browser_bridge_contract.rs`.
+- [x] T046 [US2] `get-totp` in the same file, `need: Read`, `{ entryId }` → `{ code, validFor }`. Map service errors to `NOT_FOUND`, `PERMISSION_DENIED` or `SERVER_ERROR` in `methods/mod.rs` (research R16). Make T044 pass. Add `get-items` and `get-totp` to the expected list in `tests/browser_bridge_contract.rs`.
 
 **Checkpoint**: Run quickstart M3 with the real extension.
 
@@ -350,8 +350,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: `src-tauri/tests/browser_bridge.rs` part 4, then quickstart M4 and M5.
 
-- [ ] T047 [US3] K4: change `preset_list` in `src-tauri/src/passwords/service/presets.rs:10` to `preset_list(&caller, &grants)`, allowing any caller with at least one password grant (FR-027). Update the user call sites to pass `&[]`. Add a service test: `BrowserClient` with a `Read` grant lists presets; with no grant → `PasswordsForbidden`.
-- [ ] T048 [US3] Integration test first, `src-tauri/tests/browser_bridge.rs` part 4:
+- [x] T047 [US3] K4: change `preset_list` in `src-tauri/src/passwords/service/presets.rs:10` to `preset_list(&caller, &grants)`, allowing any caller with at least one password grant (FR-027). Update the user call sites to pass `&[]`. Add a service test: `BrowserClient` with a `Read` grant lists presets; with no grant → `PasswordsForbidden`.
+- [x] T048 [US3] Integration test first, `src-tauri/tests/browser_bridge.rs` part 4:
   - `get-password-config` → `{config, presetName}` with the keys `length, uppercase, lowercase, numbers, symbols, excludeChars, usePattern, pattern`; `{config:null, presetName:null}` without presets.
   - `get-password-presets` → list with `isDefault`.
   - `ReadWrite` + tag `web` + default `web`: `create-item {title:"", url:"https://shop.de/x", username, password, groupId:"g", otpSecret:"x", iconBase64:"…", tags:["other"]}` → `{entryId, title:"shop.de"}`. The entry has exactly tag `web`, top level, one history state, no TOTP and no icon.
@@ -359,12 +359,12 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - Every `bookmarks-*` → `NOT_SUPPORTED`, connection still open.
   - Target `{extensionPublicKey:"x", extensionName:"y"}` → `NOT_SUPPORTED` (SC-009).
   - Read-only client: `create-item` → one `kind:'write'` prompt; deny → `PERMISSION_DENIED`, no entry; allow+remember → entry created and `access` stored as `readWrite`; a declaration without write → `PERMISSION_DENIED` without prompt; remembered write deny → `PERMISSION_DENIED` without prompt; no answer in 120 s → `PERMISSION_PROMPT_TIMEOUT` (paused time).
-- [ ] T049 [US3] `create-item`, `get-password-config` and `get-password-presets` in `src-tauri/src/browser_bridge/methods/items.rs` (or `methods/presets.rs` if `items.rs` passes 400 lines):
+- [x] T049 [US3] `create-item`, `get-password-config` and `get-password-presets` in `src-tauri/src/browser_bridge/methods/items.rs` (or `methods/presets.rs` if `items.rs` passes 400 lines):
   - The `create-item` input struct has exactly `title`, `url`, `username`, `password`; serde ignores everything else.
   - Title fallback is the URL host, then `Untitled`.
   - `ItemInput.tags = [default_tag]` (empty without one), `group_id: None`.
   - Map `Preset` to `config` 1:1 (`model.rs:569`).
-- [ ] T050 [US3] The write prompt in `src-tauri/src/browser_bridge/methods/mod.rs`. When `need == ReadWrite` and the grant is `Read`:
+- [x] T050 [US3] The write prompt in `src-tauri/src/browser_bridge/methods/mod.rs`. When `need == ReadWrite` and the grant is `Read`:
   - if the declaration has no write or `write_denied`/session deny → `PERMISSION_DENIED`;
   - else ask `kind:'write'` through `prompts.rs` (120 s);
   - allow + remember → update the row (`access = readWrite`, `default_tag` from the answer, required when the scope is tags);
@@ -374,8 +374,10 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   No prompt for entries out of scope (FR-016): the check happens before any item lookup.
 
-- [ ] T051 [P] [US3] `src/components/browserBridge/WriteAccessDialog.vue` (new): client, method in words, "Erlauben", "Ablehnen", "Merken"; a default-tag picker when the scope is tags and the method creates entries (FR-015). Buttons have `type="button"`. Mount it in `Desktop.vue`; the store from T031 routes `kind:'write'`. Add i18n keys.
-- [ ] T052 [US3] Make T048 pass. Add `create-item`, `get-password-config` and `get-password-presets` to the contract test's expected list. Extend the e2e scenario: a read-only approval, `e2e_bridge_client create-item` → write dialog → allow → the entry appears in the password manager without reload (FR-025).
+- [x] T051 [P] [US3] `src/components/browserBridge/WriteAccessDialog.vue` (new): client, method in words, "Erlauben", "Ablehnen", "Merken"; a default-tag picker when the scope is tags and the method creates entries (FR-015). Buttons have `type="button"`. Mount it in `Desktop.vue`; the store from T031 routes `kind:'write'`. Add i18n keys.
+- [x] T052 [US3] Make T048 pass. Add `create-item`, `get-password-config` and `get-password-presets` to the contract test's expected list. Extend the e2e scenario: a read-only approval, `e2e_bridge_client create-item` → write dialog → allow → the entry appears in the password manager without reload (FR-025).
+
+**As built (PR C)**: the write question lives in `browser_bridge/write_access.rs`; this session's write answers are kept in `SessionDecisions` (`allow_write`, `deny_write`, `effective`). The fixture and the test client moved to `tests/common/bridge_fixture.rs`; the password cases are in `tests/browser_bridge_passwords.rs`, and the 5 000-entry test runs every time (about 10 s, mostly seeding). `PasswordsService::totp_code` and `preset_list` take the grants; the service shares `authorize_item_read` between the single read and the TOTP code.
 
 **Checkpoint**: PR C complete. Run quickstart M4 and M5, then open PR C.
 
