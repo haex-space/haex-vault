@@ -27,8 +27,8 @@ spec 055 and vault-sdk 4.7.1
 
 ## Phase 1: Setup
 
-- [ ] T001 Create an implementation worktree of `haex-space/haextension` at `6dfb015198c99018236f5a8e958a916942ab971c` and confirm `apps/haex-notes/package.json` is version 0.1.7
-- [ ] T002 Raise `@haex-space/vault-sdk` to exactly `4.7.1` and add `pdf-lib` in `apps/haex-notes/package.json`; update the lockfile; add no provider, OCR or model SDK
+- [x] T001 (haex-space/haextension#116) Create an implementation worktree of `haex-space/haextension` at `6dfb015198c99018236f5a8e958a916942ab971c` and confirm `apps/haex-notes/package.json` is version 0.1.7
+- [x] T002 (haex-space/haextension#116; `^4.7.1` like the other dependencies, the lockfile pins 4.7.1; `pdf-lib` comes with T036 so the package carries no unused dependency) Raise `@haex-space/vault-sdk` to exactly `4.7.1` and add `pdf-lib` in `apps/haex-notes/package.json`; update the lockfile; add no provider, OCR or model SDK
 - [x] T003 [P] Add permissively licensed handwriting fonts with their license notices under `apps/haex-notes/public/fonts/` (Caveat, Patrick Hand, Kalam under the OFL, from `google/fonts@45e3d5269e4a17d823f6d84470bc084dc5ae46f6`)
 - [x] T004 [P] Add the handwriting style registry with a neutral fallback in `apps/haex-notes/app/lib/paperNotes/fonts.ts`
 
@@ -40,19 +40,19 @@ spec 055 and vault-sdk 4.7.1
 
 ### Tests first
 
-- [ ] T005 [P] Tests in `apps/haex-notes/app/lib/migratePage.test.ts`: a page without `paperImport` and a table without `cells` load unchanged; a page with both survives save and load; an unknown `paperImport.version` is kept
-- [ ] T006 [P] Tests in `apps/haex-notes/app/lib/tableActions.test.ts`: adding and removing rows and columns keeps `cells` at `rows` × `columns`, new cells empty
-- [ ] T007 [P] Tests in `apps/haex-notes/app/lib/render/elements.test.ts`: `text` with font, size and wrap width; `image` with opacity and rotation; a missing asset draws a placeholder; cell text inside its cell
-- [ ] T008 [P] Tests in `apps/haex-notes/app/lib/collectAssets.test.ts`: the original, the working copy and image crops of `paperImport` are collected
+- [x] T005 [P] (haex-space/haextension#116) Tests in `apps/haex-notes/app/lib/migratePage.test.ts`: a page without `paperImport` and a table without `cells` load unchanged; a page with both survives save and load; an unknown `paperImport.version` is kept
+- [x] T006 [P] (haex-space/haextension#116) Tests in `apps/haex-notes/app/lib/tableActions.test.ts`: adding and removing rows and columns keeps `cells` at `rows` × `columns`, new cells empty
+- [x] T007 [P] (haex-space/haextension#116) Tests in `apps/haex-notes/app/lib/render/elements.test.ts`: `text` with font, size and wrap width; `image` with opacity and rotation; a missing asset draws a placeholder; cell text inside its cell
+- [x] T008 [P] (haex-space/haextension#116) Tests in `apps/haex-notes/app/lib/collectAssets.test.ts`: the original, the working copy and image crops of `paperImport` are collected
 
 ### Implementation
 
-- [ ] T009 Add `TableElement.cells` and the `PaperNoteImport`, `PaperNoteProcessing` and `RecognizedRegion` types (data-model.md) in `apps/haex-notes/app/types/document.ts`
-- [ ] T010 Add the column `paper_import` in `apps/haex-notes/app/database/schemas/index.ts` and the migration `apps/haex-notes/app/database/migrations/0005_*.sql` with its snapshot and journal entry
-- [ ] T011 Read and write `paperImport` and `cells` in `apps/haex-notes/app/lib/migratePage.ts` and `apps/haex-notes/app/stores/notebook.ts`
-- [ ] T012 Keep `cells` in step with rows and columns in `apps/haex-notes/app/lib/tableActions.ts`
-- [ ] T013 Draw `text`, `image` (assets loaded asynchronously, placeholder when missing) and cell text in `apps/haex-notes/app/lib/render/elements.ts`
-- [ ] T014 Collect the new asset sources in `apps/haex-notes/app/lib/collectAssets.ts`
+- [x] T009 (haex-space/haextension#116) Add `TableElement.cells` and the `PaperNoteImport`, `PaperNoteProcessing` and `RecognizedRegion` types (data-model.md) in `apps/haex-notes/app/types/document.ts`
+- [x] T010 (haex-space/haextension#116) Add the column `paper_import` in `apps/haex-notes/app/database/schemas/index.ts` and the migration `apps/haex-notes/app/database/migrations/0005_*.sql` with its snapshot and journal entry
+- [x] T011 (haex-space/haextension#116) Read and write `paperImport` and `cells` in `apps/haex-notes/app/lib/migratePage.ts` and `apps/haex-notes/app/stores/notebook.ts`
+- [x] T012 (haex-space/haextension#116) Keep `cells` in step with rows and columns in `apps/haex-notes/app/lib/tableActions.ts`
+- [x] T013 (haex-space/haextension#116; images load through `app/composables/useElementImages.ts`) Draw `text`, `image` (assets loaded asynchronously, placeholder when missing) and cell text in `apps/haex-notes/app/lib/render/elements.ts`
+- [x] T014 (haex-space/haextension#116) Collect the new asset sources in `apps/haex-notes/app/lib/collectAssets.ts`
 
 **Checkpoint**: Pages with text, images and filled tables draw, save and load; nothing reads a photo yet.
 
@@ -121,7 +121,7 @@ reopened, and every change and the unchanged original are there.
 layer hidden, the original is not in it.
 
 - [x] T035 [P] [US4] Tests in `apps/haex-notes/app/lib/paperNotes/exportPdf.test.ts`: defaults of plan.md, each setting changes the output, a hidden original layer is left out, one page per PDF page
-- [x] T036 [US4] Raster the visible page and embed it with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`
+- [x] T036 [US4] Add `pdf-lib` to `apps/haex-notes/package.json`, raster the visible page and embed it with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`
 - [x] T037 [US4] Export dialog with paper size, orientation, margins, quality and original visibility, opened from the notebook page
 
 **Checkpoint**: Quickstart step 8.
