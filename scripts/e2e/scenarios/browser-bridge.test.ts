@@ -4,6 +4,7 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import { freePort } from '../lib/ports.ts'
 import { KEY, openSettings, waitForLocation } from '../lib/settings.ts'
+import { entryTitles } from '../lib/passwords.ts'
 import {
   startBridgeClient,
   type BridgeClient,
@@ -14,18 +15,24 @@ import {
 // turned on in Einstellungen → Erweiterungen → Browser-Erweiterungen; a stand-in for haex-pass-browser
 // connects, holzi asks with the client's name, fingerprint and origin, "Zulassen" with "Erlaubnis
 // merken" reaches the open connection at once, and the next connection is approved without a
-// question.
+// question. A client approved for reading only is asked before it saves (US3, FR-015), and the
+// saved entry is in the vault at once.
 scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-browser-bridge' })
   const port = await freePort()
   const logDir = join(process.env.E2E_RUN_DIR ?? '.', 'browser-bridge')
   const clients: BridgeClient[] = []
-  const client = async (name: string, seed: number) => {
+  const client = async (
+    name: string,
+    seed: number,
+    request?: { action: string; payload: Record<string, unknown> },
+  ) => {
     const started = await startBridgeClient({
       port,
       seed,
       logFile: join(logDir, `${name}.log`),
+      request,
     })
     clients.push(started)
     return started
@@ -118,6 +125,30 @@ scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
       (e) => e.event === 'authorization' && e.authorized === false,
     )
     ctx.step('a declined client hears it and is turned away')
+
+    const reader = await client('reader', 11, {
+      action: 'create-item',
+      payload: {
+        title: 'E2E Shop',
+        url: 'https://shop.example',
+        password: 'pw',
+      },
+    })
+    await instance.waitForDisplayed('bridge-approval')
+    await instance.click('bridge-approval-read')
+    await instance.click('bridge-approval-allow')
+    await instance.waitForDisplayed('bridge-write')
+    ctx.step('a reader is asked before it saves')
+    await instance.click('bridge-write-allow')
+    const saved = await waitForEvent(
+      reader,
+      'the answer to create-item',
+      (e) => e.event === 'reply',
+    )
+    const reply = saved?.reply as { success?: boolean } | undefined
+    assert.equal(reply?.success, true, JSON.stringify(saved))
+    assert.ok((await entryTitles(instance)).includes('E2E Shop'))
+    ctx.step('the entry is saved')
   } finally {
     for (const running of clients) await running.stop()
   }
