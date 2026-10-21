@@ -5,6 +5,7 @@
 // provider credentials.
 import { SETTINGS_AGENT_ACTIONS } from './settingsAgentActions.ts'
 import { SETTINGS_SERVER_ACTIONS } from './settingsServerActions.ts'
+import { BROWSER_BRIDGE_ACTIONS } from './browserBridgeActions.ts'
 import type { JsonSchema, ActionDefinition } from './types.ts'
 
 const DONE: JsonSchema = {
@@ -479,4 +480,5 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
   }),
   ...SETTINGS_AGENT_ACTIONS,
   ...SETTINGS_SERVER_ACTIONS,
+  ...BROWSER_BRIDGE_ACTIONS,
 ]

@@ -50,7 +50,7 @@ async function reloadForDevModeAsync(): Promise<boolean> {
 /** How long a call of the agent waits for an extension's frame (spec 018, research R9). */
 const AGENT_FRAME_TIMEOUT_MS = 10_000
 
-async function raiseWindowAsync(): Promise<void> {
+export async function raiseWindowAsync(): Promise<void> {
   const window = getCurrentWindow()
   for (const step of [
     () => window.unminimize(),

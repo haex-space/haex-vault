@@ -241,6 +241,16 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   // Spec 017: installed extensions, installing from a file.
   categoryLocation('extensions'),
   // Reached from an extension's row in the list, never searched for.
+  // Spec 049: the External Bridge for browser extensions, a row of its own in the list.
+  subView(
+    'extensions.browserBridge',
+    'extensions/browser-bridge',
+    'extensions',
+    {
+      icon: 'lucide:globe',
+      row: true,
+    },
+  ),
   subView('extensions.detail', 'extensions/:extensionId', 'extensions'),
   categoryLocation('federation'),
   subView('federation.link', 'federation/devices/link', 'federation', {
