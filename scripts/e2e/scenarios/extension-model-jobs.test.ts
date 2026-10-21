@@ -11,7 +11,6 @@ import {
   openFromLauncher,
   privateNetworkAddress,
   reachableFromDevice,
-  type InstalledExtension,
 } from '../lib/extensions.ts'
 
 // Spec 055, US7 (T067, quickstart steps 2–6): the test extension `model-jobs`, the released
