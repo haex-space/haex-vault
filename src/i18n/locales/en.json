@@ -2954,6 +2954,16 @@
       "portInUse": "Port in use",
       "noVault": "No vault open",
       "notAvailable": "Not available on this platform"
+    },
+    "write": {
+      "title": "Allow writing?",
+      "body": "\"{name}\" (as stated by the extension) may only read so far and wants to {action}.",
+      "methods": {
+        "create-item": "create an entry",
+        "passkey-create": "create a passkey"
+      },
+      "remember": "Remember",
+      "allow": "Allow"
     }
   }
 }

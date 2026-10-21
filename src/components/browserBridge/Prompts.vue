@@ -32,4 +32,5 @@ onMounted(() => {
 
 <template>
   <BrowserBridgeApprovalDialog />
+  <BrowserBridgeWriteAccessDialog />
 </template>

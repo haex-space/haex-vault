@@ -2954,6 +2954,16 @@
       "portInUse": "Port belegt",
       "noVault": "Keine Vault offen",
       "notAvailable": "Auf dieser Plattform nicht verfügbar"
+    },
+    "write": {
+      "title": "Schreiben erlauben?",
+      "body": "„{name}“ (Angabe der Erweiterung) darf bisher nur lesen und möchte {action}.",
+      "methods": {
+        "create-item": "einen Eintrag anlegen",
+        "passkey-create": "einen Passkey anlegen"
+      },
+      "remember": "Merken",
+      "allow": "Erlauben"
     }
   }
 }
