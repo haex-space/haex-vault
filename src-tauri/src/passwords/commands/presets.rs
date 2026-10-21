@@ -34,7 +34,7 @@ pub struct PresetDeleteArgs {
 
 #[tauri::command]
 pub async fn passwords_preset_list(state: State<'_, AppState>) -> Result<Vec<Preset>> {
-    service(&state)?.preset_list(&Caller::User).await
+    service(&state)?.preset_list(&Caller::User, &[]).await
 }
 
 #[tauri::command]

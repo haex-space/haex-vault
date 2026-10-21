@@ -112,6 +112,10 @@ fn outside_callers() -> Vec<Caller> {
             id: "agent".to_string(),
         },
         Caller::Internal { feature: "test" },
+        // Spec 049: a browser extension through the External Bridge.
+        Caller::BrowserClient {
+            id: "3f1c0000000000000000000000000000".to_string(),
+        },
     ]
 }
 
@@ -534,17 +538,19 @@ async fn everything_beyond_the_item_methods_is_closed_to_callers_from_outside() 
             Err(HolziError::PasswordsForbidden)
         ));
         assert!(matches!(
-            f.service.totp_code(&caller, seeded.s3.clone()).await,
-            Err(HolziError::PasswordsForbidden)
-        ));
-        assert!(matches!(
             f.service
                 .set_tags(&caller, vec![seeded.s3.clone()], tags(&["x"]), vec![])
                 .await,
             Err(HolziError::PasswordsForbidden)
         ));
+        // Without a grant also the TOTP code and the presets stay closed (spec 049 FR-024,
+        // FR-027 open them for a grant).
         assert!(matches!(
-            f.service.preset_list(&caller).await,
+            f.service.totp_code(&caller, &[], seeded.s3.clone()).await,
+            Err(HolziError::PasswordsForbidden)
+        ));
+        assert!(matches!(
+            f.service.preset_list(&caller, &[]).await,
             Err(HolziError::PasswordsForbidden)
         ));
         // A grant for everything does not change that.
@@ -747,5 +753,48 @@ async fn restoring_emptying_and_deleting_for_good_are_for_the_user_alone() {
     assert!(matches!(
         f.service.get_item(&Caller::User, seeded.s3).await,
         Err(HolziError::PasswordsNotFound)
+    ));
+}
+
+#[tokio::test]
+async fn a_read_grant_gives_the_totp_code_and_the_presets_but_nothing_outside_the_scope() {
+    // Spec 049 FR-024, FR-027, FR-042: the code (never the secret) of an entry in the scope; an
+    // entry without TOTP and one outside the scope answer the same.
+    let f = fixture();
+    let seeded = seed(&f).await;
+    let without_totp = f
+        .service
+        .create_item(
+            &Caller::User,
+            &[],
+            ItemInput {
+                title: Some("no-otp".to_string()),
+                tags: tags(&["s3"]),
+                ..ItemInput::default()
+            },
+            None,
+        )
+        .await
+        .expect("create");
+    let grant = [Grant::new(GrantAction::Read, Scope::tags(["s3"]))];
+    for caller in outside_callers() {
+        let code = f
+            .service
+            .totp_code(&caller, &grant, seeded.s3.clone())
+            .await
+            .expect("a code in the scope");
+        assert_eq!(code.code.len(), 6);
+        assert!(code.remaining_seconds <= 30);
+        for outside in [seeded.bank.clone(), without_totp.clone()] {
+            assert!(matches!(
+                f.service.totp_code(&caller, &grant, outside).await,
+                Err(HolziError::PasswordsNotFound)
+            ));
+        }
+        assert!(f.service.preset_list(&caller, &grant).await.is_ok());
+    }
+    assert!(matches!(
+        f.service.preset_list(&Caller::BuiltinAgent, &grant).await,
+        Err(HolziError::PasswordsForbidden)
     ));
 }

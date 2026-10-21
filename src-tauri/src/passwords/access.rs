@@ -237,6 +237,12 @@ pub fn require_user(caller: &Caller) -> Result<(), Denied> {
     }
 }
 
+/// Methods without entries that every password grant covers (spec 049 FR-027: the generator
+/// presets): the user, and any other caller with a grant; never the built-in agent.
+pub fn authorize_any_grant(caller: &Caller, grants: &[Grant]) -> Result<(), Denied> {
+    reach(caller, grants, GrantAction::Read).map(|_| ())
+}
+
 /// `list_headers`: the user and any caller with a read grant see items (the user all of them, also
 /// the trash for the user's own overview); the built-in agent gets the agent headers (Z2, Z4).
 pub fn authorize_list(caller: &Caller, grants: &[Grant]) -> Result<ListView, Denied> {

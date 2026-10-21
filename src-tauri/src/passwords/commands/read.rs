@@ -79,7 +79,7 @@ pub async fn passwords_reveal(
 #[tauri::command]
 pub async fn passwords_totp_code(state: State<'_, AppState>, args: ItemIdArgs) -> Result<TotpCode> {
     service(&state)?
-        .totp_code(&Caller::User, args.item_id)
+        .totp_code(&Caller::User, &[], args.item_id)
         .await
 }
 
