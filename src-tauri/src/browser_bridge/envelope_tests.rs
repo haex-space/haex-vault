@@ -129,3 +129,76 @@ fn the_fingerprint_is_the_first_half_of_sha256_in_lowercase_hex() {
     );
     assert_eq!(client_id_of(&[0u8; 31]), Err(EnvelopeError::KeyLength));
 }
+
+/// The envelopes WebCrypto made with the calls of `background/crypto.ts` (research R18), written by
+/// `scripts/fixtures/browser-bridge-envelope.ts`; `pnpm check:browser-bridge` opens the response.
+const WEBCRYPTO: &str = include_str!("../../tests/fixtures/browser_bridge/webcrypto.json");
+
+fn fixture_key(fixture: &serde_json::Value, pointer: &str) -> [u8; KEY_LEN] {
+    decode_key(
+        fixture
+            .pointer(pointer)
+            .and_then(|v| v.as_str())
+            .expect(pointer),
+    )
+    .expect(pointer)
+}
+
+fn fixture_text<'a>(fixture: &'a serde_json::Value, pointer: &str) -> &'a str {
+    fixture
+        .pointer(pointer)
+        .and_then(|v| v.as_str())
+        .expect(pointer)
+}
+
+#[test]
+fn webcrypto_envelopes_open_and_a_response_seals_byte_for_byte() {
+    let fixture: serde_json::Value = serde_json::from_str(WEBCRYPTO).expect("fixture");
+    let client_secret = fixture_key(&fixture, "/client/secret");
+    let client_public = fixture_key(&fixture, "/client/publicKey");
+    let server = ServerKeys::from_secret(fixture_key(&fixture, "/server/secret"));
+    assert_eq!(
+        MontgomeryPoint::mul_base_clamped(client_secret).to_bytes(),
+        client_public,
+        "the public key WebCrypto derived"
+    );
+    assert_eq!(
+        server.public_b64(),
+        fixture_text(&fixture, "/server/publicKey")
+    );
+    assert_eq!(
+        client_id_of(&client_public).expect("id"),
+        fixture_text(&fixture, "/client/clientId")
+    );
+
+    let request = server
+        .open_request(
+            fixture_text(&fixture, "/request/publicKey"),
+            fixture_text(&fixture, "/request/iv"),
+            fixture_text(&fixture, "/request/message"),
+        )
+        .expect("the request opens");
+    assert_eq!(
+        request,
+        fixture_text(&fixture, "/request/plaintext").as_bytes()
+    );
+
+    let iv: [u8; IV_LEN] = STANDARD
+        .decode(fixture_text(&fixture, "/response/iv"))
+        .expect("b64")
+        .try_into()
+        .expect("12 bytes");
+    let sealed = seal_with(
+        fixture_key(&fixture, "/response/ephemeralSecret"),
+        iv,
+        &client_public,
+        fixture_text(&fixture, "/response/plaintext").as_bytes(),
+    )
+    .expect("seal");
+    assert_eq!(
+        sealed.public_key,
+        fixture_text(&fixture, "/response/publicKey")
+    );
+    assert_eq!(sealed.iv, fixture_text(&fixture, "/response/iv"));
+    assert_eq!(sealed.message, fixture_text(&fixture, "/response/message"));
+}

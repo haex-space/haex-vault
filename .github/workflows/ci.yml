@@ -49,6 +49,9 @@ jobs:
       - name: Check passwords
         run: corepack pnpm check:passwords
 
+      - name: Check browser bridge
+        run: corepack pnpm check:browser-bridge
+
       - name: Check storage
         run: corepack pnpm check:storage
 
