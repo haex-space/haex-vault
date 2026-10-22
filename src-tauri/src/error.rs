@@ -226,6 +226,10 @@ pub enum HolziError {
     #[error("The browser bridge is not available on this platform")]
     BrowserBridgeUnavailable,
 
+    /// No approval or block for this browser extension on this device (spec 049 FR-038).
+    #[error("No such browser extension")]
+    BrowserBridgeClientNotFound,
+
     /// A Visitenkarte that is not one, or whose signature does not verify (FR-011).
     #[error("Invalid business card: {reason}")]
     CardInvalid { reason: String },

@@ -1,5 +1,5 @@
 //! Commands of the window (spec 049, `contracts/tauri-commands.md`): the state and settings of the
-//! bridge, and the answers to its questions. Only the window calls them; the settings go through
+//! bridge, the approved and blocked clients, and the answers to its questions. Only the window calls them; the settings go through
 //! guardrail actions no agent can call (FR-013).
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,9 @@ use tauri_plugin_notification::NotificationExt;
 use ts_rs::TS;
 use uuid::Uuid;
 
+use super::admin::{BridgeClientUpdate, BridgeClientView, ClientAdmin, ClientLists};
 use super::prompts::BridgeAnswer;
+use super::runtime::Notice;
 use super::settings::{self, BridgeSettings};
 use super::{BridgeRunState, BrowserBridge};
 use crate::error::{HolziError, Result};
@@ -23,6 +25,9 @@ pub struct BridgeOverview {
     pub enabled: bool,
     pub port: u16,
     pub state: BridgeRunState,
+    /// Approved clients, remembered and for this session (FR-037).
+    pub clients: Vec<BridgeClientView>,
+    pub blocked: Vec<BridgeClientView>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -31,6 +36,13 @@ pub struct BridgeOverview {
 pub struct BridgeConfigureArgs {
     pub enabled: bool,
     pub port: u16,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct BridgeClientArgs {
+    pub client_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -72,10 +84,13 @@ async fn overview<R: Runtime>(
     state: &AppState,
     bridge: &BrowserBridge,
 ) -> Result<BridgeOverview> {
-    let (settings, vault_open) = match device_settings(app, state).await {
-        Ok((_, settings)) => (settings, true),
+    let (settings, lists, vault_open) = match device_settings(app, state).await {
+        Ok((device, settings)) => {
+            let lists = admin_for(state, bridge, device).await?.overview().await?;
+            (settings, lists, true)
+        }
         Err(HolziError::NoActiveInstance | HolziError::VaultClosed) => {
-            (BridgeSettings::default(), false)
+            (BridgeSettings::default(), ClientLists::default(), false)
         }
         Err(error) => return Err(error),
     };
@@ -83,7 +98,37 @@ async fn overview<R: Runtime>(
         enabled: settings.enabled,
         port: settings.port,
         state: bridge.run_state(vault_open).await,
+        clients: lists.clients,
+        blocked: lists.blocked,
     })
+}
+
+async fn admin_for(state: &AppState, bridge: &BrowserBridge, device: Uuid) -> Result<ClientAdmin> {
+    Ok(ClientAdmin {
+        db: state.database()?,
+        device,
+        core: bridge.core().await,
+    })
+}
+
+async fn admin<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    bridge: &BrowserBridge,
+) -> Result<ClientAdmin> {
+    available()?;
+    let (device, _) = device_settings(app, state).await?;
+    admin_for(state, bridge, device).await
+}
+
+/// Tells the settings and answers with the new overview.
+async fn changed<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    bridge: &BrowserBridge,
+) -> Result<BridgeOverview> {
+    bridge.notifier()(Notice::Changed);
+    overview(app, state, bridge).await
 }
 
 #[tauri::command]
@@ -119,6 +164,48 @@ pub async fn browser_bridge_configure(
         .await?;
     bridge.apply(&state, device, wanted).await;
     overview(&app, &state, &bridge).await
+}
+
+/// Changes the approval of a client; it holds from the next request on (FR-038).
+#[tauri::command]
+pub async fn browser_bridge_client_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bridge: State<'_, BrowserBridge>,
+    args: BridgeClientUpdate,
+) -> Result<BridgeOverview> {
+    admin(&app, &state, &bridge).await?.update(args).await?;
+    changed(&app, &state, &bridge).await
+}
+
+/// Withdraws the approval of a client and closes its connections (FR-011).
+#[tauri::command]
+pub async fn browser_bridge_client_revoke(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bridge: State<'_, BrowserBridge>,
+    args: BridgeClientArgs,
+) -> Result<BridgeOverview> {
+    admin(&app, &state, &bridge)
+        .await?
+        .revoke(&args.client_id)
+        .await?;
+    changed(&app, &state, &bridge).await
+}
+
+/// Lifts the block of a client; the next connect asks again.
+#[tauri::command]
+pub async fn browser_bridge_client_unblock(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bridge: State<'_, BrowserBridge>,
+    args: BridgeClientArgs,
+) -> Result<BridgeOverview> {
+    admin(&app, &state, &bridge)
+        .await?
+        .unblock(&args.client_id)
+        .await?;
+    changed(&app, &state, &bridge).await
 }
 
 /// The window's answer to a question; an unknown or late id has no effect.
