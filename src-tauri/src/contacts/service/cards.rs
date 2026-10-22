@@ -100,6 +100,24 @@ fn checked(q: &mut impl Query, text: &str) -> Result<(SignedCard, Option<String>
     Ok((card, existing))
 }
 
+/// What the address book knows of a vault, for holzi's own handshakes with its devices.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VaultCard {
+    /// Its card is stored on this contact, and the vault is not blocked.
+    Stored {
+        contact_id: String,
+        card: SignedCard,
+    },
+    /// The person blocked the vault (FR-039), whether its card is stored or not.
+    Blocked,
+    /// Neither.
+    Unknown,
+}
+
+/// The holzi functions that look vaults up by their identity: channels between extensions (spec
+/// 057) and file shares (spec 056).
+const CARD_LOOKUP_FEATURES: [&str; 2] = ["extensionPeers", "fileShares"];
+
 fn invalid(reason: &str) -> HolziError {
     HolziError::ContactsInvalid {
         reason: reason.to_owned(),
@@ -272,6 +290,26 @@ impl ContactsService {
                 received::save(tx, &contact_id, &card)?;
                 store::touch(tx, &contact_id, &now)?;
                 Ok(store::load(tx, &contact_id)?)
+            })
+            .await
+    }
+
+    /// The stored card of `vault`, for a handshake with one of its devices. Only the holzi
+    /// functions of [`CARD_LOOKUP_FEATURES`] ask; nothing of it reaches an extension.
+    pub async fn card_of_vault(&self, caller: &Caller, vault: [u8; 32]) -> Result<VaultCard> {
+        match caller {
+            Caller::Internal { feature } if CARD_LOOKUP_FEATURES.contains(feature) => {}
+            _ => return Err(HolziError::ContactsForbidden),
+        }
+        self.db()
+            .read(move |q| {
+                if received::is_blocked(q, &vault)? {
+                    return Ok(VaultCard::Blocked);
+                }
+                Ok(match received::stored(q, &vault)? {
+                    Some((contact_id, card)) => VaultCard::Stored { contact_id, card },
+                    None => VaultCard::Unknown,
+                })
             })
             .await
     }
