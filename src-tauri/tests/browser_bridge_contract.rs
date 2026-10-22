@@ -48,17 +48,11 @@ fn contract_unsupported(text: &str) -> BTreeSet<String> {
 }
 
 #[test]
-fn every_method_of_the_table_is_in_the_contract() {
+fn the_table_is_exactly_the_methods_of_the_contract() {
     let listed = contract_methods(&contract());
-    let missing: Vec<&str> = METHODS
-        .iter()
-        .map(|m| m.name)
-        .filter(|name| !listed.contains(*name))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "not in contracts/wire-protocol.md: {missing:?}"
-    );
+    let table: BTreeSet<String> = METHODS.iter().map(|m| m.name.to_owned()).collect();
+    assert_eq!(table, listed, "METHODS against contracts/wire-protocol.md");
+    assert_eq!(table.len(), 8);
 }
 
 #[test]

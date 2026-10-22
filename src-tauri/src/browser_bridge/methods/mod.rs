@@ -21,10 +21,14 @@ use crate::passwords::access::GrantAction;
 use crate::passwords::service::PasswordsService;
 
 pub mod items;
+pub mod passkeys;
+mod presence;
 
-/// What a method gets: the bridge, the caller, the approval in force and the request's payload.
+/// What a method gets: the bridge, the client and its caller, the approval in force and the
+/// request's payload.
 pub struct Call<'a> {
     pub core: &'a Arc<BridgeCore>,
+    pub client: &'a ClientIdentity,
     pub caller: Caller,
     pub approval: Approval,
     pub payload: Value,
@@ -44,7 +48,7 @@ pub struct Method {
     pub module: &'static str,
 }
 
-/// The methods of the password manager (FR-018). The passkey methods join with US4.
+/// The methods of the password manager (FR-018).
 pub const METHODS: &[Method] = &[
     Method {
         name: "get-items",
@@ -76,6 +80,24 @@ pub const METHODS: &[Method] = &[
         handler: items::get_password_presets,
         module: items::MODULE,
     },
+    Method {
+        name: "passkey-create",
+        need: GrantAction::ReadWrite,
+        handler: passkeys::passkey_create,
+        module: passkeys::MODULE,
+    },
+    Method {
+        name: "passkey-get",
+        need: GrantAction::Read,
+        handler: passkeys::passkey_get,
+        module: passkeys::MODULE,
+    },
+    Method {
+        name: "passkey-list",
+        need: GrantAction::Read,
+        handler: passkeys::passkey_list,
+        module: passkeys::MODULE,
+    },
 ];
 
 /// The password service over the bridge's vault.
@@ -90,6 +112,9 @@ fn to_code(error: HolziError) -> ErrorCode {
         HolziError::PasswordsNotFound => ErrorCode::NotFound,
         HolziError::PasswordsForbidden => ErrorCode::PermissionDenied,
         HolziError::InvalidInput { .. } => ErrorCode::InvalidRequest,
+        HolziError::PasswordsPasskeyOriginMismatch => ErrorCode::OriginMismatch,
+        HolziError::PasswordsPasskeyExcluded => ErrorCode::PasskeyExcluded,
+        HolziError::PasswordsPasskeyUnsupportedAlgorithm => ErrorCode::UnsupportedAlgorithm,
         other => {
             log::warn!(
                 "browser bridge: the password service failed ({})",
@@ -177,6 +202,7 @@ pub(super) async fn dispatch(
     };
     let call = Call {
         core,
+        client,
         caller: Caller::BrowserClient {
             id: client.client_id.clone(),
         },

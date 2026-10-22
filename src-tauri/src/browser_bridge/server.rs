@@ -4,6 +4,7 @@
 
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -29,6 +30,8 @@ pub enum StartError {
 
 pub struct StartArgs {
     pub db: VaultDb,
+    /// The vault file, for the vault password of a passkey confirmation (FR-033).
+    pub vault_path: PathBuf,
     pub device: Uuid,
     /// 0 picks a free port (tests).
     pub port: u16,
@@ -89,6 +92,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
     }
     let core = Arc::new(BridgeCore::new(
         args.db,
+        args.vault_path,
         args.device,
         args.parent.child_token(),
         args.prompts,

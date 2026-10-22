@@ -2,6 +2,8 @@
 //! bridge, the approved and blocked clients, and the answers to its questions. Only the window calls them; the settings go through
 //! guardrail actions no agent can call (FR-013).
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_notification::NotificationExt;
@@ -14,6 +16,7 @@ use super::runtime::Notice;
 use super::settings::{self, BridgeSettings};
 use super::{BridgeRunState, BrowserBridge};
 use crate::error::{HolziError, Result};
+use crate::instances::paths::get_instance_path;
 use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
 
@@ -45,7 +48,7 @@ pub struct BridgeClientArgs {
     pub client_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct BridgeAnswerArgs {
@@ -61,12 +64,20 @@ fn available() -> Result<()> {
     }
 }
 
-/// This device and its bridge settings.
+/// The open vault as the bridge needs it: this device in it, and its file.
+pub struct OpenVault {
+    pub device: Uuid,
+    pub path: PathBuf,
+}
+
+/// The open vault and this device's bridge settings.
 pub(super) async fn device_settings<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,
-) -> Result<(Uuid, BridgeSettings)> {
+) -> Result<(OpenVault, BridgeSettings)> {
     let db = state.database()?;
+    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    let path = get_instance_path(app, &name)?;
     let lookup = {
         let app = app.clone();
         let db = db.clone();
@@ -76,7 +87,7 @@ pub(super) async fn device_settings<R: Runtime>(
         reason: format!("device lookup: {error}"),
     })??;
     let settings = db.read(move |q| settings::read(q, device)).await?;
-    Ok((device, settings))
+    Ok((OpenVault { device, path }, settings))
 }
 
 async fn overview<R: Runtime>(
@@ -85,8 +96,11 @@ async fn overview<R: Runtime>(
     bridge: &BrowserBridge,
 ) -> Result<BridgeOverview> {
     let (settings, lists, vault_open) = match device_settings(app, state).await {
-        Ok((device, settings)) => {
-            let lists = admin_for(state, bridge, device).await?.overview().await?;
+        Ok((vault, settings)) => {
+            let lists = admin_for(state, bridge, vault.device)
+                .await?
+                .overview()
+                .await?;
             (settings, lists, true)
         }
         Err(HolziError::NoActiveInstance | HolziError::VaultClosed) => {
@@ -117,8 +131,8 @@ async fn admin<R: Runtime>(
     bridge: &BrowserBridge,
 ) -> Result<ClientAdmin> {
     available()?;
-    let (device, _) = device_settings(app, state).await?;
-    admin_for(state, bridge, device).await
+    let (vault, _) = device_settings(app, state).await?;
+    admin_for(state, bridge, vault.device).await
 }
 
 /// Tells the settings and answers with the new overview.
@@ -153,7 +167,8 @@ pub async fn browser_bridge_configure(
     let port = settings::validate_port(args.port).map_err(|error| HolziError::InvalidInput {
         reason: error.to_string(),
     })?;
-    let (device, _) = device_settings(&app, &state).await?;
+    let (vault, _) = device_settings(&app, &state).await?;
+    let device = vault.device;
     let wanted = BridgeSettings {
         enabled: args.enabled,
         port,
@@ -162,7 +177,7 @@ pub async fn browser_bridge_configure(
         .database()?
         .write(move |tx| settings::write(tx, device, wanted))
         .await?;
-    bridge.apply(&state, device, wanted).await;
+    bridge.apply(&state, vault, wanted).await;
     overview(&app, &state, &bridge).await
 }
 

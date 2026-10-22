@@ -40,6 +40,9 @@ use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
 
+/// The password of the test vault, for the vault-password check of a passkey confirmation.
+pub const VAULT_PASSWORD: &str = "browser-bridge";
+
 // ---------------------------------------------------------------------------
 // The vault and the bridge
 // ---------------------------------------------------------------------------
@@ -62,7 +65,7 @@ pub fn fixture_with_prompt_timeout(timeout: Duration) -> Fixture {
     let dir = tempfile::tempdir().expect("tempdir");
     let database = Database::open(DatabaseConfig {
         path: dir.path().join("vault.db"),
-        key: SqlCipherKey::new("browser-bridge"),
+        key: SqlCipherKey::new(VAULT_PASSWORD),
         create_if_missing: true,
         bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
@@ -110,6 +113,7 @@ impl Fixture {
         let notices = Arc::clone(&self.notices);
         start(StartArgs {
             db: self.db.clone(),
+            vault_path: self._dir.path().join("vault.db"),
             device: self.device,
             port,
             parent: self.session.clone(),

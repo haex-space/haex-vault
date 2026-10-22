@@ -17,7 +17,7 @@ use crate::passwords::site::site_of;
 pub const MODULE: &str = module_path!();
 
 /// The title of an entry without one, as haex-vault 2.x (Legacy) answers.
-const UNTITLED: &str = "Untitled";
+pub(super) const UNTITLED: &str = "Untitled";
 
 #[derive(Deserialize)]
 struct GetItems {
@@ -47,7 +47,7 @@ struct CreateItem {
     password: Option<String>,
 }
 
-fn input<T: for<'de> Deserialize<'de>>(payload: Value) -> Result<T, ErrorCode> {
+pub(super) fn input<T: for<'de> Deserialize<'de>>(payload: Value) -> Result<T, ErrorCode> {
     serde_json::from_value(payload).map_err(|_| ErrorCode::InvalidRequest)
 }
 
@@ -69,7 +69,8 @@ fn parse_address(address: &str) -> Option<Url> {
     }
 }
 
-fn site_of_address(address: &str) -> Option<String> {
+/// The site of an address as the extension sends it.
+pub(super) fn site_of_address(address: &str) -> Option<String> {
     site_of(parse_address(address)?.host_str()?)
 }
 
