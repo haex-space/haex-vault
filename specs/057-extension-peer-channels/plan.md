@@ -14,7 +14,7 @@ Erster Nutzer ist der Mehrspielermodus von haex-doom.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
-- **Eigene ALPN am vorhandenen Endpoint** (R1): `holzi-ext-peer/1` am `Router` der Vault-Sitzung,
+- **Eigene ALPN am vorhandenen Endpoint** (R1): `haex-vault-ext-peer/1` am `Router` der Vault-Sitzung,
   eine QUIC-Verbindung je Kanal; `SyncNode::bind` nimmt weitere Protokoll-Handler (auch für 056).
 - **Schnelle Nachrichten = QUIC-Datagramme** (R2) bis 1.024 Byte, in der Grundeinstellung von
   iroh/noq aktiv; **gesicherte = Steuerstream** (R3) mit `u32 BE ‖ postcard` wie der Sync.
@@ -23,7 +23,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   und 057. Ergebnis `OwnVault`, `Contact` oder `Unverified`.
 - **Adressen** (R5): Geräte der gespeicherten Visitenkarte, alle zugleich; „nicht erreichbar“ mit
   Hinweis auf eine aktuelle Karte; später Anklopfen aus 056.
-- **Lobbys** (R6, R7): Beitrittscode `holzi:join:` mit Endpoint, Relay, zufälliger Lobby-Kennung und
+- **Lobbys** (R6, R7): Beitrittscode `haex-vault:join:` mit Endpoint, Relay, zufälliger Lobby-Kennung und
   128-Bit-Geheimnis; Beweis per HMAC über die Handshake-Nonces, zeitkonstant geprüft, eine Antwort für
   alle Fehlschläge; neue Drosselung der Zulassung.
 - **Einladungen** (R9, R10): holzis Abfrage im Fenster oder als eigene Benachrichtigung mit Knöpfen;
@@ -94,7 +94,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | IV. Fremde Inhalte mit fester Revision                         | ✅ Entwurf von haex-doom gepinnt auf `a076b69321d0cfd63baa23d9b628620e1866e4f3`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | VII. Ohne Relay weiterarbeiten                                 | ✅ Ohne Relay bleibt alles Lokale nutzbar; Kanäle dann nur direkt, sonst „nicht erreichbar“; ein Endpoint, der nicht bindet, lässt nur die Funktionen dieser Spec mit `network_unavailable` scheitern (FR-044)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | VIII. Keine Verschleierung                                     | ✅ nicht berührt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ADR für prinzipielle Entscheidungen                            | ✅ ADR 0016 „Devices of non-contact vaults for public lobbies“ (proposed), erweitert ADR-0015 nur für `holzi-ext-peer/1` während einer öffentlichen Lobby                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ADR für prinzipielle Entscheidungen                            | ✅ ADR 0016 „Devices of non-contact vaults for public lobbies“ (proposed), erweitert ADR-0015 nur für `haex-vault-ext-peer/1` während einer öffentlichen Lobby                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Keine Hinweise auf Agents in Commits und PRs                   | ✅ Commits und PRs ohne Trailer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Phasen-Reihenfolge                                             | ✅ baut auf 017, 024 und 051 auf, alle in Benutzung. 056 ist keine Voraussetzung: Anklopfen kommt später dazu (research R5); `sync/foreign_auth.rs` entsteht hier oder in 056, je nachdem, was zuerst umgesetzt wird                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
@@ -113,7 +113,7 @@ specs/057-extension-peer-channels/
 ├── quickstart.md
 ├── contracts/
 │   ├── bridge.md            # Methoden, Meldungen, Fehler, Befehle für holzis Fenster
-│   ├── wire-protocol.md     # holzi-ext-peer/1: Handshake, Zulassung, Kanal, Beitrittscode
+│   ├── wire-protocol.md     # haex-vault-ext-peer/1: Handshake, Zulassung, Kanal, Beitrittscode
 │   └── sdk.md               # client.peers im vault-sdk und Unterschiede zum Entwurf von haex-doom
 ├── checklists/requirements.md
 └── tasks.md                 # /speckit-tasks
@@ -130,7 +130,7 @@ src-tauri/src/
 │   ├── foreign_auth.rs (+ _tests)        # Hello/Proof, Listenprüfung, Generation, Einordnung (gemeinsam mit 056)
 │   ├── endpoint.rs                       # Handler-Liste an den Router, dial_alpn
 │   ├── endpoint_protocols.rs (+ _tests)  # weitere ALPN-Handler registrieren
-│   └── service.rs                        # Handler für holzi-ext-peer/1 bauen, PeerState an die Sitzung binden
+│   └── service.rs                        # Handler für haex-vault-ext-peer/1 bauen, PeerState an die Sitzung binden
 ├── extensions/
 │   ├── peers/
 │   │   ├── mod.rs                        # PeerState, Grenzen, Fehlerabbildung
@@ -206,8 +206,8 @@ Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt. Das SD
   Nutzer alle Relays abgeschaltet, kann das ausbleiben. PR 2 testet es.
 - **Zeitgleichheit (SC-007)**: Messung im Test kann auf geteilten CI-Maschinen schwanken; der Test
   vergleicht Mediane über 1.000 Läufe und läuft ohne Netz.
-- **Umbenennung (054)**: ALPN, Signaturdomäne und Code-Präfix ändern sich mit 054; vor dem Merge von
-  PR 1 klären, ob 054 schon gelandet ist.
+- **Umbenennung (054)**: ALPN, Signaturdomäne und Code-Präfix tragen schon das neue Präfix nach dem
+  Schema von 054 (`haex-vault-…`); 054 muss sie nicht mehr anfassen.
 - **Reihenfolge mit 056**: Wer `sync/foreign_auth.rs` und die Handler-Liste zuerst baut, legt die Form
   fest; der zweite passt sich an. 056 research R4 und R5 beschreiben dieselben Bausteine noch als
   eigene Teile von `holzi-files/1`; das wird beim Umsetzen der zweiten Spec angeglichen.

@@ -5,7 +5,7 @@ import type { ContactsCardPreviewValue } from "./ContactsCardPreviewValue";
 /**
  * What a card shows before it is stored.
  */
-export type ContactsCardPreview = { name: string, npub: string, vaultPubkey: string, issuedAt: string, devices: number, nostrRelays: Array<string>, values: Array<ContactsCardPreviewValue>,
+export type ContactsCardPreview = { name: string, npub: string, vaultPubkey: string, issuedAt: string, devices: number, nostrRelays: Array<string>, values: Array<ContactsCardPreviewValue>, 
 /**
  * The contact that already has this vault's card; only it can take the card (FR-013).
  */

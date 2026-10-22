@@ -52,7 +52,7 @@ Konstanten: `peers.MAX_FAST_BYTES = 1024`, `peers.MAX_RELIABLE_BYTES = 65536`,
 7. Fehler sind Zahlencodes mit `reason` statt eigener Codes (Tabelle oben).
 8. Das Öffnen nach einer Benachrichtigung geschieht ohne `?invite=`; die Erweiterung erhält
    `channel-opened`, sobald ihr Rahmen bereit ist.
-9. Der Beitrittscode beginnt mit `holzi:join:` (nach Spec 054 mit dem neuen Präfix), nicht
+9. Der Beitrittscode beginnt mit `haex-vault:join:` (schon mit dem Präfix nach Spec 054), nicht
    `haexpeer1:`; er bleibt undurchsichtig.
-10. Draht: postcard mit `u32` BE statt CBOR mit `u32` LE; ALPN `holzi-ext-peer/1`; Ausweisen über die
+10. Draht: postcard mit `u32` BE statt CBOR mit `u32` LE; ALPN `haex-vault-ext-peer/1`; Ausweisen über die
     unterschriebene Geräteliste statt nur über die gespeicherte Karte. Für die Erweiterung unsichtbar.

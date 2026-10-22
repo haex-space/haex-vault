@@ -66,7 +66,7 @@ Erweiterung und Gerät.
 
 ## Beitrittscode (`JoinCode`)
 
-`holzi:join:` + Base32 ohne Auffüllung von `postcard({ v: 1, endpoint_id, relay: Option<String>,
+`haex-vault:join:` + Base32 ohne Auffüllung von `postcard({ v: 1, endpoint_id, relay: Option<String>,
 lobby: key, secret })`. Erzeugt bei `lobby_open`, nie gespeichert. Siehe
 [contracts/wire-protocol.md](./contracts/wire-protocol.md).
 
