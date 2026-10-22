@@ -6,7 +6,13 @@
 //! ([`channel`]). Everything lives in memory ([`PeerState`]) and reaches only the frames of the
 //! extension the channel belongs to; nothing is stored but the permission `peers` (FR-042).
 
+pub mod admission;
+pub mod channel;
+pub mod state;
 pub mod wire;
+
+#[cfg(test)]
+pub(crate) mod test_support;
 
 use haex_crdt::rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -16,6 +22,8 @@ use uuid::Uuid;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::ids::{ExtensionName, PublicKey};
 use crate::storage::query::Query;
+
+pub use state::PeerState;
 
 /// The holzi function channels read the address book as (`Caller::Internal`).
 pub const FEATURE: &str = "extensionPeers";
@@ -144,3 +152,11 @@ impl From<PeerError> for BridgeError {
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "isolation_tests.rs"]
+mod isolation_tests;
+
+#[cfg(test)]
+#[path = "load_tests.rs"]
+mod load_tests;

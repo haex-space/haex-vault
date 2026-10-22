@@ -77,6 +77,8 @@ pub struct ExtensionHost {
     pub storage: super::remote_storage_dialog::StorageState,
     /// Opened encrypted folders and the open folder choosers of extensions (spec 048 US6).
     pub encrypted: super::encrypted_folder_choose::EncryptedFolderState,
+    /// Channels to the same extension on devices of other vaults (spec 057).
+    pub peers: super::peers::PeerState,
     /// Entry and Content-Security-Policy per bundle started in this process.
     started: Mutex<HashMap<Uuid, Arc<Started>>>,
     /// The bundle each extension last started with on this device, to see an update.
