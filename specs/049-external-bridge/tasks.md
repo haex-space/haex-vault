@@ -493,7 +493,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 - [x] T068 [US4] e2e scenario part 3: `e2e_bridge_client passkey-create` with a fixed challenge → presence dialog → confirm → the client prints a response; the passkey appears in the entry's Extra tab. A second run denied → `USER_CANCELLED`.
 
-**As built (PR E)**: the worktree branches from PR D, not from `main`, since both change the e2e scenario and this file; it is retargeted to `main` once D is merged. The cases of T064 are in their own file, `tests/browser_bridge_passkeys.rs`. The presence confirmation is `browser_bridge/methods/presence.rs`; the methods are `methods/passkeys.rs`. The bridge gets the vault file in `StartArgs` (`vault_path`) and checks the password with `instances::verify_current` on a blocking thread that holds the vault open. `PasskeyCreated` also carries `passkey_id`. `BridgeAnswer` is no longer `Clone` or comparable, since it may carry the vault password. A wrong vault password closes the dialog and is told to the window by the event `browser-bridge-wrong-passphrase` (a toast), because the answer command returns before Rust checks it. The presence dialog is mounted in `Prompts.vue`, next to the other two. The extension decides between holzi and the browser before holzi is asked (`webauthn-bridge.ts`: its own consent prompt, and a sign-in without a matching passkey goes to the browser), so a security key keeps working; declining holzi's confirmation cancels like a browser dialog.
+**As built (PR E)**: the worktree branches from PR D, not from `main`, since both change the e2e scenario and this file; after D was merged, its commits were rebased onto `main`. The cases of T064 are in their own file, `tests/browser_bridge_passkeys.rs`. The presence confirmation is `browser_bridge/methods/presence.rs`; the methods are `methods/passkeys.rs`. The bridge gets the vault file in `StartArgs` (`vault_path`) and checks the password with `instances::verify_current` on a blocking thread that holds the vault open. `PasskeyCreated` also carries `passkey_id`. `BridgeAnswer` is no longer `Clone` or comparable, since it may carry the vault password. A wrong vault password closes the dialog and is told to the window by the event `browser-bridge-wrong-passphrase` (a toast), because the answer command returns before Rust checks it. The presence dialog is mounted in `Prompts.vue`, next to the other two. The extension decides between holzi and the browser before holzi is asked (`webauthn-bridge.ts`: its own consent prompt, and a sign-in without a matching passkey goes to the browser), so a security key keeps working; declining holzi's confirmation cancels like a browser dialog.
 
 **Checkpoint**: PR E complete. Run quickstart M6 and M7 with the PR H build of the extension, then open PR E.
 
@@ -513,16 +513,16 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T074 [P] Leak test (SC-004, research R16), `src-tauri/tests/browser_bridge.rs` part 7:
+- [x] T074 [P] Leak test (SC-004, research R16), `src-tauri/tests/browser_bridge.rs` part 7:
   - Install a capturing `log` logger for the test binary.
   - Plant markers in a TOTP secret, a passkey private key, an out-of-scope entry title and password, and in the request URL of `get-items`.
   - Run every method, including the failing paths.
   - Assert that no marker appears in any response plaintext, error string or captured log line.
-- [ ] T075 [P] Interop fixture (research R18):
+- [x] T075 [P] Interop fixture (research R18):
   - `scripts/fixtures/browser-bridge-envelope.ts` generates `src-tauri/tests/fixtures/browser_bridge/webcrypto.json` with Node 22 WebCrypto `X25519` and `AES-GCM`, mirroring `background/crypto.ts` (test keys only).
   - A Rust test in `envelope_tests.rs` opens the fixture request and seals a response with fixed keys that equals the fixture's expected response.
   - `scripts/check-browser-bridge.ts` (`pnpm check:browser-bridge`, add it to `package.json` and to the check workflow next to `check:passwords`) decrypts that response with WebCrypto.
-- [ ] T076 [P] `ponytail:` comments in place: raw ECDH secret (`envelope.rs`), `last_seen_at` on every handshake (`approvals.rs`), the `get-items` filter in the bridge (`methods/items.rs`).
+- [x] T076 [P] `ponytail:` comments in place: raw ECDH secret (`envelope.rs`), `last_seen_at` on every handshake (`approvals.rs`), the `get-items` filter in the bridge (`methods/items.rs`).
 - [ ] T077 Run every quickstart row (M1–M11) with Chromium and Firefox, the extension built from PR H, and record the results and dates in `specs/049-external-bridge/quickstart.md`.
 - [ ] T078 Update the roadmap row in `plans/README.md` and set the spec status to Implemented.
 - [ ] T079 Release the extension. In haextension `apps/haex-pass-browser`:
@@ -530,6 +530,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   2. Commit, then push the tag `haex-pass-browser-v1.3.0`.
   3. Watch `browser-extension-release.yml`; confirm the AMO listing shows 1.3.0. Chrome store publishing is commented out in the workflow; say so if it is still off.
 - [ ] T080 Follow-up refactor PR (K1): move `src-tauri/src/files/agent/prompt.rs` and `src-tauri/src/chat/tools/action_bridge.rs` onto `prompt_park.rs`, with behavior unchanged (their tests stay green). This is a separate PR after PR B.
+
+**As built (T074–T076, PR E)**: the leak test is its own binary, `tests/browser_bridge_leaks.rs`, because its capturing logger is process-wide. It keeps what a log could hold: holzi's own lines at every level, and every line at `Info` and above (the level of `lib.rs`); below that, tungstenite traces raw frames, whose envelope repeats the action in the clear and whose payload is sealed. Besides the markers of T074 it plants the client's own saved password, a wrong vault password, an unknown entry id, a foreign origin and an undecryptable message, and also searches the questions to the window and the notices. An unknown action name is only searched in the log, because the answer's envelope repeats it (wire protocol). The fixture generator uses fixed keys and IVs, so `pnpm check:browser-bridge` also checks that the committed file is what the generator writes. The `ponytail:` comments of T076 were already in place from PR B and C.
 
 ---
 
