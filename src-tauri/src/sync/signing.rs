@@ -21,6 +21,8 @@ pub enum Domain {
     LinkResume,
     /// A Visitenkarte of the vault (spec 051, contracts/contact-card.md).
     ContactCard,
+    /// A device of another vault proving itself on `holzi-ext-peer/1` (spec 057 research R4).
+    ExtPeerAuth,
 }
 
 impl Domain {
@@ -34,6 +36,7 @@ impl Domain {
             Domain::Link => b"holzi-link/v1",
             Domain::LinkResume => b"holzi-link-resume/v1",
             Domain::ContactCard => b"holzi-contact-card/v1",
+            Domain::ExtPeerAuth => b"holzi-ext-peer-auth/v1",
         }
     }
 }

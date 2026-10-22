@@ -14,6 +14,19 @@ fn a_signature_verifies_in_its_own_domain_only() {
     ));
 }
 
+/// Spec 057 research R4: a proof of the sync handshake never stands in for one of a channel.
+#[test]
+fn a_device_auth_signature_does_not_verify_as_ext_peer_auth() {
+    let pubkey = xonly_public_key(&SECRET).expect("public key");
+    let signature = sign(Domain::DeviceAuth, b"transcript", &SECRET).expect("sign");
+
+    verify(Domain::DeviceAuth, b"transcript", &signature, &pubkey).expect("verifies");
+    assert!(matches!(
+        verify(Domain::ExtPeerAuth, b"transcript", &signature, &pubkey),
+        Err(SigningError::BadSignature)
+    ));
+}
+
 #[test]
 fn a_changed_payload_or_key_fails() {
     let pubkey = xonly_public_key(&SECRET).expect("public key");
@@ -43,6 +56,7 @@ fn every_domain_has_a_distinct_versioned_tag() {
         Domain::Link,
         Domain::LinkResume,
         Domain::ContactCard,
+        Domain::ExtPeerAuth,
     ];
     let tags: std::collections::HashSet<_> = domains.iter().map(|d| d.tag()).collect();
     assert_eq!(tags.len(), domains.len());
