@@ -194,6 +194,7 @@ impl Target {
             K::Model if value == "*" => Some(Self::Any),
             K::Model => is_model_id(value).then(|| Self::Model(value.to_owned())),
             K::ModelDestination => is_provider_id(value).then(|| Self::Provider(value.to_owned())),
+            K::Peers => (value == "*").then_some(Self::Any),
         }
     }
 

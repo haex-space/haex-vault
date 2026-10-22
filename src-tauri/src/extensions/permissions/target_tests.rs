@@ -460,3 +460,12 @@ fn a_model_target_is_an_id_or_every_model_and_a_destination_target_is_a_provider
         );
     }
 }
+
+#[test]
+fn a_peers_target_is_only_any() {
+    assert_eq!(Target::parse(PermissionKind::Peers, "*"), Some(Target::Any));
+    for value in ["", "contacts", "**", "/", "example.org"] {
+        assert_eq!(Target::parse(PermissionKind::Peers, value), None, "{value}");
+    }
+    assert!(matches(PermissionKind::Peers, "*", &RequestTarget::Any));
+}

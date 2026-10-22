@@ -1,5 +1,5 @@
-//! Tests for the kinds `model` and `modelDestination` (spec 055 R3): their stored spelling, the
-//! order of the effort actions and how a stored row reads.
+//! Tests for the kinds `model` and `modelDestination` (spec 055 R3) and `peers` (spec 057): their
+//! stored spelling, their actions and how a stored row reads.
 
 use super::*;
 use crate::model_jobs::effort::Level;
@@ -8,7 +8,7 @@ const PROVIDER: &str = "6f1c1d52-3a8b-4f0e-9c55-0a1b2c3d4e5f";
 
 #[test]
 fn the_two_kinds_have_a_stored_name_and_are_part_of_all() {
-    assert_eq!(PermissionKind::ALL.len(), 13);
+    assert_eq!(PermissionKind::ALL.len(), 14);
     assert_eq!(PermissionKind::Model.as_str(), "model");
     assert_eq!(
         PermissionKind::ModelDestination.as_str(),
@@ -161,4 +161,61 @@ fn a_destination_grant_names_one_provider_and_nothing_else() {
         ),
         Decision::Prompt
     );
+}
+
+#[test]
+fn peers_is_a_vault_wide_kind_with_the_one_action_connect() {
+    assert_eq!(PermissionKind::Peers.as_str(), "peers");
+    assert_eq!(PermissionKind::parse("peers"), Some(PermissionKind::Peers));
+    assert!(PermissionKind::ALL.contains(&PermissionKind::Peers));
+    // FR-001: one grant holds on every own device.
+    assert!(!PermissionKind::Peers.is_device_scoped());
+    assert_eq!(
+        PermissionKind::Peers.scope_on(uuid::Uuid::new_v4()),
+        VAULT_WIDE
+    );
+
+    let connect = Action::parse(PermissionKind::Peers, "connect").expect("connect");
+    assert_eq!(connect, Action::Connect);
+    assert_eq!(connect.as_string(), "connect");
+    // Any other action of `peers` is absent (spec 017 FR-022), and `connect` belongs to no other
+    // kind.
+    for text in ["", "*", "read", "readWrite", "send", "Connect", "connect "] {
+        assert_eq!(Action::parse(PermissionKind::Peers, text), None, "{text}");
+    }
+    for kind in PermissionKind::ALL
+        .into_iter()
+        .filter(|kind| *kind != PermissionKind::Peers)
+    {
+        assert_ne!(
+            Action::parse(kind, "connect"),
+            Some(Action::Connect),
+            "{kind:?}"
+        );
+    }
+    // `connect` covers only itself.
+    assert!(Action::Connect.covers(&Action::Connect));
+    assert!(!Action::Connect.covers(&Action::Read));
+    assert!(!Action::ReadWrite.covers(&Action::Connect));
+}
+
+#[test]
+fn a_stored_peers_row_reads_back_only_with_connect_on_any() {
+    let row = Permission::from_row("peers", "connect", "*", "granted", VAULT_WIDE).expect("row");
+    assert_eq!(row.kind, PermissionKind::Peers);
+    assert_eq!(row.action, Action::Connect);
+    assert_eq!(row.scope, GrantScope::Vault);
+    let request = PermissionRequest {
+        kind: PermissionKind::Peers,
+        action: Action::Connect,
+        target: RequestTarget::Any,
+    };
+    assert!(row.applies_to(&request));
+    for (action, target) in [("read", "*"), ("connect", "contacts"), ("connect", "")] {
+        assert_eq!(
+            Permission::from_row("peers", action, target, "granted", VAULT_WIDE),
+            None,
+            "{action} {target}"
+        );
+    }
 }

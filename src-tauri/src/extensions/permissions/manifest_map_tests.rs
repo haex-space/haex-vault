@@ -265,3 +265,28 @@ fn contacts_are_read_only_of_all_or_of_a_group() {
         "a write never becomes a permission"
     );
 }
+
+#[test]
+fn peers_maps_to_connect_on_any_and_nothing_else() {
+    let result = declared(json!({
+        "peers": [{ "target": "*", "action": "connect" }, { "target": "*" }]
+    }));
+    assert_eq!(
+        kinds_and_actions(&result),
+        vec![
+            (PermissionKind::Peers, Action::Connect, "*".to_string()),
+            (PermissionKind::Peers, Action::Connect, "*".to_string()),
+        ]
+    );
+    assert!(result.invalid.is_empty());
+    assert!(result.unsupported_categories.is_empty());
+
+    let refused = declared(json!({
+        "peers": [
+            { "target": "some-contact", "action": "connect" },
+            { "target": "*", "action": "read" }
+        ]
+    }));
+    assert!(refused.declared.is_empty());
+    assert_eq!(refused.invalid.len(), 2);
+}
