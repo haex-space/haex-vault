@@ -252,3 +252,69 @@ async fn only_the_user_reads_cards_in() {
         .is_err());
     assert!(mara.service.own_card(&Caller::BuiltinAgent).await.is_err());
 }
+
+/// Spec 057 T013: holzi's handshakes find a vault's card, a blocked vault is told apart from an
+/// unknown one, and nobody else may ask.
+#[tokio::test]
+async fn a_vault_is_looked_up_by_its_identity_only_for_holzis_handshakes() {
+    let (_ben, text) = ben_with_values().await;
+    let mara = card_vault();
+    let ben_vault = format::parse(&text).expect("card").card.vault;
+    let peers = Caller::Internal {
+        feature: "extensionPeers",
+    };
+    assert_eq!(
+        mara.service
+            .card_of_vault(&peers, ben_vault)
+            .await
+            .expect("lookup"),
+        VaultCard::Unknown
+    );
+
+    let contact = mara
+        .service
+        .card_accept(&Caller::User, text.clone(), CardInto::New)
+        .await
+        .expect("accept");
+    for feature in ["extensionPeers", "fileShares"] {
+        match mara
+            .service
+            .card_of_vault(&Caller::Internal { feature }, ben_vault)
+            .await
+            .expect("lookup")
+        {
+            VaultCard::Stored { contact_id, card } => {
+                assert_eq!(contact_id, contact.id);
+                assert_eq!(card.card.vault, ben_vault);
+            }
+            other => panic!("expected the stored card, got {other:?}"),
+        }
+    }
+
+    mara.service
+        .set_blocked(&Caller::User, keys::hex(&ben_vault), true)
+        .await
+        .expect("block");
+    assert_eq!(
+        mara.service
+            .card_of_vault(&peers, ben_vault)
+            .await
+            .expect("lookup"),
+        VaultCard::Blocked
+    );
+
+    for caller in [
+        Caller::User,
+        Caller::BuiltinAgent,
+        Caller::Extension { id: "x".into() },
+        Caller::Internal { feature: "phone" },
+    ] {
+        assert!(
+            matches!(
+                mara.service.card_of_vault(&caller, ben_vault).await,
+                Err(HolziError::ContactsForbidden)
+            ),
+            "{caller:?}"
+        );
+    }
+}
