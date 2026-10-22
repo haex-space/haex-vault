@@ -428,15 +428,15 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: `src-tauri/tests/passwords_passkeys.rs` (extended), `browser_bridge.rs` part 6, then quickstart M6 and M7 (needs PR H).
 
-- [ ] T059 [US4] New worktree `.worktrees/049-e` on branch `049-external-bridge-e` from `main` after PR D (PR E only needs PR B and C; branch from whatever is merged).
-- [ ] T060 [US4] Write `docs/adr/0015-passkey-presence-after-ceremony-bound-confirmation.md` in the format of `0009-…md`:
+- [x] T059 [US4] New worktree `.worktrees/049-e` on branch `049-external-bridge-e` from `main` after PR D (PR E only needs PR B and C; branch from whatever is merged).
+- [x] T060 [US4] Write `docs/adr/0015-passkey-presence-after-ceremony-bound-confirmation.md` in the format of `0009-…md`:
   - The passkey service sets UP only after a confirmation bound to exactly one request (client, RP, origin, challenge hash), and UV only when the RP requires it and the vault password was re-entered in that confirmation.
   - `UserPresence` cannot be deserialized from outside.
   - It supersedes ADR-0009 on this point.
 
   Add a "Superseded in part by ADR-0015" line to ADR-0009. Add a note to `specs/036-password-redesign/contracts/passkey-service.md` (UP/UV section) pointing to 049 and ADR-0015.
 
-- [ ] T061 [US4] Tests first, extend `src-tauri/tests/passwords_passkeys.rs`:
+- [x] T061 [US4] Tests first, extend `src-tauri/tests/passwords_passkeys.rs`:
   - `presence: None` keeps today's flags (`BE|BS|AT`, no UP).
   - `Present` → UP set, UV not.
   - `Verified` → UP and UV.
@@ -444,7 +444,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - `PasskeyTarget::New { title, url, username, tags }` creates entry and passkey in one transaction; a forced passkey failure (excluded credential) leaves no entry.
   - `Existing(id)` behaves like the old `item_id`.
   - Also extend `webauthn_tests.rs` for the flag bytes.
-- [ ] T062 [US4] Implement the service changes:
+- [x] T062 [US4] Implement the service changes:
   - `UserPresence` (`None` default, `Present`, `Verified`; derives `Debug, Clone, Copy, PartialEq` but **not** `Deserialize`) and `PasskeyTarget` in `src-tauri/src/passwords/model_passkeys.rs`.
   - `presence` on `PasskeyCreateRequest` and `PasskeyConfirmRequest`; `item_id` → `target` on create.
   - `create_auth_data`/`get_auth_data` in `webauthn.rs:287,304` take the presence and set `FLAG_UP`/`FLAG_UV`.
@@ -454,8 +454,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Make T061 pass.
 
-- [ ] T063 [US4] K3: make `verify_current` in `src-tauri/src/instances/passphrase_change.rs:75` `pub(crate)` and unchanged. Add a test in its existing test file (or a new `passphrase_change_tests.rs`): right passphrase → Ok, wrong → `WrongPassphrase`.
-- [ ] T064 [US4] Integration test first, `src-tauri/tests/browser_bridge.rs` part 6 (SC-005 without a browser). Client `ReadWrite`, tag `web`, default `web`.
+- [x] T063 [US4] K3: make `verify_current` in `src-tauri/src/instances/passphrase_change.rs:75` `pub(crate)` and unchanged. Add a test in its existing test file (or a new `passphrase_change_tests.rs`): right passphrase → Ok, wrong → `WrongPassphrase`.
+- [x] T064 [US4] Integration test first, `src-tauri/tests/browser_bridge.rs` part 6 (SC-005 without a browser). Client `ReadWrite`, tag `web`, default `web`.
   - **`passkey-create`**:
     - It contains `origin: "https://login.example.de"`, `relyingPartyId: "example.de"`, std-base64 `challenge` and `userHandle`, and an extra page-injected `itemId`, which must be ignored.
     - It raises one `kind:'presence'` prompt with `choices` = new entry plus `web` entries of site `example.de`.
@@ -472,7 +472,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
     - An RS256 passkey on get → `UNSUPPORTED_ALGORITHM`.
   - **Deny, timeout or closing the socket** during the prompt → `USER_CANCELLED` or no answer, and no passkey, no signature, no entry.
   - **Read-only grant** on create → write prompt first, then the presence prompt (US4 scenario 6).
-- [ ] T065 [US4] `src-tauri/src/browser_bridge/methods/passkeys.rs` per research R11, with the input structs whitelisted (FR-035):
+- [x] T065 [US4] `src-tauri/src/browser_bridge/methods/passkeys.rs` per research R11, with the input structs whitelisted (FR-035):
   - std-base64 ↔ base64url conversion at the edge;
   - pre-checks in order: grant (write prompt), `checked_origin`, exclude via `passkey_list` ∩ `excludeCredentials`; for get, candidates = `passkey_list(rp)` ∩ `allowCredentials`;
   - then the presence prompt; for UV, `verify_current` on `gate.spawn_blocking`;
@@ -481,8 +481,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Bind the confirmation to the request: the prompt carries the SHA-256 of the challenge, and the answer is consumed once by this call only (FR-031). Register `passkey-create` (`ReadWrite`), `passkey-get` and `passkey-list` (`Read`) in `METHODS` and the contract test. Make T064 pass.
 
-- [ ] T066 [US4] Add the `presence` variants to `BridgePrompt` and `BridgeAnswer` in `prompts.rs` per [contracts/tauri-commands.md](./contracts/tauri-commands.md). The answer validation checks that `choice` comes from the prompt's `choices` and that `passphrase` is present exactly when `requireUv`; the passphrase is held as `Passphrase` (zeroizing), never logged.
-- [ ] T067 [P] [US4] `src/components/browserBridge/PresenceDialog.vue` (new, ≤ 300 lines). It shows:
+- [x] T066 [US4] Add the `presence` variants to `BridgePrompt` and `BridgeAnswer` in `prompts.rs` per [contracts/tauri-commands.md](./contracts/tauri-commands.md). The answer validation checks that `choice` comes from the prompt's `choices` and that `passphrase` is present exactly when `requireUv`; the passphrase is held as `Passphrase` (zeroizing), never logged.
+- [x] T067 [P] [US4] `src/components/browserBridge/PresenceDialog.vue` (new, ≤ 300 lines). It shows:
   - client, RP name and id, origin, user;
   - for create, the entry choice (default "Neuer Eintrag"); for get, the account choice when there are several;
   - for `requireUv`, a password field (`autocomplete="current-password"`);
@@ -491,7 +491,9 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Usable at 360 px; i18n keys. Mount it in `Desktop.vue`.
 
-- [ ] T068 [US4] e2e scenario part 3: `e2e_bridge_client passkey-create` with a fixed challenge → presence dialog → confirm → the client prints a response; the passkey appears in the entry's Extra tab. A second run denied → `USER_CANCELLED`.
+- [x] T068 [US4] e2e scenario part 3: `e2e_bridge_client passkey-create` with a fixed challenge → presence dialog → confirm → the client prints a response; the passkey appears in the entry's Extra tab. A second run denied → `USER_CANCELLED`.
+
+**As built (PR E)**: the worktree branches from PR D, not from `main`, since both change the e2e scenario and this file; it is retargeted to `main` once D is merged. The cases of T064 are in their own file, `tests/browser_bridge_passkeys.rs`. The presence confirmation is `browser_bridge/methods/presence.rs`; the methods are `methods/passkeys.rs`. The bridge gets the vault file in `StartArgs` (`vault_path`) and checks the password with `instances::verify_current` on a blocking thread that holds the vault open. `PasskeyCreated` also carries `passkey_id`. `BridgeAnswer` is no longer `Clone` or comparable, since it may carry the vault password. A wrong vault password closes the dialog and is told to the window by the event `browser-bridge-wrong-passphrase` (a toast), because the answer command returns before Rust checks it. The presence dialog is mounted in `Prompts.vue`, next to the other two. The extension decides between holzi and the browser before holzi is asked (`webauthn-bridge.ts`: its own consent prompt, and a sign-in without a matching passkey goes to the browser), so a security key keeps working; declining holzi's confirmation cancels like a browser dialog.
 
 **Checkpoint**: PR E complete. Run quickstart M6 and M7 with the PR H build of the extension, then open PR E.
 
