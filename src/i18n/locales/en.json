@@ -3012,6 +3012,7 @@
         "get": "“{name}” wants to sign you in to {site} with a passkey from holzi."
       },
       "site": "Site",
+      "challenge": "Challenge hash",
       "user": "Account",
       "extension": "Extension",
       "choices": {
