@@ -102,9 +102,9 @@ describe('a device adb lost for a moment', () => {
     }
     createAdb('emu', run).pull('/a', '/b')
     assert.deepEqual(calls, [
-      '-s emu pull /a /b',
+      '-s emu pull -Z /a /b',
       '-s emu get-state',
-      '-s emu pull /a /b',
+      '-s emu pull -Z /a /b',
     ])
     let twice = 0
     const flaky: AdbRunner = (args) => {
