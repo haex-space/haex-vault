@@ -398,11 +398,13 @@ Spalte `current_bundle_id` mit Last-Writer-Wins (verletzt „höhere Fassung gew
 - CSP **als Antwort-Header** (Tauri und wry reichen Header auf allen Desktop-Plattformen durch,
   `tauri-2.12.1/src/protocol/tauri.rs:181-184`, `webkitgtk/web_context.rs:235-239`,
   `wkwebview/class/url_scheme_handler.rs:138-139`):
-  `default-src 'none'; script-src P 'sha256-…'; style-src P 'unsafe-inline'; img-src P data: blob:;
+  `default-src 'none'; script-src P 'wasm-unsafe-eval' 'sha256-…'; style-src P 'unsafe-inline'; img-src P data: blob:;
 font-src P data:; media-src P data: blob:; connect-src P; worker-src P blob:; frame-src 'none';
 object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors <holzi>` mit P = Präfix der
   Erweiterung. Die Hashes der Inline-Skripte (Nuxt-Konfiguration, Import-Map, Polyfill des SDK) berechnet holzi
-  nach der Signaturprüfung. Kein `'unsafe-eval'`; `'wasm-unsafe-eval'` nur auf Bedarf. Keine expliziten
+  nach der Signaturprüfung. Kein `'unsafe-eval'`. `'wasm-unsafe-eval'` für alle Erweiterungen, seit der erste
+  Bedarf da ist (haex-doom: eine nach WebAssembly übersetzte Engine): es erlaubt nur das Übersetzen von
+  WebAssembly, kein `eval` von JavaScript, und eine Berechtigung je Erweiterung brächte keine Abschottung. Keine expliziten
   `'self'` (Verhalten unter undurchsichtigem Ursprung uneinheitlich).
 - holzis eigene CSP (`src-tauri/tauri.conf.json:23-44`) bekommt `frame-src holzi-ext://localhost
 http://holzi-ext.localhost` (in `csp` und `devCsp`) und dasselbe in `img-src` für Symbole. `frame-src` der
