@@ -49,7 +49,8 @@ shell-Benutzer (kein `adb root`: gepushte Dateien gehörten sonst root, die App 
 das Gerät und versuchen es noch einmal. iroh-Relays in Android-Läufen: `http://127.0.0.1:3340`
 (`iroh-relay --dev`); Linux-Läufe bleiben beim geschlossenen Port.
 
-Darstellung: `wm size 2560x1600`, `wm density 320` für Desktop-Szenarien; Android-Fälle für
+Darstellung: `wm size 1280x800`, `wm density 160` für Desktop-Szenarien (gleiche dp wie zuvor
+2560x1600 bei 320, aber ein Viertel der Pixel für den CPU-gerenderten Emulator); Android-Fälle für
 die Telefonbreite setzen `wm size 1080x2400`, `wm density 480` (360 dp) und setzen danach zurück.
 
 Gemischte Gruppen: Gerät `phone` → Emulator, alle anderen → Linux; ohne `phone` das erste

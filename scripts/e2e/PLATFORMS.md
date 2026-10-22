@@ -33,9 +33,10 @@ app for the other devices of a group, and its preflight stops without them.
 - **Lifecycle**: `am start` and the web view's DevTools socket for a start, `am force-stop` for stop and
   kill, `pidof` for `alive`, `pm clear` for fresh data. Closing the vault ends the app (FR-006), so the
   run's close behaviour is always `exit`.
-- **Display**: a desktop-sized display (`wm size 2560x1600`, `wm density 320`, about 1280×800 dp like
-  the virtual screen), so desktop scenarios see the desktop layout; phone-width checks are scenarios of
-  their own (`android-*`).
+- **Display**: a desktop-sized display (`wm size 1280x800`, `wm density 160`, 1280×800 dp like the
+  virtual screen), so desktop scenarios see the desktop layout; phone-width checks are scenarios of
+  their own (`android-*`). Density 160 keeps the pixel count low: the emulator renders on the CPU, and
+  a film in a maximized window at 2560×1600 froze it.
 - **Services**: every port of the run's services (Nostr test relay, stand-in provider, RustFS, extension
   dev server) is made reachable on the device as `127.0.0.1:<port>` with `adb reverse`
   ([`lib/platform/reach.ts`](lib/platform/reach.ts)), so all devices use the same URLs.

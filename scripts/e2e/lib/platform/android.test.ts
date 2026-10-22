@@ -199,8 +199,8 @@ describe('prepareDevice', () => {
     assert.deepEqual(fake.calls, [
       `-s emu shell pm clear ${PACKAGE}`,
       `-s emu shell appops set ${PACKAGE} MANAGE_EXTERNAL_STORAGE allow`,
-      '-s emu shell wm size 2560x1600',
-      '-s emu shell wm density 320',
+      '-s emu shell wm size 1280x800',
+      '-s emu shell wm density 160',
       '-s emu shell cmd uimode night yes',
     ])
   })
