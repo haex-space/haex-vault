@@ -2,14 +2,13 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import {
   fixture,
+  frameOf,
   inFrame,
   install,
   openFromLauncher,
   type BridgeAnswer,
 } from '../lib/extensions.ts'
 import { KEY } from '../lib/settings.ts'
-
-const FRAME = (id: string) => `[data-extension-id="${id}"]`
 
 // Spec 017, T118: a confirmation the extension asks for (`extension_dialog_confirm`) takes the
 // keyboard from the frame, which turns inert, so Enter or Escape answer it and cannot ask again
@@ -40,7 +39,7 @@ scenario('extension-dialog', { timeoutMs: 180_000 }, async (ctx) => {
    * waiting. (A WebDriver click inside the sandboxed frame does not come back.) */
   async function ask(): Promise<void> {
     await page.exec(`document.querySelector(arguments[0]).focus()`, [
-      FRAME(probe.id),
+      frameOf(probe.id),
     ])
     assert.equal(await focused(), probe.id, 'the keyboard is in the frame')
     await inFrame(
@@ -58,7 +57,7 @@ scenario('extension-dialog', { timeoutMs: 180_000 }, async (ctx) => {
     assert.equal(
       await page.exec<boolean>(
         `return document.querySelector(arguments[0]).inert`,
-        [FRAME(probe.id)],
+        [frameOf(probe.id)],
       ),
       true,
       'the frame is inert while the dialog is open',

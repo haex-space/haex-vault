@@ -85,7 +85,7 @@ scenario('extension-isolation', { timeoutMs: 180_000 }, async (ctx) => {
   )
   assert.ok(captured, 'the shim port was not captured')
   const frameFocused = await instance.exec<boolean>(
-    `const frame = document.querySelector('[data-extension-id]')
+    `const frame = document.querySelector('[data-testid="extension-frame"]')
      if (document.activeElement === frame) frame.blur()
      return document.activeElement === frame`,
   )

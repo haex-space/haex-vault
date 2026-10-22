@@ -54,6 +54,11 @@ export async function refusal(page: Page, path: string): Promise<string> {
   return `${result.error?.kind}:${result.error?.reason}`
 }
 
+/** The frame of the extension `id`. The settings' rows of an extension carry its id too: a
+ * selector by id alone can land on a row while the settings are open. */
+export const frameOf = (id: string) =>
+  `[data-testid="extension-frame"][data-extension-id="${id}"]`
+
 /** Opens an extension from the launcher and waits until its frame is shown (the SDK is ready). */
 export async function openFromLauncher(
   instance: FlowInstance,
@@ -61,10 +66,7 @@ export async function openFromLauncher(
 ): Promise<void> {
   await instance.click('open-launcher')
   await instance.click(`[data-app-id="extension.${extension.id}"]`)
-  await instance.waitForDisplayed(
-    `[data-extension-id="${extension.id}"]`,
-    20_000,
-  )
+  await instance.waitForDisplayed(frameOf(extension.id), 20_000)
 }
 
 /** Starts an extension on this device without showing it (its migrations run then). */
@@ -92,7 +94,7 @@ export async function inFrame<T>(
   script: string,
   args: unknown[] = [],
 ): Promise<T> {
-  await page.frame(`[data-extension-id="${extension.id}"]`, 20_000)
+  await page.frame(frameOf(extension.id), 20_000)
   try {
     return await page.exec<T>(script, args)
   } finally {
