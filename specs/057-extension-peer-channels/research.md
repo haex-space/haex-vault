@@ -7,7 +7,7 @@ transitiv im `Cargo.lock`). Der Entwurf von haex-doom wird zitiert als „Entwur
 
 ## R1 Eigene ALPN am Endpoint der Vault-Sitzung
 
-**Decision**: Neue ALPN `EXT_PEER_ALPN = b"holzi-ext-peer/1"` in `sync/wire.rs` neben `SYNC_ALPN`
+**Decision**: Neue ALPN `EXT_PEER_ALPN = b"haex-vault-ext-peer/1"` in `sync/wire.rs` neben `SYNC_ALPN`
 und `LINK_ALPN`. `SyncNode::bind` (`sync/endpoint.rs:167`) nimmt eine Liste weiterer
 Protokoll-Handler `(alpn, handler)` entgegen und registriert sie am selben `Router`
 (`.accept(...)`, `:213`); die Handler für diese Spec baut `sync::service::run`
@@ -28,8 +28,8 @@ weiter ab.
 Spec 056 plant dieselbe Erweiterung von `bind` (056 research R5). Wer zuerst landet, baut die Liste der
 Handler; der andere hängt sich an.
 
-Der Name folgt dem heutigen Präfix. Spec 054 (FR-010) benennt alle Protokollnamen um; die ALPN steht
-deshalb als Konstante neben den anderen in `sync/wire.rs` und wird mit ihnen umbenannt.
+Der Name folgt schon dem Schema von Spec 054 (FR-010, `haex-vault-…`); 054 muss ihn nicht mehr
+umbenennen. Die ALPN steht als Konstante neben den anderen in `sync/wire.rs`.
 
 **Alternatives considered**:
 
@@ -155,11 +155,11 @@ das Relay der Karte nicht mehr, und das Gerät ist bis zu einer neuen Karte nich
 
 **Decision**:
 
-- Code: `holzi:join:` + Base32 ohne Auffüllung (`data_encoding::BASE32_NOPAD`, schon verwendet in
+- Code: `haex-vault:join:` + Base32 ohne Auffüllung (`data_encoding::BASE32_NOPAD`, schon verwendet in
   `files/agent/folders.rs:12`) von `postcard(JoinCode { v: 1, endpoint_id: [u8;32],
 relay: Option<String>, lobby: [u8;16], secret: [u8;16] })`. `lobby` ist eine zufällige Kennung von
   holzi, nicht die `lobbyId` der Erweiterung; die Zuordnung bleibt beim Gastgeber. Das Präfix folgt
-  Spec 054 wie das Präfix der Visitenkarte.
+  schon dem Schema von Spec 054.
 - Das Geheimnis (128 Bit, `sync::keys::random_bytes`) verlässt den Beitretenden nie im Klartext:
   `Join` trägt `proof = HMAC-SHA256(secret, lp(nonce_dial) ‖ lp(nonce_accept) ‖ lp(lobby))` aus dem
   Handshake (R4). Der Gastgeber prüft mit `Mac::verify_slice` (zeitkonstant).
@@ -398,7 +398,7 @@ Keine Netzdienste in `cargo test`, keine Wartezeiten mit `sleep`.
 ## R17 ADR
 
 **Decision**: ADR 0016 „Devices of non-contact vaults for public lobbies“ (Status proposed) hält fest,
-dass `holzi-ext-peer/1` während einer offenen öffentlichen Lobby Geräte fremder Vaults ohne Kontakt
+dass `haex-vault-ext-peer/1` während einer offenen öffentlichen Lobby Geräte fremder Vaults ohne Kontakt
 zulässt, über ADR-0015 hinaus, und mit welchen Schranken.
 
 ## R18 Graphify und Wiederverwendung

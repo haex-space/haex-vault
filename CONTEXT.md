@@ -459,7 +459,7 @@ marked as not verified (ADR 0016). Closing it makes the code useless; its channe
 _Avoid_: space, Raum, room.
 
 **Beitrittscode** (join code, spec 057):
-The opaque text `holzi:join:…` of an open **Lobby**: the host's address, a random lobby id and a
+The opaque text `haex-vault:join:…` of an open **Lobby**: the host's address, a random lobby id and a
 secret that never travels in the clear. It names no person, vault or contact.
 _Avoid_: invite link, token.
 

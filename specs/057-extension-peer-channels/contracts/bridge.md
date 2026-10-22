@@ -51,7 +51,7 @@ params: { lobbyId: string (1–64, [A-Za-z0-9._-]), visibility: "contacts" | "pu
 result: { joinCode: string }
 ```
 
-Der Code ist für die Erweiterung undurchsichtig (`holzi:join:…`, research R6). Eine zweite offene
+Der Code ist für die Erweiterung undurchsichtig (`haex-vault:join:…`, research R6). Eine zweite offene
 Lobby mit derselben `lobbyId` → 3001.
 
 ### `extension_peers_lobby_close`
@@ -93,7 +93,8 @@ result: {}
 ```
 
 `reliable: false` → schnelle Nachricht ≤ 1.024 Byte; `true` → gesicherte Nachricht ≤ 64 KiB. Größer →
-`7000 too_large` mit `details.limit`. Geschlossener Kanal → `8001 channel_closed`.
+`7000 too_large` mit `details.limit`. Warten schon 16 gesicherte Nachrichten des Kanals → `7000 limit`
+mit `details.limit: 16`. Geschlossener Kanal → `8001 channel_closed`.
 
 ### `extension_peers_close`
 
@@ -136,17 +137,17 @@ An alle offenen Rahmen der Erweiterung auf dem Gerät (`bridge::events::emit_to_
 
 Nur die festen Codes von `ExtensionErrorCode`; der Grund in `details.reason`:
 
-| `code`                          | `details.reason`                        | Bedeutung                                                                             |
-| ------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
-| 1002 `PermissionDenied`         | —                                       | `peers` verweigert                                                                    |
-| 1004 `PermissionPromptRequired` | —                                       | holzi fragt; erneut nach `extension:permission-resolved`                              |
-| 1001 `NotFound`                 | `contact_unknown`                       | Kontakt fehlt, außerhalb der Berechtigung `contacts` oder ohne Visitenkarte           |
-| 1001 `NotFound`                 | `invite_not_open`, `channel_unknown`    | fremde, unbekannte oder beendete Kennung (gleich behandelt, FR-006)                   |
-| 1001 `NotFound`                 | `lobby_closed`                          | Beitritt nicht möglich (einheitliche Antwort, FR-025)                                 |
-| 1002 `PermissionDenied`         | `not_admitted`                          | nur Kontakte / entfernt                                                               |
-| 7000 `LimitExceeded`            | `too_large`, `limit`                    | Nachricht oder Inhalt zu groß; Grenze für Kanäle/Lobbys/Einladungen (`details.limit`) |
-| 8001 `NotAvailable`             | `channel_closed`, `network_unavailable` | Kanal zu; Endpoint der Vault fehlt oder Gastgeber nicht erreichbar                    |
-| 3001 `Validation`               | `invalid_input`                         | Parameter unlesbar (Kennung, Anzeigename, Sichtbarkeit, kein JSON)                    |
+| `code`                          | `details.reason`                        | Bedeutung                                                                                                             |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1002 `PermissionDenied`         | —                                       | `peers` verweigert                                                                                                    |
+| 1004 `PermissionPromptRequired` | —                                       | holzi fragt; erneut nach `extension:permission-resolved`                                                              |
+| 1001 `NotFound`                 | `contact_unknown`                       | Kontakt fehlt, außerhalb der Berechtigung `contacts` oder ohne Visitenkarte                                           |
+| 1001 `NotFound`                 | `invite_not_open`, `channel_unknown`    | fremde, unbekannte oder beendete Kennung (gleich behandelt, FR-006)                                                   |
+| 1001 `NotFound`                 | `lobby_closed`                          | Beitritt nicht möglich (einheitliche Antwort, FR-025)                                                                 |
+| 1002 `PermissionDenied`         | `not_admitted`                          | nur Kontakte / entfernt                                                                                               |
+| 7000 `LimitExceeded`            | `too_large`, `limit`                    | Nachricht oder Inhalt zu groß; Grenze für Kanäle/Lobbys/Einladungen/wartende gesicherte Nachrichten (`details.limit`) |
+| 8001 `NotAvailable`             | `channel_closed`, `network_unavailable` | Kanal zu; Endpoint der Vault fehlt oder Gastgeber nicht erreichbar                                                    |
+| 3001 `Validation`               | `invalid_input`                         | Parameter unlesbar (Kennung, Anzeigename, Sichtbarkeit, kein JSON)                                                    |
 
 Keine Meldung enthält Adressen, Schlüssel oder Daten anderer Erweiterungen (FR-043).
 

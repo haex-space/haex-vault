@@ -79,10 +79,10 @@ devices, the peers module skeleton and the multi-vault test support. Every story
 
 ### Endpoint
 
-- [x] T009 `EXT_PEER_ALPN = b"holzi-ext-peer/1"` next to `SYNC_ALPN` in `src-tauri/src/sync/wire.rs`; `Domain::ExtPeerAuth` with tag `holzi-ext-peer-auth/v1` in `src-tauri/src/sync/signing.rs`; test in `src-tauri/src/sync/signing_tests.rs` that a `DeviceAuth` signature does not verify as `ExtPeerAuth`
+- [x] T009 `EXT_PEER_ALPN = b"haex-vault-ext-peer/1"` next to `SYNC_ALPN` in `src-tauri/src/sync/wire.rs`; `Domain::ExtPeerAuth` with tag `haex-vault-ext-peer-auth/v1` in `src-tauri/src/sync/signing.rs`; test in `src-tauri/src/sync/signing_tests.rs` that a `DeviceAuth` signature does not verify as `ExtPeerAuth`
 - [x] T010 Extra protocol handlers in a new `src-tauri/src/sync/endpoint_protocols.rs`: a list of `(alpn, handler)` that `SyncNode::bind` (`src-tauri/src/sync/endpoint.rs:167`) registers on its `Router` beside `SYNC_ALPN`, and `SyncNode::dial_alpn(addr, alpn) -> Result<Connection, NodeError>` after the pattern of `dial_link` (adds the address to the `MemoryLookup`); `endpoint.rs` grows only by the hand-over (documented 500-LoC exception)
 - [x] T011 [P] Tests in `src-tauri/src/sync/endpoint_protocols_tests.rs`: a dummy handler on a second ALPN accepts a dial; `holzi-sync/1` still works beside it; an ALPN nobody registered is refused
-- [x] T012 Build the `holzi-ext-peer/1` handler in `src-tauri/src/sync/service.rs` (`run`, before `SyncNode::bind`) from the app's `ExtensionHost`, `VaultDb`, window emitter and the session tracker; clear `ExtensionHost.peers` when the session's `CancellationToken` fires
+- [x] T012 Build the `haex-vault-ext-peer/1` handler in `src-tauri/src/sync/service.rs` (`run`, before `SyncNode::bind`) from the app's `ExtensionHost`, `VaultDb`, window emitter and the session tracker; clear `ExtensionHost.peers` when the session's `CancellationToken` fires
 
 ### Verifying a foreign device
 
@@ -97,9 +97,9 @@ devices, the peers module skeleton and the multi-vault test support. Every story
 - [x] T018 [P] Tests in `src-tauri/src/extensions/peers/state_tests.rs`: id of another extension answers `channel_unknown`/`invite_not_open` exactly like a missing id; limits per extension enforced with `limit`
 - [x] T019 Wire messages in a new `src-tauri/src/extensions/peers/wire.rs` per contracts/wire-protocol.md (`Invite`, `Join`, `JoinReply`, `InviteReply`, `InviteConfirm`, `Withdraw`, `Reliable`, `Close`, all with `v: 1`); frame limit 64 KiB before admission, 64 KiB + 64 bytes after; test in `src-tauri/src/extensions/peers/wire_tests.rs` (round trip, oversize refused before allocation, unknown `v` refused)
 - [x] T020 Admission skeleton in a new `src-tauri/src/extensions/peers/admission.rs`: `ProtocolHandler` for `EXT_PEER_ALPN` that spawns each connection on the session tracker (like `SyncProtocol`, `src-tauri/src/sync/endpoint.rs:141-157`), runs `foreign_auth::accept`, closes `Unverified` (until PR 2), and waits at most 5 s for the first admission message, else closes (FR-032); unknown or not-yet-supported messages close
-- [x] T021 Multi-vault test support in a new `src-tauri/src/extensions/peers/test_support.rs`: two or three vaults (`Member::genesis`, linked devices via `Member::join`), cards exchanged and stored as contacts, an installed test extension (same key and name) per vault, loopback endpoints with the `holzi-ext-peer/1` handler, an injected clock, and `open_test_channel(a, b)` that runs the handshake and registers a channel without invitation or lobby (test-only)
+- [x] T021 Multi-vault test support in a new `src-tauri/src/extensions/peers/test_support.rs`: two or three vaults (`Member::genesis`, linked devices via `Member::join`), cards exchanged and stored as contacts, an installed test extension (same key and name) per vault, loopback endpoints with the `haex-vault-ext-peer/1` handler, an injected clock, and `open_test_channel(a, b)` that runs the handshake and registers a channel without invitation or lobby (test-only)
 
-**Checkpoint**: two vaults verify each other on `holzi-ext-peer/1`; nothing is visible yet.
+**Checkpoint**: two vaults verify each other on `haex-vault-ext-peer/1`; nothing is visible yet.
 
 ---
 
@@ -162,8 +162,8 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
   buttons answered in Rust beyond `Desktop::show_notification` (PR 3).
 - **T013**: `card_of_vault` answers `VaultCard::{Stored, Blocked, Unknown}` instead of an
   `Option`: a channel must refuse a blocked vault (FR-034, wire-protocol step 4) and admit an
-  unknown one as not verified (PR 2), so the two must not collapse into `None`. Spec 056 maps
-  `Blocked` and `Unknown` to its `None`.
+  unknown one as not verified (PR 2), so the two must not collapse into `None`. Confirmed in review as
+  the shape spec 056 uses as well (its T016 now reuses this function).
 - **T014**: the floor "not below a generation seen in this session" applies to every vault of
   another device, contact or not; `SeenGenerations` remembers at most 1,024 vaults (`ponytail:`).
   The admission handler puts opening the first stream and the exchange together under the 5-s
@@ -177,14 +177,17 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
   covered by a side breaking the protocol on the stream and by the mapping test (T023).
 - **Reliable queue**: up to 16 reliable messages wait per channel; one more is refused with
   `7000 limit` (`details.limit: 16`) instead of holding memory behind a side that does not read.
-  PR 4 adds this case to the error table of contracts/bridge.md.
+  Confirmed in review; contracts/bridge.md lists it, and the SDK maps it (S1).
+- **Naming**: ALPN `haex-vault-ext-peer/1`, domain `haex-vault-ext-peer-auth/v1` and the join-code
+  prefix `haex-vault:join:` follow spec 054's scheme now instead of waiting for it (decided in review).
 - **T021**: the test support opens channels with a test-only handler and `Origin::Test`; the real
   handler has no test hook except a shorter admission wait (`with_admission_limit`, test builds).
 - **T031**: the watcher starts where the other session followers start (`instances/create.rs`,
   `import.rs`, `open.rs`), beside the registry follower.
 - **Measured on loopback (T022, T024)**: `max_datagram_size()` ≥ 1,024; three channels at 35 fast
   messages of 1,024 bytes a second each way for 10 s: all 2,100 arrived, delay median about 1.1 ms,
-  p95 about 2 ms (without the bridge). The relay path is measured in the E2E scene (T081).
+  p95 about 2 ms (without the bridge). The relay path is measured in the E2E scene (T081). The load
+  test stays in `cargo test --lib` (about 10 s), confirmed in review.
 - **Size**: `sync/endpoint.rs` grew from 647 to 678 lines (`bind_with` and `connect_alpn`); its
   documented exception and split plan stay as they are.
 
@@ -232,7 +235,7 @@ refused, a removed player cannot return, closing the lobby kills the code but ke
 
 ### Tests for User Story 4
 
-- [ ] T046 [P] [US4] Join code tests in `src-tauri/src/extensions/peers/wire_tests.rs`: `holzi:join:` + `BASE32_NOPAD(postcard(JoinCode { v: 1, endpoint_id, relay, lobby, secret }))` round trip; any malformed text → `lobby_closed` without dialling; the code contains no name, vault data or contact data (FR-021)
+- [ ] T046 [P] [US4] Join code tests in `src-tauri/src/extensions/peers/wire_tests.rs`: `haex-vault:join:` + `BASE32_NOPAD(postcard(JoinCode { v: 1, endpoint_id, relay, lobby, secret }))` round trip; any malformed text → `lobby_closed` without dialling; the code contains no name, vault data or contact data (FR-021)
 - [ ] T047 [P] [US4] Lobby tests in `src-tauri/src/extensions/peers/lobby_tests.rs`: contact joins a contacts-only lobby → channel and `peers:joined { verified: true, contactId? }`; own linked device joins → verified; non-contact → `not_admitted`; removed device and removed vault → `not_admitted` until the lobby closes; closed lobby → `lobby_closed`; channels survive `lobby_close`; a second open lobby with the same `lobbyId` → `invalid_input`; display name "1–64 Zeichen" and payload "≤ 4 KiB" enforced (FR-020–FR-027)
 - [ ] T048 [P] [US4] Uniform answers in `src-tauri/src/extensions/peers/lobby_uniform_tests.rs`: unknown lobby, closed lobby, wrong proof, other extension and blocked vault return the same `JoinReply::Closed`; over 1.000 runs per case the medians of the host's handling time differ by less than 1 ms (FR-025, SC-007)
 
@@ -389,5 +392,5 @@ Task: "T043 [P] [US1] Dialog src/components/extensions/PeerInvitationDialog.vue"
 - Never `git stash` bare; never force-push; fetch before push.
 - Commits follow Conventional Commits without agent trailers.
 - New ts-rs types use the prefix `ExtensionPeer`; check `ls src/types/bindings/<Name>.ts` before adding one.
-- Spec 054 renames ALPN, signature domain and the `holzi:join:` prefix; follow whatever has landed on `main` when each PR is opened.
+- ALPN, signature domain and the join-code prefix already follow the naming of spec 054 (`haex-vault-…`); spec 054 leaves them as they are.
 - If spec 056 lands first, reuse its `ContactsService::card_of_vault` and handler list instead of T010/T013, and move its handshake onto `sync/foreign_auth.rs` in a separate change.

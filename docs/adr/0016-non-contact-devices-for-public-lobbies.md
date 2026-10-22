@@ -18,7 +18,7 @@ vault identity holzi cannot vouch for.
 ## Decision
 
 **While at least one public lobby is open on a device, its endpoint accepts connections on
-`holzi-ext-peer/1` from devices of vaults that are not contacts.** Outside that window such connections
+`haex-vault-ext-peer/1` from devices of vaults that are not contacts.** Outside that window such connections
 are closed right after the handshake, without saying whether lobbies exist.
 
 Bounds that hold for every such connection:
@@ -45,5 +45,5 @@ Bounds that hold for every such connection:
   accepted and shown to the user before the extension gets the permission.
 - The endpoint id in a join code is stable per device. An old code cannot be used to connect once no
   public lobby is open, but it does identify the device to whoever kept it.
-- ADR-0015 stays valid for `holzi-files/1`; this ADR widens only `holzi-ext-peer/1`, and only during a
+- ADR-0015 stays valid for `holzi-files/1`; this ADR widens only `haex-vault-ext-peer/1`, and only during a
   public lobby.
