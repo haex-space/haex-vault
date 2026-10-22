@@ -44,6 +44,9 @@ anderer, Übertragung von Dateien."
   nur im Arbeitsspeicher und läuft ab.
 - **Einladende Seite**, **eingeladene Seite**: das Gerät, dessen Erweiterung einlädt, und die Geräte
   des Kontakts, die die Einladung erhalten.
+- **Einladungsabfrage**: die Abfrage von holzi selbst „[Kontakt] lädt dich zu [Erweiterung] ein –
+  Annehmen / Ablehnen“, im Fenster von holzi oder als Benachrichtigung von holzi. Nur hier nimmt der
+  Nutzer eine Einladung an oder lehnt sie ab.
 - **Lobby**: eine offene Runde, die eine Erweiterung auf ihrem Gerät anmeldet, damit andere mit einem
   Beitrittscode beitreten können. Sie hat eine **Sichtbarkeit**, „nur Kontakte“ (Standard) oder
   „öffentlich“, und ist **offen**, bis die Erweiterung sie schließt.
@@ -72,8 +75,8 @@ Vault-Daten oder Dateien.
   R-13). Diese Spec legt die Seite von holzi fest; wo der Entwurf von holzis Stand abweicht, gilt diese
   Spec, und der Plan von haex-doom wird angepasst.
 - **Spec 017** (Erweiterungs-Host): Die neue Berechtigungsart `peers` folgt dem bestehenden
-  Berechtigungsmodell (Zustände, Abfrage zur Laufzeit, vault-weit). Einladungen, Beitritte, Nachrichten
-  und das Ende eines Kanals erreichen die Rahmen als Meldungen wie alle anderen (017 FR-042: vor
+  Berechtigungsmodell (Zustände, Abfrage zur Laufzeit, vault-weit). Angenommene Einladungen,
+  Beitritte, Nachrichten und das Ende eines Kanals erreichen die Rahmen als Meldungen wie alle anderen (017 FR-042: vor
   „bereit“ gepuffert). Deaktivieren und Entfernen beenden alles dieser Erweiterung (017 FR-039). Der
   Plan ergänzt die Methoden und Meldungen in `specs/017-extension-host/contracts/bridge.md`.
 - **Spec 024** (Sync der eigenen Geräte): liefert den Netzwerkendpunkt der Vault-Sitzung, die
@@ -85,17 +88,22 @@ Vault-Daten oder Dateien.
   (051 FR-031).
 - **Spec 056 und ADR-0015** (Dateizugriff): Fremde Geräte weisen sich dort mit Geräteschlüssel und
   unterschriebener Geräteliste aus, und ein Gerät eines Kontakts wird über Anklopfen gefunden, ohne
-  öffentliche Adressauflösung (056 FR-002, FR-003, FR-008, FR-010). Diese Spec nutzt dieselben Wege.
+  öffentliche Adressauflösung (056 FR-002, FR-003, FR-008, FR-010). Diese Spec weist Geräte auf
+  dieselbe Weise aus. Einladungen erreichen die Geräte eines Kontakts zunächst über die Adressen aus
+  seiner Visitenkarte und nutzen Anklopfen, sobald es mit Spec 056 da ist (Clarifications 2026-10-22).
   Sie geht über ADR-0015 hinaus: Für öffentliche Lobbys nimmt ein Gerät auch Geräte fremder Vaults an,
   die kein Kontakt sind. Das hält ein eigener ADR bei der Planung fest.
 - **Spec 043** (Mobil): Wo das System keine Benachrichtigungen zeigt, zeigt holzi sie im eigenen
-  Fenster (043 FR-023); das gilt auch für Einladungen.
+  Fenster (043 FR-023); das gilt auch für die Einladungsabfrage.
 - **vault-sdk**: Die Schnittstelle `client.peers` für Erweiterungen ist eine eigene Änderung in
   `haex-space/vault-sdk`.
 
 ## Clarifications
 
-### Session 2026-10-22 (Entscheidungen des Betreibers aus dem Entwurf von haex-doom)
+### Session 2026-10-22
+
+Die ersten vier Entscheidungen übernimmt diese Spec aus dem Entwurf von haex-doom; die letzten beiden
+hat der Betreiber für diese Spec getroffen.
 
 - Q: Von wem nimmt eine Vault Einladungen und Beitritte an? → A: Der Gastgeber legt die Sichtbarkeit
   jeder Lobby fest. „Nur Kontakte“ (Standard): Nur Kontakte des Gastgebers treten bei, per Einladung
@@ -110,47 +118,68 @@ Vault-Daten oder Dateien.
   verlangen und verraten, wer online ist.
 - Q: Was erfährt ein Mitspieler in einer öffentlichen Lobby? → A: Bei direkter Verbindung die
   Netzwerkadresse des Gastgebers; das wird in Kauf genommen und dem Nutzer gesagt.
+- Q: Wo nimmt der Nutzer eine Einladung an? → A: Immer in einer Abfrage von holzi selbst („[Kontakt]
+  lädt dich zu [Erweiterung] ein – Annehmen / Ablehnen“): im Fenster, wenn ein Rahmen der
+  Erweiterung offen ist, sonst als Benachrichtigung von holzi. Die Erweiterung erfährt von der
+  Einladung erst nach der Annahme und erhält dann den Kanal; eine Ablehnung erfährt die einladende
+  Seite als „abgelehnt“. Erweiterungen brauchen keinen eigenen Einladungsdialog, und es gibt für sie
+  keine Funktion zum Annehmen oder Ablehnen (Option B).
+- Q: Wie erreicht eine Einladung die Geräte eines Kontakts? → A: Die erste Fassung wählt die
+  Adressen aus der gespeicherten Visitenkarte (Netzwerkkennung und Relay je Gerät). Scheitert das,
+  erhält die einladende Seite „nicht erreichbar“ mit dem Hinweis, dass der Kontakt vielleicht eine
+  aktuelle Visitenkarte teilen muss. Sobald es das Anklopfen aus Spec 056 gibt, nutzen Einladungen es.
+  Beitrittscodes sind nicht betroffen; sie tragen die aktuelle Adresse des Gastgebers.
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Kontakt einladen und verbunden werden (Priority: P1)
 
 Anna öffnet DOOM, eröffnet ein Spiel und lädt ihren Kontakt Ben ein. Ben hat holzi auf Laptop und
-Telefon offen, DOOM ist dort installiert. Auf beiden Geräten erscheint die Einladung mit Annas Namen
-und dem Spiel. Auf dem Laptop ist DOOM nicht geöffnet; dort zeigt holzi eine Benachrichtigung, die
-DOOM öffnet und die Einladung anzeigt. Ben nimmt auf dem Laptop an. Auf dem Telefon verschwindet die
-Einladung. Anna sieht „angenommen“, und zwischen Annas und Bens DOOM steht ein Kanal.
+Telefon offen, DOOM ist dort installiert. Auf dem Telefon läuft DOOM gerade; dort fragt holzi im
+Fenster: „Anna lädt dich zu DOOM ein – Annehmen / Ablehnen“. Auf dem Laptop ist DOOM nicht geöffnet;
+dort zeigt holzi dieselbe Frage als Benachrichtigung. Ben nimmt auf dem Laptop an; holzi öffnet DOOM,
+und DOOM erhält den Kanal zu Anna mit dem Inhalt der Einladung. Auf dem Telefon verschwindet die
+Frage, DOOM dort hat von der Einladung nie erfahren. Anna sieht „angenommen“.
 
 **Why this priority**: Die Einladung unter Kontakten ist der sichere Standardweg in ein gemeinsames
 Spiel. Sie legt das Ausweisen, das Erreichen der Geräte eines Kontakts, die Zustellung an die richtige
 Erweiterung und die Zustimmung des Nutzers fest, auf denen alles Weitere aufbaut.
 
 **Independent Test**: Zwei Vaults, die sich gegenseitig als Kontakt mit Visitenkarte führen, die
-eingeladene mit zwei Geräten. Eine Testerweiterung mit der Berechtigung lädt ein; auf beiden Geräten
-kommt die Einladung an; nach der Annahme auf einem Gerät steht ein Kanal, das andere sieht den
-Rückzug, die einladende Seite erhält genau einen Status.
+eingeladene mit zwei Geräten, eines mit offenem Rahmen der Testerweiterung, eines ohne. Eine
+Testerweiterung mit der Berechtigung lädt ein; auf beiden Geräten erscheint holzis Einladungsabfrage,
+die Rahmen der eingeladenen Seite erhalten nichts. Nach der Annahme auf einem Gerät erhält die
+Erweiterung dort den Kanal, auf dem anderen verschwindet die Abfrage, und die einladende Seite erhält
+genau einen Status.
 
 **Acceptance Scenarios**:
 
 1. **Given** Anna und Ben sind gegenseitig Kontakte, Bens Vault ist offen und dieselbe Erweiterung
-   installiert und aktiviert, **When** Annas Erweiterung Ben einlädt, **Then** erhält jeder offene
-   Rahmen dieser Erweiterung auf jedem erreichbaren Gerät Bens die Einladung mit Annas Namen, wie Bens
-   Adressbuch ihn führt, und dem Inhalt der Erweiterung.
-2. **Given** auf einem Gerät Bens ist kein Rahmen der Erweiterung offen, **When** die Einladung
-   ankommt, **Then** zeigt holzi eine Benachrichtigung mit Annas Namen und dem Namen der Erweiterung;
-   tippt Ben darauf, öffnet sich die Erweiterung und erhält die Einladung, sobald ihr Rahmen bereit ist.
-3. **Given** eine Einladung liegt auf Bens Laptop und Telefon, **When** Ben auf dem Laptop annimmt,
-   **Then** entsteht genau ein Kanal zwischen Annas Gerät und dem Laptop, auf dem Telefon wird die
-   Einladung zurückgezogen, und eine spätere Annahme dort scheitert.
-4. **Given** Ben lehnt auf allen Geräten ab, auf denen sie ankam, **When** die letzte Ablehnung
-   eintrifft, **Then** erhält Annas Erweiterung einmal „abgelehnt“.
-5. **Given** Bens Vault führt Anna nicht als Kontakt oder hat Annas Vault blockiert, **When** Annas
+   installiert und aktiviert, **When** Annas Erweiterung Ben einlädt, **Then** zeigt holzi auf jedem
+   erreichbaren Gerät Bens die Einladungsabfrage mit Annas Namen, wie Bens Adressbuch ihn führt, und
+   dem Namen der Erweiterung, und kein Rahmen der Erweiterung erfährt davon.
+2. **Given** auf einem Gerät Bens ist ein Rahmen der Erweiterung offen, **When** die Einladung
+   ankommt, **Then** zeigt holzi die Einladungsabfrage im eigenen Fenster; ist keiner offen, zeigt
+   holzi sie als Benachrichtigung.
+3. **Given** Ben nimmt in holzis Einladungsabfrage an und auf dem Gerät ist kein Rahmen der
+   Erweiterung offen, **When** die Annahme gilt, **Then** öffnet holzi die Erweiterung, und sie
+   erhält den Kanal mit Annas Kontakt und dem Inhalt der Einladung, sobald ihr Rahmen bereit ist.
+4. **Given** die Einladungsabfrage liegt auf Bens Laptop und Telefon, **When** Ben auf dem Laptop
+   annimmt, **Then** entsteht genau ein Kanal zwischen Annas Gerät und dem Laptop, auf dem Telefon
+   verschwindet die Abfrage, und eine spätere Annahme dort scheitert.
+5. **Given** Ben lehnt in der Einladungsabfrage auf allen Geräten ab, auf denen sie erschien, **When**
+   die letzte Ablehnung eintrifft, **Then** erhält Annas Erweiterung einmal „abgelehnt“, und Bens
+   Erweiterung erfährt nichts.
+6. **Given** Bens Vault führt Anna nicht als Kontakt oder hat Annas Vault blockiert, **When** Annas
    Erweiterung Ben einlädt, **Then** erscheint bei Ben nichts, und Anna erhält „nicht erreichbar“, ohne
    zu erfahren, warum.
-6. **Given** auf Bens Geräten ist die Erweiterung nicht installiert oder deaktiviert, **When** Anna
+7. **Given** Bens Geräte haben seit dem Austausch der Visitenkarte ihr Relay gewechselt, **When** Anna
+   einlädt, **Then** erhält Anna „nicht erreichbar“ mit dem Hinweis, dass Ben vielleicht eine aktuelle
+   Visitenkarte teilen muss.
+8. **Given** auf Bens Geräten ist die Erweiterung nicht installiert oder deaktiviert, **When** Anna
    einlädt, **Then** erscheint bei Ben nichts, und Anna erhält „nicht installiert“.
-7. **Given** niemand nimmt an, **When** fünf Minuten vergangen sind, **Then** läuft die Einladung ab,
-   verschwindet auf Bens Geräten, und Anna erhält „abgelaufen“.
+9. **Given** niemand nimmt an, **When** fünf Minuten vergangen sind, **Then** läuft die Einladung ab,
+   die Einladungsabfrage verschwindet auf Bens Geräten, und Anna erhält „abgelaufen“.
 
 ---
 
@@ -293,17 +322,23 @@ wird nach 5 Sekunden getrennt.
 
 - Der eingeladene Kontakt hat kein Gerät mit geöffneter Vault. Die einladende Seite erhält nach
   höchstens 15 Sekunden „nicht erreichbar“; die Einladung wird nicht für später aufgehoben.
-- Ein Gerät des Kontakts hat seit dem Austausch der Visitenkarte eine andere Netzwerkadresse oder ein
-  anderes Relay. holzi findet seine aktuelle Adresse über Anklopfen; schlägt das fehl, gilt es als
-  nicht erreichbar.
+- Ein Gerät des Kontakts hat seit dem Austausch der Visitenkarte sein Relay gewechselt. In der ersten
+  Fassung ist es über die Visitenkarte nicht erreichbar, bis der Kontakt eine aktuelle Visitenkarte
+  teilt; die einladende Seite erhält „nicht erreichbar“ mit dem entsprechenden Hinweis. Sobald es
+  Anklopfen gibt, findet holzi die aktuelle Adresse darüber. Beitrittscodes betrifft das nicht.
 - Ein Gerät steht noch auf einer alten Visitenkarte, ist aber aus seiner Vault entfernt worden. Kennt
   die andere Seite eine neuere Geräteliste dieser Vault, wird es abgewiesen (wie 056 FR-003).
 - Ein Kontakt lehnt auf einem Gerät ab und nimmt auf einem anderen an. Die Annahme gewinnt; der Status
   an die einladende Seite ist „angenommen“.
-- Zwei Geräte des Kontakts nehmen fast gleichzeitig an. Genau eine Annahme gewinnt; die andere scheitert
-  mit „Einladung nicht mehr offen“, und ihr Gerät erhält den Rückzug.
+- Zwei Geräte des Kontakts nehmen fast gleichzeitig an. Genau eine Annahme gewinnt; auf dem anderen
+  Gerät meldet holzis Einladungsabfrage „Einladung nicht mehr offen“, und die Erweiterung dort erfährt
+  nichts.
 - Die einladende Erweiterung zieht die Einladung zurück, oder ihre Vault schließt, während die
-  Einladung offen ist. Auf allen Geräten des Kontakts verschwindet sie; eine spätere Annahme scheitert.
+  Einladung offen ist. Auf allen Geräten des Kontakts verschwindet die Einladungsabfrage; eine spätere
+  Annahme scheitert.
+- Zwischen Anzeige und Annahme wird die Erweiterung auf der eingeladenen Seite deaktiviert oder
+  entfernt, oder ihre Berechtigung wird verweigert. Die Annahme scheitert, es entsteht kein Kanal, und
+  die einladende Seite erhält „nicht installiert“.
 - Anna und Ben laden sich gleichzeitig gegenseitig ein. Es sind zwei unabhängige Einladungen; nimmt
   jeder an, entstehen zwei Kanäle.
 - Der letzte Rahmen der Erweiterung auf einem Gerät schließt. holzi schließt ihre Kanäle und Lobbys
@@ -350,9 +385,9 @@ wird nach 5 Sekunden getrennt.
 - **FR-004**: Jeder Kanal, jede Einladung und jede Lobby MUSS an genau eine Erweiterung gebunden sein,
   die holzi aus ihrem Rahmen kennt, nie aus der Anfrage. Auf beiden Seiten MUSS es dieselbe Erweiterung
   sein (Herausgeberschlüssel und Name).
-- **FR-005**: holzi MUSS Einladungen, Beitritte, Nachrichten und das Ende eines Kanals nur an Rahmen
-  der gebundenen Erweiterung auf dem Gerät zustellen, als Meldungen nach Spec 017. Andere
-  Erweiterungen und holzis Oberfläche DÜRFEN keine Inhalte erhalten.
+- **FR-005**: holzi MUSS angenommene Einladungen, Beitritte, Nachrichten und das Ende eines Kanals
+  nur an Rahmen der gebundenen Erweiterung auf dem Gerät zustellen, als Meldungen nach Spec 017.
+  Andere Erweiterungen und holzis Oberfläche DÜRFEN keine Inhalte erhalten.
 - **FR-006**: Eine Erweiterung DARF nur ihre eigenen Kanäle, Einladungen und Lobbys bedienen; eine
   fremde und eine unbekannte Kennung MÜSSEN dieselbe Antwort ergeben.
 - **FR-007**: Ein Kanal DARF nur die Nachrichten der Erweiterung tragen. Er DARF keinen Zugang zu
@@ -370,37 +405,45 @@ wird nach 5 Sekunden getrennt.
 - **FR-010**: Eine Einladung MUSS die Erweiterung (Herausgeberschlüssel und Name), die Vault-Identität
   der einladenden Seite und einen Inhalt der Erweiterung von höchstens 4 KiB tragen. Ein größerer Inhalt
   MUSS mit „zu groß“ abgelehnt werden.
-- **FR-011**: holzi MUSS die Einladung an alle Geräte des Kontakts zugleich senden, die erreichbar
-  sind. Es MUSS sie über die bestätigten holzi-Adressen des Kontakts erreichen und, wo diese nicht mehr
-  stimmen, über Anklopfen (056 FR-008). Geräteadressen DÜRFEN nicht öffentlich verzeichnet werden
-  (056 FR-010).
-- **FR-012**: Ein Gerät DARF auf Anklopfen für diese Funktion nur Geräten der eigenen Vault und von
-  Vaults antworten, deren Vault-Identität es als Kontakt mit bestätigten holzi-Adressen führt und nicht
-  blockiert hat.
-- **FR-013**: Die eingeladene Seite MUSS eine Einladung nur zustellen, wenn die einladende Seite
-  bestätigt und ihre Vault nicht blockiert ist und wenn dieselbe Erweiterung installiert und aktiviert
-  ist und ihre Berechtigung `peers` nicht „verweigert“ ist. Ist die einladende Seite nicht bestätigt
+- **FR-011**: holzi MUSS die Einladung an alle Geräte des Kontakts zugleich senden, die über die
+  Adressen aus seiner gespeicherten Visitenkarte (Netzwerkkennung und Relay je Gerät) erreichbar sind.
+  Geräteadressen DÜRFEN nicht öffentlich verzeichnet oder erfragt werden (056 FR-010). Sobald es
+  Anklopfen gibt (056 FR-008), MUSS holzi Geräte, die über die Visitenkarte nicht erreichbar sind,
+  darüber suchen.
+- **FR-012**: Sobald es Anklopfen gibt, DARF ein Gerät darauf für diese Funktion nur Geräten der
+  eigenen Vault und von Vaults antworten, deren Vault-Identität es als Kontakt mit bestätigten
+  holzi-Adressen führt und nicht blockiert hat.
+- **FR-013**: Die eingeladene Seite MUSS eine Einladung dem Nutzer nur vorlegen, wenn die einladende
+  Seite bestätigt und ihre Vault nicht blockiert ist und wenn dieselbe Erweiterung installiert und
+  aktiviert ist und ihre Berechtigung `peers` nicht „verweigert“ ist. Ist die einladende Seite nicht bestätigt
   oder blockiert, MUSS die Einladung ohne Anzeige verworfen werden. Fehlt die Erweiterung, ist sie
   deaktiviert oder die Berechtigung verweigert, MUSS die Antwort „nicht installiert“ lauten.
-- **FR-014**: Die Meldung über eine Einladung MUSS den Kontakt so nennen, wie das Adressbuch der
-  eingeladenen Seite ihn führt, und den Inhalt der Erweiterung enthalten.
-- **FR-015**: Ist auf einem eingeladenen Gerät kein Rahmen der Erweiterung offen, MUSS holzi selbst eine
-  Benachrichtigung mit dem Namen des Kontakts und der Erweiterung zeigen, unabhängig von der
-  Berechtigung `notifications` der Erweiterung. Ihr Antippen MUSS die Erweiterung öffnen und ihr die
-  Einladung zustellen, sobald der Rahmen bereit ist. Zeigt das System keine Benachrichtigung, MUSS holzi
-  sie im eigenen Fenster zeigen (043 FR-023). Verschwindet die Einladung, MUSS auch die Benachrichtigung
-  verschwinden.
-- **FR-016**: Ein Kanal DARF aus einer Einladung erst entstehen, nachdem der Nutzer auf dem
-  eingeladenen Gerät angenommen hat [NEEDS CLARIFICATION: Nimmt der Nutzer in der Erweiterung an, und
-  holzi vertraut ihrem Aufruf, oder bestätigt er in einer Abfrage von holzi selbst?].
-- **FR-017**: Die erste Annahme MUSS gewinnen. holzi MUSS die Einladung danach auf allen anderen
-  Geräten des Kontakts zurückziehen und den Rahmen dort den Rückzug melden; eine spätere Annahme dort
-  MUSS mit „Einladung nicht mehr offen“ scheitern.
+- **FR-014**: holzi MUSS jede Einladung auf der eingeladenen Seite in seiner eigenen
+  Einladungsabfrage vorlegen: „[Kontakt] lädt dich zu [Erweiterung] ein – Annehmen / Ablehnen“, mit
+  dem Kontakt, wie das Adressbuch der eingeladenen Seite ihn führt. Die Abfrage MUSS unabhängig von
+  der Berechtigung `notifications` der Erweiterung erscheinen.
+- **FR-015**: Ist auf dem Gerät ein Rahmen der Erweiterung offen, MUSS holzi die Einladungsabfrage im
+  eigenen Fenster zeigen, sonst als eigene Benachrichtigung mit Annehmen und Ablehnen. Kann das System
+  keine Knöpfe zeigen, MUSS das Antippen der Benachrichtigung die Abfrage in holzis Fenster öffnen;
+  zeigt das System gar keine Benachrichtigung, MUSS holzi sie im eigenen Fenster zeigen (043 FR-023).
+  Verschwindet die Einladung, MUSS auch die Abfrage verschwinden.
+- **FR-016**: Ein Kanal DARF aus einer Einladung erst entstehen, nachdem der Nutzer in holzis
+  Einladungsabfrage angenommen hat. Erweiterungen DÜRFEN keine Funktion zum Annehmen oder Ablehnen
+  haben, und vor der Annahme DARF keine Erweiterung der eingeladenen Seite von der Einladung erfahren.
+  Nach der Annahme MUSS die Erweiterung den Kanal mit dem einladenden Kontakt und dem Inhalt der
+  Einladung erhalten; ist kein Rahmen offen, MUSS holzi die Erweiterung öffnen und ihr den Kanal
+  melden, sobald der Rahmen bereit ist.
+- **FR-017**: Die erste Annahme MUSS gewinnen. holzi MUSS die Einladungsabfrage danach auf allen
+  anderen Geräten des Kontakts zurückziehen; eine spätere Annahme dort MUSS mit „Einladung nicht mehr
+  offen“ scheitern.
 - **FR-018**: Die einladende Erweiterung MUSS je Einladung genau einen Endstatus erhalten:
   „angenommen“ (mit dem Kanal), „abgelehnt“, „nicht installiert“, „nicht erreichbar“ oder „abgelaufen“.
   „Abgelehnt“ und „nicht installiert“ DÜRFEN nur kommen, wenn alle erreichten Geräte so geantwortet
-  haben. „Nicht erreichbar“ MUSS auch gelten, wenn die eingeladene Seite die einladende nicht als
-  Kontakt führt oder blockiert hat, ohne das zu unterscheiden.
+  haben; eine Ablehnung in der Einladungsabfrage zählt als „abgelehnt“. „Nicht erreichbar“ MUSS
+  gelten, wenn kein Gerät über die Adressen erreichbar war, und auch, wenn die eingeladene Seite die
+  einladende nicht als Kontakt führt oder blockiert hat, ohne das zu unterscheiden. Zu „nicht
+  erreichbar“ MUSS der Hinweis gehören, dass der Kontakt vielleicht eine aktuelle Visitenkarte teilen
+  muss.
 - **FR-019**: Eine Einladung MUSS nach 5 Minuten ohne Annahme ablaufen. Die einladende Erweiterung MUSS
   sie vorher zurückziehen können. Ablauf und Rückzug MÜSSEN alle Geräte des Kontakts erreichen, die sie
   erhalten haben.
@@ -511,11 +554,12 @@ wird nach 5 Sekunden getrennt.
 
 ### Measurable Outcomes
 
-- **SC-001**: Eine Einladung erscheint auf jedem erreichbaren Gerät eines Kontakts mit geöffneter Vault
-  innerhalb von 5 Sekunden, wenn die Adresse aus seiner Visitenkarte stimmt, und innerhalb von
-  10 Sekunden, wenn sie erst über Anklopfen gefunden wird, jeweils in 95 % der Versuche.
-- **SC-002**: Nach der Annahme einer Einladung oder dem Absenden eines Beitritts ist der Kanal auf
-  beiden Seiten in 95 % der Versuche innerhalb von 3 Sekunden bereit.
+- **SC-001**: holzis Einladungsabfrage erscheint auf jedem Gerät eines Kontakts mit geöffneter Vault,
+  dessen Adresse aus der Visitenkarte stimmt, in 95 % der Versuche innerhalb von 5 Sekunden. Ist kein
+  Gerät erreichbar, erhält die einladende Seite in 100 % der Versuche innerhalb von 15 Sekunden „nicht
+  erreichbar“ mit dem Hinweis auf eine aktuelle Visitenkarte.
+- **SC-002**: Nach der Annahme in holzis Einladungsabfrage oder dem Absenden eines Beitritts ist der
+  Kanal auf beiden Seiten in 95 % der Versuche innerhalb von 3 Sekunden bereit.
 - **SC-003**: Ein Gastgeber mit 3 Mitspielern auf getrennten Kanälen tauscht zehn Minuten lang je Kanal
   und Richtung 35 schnelle Nachrichten pro Sekunde zu 1.000 Byte aus; auf einer stabilen Verbindung
   kommen mindestens 99 % an, und holzis Oberfläche reagiert dabei in höchstens 100 ms auf Eingaben.
@@ -524,8 +568,9 @@ wird nach 5 Sekunden getrennt.
   im 95. Perzentil um höchstens 15 ms.
 - **SC-005**: Ohne direkten Weg zwischen den Geräten entsteht der Kanal über ein Relay in 100 % der
   Testfälle, und bei einer Umlaufzeit bis 150 ms gilt SC-003 weiter.
-- **SC-006**: In einer Testsammlung entsteht kein Kanal ohne angenommene Einladung oder gültigen Code
-  einer offenen Lobby: 0 Fälle. Ohne offene öffentliche Lobby werden 100 % der Verbindungen nicht
+- **SC-006**: In einer Testsammlung entsteht kein Kanal ohne eine in holzis Einladungsabfrage
+  angenommene Einladung oder einen gültigen Code einer offenen Lobby: 0 Fälle. Keine Erweiterung der
+  eingeladenen Seite erfährt vor der Annahme von einer Einladung: 0 Fälle. Ohne offene öffentliche Lobby werden 100 % der Verbindungen nicht
   bestätigter Geräte abgewiesen, und 100 % der Verbindungen ohne Beitritt sind nach höchstens
   6 Sekunden getrennt.
 - **SC-007**: Für unlesbare, unbekannte, geschlossene und mit falschem Geheimnis versehene Codes ist
@@ -533,8 +578,8 @@ wird nach 5 Sekunden getrennt.
   Mediane der Antwortzeit um weniger als 1 ms.
 - **SC-008**: In einer Testsammlung erreicht keine Nachricht, Einladung oder Meldung eines Kanals einen
   Rahmen einer anderen Erweiterung oder holzis Oberfläche: 0 Fälle.
-- **SC-009**: Bei einem Kontakt mit zwei Geräten verschwindet die Einladung nach der Annahme auf dem
-  einen auf dem anderen innerhalb von 2 Sekunden; eine Annahme dort scheitert in 100 % der Versuche.
+- **SC-009**: Bei einem Kontakt mit zwei Geräten verschwindet die Einladungsabfrage nach der Annahme
+  auf dem einen auf dem anderen innerhalb von 2 Sekunden; eine Annahme dort scheitert in 100 % der Versuche.
 - **SC-010**: Schließt eine Seite den Kanal, ihre Vault oder die Erweiterung, erfährt die Gegenseite
   das Ende innerhalb von 2 Sekunden, wenn die Verbindung besteht, und sonst innerhalb von 30 Sekunden.
 - **SC-011**: Ein entfernter Beitretender kommt in 100 % der Versuche nicht in dieselbe Lobby zurück.
@@ -549,13 +594,19 @@ wird nach 5 Sekunden getrennt.
   daraus abgeleitet und gelten als Mindestmaß.
 - Die Schnittstelle für Erweiterungen (`client.peers` in `haex-space/vault-sdk`) ist eine eigene
   Änderung; ihre Form folgt dem Vertrag im Entwurf von haex-doom, soweit diese Spec nichts anderes
-  sagt. Der Plan legt Methoden, Meldungen und Fehlercodes im Bridge-Vertrag von Spec 017 fest, mit den
+  sagt. Abweichend davon gibt es keine Funktionen zum Annehmen und Ablehnen und keine Meldungen über
+  eingehende oder zurückgezogene Einladungen; die Erweiterung der eingeladenen Seite erhält nach der
+  Annahme nur den Kanal mit Kontakt und Inhalt. Die Statusmeldung an die einladende Seite bleibt. Der
+  Plan legt Methoden, Meldungen und Fehlercodes im Bridge-Vertrag von Spec 017 fest, mit den
   Zahlencodes von holzi.
 - Kanäle nutzen den Netzwerkendpunkt und die Relays, die jede geöffnete Vault für den Sync ihrer Geräte
   ohnehin betreibt (Spec 024). Ist die Vault geschlossen, gibt es keine Kanäle; ein Hintergrunddienst
   kommt mit einer eigenen Spec.
-- Anklopfen wird mit Spec 056 gebaut; welche der beiden Specs zuerst umgesetzt wird, baut es. Bis dahin
-  reichen die Adressen aus der Visitenkarte nur, solange das Gerät sein Relay nicht gewechselt hat.
+- Die erste Fassung erreicht die Geräte eines Kontakts nur über die Adressen aus seiner gespeicherten
+  Visitenkarte (Clarifications 2026-10-22). Bekannte Grenze: Ein Gerät, das sein Relay gewechselt hat,
+  ist so nicht erreichbar, bis der Kontakt eine aktuelle Visitenkarte teilt. Einladungen wechseln auf
+  Anklopfen, sobald Spec 056 es gebaut hat; davon hängt diese Spec ab, nicht umgekehrt. Beitrittscodes
+  sind nicht betroffen, weil sie die aktuelle Adresse des Gastgebers tragen.
 - Geräte der eigenen Vault gelten als bestätigt. Einladen lässt sich nur ein Kontakt; mit einem Code
   kann auch ein eigenes Gerät beitreten.
 - Die Berechtigung `peers` wird wie andere Arten aus dem Manifest bei der Installation bestätigt oder

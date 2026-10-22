@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,9 +31,11 @@
 
 ## Notes
 
-- One marker remains in FR-016: where the user accepts an invitation (in the extension, which holzi
-  trusts, or in a prompt of holzi itself). It decides whether holzi can guarantee the user's consent
-  and changes the invitation flow of the SDK contract, so it goes to `/speckit-clarify`.
+- The two operator decisions of 2026-10-22 are recorded under Clarifications and applied: invitations
+  are accepted only in holzi's own invitation prompt (FR-014 to FR-016, US1, SC-006), and the first
+  version reaches a contact's devices through the addresses on the stored business card, reporting
+  "unreachable" with a hint to share a current card, and switches to knocking once spec 056 has it
+  (FR-011, FR-012, FR-018, SC-001, Assumptions). No marker remains.
 - The permission name `peers`/`connect` (FR-001) and the limits 4 KiB, 64 KiB, 1,000 bytes, 128 bits,
   5 minutes, 5 seconds and 30 seconds are named on purpose: they are the agreed contract with the
   consuming extension (haex-doom), not implementation choices. How they are carried (transport,
