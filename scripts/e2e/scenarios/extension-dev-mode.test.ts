@@ -42,12 +42,47 @@ async function reloaded(page: Instance, change: () => Promise<unknown>) {
   await waitForWorkspace(page)
 }
 
+/** What the last readiness check saw inside the frame, or why it could not look. */
+let lastFrameCheck: unknown = null
+
 async function frameReady(page: Instance, extension: InstalledExtension) {
-  return inFrame<boolean>(
-    page,
-    extension,
-    `return document.documentElement.dataset.probeReady === '1'`,
-  ).catch(() => false)
+  try {
+    const inside = await inFrame<{ ready: boolean }>(
+      page,
+      extension,
+      `return {
+         ready: document.documentElement.dataset.probeReady === '1',
+         readyState: document.readyState,
+         href: location.href,
+         probe: typeof window.probe,
+         module: document.getElementById('module')?.textContent ?? null,
+       }`,
+    )
+    lastFrameCheck = inside
+    return inside.ready
+  } catch (e) {
+    lastFrameCheck = { error: String(e) }
+    return false
+  }
+}
+
+/** The frames of `extension` in holzi's document and what they show around them. */
+async function framesAround(page: Instance, extension: InstalledExtension) {
+  return page
+    .exec(
+      `return [...document.querySelectorAll('[data-extension-id="' + arguments[0] + '"]')].map((f) => {
+         const box = f.getBoundingClientRect()
+         return {
+           tag: f.tagName,
+           invisible: f.classList.contains('invisible'),
+           box: [Math.round(box.width), Math.round(box.height)],
+           src: f.getAttribute('src'),
+           around: f.parentElement?.innerText.slice(0, 200) ?? null,
+         }
+       })`,
+      [extension.id],
+    )
+    .catch((e: unknown) => ({ error: String(e) }))
 }
 
 scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
@@ -93,11 +128,19 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       { timeoutMs: 10_000 },
     )
     await openFromLauncher(page, dev)
-    await ctx.waitFor('the dev page to be ready', () => frameReady(page, dev), {
-      // The development server and WebKitGTK can both be cold in CI. Keep the scenario's
-      // 300-second limit as the outer bound, but do not fail a healthy frame after 20 seconds.
-      timeoutMs: 60_000,
-    })
+    await ctx
+      .waitFor('the dev page to be ready', () => frameReady(page, dev), {
+        // The development server and WebKitGTK can both be cold in CI. Keep the scenario's
+        // 300-second limit as the outer bound, but do not fail a healthy frame after 20 seconds.
+        timeoutMs: 60_000,
+      })
+      .catch(async (e: unknown) => {
+        // Fails now and then in CI with the page rendered: say what the check saw.
+        const frames = await framesAround(page, dev)
+        throw new Error(
+          `${String(e)}; last check in the frame: ${JSON.stringify(lastFrameCheck)}; frames: ${JSON.stringify(frames)}`,
+        )
+      })
     await page.waitForDisplayed('dev-badge', 5_000)
     ctx.step('loaded from 127.0.0.1, its tab marked')
 
