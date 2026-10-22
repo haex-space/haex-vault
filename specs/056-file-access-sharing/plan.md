@@ -14,7 +14,8 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 
 - **Ein Protokoll, zwei Modi** (R4, R5): neue ALPN `holzi-files/1` am Endpoint der Sitzung mit eigenem
   Handshake (Geräteliste mit Vault-Unterschrift, Geräteschlüssel an die QUIC-Gegenstelle gebunden).
-  Ergebnis `OwnDevice` (ganzes Dateisystem, Schalter je Gerät) oder `Contact` (nur ihre Wurzeln).
+  Ergebnis `OwnDevice` (ganzes Dateisystem, Schalter je Gerät), `AccessOff` (authentifiziert, aber
+  Geräte-Dateizugriff lokal ausgeschaltet) oder `Contact` (nur ihre Wurzeln).
   `holzi-sync/1` bleibt nur für eigene Geräte.
 - **Bedienende Seite in Fensterpfaden** (R1, R3): jede Anfrage läuft über `StorageFiles` mit Scope für
   verschlüsselte Ordner, das Gerät als `LocalStore`-Speicher wie in 048; Einschluss über
@@ -188,14 +189,14 @@ Grenze von 024 bleibt. Frontend in den bestehenden Ordnern des Dateibrowsers.
 
 Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt (Aufgaben in [tasks.md](./tasks.md)).
 
-| PR  | Inhalt                                                                                                                                                       | Stories / FRs                                              |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| A   | Migration und Tabellen, Fehlercodes, `Protocol::Peer`, Rahmen, Handshake, Server-Gerüst mit Prüfung je Anfrage, `PeerStore` lesend; keine sichtbare Änderung | Grundlage für alle; FR-001–FR-007, FR-042                  |
-| B   | Eigene Geräte: Lesen und Schreiben, Papierkorb, „Meine Geräte“, Live                                                                                         | US1; FR-011–FR-013, FR-032, FR-035, FR-038, FR-044, FR-046 |
-| C   | Dateifreigaben anlegen (Dialog, Aktionen `files.shares`), Anklopfen, Modus `Contact`, „Von Kontakten“                                                        | US2; FR-008–FR-010, FR-015–FR-019, FR-028–FR-034           |
-| D   | Schreiben für Kontakte, Schreibkonflikt in Transfers, Löschen ohne Papierkorb                                                                                | US3; FR-036–FR-039                                         |
-| E   | Übersicht, Entzug mit Stream-Abbruch, „wartet auf Gerät“, Quelle fehlt, Kontaktseite, Löschdialog; Schalter                                                  | US4, US5; FR-014, FR-020–FR-027                            |
-| F   | Agents auf fremden Quellen, Agents verwalten Freigaben mit Bestätigung, E2E, Handprüfung                                                                     | US6; FR-040, FR-041, FR-045, SC-001–SC-008                 |
+| PR  | Inhalt                                                                                                                                                       | Stories / FRs                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| A   | Migration und Tabellen, Fehlercodes, `Protocol::Peer`, Rahmen, Handshake, Server-Gerüst mit Prüfung je Anfrage, `PeerStore` lesend; keine sichtbare Änderung | Grundlage für alle; FR-001–FR-007, FR-042                          |
+| B   | Eigene Geräte: Lesen und Schreiben, Papierkorb, „Meine Geräte“, Live                                                                                         | US1; FR-011–FR-013, FR-032, FR-035, FR-038, FR-044, FR-046, SC-009 |
+| C   | Dateifreigaben anlegen (Dialog, Aktionen `files.shares`), Anklopfen, Modus `Contact`, „Von Kontakten“                                                        | US2; FR-008–FR-010, FR-015–FR-019, FR-028–FR-034                   |
+| D   | Schreiben für Kontakte, Schreibkonflikt in Transfers, Löschen ohne Papierkorb                                                                                | US3; FR-036–FR-039                                                 |
+| E   | Übersicht, Entzug mit Stream-Abbruch, „wartet auf Gerät“, Quelle fehlt, Kontaktseite, Löschdialog; Schalter                                                  | US4, US5; FR-014, FR-020–FR-027                                    |
+| F   | Agents auf fremden Quellen, Agents verwalten Freigaben mit Bestätigung, E2E, Handprüfung                                                                     | US6; FR-040, FR-041, FR-045, SC-001–SC-008, SC-010                 |
 
 ## Complexity Tracking
 

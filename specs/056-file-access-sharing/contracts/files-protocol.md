@@ -18,7 +18,7 @@ Anfragender  → Hello     { v, vault: [u8;32], device_pubkey: [u8;32],
 Bedienender  → Challenge { v, nonce_s: [u8;32], trash: bool }
 Anfragender  → Proof     { v, sig: [u8;64] }   // Domain::FilesAuth über
                                                // lp(nonce_r)‖lp(nonce_s)‖lp(own endpoint)‖lp(other endpoint)‖lp(vault)
-Bedienender  → Accept    { v, mode: OwnDevice | Contact } | Reject { v }
+Bedienender  → Accept    { v, mode: OwnDevice | Contact } | AccessOff { v } | Reject { v }
 ```
 
 Prüfung beim bedienenden Gerät (research R4), jede Abweichung → `Reject` ohne Grund:
@@ -28,7 +28,8 @@ Prüfung beim bedienenden Gerät (research R4), jede Abweichung → `Reject` ohn
    Eigene Vault: statt der vorgelegten gilt die eigene gültige Liste.
 3. `device_pubkey` steht auf der Liste, ist nicht entfernt, `endpoint_id == connection.remote_id()`.
 4. `sig` gilt für `device_pubkey`.
-5. Einordnung: eigene Vault und Schalter an → `OwnDevice`; Karte zur Vault gespeichert, nicht
+5. Einordnung: eigene Vault und Schalter an → `OwnDevice`; eigene Vault und Schalter aus →
+   `AccessOff` (erst nach erfolgreicher Identitätsprüfung); Karte zur Vault gespeichert, nicht
    blockiert, mindestens ein Zugriffsrecht auf eine Freigabe dieses Geräts → `Contact`; sonst
    ablehnen.
 
@@ -65,7 +66,7 @@ Regeln:
 - `Read` streamt ohne Zeitlimit; ein Entzug, Sperren oder Abbruch beendet den Stream mit
   `STREAM_CANCELLED`.
 - `Delete` auf dem Gerät geht in den Papierkorb, wo `trash = true` (research R8).
-- `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern `Unsupported`. Ein Entzug
+- `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern antwortet es mit `Unsupported`. Ein Entzug
   oder das Sperren schließt den Stream (research R16).
 - Aufrufer: Jede Anfrage trägt `caller: User | Agent`. Eigene Daten von holzi: bei `OwnDevice` für
   `User` nur lesend, für `Agent` gesperrt; bei `Contact` immer gesperrt (FR-007).
@@ -74,11 +75,11 @@ Regeln:
 
 ## Fehler
 
-`WireError = NotFound | Refused | Conflict | TooLarge | SourceUnavailable | NameTaken | InvalidName |
-Busy | Internal`. Keine Pfade außerhalb der Wurzel, keine Zugangsdaten, keine Fehlertexte des
+`WireError = NotFound | Refused | Conflict | Unsupported | TooLarge | SourceUnavailable | NameTaken |
+InvalidName | Busy | Internal`. Keine Pfade außerhalb der Wurzel, keine Zugangsdaten, keine Fehlertexte des
 bedienenden Geräts (FR-042). Beim Anfragenden bildet `PeerStore` sie auf `StorageError` ab:
-`NotFound → NotFound`, `Refused → AccessDenied`, `Conflict → Conflict` (neu), `TooLarge → TooLarge`,
-`SourceUnavailable → Network`, `Busy → Network`, Verbindungsfehler → `Network`.
+`NotFound → NotFound`, `Refused → AccessDenied`, `Conflict → Conflict` (neu), `Unsupported → Unsupported`,
+`TooLarge → TooLarge`, `SourceUnavailable → Network`, `Busy → Network`, Verbindungsfehler → `Network`.
 
 ## Grenzen
 

@@ -223,6 +223,8 @@ und bringt Konflikte, die erst danach sinnvoll prüfbar sind.
    umbenennen oder löschen will, **Then** lehnt holzi das ab; ändern kann er nur den Inhalt.
 5. **Given** die Wurzel eines Ordners, **When** Ben sie umbenennen, verschieben oder löschen will,
    **Then** lehnt holzi das ab.
+6. **Given** das bedienende Gerät hat keinen Papierkorb, **When** Ben eine Datei löscht, **Then** fragt
+   holzi vor dem Löschen nach, und ohne Bestätigung bleibt die Datei unverändert.
 
 ---
 
@@ -331,8 +333,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Zugriffsrechte fallen weg; der Dialog zum Löschen nennt die betroffenen Dateifreigaben vorher.
 - **Kontakt legt eine ältere Geräteliste vor als zuletzt gesehen**: Das bedienende Gerät lehnt ab.
   Ein vom Kontakt entferntes Gerät verliert so den Zugriff, sobald eine neuere Liste gesehen wurde.
-- **Kontakt hat ein neues Gerät**: Es legt die aktuelle Geräteliste seiner Vault vor und bekommt
-  Zugriff, ohne dass der Eigentümer etwas tut.
+- **Kontakt hat ein neues Gerät**: Erst nach einer aktualisierten Visitenkarte kann das Gerät über
+  deren Geräteschlüssel anklopfen; danach legt es die aktuelle Geräteliste seiner Vault vor und
+  bekommt Zugriff, ohne dass der Eigentümer eine neue Freigabe anlegt.
 - **Anklopfen ohne Zugriffsrecht oder von Unbekannten**: Das Gerät antwortet nicht und verrät nicht,
   ob es etwas freigibt.
 - **Entzug von einem anderen Gerät, während das bedienende Gerät aus ist**: Der Entzug wirkt, sobald
@@ -362,7 +365,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 **Verbindung und Prüfung**
 
 - **FR-001**: Geräte MÜSSEN Dateien über die direkte, verschlüsselte Verbindung zwischen Geräten aus
-  Spec 024 austauschen, ohne dass Dateiinhalte bei Dritten gespeichert werden.
+  Spec 024 austauschen, ohne dass diese Funktion eine zusätzliche Kopie der Dateiinhalte oder
+  Freigabe-Chiffretexte bei Dritten speichert. Ist die Quelle selbst ein S3-, WebDAV- oder
+  SFTP-Speicher, bleiben dessen Quelldaten dort liegen.
 - **FR-002**: Ein anfragendes Gerät MUSS sich beim Verbinden mit seinem Geräteschlüssel ausweisen und
   die mit der Vault-Identität unterschriebene Geräteliste seiner Vault vorlegen. Das bedienende Gerät
   MUSS die Unterschrift prüfen und dass das anfragende Gerät auf dieser Liste steht.
@@ -538,8 +543,10 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **SC-006**: Während fünf Kontakte gleichzeitig große Dateien aus Dateifreigaben eines Geräts lesen,
   öffnet holzi auf diesem Gerät einen lokalen Ordner mit 1 000 Einträgen und wechselt Tabs jeweils in
   höchstens 1 Sekunde.
-- **SC-007**: Kein Geräte- oder Vault-Zugriff gelingt ohne gültige Geräteliste: Ein Gerät, das nicht
-  auf der aktuellen Liste seiner Vault steht, erhält in 100 % der Versuche keine Datei.
+- **SC-007**: Kein Geräte- oder Vault-Zugriff gelingt ohne gültige Geräteliste: Sobald das bedienende
+  Gerät die neue Liste akzeptiert und verbreitet hat, erhält ein Gerät, das nicht auf der höchsten
+  akzeptierten Liste seiner Vault steht, in 100 % der Versuche keine Datei. Bis diese Liste das
+  bedienende Gerät erreicht, gilt die dokumentierte Übergangsfrist.
 - **SC-008**: Ein abgebrochener oder gescheiterter Transfer hinterlässt in 100 % der Fälle keine halbe
   Datei am Ziel.
 - **SC-009**: Im selben Netz erscheint eine neue, geänderte oder gelöschte Datei in einem geöffneten

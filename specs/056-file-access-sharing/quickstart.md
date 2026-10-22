@@ -10,7 +10,7 @@ Automatische Prüfungen vor der Handprüfung:
 
 ```bash
 nix develop --command scripts/with-nix-host-bridge.sh cargo test --lib files::share
-nix develop --command scripts/with-nix-host-bridge.sh cargo test --lib sync::files
+nix develop --command scripts/with-nix-host-bridge.sh cargo test --lib files::peer
 nix develop --command pnpm typecheck && nix develop --command pnpm lint
 nix develop --command pnpm format:check
 ```
