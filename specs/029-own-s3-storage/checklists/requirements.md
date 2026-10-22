@@ -61,10 +61,10 @@
   member cannot decrypt the read-write token.
 - SC-002 (old token rejected within 5 minutes) depends on the provider's own
   revocation latency; the suitability check measures it with a test key
-  (FR-004 g), so SC-002 holds for every provider marked „geeignet“. Review fix
-  2026-09-28: FR-018 revokes at the provider before the new member list is
-  published, FR-022 publishes anyway on failure and retries with a persistent
-  warning.
+  (FR-004 g), so SC-002 holds for every provider marked „geeignet“. Review fix:
+  FR-018 revokes at the provider before the new member list is published, and
+  FR-022 keeps the previous member list and retries with a persistent warning
+  when revocation is not confirmed.
 - Aligned with the sibling spec 027 as written: 027 excludes dissolving a space
   and switching a space's backend. This spec lifts the switching exclusion (User
   Story 8, also from "nur direkte Übertragung" to B) and keeps dissolving out of

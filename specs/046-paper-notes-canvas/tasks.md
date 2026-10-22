@@ -98,7 +98,7 @@ code it creates the page with the original and the contract's hint.
 **Independent Test**: After a fixture import one text, one cell and one image are changed, the page is saved and
 reopened, and every change and the unchanged original are there.
 
-- [x] T029 [P] [US3] Tests in `apps/haex-notes/app/lib/commands.test.ts`: editing a text, a cell, moving and resizing an image and changing the handwriting style are undoable commands that never touch the original layer (the tests are in `apps/haex-notes/app/lib/elementEdits.test.ts` next to the edits)
+- [x] T029 [P] [US3] Tests in `apps/haex-notes/app/lib/elementEdits.test.ts`: editing a text, a cell, moving and resizing an image and changing the handwriting style are undoable commands that never touch the original layer
 - [x] T030 [US3] Edit cell text by double click with the text editor in `apps/haex-notes/app/components/notes/PageCanvas.vue`
 - [x] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
 - [x] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue` (a picker above the selected text)
