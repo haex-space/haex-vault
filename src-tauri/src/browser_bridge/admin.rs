@@ -168,10 +168,14 @@ impl ClientAdmin {
         else {
             return Err(HolziError::BrowserBridgeClientNotFound);
         };
-        row.status = Status::Allowed(check(&row.identity)?);
-        self.db
-            .write(move |tx| approvals::save(tx, device, &row))
+        let approval = check(&row.identity)?;
+        let updated = self
+            .db
+            .write(move |tx| approvals::update_allowed(tx, device, &row.identity, &approval))
             .await?;
+        if !updated {
+            return Err(HolziError::BrowserBridgeClientNotFound);
+        }
         if let Some(core) = &self.core {
             core.session().reset_write(&client_id);
         }

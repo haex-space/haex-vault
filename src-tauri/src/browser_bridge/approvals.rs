@@ -298,6 +298,38 @@ pub fn save(tx: &mut CrdtTransaction<'_>, device: Uuid, client: &StoredClient) -
     Ok(())
 }
 
+/// Updates an existing allowed client without recreating it after a concurrent revoke.
+pub fn update_allowed(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    identity: &ClientIdentity,
+    approval: &Approval,
+) -> Result<bool> {
+    let id = row_id(device, &identity.client_id).to_string();
+    let scope_tags = approval
+        .scope_tags
+        .as_ref()
+        .map(|tags| serde_json::Value::from(tags.clone()).to_string());
+    let changed = tx.execute(
+        "UPDATE haex_browser_clients SET access = ?2, scope_tags = ?3, default_tag = ?4, \
+         write_denied = ?5 WHERE id = ?1 AND vault_device_uuid = ?6 AND client_id = ?7 \
+         AND public_key = ?8 AND origin = ?9 AND declaration = ?10 AND status = 'allowed'",
+        params![
+            id,
+            approval.access.as_str(),
+            scope_tags,
+            approval.default_tag,
+            i64::from(approval.write_denied),
+            device.to_string(),
+            identity.client_id,
+            identity.public_key,
+            identity.origin,
+            identity.declaration,
+        ],
+    )?;
+    Ok(changed != 0)
+}
+
 /// Forgets the decision for a client on `device`; `false` when there was none.
 pub fn delete(tx: &mut CrdtTransaction<'_>, device: Uuid, client_id: &str) -> Result<bool> {
     let id = row_id(device, client_id).to_string();
