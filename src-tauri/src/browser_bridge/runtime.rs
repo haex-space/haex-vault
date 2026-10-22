@@ -3,6 +3,7 @@
 //! approval questions, at most one per client (FR-007).
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -20,6 +21,8 @@ use super::prompts::{
     ApprovalAnswer, ApprovalQuestion, BridgeAnswer, BridgeClientRef, BridgeDeclaredGrant,
     BridgePrompts, BridgeQuestion,
 };
+use crate::error::HolziError;
+use crate::instances::passphrase::Passphrase;
 use crate::prompt_park::PromptEnd;
 use crate::vault_gate::VaultDb;
 use crate::Result;
@@ -51,6 +54,8 @@ pub enum Notice {
     PromptCancelled(String),
     /// A client was approved, blocked, connected or disconnected; the settings reload.
     Changed,
+    /// The vault password of a presence confirmation was wrong; the window says so (FR-033).
+    WrongPassphrase,
 }
 
 pub type Notifier = Arc<dyn Fn(Notice) + Send + Sync>;
@@ -80,6 +85,8 @@ struct Hub {
 pub struct BridgeCore {
     pub(super) keys: ServerKeys,
     pub(super) db: VaultDb,
+    /// The vault file, to check the vault password of a passkey confirmation (research R12).
+    vault_path: PathBuf,
     pub(super) device: Uuid,
     pub(super) token: CancellationToken,
     pub(super) prompts: BridgePrompts,
@@ -93,6 +100,7 @@ pub struct BridgeCore {
 impl BridgeCore {
     pub(super) fn new(
         db: VaultDb,
+        vault_path: PathBuf,
         device: Uuid,
         token: CancellationToken,
         prompts: BridgePrompts,
@@ -102,6 +110,7 @@ impl BridgeCore {
         Self {
             keys: ServerKeys::generate(),
             db,
+            vault_path,
             device,
             token,
             prompts,
@@ -190,6 +199,28 @@ impl BridgeCore {
             stored.as_ref(),
             &self.session(),
         ))
+    }
+
+    /// Whether `passphrase` opens the vault file (FR-033), checked like a passphrase change does,
+    /// on a blocking thread that holds the vault open until it is done.
+    pub(super) async fn verify_passphrase(&self, passphrase: Passphrase) -> bool {
+        let path = self.vault_path.clone();
+        let held = self.db.clone();
+        let checked = tokio::task::spawn_blocking(move || {
+            let _held = held;
+            crate::instances::verify_current(&path, &passphrase)
+        })
+        .await;
+        match checked {
+            Ok(Ok(())) => true,
+            Ok(Err(error)) => {
+                if !matches!(HolziError::from(error), HolziError::WrongPassphrase) {
+                    log::warn!("browser bridge: could not check the vault password");
+                }
+                false
+            }
+            Err(_) => false,
+        }
     }
 
     /// Notes the connection of a remembered client.

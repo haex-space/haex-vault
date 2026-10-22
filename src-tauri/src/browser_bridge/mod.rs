@@ -49,6 +49,9 @@ use crate::state::AppState;
 /// Event the settings reload on: a client was decided, connected or left, or the state changed.
 pub const EVENT_CHANGED: &str = "browser-bridge-changed";
 
+/// Event after a presence confirmation with a wrong vault password.
+pub const EVENT_WRONG_PASSPHRASE: &str = "browser-bridge-wrong-passphrase";
+
 /// The state of the bridge as the settings show it (FR-037).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -106,6 +109,7 @@ impl BrowserBridge {
                         handle.emit(EVENT_PROMPT_CANCELLED, BridgePromptCancelled { prompt_id })
                     }
                     Notice::Changed => handle.emit(EVENT_CHANGED, ()),
+                    Notice::WrongPassphrase => handle.emit(EVENT_WRONG_PASSPHRASE, ()),
                 };
                 if let Err(error) = sent {
                     log::warn!("browser bridge: could not tell the window: {error}");
@@ -126,7 +130,12 @@ impl BrowserBridge {
     }
 
     /// Stops a running bridge and starts it again when `settings` say so.
-    pub async fn apply(&self, state: &AppState, device: uuid::Uuid, settings: BridgeSettings) {
+    pub async fn apply(
+        &self,
+        state: &AppState,
+        vault: commands::OpenVault,
+        settings: BridgeSettings,
+    ) {
         let mut slot = self.slot.lock().await;
         if let Some(running) = slot.running.take() {
             running.stop().await;
@@ -137,7 +146,8 @@ impl BrowserBridge {
                 Ok(db) => {
                     let args = StartArgs {
                         db,
-                        device,
+                        vault_path: vault.path,
+                        device: vault.device,
                         port: settings.port,
                         parent: state.gate().token(),
                         prompts: self.prompts.clone(),
@@ -193,8 +203,8 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         let state = app.state::<AppState>();
         let bridge = app.state::<BrowserBridge>();
         match commands::device_settings(&app, &state).await {
-            Ok((device, settings)) if settings.enabled => {
-                bridge.apply(&state, device, settings).await;
+            Ok((vault, settings)) if settings.enabled => {
+                bridge.apply(&state, vault, settings).await;
             }
             Ok(_) => {}
             Err(error) => log::warn!("browser bridge: could not read the settings: {error}"),
