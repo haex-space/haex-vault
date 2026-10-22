@@ -203,6 +203,8 @@ pub async fn import_instance(
     // As after an open (`open.rs`): the session services of the vault.
     crate::vault_events::start_for_active_instance(&app, &state);
     crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
+    // Spec 057: channels end when their permission or the other vault's standing goes.
+    crate::extensions::peers::watch::start_for_active_instance(&app, &state);
     // Spec 018: register the confirmed extension tools for an imported vault as well.
     crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);

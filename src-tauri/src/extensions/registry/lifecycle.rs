@@ -137,7 +137,7 @@ pub fn reconcile(
 }
 
 /// What an extension that does not run here leaves behind in this process: its file and mail
-/// watches and shells end, its notifications close and, once removed, its held permission decisions go. This runs on every
+/// watches, shells and channels end, its notifications close and, once removed, its held permission decisions go. This runs on every
 /// reconcile, so also when it was disabled or removed on another device and the change came
 /// through sync; with nothing left each step does nothing. Its registration is read again, not
 /// taken from the list the reconcile began with: enabled or installed again here meanwhile, it
@@ -156,6 +156,7 @@ fn stopped_here(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) {
     host.fs.watches.end_all(extension_id);
     host.mail_watches.end_all(extension_id);
     host.shells.end_all(extension_id);
+    host.peers.end_all(extension_id);
     host.notifications.close_all(extension_id);
     if removed {
         host.permissions.forget_extension(extension_id);
