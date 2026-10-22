@@ -171,6 +171,26 @@ impl SyncNode {
         config: NodeConfig,
         on_applied: Arc<dyn Fn(BTreeSet<String>) + Send + Sync>,
     ) -> Result<Self, NodeError> {
+        Self::bind_with(
+            replica,
+            keys,
+            vault,
+            config,
+            on_applied,
+            Protocols::default(),
+        )
+        .await
+    }
+
+    /// [`Self::bind`], accepting `protocols` beside `holzi-sync/1`.
+    pub async fn bind_with(
+        replica: Arc<Replica>,
+        keys: DeviceKeys,
+        vault: [u8; 32],
+        config: NodeConfig,
+        on_applied: Arc<dyn Fn(BTreeSet<String>) + Send + Sync>,
+        protocols: Protocols,
+    ) -> Result<Self, NodeError> {
         let lookup = MemoryLookup::new();
         let initial_relays = config.relay_mode.relay_map().urls::<Vec<RelayUrl>>();
         let mut builder = Endpoint::builder(presets::Minimal)
@@ -210,9 +230,12 @@ impl SyncNode {
             dialing: Mutex::new(HashSet::new()),
             _session: config.session,
         });
-        let router = Router::builder(endpoint)
-            .accept(SYNC_ALPN, SyncProtocol(Arc::clone(&inner)))
-            .spawn();
+        let tasks = NodeTasks {
+            tracker: inner.tracker.clone(),
+            cancel: inner.cancel.clone(),
+        };
+        let router = Router::builder(endpoint).accept(SYNC_ALPN, SyncProtocol(Arc::clone(&inner)));
+        let router = protocols.register(router, &tasks).spawn();
         Ok(Self { inner, router })
     }
 
@@ -259,12 +282,7 @@ impl SyncNode {
     /// caller, which runs the exchange itself (user story 5: the main device
     /// dials the new installation).
     pub async fn dial_link(&self, addr: EndpointAddr) -> Result<Connection, NodeError> {
-        self.inner.lookup.add_endpoint_info(addr.clone());
-        self.inner
-            .endpoint
-            .connect(addr, crate::sync::wire::LINK_ALPN)
-            .await
-            .map_err(|e| NodeError::Connect(e.to_string()))
+        self.dial_alpn(addr, crate::sync::wire::LINK_ALPN).await
     }
 
     /// Tells every session that this device's progress may have moved, as
@@ -448,10 +466,19 @@ impl SyncNode {
 
 /// Opens a connection to `addr` on the sync protocol.
 async fn connect_sync(inner: &Inner, addr: EndpointAddr) -> Result<Connection, NodeError> {
+    connect_alpn(inner, addr, SYNC_ALPN).await
+}
+
+/// Opens a connection to `addr` on `alpn`, keeping the address for iroh.
+async fn connect_alpn(
+    inner: &Inner,
+    addr: EndpointAddr,
+    alpn: &[u8],
+) -> Result<Connection, NodeError> {
     inner.lookup.add_endpoint_info(addr.clone());
     inner
         .endpoint
-        .connect(addr, SYNC_ALPN)
+        .connect(addr, alpn)
         .await
         .map_err(|e| NodeError::Connect(e.to_string()))
 }
@@ -641,6 +668,10 @@ fn register(
 #[path = "endpoint_devices.rs"]
 mod devices;
 use devices::{clear_problem, flag, mark_seen, note_failure, notify_devices_changed};
+
+#[path = "endpoint_protocols.rs"]
+mod protocols;
+pub use protocols::{NodeTasks, Protocols};
 
 #[cfg(test)]
 #[path = "endpoint_tests.rs"]

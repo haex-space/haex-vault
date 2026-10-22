@@ -79,9 +79,9 @@ devices, the peers module skeleton and the multi-vault test support. Every story
 
 ### Endpoint
 
-- [ ] T009 `EXT_PEER_ALPN = b"holzi-ext-peer/1"` next to `SYNC_ALPN` in `src-tauri/src/sync/wire.rs`; `Domain::ExtPeerAuth` with tag `holzi-ext-peer-auth/v1` in `src-tauri/src/sync/signing.rs`; test in `src-tauri/src/sync/signing_tests.rs` that a `DeviceAuth` signature does not verify as `ExtPeerAuth`
-- [ ] T010 Extra protocol handlers in a new `src-tauri/src/sync/endpoint_protocols.rs`: a list of `(alpn, handler)` that `SyncNode::bind` (`src-tauri/src/sync/endpoint.rs:167`) registers on its `Router` beside `SYNC_ALPN`, and `SyncNode::dial_alpn(addr, alpn) -> Result<Connection, NodeError>` after the pattern of `dial_link` (adds the address to the `MemoryLookup`); `endpoint.rs` grows only by the hand-over (documented 500-LoC exception)
-- [ ] T011 [P] Tests in `src-tauri/src/sync/endpoint_protocols_tests.rs`: a dummy handler on a second ALPN accepts a dial; `holzi-sync/1` still works beside it; an ALPN nobody registered is refused
+- [X] T009 `EXT_PEER_ALPN = b"holzi-ext-peer/1"` next to `SYNC_ALPN` in `src-tauri/src/sync/wire.rs`; `Domain::ExtPeerAuth` with tag `holzi-ext-peer-auth/v1` in `src-tauri/src/sync/signing.rs`; test in `src-tauri/src/sync/signing_tests.rs` that a `DeviceAuth` signature does not verify as `ExtPeerAuth`
+- [X] T010 Extra protocol handlers in a new `src-tauri/src/sync/endpoint_protocols.rs`: a list of `(alpn, handler)` that `SyncNode::bind` (`src-tauri/src/sync/endpoint.rs:167`) registers on its `Router` beside `SYNC_ALPN`, and `SyncNode::dial_alpn(addr, alpn) -> Result<Connection, NodeError>` after the pattern of `dial_link` (adds the address to the `MemoryLookup`); `endpoint.rs` grows only by the hand-over (documented 500-LoC exception)
+- [X] T011 [P] Tests in `src-tauri/src/sync/endpoint_protocols_tests.rs`: a dummy handler on a second ALPN accepts a dial; `holzi-sync/1` still works beside it; an ALPN nobody registered is refused
 - [ ] T012 Build the `holzi-ext-peer/1` handler in `src-tauri/src/sync/service.rs` (`run`, before `SyncNode::bind`) from the app's `ExtensionHost`, `VaultDb`, window emitter and the session tracker; clear `ExtensionHost.peers` when the session's `CancellationToken` fires
 
 ### Verifying a foreign device
