@@ -5,7 +5,6 @@
 
 use std::sync::Arc;
 
-use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use super::approvals::{self, Approval, ClientIdentity, Status};
@@ -28,7 +27,7 @@ pub(super) async fn ensure_write(
         return Ok(approval);
     }
     let may_ask = !approval.write_denied
-        && declared_of(&client.declaration)
+        && Declared::from_canonical(&client.declaration)
             .is_some_and(|d| d.fits(BridgeAccess::ReadWrite, approval.scope_tags.as_deref()));
     if !may_ask {
         return Err(ErrorCode::PermissionDenied);
@@ -138,10 +137,4 @@ async fn store(
             Err(ErrorCode::ServerError)
         }
     }
-}
-
-/// The password declaration inside a stored canonical declaration.
-fn declared_of(canonical: &str) -> Option<Declared> {
-    let value: Value = serde_json::from_str(canonical).ok()?;
-    Declared::read(value.get("permissions")).ok()
 }

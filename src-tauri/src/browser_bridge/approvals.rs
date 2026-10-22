@@ -298,6 +298,38 @@ pub fn save(tx: &mut CrdtTransaction<'_>, device: Uuid, client: &StoredClient) -
     Ok(())
 }
 
+/// Updates an existing allowed client without recreating it after a concurrent revoke.
+pub fn update_allowed(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    identity: &ClientIdentity,
+    approval: &Approval,
+) -> Result<bool> {
+    let id = row_id(device, &identity.client_id).to_string();
+    let scope_tags = approval
+        .scope_tags
+        .as_ref()
+        .map(|tags| serde_json::Value::from(tags.clone()).to_string());
+    let changed = tx.execute(
+        "UPDATE haex_browser_clients SET access = ?2, scope_tags = ?3, default_tag = ?4, \
+         write_denied = ?5 WHERE id = ?1 AND vault_device_uuid = ?6 AND client_id = ?7 \
+         AND public_key = ?8 AND origin = ?9 AND declaration = ?10 AND status = 'allowed'",
+        params![
+            id,
+            approval.access.as_str(),
+            scope_tags,
+            approval.default_tag,
+            i64::from(approval.write_denied),
+            device.to_string(),
+            identity.client_id,
+            identity.public_key,
+            identity.origin,
+            identity.declaration,
+        ],
+    )?;
+    Ok(changed != 0)
+}
+
 /// Forgets the decision for a client on `device`; `false` when there was none.
 pub fn delete(tx: &mut CrdtTransaction<'_>, device: Uuid, client_id: &str) -> Result<bool> {
     let id = row_id(device, client_id).to_string();
@@ -353,11 +385,26 @@ impl SessionDecisions {
 
     /// Forgets everything about one client; `true` when there was something.
     pub fn forget(&mut self, client_id: &str) -> bool {
+        let allowed = self.revoke(client_id);
+        let blocked = self.unblock(client_id);
+        allowed || blocked
+    }
+
+    /// Forgets the approval and the answers about writing (FR-011); `true` when it was approved.
+    pub fn revoke(&mut self, client_id: &str) -> bool {
+        self.reset_write(client_id);
+        self.allowed.remove(client_id).is_some()
+    }
+
+    /// Lifts a block; `true` when the client was blocked.
+    pub fn unblock(&mut self, client_id: &str) -> bool {
+        self.blocked.remove(client_id).is_some()
+    }
+
+    /// Forgets this session's answers about writing, after the user changed the approval.
+    pub fn reset_write(&mut self, client_id: &str) {
         self.write_allowed.remove(client_id);
         self.write_denied.remove(client_id);
-        let allowed = self.allowed.remove(client_id).is_some();
-        let blocked = self.blocked.remove(client_id).is_some();
-        allowed || blocked
     }
 
     /// Lets a read-only client write until the bridge stops (FR-015).

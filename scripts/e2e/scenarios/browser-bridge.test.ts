@@ -16,7 +16,9 @@ import {
 // connects, holzi asks with the client's name, fingerprint and origin, "Zulassen" with "Erlaubnis
 // merken" reaches the open connection at once, and the next connection is approved without a
 // question. A client approved for reading only is asked before it saves (US3, FR-015), and the
-// saved entry is in the vault at once.
+// saved entry is in the vault at once. The settings list the clients (US5, T058): narrowing one to
+// "Lesen", revoking it while it holds a connection, which hears `authorized: false` and is closed,
+// and unblocking a declined one, which is asked again.
 scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-browser-bridge' })
@@ -27,12 +29,14 @@ scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
     name: string,
     seed: number,
     request?: { action: string; payload: Record<string, unknown> },
+    hold = false,
   ) => {
     const started = await startBridgeClient({
       port,
       seed,
       logFile: join(logDir, `${name}.log`),
       request,
+      hold,
     })
     clients.push(started)
     return started
@@ -149,6 +153,62 @@ scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
     assert.equal(reply?.success, true, JSON.stringify(saved))
     assert.ok((await entryTitles(instance)).includes('E2E Shop'))
     ctx.step('the entry is saved')
+
+    const row = (clientId: unknown, extra = '') =>
+      `[data-testid="bridge-client"][data-client-id="${String(clientId)}"]${extra}`
+    const firstId = first.events()[0]?.clientId
+    const held = await client('held', 7, undefined, true)
+    await waitForEvent(
+      held,
+      'the held connection',
+      (e) => e.event === 'handshake' && e.authorized === true,
+    )
+    await instance.waitForDisplayed(
+      row(firstId, '[data-access="readWrite"][data-connected]'),
+    )
+    ctx.step('the approved client is listed as connected')
+
+    await instance.click(row(firstId))
+    await instance.waitForDisplayed('bridge-client-editor')
+    await instance.click('bridge-client-read')
+    await instance.waitForDisplayed(row(firstId, '[data-access="read"]'))
+    ctx.step('narrowed to reading')
+
+    await instance.click('bridge-client-revoke')
+    await instance.click('bridge-client-confirm')
+    await waitForEvent(
+      held,
+      'the revocation on the open connection',
+      (e) => e.event === 'authorization' && e.authorized === false,
+    )
+    await waitForEvent(
+      held,
+      'the closed connection',
+      (e) => e.event === 'closed',
+    )
+    await ctx.waitFor('no row for the revoked client', async () =>
+      (await instance.exec<number>(
+        `return document.querySelectorAll('${row(firstId)}').length`,
+      )) === 0
+        ? true
+        : undefined,
+    )
+    ctx.step('revoked: the held connection hears it and closes')
+
+    const strangerId = stranger.events()[0]?.clientId
+    await instance.click(
+      row(strangerId, ' [data-testid="bridge-client-unblock"]'),
+    )
+    await instance.click('bridge-client-confirm')
+    const asked = await client('stranger-again', 9)
+    await waitForEvent(
+      asked,
+      'the unblocked client waits',
+      (e) => e.event === 'handshake' && e.pending === true,
+    )
+    await instance.waitForDisplayed('bridge-approval')
+    await instance.click('bridge-approval-deny')
+    ctx.step('unblocked: the client is asked again')
   } finally {
     for (const running of clients) await running.stop()
   }

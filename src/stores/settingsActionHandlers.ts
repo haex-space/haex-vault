@@ -143,6 +143,30 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { enabled: input.enabled === true, port: Number(input.port) },
     }),
   )
+  // Rust checks the grant against the client's declaration (FR-010, FR-038).
+  on('settings.browserBridge.client.update', async ({ input }) =>
+    invoke<BridgeOverview>('browser_bridge_client_update', {
+      args: {
+        clientId: String(input.clientId),
+        access: input.access === 'readWrite' ? 'readWrite' : 'read',
+        scopeTags: Array.isArray(input.scopeTags)
+          ? input.scopeTags.map(String)
+          : null,
+        defaultTag:
+          typeof input.defaultTag === 'string' ? input.defaultTag : null,
+      },
+    }),
+  )
+  on('settings.browserBridge.client.revoke', async ({ input }) =>
+    invoke<BridgeOverview>('browser_bridge_client_revoke', {
+      args: { clientId: String(input.clientId) },
+    }),
+  )
+  on('settings.browserBridge.client.unblock', async ({ input }) =>
+    invoke<BridgeOverview>('browser_bridge_client_unblock', {
+      args: { clientId: String(input.clientId) },
+    }),
+  )
   on('settings.sessionRestore.set', async ({ input }) =>
     wm.setSessionRestore(input.enabled === true),
   )

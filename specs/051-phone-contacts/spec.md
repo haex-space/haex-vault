@@ -109,6 +109,9 @@ PGP-Schlüssel, Serveradressen und was sonst noch so kommen wird."
   Vault-Identität bleibt verboten. Inhalt, Annahme, Bestätigung durch den Admin beziehungsweise
   Eigentümer und Schlüsselverteilung bleiben wie in 027 und 028; nur der Weg der Einladung zum
   Empfänger ist neu. 027 und 028 verweisen an den betroffenen Stellen auf diese Spec.
+- **Spec 056** (2026-10-21): ersetzt Spaces für Dateien und kennt keine Einladungen. Einladungen nach
+  US7 kommen damit nur noch aus 028; Verweise auf 027 (etwa FR-008, FR-010) bleiben als Definition des
+  Einladungslinks gültig, solange 027 als Grundlage für 028 besteht.
 - **Spec 026** (Sync-Server): Hat der Empfänger ein Postfach auf einem Sync-Server, darf die Zustellung
   einer Einladung es nutzen; nötig ist es nicht.
 - **Spec 017** (Erweiterungs-Host): Erweiterungen lesen Kontakte über eine neue Berechtigungsart mit

@@ -29,8 +29,8 @@ spec 055 and vault-sdk 4.7.1
 
 - [ ] T001 Create an implementation worktree of `haex-space/haextension` at `6dfb015198c99018236f5a8e958a916942ab971c` and confirm `apps/haex-notes/package.json` is version 0.1.7
 - [ ] T002 Raise `@haex-space/vault-sdk` to exactly `4.7.1` and add `pdf-lib` in `apps/haex-notes/package.json`; update the lockfile; add no provider, OCR or model SDK
-- [ ] T003 [P] Add permissively licensed handwriting fonts with their license notices under `apps/haex-notes/public/fonts/`
-- [ ] T004 [P] Add the handwriting style registry with a neutral fallback in `apps/haex-notes/app/lib/paperNotes/fonts.ts`
+- [x] T003 [P] Add permissively licensed handwriting fonts with their license notices under `apps/haex-notes/public/fonts/` (Caveat, Patrick Hand, Kalam under the OFL, from `google/fonts@45e3d5269e4a17d823f6d84470bc084dc5ae46f6`)
+- [x] T004 [P] Add the handwriting style registry with a neutral fallback in `apps/haex-notes/app/lib/paperNotes/fonts.ts`
 
 ---
 
@@ -98,11 +98,11 @@ code it creates the page with the original and the contract's hint.
 **Independent Test**: After a fixture import one text, one cell and one image are changed, the page is saved and
 reopened, and every change and the unchanged original are there.
 
-- [ ] T029 [P] [US3] Tests in `apps/haex-notes/app/lib/commands.test.ts`: editing a text, a cell, moving and resizing an image and changing the handwriting style are undoable commands that never touch the original layer
-- [ ] T030 [US3] Edit cell text by double click with the text editor in `apps/haex-notes/app/components/notes/PageCanvas.vue`
-- [ ] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
-- [ ] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue`
-- [ ] T033 [US3] Original, draft and compare views (layer visibility) in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [x] T029 [P] [US3] Tests in `apps/haex-notes/app/lib/elementEdits.test.ts`: editing a text, a cell, moving and resizing an image and changing the handwriting style are undoable commands that never touch the original layer
+- [x] T030 [US3] Edit cell text by double click with the text editor in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [x] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
+- [x] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue` (a picker above the selected text)
+- [x] T033 [US3] Original, draft and compare views (layer visibility) in `apps/haex-notes/app/components/notes/PageCanvas.vue`
 - [ ] T034 [US3] "Read again" on a page with `paperImport`: ask before replacing generated elements the student changed; replace only generated, unchanged ones, in `apps/haex-notes/app/lib/paperNotes/importPage.ts`
 
 **Checkpoint**: Quickstart steps 5–7.

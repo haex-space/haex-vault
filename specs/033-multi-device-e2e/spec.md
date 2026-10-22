@@ -25,7 +25,7 @@ its own spec."
   but implements none of them; each gets its own follow-up spec.
 - Q: Does the spec fix the building blocks for later features too? → A: Yes, as general multi-vault helpers
   (named groups, per-device network control, fixed real-time deadlines, online state and device list, vault-file
-  copy, scenario template). Later specs (025, 027, 028, haextensions) add scenarios on top and do not
+  copy, scenario template). Later specs (025, 028, 056, haextensions) add scenarios on top and do not
   rebuild the helpers.
 
 ## User Scenarios & Testing _(mandatory)_
@@ -172,7 +172,7 @@ writes a scenario by naming the vaults, the users and the devices, saying how th
 then driving and checking them. The helpers for groups, network, fixed real-time deadlines, device state and copying a vault
 file already exist.
 
-**Why this priority**: Spec 025, 027 and 028 and the haextensions all need exactly these abilities, and
+**Why this priority**: Spec 025, 028 and 056 and the haextensions all need exactly these abilities, and
 building them again per feature would be wasteful and would diverge.
 
 **Independent Test**: A reviewer who has not seen the helpers writes a scenario with two users, each with
@@ -413,5 +413,5 @@ result names the scenario and keeps the material of the failure.
   may be marked so that they can be run on their own, as spec 016 does for the relaunch scenario.
 - The machine can run a limited number of application processes at once; building and running all of them
   together has crashed a developer machine before, so the limit in FR-019 is real.
-- Own file sync (spec 025), spaces (027), data shares (028), haextensions and the other features that need
+- Own file sync (spec 025), file access and file shares (056), data shares (028), haextensions and the other features that need
   several vaults are not specified here; they add scenarios to the helpers when they are built.

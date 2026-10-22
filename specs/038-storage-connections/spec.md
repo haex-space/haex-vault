@@ -9,7 +9,7 @@
 **Input**: User description: "Speicherverbindungen (S3) in holzi und ihre Weitergabe an
 Erweiterungen. Grundsatz des Betreibers: holzi spricht die Protokolle selbst (IMAP, SMTP, S3, ICS …)
 und reicht sie über Berechtigungen an Erweiterungen weiter; Erweiterungen bekommen nie Zugangsdaten.
-Die Speicherverbindung aus Spec 029 wird herausgezogen, ohne Spaces; 029 nutzt sie später. Umfang:
+Diese Spec definiert die Speicherverbindungen, die der Dateibrowser und Spec 056 nutzen. Umfang:
 Verbindungen anlegen, ändern, prüfen, entfernen (Zugangsdaten im Passwortmanager 034); ein S3-Client in
 holzi; Erweiterungen erreichen eine Verbindung nur mit Berechtigung je Speicher und unter einem eigenen
 Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_*` des vault-sdk)."
@@ -17,14 +17,13 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
 ## Begriffe
 
 - **Speicherverbindung**: Anbieter, Endpunkt, Region, Adressierung (wie Buckets in der Adresse
-  stehen) und die **Zugangsdaten** bei diesem Anbieter. Derselbe Begriff wie in Spec 029; diese Spec
-  legt ihn fest, 029 baut darauf auf.
+  stehen) und die **Zugangsdaten** bei diesem Anbieter. Diese Spec legt den Begriff fest.
 - **Speicher**: ein Bucket auf einer Speicherverbindung, mit einem Namen, den der Nutzer vergibt.
   Ihn sieht eine Erweiterung als „Backend“ des vault-sdk. Eine Speicherverbindung kann mehrere
   Speicher tragen.
 - **Verbindungstest**: die Prüfung, ob holzi mit den Zugangsdaten den Endpunkt erreicht und im Bucket
-  eines Speichers auflisten, schreiben, lesen und löschen kann. Er ist kleiner als die
-  Eignungsprüfung von 029 (keine Versionierung, keine eingeschränkten Zugangsschlüssel).
+  eines Speichers auflisten, schreiben, lesen und löschen kann. Eine weitergehende S3-Eignungsprüfung
+  ist nicht Teil dieser Spec.
 - **Bereich einer Erweiterung**: der Teil eines Speichers, den eine Erweiterung sieht: alle Objekte
   unter einem Schlüsselpräfix, das nur ihr gehört. Die Erweiterung sieht die Schlüssel ohne dieses
   Präfix.
@@ -42,10 +41,8 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
   Aktionen Lesen sowie Lesen und Schreiben gibt es dort schon; diese Spec ergänzt die Aktion `add` mit
   dem Host eines Endpunkts als Ziel (FR-009b). Bis diese Spec gebaut ist, antworten
   die neun Funktionen „nicht verfügbar“ (8001).
-- **Spec 029** (eigener S3-Speicher für Spaces): 029 nutzt die Speicherverbindung dieser Spec,
-  ergänzt um ihre Eignungsprüfung, Space-Buckets und Zugangsschlüssel. Was 029 über die Verbindung
-  festlegt (gehört der Vault, liegt im Passwortmanager, synchronisiert auf alle eigenen Geräte,
-  FR-033 dort), gilt hier genauso.
+- **Spec 056** (Dateizugriff und Dateifreigaben): nutzt Speicher aus dieser Spec als Quellen und
+  reicht bei einer Dateifreigabe weder Zugangsdaten noch Schlüssel an das anfragende Gerät weiter.
 - **Spec 034** (Passwortmanager): verwahrt die Zugangsdaten. Wie Erweiterungen den Passwortmanager
   sonst nutzen, bleibt bei 034 und Spec 017 (US10).
 - **Spec 024** (Sync der eigenen Geräte): Speicherverbindungen und Speicher sind gewöhnliche
@@ -55,8 +52,8 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
 
 ### Session 2026-10-05
 
-- Q: Gilt eine Speicherverbindung vault-weit oder nur auf einem Gerät? → A: Vault-weit, wie in 029
-  (FR-033 dort): Sie liegt im Passwortmanager und kommt mit dem Datensync auf alle eigenen Geräte.
+- Q: Gilt eine Speicherverbindung vault-weit oder nur auf einem Gerät? → A: Vault-weit: Sie liegt
+  im Passwortmanager und kommt mit dem Datensync auf alle eigenen Geräte.
 - Q: Darf eine Erweiterung einen Speicher anlegen, ändern, prüfen oder entfernen? → A: Ja, aber jedes
   Mal nur nach Bestätigung in einem Dialog von holzi (Spec 017 FR-055).
 - Q: Wer gibt die Zugangsdaten ein, wenn eine Erweiterung einen Speicher vorschlägt? → A: Nur der
@@ -80,7 +77,7 @@ holzi testet die Verbindung, bevor es etwas speichert, und zeigt das Ergebnis. S
 später umbenennen, die Zugangsdaten erneuern, erneut testen und ihn entfernen.
 
 **Why this priority**: Ohne Speicher gibt es nichts, das holzi an Erweiterungen weitergeben könnte,
-und 029 braucht dieselbe Verbindung.
+und Spec 056 braucht dieselben Speicherverbindungen als mögliche Dateiquellen.
 
 **Independent Test**: Gegen einen lokalen S3-kompatiblen Testserver eine Verbindung und einen Speicher
 anlegen, testen, umbenennen, die Zugangsdaten tauschen, entfernen. Danach liegen keine Zugangsdaten
@@ -341,7 +338,7 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 ### Key Entities
 
 - **Speicherverbindung**: Anbieter, Endpunkt, Region, Adressierung, Verweis auf die Zugangsdaten im
-  Passwortmanager. Gehört der Vault, synchronisiert auf alle eigenen Geräte. Von 029 mitgenutzt.
+  Passwortmanager. Gehört der Vault, synchronisiert auf alle eigenen Geräte. Von Spec 056 mitgenutzt.
 - **Speicher**: Name, Bucket, zugehörige Speicherverbindung, Zeitpunkt der Anlage. Ziel der
   Berechtigungen der Art `remoteStorage`. Das Ergebnis des letzten Tests gehört je Gerät dazu und wird
   nicht synchronisiert (data-model `storage_tests_no_sync`).
@@ -372,9 +369,9 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 ## Assumptions
 
 - Ein **Speicher** ist ein vorhandener Bucket; holzi legt in dieser Spec keine Buckets an und löscht
-  keine. Das Anlegen von Buckets gehört zu 029.
+  keine. Das Anlegen von Buckets gehört zu einer späteren, eigenständigen S3-Verwaltung.
 - Der **Verbindungstest** schreibt, liest, listet und löscht ein eigenes kleines Testobjekt im Bucket;
-  Versionierung und eingeschränkte Zugangsschlüssel prüft erst die Eignungsprüfung von 029.
+  Versionierung und eingeschränkte Zugangsschlüssel prüft eine spätere, eigenständige S3-Verwaltung.
 - Das **Präfix** einer Erweiterung leitet sich aus der Identität der Vault (bei allen ihren Geräten
   gleich, Spec 024) und der dauerhaften Identität der Erweiterung (Herausgeberschlüssel und Name,
   Spec 017) ab, nicht aus einer Kennung je Installation oder je Gerät. Nur eine Entwicklerversion hat
@@ -389,8 +386,9 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 
 ## Nicht im Umfang
 
-- Spaces, Space-Buckets, Zugangsschlüssel je Space, Eignungsprüfung und Versionierung (Spec 029).
-- Ein Dateibrowser oder Dateisync von holzi auf einem Speicher (Specs 025 und 029).
+- Spaces, Space-Buckets, Zugangsschlüssel je Space und eine weitergehende S3-Eignungsprüfung.
+- Ein Dateibrowser oder Dateizugriff von holzi auf einem Speicher (Specs 044 und 056); eigene
+  Dateisync-Regeln bleiben ein späteres Vorhaben.
 - Andere Protokolle (IMAP, SMTP, ICS, FTP). Sie folgen demselben Grundsatz in eigenen Specs. WebDAV und
   SFTP baut Spec 050 ([`050-webdav-sftp-storage`](../050-webdav-sftp-storage/spec.md)).
 - Verschlüsselung der Objekte durch holzi; was eine Erweiterung hochlädt, liegt beim Anbieter so, wie

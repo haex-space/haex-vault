@@ -4,6 +4,7 @@ import { setSessionRestore } from '../lib/settings.ts'
 import {
   backInTab,
   fixture,
+  frameOf,
   inFrame,
   install,
   openFromLauncher,
@@ -98,6 +99,6 @@ scenario('extension-install-open', { timeoutMs: 300_000 }, async (ctx) => {
 
   await device.restart()
   const restored = device.page
-  await restored.waitForDisplayed(`[data-extension-id="${probe.id}"]`, 30_000)
+  await restored.waitForDisplayed(frameOf(probe.id), 30_000)
   ctx.step('tab restored after a restart')
 })

@@ -179,7 +179,7 @@ result: { features: string[] }          // Namen der holzi-Funktionen, die den E
 ```
 
 Fragt alle angemeldeten `EntryUsage`-Anbieter ([access.md](./access.md)) und dient der Warnung vor dem
-Löschen (FR-034). In dieser Spec ist kein Anbieter angemeldet (Spec 029 meldet den ersten).
+Löschen (FR-034). In dieser Spec ist kein Anbieter angemeldet (Spec 038 meldet den ersten).
 
 ### `passwords_trash` / `passwords_restore` / `passwords_delete_permanently` / `passwords_empty_trash`
 

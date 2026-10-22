@@ -79,10 +79,11 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - **Spec 050** (WebDAV- und SFTP-Speicher): bringt Speicher mit diesen Protokollen und verlangt, dass
   verschlüsselte Ordner dort genauso funktionieren (050 FR-024). `ObjectInfo.etag` führt die Spec ein,
   die zuerst landet (050 research R8).
-- **Umbau 027/029** (Spaces als Rahmen mit Einträgen) und **Sync-Regeln** (ersetzt 025, noch ohne
-  Nummer): sollen dasselbe Format nutzen. Ein Space verschlüsselt den Ordnerschlüssel zusätzlich für
-  seine Mitglieder; die Sync-Regeln legen „Cloud verschlüsselt“ als verschlüsselten Ordner an. Beides
-  ist nicht Teil dieser Spec, das Format MUSS es aber zulassen (FR-040, FR-041).
+- **Spec 056** (Dateifreigaben an Kontakte): Ein verschlüsselter Ordner lässt sich freigeben; das
+  bedienende Gerät entschlüsselt und liefert Klartext über die verschlüsselte Verbindung, der
+  Ordnerschlüssel verlässt es nicht. **Sync-Regeln** (ersetzt 025, noch ohne Nummer): sollen dasselbe
+  Format nutzen und legen „Cloud verschlüsselt“ als verschlüsselten Ordner an. Das ist nicht Teil
+  dieser Spec, das Format MUSS es aber zulassen (FR-040, FR-041).
 - **Vorlage haex-vault 2.x**: Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad `src-tauri/src/file_sync/crypto/` (Envelope `HXFE`,
   Blöcke zu 1 MiB mit XChaCha20-Poly1305, zufällige Objektnamen, Begleitdateien `.m`, Dateischlüssel
@@ -579,10 +580,10 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 **Format für später**
 
 - **FR-040**: Das Format MUSS zulassen, den Ordnerschlüssel zusätzlich für weitere Empfänger zu
-  verschlüsseln (Spaces, Umbau 027/029), ohne Inhaltsobjekte, Dateischlüssel oder Begleitdateien neu
+  verschlüsseln, ohne Inhaltsobjekte, Dateischlüssel oder Begleitdateien neu
   zu schreiben und ohne den Dateiverschlüsselungsschlüssel der Vault weiterzugeben.
 - **FR-041**: Das Format MUSS eine Versionsangabe tragen und so beschrieben sein, dass die
-  Sync-Regeln und der Umbau 027/029 es ohne zweite Umsetzung nutzen. Ver- und Entschlüsselung MÜSSEN
+  Sync-Regeln es ohne zweite Umsetzung nutzen. Ver- und Entschlüsselung MÜSSEN
   an genau einer Stelle in holzi umgesetzt sein.
 - **FR-042**: Das Format MUSS in einem Dokument im Repository beschrieben sein (Aufbau aller drei
   Objektarten, Schlüsselableitung, Verfahren, Versionen), damit Ordner auch ohne holzi geprüft werden
@@ -705,8 +706,8 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 
 ## Nicht im Umfang
 
-- Teilen eines verschlüsselten Ordners mit anderen Nutzern und Spaces (Umbau 027/029); nur das Format
-  muss es zulassen (FR-040).
+- Teilen des Ordnerschlüssels mit anderen Nutzern; nur das Format muss es zulassen (FR-040).
+  Dateifreigaben (Spec 056) liefern Klartext über das bedienende Gerät.
 - Entzug und Erneuern von Schlüsseln (etwa nach einem verlorenen Gerät) und neues Verschlüsseln eines
   Ordners.
 - Umwandeln bestehender Ordner in verschlüsselte und zurück (FR-004).

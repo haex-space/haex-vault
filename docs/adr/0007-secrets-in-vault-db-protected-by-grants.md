@@ -40,8 +40,9 @@ What protects the secrets instead:
 - The grant check is the single place that has to be right. It is a pure Rust
   module (`passwords/access.rs`) tested without a database, and the service is
   tested against a real vault with planted marker values.
-- Spec 029 (own S3 storage) can keep its credentials as ordinary entries with
-  a tag of its choice and read them as an internal caller.
+- Spec 038 (storage connections) can keep its credentials as ordinary entries with
+  a tag of its choice and read them as an internal caller; Spec 056 never exposes
+  those credentials when it serves a shared source.
 - Management of grants (issue, show, revoke) stays with specs 017–019 and 021;
   ADR-0005 stays reserved for that spec.
 

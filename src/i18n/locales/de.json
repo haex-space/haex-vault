@@ -1648,7 +1648,12 @@
         "setModelCapabilities": "Angaben zu einem Modell setzen"
       },
       "browserBridge": {
-        "set": "Browser-Erweiterungen ein- oder ausschalten"
+        "set": "Browser-Erweiterungen ein- oder ausschalten",
+        "client": {
+          "update": "Zulassung einer Browser-Erweiterung ändern",
+          "revoke": "Zulassung einer Browser-Erweiterung widerrufen",
+          "unblock": "Sperre einer Browser-Erweiterung aufheben"
+        }
       }
     },
     "scopes": {
@@ -2928,7 +2933,8 @@
       "all": "alle Einträge",
       "tags": "Einträge mit bestimmten Tags",
       "newTag": "Neues Tag",
-      "addTag": "Hinzufügen"
+      "addTag": "Hinzufügen",
+      "pickTag": "Wähle mindestens ein Tag."
     },
     "defaultTag": {
       "label": "Standard-Tag für neue Einträge",
@@ -2945,8 +2951,9 @@
       "port": "Port",
       "portHint": "Muss in der Erweiterung gleich eingestellt sein. Standard: 19455",
       "state": "Zustand",
-      "portInUseHint": "Port {port} ist belegt, etwa von einer anderen holzi-Instanz oder von haex-vault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
-      "portInvalid": "Der Port muss zwischen 1024 und 65535 liegen."
+      "portInUseHint": "Port {port} ist belegt, etwa von einer anderen holzi-Instanz oder von HaexVault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
+      "portInvalid": "Der Port muss zwischen 1024 und 65535 liegen.",
+      "changePort": "Anderen Port wählen"
     },
     "state": {
       "off": "Aus",
@@ -2964,6 +2971,36 @@
       },
       "remember": "Merken",
       "allow": "Erlauben"
+    },
+    "clients": {
+      "title": "Zugelassene Erweiterungen",
+      "empty": "Noch keine Browser-Erweiterung zugelassen. Verbindet sich eine, fragt holzi nach.",
+      "blockedTitle": "Gesperrte Erweiterungen",
+      "connected": "verbunden",
+      "remembered": "gemerkt",
+      "session": "vorläufig",
+      "decided": "entschieden {when}",
+      "lastSeen": "zuletzt verbunden {when}",
+      "neverSeen": "noch nie verbunden",
+      "scopeTags": "Tags: {tags}",
+      "defaultTag": "Standard-Tag: {tag}",
+      "editTitle": "Browser-Erweiterung",
+      "savedHint": "Änderungen gelten ab der nächsten Anfrage der Erweiterung.",
+      "noDeclaration": "Was diese Erweiterung braucht, ist nicht lesbar. Du kannst sie nur widerrufen.",
+      "notFound": "Diese Erweiterung ist nicht mehr zugelassen oder gesperrt.",
+      "revoke": "Widerrufen",
+      "revokeTitle": "Zulassung widerrufen?",
+      "revokeBody": "„{name}“ wird sofort getrennt. Verbindet sie sich wieder, fragt holzi erneut.",
+      "unblock": "Entsperren",
+      "unblockTitle": "Sperre aufheben?",
+      "unblockBody": "Verbindet sich „{name}“ wieder, fragt holzi erneut, ob sie zugelassen wird.",
+      "cancel": "Abbrechen"
+    },
+    "time": {
+      "justNow": "gerade eben",
+      "minutes": "vor {n} Min.",
+      "hours": "vor {n} Std.",
+      "days": "vor {n} Tagen"
     }
   }
 }

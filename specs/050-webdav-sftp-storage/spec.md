@@ -54,9 +54,10 @@ kDrive, NAS, eigene Server)."
   neuen Protokolle.
 - **Spec 024** (Sync der eigenen Geräte): Verbindungen, Speicher und bestätigte Hostschlüssel kommen
   mit dem Datensync auf alle eigenen Geräte.
-- **Teilen** (Specs 027 bis 029 und ihr geplanter Umbau): WebDAV- und SFTP-Speicher sind nur Speicher
-  der eigenen Vault, ohne jede Funktion zum Teilen mit anderen Vaults (Betreiber 2026-10-11). Spaces
-  bleiben bei S3.
+- **Teilen** (Spec 056): WebDAV- und SFTP-Speicher sind Speicher der eigenen Vault; Ordner und
+  Dateien darin lassen sich wie jede Quelle des Dateibrowsers an Kontakte freigeben, wobei das
+  bedienende Gerät mit dem Speicher spricht (Betreiber 2026-10-21). Die Speicher selbst und ihre
+  Zugangsdaten teilt holzi nicht.
 
 ## Reihenfolge
 
@@ -393,7 +394,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 - **FR-018**: holzi MUSS für jede Verbindung das Protokoll verwenden, das zu ihr gehört, in allen
   Teilen, die Speicher nutzen (Einstellungen, Test, Dateibrowser, Übertragungen, Suche, Agents,
   Erweiterungen, verschlüsselte Ordner). Kein Teil DARF annehmen, dass ein Speicher S3 spricht, außer
-  den S3-spezifischen Einstellungen und Spec 029.
+  den S3-spezifischen Einstellungen.
 - **FR-019**: Agents MÜSSEN WebDAV- und SFTP-Speicher nur mit einer Berechtigung je Speicher erreichen,
   wie S3-Speicher (Spec 044 FR-031a).
 - **FR-020**: Zugangsdaten, private Schlüssel und Passphrasen DÜRFEN weder Erweiterungen noch Agents

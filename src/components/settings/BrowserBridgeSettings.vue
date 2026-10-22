@@ -3,8 +3,10 @@
  * "Browser-Erweiterungen" (spec 049, US1, US5, FR-001, FR-002, FR-037): turns the External Bridge
  * on for this device, sets its port and shows its state. Saved as soon as a value changes, without
  * a save button; the write goes through the guardrail action `settings.browserBridge.set`, which
- * no agent can call. The approved and blocked clients join with US5.
+ * no agent can call. Below, the approved and blocked extensions: an approved one opens the editor,
+ * revoking and unblocking ask first (US5, FR-038).
  */
+import type { BridgeClientView } from '~/types/bindings/BridgeClientView'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -18,6 +20,39 @@ const overview = ref<BridgeOverview | null>(null)
 const port = ref('')
 const busy = ref(false)
 const failure = ref<string | null>(null)
+const portInput = useTemplateRef<{ focus?: () => void; $el?: HTMLElement }>(
+  'portInput',
+)
+
+/** Ticks every half minute, so "vor 2 Min." moves on without a reload. */
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  ticker = setInterval(() => (now.value = Date.now()), 30_000)
+})
+onBeforeUnmount(() => clearInterval(ticker))
+
+const editingId = ref<string | null>(null)
+const editing = computed(
+  () =>
+    overview.value?.clients.find((c) => c.clientId === editingId.value) ?? null,
+)
+const confirming = ref<{
+  kind: 'revoke' | 'unblock'
+  client: BridgeClientView
+} | null>(null)
+
+function askRevoke() {
+  const client = editing.value
+  editingId.value = null
+  if (client) confirming.value = { kind: 'revoke', client }
+}
+
+function focusPort() {
+  const input = portInput.value
+  if (input?.focus) input.focus()
+  else input?.$el?.querySelector('input')?.focus()
+}
 
 const available = computed(() => capabilities.value?.browserBridge !== false)
 const portValid = computed(() => {
@@ -28,6 +63,7 @@ const portValid = computed(() => {
 async function reloadAsync() {
   try {
     overview.value = await invoke<BridgeOverview>('browser_bridge_overview')
+    now.value = Date.now()
     if (!busy.value) port.value = String(overview.value.port)
     failure.value = null
   } catch (error: unknown) {
@@ -88,6 +124,7 @@ watch(() => bridgeStore.changes, reloadAsync)
       >
         <UiInput
           id="browser-bridge-port"
+          ref="portInput"
           v-model="port"
           class="w-28"
           inputmode="numeric"
@@ -113,6 +150,16 @@ watch(() => bridgeStore.changes, reloadAsync)
       data-testid="browser-bridge-port-in-use"
     >
       {{ t('browserBridge.settings.portInUseHint', { port: overview.port }) }}
+      <UiButton
+        type="button"
+        size="sm"
+        variant="outline"
+        class="mt-2 flex"
+        data-testid="browser-bridge-change-port"
+        @click="focusPort"
+      >
+        {{ t('browserBridge.settings.changePort') }}
+      </UiButton>
     </p>
     <p
       v-if="port && !portValid"
@@ -124,5 +171,46 @@ watch(() => bridgeStore.changes, reloadAsync)
     <p v-if="failure" class="px-1 text-xs text-destructive" role="alert">
       {{ failure }}
     </p>
+
+    <template v-if="overview && available">
+      <SettingsGroup :label="t('browserBridge.clients.title')">
+        <BrowserBridgeClientRow
+          v-for="client in overview.clients"
+          :key="client.clientId"
+          :client="client"
+          :now="now"
+          @select="editingId = client.clientId"
+        />
+        <SettingsRow
+          v-if="overview.clients.length === 0"
+          :description="t('browserBridge.clients.empty')"
+          data-testid="bridge-clients-empty"
+        />
+      </SettingsGroup>
+      <SettingsGroup
+        v-if="overview.blocked.length > 0"
+        :label="t('browserBridge.clients.blockedTitle')"
+      >
+        <BrowserBridgeClientRow
+          v-for="client in overview.blocked"
+          :key="client.clientId"
+          :client="client"
+          :now="now"
+          @unblock="confirming = { kind: 'unblock', client }"
+        />
+      </SettingsGroup>
+    </template>
+
+    <BrowserBridgeClientEditor
+      :client="editing"
+      @close="editingId = null"
+      @revoke="askRevoke"
+    />
+    <BrowserBridgeClientConfirm
+      v-if="confirming"
+      :kind="confirming.kind"
+      :client="confirming.client"
+      @close="confirming = null"
+    />
   </section>
 </template>

@@ -12,7 +12,7 @@ liegen im Passwortmanager. Erweiterungen nutzen einen Speicher über die neun Fu
 `extension_remote_storage_*` des vault-sdk, nur mit Berechtigung je Speicher und nur in ihrem eigenen
 Präfix-Bereich. Neue Speicher kann eine Erweiterung nur anstoßen: holzi öffnet einen eigenen Dialog, in
 dem allein der Nutzer Zugangsdaten eingibt. Das erfüllt Spec 017 T106 (FR-054, FR-055) und liefert die
-Speicherverbindung, auf die Spec 029 später aufbaut.
+Speicherverbindungen, die der Dateibrowser und Spec 056 als Quellen nutzen.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
@@ -81,7 +81,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | Async nicht blockieren                                         | ✅ Bridge-Handler laufen auf Blocking-Threads, `block_on` wie bei Passwörtern und Web                                                                                                                                                                                                                                                                                                                                                                                              |
 | Keine Netzdienste in Tests                                     | ✅ `wiremock` (lokaler Listener) und eine Fälschung des Traits (R10)                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Keine Geheimnisse im Repo                                      | ✅ Test-Zugangsdaten sind Platzhalter im Test, RustFS-Schlüssel nur lokal                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Phasen-Disziplin                                               | ✅ Voraussetzungen (017 L1–L4, 034) sind gebaut und in Gebrauch; 029 wird nicht vorgezogen, nur ihre Verbindung                                                                                                                                                                                                                                                                                                                                                                    |
+| Phasen-Disziplin                                               | ✅ Voraussetzungen (017 L1–L4, 034) sind gebaut und in Gebrauch; Spec 056 nutzt die Speicherverbindungen, ohne eine neue S3-Verwaltung vorwegzunehmen                                                                                                                                                                                                                                                                                                                              |
 | ADR bei Prinzip-relevanten Entscheidungen                      | ✅ keine Kernprinzipien berührt; die Regel Z14 ist eine Vertragsänderung an 034 und wird dort mit Verweis festgehalten                                                                                                                                                                                                                                                                                                                                                             |
 | Keine Agent-Attribution                                        | ✅                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -143,7 +143,7 @@ src/
 ```
 
 **Structure Decision**: Das S3-Protokoll liegt in `src-tauri/src/remote_storage/`, nicht unter
-`extensions/`, weil holzi es selbst nutzt (029, später Dateien) und Erweiterungen nur ein Verbraucher
+`extensions/`, weil holzi es selbst nutzt (Dateibrowser und Spec 056) und Erweiterungen nur ein Verbraucher
 sind (Grundsatz des Betreibers). Das Erweiterungs-Modul ist ein dünner Adapter wie
 `extensions/passwords.rs`. Der Name `storage/` ist schon für Vault-Einstellungen belegt, daher
 `remote_storage/`.
@@ -151,8 +151,7 @@ sind (Grundsatz des Betreibers). Das Erweiterungs-Modul ist ein dünner Adapter 
 ## Lieferungen
 
 1. **PR A (Docs)**: diese Spec, Plan, Tasks; Abgleich in Spec 017 (T106 verweist auf 038, R21 und
-   `contracts/bridge.md` Zeile `extension_remote_storage_*` auf 038) und Spec 029 (Speicherverbindung aus
-   038).
+   `contracts/bridge.md` Zeile `extension_remote_storage_*` auf 038).
 2. **PR B**: Z14 in 034 (Spalte `owner`, Regel, Tests) — klein, eigenständig prüfbar, Voraussetzung für C.
 3. **PR C**: `remote_storage/` mit Migration, Commands und Einstellungen (US1, US4).
 4. **PR D**: Bridge-Methoden und Dialog (US2, US3), e2e-Szene gegen RustFS, falls das Rig einen

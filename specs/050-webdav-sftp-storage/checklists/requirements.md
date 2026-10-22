@@ -39,5 +39,5 @@
   extensions can propose WebDAV/SFTP storages (FR-017b, parity with S3 as requested); holzi offers to
   create a missing folder (FR-006); holzi can generate SSH key pairs (FR-008); host keys are confirmed
   on first use and synced (FR-012, FR-009); no exceptions for self-signed certificates; no resumable
-  uploads; Spec 029 stays S3-only.
+  uploads; Spec 056 shares folders and files from these storages without sharing credentials.
 - Validation pass 1: all items pass.
