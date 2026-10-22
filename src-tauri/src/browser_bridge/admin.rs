@@ -160,7 +160,7 @@ impl ClientAdmin {
         }
         let device = self.device;
         let id = client_id.clone();
-        let Some(mut row) = self
+        let Some(row) = self
             .db
             .read(move |q| approvals::load(q, device, &id))
             .await?
