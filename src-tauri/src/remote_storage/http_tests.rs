@@ -78,23 +78,24 @@ fn a_client_kept_on_one_runtime_does_not_serve_another() {
     });
     let url = Url::parse(&server.uri()).expect("url");
 
-    let (opened, connection_kept) = mpsc::channel();
+    let (runtime_dropped, runtime_finished) = mpsc::channel();
     let first = std::thread::spawn({
         let url = url.clone();
         move || {
-            let runtime = tokio::runtime::Runtime::new().expect("runtime");
-            runtime.block_on(async {
-                let client = pinned_client(&url, EndpointScope::Local, resolver(&[]).as_ref())
-                    .await
-                    .expect("a local endpoint of the user");
-                let answer = client.get(url).send().await.expect("an answer");
-                assert_eq!(answer.status(), StatusCode::OK);
-            });
-            opened.send(()).expect("signal");
-            std::thread::sleep(Duration::from_millis(300));
+            {
+                let runtime = tokio::runtime::Runtime::new().expect("runtime");
+                runtime.block_on(async {
+                    let client = pinned_client(&url, EndpointScope::Local, resolver(&[]).as_ref())
+                        .await
+                        .expect("a local endpoint of the user");
+                    let answer = client.get(url).send().await.expect("an answer");
+                    assert_eq!(answer.status(), StatusCode::OK);
+                });
+            }
+            runtime_dropped.send(()).expect("signal");
         }
     });
-    connection_kept.recv().expect("the first call");
+    runtime_finished.recv().expect("the first runtime");
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
