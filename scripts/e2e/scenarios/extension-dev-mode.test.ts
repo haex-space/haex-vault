@@ -6,7 +6,9 @@ import type { Page } from '../lib/page.ts'
 import {
   KEY,
   openSettings,
+  runAction,
   setSessionRestore,
+  waitForLocation,
   WM,
   wmSnapshot,
 } from '../lib/settings.ts'
@@ -323,8 +325,13 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       false,
       'not enabled while developer mode is off',
     )
-    await openSettings(page)
-    await page.click('settings-category-extensions')
+    // The settings may already be open from the session, at the extensions: no fresh "general".
+    const opened = await runAction(page, 'wm.app.open', {
+      appId: 'system.settings',
+      at: '/extensions',
+    })
+    assert.ok(opened.ok, JSON.stringify(opened))
+    await waitForLocation(page, 'extensions')
     await page.waitForDisplayed('extension-dev-unload', 5_000)
     await page.click('extension-dev-unload')
     await ctx.waitFor(
