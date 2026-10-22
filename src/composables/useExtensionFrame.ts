@@ -89,6 +89,7 @@ export function useExtensionFrame(
   let attempts: MessageChannel[] = []
   let initTimer: ReturnType<typeof setInterval> | null = null
   let initDeadline: ReturnType<typeof setTimeout> | null = null
+  let devHandshakeStarted = false
   let unregisterGuard: (() => void) | null = null
   let lastShimLocation: TabLocation | null = null
   const unlisten: UnlistenFn[] = []
@@ -128,6 +129,7 @@ export function useExtensionFrame(
   }
 
   function closePorts(): void {
+    devHandshakeStarted = false
     closeSdkPorts()
     shimPort?.close()
     shimPort = null
@@ -194,7 +196,14 @@ export function useExtensionFrame(
     if (!effect) return
     switch (effect.kind) {
       case 'hello':
-        if (effect.fresh) startHandshake()
+        // WebKitGTK can deliver the development page before its initialization script has
+        // installed the message listener. The load-time fallback below may already have offered
+        // the SDK port in that case; do not reset that live handshake when the late shim hello
+        // arrives.
+        if (effect.fresh && !devHandshakeStarted) {
+          if (dev.value) devHandshakeStarted = true
+          startHandshake()
+        }
         return
       case 'navigate': {
         lastShimLocation = effect.location
@@ -256,11 +265,21 @@ export function useExtensionFrame(
   }
 
   /** Every `load` of the frame; the shim's `hello` then says whether its document is new. A
-   * development server's page gets the same shim through holzi's init script (research R16). */
+   * development page starts its SDK handshake directly after load because its init script may
+   * run before the page's message listener and the one-shot shim hello can then be lost. */
   function onLoad(): void {
     if (!frame) return
+    // A development frame can reload in place while the old SDK state is still ready. Its shim
+    // will then send a fresh hello for the new document; allow that hello to start a new port.
+    if (dev.value && state.value === 'ready') devHandshakeStarted = false
     startShim()
-    if (state.value !== 'ready') armDeadline()
+    if (state.value !== 'ready') {
+      armDeadline()
+      if (dev.value && !devHandshakeStarted) {
+        devHandshakeStarted = true
+        startHandshake()
+      }
+    }
   }
 
   async function openAsync(): Promise<void> {
@@ -285,6 +304,10 @@ export function useExtensionFrame(
         sdkPort?.postMessage(eventMessage(event)),
       )
       src.value = opened.url + currentHash()
+      // A WebKitGTK load event can be lost while the development page is already rendered. Run
+      // the same direct handshake after Vue has mounted the frame; the interval in
+      // startHandshake() keeps retrying until the page's listener exists.
+      if (opened.dev) void nextTick(() => onLoad())
     } catch (e) {
       if (opening !== generation) return
       state.value = 'error'
