@@ -94,7 +94,9 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await openFromLauncher(page, dev)
     await ctx.waitFor('the dev page to be ready', () => frameReady(page, dev), {
-      timeoutMs: 20_000,
+      // The development server and WebKitGTK can both be cold in CI. Keep the scenario's
+      // 300-second limit as the outer bound, but do not fail a healthy frame after 20 seconds.
+      timeoutMs: 60_000,
     })
     await page.waitForDisplayed('dev-badge', 5_000)
     ctx.step('loaded from 127.0.0.1, its tab marked')
