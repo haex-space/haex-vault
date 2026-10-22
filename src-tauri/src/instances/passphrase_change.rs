@@ -69,8 +69,9 @@ pub async fn change_vault_passphrase_core<R: Runtime>(
 
 /// Opens a second, read-only connection with `current`, the same way haex-crdt keys its own (only
 /// `PRAGMA key`, SQLCipher defaults otherwise). It is closed again before the re-key, which cannot
-/// leave WAL mode while another connection is open.
-fn verify_current(path: &Path, current: &Passphrase) -> haex_crdt::Result<()> {
+/// leave WAL mode while another connection is open. The External Bridge checks the vault password
+/// of a passkey confirmation with it too (spec 049, research R12).
+pub(crate) fn verify_current(path: &Path, current: &Passphrase) -> haex_crdt::Result<()> {
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
