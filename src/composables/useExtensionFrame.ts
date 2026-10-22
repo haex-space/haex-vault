@@ -35,7 +35,6 @@ const PORT_INIT = 'haexspace:port:init'
 const PORT_READY = 'haexspace:port:ready'
 const INIT_INTERVAL_MS = 200
 const INIT_TIMEOUT_MS = 10_000
-const DEV_HANDSHAKE_FALLBACK_MS = 1_000
 
 export type FrameState = 'loading' | 'ready' | 'error'
 
@@ -90,8 +89,7 @@ export function useExtensionFrame(
   let attempts: MessageChannel[] = []
   let initTimer: ReturnType<typeof setInterval> | null = null
   let initDeadline: ReturnType<typeof setTimeout> | null = null
-  let devHandshakeFallback: ReturnType<typeof setTimeout> | null = null
-  let devHandshakeFallbackStarted = false
+  let devHandshakeStarted = false
   let unregisterGuard: (() => void) | null = null
   let lastShimLocation: TabLocation | null = null
   const unlisten: UnlistenFn[] = []
@@ -122,12 +120,6 @@ export function useExtensionFrame(
     initDeadline = null
   }
 
-  function stopDevHandshakeFallback(): void {
-    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
-    devHandshakeFallback = null
-    devHandshakeFallbackStarted = false
-  }
-
   function closeSdkPorts(): void {
     stopInit()
     for (const attempt of attempts) attempt.port1.close()
@@ -137,7 +129,7 @@ export function useExtensionFrame(
   }
 
   function closePorts(): void {
-    stopDevHandshakeFallback()
+    devHandshakeStarted = false
     closeSdkPorts()
     shimPort?.close()
     shimPort = null
@@ -208,7 +200,10 @@ export function useExtensionFrame(
         // installed the message listener. The load-time fallback below may already have offered
         // the SDK port in that case; do not reset that live handshake when the late shim hello
         // arrives.
-        if (effect.fresh && !devHandshakeFallbackStarted) startHandshake()
+        if (effect.fresh && !devHandshakeStarted) {
+          if (dev.value) devHandshakeStarted = true
+          startHandshake()
+        }
         return
       case 'navigate': {
         lastShimLocation = effect.location
@@ -257,8 +252,6 @@ export function useExtensionFrame(
 
   /** A new document in the frame: a fresh SDK channel. */
   function startHandshake(): void {
-    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
-    devHandshakeFallback = null
     readyFrames.gone(tab.tabId)
     closeSdkPorts()
     events.reset()
@@ -272,26 +265,16 @@ export function useExtensionFrame(
   }
 
   /** Every `load` of the frame; the shim's `hello` then says whether its document is new. A
-   * development server's page gets the same shim through holzi's init script (research R16). */
+   * development page starts its SDK handshake directly after load because its init script may
+   * run before the page's message listener and the one-shot shim hello can then be lost. */
   function onLoad(): void {
     if (!frame) return
     startShim()
-    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
-    devHandshakeFallback = null
-    devHandshakeFallbackStarted = false
     if (state.value !== 'ready') {
       armDeadline()
-      if (dev.value) {
-        devHandshakeFallback = setTimeout(() => {
-          devHandshakeFallback = null
-          if (frame && state.value !== 'ready') {
-            // The development page still accepts the SDK port directly even when its shim
-            // missed the one load-time init message. The shim remains available for navigation,
-            // title and close-guard messages once it eventually starts.
-            devHandshakeFallbackStarted = true
-            startHandshake()
-          }
-        }, DEV_HANDSHAKE_FALLBACK_MS)
+      if (dev.value && !devHandshakeStarted) {
+        devHandshakeStarted = true
+        startHandshake()
       }
     }
   }
@@ -318,10 +301,10 @@ export function useExtensionFrame(
         sdkPort?.postMessage(eventMessage(event)),
       )
       src.value = opened.url + currentHash()
-      // A WebKitGTK load event can be lost while the development page is already rendered. Arm
-      // the fallback from the frame creation as well; the load handler below still starts the shim
-      // as soon as it does arrive and safely resets this timer.
-      if (opened.dev) queueMicrotask(() => onLoad())
+      // A WebKitGTK load event can be lost while the development page is already rendered. Run
+      // the same direct handshake after Vue has mounted the frame; the interval in
+      // startHandshake() keeps retrying until the page's listener exists.
+      if (opened.dev) void nextTick(() => onLoad())
     } catch (e) {
       if (opening !== generation) return
       state.value = 'error'
