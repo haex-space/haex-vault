@@ -97,7 +97,8 @@ type BridgeQuestion = { client: BridgeClientRef } & (
       userName: string | null
       requireUv: boolean
       choices: PresenceChoice[]
-    } // create: 'new' + Einträge; get: Passkeys
+      challengeHash: string // SHA-256 der Aufgabe, hex: gilt nur für diese eine Anfrage
+    } // create: 'newEntry' + Einträge derselben Site; get: Passkeys
 )
 type BridgeClientRef = { clientId: string; clientName: string; origin: string }
 type PresenceChoice =
@@ -106,7 +107,7 @@ type PresenceChoice =
   | {
       kind: 'passkey'
       passkeyId: string
-      userName: string
+      userName: string | null
       itemTitle: string | null
     }
 ```
@@ -161,6 +162,11 @@ Regeln:
   - `passphrase` ist Pflicht genau bei `requireUv`. Rust prüft es mit `verify_current` (R12).
   - Ein falsches Passwort wirkt wie `confirm: false`. Das Fenster zeigt dann „Passwort falsch“ und
     schließt den Dialog.
+
+### Ereignis `browser-bridge-wrong-passphrase` (Rust → Fenster)
+
+Kein Inhalt. Das Vault-Passwort einer Anwesenheitsbestätigung war falsch. Der Dialog ist dann schon
+zu; das Fenster zeigt „Passwort falsch“ als Hinweis.
 
 ### Ereignis `browser-bridge-changed` (Rust → Fenster)
 
