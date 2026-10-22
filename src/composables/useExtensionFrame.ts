@@ -269,6 +269,9 @@ export function useExtensionFrame(
    * run before the page's message listener and the one-shot shim hello can then be lost. */
   function onLoad(): void {
     if (!frame) return
+    // A development frame can reload in place while the old SDK state is still ready. Its shim
+    // will then send a fresh hello for the new document; allow that hello to start a new port.
+    if (dev.value && state.value === 'ready') devHandshakeStarted = false
     startShim()
     if (state.value !== 'ready') {
       armDeadline()
