@@ -133,14 +133,12 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     // A pull only reads, so it runs again after any failure once the device is there, up to three
     // times: a connection that drops during the transfer fails without "device offline"
     // (files-encrypted-device on CI), and the emulator can drop a second time half a second after
-    // it came back, so each new attempt waits a moment first. Without compression (-Z): the drop
-    // came with the pull of encrypted contents, which do not compress, and it took the web view's
-    // DevTools forward with it.
+    // it came back, so each new attempt waits a moment first.
     pull(remote, local) {
       for (let attempt = 1; ; attempt++) {
         try {
-          if (attempt === 1) adb(['pull', '-Z', remote, local])
-          else once(['pull', '-Z', remote, local])
+          if (attempt === 1) adb(['pull', remote, local])
+          else once(['pull', remote, local])
           return
         } catch (error) {
           if (attempt === 3 || !waitForDevice()) throw error
