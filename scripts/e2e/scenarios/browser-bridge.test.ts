@@ -4,7 +4,13 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import { freePort } from '../lib/ports.ts'
 import { KEY, openSettings, waitForLocation } from '../lib/settings.ts'
-import { entryTitles } from '../lib/passwords.ts'
+import {
+  entryTitles,
+  openPasswords,
+  overview,
+  selectTab,
+  slideSettled,
+} from '../lib/passwords.ts'
 import {
   startBridgeClient,
   type BridgeClient,
@@ -18,8 +24,10 @@ import {
 // question. A client approved for reading only is asked before it saves (US3, FR-015), and the
 // saved entry is in the vault at once. The settings list the clients (US5, T058): narrowing one to
 // "Lesen", revoking it while it holds a connection, which hears `authorized: false` and is closed,
-// and unblocking a declined one, which is asked again.
-scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
+// and unblocking a declined one, which is asked again. A passkey is created after the presence
+// confirmation and shows in the new entry's tab Extra; a declined confirmation answers
+// USER_CANCELLED (US4, T068).
+scenario('browser-bridge', { timeoutMs: 420_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-browser-bridge' })
   const port = await freePort()
@@ -209,6 +217,73 @@ scenario('browser-bridge', { timeoutMs: 300_000 }, async (ctx) => {
     await instance.waitForDisplayed('bridge-approval')
     await instance.click('bridge-approval-deny')
     ctx.step('unblocked: the client is asked again')
+
+    const passkeyRequest = {
+      action: 'passkey-create',
+      payload: {
+        relyingPartyId: 'example.de',
+        relyingPartyName: 'E2E Passkey Site',
+        userHandle: Buffer.from('e2e-user').toString('base64'),
+        userName: 'anna@example.de',
+        userDisplayName: 'Anna',
+        challenge: Buffer.from('a fixed e2e challenge').toString('base64'),
+        excludeCredentials: [],
+        requireResidentKey: true,
+        userVerification: 'preferred',
+        origin: 'https://login.example.de',
+      },
+    }
+    const creator = await client('passkey', 13, passkeyRequest)
+    await instance.waitForDisplayed('bridge-approval')
+    await instance.click('[data-testid="bridge-approval-remember"]')
+    await instance.click('bridge-approval-allow')
+    await instance.waitForDisplayed('bridge-presence')
+    const site = await instance.exec<string>(
+      `return document.querySelector('[data-testid="bridge-presence-rp"]')?.textContent?.trim() ?? ''`,
+    )
+    assert.equal(site, 'example.de')
+    await instance.click('bridge-presence-confirm')
+    const created = await waitForEvent(
+      creator,
+      'the new passkey',
+      (e) => e.event === 'reply',
+    )
+    const createdReply = created?.reply as
+      { success?: boolean; data?: { passkeyId?: string } } | undefined
+    assert.equal(createdReply?.success, true, JSON.stringify(created))
+    const passkeyId = createdReply?.data?.passkeyId
+    assert.ok(passkeyId)
+    ctx.step('a passkey is created after the presence confirmation')
+
+    await openPasswords(instance)
+    const entryId = (await ctx.waitFor('the entry of the passkey', async () => {
+      const found = (await overview(instance)).headers.find(
+        (h) => h.title === 'E2E Passkey Site',
+      )
+      return found?.id ?? false
+    })) as string
+    await instance.click(`passwords-entry-${entryId}`)
+    await selectTab(instance, 'extra')
+    await ctx.waitFor('the slide Extra to rest', () =>
+      slideSettled(instance, 'extra'),
+    )
+    await instance.waitForDisplayed(`passwords-passkey-row-${passkeyId}`)
+    ctx.step('the passkey shows in the tab Extra of its new entry')
+
+    const declined = await client('passkey-declined', 13, passkeyRequest)
+    await instance.waitForDisplayed('bridge-presence')
+    await instance.click('bridge-presence-deny')
+    const refused = await waitForEvent(
+      declined,
+      'the declined passkey',
+      (e) => e.event === 'reply',
+    )
+    const refusedReply = refused?.reply as
+      { success?: boolean; errorCode?: string; error?: string } | undefined
+    assert.equal(refusedReply?.success, false)
+    assert.equal(refusedReply?.errorCode, 'USER_CANCELLED')
+    assert.equal(refusedReply?.error, 'USER_CANCELLED')
+    ctx.step('a declined confirmation answers USER_CANCELLED')
   } finally {
     for (const running of clients) await running.stop()
   }
