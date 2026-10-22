@@ -11,6 +11,7 @@ pub mod device_view;
 pub mod endpoint;
 pub mod envelopes;
 pub mod events;
+pub mod foreign_auth;
 pub mod genesis;
 pub mod handshake;
 pub mod inbound;

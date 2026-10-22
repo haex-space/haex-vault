@@ -33,24 +33,42 @@ pub fn open_vault_with_limit(dir: &Path, limit: usize) -> Database {
 pub struct Device {
     _dir: tempfile::TempDir,
     pub replica: Arc<Replica>,
+    database: Arc<Database>,
 }
 
 impl Device {
     pub fn new() -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
-        let replica = Arc::new(Replica::new(Arc::new(open_vault(dir.path()))));
-        Self { _dir: dir, replica }
+        let database = Arc::new(open_vault(dir.path()));
+        let replica = Arc::new(Replica::new(Arc::clone(&database)));
+        Self {
+            _dir: dir,
+            replica,
+            database,
+        }
     }
 
     /// A device whose replica counts its work with `gate`, as the sync service's does.
     pub fn with_gate(gate: crate::vault_gate::VaultGate) -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
-        let replica = Arc::new(Replica::tracked(Arc::new(open_vault(dir.path())), gate));
-        Self { _dir: dir, replica }
+        let database = Arc::new(open_vault(dir.path()));
+        let replica = Arc::new(Replica::tracked(Arc::clone(&database), gate));
+        Self {
+            _dir: dir,
+            replica,
+            database,
+        }
     }
 
     pub fn db(&self) -> &Database {
         self.replica.db()
+    }
+
+    /// A request handle on this device's vault, as the app's commands get one.
+    pub fn vault_db(&self) -> crate::vault_gate::VaultDb {
+        crate::vault_gate::VaultGate::new()
+            .vault_db(Arc::clone(&self.database))
+            .expect("a vault handle")
     }
 
     /// The directory holding this device's vault file.
@@ -159,8 +177,13 @@ impl Member {
             dir.path().join("vault.db"),
         )
         .expect("copy the vault file");
-        let replica = Arc::new(Replica::new(Arc::new(open_vault(dir.path()))));
-        let device = Device { _dir: dir, replica };
+        let database = Arc::new(open_vault(dir.path()));
+        let replica = Arc::new(Replica::new(Arc::clone(&database)));
+        let device = Device {
+            _dir: dir,
+            replica,
+            database,
+        };
         let installation =
             crate::identity::read_or_mint_installation_uuid(&installation_id_path(device.dir()))
                 .expect("installation id");
