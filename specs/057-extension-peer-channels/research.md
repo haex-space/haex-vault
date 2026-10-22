@@ -155,7 +155,9 @@ relay: Option<String>, lobby: [u8;16], secret: [u8;16] })`. `lobby` ist eine zuf
   der Gastgeber den HMAC mit einem festen Ersatzgeheimnis, damit jeder Fall denselben Weg nimmt. Ein
   unlesbarer Code scheitert schon beim Beitretenden mit demselben Fehler wie `Closed`.
 - `JoinReply::NotAdmitted` nur für einen Nicht-Kontakt in einer Lobby „nur Kontakte“ und für einen
-  Entfernten — beide haben einen gültigen Beweis geliefert.
+  Entfernten — beide haben einen gültigen Beweis geliefert. In einer ausschließlich „nur Kontakte“
+  offenen Situation darf ein nicht bestätigter Beitretender dafür genau einen begrenzten `Join`
+  senden; ohne gültigen Beweis wird er weiterhin vor der Zulassung ohne Antwort getrennt.
 
 **Rationale**: HMAC über die Nonces macht einen mitgeschnittenen `Join` wertlos und erlaubt einen
 zeitkonstanten Vergleich mit vorhandenen Abhängigkeiten (`hmac`, wie der Link-Code,
@@ -170,14 +172,20 @@ auf dem Draht ist unnötig, und `subtle` würde direkte Abhängigkeit. Code mit 
 **Decision**: Ablauf je eingehender Verbindung (`extensions/peers/admission.rs`):
 
 1. Handshake nach R4 binnen 5 s, sonst trennen.
-2. Nicht bestätigt und keine öffentliche Lobby offen → trennen ohne Grund (FR-031).
+2. Nicht bestätigt und keine Lobby offen → trennen ohne Grund. Ist nur eine Lobby „nur Kontakte“
+   offen, darf die Gegenseite genau einen begrenzten `Join` senden; ein gültiger Beweis endet mit
+   `NotAdmitted` (FR-031).
 3. Erste Zulassungsnachricht (`Invite`, `InviteReply` gehört zu ausgehenden Verbindungen, `Join`)
    binnen 5 s nach dem Handshake, sonst trennen (FR-032).
 4. `Invite` nur von bestätigten Gegenseiten; `Join` nach FR-024.
 
 Drosselung (neu, es gibt im Sync keine): ein Zähler im Arbeitsspeicher
 
-- höchstens 16 Verbindungen gleichzeitig im Zustand „noch nicht zugelassen“, weitere werden sofort
+- höchstens 16 nicht bestätigte Verbindungen gleichzeitig im Zustand „noch nicht zugelassen“;
+  Handshakes werden vorher in einer eigenen begrenzten Warteschlange eingeordnet. Die Prüfung der
+  vorgelegten Geräteliste erfolgt vor der 16er-Grenze; bestätigte Kontakte und eigene verknüpfte
+  Geräte benutzen eine separate Zulassungskapazität und können die 16 Plätze nicht belegen oder
+  durch unbestätigten Verkehr ausgesperrt werden. Überzählige unbestätigte Handshakes werden sofort
   getrennt;
 - je Endpoint-ID höchstens 5 Verbindungsversuche in 10 s und nach 3 gescheiterten `Join` eine Sperre
   von 60 s für diese Endpoint-ID (Antwort `Closed`, kein Unterschied nach außen);
@@ -185,7 +193,8 @@ Drosselung (neu, es gibt im Sync keine): ein Zähler im Arbeitsspeicher
 - je Erweiterung die Grenzen aus FR-041 (R14).
 
 Bestätigte Kontakte fallen nur unter die Grenze je Endpoint-ID, nie unter die globalen für nicht
-bestätigte (FR-033: gültige Beitritte von Kontakten werden nicht ausgesperrt).
+bestätigte (FR-033: gültige Beitritte von Kontakten werden nicht ausgesperrt). Ein Kontakt wird
+dafür nach der Gerätelistenprüfung aus der Warteschlange der unbestätigten Verbindungen genommen.
 
 **Rationale**: 128 Bit Geheimnis machen Durchprobieren aussichtslos; die Drosselung schützt das Gerät
 vor Last. Endpoint-IDs sind billig zu erzeugen, daher zusätzlich globale Grenzen für Unbekannte.
@@ -363,12 +372,12 @@ was dort anders wäre.
   (`sync/test_support.rs`, `sync/endpoint_tests.rs`); Einladung an einen Kontakt mit zwei Geräten
   (erste Annahme gewinnt); öffentliche Lobby mit Fremdem; Datagramme über Relay mit
   `max_datagram_size() ≥ 1024`; Last 3 × 35/s × 10 s ohne `sleep` (Zeit gemessen, nicht gewartet).
-- Zeitgleichheit (SC-007): Mikro-Messung der Pfade „unbekannt/geschlossen/falsch“ im Test, Mediane über
-  1.000 Läufe.
+- Zeitgleichheit (SC-007): Mikro-Messung der hostseitigen Pfade „unbekannt/geschlossen/falsch“ im
+  Test, Mediane über 1.000 Läufe; unlesbare Codes werden separat als lokaler Fehler geprüft.
 - Frontend: `FrameEventQueue` verwirft schnelle Nachrichten zuerst und meldet den Überlauf gesicherter
   (`scripts/check-extensions-bridge.ts`, `pnpm check:extensions`).
 - E2E nach Spec 033 mit zweiter Vault, Szenario `scripts/e2e/scenarios/extension-peers.test.ts` mit der
-  um `peers` erweiterten Probe `src-tauri/tests/fixtures/extension_e2e/probe.xt`: Einladung, Abfrage,
+  um `peers` erweiterten Probe `src-tauri/tests/fixtures/extension_e2e/peers.xt`: Einladung, Abfrage,
   Kanal, Nachricht, Ende.
 
 Keine Netzdienste in `cargo test`, keine Wartezeiten mit `sleep`.

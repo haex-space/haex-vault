@@ -146,7 +146,7 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
 - [ ] T031 [US3] Watcher in a new `src-tauri/src/extensions/peers/watch.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`); on `permissions::store::TABLES` re-evaluates `peers`/`connect` for every extension with open state and calls `end_all` when it is no longer granted; on `haex_contacts_blocked_vaults` and `haex_contacts_cards` closes channels whose remote vault is now blocked or no longer a contact; a lagged receiver re-checks everything; started where `extensions::registry::lifecycle::start_for_active_instance` starts (`src-tauri/src/extensions/registry/lifecycle.rs:282`)
 - [ ] T032 [US3] Delivery only to frames of the bound extension: every emit in `src-tauri/src/extensions/peers/` goes through `emit_to_frames(…, extension_id, …)`; no `peers:*` content to holzi's window (FR-005)
 
-**Checkpoint (end of PR 1)**: run `nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml --lib sync::foreign_auth sync::endpoint_protocols extensions::peers extensions::permissions`, `nix develop --command pnpm lint:rust` and `nix develop --command pnpm format:check`; open PR 1.
+**Checkpoint (end of PR 1)**: run `nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml --lib`, `nix develop --command pnpm lint:rust` and `nix develop --command pnpm format:check`; open PR 1.
 
 ---
 
@@ -217,13 +217,13 @@ closing, D's connection is cut after the handshake; D connecting without `Join` 
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Admission tests in `src-tauri/src/extensions/peers/admission_tests.rs`: `Unverified` without an open public lobby → closed right after the handshake without any message (FR-031); with a public lobby → admitted to send `Join`; no admission message within 5 s of injected time → closed (FR-032); blocked vault with a valid code → `Closed` (FR-034); a contact in a public lobby → `verified: true`
-- [ ] T054 [P] [US5] Throttle tests in `src-tauri/src/extensions/peers/throttle_tests.rs` with an injected clock: at most 16 unadmitted connections at once; per endpoint at most 5 attempts in 10 s and a 60 s ban after 3 failed joins (answer stays `Closed`); at most 20 new unverified connections per 10 s; verified contacts are limited only per endpoint (FR-033); the per-endpoint map keeps at most 1.024 entries
+- [ ] T053 [P] [US5] Admission tests in `src-tauri/src/extensions/peers/admission_tests.rs`: `Unverified` without an open lobby → closed right after the handshake without any message (FR-031); with only a contacts-only lobby → one bounded `Join` with a valid proof reaches `NotAdmitted`; with a public lobby → admitted to send `Join`; no admission message within 5 s of injected time → closed (FR-032); blocked vault with a valid code → `Closed` (FR-034); a contact in a public lobby → `verified: true`
+- [ ] T054 [P] [US5] Throttle tests in `src-tauri/src/extensions/peers/throttle_tests.rs` with an injected clock: at most 16 unverified pending connections at once while verified contacts use separate capacity; per endpoint at most 5 attempts in 10 s and a 60 s ban after 3 failed joins (answer stays `Closed`); at most 20 new unverified connections per 10 s; verified contacts are limited only per endpoint (FR-033); the per-endpoint map keeps at most 1.024 entries
 
 ### Implementation for User Story 5
 
 - [ ] T055 [US5] Throttle in a new `src-tauri/src/extensions/peers/throttle.rs` with the values of research.md R7 and an injected clock; `ponytail:` comment naming the ceiling (fixed windows per endpoint id) and the upgrade (token bucket per address prefix)
-- [ ] T056 [US5] Admission of `Unverified` in `src-tauri/src/extensions/peers/admission.rs`: allowed only while `PeerState` has a lobby with `visibility = Public`; throttle checked before the handshake (pending, unverified window) and after a failed join (per endpoint); public lobbies admit `Unverified` with `verified: false` and the self-chosen display name
+- [ ] T056 [US5] Admission of `Unverified` in `src-tauri/src/extensions/peers/admission.rs`: allowed only while `PeerState` has a lobby with `visibility = Public`, except for one bounded proof-bearing `Join` when only contacts-only lobbies are open; throttle checked before the handshake (pending, unverified window) and after a failed join (per endpoint); public lobbies admit `Unverified` with `verified: false` and the self-chosen display name
 - [ ] T057 [US5] ADR status and links: `docs/adr/0016-non-contact-devices-for-public-lobbies.md` referenced from the module doc of `src-tauri/src/extensions/peers/admission.rs`; status stays `proposed` until the operator accepts it with PR 2
 
 **Checkpoint (end of PR 2)**: `cargo test … --lib extensions::peers`, `nix develop --command pnpm lint:rust`; open PR 2.

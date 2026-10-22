@@ -462,10 +462,12 @@ wird nach 5 Sekunden getrennt.
 - **FR-024**: Der Gastgeber MUSS einen Beitritt nur zulassen, wenn die Lobby offen ist, das Geheimnis
   stimmt, dieselbe Erweiterung beitritt, der Beitretende nicht aus dieser Lobby entfernt wurde, seine
   Vault nicht blockiert ist und, bei „nur Kontakte“, der Beitretende bestätigt ist.
-- **FR-025**: Ein unlesbarer oder unbekannter Code, ein Code einer geschlossenen Lobby, ein falsches
-  Geheimnis, eine andere Erweiterung und eine blockierte Vault MÜSSEN dieselbe Antwort „nicht mehr
-  offen“ ergeben, auch in der Antwortzeit nicht unterscheidbar. Ein Nicht-Kontakt in einer Lobby „nur
-  Kontakte“ und ein entfernter Beitretender MÜSSEN die Antwort „nicht zugelassen“ erhalten.
+- **FR-025**: Ein unbekannter Code, ein Code einer geschlossenen Lobby, ein falsches Geheimnis, eine
+  andere Erweiterung und eine blockierte Vault MÜSSEN bei einem den Gastgeber erreichenden Beitritt
+  dieselbe Antwort „nicht mehr offen“ ergeben, auch in der Antwortzeit nicht unterscheidbar. Ein
+  unlesbarer Code wird bereits beim Beitretenden mit demselben Fehler abgewiesen, erreicht den
+  Gastgeber aber nicht. Ein Nicht-Kontakt in einer Lobby „nur Kontakte“ und ein entfernter
+  Beitretender MÜSSEN nach einem gültigen Beweis die Antwort „nicht zugelassen“ erhalten.
 - **FR-026**: Bei einem zugelassenen Beitritt MUSS die Erweiterung des Gastgebers die Lobby, den Kanal,
   den selbst gewählten Anzeigenamen, ob der Beitretende bestätigt ist, bei einem Kontakt diesen
   Kontakt und den Inhalt des Beitretenden erhalten.
@@ -486,7 +488,10 @@ wird nach 5 Sekunden getrennt.
   holzi-Adressen gehört.
 - **FR-031**: Ein Gerät DARF Verbindungen nicht bestätigter Gegenseiten nur annehmen, solange auf ihm
   mindestens eine öffentliche Lobby offen ist. Sonst MUSS es sie gleich nach dem Ausweisen trennen,
-  ohne zu verraten, ob es Lobbys gibt.
+  ohne zu verraten, ob es Lobbys gibt. Ist nur eine Lobby „nur Kontakte“ offen, darf ein nicht
+  bestätigtes Gerät nach dem Ausweisen genau einen begrenzten `Join` mit gültigem Beweis senden; der
+  Gastgeber antwortet `NotAdmitted` und trennt danach. Ohne gültigen Beweis bleibt es bei der frühen
+  Trennung. So bleibt die Existenz der Lobby verborgen und der in FR-025 geforderte Fehler erreichbar.
 - **FR-032**: Legt eine Gegenseite binnen 5 Sekunden nach dem Ausweisen weder einen Beitritt noch eine
   Einladung oder eine Antwort auf eine Einladung vor, MUSS holzi die Verbindung trennen.
 - **FR-033**: holzi MUSS Verbindungsversuche und Beitrittsversuche je Gegenseite und insgesamt
@@ -573,9 +578,10 @@ wird nach 5 Sekunden getrennt.
   eingeladenen Seite erfährt vor der Annahme von einer Einladung: 0 Fälle. Ohne offene öffentliche Lobby werden 100 % der Verbindungen nicht
   bestätigter Geräte abgewiesen, und 100 % der Verbindungen ohne Beitritt sind nach höchstens
   6 Sekunden getrennt.
-- **SC-007**: Für unlesbare, unbekannte, geschlossene und mit falschem Geheimnis versehene Codes ist
-  die Antwort in 100 % der Versuche gleich, und über 1.000 Versuche je Fall unterscheiden sich die
-  Mediane der Antwortzeit um weniger als 1 ms.
+- **SC-007**: Für unbekannte, geschlossene und mit falschem Geheimnis versehene Codes ist die
+  hostseitige Antwort in 100 % der Versuche gleich, und über 1.000 Versuche je Fall unterscheiden
+  sich die Mediane der Antwortzeit um weniger als 1 ms. Ein unlesbarer Code wird beim Beitretenden
+  mit demselben Fehler abgewiesen, ist aber nicht Teil dieses hostseitigen Zeitvergleichs.
 - **SC-008**: In einer Testsammlung erreicht keine Nachricht, Einladung oder Meldung eines Kanals einen
   Rahmen einer anderen Erweiterung oder holzis Oberfläche: 0 Fälle.
 - **SC-009**: Bei einem Kontakt mit zwei Geräten verschwindet die Einladungsabfrage nach der Annahme
