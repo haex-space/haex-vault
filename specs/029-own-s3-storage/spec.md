@@ -603,14 +603,22 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
 - **FR-003**: Eine gespeicherte Speicherverbindung MUSS für weitere Spaces und
   die eigenen Ordner wiederverwendbar sein, ohne die Zugangsdaten erneut
   einzugeben.
-- **FR-004**: Vor dem Speichern der Zugangsdaten und vor dem Anlegen von
-  irgendetwas beim Anbieter MUSS holzi die Eignungsprüfung durchführen. Sie MUSS
-  mindestens prüfen, ob (a) die Zugangsdaten gültig sind und der Endpunkt
+- **FR-004**: Vor dem Speichern der Zugangsdaten als aktive Verbindung MUSS
+  holzi die Eignungsprüfung durchführen. Die Prüfung DARF dafür eindeutig
+  markierte, temporäre Testressourcen (etwa einen Test-Bucket und Testschlüssel)
+  anlegen oder, wenn der Anbieter es unterstützt, Dry-Run-Prüfungen verwenden.
+  Jede angelegte Testressource MUSS vor dem Ergebnis entfernt werden; schlägt
+  die Bereinigung fehl, MUSS holzi eine verschlüsselte, dauerhaft gespeicherte
+  Bereinigungsaufgabe mit Wiederholungsstatus anlegen, darf die Verbindung nicht
+  als geeignet freigeben und darf die Zugangsdaten nicht verteilen. Die Prüfung
+  MUSS mindestens prüfen, ob (a) die Zugangsdaten gültig sind und der Endpunkt
   erreichbar ist, (b) Buckets angelegt werden können, (c) die Versionierung
   eingeschaltet werden kann, (d) eine Aufbewahrungsfrist für ältere Versionen
   gesetzt werden kann, (e) auf einen Bucket beschränkte Zugangsschlüssel „nur
-  Lesen“ und „Lesen und Schreiben“ erzeugt und widerrufen werden können,
-  (f) der Schlüssel „Lesen und Schreiben“ weder ältere Versionen löschen noch
+  Lesen“ und „Lesen und Schreiben“ erzeugt und widerrufen werden können und
+  beide Schlüssel ihre erlaubten und verbotenen Operationen tatsächlich
+  durchsetzen, einschließlich des Zugriffs auf keinen anderen Bucket, (f) der
+  Schlüssel „Lesen und Schreiben“ weder ältere Versionen löschen noch
   Versionierung oder Aufbewahrungsfrist ändern kann und (g) der Anbieter einen
   widerrufenen Zugangsschlüssel innerhalb von 5 Minuten abweist, gemessen, indem
   die Prüfung einen Testschlüssel erzeugt, widerruft und bis zur Ablehnung
@@ -690,7 +698,9 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   veröffentlichen (Spec 027) und die neue Generation an alle verbleibenden
   Mitglieder mit dieser Art verteilen. Welcher Schlüssel betroffen ist, folgt aus
   FR-015. Das Erneuern des Inhaltsschlüssels (Spec 027) geschieht unabhängig
-  davon.
+  davon. Bis der Anbieter den Widerruf bestätigt, MUSS holzi die bisherige
+  Mitgliederliste unverändert lassen und darf die neue Generation nicht
+  verteilen.
 - **FR-019**: Beim Anbieter DARF je Art höchstens die höchste Generation
   gültig bleiben, sobald die Verteilung abgeschlossen ist. Sieht ein Gerät des
   Admins eine niedrigere, noch gültige Generation, MUSS es sie widerrufen.
@@ -704,9 +714,13 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   festhalten, erneut versuchen, bis der Anbieter ihn bestätigt, und dem Admin bis
   dahin eine bleibende Warnung zeigen, dass der alte Zugangsschlüssel noch gilt.
   Scheitert der Widerruf beim Entfernen oder Zurückstufen (FR-018), MUSS holzi
-  die neue Mitgliederliste trotzdem veröffentlichen, damit das Relay das
-  Mitglied abweist; die Wirkung beim Anbieter tritt dann erst mit dem
-  bestätigten Widerruf ein.
+  die bisherige Mitgliederliste beibehalten und darf die neue Mitgliederliste
+  oder neue Zugangsschlüssel nicht veröffentlichen beziehungsweise verteilen;
+  das Relay darf nicht als Ersatz für den Anbieter-Widerruf gelten. Der offene
+  Vorgang MUSS den bereits bestätigten Widerruf von einer späteren
+  Veröffentlichung und Verteilung trennen und diese Schritte nach einem
+  Neustart idempotent fortsetzen, ohne den erfolgreichen Widerruf zu wiederholen
+  oder ungültig zu machen.
 
 **Zugriffswege**
 
@@ -806,11 +820,14 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
 - **FR-037**: Der Admin MUSS einen Space von Backend A oder „nur direkte
   Übertragung“ (Spec 027) auf Backend B und von B auf A umziehen können. Ein
   Gerät des Admins MUSS dazu alle Objekte, auf die gültige Einträge verweisen,
-  in den neuen Speicher kopieren und gegen ihren Hash prüfen, bevor der Space
-  umschaltet.
+  in den neuen Speicher kopieren und gegen ihren Hash prüfen. Vor dem atomaren
+  Umschalten MUSS es neue Schreibvorgänge kurz quieszieren oder dual erfassen,
+  einen letzten Delta-Abgleich durchführen und erst danach umschalten, sodass
+  jede bis zur Sperre akzeptierte Änderung im neuen Speicher vorhanden ist.
 - **FR-038**: Bis zum Umschalten MÜSSEN die Mitglieder den bisherigen Speicher
   weiter nutzen können; ein abgebrochener Umzug MUSS sich fortsetzen lassen, ohne
-  schon kopierte Objekte erneut zu übertragen.
+  schon kopierte Objekte erneut zu übertragen. Der Umzug darf erst nach dem
+  Schreibbarriere- und Delta-Abgleich als abgeschlossen gelten.
 - **FR-039**: Nach dem Umschalten MUSS holzi den alten Speicher aufräumen:
   Objekte auf Backend A löschen, bei Backend B die Zugangsschlüssel widerrufen und
   den Bucket nach Wahl des Admins löschen oder behalten (wie FR-034).
