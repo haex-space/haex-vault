@@ -83,6 +83,12 @@ impl Declared {
         Ok(Self { entries })
     }
 
+    /// The password declaration inside a stored [`canonical`] declaration.
+    pub fn from_canonical(canonical: &str) -> Option<Self> {
+        let value: Value = serde_json::from_str(canonical).ok()?;
+        Self::read(value.get("permissions")).ok()
+    }
+
     /// The targets declared for at least `access`; `None` stands for every entry (`*`).
     fn targets_for(&self, access: BridgeAccess) -> Option<BTreeSet<String>> {
         let mut tags = BTreeSet::new();

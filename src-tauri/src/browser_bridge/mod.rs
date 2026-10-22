@@ -3,6 +3,7 @@
 //! service, as its own caller with the grant the user gave it. Off by default, desktop only, and
 //! only while a vault is open (FR-001, FR-003, FR-043).
 
+pub mod admin;
 pub mod approvals;
 pub mod commands;
 pub mod connection;
@@ -40,7 +41,7 @@ use self::prompts::{
     new_prompts, BridgePromptCancelled, BridgePromptEvent, BridgePrompts, EVENT_PROMPT,
     EVENT_PROMPT_CANCELLED, PROMPT_TIMEOUT,
 };
-use self::runtime::{now_millis, Limits, Notice, Notifier};
+use self::runtime::{now_millis, BridgeCore, Limits, Notice, Notifier};
 use self::server::{Running, StartArgs, StartError};
 use self::settings::BridgeSettings;
 use crate::state::AppState;
@@ -154,6 +155,15 @@ impl BrowserBridge {
         }
         drop(slot);
         self.notifier()(Notice::Changed);
+    }
+
+    /// The running bridge, for the settings to reach its decisions and connections.
+    pub async fn core(&self) -> Option<Arc<BridgeCore>> {
+        let slot = self.slot.lock().await;
+        slot.running
+            .as_ref()
+            .map(|running| Arc::clone(running.core()))
+            .filter(|core| !core.token.is_cancelled())
     }
 
     /// The state for the settings.

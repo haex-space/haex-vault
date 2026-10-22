@@ -353,11 +353,26 @@ impl SessionDecisions {
 
     /// Forgets everything about one client; `true` when there was something.
     pub fn forget(&mut self, client_id: &str) -> bool {
+        let allowed = self.revoke(client_id);
+        let blocked = self.unblock(client_id);
+        allowed || blocked
+    }
+
+    /// Forgets the approval and the answers about writing (FR-011); `true` when it was approved.
+    pub fn revoke(&mut self, client_id: &str) -> bool {
+        self.reset_write(client_id);
+        self.allowed.remove(client_id).is_some()
+    }
+
+    /// Lifts a block; `true` when the client was blocked.
+    pub fn unblock(&mut self, client_id: &str) -> bool {
+        self.blocked.remove(client_id).is_some()
+    }
+
+    /// Forgets this session's answers about writing, after the user changed the approval.
+    pub fn reset_write(&mut self, client_id: &str) {
         self.write_allowed.remove(client_id);
         self.write_denied.remove(client_id);
-        let allowed = self.allowed.remove(client_id).is_some();
-        let blocked = self.blocked.remove(client_id).is_some();
-        allowed || blocked
     }
 
     /// Lets a read-only client write until the bridge stops (FR-015).
