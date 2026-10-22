@@ -204,6 +204,9 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     titleKey: string | undefined
     titleParams: Record<string, string>
     icon: string | undefined
+    /** The app's own image (an extension's icon, a system app's coloured icon), shown instead of
+     * `icon`. */
+    iconUrl: string | undefined
     titleOverride: string | null
     hasAttention: boolean
     /** A development version of an extension (spec 017, US12). */
@@ -222,6 +225,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       titleKey: title.key,
       titleParams: title.params,
       icon: app?.icon,
+      iconUrl: app?.iconUrl,
       // An extension's own name is not translated; it stands where the app sets no title.
       titleOverride: runtime.titleOverride ?? app?.title ?? null,
       hasAttention: runtime.attention,
@@ -237,6 +241,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     titleKey: string | undefined
     titleParams: Record<string, string>
     icon: string | undefined
+    iconUrl: string | undefined
     titleOverride: string | null
     tabCount: number
     hasAttention: boolean

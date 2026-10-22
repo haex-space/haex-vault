@@ -55,11 +55,10 @@ const rows = computed(() =>
         class="gap-2"
         @select="emit('selectTab', row.tab.id)"
       >
-        <Icon
-          v-if="row.info.icon"
-          :name="row.info.icon"
+        <WmTabIcon
+          :icon="row.info.icon"
+          :icon-url="row.info.iconUrl"
           class="h-4 w-4 shrink-0"
-          :aria-hidden="true"
         />
         <span class="min-w-0 max-w-48 truncate">{{ titleFrom(row.info) }}</span>
         <Icon

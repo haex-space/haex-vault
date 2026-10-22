@@ -163,11 +163,10 @@ watch(
       v-if="collapsedTab"
       class="flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm font-medium"
     >
-      <Icon
-        v-if="collapsedTab.info.icon"
-        :name="collapsedTab.info.icon"
+      <WmTabIcon
+        :icon="collapsedTab.info.icon"
+        :icon-url="collapsedTab.info.iconUrl"
         class="h-3.5 w-3.5 shrink-0"
-        :aria-hidden="true"
       />
       <span class="min-w-0 truncate">{{ titleFrom(collapsedTab.info) }}</span>
       <WmDevBadge v-if="collapsedTab.info.dev" />
@@ -213,11 +212,10 @@ watch(
         @click="select(row.tab.id)"
         @keydown="onKeydown($event, index)"
       >
-        <Icon
-          v-if="row.info.icon"
-          :name="row.info.icon"
+        <WmTabIcon
+          :icon="row.info.icon"
+          :icon-url="row.info.iconUrl"
           class="h-3.5 w-3.5 shrink-0"
-          :aria-hidden="true"
         />
         <span class="min-w-0 flex-1 truncate">{{ titleFrom(row.info) }}</span>
         <WmDevBadge v-if="row.info.dev" />
