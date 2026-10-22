@@ -36,7 +36,10 @@ off.
 - A lost or compromised own device reaches the file system of every other own device that runs with
   the vault open and the switch on. Removing it from the device list (spec 024) ends that; the switch
   limits it in advance.
-- `holzi-sync/1` keeps its guarantee that only own devices exchange vault data. A flaw in the files
-  handler cannot leak vault data, only what that handler serves.
-- File contents travel only over the direct iroh connection; nothing is stored at third parties, so
-  revoking needs no key rotation.
+- `holzi-sync/1` keeps its guarantee that only own devices exchange vault data. `holzi-files/1` has
+  separate modes: an own-vault device can access the whole file system, including holzi's own data
+  under the read-only-for-users and blocked-for-agents rules; a contact device can access only its
+  shared roots, and holzi's own data stays blocked.
+- File contents served by this feature travel only over the direct iroh connection. A shared S3,
+  WebDAV or SFTP source still contains its source data at that provider, but the feature creates no
+  additional copy or share ciphertext there, so revoking needs no key rotation.

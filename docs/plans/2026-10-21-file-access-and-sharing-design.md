@@ -17,9 +17,10 @@ single folders and files with other people (contacts, spec 051) and revoke that 
 Spaces solved sharing with a group key and encrypted objects stored at third parties (relay, S3), so
 that content arrives while the sender is offline. Both choices force a new key generation whenever
 a member leaves. The operator accepts that files are only reachable while both vaults are open.
-Without stored ciphertext and without a group key, no content keys are needed at all: the iroh
-connection is encrypted and authenticated with device keys, and revoking means the serving device
-stops answering.
+A shared S3, WebDAV or SFTP source still contains its source data at that provider, but this feature
+creates no additional copy or share ciphertext at a third party. Without such feature-created
+ciphertext and without a group key, no content keys are needed at all: the iroh connection is
+encrypted and authenticated with device keys, and revoking means the serving device stops answering.
 
 ## Decisions
 
@@ -53,8 +54,8 @@ on the first successful query, synced via spec 024.
 requesting device presents its vault's device list signed with the vault identity (spec 024). The
 serving device checks the signature against the vault identity of the contact and that the
 requesting device is on that list. A list with a lower generation than the last one seen is
-refused. A contact's new phone works without a refreshed business card; a removed device loses
-access once a newer list was seen.
+refused. A contact's new phone works after the contact's business card has been refreshed; a removed
+device loses access once a newer list was seen.
 
 ## Protocol
 
@@ -71,8 +72,10 @@ Operations: `shares` (roots for this caller), `list`, `stat`, `read(offset, len)
 resumable, `write` (into a temp file, then atomic replace), `mkdir`, `rename`/`move` within one
 root, `delete`.
 
-`write` on an existing file carries the expected version (size and modification time). If the file
-changed meanwhile the answer is "conflict"; the recipient chooses to overwrite or save as a copy.
+`write` on an existing file carries a mutation-safe expected version (the server-issued/content
+identity `etag`; size and modification time are informational only). If the file changed meanwhile
+the expected identity differs and the answer is "conflict"; the recipient chooses to overwrite or
+save as a copy.
 
 Every request re-checks the grant and the path. Paths are canonicalized; `..`, symlinks and
 junctions leading out of the root are refused, for read, write, rename and move alike. Revoking a
