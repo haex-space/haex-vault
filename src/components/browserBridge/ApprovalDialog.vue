@@ -7,44 +7,26 @@
  * remembering. Rust checks the answer again; an answer it refuses counts as declining.
  */
 import type { ApprovalQuestion } from '~/types/bindings/ApprovalQuestion'
-import type { BridgeAccess } from '~/types/bindings/BridgeAccess'
+import {
+  draftOf,
+  grantComplete,
+  grantOf,
+  type GrantDraft,
+} from '~/lib/browserBridgeGrant'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const fieldLabels = useFieldLabels()
 const store = useBrowserBridgeStore()
-const passwords = usePasswordsStore()
 
 const question = computed<ApprovalQuestion | null>(() =>
   store.shown?.question.kind === 'approval' ? store.shown.question : null,
 )
 
-const access = ref<BridgeAccess>('read')
-const scope = ref<'all' | 'tags'>('all')
-const chosenTags = ref<string[]>([])
-const newTag = ref('')
-const defaultTag = ref('')
+const draft = ref<GrantDraft>(draftOf('read', null, null))
 const remember = ref(false)
 const failure = ref<string | null>(null)
 
-/** The tags the user may pick: the declared ones, or every tag of the vault. */
-const tagChoices = computed(() => {
-  const declared = question.value?.declared.scopeTags
-  if (declared) return declared
-  const names = passwords.displayTags.map((tag) => tag.name)
-  return [...new Set([...names, ...chosenTags.value])].sort((a, b) =>
-    a.localeCompare(b),
-  )
-})
-
-const needsDefaultTag = computed(
-  () => access.value === 'readWrite' && scope.value === 'tags',
-)
-const canAllow = computed(
-  () =>
-    (scope.value === 'all' || chosenTags.value.length > 0) &&
-    (!needsDefaultTag.value || chosenTags.value.includes(defaultTag.value)),
-)
+const canAllow = computed(() => grantComplete(draft.value))
 
 watch(
   () => store.shown?.promptId,
@@ -52,31 +34,11 @@ watch(
     const asked = question.value
     failure.value = null
     remember.value = false
-    newTag.value = ''
     if (!asked) return
-    access.value = asked.declared.access
-    scope.value = asked.declared.scopeTags ? 'tags' : 'all'
-    chosenTags.value = [...(asked.declared.scopeTags ?? [])]
-    defaultTag.value = chosenTags.value[0] ?? ''
-    if (!passwords.hasLoadedOnce) void passwords.reloadAsync()
+    draft.value = draftOf(asked.declared.access, asked.declared.scopeTags, null)
   },
   { immediate: true },
 )
-
-function toggleTag(name: string, on: boolean) {
-  chosenTags.value = on
-    ? [...new Set([...chosenTags.value, name])]
-    : chosenTags.value.filter((tag) => tag !== name)
-  if (!chosenTags.value.includes(defaultTag.value))
-    defaultTag.value = chosenTags.value[0] ?? ''
-}
-
-function addTag() {
-  const name = newTag.value.trim()
-  if (!name) return
-  toggleTag(name, true)
-  newTag.value = ''
-}
 
 /** The fingerprint in groups of four, as the settings show it. */
 const fingerprint = computed(
@@ -86,15 +48,15 @@ const fingerprint = computed(
 async function answerAsync(allow: boolean) {
   const shown = store.shown
   if (!shown) return
-  const tags = scope.value === 'tags' ? chosenTags.value : null
+  const grant = grantOf(draft.value)
   try {
     await store.answerAsync(shown.promptId, {
       kind: 'approval',
       allow,
       remember: remember.value,
-      access: allow ? access.value : null,
-      scopeTags: allow ? tags : null,
-      defaultTag: allow && defaultTag.value ? defaultTag.value : null,
+      access: allow ? grant.access : null,
+      scopeTags: allow ? grant.scopeTags : null,
+      defaultTag: allow ? grant.defaultTag : null,
     })
   } catch (error) {
     failure.value = errString(error)
@@ -155,100 +117,12 @@ function onUpdateOpen(open: boolean) {
           }}
         </p>
 
-        <SettingsGroup
-          v-model="access"
-          radio
-          :label="t('browserBridge.access.label')"
-        >
-          <SettingsOptionRow
-            type="radio"
-            value="read"
-            :title="t('browserBridge.access.read')"
-            data-testid="bridge-approval-read"
-          />
-          <SettingsOptionRow
-            type="radio"
-            value="readWrite"
-            :title="t('browserBridge.access.readWrite')"
-            :disabled="!question.declaresWrite"
-            data-testid="bridge-approval-read-write"
-          />
-        </SettingsGroup>
-
-        <SettingsGroup
-          v-model="scope"
-          radio
-          :label="t('browserBridge.scope.label')"
-        >
-          <SettingsOptionRow
-            type="radio"
-            value="all"
-            :title="t('browserBridge.scope.all')"
-            :disabled="question.declared.scopeTags !== null"
-            data-testid="bridge-approval-scope-all"
-          />
-          <SettingsOptionRow
-            type="radio"
-            value="tags"
-            :title="t('browserBridge.scope.tags')"
-            data-testid="bridge-approval-scope-tags"
-          />
-        </SettingsGroup>
-
-        <template v-if="scope === 'tags'">
-          <SettingsGroup v-if="tagChoices.length > 0">
-            <SettingsOptionRow
-              v-for="tag in tagChoices"
-              :key="tag"
-              type="checkbox"
-              :title="tag"
-              :checked="chosenTags.includes(tag)"
-              :data-testid="`bridge-approval-tag-${tag}`"
-              @change="toggleTag(tag, $event)"
-            />
-          </SettingsGroup>
-          <form
-            v-if="question.declared.scopeTags === null"
-            class="flex gap-2"
-            @submit.prevent="addTag"
-          >
-            <UiInput
-              v-model="newTag"
-              :label="t('browserBridge.scope.newTag')"
-              :labels="fieldLabels.input.value"
-              data-testid="bridge-approval-new-tag"
-            />
-            <UiButton type="submit" size="sm" variant="outline">
-              {{ t('browserBridge.scope.addTag') }}
-            </UiButton>
-          </form>
-        </template>
-
-        <label
-          v-if="access === 'readWrite'"
-          class="flex flex-col gap-1 text-sm"
-          for="bridge-approval-default-tag"
-        >
-          {{ t('browserBridge.defaultTag.label') }}
-          <SettingsSelect
-            id="bridge-approval-default-tag"
-            v-model="defaultTag"
-            class="w-full"
-            :options="[
-              ...(needsDefaultTag
-                ? []
-                : [{ value: '', label: t('browserBridge.defaultTag.none') }]),
-              ...(scope === 'tags' ? chosenTags : tagChoices).map((tag) => ({
-                value: tag,
-                label: tag,
-              })),
-            ]"
-            data-testid="bridge-approval-default-tag"
-          />
-          <span class="text-xs text-muted-foreground">
-            {{ t('browserBridge.defaultTag.hint') }}
-          </span>
-        </label>
+        <BrowserBridgeGrantFields
+          v-model="draft"
+          :declared="question.declared"
+          :declares-write="question.declaresWrite"
+          test-prefix="bridge-approval"
+        />
 
         <label class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox

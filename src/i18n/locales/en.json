@@ -1648,7 +1648,12 @@
         "setModelCapabilities": "Set statements about a model"
       },
       "browserBridge": {
-        "set": "Turn browser extensions on or off"
+        "set": "Turn browser extensions on or off",
+        "client": {
+          "update": "Change the approval of a browser extension",
+          "revoke": "Revoke the approval of a browser extension",
+          "unblock": "Unblock a browser extension"
+        }
       }
     },
     "scopes": {
@@ -2928,7 +2933,8 @@
       "all": "all entries",
       "tags": "entries with certain tags",
       "newTag": "New tag",
-      "addTag": "Add"
+      "addTag": "Add",
+      "pickTag": "Pick at least one tag."
     },
     "defaultTag": {
       "label": "Default tag for new entries",
@@ -2945,8 +2951,9 @@
       "port": "Port",
       "portHint": "Must be set the same in the extension. Default: 19455",
       "state": "State",
-      "portInUseHint": "Port {port} is in use, for example by another holzi instance or by haex-vault 2.x. Choose another port and set it in the extension too.",
-      "portInvalid": "The port must be between 1024 and 65535."
+      "portInUseHint": "Port {port} is in use, for example by another holzi instance or by HaexVault 2.x. Choose another port and set it in the extension too.",
+      "portInvalid": "The port must be between 1024 and 65535.",
+      "changePort": "Choose another port"
     },
     "state": {
       "off": "Off",
@@ -2964,6 +2971,36 @@
       },
       "remember": "Remember",
       "allow": "Allow"
+    },
+    "clients": {
+      "title": "Approved extensions",
+      "empty": "No browser extension approved yet. When one connects, holzi asks.",
+      "blockedTitle": "Blocked extensions",
+      "connected": "connected",
+      "remembered": "remembered",
+      "session": "until closed",
+      "decided": "decided {when}",
+      "lastSeen": "last connected {when}",
+      "neverSeen": "never connected",
+      "scopeTags": "Tags: {tags}",
+      "defaultTag": "Default tag: {tag}",
+      "editTitle": "Browser extension",
+      "savedHint": "Changes apply from the extension's next request.",
+      "noDeclaration": "What this extension needs cannot be read. You can only revoke it.",
+      "notFound": "This extension is no longer approved or blocked.",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke the approval?",
+      "revokeBody": "“{name}” is disconnected at once. When it connects again, holzi asks again.",
+      "unblock": "Unblock",
+      "unblockTitle": "Lift the block?",
+      "unblockBody": "When “{name}” connects again, holzi asks again whether to approve it.",
+      "cancel": "Cancel"
+    },
+    "time": {
+      "justNow": "just now",
+      "minutes": "{n} min ago",
+      "hours": "{n} h ago",
+      "days": "{n} days ago"
     }
   }
 }
