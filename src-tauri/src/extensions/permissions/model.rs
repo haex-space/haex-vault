@@ -36,10 +36,13 @@ pub enum PermissionKind {
     /// Sending the data of a model job to one provider outside this device (spec 055 R3): the
     /// action is `send`, the target the provider's id. Never a wildcard.
     ModelDestination,
+    /// Channels to the same extension on devices of other vaults (spec 057): only `connect` on
+    /// `*`, vault-wide.
+    Peers,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 13] = [
+    pub const ALL: [PermissionKind; 14] = [
         Self::Database,
         Self::Filesystem,
         Self::Web,
@@ -53,6 +56,7 @@ impl PermissionKind {
         Self::AgentTool,
         Self::Model,
         Self::ModelDestination,
+        Self::Peers,
     ];
 
     /// The stored name; anything else is not a kind holzi knows (FR-022).
@@ -76,6 +80,7 @@ impl PermissionKind {
             Self::AgentTool => "agentTool",
             Self::Model => "model",
             Self::ModelDestination => "modelDestination",
+            Self::Peers => "peers",
         }
     }
 
@@ -126,6 +131,8 @@ pub enum Action {
     /// The highest effort a model may be used with (spec 055): `none` < `low` < `medium` < `high`,
     /// a higher one covers a lower one.
     Effort(Level),
+    /// Open channels to other vaults (spec 057); covers only itself.
+    Connect,
 }
 
 impl Action {
@@ -156,6 +163,7 @@ impl Action {
             (K::AgentTool, "*") => Some(Self::AnyEffect),
             (K::Model, effort) => Level::parse(effort).map(Self::Effort),
             (K::ModelDestination, "send") => Some(Self::Send),
+            (K::Peers, "connect") => Some(Self::Connect),
             _ => None,
         }
     }
@@ -176,6 +184,7 @@ impl Action {
             Self::Change => "change".to_owned(),
             Self::Destructive => "destructive".to_owned(),
             Self::Effort(level) => level.as_str().to_owned(),
+            Self::Connect => "connect".to_owned(),
         }
     }
 

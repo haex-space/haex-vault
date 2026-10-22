@@ -73,9 +73,9 @@ devices, the peers module skeleton and the multi-vault test support. Every story
 
 ### Permission kind
 
-- [ ] T006 `PermissionKind::Peers` (stored `"peers"`, not device-scoped) and `Action::Connect` (stored `"connect"`, covers only itself) in `src-tauri/src/extensions/permissions/model.rs`; extend `PermissionKind::ALL`, `parse`, `as_str`, `Action::parse` (only `(Peers, "connect")`), `as_string`
-- [ ] T007 [P] Manifest category `"peers"` → `PermissionKind::Peers` with default action `connect` in `src-tauri/src/extensions/permissions/manifest_map.rs`; target `"*"` only for `Peers` in `src-tauri/src/extensions/permissions/target.rs`
-- [ ] T008 [P] Tests in `src-tauri/src/extensions/permissions/model_tests.rs`, `manifest_map_tests.rs` and `target_tests.rs`: `peers`/`connect`/`*` round trip; any other action or target of `peers` is absent (FR-022 of 017); vault-wide scope (FR-001)
+- [X] T006 `PermissionKind::Peers` (stored `"peers"`, not device-scoped) and `Action::Connect` (stored `"connect"`, covers only itself) in `src-tauri/src/extensions/permissions/model.rs`; extend `PermissionKind::ALL`, `parse`, `as_str`, `Action::parse` (only `(Peers, "connect")`), `as_string`
+- [X] T007 [P] Manifest category `"peers"` → `PermissionKind::Peers` with default action `connect` in `src-tauri/src/extensions/permissions/manifest_map.rs`; target `"*"` only for `Peers` in `src-tauri/src/extensions/permissions/target.rs`
+- [X] T008 [P] Tests in `src-tauri/src/extensions/permissions/model_tests.rs`, `manifest_map_tests.rs` and `target_tests.rs`: `peers`/`connect`/`*` round trip; any other action or target of `peers` is absent (FR-022 of 017); vault-wide scope (FR-001)
 
 ### Endpoint
 

@@ -56,6 +56,7 @@ fn category_kind(category: &str) -> Option<PermissionKind> {
         "mail" => Some(PermissionKind::Mail),
         "shell" => Some(PermissionKind::Shell),
         "contacts" => Some(PermissionKind::Contacts),
+        "peers" => Some(PermissionKind::Peers),
         _ => None,
     }
 }
@@ -73,7 +74,7 @@ fn is_forbidden(category: &str) -> bool {
 }
 
 /// The action a declaration without one gets: `read` where a kind has `read` and `readWrite`,
-/// every method for `web`, the only action of `notifications` and `shell`.
+/// every method for `web`, the only action of `notifications`, `shell` and `peers`.
 /// `mail` has no such default and must name its action.
 fn default_action(kind: PermissionKind) -> Option<&'static str> {
     match kind {
@@ -85,6 +86,7 @@ fn default_action(kind: PermissionKind) -> Option<&'static str> {
         PermissionKind::Web => Some("*"),
         PermissionKind::Notifications => Some("show"),
         PermissionKind::Shell => Some("execute"),
+        PermissionKind::Peers => Some("connect"),
         PermissionKind::Mail
         | PermissionKind::EncryptedFolder
         | PermissionKind::AgentTool
