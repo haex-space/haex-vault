@@ -9,7 +9,7 @@ erzwungenem Relay (siehe 5.).
 - Anna und Ben haben die Visitenkarte des anderen im Adressbuch (Spec 051).
 - Auf allen Geräten ist eine Testerweiterung installiert, die `peers` und `contacts` erklärt, Kanäle
   öffnet, Nachrichten zählt und Meldungen anzeigt: die E2E-Probe
-  `src-tauri/tests/fixtures/extension_e2e/probe.xt`, in PR 4 um `peers` erweitert. Für haex-doom gilt dasselbe
+  `src-tauri/tests/fixtures/extension_e2e/peers.xt`. Für haex-doom gilt dasselbe
   mit dem SDK aus `haex-space/vault-sdk`.
 
 Automatische Prüfungen vor der Handprüfung:
@@ -62,7 +62,8 @@ nix develop --command pnpm format:check
 4. A1: öffentliche Lobby öffnen → D1 tritt bei → `verified: false`. Lobby schließen, D1 verbindet sich
    ohne Code (Testwerkzeug) → sofort getrennt (SC-006).
 5. Falscher Code, Code einer geschlossenen Lobby, Code mit geändertem Geheimnis → jeweils
-   `lobby_closed`, gleiche Antwortzeit (SC-007, automatisiert in `extensions::peers`).
+   `lobby_closed`, gleiche hostseitige Antwortzeit für die erreichbaren Fälle (SC-007,
+   automatisiert in `extensions::peers`).
 
 ## 5. Relay
 

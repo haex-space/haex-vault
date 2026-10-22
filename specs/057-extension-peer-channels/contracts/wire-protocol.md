@@ -33,7 +33,9 @@ Prüfung je Seite, jede Abweichung → schließen ohne Grund:
 4. Einordnung: eigene Vault (eigene gültige Liste gilt) → `OwnVault`; gespeicherte Karte, nicht
    blockiert, Generation ≥ `card.list_generation` und ≥ gesehener → `Contact`; blockiert → schließen;
    sonst `Unverified`.
-5. Annehmender mit `Unverified` und keiner offenen öffentlichen Lobby → schließen (FR-031).
+5. Annehmender mit `Unverified` und keiner offenen Lobby → schließen. Ist nur eine Lobby „nur
+   Kontakte“ offen, darf er genau einen begrenzten `Join` senden; ein gültiger Beweis endet mit
+   `NotAdmitted` (FR-031).
 
 Der Handshake muss in 5 s fertig sein.
 
@@ -72,6 +74,9 @@ Gastgeber → JoinReply { v, status: Accepted | Closed | NotAdmitted }
   gedrosselt, Grenze erreicht. Gleicher Weg für alle Fälle (HMAC mit Ersatzgeheimnis bei unbekannter
   `lobby`).
 - `NotAdmitted`: gültiger `proof`, aber Lobby „nur Kontakte“ und `Unverified`, oder entfernt.
+- Die gleiche Antwortzeit für `Closed` gilt nur für Beitritte, die den Gastgeber erreichen. Ein
+  unlesbarer Beitrittscode wird vorher beim Beitretenden mit `lobby_closed` abgewiesen und fällt
+  nicht unter den hostseitigen Zeitvergleich.
 - Nach `Accepted` ist die Verbindung der Kanal; sonst schließen.
 
 ## Kanal

@@ -111,11 +111,11 @@ Erweiterung registriert; nach 60 s ohne Rahmen schließt holzi den Kanal mit `cl
 
 ## Drosselung (`Throttle`)
 
-| Feld                | Regeln                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `pending`           | Zahl nicht zugelassener Verbindungen, höchstens 16                                           |
-| `per_endpoint`      | `endpoint_id → { attempts_in_window, failed_joins, banned_until }`, höchstens 1.024 Einträge |
-| `unverified_window` | neue nicht bestätigte Verbindungen im laufenden 10-s-Fenster, höchstens 20                   |
+| Feld                | Regeln                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending`           | Zahl nicht zugelassener, nicht bestätigter Verbindungen, höchstens 16; bestätigte Kontakte und eigene Geräte haben eine getrennte Kapazität |
+| `per_endpoint`      | `endpoint_id → { attempts_in_window, failed_joins, banned_until }`, höchstens 1.024 Einträge                                                |
+| `unverified_window` | neue nicht bestätigte Verbindungen im laufenden 10-s-Fenster, höchstens 20                                                                  |
 
 Werte und Begründung in research R7. Die Uhr ist injiziert, damit Tests ohne `sleep` laufen.
 
