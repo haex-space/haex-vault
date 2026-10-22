@@ -92,12 +92,13 @@ scenario('files-encrypted-device', { timeoutMs: 420_000 }, async (ctx) => {
 
   // On the disk: only h, m/… and c/…, no name and no content in the clear.
   const stored = device.files(dir)
-  for (const file of stored) {
+  for (const file of stored)
     assert.match(file.slice(dir.length + 1), /^(h|[mc]\/[a-z2-7]{26})$/, file)
-    const body = device.readBytes(file)
-    for (const secret of [...SECRET_NAMES, NOTE])
-      assert.ok(!body.includes(secret), `${secret} in ${file}`)
-  }
+  assert.deepEqual(
+    device.containing(dir, [...SECRET_NAMES, NOTE]),
+    [],
+    'a name or the note in the clear',
+  )
   assert.equal(stored.length, 7, `h, 3 sidecars, 3 contents: ${stored}`)
   ctx.step('the disk holds nothing in the clear')
 

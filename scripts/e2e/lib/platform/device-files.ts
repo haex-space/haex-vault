@@ -28,6 +28,10 @@ export interface DeviceFiles {
   tree: (sub: string, folders: number, files: number) => void
   /** Every file below `sub` (the whole folder for `''`), as paths relative to the folder. */
   files: (sub?: string) => string[]
+  /** The files below `sub` (as `files` names them) that hold any of `texts`, searched where they
+   * lie: on the phone one `grep`, not a pull per file. Pulling contents one after the other dropped
+   * adb's connection to the emulator now and then, and the web view's DevTools forward with it. */
+  containing: (sub: string, texts: string[]) => string[]
   remove: () => void
 }
 
@@ -77,6 +81,15 @@ export function deviceFiles(
         readdirSync(join(folder, sub), { recursive: true, withFileTypes: true })
           .filter((entry) => entry.isFile())
           .map((entry) => relative(folder, join(entry.parentPath, entry.name)))
+          .sort(),
+      containing: (sub, texts) =>
+        readdirSync(join(folder, sub), { recursive: true, withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => relative(folder, join(entry.parentPath, entry.name)))
+          .filter((name) => {
+            const body = readFileSync(path(name))
+            return texts.some((text) => body.includes(text))
+          })
           .sort(),
       remove: () => rmSync(folder, { recursive: true, force: true }),
     }
@@ -132,6 +145,23 @@ export function deviceFiles(
     files: (sub = '') =>
       adb
         .shell('find', quote(sub ? `${folder}/${sub}` : folder), '-type', 'f')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith(`${folder}/`))
+        .map((line) => line.slice(folder.length + 1))
+        .sort(),
+    // grep exits with 1 when no file matches, with 2 when it cannot read one: only that fails.
+    containing: (sub, texts) =>
+      adb
+        .shell(
+          'grep',
+          '-rlF',
+          ...texts.flatMap((text) => ['-e', quote(text)]),
+          '--',
+          quote(sub ? `${folder}/${sub}` : folder),
+          ';',
+          '[ $? -le 1 ]',
+        )
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line.startsWith(`${folder}/`))

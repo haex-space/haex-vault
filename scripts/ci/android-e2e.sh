@@ -67,10 +67,6 @@ finish() {
   pkill -P "$logcat_loop" 2>/dev/null
   kill "$logcat_loop" "$health_loop" 2>/dev/null
   cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null
-  # What the phone noted of a transport drop while its logcat was not streamed: crashes, and the
-  # kernel log, where init reports a service (adbd) that exited and was started again.
-  timeout 20 adb logcat -d -b crash -v time >"$health/device-crash.txt" 2>&1
-  timeout 20 adb shell su 0 dmesg >"$health/device-dmesg.txt" 2>&1
   # One line per shard in the job log, to compare runs without opening the material.
   echo "emulator summary: adb transport drops $(grep -c 'connection terminated' "$health/adb-server.log" 2>/dev/null)"
   # How hard the emulator's GPU worked: frames of a second or more, and shader programs linked.
