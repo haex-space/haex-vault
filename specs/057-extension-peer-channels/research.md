@@ -64,6 +64,10 @@ mindestens 1.000 Byte (FR-035).
 **Alternatives considered**: 1.100 Byte wie im Entwurf. Verworfen: zu knapp am Minimum über
 Relay-Pfade mit Multipath-Kopf; der Gewinn ist für DOOM null.
 
+**Umsetzung PR 1**: Auf Loopback gilt `max_datagram_size()` ≥ 1.024; drei Kanäle mit 35 Nachrichten
+je Sekunde und Richtung kamen vollständig an (Verzögerung Median etwa 1 ms, ohne Brücke). Der
+Relay-Pfad wird in der E2E-Szene gemessen (T081).
+
 ## R3 Gesicherte Nachrichten auf dem Steuerstream
 
 **Decision**: Der erste Bi-Stream der Verbindung (Handshake) bleibt als **Steuerstream** offen. Darauf
@@ -81,6 +85,10 @@ Speicherangriffe vor der Zulassung.
 
 **Alternatives considered**: CBOR mit `u32 LE` wie im Entwurf. Verworfen: zweites Format im selben
 Programm ohne Nutzen; die Erweiterung sieht den Draht nicht.
+
+**Umsetzung PR 1**: Je Kanal warten höchstens 16 gesicherte Nachrichten auf den Stream; eine weitere
+wird mit `7000 limit` (`details.limit: 16`) abgelehnt, statt Speicher hinter einer Gegenseite
+anzuhäufen, die nicht liest. PR 4 trägt den Fall in die Fehlertabelle der Brücke ein.
 
 ## R4 Ausweisen: gegenseitige Herausforderung und unterschriebene Geräteliste
 
@@ -120,6 +128,11 @@ wieder die Untergrenze der Karte. Aufrüstung: die Tabelle aus 056 mitnutzen, so
 **Alternatives considered**: Endpoint-ID und Geräteschlüssel auf der gespeicherten Karte (Entwurf
 R-10). Verworfen wegen veralteter Karten. Den Sync-Handshake öffnen. Verworfen: Grenze von 024
 (ADR-0015).
+
+**Umsetzung PR 1**: `ContactsService::card_of_vault` antwortet `Stored`, `Blocked` oder `Unknown`
+statt `Option`, damit eine blockierte Vault abgewiesen und nicht als „nicht bestätigt“ behandelt
+wird. Die Untergrenze „gesehene Generation“ gilt für jede fremde Vault, nicht nur für Kontakte;
+höchstens 1.024 Vaults werden gemerkt. Einzelheiten in tasks.md, Notes from implementing PR 1.
 
 ## R5 Adressen: Visitenkarte jetzt, Anklopfen später
 
