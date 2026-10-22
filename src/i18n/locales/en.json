@@ -3001,6 +3001,29 @@
       "minutes": "{n} min ago",
       "hours": "{n} h ago",
       "days": "{n} days ago"
+    },
+    "presence": {
+      "title": {
+        "create": "Create a passkey?",
+        "get": "Sign in with a passkey?"
+      },
+      "body": {
+        "create": "“{name}” wants to create a passkey for {site} in holzi.",
+        "get": "“{name}” wants to sign you in to {site} with a passkey from holzi."
+      },
+      "site": "Site",
+      "user": "Account",
+      "extension": "Extension",
+      "choices": {
+        "create": "Save in",
+        "get": "Passkey"
+      },
+      "newEntry": "New entry",
+      "noUser": "no account name",
+      "passphrase": "Vault password",
+      "expires": "Expires in {seconds} s.",
+      "confirm": "Confirm",
+      "wrongPassphrase": "Wrong password. The request was cancelled."
     }
   }
 }

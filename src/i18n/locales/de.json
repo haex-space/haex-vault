@@ -3001,6 +3001,29 @@
       "minutes": "vor {n} Min.",
       "hours": "vor {n} Std.",
       "days": "vor {n} Tagen"
+    },
+    "presence": {
+      "title": {
+        "create": "Passkey anlegen?",
+        "get": "Mit Passkey anmelden?"
+      },
+      "body": {
+        "create": "„{name}“ möchte für {site} einen Passkey in holzi anlegen.",
+        "get": "„{name}“ möchte dich mit einem Passkey aus holzi bei {site} anmelden."
+      },
+      "site": "Seite",
+      "user": "Konto",
+      "extension": "Erweiterung",
+      "choices": {
+        "create": "Speichern in",
+        "get": "Passkey"
+      },
+      "newEntry": "Neuer Eintrag",
+      "noUser": "ohne Kontoname",
+      "passphrase": "Vault-Passwort",
+      "expires": "Läuft in {seconds} s ab.",
+      "confirm": "Bestätigen",
+      "wrongPassphrase": "Passwort falsch. Der Vorgang wurde abgebrochen."
     }
   }
 }
