@@ -35,9 +35,10 @@ fn a_known_script_has_the_hash_a_browser_computes() {
 fn the_policy_allows_only_the_prefix_and_the_hashes() {
     let prefix = "holzi-ext://localhost/0123/";
     let policy = policy(prefix, &BTreeSet::from(["'sha256-AAA='".to_string()]));
-    assert!(policy
-        .starts_with("default-src 'none'; script-src holzi-ext://localhost/0123/ 'sha256-AAA=';"));
-    for forbidden in ["unsafe-eval", "ipc:", "ipc.localhost", "https:", " * "] {
+    assert!(policy.starts_with(
+        "default-src 'none'; script-src holzi-ext://localhost/0123/ 'wasm-unsafe-eval' 'sha256-AAA=';"
+    ));
+    for forbidden in ["'unsafe-eval'", "ipc:", "ipc.localhost", "https:", " * "] {
         assert!(!policy.contains(forbidden), "{forbidden} in {policy}");
     }
     let script_src = policy

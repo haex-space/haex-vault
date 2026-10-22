@@ -2,7 +2,8 @@
 //!
 //! Scripts run only from the extension's own URL prefix or as inline scripts whose SHA-256 holzi
 //! computed after verifying the bundle (Nuxt configuration, import maps, SDK polyfills) plus the
-//! frame shim. Never `'unsafe-eval'`, never `ipc:` or `http://ipc.localhost`, no network.
+//! frame shim. WebAssembly may be compiled (`'wasm-unsafe-eval'`), JavaScript never evaluated
+//! (`'unsafe-eval'`). Never `ipc:` or `http://ipc.localhost`, no network.
 
 use std::collections::BTreeSet;
 
@@ -92,7 +93,7 @@ pub fn policy(prefix: &str, hashes: &BTreeSet<String>) -> String {
     let hashes = hashes.iter().cloned().collect::<Vec<_>>().join(" ");
     let p = prefix;
     format!(
-        "default-src 'none'; script-src {p} {hashes}; style-src {p} 'unsafe-inline'; \
+        "default-src 'none'; script-src {p} 'wasm-unsafe-eval' {hashes}; style-src {p} 'unsafe-inline'; \
          img-src {p} data: blob:; font-src {p} data:; media-src {p} data: blob:; \
          connect-src {p}; worker-src {p} blob:; frame-src 'none'; object-src 'none'; \
          base-uri 'none'; form-action 'none'; frame-ancestors {}",
