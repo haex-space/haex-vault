@@ -2,7 +2,7 @@
 //! of an address only at the addresses [`address::pin`] checked, follows no redirect and uses no
 //! proxy. Every call resolves and checks the addresses again; a client is kept per host and checked
 //! addresses, so calls to the same server share its connections (and TLS sessions) while an
-//! address that changes gets a client of its own.
+//! address that changes gets a client of its own. Kept per runtime too: in the app that is one.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -28,7 +28,13 @@ pub(super) async fn pinned_client(
     let mut addrs = pinned.addrs.clone();
     addrs.sort_unstable();
     // The scope too: a client of a `local` endpoint never serves the same name once it is `public`.
-    let key = (scope, pinned.host.clone(), addrs);
+    // The runtime too: its connections run on the runtime that opened them and break off with it.
+    let key = (
+        tokio::runtime::Handle::current().id(),
+        scope,
+        pinned.host.clone(),
+        addrs,
+    );
     if let Some(client) = clients().get(&key) {
         return Ok(client.clone());
     }
@@ -52,9 +58,14 @@ pub(super) async fn pinned_client(
 /// How many clients are kept at most.
 const MAX_CLIENTS: usize = 64;
 
-/// Scope, host and checked addresses. A client carries no credentials and no default headers:
-/// logins go with each request, so several logins on one host share its client.
-type ClientKey = (EndpointScope, Option<String>, Vec<SocketAddr>);
+/// Runtime, scope, host and checked addresses. A client carries no credentials and no default
+/// headers: logins go with each request, so several logins on one host share its client.
+type ClientKey = (
+    tokio::runtime::Id,
+    EndpointScope,
+    Option<String>,
+    Vec<SocketAddr>,
+);
 
 fn clients() -> std::sync::MutexGuard<'static, HashMap<ClientKey, reqwest::Client>> {
     static CLIENTS: OnceLock<Mutex<HashMap<ClientKey, reqwest::Client>>> = OnceLock::new();
