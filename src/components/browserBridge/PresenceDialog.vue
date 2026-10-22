@@ -121,6 +121,12 @@ function onUpdateOpen(open: boolean) {
           <dd class="min-w-0 font-mono text-xs break-all">
             {{ question.origin }}
           </dd>
+          <dt class="text-muted-foreground">
+            {{ t('browserBridge.presence.challenge') }}
+          </dt>
+          <dd class="min-w-0 font-mono text-xs break-all">
+            {{ question.challengeHash }}
+          </dd>
           <template v-if="question.userName">
             <dt class="text-muted-foreground">
               {{ t('browserBridge.presence.user') }}
@@ -164,7 +170,7 @@ function onUpdateOpen(open: boolean) {
           autocomplete="current-password"
           data-testid="bridge-presence-passphrase"
         />
-        <p class="text-xs text-muted-foreground" aria-live="polite">
+        <p class="text-xs text-muted-foreground">
           {{ t('browserBridge.presence.expires', { seconds: secondsLeft }) }}
         </p>
         <p v-if="failure" class="text-sm text-destructive" role="alert">
