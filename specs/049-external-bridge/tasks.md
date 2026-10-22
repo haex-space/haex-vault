@@ -389,8 +389,8 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: `src-tauri/tests/browser_bridge.rs` part 5, the e2e scenario part 2, quickstart M8 and M9.
 
-- [ ] T053 [US5] New worktree `.worktrees/049-d` on branch `049-external-bridge-d` from `main` after PR C.
-- [ ] T054 [US5] Integration test first, `src-tauri/tests/browser_bridge.rs` part 5:
+- [x] T053 [US5] New worktree `.worktrees/049-d` on branch `049-external-bridge-d` from `main` after PR C.
+- [x] T054 [US5] Integration test first, `src-tauri/tests/browser_bridge.rs` part 5:
   - The overview lists remembered and session clients and blocks with all `BridgeClientView` fields and `connected`.
   - Revoke on an open connection → `authorizationUpdate(false)` arrives in under 1 s, the socket closes, a pending write prompt is cancelled, and the next connect asks again.
   - Update `access` to `read` → the next `create-item` asks; update `scope_tags` → the next `get-items` follows it.
@@ -399,7 +399,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - Port change while running → the old port is free (bind succeeds) and the new one accepts.
   - `stop()` → all sockets closed and the port free in under 2 s (SC-008).
   - `last_seen_at` is set on an authorized handshake.
-- [ ] T055 [US5] `src-tauri/src/browser_bridge/admin.rs`:
+- [x] T055 [US5] `src-tauri/src/browser_bridge/admin.rs`:
   - `overview()`;
   - `update(client_id, access, scope_tags, default_tag)`, validated by the validator from T028 against the stored declaration;
   - `revoke(client_id)`: delete the row or the session approval, push `authorizationUpdate(false)` to every connection of the fingerprint, then close them, which cancels their prompts and requests;
@@ -407,14 +407,16 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Commands `browser_bridge_client_update`, `browser_bridge_client_revoke` and `browser_bridge_client_unblock` in `commands.rs`. Emit `browser-bridge-changed` on every change and on connect/disconnect. Make T054 pass.
 
-- [ ] T056 [P] [US5] Add the actions `settings.browserBridge.client.update`, `.client.revoke` and `.client.unblock` to `src/lib/actions/browserBridgeActions.ts`, scope `guardrails`. Extend the agent-actions check.
-- [ ] T057 [US5] `src/components/browserBridge/ClientRow.vue` and `ClientEditor.vue` (new). Fill `BrowserBridgeSettings.vue` with the lists:
+- [x] T056 [P] [US5] Add the actions `settings.browserBridge.client.update`, `.client.revoke` and `.client.unblock` to `src/lib/actions/browserBridgeActions.ts`, scope `guardrails`. Extend the agent-actions check.
+- [x] T057 [US5] `src/components/browserBridge/ClientRow.vue` and `ClientEditor.vue` (new). Fill `BrowserBridgeSettings.vue` with the lists:
   - Each allowed client shows name (marked as claim), fingerprint, origin, Art, Bereich, Standard-Tag, gemerkt/vorläufig, decided and last seen (relative time) and a connected dot.
   - Blocked clients are in their own group.
   - The editor has the same fields as the approval dialog. It saves on selection with no save button (memory: settings save on selection). Revoke and unblock ask for confirmation.
   - "Port belegt" offers changing the port.
   - Usable at 360 px.
-- [ ] T058 [US5] e2e scenario part 2: the approved test client is listed; narrow it to "Lesen"; revoke while `e2e_bridge_client --hold` is connected → it prints `authorized:false` and exits; unblock flow.
+- [x] T058 [US5] e2e scenario part 2: the approved test client is listed; narrow it to "Lesen"; revoke while `e2e_bridge_client --hold` is connected → it prints `authorized:false` and exits; unblock flow.
+
+**As built (PR D)**: the management lives in `browser_bridge/admin.rs` (`ClientAdmin` with `overview`, `update`, `revoke`, `unblock`); it works with and without a running bridge, which `BrowserBridge::core()` hands over. The cases of T054 are in their own file, `tests/browser_bridge_admin.rs`, to keep `browser_bridge.rs` small; stopping and freeing the port were already covered in part 1. `BridgeClientView` also carries `declared` and `declaresWrite`, so the editor offers nothing beyond the declaration. An update forgets this session's answers about writing (`SessionDecisions::reset_write`). The grant fields are shared by the approval question and the editor (`components/browserBridge/GrantFields.vue`, `lib/browserBridgeGrant.ts`). A client that is neither approved nor blocked gives the new error `BrowserBridgeClientNotFound`. The action schema has no `null`, so `scopeTags` and `defaultTag` are left out instead.
 
 **Checkpoint**: PR D complete. Run quickstart M8, M9 and M11, then open PR D.
 

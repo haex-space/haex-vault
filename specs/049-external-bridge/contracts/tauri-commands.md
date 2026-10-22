@@ -10,12 +10,17 @@ Typen erzeugt `ts-rs` nach `src/types/bindings/`. Alle Commands antworten auf An
 Alle Aktionen haben den Bereich `guardrails` und sind damit `agentCallable: false`
 (`src/lib/actions/settingsActions.ts:100`, FR-013). Jede ruft genau einen Command.
 
-| Aktion                                  | Eingabe                                       | Command                         | Wirkung                                                                                            |
-| --------------------------------------- | --------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `settings.browserBridge.set`            | `{ enabled: boolean, port: number }`          | `browser_bridge_configure`      | speichert beides geräteeigen; startet, stoppt oder startet die Bridge neu (R14)                    |
-| `settings.browserBridge.client.update`  | `{ clientId, access, scopeTags, defaultTag }` | `browser_bridge_client_update`  | ändert eine gemerkte oder vorläufige Zulassung; gilt ab der nächsten Anfrage (FR-038)              |
-| `settings.browserBridge.client.revoke`  | `{ clientId }`                                | `browser_bridge_client_revoke`  | löscht die Zulassung; `authorizationUpdate(false)` an offene Verbindungen, dann Schließen (FR-011) |
-| `settings.browserBridge.client.unblock` | `{ clientId }`                                | `browser_bridge_client_unblock` | hebt die Sperre auf; beim nächsten Verbinden fragt holzi                                           |
+| Aktion                                  | Eingabe                                         | Command                         | Wirkung                                                                                            |
+| --------------------------------------- | ----------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `settings.browserBridge.set`            | `{ enabled: boolean, port: number }`            | `browser_bridge_configure`      | speichert beides geräteeigen; startet, stoppt oder startet die Bridge neu (R14)                    |
+| `settings.browserBridge.client.update`  | `{ clientId, access, scopeTags?, defaultTag? }` | `browser_bridge_client_update`  | ändert eine gemerkte oder vorläufige Zulassung; gilt ab der nächsten Anfrage (FR-038)              |
+| `settings.browserBridge.client.revoke`  | `{ clientId }`                                  | `browser_bridge_client_revoke`  | löscht die Zulassung; `authorizationUpdate(false)` an offene Verbindungen, dann Schließen (FR-011) |
+| `settings.browserBridge.client.unblock` | `{ clientId }`                                  | `browser_bridge_client_unblock` | hebt die Sperre auf; beim nächsten Verbinden fragt holzi                                           |
+
+Die Client-Aktionen und ihre Commands antworten mit der neuen `BridgeOverview`. Im Schema der
+Aktion fehlen `scopeTags` und `defaultTag` für `null`, weil das Aktionsschema kein `null` kennt.
+Eine Änderung vergisst die Antworten zum Schreiben aus dieser Sitzung, denn der Nutzer hat neu
+entschieden.
 
 **Prüfung im Command**:
 
@@ -24,6 +29,9 @@ Alle Aktionen haben den Bereich `guardrails` und sind damit `agentCallable: fals
 - `defaultTag` liegt im Bereich und ist bei `readWrite` mit `scopeTags` gesetzt.
 - Nichts davon darf über die gespeicherte Erklärung hinausgehen.
 - `port` liegt zwischen 1024 und 65535.
+- `clientId` nennt eine Zulassung (`update`, `revoke`) oder eine Sperre (`unblock`), gemerkt oder
+  vorläufig; sonst `BrowserBridgeClientNotFound`. Ohne laufende Bridge ändern die Commands nur die
+  gemerkten Entscheidungen.
 
 ## Lesende Commands
 
@@ -34,7 +42,6 @@ type BridgeOverview = {
   enabled: boolean
   port: number
   state: 'off' | 'running' | 'portInUse' | 'noVault' | 'notAvailable'
-  // ab PR D (US5):
   clients: BridgeClientView[] // zugelassen, gemerkt und vorläufig
   blocked: BridgeClientView[] // gesperrt, gemerkt und vorläufig
 }
@@ -45,12 +52,19 @@ type BridgeClientView = {
   access: 'read' | 'readWrite' | null
   scopeTags: string[] | null
   defaultTag: string | null
+  // die weiteste Freigabe der Erklärung; der Editor bietet nichts darüber hinaus
+  declared: { access: 'read' | 'readWrite'; scopeTags: string[] | null } | null
+  declaresWrite: boolean
   remembered: boolean
   connected: boolean
   decidedAt: number
   lastSeenAt: number | null
 }
 ```
+
+Eine vorläufige Entscheidung verdeckt eine gemerkte für denselben Client, und eine Sperre verdeckt
+eine Zulassung, so wie `approvals::decide` sie gewichtet. Ohne laufende Bridge stehen nur die
+gemerkten Entscheidungen in den Listen, alle mit `connected: false`.
 
 ## Rückfragen
 
