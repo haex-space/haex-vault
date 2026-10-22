@@ -1,0 +1,26 @@
+{
+  "note": "Test keys only (spec 049, research R18); written by scripts/fixtures/browser-bridge-envelope.ts.",
+  "client": {
+    "secret": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+    "publicKey": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9/AsrhtHHw=",
+    "clientId": "aaa8fff703b50b2297f4f6e13508f724"
+  },
+  "server": {
+    "secret": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2A=",
+    "publicKey": "ZLEBsdC+WocEvQePmJUAH8A+jp+VIvGI3RKNmEbUhGY="
+  },
+  "request": {
+    "action": "get-items",
+    "plaintext": "{\"requestId\":\"r-fixture\",\"url\":\"https://login.example.de\"}",
+    "publicKey": "iDGGuAC0HVzwQpaV2ps8xPMo680YSm5IL6V4wQPwbHc=",
+    "iv": "oaKjpKWmp6ipqqus",
+    "message": "bSXYvVlBWPs0JpVQAkvLW94J6mN2ePJknJEhijU1C5ySGstZIp2PrIOsl+ocQ0Z9wbv1+XshESaD1wXTonH525oM1UJ+4VEjMzg="
+  },
+  "response": {
+    "ephemeralSecret": "wcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+A=",
+    "plaintext": "{\"requestId\":\"r-fixture\",\"success\":true,\"data\":{\"entries\":[]}}",
+    "publicKey": "OlU9dHktcn76m5pM3j2hrZPxotDAnLY5saPA/aFMviQ=",
+    "iv": "4eLj5OXm5+jp6uvs",
+    "message": "7NQpjUzAgEmuZZibjVK4lbkkCqN0qHRTxb8yZCCZPYiyXx5M7RQD7BT345Kf4IgvIgbc0YyLfwT9RynbfSzkNirb/VWhNSG/6lI3vOuT"
+  }
+}
