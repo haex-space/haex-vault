@@ -318,6 +318,10 @@ export function useExtensionFrame(
         sdkPort?.postMessage(eventMessage(event)),
       )
       src.value = opened.url + currentHash()
+      // A WebKitGTK load event can be lost while the development page is already rendered. Arm
+      // the fallback from the frame creation as well; the load handler below still starts the shim
+      // as soon as it does arrive and safely resets this timer.
+      if (opened.dev) queueMicrotask(() => onLoad())
     } catch (e) {
       if (opening !== generation) return
       state.value = 'error'
