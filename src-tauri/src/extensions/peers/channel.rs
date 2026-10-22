@@ -318,7 +318,19 @@ async fn read_loop(channel: Arc<Channel>, mut recv: RecvStream) {
             read = wire::read(&mut recv, CHANNEL_FRAME_LIMIT) => read,
         };
         match read {
-            Ok(Some(Message::Reliable { data, .. })) => channel.deliver(&data, true),
+            Ok(Some(Message::Reliable { data, .. })) if data.len() <= RELIABLE_BYTES => {
+                channel.deliver(&data, true)
+            }
+            Ok(Some(Message::Reliable { .. })) => {
+                log::debug!(
+                    "peers: channel {} sent an oversized reliable message",
+                    channel.id
+                );
+                channel
+                    .connection
+                    .close(ErrorCode::Protocol.as_u32().into(), b"protocol");
+                return channel.end(EndReason::Lost);
+            }
             Ok(Some(Message::Close { .. })) => return channel.end(EndReason::Closed),
             // The stream ended; the end of the connection follows and is told by its reason.
             Ok(None) => return,
