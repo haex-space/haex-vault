@@ -22,7 +22,10 @@ export const useBrowserBridgeStore = defineStore('browserBridge', () => {
     queue.value = queue.value.filter((q) => q.promptId !== promptId)
   }
 
-  async function startAsync(onQuestion: () => void): Promise<void> {
+  async function startAsync(
+    onQuestion: () => void,
+    onWrongPassphrase: () => void,
+  ): Promise<void> {
     if (unlisten.length > 0) return
     unlisten = await Promise.all([
       listen<BridgePromptEvent>('browser-bridge-prompt', (event) => {
@@ -35,6 +38,7 @@ export const useBrowserBridgeStore = defineStore('browserBridge', () => {
       listen('browser-bridge-changed', () => {
         changes.value += 1
       }),
+      listen('browser-bridge-wrong-passphrase', onWrongPassphrase),
     ])
   }
 
