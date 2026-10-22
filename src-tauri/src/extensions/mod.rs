@@ -24,6 +24,7 @@ pub mod mail;
 pub mod mime;
 pub mod notifications;
 pub mod passwords;
+pub mod peers;
 pub mod permissions;
 pub mod protocol;
 pub mod registry;
