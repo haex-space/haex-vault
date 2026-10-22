@@ -171,6 +171,36 @@ async fn a_frame_that_is_no_message_ends_the_channel_as_lost() {
     b.shutdown().await;
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_oversized_reliable_message_ends_the_channel_as_lost() {
+    let (a, b) = pair().await;
+    let (connection, mut send, _recv, verified) = a.dial(&b).await;
+    verified.expect("verified");
+    let far = b.accepted().await;
+
+    wire::write(
+        &mut send,
+        &Message::Reliable {
+            v: VERSION,
+            data: vec![0; RELIABLE_BYTES + 1],
+        },
+        CHANNEL_FRAME_LIMIT,
+    )
+    .await
+    .expect("write");
+    b.window.wait_until(|w| !ends(w, &far).is_empty()).await;
+    assert_eq!(ends(&b.window, &far), vec!["lost"]);
+    let closed = tokio::time::timeout(LIMIT, connection.closed())
+        .await
+        .expect("closed in time");
+    assert!(
+        matches!(closed, ConnectionError::ApplicationClosed(ref close) if close.error_code == ErrorCode::Protocol.as_u32().into()),
+        "{closed:?}"
+    );
+    a.shutdown().await;
+    b.shutdown().await;
+}
+
 #[test]
 fn a_connection_end_maps_to_closed_timeout_or_lost() {
     let application = ConnectionError::ApplicationClosed(ApplicationClose {
