@@ -17,7 +17,9 @@ use holzi_lib::identity::installation_id_path;
 use holzi_lib::instances::vault_config::vault_config;
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::{ItemInput, Target, TargetKind};
-use holzi_lib::passwords::model_passkeys::{PasskeyConfirmRequest, PasskeyCreateRequest};
+use holzi_lib::passwords::model_passkeys::{
+    PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyTarget, UserPresence,
+};
 use holzi_lib::passwords::passkey_links;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::sync::inbound::Inbox;
@@ -82,7 +84,7 @@ impl Dev {
                 &Caller::User,
                 &[],
                 PasskeyCreateRequest {
-                    item_id: Some(item_id.to_string()),
+                    target: PasskeyTarget::Existing(item_id.to_string()),
                     rp_id: "example.com".to_string(),
                     rp_name: "Example".to_string(),
                     origin: "https://example.com".to_string(),
@@ -93,6 +95,7 @@ impl Dev {
                     exclude_credentials: Vec::new(),
                     pub_key_cred_params: vec![-7],
                     discoverable: true,
+                    presence: UserPresence::None,
                 },
             )
             .await
@@ -133,6 +136,7 @@ impl Dev {
                     challenge: URL_SAFE_NO_PAD.encode(b"get"),
                     allow_credentials: Vec::new(),
                     item_id: None,
+                    presence: UserPresence::None,
                 },
             )
             .await

@@ -1,6 +1,6 @@
 # References between entries are resolved in the service; the passkey service signs without a counter or a presence claim
 
-Status: accepted
+Status: accepted; superseded in part by ADR-0015 (user presence and verification)
 Date: 2026-10-04
 
 ## Decision

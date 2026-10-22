@@ -52,6 +52,7 @@ pub mod passkey_links;
 #[cfg(test)]
 mod passkey_links_tests;
 pub mod passkeys;
+pub mod passkeys_new_entry;
 pub mod passkeys_ops;
 #[cfg(test)]
 mod passkeys_tests;

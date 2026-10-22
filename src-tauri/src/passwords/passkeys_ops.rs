@@ -21,9 +21,10 @@ use super::access::{authorize_list, authorize_read, authorize_update, ItemState,
 use super::items::item_state;
 use super::model_passkeys::{
     PasskeyAssertion, PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyCreated, PasskeyHeader,
-    PasskeyListRequest,
+    PasskeyListRequest, PasskeyTarget,
 };
 use super::passkeys::{self, InsertOutcome, PasskeyInput};
+use super::passkeys_new_entry;
 use super::references_db::Reader;
 use super::webauthn::{self, Ceremony, WebauthnError};
 use crate::error::{HolziError, Result};
@@ -251,17 +252,17 @@ fn credential_list(field: &'static str, ids: &[String]) -> Result<Vec<Vec<u8>>> 
         .collect()
 }
 
-/// `passkey_create` (`contracts/passkey-service.md`): a new passkey at an entry the caller may
-/// write, for an origin of the relying party.
-pub fn create(
+/// The caller may add a passkey to this entry.
+fn authorize_existing(
     tx: &mut CrdtTransaction<'_>,
     reader: Reader<'_>,
-    request: &PasskeyCreateRequest,
-) -> Result<PasskeyCreated> {
-    let item_id = required("itemId", request.item_id.as_deref().unwrap_or(""))?.to_owned();
-    match item_state(tx, &item_id)? {
+    item_id: &str,
+) -> Result<()> {
+    required("itemId", item_id)?;
+    match item_state(tx, item_id)? {
         Some(state) => {
             authorize_update(reader.caller, reader.grants, &state.view(), None)?;
+            Ok(())
         }
         None => {
             // Forbidden without a write grant, otherwise indistinguishable from outside the scope.
@@ -275,8 +276,21 @@ pub fn create(
                 },
                 None,
             )?;
-            return Err(HolziError::PasswordsNotFound);
+            Err(HolziError::PasswordsNotFound)
         }
+    }
+}
+
+/// `passkey_create` (`contracts/passkey-service.md`): a new passkey at an entry the caller may
+/// write, or with a new entry (spec 049), for an origin of the relying party.
+pub fn create(
+    tx: &mut CrdtTransaction<'_>,
+    reader: Reader<'_>,
+    request: &PasskeyCreateRequest,
+) -> Result<PasskeyCreated> {
+    match &request.target {
+        PasskeyTarget::Existing(item_id) => authorize_existing(tx, reader, item_id)?,
+        PasskeyTarget::New(entry) => passkeys_new_entry::authorize(reader, entry)?,
     }
     required("rpId", &request.rp_id)?;
     required("rpName", &request.rp_name)?;
@@ -302,10 +316,15 @@ pub fn create(
     let algorithm = webauthn::choose_algorithm(&request.pub_key_cred_params)
         .ok_or(HolziError::PasswordsPasskeyUnsupportedAlgorithm)?;
 
+    // Every check passed: only now the new entry, in this transaction (FR-034).
+    let item_id = match &request.target {
+        PasskeyTarget::Existing(item_id) => item_id.clone(),
+        PasskeyTarget::New(entry) => passkeys_new_entry::create(tx, reader, entry)?,
+    };
     let key = webauthn::generate_key(algorithm)?;
     let credential_id = webauthn::random_credential_id()?;
     let cose = webauthn::cose_public_key(algorithm, &key.spki)?;
-    let auth_data = webauthn::create_auth_data(&rp_id, &credential_id, &cose);
+    let auth_data = webauthn::create_auth_data(&rp_id, &credential_id, &cose, request.presence);
     let client_data = webauthn::client_data_json(Ceremony::Create, &challenge, &origin);
     let input = PasskeyInput {
         item_id: Some(item_id.clone()),
@@ -340,6 +359,7 @@ pub fn create(
         public_key_spki: URL_SAFE_NO_PAD.encode(&key.spki),
         algorithm,
         item_id,
+        passkey_id: super::ids::passkey_id(&input.credential_id).to_string(),
     })
 }
 
@@ -387,7 +407,7 @@ pub fn confirm(
     let pkcs8 = Zeroizing::new(
         stored_bytes(&stored).ok_or(HolziError::PasswordsPasskeyUnsupportedAlgorithm)?,
     );
-    let auth_data = webauthn::get_auth_data(&rp_id);
+    let auth_data = webauthn::get_auth_data(&rp_id, request.presence);
     let client_data = webauthn::client_data_json(Ceremony::Get, &challenge, &origin);
     let signature = webauthn::sign(algorithm, &pkcs8, &auth_data, client_data.as_bytes())?;
     // Same transaction: if this write fails, no signature leaves.

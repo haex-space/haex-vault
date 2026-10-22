@@ -78,6 +78,12 @@ errors:   Forbidden | NotFound | OriginMismatch | UnsupportedAlgorithm | ChoiceR
   für Gegenstellen, die UP verlangen, bewusst nicht verwendbar, bis ein vertrauenswürdiger,
   zeremoniegebundener Presence-Nachweis ergänzt ist. `clientDataJson` =
   `{"type":"webauthn.get","challenge":…,"origin":…,"crossOrigin":false}`.
+- **Seit Spec 049 (ADR-0015)**: Anlegen und Bestätigen nehmen `presence: UserPresence`
+  (`None`, `Present`, `Verified`, nicht deserialisierbar). `Present` setzt UP, `Verified` UP und
+  UV; `None` lässt die Flags wie oben. Nur die External Bridge erzeugt `Present` oder `Verified`,
+  nach einer Anwesenheitsbestätigung für genau eine Anfrage. Anlegen nimmt statt `itemId` ein
+  Ziel `target: Existing(itemId) | New { title, url, username, tags }`; `New` legt Eintrag und
+  Passkey in einer Transaktion an.
 - RS256 (importiert) → `UnsupportedAlgorithm` (FR-034); es wird dabei kein Nutzungszustand
   geschrieben.
 

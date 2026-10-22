@@ -64,11 +64,39 @@ pub struct PasskeyHeader {
     pub linked_from_item_id: Option<String>,
 }
 
+/// Whether the user took part in one ceremony (spec 049, ADR-0015): `Present` after a confirmation
+/// bound to exactly this request, `Verified` when that confirmation also took the vault password.
+/// Deliberately not `Deserialize`: no input from outside can claim it; only the caller that showed
+/// the confirmation sets it. `None` keeps the flags of spec 036 (no UP, no UV).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum UserPresence {
+    #[default]
+    None,
+    Present,
+    Verified,
+}
+
+/// Where a new passkey goes: an entry the caller may write, or a new entry created with the passkey
+/// in the same transaction (spec 049, research R11).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PasskeyTarget {
+    Existing(String),
+    New(NewPasskeyEntry),
+}
+
+/// The fields of the entry a new passkey creates.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NewPasskeyEntry {
+    pub title: String,
+    pub url: Option<String>,
+    pub username: Option<String>,
+    pub tags: Vec<String>,
+}
+
 /// `passkey_create` (all binary fields Base64URL without padding).
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct PasskeyCreateRequest {
-    pub item_id: Option<String>,
+    pub target: PasskeyTarget,
     pub rp_id: String,
     pub rp_name: String,
     pub origin: String,
@@ -76,12 +104,11 @@ pub struct PasskeyCreateRequest {
     pub user_name: String,
     pub user_display_name: Option<String>,
     pub challenge: String,
-    #[serde(default)]
     pub exclude_credentials: Vec<String>,
     /// COSE algorithms in the relying party's order of preference.
     pub pub_key_cred_params: Vec<i64>,
-    #[serde(default)]
     pub discoverable: bool,
+    pub presence: UserPresence,
 }
 
 /// The answer of `passkey_create`; holds no private key.
@@ -94,18 +121,19 @@ pub struct PasskeyCreated {
     pub public_key_spki: String,
     pub algorithm: i64,
     pub item_id: String,
+    /// The row id of the new passkey.
+    pub passkey_id: String,
 }
 
 /// `passkey_confirm`.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default)]
 pub struct PasskeyConfirmRequest {
     pub rp_id: String,
     pub origin: String,
     pub challenge: String,
-    #[serde(default)]
     pub allow_credentials: Vec<String>,
     pub item_id: Option<String>,
+    pub presence: UserPresence,
 }
 
 /// The answer of `passkey_confirm`; the signature is public, the key never leaves.
