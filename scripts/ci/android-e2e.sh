@@ -28,6 +28,13 @@ curl -fsSL -o "$RUNNER_TEMP/chromedriver.zip" "$url"
 unzip -q -o "$RUNNER_TEMP/chromedriver.zip" -d "$RUNNER_TEMP"
 export E2E_CHROMEDRIVER="$RUNNER_TEMP/chromedriver-linux64/chromedriver"
 
+# The emulator's GPU is SwiftShader on the runner's CPUs: every new document compiled some 150
+# shader programs, frames took seconds and held up the app's main thread (and with it the answers
+# to the page), and a film on top made the emulator drop adb. The web view rasters on the CPU
+# instead; it reads the flags of a debuggable app from this file (the first word is a stand-in for
+# the program name). `pm clear` before each scenario leaves /data/local/tmp alone.
+adb shell 'echo "_ --disable-gpu-rasterization" > /data/local/tmp/webview-command-line'
+
 # The emulator's own state, written on this machine for the whole run: when the emulator stops
 # answering (adb "device offline", a web view renderer lost under load), a scenario's material can no
 # longer read logcat from the phone. Uploaded with the failure material.
@@ -60,6 +67,8 @@ finish() {
   cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null
   # One line per shard in the job log, to compare runs without opening the material.
   echo "emulator summary: adb transport drops $(grep -c 'connection terminated' "$health/adb-server.log" 2>/dev/null)"
+  # How hard the emulator's GPU worked: frames of a second or more, and shader programs linked.
+  echo "rendering summary: frames of 1 s or more $(grep -cE 'Davey! duration=[0-9]{4,}ms' "$health/logcat.txt" 2>/dev/null), shader programs bound $(grep -c 's_glBindAttribLocation' "$health/logcat.txt" 2>/dev/null)"
 }
 trap 'finish || true' EXIT
 
