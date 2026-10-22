@@ -35,6 +35,7 @@ const PORT_INIT = 'haexspace:port:init'
 const PORT_READY = 'haexspace:port:ready'
 const INIT_INTERVAL_MS = 200
 const INIT_TIMEOUT_MS = 10_000
+const DEV_HANDSHAKE_FALLBACK_MS = 1_000
 
 export type FrameState = 'loading' | 'ready' | 'error'
 
@@ -89,6 +90,8 @@ export function useExtensionFrame(
   let attempts: MessageChannel[] = []
   let initTimer: ReturnType<typeof setInterval> | null = null
   let initDeadline: ReturnType<typeof setTimeout> | null = null
+  let devHandshakeFallback: ReturnType<typeof setTimeout> | null = null
+  let devHandshakeFallbackStarted = false
   let unregisterGuard: (() => void) | null = null
   let lastShimLocation: TabLocation | null = null
   const unlisten: UnlistenFn[] = []
@@ -119,6 +122,12 @@ export function useExtensionFrame(
     initDeadline = null
   }
 
+  function stopDevHandshakeFallback(): void {
+    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
+    devHandshakeFallback = null
+    devHandshakeFallbackStarted = false
+  }
+
   function closeSdkPorts(): void {
     stopInit()
     for (const attempt of attempts) attempt.port1.close()
@@ -128,6 +137,7 @@ export function useExtensionFrame(
   }
 
   function closePorts(): void {
+    stopDevHandshakeFallback()
     closeSdkPorts()
     shimPort?.close()
     shimPort = null
@@ -194,7 +204,11 @@ export function useExtensionFrame(
     if (!effect) return
     switch (effect.kind) {
       case 'hello':
-        if (effect.fresh) startHandshake()
+        // WebKitGTK can deliver the development page before its initialization script has
+        // installed the message listener. The load-time fallback below may already have offered
+        // the SDK port in that case; do not reset that live handshake when the late shim hello
+        // arrives.
+        if (effect.fresh && !devHandshakeFallbackStarted) startHandshake()
         return
       case 'navigate': {
         lastShimLocation = effect.location
@@ -243,6 +257,8 @@ export function useExtensionFrame(
 
   /** A new document in the frame: a fresh SDK channel. */
   function startHandshake(): void {
+    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
+    devHandshakeFallback = null
     readyFrames.gone(tab.tabId)
     closeSdkPorts()
     events.reset()
@@ -260,7 +276,24 @@ export function useExtensionFrame(
   function onLoad(): void {
     if (!frame) return
     startShim()
-    if (state.value !== 'ready') armDeadline()
+    if (devHandshakeFallback) clearTimeout(devHandshakeFallback)
+    devHandshakeFallback = null
+    devHandshakeFallbackStarted = false
+    if (state.value !== 'ready') {
+      armDeadline()
+      if (dev.value) {
+        devHandshakeFallback = setTimeout(() => {
+          devHandshakeFallback = null
+          if (frame && state.value !== 'ready') {
+            // The development page still accepts the SDK port directly even when its shim
+            // missed the one load-time init message. The shim remains available for navigation,
+            // title and close-guard messages once it eventually starts.
+            devHandshakeFallbackStarted = true
+            startHandshake()
+          }
+        }, DEV_HANDSHAKE_FALLBACK_MS)
+      }
+    }
   }
 
   async function openAsync(): Promise<void> {
