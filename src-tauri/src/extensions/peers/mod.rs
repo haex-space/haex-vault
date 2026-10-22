@@ -1,6 +1,6 @@
 //! Channels between the same extension on devices of different vaults (spec 057).
 //!
-//! A channel is one QUIC connection on `holzi-ext-peer/1` of the session endpoint: after the other
+//! A channel is one QUIC connection on `haex-vault-ext-peer/1` of the session endpoint: after the other
 //! device proved itself ([`crate::sync::foreign_auth`]) and was admitted ([`admission`]), its
 //! datagrams carry the extension's fast messages and the first stream its reliable ones
 //! ([`channel`]). Everything lives in memory ([`PeerState`]) and reaches only the frames of the

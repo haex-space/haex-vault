@@ -1,5 +1,5 @@
 //! Vaults in one process for the tests of channels (spec 057 T021): each a device of its own vault
-//! (`Member::genesis`) on a loopback endpoint without relays, with the `holzi-ext-peer/1` handler,
+//! (`Member::genesis`) on a loopback endpoint without relays, with the `haex-vault-ext-peer/1` handler,
 //! an extension host whose window is recorded, and the same test extension installed.
 //! [`open_test_channel`] opens a channel without invitation or lobby, which only tests can.
 
@@ -104,7 +104,7 @@ impl Window {
     }
 }
 
-/// How a vault answers incoming connections on `holzi-ext-peer/1`.
+/// How a vault answers incoming connections on `haex-vault-ext-peer/1`.
 pub(crate) enum Admit {
     /// The real handler, with this wait for the admission message.
     Real(Duration),

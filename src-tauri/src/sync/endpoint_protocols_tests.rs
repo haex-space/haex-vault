@@ -14,7 +14,7 @@ use crate::storage::query::{self, Query};
 use crate::sync::endpoint::NodeConfig;
 use crate::sync::test_support::Member;
 
-const ECHO_ALPN: &[u8] = b"holzi-test-echo/1";
+const ECHO_ALPN: &[u8] = b"haex-vault-test-echo/1";
 const LIMIT: Duration = Duration::from_secs(20);
 
 /// Answers every bi-stream with what it read, on the node's tracker.
@@ -125,7 +125,7 @@ async fn an_alpn_nobody_registered_is_refused() {
     let a = start(&one, Arc::new(Notify::new())).await;
     let b = start(&two, Arc::new(Notify::new())).await;
 
-    let refused = tokio::time::timeout(LIMIT, b.dial_alpn(a.addr(), b"holzi-nobody/1"))
+    let refused = tokio::time::timeout(LIMIT, b.dial_alpn(a.addr(), b"haex-vault-nobody/1"))
         .await
         .expect("an answer in time");
     assert!(matches!(refused, Err(NodeError::Connect(_))), "{refused:?}");
