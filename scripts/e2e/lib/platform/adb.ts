@@ -1,16 +1,35 @@
 // The calls the Android platform makes to one device through adb (spec 043, contract e2e-android.md).
 // One function runs every command, so a check can replace it and see the exact argument lists.
 import { execFileSync } from 'node:child_process'
+import { appendFileSync } from 'node:fs'
 
 /** Runs `adb <args>` and returns its standard output; throws when adb fails. */
 export type AdbRunner = (args: string[], input?: Buffer) => Buffer
 
-export const realAdbRunner: AdbRunner = (args, input) =>
-  execFileSync('adb', args, {
-    input,
-    maxBuffer: 1024 * 1024 * 1024,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
+/** With `E2E_ADB_LOG`, every call with its start and end on this machine's clock, to set beside
+ * the adb server's log when its connection to the emulator drops (CI material). */
+const logCall = (line: string) => {
+  const file = process.env.E2E_ADB_LOG
+  if (file) appendFileSync(file, `${new Date().toISOString()} ${line}\n`)
+}
+
+export const realAdbRunner: AdbRunner = (args, input) => {
+  logCall(`start ${args.join(' ')}`)
+  try {
+    const output = execFileSync('adb', args, {
+      input,
+      maxBuffer: 1024 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    logCall(`end ${args.slice(0, 4).join(' ')}`)
+    return output
+  } catch (error) {
+    logCall(
+      `failed ${args.slice(0, 4).join(' ')}: ${String(error).split('\n')[0]}`,
+    )
+    throw error
+  }
+}
 
 export interface Adb {
   readonly serial: string
