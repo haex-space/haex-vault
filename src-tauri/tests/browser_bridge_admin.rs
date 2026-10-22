@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 
 use bridge_fixture::*;
 use holzi_lib::browser_bridge::admin::{BridgeClientUpdate, BridgeClientView, ClientAdmin};
+use holzi_lib::browser_bridge::approvals::{self, Status};
 use holzi_lib::browser_bridge::declaration::BridgeAccess;
 use holzi_lib::browser_bridge::prompts::{
     ApprovalAnswer, BridgeAnswer, BridgeQuestion, WriteAnswer,
@@ -417,6 +418,13 @@ async fn a_remembered_approval_changes_and_goes_without_a_running_bridge() {
     approved(&mut fx, bridge.port(), &client).await;
     bridge.stop().await;
 
+    let stored = fx.stored(&client.id).await.expect("row");
+    let identity = stored.identity.clone();
+    let approval = match stored.status {
+        Status::Allowed(approval) => approval,
+        Status::Blocked => panic!("the client is allowed"),
+    };
+
     let admin = admin(&fx, None);
     admin
         .update(update(&client, BridgeAccess::Read, Some(&["web"])))
@@ -427,6 +435,17 @@ async fn a_remembered_approval_changes_and_goes_without_a_running_bridge() {
     assert_eq!(lists.clients[0].scope_tags, Some(vec!["web".to_owned()]));
     admin.revoke(&client.id).await.expect("revoke");
     assert!(fx.stored(&client.id).await.is_none());
+
+    // A stale update from before the revoke must not recreate the remembered approval.
+    let device = fx.device;
+    let recreated = fx
+        .db
+        .write(move |tx| approvals::update_allowed(tx, device, &identity, &approval))
+        .await
+        .expect("conditional update");
+    assert!(!recreated);
+    assert!(fx.stored(&client.id).await.is_none());
+
     assert!(matches!(
         admin.revoke(&client.id).await,
         Err(HolziError::BrowserBridgeClientNotFound)
