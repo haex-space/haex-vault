@@ -327,7 +327,7 @@ async fn run<R: Runtime>(
     }
 }
 
-/// The handler of `holzi-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
+/// The handler of `haex-vault-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
 /// an extension host.
 fn peer_protocols<R: Runtime>(
     peers: Option<PeerDeps>,

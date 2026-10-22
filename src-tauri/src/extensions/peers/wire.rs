@@ -1,4 +1,4 @@
-//! The messages of `holzi-ext-peer/1` after the exchange of [`crate::sync::foreign_auth`]
+//! The messages of `haex-vault-ext-peer/1` after the exchange of [`crate::sync::foreign_auth`]
 //! (contracts/wire-protocol.md): admission, invitation and the channel's reliable messages, on the
 //! first stream of the connection, framed as `u32 BE length ‖ postcard` like the sync
 //! ([`crate::sync::wire`]). Every message carries `v`; another version ends the connection.
@@ -17,7 +17,7 @@ pub const ADMISSION_FRAME_LIMIT: usize = HANDSHAKE_FRAME_LIMIT;
 /// Largest frame of an open channel: a reliable message with its head.
 pub const CHANNEL_FRAME_LIMIT: usize = RELIABLE_BYTES + 64;
 
-/// Every message of `holzi-ext-peer/1`. The order is part of the format.
+/// Every message of `haex-vault-ext-peer/1`. The order is part of the format.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Message {
     Invite {

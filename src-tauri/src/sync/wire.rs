@@ -17,7 +17,7 @@ pub const SYNC_ALPN: &[u8] = b"holzi-sync/1";
 /// ALPN of linking a new installation (user story 5).
 pub const LINK_ALPN: &[u8] = b"holzi-link/1";
 /// ALPN of channels between extensions on devices of different vaults (spec 057 research R1).
-pub const EXT_PEER_ALPN: &[u8] = b"holzi-ext-peer/1";
+pub const EXT_PEER_ALPN: &[u8] = b"haex-vault-ext-peer/1";
 
 /// Largest frame before the handshake accepted the peer.
 pub const HANDSHAKE_FRAME_LIMIT: usize = 64 * 1024;
