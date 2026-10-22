@@ -15,7 +15,7 @@ use holzi_lib::identity::{
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::model::ItemInput;
 use holzi_lib::passwords::model_passkeys::{
-    PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyCreated,
+    PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyCreated, PasskeyTarget, UserPresence,
 };
 use holzi_lib::passwords::passkey_links;
 use holzi_lib::passwords::service::PasswordsService;
@@ -115,7 +115,7 @@ impl Fixture {
 
 pub fn create_request(item_id: &str, params: &[i64]) -> PasskeyCreateRequest {
     PasskeyCreateRequest {
-        item_id: Some(item_id.to_string()),
+        target: PasskeyTarget::Existing(item_id.to_string()),
         rp_id: RP.to_string(),
         rp_name: "Example".to_string(),
         origin: ORIGIN.to_string(),
@@ -126,6 +126,7 @@ pub fn create_request(item_id: &str, params: &[i64]) -> PasskeyCreateRequest {
         exclude_credentials: Vec::new(),
         pub_key_cred_params: params.to_vec(),
         discoverable: true,
+        presence: UserPresence::None,
     }
 }
 
@@ -136,6 +137,7 @@ pub fn confirm_request(allow: &[&str]) -> PasskeyConfirmRequest {
         challenge: b64(b"get-challenge"),
         allow_credentials: allow.iter().map(|c| c.to_string()).collect(),
         item_id: None,
+        presence: UserPresence::None,
     }
 }
 

@@ -19,12 +19,16 @@ use rsa::pkcs8::EncodePrivateKey as _;
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model_passkeys::{PasskeyCreated, PasskeyListRequest};
+use holzi_lib::passwords::access::{Caller, GrantAction};
+use holzi_lib::passwords::model_passkeys::{
+    NewPasskeyEntry, PasskeyCreated, PasskeyListRequest, PasskeyTarget, UserPresence,
+};
 use holzi_lib::passwords::passkeys::{self, PasskeyInput};
 use holzi_lib::HolziError;
 
-use passkey_fixture::{b64, confirm_request, create_request, fixture, unb64, Fixture, ORIGIN, RP};
+use passkey_fixture::{
+    b64, confirm_request, create_request, extension, fixture, unb64, Fixture, ORIGIN, RP,
+};
 
 /// An imported RS256 passkey with a real key, at `item_id`.
 fn import_rs256(fx: &Fixture, item_id: &str) {
@@ -168,7 +172,7 @@ async fn excluded_credentials_algorithms_and_user_handles_are_checked_first() {
     assert!(matches!(long, Err(HolziError::InvalidInput { ref reason }) if reason == "userHandle"));
 
     let mut no_item = create_request(&item, &[-7]);
-    no_item.item_id = None;
+    no_item.target = PasskeyTarget::Existing(String::new());
     let no_item = fx.service.passkey_create(&Caller::User, &[], no_item).await;
     assert!(matches!(no_item, Err(HolziError::InvalidInput { ref reason }) if reason == "itemId"));
 
@@ -290,4 +294,116 @@ async fn no_answer_error_or_debug_output_carries_a_private_key() {
 
 fn created_json(created: &PasskeyCreated) -> serde_json::Value {
     serde_json::to_value(created).expect("value")
+}
+
+/// The flags byte of a created passkey's authenticator data.
+fn created_flags(created: &PasskeyCreated) -> u8 {
+    let Value::Map(object) =
+        ciborium::from_reader::<Value, _>(unb64(&created.attestation_object).as_slice())
+            .expect("attestation")
+    else {
+        panic!("a map");
+    };
+    object[2].1.as_bytes().expect("authData")[32]
+}
+
+#[tokio::test]
+async fn a_confirmed_ceremony_sets_up_and_the_vault_password_also_uv() {
+    let fx = fixture();
+    let item = fx.entry("Konto", &[]).await;
+    let mut request = create_request(&item, &[-7]);
+    request.presence = UserPresence::Present;
+    let created = fx
+        .service
+        .passkey_create(&Caller::User, &[], request)
+        .await
+        .expect("create");
+    assert_eq!(created_flags(&created), 0x59, "BE, BS, AT and UP; no UV");
+
+    for (presence, flags) in [
+        (UserPresence::None, 0x18),
+        (UserPresence::Present, 0x19),
+        (UserPresence::Verified, 0x1d),
+    ] {
+        let mut request = confirm_request(&[]);
+        request.presence = presence;
+        let assertion = fx
+            .service
+            .passkey_confirm(&Caller::User, &[], request)
+            .await
+            .expect("confirm");
+        let auth = unb64(&assertion.authenticator_data);
+        assert_eq!(auth[32], flags, "{presence:?}");
+        verify(
+            -7,
+            &unb64(&created.public_key_spki),
+            &auth,
+            &unb64(&assertion.client_data_json),
+            &unb64(&assertion.signature),
+        );
+    }
+}
+
+fn new_entry(tags: &[&str]) -> PasskeyTarget {
+    PasskeyTarget::New(NewPasskeyEntry {
+        title: "Example".to_owned(),
+        url: Some(ORIGIN.to_owned()),
+        username: Some("anna".to_owned()),
+        tags: tags.iter().map(|t| (*t).to_owned()).collect(),
+    })
+}
+
+#[tokio::test]
+async fn a_passkey_with_a_new_entry_comes_with_it_or_not_at_all() {
+    let fx = fixture();
+    let (caller, grants) = extension("web", GrantAction::ReadWrite);
+    let entries = || fx.count("SELECT COUNT(*) FROM haex_passwords_item_details");
+    let before = entries();
+
+    let mut request = create_request("", &[-7]);
+    request.target = new_entry(&["web"]);
+    let created = fx
+        .service
+        .passkey_create(&caller, &grants, request)
+        .await
+        .expect("create with a new entry");
+    assert_eq!(entries(), before + 1);
+    let detail = fx
+        .service
+        .get_item(&Caller::User, created.item_id.clone())
+        .await
+        .expect("the new entry");
+    assert_eq!(detail.header.title.as_deref(), Some("Example"));
+    assert_eq!(detail.header.username.as_deref(), Some("anna"));
+    let tags: Vec<_> = detail.header.tags.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(tags, ["web"]);
+    assert_eq!(detail.passkeys.len(), 1);
+    assert_eq!(fx.count("SELECT COUNT(*) FROM haex_passwords_passkeys"), 1);
+
+    // The passkey fails: the entry is not created either.
+    let mut excluded = create_request("", &[-7]);
+    excluded.target = new_entry(&["web"]);
+    excluded.exclude_credentials = vec![created.credential_id.clone()];
+    let refused = fx.service.passkey_create(&caller, &grants, excluded).await;
+    assert!(matches!(refused, Err(HolziError::PasswordsPasskeyExcluded)));
+    let mut unsupported = create_request("", &[-257]);
+    unsupported.target = new_entry(&["web"]);
+    let refused = fx
+        .service
+        .passkey_create(&caller, &grants, unsupported)
+        .await;
+    assert!(matches!(
+        refused,
+        Err(HolziError::PasswordsPasskeyUnsupportedAlgorithm)
+    ));
+    // A tag outside the grant is refused before anything is written.
+    let mut outside = create_request("", &[-7]);
+    outside.target = new_entry(&["work"]);
+    assert!(fx
+        .service
+        .passkey_create(&caller, &grants, outside)
+        .await
+        .is_err());
+    assert_eq!(entries(), before + 1);
+    assert_eq!(fx.count("SELECT COUNT(*) FROM haex_passwords_passkeys"), 1);
 }

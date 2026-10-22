@@ -7,6 +7,7 @@ use p256::ecdsa::signature::Verifier as _;
 use pkcs8::DecodePublicKey as _;
 use sha2::{Digest, Sha256};
 
+use super::model_passkeys::UserPresence;
 use super::passkeys::{EDDSA, ES256, RS256};
 use super::webauthn::{
     attestation_object, choose_algorithm, client_data_json, cose_public_key, create_auth_data,
@@ -112,7 +113,7 @@ fn the_authenticator_data_of_a_create_carries_the_attested_key() {
     let key = generate_key(ES256).expect("key");
     let cose = cose_public_key(ES256, &key.spki).expect("cose");
     let credential_id = [9u8; 32];
-    let data = create_auth_data("example.com", &credential_id, &cose);
+    let data = create_auth_data("example.com", &credential_id, &cose, UserPresence::None);
 
     assert_eq!(&data[..32], Sha256::digest(b"example.com").as_slice());
     assert_eq!(data[32], 0x58, "BE, BS and AT; no UP, no UV");
@@ -127,7 +128,7 @@ fn the_authenticator_data_of_a_create_carries_the_attested_key() {
 
 #[test]
 fn the_authenticator_data_of_a_get_has_no_key_and_no_presence() {
-    let data = get_auth_data("example.com");
+    let data = get_auth_data("example.com", UserPresence::None);
     assert_eq!(data.len(), 37);
     assert_eq!(&data[..32], Sha256::digest(b"example.com").as_slice());
     assert_eq!(data[32], 0x18, "BE and BS; no UP, no UV");
@@ -135,10 +136,30 @@ fn the_authenticator_data_of_a_get_has_no_key_and_no_presence() {
 }
 
 #[test]
+fn a_confirmation_sets_up_and_the_vault_password_also_uv() {
+    let cose = [1u8; 4];
+    let id = [2u8; 32];
+    for (presence, flags) in [
+        (UserPresence::None, 0),
+        (UserPresence::Present, FLAG_UP),
+        (UserPresence::Verified, FLAG_UP | FLAG_UV),
+    ] {
+        let created = create_auth_data("example.com", &id, &cose, presence);
+        assert_eq!(
+            created[32],
+            FLAG_BE | FLAG_BS | FLAG_AT | flags,
+            "{presence:?}"
+        );
+        let got = get_auth_data("example.com", presence);
+        assert_eq!(got[32], FLAG_BE | FLAG_BS | flags, "{presence:?}");
+    }
+}
+
+#[test]
 fn the_relying_party_hash_uses_the_ascii_form() {
     assert_eq!(
-        get_auth_data("Bücher.Example"),
-        get_auth_data("xn--bcher-kva.example")
+        get_auth_data("Bücher.Example", UserPresence::None),
+        get_auth_data("xn--bcher-kva.example", UserPresence::None)
     );
 }
 
@@ -187,7 +208,7 @@ fn rs256_gets_no_cose_key_and_no_new_key() {
 
 #[test]
 fn the_attestation_object_is_fmt_none() {
-    let auth_data = get_auth_data("example.com");
+    let auth_data = get_auth_data("example.com", UserPresence::None);
     let object = attestation_object(&auth_data);
     let Value::Map(entries) = ciborium::from_reader::<Value, _>(object.as_slice()).expect("cbor")
     else {
@@ -219,7 +240,7 @@ fn the_client_data_has_a_fixed_field_order() {
 
 #[test]
 fn signatures_verify_with_the_derived_public_key() {
-    let auth_data = get_auth_data("example.com");
+    let auth_data = get_auth_data("example.com", UserPresence::None);
     let client = client_data_json(Ceremony::Get, b"challenge", "https://example.com");
     let mut signed = auth_data.clone();
     signed.extend_from_slice(&Sha256::digest(client.as_bytes()));

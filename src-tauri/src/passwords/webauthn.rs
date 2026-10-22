@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 use url::{Host, Url};
 use zeroize::Zeroizing;
 
+use super::model_passkeys::UserPresence;
 use super::passkeys::{EDDSA, ES256};
 
 /// User present. Not set: holzi has no trusted, ceremony-bound proof that a person is there (R8).
@@ -279,12 +280,28 @@ fn rp_id_hash(rp_id: &str) -> [u8; 32] {
     Sha256::digest(ascii.as_bytes()).into()
 }
 
-/// Authenticator data for a create (flags `0x58`: BE, BS, AT): the relying party hash, the flags,
-/// the counter 0, an AAGUID of zeros, the credential id with its length and the COSE key.
-pub fn create_auth_data(rp_id: &str, credential_id: &[u8], cose_key: &[u8]) -> Vec<u8> {
+/// UP and UV for a presence (ADR-0015): none without a confirmation, UP after one, UP and UV when
+/// the confirmation took the vault password.
+fn presence_flags(presence: UserPresence) -> u8 {
+    match presence {
+        UserPresence::None => 0,
+        UserPresence::Present => FLAG_UP,
+        UserPresence::Verified => FLAG_UP | FLAG_UV,
+    }
+}
+
+/// Authenticator data for a create (flags `0x58`: BE, BS, AT, plus UP/UV by `presence`): the
+/// relying party hash, the flags, the counter 0, an AAGUID of zeros, the credential id with its
+/// length and the COSE key.
+pub fn create_auth_data(
+    rp_id: &str,
+    credential_id: &[u8],
+    cose_key: &[u8],
+    presence: UserPresence,
+) -> Vec<u8> {
     let mut data = Vec::with_capacity(55 + credential_id.len() + cose_key.len());
     data.extend_from_slice(&rp_id_hash(rp_id));
-    data.push(FLAG_BE | FLAG_BS | FLAG_AT);
+    data.push(FLAG_BE | FLAG_BS | FLAG_AT | presence_flags(presence));
     // ponytail: the counter is always 0 (research R5); a synced passkey has no global order.
     data.extend_from_slice(&0u32.to_be_bytes());
     data.extend_from_slice(&[0u8; 16]);
@@ -296,13 +313,13 @@ pub fn create_auth_data(rp_id: &str, credential_id: &[u8], cose_key: &[u8]) -> V
     data
 }
 
-/// Authenticator data for a get (flags `0x18`: BE, BS): the relying party hash, the flags and the
-/// counter 0.
-pub fn get_auth_data(rp_id: &str) -> Vec<u8> {
+/// Authenticator data for a get (flags `0x18`: BE, BS, plus UP/UV by `presence`): the relying
+/// party hash, the flags and the counter 0.
+pub fn get_auth_data(rp_id: &str, presence: UserPresence) -> Vec<u8> {
     let mut data = Vec::with_capacity(37);
     data.extend_from_slice(&rp_id_hash(rp_id));
-    // ponytail: no UP and no UV until a trusted, ceremony-bound presence provider exists (R8).
-    data.push(FLAG_BE | FLAG_BS);
+    // UP and UV only with a ceremony-bound confirmation (ADR-0015, superseding ADR-0009 here).
+    data.push(FLAG_BE | FLAG_BS | presence_flags(presence));
     data.extend_from_slice(&0u32.to_be_bytes());
     data
 }
