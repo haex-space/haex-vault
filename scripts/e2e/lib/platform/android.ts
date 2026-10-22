@@ -64,8 +64,10 @@ export function prepareDevice(
     adb.shell('wm', 'size', '1080x2400')
     adb.shell('wm', 'density', '480')
   } else {
-    adb.shell('wm', 'size', '2560x1600')
-    adb.shell('wm', 'density', '320')
+    // At density 160, not 320: the same 1280×800 dp in a quarter of the pixels. The emulator
+    // renders on the CPU (SwiftShader); a film in a maximized window at 2560×1600 froze it.
+    adb.shell('wm', 'size', '1280x800')
+    adb.shell('wm', 'density', '160')
   }
   adb.shell(
     'cmd',
