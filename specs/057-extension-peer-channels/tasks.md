@@ -59,10 +59,10 @@ so Phase 6 and 7 (PR 2) are done before Phase 5 (PR 3).
 ## Phase 1: Setup (PR 1)
 
 - [x] T001 Spec, clarifications, plan, research, data model, contracts, quickstart and ADR 0016 in `specs/057-extension-peer-channels/` and `docs/adr/0016-non-contact-devices-for-public-lobbies.md`
-- [ ] T002 [P] Row for 057 in `plans/README.md` (status "Spezifiziert und geplant 2026-10-22 (PR 1–4 + SDK)", needs 017, 024 and 051 in use; first user haex-doom)
-- [ ] T003 Prepare the worktree for code: `nix develop --command pnpm install --frozen-lockfile` (done for the docs; repeat after a rebase), check `df -h`, then `nix develop --command scripts/with-nix-host-bridge.sh cargo check -j 4 --manifest-path src-tauri/Cargo.toml`
+- [X] T002 [P] Row for 057 in `plans/README.md` (status "Spezifiziert und geplant 2026-10-22 (PR 1–4 + SDK)", needs 017, 024 and 051 in use; first user haex-doom)
+- [X] T003 Prepare the worktree for code: `nix develop --command pnpm install --frozen-lockfile` (done for the docs; repeat after a rebase), check `df -h`, then `nix develop --command scripts/with-nix-host-bridge.sh cargo check -j 4 --manifest-path src-tauri/Cargo.toml`
 - [ ] T004 [P] Graphify consultation before the first new name: bounded queries for "protocol handler on the sync router", "verify a device of another vault", "per-extension state cleaned up when the last frame closes", "notification with buttons answered in rust", "rate limit per remote endpoint"; note the candidates in the PR description (plan.md Constitution Check lists the starting set)
-- [ ] T005 [P] Glossary in `CONTEXT.md` under "Erweiterungen (spec 017)": **Kanal / Lobby / Beitrittscode / Einladungsabfrage / Peer-Berechtigung** (spec 057), with _Avoid_: "Peer" for a contact, "Space" or "Raum" for a lobby, "Session" for a channel
+- [X] T005 [P] Glossary in `CONTEXT.md` under "Erweiterungen (spec 017)": **Kanal / Lobby / Beitrittscode / Einladungsabfrage / Peer-Berechtigung** (spec 057), with _Avoid_: "Peer" for a contact, "Space" or "Raum" for a lobby, "Session" for a channel
 
 ---
 

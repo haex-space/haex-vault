@@ -445,6 +445,35 @@ anything to a destination outside this device, the user consents (`modelDestinat
 for the session or remembered) and sees the provider, the address and what would be sent.
 _Avoid_: location, region.
 
+**Kanal** (channel, spec 057):
+A connection between the same extension on devices of two different vaults, opened by an accepted
+invitation or a join with a **Beitrittscode**. It carries fast messages (datagrams, may be lost) and
+reliable ones (in order), end to end encrypted, and ends with a reason (`closed`, `lost`,
+`timeout`). Only the frames of the extension it belongs to see it; nothing of it is stored.
+_Avoid_: session, connection (for the extension's view), peer for a contact.
+
+**Lobby** (spec 057):
+A place a host's extension opens on its device so others can join with its **Beitrittscode**:
+"nur Kontakte" admits own devices and contacts only, "öffentlich" also devices of other vaults,
+marked as not verified (ADR 0016). Closing it makes the code useless; its channels stay.
+_Avoid_: space, Raum, room.
+
+**Beitrittscode** (join code, spec 057):
+The opaque text `holzi:join:…` of an open **Lobby**: the host's address, a random lobby id and a
+secret that never travels in the clear. It names no person, vault or contact.
+_Avoid_: invite link, token.
+
+**Einladungsabfrage** (invitation prompt, spec 057):
+holzi's own question "[Kontakt] lädt dich zu [Erweiterung] ein" with Annehmen/Ablehnen, in the
+window or as holzi's notification. Only the user answers it; the extension learns of an invitation
+only after it was accepted.
+_Avoid_: invitation dialog of the extension, accept call.
+
+**Peer-Berechtigung** (spec 057):
+The **Berechtigung** of kind `peers` (action `connect`, target `*`), vault-wide: the extension may
+open channels to itself on devices of other vaults.
+_Avoid_: network permission, peer for a contact.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and
