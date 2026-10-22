@@ -146,6 +146,8 @@ pub async fn create_instance(
     // Spec 024: the sync service runs as tracked session work and ends with the close.
     crate::vault_events::start_for_active_instance(&app, &state);
     crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
+    // Spec 057: channels end when their permission or the other vault's standing goes.
+    crate::extensions::peers::watch::start_for_active_instance(&app, &state);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     // Spec 051 (FR-021): changes of contacts reach the phone's address book.
     crate::contacts::phone::trigger::watch(&app);

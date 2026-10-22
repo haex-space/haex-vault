@@ -21,16 +21,17 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::error::{HolziError, Result};
+use crate::extensions::host::ExtensionHost;
 use crate::instances::paths::get_app_local_data;
 use crate::state::AppState;
-use crate::sync::endpoint::{NodeConfig, SyncNode};
+use crate::sync::endpoint::{NodeConfig, Protocols, SyncNode};
 use crate::sync::events::{self, LINK_HOST_STATE_CHANGED, SYNC_DEVICES_CHANGED};
 use crate::sync::keys::{self, DeviceKeys};
 use crate::sync::link::host_task::LinkHost;
 use crate::sync::registry::{SyncRegistry, SyncRuntime};
 use crate::sync::replica::Replica;
 use crate::sync::resume::Wakeups;
-use crate::vault_gate::VaultGate;
+use crate::vault_gate::{VaultDb, VaultGate};
 
 /// Everything [`SyncService::start`] needs, already resolved by the caller:
 /// keys and the vault pubkey come from genesis, which already ran when the
@@ -48,6 +49,15 @@ pub struct SyncDeps<R: Runtime> {
     /// tests pin this to loopback, like [`crate::sync::endpoint`]'s own tests do.
     pub bind_addr: Option<std::net::SocketAddr>,
     pub app: AppHandle<R>,
+    /// What the channels between extensions need (spec 057); `None` runs the sync alone.
+    pub peers: Option<PeerDeps>,
+}
+
+/// The extension host whose channels the endpoint serves, and a handle on the open vault for
+/// their lookups.
+pub struct PeerDeps {
+    pub host: Arc<ExtensionHost>,
+    pub db: VaultDb,
 }
 
 /// How often a session checks for devices presence knows an address for but
@@ -155,6 +165,10 @@ async fn resolve_deps<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Resul
         nostr_relays,
         bind_addr: crate::sync::endpoint::app_bind_addr(),
         app: app.clone(),
+        peers: Some(PeerDeps {
+            host: state.extensions(),
+            db: state.database()?,
+        }),
     })
 }
 
@@ -194,7 +208,18 @@ async fn run<R: Runtime>(
         bind_addr,
         session: Some(session),
     };
-    let node = match SyncNode::bind(deps.replica, deps.keys, deps.vault, config, on_applied).await {
+    let peer_host = deps.peers.as_ref().map(|peers| Arc::clone(&peers.host));
+    let protocols = peer_protocols(deps.peers, &deps.keys, vault, &devices_app);
+    let node = match SyncNode::bind_with(
+        deps.replica,
+        deps.keys,
+        deps.vault,
+        config,
+        on_applied,
+        protocols,
+    )
+    .await
+    {
         Ok(node) => node,
         Err(error) => {
             log::warn!("sync: the endpoint did not bind, this session will not sync: {error}");
@@ -296,6 +321,36 @@ async fn run<R: Runtime>(
     runtime.cancel.cancel();
     drop(registered);
     node.shutdown().await;
+    // Spec 057: nothing of the session's channels outlives it.
+    if let Some(host) = peer_host {
+        host.peers.clear();
+    }
+}
+
+/// The handler of `holzi-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
+/// an extension host.
+fn peer_protocols<R: Runtime>(
+    peers: Option<PeerDeps>,
+    keys: &DeviceKeys,
+    vault: [u8; 32],
+    app: &AppHandle<R>,
+) -> Protocols {
+    use crate::extensions::commands::frames::WindowEmitter;
+    use crate::extensions::peers::admission::{PeerContext, PeerProtocol};
+    use crate::extensions::peers::channel::Frames;
+
+    let Some(PeerDeps { host, db }) = peers else {
+        return Protocols::default();
+    };
+    let ctx = Arc::new(PeerContext {
+        keys: keys.clone(),
+        vault,
+        db,
+        frames: Frames::new(Arc::new(WindowEmitter(app.clone())), &host),
+    });
+    Protocols::default().with(crate::sync::wire::EXT_PEER_ALPN, move |tasks| {
+        PeerProtocol::new(ctx, tasks)
+    })
 }
 
 /// Clears the registry when dropped.

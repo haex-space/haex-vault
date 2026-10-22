@@ -9,6 +9,7 @@
 pub mod admission;
 pub mod channel;
 pub mod state;
+pub mod watch;
 pub mod wire;
 
 #[cfg(test)]

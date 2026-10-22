@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Runtime, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -117,6 +117,7 @@ pub async fn extension_frame_close(
         if last {
             host.mail_watches.end_all(closed.extension_id);
             host.shells.end_all(closed.extension_id);
+            host.peers.end_all(closed.extension_id);
         }
     }
     host.drop_dialogs_of(&frame);
@@ -178,9 +179,9 @@ pub async fn extension_encrypted_folder_choose_resolve(
 pub const CONTEXT_CHANGED: &str = "haextension:context:changed";
 
 /// Hands holzi's events to its own window.
-pub(crate) struct WindowEmitter(pub(crate) AppHandle);
+pub(crate) struct WindowEmitter<R: Runtime = tauri::Wry>(pub(crate) AppHandle<R>);
 
-impl Emit for WindowEmitter {
+impl<R: Runtime> Emit for WindowEmitter<R> {
     fn emit(&self, event: &str, payload: Value) {
         if let Err(error) = self.0.emit(event, payload) {
             log::warn!("{event} not delivered: {error}");
