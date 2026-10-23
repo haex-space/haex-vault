@@ -390,7 +390,7 @@ Spalte `current_bundle_id` mit Last-Writer-Wins (verletzt „höhere Fassung gew
   Erweiterung“-Speicher wie HV `protocol.rs:21-24, 498-560`), liest abseits des Executors, antwortet mit
   `Access-Control-Allow-Origin: *` (Module unter undurchsichtigem Ursprung) und fällt für SPA-Routen auf
   `index.html` zurück.
-- Abschottung über `sandbox="allow-scripts allow-pointer-lock"` (und `allow="fullscreen"`) ohne `allow-same-origin`: jeder Rahmen hat einen eigenen
+- Abschottung über `sandbox="allow-scripts allow-pointer-lock"` (mit `allow="fullscreen" allowfullscreen`) ohne `allow-same-origin`: jeder Rahmen hat einen eigenen
   undurchsichtigen Ursprung, getrennt von holzi, von anderen Erweiterungen und von eigenen anderen Tabs.
   Kein `allow-top-navigation`, `allow-popups`, `allow-forms`. `allow-pointer-lock` und `allow="fullscreen"` gelten für alle Erweiterungen (Mausblick und Vollbild für haex-doom): beide verlangen eine Nutzergeste im Rahmen, der Nutzer verlässt sie mit Esc, und keiner gibt dem Rahmen Zugriff auf holzi oder andere Erweiterungen. Folge: Browser-Speicher, Cookies, IndexedDB und
   Service Worker gibt es im Rahmen nicht; das SDK ersetzt `localStorage` und Cookies schon durch Attrappen

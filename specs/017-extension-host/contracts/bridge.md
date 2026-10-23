@@ -6,7 +6,7 @@ Richtung B aus ADR-0004. Protokoll des vault-sdk v3.7.0 (`src/messages.ts`, `src
 
 ## Rahmen
 
-- `<iframe sandbox="allow-scripts allow-pointer-lock" allow="fullscreen" src="holzi-ext://localhost/<extId>/<entry>?hf=<token>#<ort>">`
+- `<iframe sandbox="allow-scripts allow-pointer-lock" allow="fullscreen" allowfullscreen src="holzi-ext://localhost/<extId>/<entry>?hf=<token>#<ort>">`
   (Windows: `http://holzi-ext.localhost/…`), kein `allow-same-origin`, `allow-popups`,
   `allow-top-navigation`, `allow-forms`. `allow-pointer-lock` und `allow="fullscreen"` lassen eine Erweiterung die
   Maus fangen und ihren Rahmen auf den Bildschirm ziehen, jeweils nur nach einer Nutzergeste im Rahmen (R12, H2 von

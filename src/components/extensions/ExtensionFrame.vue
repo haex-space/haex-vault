@@ -37,6 +37,7 @@ const {
         :src="src"
         sandbox="allow-scripts allow-pointer-lock"
         allow="fullscreen"
+        allowfullscreen
         data-testid="extension-frame"
         :data-extension-id="extensionId"
         referrerpolicy="no-referrer"
