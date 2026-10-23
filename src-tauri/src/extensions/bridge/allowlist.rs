@@ -4,8 +4,8 @@
 use super::dispatch::Method;
 use super::{database, methods, model_jobs, permissions};
 use crate::extensions::{
-    contacts, encrypted_folder, fs, kv, logs, mail, notifications, passwords, remote_storage,
-    remote_storage_manage, remote_storage_propose, shell, web,
+    contacts, encrypted_folder, fs, kv, logs, mail, notifications, passwords, peers,
+    remote_storage, remote_storage_manage, remote_storage_propose, shell, web,
 };
 
 /// The allowlist (contracts/bridge.md §Methoden).
@@ -224,6 +224,46 @@ pub static METHODS: &[Method] = &[
         name: "extension_permissions_check_web",
         handler: web::check_web,
         module: web::MODULE,
+    },
+    Method {
+        name: "extension_peers_invite",
+        handler: peers::bridge::invite,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_invite_cancel",
+        handler: peers::bridge::invite_cancel,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_lobby_open",
+        handler: peers::bridge::lobby_open,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_lobby_close",
+        handler: peers::bridge::lobby_close,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_join",
+        handler: peers::bridge::join,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_remove",
+        handler: peers::bridge::remove,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_send",
+        handler: peers::bridge::send,
+        module: peers::bridge::MODULE,
+    },
+    Method {
+        name: "extension_peers_close",
+        handler: peers::bridge::close,
+        module: peers::bridge::MODULE,
     },
     Method {
         name: "extension_contacts_list",
