@@ -2,10 +2,13 @@
 //! R7): every incoming connection runs on the session's tracker, passes the [`Throttle`], proves
 //! itself ([`foreign_auth`]) and then has [`ADMISSION_LIMIT`] to ask for admission (FR-032).
 //!
-//! A device that is not verified is cut right after the exchange: public lobbies, the one place
-//! it may enter (ADR 0016), come next. A `Join` goes to [`lobby::admit_join`]; invitations come
-//! with their own delivery, so an `Invite` ends the connection for now, as silence does after
-//! the limit. Every refusal looks the same from outside.
+//! A device of a vault that is no contact enters only while a lobby is open
+//! (`docs/adr/0016-non-contact-devices-for-public-lobbies.md`): with a public lobby it may join as
+//! not verified; with only lobbies for contacts it may send one bounded `Join`, which ends with
+//! `NotAdmitted` after a valid proof and without an answer otherwise (FR-031); with none it is cut
+//! right after the exchange. A `Join` goes to [`lobby::admit_join`]; invitations come with their
+//! own delivery, so an `Invite` ends the connection for now, as silence does after the limit.
+//! Every refusal looks the same from outside.
 //!
 //! [`ADMISSION_LIMIT`]: super::limits::ADMISSION_LIMIT
 
@@ -17,9 +20,9 @@ use iroh::protocol::{AcceptError, ProtocolHandler};
 
 use super::channel::Frames;
 use super::limits::ADMISSION_LIMIT;
-use super::lobby::{self, JoinRequest, Joining};
+use super::lobby::{self, JoinRequest, Joining, Openness};
 use super::throttle::Throttle;
-use super::wire::{self, Message, ADMISSION_FRAME_LIMIT};
+use super::wire::{self, Message, ADMISSION_FRAME_LIMIT, JOIN_FRAME_LIMIT};
 use super::FEATURE;
 use crate::sync::endpoint::NodeTasks;
 use crate::sync::foreign_auth::{self, Local, Purpose, SeenGenerations, Trust, Verified};
@@ -112,11 +115,19 @@ impl PeerProtocol {
         let Some(host) = self.ctx.frames.host() else {
             return refuse(&connection);
         };
-        // Devices of vaults that are no contact come in with public lobbies (ADR 0016).
-        if remote.trust == Trust::Unverified {
-            return refuse(&connection);
-        }
-        let frame_limit = ADMISSION_FRAME_LIMIT;
+        // Only a device that is not verified waits in the throttle's pending places, and it
+        // may send one bounded join only.
+        let (frame_limit, _pending) = if remote.trust == Trust::Unverified {
+            if host.peers.openness() == Openness::None {
+                return refuse(&connection);
+            }
+            let Some(pending) = self.throttle.unverified(Instant::now()) else {
+                return refuse(&connection);
+            };
+            (JOIN_FRAME_LIMIT, Some(pending))
+        } else {
+            (ADMISSION_FRAME_LIMIT, None)
+        };
         let limit = self.admission_limit;
         let first = match tokio::time::timeout(limit, wire::read(&mut recv, frame_limit)).await {
             Ok(Ok(Some(message))) => message,
