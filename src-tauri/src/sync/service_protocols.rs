@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 use crate::error::Result;
 use crate::extensions::host::ExtensionHost;
-use crate::files::local::OwnPlaces;
+use crate::files::local::{known_places, OwnPlaces, Place};
 use crate::files::peer::serve::ServeContext;
 use crate::state::AppState;
 use crate::sync::endpoint::Protocols;
@@ -26,6 +26,7 @@ pub struct PeerDeps {
 pub struct FilesDeps {
     pub db: VaultDb,
     pub own: OwnPlaces,
+    pub known: Vec<Place>,
     pub device: String,
 }
 
@@ -42,6 +43,7 @@ pub fn files_deps<R: Runtime>(
     Ok(Some(FilesDeps {
         db: state.database()?,
         own: OwnPlaces::from_app(app),
+        known: known_places(app),
         device: device.to_string(),
     }))
 }
@@ -87,10 +89,23 @@ pub fn file_protocols(
 ) -> (Protocols, Option<Arc<ServeContext>>) {
     use crate::files::peer::serve::FilesProtocol;
 
-    let Some(FilesDeps { db, own, device }) = files else {
+    let Some(FilesDeps {
+        db,
+        own,
+        known,
+        device,
+    }) = files
+    else {
         return (protocols, None);
     };
-    let ctx = Arc::new(ServeContext::new(keys.clone(), vault, db, own, device));
+    let ctx = Arc::new(ServeContext::new(
+        keys.clone(),
+        vault,
+        db,
+        own,
+        known,
+        device,
+    ));
     let handler = Arc::clone(&ctx);
     let protocols = protocols.with(crate::sync::wire::FILES_ALPN, move |tasks| {
         FilesProtocol::new(handler, tasks)

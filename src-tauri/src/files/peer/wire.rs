@@ -15,6 +15,8 @@ pub const VERSION: u8 = 1;
 pub const HEAD_LIMIT: usize = 64 * 1024;
 /// The most entries of one listing (`MAX_ENTRIES` of the file browser).
 pub const MAX_LIST: u32 = 100_000;
+/// The largest part of an upload.
+pub const MAX_PART: u64 = 64 * 1024 * 1024;
 
 /// What the serving device lets the other side do (research R4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,6 +76,44 @@ pub enum Op {
         start: u64,
         len: u64,
     },
+    /// Starts writing the file `path`; it finishes only while the file is still as `expected`.
+    BeginUpload {
+        share: Option<String>,
+        path: String,
+        expected: Expected,
+    },
+    /// Part `number` (from 1, in order) of an upload of this connection; `len` bytes follow the
+    /// head.
+    UploadPart {
+        upload_id: String,
+        number: u16,
+        len: u64,
+    },
+    /// Puts the uploaded file in place, or answers `Conflict` and leaves the old one.
+    FinishUpload { upload_id: String },
+    /// Drops an upload and its temporary file.
+    AbortUpload { upload_id: String },
+    /// Creates the folder `path`.
+    CreateFolder { share: Option<String>, path: String },
+    /// Moves or renames `from` to `to` below the same root.
+    Move {
+        share: Option<String>,
+        from: String,
+        to: String,
+    },
+    /// Removes the file or folder `path`, into the trash where there is one (research R8).
+    Delete { share: Option<String>, path: String },
+    /// Reports changes in the folder `path` until the stream ends (research R16).
+    Watch { share: Option<String>, path: String },
+}
+
+/// What a file must still be when an upload finishes (FR-036).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Expected {
+    /// There was no file at the path.
+    Absent,
+    /// The file as the requesting device saw it.
+    Version { size: u64, etag: String },
 }
 
 impl Op {
@@ -81,16 +121,34 @@ impl Op {
     pub fn share(&self) -> Option<&str> {
         match self {
             Op::Shares => None,
-            Op::ListDir { share, .. } | Op::Stat { share, .. } | Op::Read { share, .. } => {
-                share.as_deref()
-            }
+            Op::ListDir { share, .. }
+            | Op::Stat { share, .. }
+            | Op::Read { share, .. }
+            | Op::BeginUpload { share, .. }
+            | Op::CreateFolder { share, .. }
+            | Op::Move { share, .. }
+            | Op::Delete { share, .. }
+            | Op::Watch { share, .. } => share.as_deref(),
+            // A part belongs to an upload, which knows its root.
+            Op::UploadPart { .. } | Op::FinishUpload { .. } | Op::AbortUpload { .. } => None,
         }
     }
 
     /// Whether the request changes something on the serving device.
     pub fn writes(&self) -> bool {
         match self {
-            Op::Shares | Op::ListDir { .. } | Op::Stat { .. } | Op::Read { .. } => false,
+            Op::Shares
+            | Op::ListDir { .. }
+            | Op::Stat { .. }
+            | Op::Read { .. }
+            | Op::Watch { .. } => false,
+            Op::BeginUpload { .. }
+            | Op::UploadPart { .. }
+            | Op::FinishUpload { .. }
+            | Op::AbortUpload { .. }
+            | Op::CreateFolder { .. }
+            | Op::Move { .. }
+            | Op::Delete { .. } => true,
         }
     }
 }
@@ -102,6 +160,13 @@ pub struct WireShare {
     pub name: String,
     pub item_kind: FileShareItemKind,
     pub level: FileShareLevel,
+}
+
+/// A place to start in on an own device: a drive or a known place, by its window path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WireRoot {
+    pub name: String,
+    pub path: String,
 }
 
 /// A file or a folder.
@@ -143,6 +208,9 @@ pub enum FailCode {
     /// The serving device does not offer this yet.
     #[error("unsupported")]
     Unsupported,
+    /// The name is taken already.
+    #[error("name taken")]
+    NameTaken,
     #[error("internal")]
     Internal,
 }
@@ -151,6 +219,11 @@ pub enum FailCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Reply {
     Shares(Vec<WireShare>),
+    /// The drives and known places of an own device.
+    Roots {
+        drives: Vec<WireRoot>,
+        known: Vec<WireRoot>,
+    },
     Entries(Vec<WireEntry>),
     Entry(WireEntry),
     /// The bytes of a read follow: `len` of them, from a file of `size` bytes.
@@ -158,6 +231,17 @@ pub enum Reply {
         size: u64,
         len: u64,
     },
+    Upload {
+        upload_id: String,
+    },
+    /// The mark of an uploaded part.
+    Mark(String),
+    Done,
+    Deleted {
+        trashed: bool,
+    },
+    /// Something changed in the watched folder.
+    Changed,
     Failed(FailCode),
 }
 

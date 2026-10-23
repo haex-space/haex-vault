@@ -14,12 +14,13 @@ use iroh::RelayMode;
 
 use crate::contacts::card::own_card;
 use crate::contacts::service::{Caller as ContactsCaller, CardInto, ContactsService};
-use crate::files::local::OwnPlaces;
+use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::client::{PeerLink, PeerLinks};
 use crate::files::peer::handshake::DialError;
 use crate::files::peer::serve::{FilesProtocol, ServeContext};
 use crate::files::share::store::{self, NewFileShare};
 use crate::files::share::{FileShareItemKind, FileShareLevel};
+use crate::files::transfer::local::Removal;
 use crate::files::SourceRef;
 use crate::remote_storage::StorageError;
 use crate::sync::endpoint::{NodeConfig, Protocols, SyncNode};
@@ -60,13 +61,20 @@ impl Device {
         let root = files.path().canonicalize().expect("root");
         std::fs::create_dir_all(root.join("holzi-own")).expect("own place");
         let own = OwnPlaces::new(vec![root.join("holzi-own")]);
-        let ctx = Arc::new(ServeContext::new(
+        let mut ctx = ServeContext::new(
             member.keys.clone(),
             member.vault,
             db.clone(),
             own,
+            vec![Place {
+                name: "home",
+                path: root.clone(),
+            }],
             uuid.clone(),
-        ));
+        );
+        // Tests never move anything into the user's trash.
+        ctx.removal = Removal::Permanent;
+        let ctx = Arc::new(ctx);
         let handler_ctx = Arc::clone(&ctx);
         let protocols = Protocols::default().with(FILES_ALPN, move |tasks| {
             FilesProtocol::new(handler_ctx, tasks)

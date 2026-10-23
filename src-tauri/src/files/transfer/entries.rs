@@ -17,7 +17,7 @@ pub(super) fn entry_name(path: &Path) -> Result<&OsStr, FilesError> {
 }
 
 /// Removes an entry (a link itself, never its target).
-pub(super) fn remove(path: &Path, how: Removal) -> Result<(), FilesError> {
+pub(crate) fn remove(path: &Path, how: Removal) -> Result<(), FilesError> {
     let Ok(meta) = std::fs::symlink_metadata(path) else {
         return Ok(());
     };

@@ -3,69 +3,26 @@
 //! viewer, transfers, search and agents treat it like any other storage. Keys are window paths
 //! without the leading `/`; a folder is a key ending in `/`, as on WebDAV and SFTP.
 //!
-//! This delivery reads; writing comes with the delivery for own devices and answers
-//! [`StorageError::Unsupported`] until then.
+//! Writing goes through uploads that finish only while the target is as it was when they began
+//! (FR-036); a copy streams through holzi, as the serving device copies nothing on its own.
 
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::time::Instant;
 use zeroize::Zeroizing;
 
 use crate::files::peer::client::PeerLinks;
-use crate::files::peer::wire::{Caller, FailCode, Op, Reply, WireEntry, WireKind, MAX_LIST};
+use crate::files::peer::exact::ExactBytes;
+use crate::files::peer::wire::{
+    Caller, Expected, FailCode, Op, Reply, WireEntry, WireKind, WireRoot, MAX_LIST, MAX_PART,
+};
 use crate::passwords::clock::format_millis;
 use crate::remote_storage::{
     Access, Addressing, Credentials, DirListing, EndpointScope, Location, ObjectHead, ObjectInfo,
     ObjectStore, PasswordCredentials, Protocol, ProviderKind, StorageError,
 };
-
-/// A peer must deliver exactly the byte count it announced. Without this guard, a file that
-/// shrinks after the server's metadata check is silently returned as a successful truncated read.
-struct ExactBytes<R> {
-    inner: R,
-    remaining: u64,
-}
-
-impl<R> ExactBytes<R> {
-    fn new(inner: R, expected: u64) -> Self {
-        Self {
-            inner,
-            remaining: expected,
-        }
-    }
-}
-
-impl<R: AsyncRead + Unpin> AsyncRead for ExactBytes<R> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        if self.remaining == 0 {
-            return Poll::Ready(Ok(()));
-        }
-        let before = buf.filled().len();
-        match Pin::new(&mut self.inner).poll_read(cx, buf) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(())) => {
-                let read = buf.filled().len() - before;
-                if read == 0 {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "peer returned fewer bytes than announced",
-                    )));
-                }
-                self.remaining = self.remaining.saturating_sub(read as u64);
-                Poll::Ready(Ok(()))
-            }
-            Poll::Ready(Err(error)) => Poll::Ready(Err(error)),
-        }
-    }
-}
 
 /// What a call needs to reach `target` (`peer:<device>` or `share:<id>`) and, for a share, the
 /// share's id at its owner; it needs no credentials, so they are empty.
@@ -105,11 +62,67 @@ impl PeerStore {
         access: &Access,
         op: Op,
     ) -> Result<(Reply, iroh::endpoint::RecvStream), StorageError> {
+        self.ask_with(access, op, &[]).await
+    }
+
+    async fn ask_with(
+        &self,
+        access: &Access,
+        op: Op,
+        body: &[u8],
+    ) -> Result<(Reply, iroh::endpoint::RecvStream), StorageError> {
         let link = self.links.link(&access.location.endpoint).await?;
-        let (reply, recv) = link.ask(self.caller, op).await?;
+        let (reply, recv) = link.ask_with(self.caller, op, body).await?;
         match reply {
             Reply::Failed(code) => Err(storage_error_of(code)),
             reply => Ok((reply, recv)),
+        }
+    }
+
+    /// Sends `op` before `deadline` and expects `Done`.
+    async fn done(&self, access: &Access, op: Op, deadline: Instant) -> Result<(), StorageError> {
+        let (reply, _) = tokio::time::timeout_at(deadline, self.ask(access, op))
+            .await
+            .map_err(|_| StorageError::TimedOut)??;
+        match reply {
+            Reply::Done | Reply::Deleted { .. } => Ok(()),
+            _ => Err(unexpected()),
+        }
+    }
+
+    /// Reports every change in the folder `prefix` to `changed` until the serving device ends the
+    /// watch or the returned stream is dropped (research R16).
+    pub async fn watch(
+        &self,
+        access: &Access,
+        prefix: &str,
+        deadline: Instant,
+    ) -> Result<iroh::endpoint::RecvStream, StorageError> {
+        let op = Op::Watch {
+            share: share_of(access),
+            path: path_of(prefix),
+        };
+        let (reply, recv) = tokio::time::timeout_at(deadline, self.ask(access, op))
+            .await
+            .map_err(|_| StorageError::TimedOut)??;
+        match reply {
+            Reply::Done => Ok(recv),
+            _ => Err(unexpected()),
+        }
+    }
+
+    /// The drives and known places of an own device, by their window paths.
+    pub async fn roots(
+        &self,
+        access: &Access,
+        deadline: Instant,
+    ) -> Result<(Vec<WireRoot>, Vec<WireRoot>), StorageError> {
+        let (reply, _) = tokio::time::timeout_at(deadline, self.ask(access, Op::Shares))
+            .await
+            .map_err(|_| StorageError::TimedOut)??;
+        match reply {
+            Reply::Roots { drives, known } => Ok((drives, known)),
+            _ => Err(unexpected()),
         }
     }
 }
@@ -129,7 +142,7 @@ pub fn storage_error_of(code: FailCode) -> StorageError {
     match code {
         FailCode::NotFound => StorageError::NotFound,
         FailCode::Refused => StorageError::MissingRight,
-        FailCode::Conflict => StorageError::Conflict,
+        FailCode::Conflict | FailCode::NameTaken => StorageError::Conflict,
         FailCode::TooLarge => StorageError::TooLarge,
         FailCode::Unsupported => StorageError::Unsupported,
         FailCode::SourceUnavailable | FailCode::Busy | FailCode::Internal => StorageError::Network,
@@ -151,8 +164,38 @@ fn unexpected() -> StorageError {
 
 #[async_trait]
 impl ObjectStore for PeerStore {
-    async fn put(&self, _: &Access, _: &str, _: Vec<u8>, _: Instant) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+    /// A file as an upload of one part; a key ending in `/` creates the folder.
+    async fn put(
+        &self,
+        access: &Access,
+        key: &str,
+        body: Vec<u8>,
+        deadline: Instant,
+    ) -> Result<(), StorageError> {
+        if key.ends_with('/') {
+            let op = Op::CreateFolder {
+                share: share_of(access),
+                path: path_of(key),
+            };
+            return match self.done(access, op, deadline).await {
+                // The folder is there either way.
+                Err(StorageError::Conflict) => Ok(()),
+                other => other,
+            };
+        }
+        let id = self.begin_upload(access, key, deadline).await?;
+        let written = async {
+            let mark = self
+                .upload_part(access, key, &id, 1, body, deadline)
+                .await?;
+            self.finish_upload(access, key, &id, &[mark], deadline)
+                .await
+        };
+        let result = written.await;
+        if result.is_err() {
+            let _ = self.abort_upload(access, key, &id, deadline).await;
+        }
+        result
     }
 
     async fn get(
@@ -199,8 +242,25 @@ impl ObjectStore for PeerStore {
         Ok(found)
     }
 
-    async fn delete(&self, _: &Access, _: &str, _: Instant) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+    /// Deletes a file; a folder goes with [`ObjectStore::remove_tree`], as on every server with
+    /// real folders.
+    async fn delete(
+        &self,
+        access: &Access,
+        key: &str,
+        deadline: Instant,
+    ) -> Result<(), StorageError> {
+        if key.ends_with('/') {
+            return Err(StorageError::Unsupported);
+        }
+        let op = Op::Delete {
+            share: share_of(access),
+            path: path_of(key),
+        };
+        match self.done(access, op, deadline).await {
+            Err(StorageError::NotFound) => Ok(()),
+            other => other,
+        }
     }
 
     async fn head(
@@ -292,53 +352,117 @@ impl ObjectStore for PeerStore {
 
     async fn rename_tree(
         &self,
-        _: &Access,
-        _: &str,
-        _: &str,
-        _: Instant,
+        access: &Access,
+        from: &str,
+        to: &str,
+        deadline: Instant,
     ) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+        let op = Op::Move {
+            share: share_of(access),
+            from: path_of(from),
+            to: path_of(to),
+        };
+        self.done(access, op, deadline).await
     }
 
-    async fn remove_tree(&self, _: &Access, _: &str, _: Instant) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+    async fn remove_tree(
+        &self,
+        access: &Access,
+        prefix: &str,
+        deadline: Instant,
+    ) -> Result<(), StorageError> {
+        let op = Op::Delete {
+            share: share_of(access),
+            path: path_of(prefix),
+        };
+        match self.done(access, op, deadline).await {
+            Err(StorageError::NotFound) => Ok(()),
+            other => other,
+        }
     }
 
-    async fn begin_upload(&self, _: &Access, _: &str, _: Instant) -> Result<String, StorageError> {
-        Err(StorageError::Unsupported)
+    /// Starts an upload that finishes only while `key` is still as it is now (FR-036): absent, or
+    /// at the version its head shows.
+    async fn begin_upload(
+        &self,
+        access: &Access,
+        key: &str,
+        deadline: Instant,
+    ) -> Result<String, StorageError> {
+        let expected = match self.head(access, key, deadline).await {
+            Ok(head) => Expected::Version {
+                size: head.size,
+                etag: head.etag.unwrap_or_default(),
+            },
+            Err(StorageError::NotFound) => Expected::Absent,
+            Err(error) => return Err(error),
+        };
+        let op = Op::BeginUpload {
+            share: share_of(access),
+            path: path_of(key),
+            expected,
+        };
+        let (reply, _) = tokio::time::timeout_at(deadline, self.ask(access, op))
+            .await
+            .map_err(|_| StorageError::TimedOut)??;
+        match reply {
+            Reply::Upload { upload_id } => Ok(upload_id),
+            _ => Err(unexpected()),
+        }
     }
 
     async fn upload_part(
         &self,
-        _: &Access,
-        _: &str,
-        _: &str,
-        _: u16,
-        _: Vec<u8>,
-        _: Instant,
+        access: &Access,
+        _key: &str,
+        upload_id: &str,
+        number: u16,
+        body: Vec<u8>,
+        deadline: Instant,
     ) -> Result<String, StorageError> {
-        Err(StorageError::Unsupported)
+        if body.len() as u64 > MAX_PART {
+            return Err(StorageError::TooLarge);
+        }
+        let op = Op::UploadPart {
+            upload_id: upload_id.to_owned(),
+            number,
+            len: body.len() as u64,
+        };
+        let (reply, _) = tokio::time::timeout_at(deadline, self.ask_with(access, op, &body))
+            .await
+            .map_err(|_| StorageError::TimedOut)??;
+        match reply {
+            Reply::Mark(mark) => Ok(mark),
+            _ => Err(unexpected()),
+        }
     }
 
+    /// The serving device keeps the parts in order; the marks are not needed there.
     async fn finish_upload(
         &self,
-        _: &Access,
-        _: &str,
-        _: &str,
-        _: &[String],
-        _: Instant,
+        access: &Access,
+        _key: &str,
+        upload_id: &str,
+        _marks: &[String],
+        deadline: Instant,
     ) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+        let op = Op::FinishUpload {
+            upload_id: upload_id.to_owned(),
+        };
+        self.done(access, op, deadline).await
     }
 
     async fn abort_upload(
         &self,
-        _: &Access,
-        _: &str,
-        _: &str,
-        _: Instant,
+        access: &Access,
+        _key: &str,
+        upload_id: &str,
+        deadline: Instant,
     ) -> Result<(), StorageError> {
-        Err(StorageError::Unsupported)
+        let op = Op::AbortUpload {
+            upload_id: upload_id.to_owned(),
+        };
+        self.done(access, op, deadline).await
     }
 }
 

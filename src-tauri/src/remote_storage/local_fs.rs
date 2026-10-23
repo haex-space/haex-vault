@@ -14,7 +14,7 @@ use crate::passwords::clock;
 /// The path of `key` under `root` (an absolute folder). A key with an empty, `.` or `..` part, a
 /// leading `/`, a `\`, a NUL or (Windows) a `:` is refused, and so is a path whose existing part
 /// leads out of `root` through a link. A key ending in `/` names the folder.
-pub(super) fn resolve(root: &Path, key: &str) -> Result<PathBuf, StorageError> {
+pub(crate) fn resolve(root: &Path, key: &str) -> Result<PathBuf, StorageError> {
     if !root.is_absolute() {
         return Err(StorageError::AccessDenied);
     }
@@ -69,7 +69,7 @@ pub(super) fn resolve_below(root: &Path, key: &str) -> Result<PathBuf, StorageEr
 }
 
 /// A local error as a [`StorageError`]; only its kind is logged, never the path.
-pub(super) fn error_of(error: io::Error) -> StorageError {
+pub(crate) fn error_of(error: io::Error) -> StorageError {
     match error.kind() {
         io::ErrorKind::NotFound | io::ErrorKind::NotADirectory => StorageError::NotFound,
         io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem => {

@@ -69,10 +69,25 @@ async fn an_own_device_reads_another_one_through_the_storage_seam() {
         .expect("all");
     assert_eq!(all.len(), 2, "both files, the one in the subfolder too");
     assert_eq!(
-        store.delete(&access, &key, soon()).await,
+        store
+            .copy(&access, &key, &format!("{folder}kopie.txt"), soon())
+            .await,
         Err(StorageError::Unsupported),
-        "writing comes with the delivery for own devices"
+        "a copy streams through the requesting device"
     );
+    assert_eq!(
+        store
+            .delete(&access, &format!("{folder}Archiv/"), soon())
+            .await,
+        Err(StorageError::Unsupported),
+        "a folder goes with remove_tree"
+    );
+    store.delete(&access, &key, soon()).await.expect("delete");
+    assert!(!main.root().join("Dokumente/brief.txt").exists());
+    store
+        .delete(&access, &key, soon())
+        .await
+        .expect("a missing file is no error, as on every store");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

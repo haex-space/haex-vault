@@ -128,10 +128,14 @@ fn check_names(parts: &[&str]) -> Result<(), FailCode> {
     Ok(())
 }
 
-/// The real target of `path`, links resolved, for the check of holzi's own places; a path that
-/// does not resolve is not found.
-pub fn real(path: &Path) -> Result<PathBuf, FailCode> {
-    crate::files::local::resolve(path).map_err(|_| FailCode::NotFound)
+/// The window path of the device path `path`: the same on Unix, `/C:/…` on Windows.
+pub fn window_of(path: &Path) -> String {
+    if cfg!(windows) {
+        let slashed = path.to_string_lossy().replace('\\', "/");
+        format!("/{}", slashed.trim_end_matches('/'))
+    } else {
+        path.to_string_lossy().into_owned()
+    }
 }
 
 #[cfg(test)]
