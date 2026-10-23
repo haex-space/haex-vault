@@ -73,8 +73,9 @@ Regeln:
 `WireError = NotFound | Refused | Conflict | Unsupported | TooLarge | SourceUnavailable | NameTaken |
 InvalidName | Busy | Internal`. Keine Pfade außerhalb der Wurzel, keine Zugangsdaten, keine Fehlertexte des
 bedienenden Geräts (FR-042). Beim Anfragenden bildet `PeerStore` sie auf `StorageError` ab:
-`NotFound → NotFound`, `Refused → AccessDenied`, `Conflict → Conflict` (neu), `Unsupported → Unsupported`,
-`TooLarge → TooLarge`, `SourceUnavailable → Network`, `Busy → Network`, Verbindungsfehler → `Network`.
+`NotFound → NotFound`, `Refused → MissingRight`, `Conflict → Conflict` (neu), `Unsupported → Unsupported`,
+`TooLarge → TooLarge`, `SourceUnavailable → Network`, `Busy → Network`, `Internal → Network`,
+Verbindungsfehler → `Network`.
 
 ## Grenzen
 
