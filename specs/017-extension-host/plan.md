@@ -37,7 +37,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   Migrationen angewendet, ohne anderen Sync aufzuhalten; wirksame Fassung deterministisch (höchste Semver);
   Entfernen über eine Grabstein-Marke, die jedes Gerät lokal ausführt.
 - **Einbettung** (R12–R14, R17): ein Protokoll `holzi-ext` mit Pfad-Routing, Abschottung über den
-  undurchsichtigen Ursprung von `sandbox="allow-scripts"`, CSP als Antwort-Header mit Hashes der
+  undurchsichtigen Ursprung von `sandbox="allow-scripts allow-pointer-lock"` (mit `allow="fullscreen"`), CSP als Antwort-Header mit Hashes der
   Inline-Skripte, `frame-src` in holzis CSP gegen Selbstnavigation; Start-Token je Rahmen gegen
   Navigation zu einer anderen Erweiterung; SDK prüft `event.source`. Das Frontend reicht Anfragen nur an einen
   Command `extension_bridge_call`, Rust prüft. Ein eingefügter Rahmen-Shim bildet Hash-Navigation, Titel,
