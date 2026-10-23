@@ -196,8 +196,17 @@ Zulassung; der Betreiber hat die Ergänzung am 2026-10-23 beauftragt.
 - Q: Und in Firefox? → A: Dort ist die Herkunft je Installation eine zufällige UUID; holzi kann
   sie nicht mit dem Add-on abgleichen. Der Dialog sagt das, statt „bekannt“ oder „unbekannt“ zu
   behaupten.
-- Q: Beweist ein Client den Besitz seines Schlüssels? → A: Weiter nein. Das bräuchte eine
-  Änderung des Protokolls (Nicht im Umfang).
+- Q: Muss jede Instanz einer Erweiterung einzeln zugelassen werden? → A: Ja. Eine Instanz ist das
+  Schlüsselpaar einer Installation in einem Browserprofil. Firefox und Chrome auf Gerät A sind zwei
+  Instanzen, und dieselbe Erweiterung auf Gerät B ist eine weitere; jede braucht ihre eigene
+  Zulassung (FR-047). Das galt schon, war aber nicht als Anforderung festgehalten.
+- Q: Beweist ein Client den Besitz seines Schlüssels? → A: Ab Protokoll 3 ja (FR-048). Bisher
+  reichten Kennung, öffentlicher Schlüssel und Herkunft, und die sind nicht geheim: Ein lokales
+  Programm, das sie kennt, galt als die zugelassene Instanz und konnte blind schreiben. Mit dem
+  Nachweis kommt nur durch, wer den privaten Schlüssel der Instanz hat.
+- Q: Was geschieht mit Clients ohne Nachweis (haex-pass-browser 1.3.0 und älter)? → A: holzi weist
+  sie ab und sagt ihnen, dass sie aktualisieren müssen; keine Übergangszeit und kein Schalter
+  (FR-049). Der Betreiber hat das am 2026-10-23 entschieden.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -244,6 +253,10 @@ Dialog (vorläufig).
 8. **Given** der Dialog für einen Client aus Firefox, **When** er erscheint, **Then** sagt er, dass
    holzi die Erweiterung dort nicht prüfen kann, und rät, nur zuzulassen, was der Nutzer gerade
    selbst installiert hat (FR-045).
+9. **Given** die Erweiterung in Firefox auf Gerät A ist zugelassen und gemerkt, **When** sich die
+   Erweiterung in Chrome auf Gerät A oder in einem Browser auf Gerät B mit derselben Vault
+   verbindet, **Then** zeigt holzi für jede dieser Instanzen einen eigenen Zulassungsdialog
+   (FR-047).
 
 ---
 
@@ -406,6 +419,15 @@ einen Dialog oder eine Antwort mit Daten auslöst.
    folgt, **When** er ankommt, **Then** weist holzi ihn ab, ohne Dialog.
 4. **Given** derselbe unbekannte Client verbindet sich hundertmal hintereinander, **When** holzi
    fragt, **Then** steht genau ein Zulassungsdialog für ihn da.
+5. **Given** ein Programm kennt Kennung, öffentlichen Schlüssel und Herkunft einer zugelassenen
+   Instanz, aber nicht ihren privaten Schlüssel, **When** es sich damit verbindet, **Then** kann es
+   die Aufgabe nicht beantworten, und holzi schließt die Verbindung ohne Dialog und ohne eine
+   Anfrage auszuführen (FR-048).
+6. **Given** ein Client mit Protokoll 2 (haex-pass-browser 1.3.0 oder älter), **When** er sich
+   verbindet, **Then** antwortet holzi mit dem Fehler `PROTOCOL_UPDATE_REQUIRED` und schließt, ohne
+   Dialog (FR-049).
+7. **Given** die Antwort auf eine Aufgabe aus einer anderen Verbindung, **When** ein Client sie
+   schickt, **Then** weist holzi ihn ab wie bei einer falschen Antwort.
 
 ### Edge Cases
 
@@ -418,6 +440,9 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **Vault wird geschlossen oder gesperrt, während eine Anfrage, ein Zulassungsdialog oder eine
   Anwesenheitsbestätigung offen ist**: Alles endet mit einer Ablehnung; nichts wird halb
   geschrieben oder signiert.
+- **Zwei Browser oder zwei Profile auf einem Gerät**: Zwei Instanzen mit je eigenem Schlüssel;
+  holzi fragt für jede (FR-047). Firefox Sync und Chrome Sync übertragen den Schlüssel nicht, weil
+  er in der IndexedDB des Profils liegt.
 - **Erweiterung neu installiert oder Browserprofil gewechselt**: Neues Schlüsselpaar, also ein neuer
   Client mit neuem Fingerabdruck; holzi fragt. Der alte bleibt in der Liste, bis der Nutzer ihn
   widerruft.
@@ -493,9 +518,9 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   keine Browser-Erweiterung meldet (etwa `https://…`, `http://…`, `null`) oder keine Herkunft
   mitschickt. Andere Programme als Browser-Erweiterungen sind in dieser Spec keine Clients.
 - **FR-006**: holzi MUSS einen Handshake abweisen, dessen Kennung nicht aus dem mitgeschickten
-  öffentlichen Schlüssel folgt (Berechnung wie in `haex-pass-browser`), und einen mit Protokoll
-  kleiner als 2 oder ohne Erklärung mit `PERMISSIONS_DECLARATION_REQUIRED` beantworten und
-  schließen.
+  öffentlichen Schlüssel folgt (Berechnung wie in `haex-pass-browser`), und einen ohne Erklärung
+  mit `PERMISSIONS_DECLARATION_REQUIRED` beantworten und schließen. Ältere Protokolle regelt
+  FR-049.
 - **FR-007**: holzi MUSS Nachrichten über einer festen Größe und unlesbare Nachrichten ablehnen,
   ohne abzustürzen; die Grenze legt der Plan fest. Ein Client DARF höchstens einen offenen
   Zulassungsdialog haben, egal wie oft er sich verbindet.
@@ -681,6 +706,30 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   prüfbar“ zeigen, nicht als „unbekannt“ oder „nennt sich so“: Sonst wäre jede Zulassung der
   echten Erweiterung eine Warnung.
 
+**Instanzen und Besitznachweis**
+
+- **FR-047**: Eine Instanz ist das Schlüsselpaar einer Installation der Erweiterung in einem
+  Browserprofil. Eine Zulassung oder Sperre MUSS genau für eine Instanz auf genau einem Gerät
+  gelten: Gerät, Kennung, öffentlicher Schlüssel, Herkunft und Erklärung MÜSSEN übereinstimmen,
+  sonst fragt holzi neu. Sie DARF NICHT auf einen anderen Browser, ein anderes Profil oder ein
+  anderes Gerät übergehen, auch nicht über die Synchronisation der Vault.
+- **FR-048**: Bevor holzi über einen Client entscheidet (gesperrt, zugelassen oder Dialog), MUSS der
+  Client nachweisen, dass er den privaten Schlüssel zu seiner Kennung besitzt:
+  - holzi schickt eine Aufgabe aus 32 zufälligen Bytes, versiegelt an den öffentlichen Schlüssel
+    aus dem Handshake, zusammen mit dem Schlüssel der Bridge;
+  - der Client öffnet sie mit seinem privaten Schlüssel und schickt sie versiegelt an den
+    Schlüssel der Bridge zurück;
+  - holzi vergleicht in konstanter Zeit. Die Aufgabe gilt nur für diese Verbindung, nur einmal und
+    nur bis zur Frist des Handshakes.
+
+  Ohne passende Antwort MUSS holzi mit `PROOF_FAILED` antworten und schließen, ohne Dialog, ohne
+  Anfrage und ohne die Verbindung als die Instanz zu notieren. Nach dem Nachweis braucht ein
+  wiederholter Handshake derselben Kennung auf derselben Verbindung keinen neuen.
+
+- **FR-049**: Einen Handshake mit Protokoll kleiner als 3 MUSS holzi mit dem Fehler
+  `PROTOCOL_UPDATE_REQUIRED` beantworten, dessen Text sagt, dass die Erweiterung aktualisiert werden
+  muss, und schließen, ohne Dialog. Es gibt keine Übergangszeit und keinen Schalter dafür.
+
 ### Key Entities
 
 - **Client**: Kennung (Fingerabdruck), öffentlicher Schlüssel, angegebener Name, Herkunft,
@@ -725,6 +774,13 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **SC-010**: In einer Prüfung mit je einem Client der vier Zustände aus FR-045 zeigen Dialog und
   Einstellungsliste in 100 % der Fälle den passenden Zustand, und in keinem Fall ändern sich die
   Wahlmöglichkeiten des Dialogs oder das, was holzi dem Client zugesteht.
+- **SC-011**: 100 % der Verbindungen ohne Antwort auf die Aufgabe, mit falscher Antwort, mit der
+  Antwort aus einer anderen Verbindung oder mit Protokoll 2 enden ohne Dialog, ohne ausgeführte
+  Anfrage und ohne Änderung der Vault, auch wenn Kennung, öffentlicher Schlüssel und Herkunft die
+  einer zugelassenen Instanz sind.
+- **SC-012**: In 100 % der Prüfungen löst eine Zulassung keine andere Instanz aus: weder einen
+  anderen Schlüssel mit derselben Herkunft noch denselben Schlüssel mit anderer Herkunft noch
+  dieselbe Instanz auf einem anderen Gerät der Vault.
 
 ## Assumptions
 
@@ -741,12 +797,11 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Ob die offizielle Erweiterung in Chromium eine feste Herkunft hat, steht im Repository nicht fest:
   Das Manifest hat keinen `key`, die Kennung vergibt der Chrome Web Store beim ersten Upload. Bis
   sie feststeht, bleibt Chromium „nicht prüfbar“ (FR-046, T081).
-- Das Protokoll weist nicht nach, dass ein Client den privaten Schlüssel zu seiner Kennung besitzt:
-  Anfragen lassen sich mit dem öffentlichen Schlüssel des Dienstes verschlüsseln, Antworten nur mit
-  dem Schlüssel des Clients lesen. Wer die Kennung und den öffentlichen Schlüssel eines zugelassenen
-  Clients kennt und die Herkunftsprüfung umgeht (also ein lokales Programm), kann Anfragen schicken,
-  aber keine Antwort lesen. Das ist eine bekannte Grenze der Vorlage; ein Nachweis braucht eine
-  Änderung des Protokolls und ist nicht Teil dieser Spec.
+- Ab Protokoll 3 weist ein Client den Besitz seines privaten Schlüssels nach (FR-048). Es bleibt
+  eine Grenze: Die Verbindung ist `ws://` auf Loopback ohne Kanalbindung. Wer den Port belegt, bevor
+  holzi lauscht, kann zwischen Erweiterung und holzi vermitteln und die Antwort auf die Aufgabe
+  weiterreichen; holzi zeigt dann „Port belegt“ (FR-002), und die Erweiterung redet mit dem, der
+  lauscht. Das ist dieselbe Grenze wie bei haex-vault 2.x auf demselben Port (Edge Cases).
 - Die Umschläge nehmen das gemeinsame Geheimnis des Schlüsseltauschs (X25519) unmittelbar als
   AES-256-GCM-Schlüssel, ohne Ableitung (wie haex-vault 2.x und die Erweiterung). holzi übernimmt das
   aus Kompatibilitätsgründen; der Plan bewertet es.
@@ -790,6 +845,18 @@ Ausfüllen, TOTP und Speichern (US1 bis US3, US5, US6) funktionieren mit der gep
 Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, wie sie sind. Nach dem
 Begleit-PR wird die Erweiterung neu veröffentlicht (Chrome Web Store, addons.mozilla.org).
 
+Ergänzung 2026-10-23, zweiter Begleit-PR für Protokoll 3 (FR-048, FR-049), veröffentlicht als 1.4.0
+**vor** holzi mit PR G:
+
+7. **Besitznachweis (MUSS)**: Der Handshake meldet Protokoll 3. Kommt eine Aufgabe, öffnet die
+   Erweiterung sie mit ihrem Schlüssel und schickt sie versiegelt an den Schlüssel der Bridge
+   zurück. Kommt ohne Aufgabe gleich `handshakeResponse` (holzi vor PR G), läuft sie weiter wie
+   bisher, damit 1.4.0 vor holzi veröffentlicht werden kann.
+8. **Eigene Kennung zeigen (SOLL)**: Die Optionen zeigen den Fingerabdruck der Instanz in
+   Vierergruppen wie der Dialog in holzi, damit der Nutzer beide vergleichen kann.
+9. **Fehlertexte (MUSS)**: `PROTOCOL_UPDATE_REQUIRED` und `PROOF_FAILED` erscheinen als Satz statt
+   als roher Code.
+
 ## Nicht im Umfang
 
 - Lesezeichen-Synchronisation (`bookmarks-*`); holzi hat keine Lesezeichen (FR-028).
@@ -798,8 +865,9 @@ Begleit-PR wird die Erweiterung neu veröffentlicht (Chrome Web Store, addons.mo
 - Die External Bridge auf Android und anderen Mobilplattformen.
 - Löschen von Einträgen, Ordner, Tags verwalten, Papierkorb, Verlauf, Anhänge und Passkeys umbenennen
   oder löschen über die Bridge (FR-017).
-- Eine Änderung des Protokolls (Nachweis des Client-Schlüssels, Schlüsselableitung, TLS); sie
-  bräuchte eine abgestimmte Änderung an der Erweiterung und an haex-vault 2.x.
+- Eine Schlüsselableitung oder TLS im Protokoll. Den Nachweis des Client-Schlüssels bringt
+  Protokoll 3 (FR-048, Clarification 2026-10-23); beides andere bräuchte eine weitere abgestimmte
+  Änderung an der Erweiterung.
 - Benachrichtigungen an Clients über geänderte Einträge (FR-026).
 - Ein Anwesenheitsnachweis mit Biometrie oder Systemanmeldung; UV prüft holzi nur über das Passwort
   der Vault (FR-033).

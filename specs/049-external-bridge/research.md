@@ -578,7 +578,8 @@ Danach folgen Politur, Handprüfung nach quickstart, ein neuer Pin und der Relea
 Erweiterung.
 
 Nachtrag 2026-10-23: Die Erkennung der offiziellen Erweiterung (R21) kommt als PR F; sie berührt
-weder das Protokoll noch die Erweiterung.
+weder das Protokoll noch die Erweiterung. Der Besitznachweis (R22) kommt als PR G in holzi und als
+zweiter Begleit-PR I in haextension; I wird als 1.4.0 veröffentlicht, bevor G gemergt wird.
 
 **Rationale**:
 
@@ -629,7 +630,64 @@ Eintrag setzt.
 
 - Unbekannte Erweiterungen blockieren: sperrt Forks und eigene Builds aus, die in einem
   Open-Source-Projekt legitim sind.
-- Den Besitz des Schlüssels im Handshake beweisen lassen: ändert das Protokoll, braucht eine
-  abgestimmte Änderung an der Erweiterung und an haex-vault 2.x, und löst das Vortäuschen von Name
-  und Herkunft durch ein lokales Programm nicht.
+- Nur den Besitz des Schlüssels beweisen lassen: Das kommt mit R22, löst aber den Fork nicht. Ein
+  Fork besitzt seinen eigenen Schlüssel und besteht den Nachweis.
 - Die Liste von einer Webadresse laden: neuer Angriffsweg, Ausfall ohne Netz.
+
+## R22 Instanzen und Besitznachweis (FR-047 bis FR-049)
+
+**Decision**: Protokoll 3 mit einer Aufgabe im Handshake, gebaut aus den Umschlägen, die es schon
+gibt (R3); keine neue Kryptografie und kein neuer Schlüssel.
+
+- **Instanz**: das X25519-Schlüsselpaar, das die Erweiterung je Browserprofil erzeugt und als nicht
+  exportierbaren `CryptoKey` in ihrer IndexedDB hält (`background/keypairStorage.ts`). Weder Firefox
+  Sync noch Chrome Sync übertragen IndexedDB; jeder Browser und jedes Profil hat also sein eigenes
+  Paar und damit seine eigene Kennung.
+- **Zulassung je Instanz und Gerät**: so gebaut seit PR B. `ClientIdentity::matches` verlangt
+  gleiche Kennung, gleichen öffentlichen Schlüssel, gleiche Herkunft und gleiche Erklärung; die
+  Zeile hat die Kennung `UUIDv5(Gerät:Kennung)`, und die Bridge liest nur Zeilen des eigenen Geräts
+  (R13). FR-047 hält das fest, und PR G prüft es über die echte Bridge, auch mit einem zweiten
+  Gerät.
+- **Nachweis**:
+  1. Nach Prüfung von Version, Erklärung und Kennung zieht holzi 32 zufällige Bytes und schickt
+     sie in `challenge`, versiegelt mit `seal_response` an den öffentlichen Schlüssel aus dem
+     Handshake, zusammen mit `serverPublicKey`.
+  2. Die Erweiterung öffnet sie mit `decryptMessageEnvelope` und ihrem privaten Schlüssel und
+     schickt sie in `proof` zurück, versiegelt wie ein `request`.
+  3. holzi öffnet `proof` mit dem Schlüssel der Bridge und vergleicht in konstanter Zeit.
+  4. Erst dann liest holzi die gemerkte Entscheidung und zeigt gegebenenfalls den Dialog.
+- **Zustand**: Die Verbindung bekommt den Zustand `AwaitingProof` mit der Aufgabe im Speicher
+  (gelöscht nach Gebrauch). Die Frist ist die des Handshakes (10 s ab dem Upgrade). Die Aufgabe gilt
+  nur für die eine Verbindung und nur einmal.
+- **Alte Clients**: Protokoll kleiner als 3 bekommt `PROTOCOL_UPDATE_REQUIRED` (Entscheidung des
+  Betreibers, 2026-10-23). haex-pass-browser 1.3.0 zeigt den Text des Fehlers als Verbindungsfehler
+  (`connection.ts`, Fall `error`).
+- **Reihenfolge der Veröffentlichung**: Die Erweiterung 1.4.0 spricht Protokoll 3, läuft aber
+  weiter, wenn statt `challenge` gleich `handshakeResponse` kommt (holzi vor PR G). So kann sie vor
+  holzi erscheinen, und niemand steht zwischen zwei Releases ohne Verbindung.
+
+**Rationale**:
+
+- Bisher galt als die Instanz, wer Kennung, öffentlichen Schlüssel und Herkunft schickt. Keiner der
+  drei ist geheim: Der Schlüssel und die Herkunft stehen sogar in der synchronisierten Tabelle
+  `haex_browser_clients`. Ein lokales Programm, das die Herkunft vortäuscht, konnte damit blind
+  Anfragen schicken, etwa Einträge anlegen. Mit dem Nachweis braucht es den privaten Schlüssel, und
+  der verlässt das Browserprofil nicht.
+- Dieselben Umschläge wie für Anfragen und Antworten halten den Code klein; die Interop-Fixture aus
+  R18 deckt sie schon ab.
+- Die Aufgabe kommt vor der Entscheidung, damit eine gefälschte Instanz weder einen Dialog noch den
+  Zustand einer echten erfährt.
+
+**Grenze**: `ws://` auf Loopback hat keine Kanalbindung. Wer den Port vor holzi belegt, kann als
+Vermittler die Aufgabe an die echte Erweiterung weiterreichen und ihre Antwort an holzi geben; holzi
+zeigt dann „Port belegt“. Ein Schutz dagegen bräuchte TLS oder einen gemeinsamen Schlüssel aus der
+Zulassung (Nicht im Umfang).
+
+**Alternatives considered**:
+
+- Eine Signatur mit einem zweiten Schlüssel (Ed25519): ein neuer Schlüssel in Erweiterung und Vault,
+  und WebCrypto unterstützt Ed25519 nicht in allen Zielbrowsern gleich.
+- Den Nachweis in jede Anfrage legen: mehr Arbeit je Anfrage für dieselbe Sicherheit, weil die
+  Verbindung nach dem Nachweis ohnehin an die Instanz gebunden ist.
+- Protokoll 2 eine Zeit lang weiter annehmen oder per Schalter: vom Betreiber abgelehnt; die Lücke
+  bliebe für alte Clients offen.

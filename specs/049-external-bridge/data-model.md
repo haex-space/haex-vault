@@ -85,12 +85,15 @@ Running ──ausschalten / Vault schließt──▶ Off
 ### Verbindung (R4)
 
 ```text
-AwaitingHandshake ──Handshake ok, zugelassen──▶ Authorized
-        │                    └─unbekannt──▶ Pending ──Zulassen──▶ Authorized
-        │                                       └─Ablehnen/Ablauf──▶ Closed
-        ├─v1 / ohne Erklärung──▶ error PERMISSIONS_DECLARATION_REQUIRED ▶ Closed
-        ├─Kennung passt nicht / gesperrt──▶ handshakeResponse(false,false) ▶ Closed
-        └─10 s ohne Handshake──▶ Closed
+AwaitingHandshake ──Handshake ok──▶ AwaitingProof ──proof passt, zugelassen──▶ Authorized
+        │                                   │            └─unbekannt──▶ Pending ──Zulassen──▶ Authorized
+        │                                   │                               └─Ablehnen/Ablauf──▶ Closed
+        │                                   ├─proof fehlt, falsch, doppelt──▶ error PROOF_FAILED ▶ Closed
+        │                                   └─gesperrt──▶ handshakeResponse(false,false) ▶ Closed
+        ├─Protokoll < 3──▶ error PROTOCOL_UPDATE_REQUIRED ▶ Closed
+        ├─ohne Erklärung──▶ error PERMISSIONS_DECLARATION_REQUIRED ▶ Closed
+        ├─Kennung passt nicht──▶ handshakeResponse(false,false) ▶ Closed
+        └─10 s ohne Handshake und Nachweis──▶ Closed
 Authorized ──Widerruf──▶ authorizationUpdate(false) ▶ Closed
 Authorized ──Erklärung oder Herkunft geändert (neuer Handshake)──▶ Pending
 ```

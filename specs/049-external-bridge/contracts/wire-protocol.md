@@ -1,6 +1,10 @@
 # Vertrag: Drahtprotokoll der External Bridge
 
-**Spec**: [../spec.md](../spec.md) | **Research**: R1 bis R4, R6, R16
+**Spec**: [../spec.md](../spec.md) | **Research**: R1 bis R4, R6, R16, R22
+
+Ab PR G spricht holzi Protokoll 3: Der Handshake verlangt den Nachweis des Client-Schlüssels
+(`challenge`/`proof`, FR-048), und Protokoll 2 wird abgewiesen (FR-049). Die Beispiele unten zeigen
+Protokoll 3; bis PR G gilt 2 ohne die Abschnitte zum Nachweis.
 
 Gegenstück: `haex-pass-browser` in `https://github.com/haex-space/haextension`, Revision
 `ab4e0b0ac9a05488659836a7526a250beab9dfd9`. Die Pfade unten liegen unter
@@ -29,7 +33,7 @@ Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
 ```json
 {
   "type": "handshake",
-  "version": 2,
+  "version": 3,
   "client": {
     "clientId": "3f1c…(32 hex)",
     "clientName": "haex-pass Browser Extension",
@@ -46,32 +50,71 @@ Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
 
 holzi prüft der Reihe nach:
 
-1. `version < 2`, oder `permissions.core.passwords` fehlt oder ist leer: holzi schickt
+1. `version < 3`: holzi schickt `{"type":"error","code":"PROTOCOL_UPDATE_REQUIRED","message":"…"}`
+   und schließt, ohne Dialog (FR-049). Der Text sagt, dass haex-pass aktualisiert werden muss.
+2. `permissions.core.passwords` fehlt oder ist leer: holzi schickt
    `{"type":"error","code":"PERMISSIONS_DECLARATION_REQUIRED","message":"…"}`, dann
    `handshakeResponse` mit `authorized: false, pendingApproval: false`, und schließt.
    - **Abweichung**: Die Vorlage nimmt auch Erklärungen ohne Passwörter an.
-2. `clientId != hex(SHA-256(base64decode(publicKey))[0..16])`, oder `publicKey` ist nicht 32 Byte
+3. `clientId != hex(SHA-256(base64decode(publicKey))[0..16])`, oder `publicKey` ist nicht 32 Byte
    lang: `handshakeResponse(false, false)` und Schließen (FR-006).
    - **Abweichung**: Die Vorlage prüft das nicht.
-3. Gesperrt, gemerkt oder vorläufig: `handshakeResponse(false, false)` und Schließen.
-4. Zugelassen, mit passender Erklärung und Herkunft (Daten-Modell, Abgleich):
+4. Besitznachweis (FR-048, Abschnitt unten): holzi schickt `challenge` und wartet auf `proof`.
+   Ohne passenden `proof` bis zur Handshake-Frist: `error PROOF_FAILED` und Schließen. Erst danach
+   kommen die folgenden Schritte.
+   - **Abweichung**: Die Vorlage kennt keinen Nachweis.
+5. Gesperrt, gemerkt oder vorläufig: `handshakeResponse(false, false)` und Schließen.
+6. Zugelassen, mit passender Erklärung und Herkunft (Daten-Modell, Abgleich):
    `handshakeResponse(true, false)`.
-5. Sonst: `handshakeResponse(false, true)` und ein Zulassungsdialog, höchstens einer je
+7. Sonst: `handshakeResponse(false, true)` und ein Zulassungsdialog, höchstens einer je
    `clientId`.
 
 Weitere Erklärungen als `passwords` (etwa `database`, `bookmarks`) speichert holzi in der
 Erklärung, gewährt sie aber nie (R5). `requestedExtensions[].actions` werden übergangen.
 
 Ein wiederholter Handshake auf derselben Verbindung mit derselben `clientId` bekommt den
-aktuellen Zustand nach Schritt 3 bis 5 und keinen zweiten Dialog. Eine andere `clientId` auf
-derselben Verbindung schließt sie.
+aktuellen Zustand nach Schritt 5 bis 7, ohne neuen Nachweis und ohne zweiten Dialog. Eine andere
+`clientId` auf derselben Verbindung schließt sie.
+
+## challenge (holzi → Client) und proof (Client → holzi)
+
+Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
+
+```json
+{
+  "type": "challenge",
+  "serverPublicKey": "<Standard-Base64, 32 Byte X25519>",
+  "publicKey": "<Standard-Base64, flüchtiger Schlüssel von holzi>",
+  "iv": "<Standard-Base64, 12 Byte>",
+  "message": "<Standard-Base64: Chiffrat ‖ GCM-Tag>"
+}
+```
+
+- Der Umschlag ist der einer `response` (Abschnitt unten): versiegelt an den `publicKey` aus dem
+  Handshake. Der Klartext ist `{"challenge":"<Standard-Base64, 32 zufällige Bytes>"}`.
+- Der Client öffnet ihn mit seinem privaten Schlüssel, wie eine Antwort.
+
+```json
+{
+  "type": "proof",
+  "publicKey": "<Standard-Base64, flüchtiger Schlüssel des Clients>",
+  "iv": "<Standard-Base64, 12 Byte>",
+  "message": "<Standard-Base64: Chiffrat ‖ GCM-Tag>"
+}
+```
+
+- Der Umschlag ist der eines `request`: versiegelt an `serverPublicKey`. Der Klartext ist
+  `{"challenge":"…"}` mit genau den Bytes der Aufgabe.
+- holzi vergleicht in konstanter Zeit. Die Aufgabe gilt nur auf dieser Verbindung und nur einmal;
+  ein zweiter `proof` oder einer nach der Frist endet mit `PROOF_FAILED`.
+- `request` vor einem gelungenen Nachweis beantwortet holzi mit `UNAUTHORIZED`.
 
 ## handshakeResponse (holzi → Client)
 
 ```json
 {
   "type": "handshakeResponse",
-  "version": 2,
+  "version": 3,
   "serverPublicKey": "<Standard-Base64, 32 Byte X25519>",
   "authorized": false,
   "pendingApproval": true
@@ -111,7 +154,9 @@ WebSocket-Ping-Rahmen beantwortet `tokio-tungstenite` selbst.
 | Code                               | Wann                                                                  |
 | ---------------------------------- | --------------------------------------------------------------------- |
 | `PARSE_ERROR`                      | kein JSON oder unbekannter `type`                                     |
-| `PERMISSIONS_DECLARATION_REQUIRED` | Handshake, Schritt 1                                                  |
+| `PROTOCOL_UPDATE_REQUIRED`         | Handshake, Schritt 1: Protokoll kleiner als 3                         |
+| `PERMISSIONS_DECLARATION_REQUIRED` | Handshake, Schritt 2                                                  |
+| `PROOF_FAILED`                     | Handshake, Schritt 4: kein, ein falscher oder ein zweiter `proof`     |
 | `UNAUTHORIZED`                     | `request` vor einem zugelassenen Handshake                            |
 | `DECRYPTION_ERROR`                 | Umschlag nicht entschlüsselbar, Punkt kleiner Ordnung, falsche Längen |
 
