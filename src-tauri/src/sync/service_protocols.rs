@@ -53,7 +53,10 @@ pub fn peer_protocols<R: Runtime>(
     keys: &DeviceKeys,
     vault: [u8; 32],
     app: &AppHandle<R>,
-) -> (Protocols, Option<Arc<crate::extensions::peers::admission::PeerContext>>) {
+) -> (
+    Protocols,
+    Option<Arc<crate::extensions::peers::admission::PeerContext>>,
+) {
     use crate::extensions::commands::frames::WindowEmitter;
     use crate::extensions::peers::admission::{PeerContext, PeerProtocol};
     use crate::extensions::peers::channel::Frames;
