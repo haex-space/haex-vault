@@ -11,7 +11,9 @@ pub mod roots;
 pub mod upload;
 pub mod watch;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use iroh::endpoint::{Connection, RecvStream, SendStream};
@@ -61,6 +63,8 @@ pub struct ServeContext {
     pub store: LocalStore,
     /// How deleting removes here: into the trash on desktops (research R8).
     pub removal: Removal,
+    /// Locks peer writes to one target while checking and replacing it.
+    write_locks: Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
     slots: Arc<Semaphore>,
 }
 
@@ -83,8 +87,18 @@ impl ServeContext {
             seen: SeenGenerations::default(),
             store: LocalStore::new(),
             removal: crate::files::transfer::platform_removal(),
+            write_locks: Mutex::new(HashMap::new()),
             slots: Arc::new(Semaphore::new(STREAMS_PER_DEVICE)),
         }
+    }
+
+    fn write_lock(&self, path: &Path) -> Arc<tokio::sync::Mutex<()>> {
+        let mut locks = self.write_locks.lock().unwrap_or_else(|e| e.into_inner());
+        Arc::clone(
+            locks
+                .entry(path.to_owned())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))),
+        )
     }
 
     /// Whether deleting here goes to a trash.
@@ -327,7 +341,7 @@ async fn part(
         return Err(FailCode::TooLarge);
     }
     again(ctx, peer, request, upload_id).await?;
-    let mut body = Vec::with_capacity(len as usize);
+    let mut body = Vec::with_capacity((len as usize).min(1 << 20));
     let read = tokio::time::timeout(
         upload::PART_LIMIT,
         (&mut *recv).take(len).read_to_end(&mut body),

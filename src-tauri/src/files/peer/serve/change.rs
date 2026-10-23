@@ -55,13 +55,29 @@ pub async fn move_entry(from: &Located, to: &Located) -> Result<(), FailCode> {
     blocking(move || {
         std::fs::symlink_metadata(&from).map_err(|error| fail_of(error_of(error)))?;
         // A rename that changes only case names the same entry on some file systems.
-        let same = from.to_string_lossy().to_lowercase() == to.to_string_lossy().to_lowercase();
+        let same = same_entry(&from, &to);
         if !same && std::fs::symlink_metadata(&to).is_ok() {
             return Err(FailCode::NameTaken);
         }
         std::fs::rename(&from, &to).map_err(|error| fail_of(error_of(error)))
     })
     .await
+}
+
+/// Whether two paths name the same entry, including on case-sensitive file systems.
+fn same_entry(a: &Path, b: &Path) -> bool {
+    match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+        #[cfg(unix)]
+        (Ok(a), Ok(b)) => {
+            use std::os::unix::fs::MetadataExt;
+            a.dev() == b.dev() && a.ino() == b.ino()
+        }
+        #[cfg(not(unix))]
+        (Ok(_), Ok(_)) => a
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&b.to_string_lossy()),
+        _ => false,
+    }
 }
 
 /// Removes the entry `at` as `ctx` removes; whether it went to the trash.
