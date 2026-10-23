@@ -2311,7 +2311,8 @@
         "contacts": "Contacts",
         "agentTool": "Tool for the agent",
         "model": "Use a model",
-        "modelDestination": "Send data to a destination outside this device"
+        "modelDestination": "Send data to a destination outside this device",
+        "peers": "Connections to other vaults"
       },
       "effect": {
         "read": "only reads",
@@ -2320,6 +2321,9 @@
       },
       "everyMethod": "all requests",
       "contactsGroup": "Contacts in the group “{name}”",
+      "peers": {
+        "description": "Open connections to the same extension on devices of other vaults. Other players can see this device’s network address on a direct connection."
+      },
       "everything": {
         "filesystem": "All files and folders",
         "web": "Every website and server on the internet",

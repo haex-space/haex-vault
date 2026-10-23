@@ -75,6 +75,13 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
       {{ t(placeLabelKey(destination.place)) }}
     </span>
     <span
+      v-else-if="kind === 'peers'"
+      class="text-xs"
+      data-testid="extension-permission-peers"
+    >
+      {{ t('extensions.permissions.peers.description') }}
+    </span>
+    <span
       v-else-if="kind === 'contacts'"
       class="text-xs break-all"
       data-testid="extension-permission-contacts-group"
