@@ -2622,6 +2622,7 @@
       "invalidName": "This name is not allowed.",
       "credentials": "The cloud storage's credentials are missing or were refused.",
       "unreachable": "The cloud storage cannot be reached.",
+      "conflict": "The file changed in the meantime.",
       "hostKey": "The cloud storage's server shows a host key other than the confirmed one. Check the connection in the settings.",
       "inEncrypted": "An encrypted folder cannot hold another one.",
       "inExtensionArea": "An extension's area cannot hold an encrypted folder.",

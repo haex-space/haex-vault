@@ -69,6 +69,8 @@ pub enum FilesErrorCode {
     Credentials,
     /// A storage did not answer (network, timeout).
     Unreachable,
+    /// The file changed since the caller last saw it (spec 056 FR-036); nothing was written.
+    Conflict,
     /// A storage's server showed a host key other than the confirmed one (spec 050).
     HostKey,
     /// Not inside an encrypted folder (spec 048): another encrypted folder, for one.

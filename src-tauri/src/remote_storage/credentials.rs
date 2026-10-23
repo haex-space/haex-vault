@@ -76,7 +76,7 @@ pub async fn create(
         Protocol::S3 => "S3",
         Protocol::WebDav => "WebDAV",
         Protocol::Sftp => "SFTP",
-        Protocol::Local => return Err(super::store::invalid("protocol")),
+        Protocol::Local | Protocol::Peer => return Err(super::store::invalid("protocol")),
     };
     let (username, password, key_values) = match credentials {
         Credentials::S3(s3) => (
@@ -265,7 +265,7 @@ pub async fn read(
 /// the trash, the user's own or created by holzi for a connection, and fitting by [`from_item`].
 /// Tagged entries first, then by title regardless of case. No value leaves this function.
 pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<CredentialsCandidate>> {
-    if protocol == Protocol::Local {
+    if matches!(protocol, Protocol::Local | Protocol::Peer) {
         return Err(store::invalid("protocol"));
     }
     let mut found = db

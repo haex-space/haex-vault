@@ -87,3 +87,13 @@ fn a_local_folder_is_never_stored_nor_taken_from_the_window() {
         Some(Protocol::Sftp)
     );
 }
+
+#[test]
+fn another_device_is_never_stored_nor_taken_from_the_window() {
+    assert_eq!(Protocol::Peer.as_str(), "peer");
+    assert_eq!(Protocol::parse("peer"), None);
+    assert!(Protocol::Peer.is_tree());
+    assert!(!Protocol::Peer.fits(ProviderKind::Other));
+    assert!(serde_json::from_str::<Protocol>("\"peer\"").is_err());
+    assert!(serde_json::to_string(&Protocol::Peer).is_err());
+}

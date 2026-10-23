@@ -43,6 +43,9 @@ impl ProtocolStore {
             Protocol::WebDav => self.webdav.as_ref(),
             Protocol::Sftp => self.sftp.as_ref(),
             Protocol::Local => Some(&self.local),
+            // Another device has its own store per session (`files::peer::store::PeerStore`), which
+            // `StorageFiles` holds itself; no call reaches it through here.
+            Protocol::Peer => None,
         };
         store.map(Arc::as_ref).ok_or_else(|| {
             log::warn!(

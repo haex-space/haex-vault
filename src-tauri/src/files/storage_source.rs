@@ -59,6 +59,10 @@ pub fn storage_error(error: StorageError) -> FilesError {
         StorageError::Unsupported => {
             FilesError::new(FilesErrorCode::Unsupported, "the storage cannot do this")
         }
+        StorageError::Conflict => FilesError::new(
+            FilesErrorCode::Conflict,
+            "the file changed since it was last seen",
+        ),
     }
 }
 

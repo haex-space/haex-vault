@@ -184,7 +184,9 @@ fn mapped(
         | StorageError::HostKeyChanged
         | StorageError::HostKeyUnknown
         | StorageError::Unsupported
-        | StorageError::Protocol => provider("network"),
+        | StorageError::Protocol
+        // Only another device's files report a conflict, and extensions never reach those.
+        | StorageError::Conflict => provider("network"),
         StorageError::TooLarge => limit("answer too large"),
         StorageError::TimedOut => limit("time limit exceeded"),
         StorageError::QuotaExceeded => limit("quota exceeded"),

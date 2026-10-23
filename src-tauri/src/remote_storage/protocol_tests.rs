@@ -65,6 +65,19 @@ async fn a_protocol_without_a_store_is_unsupported() {
 }
 
 #[tokio::test]
+async fn another_device_has_no_store_here() {
+    let s3 = Arc::new(FakeStore::new());
+    let store = ProtocolStore::new(s3.clone(), None, None);
+    let peer = on(Protocol::Peer);
+    assert_eq!(
+        store.get(&peer, "a.txt", 10, soon()).await.err(),
+        Some(StorageError::Unsupported),
+        "the file browser reaches other devices through their own store"
+    );
+    assert!(s3.calls().is_empty(), "nothing goes to S3 instead");
+}
+
+#[tokio::test]
 async fn a_local_folder_always_has_its_store() {
     let s3 = Arc::new(FakeStore::new());
     let store = ProtocolStore::new(s3.clone(), None, None);

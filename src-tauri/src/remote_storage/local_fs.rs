@@ -100,7 +100,7 @@ pub(super) fn http_date_of(meta: &Metadata) -> Option<String> {
 /// A mark that changes with the content: size, time to the nanosecond and (Unix) the inode, which
 /// every write through a temporary file renews. Windows has no stable file index, so there it is
 /// size and time.
-pub(super) fn etag_of(meta: &Metadata) -> String {
+pub(crate) fn etag_of(meta: &Metadata) -> String {
     let nanos = meta
         .modified()
         .ok()
