@@ -1,5 +1,7 @@
 use tokio::io::AsyncWriteExt;
 
+use data_encoding::BASE32_NOPAD;
+
 use super::*;
 use crate::sync::wire::write_value;
 
@@ -30,6 +32,12 @@ fn every_message() -> Vec<Message> {
         Message::JoinReply {
             v: VERSION,
             status: JoinStatus::NotAdmitted,
+        },
+        Message::JoinReply {
+            v: VERSION,
+            status: JoinStatus::Accepted {
+                lobby_id: "deathmatch-1".to_owned(),
+            },
         },
         Message::InviteReply {
             v: VERSION,
@@ -133,4 +141,85 @@ async fn a_frame_that_is_no_message_and_an_empty_stream_are_told_apart() {
         .await
         .expect("a clean end")
         .is_none());
+}
+
+fn code(relay: Option<&str>) -> JoinCode {
+    JoinCode {
+        v: VERSION,
+        endpoint_id: [9; 32],
+        relay: relay.map(str::to_owned),
+        lobby: [4; 16],
+        secret: Zeroizing::new([5; 16]),
+    }
+}
+
+#[test]
+fn a_join_code_reads_back_as_written() {
+    for relay in [None, Some("https://relay.example.org./")] {
+        let code = code(relay);
+        let text = code.text();
+        assert!(text.starts_with("haex-vault:join:"), "{text}");
+        assert_eq!(JoinCode::parse(&text), Some(code.clone()));
+        assert_eq!(JoinCode::parse(&format!("  {text}\n")), Some(code));
+    }
+}
+
+/// FR-021: the code carries the endpoint, the relay, the lobby key and the secret, and nothing
+/// else: its bytes are exactly those fields.
+#[test]
+fn a_join_code_carries_nothing_but_the_way_to_the_host_and_the_secret() {
+    let relay = "https://relay.example.org./";
+    let text = code(Some(relay)).text();
+    let body = text.strip_prefix(JOIN_CODE_PREFIX).expect("prefix");
+    let bytes = BASE32_NOPAD.decode(body.as_bytes()).expect("base32");
+    // v, endpoint, Some + length + relay, lobby, secret.
+    assert_eq!(bytes.len(), 1 + 32 + 1 + 1 + relay.len() + 16 + 16);
+    assert_eq!(format!("{:?}", code(None)), "JoinCode(..)");
+}
+
+#[test]
+fn anything_that_is_not_a_join_code_reads_as_none() {
+    let good = code(None).text();
+    let body = good.strip_prefix(JOIN_CODE_PREFIX).expect("prefix");
+    let mut later = code(None);
+    later.v = VERSION + 1;
+    let mut trailing = postcard::to_stdvec(&code(None)).expect("bytes");
+    trailing.push(0);
+    let cases = [
+        String::new(),
+        JOIN_CODE_PREFIX.to_owned(),
+        body.to_owned(),
+        format!("haex-vault:JOIN:{body}"),
+        format!("{JOIN_CODE_PREFIX}{}", body.to_ascii_lowercase()),
+        format!("{JOIN_CODE_PREFIX}{}", &body[..body.len() - 4]),
+        format!("{JOIN_CODE_PREFIX}{body}=="),
+        format!("{JOIN_CODE_PREFIX}{}", BASE32_NOPAD.encode(&trailing)),
+        later.text(),
+        format!("{JOIN_CODE_PREFIX}{}", "A".repeat(4096)),
+    ];
+    for text in cases {
+        assert_eq!(JoinCode::parse(&text), None, "{text}");
+    }
+}
+
+#[test]
+fn a_join_proof_holds_only_for_its_secret_exchange_and_lobby() {
+    let nonces = Nonces {
+        dial: [1; 32],
+        accept: [2; 32],
+    };
+    let (secret, lobby) = ([5; 16], [4; 16]);
+    let proof = join_proof(&secret, &nonces, &lobby);
+    assert!(join_proof_holds(&secret, &nonces, &lobby, &proof));
+
+    let swapped = Nonces {
+        dial: nonces.accept,
+        accept: nonces.dial,
+    };
+    let mut flipped = proof;
+    flipped[31] ^= 1;
+    assert!(!join_proof_holds(&[6; 16], &nonces, &lobby, &proof));
+    assert!(!join_proof_holds(&secret, &swapped, &lobby, &proof));
+    assert!(!join_proof_holds(&secret, &nonces, &[3; 16], &proof));
+    assert!(!join_proof_holds(&secret, &nonces, &lobby, &flipped));
 }

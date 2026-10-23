@@ -33,8 +33,8 @@ Prüfung je Seite, jede Abweichung → schließen ohne Grund:
    blockiert, Generation ≥ `card.list_generation` und ≥ gesehener → `Contact`; blockiert → schließen;
    sonst `Unverified`.
 5. Annehmender mit `Unverified` und keiner offenen Lobby → schließen. Ist nur eine Lobby „nur
-   Kontakte“ offen, darf er genau einen begrenzten `Join` senden; ein gültiger Beweis endet mit
-   `NotAdmitted` (FR-031).
+   Kontakte“ offen, darf er genau einen begrenzten `Join` senden (Rahmen höchstens 4 KiB + 1 KiB);
+   ein gültiger Beweis endet mit `NotAdmitted`, jeder andere ohne Antwort (FR-031).
 
 Der Handshake muss in 5 s fertig sein.
 
@@ -66,9 +66,11 @@ Einladend  → Withdraw { v, invite }             // an alle anderen, bei Rückz
 ### Beitritt
 
 ```text
-Gastgeber → JoinReply { v, status: Accepted | Closed | NotAdmitted }
+Gastgeber → JoinReply { v, status: Accepted { lobby_id: String } | Closed | NotAdmitted }
 ```
 
+- `Accepted` nennt die `lobbyId` der Erweiterung des Gastgebers; der Beitretende gibt sie als Ergebnis
+  von `extension_peers_join` weiter (contracts/bridge.md). Der Code selbst trägt sie nicht.
 - `Closed`: unbekannte `lobby`, geschlossen, falscher `proof`, andere Erweiterung, blockiert,
   gedrosselt, Grenze erreicht. Gleicher Weg für alle Fälle (HMAC mit Ersatzgeheimnis bei unbekannter
   `lobby`).
