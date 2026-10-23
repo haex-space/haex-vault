@@ -77,6 +77,7 @@ impl Uploads {
             .begin_upload(&access_of(&at.root), &at.key, deadline())
             .await
             .map_err(fail_of)?;
+        drop(_target_guard);
         let closed = {
             let mut uploads = self.map();
             if self.closed.load(Ordering::Acquire) {
