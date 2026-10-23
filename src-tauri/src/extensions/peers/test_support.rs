@@ -210,6 +210,31 @@ impl Vault {
         vault
     }
 
+    /// Switches the test extension on or off, as disabling it in the settings does.
+    pub(crate) fn set_enabled(&self, enabled: bool) {
+        let id = self.extension_id.to_string();
+        self.db
+            .write_blocking(move |tx| {
+                tx.execute(
+                    "UPDATE extensions SET enabled = ?2 WHERE id = ?1",
+                    params![id, i64::from(enabled)],
+                )?;
+                Ok(())
+            })
+            .expect("set enabled");
+    }
+
+    /// Removes the test extension, as uninstalling it does.
+    pub(crate) fn uninstall(&self) {
+        let id = self.extension_id.to_string();
+        self.db
+            .write_blocking(move |tx| {
+                tx.execute("DELETE FROM extensions WHERE id = ?1", params![id])?;
+                Ok(())
+            })
+            .expect("uninstall");
+    }
+
     /// Closes every open frame of the test extension, as when its tab was closed.
     pub(crate) fn close_frames(&self) {
         for session in self.host.frames.of_extension(self.extension_id) {

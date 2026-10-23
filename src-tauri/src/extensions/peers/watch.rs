@@ -21,7 +21,7 @@ use crate::extensions::permissions::{
 };
 use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
-use crate::sync::foreign_auth::Trust;
+use crate::sync::foreign_auth::{Trust, Verified};
 use crate::vault_gate::VaultDb;
 
 /// The address book tables whose change can take a vault's ground away.
@@ -107,31 +107,48 @@ pub async fn recheck(db: &VaultDb, host: &Arc<ExtensionHost>, device: Uuid, due:
     }
     if due.contacts {
         let contacts = ContactsService::new(db.clone());
-        let caller = Caller::Internal { feature: FEATURE };
         for (channel_id, remote) in host.peers.remotes() {
-            let card = match contacts.card_of_vault(&caller, remote.vault).await {
-                Ok(card) => card,
-                Err(error) => {
-                    log::warn!("peers: the address book could not be read: {error}");
-                    return;
-                }
-            };
-            let still = match (&remote.trust, card) {
-                (_, VaultCard::Blocked) => false,
-                (
-                    Trust::Contact { contact_id, .. },
-                    VaultCard::Stored {
-                        contact_id: now, ..
-                    },
-                ) => *contact_id == now,
-                (Trust::Contact { .. }, VaultCard::Unknown) => false,
-                (Trust::OwnVault | Trust::Unverified, _) => true,
-            };
-            if !still {
-                host.peers.end_where(|channel| channel.id == channel_id);
+            match grounded(&contacts, &remote).await {
+                Some(true) => {}
+                Some(false) => host.peers.end_where(|channel| channel.id == channel_id),
+                None => return,
+            }
+        }
+        // An invitation that waits for an answer needs the same ground as the channel it would
+        // become.
+        for (invite, remote) in host.peers.invitation_remotes() {
+            match grounded(&contacts, &remote).await {
+                Some(true) => {}
+                Some(false) => host.peers.end_invitation(invite),
+                None => return,
             }
         }
     }
+}
+
+/// Whether the other side still stands where it was admitted: a contact whose card is still on
+/// the same contact and whose vault is not blocked. `None` when the address book could not be
+/// read.
+async fn grounded(contacts: &ContactsService, remote: &Verified) -> Option<bool> {
+    let caller = Caller::Internal { feature: FEATURE };
+    let card = match contacts.card_of_vault(&caller, remote.vault).await {
+        Ok(card) => card,
+        Err(error) => {
+            log::warn!("peers: the address book could not be read: {error}");
+            return None;
+        }
+    };
+    Some(match (&remote.trust, card) {
+        (_, VaultCard::Blocked) => false,
+        (
+            Trust::Contact { contact_id, .. },
+            VaultCard::Stored {
+                contact_id: now, ..
+            },
+        ) => *contact_id == now,
+        (Trust::Contact { .. }, VaultCard::Unknown) => false,
+        (Trust::OwnVault | Trust::Unverified, _) => true,
+    })
 }
 
 /// Whether `extension_id` may still open channels: `peers`/`connect` on `*`, remembered or held for

@@ -75,16 +75,19 @@ pub fn info(card: &SignedCard) -> ContactCardInfo {
     }
 }
 
-/// The card of a contact, if it has one.
-pub fn of(q: &mut impl Query, contact_id: &str) -> Result<Option<ContactCardInfo>> {
+/// The card of a contact as it was stored, if it has one.
+pub fn stored_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Option<SignedCard>> {
     let bytes: Option<Vec<u8>> = q.query_row(
         "SELECT card FROM haex_contacts_cards WHERE contact_id = ?1",
         params![contact_id],
         |r| r.get(0),
     )?;
-    Ok(bytes
-        .and_then(|bytes| format::from_bytes(bytes).ok())
-        .map(|card| info(&card)))
+    Ok(bytes.and_then(|bytes| format::from_bytes(bytes).ok()))
+}
+
+/// The card of a contact, if it has one.
+pub fn of(q: &mut impl Query, contact_id: &str) -> Result<Option<ContactCardInfo>> {
+    Ok(stored_of_contact(q, contact_id)?.map(|card| info(&card)))
 }
 
 /// The contacts that have a card.

@@ -6,9 +6,9 @@
 //! (`docs/adr/0016-non-contact-devices-for-public-lobbies.md`): with a public lobby it may join as
 //! not verified; with only lobbies for contacts it may send one bounded `Join`, which ends with
 //! `NotAdmitted` after a valid proof and without an answer otherwise (FR-031); with none it is cut
-//! right after the exchange. A `Join` goes to [`lobby::admit_join`]; invitations come with their
-//! own delivery, so an `Invite` ends the connection for now, as silence does after the limit.
-//! Every refusal looks the same from outside.
+//! right after the exchange. A `Join` goes to [`lobby::admit_join`]; an `Invite` of a contact to
+//! [`invited::admit_invite`], and one of anybody else ends the connection, as silence does after
+//! the limit. Every refusal looks the same from outside.
 //!
 //! [`ADMISSION_LIMIT`]: super::limits::ADMISSION_LIMIT
 
@@ -19,6 +19,7 @@ use iroh::endpoint::{Connection, RecvStream, SendStream};
 use iroh::protocol::{AcceptError, ProtocolHandler};
 
 use super::channel::Frames;
+use super::invited::{self, InviteRequest, Inviting};
 use super::limits::ADMISSION_LIMIT;
 use super::lobby::{self, JoinRequest, Joining, Openness};
 use super::throttle::Throttle;
@@ -137,36 +138,62 @@ impl PeerProtocol {
                 return refuse(&connection);
             }
         };
-        let Message::Join {
-            lobby,
-            proof,
-            extension,
-            display_name,
-            payload,
-            ..
-        } = first
-        else {
-            log::debug!("peers: an admission message this device does not take");
-            return refuse(&connection);
-        };
-        let joining = Joining {
-            ctx: &self.ctx,
-            host: &host,
-            tracker: &self.tasks.tracker,
-            throttle: &self.throttle,
-            connection,
-            remote,
-            send,
-            recv,
-        };
-        let request = JoinRequest {
-            lobby,
-            proof,
-            extension,
-            display_name,
-            payload,
-        };
-        lobby::admit_join(joining, request).await;
+        match first {
+            Message::Join {
+                lobby,
+                proof,
+                extension,
+                display_name,
+                payload,
+                ..
+            } => {
+                let joining = Joining {
+                    ctx: &self.ctx,
+                    host: &host,
+                    tracker: &self.tasks.tracker,
+                    throttle: &self.throttle,
+                    connection,
+                    remote,
+                    send,
+                    recv,
+                };
+                let request = JoinRequest {
+                    lobby,
+                    proof,
+                    extension,
+                    display_name,
+                    payload,
+                };
+                lobby::admit_join(joining, request).await;
+            }
+            // Only a contact invites; anyone else, an own device included, is cut without a word.
+            Message::Invite {
+                invite,
+                extension,
+                payload,
+                ..
+            } if matches!(remote.trust, Trust::Contact { .. }) => {
+                let inviting = Inviting {
+                    ctx: &self.ctx,
+                    host: &host,
+                    tracker: &self.tasks.tracker,
+                    connection,
+                    remote,
+                    send,
+                    recv,
+                };
+                let request = InviteRequest {
+                    invite,
+                    extension,
+                    payload,
+                };
+                invited::admit_invite(inviting, request).await;
+            }
+            _ => {
+                log::debug!("peers: an admission message this device does not take");
+                refuse(&connection);
+            }
+        }
     }
 }
 

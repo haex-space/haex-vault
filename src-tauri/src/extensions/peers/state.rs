@@ -2,28 +2,56 @@
 //! of the process; nothing of it is stored (FR-042). Every lookup takes the calling extension and
 //! answers an id of another extension exactly like one that does not exist (FR-006).
 //!
-//! Invitations join this state with the delivery that brings them (PR 3). It also holds the
-//! running endpoint of the vault session, which the joining side of a lobby dials from.
+//! It also holds the open invitations of both sides and the running endpoint of the vault
+//! session, which the joining side of a lobby and the inviting side dial from.
 //!
 //! [`ExtensionHost`]: crate::extensions::host::ExtensionHost
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use std::time::Duration;
 
+use serde_json::Value;
+use tokio_util::task::TaskTracker;
 use uuid::Uuid;
 
 use super::admission::PeerContext;
-use super::channel::{Channel, EndReason};
-use super::limits::CHANNELS_PER_EXTENSION;
+use super::channel::{Channel, EndReason, Frames};
+use super::invite::{OutgoingInvites, CHANNEL_OPENED};
+use super::invited::{Answered, Invitations};
+use super::limits::{CHANNELS_PER_EXTENSION, INVITE_LIFETIME, PENDING_OPEN_LIMIT};
 use super::lobby::{Lobbies, Openness};
 use super::PeerError;
 use crate::sync::endpoint::SyncNode;
 use crate::sync::foreign_auth::{SeenGenerations, Verified};
 
+/// The waits of invitations, which tests shorten instead of waiting them out.
+#[derive(Debug, Clone, Copy)]
+pub struct Timing {
+    /// How long an invitation stays open (FR-019).
+    pub invite_lifetime: Duration,
+    /// How long an accepted invitation waits for a frame of its extension (R9).
+    pub pending_open: Duration,
+}
+
+impl Default for Timing {
+    fn default() -> Self {
+        Self {
+            invite_lifetime: INVITE_LIFETIME,
+            pending_open: PENDING_OPEN_LIMIT,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct PeerState {
     channels: Mutex<HashMap<Uuid, Arc<Channel>>>,
     lobbies: Mutex<Lobbies>,
+    /// Invitations this device sent and has no end of yet.
+    outgoing: Mutex<OutgoingInvites>,
+    /// Invitations of contacts this device asks its user about.
+    incoming: Mutex<Invitations>,
+    timing: Mutex<Timing>,
     /// The endpoint of the vault session while it runs. Held weakly: the session owns its node,
     /// and a node held here would keep the session from draining.
     session: Mutex<Option<(Arc<PeerContext>, Weak<SyncNode>)>>,
@@ -44,6 +72,24 @@ impl PeerState {
 
     pub(super) fn lobbies(&self) -> MutexGuard<'_, Lobbies> {
         self.lobbies.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(super) fn outgoing(&self) -> MutexGuard<'_, OutgoingInvites> {
+        self.outgoing.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(super) fn invitations(&self) -> MutexGuard<'_, Invitations> {
+        self.incoming.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn timing(&self) -> Timing {
+        *self.timing.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Replaces the waits, so a test need not wait them out.
+    #[cfg(test)]
+    pub(crate) fn set_timing(&self, timing: Timing) {
+        *self.timing.lock().unwrap_or_else(PoisonError::into_inner) = timing;
     }
 
     fn session_slot(&self) -> MutexGuard<'_, Option<(Arc<PeerContext>, Weak<SyncNode>)>> {
@@ -121,10 +167,43 @@ impl PeerState {
     }
 
     /// Ends everything of `extension_id` on this device (FR-008, FR-034): its permission went,
-    /// it was disabled or removed, or its last frame closed.
+    /// it was disabled or removed, or its last frame closed. Its lobbies close, its channels end,
+    /// the invitations it sent are withdrawn (no status follows) and the ones it was invited by
+    /// go from the prompt.
     pub fn end_all(&self, extension_id: Uuid) {
         self.lobbies().close_all(extension_id);
+        let withdrawn = self.outgoing().take_all(extension_id);
+        withdrawn.iter().for_each(|stop| stop.cancel());
+        self.invitations().end_all(extension_id);
         self.end_where(|channel| channel.extension_id == extension_id);
+    }
+
+    /// Takes the answer of the user to the invitation `invite` (the prompt's buttons or the
+    /// window's command): `Open` when it was still waiting for one, else `Gone`.
+    pub fn answer_invitation(&self, invite: Uuid, accept: bool) -> Answered {
+        self.invitations().answer(invite, accept)
+    }
+
+    /// The other side of every invitation waiting for an answer, by invitation.
+    pub fn invitation_remotes(&self) -> Vec<(Uuid, Verified)> {
+        self.invitations().remotes()
+    }
+
+    /// Ends the invitation `invite` waiting for an answer: its inviter lost the ground.
+    pub fn end_invitation(&self, invite: Uuid) {
+        self.invitations().end_one(invite);
+    }
+
+    /// Tells the frames of `channel`'s extension that an invitation became a channel
+    /// (`peers:channel-opened`, FR-016).
+    pub(super) fn opened(
+        &self,
+        channel: &Channel,
+        frames: &Frames,
+        event: Value,
+        _tracker: &TaskTracker,
+    ) {
+        frames.emit(channel.extension_id, CHANNEL_OPENED, &event);
     }
 
     /// Ends every channel `ended` picks, with `closed`.
@@ -140,11 +219,13 @@ impl PeerState {
         }
     }
 
-    /// The extensions with open channels or lobbies.
+    /// The extensions with open channels, lobbies or invitations.
     pub fn extensions(&self) -> BTreeSet<Uuid> {
         let mut extensions: BTreeSet<Uuid> =
             self.channels().values().map(|c| c.extension_id).collect();
         extensions.extend(self.lobbies().extensions());
+        extensions.extend(self.outgoing().extensions());
+        extensions.extend(self.invitations().extensions());
         extensions
     }
 
@@ -156,11 +237,14 @@ impl PeerState {
             .collect()
     }
 
-    /// Ends every channel, closes every lobby and forgets the session's endpoint and list
-    /// generations: the vault session ended.
+    /// Ends every channel, closes every lobby, withdraws every invitation and forgets the
+    /// session's endpoint and list generations: the vault session ended.
     pub fn clear(&self) {
         *self.session_slot() = None;
         self.lobbies().clear();
+        let withdrawn = self.outgoing().clear();
+        withdrawn.iter().for_each(|stop| stop.cancel());
+        self.invitations().clear();
         self.end_where(|_| true);
         self.seen.clear();
     }
