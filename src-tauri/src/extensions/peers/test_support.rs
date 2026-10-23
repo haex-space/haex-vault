@@ -238,17 +238,23 @@ impl Vault {
     /// Closes every open frame of the test extension, as when its tab was closed.
     pub(crate) fn close_frames(&self) {
         for session in self.host.frames.of_extension(self.extension_id) {
+            self.host
+                .peers
+                .frame_closed(session.extension_id, &session.frame);
             self.host.frames.close(&session.frame);
         }
     }
 
     /// Opens a frame of `extension_id`; returns its id.
     pub(crate) fn open_frame(&self, extension_id: Uuid) -> String {
-        self.host
+        let frame = self
+            .host
             .frames
             .open(extension_id, Uuid::new_v4(), &Uuid::new_v4().to_string())
             .frame
-            .clone()
+            .clone();
+        self.host.peers.frame_opened(extension_id, &frame);
+        frame
     }
 
     /// The vault's identity.

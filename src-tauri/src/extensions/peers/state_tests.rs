@@ -3,6 +3,7 @@
 use super::*;
 use crate::extensions::peers::channel::{open, Opening, Origin};
 use crate::extensions::peers::test_support::{install, open_test_channel, Admit, Vault};
+use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_channel_of_another_extension_is_answered_like_a_missing_one() {
@@ -69,4 +70,37 @@ async fn an_extension_gets_at_most_its_limit_of_channels() {
     a.shutdown().await;
     b.shutdown().await;
     c.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_reliable_message_overflow_ends_a_pending_channel() {
+    let (a, b) = (
+        Vault::start(Admit::AtOnce).await,
+        Vault::start(Admit::AtOnce).await,
+    );
+    b.close_frames();
+    let (near, far) = open_test_channel(&a, &b).await;
+
+    for n in 0..crate::extensions::peers::pending::MAX_HELD - 1 {
+        assert_eq!(
+            b.host.peers.hold(far.id, "peers:test", json!(n), true),
+            None
+        );
+    }
+    assert_eq!(
+        b.host
+            .peers
+            .hold(far.id, "peers:test", json!("fast"), false),
+        None
+    );
+    assert_eq!(
+        b.host
+            .peers
+            .hold(far.id, "peers:test", json!("reliable"), true),
+        None
+    );
+    assert!(b.host.peers.channel(b.extension_id, far.id).is_err());
+    assert!(near.is_closed());
+    a.shutdown().await;
+    b.shutdown().await;
 }

@@ -93,7 +93,6 @@ async fn the_extension_is_opened_and_hears_the_channel_first() {
 
     // The frame reports its handshake: the announcement goes first, then the message.
     let frame = b1.open_frame(b1.extension_id);
-    b1.host.peers.frame_opened(b1.extension_id);
     let events: Vec<String> = b1
         .window
         .window_events("extension-frame-event")

@@ -49,6 +49,8 @@ impl Default for Timing {
 #[derive(Default)]
 pub struct PeerState {
     channels: Mutex<HashMap<Uuid, Arc<Channel>>>,
+    /// Frame sessions that completed their SDK handshake, by extension.
+    ready_frames: Mutex<HashMap<Uuid, BTreeSet<String>>>,
     lobbies: Mutex<Lobbies>,
     /// Invitations this device sent and has no end of yet.
     outgoing: Mutex<OutgoingInvites>,
@@ -89,6 +91,12 @@ impl PeerState {
 
     fn pending(&self) -> MutexGuard<'_, PendingOpens> {
         self.pending.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn ready_frames(&self) -> MutexGuard<'_, HashMap<Uuid, BTreeSet<String>>> {
+        self.ready_frames
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn timing(&self) -> Timing {
@@ -224,7 +232,11 @@ impl PeerState {
         };
         let extension_id = channel.extension_id;
         let mut pending = self.pending();
-        if !host.frames.of_extension(extension_id).is_empty() {
+        if self
+            .ready_frames()
+            .get(&extension_id)
+            .is_some_and(|frames| !frames.is_empty())
+        {
             drop(pending);
             return frames.emit(extension_id, CHANNEL_OPENED, &event);
         }
@@ -264,10 +276,25 @@ impl PeerState {
     /// A frame of `extension_id` is there: what waited for one goes to it, in order. Called when
     /// the frame reports its handshake, as only then does holzi's window know the frame and keep
     /// events for it.
-    pub fn frame_opened(&self, extension_id: Uuid) {
+    pub fn frame_opened(&self, extension_id: Uuid, frame: &str) {
+        self.ready_frames()
+            .entry(extension_id)
+            .or_default()
+            .insert(frame.to_owned());
         self.pending().release(extension_id, |frames, event, data| {
             frames.emit(extension_id, event, data);
         });
+    }
+
+    /// A frame session closed or started a new document and is no longer ready.
+    pub fn frame_closed(&self, extension_id: Uuid, frame: &str) {
+        let mut ready = self.ready_frames();
+        if let Some(frames) = ready.get_mut(&extension_id) {
+            frames.remove(frame);
+            if frames.is_empty() {
+                ready.remove(&extension_id);
+            }
+        }
     }
 
     /// Whether a message of `channel` waits for a frame; when it does not, the message comes
@@ -279,7 +306,8 @@ impl PeerState {
         data: Value,
         reliable: bool,
     ) -> Option<Value> {
-        match self.pending().hold(channel, event, data, reliable) {
+        let held = self.pending().hold(channel, event, data, reliable);
+        match held {
             Hold::Pass(data) => return Some(data),
             Hold::Held => {}
             Hold::Overflow => self.finish(channel, EndReason::Lost),
@@ -328,6 +356,7 @@ impl PeerState {
         self.invitations().clear();
         self.end_where(|_| true);
         self.pending().clear();
+        self.ready_frames().clear();
         self.seen.clear();
     }
 }
