@@ -332,8 +332,9 @@ antippen, einen Anhang umbenennen.
    Eintrags (nicht zum PDF), Escape und der Schließen-Knopf schließen sie, Zoom und
    Verschieben gehen mit Tippen, Zwicken und dem Mausrad.
 3. **Given** ein Anhang ohne Vorschau (PDF, Text, anderes), **When** der Nutzer ihn antippt,
-   **Then** öffnet holzi nichts in der App, sondern bietet Speichern unter an; die Karte hat
-   dafür auch einen eigenen Knopf.
+   **Then** öffnet holzi bei Text die Anhang-Ansicht und bei PDF (ab PR B) die PDF-Ansicht;
+   bei anderen Anhängen öffnet holzi nichts in der App, sondern bietet Speichern unter an; die
+   Karte hat dafür auch einen eigenen Knopf.
 4. **Given** der Tab Extra im Bearbeiten, **When** der Nutzer einen Anhang umbenennt oder
    entfernt, **Then** wirkt das wie in 034 (Umbenennen und Entfernen gelten sofort, wie
    dort festgelegt), und die Karte zeigt es.

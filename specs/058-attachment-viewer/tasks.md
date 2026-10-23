@@ -88,7 +88,9 @@ file; nothing is written to the device (quickstart M1–M5, M8, M14, M15).
 - [x] T019 [US1] Make sure the view closes with the vault (FR-008): check that locking the vault unmounts the password manager window (spec 013); if it does not, close the view on the vault-lock event used by the other password views. Record the finding as a one-line comment in `AttachmentViewer.vue` **Finding**: closing the vault ends the process and relaunches to the unlock screen (spec 013 §Clarifications), so the view goes with it; recorded in the doc comment of `AttachmentViewer.vue`.
 - [x] T020 [US1] Extend `scripts/e2e/scenarios/passwords-attachments.test.ts`: attach `notiz.txt` (a few lines incl. "Grüße") with `addAttachments`; tap its card → `passwords-attachment-viewer-text` holds "Grüße"; Escape → the viewer is gone and `document.activeElement` is the card's tap button; attach `kaputt.txt` (bytes `a\0b`) → tap → `passwords-attachment-viewer-failed`; the existing assertions (lightbox, PDF opens no lightbox) stay; at 360 px `horizontalOverflow` stays false with the viewer open
 
-**Checkpoint**: US1 works on its own. `cargo test -j 4 --lib passwords::attachment_view`, `cargo test -j 4 --test passwords_attachment_view`, `pnpm check:passwords`, `pnpm typecheck`, e2e `passwords-attachments` green. Commit, open PR A.
+**Checkpoint**: US1 works on its own. `cargo test -j 4 --lib passwords::service::attachments`,
+`cargo test -j 4 --lib passwords::attachment_view`, `pnpm check:passwords`, `pnpm typecheck`,
+e2e `passwords-attachments` green. Commit, open PR A.
 
 ---
 
