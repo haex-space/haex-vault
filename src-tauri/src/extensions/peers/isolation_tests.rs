@@ -83,8 +83,9 @@ async fn an_extension_on_the_wire_resolves_only_with_its_key_and_name() {
     vault.shutdown().await;
 }
 
-/// Invitations are not offered yet, and no lobby is open: whatever extension a contact names in
-/// an `Invite` or a `Join`, the connection ends and no frame hears anything.
+/// No lobby is open and no extension of the host is invited: whatever extension a contact names
+/// in an `Invite` or a `Join`, the connection ends and no frame hears anything. (An `Invite` for
+/// an extension the host runs is asked about in holzi's prompt, which the invitation tests cover.)
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_invite_or_join_reaches_no_frame() {
     let host = Vault::start(Admit::Real(Duration::from_secs(30))).await;
@@ -117,6 +118,9 @@ async fn an_invite_or_join_reaches_no_frame() {
                 payload: b"{}".to_vec(),
             },
         ] {
+            if matches!(message, Message::Invite { .. }) && extension.name == NAME {
+                continue;
+            }
             let (connection, mut send, _recv, verified) = guest.dial(&host).await;
             verified.expect("a contact passes the exchange");
             wire::write(&mut send, &message, ADMISSION_FRAME_LIMIT)

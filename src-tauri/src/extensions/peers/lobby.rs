@@ -269,7 +269,8 @@ pub(super) struct Joining<'a> {
 }
 
 /// Writes the answer without letting a peer that stopped reading hold an admission slot forever.
-async fn write_reply<W: AsyncWrite + Unpin>(send: &mut W, reply: &Message) -> bool {
+/// The invitations write their messages the same way.
+pub(super) async fn write_reply<W: AsyncWrite + Unpin>(send: &mut W, reply: &Message) -> bool {
     write_reply_with_limit(send, reply, REPLY_GRACE).await
 }
 

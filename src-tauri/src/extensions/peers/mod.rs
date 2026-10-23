@@ -8,6 +8,9 @@
 
 pub mod admission;
 pub mod channel;
+pub mod invite;
+mod invite_run;
+pub mod invited;
 pub mod join;
 pub mod lobby;
 pub mod prompt;
@@ -16,6 +19,8 @@ pub mod throttle;
 pub mod watch;
 pub mod wire;
 
+#[cfg(test)]
+pub(crate) mod test_scene;
 #[cfg(test)]
 pub(crate) mod test_support;
 
@@ -63,6 +68,13 @@ pub mod limits {
     pub const ADMISSION_LIMIT: Duration = Duration::from_secs(5);
     /// How long `extension_peers_join` waits for the host's answer.
     pub const JOIN_LIMIT: Duration = Duration::from_secs(15);
+    /// How long a device has to be reached from a card, the exchange included.
+    pub const INVITE_DIAL_LIMIT: Duration = Duration::from_secs(10);
+    /// Open invitations asked about at once, from one other vault and from all.
+    pub const INCOMING_PER_VAULT: usize = 4;
+    pub const INCOMING_TOTAL: usize = 16;
+    /// How long an accepted invitation waits for a frame of its extension to open.
+    pub const PENDING_OPEN_LIMIT: Duration = Duration::from_secs(60);
 }
 
 /// An extension as both sides name it on the wire: the publisher key and the name of its manifest,
