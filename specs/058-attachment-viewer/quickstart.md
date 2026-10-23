@@ -33,7 +33,7 @@ Erwartet: alle grün. Danach `cargo fmt --check`, `pnpm lint:all` und `pnpm type
 | M2  | Auf `notiz.txt` tippen                                                         | Anhang-Ansicht mit dem Text, Umlaut richtig, Name in der Kopfzeile (US1)          |
 | M3  | Eine Zeile markieren, kopieren, Escape                                         | Zwischenablage hat die Zeile; Fokus auf der Karte (US1 S2, S6)                    |
 | M4  | `gross.log` öffnen                                                             | Hinweis „abgeschnitten“, Text bis 5 MB (US1 S3)                                   |
-| M5  | `kaputt.txt` öffnen                                                            | Hinweis „kein Text“ mit Speichern unter und System-App (US1 S4)                   |
+| M5  | `kaputt.txt` öffnen                                                            | Hinweis „kein Text“ mit Speichern unter (US1 S4); System-App folgt in PR C         |
 | M6  | `police.pdf` öffnen, blättern, zoomen, schließen                               | PDF-Viewer wie in der Dateien-App (US2 S1, S3)                                    |
 | M7  | `defekt.pdf` öffnen                                                            | Hinweis, Speichern unter, System-App (US2 S2)                                     |
 | M8  | Auf `tabelle.ods` tippen                                                       | Speichern unter wie bisher (US1 S7)                                               |
@@ -46,8 +46,9 @@ Erwartet: alle grün. Danach `cargo fmt --check`, `pnpm lint:all` und `pnpm type
 | M15 | Fenster auf 360 px Breite                                                      | Ansicht füllt das Fenster, nichts scrollt seitwärts                               |
 | M16 | Auf einem zweiten Gerät derselben Vault einen Anhang mit der System-App öffnen | Hinweis erscheint dort (FR-010)                                                   |
 
-Unter Windows zusätzlich: einen Anhang `a:b?.txt` anhängen und mit der System-App öffnen; die Kopie
-heißt `a_b_.txt` und öffnet.
+In PR C zusätzlich: Einen Anhang mit dem Namen `a:b?.txt` auf einem System anlegen, das diesen
+Namen erlaubt, und ihn unter Windows mit der System-App öffnen; die Kopie heißt `a_b_.txt` und
+öffnet. Alternativ liefert ein Test-Fixture den Anhang mit diesem Namen.
 
 ## Von Hand (Android)
 

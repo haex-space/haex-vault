@@ -26,6 +26,14 @@ const { attachmentTextAsync } = usePasswords()
 const kind = computed(() => fileKind(props.attachment.fileName))
 const text = ref<TextContent | null>(null)
 const failed = ref<string | null>(null)
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function focusableElements(): HTMLElement[] {
+  return Array.from(
+    panel.value?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
+  ).filter((element) => !element.hidden && element.offsetParent !== null)
+}
 
 /** The message for a failure while reading: the reasons of `passwords_attachment_text` in words. */
 function failureText(cause: unknown): string {
@@ -49,7 +57,7 @@ function failureText(cause: unknown): string {
 
 watch(
   () => [props.attachment.id, props.attachment.binaryHash] as const,
-  async ([id]) => {
+  async ([id, binaryHash]) => {
     text.value = null
     failed.value = null
     if (kind.value !== 'text') {
@@ -58,15 +66,44 @@ watch(
     }
     try {
       const content = await attachmentTextAsync(id)
-      if (id === props.attachment.id) text.value = content
+      if (
+        id === props.attachment.id &&
+        binaryHash === props.attachment.binaryHash
+      )
+        text.value = content
     } catch (cause) {
-      if (id === props.attachment.id) failed.value = failureText(cause)
+      if (
+        id === props.attachment.id &&
+        binaryHash === props.attachment.binaryHash
+      )
+        failed.value = failureText(cause)
     }
   },
   { immediate: true },
 )
 
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Tab') {
+    const elements = focusableElements()
+    if (!elements.length) {
+      event.preventDefault()
+      panel.value?.focus()
+      return
+    }
+    const index = elements.indexOf(document.activeElement as HTMLElement)
+    const next = event.shiftKey
+      ? index <= 0
+        ? elements[elements.length - 1]
+        : elements[index - 1]
+      : index < 0 || index === elements.length - 1
+        ? elements[0]
+        : elements[index + 1]
+    if (index < 0 || (event.shiftKey ? index === 0 : index === elements.length - 1)) {
+      event.preventDefault()
+      next?.focus()
+    }
+    return
+  }
   if (event.key !== 'Escape') return
   event.preventDefault()
   event.stopPropagation()
