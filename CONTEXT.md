@@ -474,6 +474,37 @@ The **Berechtigung** of kind `peers` (action `connect`, target `*`), vault-wide:
 open channels to itself on devices of other vaults.
 _Avoid_: network permission, peer for a contact.
 
+### Dateizugriff und Dateifreigaben (spec 056)
+
+**Geräte-Dateizugriff** (device file access):
+An own device reaching the whole file system of another own device, as that device's file browser
+shows it, over `haex-vault-files/1`. It needs no **Dateifreigabe**. A switch per device, kept only
+on that device (`_no_sync`, on by default), turns serving other own devices off.
+_Avoid_: remote drive, mount.
+
+**Dateifreigabe** (file share):
+A folder or a single file the user makes reachable to contacts: a name, a source (the device or a
+storage, and a path), the device that serves it, and **Zugriffsrechte**. Its root is all a contact
+sees; nothing above or beside it.
+_Avoid_: "Freigabe" alone (spec 034 Grant), "Space", "Share" in user-facing text.
+
+**Zugriffsrecht** (share grant):
+One vault identity (a contact) in a **Dateifreigabe** with the level Lesen or Lesen und Schreiben.
+Taking it away rolls out no keys; the serving device stops answering that vault for that share on
+its next request.
+_Avoid_: permission (extension, agent), "Freigabe".
+
+**Empfangene Dateifreigabe** (received file share):
+What a recipient's vault knows of a contact's **Dateifreigabe**: the contact, name, level and the
+serving device. It shows in the file browser like a storage.
+_Avoid_: shared folder, mount.
+
+**Anklopfen** (knock):
+A short-lived, encrypted message over the Nostr relays of a contact's card that asks a device of
+that contact for its current address. A device answers only when it makes something reachable to
+the asking vault.
+_Avoid_: ping, presence (presence is for own devices).
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and
