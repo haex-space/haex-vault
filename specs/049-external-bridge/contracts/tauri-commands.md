@@ -44,6 +44,7 @@ type BridgeOverview = {
   state: 'off' | 'running' | 'portInUse' | 'noVault' | 'notAvailable'
   clients: BridgeClientView[] // zugelassen, gemerkt und vorläufig
   blocked: BridgeClientView[] // gesperrt, gemerkt und vorläufig
+  outdatedClientSeen: boolean // FR-049: in diesem Lauf wollte sich eine Erweiterung mit Protokoll 2 verbinden
 }
 type BridgeClientView = {
   clientId: string // Fingerabdruck; die Anzeige gruppiert in Vierergruppen
@@ -179,6 +180,12 @@ Regeln:
 
 Kein Inhalt. Das Vault-Passwort einer Anwesenheitsbestätigung war falsch. Der Dialog ist dann schon
 zu; das Fenster zeigt „Passwort falsch“ als Hinweis.
+
+### Ereignis `browser-bridge-outdated-client` (Rust → Fenster)
+
+Kein Inhalt, höchstens einmal je Lauf der Bridge (FR-049). Eine Erweiterung mit Protokoll 2 wollte
+sich verbinden und wurde abgewiesen. Das Fenster zeigt einen Hinweis, dass haex-pass aktualisiert
+werden muss, weil die Erweiterung bis 1.3.0 den Grund selbst nicht anzeigt.
 
 ### Ereignis `browser-bridge-changed` (Rust → Fenster)
 

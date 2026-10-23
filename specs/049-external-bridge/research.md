@@ -660,8 +660,11 @@ gibt (R3); keine neue Kryptografie und kein neuer Schlüssel.
   (gelöscht nach Gebrauch). Die Frist ist die des Handshakes (10 s ab dem Upgrade). Die Aufgabe gilt
   nur für die eine Verbindung und nur einmal.
 - **Alte Clients**: Protokoll kleiner als 3 bekommt `PROTOCOL_UPDATE_REQUIRED` (Entscheidung des
-  Betreibers, 2026-10-23). haex-pass-browser 1.3.0 zeigt den Text des Fehlers als Verbindungsfehler
-  (`connection.ts`, Fall `error`).
+  Betreibers, 2026-10-23). haex-pass-browser 1.3.0 zeigt diesen Text nicht: Das Popup übersetzt nur
+  die Codes der SDK (`client_not_authorized` und Verwandte) und zeigt sonst „Unbekannter Fehler“,
+  und das Schließen danach überschreibt den Code mit „Verbindung geschlossen“
+  (`background/connection.ts`, `popup/components/ConnectionStatus.vue`). holzi meldet es deshalb
+  selbst im Fenster (FR-049); ab 1.4.0 zeigt auch die Erweiterung den Satz.
 - **Reihenfolge der Veröffentlichung**: Die Erweiterung 1.4.0 spricht Protokoll 3, läuft aber
   weiter, wenn statt `challenge` gleich `handshakeResponse` kommt (holzi vor PR G). So kann sie vor
   holzi erscheinen, und niemand steht zwischen zwei Releases ohne Verbindung.

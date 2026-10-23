@@ -425,7 +425,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
    Anfrage auszuführen (FR-048).
 6. **Given** ein Client mit Protokoll 2 (haex-pass-browser 1.3.0 oder älter), **When** er sich
    verbindet, **Then** antwortet holzi mit dem Fehler `PROTOCOL_UPDATE_REQUIRED` und schließt, ohne
-   Dialog (FR-049).
+   Dialog, und zeigt im Fenster, dass die Erweiterung aktualisiert werden muss (FR-049).
 7. **Given** die Antwort auf eine Aufgabe aus einer anderen Verbindung, **When** ein Client sie
    schickt, **Then** weist holzi ihn ab wie bei einer falschen Antwort.
 
@@ -728,7 +728,11 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 - **FR-049**: Einen Handshake mit Protokoll kleiner als 3 MUSS holzi mit dem Fehler
   `PROTOCOL_UPDATE_REQUIRED` beantworten, dessen Text sagt, dass die Erweiterung aktualisiert werden
-  muss, und schließen, ohne Dialog. Es gibt keine Übergangszeit und keinen Schalter dafür.
+  muss, und schließen, ohne Dialog. Es gibt keine Übergangszeit und keinen Schalter dafür. Weil
+  haex-pass-browser 1.3.0 und älter diesen Text nicht anzeigen, MUSS holzi im Fenster einen Hinweis
+  zeigen, dass sich eine veraltete Erweiterung verbinden wollte und aktualisiert werden muss:
+  höchstens einmal je Lauf der Bridge als Systembenachrichtigung oder Toast, und solange die Bridge
+  läuft auf der Seite Browser-Erweiterungen.
 
 ### Key Entities
 
