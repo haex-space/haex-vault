@@ -65,18 +65,6 @@ gelöscht, löscht ein Abonnent auf `haex_contacts_cards` die Zeilen dieser Vaul
 
 ## Nur dieses Gerät (`_no_sync`)
 
-### `haex_file_peer_lists_no_sync` — höchste gesehene Geräteliste (FR-003)
-
-| Spalte         | Typ     | Regeln                                        |
-| -------------- | ------- | --------------------------------------------- |
-| `vault_pubkey` | TEXT    | PK; nur fremde Vaults                         |
-| `generation`   | INTEGER | höchste geprüfte Generation                   |
-| `list_hash`    | TEXT    | SHA-256 der Liste mit dieser Generation (Hex) |
-| `seen_at`      | TEXT    | ISO-8601                                      |
-
-Bei gleicher Generation und anderem Hash gilt die Regel aus 024 (kleinster Hash) nicht: das bedienende
-Gerät lehnt ab, bis eine höhere Generation kommt.
-
 ### `haex_file_device_access_no_sync` — Schalter „Geräte-Dateizugriff“ (FR-014)
 
 | Spalte       | Typ     | Regeln                       |

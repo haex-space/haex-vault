@@ -54,7 +54,8 @@ Absender: das Gerät des Eigentümers. Empfänger: der Siegel-Unterzeichner des 
 1. Frisch: `ts` höchstens 150 s alt und höchstens 30 s in der Zukunft; eine schon gesehene `nonce`
    wird verworfen.
 2. `listSig` gilt für `list` unter `vault`; der Siegel-Unterzeichner steht auf der Liste; Generation
-   nach `haex_file_peer_lists_no_sync` (wie im Handshake).
+   nach derselben Regel wie im Handshake (`foreign_auth`: nicht älter als die Karte oder eine in dieser
+   Sitzung gesehene).
 3. `vault` hat eine gespeicherte, nicht blockierte Karte und mindestens ein Zugriffsrecht auf eine
    Freigabe, die **dieses** Gerät bedient.
 4. Höchstens eine Antwort je `vault` in 5 s.
@@ -64,5 +65,5 @@ Absender: das Gerät des Eigentümers. Empfänger: der Siegel-Unterzeichner des 
 
 - Nur nach einer Handlung des Nutzers (Kontakt aufklappen, bekannte Freigabe öffnen; FR-028, FR-029).
 - Antwort nur annehmen, wenn `nonce` passt, frisch ist und der Siegel-Unterzeichner auf der Karte des
-  Kontakts steht; dann Adresse in die `MemoryLookup`, verbinden mit `holzi-files/1`.
+  Kontakts steht; dann Adresse in die `MemoryLookup`, verbinden mit `haex-vault-files/1`.
 - Ohne Antwort nach 10 s: „nicht erreichbar“.

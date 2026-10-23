@@ -5,7 +5,7 @@ Abhängigkeiten: iroh 1.3.0, nostr 0.45.5 (nip44, nip59), nostr-sdk 0.45.4.
 
 ## R1 Ebene des Protokolls: Fensterpfade statt Objekt-Schlüssel
 
-**Decision**: Das Protokoll `holzi-files/1` spricht in **Fensterpfaden** (`/a/b`) und Dateibrowser-
+**Decision**: Das Protokoll `haex-vault-files/1` spricht in **Fensterpfaden** (`/a/b`) und Dateibrowser-
 Begriffen (auflisten, Angaben, Bereich lesen, hochladen, Ordner anlegen, umbenennen, verschieben,
 löschen). Das bedienende Gerät führt jede Anfrage über **dieselbe Schicht wie der Dateibrowser** aus:
 `StorageFiles` mit dem Scope für verschlüsselte Ordner (`files/storage_source.rs:173`,
@@ -69,48 +69,47 @@ unter `/`.
 Einschluss mit `local_fs::resolve`/`resolve_below` (`remote_storage/local_fs.rs:17`, `:63`), die
 `..`, symbolische Links nach außen und unter Windows `:` schon ablehnen (FR-006).
 
-## R4 Handshake von `holzi-files/1`
+## R4 Handshake von `haex-vault-files/1`
 
-**Decision**: Eigener Handshake auf dem ersten Stream jeder Verbindung, nach dem Vorbild von
-`sync/handshake.rs`:
+**Decision** (angepasst 2026-10-23): Der erste Stream jeder Verbindung läuft durch
+`sync::foreign_auth` (Spec 057, `sync/foreign_auth.rs`) mit
+`Purpose { alpn: FILES_ALPN, domain: Domain::FilesAuth }`: beide Seiten senden `Hello` (Vault,
+Geräteschlüssel, unterschriebene Geräteliste, Nonce) und `Proof` (Signatur über beide Nonces, beide
+Endpoints, Vault und ALPN). Jede Seite prüft die andere: Liste von der Vault unterschrieben, Gerät mit
+genau diesem Endpoint gelistet und nicht entfernt; für die eigene Vault entscheidet die eigene gültige
+Liste. Ergebnis `Trust::OwnVault`, `Trust::Contact` (Karte gespeichert, nicht blockiert, Liste nicht
+älter als die der Karte oder eine in dieser Sitzung gesehene, FR-003) oder `Trust::Unverified`.
 
-1. Anfragender → `Hello { v, vault, device_pubkey, list_payload, list_sig, nonce_r }`.
-2. Bedienender → `Challenge { nonce_s, trash: bool }`.
-3. Anfragender → `Proof { sig }` über `lp(nonce_r)‖lp(nonce_s)‖lp(own endpoint)‖lp(other endpoint)‖lp(vault)`
-   mit dem Geräteschlüssel, neue Domäne `Domain::FilesAuth` (`sync/signing.rs`).
-4. Bedienender → `Accept { mode }` oder `Reject` ohne Grund nach außen.
+Danach schickt das bedienende Gerät auf demselben Stream `Welcome { v, mode, trash }` oder schließt
+die Verbindung ohne Grund:
 
-Prüfung beim bedienenden Gerät:
+- `OwnVault` und Schalter an → `Mode::OwnDevice`; Schalter aus → `Mode::AccessOff`.
+- `Contact` und mindestens ein Zugriffsrecht auf eine Freigabe, die dieses Gerät bedient →
+  `Mode::Contact { vault }`.
+- sonst (auch `Unverified`) → schließen.
 
-- Liste: `device_list::check_pushed(payload, sig, vault)` (`sync/device_list.rs:371`).
-- Das Gerät steht auf der Liste, ist nicht entfernt, und `endpoint_id == connection.remote_id()`.
-- **Eigene Vault**: Statt der vorgelegten Liste gilt die eigene gültige Liste (`valid_lists` +
-  `effective`, `:238`, `:276`).
-- **Fremde Vault**: Die Generation MUSS ≥ der höchsten gesehenen sein (FR-003, neue Tabelle
-  `haex_file_peer_lists_no_sync`, data-model.md); eine höhere wird gespeichert.
-- Die Signatur bindet den Geräteschlüssel an die QUIC-Gegenstelle wie in `handshake.rs:333-341`.
+`SeenGenerations` lebt je Sitzung im Zustand des Servers bzw. Clients wie bei 057.
 
-Die Einordnung nach FR-004 ergibt `Mode::OwnDevice` oder `Mode::Contact { vault }`.
+**Rationale**: Eine Prüfung fremder Geräte an genau einer Stelle (Constitution). Der Sync-Handshake
+lehnt fremde Vaults bewusst ab (`RejectCode::ForeignVault`) und bleibt unberührt. Die eigene Tabelle
+`haex_file_peer_lists_no_sync` entfällt (Betreiber 2026-10-23); die Grenze steht in den Edge Cases der
+Spec.
 
-**Rationale**: Der Sync-Handshake lehnt fremde Vaults bewusst ab (`RejectCode::ForeignVault`,
-`handshake.rs:164`) und tauscht Änderungspakete; ihn zu öffnen hieße, die Grenze von 024 zu
-verwischen. Der neue Handshake verwendet dessen Bausteine (Transkript, Domänen, Listenprüfung).
-
-**Alternatives considered**: Vertrauen allein auf die Endpoint-ID aus der Visitenkarte. Verworfen:
-Die Karte enthält die Geräteliste nicht und veraltet; ein neues Gerät des Kontakts käme nicht hinein,
-ein entferntes nicht hinaus.
+**Alternatives considered**: Eigener Handshake mit dauerhafter Tabelle der höchsten Generation
+(ursprünglicher Plan). Verworfen: zweite Umsetzung derselben Regel neben 057.
 
 ## R5 Server im Endpoint
 
-**Decision**: `SyncNode::bind` (`sync/endpoint.rs:167`) nimmt optionale weitere Protokoll-Handler
-und registriert `FILES_ALPN = b"holzi-files/1"` (`sync/wire.rs`) mit `.accept(FILES_ALPN, …)` am
-selben `Router`. Der Handler `FilesProtocol` hat eigenen Zustand (Datenbank, Schlüssel, Vault,
-`FilesState`, Speicherdienst, Cancel-Token) und startet jede Verbindung auf dem Tracker der Sitzung,
-wie `SyncProtocol` (`:141-157`), damit Sperren laufende Anfragen beendet (FR-044). Ausgehend:
-`SyncNode::dial_files(addr)` nach dem Muster von `dial_link` (`:261`).
+**Decision** (angepasst 2026-10-23): `SyncNode::bind_with` und `Protocols` (Spec 057,
+`sync/endpoint_protocols.rs`) registrieren `FILES_ALPN = b"haex-vault-files/1"` (`sync/wire.rs`,
+Namensschema von Spec 054 wie `haex-vault-ext-peer/1`) neben `holzi-sync/1`. Der Handler
+`FilesProtocol` bekommt `NodeTasks` (Tracker und Cancel-Token der Sitzung) und startet jede Verbindung
+auf dem Tracker, wie `PeerProtocol` (`extensions/peers/admission.rs`), damit Sperren laufende Anfragen
+beendet (FR-044). Ausgehend: `SyncNode::dial_alpn(addr, FILES_ALPN)`. `sync::service::run` baut die
+Handler beider Specs in einem `Protocols`.
 
-**Rationale**: iroh setzt die ALPNs aus allen registrierten Handlern (`iroh-1.3.0/src/protocol.rs:512`);
-ein Router kann nach `spawn` keine Protokolle mehr aufnehmen. Ein Endpoint je Sitzung bleibt.
+**Rationale**: iroh setzt die ALPNs aus allen registrierten Handlern; nach `spawn` kommt keiner dazu.
+Der Baustein existiert seit 057.
 
 ## R6 Rahmen auf dem Draht
 
@@ -175,7 +174,7 @@ geänderten Relays.
 
 ## R10 Dateifreigaben als Vault-Daten und der Zustand „wartet auf Gerät“
 
-**Decision**: Drei synchronisierte Tabellen und zwei lokale (data-model.md). Jede Änderung an einer
+**Decision**: Drei synchronisierte Tabellen und eine lokale (data-model.md). Jede Änderung an einer
 Dateifreigabe oder ihren Zugriffsrechten setzt `haex_file_shares.changed_at`; das bedienende Gerät
 setzt `served_at = changed_at`, sobald es die Änderung über `AppState::vault_changes()`
 (`vault_events.rs:42`) gesehen hat. „Änderung wartet auf ‹Gerät›“ heißt `changed_at > served_at`
@@ -215,7 +214,7 @@ angeklopft (FR-029). Neue Typnamen mit Präfix `FilesPeer`/`FileShare` (ts-rs-Ko
 ## R14 ADR
 
 **Decision**: ADR 0015 „Datei-Zugriff zwischen eigenen Geräten“ hält das akzeptierte Risiko fest
-(Spec Assumptions), dazu, dass `holzi-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
+(Spec Assumptions), dazu, dass `haex-vault-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
 
 ## R16 Live-Aktualisierung
 

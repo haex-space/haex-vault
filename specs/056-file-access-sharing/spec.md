@@ -62,8 +62,9 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
   [`docs/plans/2026-10-21-file-access-and-sharing-design.md`](../../docs/plans/2026-10-21-file-access-and-sharing-design.md)
   hält die Entscheidungen, den Datenfluss und den Testansatz fest.
 - **Specs 027 (Spaces) und 029 (eigener S3-Speicher für Spaces)**: entfallen. Diese Spec ersetzt das
-  Teilen von Dateien über Spaces vollständig. Beide Specs werden gelöscht; Verweise in anderen
-  Dokumenten zeigen auf diese Spec.
+  Teilen von Dateien über Spaces vollständig. 027 bleibt nur als Grundlage für 028; 029 bleibt stehen,
+  bis diese Spec umgesetzt ist, und wird dann gelöscht. Verweise in anderen Dokumenten zeigen auf diese
+  Spec.
 - **Spec 025** (Dateisync zwischen eigenen Geräten): bleibt Entwurf für die späteren Sync-Regeln
   (Spiegeln, Cloud-Sicherung). Diese Spec spiegelt nichts; sie gibt Live-Zugriff.
 - **Spec 024** (Sync der eigenen Geräte): liefert Vault-Identität, Geräteschlüssel, Geräteliste,
@@ -331,8 +332,11 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Seiten gilt.
 - **Kontakt wird im Adressbuch gelöscht oder verliert seine bestätigten holzi-Adressen**: Seine
   Zugriffsrechte fallen weg; der Dialog zum Löschen nennt die betroffenen Dateifreigaben vorher.
-- **Kontakt legt eine ältere Geräteliste vor als zuletzt gesehen**: Das bedienende Gerät lehnt ab.
-  Ein vom Kontakt entferntes Gerät verliert so den Zugriff, sobald eine neuere Liste gesehen wurde.
+- **Kontakt legt eine ältere Geräteliste vor als zuletzt gesehen**: Das bedienende Gerät lehnt ab,
+  wenn sie älter ist als die der gespeicherten Visitenkarte oder als eine in dieser Sitzung gesehene.
+  Nach einem Neustart ist die Visitenkarte die Untergrenze: Ein vom Kontakt entferntes Gerät kommt mit
+  einer Liste, die noch so neu ist wie die Karte, wieder hinein, bis der Nutzer eine neuere Karte
+  übernimmt (bewusst akzeptiert, Betreiber 2026-10-23).
 - **Kontakt hat ein neues Gerät**: Erst nach einer aktualisierten Visitenkarte kann das Gerät über
   deren Geräteschlüssel anklopfen; danach legt es die aktuelle Geräteliste seiner Vault vor und
   bekommt Zugriff, ohne dass der Eigentümer eine neue Freigabe anlegt.
@@ -371,8 +375,9 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-002**: Ein anfragendes Gerät MUSS sich beim Verbinden mit seinem Geräteschlüssel ausweisen und
   die mit der Vault-Identität unterschriebene Geräteliste seiner Vault vorlegen. Das bedienende Gerät
   MUSS die Unterschrift prüfen und dass das anfragende Gerät auf dieser Liste steht.
-- **FR-003**: Das bedienende Gerät MUSS eine Geräteliste ablehnen, deren Generation kleiner ist als die
-  höchste, die es von derselben Vault-Identität kennt.
+- **FR-003**: Das bedienende Gerät MUSS die Geräteliste eines Kontakts ablehnen, deren Generation
+  kleiner ist als die der gespeicherten Visitenkarte dieser Vault oder als eine in dieser Sitzung schon
+  gesehene (dieselbe Regel wie Spec 057).
 - **FR-004**: Das bedienende Gerät MUSS jede Verbindung einordnen: eigene Vault mit eingeschaltetem
   Schalter „Geräte-Dateizugriff“ → Geräte-Dateizugriff; Vault-Identität eines Kontakts mit mindestens
   einem Zugriffsrecht auf eine Dateifreigabe dieses Geräts → Zugriff auf genau diese Wurzeln; sonst
@@ -523,8 +528,6 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **Schalter „Geräte-Dateizugriff“**: ein Wert je Gerät, nur lokal.
 - **Agent-Berechtigung „Dateifreigaben verwalten“**: je Agent erteilt oder nicht; synchronisiert wie
   die anderen Agent-Berechtigungen für Dateien (Spec 044).
-- **Höchste gesehene Geräteliste**: je fremder Vault-Identität die höchste geprüfte Generation, für
-  FR-003.
 
 ## Success Criteria _(mandatory)_
 

@@ -59,7 +59,7 @@ device loses access once a newer list was seen.
 
 ## Protocol
 
-A second ALPN `holzi-files/1` on the iroh endpoint of the vault session, next to `holzi-sync/1`.
+A second ALPN `haex-vault-files/1` on the iroh endpoint of the vault session, next to `holzi-sync/1`.
 
 Handshake: device key, then the signed device list. Classification:
 
@@ -126,7 +126,7 @@ for people without holzi. Mirroring and cloud backup belong to the later sync ru
 
 ## Follow-ups with spec 056
 
-- Delete specs 027 and 029; update the references to them (24 documents) and to "045 sync rules" /
+- Delete spec 029 once 056 is in use (027 stays for 028); update the references to them (24 documents) and to "045 sync rules" /
   "rework 027/029" in specs 044 and 048.
 - Mark §8 of the sync architecture as superseded.
 - Spec 026 (blind relay) is no longer needed for file sharing; whether it is needed for anything
