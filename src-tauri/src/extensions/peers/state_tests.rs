@@ -80,6 +80,12 @@ async fn a_reliable_message_overflow_ends_a_pending_channel() {
     );
     b.close_frames();
     let (near, far) = open_test_channel(&a, &b).await;
+    b.host.peers.opened(
+        &far,
+        &b.ctx.frames,
+        json!({ "channelId": far.id.to_string() }),
+        &b.node.tasks().tracker,
+    );
 
     for n in 0..crate::extensions::peers::pending::MAX_HELD - 1 {
         assert_eq!(
