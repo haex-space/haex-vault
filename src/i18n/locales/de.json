@@ -213,7 +213,8 @@
     },
     "files": {
       "device": "Dieses Gerät",
-      "storage": "Cloud-Speicher"
+      "storage": "Cloud-Speicher",
+      "peer": "Anderes Gerät"
     },
     "contacts": {
       "list": "Kontakte",
@@ -2571,7 +2572,14 @@
       "drives": "Laufwerke",
       "free": "{size} frei",
       "storages": "Cloud-Speicher",
-      "addStorage": "Cloud-Speicher hinzufügen"
+      "addStorage": "Cloud-Speicher hinzufügen",
+      "devices": "Meine Geräte"
+    },
+    "peer": {
+      "unnamed": "Gerät ohne Namen",
+      "reachable": "Erreichbar",
+      "unreachable": "Nicht erreichbar",
+      "accessOff": "Zugriff aus"
     },
     "places": {
       "home": "Persönlicher Ordner",

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
  * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
- * with free space where known, and the cloud storages of spec 038 (US5) with a button that leads
- * to adding one in the settings.
+ * with free space where known, the other devices of the vault (spec 056 US1), and the cloud
+ * storages of spec 038 (US5) with a button that leads to adding one in the settings.
  */
+import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
 import { formatFileSize } from '~/lib/passwords/format'
 
@@ -22,6 +23,13 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+/** A device that cannot be opened now stays in the list, greyed out (FR-011). */
+const PEER_ICONS: Record<FilesPeerState, string> = {
+  reachable: 'lucide:monitor-smartphone',
+  unreachable: 'lucide:monitor-off',
+  accessOff: 'lucide:lock',
+}
 
 const PLACE_ICONS: Record<string, string> = {
   home: 'lucide:house',
@@ -79,6 +87,34 @@ const PLACE_ICONS: Record<string, string> = {
               {{
                 t('files.sidebar.free', { size: formatFileSize(drive.free) })
               }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </section>
+    <section v-if="sources?.devices.length">
+      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
+        {{ t('files.sidebar.devices') }}
+      </h2>
+      <ul>
+        <li v-for="device in sources.devices" :key="device.id">
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            :class="currentStorage === device.id ? 'bg-accent font-medium' : ''"
+            :disabled="device.state !== 'reachable'"
+            :data-testid="`files-device-${device.id}`"
+            @click="emit('pickStorage', device.id)"
+          >
+            <Icon :name="PEER_ICONS[device.state]" class="size-4 shrink-0" />
+            <span class="min-w-0 flex-1 truncate">
+              {{ device.name ?? t('files.peer.unnamed') }}
+            </span>
+            <span
+              v-if="device.state !== 'reachable'"
+              class="shrink-0 text-xs text-muted-foreground"
+            >
+              {{ t(`files.peer.${device.state}`) }}
             </span>
           </button>
         </li>

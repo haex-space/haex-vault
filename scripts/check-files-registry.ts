@@ -31,6 +31,25 @@ test('a storage place round-trips', () => {
   assert.deepEqual(parseFilesPlace(filesLocation(place)), place)
 })
 
+test('another own device has its own route and round-trips (spec 056)', () => {
+  const place: FilesPlace = {
+    source: {
+      kind: 'storage',
+      storageId: 'peer:0b5c1f9e-2d41-4a77-9f0e-3c1a2b4d5e6f',
+    },
+    path: '/home/anna',
+  }
+  const location = filesLocation(place)
+  assert.equal(location.path, '/peer/0b5c1f9e-2d41-4a77-9f0e-3c1a2b4d5e6f')
+  assert.deepEqual(parseFilesPlace(location), place)
+  assert.equal(parseFilesPlace({ path: '/peer/a:b', query: {} }), undefined)
+  assert.equal(
+    parseFilesPlace({ path: '/storage/peer:abc', query: {} }),
+    undefined,
+    'a stored storage never carries the prefix of a device',
+  )
+})
+
 test('the start is the device without a path', () => {
   assert.deepEqual(parseFilesPlace({ path: '/', query: {} }), {
     source: { kind: 'device' },

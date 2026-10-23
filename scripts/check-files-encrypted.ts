@@ -181,3 +181,14 @@ test('deleting asks first where there is no trash', () => {
   assert.equal(on({ inEncrypted: true }), true, 'inside an encrypted folder')
   assert.equal(on({ entries: [plain, folder] }), true, 'of an encrypted folder')
 })
+
+test('another own device keeps its encrypted folders itself (spec 056)', () => {
+  assert.equal(
+    canCreateEncrypted({
+      source: { kind: 'storage', storageId: 'peer:0b5c1f9e' },
+      path: '/home/anna',
+      inEncrypted: false,
+    }),
+    false,
+  )
+})

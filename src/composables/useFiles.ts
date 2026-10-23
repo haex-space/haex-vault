@@ -5,6 +5,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
+import type { FilesPeerRoots } from '@bindings/FilesPeerRoots'
 import type { FilesSearchEvent } from '@bindings/FilesSearchEvent'
 import type { FolderChanged } from '@bindings/FolderChanged'
 import type { Opened } from '@bindings/Opened'
@@ -90,14 +91,22 @@ export function useFiles() {
     })
   }
 
-  /** Watches `path`; `onChange` runs for every debounced batch. Resolves to the watch id. */
+  /** Watches `path` of this device, or of the other own device `storage` (spec 056); `onChange`
+   * runs for every debounced batch, and once more when a watch on another device ends. Resolves
+   * to the watch id. */
   async function watchAsync(
     path: string,
     onChange: (change: FolderChanged) => void,
+    storage: string | null = null,
   ): Promise<number> {
     const channel = new Channel<FolderChanged>()
     channel.onmessage = onChange
-    return await invoke<number>('files_watch', { path, channel })
+    return await invoke<number>('files_watch', { path, storage, channel })
+  }
+
+  /** The drives and known places of the other own device `storageId` (spec 056). */
+  async function peerRootsAsync(storageId: string): Promise<FilesPeerRoots> {
+    return await invoke<FilesPeerRoots>('files_peer_roots', { storageId })
   }
 
   async function unwatchAsync(id: number): Promise<void> {
@@ -253,6 +262,7 @@ export function useFiles() {
     thumbnailAsync,
     watchAsync,
     unwatchAsync,
+    peerRootsAsync,
     openSystemAsync,
     createFolderAsync,
     renameAsync,
