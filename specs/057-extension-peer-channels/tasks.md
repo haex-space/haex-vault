@@ -235,16 +235,16 @@ refused, a removed player cannot return, closing the lobby kills the code but ke
 
 ### Tests for User Story 4
 
-- [ ] T046 [P] [US4] Join code tests in `src-tauri/src/extensions/peers/wire_tests.rs`: `haex-vault:join:` + `BASE32_NOPAD(postcard(JoinCode { v: 1, endpoint_id, relay, lobby, secret }))` round trip; any malformed text → `lobby_closed` without dialling; the code contains no name, vault data or contact data (FR-021)
-- [ ] T047 [P] [US4] Lobby tests in `src-tauri/src/extensions/peers/lobby_tests.rs`: contact joins a contacts-only lobby → channel and `peers:joined { verified: true, contactId? }`; own linked device joins → verified; non-contact → `not_admitted`; removed device and removed vault → `not_admitted` until the lobby closes; closed lobby → `lobby_closed`; channels survive `lobby_close`; a second open lobby with the same `lobbyId` → `invalid_input`; display name "1–64 Zeichen" and payload "≤ 4 KiB" enforced (FR-020–FR-027)
-- [ ] T048 [P] [US4] Uniform answers in `src-tauri/src/extensions/peers/lobby_uniform_tests.rs`: unknown lobby, closed lobby, wrong proof, other extension and blocked vault return the same `JoinReply::Closed`; over 1.000 runs per case the medians of the host's handling time differ by less than 1 ms (FR-025, SC-007)
+- [x] T046 [P] [US4] Join code tests in `src-tauri/src/extensions/peers/wire_tests.rs`: `haex-vault:join:` + `BASE32_NOPAD(postcard(JoinCode { v: 1, endpoint_id, relay, lobby, secret }))` round trip; any malformed text → `lobby_closed` without dialling; the code contains no name, vault data or contact data (FR-021)
+- [x] T047 [P] [US4] Lobby tests in `src-tauri/src/extensions/peers/lobby_tests.rs`: contact joins a contacts-only lobby → channel and `peers:joined { verified: true, contactId? }`; own linked device joins → verified; non-contact → `not_admitted`; removed device and removed vault → `not_admitted` until the lobby closes; closed lobby → `lobby_closed`; channels survive `lobby_close`; a second open lobby with the same `lobbyId` → `invalid_input`; display name "1–64 Zeichen" and payload "≤ 4 KiB" enforced (FR-020–FR-027)
+- [x] T048 [P] [US4] Uniform answers in `src-tauri/src/extensions/peers/lobby_uniform_tests.rs`: unknown lobby, closed lobby, wrong proof, other extension and blocked vault return the same `JoinReply::Closed`; over 1.000 runs per case the medians of the host's handling time differ by less than 1 ms (FR-025, SC-007)
 
 ### Implementation for User Story 4
 
-- [ ] T049 [US4] `JoinCode` encode/decode and `join_proof(secret, nonces, lobby) = HMAC-SHA256(secret, lp(nonce_dial) ‖ lp(nonce_accept) ‖ lp(lobby))` in `src-tauri/src/extensions/peers/wire.rs` (`hmac` as in `src-tauri/src/sync/link/code.rs:11`, `data_encoding::BASE32_NOPAD`)
-- [ ] T050 [US4] Lobby host side in a new `src-tauri/src/extensions/peers/lobby.rs`: `open(extension, lobbyId, visibility) -> joinCode` with `lobbyId` "1–64 Zeichen `[A-Za-z0-9._-]`", random 16-byte `key` and `secret` (`Zeroizing`), the code built from the endpoint's current address (`SyncNode::addr`); `close(lobbyId)` idempotent; `remove(channelId)` closes and bans the endpoint and, when verified, the vault (FR-027)
-- [ ] T051 [US4] Join admission in `src-tauri/src/extensions/peers/admission.rs` and `lobby.rs`: `Join` → look up `lobby`, verify the proof with `Mac::verify_slice` (a fixed stand-in secret for an unknown `lobby`, same path), same extension, not banned, not blocked, contacts-only requires `OwnVault` or `Contact`; answer `Accepted` / `Closed` / `NotAdmitted` per contracts/wire-protocol.md; on `Accepted` register the channel and emit `peers:joined { lobbyId, channelId, displayName, verified, contactId?, payload }`
-- [ ] T052 [US4] Joining side in `src-tauri/src/extensions/peers/lobby.rs`: decode the code, `dial_alpn` to `endpoint_id` with the code's relay, `foreign_auth::dial`, send `Join` within 5 s, wait for `JoinReply` at most 15 s in total; map `Closed` → `1001 lobby_closed`, `NotAdmitted` → `1002 not_admitted`, no connection → `8001 network_unavailable`
+- [x] T049 [US4] `JoinCode` encode/decode and `join_proof(secret, nonces, lobby) = HMAC-SHA256(secret, lp(nonce_dial) ‖ lp(nonce_accept) ‖ lp(lobby))` in `src-tauri/src/extensions/peers/wire.rs` (`hmac` as in `src-tauri/src/sync/link/code.rs:11`, `data_encoding::BASE32_NOPAD`)
+- [x] T050 [US4] Lobby host side in a new `src-tauri/src/extensions/peers/lobby.rs`: `open(extension, lobbyId, visibility) -> joinCode` with `lobbyId` "1–64 Zeichen `[A-Za-z0-9._-]`", random 16-byte `key` and `secret` (`Zeroizing`), the code built from the endpoint's current address (`SyncNode::addr`); `close(lobbyId)` idempotent; `remove(channelId)` closes and bans the endpoint and, when verified, the vault (FR-027)
+- [x] T051 [US4] Join admission in `src-tauri/src/extensions/peers/admission.rs` and `lobby.rs`: `Join` → look up `lobby`, verify the proof with `Mac::verify_slice` (a fixed stand-in secret for an unknown `lobby`, same path), same extension, not banned, not blocked, contacts-only requires `OwnVault` or `Contact`; answer `Accepted` / `Closed` / `NotAdmitted` per contracts/wire-protocol.md; on `Accepted` register the channel and emit `peers:joined { lobbyId, channelId, displayName, verified, contactId?, payload }`
+- [x] T052 [US4] Joining side in `src-tauri/src/extensions/peers/lobby.rs`: decode the code, `dial_alpn` to `endpoint_id` with the code's relay, `foreign_auth::dial`, send `Join` within 5 s, wait for `JoinReply` at most 15 s in total; map `Closed` → `1001 lobby_closed`, `NotAdmitted` → `1002 not_admitted`, no connection → `8001 network_unavailable`
 
 **Checkpoint**: contacts-only lobbies work between three vaults in tests.
 
@@ -260,16 +260,107 @@ closing, D's connection is cut after the handshake; D connecting without `Join` 
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Admission tests in `src-tauri/src/extensions/peers/admission_tests.rs`: `Unverified` without an open lobby → closed right after the handshake without any message (FR-031); with only a contacts-only lobby → one bounded `Join` with a valid proof reaches `NotAdmitted`; with a public lobby → admitted to send `Join`; no admission message within 5 s of injected time → closed (FR-032); blocked vault with a valid code → `Closed` (FR-034); a contact in a public lobby → `verified: true`
-- [ ] T054 [P] [US5] Throttle tests in `src-tauri/src/extensions/peers/throttle_tests.rs` with an injected clock: at most 16 unverified pending connections at once while verified contacts use separate capacity; per endpoint at most 5 attempts in 10 s and a 60 s ban after 3 failed joins (answer stays `Closed`); at most 20 new unverified connections per 10 s; verified contacts are limited only per endpoint (FR-033); the per-endpoint map keeps at most 1.024 entries
+- [x] T053 [P] [US5] Admission tests in `src-tauri/src/extensions/peers/admission_tests.rs`: `Unverified` without an open lobby → closed right after the handshake without any message (FR-031); with only a contacts-only lobby → one bounded `Join` with a valid proof reaches `NotAdmitted`; with a public lobby → admitted to send `Join`; no admission message within 5 s of injected time → closed (FR-032); blocked vault with a valid code → `Closed` (FR-034); a contact in a public lobby → `verified: true`
+- [x] T054 [P] [US5] Throttle tests in `src-tauri/src/extensions/peers/throttle_tests.rs` with an injected clock: at most 16 unverified pending connections at once while verified contacts use separate capacity; per endpoint at most 5 attempts in 10 s and a 60 s ban after 3 failed joins (answer stays `Closed`); at most 20 new unverified connections per 10 s; verified contacts are limited only per endpoint (FR-033); the per-endpoint map keeps at most 1.024 entries
 
 ### Implementation for User Story 5
 
-- [ ] T055 [US5] Throttle in a new `src-tauri/src/extensions/peers/throttle.rs` with the values of research.md R7 and an injected clock; `ponytail:` comment naming the ceiling (fixed windows per endpoint id) and the upgrade (token bucket per address prefix)
-- [ ] T056 [US5] Admission of `Unverified` in `src-tauri/src/extensions/peers/admission.rs`: allowed only while `PeerState` has a lobby with `visibility = Public`, except for one bounded proof-bearing `Join` when only contacts-only lobbies are open; throttle checked before the handshake (pending, unverified window) and after a failed join (per endpoint); public lobbies admit `Unverified` with `verified: false` and the self-chosen display name
-- [ ] T057 [US5] ADR status and links: `docs/adr/0016-non-contact-devices-for-public-lobbies.md` referenced from the module doc of `src-tauri/src/extensions/peers/admission.rs`; status stays `proposed` until the operator accepts it with PR 2
+- [x] T055 [US5] Throttle in a new `src-tauri/src/extensions/peers/throttle.rs` with the values of research.md R7 and an injected clock; `ponytail:` comment naming the ceiling (fixed windows per endpoint id) and the upgrade (token bucket per address prefix)
+- [x] T056 [US5] Admission of `Unverified` in `src-tauri/src/extensions/peers/admission.rs`: allowed only while `PeerState` has a lobby with `visibility = Public`, except for one bounded proof-bearing `Join` when only contacts-only lobbies are open; throttle checked before the handshake (pending, unverified window) and after a failed join (per endpoint); public lobbies admit `Unverified` with `verified: false` and the self-chosen display name
+- [x] T057 [US5] ADR status and links: `docs/adr/0016-non-contact-devices-for-public-lobbies.md` referenced from the module doc of `src-tauri/src/extensions/peers/admission.rs`; status stays `proposed` until the operator accepts it with PR 2
 
 **Checkpoint (end of PR 2)**: `cargo test … --lib extensions::peers`, `nix develop --command pnpm lint:rust`; open PR 2.
+
+### Notes from implementing PR 2 (2026-10-23)
+
+T046–T052, T054, T055 and T057 are done as written; T053 and T056 are done with the deviations
+below. Everything is Rust host side; no bridge method exists yet (PR 4).
+
+- **Graphify**: queried the fork-point graph for throttling per endpoint, join-code encoding,
+  HMAC proof checking, lobbies and an injectable clock. No candidate for a throttle or a lobby
+  (as in R18); `LinkCode::verify_proof` (`sync/link/code.rs`) is the HMAC pattern, but its key is
+  derived from a code and its transcript is the link's, so `join_proof` is separate;
+  `sync::presence::endpoint_addr_of` is reused to build the host's address from a code;
+  `passwords::clock` formats time stamps and is no clock to inject; `contacts::card::format`
+  is a signed format, not a base32 code. `BASE32_NOPAD` and `hmac` were reused.
+- **Shared code extended beyond the plan**: `sync/service.rs` (`peer_protocols` also returns the
+  `PeerContext`, and the service calls `PeerState::attach` once the node is bound); `PeerState`
+  (`state.rs`) holds lobbies and the running session; `channel.rs` (`open_announced`, two more
+  `Origin` variants, `Frames::emit` visible in the module); `admission.rs`; `wire.rs`
+  (`JoinStatus::Accepted` carries the host's `lobby_id`, `JOIN_FRAME_LIMIT`);
+  `contracts/wire-protocol.md` follows. `extensions/mod.rs` and `sync/endpoint*.rs` are untouched.
+- **Context for the dial side (PR 1's open question)**: `PeerState` holds `(Arc<PeerContext>,
+Weak<SyncNode>)`, set by `attach` from the sync service and cleared by `PeerState::clear`.
+  Smallest fit: bridge handlers already reach `ctx.host.peers`, so no `SyncRegistry` lookup or
+  second app-state type is needed, and a weak node cannot keep the session from draining.
+  `peers.session()` answers `None` (`network_unavailable`) without a session. The dial side
+  needs `PeerContext.db.device_id()` for permission lookups, so no field was added.
+- **`JoinReply::Accepted { lobby_id }`**: the code carries only holzi's random key, but
+  `extension_peers_join` answers `{ channelId, lobbyId }`; the host names its `lobbyId` in the
+  reply. The joiner accepts it only if it is a well-formed lobby id.
+- **T049 (join code)**: `JoinCode.secret` is `Zeroizing`, `Debug` prints nothing, and `parse`
+  refuses text over 512 characters, trailing bytes and any version but 1 before decoding further.
+  `JoinCode::text` uses `expect` on serializing fixed-size fields, which cannot fail
+  (documented at the call).
+- **T050/T051 (lobby, admission)**: lobbies live in `PeerState` (`Lobbies`) and the decision is one
+  function, `Lobbies::decide`. The HMAC is computed for every join, with a fixed stand-in secret
+  for an unknown lobby, and `NotAdmitted` follows only a valid proof. A join whose display
+  name or payload breaks the limits, one whose extension has 16 channels already and one from a
+  banned endpoint are answered `Closed` as well. `Closed` counts as a failed join for the
+  throttle; `NotAdmitted` does not.
+- **`peers:joined.contactId`**: named only when the host extension's `contacts` permission covers
+  the contact (`contact_in_scope` in `peers/mod.rs`, using `grants_of` of
+  `extensions/contacts.rs`); a read that fails names nobody.
+- **T050 (`remove`)**: the ban is per lobby and lives with it, so a closed and reopened lobby of
+  the same `lobbyId` starts clean (FR-027 "until the lobby closes"). `remove` takes only channels
+  that came from a lobby of this device (`Origin::Lobby`), else `channel_unknown`.
+- **Lobbies and `end_all`**: `end_all` closes the extension's lobbies, `extensions()` includes
+  extensions with only a lobby, so the revoke watcher ends lobbies too (test in `watch_tests.rs`);
+  `clear` drops lobbies and the session. A lobby of a vault session that ends goes with it.
+- **T052 (joining)**: one `deadline` of 15 s covers dial, exchange, `Join` and answer. Everything
+  after the dial that goes wrong (exchange refused, no answer, stream cut) is `lobby_closed`,
+  as the host cut the device; only a dial that fails is `network_unavailable`. The channel limit
+  is checked before dialing.
+- **T053 (admission tests), partial**: (a) the 5 s limit is checked with the handler's shortened
+  test limit (`with_admission_limit`, as in PR 1) instead of an injected clock, since the limit
+  is a tokio timeout around a network read; (b) a blocked vault is refused during the exchange (as
+  in PR 1, FR-034), so a blocked joiner gets a cut connection, which its extension reads as
+  `lobby_closed`; the host never answers `Closed` on the wire for it, and no timing comparison
+  covers it (the uniform test checks the answer for it, not the time).
+- **T054/T055 (throttle)**: the clock is `std::time::Instant` handed in by the caller. Limits as in
+  R7, plus one bound the research leaves implicit: at most 32 exchanges at once for everyone
+  (`HANDSHAKES`), because the per-endpoint count cannot stop many fresh endpoint ids. Dropping a
+  `Slot` gives the place back on every way out. When the endpoint map is full, stale entries go
+  first, then the least recently seen, bans last (`ponytail:` in `throttle.rs`).
+- **T056, partial**: the throttle's order differs from the task text. The per-endpoint count and the
+  handshake bound apply before the exchange; "pending" and the unverified window need to know
+  the device is not verified, so they apply right after the exchange, still before any message is
+  read. A stranger is cut right after the exchange when no lobby is open, and with only a lobby
+  for contacts it may send one `Join` of at most 5 KiB, as the contract says.
+- **T057**: `admission.rs` links ADR 0016 in its module doc; the ADR stays `proposed`. The
+  operator decides on acceptance when reviewing this PR.
+- **SC-007**: measured on `Lobbies::decide` (1,000 runs per case, interleaved, medians within 1 ms),
+  the one place all four host-side cases pass, without the network; the wire-level answer is
+  compared in a second test. The timing test can flake on a heavily loaded machine.
+- **Tests**: no relays in `cargo test`, so a vault learns the host's address through
+  `Vault::learn` (`MemoryLookup`) as the code's relay would; the relay path is for the E2E scene
+  (T081). The code's relay is the endpoint's current home relay, which an endpoint that has not
+  reached it yet leaves out (`ponytail:` in `lobby::open`).
+- **Size**: the largest new file is `lobby.rs` (375 lines); no file is over 500.
+- **For PR 3**: invitations take the other message in `admission.rs::admit`, where the first
+  message is matched against `Message::Join` now and anything else ends the connection; they need
+  a verified remote (`Trust::Contact`). The `Throttle` is on `PeerProtocol`, and `Joining` shows how
+  a handler hands the connection on. `Origin::Invitation` exists already; `PeerState::end_all` has
+  to learn invitations and `PendingOpen` as it did lobbies.
+- **For PR 4**: bridge handlers call `lobby::open/close/remove` and `join::join` with
+  `ctx.host.peers`, the caller's `ExtensionRef` (key and name of its manifest) and
+  `ctx.session.extension_id`; `join::join` is async (use `block_on`, 15 s). All its errors are
+  `PeerError`, which maps to the bridge codes already. `Visibility` is `Contacts | Public`.
+  Add `7000 limit` for lobbies (4 per extension) to the table when the bridge lands. `lobby_open`
+  without a session answers `8001 network_unavailable`.
+- **For the vault-sdk**: nothing changes in contracts/sdk.md; `joinAsync` yields the host's
+  `lobbyId`, and `lobby_closed` can mean a throttled or banned device, a cut connection or an
+  unreadable code, which the SDK cannot tell apart (FR-025).
 
 ---
 
