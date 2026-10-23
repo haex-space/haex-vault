@@ -8,12 +8,13 @@ Erteilen bestätigt der Nutzer immer in einem Dialog (FR-045, research R17). Der
 
 ## Dateibrowser (geändert)
 
-| Command                                                                                          | Änderung                                                                                                             |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `files_sources`                                                                                  | `Sources` + `devices: FilesPeerDevice[]` und `contacts: FilesContactShares[]` (data-model.md)                        |
-| `files_list`, `files_stat`, `files_open`, `files_thumbnail`, `files_read_text`, Transfers, Suche | unverändert; `SourceRef::Storage { storageId: "peer:…" \| "share:…" }` wird über `PeerStore` aufgelöst (research R2) |
-| `files_watch`                                                                                    | nimmt auch `peer:`/`share:` an; Meldungen kommen über `Watch` vom bedienenden Gerät (FR-046, research R16)           |
-| `files_open_system`                                                                              | für `peer:`/`share:` erst herunterladen in den Zwischenspeicher wie bei Speichern                                    |
+| Command                                                                                          | Änderung                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `files_sources`                                                                                  | `Sources` + `devices: FilesPeerDevice[]` und `contacts: FilesContactShares[]` (data-model.md)                                                         |
+| `files_list`, `files_stat`, `files_open`, `files_thumbnail`, `files_read_text`, Transfers, Suche | unverändert; `SourceRef::Storage { storageId: "peer:…" \| "share:…" }` wird über `PeerStore` aufgelöst (research R2)                                  |
+| `files_watch`                                                                                    | neuer Parameter `storage` (`peer:`/`share:`); Meldungen kommen über `Watch` vom bedienenden Gerät, das Ende als letzte Meldung (FR-046, research R16) |
+| `files_peer_roots` (neu)                                                                         | `{ storageId }` → `FilesPeerRoots`: Laufwerke und bekannte Orte eines anderen eigenen Geräts; das Fenster öffnet dort den persönlichen Ordner         |
+| `files_open_system`                                                                              | für `peer:`/`share:` erst herunterladen in den Zwischenspeicher wie bei Speichern                                                                     |
 
 ## Neu: Kontakte im Dateibrowser
 
