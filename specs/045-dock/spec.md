@@ -46,8 +46,8 @@ Abgestimmter Entwurf: [`docs/plans/2026-10-07-dock-design.md`](../../docs/plans/
 
 Als Nutzer hefte ich System-Apps und haextensions, die ich oft brauche, ans Dock und öffne sie dort mit
 einem Klick, statt jedes Mal den Launcher zu öffnen. Das Dock ersetzt die drei bisherigen
-Schaltflächen; Launcher, Fensterübersicht und Arbeitsbereichs-Übersicht sind darin als Einträge
-enthalten.
+Schaltflächen. Launcher, Fensterübersicht und Arbeitsbereichs-Übersicht bleiben als konfigurierbare
+Steuer-Einträge verfügbar; die Standardbelegung zeigt zusätzlich die wichtigsten System-Apps.
 
 **Why this priority**: Das ist der Kern des Wunsches und ergibt allein schon ein brauchbares Dock.
 
@@ -57,8 +57,8 @@ prüfen, dass sie im Dock erscheint und ein Klick sie öffnet; sie wieder lösen
 **Acceptance Scenarios**:
 
 1. **Given** eine Vault ohne Dock-Konfiguration, **When** der Arbeitsbereich erscheint, **Then** zeigt
-   das Dock unten mittig als Leiste die Einträge Launcher, Arbeitsbereiche und Fenster in dieser
-   Reihenfolge, und es gibt keine weiteren schwebenden Schaltflächen.
+   das Dock unten mittig als Leiste die Einträge Launcher, Dateibrowser, Chat, Passwörter und
+   Einstellungen in dieser Reihenfolge, und es gibt keine weiteren schwebenden Schaltflächen.
 2. **Given** der Launcher ist offen, **When** der Nutzer eine App per Rechtsklick oder Langdruck
    „An Dock anheften“ wählt, **Then** erscheint die App als letzter angehefteter Eintrag im Dock.
 3. **Given** eine angeheftete App ohne Instanz, **When** der Nutzer sie im Dock anklickt,
