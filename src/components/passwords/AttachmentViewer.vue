@@ -98,7 +98,10 @@ function onKeydown(event: KeyboardEvent) {
       : index < 0 || index === elements.length - 1
         ? elements[0]
         : elements[index + 1]
-    if (index < 0 || (event.shiftKey ? index === 0 : index === elements.length - 1)) {
+    if (
+      index < 0 ||
+      (event.shiftKey ? index === 0 : index === elements.length - 1)
+    ) {
       event.preventDefault()
       next?.focus()
     }
