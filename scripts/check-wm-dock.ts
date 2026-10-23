@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  DEFAULT_DOCK_ITEMS,
   DEFAULT_DOCK_PLACEMENT,
   dockActivation,
   effectivePlacement,
@@ -19,6 +20,7 @@ import {
   type DockItem,
   type DockPlacement,
 } from '../src/lib/wm/dock.ts'
+import { WM_APPS } from '../src/lib/wm/apps.ts'
 import type { WmWindow } from '../src/lib/wm/types.ts'
 import { ALPHA, APPS, BETA } from './lib/wm-fixtures.ts'
 
@@ -26,6 +28,20 @@ const launcher: DockItem = { kind: 'control', id: 'launcher' }
 const windows: DockItem = { kind: 'control', id: 'windows' }
 const alpha: DockItem = { kind: 'app', appId: ALPHA.id }
 const beta: DockItem = { kind: 'app', appId: BETA.id }
+
+// ---------------------------------------------------------------------------
+// The defaults (FR-003)
+// ---------------------------------------------------------------------------
+
+test('the dock defaults to the launcher and the system apps, all available', () => {
+  assert.deepEqual(normalizeDockItems(DEFAULT_DOCK_ITEMS, WM_APPS), [
+    { kind: 'control', id: 'launcher', available: true },
+    { kind: 'app', appId: 'system.files', available: true },
+    { kind: 'app', appId: 'system.chat', available: true },
+    { kind: 'app', appId: 'system.passwords', available: true },
+    { kind: 'app', appId: 'system.settings', available: true },
+  ])
+})
 
 // ---------------------------------------------------------------------------
 // Reading the preferences

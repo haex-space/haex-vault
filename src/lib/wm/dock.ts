@@ -42,9 +42,15 @@ const ALIGNS: readonly DockAlign[] = ['start', 'center', 'end']
 const STYLES: readonly DockStyle[] = ['bar', 'wheel']
 const MODES: readonly DockMode[] = ['reserved', 'floating', 'autohide']
 
-export const DEFAULT_DOCK_ITEMS: readonly DockItem[] = CONTROL_IDS.map(
-  (id) => ({ kind: 'control', id }),
-)
+/** The entries before the user changed anything (FR-003): the launcher, then the system apps of
+ * daily use. The workspaces and windows controls can be added back in the dock's settings (US4). */
+export const DEFAULT_DOCK_ITEMS: readonly DockItem[] = [
+  { kind: 'control', id: 'launcher' },
+  { kind: 'app', appId: 'system.files' },
+  { kind: 'app', appId: 'system.chat' },
+  { kind: 'app', appId: 'system.passwords' },
+  { kind: 'app', appId: 'system.settings' },
+]
 
 export const DEFAULT_DOCK_PLACEMENT: DockPlacement = {
   style: 'bar',

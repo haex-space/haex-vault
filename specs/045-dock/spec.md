@@ -258,8 +258,10 @@ Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
   Schaltflächen für Launcher, Fensterübersicht und Arbeitsbereichs-Übersicht ersetzt.
 - **FR-002**: Das Dock MUSS eine geordnete Liste von Einträgen zeigen. Ein Eintrag ist entweder ein
   Steuer-Eintrag (Launcher, Fensterübersicht, Arbeitsbereichs-Übersicht) oder eine angeheftete App.
-- **FR-003**: Ohne gespeicherte Konfiguration MUSS das Dock die Einträge Launcher, Arbeitsbereiche und
-  Fenster in dieser Reihenfolge zeigen, als Leiste unten mittig im Modus „Platz reservieren“.
+- **FR-003**: Ohne gespeicherte Konfiguration MUSS das Dock die Einträge Launcher, Dateibrowser, Chat,
+  Passwörter und Einstellungen in dieser Reihenfolge zeigen, als Leiste unten mittig im Modus „Platz
+  reservieren“. Die Steuer-Einträge Arbeitsbereiche und Fenster lässt der Nutzer über die
+  Dock-Einstellungen ergänzen.
 - **FR-004**: Jede App aus dem Launcher, ob System-App oder haextension, MUSS anheftbar sein.
 - **FR-005**: Hinter den Einträgen der Liste MUSS das Dock, optisch abgetrennt, jede laufende App aus
   allen Arbeitsbereichen zeigen, die nicht angeheftet ist; sie verschwindet, sobald ihre letzte Instanz

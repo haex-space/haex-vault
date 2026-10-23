@@ -15,14 +15,14 @@ type DockItem =
 
 Regeln beim Lesen (`normalizeDockItems`):
 
-| Fall                                                 | Ergebnis                                                     |
-| ---------------------------------------------------- | ------------------------------------------------------------ |
-| Wert fehlt, kein JSON, kein Array                    | Default `[launcher, workspaces, windows]`, nichts schreiben  |
-| Element mit unbekanntem `kind` oder falschem Feldtyp | Element verwerfen                                            |
-| `appId` ist ein Legacy-Alias (`system.federation`)   | auf Ziel-App abbilden (`resolveAppAlias`)                    |
-| doppelter Steuer-Eintrag oder doppelte `appId`       | erstes Vorkommen bleibt                                      |
-| kein `launcher`                                      | `launcher` an Position 0 einfügen                            |
-| `appId` nicht in `allApps()`                         | bleibt gespeichert, `available: false`, im Dock ausgeblendet |
+| Fall                                                 | Ergebnis                                                                                             |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Wert fehlt, kein JSON, kein Array                    | Default `[launcher, system.files, system.chat, system.passwords, system.settings]`, nichts schreiben |
+| Element mit unbekanntem `kind` oder falschem Feldtyp | Element verwerfen                                                                                    |
+| `appId` ist ein Legacy-Alias (`system.federation`)   | auf Ziel-App abbilden (`resolveAppAlias`)                                                            |
+| doppelter Steuer-Eintrag oder doppelte `appId`       | erstes Vorkommen bleibt                                                                              |
+| kein `launcher`                                      | `launcher` an Position 0 einfügen                                                                    |
+| `appId` nicht in `allApps()`                         | bleibt gespeichert, `available: false`, im Dock ausgeblendet                                         |
 
 Geschrieben wird immer die normalisierte Liste einschließlich nicht verfügbarer Apps, und nur auf eine
 Nutzeränderung hin (FR-038).
