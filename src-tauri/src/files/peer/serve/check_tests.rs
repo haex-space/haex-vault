@@ -1,7 +1,7 @@
 //! The decision per request (FR-004, FR-005, FR-007).
 
-use super::{allowed, hides_own, own_data};
-use crate::files::peer::wire::{Caller, FailCode, Mode, Op};
+use super::{allowed, at_root, hides_own, own_data};
+use crate::files::peer::wire::{Caller, Expected, FailCode, Mode, Op};
 use crate::files::share::store::FileShareRow;
 use crate::files::share::{FileShareItemKind, FileShareLevel, FileShareSourceState};
 use crate::files::SourceRef;
@@ -88,4 +88,108 @@ fn holzis_own_data_is_read_only_for_the_user_and_closed_to_everyone_else() {
     assert!(!hides_own(Mode::OwnDevice, Caller::User));
     assert!(hides_own(Mode::OwnDevice, Caller::Agent));
     assert!(hides_own(Mode::Contact, Caller::User));
+}
+
+fn upload(expected: Expected) -> Op {
+    Op::BeginUpload {
+        share: Some("share-1".to_owned()),
+        path: "/Brief.pdf".to_owned(),
+        expected,
+    }
+}
+
+#[test]
+fn a_shared_file_is_read_and_written_over_but_never_moved_or_deleted() {
+    let mut row = share();
+    row.item_kind = FileShareItemKind::File;
+    let grant = Some((&row, FileShareLevel::ReadWrite));
+    let version = Expected::Version {
+        size: 4,
+        etag: "e".to_owned(),
+    };
+    assert_eq!(allowed(Mode::Contact, &upload(version), grant), Ok(()));
+    assert_eq!(
+        allowed(Mode::Contact, &upload(Expected::Absent), grant),
+        Err(FailCode::Refused),
+        "nothing new beside the shared file"
+    );
+    let changes = [
+        Op::CreateFolder {
+            share: Some("share-1".to_owned()),
+            path: "/neu".to_owned(),
+        },
+        Op::Move {
+            share: Some("share-1".to_owned()),
+            from: "/Brief.pdf".to_owned(),
+            to: "/Anders.pdf".to_owned(),
+        },
+        Op::Delete {
+            share: Some("share-1".to_owned()),
+            path: "/Brief.pdf".to_owned(),
+        },
+    ];
+    for op in changes {
+        assert_eq!(
+            allowed(Mode::Contact, &op, grant),
+            Err(FailCode::Refused),
+            "{op:?}"
+        );
+    }
+}
+
+#[test]
+fn reading_a_share_never_writes() {
+    let row = share();
+    let delete = Op::Delete {
+        share: Some("share-1".to_owned()),
+        path: "/a.jpg".to_owned(),
+    };
+    assert_eq!(
+        allowed(Mode::Contact, &delete, Some((&row, FileShareLevel::Read))),
+        Err(FailCode::Refused)
+    );
+    assert_eq!(
+        allowed(
+            Mode::Contact,
+            &delete,
+            Some((&row, FileShareLevel::ReadWrite))
+        ),
+        Ok(())
+    );
+    let part = Op::UploadPart {
+        upload_id: "u".to_owned(),
+        number: 1,
+        len: 1,
+    };
+    assert_eq!(
+        allowed(Mode::Contact, &part, Some((&row, FileShareLevel::Read))),
+        Err(FailCode::Refused),
+        "a part is checked against the upload's share too"
+    );
+}
+
+#[test]
+fn the_root_itself_is_never_moved_deleted_or_written() {
+    let at_the_root = [
+        Op::Delete {
+            share: None,
+            path: "/".to_owned(),
+        },
+        Op::Move {
+            share: None,
+            from: "/".to_owned(),
+            to: "/x".to_owned(),
+        },
+        Op::CreateFolder {
+            share: None,
+            path: "/".to_owned(),
+        },
+        upload(Expected::Absent),
+    ];
+    for op in &at_the_root {
+        assert_eq!(at_root(op, ""), Err(FailCode::Refused), "{op:?}");
+        assert_eq!(at_root(op, "Fotos"), Ok(()), "{op:?}");
+    }
+    let list = read(None);
+    assert_eq!(at_root(&list, ""), Ok(()), "the root is listed");
 }

@@ -7,6 +7,7 @@
 pub mod change;
 pub mod encrypted;
 pub mod navigate;
+pub mod peers;
 pub mod search;
 pub mod view;
 
@@ -20,12 +21,17 @@ use crate::files::access::{check, AgentGrants, Target, Verdict, Want};
 use crate::files::encrypted::device::{has_raw_part, route_device, DeviceRoot};
 use crate::files::encrypted::{Background, Scope, VaultSource};
 use crate::files::local::{resolve, resolve_entry};
+use crate::files::peer::connect::Connections;
+use crate::files::peer::store::{peer_access, PeerStore};
+use crate::files::peer::wire::Caller as PeerCaller;
+use crate::files::share::PEER_PREFIX;
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::remote::Side;
 use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
 use crate::passwords::access::Caller;
 use crate::state::AppState;
+use crate::sync::registry::SyncRegistry;
 
 pub use navigate::{KnownPlace, StorageSource};
 
@@ -68,8 +74,40 @@ pub(crate) async fn window_storage<R: tauri::Runtime>(
     files: &FilesState,
     storage_id: &str,
 ) -> Result<StorageFiles, FilesError> {
+    if storage_id.starts_with(PEER_PREFIX) {
+        return peer_storage(app, storage_id, PeerCaller::User);
+    }
     let scope = window_scope(app, state, files, storage_id);
     Ok(storage_files(state, storage_id).await?.with_scope(scope))
+}
+
+/// Another own device as a storage (spec 056 US1): its files over `haex-vault-files/1`, asked as
+/// `caller`. The serving device opens its encrypted folders itself, so no scope goes with it; an
+/// unknown device or this one answers `NotFound` on the first call.
+pub(crate) fn peer_storage<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    storage_id: &str,
+    caller: PeerCaller,
+) -> Result<StorageFiles, FilesError> {
+    Ok(StorageFiles::new(
+        Arc::new(PeerStore::new(peer_links(app)?, caller)),
+        peer_access(storage_id, None),
+    ))
+}
+
+/// The session's links to other devices; none while sync does not run.
+pub(crate) fn peer_links<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Arc<Connections>, FilesError> {
+    app.try_state::<Arc<SyncRegistry>>()
+        .and_then(|registry| registry.get())
+        .and_then(|runtime| runtime.files.clone())
+        .ok_or_else(|| {
+            FilesError::new(
+                FilesErrorCode::Unreachable,
+                "other devices are not reachable now",
+            )
+        })
 }
 
 /// The device as a storage for its encrypted folders (spec 048 US7, research R16), with the same

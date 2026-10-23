@@ -15,6 +15,24 @@ use crate::vault_gate::VaultGate;
 use crate::files::local::{known_places, OwnPlaces, Place};
 use crate::files::thumbnails::CACHE_FOLDER;
 
+/// What keeps a watch of the window running; dropping it ends the watch.
+enum Watching {
+    #[cfg(not(target_os = "ios"))]
+    Local {
+        _watch: crate::files::local::watch::FolderWatch,
+    },
+    /// The task that reads another device's watch (spec 056 research R16).
+    Peer { _task: AbortOnDrop },
+}
+
+struct AbortOnDrop(tauri::async_runtime::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 /// The file browser's state, managed by Tauri.
 pub struct FilesState {
     pub own: OwnPlaces,
@@ -22,10 +40,7 @@ pub struct FilesState {
     pub thumbnails: PathBuf,
     /// Copies of files of encrypted folders for the system's apps (spec 048 FR-028).
     pub opened_encrypted: PathBuf,
-    #[cfg(not(target_os = "ios"))]
-    watches: Mutex<HashMap<u64, crate::files::local::watch::FolderWatch>>,
-    #[cfg(target_os = "ios")]
-    watches: Mutex<HashMap<u64, ()>>,
+    watches: Mutex<HashMap<u64, Watching>>,
     next_watch: AtomicU64,
     /// Opened encrypted folders with their keys (spec 048).
     pub encrypted: Arc<EncryptedFolders>,
@@ -95,36 +110,38 @@ impl FilesState {
         }
     }
 
-    #[cfg(not(target_os = "ios"))]
-    fn watches(&self) -> MutexGuard<'_, HashMap<u64, crate::files::local::watch::FolderWatch>> {
+    fn watches(&self) -> MutexGuard<'_, HashMap<u64, Watching>> {
         self.watches.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn keep(&self, watching: Watching) -> u64 {
+        let id = self.next_watch.fetch_add(1, Ordering::SeqCst);
+        self.watches().insert(id, watching);
+        id
     }
 
     /// Keeps `watch` until [`FilesState::unwatch`]; returns its id.
     #[cfg(not(target_os = "ios"))]
     pub fn keep_watch(&self, watch: crate::files::local::watch::FolderWatch) -> u64 {
-        let id = self.next_watch.fetch_add(1, Ordering::SeqCst);
-        self.watches().insert(id, watch);
-        id
+        self.keep(Watching::Local { _watch: watch })
+    }
+
+    /// Keeps the task reading another device's watch until [`FilesState::unwatch`], which ends it;
+    /// returns its id.
+    pub fn keep_peer_watch(&self, task: tauri::async_runtime::JoinHandle<()>) -> u64 {
+        self.keep(Watching::Peer {
+            _task: AbortOnDrop(task),
+        })
     }
 
     /// Ends the watch `id`; true when there was one.
     pub fn unwatch(&self, id: u64) -> bool {
-        #[cfg(not(target_os = "ios"))]
-        {
-            self.watches().remove(&id).is_some()
-        }
-        #[cfg(target_os = "ios")]
-        {
-            let _ = id;
-            false
-        }
+        self.watches().remove(&id).is_some()
     }
 
     /// Ends every watch: the page that asked for them is gone (reloaded), and its channels lead
     /// nowhere.
     pub fn unwatch_all(&self) {
-        #[cfg(not(target_os = "ios"))]
         self.watches().clear();
     }
 }

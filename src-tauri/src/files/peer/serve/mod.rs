@@ -4,27 +4,33 @@
 //! and the grant for a contact, the path and holzi's own places for both. A refusal looks the same
 //! from outside whatever its reason (FR-042).
 
+pub mod change;
 pub mod check;
 pub mod ops;
 pub mod roots;
+pub mod upload;
+pub mod watch;
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use iroh::endpoint::{Connection, RecvStream, SendStream};
 use iroh::protocol::{AcceptError, ProtocolHandler};
+use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
 
 use self::roots::Located;
-use crate::files::local::OwnPlaces;
+use self::upload::Uploads;
+use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::handshake;
 use crate::files::peer::wire::{
-    read_head, write_head, FailCode, Mode, Op, Reply, Request, MAX_LIST, VERSION,
+    read_head, write_head, FailCode, Mode, Op, Reply, Request, MAX_LIST, MAX_PART, VERSION,
 };
 use crate::files::share::store::{self, FileShareRow};
 use crate::files::share::{device_access, FileShareLevel, FEATURE};
 use crate::files::transfer::local::Removal;
 use crate::remote_storage::local::LocalStore;
+use crate::remote_storage::local_fs::resolve;
 use crate::sync::endpoint::NodeTasks;
 use crate::sync::foreign_auth::{Local, SeenGenerations};
 use crate::sync::keys::DeviceKeys;
@@ -46,13 +52,15 @@ pub struct ServeContext {
     pub db: VaultDb,
     /// holzi's own places on this device (FR-007).
     pub own: OwnPlaces,
+    /// The known places an own device starts in (home, documents, …).
+    pub known: Vec<Place>,
     /// This device's `vault_device_uuid`: the shares it serves are its own (FR-018).
     pub device: String,
     /// The highest device-list generations of other vaults this session saw (FR-003).
     pub seen: SeenGenerations,
     pub store: LocalStore,
-    /// Whether deleting here goes to a trash (research R8).
-    pub trash: bool,
+    /// How deleting removes here: into the trash on desktops (research R8).
+    pub removal: Removal,
     slots: Arc<Semaphore>,
 }
 
@@ -62,6 +70,7 @@ impl ServeContext {
         vault: [u8; 32],
         db: VaultDb,
         own: OwnPlaces,
+        known: Vec<Place>,
         device: String,
     ) -> Self {
         Self {
@@ -69,12 +78,18 @@ impl ServeContext {
             vault,
             db,
             own,
+            known,
             device,
             seen: SeenGenerations::default(),
             store: LocalStore::new(),
-            trash: matches!(crate::files::transfer::platform_removal(), Removal::Trash),
+            removal: crate::files::transfer::platform_removal(),
             slots: Arc::new(Semaphore::new(STREAMS_PER_DEVICE)),
         }
+    }
+
+    /// Whether deleting here goes to a trash.
+    pub fn trash(&self) -> bool {
+        self.removal == Removal::Trash
     }
 
     /// This device as [`crate::sync::foreign_auth`] presents it.
@@ -122,11 +137,12 @@ impl ProtocolHandler for FilesProtocol {
 struct Peer {
     mode: Mode,
     vault: [u8; 32],
+    uploads: Uploads,
 }
 
 async fn serve(ctx: Arc<ServeContext>, connection: Connection, tasks: NodeTasks) {
     let Some((verified, mode)) =
-        handshake::accept(&ctx.local(), &ctx.db, &ctx.device, ctx.trash, &connection).await
+        handshake::accept(&ctx.local(), &ctx.db, &ctx.device, ctx.trash(), &connection).await
     else {
         // What this side wrote last must reach the other side before the connection closes, or it
         // sees a lost connection instead of a refusal; it closes when it has read it.
@@ -140,6 +156,7 @@ async fn serve(ctx: Arc<ServeContext>, connection: Connection, tasks: NodeTasks)
     let peer = Arc::new(Peer {
         mode,
         vault: verified.vault,
+        uploads: Uploads::default(),
     });
     let streams = Arc::new(Semaphore::new(STREAMS_PER_CONNECTION));
     loop {
@@ -168,6 +185,8 @@ async fn serve(ctx: Arc<ServeContext>, connection: Connection, tasks: NodeTasks)
         });
     }
     connection.close(0u32.into(), b"");
+    // Uploads belong to the connection: nothing half stays behind it (FR-044).
+    peer.uploads.abort_all(&ctx).await;
 }
 
 async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv: RecvStream) {
@@ -178,36 +197,55 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
     if request.v != VERSION {
         return answer(send, Reply::Failed(FailCode::Unsupported)).await;
     }
-    if let Op::Read {
-        share,
-        path,
-        start,
-        len,
-    } = &request.op
-    {
-        let opened = async {
-            let at = locate(ctx, peer, &request, share.as_deref(), path).await?;
-            ops::open_read(ctx, &at, *start, *len).await
-        };
-        match opened.await {
-            Ok((size, len, mut reader)) => {
-                if write_head(&mut send, &Reply::Reading { size, len })
+    match &request.op {
+        Op::Read {
+            share,
+            path,
+            start,
+            len,
+        } => {
+            let opened = async {
+                let at = locate(ctx, peer, &request, share.as_deref(), path).await?;
+                ops::open_read(ctx, &at, *start, *len).await
+            };
+            match opened.await {
+                Ok((size, len, mut reader)) => {
+                    if write_head(&mut send, &Reply::Reading { size, len })
+                        .await
+                        .is_ok()
+                        && tokio::io::copy(&mut reader, &mut send).await.is_ok()
+                    {
+                        let _ = send.finish();
+                    }
+                }
+                Err(code) => answer(send, Reply::Failed(code)).await,
+            }
+        }
+        Op::Watch { share, path } => {
+            let at = match locate(ctx, peer, &request, share.as_deref(), path).await {
+                Ok(at) => at,
+                Err(code) => return answer(send, Reply::Failed(code)).await,
+            };
+            let still = || async {
+                locate(ctx, peer, &request, share.as_deref(), path)
                     .await
                     .is_ok()
-                    && tokio::io::copy(&mut reader, &mut send).await.is_ok()
-                {
-                    let _ = send.finish();
-                }
-            }
-            Err(code) => answer(send, Reply::Failed(code)).await,
+            };
+            watch::run(&at, send, still).await;
         }
-        return;
+        Op::UploadPart {
+            upload_id,
+            number,
+            len,
+        } => {
+            let reply = part(ctx, peer, &request, upload_id, *number, *len, &mut recv).await;
+            answer(send, reply.unwrap_or_else(Reply::Failed)).await;
+        }
+        _ => {
+            let reply = reply_to(ctx, peer, &request).await;
+            answer(send, reply.unwrap_or_else(Reply::Failed)).await;
+        }
     }
-    let reply = match reply_to(ctx, peer, &request).await {
-        Ok(reply) => reply,
-        Err(code) => Reply::Failed(code),
-    };
-    answer(send, reply).await;
 }
 
 async fn reply_to(ctx: &ServeContext, peer: &Peer, request: &Request) -> Result<Reply, FailCode> {
@@ -217,11 +255,14 @@ async fn reply_to(ctx: &ServeContext, peer: &Peer, request: &Request) -> Result<
             if peer.mode == Mode::Contact {
                 Ok(Reply::Shares(ops::shares(ctx, peer.vault).await?))
             } else {
-                // The roots of an own device come with the delivery for own devices.
-                Err(FailCode::Unsupported)
+                ops::roots(ctx).await
             }
         }
         Op::ListDir { share, path, max } => {
+            if peer.mode == Mode::OwnDevice && cfg!(windows) && roots::parts(path)?.is_empty() {
+                permit(ctx, peer, request, None).await?;
+                return Ok(Reply::Entries(ops::drive_entries().await?));
+            }
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
             let max = (*max).min(MAX_LIST) as usize;
             let hide_own = check::hides_own(peer.mode, request.caller);
@@ -231,8 +272,86 @@ async fn reply_to(ctx: &ServeContext, peer: &Peer, request: &Request) -> Result<
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
             Ok(Reply::Entry(ops::stat(ctx, &at).await?))
         }
-        Op::Read { .. } => Err(FailCode::Internal),
+        Op::BeginUpload {
+            share,
+            path,
+            expected,
+        } => {
+            let at = locate(ctx, peer, request, share.as_deref(), path).await?;
+            let upload_id = peer
+                .uploads
+                .begin(ctx, at, share.clone(), path.clone(), expected.clone())
+                .await?;
+            Ok(Reply::Upload { upload_id })
+        }
+        Op::FinishUpload { upload_id } => {
+            again(ctx, peer, request, upload_id).await?;
+            peer.uploads.finish(ctx, upload_id).await?;
+            Ok(Reply::Done)
+        }
+        Op::AbortUpload { upload_id } => {
+            peer.uploads.abort(ctx, upload_id).await?;
+            Ok(Reply::Done)
+        }
+        Op::CreateFolder { share, path } => {
+            let at = locate(ctx, peer, request, share.as_deref(), path).await?;
+            change::create_folder(&at).await?;
+            Ok(Reply::Done)
+        }
+        Op::Move { share, from, to } => {
+            let from = locate(ctx, peer, request, share.as_deref(), from).await?;
+            let to = locate(ctx, peer, request, share.as_deref(), to).await?;
+            change::move_entry(&from, &to).await?;
+            Ok(Reply::Done)
+        }
+        Op::Delete { share, path } => {
+            let at = locate(ctx, peer, request, share.as_deref(), path).await?;
+            let trashed = change::delete(ctx, &at).await?;
+            Ok(Reply::Deleted { trashed })
+        }
+        Op::Read { .. } | Op::Watch { .. } | Op::UploadPart { .. } => Err(FailCode::Internal),
     }
+}
+
+/// Part `number` of an upload, whose `len` bytes follow the head on `recv`.
+async fn part(
+    ctx: &ServeContext,
+    peer: &Peer,
+    request: &Request,
+    upload_id: &str,
+    number: u16,
+    len: u64,
+    recv: &mut RecvStream,
+) -> Result<Reply, FailCode> {
+    if len > MAX_PART {
+        return Err(FailCode::TooLarge);
+    }
+    again(ctx, peer, request, upload_id).await?;
+    let mut body = Vec::with_capacity(len as usize);
+    let read = tokio::time::timeout(
+        upload::PART_LIMIT,
+        (&mut *recv).take(len).read_to_end(&mut body),
+    )
+    .await;
+    if !matches!(read, Ok(Ok(n)) if n as u64 == len) {
+        return Err(FailCode::Internal);
+    }
+    Ok(Reply::Mark(
+        peer.uploads.part(ctx, upload_id, number, body).await?,
+    ))
+}
+
+/// Checks a request about the upload `upload_id` again, with the root and path it began with.
+async fn again(
+    ctx: &ServeContext,
+    peer: &Peer,
+    request: &Request,
+    upload_id: &str,
+) -> Result<(), FailCode> {
+    let upload = peer.uploads.get(upload_id).ok_or(FailCode::NotFound)?;
+    locate(ctx, peer, request, upload.share.as_deref(), &upload.path)
+        .await
+        .map(|_| ())
 }
 
 /// Checks `request` against what holds now (FR-005) and returns the share it names with the level
@@ -314,13 +433,16 @@ async fn locate(
         (Mode::Contact, Some((row, _))) => roots::in_share(row, path)?,
         _ => return Err(FailCode::Refused),
     };
-    let real = roots::real(&at.path())?;
-    let own = ctx.own.contains(&real) || ctx.own.contains_resolved(&at.path());
-    check::own_data(peer.mode, request.caller, request.op.writes(), own)?;
+    check::at_root(&request.op, &at.key)?;
+    // Inside its root, links resolved; a new name resolves to where it would be.
+    let real = resolve(&at.root, &at.key).map_err(ops::fail_of)?;
+    let writes = request.op.writes();
+    let own = ctx.own.touches(&real, writes) || ctx.own.contains_resolved(&at.path());
+    check::own_data(peer.mode, request.caller, writes, own)?;
     Ok(at)
 }
 
-async fn answer(mut send: SendStream, reply: Reply) {
+pub(crate) async fn answer(mut send: SendStream, reply: Reply) {
     if write_head(&mut send, &reply).await.is_ok() {
         let _ = send.finish();
     }

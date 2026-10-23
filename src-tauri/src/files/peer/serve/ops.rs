@@ -8,9 +8,10 @@ use std::time::Duration;
 use tokio::io::AsyncRead;
 use tokio::time::Instant;
 
-use super::roots::Located;
+use super::roots::{window_of, Located};
 use super::ServeContext;
-use crate::files::peer::wire::{FailCode, WireEntry, WireKind, WireShare};
+use crate::files::local::drives::drives;
+use crate::files::peer::wire::{FailCode, Reply, WireEntry, WireKind, WireRoot, WireShare};
 use crate::files::share::store;
 use crate::files::storage_time::parse_iso_ms;
 use crate::remote_storage::local::access_of;
@@ -59,6 +60,48 @@ pub async fn shares(ctx: &ServeContext, vault: [u8; 32]) -> Result<Vec<WireShare
             name: share.name,
             item_kind: share.item_kind,
             level,
+        })
+        .collect())
+}
+
+/// The drives and known places of this device, where an own device starts (the `Shares` request of
+/// an own device).
+pub async fn roots(ctx: &ServeContext) -> Result<Reply, FailCode> {
+    let drives = tokio::task::spawn_blocking(drives)
+        .await
+        .map_err(|_| FailCode::Internal)?;
+    let root = |name: &str, path: &std::path::Path| WireRoot {
+        name: name.to_owned(),
+        path: window_of(path),
+    };
+    Ok(Reply::Roots {
+        drives: drives
+            .iter()
+            .map(|drive| root(&drive.name, std::path::Path::new(&drive.path)))
+            .collect(),
+        known: ctx
+            .known
+            .iter()
+            .map(|place| root(place.name, &place.path))
+            .collect(),
+    })
+}
+
+/// The drives of this device as the folders of `/` (Windows, where `/` is no folder).
+pub async fn drive_entries() -> Result<Vec<WireEntry>, FailCode> {
+    let drives = tokio::task::spawn_blocking(drives)
+        .await
+        .map_err(|_| FailCode::Internal)?;
+    Ok(drives
+        .iter()
+        .map(|drive| WireEntry {
+            name: window_of(std::path::Path::new(&drive.path))
+                .trim_start_matches('/')
+                .to_owned(),
+            kind: WireKind::Folder,
+            size: 0,
+            modified_ms: None,
+            etag: String::new(),
         })
         .collect())
 }

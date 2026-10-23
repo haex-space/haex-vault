@@ -12,6 +12,7 @@ use iroh::{EndpointAddr, EndpointId};
 use crate::files::peer::client::{PeerLink, PeerLinks};
 use crate::files::peer::handshake::DialError;
 use crate::files::peer::serve::ServeContext;
+use crate::files::peer::wire::Mode;
 use crate::files::share::{PEER_PREFIX, SHARE_PREFIX};
 use crate::remote_storage::StorageError;
 use crate::sync::device_list;
@@ -36,6 +37,24 @@ impl Connections {
             ctx,
             slots: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Whether `target` turned this session away because its switch is off (FR-014), as its last
+    /// handshake said; `false` for a target not tried yet or busy right now.
+    pub fn access_off(&self, target: &str) -> bool {
+        let slot = self
+            .slots
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(target)
+            .cloned();
+        slot.and_then(|slot| {
+            slot.try_lock().ok().and_then(|link| {
+                link.as_ref()
+                    .map(|link| link.welcome.mode == Mode::AccessOff)
+            })
+        })
+        .unwrap_or(false)
     }
 
     fn slot(&self, target: &str) -> Slot {

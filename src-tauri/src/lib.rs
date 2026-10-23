@@ -449,6 +449,7 @@ pub fn run() {
             files::icons::commands::file_icon_set_licenses,
             files::browser_commands::navigate::files_watch,
             files::browser_commands::navigate::files_unwatch,
+            files::browser_commands::peers::files_peer_roots,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,

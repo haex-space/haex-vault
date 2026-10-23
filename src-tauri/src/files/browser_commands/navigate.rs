@@ -7,6 +7,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
+use super::peers::{peer_devices, watch_peer, FilesPeerDevice};
 use super::{blocking, device_path, device_storage, place_of, Place};
 use crate::files::access::Want;
 use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
@@ -16,6 +17,7 @@ use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::local::drives::{drives, Drive};
 use crate::files::local::ops;
+use crate::files::share::PEER_PREFIX;
 use crate::files::state::FilesState;
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
@@ -39,6 +41,8 @@ pub struct Sources {
     pub known: Vec<KnownPlace>,
     /// The storages of spec 038 (US5).
     pub storages: Vec<StorageSource>,
+    /// The other devices of the vault (spec 056 US1).
+    pub devices: Vec<FilesPeerDevice>,
 }
 
 /// A storage for the sidebar.
@@ -61,6 +65,7 @@ pub struct FolderChanged {
 /// Drives and known places of this device.
 #[tauri::command]
 pub async fn files_sources(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
 ) -> Result<Sources, FilesError> {
@@ -91,10 +96,12 @@ pub async fn files_sources(
             .unwrap_or_default(),
         Err(_) => Vec::new(),
     };
+    let devices = peer_devices(&app, &state).await;
     Ok(Sources {
         drives,
         known,
         storages,
+        devices,
     })
 }
 
@@ -199,15 +206,21 @@ pub async fn files_stat(
 
 /// Watches the open folder (not its sub folders); every debounced batch goes to `channel`. In an
 /// encrypted folder on the device the whole directory of that folder is watched and every change
-/// reads as a change of the open folder (spec 048 research R17).
+/// reads as a change of the open folder (spec 048 research R17). `storage` names another own
+/// device whose folder `path` is watched there; other storages are not watched.
 #[tauri::command]
 pub async fn files_watch(
     app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     path: String,
+    storage: Option<String>,
     channel: Channel<FolderChanged>,
 ) -> Result<u64, FilesError> {
+    // A folder of another own device is watched there (spec 056 FR-046).
+    if let Some(id) = storage.filter(|id| id.starts_with(PEER_PREFIX)) {
+        return watch_peer(&app, &files, &id, path, channel).await;
+    }
     let source = SourceRef::Device;
     let (real, recursive, report) =
         match place_of(&app, &state, &files, &source, &path, Want::Read).await? {

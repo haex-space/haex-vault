@@ -53,6 +53,11 @@ impl PeerLink {
         self.connection.close_reason().is_some()
     }
 
+    /// Ends the connection; the serving device drops what belongs to it (its uploads).
+    pub fn close(&self) {
+        self.connection.close(0u32.into(), b"");
+    }
+
     /// Whether this link can serve requests. An `AccessOff` welcome is a live handshake result,
     /// but it must be retried after the serving device enables access again.
     pub fn is_reusable(&self) -> bool {
@@ -60,8 +65,18 @@ impl PeerLink {
     }
 
     /// Sends `op` as `caller` on a new stream and reads the answer's head; for a read, the bytes
-    /// follow on the returned stream.
+    /// follow on the returned stream, for a watch every further head.
     pub async fn ask(&self, caller: Caller, op: Op) -> Result<(Reply, RecvStream), StorageError> {
+        self.ask_with(caller, op, &[]).await
+    }
+
+    /// [`PeerLink::ask`] with `body` after the request's head (a part of an upload).
+    pub async fn ask_with(
+        &self,
+        caller: Caller,
+        op: Op,
+        body: &[u8],
+    ) -> Result<(Reply, RecvStream), StorageError> {
         let (mut send, mut recv) = self
             .connection
             .open_bi()
@@ -73,6 +88,9 @@ impl PeerLink {
             op,
         };
         write_head(&mut send, &request)
+            .await
+            .map_err(|_| StorageError::Network)?;
+        send.write_all(body)
             .await
             .map_err(|_| StorageError::Network)?;
         send.finish().map_err(|_| StorageError::Network)?;
