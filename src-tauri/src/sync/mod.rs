@@ -30,6 +30,7 @@ pub mod resync;
 pub mod seen;
 pub mod servers;
 mod service;
+mod service_protocols;
 pub mod session;
 pub mod signing;
 pub mod wire;

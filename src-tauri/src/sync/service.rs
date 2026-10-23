@@ -21,17 +21,20 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::error::{HolziError, Result};
-use crate::extensions::host::ExtensionHost;
+use crate::files::peer::connect::Connections;
 use crate::instances::paths::get_app_local_data;
 use crate::state::AppState;
-use crate::sync::endpoint::{NodeConfig, Protocols, SyncNode};
+use crate::sync::endpoint::{NodeConfig, SyncNode};
 use crate::sync::events::{self, LINK_HOST_STATE_CHANGED, SYNC_DEVICES_CHANGED};
 use crate::sync::keys::{self, DeviceKeys};
 use crate::sync::link::host_task::LinkHost;
 use crate::sync::registry::{SyncRegistry, SyncRuntime};
 use crate::sync::replica::Replica;
 use crate::sync::resume::Wakeups;
-use crate::vault_gate::{VaultDb, VaultGate};
+use crate::sync::service_protocols::{
+    file_protocols, files_deps, peer_protocols, FilesDeps, PeerDeps,
+};
+use crate::vault_gate::VaultGate;
 
 /// Everything [`SyncService::start`] needs, already resolved by the caller:
 /// keys and the vault pubkey come from genesis, which already ran when the
@@ -51,13 +54,8 @@ pub struct SyncDeps<R: Runtime> {
     pub app: AppHandle<R>,
     /// What the channels between extensions need (spec 057); `None` runs the sync alone.
     pub peers: Option<PeerDeps>,
-}
-
-/// The extension host whose channels the endpoint serves, and a handle on the open vault for
-/// their lookups.
-pub struct PeerDeps {
-    pub host: Arc<ExtensionHost>,
-    pub db: VaultDb,
+    /// What serving files to other devices needs (spec 056); `None` serves none.
+    pub files: Option<FilesDeps>,
 }
 
 /// How often a session checks for devices presence knows an address for but
@@ -133,7 +131,7 @@ async fn resolve_deps<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Resul
     let installation_id_file = crate::identity::installation_id_path(&app_local_data);
     let installation_uuid = crate::identity::read_or_mint_installation_uuid(&installation_id_file)?;
     let for_read = Arc::clone(&db);
-    let (device_keys, vault, relay_mode, nostr_relays) =
+    let (device_keys, vault, relay_mode, nostr_relays, device) =
         tauri::async_runtime::spawn_blocking(move || {
             crate::storage::query::read(&for_read, |r| {
                 let device_keys =
@@ -144,11 +142,14 @@ async fn resolve_deps<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Resul
                     haex_crdt::Error::consumer("sync: no vault identity after genesis")
                 })?;
                 let servers = crate::sync::servers::read(r)?;
+                let device =
+                    crate::storage::known_devices::get_vault_device_uuid(r, installation_uuid)?;
                 Ok((
                     device_keys,
                     vault,
                     servers.relay_mode(),
                     servers.effective_nostr_relays(),
+                    device,
                 ))
             })
         })
@@ -169,6 +170,7 @@ async fn resolve_deps<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Resul
             host: state.extensions(),
             db: state.database()?,
         }),
+        files: files_deps(app, state, device)?,
     })
 }
 
@@ -209,7 +211,12 @@ async fn run<R: Runtime>(
         session: Some(session),
     };
     let peer_host = deps.peers.as_ref().map(|peers| Arc::clone(&peers.host));
-    let protocols = peer_protocols(deps.peers, &deps.keys, vault, &devices_app);
+    let (protocols, files) = file_protocols(
+        peer_protocols(deps.peers, &deps.keys, vault, &devices_app),
+        deps.files,
+        &deps.keys,
+        vault,
+    );
     let node = match SyncNode::bind_with(
         deps.replica,
         deps.keys,
@@ -260,6 +267,7 @@ async fn run<R: Runtime>(
             })
         },
         wakeups: wakeups.clone(),
+        files: files.map(|ctx| Arc::new(Connections::new(Arc::clone(&node), ctx))),
     });
     if let Some(registry) = &registry {
         registry.set(Arc::clone(&runtime));
@@ -325,32 +333,6 @@ async fn run<R: Runtime>(
     if let Some(host) = peer_host {
         host.peers.clear();
     }
-}
-
-/// The handler of `haex-vault-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
-/// an extension host.
-fn peer_protocols<R: Runtime>(
-    peers: Option<PeerDeps>,
-    keys: &DeviceKeys,
-    vault: [u8; 32],
-    app: &AppHandle<R>,
-) -> Protocols {
-    use crate::extensions::commands::frames::WindowEmitter;
-    use crate::extensions::peers::admission::{PeerContext, PeerProtocol};
-    use crate::extensions::peers::channel::Frames;
-
-    let Some(PeerDeps { host, db }) = peers else {
-        return Protocols::default();
-    };
-    let ctx = Arc::new(PeerContext {
-        keys: keys.clone(),
-        vault,
-        db,
-        frames: Frames::new(Arc::new(WindowEmitter(app.clone())), &host),
-    });
-    Protocols::default().with(crate::sync::wire::EXT_PEER_ALPN, move |tasks| {
-        PeerProtocol::new(ctx, tasks)
-    })
 }
 
 /// Clears the registry when dropped.

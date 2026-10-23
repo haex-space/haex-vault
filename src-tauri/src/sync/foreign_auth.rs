@@ -101,8 +101,8 @@ pub struct Purpose {
 /// removed device cannot come back with a list from before its removal once a newer one was seen.
 ///
 /// ponytail: kept in memory only, at most [`MAX_SEEN_VAULTS`] vaults (further ones are not
-/// remembered); after a restart only the card's generation is the floor. Upgrade: share spec
-/// 056's table `haex_file_peer_lists_no_sync` once it exists.
+/// remembered); after a restart only the card's generation is the floor. Upgrade: a `_no_sync`
+/// table of the highest generation per vault (spec 056 adopted this rule instead of its own table).
 #[derive(Debug, Default)]
 pub struct SeenGenerations(Mutex<HashMap<[u8; 32], u64>>);
 
