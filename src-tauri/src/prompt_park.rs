@@ -65,6 +65,20 @@ impl<Q, A: Send> PromptPark<Q, A> {
             .unwrap_or_else(PoisonError::into_inner) = Some(emitter);
     }
 
+    /// Set the emitter only when no emitter has been set yet.
+    pub fn set_emitter_once(&self, emitter: Emitter<Q>) -> bool {
+        let mut configured = self
+            .inner
+            .emitter
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if configured.is_some() {
+            return false;
+        }
+        *configured = Some(emitter);
+        true
+    }
+
     /// Whether a window can be asked yet.
     pub fn has_emitter(&self) -> bool {
         self.inner

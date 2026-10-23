@@ -22,6 +22,33 @@ fn bridge_with_events(
     (bridge, receiver)
 }
 
+#[tokio::test]
+async fn a_second_emitter_is_ignored() {
+    let bridge = ActionBridge::with_timeout(Duration::from_secs(5));
+    let (sender, mut events) = mpsc::unbounded_channel();
+    bridge.set_emitter(Arc::new({
+        let sender = sender.clone();
+        move |_, _| {
+            let _ = sender.send("first");
+        }
+    }));
+    bridge.set_emitter(Arc::new(move |_, _| {
+        let _ = sender.send("second");
+    }));
+
+    let cancel = CancellationToken::new();
+    let caller = bridge.clone();
+    let token = cancel.clone();
+    let call = tokio::spawn(async move { caller.call("x", json!({}), &token).await });
+    assert_eq!(events.recv().await, Some("first"));
+    cancel.cancel();
+    assert!(matches!(
+        call.await.expect("the call task"),
+        ActionReply::Err { ref code, .. } if code == "tool_call_cancelled"
+    ));
+    assert!(events.try_recv().is_err());
+}
+
 fn request_id(payload: &Value) -> Uuid {
     serde_json::from_value(payload["requestId"].clone()).expect("a request id")
 }

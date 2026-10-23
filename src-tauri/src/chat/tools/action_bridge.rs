@@ -148,17 +148,15 @@ impl ActionBridge {
     /// Set once from `setup()`, where the `AppHandle` exists (`ChatState` is managed without one).
     /// A second call is ignored.
     pub fn set_emitter(&self, emitter: EventEmitter) {
-        if self.park.has_emitter() {
-            return;
-        }
-        self.park
-            .set_emitter(Arc::new(move |request_id: &str, call: &ActionCall| {
+        self.park.set_emitter_once(Arc::new(
+            move |request_id: &str, call: &ActionCall| {
                 emitter(
                     EVENT_ACTION_CALL_REQUEST,
                     json!({ "requestId": request_id, "actionId": call.action_id, "input": call.input }),
                 );
                 true
-            }));
+            },
+        ));
     }
 
     /// Emits one call and waits for the answer. Never fails: a missing emitter, a timeout or a
