@@ -1,6 +1,6 @@
 # Devices of non-contact vaults for public lobbies
 
-Status: proposed
+Status: accepted
 Date: 2026-10-22
 
 ## Context

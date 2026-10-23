@@ -267,7 +267,7 @@ closing, D's connection is cut after the handshake; D connecting without `Join` 
 
 - [x] T055 [US5] Throttle in a new `src-tauri/src/extensions/peers/throttle.rs` with the values of research.md R7 and an injected clock; `ponytail:` comment naming the ceiling (fixed windows per endpoint id) and the upgrade (token bucket per address prefix)
 - [x] T056 [US5] Admission of `Unverified` in `src-tauri/src/extensions/peers/admission.rs`: allowed only while `PeerState` has a lobby with `visibility = Public`, except for one bounded proof-bearing `Join` when only contacts-only lobbies are open; throttle checked before the handshake (pending, unverified window) and after a failed join (per endpoint); public lobbies admit `Unverified` with `verified: false` and the self-chosen display name
-- [x] T057 [US5] ADR status and links: `docs/adr/0016-non-contact-devices-for-public-lobbies.md` referenced from the module doc of `src-tauri/src/extensions/peers/admission.rs`; status stays `proposed` until the operator accepts it with PR 2
+- [x] T057 [US5] ADR status and links: `docs/adr/0016-non-contact-devices-for-public-lobbies.md` referenced from the module doc of `src-tauri/src/extensions/peers/admission.rs`; status `accepted` by the operator with PR 2
 
 **Checkpoint (end of PR 2)**: `cargo test … --lib extensions::peers`, `nix develop --command pnpm lint:rust`; open PR 2.
 
@@ -337,8 +337,8 @@ Weak<SyncNode>)`, set by `attach` from the sync service and cleared by `PeerStat
   the device is not verified, so they apply right after the exchange, still before any message is
   read. A stranger is cut right after the exchange when no lobby is open, and with only a lobby
   for contacts it may send one `Join` of at most 5 KiB, as the contract says.
-- **T057**: `admission.rs` links ADR 0016 in its module doc; the ADR stays `proposed`. The
-  operator decides on acceptance when reviewing this PR.
+- **T057**: `admission.rs` links ADR 0016 in its module doc; the operator accepted ADR 0016
+  when reviewing this PR, so its status is `accepted`.
 - **SC-007**: measured on `Lobbies::decide` (1,000 runs per case, interleaved, medians within 1 ms),
   the one place all four host-side cases pass, without the network; the wire-level answer is
   compared in a second test. The timing test can flake on a heavily loaded machine.
