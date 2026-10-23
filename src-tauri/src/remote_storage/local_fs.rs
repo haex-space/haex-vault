@@ -166,6 +166,22 @@ pub(super) fn settle(part: &Path, path: &Path) -> Result<(), StorageError> {
     Ok(())
 }
 
+/// Links a finished upload into a new name without replacing an entry that appeared meanwhile.
+pub(super) fn settle_if_absent(part: &Path, path: &Path) -> Result<(), StorageError> {
+    let linked = fs::File::open(part)
+        .and_then(|file| file.sync_all())
+        .and_then(|()| fs::hard_link(part, path));
+    if let Err(error) = linked {
+        let _ = fs::remove_file(part);
+        return if error.kind() == io::ErrorKind::AlreadyExists {
+            Err(StorageError::Conflict)
+        } else {
+            Err(error_of(error))
+        };
+    }
+    fs::remove_file(part).map_err(error_of)
+}
+
 /// Writes `body` to `path` through a temporary file (FR-047).
 pub(super) fn write_whole(path: &Path, body: &[u8]) -> Result<(), StorageError> {
     make_parent(path)?;

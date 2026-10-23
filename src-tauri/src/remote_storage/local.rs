@@ -18,7 +18,7 @@ use zeroize::Zeroizing;
 
 use super::local_fs::{
     append, error_of, etag_of, http_date_of, make_parent, part_of, read_entries, resolve,
-    resolve_below, settle, write_whole,
+    resolve_below, settle, settle_if_absent, write_whole,
 };
 use super::tree;
 use super::{
@@ -58,6 +58,31 @@ impl LocalStore {
     /// A store without running uploads.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Finishes an upload only if the target is still absent; the final link cannot replace a
+    /// target created after the caller's check.
+    pub async fn finish_upload_if_absent(
+        &self,
+        access: &Access,
+        key: &str,
+        upload_id: &str,
+        deadline: Instant,
+    ) -> Result<(), StorageError> {
+        let part = self
+            .uploads
+            .lock()
+            .expect("uploads")
+            .remove(upload_id)
+            .ok_or(StorageError::NotFound)?;
+        let path = match resolve_below(&root(access), key) {
+            Ok(path) => path,
+            Err(error) => {
+                let _ = fs::remove_file(&part);
+                return Err(error);
+            }
+        };
+        blocking(deadline, move || settle_if_absent(&part, &path)).await
     }
 }
 

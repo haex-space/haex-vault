@@ -4,7 +4,7 @@
 //! connection: when it ends, every one left is dropped with its temporary file.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex};
 use std::time::Duration;
 
 use tokio::time::Instant;
@@ -34,15 +34,19 @@ pub struct Upload {
     pub path: String,
     expected: Expected,
     at: Located,
+    target_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// The running uploads of a connection, by id.
 #[derive(Default)]
-pub struct Uploads(Mutex<HashMap<String, Upload>>);
+pub struct Uploads {
+    map: Mutex<HashMap<String, Upload>>,
+    closed: AtomicBool,
+}
 
 impl Uploads {
     fn map(&self) -> std::sync::MutexGuard<'_, HashMap<String, Upload>> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner())
+        self.map.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// The upload `id` of this connection.
@@ -63,21 +67,41 @@ impl Uploads {
         if self.map().len() >= UPLOADS_PER_CONNECTION {
             return Err(FailCode::Busy);
         }
+        let target_lock = ctx.write_lock(&at.root.join(&at.key));
+        let _target_guard = target_lock.lock().await;
         check(ctx, &at, &expected).await?;
+        let root = at.root.clone();
+        let key = at.key.clone();
         let id = ctx
             .store
             .begin_upload(&access_of(&at.root), &at.key, deadline())
             .await
             .map_err(fail_of)?;
-        self.map().insert(
-            id.clone(),
-            Upload {
-                share,
-                path,
-                expected,
-                at,
-            },
-        );
+        let closed = {
+            let mut uploads = self.map();
+            if self.closed.load(Ordering::Acquire) {
+                true
+            } else {
+                uploads.insert(
+                    id.clone(),
+                    Upload {
+                        share,
+                        path,
+                        expected,
+                        at,
+                        target_lock,
+                    },
+                );
+                false
+            }
+        };
+        if closed {
+            let _ = ctx
+                .store
+                .abort_upload(&access_of(&root), &key, &id, deadline())
+                .await;
+            return Err(FailCode::Internal);
+        }
         Ok(id)
     }
 
@@ -107,6 +131,7 @@ impl Uploads {
     /// it: then the upload is dropped, the target stays as it is, and the answer is `Conflict`.
     pub async fn finish(&self, ctx: &ServeContext, id: &str) -> Result<(), FailCode> {
         let upload = self.map().remove(id).ok_or(FailCode::NotFound)?;
+        let _target_guard = upload.target_lock.lock().await;
         let access = access_of(&upload.at.root);
         if let Err(code) = check(ctx, &upload.at, &upload.expected).await {
             let _ = ctx
@@ -115,10 +140,18 @@ impl Uploads {
                 .await;
             return Err(code);
         }
-        ctx.store
-            .finish_upload(&access, &upload.at.key, id, &[], deadline())
-            .await
-            .map_err(fail_of)
+        match upload.expected {
+            Expected::Absent => ctx
+                .store
+                .finish_upload_if_absent(&access, &upload.at.key, id, deadline())
+                .await
+                .map_err(fail_of),
+            Expected::Version { .. } => ctx
+                .store
+                .finish_upload(&access, &upload.at.key, id, &[], deadline())
+                .await
+                .map_err(fail_of),
+        }
     }
 
     /// Drops the upload `id` with its temporary file.
@@ -134,6 +167,7 @@ impl Uploads {
 
     /// Drops every upload left, at the end of the connection.
     pub async fn abort_all(&self, ctx: &ServeContext) {
+        self.closed.store(true, Ordering::Release);
         let ids: Vec<String> = self.map().keys().cloned().collect();
         for id in ids {
             let _ = self.abort(ctx, &id).await;
