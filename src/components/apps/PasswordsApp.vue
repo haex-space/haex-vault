@@ -60,7 +60,7 @@ function onEscape() {
 <template>
   <div
     ref="root"
-    class="@container flex h-full min-h-0 flex-col bg-muted/20"
+    class="@container relative flex h-full min-h-0 flex-col bg-muted/20"
     data-passwords-app
     @keydown="onKeydown"
   >

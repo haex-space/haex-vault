@@ -93,12 +93,27 @@ test('an attachment has a kind by its extension: image, pdf, text or other', () 
     assert.equal(fileKind(name), 'image', name)
   }
   assert.equal(fileKind('Vertrag.PDF'), 'pdf')
-  for (const name of ['a.txt', 'b.md', 'c.json', 'd.csv', 'e.log']) {
+  for (const name of [
+    'a.txt',
+    'b.md',
+    'c.json',
+    'd.csv',
+    'e.log',
+    'notiz.txt',
+    'README.md',
+    'config.yaml',
+    'log.LOG',
+  ]) {
     assert.equal(fileKind(name), 'text', name)
   }
-  // SVG can carry script; it is never previewed.
+  assert.equal(fileKind('police.pdf'), 'pdf')
+  assert.equal(fileKind('Brief.PDF'), 'pdf')
+  // SVG can carry script; it is never previewed. BMP has no preview either.
   for (const name of [
     'logo.svg',
+    'scan.bmp',
+    'tabelle.ods',
+    '.bashrc',
     'archiv.zip',
     'ohne-endung',
     '.png.exe',

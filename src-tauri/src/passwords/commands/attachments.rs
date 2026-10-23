@@ -1,7 +1,8 @@
 //! Attachment commands (spec 034, US5, `contracts/tauri-commands.md` §Anhänge). Files travel as
 //! the choice of the system's dialogs (spec 043: a path or a provider address), never as bytes
 //! through the webview; only the bytes of an image
-//! preview go back, as raw bytes (`tauri::ipc::Response`).
+//! preview go back, as raw bytes (`tauri::ipc::Response`), and the text of a text attachment for
+//! the attachment view (spec 058).
 
 use serde::Deserialize;
 use tauri::ipc::Response;
@@ -10,6 +11,7 @@ use ts_rs::TS;
 
 use super::service;
 use crate::error::Result;
+use crate::files::local::text::TextContent;
 use crate::files::PickedFile;
 use crate::passwords::access::Caller;
 use crate::passwords::model::AttachmentView;
@@ -104,4 +106,15 @@ pub async fn passwords_attachment_preview(
         .attachment_preview(&Caller::User, args.attachment_id)
         .await?;
     Ok(Response::new(bytes))
+}
+
+/// The text of a text attachment for the attachment view (spec 058 FR-003).
+#[tauri::command]
+pub async fn passwords_attachment_text(
+    state: State<'_, AppState>,
+    args: AttachmentIdArgs,
+) -> Result<TextContent> {
+    service(&state)?
+        .attachment_text(&Caller::User, args.attachment_id)
+        .await
 }

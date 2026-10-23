@@ -4,6 +4,7 @@ import type { CopyOptions } from '@bindings/CopyOptions'
 import type { CopyReport } from '@bindings/CopyReport'
 import type { CopyResult } from '@bindings/CopyResult'
 import type { CopyTextArgs } from '@bindings/CopyTextArgs'
+import type { TextContent } from '@bindings/TextContent'
 import type { TextField } from '@bindings/TextField'
 import type { CreateGroupResult } from '@bindings/CreateGroupResult'
 import type { CreateItemResult } from '@bindings/CreateItemResult'
@@ -126,6 +127,8 @@ export function usePasswords() {
     invoke<ArrayBuffer>('passwords_attachment_preview', {
       args: { attachmentId },
     })
+  const attachmentTextAsync = (attachmentId: string) =>
+    invoke<TextContent>('passwords_attachment_text', { args: { attachmentId } })
 
   const createGroupAsync = (args: {
     name: string
@@ -292,6 +295,7 @@ export function usePasswords() {
     attachmentRemoveAsync,
     attachmentSaveAsync,
     attachmentPreviewAsync,
+    attachmentTextAsync,
     importPreviewAsync,
     importRunAsync,
     importCancelAsync,

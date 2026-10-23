@@ -2018,6 +2018,15 @@
       "noPreview": "No preview",
       "kinds": {
         "other": "File"
+      },
+      "viewer": {
+        "close": "Close",
+        "empty": "The file is empty.",
+        "gone": "The attachment was removed.",
+        "missing": "This attachment is not available on this device.",
+        "binary": "This file is not text.",
+        "notText": "This file cannot be shown here.",
+        "unreadable": "The file cannot be read."
       }
     },
     "lightbox": {
