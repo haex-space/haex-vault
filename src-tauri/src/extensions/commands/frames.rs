@@ -148,6 +148,10 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
                 frame: session.frame.clone(),
             });
         host.permissions.frame_ended(session.extension_id);
+        // This frame's window now knows it and keeps events for it: what an accepted invitation
+        // held for a frame of its extension goes out (spec 057 T041). Not at `extension_frame_open`,
+        // whose events reach the window before it learns the frame's id and are dropped there.
+        host.peers.frame_opened(session.extension_id);
     }
     Ok(())
 }

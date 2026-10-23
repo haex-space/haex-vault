@@ -11,7 +11,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
-use serde_json::Value;
+use serde_json::{json, Value};
+use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use uuid::Uuid;
 
@@ -21,7 +22,9 @@ use super::invite::{OutgoingInvites, CHANNEL_OPENED};
 use super::invited::{Answered, Invitations};
 use super::limits::{CHANNELS_PER_EXTENSION, INVITE_LIFETIME, PENDING_OPEN_LIMIT};
 use super::lobby::{Lobbies, Openness};
+use super::pending::{Hold, PendingOpens};
 use super::PeerError;
+use crate::extensions::notifications::CLICKED;
 use crate::sync::endpoint::SyncNode;
 use crate::sync::foreign_auth::{SeenGenerations, Verified};
 
@@ -51,6 +54,8 @@ pub struct PeerState {
     outgoing: Mutex<OutgoingInvites>,
     /// Invitations of contacts this device asks its user about.
     incoming: Mutex<Invitations>,
+    /// Accepted channels whose extension has no frame yet.
+    pending: Mutex<PendingOpens>,
     timing: Mutex<Timing>,
     /// The endpoint of the vault session while it runs. Held weakly: the session owns its node,
     /// and a node held here would keep the session from draining.
@@ -80,6 +85,10 @@ impl PeerState {
 
     pub(super) fn invitations(&self) -> MutexGuard<'_, Invitations> {
         self.incoming.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn pending(&self) -> MutexGuard<'_, PendingOpens> {
+        self.pending.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn timing(&self) -> Timing {
@@ -162,6 +171,7 @@ impl PeerState {
         let Some(channel) = self.channels().remove(&id) else {
             return;
         };
+        self.pending().remove(id);
         channel.shut();
         channel.tell_closed(reason);
     }
@@ -195,15 +205,86 @@ impl PeerState {
     }
 
     /// Tells the frames of `channel`'s extension that an invitation became a channel
-    /// (`peers:channel-opened`, FR-016).
+    /// (`peers:channel-opened`, FR-016). Without a frame, holzi's window opens the extension and
+    /// the event waits, with the channel's messages, for [`Self::frame_opened`]; after
+    /// `pending_open` without one the channel closes (research R9).
+    ///
+    /// ponytail: "a frame" is a registered session, which exists a moment before holzi's window
+    /// knows its id; an event sent in that moment is lost to it. Upgrade: count a frame only once
+    /// its first handshake reported (`extension_frame_reloaded`).
     pub(super) fn opened(
         &self,
         channel: &Channel,
         frames: &Frames,
         event: Value,
-        _tracker: &TaskTracker,
+        tracker: &TaskTracker,
     ) {
-        frames.emit(channel.extension_id, CHANNEL_OPENED, &event);
+        let Some(host) = frames.host() else {
+            return;
+        };
+        let extension_id = channel.extension_id;
+        let mut pending = self.pending();
+        if !host.frames.of_extension(extension_id).is_empty() {
+            drop(pending);
+            return frames.emit(extension_id, CHANNEL_OPENED, &event);
+        }
+        let cancel = CancellationToken::new();
+        pending.insert(
+            channel.id,
+            extension_id,
+            frames.clone(),
+            CHANNEL_OPENED,
+            event,
+            cancel.clone(),
+        );
+        drop(pending);
+        frames.emit_window(CLICKED, json!({ "extensionId": extension_id.to_string() }));
+        let (id, limit, frames) = (channel.id, self.timing().pending_open, frames.clone());
+        tracker.spawn(async move {
+            tokio::select! {
+                () = cancel.cancelled() => {}
+                () = tokio::time::sleep(limit) => {
+                    if let Some(host) = frames.host() {
+                        let still_waiting = host.peers.pending().remove(id);
+                        if still_waiting {
+                            host.peers.finish(id, EndReason::Closed);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /// How many events wait for a frame for `channel`, for the tests.
+    #[cfg(test)]
+    pub(crate) fn held(&self, channel: Uuid) -> usize {
+        self.pending().held(channel)
+    }
+
+    /// A frame of `extension_id` is there: what waited for one goes to it, in order. Called when
+    /// the frame reports its handshake, as only then does holzi's window know the frame and keep
+    /// events for it.
+    pub fn frame_opened(&self, extension_id: Uuid) {
+        self.pending().release(extension_id, |frames, event, data| {
+            frames.emit(extension_id, event, data);
+        });
+    }
+
+    /// Whether a message of `channel` waits for a frame; when it does not, the message comes
+    /// back to go on. A reliable message that finds no room ends the channel with `lost`.
+    pub(super) fn hold(
+        &self,
+        channel: Uuid,
+        event: &'static str,
+        data: Value,
+        reliable: bool,
+    ) -> Option<Value> {
+        match self.pending().hold(channel, event, data, reliable) {
+            Hold::Pass(data) => return Some(data),
+            Hold::Held => {}
+            Hold::Overflow => self.finish(channel, EndReason::Lost),
+        }
+        None
     }
 
     /// Ends every channel `ended` picks, with `closed`.
@@ -246,6 +327,7 @@ impl PeerState {
         withdrawn.iter().for_each(|stop| stop.cancel());
         self.invitations().clear();
         self.end_where(|_| true);
+        self.pending().clear();
         self.seen.clear();
     }
 }

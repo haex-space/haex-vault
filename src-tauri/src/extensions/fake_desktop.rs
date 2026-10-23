@@ -1,8 +1,10 @@
 //! The system's notifications as tests see them (spec 017 US8, spec 057 T034): what holzi asked the
-//! system to show, and a way to answer as the system would.
+//! system to show, a way to answer as the system would, and a way to wait for one to appear.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+
+use tokio::sync::watch;
 
 use super::host::Desktop;
 use super::notifications::{NotificationResponse, NotificationSpec, Respond, ShownNotification};
@@ -13,6 +15,7 @@ pub(crate) struct FakeDesktop {
     closed: Arc<Mutex<Vec<usize>>>,
     /// The person refused the system's notification permission.
     pub(crate) refused: AtomicBool,
+    count: watch::Sender<usize>,
 }
 
 impl Default for FakeDesktop {
@@ -21,6 +24,7 @@ impl Default for FakeDesktop {
             shown: Mutex::default(),
             closed: Arc::default(),
             refused: AtomicBool::new(false),
+            count: watch::channel(0).0,
         }
     }
 }
@@ -53,6 +57,7 @@ impl Desktop for FakeDesktop {
         let mut shown = self.shown.lock().unwrap();
         shown.push((notification.clone(), Some(respond)));
         let index = shown.len() - 1;
+        self.count.send_replace(shown.len());
         Ok(Box::new(FakeShown {
             index,
             closed: Arc::clone(&self.closed),
@@ -88,5 +93,19 @@ impl FakeDesktop {
     /// The system refuses to show notifications.
     pub(crate) fn forbid(&self) {
         self.refused.store(true, Ordering::Relaxed);
+    }
+
+    /// Waits until `n` notifications were shown, at most `limit`.
+    pub(crate) async fn wait_shown(&self, n: usize, limit: std::time::Duration) {
+        let mut count = self.count.subscribe();
+        tokio::time::timeout(limit, async {
+            while *count.borrow_and_update() < n {
+                if count.changed().await.is_err() {
+                    return;
+                }
+            }
+        })
+        .await
+        .expect("the notification was shown in time");
     }
 }
