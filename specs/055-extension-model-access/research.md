@@ -239,9 +239,10 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
   Dateizugriff und keinen Befehl. Das Modell sieht nur `instruction`, `input` und das Schema. Text im Foto kann
   die Ausgabe verändern, aber nie eine Handlung auslösen; die Ausgabe wird gegen das Schema geprüft und geht
   nur an die Erweiterung.
-- **Befehlszeilen-Agenten** (`cli_delegate`, etwa Claude Code oder Codex) sind nie Kandidaten eines
-  Auftrags: Sie arbeiten mit eigenen Werkzeugen und Dateizugriff. Cloud-Modelle kommen über einen Anbieter mit
-  Adresse und Schlüssel (`anthropic`, `openai_compatible`).
+- **Befehlszeilen-Agenten** (`cli_delegate`, etwa Claude Code oder Codex) waren bis 2026-10-23 nie Kandidaten
+  eines Auftrags, weil sie mit eigenen Werkzeugen und Dateizugriff arbeiten. Seit der Klärung vom 2026-10-23
+  sind sie Kandidaten mit dem Zugriff, den sie in holzi haben (FR-032, R16). Für alle anderen Modelle gilt
+  weiter: keine Werkzeuge.
 - **Zugang zu Schlüsseln**: Adapter werden bei Bedarf aus `providers`+`models` gebaut (`build_adapter`); die
   Erweiterung sieht weder Schlüssel noch Adressen (FR-021). Fehlertexte des Anbieters werden vor der Rückgabe
   bereinigt (`S/model_jobs/errors.rs::sanitize`): der Schlüssel und die Adresse des Anbieters, die der Aufrufer
@@ -266,6 +267,42 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
 | C   | Lokale Bilder (R8): Versuch, Ladeweg, Katalog, Fähigkeiten                                                                    | Vollständig lokale Auswertung                     |
 | D   | Oberfläche: Freigabe- und Einwilligungsdialog, Modelle und Rangfolge in den Einstellungen, Dauer                              | Der Nutzer bestimmt alles selbst                  |
 | E   | vault-sdk und Test-Erweiterung (R13)                                                                                          | Entwickler können es nutzen                       |
+| F   | Jedes Modell aus holzi (US8, R15, R16): lokal installierte Modelle und Abos als Quellen von Aufträgen                         | Kein zweites Einrichten als Modell-Server nötig   |
 
 B hängt von A nur für die Fernmodelle ab; C ist unabhängig und der größte Unsicherheitsfaktor, daher
-frühzeitig der Versuch. Reihenfolge: A, B (mit D für die Dialoge), C, E.
+frühzeitig der Versuch. Reihenfolge: A, B (mit D für die Dialoge), C, E. F kam am 2026-10-23 dazu und baut
+auf B und D auf; lokale Modelle (R15) und Abos (R16) sind zwei getrennte PRs.
+
+## R15 — Lokal installierte Modelle als Quelle
+
+- **Befund**: `candidates::job_models` listet lokale Modelle schon für die Freigabe; erst der Lauf scheitert,
+  weil `model_source::Providers` für `ProviderKind::Local` „local models cannot take jobs yet“ liefert. Der
+  Chat hält genau ein lokales Modell im Speicher (`chat/model_loading.rs::load_model_inner`, nur mit
+  `llm-cpu`); ein zweites daneben passt auf einer 8-GB-Karte nicht.
+- **Entscheidung**: Ein lokales Modell wird Quelle für Aufträge über den einen Platz des Chats, wie T062 es
+  für Bildmodelle geplant hatte: Ist es schon geladen, nutzt der Auftrag es zwischen zwei Chat-Zügen; sonst
+  wartet der Auftrag, bis kein Zug läuft, lädt es (mit der Prüfsumme wie im Chat) und der Chat lädt sein
+  Modell beim nächsten Zug wieder (FR-033). Die Wartezeit zählt zur Höchstdauer. Fähigkeiten wie im Chat:
+  GGUF-Modelle nehmen keine Bilder (`ModelCapabilities::local()`), Bildschritte übergehen sie (FR-019).
+  Ohne `llm-cpu` gibt es keine lokalen Modelle und damit keinen Kandidaten.
+- **Verworfen**: Ein eigener Platz für Aufträge (doppelter Grafikspeicher); den Chat für einen Auftrag
+  unterbrechen (verfälscht den Zug, FR-033).
+
+## R16 — Abos als Quelle
+
+- **Befund**: `candidates::job_models` filtert `ProviderKind::CliDelegate` heraus, `model_source::Providers`
+  lehnt sie ab. `build_adapter` baut einen Abo-Adapter nur mit `DelegateChatContext` (Freigaben im Chat,
+  Ereignisse, Kindprozesse). Jeder Aufruf läuft in einem eigenen temporären Verzeichnis
+  (`cli_delegate/claude.rs`, `codex.rs`, `current_dir(tmp)`); Anhänge liegen dort als Datei, die der Agent
+  mit seinem Lesewerkzeug öffnet. Die Antwort kommt als Text, den die Prüfung des Auftrags wie jede andere
+  Ausgabe gegen das Format prüft (R2, R5).
+- **Entscheidung** (Clarifications 2026-10-23): Abos sind Kandidaten wie andere Modelle. Der Lauf nimmt den
+  Autonomie-Modus aus der Tresoreinstellung `chat.autonomy_mode`; `standard` wird für den Auftrag zu
+  `gated_permissive`, weil es keinen Chat für Rückfragen gibt, damit gelten die Verbotsregeln des Nutzers.
+  Der Kontext für den Adapter bekommt keinen Chat: Freigaben laufen nie über den Chat, Kindprozesse hängen
+  an der Tresorsitzung wie im Chat. Der Ort ist `cloud` (Dienst des Anbieters), also mit Einwilligung (R6).
+  Fähigkeiten: Beide nehmen Bilder über die Datei im Arbeitsverzeichnis. Der Aufwand geht als `--effort`
+  bzw. die Codex-Entsprechung mit. Die Freigabe zeigt beim Abo einen Hinweis auf Datei- und Befehlszugriff
+  (FR-032).
+- **Verworfen**: Abos ohne Werkzeuge (`claude --tools ""`); der Nutzer will ihnen den vollen Zugriff lassen,
+  und für Codex gibt es laut `codex exec --help` (0.147.0) keinen Schalter ohne Shell.

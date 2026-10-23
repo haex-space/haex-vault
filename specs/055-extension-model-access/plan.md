@@ -62,7 +62,7 @@ für neue reine TS-Module; E2E-Szenario mit der Test-Erweiterung; Versuch zum lo
 Seitenauftrag auf der Zielhardware in der Größenordnung von Sekunden bis wenigen Minuten (Test: 3–130 s je Seite);
 kein Messziel für Modelle (Spec: Modellwahl ist Einstellung).
 
-**Constraints**: Aufträge ohne Werkzeuge (FR-026); nichts dauerhaft speichern (FR-028); sitzungsgebundene
+**Constraints**: Aufträge ohne Werkzeuge von holzi, Abos mit ihrem Zugriff aus holzi (FR-026, FR-032); nichts dauerhaft speichern (FR-028); sitzungsgebundene
 Berechtigungen enden mit der Tresorsitzung (FR-016); kein Byte außerhalb des
 Geräts ohne Einwilligung (FR-015); Obergrenzen (R9); Dateien < 500 Zeilen; Rust-Tests in `*_tests.rs`;
 keine Zugangsdaten in Fehlern, Ereignissen oder Protokollen.

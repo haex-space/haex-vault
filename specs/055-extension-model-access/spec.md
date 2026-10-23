@@ -22,6 +22,12 @@
 
 - Q: Dürfen Aufträge Werkzeuge nutzen, etwa Webabrufe über ein lokales Modell? → A: Ja, aber nicht in dieser Spec. Eine eigene Spec regelt das zusammen mit holzis späterer Websuche: Die Erweiterung muss jedes Werkzeug in ihrem Manifest erklären, der Nutzer gibt es frei, und zuerst gibt es nur Web-Werkzeuge. Bis dahin gilt FR-026.
 
+### Session 2026-10-23
+
+- Q: Welche Modelle aus holzi darf der Nutzer einer Erweiterung freigeben? → A: Jedes Modell, das holzi kennt, unabhängig von seiner Quelle: lokal installierte Modelle, Modelle über Modell-Server oder ein Konto bei einem Cloud-Dienst und verbundene Abos (Claude Code, Codex). Freigabe, Rangfolge und Aufwand gelten für alle gleich (US8).
+- Q: Mit welchem Zugriff läuft ein Abo (Befehlszeilen-Agent) in einem Auftrag? → A: Mit dem vollen Zugriff, den der Agent in holzi hat; holzi schränkt ihn für Aufträge nicht zusätzlich ein. Die Freigabe macht sichtbar, dass die Erweiterung damit einen Agenten mit Datei- und Befehlszugriff anweist (FR-026, FR-032).
+- Q: Was gilt im Autonomie-Modus „Standard“, wenn es im Auftrag keinen Chat zum Bestätigen gibt? → A: Er wirkt wie „Gegated (permissiv)“: alles erlaubt außer dem, was die Verbotsregeln des Nutzers sperren (FR-032).
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Eine Erweiterung stellt eine Anfrage an ein Modell (Priority: P1)
@@ -139,6 +145,24 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 2. **Given** eine Tabelle auf der Seite, **When** sie erkannt wird, **Then** enthält das Ergebnis Zeilen und Zellen, auch leere Zellen, und nicht nur ein Bild der Tabelle.
 3. **Given** ein auf der Seite liegendes Foto, **When** der Auftrag läuft, **Then** wird die Seite aufrecht ausgewertet, oder die Erweiterung erhält die Angabe, dass sie gedreht werden muss.
 
+---
+
+### User Story 8 - Jedes Modell aus holzi kann freigegeben werden (Priority: P2)
+
+Der Nutzer kann einer Erweiterung jedes Modell freigeben, das holzi kennt: ein lokal installiertes Modell, ein Modell über einen Modell-Server oder ein Konto bei einem Cloud-Dienst und ein verbundenes Abo wie Claude Code oder Codex. Die Freigabeliste zeigt alle diese Modelle gleich, mit Fähigkeiten und Ort. Woher ein Modell kommt, spielt für Freigabe, Rangfolge, Aufwand, Einwilligung und Herkunft keine Rolle.
+
+**Why this priority**: Wer holzi schon ein Abo oder ein lokales Modell gegeben hat, soll es nicht ein zweites Mal als Modell-Server einrichten müssen, damit eine Erweiterung es nutzen kann.
+
+**Independent Test**: Mit je einem lokal installierten Modell, einem Modell eines Modell-Servers und einem verbundenen Abo (Testadapter) erscheinen alle drei in der Freigabeliste einer Testerweiterung. Ein Textauftrag läuft auf jedem, sobald es freigegeben ist; die Herkunft nennt Modell und Ort.
+
+**Acceptance Scenarios**:
+
+1. **Given** holzi kennt ein lokal installiertes Modell, ein Modell eines Modell-Servers und ein verbundenes Abo, **When** der Nutzer die Modelle einer Erweiterung öffnet, **Then** sieht er alle drei mit Fähigkeiten und Ort und kann jedes freigeben.
+2. **Given** ein freigegebenes lokal installiertes Modell, das gerade nicht geladen ist, **When** ein Textauftrag kommt, **Then** lädt holzi es auf dem Gerät und führt den Auftrag aus, ohne dass Daten das Gerät verlassen.
+3. **Given** ein laufender Chat-Zug mit einem lokalen Modell, **When** ein Auftrag ein lokales Modell braucht, **Then** wartet der Auftrag, bis der Chat-Zug fertig ist; der Chat wird weder unterbrochen noch verfälscht und lädt sein Modell beim nächsten Zug wieder.
+4. **Given** ein freigegebenes Abo, **When** der Nutzer es freigibt, **Then** zeigt holzi, dass die Erweiterung damit einen Agenten mit Datei- und Befehlszugriff anweist, und vor dem ersten Versand fragt holzi um Einwilligung für das Ziel des Abos (US4).
+5. **Given** ein Abo, dessen Verbindung getrennt wurde, **When** ein Auftrag es versucht, **Then** gilt es als nicht verfügbar und holzi versucht das nächste Modell der Rangfolge (FR-027).
+
 ### Edge Cases
 
 - Das gewählte Modell ist nicht verfügbar, etwa weil das lokale Modell nicht installiert ist. holzi versucht das nächste Modell der Rangfolge, aber nie ein Ziel ohne erteilte Einwilligung.
@@ -150,6 +174,9 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - Ein Schritt braucht ein Modell, das der Nutzer nicht freigegeben hat, obwohl andere Schritte freigegebene Modelle haben. Der Auftrag scheitert vor dem ersten Schritt, nicht mittendrin.
 - Das Bild oder die Zahl der Bilder liegt über der Obergrenze von holzi. Die Anfrage wird abgelehnt, mit klarer Meldung, welche Grenze überschritten wurde, und ohne Verlust des Originals. holzi verkleinert nichts stillschweigend.
 - Ein Zugangsschlüssel oder eine Serveradresse darf nie in Fehlermeldungen, Ergebnissen oder dem Speicher der Erweiterung auftauchen.
+- Ein Bildauftrag zielt auf ein lokal installiertes Modell, das nur Text kann. Es wird wie jedes Modell ohne Bildfähigkeit vor der Übertragung übergangen (FR-019).
+- Der Chat belegt das lokale Modell länger als die Höchstdauer des Auftrags. Der Auftrag endet mit Zeitüberschreitung, der Chat läuft weiter.
+- Ein Abo ändert in einem Auftrag Dateien oder führt Befehle aus. holzi verhindert das nicht (Clarifications 2026-10-23); die Freigabe hat darauf hingewiesen.
 
 ## Requirements
 
@@ -180,11 +207,14 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - **FR-023**: Das Ergebnis MUST die Herkunft nennen: Ergebnisformat samt Version, je Schritt Modell, Aufwand und Ort (lokal, anderes Gerät, Server, Cloud).
 - **FR-024**: Das Format „Seitenerkennung“, das haex-notes vorgibt, MUST Regionen mit Art (Text, Bild, Tabelle), Position, Lesereihenfolge und Inhalt beschreiben; Tabellen MUST Zeilen und Zellen enthalten. holzi prüft dieses wie jedes andere Format.
 - **FR-025**: Ein Auftrag mit mehreren Schritten MUST vor dem ersten Schritt prüfen, dass für alle Schritte ein freigegebenes Modell vorhanden ist.
-- **FR-026**: Aufträge MUST ohne Werkzeuge, Dateizugriff und Befehlsausführung laufen, da die Anweisung von der Erweiterung stammt und nicht vertraut wird. Ein Auftrag sieht nur die Eingabe, die die Erweiterung mitsendet. Werkzeuge in Aufträgen, zuerst Webabruf und Websuche, regelt eine eigene spätere Spec mit eigener, im Manifest erklärter Berechtigung (Clarifications 2026-10-20).
+- **FR-026**: holzi MUST einem Auftrag keine eigenen Werkzeuge, keinen Dateizugriff und keine Befehlsausführung geben, da die Anweisung von der Erweiterung stammt und nicht vertraut wird. Ein Modell ohne eigene Werkzeuge sieht nur die Eingabe, die die Erweiterung mitsendet. Ausgenommen sind Abos (Befehlszeilen-Agenten): Sie bringen eigene Werkzeuge mit und laufen mit dem Zugriff, den sie in holzi haben (FR-032). Werkzeuge von holzi in Aufträgen, zuerst Webabruf und Websuche, regelt eine eigene spätere Spec mit eigener, im Manifest erklärter Berechtigung (Clarifications 2026-10-20).
 - **FR-027**: Fällt das bevorzugte Modell aus oder liefert es unbrauchbare Ausgabe, MUST holzi automatisch das nächste freigegebene Modell der Rangfolge versuchen, dessen Ziel schon eine Einwilligung hat, mit höchstens einem Versuch pro Modell. Die Herkunft MUST alle versuchten Modelle und die Gründe des Scheiterns nennen.
 - **FR-028**: holzi MUST über Aufträge nichts dauerhaft speichern, weder Inhalte (Bilder, Anweisungen, Antworten) noch Metadaten (Zeit, Modell, Ziel, Ergebnis). Ergebnis und Herkunft gehen nur an die Erweiterung. Der Zustand laufender Aufträge liegt im Arbeitsspeicher und endet mit dem Auftrag. Gespeichert bleiben nur die Berechtigungen und Einwilligungen des Nutzers.
 - **FR-029**: holzi MUST Obergrenzen für Bildgröße, Zahl der Bilder pro Auftrag und Dauer eines Auftrags durchsetzen. Die Erweiterung darf sie unterschreiten, aber nicht überschreiten. Der Nutzer MUST die Höchstdauer pro Erweiterung ändern können. Eine Überschreitung der Bildgrenzen MUST vor der Verarbeitung abgelehnt werden, ein Überschreiten der Dauer bricht den Auftrag ab.
 - **FR-030**: holzi MUST einer Erweiterung auf Anfrage die Liste der für sie freigegebenen Modelle mit Namen und Fähigkeiten (zum Beispiel „nimmt Bilder an“) und dem Ort (dieses Gerät, anderes Gerät, Server, Cloud) nennen, ohne Adressen, Schlüssel oder andere Zugangsdaten. Die Auswahl des Modells bleibt bei holzi (FR-007).
+- **FR-031**: Der Nutzer MUST einer Erweiterung jedes Modell freigeben können, das holzi kennt: lokal installierte Modelle, Modelle über einen Modell-Server oder ein Konto bei einem Cloud-Dienst und verbundene Abos (Claude Code, Codex). Für alle gelten dieselben Regeln zu Freigabe, Rangfolge, Aufwand, Fähigkeiten, Einwilligung, Prüfung der Ausgabe und Herkunft.
+- **FR-032**: Ein Abo MUST in einem Auftrag mit dem Zugriff laufen, den es in holzi hat; holzi schränkt es für Aufträge nicht zusätzlich ein. Die Freigabe eines Abos MUST sichtbar sagen, dass die Erweiterung damit einen Agenten anweist, der auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann. Ein Abo sendet an den Dienst seines Anbieters und hat damit ein Ziel außerhalb des Geräts (FR-015). Es gilt der Autonomie-Modus aus holzi; „Standard“ wirkt in einem Auftrag wie „Gegated (permissiv)“, weil es keinen Chat gibt, in dem gefragt werden kann: Erlaubt ist alles außer dem, was die Verbotsregeln des Nutzers sperren.
+- **FR-033**: Ein Auftrag auf einem lokal installierten Modell MUST auf dem Gerät bleiben. Ist dafür ein anderes Modell zu laden als das des Chats, MUST der Auftrag warten, bis ein laufender Chat-Zug fertig ist, und darf ihn weder unterbrechen noch verfälschen; der Chat lädt sein Modell beim nächsten Zug wieder. Die Wartezeit zählt zur Höchstdauer des Auftrags (FR-029).
 
 ### Key Entities
 
@@ -203,7 +233,7 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - Der Betrieb eines Schul-Servers: Konten für Schüler, Datenschutz bei Minderjährigen, Kapazität und Kosten.
 - Das Canvas in haex-notes (Tafelbild, Neuanordnen, Bearbeiten, PDF-Export); das bleibt Spec 046.
 - Die Wahl des konkreten Modells. Sie ist eine Einstellung und wird gemessen, nicht festgeschrieben.
-- Ein allgemeiner Chat für Erweiterungen mit Gesprächsverlauf und freie Agenten mit beliebigen Werkzeugen.
+- Ein allgemeiner Chat für Erweiterungen mit Gesprächsverlauf. Ein Abo darf in einem Auftrag seine eigenen Werkzeuge nutzen (FR-032), aber ein Auftrag bleibt ein einzelner Aufruf ohne Verlauf.
 - Werkzeuge in Aufträgen (Webabruf, Websuche). Sie kommen mit einer eigenen Spec zusammen mit holzis Websuche (Clarifications 2026-10-20).
 - Persönliche Handschriftprofile und Training mit Schülerdaten.
 - Das Weiterleiten von Aufträgen an ein anderes Gerät desselben Nutzers über den Tresor. Aufträge laufen auf einem eingetragenen Anbieter.
@@ -224,6 +254,8 @@ haex-notes beschreibt als erste Erweiterung einen Auftrag „Seitenerkennung“ 
 - **SC-010**: Ein Wechsel des Modells für einen Auftrag erfordert weder Änderungen an der Erweiterung noch Datenmigrationen. Die Anweisung der Erweiterung bleibt unverändert.
 - **SC-011**: Nach einem abgeschlossenen, abgebrochenen oder fehlgeschlagenen Auftrag findet sich in den gespeicherten Daten von holzi keine Spur von Inhalt oder Metadaten des Auftrags; nur Berechtigungen und Einwilligungen bleiben.
 - **SC-012**: Ein Auftrag über den Obergrenzen für Bild oder Dauer wird in 100 % der Testfälle abgelehnt oder abgebrochen, und das Original der Erweiterung bleibt unverändert.
+- **SC-013**: Jedes Modell, das holzi kennt, erscheint in der Freigabeliste einer Erweiterung; in einem Test mit je einem Modell jeder Quelle liefert ein freigegebener Textauftrag auf jedem ein formatgültiges Ergebnis.
+- **SC-014**: Ein Auftrag auf einem lokal installierten Modell erzeugt in einem überwachten Test keine Netzwerkanfrage nach außen, und ein gleichzeitiger Chat-Zug endet mit derselben Antwort wie ohne Auftrag.
 
 ## Assumptions
 
