@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::extensions::peers::channel::{open, Opening, Origin};
-use crate::extensions::peers::test_support::{install, open_test_channel, Admit, Vault};
+use crate::extensions::peers::test_support::{install, open_test_channel, Admit, Vault, LIMIT};
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -106,7 +106,13 @@ async fn a_reliable_message_overflow_ends_a_pending_channel() {
         None
     );
     assert!(b.host.peers.channel(b.extension_id, far.id).is_err());
-    assert!(near.is_closed());
+    tokio::time::timeout(LIMIT, async {
+        while !near.is_closed() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the remote channel closes");
     a.shutdown().await;
     b.shutdown().await;
 }
