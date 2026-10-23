@@ -213,7 +213,8 @@
     },
     "files": {
       "device": "This device",
-      "storage": "Cloud storage"
+      "storage": "Cloud storage",
+      "peer": "Other device"
     },
     "contacts": {
       "list": "Contacts",
@@ -2554,7 +2555,14 @@
       "drives": "Drives",
       "free": "{size} free",
       "storages": "Cloud storage",
-      "addStorage": "Add cloud storage"
+      "addStorage": "Add cloud storage",
+      "devices": "My devices"
+    },
+    "peer": {
+      "unnamed": "Unnamed device",
+      "reachable": "Reachable",
+      "unreachable": "Unreachable",
+      "accessOff": "Access off"
     },
     "places": {
       "home": "Home",

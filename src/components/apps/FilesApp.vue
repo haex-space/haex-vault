@@ -9,7 +9,11 @@ import {
   parseFilter,
 } from '~/lib/files/filters'
 import { shownNameKey } from '~/lib/files/encrypted'
-import { filesLocation, parseFilesPlace } from '~/lib/files/registry'
+import {
+  filesLocation,
+  isPeerStorage,
+  parseFilesPlace,
+} from '~/lib/files/registry'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
 
 /** How many file browser frames are open, across all windows of the process. */
@@ -28,7 +32,7 @@ let openFrames = 0
 const { t } = useI18n()
 const router = useTabRouter()
 const prefs = useFilesPrefs()
-const { sourcesAsync, releaseTabAsync } = useFiles()
+const { sourcesAsync, releaseTabAsync, peerRootsAsync } = useFiles()
 
 const place = computed(() => parseFilesPlace(router.route))
 const source = computed(
@@ -41,8 +45,13 @@ const sources = useAsyncState(() => sourcesAsync(), null)
 // The start (no path yet) opens the home folder, or the first drive where there is none.
 watchEffect(() => {
   if (path.value !== null) return
-  // A storage starts at its root.
   if (source.value.kind === 'storage') {
+    // Another own device starts at its home folder, as this one does (spec 056).
+    if (isPeerStorage(source.value.storageId)) {
+      void openPeerStartAsync(source.value.storageId)
+      return
+    }
+    // A storage starts at its root.
     router.replace(filesLocation({ source: source.value, path: '/' }))
     return
   }
@@ -53,6 +62,26 @@ watchEffect(() => {
   if (start)
     router.replace(filesLocation({ source: source.value, path: start }))
 })
+
+async function openPeerStartAsync(storageId: string) {
+  let start = '/'
+  try {
+    const roots = await peerRootsAsync(storageId)
+    start =
+      roots.known.find((known) => known.name === 'home')?.path ??
+      roots.drives[0]?.path ??
+      '/'
+  } catch {
+    // Not reachable now: the root shows why when it fails to list.
+  }
+  const now = source.value
+  if (
+    path.value === null &&
+    now.kind === 'storage' &&
+    now.storageId === storageId
+  )
+    router.replace(filesLocation({ source: now, path: start }))
+}
 
 const folder = useFilesFolder(source, path)
 // Android: "Zugriff auf alle Dateien" (FR-039); a grant in the settings loads the device at once.
@@ -251,7 +280,11 @@ function onSidebarPick(target: string) {
 function onPickStorage(storageId: string) {
   close()
   router.push(
-    filesLocation({ source: { kind: 'storage', storageId }, path: '/' }),
+    filesLocation({
+      source: { kind: 'storage', storageId },
+      // Another own device opens at its home folder (the start resolves it).
+      path: isPeerStorage(storageId) ? null : '/',
+    }),
   )
 }
 
@@ -264,13 +297,18 @@ const storageName = computed(
   () =>
     sources.state.value?.storages.find(
       (storage) => storage.id === storageId.value,
-    )?.name,
+    )?.name ??
+    sources.state.value?.devices.find((device) => device.id === storageId.value)
+      ?.name ??
+    undefined,
 )
 
-/** A storage's credentials or host key failed: its settings can fix them (spec 038, 050). */
+/** A storage's credentials or host key failed: its settings can fix them (spec 038, 050). Another
+ * own device has no storage settings. */
 const settingsLink = computed(
   () =>
     storageId.value !== null &&
+    !isPeerStorage(storageId.value) &&
     (folder.error.value?.code === 'credentials' ||
       folder.error.value?.code === 'noAccess' ||
       folder.error.value?.code === 'hostKey'),

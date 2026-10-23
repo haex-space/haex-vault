@@ -22,12 +22,14 @@ export type FilesPlace = {
   d?: string
 }
 
-/** Route patterns below `/`: the start, the device and a storage. One mounted root component reads
- * the location, so moving between folders never remounts the browser. */
+/** Route patterns below `/`: the start, the device, a storage and another own device (spec 056).
+ * One mounted root component reads the location, so moving between folders never remounts the
+ * browser. */
 export const FILES_ROUTE_CHILDREN = [
   { path: '' },
   { path: 'device', titleKey: 'wm.files.device' },
   { path: 'storage/:id', titleKey: 'wm.files.storage' },
+  { path: 'peer/:id', titleKey: 'wm.files.peer' },
 ] as const
 
 /** The query keys a place may carry; anything else is dropped. */
@@ -37,6 +39,14 @@ const KEYS = ['p', 'open', 'q', 't', 's', 'd'] as const
 const PASSED = ['q', 't', 's', 'd'] as const
 
 const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/
+
+/** The prefix of another own device's storage id (spec 056). */
+export const PEER_PREFIX = 'peer:'
+
+/** Whether `storageId` names another own device. */
+export function isPeerStorage(storageId: string): boolean {
+  return storageId.startsWith(PEER_PREFIX)
+}
 
 /** The tab location of `place`. */
 export function filesLocation(place: FilesPlace): TabLocation {
@@ -48,9 +58,11 @@ export function filesLocation(place: FilesPlace): TabLocation {
     if (value) query[key] = value
   }
   const path =
-    place.source.kind === 'storage'
-      ? `/storage/${place.source.storageId}`
-      : '/device'
+    place.source.kind === 'device'
+      ? '/device'
+      : isPeerStorage(place.source.storageId)
+        ? `/peer/${place.source.storageId.slice(PEER_PREFIX.length)}`
+        : `/storage/${place.source.storageId}`
   return { path, query }
 }
 
@@ -81,6 +93,13 @@ export function parseFilesPlace(location: TabLocation): FilesPlace | undefined {
   if (storage?.[1] && OPAQUE_ID.test(storage[1])) {
     return withOpen({
       source: { kind: 'storage', storageId: storage[1] },
+      path,
+    })
+  }
+  const peer = /^\/peer\/([^/]+)$/.exec(location.path)
+  if (peer?.[1] && OPAQUE_ID.test(peer[1])) {
+    return withOpen({
+      source: { kind: 'storage', storageId: `${PEER_PREFIX}${peer[1]}` },
       path,
     })
   }

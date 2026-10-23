@@ -1,12 +1,20 @@
 /**
  * The open folder of a file browser tab (spec 044 FR-003, FR-006): its entries, loading and error,
- * kept current by watching it (device) and by loading again when the window gets the focus back,
- * in case the watch missed a change.
+ * kept current by watching it (this device, or another own device, spec 056 FR-046) and by loading
+ * again when the window gets the focus back, in case the watch missed a change.
  */
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
 import type { SourceRef } from '@bindings/SourceRef'
 import { asFilesError } from '~/composables/useFiles'
+import { isPeerStorage } from '~/lib/files/registry'
+
+/** What a folder of `source` is watched on: this device (`null`), another own device (its id), or
+ * nothing (`undefined`, a storage). */
+function watchedOn(source: SourceRef): string | null | undefined {
+  if (source.kind === 'device') return null
+  return isPeerStorage(source.storageId) ? source.storageId : undefined
+}
 
 export function useFilesFolder(
   source: Ref<SourceRef>,
@@ -61,20 +69,16 @@ export function useFilesFolder(
     const mine = ++watchGeneration
     await stopWatching()
     const current = path.value
-    if (
-      mine !== watchGeneration ||
-      current === null ||
-      source.value.kind !== 'device'
-    )
-      return
+    const on = watchedOn(source.value)
+    if (mine !== watchGeneration || current === null || on === undefined) return
     try {
-      const id = await watchAsync(current, reloadSoon)
+      const id = await watchAsync(current, reloadSoon, on)
       // The folder changed or the component unmounted while the watch was starting: keep only the
       // newest watch and clean up this stale result.
       if (
         mine === watchGeneration &&
         path.value === current &&
-        source.value.kind === 'device'
+        watchedOn(source.value) === on
       ) {
         watchId = id
       } else {
