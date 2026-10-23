@@ -2,25 +2,23 @@
 //! research R2, ADR-0006).
 //!
 //! A model calls an [`super::action_tool::ActionTool`]; [`ActionBridge::call`] emits
-//! `action-call-request`, parks on a oneshot and waits for the frontend to answer through the
-//! `respond_action_call` command ([`ActionBridge::resolve`]). The pattern is the one of the tool
-//! approvals (`pending_tool_approvals`), with three additions: a timeout (nobody may be listening),
-//! a lock that runs the actions of one round one after the other (`execute_plans` starts the calls
-//! of a round together, and two window actions must not race), and a race against the turn's
-//! cancellation token.
+//! `action-call-request`, parks on `prompt_park.rs` and waits for the frontend to answer through
+//! the `respond_action_call` command ([`ActionBridge::resolve`]). The park brings the timeout
+//! (nobody may be listening) and the race against the turn's cancellation token; the bridge adds a
+//! lock that runs the actions of one round one after the other (`execute_plans` starts the calls of
+//! a round together, and two window actions must not race).
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::ChoiceOption;
 use crate::adapters::cli_delegate::EventEmitter;
+use crate::prompt_park::{PromptEnd, PromptPark};
 
 /// Event a model's action call goes out on (contracts/tauri-commands.md).
 pub const EVENT_ACTION_CALL_REQUEST: &str = "action-call-request";
@@ -117,17 +115,17 @@ impl From<ActionOutcomeWire> for ActionReply {
     }
 }
 
-struct Inner {
-    emitter: OnceLock<EventEmitter>,
-    pending: Mutex<HashMap<Uuid, oneshot::Sender<ActionReply>>>,
-    run_lock: tokio::sync::Mutex<()>,
-    timeout: Duration,
+/// One action call while it waits; the park gives it its request id.
+struct ActionCall {
+    action_id: String,
+    input: Value,
 }
 
 /// Shared by every `ActionTool` and by the two commands. Cheap to clone.
 #[derive(Clone)]
 pub struct ActionBridge {
-    inner: Arc<Inner>,
+    park: PromptPark<ActionCall, ActionReply>,
+    run_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Default for ActionBridge {
@@ -142,19 +140,25 @@ impl ActionBridge {
     /// The timeout starts after a call acquires the execution lock and emits its request.
     pub fn with_timeout(timeout: Duration) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                emitter: OnceLock::new(),
-                pending: Mutex::new(HashMap::new()),
-                run_lock: tokio::sync::Mutex::new(()),
-                timeout,
-            }),
+            park: PromptPark::new(timeout),
+            run_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
     /// Set once from `setup()`, where the `AppHandle` exists (`ChatState` is managed without one).
     /// A second call is ignored.
     pub fn set_emitter(&self, emitter: EventEmitter) {
-        let _ = self.inner.emitter.set(emitter);
+        if self.park.has_emitter() {
+            return;
+        }
+        self.park
+            .set_emitter(Arc::new(move |request_id: &str, call: &ActionCall| {
+                emitter(
+                    EVENT_ACTION_CALL_REQUEST,
+                    json!({ "requestId": request_id, "actionId": call.action_id, "input": call.input }),
+                );
+                true
+            }));
     }
 
     /// Emits one call and waits for the answer. Never fails: a missing emitter, a timeout or a
@@ -165,69 +169,46 @@ impl ActionBridge {
         input: Value,
         cancel: &CancellationToken,
     ) -> ActionReply {
-        let Some(emitter) = self.inner.emitter.get() else {
-            return ActionReply::error("action_unavailable", "actions are not available yet");
-        };
+        if !self.park.has_emitter() {
+            return unavailable_reply();
+        }
         // One action at a time: the calls of a round start together, their effects must not.
         let _turn = tokio::select! {
             biased;
             _ = cancel.cancelled() => return cancelled_reply(),
-            guard = self.inner.run_lock.lock() => guard,
+            guard = self.run_lock.lock() => guard,
         };
-
-        let request_id = Uuid::new_v4();
-        let (sender, receiver) = oneshot::channel();
-        self.lock_pending().insert(request_id, sender);
-        emitter(
-            EVENT_ACTION_CALL_REQUEST,
-            json!({ "requestId": request_id, "actionId": action_id, "input": input }),
-        );
-
-        let reply = tokio::select! {
-            biased;
-            _ = cancel.cancelled() => cancelled_reply(),
-            answer = receiver => match answer {
-                Ok(reply) => reply,
-                // The sender was dropped: the vault closed while the call was open.
-                Err(_) => cancelled_reply(),
-            },
-            _ = tokio::time::sleep(self.inner.timeout) => {
+        let call = ActionCall {
+            action_id: action_id.to_owned(),
+            input,
+        };
+        // Whatever ends the wait, the call is gone from the park: a late answer finds nothing.
+        match self.park.ask(&call, cancel, |_| {}).await {
+            Ok(reply) => reply,
+            Err(PromptEnd::Expired) => {
                 ActionReply::error("action_timeout", "the action did not answer in time")
             }
-        };
-        // Whatever ended the wait, the entry goes: a late answer finds nothing and does nothing.
-        self.lock_pending().remove(&request_id);
-        reply
+            Err(PromptEnd::NoWindow) => unavailable_reply(),
+            // The turn was cancelled, or the vault closed while the call was open.
+            Err(PromptEnd::Cancelled) => cancelled_reply(),
+        }
     }
 
     /// The frontend's answer. `false` for an unknown or late `request_id`, which is not an error
     /// for the caller (the turn may have been cancelled meanwhile).
     pub fn resolve(&self, request_id: Uuid, reply: ActionReply) -> bool {
-        let sender = self.lock_pending().remove(&request_id);
-        match sender {
-            Some(sender) => {
-                let _ = sender.send(reply);
-                true
-            }
-            None => false,
-        }
+        self.park.answer(&request_id.to_string(), reply)
     }
 
     /// Drops every open call; their waiters end as cancelled. For the vault close.
     pub fn drop_pending(&self) {
-        let pending = std::mem::take(&mut *self.lock_pending());
-        drop(pending);
+        self.park.cancel_all();
     }
+}
 
-    /// Locks the pending replies, recovering the map if an earlier holder poisoned the mutex.
-    fn lock_pending(
-        &self,
-    ) -> std::sync::MutexGuard<'_, HashMap<Uuid, oneshot::Sender<ActionReply>>> {
-        self.inner
-            .pending
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
+/// The reply before `setup()` gave the bridge a window to call.
+fn unavailable_reply() -> ActionReply {
+    ActionReply::error("action_unavailable", "actions are not available yet")
 }
 
 /// Builds the cancellation reply shared by cancelled turns and dropped pending calls.

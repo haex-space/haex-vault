@@ -90,6 +90,7 @@ async fn cancel_all_ends_every_waiter() {
 #[tokio::test]
 async fn without_a_window_nobody_is_asked() {
     let park: PromptPark<String, u32> = PromptPark::new(Duration::from_secs(1));
+    assert!(!park.has_emitter());
     let token = CancellationToken::new();
     assert_eq!(
         park.ask(&"q".to_owned(), &token, |_| {}).await,
@@ -97,6 +98,7 @@ async fn without_a_window_nobody_is_asked() {
     );
     let refusing: PromptPark<String, u32> = PromptPark::new(Duration::from_secs(1));
     refusing.set_emitter(Arc::new(|_: &str, _: &String| false));
+    assert!(refusing.has_emitter());
     assert_eq!(
         refusing.ask(&"q".to_owned(), &token, |_| {}).await,
         Err(PromptEnd::NoWindow)
