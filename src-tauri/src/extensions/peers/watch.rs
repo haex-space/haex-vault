@@ -1,6 +1,6 @@
 //! Ends channels whose ground went away while they were open (research R11, R12; FR-008,
-//! FR-034): the permission `peers` of their extension, or the other vault, now blocked or no
-//! longer a contact. It follows the vault's changes like the registry does; a subscriber that
+//! FR-034): the permission `peers` of their extension, once it is denied, or the other vault, now
+//! blocked or no longer a contact. It follows the vault's changes like the registry does; a subscriber that
 //! fell behind checks everything.
 //!
 //! The other ways an extension stops (its last frame closed, disabled or removed here or on
@@ -98,9 +98,9 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
 pub async fn recheck(db: &VaultDb, host: &Arc<ExtensionHost>, device: Uuid, due: Recheck) {
     if due.permissions {
         for extension_id in host.peers.extensions() {
-            match peers_granted(db, host, extension_id, device).await {
-                Ok(true) => {}
-                Ok(false) => host.peers.end_all(extension_id),
+            match peers_denied(db, host, extension_id, device).await {
+                Ok(false) => {}
+                Ok(true) => host.peers.end_all(extension_id),
                 Err(error) => log::warn!("peers: a permission could not be read: {error}"),
             }
         }
@@ -151,9 +151,11 @@ async fn grounded(contacts: &ContactsService, remote: &Verified) -> Option<bool>
     })
 }
 
-/// Whether `extension_id` may still open channels: `peers`/`connect` on `*`, remembered or held for
-/// the session, decides as on a bridge call.
-async fn peers_granted(
+/// Whether `peers`/`connect` on `*` is denied for `extension_id`, remembered or held for the
+/// session, as a bridge call would find it. An undecided permission is no denial: a channel that
+/// an invitation opened for an extension nobody has asked yet stays, and the bridge asks when the
+/// extension first uses it.
+async fn peers_denied(
     db: &VaultDb,
     host: &ExtensionHost,
     extension_id: Uuid,
@@ -173,7 +175,7 @@ async fn peers_granted(
         action: Action::Connect,
         target: RequestTarget::Any,
     };
-    Ok(evaluate(&grants, &request, device) == Decision::Allow)
+    Ok(evaluate(&grants, &request, device) == Decision::Deny)
 }
 
 #[cfg(test)]

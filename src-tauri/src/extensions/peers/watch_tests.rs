@@ -2,11 +2,17 @@
 //! its permission goes, the other vault is blocked or the session ends; the other side hears
 //! `closed` each time.
 
+use serde_json::json;
+
 use super::*;
 use crate::extensions::peers::channel::{Channel, CHANNEL_CLOSED};
+use crate::extensions::peers::invite::invite;
+use crate::extensions::peers::invited::Answered;
 use crate::extensions::peers::lobby::{Openness, Visibility};
+use crate::extensions::peers::prompt::INVITATION;
+use crate::extensions::peers::test_scene::Scene;
 use crate::extensions::peers::test_support::{
-    exchange_cards, open_test_channel, Admit, Vault, Window,
+    exchange_cards, open_test_channel, probe, Admit, Vault, Window,
 };
 use crate::sync::keys;
 
@@ -157,4 +163,53 @@ fn a_change_asks_to_check_what_its_tables_touch() {
         }
     );
     assert!(!Recheck::of(&tables(&["chat_threads"])).any());
+}
+
+/// Only a denial ends channels: a channel an invitation opened for an extension whose `peers` nobody
+/// has decided survives a change of any permission, whether the row is missing or says "ask", and
+/// a later denial ends it on both sides.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_undecided_peers_permission_keeps_an_invited_channel_until_it_is_denied() {
+    let scene = Scene::start().await;
+    let (a, b1) = (&scene.a, &scene.b1);
+    let id = invite(
+        &a.host.peers,
+        a.extension_id,
+        probe(),
+        &scene.b_on_a,
+        &json!({}),
+    )
+    .await
+    .expect("invite");
+    b1.window
+        .wait_until(|w| !w.window_events(INVITATION).is_empty())
+        .await;
+    assert_eq!(b1.host.peers.answer_invitation(id, true), Answered::Open);
+    a.window
+        .wait_until(|w| !w.frame_events("peers:invite-status").is_empty())
+        .await;
+    let near = a.host.peers.remotes()[0].0;
+    let near = a.host.peers.channel(a.extension_id, near).expect("channel");
+    let far = loop {
+        if let Some((id, _)) = b1.host.peers.remotes().first() {
+            break b1
+                .host
+                .peers
+                .channel(b1.extension_id, *id)
+                .expect("channel");
+        }
+        tokio::task::yield_now().await;
+    };
+    let device = b1.db.device_id();
+
+    recheck(&b1.db, &b1.host, device, Recheck::ALL).await;
+    assert!(ends(&b1.window, &far).is_empty(), "no row: it stays");
+    b1.grant_peers("ask");
+    recheck(&b1.db, &b1.host, device, Recheck::ALL).await;
+    assert!(ends(&b1.window, &far).is_empty(), "ask: it stays");
+
+    b1.grant_peers("denied");
+    recheck(&b1.db, &b1.host, device, Recheck::ALL).await;
+    both_closed(b1, &far, a, &near).await;
+    scene.shutdown().await;
 }
