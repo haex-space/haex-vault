@@ -143,7 +143,7 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
 
 - [x] T029 [US3] `PeerState::end_all(extension_id)` in `src-tauri/src/extensions/peers/state.rs`: close channels with `Close`, drop lobbies, send `Withdraw` for open outgoing invitations and drop incoming ones with their prompts
 - [x] T030 [US3] Call `host.peers.end_all(id)` beside `host.shells.end_all` in `src-tauri/src/extensions/commands/frames.rs` (last frame closed), `src-tauri/src/extensions/commands/manage.rs` (removed, disabled), `src-tauri/src/extensions/commands/dev.rs` (development version unloaded) and `src-tauri/src/extensions/registry/lifecycle.rs` (`stopped_here`, other device disabled or removed)
-- [x] T031 [US3] Watcher in a new `src-tauri/src/extensions/peers/watch.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`); on `permissions::store::TABLES` re-evaluates `peers`/`connect` for every extension with open state and calls `end_all` when it is no longer granted; on `haex_contacts_blocked_vaults` and `haex_contacts_cards` closes channels whose remote vault is now blocked or no longer a contact; a lagged receiver re-checks everything; started where `extensions::registry::lifecycle::start_for_active_instance` starts (`src-tauri/src/extensions/registry/lifecycle.rs:282`)
+- [x] T031 [US3] Watcher in a new `src-tauri/src/extensions/peers/watch.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`); on `permissions::store::TABLES` re-evaluates `peers`/`connect` for every extension with open state and calls `end_all` when it is denied; on `haex_contacts_blocked_vaults` and `haex_contacts_cards` closes channels whose remote vault is now blocked or no longer a contact; a lagged receiver re-checks everything; started where `extensions::registry::lifecycle::start_for_active_instance` starts (`src-tauri/src/extensions/registry/lifecycle.rs:282`)
 - [x] T032 [US3] Delivery only to frames of the bound extension: every emit in `src-tauri/src/extensions/peers/` goes through `emit_to_frames(…, extension_id, …)`; no `peers:*` content to holzi's window (FR-005)
 
 **Checkpoint (end of PR 1)**: run `nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml --lib`, `nix develop --command pnpm lint:rust` and `nix develop --command pnpm format:check`; open PR 1.
@@ -276,8 +276,16 @@ side is Rust; no bridge method exists yet (PR 4).
   sends at its own expiry. Invitations over the limits (4 per vault, 16 in all) and an id that waits
   already are cut without a prompt; a channel limit reached on the invited device does the same.
   Recorded in contracts/wire-protocol.md.
-- **T038, permission**: `peers` counts as denied only when `evaluate` says `Deny`; an undecided
-  permission lets the prompt through (FR-013 says "not denied"). See the open question below.
+- **T038, permission, and the watcher (decided by the operator)**: `peers` counts as denied only
+  when `evaluate` says `Deny`, on the invited side and in the revoke watcher alike. An undecided
+  permission lets the prompt through (FR-013 says "not denied") and the channel it opens survives
+  changes of other permissions; only an explicit denial ends channels, lobbies and invitations
+  (`watch.rs`, `peers_denied`; the T031 text "no longer granted" now reads "denied"). A test in
+  `watch_tests.rs` covers an invited channel with no row and with an `ask` row, then a denial.
+- **T043, closing the prompt (decided by the operator)**: closing the dialog with its X or Escape
+  declines, like "Ablehnen", so the inviter hears `declined` at once instead of waiting for the
+  expiry. A notification closed without a click decides nothing, as in R9. The store has no
+  separate dismiss any more.
 - **T041, where the event goes out**: not in `extension_frame_open`. The window drops frame events
   of a frame whose id it does not know yet, and the id arrives with the result of that command, so
   an event sent from inside it is lost. `extension_frame_reloaded` (called when the frame's first
@@ -312,12 +320,9 @@ side is Rust; no bridge method exists yet (PR 4).
   like any event until the port is ready; it does.
 - **For the vault-sdk**: nothing changes in contracts/sdk.md. `unreachable` carries `hint`;
   `peers:channel-opened.from.contactId` is present only under the extension's `contacts` grant.
-- **Open questions for the operator**: (1) the revoke watcher ends channels of an extension whose
-  `peers` is not `Allow`, so a channel from an invitation to an extension with an undecided `peers`
-  would end at the next change of any permission; allow `Ask` in the watcher, or answer
-  `NotInstalled` until the permission is granted? (2) Closing the window prompt with its X or Escape
-  decides nothing (the inviter waits for the 5 minutes); should closing count as declining? (3) The
-  notification's title names the contact, which a locked screen shows; acceptable?
+- **Open questions, decided by the operator**: (1) an undecided `peers` is valid, only a denial
+  ends channels; (2) closing the window prompt declines; (3) the notification's title keeps naming
+  the contact.
 
 ---
 

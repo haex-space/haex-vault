@@ -313,8 +313,9 @@ Kanäle (`Close { reason }` auf dem Steuerstream, dann `connection.close`), Lobb
 
 Entzug der Berechtigung: Ein Abonnent auf `AppState::vault_changes()` (`vault_events.rs:42`) reagiert auf
 die Tabellen `permissions::store::TABLES` (`extensions/permissions/store.rs:42`) und prüft für jede
-Erweiterung mit offenen Kanälen, Lobbys oder Einladungen `evaluate` für `peers`/`connect`; ist sie nicht
-mehr erteilt, `end_all`. Zusätzlich prüft jeder Brückenaufruf die Berechtigung (wie alle Arten).
+Erweiterung mit offenen Kanälen, Lobbys oder Einladungen `evaluate` für `peers`/`connect`; ist sie (`Deny`; „noch nicht entschieden“ genügt nicht), `end_all`. Eine Einladung öffnet
+auch Kanäle für eine Erweiterung, deren `peers` noch niemand entschieden hat; die Brücke fragt, wenn
+sie den Kanal zum ersten Mal nutzt. Zusätzlich prüft jeder Brückenaufruf die Berechtigung (wie alle Arten).
 
 Vault schließt: Der Sync-Dienst endet, `SyncNode::shutdown` (`sync/endpoint.rs:428`) bricht den Tracker
 ab, die Verbindungen schließen; `PeerState` wird mit dem `CancellationToken` der Sitzung geleert. Die
