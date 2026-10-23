@@ -211,8 +211,9 @@ async fn run<R: Runtime>(
         session: Some(session),
     };
     let peer_host = deps.peers.as_ref().map(|peers| Arc::clone(&peers.host));
+    let (peer_protocols, peer_ctx) = peer_protocols(deps.peers, &deps.keys, vault, &devices_app);
     let (protocols, files) = file_protocols(
-        peer_protocols(deps.peers, &deps.keys, vault, &devices_app),
+        peer_protocols,
         deps.files,
         &deps.keys,
         vault,
@@ -236,6 +237,10 @@ async fn run<R: Runtime>(
     };
 
     let node = Arc::new(node);
+    // Spec 057: joining a lobby dials from this endpoint.
+    if let (Some(host), Some(ctx)) = (&peer_host, peer_ctx) {
+        host.peers.attach(ctx, &node);
+    }
     node.on_devices_changed(Arc::new(move || {
         events::emit(&devices_app, SYNC_DEVICES_CHANGED, ());
     }));

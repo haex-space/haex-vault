@@ -83,8 +83,8 @@ async fn an_extension_on_the_wire_resolves_only_with_its_key_and_name() {
     vault.shutdown().await;
 }
 
-/// The admission of this delivery offers neither invitations nor lobbies: whatever extension a
-/// contact names, the connection ends and no frame hears anything.
+/// Invitations are not offered yet, and no lobby is open: whatever extension a contact names in
+/// an `Invite` or a `Join`, the connection ends and no frame hears anything.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_invite_or_join_reaches_no_frame() {
     let host = Vault::start(Admit::Real(Duration::from_secs(30))).await;
