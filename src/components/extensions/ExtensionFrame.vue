@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * The content of an extension tab (spec 017, T046): a sandboxed frame with scripts only — no
- * `allow-same-origin`, popups, top navigation or forms (research R12) — served by the `holzi-ext`
+ * The content of an extension tab (spec 017, T046): a sandboxed frame with scripts, pointer
+ * lock and fullscreen only — no `allow-same-origin`, popups, top navigation or forms (research R12) — served by the `holzi-ext`
  * scheme with the start token of its frame session. A development version (US12) comes from its
  * development server and shows its console output below the frame.
  */
@@ -35,7 +35,8 @@ const {
         v-if="src"
         ref="iframe"
         :src="src"
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-pointer-lock"
+        allow="fullscreen"
         data-testid="extension-frame"
         :data-extension-id="extensionId"
         referrerpolicy="no-referrer"
