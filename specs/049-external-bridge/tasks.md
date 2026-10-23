@@ -19,15 +19,17 @@ description: 'Task list for spec 049-external-bridge'
 
 **Organization**: Grouped by user story and shipped in the plan's deliveries. Each delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                                             |
-| -------- | ---------- | ------------------------------------------------------------------- |
-| PR A     | Phase 1    | this plan                                                           |
-| PR B     | Phases 2–4 | Foundational, US1, US6                                              |
-| PR C     | Phases 5–6 | US2, US3                                                            |
-| PR D     | Phase 7    | US5                                                                 |
-| PR E     | Phase 8    | US4                                                                 |
-| PR H     | Phase 9    | companion PR in haextension, parallel to B–E                        |
-| PR F     | Phase 11   | recognise the official extension (FR-045, FR-046), added 2026-10-23 |
+| Delivery | Phases     | Stories                                                                                      |
+| -------- | ---------- | -------------------------------------------------------------------------------------------- |
+| PR A     | Phase 1    | this plan                                                                                    |
+| PR B     | Phases 2–4 | Foundational, US1, US6                                                                       |
+| PR C     | Phases 5–6 | US2, US3                                                                                     |
+| PR D     | Phase 7    | US5                                                                                          |
+| PR E     | Phase 8    | US4                                                                                          |
+| PR H     | Phase 9    | companion PR in haextension, parallel to B–E                                                 |
+| PR F     | Phase 11   | recognise the official extension (FR-045, FR-046), added 2026-10-23                          |
+| PR I     | Phase 13   | second companion PR in haextension: protocol 3, released as 1.4.0 before PR G                |
+| PR G     | Phase 12   | one approval per instance, proof of the key, protocol 3 (FR-047 to FR-049), added 2026-10-23 |
 
 Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
@@ -526,10 +528,13 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 - [x] T076 [P] `ponytail:` comments in place: raw ECDH secret (`envelope.rs`), `last_seen_at` on every handshake (`approvals.rs`), the `get-items` filter in the bridge (`methods/items.rs`).
 - [ ] T077 Run every quickstart row (M1–M11) with Chromium and Firefox, the extension built from PR H, and record the results and dates in `specs/049-external-bridge/quickstart.md`.
 - [ ] T078 Update the roadmap row in `plans/README.md` and set the spec status to Implemented.
-- [ ] T079 Release the extension. In haextension `apps/haex-pass-browser`:
+- [x] T079 Release the extension. In haextension `apps/haex-pass-browser`:
   1. `node scripts/bump-version.js minor` → 1.3.0.
   2. Commit, then push the tag `haex-pass-browser-v1.3.0`.
   3. Watch `browser-extension-release.yml`; confirm the AMO listing shows 1.3.0. Chrome store publishing is commented out in the workflow; say so if it is still off.
+
+  Done 2026-10-23: the bump went through haextension#128, the tag `haex-pass-browser-v1.3.0` was pushed by hand on its merge commit `0055f55`, AMO signed and approved 1.3.0, and the GitHub release carries both packages. Chrome Web Store publishing is still off (no Chrome secrets). Since `dda7181` the bump script only bumps; a release is `pnpm release:haex-pass-browser <patch|minor|major>` in the haextension root, which bumps, commits, tags and pushes to `main` by itself.
+
 - [x] T080 Follow-up refactor PR (K1): move `src-tauri/src/files/agent/prompt.rs` and `src-tauri/src/chat/tools/action_bridge.rs` onto `prompt_park.rs`, with behavior unchanged (their tests stay green). This is a separate PR after PR B. Done: both keep their public API and their own rules (the asking turn of the files question; the run lock, the early `action_unavailable` and the ignored second emitter of the action bridge); `PromptPark` gained `has_emitter` for the last two.
 
 **As built (T074–T076, PR E)**: the leak test is its own binary, `tests/browser_bridge_leaks.rs`, because its capturing logger is process-wide. It keeps what a log could hold: holzi's own lines at every level, and every line at `Info` and above (the level of `lib.rs`); below that, tungstenite traces raw frames, whose envelope repeats the action in the clear and whose payload is sealed. Besides the markers of T074 it plants the client's own saved password, a wrong vault password, an unknown entry id, a foreign origin and an undecryptable message, and also searches the questions to the window and the notices. An unknown action name is only searched in the log, because the answer's envelope repeats it (wire protocol). The fixture generator uses fixed keys and IVs, so `pnpm check:browser-bridge` also checks that the committed file is what the generator writes. The `ponytail:` comments of T076 were already in place from PR B and C.
@@ -570,6 +575,52 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 ---
 
+## Phase 12: One approval per instance, proof of the key (US1, US6 addendum, FR-047 to FR-049) — PR G
+
+**Goal**: Only the holder of an instance's private key gets through as that instance; protocol 2 is refused; an approval never carries over to another browser, profile or device (research R22, SC-011, SC-012).
+
+**Independent Test**: `tests/browser_bridge_instances.rs`, `protocol_tests.rs`, the e2e scenario with the protocol-3 test client, quickstart M13 and M14.
+
+- [ ] T089 New worktree `.worktrees/049-g` on branch `049-external-bridge-g` from `main` after PR I is released as 1.4.0 (T106), with a real `pnpm install`.
+- [ ] T090 Tests first, `src-tauri/src/browser_bridge/protocol_tests.rs`: parse `proof`; `challenge` and the two new error frames serialise as in [contracts/wire-protocol.md](./contracts/wire-protocol.md); a handshake with `version: 2` is recognised as too old.
+- [ ] T091 Integration tests first, new file `src-tauri/tests/browser_bridge_instances.rs` (SC-011, SC-012):
+  - protocol 2 → `PROTOCOL_UPDATE_REQUIRED`, closed, no question;
+  - protocol 3 with the right proof → the approval question, as before;
+  - an approved instance's client id, public key and origin, but no private key: no proof within the deadline, a wrong proof, a second proof, and the proof taken from another connection → `PROOF_FAILED` or closed, no question, no request answered, no row written;
+  - a `request` before the proof → `UNAUTHORIZED`;
+  - two instances: key A approved and remembered, key B with the same origin → asked; key A with another origin → asked;
+  - a second device: the vault holds the remembered approval of device A; a bridge started for device B (register a second row in `known_devices` in the fixture) → asked for the same key and origin;
+  - after the proof, a repeated handshake of the same client id on the same connection needs no new challenge.
+- [ ] T092 `protocol.rs`: frames `challenge` and `proof`, `ErrorCode::ProtocolUpdateRequired` and `ErrorCode::ProofFailed` with fixed messages (FR-039); the update message says to update haex-pass.
+- [ ] T093 `connection.rs`: the state `AwaitingProof` per research R22 and data-model "Verbindung":
+  - draw 32 random bytes, seal them with `seal_response` to the handshake key, send `challenge` with `serverPublicKey`;
+  - open `proof` with the bridge key and compare in constant time; keep the challenge only until it is used or the handshake deadline passes, and zero it;
+  - only then call `decide`, show a question or answer requests.
+- [ ] T094 `tests/common/bridge_fixture.rs` and `src-tauri/src/bin/e2e_bridge_client.rs`: the test client speaks protocol 3 and answers the challenge; add a helper that sends a handshake and returns the challenge frame, for the negative cases. Update every existing bridge test to the new helper without changing what it checks.
+- [ ] T095 Leak test (`tests/browser_bridge_leaks.rs`): plant the challenge bytes as a marker; they appear in no log line, no notice and no question.
+- [ ] T096 Run `cargo fmt`, `pnpm lint:rust` (both feature sets), Android clippy, all bridge test binaries, `check:browser-bridge`, the e2e `browser-bridge` scenario; then the spec's "As built" note, the pin of the client in `spec.md` and `contracts/wire-protocol.md` to the merge of PR I, and open PR G.
+
+**Checkpoint**: PR G complete. Run quickstart M13 and M14 with haex-pass-browser 1.4.0 and with 1.3.0.
+
+---
+
+## Phase 13: Second companion PR in haextension (PR I, before PR G)
+
+**Goal**: haex-pass-browser speaks protocol 3, shows its own fingerprint, and still works with a holzi that does not ask for a proof yet (spec, section "Änderungen an haex-pass-browser", points 7 to 9).
+
+- [ ] T097 Worktree in `haex-space/haextension` on branch `feat/haex-pass-browser-protocol-3` from `origin/main`; run the app's install there.
+- [ ] T098 [P] Tests first (vitest, `background/__tests__/connection.test.ts`):
+  - a `challenge` sealed to the extension's key is opened and answered with a `proof` that the server key opens to the same bytes;
+  - a `handshakeResponse` without a preceding `challenge` (holzi before PR G) still leads to "paired" or "pending" as before;
+  - a `challenge` the extension cannot open sends no `proof` and shows an error.
+- [ ] T099 `background/protocol.ts` and `connection.ts`: `PROTOCOL_VERSION = 3`, the `challenge` and `proof` messages, using `decryptMessageEnvelope` and the request sealing that exist.
+- [ ] T100 [P] Options page: show the instance's fingerprint (the `clientId`) in groups of four like holzi's dialog, with the sentence that it must match the one holzi shows. German and English.
+- [ ] T101 [P] Texts for `PROTOCOL_UPDATE_REQUIRED` and `PROOF_FAILED` in German and English instead of the raw code.
+- [ ] T102 Run the app's `lint`, `typecheck` and `test`; open the PR (push as `haex-space`, no agent attribution).
+- [ ] T103 After merge, release with `pnpm release:haex-pass-browser minor` from the haextension root (1.4.0); watch `browser-extension-release.yml` and confirm AMO signed 1.4.0. Only then start PR G (T089).
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1** (PR A) → **Phase 2** blocks everything in PR B.
@@ -579,6 +630,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 - **US4** (PR E) needs PR B and the method dispatch of PR C (T045/T049 patterns, the write prompt T050).
 - **PR H** is independent of holzi and can start now. Quickstart M6/M7 and the release T079 need it merged.
 - **PR F** (Phase 11) needs PR B (dialog, `BridgeClientRef`) and PR D (settings rows); it can ship any time after both. T081 only decides the list entry.
+- **PR I** (Phase 13) is released as 1.4.0 before **PR G** (Phase 12) is merged: 1.4.0 also works with holzi before G, while G refuses everything below protocol 3. holzi's own release should carry G, so no holzi release ever accepts protocol 2.
 - **Polish** T074–T076 can land in the PR of the code they test; T077–T079 come last. T080 comes any time after PR B.
 
 ## Parallel Opportunities
