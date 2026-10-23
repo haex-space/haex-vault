@@ -190,11 +190,42 @@ remote-model tests in B, which use a fake adapter.
 
 ---
 
+## Phase 11: User Story 8 - Every model of holzi can be granted (Priority: P2)
+
+**Goal**: An extension can be granted any model holzi knows: locally installed models (R15) and connected subscriptions (R16) take jobs like models of a model server.
+
+**Independent Test**: With one locally installed model, one model of a model server and one subscription (scripted adapters), all three show in an extension's model list, and a granted text job runs on each; the provenance names model and place.
+
+Delivery F, two PRs: F1 local models (T076–T080), F2 subscriptions (T081–T087). Both build on B + D.
+
+### F1: Locally installed models (R15, FR-033)
+
+- [ ] T076 [US8] Tests first in `src-tauri/src/model_jobs/model_source_tests.rs` (local slot): a job on the loaded local model runs between two chat turns; a job on another local model waits while a chat turn runs, then loads it (integrity check as in the chat) and the chat reloads its own model on its next turn; the wait counts towards the job's duration and ends with `timeout` past it
+- [ ] T077 [US8] Implement the local source in `src-tauri/src/model_jobs/model_source.rs` over the chat's single slot (`src-tauri/src/chat/model_loading.rs`, `ChatState`), only with `llm-cpu`; without it a local model is never a candidate. Split a new `model_jobs/local_slot.rs` if `model_source.rs` would pass 500 lines
+- [ ] T078 [P] [US8] Test in `src-tauri/src/model_jobs/candidates_tests.rs`: a local GGUF model is a candidate for a text step and is passed over for an image step (FR-019); its place is `this_device` and needs no consent
+- [ ] T079 [US8] Test in `src-tauri/src/extensions/bridge/model_jobs_run_tests.rs`: a job on a local model (scripted local adapter) sends nothing outside the device (SC-014) and a parallel chat turn ends with the same answer as without the job
+- [ ] T080 [US8] Update `specs/055-extension-model-access/quickstart.md` with a text job on a locally installed model (for example the correction step of haex-notes)
+
+### F2: Subscriptions (R16, FR-032)
+
+- [ ] T081 [US8] Tests first in `src-tauri/src/model_jobs/candidates_tests.rs`: `job_models` lists `cli_delegate` models with place `cloud` and image capability; a delegate whose connection is gone counts as `unavailable` at run time and the next model is tried (FR-027)
+- [ ] T082 [US8] Remove the `CliDelegate` filter in `src-tauri/src/model_jobs/candidates.rs::job_models` and build the delegate adapter in `src-tauri/src/model_jobs/model_source.rs` with a context without a chat (no thread, no approvals through the chat, child processes registered with the vault session)
+- [ ] T083 [US8] Tests first in `src-tauri/src/model_jobs/model_source_tests.rs`: the job's autonomy mode is the vault preference `chat.autonomy_mode`, with `standard` turned into `gated_permissive` (the user's deny rules apply); `ungated` and `gated_permissive` stay as set; then implement it where the job builds its `ChatRequest`
+- [ ] T084 [P] [US8] Test that the effort of a step reaches the delegate (`--effort` for Claude Code, the Codex equivalent) and that an image of the job reaches the delegate's working directory as a file; extend `src-tauri/src/adapters/cli_delegate/claude_tests.rs` and `codex_tests.rs` only where the job path differs from the chat
+- [ ] T085 [US8] `src/components/extensions/ModelPick.vue` and `src/components/settings/extensions/ExtensionModelsView.vue`: a subscription carries the notice that the extension then instructs an agent that can read and change files and run commands on this device (FR-032); de/en keys under `extensions.permissionRequest.model` and `settings.extensions.models`; pure part, if any, in `src/lib/extensions/modelGrants.ts` with its check script
+- [ ] T086 [US8] Update `specs/055-extension-model-access/contracts/bridge.md` (subscriptions are candidates, place `cloud`) and `CONTEXT.md` (**Modellfreigabe** covers every model source)
+- [ ] T087 [US8] Run the checks of T073 for the touched parts and quickstart with a connected subscription; record skipped steps in the PR description
+
+**Checkpoint**: US8 works (delivery F). haex-notes can then point its hint at the extension's model settings in holzi instead of the model servers (haextension#132).
+
+---
+
 ## Dependencies & Execution Order
 
 - Phase 1 (T001–T003) before Phase 2. Phase 2 blocks every story; inside it T004–T005 (permission kinds), T006–T007, T008–T011, T012–T015 and T016–T017 are separate groups (parallel where marked), T019 and T020 last.
 - US1 (Phase 3) needs Phase 2. US2 needs US1 (a grant is checked in the same preflight). US3 needs US1. US4 needs US1 and US2 (it adds to the prompt and the candidate filter). US5 is independent and can land first. US6 needs US1 (a source for local models) and ideally US5 for the fallback. US7 needs US1–US4; T068 (SDK) can run in parallel once `contracts/bridge.md` is stable.
 - Delivery B + D = Phases 1–6; A = Phase 7; C = Phase 8; E = Phase 9; Phase 10 closes each delivery's PR for its own part.
+- Delivery F = Phase 11 (US8, added 2026-10-23), needs B + D; F1 (T076–T080) and F2 (T081–T087) are independent of each other.
 
 ### Within Each Story
 
