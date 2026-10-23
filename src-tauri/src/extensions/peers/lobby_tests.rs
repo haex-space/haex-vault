@@ -134,6 +134,22 @@ async fn an_own_linked_device_joins_as_verified() {
     a2.shutdown().await;
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_device_that_is_no_contact_is_not_admitted_to_a_lobby_for_contacts() {
+    let a = host().await;
+    let d = guest_of(&a).await;
+    let code = a.open_lobby("coop", Visibility::Contacts);
+
+    assert_eq!(
+        d.join(&code, "Dave").await.err(),
+        Some(PeerError::NotAdmitted)
+    );
+    assert!(joined(&a.window).is_empty());
+    assert!(a.host.peers.remotes().is_empty(), "no channel");
+    a.shutdown().await;
+    d.shutdown().await;
+}
+
 /// FR-027: the removed device and every device of its vault stay out until the lobby closes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_removed_device_and_its_vault_stay_out_until_the_lobby_closes() {
