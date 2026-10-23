@@ -43,11 +43,6 @@ export const useExtensionPeerInvitationsStore = defineStore(
       return result
     }
 
-    /** Closing the prompt decides nothing: the invitation stays open until it expires. */
-    function dismiss(inviteId: string): void {
-      queue.value = remove(queue.value, inviteId)
-    }
-
-    return { queue, shown, add, gone, answerAsync, dismiss }
+    return { queue, shown, add, gone, answerAsync }
   },
 )

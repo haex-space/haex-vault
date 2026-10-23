@@ -43,7 +43,7 @@ test('an invitation shown again keeps its place and takes the new content', () =
   )
 })
 
-test('an answered, dismissed or gone invitation leaves the queue', () => {
+test('an answered or gone invitation leaves the queue', () => {
   let queue = [invitation('i1'), invitation('i2')]
   queue = remove(queue, 'i1')
   assert.equal(current(queue)?.inviteId, 'i2')
