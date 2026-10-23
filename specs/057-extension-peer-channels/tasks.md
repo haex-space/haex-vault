@@ -204,24 +204,120 @@ other prompt disappears, A gets `accepted`.
 
 ### Tests for User Story 1
 
-- [ ] T033 [P] [US1] Invitation tests in `src-tauri/src/extensions/peers/invite_tests.rs` (prompt answered by a test double): accept on one of two devices → one channel, `Withdraw` to the other, `accepted` with `channelId`; two accepts at once → exactly one `InviteConfirm`, the other prompt reports "not open"; decline on all → one `declined`; mixed decline and not-installed → `declined`; extension missing, disabled or `peers` denied → `not-installed`; inviter not a contact or blocked → nothing shown, inviter `unreachable` with `hint: "share_current_card"`; no device reachable → `unreachable` within 15 s of measured time; expiry after 5 min of injected time → `expired`; `extension_peers_invite_cancel` → `Withdraw` everywhere and no status (FR-009–FR-019, SC-006, SC-009)
-- [ ] T034 [P] [US1] Prompt tests in `src-tauri/src/extensions/peers/prompt_tests.rs`: with an open frame the window event `extension-peer-invitation` is sent; without a frame a notification with buttons `accept`/`decline` is shown through a fake `Desktop`; `Body` brings the window prompt; `notifications_allowed() == false` falls back to the window; a withdrawn or expired invitation closes the notification and sends `extension-peer-invitation-gone`; no `peers:*` event reaches any frame before acceptance (SC-006)
-- [ ] T035 [P] [US1] Contacts-scope test in `src-tauri/src/extensions/peers/invite_tests.rs`: a contact outside the extension's `contacts` grant, a missing contact and a contact without card all answer `1001 contact_unknown` (051 FR-031); `peers:channel-opened.from.contactId` is present only when the grant covers the inviter
+- [x] T033 [P] [US1] Invitation tests in `src-tauri/src/extensions/peers/invite_tests.rs` (prompt answered by a test double): accept on one of two devices → one channel, `Withdraw` to the other, `accepted` with `channelId`; two accepts at once → exactly one `InviteConfirm`, the other prompt reports "not open"; decline on all → one `declined`; mixed decline and not-installed → `declined`; extension missing, disabled or `peers` denied → `not-installed`; inviter not a contact or blocked → nothing shown, inviter `unreachable` with `hint: "share_current_card"`; no device reachable → `unreachable` within 15 s of measured time; expiry after 5 min of injected time → `expired`; `extension_peers_invite_cancel` → `Withdraw` everywhere and no status (FR-009–FR-019, SC-006, SC-009)
+- [x] T034 [P] [US1] Prompt tests in `src-tauri/src/extensions/peers/prompt_tests.rs`: with an open frame the window event `extension-peer-invitation` is sent; without a frame a notification with buttons `accept`/`decline` is shown through a fake `Desktop`; `Body` brings the window prompt; `notifications_allowed() == false` falls back to the window; a withdrawn or expired invitation closes the notification and sends `extension-peer-invitation-gone`; no `peers:*` event reaches any frame before acceptance (SC-006)
+- [x] T035 [P] [US1] Contacts-scope test in `src-tauri/src/extensions/peers/invite_tests.rs`: a contact outside the extension's `contacts` grant, a missing contact and a contact without card all answer `1001 contact_unknown` (051 FR-031); `peers:channel-opened.from.contactId` is present only when the grant covers the inviter
 
 ### Implementation for User Story 1
 
-- [ ] T036 [US1] Addresses of a contact in `src-tauri/src/extensions/peers/invite.rs`: `EndpointAddr` per device of the stored card (`endpoint_id`, `iroh_relay`, `src-tauri/src/contacts/card/format.rs:43`), dialled in parallel through `SyncNode::dial_alpn` with 10 s each; a device not reachable counts as `Unreachable` (research R5, no knocking yet)
-- [ ] T037 [US1] Inviting side in `src-tauri/src/extensions/peers/invite.rs`: `OutgoingInvite` per data-model.md (`expires_at` = now + 5 min, payload "JSON ≤ 4 KiB"), `Invite` on each connection after `foreign_auth::dial`, first `InviteReply::Accepted` → `InviteConfirm` and the channel, `Withdraw` and close to all others; final status exactly once per FR-018; `cancel(invite)`
-- [ ] T038 [US1] Invited side in `src-tauri/src/extensions/peers/admission.rs` and `invite.rs`: accept `Invite` only from `Contact` (else close without reply); `NotInstalled` when the extension is missing, disabled or `peers` is denied; keep the connection open while asking; limits "4 offene je fremder Vault, 16 insgesamt" (data-model.md); answer `Accepted`/`Declined`; open the channel only after `InviteConfirm`; on `Withdraw`, expiry or connection end → prompt gone
-- [ ] T039 [US1] Invitation prompt in a new `src-tauri/src/extensions/peers/prompt.rs`: contact name from holzi's address book through `ContactsService` (`Caller::Internal { feature: "extensionPeers" }`), never sent to the extension; with an open frame of the extension emit `extension-peer-invitation { inviteId, extensionId, extensionName, contactName }`; otherwise `Desktop::show_notification` (`src-tauri/src/extensions/host.rs:42`) with buttons `accept`/`decline` independent of the extension's `notifications` permission (FR-014, FR-015); `Body` → window prompt and raise; `ShownNotification::close` and `extension-peer-invitation-gone` when the invitation goes
-- [ ] T040 [US1] Command `extension_peer_invitation_answer { inviteId, accept } -> { result: "open" | "gone" }` in a new `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`; ts-rs types `ExtensionPeerInvitation`, `ExtensionPeerInvitationGone` exported to `src/types/bindings/` (check `ls src/types/bindings/<Name>.ts` first)
-- [ ] T041 [US1] Opening after acceptance in `src-tauri/src/extensions/peers/state.rs` and `src-tauri/src/extensions/commands/frames.rs`: without an open frame emit `extension-notification-click { extensionId }` (opens the extension through `windowManager.showExtension`, `src/stores/windowManager.ts:321`) and keep `PendingOpen`; `extension_frame_open` (`src-tauri/src/extensions/commands/frames.rs:38`) sends the waiting `peers:channel-opened` to the new frame; after 60 s without a frame close the channel with `closed`
-- [ ] T042 [US1] `peers:channel-opened { channelId, origin: "invitation", inviteId, from: { contactId?, name }, payload }` and `peers:invite-status { inviteId, status, channelId?, hint? }` built in `src-tauri/src/extensions/peers/invite.rs` exactly as contracts/bridge.md; `from.name` is the card name of the other side
-- [ ] T043 [P] [US1] Dialog `src/components/extensions/PeerInvitationDialog.vue` after the pattern of `PermissionRequestDialog.vue`: "[Kontakt] lädt dich zu [Erweiterung] ein" with "Annehmen" / "Ablehnen", calls `extension_peer_invitation_answer`; shows "Diese Einladung ist nicht mehr offen." when the answer is `gone`; several open prompts queue
-- [ ] T044 [US1] Listen for `extension-peer-invitation` and `extension-peer-invitation-gone` in `src/composables/useExtensionHost.ts` and mount the dialog where `PermissionRequestDialog.vue` is mounted
-- [ ] T045 [P] [US1] i18n keys `extensions.peers.invitation.*` (title, accept, decline, gone) in `src/i18n/locales/de.json` and `src/i18n/locales/en.json`; notification title and button labels from the same keys via the window locale held by `ExtensionHost::context()`
+- [x] T036 [US1] Addresses of a contact in `src-tauri/src/extensions/peers/invite.rs`: `EndpointAddr` per device of the stored card (`endpoint_id`, `iroh_relay`, `src-tauri/src/contacts/card/format.rs:43`), dialled in parallel through `SyncNode::dial_alpn` with 10 s each; a device not reachable counts as `Unreachable` (research R5, no knocking yet)
+- [x] T037 [US1] Inviting side in `src-tauri/src/extensions/peers/invite.rs`: `OutgoingInvite` per data-model.md (`expires_at` = now + 5 min, payload "JSON ≤ 4 KiB"), `Invite` on each connection after `foreign_auth::dial`, first `InviteReply::Accepted` → `InviteConfirm` and the channel, `Withdraw` and close to all others; final status exactly once per FR-018; `cancel(invite)`
+- [x] T038 [US1] Invited side in `src-tauri/src/extensions/peers/admission.rs` and `invite.rs`: accept `Invite` only from `Contact` (else close without reply); `NotInstalled` when the extension is missing, disabled or `peers` is denied; keep the connection open while asking; limits "4 offene je fremder Vault, 16 insgesamt" (data-model.md); answer `Accepted`/`Declined`; open the channel only after `InviteConfirm`; on `Withdraw`, expiry or connection end → prompt gone
+- [x] T039 [US1] Invitation prompt in a new `src-tauri/src/extensions/peers/prompt.rs`: contact name from holzi's address book through `ContactsService` (`Caller::Internal { feature: "extensionPeers" }`), never sent to the extension; with an open frame of the extension emit `extension-peer-invitation { inviteId, extensionId, extensionName, contactName }`; otherwise `Desktop::show_notification` (`src-tauri/src/extensions/host.rs:42`) with buttons `accept`/`decline` independent of the extension's `notifications` permission (FR-014, FR-015); `Body` → window prompt and raise; `ShownNotification::close` and `extension-peer-invitation-gone` when the invitation goes
+- [x] T040 [US1] Command `extension_peer_invitation_answer { inviteId, accept } -> { result: "open" | "gone" }` in a new `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`; ts-rs types `ExtensionPeerInvitation`, `ExtensionPeerInvitationGone` exported to `src/types/bindings/` (check `ls src/types/bindings/<Name>.ts` first)
+- [x] T041 [US1] Opening after acceptance in `src-tauri/src/extensions/peers/state.rs` and `src-tauri/src/extensions/commands/frames.rs`: without an open frame emit `extension-notification-click { extensionId }` (opens the extension through `windowManager.showExtension`, `src/stores/windowManager.ts:321`) and keep `PendingOpen`; `extension_frame_open` (`src-tauri/src/extensions/commands/frames.rs:38`) sends the waiting `peers:channel-opened` to the new frame; after 60 s without a frame close the channel with `closed`
+- [x] T042 [US1] `peers:channel-opened { channelId, origin: "invitation", inviteId, from: { contactId?, name }, payload }` and `peers:invite-status { inviteId, status, channelId?, hint? }` built in `src-tauri/src/extensions/peers/invite.rs` exactly as contracts/bridge.md; `from.name` is the card name of the other side
+- [x] T043 [P] [US1] Dialog `src/components/extensions/PeerInvitationDialog.vue` after the pattern of `PermissionRequestDialog.vue`: "[Kontakt] lädt dich zu [Erweiterung] ein" with "Annehmen" / "Ablehnen", calls `extension_peer_invitation_answer`; shows "Diese Einladung ist nicht mehr offen." when the answer is `gone`; several open prompts queue
+- [x] T044 [US1] Listen for `extension-peer-invitation` and `extension-peer-invitation-gone` in `src/composables/useExtensionHost.ts` and mount the dialog where `PermissionRequestDialog.vue` is mounted
+- [x] T045 [P] [US1] i18n keys `extensions.peers.invitation.*` (title, accept, decline, gone) in `src/i18n/locales/de.json` and `src/i18n/locales/en.json`; notification title and button labels from the same keys via the window locale held by `ExtensionHost::context()`
 
 **Checkpoint (end of PR 3)**: `cargo test … --lib extensions::peers`, `nix develop --command pnpm typecheck`, `nix develop --command pnpm lint`, quickstart.md §2 by hand with the test double replaced by a dev build; open PR 3.
+
+### Notes from implementing PR 3 (2026-10-23)
+
+T033–T045 are done. T033, T034, T041 and T044 differ from the text in the ways below; the
+checkpoint's hand check (quickstart.md §2 with a dev build) was not run. Everything on the host
+side is Rust; no bridge method exists yet (PR 4).
+
+- **Graphify**: queried the fork-point graph for a prompt dialog asked from a Rust event, a
+  notification with buttons closed from Rust, contact names from the address book, the devices of
+  a stored card, an event held until a frame opens, a queue of questions shown one at a time, a
+  fake desktop for tests and the display name of an extension. Extended instead of duplicated:
+  `received::of` now reads through the new `received::stored_of_contact` (the signed card of a
+  contact, which the invitation needs for its devices); the `FakeDesktop` of
+  `notifications_tests.rs` moved to `extensions/fake_desktop.rs` and gained `specs`, `forbid` and
+  `wait_shown`, so the notification tests of this PR use it; `Frames` got `emit_window` for events to
+  holzi's window; `ContactsService::get` with `Caller::Internal` gives the prompt its contact name
+  (no new service method). Reused as patterns: `PermissionRequestDialog.vue` and
+  `stores/extensionPermissions.ts` (dialog and store), `lib/extensions/queue.ts` (not reused: it is
+  typed on permission questions and keyed by their content), `Joining`/`admit_join` (handing the
+  connection on), `contact_in_scope` (R12). Candidates not reused: `remote_storage_dialog::Dialog`
+  (answers a request of a frame, not of a peer), `AdmissionRequests.vue` (settings page). The query
+  for the display name of an extension finds three copies of the SQL (`bridge/permissions.rs`,
+  `encrypted_folder_choose.rs`, `remote_storage_manage.rs`); `invited.rs` has a fourth inside its one
+  lookup. A shared function would be a refactor of three other features, left for the operator.
+- **Shared code extended beyond the plan**: `contacts/card/received.rs`, `peers/channel.rs`
+  (`emit_window`; `Channel::deliver` asks `PeerState::hold`), `peers/lobby.rs` (`write_reply`, PR 2's bounded write, is `pub(super)` so every message of an invitation is written under the same bound), `peers/state.rs` (invitations,
+  `Timing`, `opened`/`frame_opened`/`hold`), `peers/admission.rs` (the `Invite` arm), `peers/watch.rs`
+  (an invitation that waits for an answer needs the same ground as a channel; `grounded` is the
+  extracted check), `commands/frames.rs` (`extension_frame_reloaded` calls `frame_opened`), `lib.rs`,
+  `commands/mod.rs`, `extensions/mod.rs`, `peers/isolation_tests.rs` (an `Invite` for the extension
+  the host runs is no longer cut off), `notifications_tests.rs` (uses the lifted `FakeDesktop`), the
+  i18n files, `Desktop.vue` and `useExtensionHost.ts`.
+- **Files**: `invite.rs` (state of outgoing invitations, `invite`, `cancel`, status events) and
+  `invite_run.rs` (the tasks of one invitation) share what plan.md names `invite.rs`; `invited.rs`
+  is the invited side that T038 puts in `invite.rs`; `pending.rs` holds `PendingOpen` (T041 says
+  `state.rs`); `test_desktop`/`test_scene` are test helpers. `PeerInvitationDialog.vue` is backed by
+  `stores/extensionPeerInvitations.ts` and `lib/extensions/peerInvitations.ts` (a pure queue, tested
+  in `scripts/check-extensions-peer-invitations.ts`, part of `pnpm check:extensions`). The largest
+  new file is `invited.rs` (about 430 lines); no file is over 500.
+- **T033, time**: expiry and the 60 s without a frame (T041) are checked with shortened real waits
+  (`PeerState::set_timing`, test builds), as PR 2 did for the 5 s of admission, since the waits sit in
+  timers next to network reads. "Unreachable within 15 s" is measured: a card whose devices nobody
+  can find fails at once on loopback, so the 10 s dial limit itself is not exercised.
+- **T034/T039, texts**: Rust has no i18n, so `prompt.rs` reads `extensions.peers.invitation.*` out
+  of `de.json`/`en.json` with `include_str!` (German for a `de` window locale, else English); a
+  test checks every key exists in both. The window event carries one field beyond contracts/bridge.md,
+  `raise` (true after a click on the notification itself, so the window comes forward); the gone
+  reasons are `withdrawn` and `expired` only: the protocol cannot tell a withdrawal by the other
+  vault from one because another device won, so `taken` is never sent.
+- **T038, `expires_at`**: the invited side does not trust `expires_at` (clocks differ by minutes);
+  it waits at most 5 minutes from receipt and relies on the inviter's `Withdraw`, which the inviter
+  sends at its own expiry. Invitations over the limits (4 per vault, 16 in all) and an id that waits
+  already are cut without a prompt; a channel limit reached on the invited device does the same.
+  Recorded in contracts/wire-protocol.md.
+- **T038, permission**: `peers` counts as denied only when `evaluate` says `Deny`; an undecided
+  permission lets the prompt through (FR-013 says "not denied"). See the open question below.
+- **T041, where the event goes out**: not in `extension_frame_open`. The window drops frame events
+  of a frame whose id it does not know yet, and the id arrives with the result of that command, so
+  an event sent from inside it is lost. `extension_frame_reloaded` (called when the frame's first
+  document starts its handshake, after the window installed the frame's queue) calls
+  `PeerState::frame_opened`, which sends what waited. `pending.rs` keeps more than the plan's
+  `PendingOpen`: the channel's messages that arrive while no frame exists wait with the announcement
+  (at most 256, fast messages first out, a reliable one without room ends the channel with `lost`),
+  because the inviting side may send as soon as its invitation was accepted. `ponytail:` in
+  `PeerState::opened`: "a frame" is a registered session, which exists a moment before the window
+  knows it; an announcement sent in that moment is lost.
+- **Status exactly once**: whoever takes an invitation out of `OutgoingInvites` sends its status;
+  `Withdrawn` (cancel, `end_all`, vault session end) takes it out without one. The first `Accepted`
+  takes it out too and cancels the other devices' tasks (they send `Withdraw`). A device that
+  answers `Accepted` after another won gets `Withdraw`. If the winner's connection fails before the
+  channel exists, the extension hears `unreachable` (`ponytail:` in `invite_run.rs`).
+- **A device counts only if it is the contact's**: a device of the card that answers the exchange as
+  another vault, or as a contact other than the invited one, is `unreachable`.
+- **`peers:invite-status` before the method returns**: `invite` returns the id at once and its tasks
+  run on the session; a quick answer can reach the frames before the caller has the id
+  (contracts/bridge.md says so).
+- **Limits**: 16 open outgoing invitations per extension (`limit`), `channels_full` at invite time
+  (`limit`), payload over 4 KiB `too_large`, a payload that is not JSON `invalid_input`.
+- **Not built**: knocking (research R5). A card without devices, a device not found and a home relay
+  that changed all end as `unreachable` with `hint: "share_current_card"`.
+- **For PR 4**: `invite::invite(peers, extension_id, ExtensionRef, contact_id, &payload)` is async
+  and answers `Uuid` or `PeerError` (`ContactUnknown`, `TooLarge`, `InvalidInput`, `Limit`,
+  `NetworkUnavailable`); `invite::cancel` is sync (`InviteNotOpen`). The bridge checks `peers` before
+  calling. Statuses and `peers:channel-opened` are emitted by this code through `Frames`; the bridge
+  only forwards `extension_peers_frame_overflow` to `PeerState::finish(…, Lost)` as planned.
+  `extension_peer_invitation_answer` exists already (`commands/peers.rs`). The window events and the
+  command's answer are in contracts/bridge.md. `FrameEventQueue` must hold `peers:channel-opened`
+  like any event until the port is ready; it does.
+- **For the vault-sdk**: nothing changes in contracts/sdk.md. `unreachable` carries `hint`;
+  `peers:channel-opened.from.contactId` is present only under the extension's `contacts` grant.
+- **Open questions for the operator**: (1) the revoke watcher ends channels of an extension whose
+  `peers` is not `Allow`, so a channel from an invitation to an extension with an undecided `peers`
+  would end at the next change of any permission; allow `Ask` in the watcher, or answer
+  `NotInstalled` until the permission is granted? (2) Closing the window prompt with its X or Escape
+  decides nothing (the inviter waits for the 5 minutes); should closing count as declining? (3) The
+  notification's title names the contact, which a locked screen shows; acceptable?
 
 ---
 

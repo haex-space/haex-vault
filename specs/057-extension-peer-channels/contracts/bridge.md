@@ -122,10 +122,16 @@ An alle offenen Rahmen der Erweiterung auf dem Gerät (`bridge::events::emit_to_
 | `peers:message`        | `{ channelId, data: base64, reliable: boolean }`                                                                     | beide      |
 | `peers:channel-closed` | `{ channelId, reason: "closed" \| "lost" \| "timeout" }`                                                             | beide      |
 
+- `peers:invite-status` kann den Rahmen vor dem Ergebnis von `extension_peers_invite` erreichen, wenn
+  die Gegenseite schnell antwortet; die Erweiterung ordnet über `inviteId` zu.
 - `status` kommt genau einmal je Einladung; `channelId` nur bei `accepted`; `hint: "share_current_card"`
   nur bei `unreachable` (Clarifications 2026-10-22).
 - `peers:channel-opened` kommt erst nach der Annahme in holzis Abfrage und nach `InviteConfirm`. Ist kein
   Rahmen offen, öffnet holzi die Erweiterung, und die Meldung wartet bis zu ihrem Rahmen (research R9).
+  Nachrichten, die in der Zwischenzeit eintreffen, warten mit ihr (höchstens 256 Meldungen; schnelle
+  gehen zuerst verloren, eine gesicherte, die keinen Platz findet, beendet den Kanal mit `lost`). Sie
+  gehen hinaus, sobald der Rahmen seine erste Anmeldung meldet (`extension_frame_reloaded`), denn vorher
+  kennt holzis Fenster die Kennung des Rahmens nicht und verwirft seine Meldungen.
 - `contactId` steht nur da, wenn die Berechtigung `contacts` der Erweiterung den Kontakt umfasst
   (051 FR-031); `name` ist der Name von der Visitenkarte der Gegenseite. `displayName` beim Beitritt ist
   selbst gewählt und ungeprüft.
@@ -155,8 +161,15 @@ Keine Meldung enthält Adressen, Schlüssel oder Daten anderer Erweiterungen (FR
 
 | Befehl / Ereignis                          | Richtung       | Inhalt                                                           |
 | ------------------------------------------ | -------------- | ---------------------------------------------------------------- |
-| `extension-peer-invitation`                | Rust → Fenster | `{ inviteId, extensionId, extensionName, contactName }`          |
-| `extension-peer-invitation-gone`           | Rust → Fenster | `{ inviteId, reason: "withdrawn" \| "expired" \| "taken" }`      |
+| `extension-peer-invitation`                | Rust → Fenster | `{ inviteId, extensionId, extensionName, contactName, raise }`   |
+| `extension-peer-invitation-gone`           | Rust → Fenster | `{ inviteId, reason: "withdrawn" \| "expired" }`                 |
 | `extension_peer_invitation_answer`         | Fenster → Rust | `{ inviteId, accept: boolean }` → `{ result: "open" \| "gone" }` |
 | `extension_peers_frame_overflow`           | Fenster → Rust | `{ frame, channelId }`                                           |
 | `extension-notification-click` (bestehend) | Rust → Fenster | `{ extensionId }` — öffnet die Erweiterung nach der Annahme      |
+
+`raise` ist `true`, wenn der Nutzer die Benachrichtigung selbst angeklickt hat (nicht einen Knopf):
+holzis Fenster kommt dann mit der Abfrage nach vorn. `withdrawn` gilt für Rückzug, Ende der Verbindung
+und Ende der Erweiterung, `expired` für den Ablauf auf diesem Gerät; ein anderes Gerät, das gewonnen
+hat, zieht die Einladung ebenfalls zurück (`withdrawn`), das Protokoll unterscheidet es nicht. Die Antwort
+auf `extension_peer_invitation_answer` ist `gone`, wenn die Einladung schon weg war oder schon eine
+Antwort hatte.

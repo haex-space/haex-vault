@@ -105,9 +105,10 @@ Ende der Verbindung; Abfrage und Benachrichtigung verschwinden (FR-015).
 
 ## Wartende Zustellung (`PendingOpen`)
 
-Ein angenommener Kanal, dessen Erweiterung noch keinen Rahmen hat: `channel`, `event`
-(`peers:channel-opened`), `since`. Geht hinaus, sobald `extension_frame_open` einen Rahmen der
-Erweiterung registriert; nach 60 s ohne Rahmen schließt holzi den Kanal mit `closed` (research R9).
+Ein angenommener Kanal, dessen Erweiterung noch keinen Rahmen hat: `channel`, die wartenden Meldungen
+(zuerst `peers:channel-opened`, danach die Nachrichten des Kanals, höchstens 256). Geht hinaus, sobald ein
+Rahmen der Erweiterung seine erste Anmeldung meldet (`extension_frame_reloaded`); nach 60 s ohne Rahmen
+schließt holzi den Kanal mit `closed` (research R9).
 
 ## Drosselung (`Throttle`)
 
