@@ -672,6 +672,8 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   MUSS in der Lightbox bleiben und beim Schließen auf die Karte zurückkehren.
 - **FR-039**: Ein Tipp auf einen Anhang ohne Vorschau (PDF, Text, anderes) MUSS Speichern
   unter anbieten, nichts in der App öffnen. Eine PDF-Vorschau ist nicht Teil dieser Spec.
+  _Geändert durch Spec 058: Text und PDF öffnen die Anhang-Ansicht; nur andere Anhänge werden beim
+  Tippen gespeichert._
 - **FR-040**: Das Hinzufügen (Dateidialog und Ablegen), die Grenze von 25 MiB, die Prüfsumme,
   die Verwaltung verwaister Binärdaten und das Umbenennen und Entfernen MÜSSEN sich wie in
   034 verhalten; die Karten ändern nur die Darstellung.
