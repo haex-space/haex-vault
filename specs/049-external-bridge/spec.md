@@ -177,6 +177,28 @@ Betreiber:
 - Q: Wo liegen die Einstellungen der Bridge? → A: In der vorhandenen Kategorie „Erweiterungen“ als
   Abschnitt „Browser-Erweiterungen“ mit eigener Unterseite; keine neue Kategorie.
 
+### Session 2026-10-23
+
+Auslöser war die Frage, ob sich ein Fork von haex-pass-browser oder ein anderes Programm bei holzi
+als die Erweiterung ausgeben kann. Die Antworten folgen aus der Herkunftsprüfung (R2) und der
+Zulassung; der Betreiber hat die Ergänzung am 2026-10-23 beauftragt.
+
+- Q: Bekommt ein Fork der Erweiterung ohne Zutun des Nutzers Zugriff? → A: Nein. Er erzeugt ein
+  eigenes Schlüsselpaar, also eine neue Kennung, und löst den Zulassungsdialog aus (FR-008). Eine
+  gemerkte Zulassung gilt nur für das Gerät und die Kennung, für die sie erteilt wurde (FR-009,
+  FR-012).
+- Q: Erkennt holzi, ob eine Erweiterung die offizielle ist? → A: Bisher nicht. Der Name ist eine
+  Angabe des Clients, und jede `chrome-extension://`- oder `moz-extension://`-Herkunft wird
+  angenommen; ein Fork mit demselben Namen sieht im Dialog fast aus wie das Original. Neu: holzi
+  kennt die Herkunft der offiziellen Erweiterung und sagt im Dialog und in den Einstellungen, ob ein
+  Client sie ist, sich nur so nennt, unbekannt ist oder nicht prüfbar (FR-045, FR-046). Das ist
+  eine Hilfe für die Entscheidung des Nutzers, keine Zugangsgrenze.
+- Q: Und in Firefox? → A: Dort ist die Herkunft je Installation eine zufällige UUID; holzi kann
+  sie nicht mit dem Add-on abgleichen. Der Dialog sagt das, statt „bekannt“ oder „unbekannt“ zu
+  behaupten.
+- Q: Beweist ein Client den Besitz seines Schlüssels? → A: Weiter nein. Das bräuchte eine
+  Änderung des Protokolls (Nicht im Umfang).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Browser-Erweiterung verbinden und in holzi zulassen (Priority: P1)
@@ -215,6 +237,13 @@ Dialog (vorläufig).
    verwenden.
 6. **Given** die Bridge ist ausgeschaltet oder keine Vault ist offen, **When** die Erweiterung zu
    verbinden versucht, **Then** findet sie keinen Dienst und zeigt „nicht verbunden“.
+7. **Given** der Dialog für einen Client mit der Herkunft der offiziellen Erweiterung, **When** er
+   erscheint, **Then** steht dort „Bekannte Erweiterung“ mit ihrem Namen; für einen Client, der
+   sich so nennt, aber eine andere Chromium-Herkunft hat, steht dort eine Warnung, dass er sich nur
+   so nennt (FR-045).
+8. **Given** der Dialog für einen Client aus Firefox, **When** er erscheint, **Then** sagt er, dass
+   holzi die Erweiterung dort nicht prüfen kann, und rät, nur zuzulassen, was der Nutzer gerade
+   selbst installiert hat (FR-045).
 
 ---
 
@@ -393,7 +422,12 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Client mit neuem Fingerabdruck; holzi fragt. Der alte bleibt in der Liste, bis der Nutzer ihn
   widerruft.
 - **Zwei Clients mit demselben angegebenen Namen**: Der Dialog unterscheidet sie an Fingerabdruck
-  und Herkunft; den Namen kennzeichnet er als Angabe des Clients.
+  und Herkunft; den Namen kennzeichnet er als Angabe des Clients und sagt, ob die Herkunft die einer
+  bekannten Erweiterung ist (FR-045).
+- **Offizielle Erweiterung aus dem GitHub-Release oder selbst gebaut**: Chromium vergibt entpackten
+  und per Hand installierten Erweiterungen eine andere Kennung als der Store. holzi zeigt sie als
+  „nennt sich so“ und sagt im Text dazu, dass das bei einer Installation außerhalb des Stores zu
+  erwarten ist; zulassen kann der Nutzer sie wie jeden anderen Client.
 - **Anderes eigenes Gerät**: Eine gemerkte Zulassung von Gerät A gilt auf Gerät B nicht; ein
   Browser auf Gerät B wird dort neu zugelassen.
 - **Adresse mit IP-Adresse oder `localhost`**: Treffer nur bei gleichem Host; eine registrierbare
@@ -620,6 +654,33 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **FR-044**: Alle neuen Texte MÜSSEN auf Deutsch und Englisch vorliegen; Dialoge und Einstellungen
   MÜSSEN ab 360 px Breite ohne waagerechtes Scrollen bedienbar sein (034 FR-041).
 
+**Erkennung der Erweiterung**
+
+- **FR-045**: Der Zulassungsdialog und die Listen der Einstellungen MÜSSEN für jeden Client sagen,
+  wie weit holzi die Erweiterung erkennt, aus Herkunft und angegebenem Namen:
+  - **bekannt**: Die Herkunft steht in der Liste der offiziellen Erweiterungen (FR-046). Der Text
+    nennt den Namen aus der Liste.
+  - **nennt sich so**: Die Herkunft ist eine Chromium-Herkunft, die nicht in der Liste steht, aber
+    der angegebene Name ist der einer Erweiterung der Liste (ohne Beachtung von Groß- und
+    Kleinschreibung und Leerzeichen am Rand). Der Text warnt, dass das keine Bestätigung der
+    offiziellen Erweiterung ist.
+  - **unbekannt**: Eine Chromium-Herkunft, die nicht in der Liste steht, mit einem anderen Namen. Der
+    Text sagt, dass holzi diese Erweiterung nicht kennt.
+  - **nicht prüfbar**: Eine Firefox-Herkunft (die UUID ist je Installation zufällig) oder eine
+    Herkunft, für die die Liste keinen Eintrag derselben Browserart hat. Der Text sagt, dass holzi
+    das hier nicht prüfen kann.
+
+  holzi MUSS den Zustand bei jeder Anzeige berechnen und DARF ihn nicht speichern. Kein Zustand
+  ändert, was holzi zulässt: Der Dialog, der Haken „Erlaubnis merken“ (ab Werk nicht gesetzt) und
+  die Freigabe bleiben gleich, auch bei „bekannt“.
+
+- **FR-046**: Die Liste der offiziellen Erweiterungen MUSS fest in holzi stehen, je Eintrag Name,
+  Browserart und Herkunft; sie wird nicht von außen geladen oder von einem Client verändert. Ein
+  Eintrag kommt erst hinein, wenn die Herkunft der veröffentlichten Erweiterung feststeht.
+  Solange die Liste für Chromium keinen Eintrag hat, MUSS holzi Chromium-Clients als „nicht
+  prüfbar“ zeigen, nicht als „unbekannt“ oder „nennt sich so“: Sonst wäre jede Zulassung der
+  echten Erweiterung eine Warnung.
+
 ### Key Entities
 
 - **Client**: Kennung (Fingerabdruck), öffentlicher Schlüssel, angegebener Name, Herkunft,
@@ -661,6 +722,9 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   alle Verbindungen beendet und der Port frei.
 - **SC-009**: 100 % der Aufrufe von Lesezeichen-Methoden, unbekannten Methoden und anderen Zielen
   enden ohne Anfrage, ohne Dialog und ohne Änderung der Vault.
+- **SC-010**: In einer Prüfung mit je einem Client der vier Zustände aus FR-045 zeigen Dialog und
+  Einstellungsliste in 100 % der Fälle den passenden Zustand, und in keinem Fall ändern sich die
+  Wahlmöglichkeiten des Dialogs oder das, was holzi dem Client zugesteht.
 
 ## Assumptions
 
@@ -672,6 +736,11 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   (`chrome-extension://…`, `moz-extension://…`), aus einer Webseite deren Webadresse. Ein lokales
   Programm kann jede Herkunft vortäuschen; FR-005 schützt vor Webseiten, nicht vor Programmen auf dem
   Gerät. Der Plan prüft das Verhalten von Chromium und Firefox (research).
+- Die Erkennung nach FR-045 ist eine Hilfe für den Nutzer, kein Zugangsschutz: Ein lokales Programm
+  kann die Herkunft der offiziellen Erweiterung vortäuschen und würde dann als „bekannt“ gezeigt.
+  Ob die offizielle Erweiterung in Chromium eine feste Herkunft hat, steht im Repository nicht fest:
+  Das Manifest hat keinen `key`, die Kennung vergibt der Chrome Web Store beim ersten Upload. Bis
+  sie feststeht, bleibt Chromium „nicht prüfbar“ (FR-046, T081).
 - Das Protokoll weist nicht nach, dass ein Client den privaten Schlüssel zu seiner Kennung besitzt:
   Anfragen lassen sich mit dem öffentlichen Schlüssel des Dienstes verschlüsseln, Antworten nur mit
   dem Schlüssel des Clients lesen. Wer die Kennung und den öffentlichen Schlüssel eines zugelassenen

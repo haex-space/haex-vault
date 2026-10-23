@@ -59,6 +59,7 @@ type BridgeClientView = {
   connected: boolean
   decidedAt: number
   lastSeenAt: number | null
+  recognition: Recognition // FR-045: bei jeder Antwort berechnet, nie gespeichert
 }
 ```
 
@@ -100,7 +101,18 @@ type BridgeQuestion = { client: BridgeClientRef } & (
       challengeHash: string // SHA-256 der Aufgabe, hex: gilt nur für diese eine Anfrage
     } // create: 'newEntry' + Einträge derselben Site; get: Passkeys
 )
-type BridgeClientRef = { clientId: string; clientName: string; origin: string }
+type BridgeClientRef = {
+  clientId: string
+  clientName: string
+  origin: string
+  recognition: Recognition
+}
+// FR-045, R21. 'known' und 'lookalike' tragen den Namen aus der Liste der offiziellen Erweiterungen.
+type Recognition =
+  | { kind: 'known'; name: string }
+  | { kind: 'lookalike'; name: string }
+  | { kind: 'unknown' }
+  | { kind: 'unverifiable' }
 type PresenceChoice =
   | { kind: 'newEntry' }
   | { kind: 'entry'; itemId: string; title: string; url: string | null }

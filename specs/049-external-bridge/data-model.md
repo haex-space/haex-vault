@@ -127,6 +127,13 @@ Methode scheitert dann sofort.
 `presence` ist `Present` oder, bei richtig eingegebenem Vault-Passwort, `Verified`. Das Ergebnis
 gilt nur für den einen Aufruf des Passkey-Dienstes, der auf diese Rückfrage folgt.
 
+## Erkennung der Erweiterung (nie gespeichert)
+
+Keine Spalte und keine Migration (FR-045, R21). `Recognition` ist `Known { name }`,
+`Lookalike { name }`, `Unknown` oder `Unverifiable`. `known::recognise(origin, client_name)`
+berechnet es aus der festen Liste `KNOWN` bei jedem Aufbau von `BridgeClientRef` und
+`BridgeClientView`.
+
 ## Änderungen an vorhandenen Typen
 
 | Typ                             | Datei                          | Änderung                                                                 |
@@ -137,5 +144,7 @@ gilt nur für den einen Aufruf des Passkey-Dienstes, der auf diese Rückfrage fo
 | `UserPresence`                  | ebenda, neu                    | `None` (Standard), `Present`, `Verified`; kein `Deserialize`             |
 | `PasskeyTarget`                 | ebenda, neu                    | `Existing(String)`, `New { title, url, username, tags }`                 |
 | `PlatformCapabilities`          | `platform/mod.rs`              | Feld `browser_bridge: bool`                                              |
+| `BridgeClientRef`               | `browser_bridge/prompts.rs`    | Feld `recognition: Recognition` (PR F)                                   |
+| `BridgeClientView`              | `browser_bridge/admin.rs`      | Feld `recognition: Recognition` (PR F)                                   |
 | `PasswordsService::totp_code`   | `passwords/service/items.rs`   | Parameter `grants`, `authorize_read` statt `require_user`                |
 | `PasswordsService::preset_list` | `passwords/service/presets.rs` | Parameter `caller`, `grants`; jede Passwort-Freigabe genügt              |

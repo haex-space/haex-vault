@@ -577,9 +577,59 @@ Erweiterung (`main.ts:241` gegen `webauthn-bridge.ts:143-150`), nicht im Protoko
 Danach folgen Politur, Handprüfung nach quickstart, ein neuer Pin und der Release der
 Erweiterung.
 
+Nachtrag 2026-10-23: Die Erkennung der offiziellen Erweiterung (R21) kommt als PR F; sie berührt
+weder das Protokoll noch die Erweiterung.
+
 **Rationale**:
 
 - Jeder PR ist für sich prüfbar.
 - B ist die Sicherheitsgrundlage und kommt zuerst, ganz durchgeprüft.
 - Phasendisziplin: `plans/README.md:21` setzt „034 und 036 im Einsatz“ voraus. Beide sind gemergt
   (034 mit PR #222, 036 mit den Stufen 1 bis 5) und in täglichem Gebrauch.
+
+## R21 Erkennung der offiziellen Erweiterung (FR-045, FR-046)
+
+**Decision**: Ein kleines Modul `browser_bridge/known.rs` mit einer festen Liste und einer reinen
+Funktion; keine Tabelle, keine Migration, nichts gespeichert.
+
+- `KNOWN: &[KnownExtension]` mit `name`, `kind` (`Chromium` oder `Firefox`) und `origin`.
+- `recognise_in(list, origin, claimed_name) -> Recognition` mit den vier Ergebnissen
+  `Known { name }`, `Lookalike { name }`, `Unknown` und `Unverifiable`; `recognise` ruft sie mit
+  `KNOWN`. Die Liste als Parameter hält die Prüfung testbar, ohne Testeinträge in `KNOWN`.
+- Reihenfolge: Herkunft in der Liste → `Known`. Sonst `moz-extension://` → `Unverifiable`. Sonst
+  Chromium: ohne Chromium-Eintrag in der Liste → `Unverifiable`; mit Eintrag und gleichem Namen
+  (nach Trim und ohne Groß-/Kleinschreibung) → `Lookalike`; sonst `Unknown`.
+- `BridgeClientRef` (jede Frage an das Fenster) und `BridgeClientView` (Einstellungen) bekommen das
+  Feld `recognition`, berechnet beim Aufbau der Antwort.
+- Das Fenster zeigt es in einem eigenen kleinen Baustein neben dem Namen, im Dialog und in
+  `ClientRow`. Warnfarbe nur bei `Lookalike`.
+
+**Rationale**:
+
+- Der Angriff, der übrig bleibt, ist ein Fork mit dem Namen des Originals: Der Nutzer sieht im
+  Dialog einen vertrauten Namen und stimmt zu. Der Fingerabdruck und die Herkunft stehen zwar da,
+  aber niemand vergleicht 32 Hexzeichen. Der Abgleich mit der Liste nimmt ihm das ab.
+- `Lookalike` ist billig und trifft genau diesen Fall: gleicher Name, fremde Herkunft.
+- Die Liste fest im Code: Eine nachladbare Liste wäre ein eigener Angriffsweg, und sie ändert sich
+  mit der Veröffentlichung der Erweiterung, also mit einem Release von holzi.
+- Firefox bleibt `Unverifiable`: `moz-extension://<uuid>` ist je Installation zufällig. Die Add-on-ID
+  (`haex-pass-extension@haex.space`) schickt der Client nicht mit; sie in den Handshake zu
+  bringen, wäre eine Änderung des Protokolls (Nicht im Umfang).
+
+**Offen (T081)**: Die Chrome-ID steht nicht im Repository. Das Manifest der Erweiterung hat keinen
+`key`, der Chrome Web Store vergibt die Kennung beim ersten Upload, und `CHROME_EXTENSION_ID` ist
+heute kein Secret von haextension. Ohne Eintrag zeigt holzi Chromium als „nicht prüfbar“. Wer die
+ZIP aus dem GitHub-Release oder einen eigenen Build entpackt lädt, bekommt von Chromium eine andere
+Kennung als der Store; er sieht dann „nennt sich so“, mit dem Hinweis, dass das bei einer
+Installation außerhalb des Stores zu erwarten ist. Ob der GitHub-Build die Store-Kennung bekommen
+kann (der öffentliche Schlüssel des Stores als `key` im Manifest), ist zu klären, bevor T084 den
+Eintrag setzt.
+
+**Alternatives considered**:
+
+- Unbekannte Erweiterungen blockieren: sperrt Forks und eigene Builds aus, die in einem
+  Open-Source-Projekt legitim sind.
+- Den Besitz des Schlüssels im Handshake beweisen lassen: ändert das Protokoll, braucht eine
+  abgestimmte Änderung an der Erweiterung und an haex-vault 2.x, und löst das Vortäuschen von Name
+  und Herkunft durch ein lokales Programm nicht.
+- Die Liste von einer Webadresse laden: neuer Angriffsweg, Ausfall ohne Netz.

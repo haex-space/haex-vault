@@ -19,14 +19,15 @@ description: 'Task list for spec 049-external-bridge'
 
 **Organization**: Grouped by user story and shipped in the plan's deliveries. Each delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                      |
-| -------- | ---------- | -------------------------------------------- |
-| PR A     | Phase 1    | this plan                                    |
-| PR B     | Phases 2–4 | Foundational, US1, US6                       |
-| PR C     | Phases 5–6 | US2, US3                                     |
-| PR D     | Phase 7    | US5                                          |
-| PR E     | Phase 8    | US4                                          |
-| PR H     | Phase 9    | companion PR in haextension, parallel to B–E |
+| Delivery | Phases     | Stories                                                             |
+| -------- | ---------- | ------------------------------------------------------------------- |
+| PR A     | Phase 1    | this plan                                                           |
+| PR B     | Phases 2–4 | Foundational, US1, US6                                              |
+| PR C     | Phases 5–6 | US2, US3                                                            |
+| PR D     | Phase 7    | US5                                                                 |
+| PR E     | Phase 8    | US4                                                                 |
+| PR H     | Phase 9    | companion PR in haextension, parallel to B–E                        |
+| PR F     | Phase 11   | recognise the official extension (FR-045, FR-046), added 2026-10-23 |
 
 Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
@@ -535,6 +536,40 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 ---
 
+## Phase 11: Recognise the official extension (US1 addendum, FR-045, FR-046) — PR F
+
+**Goal**: The approval dialog and the settings list say whether a client is the official extension, only calls itself so, is unknown or cannot be checked, so a fork with the original's name no longer looks like the original (research R21). Nothing about what holzi allows changes.
+
+**Independent Test**: `browser_bridge/known_tests.rs`, `tests/browser_bridge.rs` part 8, the e2e scenario part 4, quickstart M12.
+
+- [ ] T081 Find the official Chromium origin (needs the operator; blocks only the list entry of T084, not the rest):
+  - The manifest of `apps/haex-pass-browser` has no `key`, the Chrome Web Store assigns the id on the first upload, and `CHROME_EXTENSION_ID` is not a secret of haextension today.
+  - Write down the store id, or that there is none yet; in the second case `KNOWN` has no Chromium entry and Chromium shows "nicht prüfbar" (FR-046).
+  - Decide whether the GitHub-release build can carry the store's public key as `key` so it gets the same id (check that the store accepts it), or whether those installs show "nennt sich so" with the hint of the edge case.
+- [ ] T082 New worktree `.worktrees/049-f` on branch `049-external-bridge-f` from `main`, with a real `pnpm install`.
+- [ ] T083 Tests first, `src-tauri/src/browser_bridge/known_tests.rs`, all against `recognise_in(list, …)` with a list built in the test:
+  - the official origin → `Known` with the list's name, whatever name the client claims;
+  - another `chrome-extension://` origin with the list's name, in other case and with spaces around it → `Lookalike`;
+  - another `chrome-extension://` origin with another name → `Unknown`;
+  - any `moz-extension://` origin, also with the official name → `Unverifiable`;
+  - a list without a Chromium entry → every `chrome-extension://` origin is `Unverifiable`;
+  - the origin is compared whole: a longer id with the official one as prefix is not `Known`.
+- [ ] T084 `src-tauri/src/browser_bridge/known.rs`: `KnownExtension`, the fixed list `KNOWN` (a Chromium entry only with the id from T081), `Recognition` (`TS`-exported, camelCase tag `kind`), `recognise_in` and `recognise`. Register the module in `browser_bridge/mod.rs`.
+- [ ] T085 Carry it through Rust:
+  - `recognition` on `BridgeClientRef` and on `BridgeClientView` (`admin.rs`). `BridgeClientRef` is built in three places (`runtime.rs` for the approval, `write_access.rs`, `methods/presence.rs`): give it one constructor from the client's identity and use it in all three, so no question goes out without the value;
+  - integration test, `tests/browser_bridge.rs` part 8 and `tests/browser_bridge_admin.rs`: the approval question and the overview carry the value for an unverifiable Chromium client; approving a client the list calls `Lookalike` behaves exactly like any other (same choices, same stored approval);
+  - regenerate the bindings (`generate:ts-types`) and keep only real changes.
+- [ ] T086 [P] Frontend: `src/components/browserBridge/RecognitionNote.vue` (≤ 80 lines), used in the approval dialog and in `ClientRow.vue`.
+  - Neutral tone for `known`, `unknown` and `unverifiable`; the warning token only for `lookalike`, and no palette colors (`check:templates`).
+  - Texts in German and English (FR-044), in words and without angle brackets (vue-i18n). `lookalike` warns that the name is no proof and adds that this is expected for an install from the GitHub release or a self-built one; `unverifiable` says Firefox gives every install its own id and advises to approve only what the user just installed.
+  - Run `pnpm check:templates`, `typecheck`, `lint`, `format:check`.
+- [ ] T087 e2e `browser-bridge` part 4: the test client connects with `chrome-extension://e2e` and with `moz-extension://e2e`; the dialog and the settings row show "nicht prüfbar" for both (the list has no Chromium entry in the test build), and approving works as before.
+- [ ] T088 Run quickstart M12 in Firefox and a second Chromium build, record the result and date there, update `plans/README.md` if the roadmap names this, and mark FR-045/FR-046 in the spec's status.
+
+**Checkpoint**: PR F complete. Nothing in it changes the protocol or the extension; T081 is the only open question for the operator.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1** (PR A) → **Phase 2** blocks everything in PR B.
@@ -543,6 +578,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 - **US5** (PR D) needs PR B; the editor validation reuses T028's validator. It can start in parallel with PR C on a separate branch, but merges after C because both touch `methods/mod.rs`.
 - **US4** (PR E) needs PR B and the method dispatch of PR C (T045/T049 patterns, the write prompt T050).
 - **PR H** is independent of holzi and can start now. Quickstart M6/M7 and the release T079 need it merged.
+- **PR F** (Phase 11) needs PR B (dialog, `BridgeClientRef`) and PR D (settings rows); it can ship any time after both. T081 only decides the list entry.
 - **Polish** T074–T076 can land in the PR of the code they test; T077–T079 come last. T080 comes any time after PR B.
 
 ## Parallel Opportunities
