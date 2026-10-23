@@ -4,9 +4,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { toast } from 'vue-sonner'
 import type { DevModeState } from '@bindings/DevModeState'
+import type { ExtensionPeerInvitation } from '@bindings/ExtensionPeerInvitation'
+import type { ExtensionPeerInvitationGone } from '@bindings/ExtensionPeerInvitationGone'
 import { useColorScheme } from '~/composables/useColorScheme'
 import { readyFrames } from '~/lib/extensions/agentFrames'
 import { extensionAppId } from '~/lib/extensions/apps'
+import { useExtensionPeerInvitationsStore } from '~/stores/extensionPeerInvitations'
 import { useExtensionPermissionsStore } from '~/stores/extensionPermissions'
 import { useExtensionsStore } from '~/stores/extensions'
 import { useWindowManagerStore } from '~/stores/windowManager'
@@ -68,6 +71,7 @@ export async function raiseWindowAsync(): Promise<void> {
 export function useExtensionHost() {
   const extensions = useExtensionsStore()
   const permissions = useExtensionPermissionsStore()
+  const invitations = useExtensionPeerInvitationsStore()
   const { scheme } = useColorScheme()
   const { locale, t } = useI18n()
 
@@ -135,6 +139,24 @@ export function useExtensionHost() {
       })
     }),
     'notifications shown in holzi',
+  )
+
+  // An invitation of a contact to an extension (spec 057 US1): holzi's own prompt asks the user,
+  // and the window comes forward when the user clicked the notification that told of it. The
+  // prompt goes when the invitation does (withdrawn, expired, taken by another device).
+  keep(
+    listen<ExtensionPeerInvitation>('extension-peer-invitation', (event) => {
+      invitations.add(event.payload)
+      if (event.payload.raise) void raiseWindowAsync()
+    }),
+    'invitations of contacts',
+  )
+  keep(
+    listen<ExtensionPeerInvitationGone>(
+      'extension-peer-invitation-gone',
+      (event) => invitations.gone(event.payload.inviteId),
+    ),
+    'withdrawn invitations',
   )
 
   // A call of the agent needs a frame of the extension (spec 018, research R9): an open tab in
