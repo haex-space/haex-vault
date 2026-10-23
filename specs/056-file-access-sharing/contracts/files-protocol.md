@@ -34,35 +34,39 @@ Alle Pfade sind Fensterpfade (`/`, `/a/b`). `share` ist bei `Contact` Pflicht un
 bei `OwnDevice` fehlt es. Vor jeder Anfrage prüft das bedienende Gerät erneut Modus, Zugriffsrecht,
 Stufe und Pfad (FR-005, FR-006, FR-007).
 
-| Anfrage        | Kopf                                                        | Antwort                                                                              | Stufe     |
-| -------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------- |
-| `Shares`       | —                                                           | `Vec<{ id, name, item_kind, level }>`; OwnDevice: `roots` (Laufwerke, bekannte Orte) | Lesen     |
-| `ListDir`      | `{ share?, path, max }`                                     | `{ entries: Vec<WireEntry> }`                                                        | Lesen     |
-| `Stat`         | `{ share?, path }`                                          | `WireEntry`                                                                          | Lesen     |
-| `Read`         | `{ share?, path, start, len }`                              | `{ size, content_type }` + Rohstrom `len` Bytes                                      | Lesen     |
-| `BeginUpload`  | `{ share?, path, expected: Absent \| Version{size, etag} }` | `{ upload_id }`                                                                      | Schreiben |
-| `UploadPart`   | `{ upload_id, number, len }` + Rohstrom                     | `{ mark }`                                                                           | Schreiben |
-| `FinishUpload` | `{ upload_id, marks }`                                      | `()` oder `Conflict`                                                                 | Schreiben |
-| `AbortUpload`  | `{ upload_id }`                                             | `()`                                                                                 | Schreiben |
-| `CreateFolder` | `{ share?, parent, name }`                                  | `WireEntry`                                                                          | Schreiben |
-| `Rename`       | `{ share?, path, new_name }`                                | `WireEntry`                                                                          | Schreiben |
-| `Move`         | `{ share?, from, to }`                                      | `()`                                                                                 | Schreiben |
-| `Delete`       | `{ share?, path }`                                          | `{ trashed: bool }`                                                                  | Schreiben |
-| `Watch`        | `{ share?, path }` (eigener Stream, bleibt offen)           | je Stapel `FolderChanged { paths }`, bis der Stream schließt                         | Lesen     |
+| Anfrage        | Kopf                                                        | Antwort                                                                                      | Stufe     |
+| -------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------- |
+| `Shares`       | —                                                           | Contact: `Shares(Vec<{ id, name, item_kind, level }>)`; OwnDevice: `Roots { drives, known }` | Lesen     |
+| `ListDir`      | `{ share?, path, max }`                                     | `Entries(Vec<WireEntry>)`                                                                    | Lesen     |
+| `Stat`         | `{ share?, path }`                                          | `Entry(WireEntry)`                                                                           | Lesen     |
+| `Read`         | `{ share?, path, start, len }`                              | `Reading { size, len }` + Rohstrom `len` Bytes                                               | Lesen     |
+| `BeginUpload`  | `{ share?, path, expected: Absent \| Version{size, etag} }` | `Upload { upload_id }`                                                                       | Schreiben |
+| `UploadPart`   | `{ upload_id, number, len }` + Rohstrom                     | `Mark(String)`                                                                               | Schreiben |
+| `FinishUpload` | `{ upload_id }`                                             | `Done` oder `Conflict`                                                                       | Schreiben |
+| `AbortUpload`  | `{ upload_id }`                                             | `Done`                                                                                       | Schreiben |
+| `CreateFolder` | `{ share?, path }`                                          | `Done`; ein vorhandener Name → `NameTaken`                                                   | Schreiben |
+| `Move`         | `{ share?, from, to }` (auch Umbenennen)                    | `Done`; ein vorhandenes Ziel → `NameTaken`                                                   | Schreiben |
+| `Delete`       | `{ share?, path }`                                          | `Deleted { trashed }`                                                                        | Schreiben |
+| `Watch`        | `{ share?, path }` (eigener Stream, bleibt offen)           | `Done`, dann je Stapel `Changed` (ohne Pfade), bis der Stream schließt                       | Lesen     |
 
-`WireEntry { name, path, kind: File|Folder, size, modified_ms, etag }`.
+`WireEntry { name, kind: File|Folder, size, modified_ms, etag }`; `WireRoot { name, path }` mit dem
+Fensterpfad (Windows `/C:`). `ListDir` auf `/` listet bei `OwnDevice` unter Windows die Laufwerke als
+Ordner.
 
 Regeln:
 
-- `Rename`, `Move`, `Delete` auf die Wurzel einer Freigabe → `Refused` (FR-037). Bei einer Freigabe
-  einer Datei sind nur `Read`, `Stat` und Hochladen auf `/<name>` mit `expected = Version` erlaubt.
+- `Move`, `Delete`, `CreateFolder` und `BeginUpload` auf die Wurzel selbst (eine Freigabe, bei
+  `OwnDevice` `/`) → `Refused` (FR-037). Bei einer Freigabe einer Datei sind nur `ListDir`, `Stat`,
+  `Read` und Hochladen auf `/<name>` mit `expected = Version` erlaubt.
+- Verschieben und Löschen treffen einen Link selbst, nie sein Ziel.
 - `Move` nur innerhalb derselben Wurzel; dazwischen kopiert der Anfragende und löscht (Spec Edge
   Cases).
 - `Read` streamt ohne Zeitlimit; ein Entzug, Sperren oder Abbruch beendet den Stream mit
   `STREAM_CANCELLED`.
 - `Delete` auf dem Gerät geht in den Papierkorb, wo `trash = true` (research R8).
-- `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern antwortet es mit `Unsupported`. Ein Entzug
-  oder das Sperren schließt den Stream (research R16).
+- `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern antwortet es mit `Unsupported`. Das
+  bedienende Gerät prüft mit jedem Stapel und alle 10 s erneut; ein Entzug, der Schalter oder das
+  Sperren schließt den Stream (research R16).
 - Aufrufer: Jede Anfrage trägt `caller: User | Agent`. Eigene Daten von holzi: bei `OwnDevice` für
   `User` nur lesend, für `Agent` gesperrt; bei `Contact` immer gesperrt (FR-007).
 - Upload-Sitzungen gehören der Verbindung; schließt sie, räumt das bedienende Gerät ihre
@@ -71,9 +75,9 @@ Regeln:
 ## Fehler
 
 `WireError = NotFound | Refused | Conflict | Unsupported | TooLarge | SourceUnavailable | NameTaken |
-InvalidName | Busy | Internal`. Keine Pfade außerhalb der Wurzel, keine Zugangsdaten, keine Fehlertexte des
+Busy | Internal`. Keine Pfade außerhalb der Wurzel, keine Zugangsdaten, keine Fehlertexte des
 bedienenden Geräts (FR-042). Beim Anfragenden bildet `PeerStore` sie auf `StorageError` ab:
-`NotFound → NotFound`, `Refused → MissingRight`, `Conflict → Conflict` (neu), `Unsupported → Unsupported`,
+`NotFound → NotFound`, `Refused → MissingRight`, `Conflict | NameTaken → Conflict` (neu), `Unsupported → Unsupported`,
 `TooLarge → TooLarge`, `SourceUnavailable → Network`, `Busy → Network`, `Internal → Network`,
 Verbindungsfehler → `Network`.
 
@@ -81,4 +85,5 @@ Verbindungsfehler → `Network`.
 
 - Höchstens 16 gleichzeitige Streams je Verbindung, 64 je bedienendem Gerät; darüber `Busy`.
 - `ListDir.max ≤ 100 000` (`MAX_ENTRIES`).
+- Ein Teil eines Uploads höchstens 64 MiB; höchstens 16 laufende Uploads je Verbindung, darüber `Busy`.
 - Dateisystemarbeit läuft auf dem Blocking-Pool der Sitzung, nie auf dem Executor.

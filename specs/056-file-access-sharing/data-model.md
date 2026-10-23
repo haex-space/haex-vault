@@ -97,7 +97,9 @@ FileShareGrant[], state: FileShareState }`
 - `FileShareGrant { vaultPubkey, contactId, contactName, level: FileShareLevel }`
 - `FileShareLevel = "read" | "readWrite"`
 - `FileShareState = "active" | "sourceMissing" | "sourceUnavailable" | "pending"`
-- `FilesPeerDevice { storageId, vaultDeviceUuid, name, state: FilesPeerState }`
+- `FilesPeerDevice { id, name, state: FilesPeerState }`: `id` ist die Speicher-ID `peer:<vault_device_uuid>`
+  wie `StorageSource.id`; `name` fehlt bei einem Gerät ohne Namen
+- `FilesPeerRoots { drives: KnownPlace[], known: KnownPlace[] }`: Startorte eines anderen eigenen Geräts
 - `FilesPeerState = "reachable" | "unreachable" | "accessOff"`
 - `FilesContactShares { contactId, contactName, vaultPubkey, shares: FilesReceivedShare[] }`
 - `FilesReceivedShare { storageId, name, itemKind, level, reachable }`
