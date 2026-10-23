@@ -1,20 +1,17 @@
 //! The question to the user when an agent reaches for a storage it has no permission for (spec 044
 //! FR-031a, research R14), for an encrypted folder in it (spec 048 FR-030a, FR-031), or for the
-//! contacts (spec 051 FR-030, research R15), after the
-//! pattern of `chat/tools/action_bridge.rs`: Rust emits
-//! `files-agent-permission-request`, parks on a oneshot and waits for
-//! `files_agent_permission_answer`. Nobody to ask (no window), no answer in 60 s or a cancelled turn
+//! contacts (spec 051 FR-030, research R15), parked on `prompt_park.rs`: Rust emits
+//! `files-agent-permission-request` and waits for `files_agent_permission_answer`. Nobody to ask (no window), no answer in 60 s or a cancelled turn
 //! refuse this one call; the caller stores only real answers.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
-use uuid::Uuid;
+
+use crate::prompt_park::PromptPark;
 
 /// Event the question goes out on (contracts/tauri-commands.md).
 pub const EVENT_PERMISSION_REQUEST: &str = "files-agent-permission-request";
@@ -106,18 +103,12 @@ pub struct FilesAgentPermissionRequest {
 /// Delivers a question to the window; `false` when no window could hear it.
 pub type PromptEmitter = Arc<dyn Fn(&FilesAgentPermissionRequest) -> bool + Send + Sync>;
 
-struct Inner {
-    emitter: Mutex<Option<PromptEmitter>>,
-    pending: Mutex<HashMap<String, oneshot::Sender<FilesAgentAnswer>>>,
-    /// One question at a time: two calls for one storage or folder must not ask twice.
-    asking: tokio::sync::Mutex<()>,
-    timeout: Duration,
-}
-
 /// Shared by the executors and the answer command; a Tauri managed state. Cheap to clone.
 #[derive(Clone)]
 pub struct PermissionPrompt {
-    inner: Arc<Inner>,
+    park: PromptPark<FilesAgentPermissionRequest, FilesAgentAnswer>,
+    /// One question at a time: two calls for one storage or folder must not ask twice.
+    asking: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Default for PermissionPrompt {
@@ -129,28 +120,28 @@ impl Default for PermissionPrompt {
 impl PermissionPrompt {
     pub fn with_timeout(timeout: Duration) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                emitter: Mutex::new(None),
-                pending: Mutex::new(HashMap::new()),
-                asking: tokio::sync::Mutex::new(()),
-                timeout,
-            }),
+            park: PromptPark::new(timeout),
+            asking: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
-    /// Set from `setup()`, where the `AppHandle` exists.
+    /// Set from `setup()`, where the `AppHandle` exists. The question goes out with the id it is
+    /// parked under as its `request_id`.
     pub fn set_emitter(&self, emitter: PromptEmitter) {
-        *self
-            .inner
-            .emitter
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = Some(emitter);
+        self.park.set_emitter(Arc::new(
+            move |id: &str, request: &FilesAgentPermissionRequest| {
+                emitter(&FilesAgentPermissionRequest {
+                    request_id: id.to_owned(),
+                    ..request.clone()
+                })
+            },
+        ));
     }
 
     /// Holds the turn of the asking caller; it reads the grants again before it asks, since the
     /// caller before it may have asked the same.
     pub async fn turn(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.inner.asking.lock().await
+        self.asking.lock().await
     }
 
     /// Asks for a storage or a folder in it and waits; `None` when nobody answered.
@@ -165,7 +156,7 @@ impl PermissionPrompt {
     ) -> Option<FilesAgentAnswer> {
         self.question(
             FilesAgentPermissionRequest {
-                request_id: Uuid::new_v4().to_string(),
+                request_id: String::new(),
                 agent_id: agent_id.to_owned(),
                 kind: FilesAgentQuestionKind::Storage,
                 storage_id: storage_id.to_owned(),
@@ -188,7 +179,7 @@ impl PermissionPrompt {
     ) -> Option<FilesAgentAnswer> {
         self.question(
             FilesAgentPermissionRequest {
-                request_id: Uuid::new_v4().to_string(),
+                request_id: String::new(),
                 agent_id: agent_id.to_owned(),
                 kind: FilesAgentQuestionKind::Contacts,
                 storage_id: String::new(),
@@ -201,46 +192,18 @@ impl PermissionPrompt {
         .await
     }
 
+    /// No window, no answer in time and a cancelled turn all end as `None`.
     async fn question(
         &self,
         request: FilesAgentPermissionRequest,
         cancel: &CancellationToken,
     ) -> Option<FilesAgentAnswer> {
-        let emitter = self
-            .inner
-            .emitter
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()?;
-        let (sender, receiver) = oneshot::channel();
-        self.pending().insert(request.request_id.clone(), sender);
-        let choice = if emitter(&request) {
-            tokio::select! {
-                biased;
-                _ = cancel.cancelled() => None,
-                answer = receiver => answer.ok(),
-                _ = tokio::time::sleep(self.inner.timeout) => None,
-            }
-        } else {
-            None
-        };
-        self.pending().remove(&request.request_id);
-        choice
+        self.park.ask(&request, cancel, |_| {}).await.ok()
     }
 
     /// The window's answer; `false` for an unknown or late id.
     pub fn answer(&self, request_id: &str, answer: FilesAgentAnswer) -> bool {
-        match self.pending().remove(request_id) {
-            Some(sender) => sender.send(answer).is_ok(),
-            None => false,
-        }
-    }
-
-    fn pending(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FilesAgentAnswer>>> {
-        self.inner
-            .pending
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.park.answer(request_id, answer)
     }
 }
 

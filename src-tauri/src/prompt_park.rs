@@ -1,7 +1,8 @@
 //! A question to the user that Rust waits for (spec 049, plan K1, research R10): the question goes
 //! out through an emitter, the caller parks on a oneshot until the window answers, the time runs
-//! out or a token cancels it. The pattern of `files/agent/prompt.rs` and
-//! `chat/tools/action_bridge.rs`, without their domain types; both move onto it in a follow-up.
+//! out or a token cancels it. The bridge's questions, the storage and contacts questions of
+//! `files/agent/prompt.rs` and the action calls of `chat/tools/action_bridge.rs` all park here,
+//! each with its own types (T080).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -62,6 +63,15 @@ impl<Q, A: Send> PromptPark<Q, A> {
             .emitter
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = Some(emitter);
+    }
+
+    /// Whether a window can be asked yet.
+    pub fn has_emitter(&self) -> bool {
+        self.inner
+            .emitter
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
     }
 
     /// Asks and waits. `on_id` learns the id before the question goes out, so a caller can tie it
