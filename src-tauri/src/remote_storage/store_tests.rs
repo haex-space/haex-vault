@@ -458,3 +458,16 @@ fn a_local_folder_is_never_a_connection_nor_a_storage() {
     assert!(!store::target_ok(Protocol::Local, "/home"));
     assert!(!store::target_ok(Protocol::Local, ""));
 }
+
+#[test]
+fn another_device_is_never_a_connection_nor_a_storage() {
+    let mut row = connection("c-peer", "item-1");
+    row.protocol = Protocol::Peer;
+    row.provider_kind = ProviderKind::Other;
+    row.region = String::new();
+    assert!(matches!(
+        store::check_connection(&row),
+        Err(HolziError::StorageInvalid { .. })
+    ));
+    assert!(!store::target_ok(Protocol::Peer, "peer:device"));
+}

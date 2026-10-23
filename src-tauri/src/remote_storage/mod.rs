@@ -22,7 +22,7 @@ mod http;
 #[cfg(test)]
 mod http_tests;
 pub mod local;
-mod local_fs;
+pub(crate) mod local_fs;
 #[cfg(test)]
 mod mod_tests;
 pub mod model;
@@ -88,13 +88,18 @@ pub enum Protocol {
     #[serde(skip)]
     #[ts(skip)]
     Local,
+    /// Another own device or a received file share (spec 056 research R2): reached over
+    /// `haex-vault-files/1` by its own store, never saved as a connection and never offered.
+    #[serde(skip)]
+    #[ts(skip)]
+    Peer,
 }
 
 impl Protocol {
-    /// Whether folders are real folders on the server (spec 050 research R8): WebDAV, SFTP and a
-    /// local folder.
+    /// Whether folders are real folders on the server (spec 050 research R8): WebDAV, SFTP, a
+    /// local folder and another device.
     pub fn is_tree(self) -> bool {
-        matches!(self, Self::WebDav | Self::Sftp | Self::Local)
+        matches!(self, Self::WebDav | Self::Sftp | Self::Local | Self::Peer)
     }
 
     /// Whether `kind` is a provider of this protocol (data-model.md).
@@ -104,7 +109,7 @@ impl Protocol {
             Self::S3 => matches!(kind, Aws | Rustfs | Other),
             Self::WebDav => matches!(kind, HetznerStorageBox | Nextcloud | Koofr | Kdrive | Other),
             Self::Sftp => matches!(kind, HetznerStorageBox | Other),
-            Self::Local => false,
+            Self::Local | Self::Peer => false,
         }
     }
 }
@@ -200,6 +205,7 @@ impl Protocol {
             Self::WebDav => "webdav",
             Self::Sftp => "sftp",
             Self::Local => "local",
+            Self::Peer => "peer",
         }
     }
 
@@ -431,6 +437,9 @@ pub enum StorageError {
     /// address is not allowed (research R8).
     #[error("network")]
     Network,
+    /// The object changed since the caller last saw it (spec 056 FR-036): nothing was written.
+    #[error("conflict")]
+    Conflict,
     /// An answer or a listing is larger than the limit.
     #[error("too large")]
     TooLarge,

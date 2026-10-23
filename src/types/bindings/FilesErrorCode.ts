@@ -3,4 +3,4 @@
 /**
  * The kinds of [`FilesError`].
  */
-export type FilesErrorCode = "invalidPath" | "invalidName" | "exists" | "intoItself" | "noSpace" | "holziOwned" | "noAccess" | "notFound" | "binary" | "broken" | "tooLarge" | "blocked" | "notGranted" | "unsupported" | "credentials" | "unreachable" | "hostKey" | "inEncrypted" | "inExtensionArea" | "noKey" | "damaged" | "otherVault" | "newerFormat" | "readOnly" | "needsNotice";
+export type FilesErrorCode = "invalidPath" | "invalidName" | "exists" | "intoItself" | "noSpace" | "holziOwned" | "noAccess" | "notFound" | "binary" | "broken" | "tooLarge" | "blocked" | "notGranted" | "unsupported" | "credentials" | "unreachable" | "conflict" | "hostKey" | "inEncrypted" | "inExtensionArea" | "noKey" | "damaged" | "otherVault" | "newerFormat" | "readOnly" | "needsNotice";

@@ -54,9 +54,10 @@ fn shown(store: &dyn ObjectStore, access: &Access, outcome: TestOutcome) -> Opti
 /// refusal now is a missing right.
 fn after_write(error: StorageError) -> TestOutcome {
     match error {
-        StorageError::Network | StorageError::TimedOut | StorageError::Unsupported => {
-            TestOutcome::Unreachable
-        }
+        StorageError::Network
+        | StorageError::TimedOut
+        | StorageError::Unsupported
+        | StorageError::Conflict => TestOutcome::Unreachable,
         StorageError::Protocol => TestOutcome::NotWebDav,
         StorageError::HostKeyUnknown => TestOutcome::HostKeyUnknown,
         StorageError::HostKeyChanged => TestOutcome::HostKeyChanged,
@@ -87,7 +88,8 @@ fn on_write(error: StorageError, tree: bool) -> TestOutcome {
         StorageError::Network
         | StorageError::TimedOut
         | StorageError::TooLarge
-        | StorageError::Unsupported => TestOutcome::Unreachable,
+        | StorageError::Unsupported
+        | StorageError::Conflict => TestOutcome::Unreachable,
     }
 }
 
