@@ -2,6 +2,10 @@
 //! (`Member::genesis`) on a loopback endpoint without relays, with the `haex-vault-ext-peer/1` handler,
 //! an extension host whose window is recorded, and the same test extension installed.
 //! [`open_test_channel`] opens a channel without invitation or lobby, which only tests can.
+//!
+//! Without relays a join code names no way to the host; [`Vault::learn`] tells a vault where
+//! another one listens, as the relay of the code would. The relay path itself is checked in the
+//! E2E scene, which has a relay.
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -16,6 +20,8 @@ use uuid::Uuid;
 
 use super::admission::{verify_incoming, PeerContext, PeerProtocol, PURPOSE};
 use super::channel::{self, Channel, Frames, Opening, Origin};
+use super::lobby::{self, Visibility};
+use super::ExtensionRef;
 use crate::contacts::card::own_card;
 use crate::contacts::service::{Caller, CardInto, ContactsService};
 use crate::extensions::bridge::dispatch::Emit;
@@ -118,7 +124,7 @@ pub(crate) struct Vault {
     pub db: VaultDb,
     pub host: Arc<ExtensionHost>,
     pub window: Arc<Window>,
-    pub node: SyncNode,
+    pub node: Arc<SyncNode>,
     pub ctx: Arc<PeerContext>,
     /// The test extension, installed here.
     pub extension_id: Uuid,
@@ -171,6 +177,8 @@ impl Vault {
         )
         .await
         .expect("bind");
+        let node = Arc::new(node);
+        host.peers.attach(Arc::clone(&ctx), &node);
         let vault = Self {
             member,
             db,
@@ -197,6 +205,40 @@ impl Vault {
     /// The vault's identity.
     pub(crate) fn vault(&self) -> [u8; 32] {
         self.member.vault
+    }
+
+    /// Tells this vault where `other` listens, as the relay of a join code would.
+    pub(crate) async fn learn(&self, other: &Vault) {
+        self.node.note_presence(other.node.addr()).await;
+    }
+
+    /// Opens the lobby `lobby_id` of the test extension; returns its join code.
+    pub(crate) fn open_lobby(&self, lobby_id: &str, visibility: Visibility) -> String {
+        lobby::open(
+            &self.host.peers,
+            self.extension_id,
+            probe(),
+            lobby_id,
+            visibility,
+        )
+        .expect("open a lobby")
+    }
+
+    /// Joins the lobby of `code` with the test extension as `name`.
+    pub(crate) async fn join(
+        &self,
+        code: &str,
+        name: &str,
+    ) -> Result<super::join::Joined, super::PeerError> {
+        super::join::join(
+            &self.host.peers,
+            self.extension_id,
+            probe(),
+            code,
+            name,
+            &serde_json::json!({ "skin": name }),
+        )
+        .await
     }
 
     /// The next channel the [`Admit::AtOnce`] handler opened.
@@ -238,6 +280,11 @@ impl Vault {
 
     /// Grants the test extension `peers`/`connect`/`*`, remembered for the vault.
     pub(crate) fn grant_peers(&self, status: &str) {
+        self.grant("peers", "connect", status);
+    }
+
+    /// Grants the test extension `kind`/`action` on `*`, remembered for the vault.
+    pub(crate) fn grant(&self, kind: &'static str, action: &'static str, status: &str) {
         let extension_id = self.extension_id;
         let status = status.to_owned();
         self.db
@@ -246,8 +293,8 @@ impl Vault {
                     tx,
                     extension_id,
                     &NewPermission {
-                        kind: "peers",
-                        action: "connect",
+                        kind,
+                        action,
                         target: "*",
                         status: &status,
                         declared: true,
@@ -262,6 +309,14 @@ impl Vault {
 
     pub(crate) async fn shutdown(&self) {
         self.node.shutdown().await;
+    }
+}
+
+/// The test extension as it is named on the wire.
+pub(crate) fn probe() -> ExtensionRef {
+    ExtensionRef {
+        public_key: KEY.to_owned(),
+        name: NAME.to_owned(),
     }
 }
 

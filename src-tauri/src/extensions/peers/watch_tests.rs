@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::extensions::peers::channel::{Channel, CHANNEL_CLOSED};
+use crate::extensions::peers::lobby::{Openness, Visibility};
 use crate::extensions::peers::test_support::{
     exchange_cards, open_test_channel, Admit, Vault, Window,
 };
@@ -75,6 +76,27 @@ async fn revoking_peers_closes_the_channels_of_that_extension() {
     both_closed(&a, &near, &b, &far).await;
     a.shutdown().await;
     b.shutdown().await;
+}
+
+/// A lobby is open state of its extension like a channel: revoking `peers` closes it too.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn revoking_peers_closes_the_lobbies_of_that_extension() {
+    let a = Vault::start(Admit::AtOnce).await;
+    a.grant_peers("granted");
+    a.open_lobby("coop", Visibility::Public);
+    let device = a.db.device_id();
+
+    recheck(&a.db, &a.host, device, Recheck::ALL).await;
+    assert_eq!(
+        a.host.peers.openness(),
+        Openness::Public,
+        "granted: it stays"
+    );
+
+    a.grant_peers("denied");
+    recheck(&a.db, &a.host, device, Recheck::ALL).await;
+    assert_eq!(a.host.peers.openness(), Openness::None);
+    a.shutdown().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

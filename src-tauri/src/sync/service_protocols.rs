@@ -53,13 +53,13 @@ pub fn peer_protocols<R: Runtime>(
     keys: &DeviceKeys,
     vault: [u8; 32],
     app: &AppHandle<R>,
-) -> Protocols {
+) -> (Protocols, Option<Arc<crate::extensions::peers::admission::PeerContext>>) {
     use crate::extensions::commands::frames::WindowEmitter;
     use crate::extensions::peers::admission::{PeerContext, PeerProtocol};
     use crate::extensions::peers::channel::Frames;
 
     let Some(PeerDeps { host, db }) = peers else {
-        return Protocols::default();
+        return (Protocols::default(), None);
     };
     let ctx = Arc::new(PeerContext {
         keys: keys.clone(),
@@ -67,9 +67,11 @@ pub fn peer_protocols<R: Runtime>(
         db,
         frames: Frames::new(Arc::new(WindowEmitter(app.clone())), &host),
     });
-    Protocols::default().with(crate::sync::wire::EXT_PEER_ALPN, move |tasks| {
-        PeerProtocol::new(ctx, tasks)
-    })
+    let handler = Arc::clone(&ctx);
+    let protocols = Protocols::default().with(crate::sync::wire::EXT_PEER_ALPN, move |tasks| {
+        PeerProtocol::new(handler, tasks)
+    });
+    (protocols, Some(ctx))
 }
 
 /// `protocols` with the handler of `haex-vault-files/1` (spec 056 research R5), when the session

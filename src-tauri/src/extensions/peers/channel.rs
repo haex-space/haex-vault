@@ -73,7 +73,13 @@ pub enum Origin {
     Invitation {
         invite: Uuid,
     },
+    /// A device joined a lobby this device hosts; `key` is holzi's key of that lobby.
     Lobby {
+        lobby_id: String,
+        key: [u8; 16],
+    },
+    /// This device joined a lobby of another one.
+    Joined {
         lobby_id: String,
     },
     /// Opened by the test support without invitation or lobby.
@@ -102,7 +108,7 @@ impl Frames {
     }
 
     /// Sends `event` to the open frames of `extension_id` and to no other (FR-005).
-    fn emit(&self, extension_id: Uuid, event: &str, data: &Value) {
+    pub(super) fn emit(&self, extension_id: Uuid, event: &str, data: &Value) {
         if let Some(host) = self.host() {
             emit_to_frames(self.emitter.as_ref(), &host, extension_id, event, data);
         }
@@ -140,6 +146,17 @@ pub fn open(
     frames: &Frames,
     tracker: &TaskTracker,
 ) -> Result<Arc<Channel>, PeerError> {
+    open_announced(opening, frames, tracker, |_| {})
+}
+
+/// [`open`], calling `announce` once the channel is registered and before it delivers anything,
+/// so the event that names a channel reaches the frames before its first message.
+pub fn open_announced(
+    opening: Opening,
+    frames: &Frames,
+    tracker: &TaskTracker,
+    announce: impl FnOnce(&Channel),
+) -> Result<Arc<Channel>, PeerError> {
     let Opening {
         extension_id,
         remote,
@@ -175,6 +192,7 @@ pub fn open(
     if let Err(error) = host.peers.add(Arc::clone(&channel)) {
         return refuse(&channel.connection, error);
     }
+    announce(&channel);
     tracker.spawn(write_loop(Arc::clone(&channel), send, outgoing));
     tracker.spawn(read_loop(Arc::clone(&channel), recv));
     tracker.spawn(receive_datagrams(Arc::clone(&channel)));

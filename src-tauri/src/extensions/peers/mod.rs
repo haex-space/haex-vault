@@ -8,6 +8,8 @@
 
 pub mod admission;
 pub mod channel;
+pub mod join;
+pub mod lobby;
 pub mod state;
 pub mod throttle;
 pub mod watch;
@@ -21,8 +23,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::contacts::service::{Caller, ContactsService};
+use crate::extensions::contacts::grants_of;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
+use crate::extensions::host::ExtensionHost;
 use crate::extensions::ids::{ExtensionName, PublicKey};
+use crate::extensions::permissions::store::candidates;
+use crate::extensions::permissions::PermissionKind;
 use crate::storage::query::Query;
 
 pub use state::PeerState;
@@ -149,6 +156,40 @@ impl From<PeerError> for BridgeError {
         };
         BridgeError::new(error.code(), reason).with_details(details)
     }
+}
+
+/// Whether the `contacts` permission of `extension_id` covers `contact_id` on this device: only
+/// then may an event about a channel name the contact (research R12, 051 FR-031). A failed read
+/// names nobody.
+pub(crate) async fn contact_in_scope(
+    ctx: &admission::PeerContext,
+    host: &ExtensionHost,
+    extension_id: Uuid,
+    contact_id: &str,
+) -> bool {
+    let device = ctx.db.device_id();
+    let Ok(mut permissions) = ctx
+        .db
+        .read(move |q| {
+            candidates(q, extension_id, PermissionKind::Contacts, device).map_err(Into::into)
+        })
+        .await
+    else {
+        return false;
+    };
+    permissions.extend(
+        host.permissions
+            .temporary(extension_id, PermissionKind::Contacts),
+    );
+    let service = ContactsService::new(ctx.db.clone());
+    let Ok(groups) = service.groups(&Caller::Internal { feature: FEATURE }).await else {
+        return false;
+    };
+    let grants = grants_of(&permissions, &groups);
+    let caller = Caller::Extension {
+        id: extension_id.to_string(),
+    };
+    service.get(&caller, &grants, contact_id).await.is_ok()
 }
 
 #[cfg(test)]
