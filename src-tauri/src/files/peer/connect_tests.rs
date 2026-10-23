@@ -7,6 +7,7 @@ use super::Connections;
 use crate::files::peer::client::PeerLinks;
 use crate::files::peer::test_support::own_pair;
 use crate::files::peer::wire::Mode;
+use crate::files::share::device_access;
 use crate::remote_storage::StorageError;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -42,4 +43,28 @@ async fn a_target_without_a_way_is_refused_before_any_dial() {
         );
     }
     drop(main);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_access_off_link_is_reopened_after_access_is_enabled() {
+    let (main, linked) = own_pair().await;
+    linked.node.note_presence(main.node.addr()).await;
+    let connections = Connections::new(Arc::clone(&linked.node), Arc::clone(&linked.ctx));
+    let target = format!("peer:{}", main.uuid);
+
+    main.db
+        .write_blocking(|tx| Ok(device_access::set_enabled(tx, false, "t")?))
+        .expect("off");
+    let off = connections.link(&target).await.expect("access-off link");
+    assert_eq!(off.welcome.mode, Mode::AccessOff);
+
+    main.db
+        .write_blocking(|tx| Ok(device_access::set_enabled(tx, true, "t+1")?))
+        .expect("on");
+    let on = connections.link(&target).await.expect("reopened link");
+    assert_eq!(on.welcome.mode, Mode::OwnDevice);
+    assert!(
+        !Arc::ptr_eq(&off, &on),
+        "the access-off link was not reused"
+    );
 }

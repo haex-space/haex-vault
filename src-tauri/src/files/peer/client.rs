@@ -9,7 +9,7 @@ use iroh::EndpointAddr;
 
 use crate::files::peer::handshake::{self, DialError};
 use crate::files::peer::wire::{
-    read_head, write_head, Caller, Op, Reply, Request, Welcome, VERSION,
+    read_head, write_head, Caller, Mode, Op, Reply, Request, Welcome, VERSION,
 };
 use crate::remote_storage::StorageError;
 use crate::sync::endpoint::SyncNode;
@@ -51,6 +51,12 @@ impl PeerLink {
     /// Whether the connection has ended.
     pub fn is_closed(&self) -> bool {
         self.connection.close_reason().is_some()
+    }
+
+    /// Whether this link can serve requests. An `AccessOff` welcome is a live handshake result,
+    /// but it must be retried after the serving device enables access again.
+    pub fn is_reusable(&self) -> bool {
+        !self.is_closed() && self.welcome.mode != Mode::AccessOff
     }
 
     /// Sends `op` as `caller` on a new stream and reads the answer's head; for a read, the bytes

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::time::{Duration, Instant};
 
-use super::{peer_access, PeerStore};
+use super::{peer_access, ExactBytes, PeerStore};
 use crate::files::peer::test_support::{own_pair, Fixed};
 use crate::files::peer::wire::Caller;
 use crate::files::storage_source::StorageFiles;
@@ -90,4 +90,14 @@ async fn the_file_browser_lists_another_device_like_a_storage() {
     assert_eq!(entries[0].name, "lied.mp3");
     assert_eq!(entries[0].kind, EntryKind::File);
     assert_eq!(entries[0].size, Some(3));
+}
+
+#[tokio::test]
+async fn a_peer_read_that_ends_before_its_announced_length_is_an_error() {
+    let mut reader = ExactBytes::new(tokio::io::empty(), 1);
+    let error = reader
+        .read_to_end(&mut Vec::new())
+        .await
+        .expect_err("truncated");
+    assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
 }

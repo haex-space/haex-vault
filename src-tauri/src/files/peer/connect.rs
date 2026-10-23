@@ -85,7 +85,7 @@ impl PeerLinks for Connections {
     async fn link(&self, target: &str) -> Result<Arc<PeerLink>, StorageError> {
         let slot = self.slot(target);
         let mut slot = slot.lock().await;
-        if let Some(link) = slot.as_ref().filter(|link| !link.is_closed()) {
+        if let Some(link) = slot.as_ref().filter(|link| link.is_reusable()) {
             return Ok(Arc::clone(link));
         }
         let addr = self.addr_of(target).await?;
