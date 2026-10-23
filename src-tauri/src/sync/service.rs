@@ -212,12 +212,7 @@ async fn run<R: Runtime>(
     };
     let peer_host = deps.peers.as_ref().map(|peers| Arc::clone(&peers.host));
     let (peer_protocols, peer_ctx) = peer_protocols(deps.peers, &deps.keys, vault, &devices_app);
-    let (protocols, files) = file_protocols(
-        peer_protocols,
-        deps.files,
-        &deps.keys,
-        vault,
-    );
+    let (protocols, files) = file_protocols(peer_protocols, deps.files, &deps.keys, vault);
     let node = match SyncNode::bind_with(
         deps.replica,
         deps.keys,
@@ -333,11 +328,11 @@ async fn run<R: Runtime>(
     }
     runtime.cancel.cancel();
     drop(registered);
-    node.shutdown().await;
     // Spec 057: nothing of the session's channels outlives it.
     if let Some(host) = peer_host {
         host.peers.clear();
     }
+    node.shutdown().await;
 }
 
 /// Clears the registry when dropped.
