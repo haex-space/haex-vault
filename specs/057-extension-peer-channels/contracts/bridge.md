@@ -170,6 +170,8 @@ Keine Meldung enthält Adressen, Schlüssel oder Daten anderer Erweiterungen (FR
 `raise` ist `true`, wenn der Nutzer die Benachrichtigung selbst angeklickt hat (nicht einen Knopf):
 holzis Fenster kommt dann mit der Abfrage nach vorn. `withdrawn` gilt für Rückzug, Ende der Verbindung
 und Ende der Erweiterung, `expired` für den Ablauf auf diesem Gerät; ein anderes Gerät, das gewonnen
-hat, zieht die Einladung ebenfalls zurück (`withdrawn`), das Protokoll unterscheidet es nicht. Die Antwort
+hat, zieht die Einladung ebenfalls zurück (`withdrawn`), das Protokoll unterscheidet es nicht. Die Schließt der Nutzer die Abfrage im Fenster (X, Escape), gilt das als Ablehnen und geht denselben Weg
+über `extension_peer_invitation_answer`; eine Benachrichtigung, die ohne Klick verschwindet, entscheidet
+nichts. Antwort
 auf `extension_peer_invitation_answer` ist `gone`, wenn die Einladung schon weg war oder schon eine
 Antwort hatte.
