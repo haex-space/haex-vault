@@ -25,19 +25,35 @@ Konstanten: `peers.MAX_FAST_BYTES = 1024`, `peers.MAX_RELIABLE_BYTES = 65536`,
 `client.peers.on(type, handler)` für `invite-status`, `channel-opened`, `joined`, `message`,
 `channel-closed` (Daten wie in bridge.md; `message.data` als `Uint8Array` dekodiert).
 
+`type` sind die kurzen Namen; die Namen mit `peers:` stehen nur in `PEERS_EVENTS` und sind für `on`
+ein Typfehler. `on` gibt eine Funktion zurück, die den Handler wieder abmeldet.
+
+## Grenzen des SDK
+
+- Das SDK prüft weder `payload` noch die Größe von Nachrichten; erzwungen wird nur im Vault (`7000`).
+- `extension_peers_join` wartet im Vault bis zu 15 s. Setzt eine Erweiterung das `timeout` des
+  Clients darunter, kann `joinAsync` im SDK ablaufen, bevor der Vault antwortet.
+
 ## Fehler
 
 `PeerError` mit `code` (Zahl) und `reason`; Abbildung auf die Namen des Entwurfs von haex-doom:
 
-| `reason`                            | Name im Entwurf          |
-| ----------------------------------- | ------------------------ |
-| `contact_unknown`                   | `PEER_CONTACT_UNKNOWN`   |
-| `invite_not_open`                   | `PEER_INVITE_UNKNOWN`    |
-| `channel_unknown`, `channel_closed` | `PEER_CHANNEL_CLOSED`    |
-| `too_large`                         | `PEER_PAYLOAD_TOO_LARGE` |
-| `lobby_closed`                      | `PEER_LOBBY_CLOSED`      |
-| `not_admitted`                      | `PEER_NOT_ALLOWED`       |
-| `limit`, `network_unavailable`      | neu                      |
+| `reason`                            | Name im Entwurf            |
+| ----------------------------------- | -------------------------- |
+| `contact_unknown`                   | `PEER_CONTACT_UNKNOWN`     |
+| `invite_not_open`                   | `PEER_INVITE_UNKNOWN`      |
+| `channel_unknown`, `channel_closed` | `PEER_CHANNEL_CLOSED`      |
+| `too_large`                         | `PEER_PAYLOAD_TOO_LARGE`   |
+| `lobby_closed`                      | `PEER_LOBBY_CLOSED`        |
+| `not_admitted`                      | `PEER_NOT_ALLOWED`         |
+| `limit`                             | `PEER_LIMIT`               |
+| `network_unavailable`               | `PEER_NETWORK_UNAVAILABLE` |
+| `invalid_input`                     | `PEER_INVALID_INPUT`       |
+
+Der Name steht in `PeerError.kind`. `limit` ist bei `reason: "limit"` und `too_large` die Zahl aus
+`details.limit`. Eine volle Warteschlange gesicherter Nachrichten ist `7000` mit `reason: "limit"`
+und `limit: 16`. `limit`, `network_unavailable` und `invalid_input` sind neu gegenüber dem Entwurf von
+haex-doom. Fehler ohne bekannten `reason` (zum Beispiel ein Zeitablauf im SDK) bleiben unverändert.
 
 ## Unterschiede zum Entwurf von haex-doom (`contracts/peers-api.md` @ `a076b693`)
 
