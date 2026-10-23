@@ -1,6 +1,7 @@
 # Contract: Brücke für Modelle (Erweiterung → holzi)
 
-Drei Methoden der Erweiterungs-Brücke (Spec 017, `extensions/bridge/allowlist.rs`), ein Ereignis. Ersetzt
+Drei Methoden der Erweiterungs-Brücke (Spec 017, `extensions/bridge/allowlist.rs`) für Aufträge, zwei für den
+Weg zur Freigabe (US9), ein Ereignis. Ersetzt
 `extension_ai_task_start`, `extension_ai_task_cancel` und `haextension:ai-task:completed` aus Spec 047 (kein
 Aufrufer vorhanden). Das Format von Auftrag und Ergebnis steht in `job-format.md`.
 
@@ -82,6 +83,32 @@ result: { cancelled: boolean }
 Falscher Besitzer (anderer Rahmen oder andere Erweiterung): `SecurityViolation` (1000). Unbekannte Kennung:
 `{cancelled: false}`. Bei Erfolg folgt ein Ereignis mit Status `cancelled`. Ein Abbruch ändert keine Daten der
 Erweiterung (FR-022).
+
+## `extension_model_settings_open` (US9, FR-034)
+
+```text
+params: {}
+result: {}
+```
+
+Öffnet in holzi die Einstellungen der aufrufenden Erweiterung bei ihren Modellen (`extensions.detail`) oder holt
+sie nach vorn, wenn sie schon offen sind. Rust meldet den Wunsch per Ereignis an das Frontend, das den Tab
+öffnet, wie beim Rahmen für den Agenten (`useExtensionHost.ts`). Die Erweiterung nennt keine Ziel-Erweiterung;
+holzi nimmt immer die aufrufende. Sie erfährt nichts über die Seite und kann dort nichts festlegen.
+
+## `extension_model_access_request` (US9, FR-035)
+
+```text
+params: { needs: ("text" | "image")[], effort?: "none" | "low" | "medium" | "high" }
+result: { models: [ …wie extension_model_list… ] }   // die freigegebenen Modelle, die zu `needs` passen
+```
+
+Stößt die Freigabe an, ohne einen Auftrag zu starten. Gibt es schon ein freigegebenes Modell mit `needs`, kommt
+die Liste sofort. Sonst gilt dieselbe Vorprüfung wie für einen Schritt (`preflight.rs::ask_for_model`):
+`PermissionPromptRequired` (1004) mit `resourceType: "model"`, nach der Antwort ruft die Erweiterung erneut auf;
+`no_capable_model` (8001), wenn kein Modell des Tresors passt; `consent_denied` (1002) nach einer Ablehnung.
+Eine Einwilligung für ein Ziel (`modelDestination`) fragt diese Methode nie ab, und sie sendet nichts an ein
+Modell.
 
 ## Ereignis `haextension:model-job:completed`
 

@@ -216,7 +216,28 @@ Delivery F, two PRs: F1 local models (T076–T080), F2 subscriptions (T081–T08
 - [ ] T086 [US8] Update `specs/055-extension-model-access/contracts/bridge.md` (subscriptions are candidates, place `cloud`) and `CONTEXT.md` (**Modellfreigabe** covers every model source)
 - [ ] T087 [US8] Run the checks of T073 for the touched parts and quickstart with a connected subscription; record skipped steps in the PR description
 
-**Checkpoint**: US8 works (delivery F). haex-notes can then point its hint at the extension's model settings in holzi instead of the model servers (haextension#132).
+**Checkpoint**: US8 works (delivery F).
+
+---
+
+## Phase 12: User Story 9 - From the extension to the model settings in holzi (Priority: P2)
+
+**Goal**: An extension opens holzi's model page for itself and can ask for a grant before its first job; the choice stays in holzi.
+
+**Independent Test**: A test extension opens the model page and lands on its own; it asks for an image grant, holzi asks with the fitting models, and afterwards the extension gets its granted models; without a fitting model it gets `no_capable_model`.
+
+Delivery G (R17), three PRs in order: holzi (T088–T093), vault-sdk (T094), haex-notes in `haextension` (T095).
+
+- [ ] T088 [US9] Tests first in `src-tauri/src/extensions/bridge/model_access_tests.rs`: `extension_model_access_request` returns the granted fitting models without a prompt; asks with `PermissionPromptRequired` (1004, `resourceType: "model"`, `needs`) when only an ungranted model fits; gives `no_capable_model` when none fits and `consent_denied` after a refusal; never asks for `modelDestination` and starts no adapter
+- [ ] T089 [US9] Implement `extension_model_access_request` over `src-tauri/src/model_jobs/preflight.rs` (the grant part of `choose` without the destination part), register it in `src-tauri/src/extensions/bridge/allowlist.rs` and the dispatch
+- [ ] T090 [US9] Tests first, then `extension_model_settings_open`: the bridge emits an event with the calling extension's id only (never an id from the params); test next to the bridge handler
+- [ ] T091 [US9] Frontend: listen for the event in `src/composables/useExtensionHost.ts` and open or raise the settings at `extensions.detail` of that extension, scrolled to its models (`src/components/settings/extensions/ExtensionDetailView.vue`); the pure part, if any, with a check script
+- [ ] T092 [US9] Extend the test extension `src-tauri/tests/fixtures/extension_e2e/model-jobs/` and `scripts/e2e/scenarios/extension-model-jobs.test.ts`: open the model page (lands on the extension's own), request access before a job
+- [ ] T093 [US9] Update `specs/017-extension-host/contracts/bridge.md` with the two methods; run the checks of T073 for the touched parts
+- [ ] T094 [US9] vault-sdk (own repo, own PR): `models.openSettingsAsync()` and `models.requestAccessAsync({ needs, effort })` with the retry after the user's answer as in `runAsync`; vitest tests against `contracts/bridge.md`; holzi pins the released version in the fixture build
+- [ ] T095 [US9] haex-notes (`haextension`, own PR after the SDK release): a menu entry "Modelle in holzi festlegen" and a button next to `no_capable_model` and `consent_denied` that call `models.openSettingsAsync()`; the hint text of haextension#132 then names the extension's model settings in holzi
+
+**Checkpoint**: US9 works (delivery G).
 
 ---
 
@@ -226,6 +247,7 @@ Delivery F, two PRs: F1 local models (T076–T080), F2 subscriptions (T081–T08
 - US1 (Phase 3) needs Phase 2. US2 needs US1 (a grant is checked in the same preflight). US3 needs US1. US4 needs US1 and US2 (it adds to the prompt and the candidate filter). US5 is independent and can land first. US6 needs US1 (a source for local models) and ideally US5 for the fallback. US7 needs US1–US4; T068 (SDK) can run in parallel once `contracts/bridge.md` is stable.
 - Delivery B + D = Phases 1–6; A = Phase 7; C = Phase 8; E = Phase 9; Phase 10 closes each delivery's PR for its own part.
 - Delivery F = Phase 11 (US8, added 2026-10-23), needs B + D; F1 (T076–T080) and F2 (T081–T087) are independent of each other.
+- Delivery G = Phase 12 (US9, added 2026-10-23), needs B + D only; independent of F. Order inside G: holzi, vault-sdk, haex-notes.
 
 ### Within Each Story
 

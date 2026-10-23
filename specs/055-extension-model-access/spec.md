@@ -27,6 +27,8 @@
 - Q: Welche Modelle aus holzi darf der Nutzer einer Erweiterung freigeben? → A: Jedes Modell, das holzi kennt, unabhängig von seiner Quelle: lokal installierte Modelle, Modelle über Modell-Server oder ein Konto bei einem Cloud-Dienst und verbundene Abos (Claude Code, Codex). Freigabe, Rangfolge und Aufwand gelten für alle gleich (US8).
 - Q: Mit welchem Zugriff läuft ein Abo (Befehlszeilen-Agent) in einem Auftrag? → A: Mit dem vollen Zugriff, den der Agent in holzi hat; holzi schränkt ihn für Aufträge nicht zusätzlich ein. Die Freigabe macht sichtbar, dass die Erweiterung damit einen Agenten mit Datei- und Befehlszugriff anweist (FR-026, FR-032).
 - Q: Was gilt im Autonomie-Modus „Standard“, wenn es im Auftrag keinen Chat zum Bestätigen gibt? → A: Er wirkt wie „Gegated (permissiv)“: alles erlaubt außer dem, was die Verbotsregeln des Nutzers sperren (FR-032).
+- Q: Wählt der Nutzer Modelle und Aufwand in der Erweiterung oder in holzi? → A: In holzi. Die Erweiterung bekommt kein eigenes Auswahlmenü, kann aber holzis Modell-Seite für sich öffnen und die Freigabe vor dem ersten Auftrag anstoßen (US9).
+- Q: Erkennt holzi ein lokales Ollama selbst, samt Bildfähigkeit seiner Modelle? → A: Nicht in dieser Ergänzung; die wenigsten Nutzer haben ein lokales Ollama. Es kann später nachgeliefert werden.
 
 ## User Scenarios & Testing
 
@@ -163,6 +165,24 @@ Der Nutzer kann einer Erweiterung jedes Modell freigeben, das holzi kennt: ein l
 4. **Given** ein freigegebenes Abo, **When** der Nutzer es freigibt, **Then** zeigt holzi, dass die Erweiterung damit einen Agenten mit Datei- und Befehlszugriff anweist, und vor dem ersten Versand fragt holzi um Einwilligung für das Ziel des Abos (US4).
 5. **Given** ein Abo, dessen Verbindung getrennt wurde, **When** ein Auftrag es versucht, **Then** gilt es als nicht verfügbar und holzi versucht das nächste Modell der Rangfolge (FR-027).
 
+---
+
+### User Story 9 - Aus der Erweiterung zur Modellwahl in holzi (Priority: P2)
+
+Modelle und Aufwand wählt der Nutzer immer in holzi, nie in einem Menü der Erweiterung. Die Erweiterung kann ihn aber dorthin bringen: Sie öffnet holzis Modell-Seite für sich selbst, etwa über einen Menüpunkt „Modelle in holzi festlegen“ oder aus einer Fehlermeldung heraus. Und sie kann die Freigabe anstoßen, bevor der erste Auftrag läuft, etwa beim ersten Öffnen; dann zeigt holzi dieselbe Frage wie beim ersten Auftrag.
+
+**Why this priority**: Ein Hinweis wie „Gib in holzi ein Modell frei“ lässt den Nutzer suchen. Ein Weg direkt zur richtigen Seite spart das, ohne dass die Erweiterung die Auswahl bestimmt.
+
+**Independent Test**: Eine Testerweiterung öffnet holzis Modell-Seite und landet bei ihrer eigenen. Sie stößt die Freigabe für einen Bildschritt an: holzi fragt mit den passenden Modellen, nach der Antwort erhält die Erweiterung ihre freigegebenen Modelle; ohne passendes Modell erhält sie `no_capable_model`.
+
+**Acceptance Scenarios**:
+
+1. **Given** eine aktive Erweiterung, **When** sie holzis Modell-Seite öffnet, **Then** zeigt holzi die Modelle genau dieser Erweiterung und nie die einer anderen; ist die Seite schon offen, holt holzi sie nach vorn, statt eine weitere zu öffnen.
+2. **Given** eine Erweiterung ohne passende Freigabe und ein passendes Modell im Tresor, **When** sie die Freigabe für einen Bildschritt anstößt, **Then** fragt holzi wie beim ersten Auftrag (Modell, höchster Aufwand, Sitzung oder dauerhaft), und die Erweiterung erhält danach ihre freigegebenen Modelle.
+3. **Given** eine passende Freigabe besteht schon, **When** die Erweiterung die Freigabe anstößt, **Then** fragt holzi nicht und liefert die freigegebenen Modelle.
+4. **Given** kein Modell im Tresor passt, **When** die Erweiterung die Freigabe anstößt, **Then** erhält sie `no_capable_model` und kann dem Nutzer anbieten, holzis Modell-Seite zu öffnen.
+5. **Given** die Freigabe wird angestoßen, **When** holzi fragt, **Then** wird nichts an ein Modell gesendet und keine Einwilligung für ein Ziel eingeholt; die kommt mit dem ersten Auftrag, der Daten sendet (FR-015).
+
 ### Edge Cases
 
 - Das gewählte Modell ist nicht verfügbar, etwa weil das lokale Modell nicht installiert ist. holzi versucht das nächste Modell der Rangfolge, aber nie ein Ziel ohne erteilte Einwilligung.
@@ -215,6 +235,8 @@ Der Nutzer kann einer Erweiterung jedes Modell freigeben, das holzi kennt: ein l
 - **FR-031**: Der Nutzer MUST einer Erweiterung jedes Modell freigeben können, das holzi kennt: lokal installierte Modelle, Modelle über einen Modell-Server oder ein Konto bei einem Cloud-Dienst und verbundene Abos (Claude Code, Codex). Für alle gelten dieselben Regeln zu Freigabe, Rangfolge, Aufwand, Fähigkeiten, Einwilligung, Prüfung der Ausgabe und Herkunft.
 - **FR-032**: Ein Abo MUST in einem Auftrag mit dem Zugriff laufen, den es in holzi hat; holzi schränkt es für Aufträge nicht zusätzlich ein. Die Freigabe eines Abos MUST sichtbar sagen, dass die Erweiterung damit einen Agenten anweist, der auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann. Ein Abo sendet an den Dienst seines Anbieters und hat damit ein Ziel außerhalb des Geräts (FR-015). Es gilt der Autonomie-Modus aus holzi; „Standard“ wirkt in einem Auftrag wie „Gegated (permissiv)“, weil es keinen Chat gibt, in dem gefragt werden kann: Erlaubt ist alles außer dem, was die Verbotsregeln des Nutzers sperren.
 - **FR-033**: Ein Auftrag auf einem lokal installierten Modell MUST auf dem Gerät bleiben. Ist dafür ein anderes Modell zu laden als das des Chats, MUST der Auftrag warten, bis ein laufender Chat-Zug fertig ist, und darf ihn weder unterbrechen noch verfälschen; der Chat lädt sein Modell beim nächsten Zug wieder. Die Wartezeit zählt zur Höchstdauer des Auftrags (FR-029).
+- **FR-034**: Eine aktive Erweiterung MUST holzis Modell-Seite für sich selbst öffnen können; holzi MUST dabei nur die Modelle der aufrufenden Erweiterung zeigen und eine schon offene Seite nach vorn holen statt eine weitere zu öffnen. Eine Erweiterung MUST NICHT Modelle oder Aufwand für sich festlegen können; das bleibt beim Nutzer in holzi (FR-003).
+- **FR-035**: Eine aktive Erweiterung MUST die Freigabe für das, was sie braucht (Text, Bild, gewünschter Aufwand), vor dem ersten Auftrag anstoßen können. holzi MUST dann wie beim ersten Auftrag fragen (FR-004), ohne etwas an ein Modell zu senden und ohne eine Einwilligung für ein Ziel einzuholen. Die Antwort MUST die freigegebenen Modelle wie FR-030 nennen, oder `no_capable_model` beziehungsweise die Ablehnung.
 
 ### Key Entities
 
@@ -237,6 +259,8 @@ Der Nutzer kann einer Erweiterung jedes Modell freigeben, das holzi kennt: ein l
 - Werkzeuge in Aufträgen (Webabruf, Websuche). Sie kommen mit einer eigenen Spec zusammen mit holzis Websuche (Clarifications 2026-10-20).
 - Persönliche Handschriftprofile und Training mit Schülerdaten.
 - Das Weiterleiten von Aufträgen an ein anderes Gerät desselben Nutzers über den Tresor. Aufträge laufen auf einem eingetragenen Anbieter.
+- Ein Menü in der Erweiterung, in dem Modelle oder Aufwand gewählt werden; die Wahl liegt in holzi (US9).
+- Das selbsttätige Erkennen eines lokalen Ollama samt Bildfähigkeit seiner Modelle und eine zweite lokale Laufzeit für Bildmodelle (etwa llama.cpp); beides kann später kommen (Clarifications 2026-10-23).
 
 ## Success Criteria
 
@@ -256,6 +280,7 @@ Der Nutzer kann einer Erweiterung jedes Modell freigeben, das holzi kennt: ein l
 - **SC-012**: Ein Auftrag über den Obergrenzen für Bild oder Dauer wird in 100 % der Testfälle abgelehnt oder abgebrochen, und das Original der Erweiterung bleibt unverändert.
 - **SC-013**: Jedes Modell, das holzi kennt, erscheint in der Freigabeliste einer Erweiterung; in einem Test mit je einem Modell jeder Quelle liefert ein freigegebener Textauftrag auf jedem ein formatgültiges Ergebnis.
 - **SC-014**: Ein Auftrag auf einem lokal installierten Modell erzeugt in einem überwachten Test keine Netzwerkanfrage nach außen, und ein gleichzeitiger Chat-Zug endet mit derselben Antwort wie ohne Auftrag.
+- **SC-015**: Aus einer Erweiterung erreicht der Nutzer ihre Modell-Seite in holzi mit einem Klick; in 100 % der Testfälle zeigt sie die Modelle der aufrufenden Erweiterung, und ein Anstoßen der Freigabe sendet nichts an ein Modell.
 
 ## Assumptions
 

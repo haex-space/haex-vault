@@ -268,10 +268,12 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
 | D   | Oberfläche: Freigabe- und Einwilligungsdialog, Modelle und Rangfolge in den Einstellungen, Dauer                              | Der Nutzer bestimmt alles selbst                  |
 | E   | vault-sdk und Test-Erweiterung (R13)                                                                                          | Entwickler können es nutzen                       |
 | F   | Jedes Modell aus holzi (US8, R15, R16): lokal installierte Modelle und Abos als Quellen von Aufträgen                         | Kein zweites Einrichten als Modell-Server nötig   |
+| G   | Weg zur Freigabe (US9, R17): Modell-Seite aus der Erweiterung öffnen, Freigabe vor dem ersten Auftrag                         | Kein Suchen nach der richtigen Einstellung        |
 
 B hängt von A nur für die Fernmodelle ab; C ist unabhängig und der größte Unsicherheitsfaktor, daher
 frühzeitig der Versuch. Reihenfolge: A, B (mit D für die Dialoge), C, E. F kam am 2026-10-23 dazu und baut
-auf B und D auf; lokale Modelle (R15) und Abos (R16) sind zwei getrennte PRs.
+auf B und D auf; lokale Modelle (R15) und Abos (R16) sind zwei getrennte PRs. G (R17) kam am selben Tag dazu
+und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
 
 ## R15 — Lokal installierte Modelle als Quelle
 
@@ -306,3 +308,20 @@ auf B und D auf; lokale Modelle (R15) und Abos (R16) sind zwei getrennte PRs.
   (FR-032).
 - **Verworfen**: Abos ohne Werkzeuge (`claude --tools ""`); der Nutzer will ihnen den vollen Zugriff lassen,
   und für Codex gibt es laut `codex exec --help` (0.147.0) keinen Schalter ohne Shell.
+
+## R17 — Weg zur Freigabe aus der Erweiterung
+
+- **Befund**: Eine Erweiterung kann holzis Einstellungen nicht öffnen; das vault-sdk hat dafür nichts, und
+  `DeepLink` (Benachrichtigungen) sowie die Tab-API führen nur innerhalb der eigenen Erweiterung. Die Freigabe
+  entsteht erst in der Vorprüfung des ersten Auftrags (`preflight.rs::ask_for_model`). haex-notes konnte beim
+  Hinweis `no_capable_model` daher nur sagen, wo der Nutzer suchen soll (haextension#132).
+- **Entscheidung**: Zwei Methoden (`contracts/bridge.md`). `extension_model_settings_open` meldet per Ereignis
+  an das Frontend, das die Einstellungen bei `extensions.detail` der aufrufenden Erweiterung öffnet oder nach
+  vorn holt, wie `answerAgentFrameAsync` in `useExtensionHost.ts` einen Tab öffnet.
+  `extension_model_access_request` nutzt die Vorprüfung eines Schritts ohne Auftrag: dieselbe Frage, dieselben
+  Codes, keine Einwilligung für ein Ziel, nichts gesendet. Im vault-sdk werden daraus
+  `models.openSettingsAsync()` und `models.requestAccessAsync({ needs, effort })`; das SDK wiederholt den Aufruf
+  nach der Antwort des Nutzers wie bei `runAsync`.
+- **Verworfen**: Ein Auswahlmenü in jeder Erweiterung, das holzi nur bestätigt. Die Erweiterung würde bestimmen,
+  was der Nutzer sieht und was vorausgewählt ist, und bräuchte die Liste aller Modelle des Tresors; heute kennt
+  sie nur ihre eigenen Freigaben (FR-030).
