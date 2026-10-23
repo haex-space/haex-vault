@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use iroh::endpoint::{Connection, RecvStream, SendStream};
 use serde_json::{json, Value};
+use tokio::io::AsyncWrite;
 use tokio_util::task::TaskTracker;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -267,6 +268,22 @@ pub(super) struct Joining<'a> {
     pub recv: RecvStream,
 }
 
+/// Writes the answer without letting a peer that stopped reading hold an admission slot forever.
+async fn write_reply<W: AsyncWrite + Unpin>(send: &mut W, reply: &Message) -> bool {
+    write_reply_with_limit(send, reply, REPLY_GRACE).await
+}
+
+async fn write_reply_with_limit<W: AsyncWrite + Unpin>(
+    send: &mut W,
+    reply: &Message,
+    limit: Duration,
+) -> bool {
+    matches!(
+        tokio::time::timeout(limit, wire::write(send, reply, ADMISSION_FRAME_LIMIT)).await,
+        Ok(Ok(()))
+    )
+}
+
 /// Answers a `Join` and, when it is admitted, makes the connection a channel and tells the host's
 /// extension (FR-026). A refused device that is not verified, while no public lobby is open,
 /// gets no answer at all (FR-031); every other refusal is answered and the connection closed.
@@ -314,10 +331,7 @@ pub(super) async fn admit_join(joining: Joining<'_>, join: JoinRequest) {
         }
     };
     let reply = Message::JoinReply { v: VERSION, status };
-    if wire::write(&mut send, &reply, ADMISSION_FRAME_LIMIT)
-        .await
-        .is_err()
-    {
+    if !write_reply(&mut send, &reply).await {
         return refuse(&connection);
     }
     let (Some((key, lobby_id, extension_id)), Some(payload)) = (admitted, payload) else {
@@ -373,3 +387,26 @@ mod tests;
 #[cfg(test)]
 #[path = "lobby_uniform_tests.rs"]
 mod uniform_tests;
+
+#[cfg(test)]
+mod reply_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_peer_that_stops_reading_cannot_hold_the_reply_write_forever() {
+        let (mut send, _recv) = tokio::io::duplex(1);
+        let reply = Message::JoinReply {
+            v: VERSION,
+            status: JoinStatus::Closed,
+        };
+        let started = Instant::now();
+
+        assert!(!tokio::time::timeout(
+            Duration::from_secs(1),
+            super::write_reply_with_limit(&mut send, &reply, Duration::from_millis(10)),
+        )
+        .await
+        .expect("the bounded write returns"));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+}
