@@ -30,6 +30,8 @@ pub struct SyncRuntime {
     pub wake: Arc<dyn Fn() + Send + Sync>,
     /// Catching up after the app comes back or the network changes (spec 043).
     pub wakeups: crate::sync::resume::Wakeups,
+    /// This session's links to other devices for their files (spec 056), when it serves files.
+    pub files: Option<Arc<crate::files::peer::connect::Connections>>,
 }
 
 /// The slot the service publishes its runtime in.

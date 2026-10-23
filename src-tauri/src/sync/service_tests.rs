@@ -27,6 +27,7 @@ fn deps(member: &Member) -> SyncDeps<tauri::test::MockRuntime> {
         bind_addr: Some((Ipv4Addr::LOCALHOST, 0).into()),
         app: mock_app(),
         peers: None,
+        files: None,
     }
 }
 

@@ -23,6 +23,8 @@ pub enum Domain {
     ContactCard,
     /// A device of another vault proving itself on `haex-vault-ext-peer/1` (spec 057 research R4).
     ExtPeerAuth,
+    /// A device proving itself on `haex-vault-files/1` (spec 056 research R4).
+    FilesAuth,
 }
 
 impl Domain {
@@ -37,6 +39,7 @@ impl Domain {
             Domain::LinkResume => b"holzi-link-resume/v1",
             Domain::ContactCard => b"holzi-contact-card/v1",
             Domain::ExtPeerAuth => b"haex-vault-ext-peer-auth/v1",
+            Domain::FilesAuth => b"haex-vault-files-auth/v1",
         }
     }
 }

@@ -15,6 +15,7 @@ use crate::sync::endpoint::NodeConfig;
 use crate::sync::test_support::Member;
 
 const ECHO_ALPN: &[u8] = b"haex-vault-test-echo/1";
+const OTHER_ALPN: &[u8] = b"haex-vault-test-other/1";
 const LIMIT: Duration = Duration::from_secs(20);
 
 /// Answers every bi-stream with what it read, on the node's tracker.
@@ -38,6 +39,10 @@ impl ProtocolHandler for Echo {
 }
 
 async fn start(member: &Member, applied: Arc<Notify>) -> SyncNode {
+    start_with(member, applied, Protocols::default().with(ECHO_ALPN, Echo)).await
+}
+
+async fn start_with(member: &Member, applied: Arc<Notify>, protocols: Protocols) -> SyncNode {
     SyncNode::bind_with(
         Arc::clone(&member.device.replica),
         member.keys.clone(),
@@ -48,15 +53,19 @@ async fn start(member: &Member, applied: Arc<Notify>) -> SyncNode {
             session: None,
         },
         Arc::new(move |_tables| applied.notify_one()),
-        Protocols::default().with(ECHO_ALPN, Echo),
+        protocols,
     )
     .await
     .expect("bind")
 }
 
 async fn echo(node: &SyncNode, to: &SyncNode, message: &[u8]) -> Vec<u8> {
+    echo_on(node, to, ECHO_ALPN, message).await
+}
+
+async fn echo_on(node: &SyncNode, to: &SyncNode, alpn: &[u8], message: &[u8]) -> Vec<u8> {
     let connection = node
-        .dial_alpn(to.addr(), ECHO_ALPN)
+        .dial_alpn(to.addr(), alpn)
         .await
         .expect("the echo protocol accepts");
     let (mut send, mut recv) = connection.open_bi().await.expect("stream");
@@ -129,6 +138,26 @@ async fn an_alpn_nobody_registered_is_refused() {
         .await
         .expect("an answer in time");
     assert!(matches!(refused, Err(NodeError::Connect(_))), "{refused:?}");
+
+    a.shutdown().await;
+    b.shutdown().await;
+}
+
+/// Two protocols beside sync on one endpoint, as the extension peers and `haex-vault-files/1` are
+/// (spec 056 T023).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn two_further_protocols_answer_on_one_endpoint() {
+    let (one, two) = (Member::genesis(), Member::genesis());
+    let both = || {
+        Protocols::default()
+            .with(ECHO_ALPN, Echo)
+            .with(OTHER_ALPN, Echo)
+    };
+    let a = start_with(&one, Arc::new(Notify::new()), both()).await;
+    let b = start_with(&two, Arc::new(Notify::new()), both()).await;
+
+    assert_eq!(echo_on(&b, &a, ECHO_ALPN, b"one").await, b"one");
+    assert_eq!(echo_on(&b, &a, OTHER_ALPN, b"two").await, b"two");
 
     a.shutdown().await;
     b.shutdown().await;

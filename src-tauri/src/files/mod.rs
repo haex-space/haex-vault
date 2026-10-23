@@ -13,6 +13,7 @@ pub mod icons;
 pub mod kind;
 pub mod local;
 pub mod media;
+pub mod peer;
 pub mod permissions;
 pub mod picked;
 pub mod search;

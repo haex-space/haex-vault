@@ -27,6 +27,18 @@ fn a_device_auth_signature_does_not_verify_as_ext_peer_auth() {
     ));
 }
 
+/// Spec 056 research R4: a proof for extension channels never opens the files of a device.
+#[test]
+fn an_ext_peer_signature_does_not_verify_as_files_auth() {
+    let pubkey = xonly_public_key(&SECRET).expect("public key");
+    let signature = sign(Domain::ExtPeerAuth, b"transcript", &SECRET).expect("sign");
+
+    assert!(matches!(
+        verify(Domain::FilesAuth, b"transcript", &signature, &pubkey),
+        Err(SigningError::BadSignature)
+    ));
+}
+
 #[test]
 fn a_changed_payload_or_key_fails() {
     let pubkey = xonly_public_key(&SECRET).expect("public key");
@@ -57,6 +69,7 @@ fn every_domain_has_a_distinct_versioned_tag() {
         Domain::LinkResume,
         Domain::ContactCard,
         Domain::ExtPeerAuth,
+        Domain::FilesAuth,
     ];
     let tags: std::collections::HashSet<_> = domains.iter().map(|d| d.tag()).collect();
     assert_eq!(tags.len(), domains.len());
