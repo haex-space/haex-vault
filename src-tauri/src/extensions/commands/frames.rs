@@ -106,6 +106,7 @@ pub async fn extension_frame_close(
 ) -> Result<()> {
     let host = state.extensions();
     if let Some(closed) = host.frames.close(&frame) {
+        host.peers.frame_closed(closed.extension_id, &closed.frame);
         host.permissions.frame_ended(closed.extension_id);
         host.model_jobs()
             .cancel_owned_by(&crate::model_jobs::JobOwner {
@@ -151,7 +152,8 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
         // This frame's window now knows it and keeps events for it: what an accepted invitation
         // held for a frame of its extension goes out (spec 057 T041). Not at `extension_frame_open`,
         // whose events reach the window before it learns the frame's id and are dropped there.
-        host.peers.frame_opened(session.extension_id);
+        host.peers
+            .frame_opened(session.extension_id, &session.frame);
     }
     Ok(())
 }
