@@ -1,6 +1,6 @@
-# Vertrag: iroh-Protokoll `holzi-files/1`
+# Vertrag: iroh-Protokoll `haex-vault-files/1`
 
-ALPN `holzi-files/1` am Endpoint der Vault-Sitzung (research R5). Eine Verbindung je Gegenstelle;
+ALPN `haex-vault-files/1` am Endpoint der Vault-Sitzung (research R5). Eine Verbindung je Gegenstelle;
 der erste Bi-Stream ist der Handshake, jede weitere Anfrage ein eigener Bi-Stream (research R6).
 
 ## Rahmen
@@ -12,26 +12,21 @@ der erste Bi-Stream ist der Handshake, jede weitere Anfrage ein eigener Bi-Strea
 
 ## Handshake (erster Stream)
 
+`sync::foreign_auth` (Spec 057) mit `Purpose { alpn: b"haex-vault-files/1", domain: Domain::FilesAuth }`
+(Domäne `haex-vault-files-auth/v1`): `Hello` und `Proof` in beide Richtungen, Prüfung der Geräteliste
+und des Endpoints auf beiden Seiten, höchstens 5 s (research R4). Danach auf demselben Stream:
+
 ```text
-Anfragender  → Hello     { v, vault: [u8;32], device_pubkey: [u8;32],
-                           list_payload: Vec<u8>, list_sig: [u8;64], nonce_r: [u8;32] }
-Bedienender  → Challenge { v, nonce_s: [u8;32], trash: bool }
-Anfragender  → Proof     { v, sig: [u8;64] }   // Domain::FilesAuth über
-                                               // lp(nonce_r)‖lp(nonce_s)‖lp(own endpoint)‖lp(other endpoint)‖lp(vault)
-Bedienender  → Accept    { v, mode: OwnDevice | Contact } | AccessOff { v } | Reject { v }
+Bedienender  → Welcome { v, mode: OwnDevice | AccessOff | Contact, trash: bool }
 ```
 
-Prüfung beim bedienenden Gerät (research R4), jede Abweichung → `Reject` ohne Grund:
+Einordnung beim bedienenden Gerät; jede andere → Verbindung schließen ohne Grund:
 
-1. `check_pushed(list_payload, list_sig, vault)` gelingt; Liste nennt `vault`.
-2. Fremde Vault: `generation ≥` Eintrag in `haex_file_peer_lists_no_sync`; höhere wird gespeichert.
-   Eigene Vault: statt der vorgelegten gilt die eigene gültige Liste.
-3. `device_pubkey` steht auf der Liste, ist nicht entfernt, `endpoint_id == connection.remote_id()`.
-4. `sig` gilt für `device_pubkey`.
-5. Einordnung: eigene Vault und Schalter an → `OwnDevice`; eigene Vault und Schalter aus →
-   `AccessOff` (erst nach erfolgreicher Identitätsprüfung); Karte zur Vault gespeichert, nicht
-   blockiert, mindestens ein Zugriffsrecht auf eine Freigabe dieses Geräts → `Contact`; sonst
-   ablehnen.
+1. `Trust::OwnVault` und Schalter an → `OwnDevice`; Schalter aus → `AccessOff` (der Anfragende zeigt
+   „Dateizugriff auf diesem Gerät ausgeschaltet“; keine Anfrage wird beantwortet).
+2. `Trust::Contact` und mindestens ein Zugriffsrecht auf eine Freigabe, die dieses Gerät bedient →
+   `Contact`.
+3. `Trust::Unverified`, `Contact` ohne Zugriffsrecht → schließen.
 
 ## Anfragen
 

@@ -24,7 +24,7 @@ stored only on that device (`haex_file_device_access_no_sync`), so no other devi
 on. A remote own device sees exactly what the serving device's file browser shows, holzi's own data
 included and with the same rules: read-only for the user, blocked for agents.
 
-**Devices of other vaults connect over a separate ALPN, `holzi-files/1`, never over
+**Devices of other vaults connect over a separate ALPN, `haex-vault-files/1`, never over
 `holzi-sync/1`.** They prove a device key on a device list signed by their vault identity, the vault
 identity must belong to a contact with a verified business card, and they reach only the roots shared
 with that identity, checked on every request; holzi's own data stays blocked for them. A serving device answers a Nostr knock only for an
@@ -36,7 +36,7 @@ off.
 - A lost or compromised own device reaches the file system of every other own device that runs with
   the vault open and the switch on. Removing it from the device list (spec 024) ends that; the switch
   limits it in advance.
-- `holzi-sync/1` keeps its guarantee that only own devices exchange vault data. `holzi-files/1` has
+- `holzi-sync/1` keeps its guarantee that only own devices exchange vault data. `haex-vault-files/1` has
   separate modes: an own-vault device can access the whole file system, including holzi's own data
   under the read-only-for-users and blocked-for-agents rules; a contact device can access only its
   shared roots, and holzi's own data stays blocked.
