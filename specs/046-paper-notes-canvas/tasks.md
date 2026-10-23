@@ -80,12 +80,12 @@ code it creates the page with the original and the contract's hint.
 - [x] T020 [US1] Build the job from contracts/page-job.md in `apps/haex-notes/app/lib/paperNotes/pageJob.ts`
 - [x] T021 [US1] Map boxes to the page and tidy edges and overlaps in `apps/haex-notes/app/lib/paperNotes/layout.ts` (research R11)
 - [x] T022 [US1] Map the result to elements, provenance and hints in `apps/haex-notes/app/lib/paperNotes/mapResult.ts` (research R9, R12)
-- [ ] T023 [US1] Make the working copy (crop, perspective, turn, JPEG, quality hint) in `apps/haex-notes/app/lib/paperNotes/workingCopy.ts` — turn, size, JPEG and quality hint done; crop and perspective open (need corner detection)
+- [ ] T023 [US1] Make the working copy (crop, perspective, turn, JPEG, quality hint) in `apps/haex-notes/app/lib/paperNotes/workingCopy.ts` — turn, size, JPEG and quality hint done; crop and perspective open. Needs a decision first: a cropped or warped working copy no longer lies under the original of the compare view (a perspective warp cannot be undone on the original), and the run of 2026-10-23 read photos with a moderate skew well without it (research R10, R12)
 - [x] T024 [US1] Create the page from original, working copy and result, with the one re-read after a rotation hint, in `apps/haex-notes/app/lib/paperNotes/importPage.ts` (research R10)
 - [x] T025 [US1] `runPageJob(job)` over `sdk.models.runAsync`, the state while reading and the cancel over `cancelAsync` in `apps/haex-notes/app/composables/usePaperNoteRecognition.ts` (cancelled with `runAsync(job, { signal })` from vault-sdk 4.8.0, which calls `cancelAsync`)
 - [x] T026 [US1] `apps/haex-notes/app/components/notes/PaperNoteImportDialog.vue`: camera or file, turn by 90°, quality hint with "take again" and "read anyway", reading with cancel, the hint of each error, the provenance (model and place) after reading; open it from the notebook page
 - [x] T027 [P] [US1] Texts of the dialog and the hints in German and English in the locale files of haex-notes (in the `<i18n>` blocks of the components, as elsewhere in haex-notes)
-- [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest — open: no de-identified photos yet
+- [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest — two invented pages (upright, turned a quarter) rendered from the OFL fonts, with the recorded answers of both steps from `qwen3-vl:4b-instruct` (2026-10-23), in haex-space/haextension#130. They check the contract and the canvas, not the quality of a model, and they are not real handwriting; real photos stay out of the repository
 
 **Checkpoint**: US1 works against the fake; quickstart steps 1–4, 9 and 10 against holzi.
 
