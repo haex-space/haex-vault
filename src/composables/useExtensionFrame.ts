@@ -300,8 +300,15 @@ export function useExtensionFrame(
       }
       frame = opened.frame
       dev.value = opened.dev
-      events = new FrameEventQueue(opened.frame, (event: FrameEvent) =>
-        sdkPort?.postMessage(eventMessage(event)),
+      events = new FrameEventQueue(
+        opened.frame,
+        (event: FrameEvent) => sdkPort?.postMessage(eventMessage(event)),
+        // A reliable message of a channel was dropped: holzi ends that channel as lost.
+        (channelId) =>
+          void invoke('extension_peers_frame_overflow', {
+            frame: opened.frame,
+            channelId,
+          }).catch(() => {}),
       )
       src.value = opened.url + currentHash()
       // A WebKitGTK load event can be lost while the development page is already rendered. Run
