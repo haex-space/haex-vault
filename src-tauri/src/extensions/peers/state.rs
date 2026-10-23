@@ -227,9 +227,9 @@ impl PeerState {
         event: Value,
         tracker: &TaskTracker,
     ) {
-        let Some(host) = frames.host() else {
+        if frames.host().is_none() {
             return;
-        };
+        }
         let extension_id = channel.extension_id;
         let mut pending = self.pending();
         if self
