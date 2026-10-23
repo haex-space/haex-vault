@@ -16,7 +16,7 @@ export function enqueue(
     : [...queue, invitation]
 }
 
-/** Takes an invitation out: answered, dismissed, or gone (withdrawn, expired). */
+/** Takes an invitation out: answered (closing the prompt declines) or gone (withdrawn, expired). */
 export function remove(
   queue: readonly ExtensionPeerInvitation[],
   inviteId: string,

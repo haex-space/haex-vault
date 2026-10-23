@@ -4,8 +4,9 @@
  * [Erweiterung] ein" with "Annehmen" and "Ablehnen". It is the only place an invitation is
  * accepted; the extension has no way to answer for the user. Several open prompts queue and
  * are asked one at a time. An answer that finds the invitation gone (withdrawn, expired, or taken
- * by another device) says so. Closing the dialog decides nothing. Mounted once in the desktop next
- * to `PermissionRequestDialog.vue`.
+ * by another device) says so. Closing the dialog (X or Escape) declines, like the "Ablehnen"
+ * button, so the inviter hears "declined" and does not wait for the invitation to expire. Mounted
+ * once in the desktop next to `PermissionRequestDialog.vue`.
  */
 import { toast } from 'vue-sonner'
 import { useExtensionPeerInvitationsStore } from '~/stores/extensionPeerInvitations'
@@ -35,12 +36,15 @@ async function answerAsync(accept: boolean) {
   } catch (error) {
     failure.value = errString(error)
   } finally {
+    // Stays set until the dialog of the next invitation is drawn, so a close the dialog reports
+    // while the answered one leaves cannot decline the next.
+    await nextTick()
     busy.value = false
   }
 }
 
 function onUpdateOpen(open: boolean) {
-  if (!open && store.shown) store.dismiss(store.shown.inviteId)
+  if (!open) void answerAsync(false)
 }
 </script>
 
