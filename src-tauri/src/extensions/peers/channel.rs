@@ -277,15 +277,19 @@ impl Channel {
     /// ponytail: one event per message, fast ones included (research R8). Upgrade: bundle the
     /// datagrams of 5 ms into one event if the added delay misses SC-004.
     fn deliver(&self, data: &[u8], reliable: bool) {
-        self.frames.emit(
-            self.extension_id,
-            MESSAGE,
-            &json!({
-                "channelId": self.id.to_string(),
-                "data": STANDARD.encode(data),
-                "reliable": reliable,
-            }),
-        );
+        let message = json!({
+            "channelId": self.id.to_string(),
+            "data": STANDARD.encode(data),
+            "reliable": reliable,
+        });
+        // A channel whose extension has no frame yet keeps its messages until there is one.
+        let message = match self.frames.host() {
+            Some(host) => host.peers.hold(self.id, MESSAGE, message, reliable),
+            None => Some(message),
+        };
+        if let Some(message) = message {
+            self.frames.emit(self.extension_id, MESSAGE, &message);
+        }
     }
 }
 

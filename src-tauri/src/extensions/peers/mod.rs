@@ -13,6 +13,7 @@ mod invite_run;
 pub mod invited;
 pub mod join;
 pub mod lobby;
+mod pending;
 pub mod prompt;
 pub mod state;
 pub mod throttle;
