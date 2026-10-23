@@ -18,6 +18,7 @@ pub mod picked;
 pub mod search;
 pub mod search_device;
 pub mod search_manager;
+pub mod share;
 pub mod state;
 pub mod storage_source;
 pub mod storage_time;

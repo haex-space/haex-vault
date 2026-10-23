@@ -26,6 +26,9 @@ mod migrations_encrypted_folders_tests;
 pub mod migrations_extensions;
 #[cfg(test)]
 mod migrations_extensions_tests;
+mod migrations_file_shares;
+#[cfg(test)]
+mod migrations_file_shares_tests;
 mod migrations_icon_sets;
 #[cfg(test)]
 mod migrations_icon_sets_tests;

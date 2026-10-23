@@ -43,6 +43,7 @@ use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
+use super::migrations_file_shares::FILE_SHARES_0039;
 use super::migrations_icon_sets::FILE_ICON_SETS_0036;
 use super::migrations_model_access::MODEL_ACCESS_0037;
 use super::migrations_passwords::PASSWORDS_0022;
@@ -102,7 +103,9 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 /// - 25: `0037_extension_model_access` (spec 055) added the CRDT-tracked `extension_model_order`
 ///   and `model_job_timeout_ms` to `extension_limits`.
 /// - 26: `0038_browser_clients` (spec 049) added the CRDT-tracked `haex_browser_clients`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 26;
+/// - 27: `0039_file_shares` (spec 056) added the CRDT-tracked `haex_file_shares`,
+///   `haex_file_share_grants` and `haex_file_shares_received`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 27;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -673,6 +676,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0038_browser_clients"),
         BROWSER_CLIENTS_0038.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0039_file_shares"),
+        FILE_SHARES_0039.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
