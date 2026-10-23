@@ -262,8 +262,10 @@ accept }`. Der Name des Kontakts kommt aus holzis Adressbuch (`ContactsService` 
 - **Nach der Annahme**: Ist kein Rahmen offen, sendet Rust `extension-notification-click
 { extensionId }`; holzis Fenster öffnet die Erweiterung über `windowManager.showExtension`
   (`src/stores/windowManager.ts:321`). Die Meldung `peers:channel-opened` wartet in
-  `PeerState.pending_open` und geht hinaus, sobald `extension_frame_open`
-  (`extensions/commands/frames.rs:38`) einen Rahmen dieser Erweiterung registriert; die
+  `PeerState.pending_open` (mit den Nachrichten, die inzwischen eintreffen) und geht hinaus, sobald ein
+  Rahmen dieser Erweiterung seine erste Anmeldung meldet (`extension_frame_reloaded`,
+  `extensions/commands/frames.rs`): `extension_frame_open` ist zu früh, denn holzis Fenster kennt die
+  Kennung des Rahmens erst mit dem Ergebnis des Aufrufs und verwirft Meldungen dafür. Die
   `FrameEventQueue` hält sie bis zur Bereitschaft des Ports. Wartet sie 60 s ohne Rahmen, schließt
   holzi den Kanal mit `closed`.
 

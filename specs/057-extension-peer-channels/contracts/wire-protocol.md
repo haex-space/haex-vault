@@ -60,7 +60,11 @@ Einladend  → Withdraw { v, invite }             // an alle anderen, bei Rückz
 
 - `Invite` nur von `Contact`; sonst schließen ohne Antwort.
 - Erweiterung fehlt, deaktiviert oder `peers` verweigert → `NotInstalled`, schließen.
-- Die Verbindung bleibt offen, solange die Einladungsabfrage steht (bis `expires_at`).
+- Die Verbindung bleibt offen, solange die Einladungsabfrage steht, höchstens 5 min ab Eingang: Die
+  eingeladene Seite verlässt sich nicht auf `expires_at` (Uhren gehen verschieden), sondern auf ihre eigene
+  Frist und auf das `Withdraw` der einladenden Seite, die zum Ablauf alle Geräte zurückzieht.
+- Höchstens 4 offene Einladungen je fremder Vault und 16 insgesamt; eine weitere, und eine mit einer
+  `invite`-Kennung, die schon wartet, wird ohne Abfrage und ohne Antwort getrennt.
 - Nach `InviteConfirm` ist die Verbindung der Kanal.
 
 ### Beitritt
