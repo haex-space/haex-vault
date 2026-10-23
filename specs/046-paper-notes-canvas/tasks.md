@@ -120,9 +120,9 @@ reopened, and every change and the unchanged original are there.
 **Independent Test**: A fixture page exports to a PDF that opens and shows the visible layers; with the original
 layer hidden, the original is not in it.
 
-- [ ] T035 [P] [US4] Tests in `apps/haex-notes/app/lib/paperNotes/exportPdf.test.ts`: defaults of plan.md, each setting changes the output, a hidden original layer is left out, one page per PDF page
-- [ ] T036 [US4] Raster the visible page and embed it with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`
-- [ ] T037 [US4] Export dialog with paper size, orientation, margins, quality and original visibility, opened from the notebook page
+- [x] T035 [P] [US4] Tests in `apps/haex-notes/app/lib/paperNotes/exportPdf.test.ts`: defaults of plan.md, each setting changes the output, a hidden original layer is left out, one page per PDF page
+- [x] T036 [US4] Raster the visible page and embed it with `pdf-lib` in `apps/haex-notes/app/lib/paperNotes/exportPdf.ts`
+- [x] T037 [US4] Export dialog with paper size, orientation, margins, quality and original visibility, opened from the notebook page
 
 **Checkpoint**: Quickstart step 8.
 
