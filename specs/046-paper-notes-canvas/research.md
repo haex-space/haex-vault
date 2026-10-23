@@ -122,6 +122,11 @@
   (`ImageElement.rotation`).
 - **Rationale**: Messenger entfernen die EXIF-Drehung. holzi dreht nichts (Spec 055 T066), also muss die
   Erweiterung es tun. Nur einmal nachzulesen verhindert eine Schleife.
+- **Befund 2026-10-23**: `qwen3-vl:4b-instruct` ist als Quelle des Hinweises unbrauchbar. Allein danach gefragt,
+  antwortet es auf jedes Foto fast immer „90“ und nennt jede Seite „horizontal“. Im ganzen Auftrag meldete es für die
+  aufrechte und für die um 90° gedrehte Seite 0. Den gedrehten Text liest es trotzdem richtig; seine Boxen folgen dem
+  gedrehten Foto, der Entwurf steht dann seitlich. Das Drehen im Dialog (mit Vorschau) ist deshalb der verlässliche
+  Weg; der Hinweis des Modells ist ein Zusatz für größere Modelle.
 - **Alternatives considered**: EXIF auswerten (verworfen: meist entfernt); jede Seite viermal lesen (verworfen:
   Dauer).
 
@@ -141,10 +146,19 @@
 
 ## R12 — Korrektur ohne Zurücksetzen
 
-- **Decision**: Die Texte des Schritts `fix` ersetzen der Reihe nach die Texte der Regionen mit `text`. Stimmt die
-  Anzahl nicht, übernimmt haex-notes die gelesenen Texte unkorrigiert und zeigt keinen Fehler.
-- **Rationale**: Die Korrektur ist eine Verbesserung, kein Pflichtteil. holzi prüft das Format, nicht die Anzahl.
-- **Alternatives considered**: die Seite verwerfen (verworfen: der gelesene Text ist schon brauchbar).
+- **Decision**: haex-notes ordnet jeden Text des Schritts `fix` dem ähnlichsten gelesenen Text einer Region mit `text`
+  zu (Dice-Ähnlichkeit über Zeichenpaare, mindestens 0,5, das ähnlichste Paar zuerst). Überzählige Texte, etwa
+  Tabellenzellen, bleiben unbeachtet; ein gelesener Text ohne Zuordnung bleibt, wie er gelesen wurde; ein
+  umgeschriebener Text (Ähnlichkeit unter 0,5) wird nicht übernommen. Antwortet der Schritt nicht im Format
+  `text-fix`, bleiben alle gelesenen Texte. Es gibt keinen Fehler.
+- **Rationale**: Die Korrektur ist eine Verbesserung, kein Pflichtteil, und sie darf nur Rechtschreibung und
+  eindeutige Lesefehler ändern (SC-005). Ein Lauf mit `qwen3-vl:4b-instruct` am 2026-10-23 zeigte, dass ein kleines
+  Modell nie genau einen Text je Region liefert: Es schrieb jede Tabellenzelle als eigenen Text mit (3 Texte für 2
+  Regionen, 13 für 4), in 12 von 12 Läufen, auch mit einer ausdrücklicheren Anweisung. Eine Zuordnung nach der Reihe
+  oder nach der Anzahl hätte nie eine Korrektur übernommen.
+- **Alternatives considered**: nach der Reihe, nur bei gleicher Anzahl (verworfen: im Lauf nie erfüllt); die
+  Seite verwerfen (verworfen: der gelesene Text ist schon brauchbar); den Auftrag auf getrennte Listen je Art
+  umstellen (verworfen: ändert das Format, die Zuordnung genügt).
 
 ## R13 — Eine Stelle über ein Nahfoto neu lesen
 
