@@ -10,6 +10,7 @@ pub mod admission;
 pub mod channel;
 pub mod join;
 pub mod lobby;
+pub mod prompt;
 pub mod state;
 pub mod throttle;
 pub mod watch;

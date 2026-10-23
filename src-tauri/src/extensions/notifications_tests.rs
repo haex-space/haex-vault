@@ -4,6 +4,7 @@ use super::*;
 use crate::extensions::bridge::dispatch::call;
 use crate::extensions::bridge::events::FRAME_EVENT;
 use crate::extensions::commands::permissions::{set, PermissionSetArgs};
+use crate::extensions::fake_desktop::FakeDesktop;
 use crate::extensions::host::Desktop;
 use crate::extensions::registry::effective::effective_bundle;
 use crate::extensions::registry::install::install;
@@ -29,64 +30,6 @@ impl Recorded {
             .filter(|(e, _)| e == name)
             .map(|(_, p)| p.clone())
             .collect()
-    }
-}
-
-/// Shows nothing; keeps what was asked and lets the test answer as the system would.
-#[derive(Default)]
-struct FakeDesktop {
-    shown: Mutex<Vec<(NotificationSpec, Option<Respond>)>>,
-    closed: Arc<Mutex<Vec<usize>>>,
-    /// The person refused the system's notification permission.
-    refused: std::sync::atomic::AtomicBool,
-}
-
-struct FakeShown {
-    index: usize,
-    closed: Arc<Mutex<Vec<usize>>>,
-}
-
-impl ShownNotification for FakeShown {
-    fn close(self: Box<Self>) {
-        self.closed.lock().unwrap().push(self.index);
-    }
-}
-
-impl Desktop for FakeDesktop {
-    fn open_url(&self, _url: &str) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn notifications_allowed(&self) -> bool {
-        !self.refused.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    fn show_notification(
-        &self,
-        notification: &NotificationSpec,
-        respond: Respond,
-    ) -> Result<Box<dyn ShownNotification>, String> {
-        let mut shown = self.shown.lock().unwrap();
-        shown.push((notification.clone(), Some(respond)));
-        Ok(Box::new(FakeShown {
-            index: shown.len() - 1,
-            closed: Arc::clone(&self.closed),
-        }))
-    }
-}
-
-impl FakeDesktop {
-    fn answer(&self, index: usize, response: NotificationResponse) {
-        let respond = self.shown.lock().unwrap()[index].1.take().unwrap();
-        respond(response);
-    }
-
-    fn count(&self) -> usize {
-        self.shown.lock().unwrap().len()
-    }
-
-    fn closed(&self) -> Vec<usize> {
-        self.closed.lock().unwrap().clone()
     }
 }
 
