@@ -2434,6 +2434,14 @@
         "network": "Own network",
         "cloud": "Cloud"
       }
+    },
+    "peers": {
+      "invitation": {
+        "title": "{contact} invites you to “{extension}”",
+        "accept": "Accept",
+        "decline": "Decline",
+        "gone": "This invitation is no longer open."
+      }
     }
   },
   "files": {

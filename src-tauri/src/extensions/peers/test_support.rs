@@ -26,6 +26,7 @@ use crate::contacts::card::own_card;
 use crate::contacts::service::{Caller, CardInto, ContactsService};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::events::FRAME_EVENT;
+use crate::extensions::fake_desktop::FakeDesktop;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::ids::{extension_id, ExtensionName, PublicKey};
 use crate::extensions::permissions::store::{put, NewPermission};
@@ -85,6 +86,17 @@ impl Window {
             .collect()
     }
 
+    /// The events holzi's own window got under `event`, in order.
+    pub(crate) fn window_events(&self, event: &str) -> Vec<Value> {
+        self.events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|(_, name, _)| name == event)
+            .map(|(_, _, payload)| payload.clone())
+            .collect()
+    }
+
     /// Every frame event, of any type.
     pub(crate) fn all_frame_events(&self) -> usize {
         self.events
@@ -124,6 +136,8 @@ pub(crate) struct Vault {
     pub db: VaultDb,
     pub host: Arc<ExtensionHost>,
     pub window: Arc<Window>,
+    /// The notifications this vault's system was asked to show.
+    pub desktop: Arc<FakeDesktop>,
     pub node: Arc<SyncNode>,
     pub ctx: Arc<PeerContext>,
     /// The test extension, installed here.
@@ -143,6 +157,8 @@ impl Vault {
         let db = member.device.vault_db();
         let host = Arc::new(ExtensionHost::default());
         let window = Window::new();
+        let desktop = Arc::new(FakeDesktop::default());
+        host.set_desktop(desktop.clone());
         let ctx = Arc::new(PeerContext {
             keys: member.keys.clone(),
             vault: member.vault,
@@ -184,6 +200,7 @@ impl Vault {
             db,
             host,
             window,
+            desktop,
             node,
             ctx,
             extension_id,
@@ -191,6 +208,13 @@ impl Vault {
         };
         vault.open_frame(extension_id);
         vault
+    }
+
+    /// Closes every open frame of the test extension, as when its tab was closed.
+    pub(crate) fn close_frames(&self) {
+        for session in self.host.frames.of_extension(self.extension_id) {
+            self.host.frames.close(&session.frame);
+        }
     }
 
     /// Opens a frame of `extension_id`; returns its id.

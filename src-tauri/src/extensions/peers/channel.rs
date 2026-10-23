@@ -107,6 +107,12 @@ impl Frames {
         self.host.upgrade()
     }
 
+    /// Sends `event` to holzi's own window, where the invitation prompt lives. Never carries a
+    /// `peers:*` message, which belongs to the frames of one extension only (FR-005).
+    pub(super) fn emit_window(&self, event: &str, payload: Value) {
+        self.emitter.emit(event, payload);
+    }
+
     /// Sends `event` to the open frames of `extension_id` and to no other (FR-005).
     pub(super) fn emit(&self, extension_id: Uuid, event: &str, data: &Value) {
         if let Some(host) = self.host() {

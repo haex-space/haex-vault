@@ -15,6 +15,8 @@ pub mod dev_csp;
 pub mod encrypted_folder;
 pub mod encrypted_folder_choose;
 pub mod error;
+#[cfg(test)]
+pub(crate) mod fake_desktop;
 pub mod fs;
 pub mod host;
 pub mod ids;
