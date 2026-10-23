@@ -1,14 +1,15 @@
 //! Attachment methods of the service (spec 034, US5, FR-019..FR-021): add from a file, rename,
-//! remove, save to a file and preview an image. For the user alone (rule Z11). The file travels as
+//! remove, save to a file, preview an image and read a text for the attachment view (spec 058). For the user alone (rule Z11). The file travels as
 //! the choice of the system's dialog (spec 043, a path or a provider address) and is read and
 //! written on a blocking thread, so a 25 MiB attachment never crosses the webview.
 
 use super::{require_user, PasswordsService};
 use crate::error::{HolziError, Result};
+use crate::files::local::text::TextContent;
 use crate::files::picked::{Opener, PickedFile};
 use crate::passwords::access::Caller;
-use crate::passwords::binaries;
 use crate::passwords::model::AttachmentView;
+use crate::passwords::{attachment_view, binaries};
 
 fn io_failed(error: tauri::Error) -> HolziError {
     HolziError::Io {
@@ -78,6 +79,22 @@ impl PasswordsService {
             .map_err(io_failed)?
     }
 
+    /// The text of a text attachment for the attachment view (spec 058 FR-003), at most 5 MB.
+    pub async fn attachment_text(
+        &self,
+        caller: &Caller,
+        attachment_id: String,
+    ) -> Result<TextContent> {
+        require_user(caller)?;
+        let (name, bytes) = self
+            .db()
+            .read(move |q| binaries::attachment_data(q, &attachment_id).map_err(Into::into))
+            .await?;
+        tauri::async_runtime::spawn_blocking(move || attachment_view::text_of(&name, bytes))
+            .await
+            .map_err(io_failed)?
+    }
+
     /// The bytes of an image attachment for the preview.
     pub async fn attachment_preview(
         &self,
@@ -94,3 +111,7 @@ impl PasswordsService {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "attachments_tests.rs"]
+mod tests;

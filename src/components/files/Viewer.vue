@@ -188,15 +188,7 @@ onMounted(() => panel.value?.focus())
         {{ failed }}
       </p>
       <div v-else-if="shown === 'text' && text" data-testid="files-viewer-text">
-        <p
-          v-if="text.truncated"
-          class="border-b bg-muted px-4 py-2 text-xs text-muted-foreground"
-        >
-          {{ t('files.viewer.truncated') }}
-        </p>
-        <pre class="p-4 font-mono text-sm break-words whitespace-pre-wrap">{{
-          text.text
-        }}</pre>
+        <FilesTextContent :text="text" />
       </div>
       <div
         v-else-if="shown === 'image' && url"

@@ -1,6 +1,8 @@
 // Small pure helpers of the password manager window (spec 034-password-manager): how a header is
 // named, when an entry counts as expired.
 
+import { viewerKind } from '../files/viewerKind.ts'
+
 /** The text a list shows for an entry: its title, or `null` when there is none and the window
  * shows the placeholder `passwords.untitled` instead. The placeholder is a text of the window,
  * never a stored value (FR-001). */
@@ -112,19 +114,17 @@ export function imageMime(fileName: string): string | null {
   return IMAGE_MIME[fileName.slice(dot + 1).toLowerCase()] ?? null
 }
 
-/** How an attachment is shown (spec 036, FR-037): an image gets a thumbnail and the lightbox, the
- * others a type icon and "Speichern unter". SVG counts as other: it can carry script. */
+/** How an attachment is shown (spec 036, FR-037; spec 058 FR-001): an image gets a thumbnail and the
+ * lightbox, text and PDF open the attachment view, the others a type icon and "Speichern unter".
+ * SVG counts as other: it can carry script. */
 export type FileKind = 'image' | 'pdf' | 'text' | 'other'
 
-const TEXT_EXTENSIONS = new Set(['txt', 'md', 'json', 'csv', 'log'])
-
-/** The kind of an attachment by its file name. */
+/** The kind of an attachment by its file name. Text and PDF follow the file viewer (spec 058
+ * FR-002), so both apps agree on what is text. */
 export function fileKind(fileName: string): FileKind {
   if (imageMime(fileName)) return 'image'
-  const dot = fileName.lastIndexOf('.')
-  const extension = dot < 0 ? '' : fileName.slice(dot + 1).toLowerCase()
-  if (extension === 'pdf') return 'pdf'
-  return TEXT_EXTENSIONS.has(extension) ? 'text' : 'other'
+  const kind = viewerKind(fileName)
+  return kind === 'pdf' || kind === 'text' ? kind : 'other'
 }
 
 const RELATIVE_STEPS: readonly [Intl.RelativeTimeFormatUnit, number][] = [

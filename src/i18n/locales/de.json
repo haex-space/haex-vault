@@ -2018,6 +2018,15 @@
       "noPreview": "Keine Vorschau",
       "kinds": {
         "other": "Datei"
+      },
+      "viewer": {
+        "close": "Schließen",
+        "empty": "Die Datei ist leer.",
+        "gone": "Der Anhang wurde entfernt.",
+        "missing": "Dieser Anhang ist auf diesem Gerät nicht verfügbar.",
+        "binary": "Diese Datei ist kein Text.",
+        "notText": "Diese Datei lässt sich hier nicht anzeigen.",
+        "unreadable": "Die Datei lässt sich nicht lesen."
       }
     },
     "lightbox": {

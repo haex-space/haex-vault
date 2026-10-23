@@ -2,7 +2,8 @@
 /**
  * The attachments of an entry (spec 034, US5, FR-019..FR-021; spec 036, US6, FR-037..FR-041): cards
  * in a grid of three, two or one columns by the width of the container; a tap on an image opens the
- * lightbox over the entry's images in card order, a tap on anything else saves it. Adding through
+ * lightbox over the entry's images in card order, a tap on a text the attachment view over the
+ * whole password manager window (spec 058), a tap on anything else saves it. Adding through
  * the system's file dialog or by dropping files, renaming, removing and saving work as in 034.
  * Files travel as the dialog's choice (spec 043: a path or an address), never through the webview;
  * nothing of the choice is stored. An attachment is saved
@@ -47,6 +48,46 @@ const images = computed(() =>
   props.attachments.filter(
     (attachment) => fileKind(attachment.fileName) === 'image',
   ),
+)
+
+/** The attachment in the attachment view (spec 058); it covers the password manager window. */
+const viewing = ref<AttachmentView | null>(null)
+const viewerTarget = ref<HTMLElement | null>(null)
+
+function view(attachment: AttachmentView) {
+  viewerTarget.value =
+    root.value?.closest<HTMLElement>('[data-passwords-app]') ?? root.value
+  viewing.value = attachment
+}
+
+/** Closes the view and gives the focus back to the card that opened it (FR-005). */
+function closeViewer() {
+  const id = viewing.value?.id
+  viewing.value = null
+  if (!id) return
+  void nextTick(() =>
+    root.value
+      ?.querySelector<HTMLElement>(
+        `[data-testid="passwords-attachment-open-${CSS.escape(id)}"]`,
+      )
+      ?.focus(),
+  )
+}
+
+// An attachment removed (also on another device) while it is shown: the view closes.
+watch(
+  () => props.attachments,
+  (attachments) => {
+    const shown = viewing.value
+    if (!shown) return
+    const current = attachments.find((attachment) => attachment.id === shown.id)
+    if (current) {
+      viewing.value = current
+      return
+    }
+    viewing.value = null
+    toast(t('passwords.attachments.viewer.gone'))
+  },
 )
 
 /** Chosen or dropped files (a dropped file is a path, a chosen one a path or an address). */
@@ -160,6 +201,7 @@ onBeforeUnmount(() => {
               :attachment="attachment"
               :readonly="readonly"
               @open="openImage(attachment)"
+              @view="view(attachment)"
               @save="downloadAsync(attachment)"
               @rename="(name: string) => renameAsync(attachment, name)"
               @remove="removeAsync(attachment)"
@@ -194,5 +236,12 @@ onBeforeUnmount(() => {
       :images="images"
       @save="downloadAsync"
     />
+    <Teleport v-if="viewing && viewerTarget" :to="viewerTarget">
+      <PasswordsAttachmentViewer
+        :attachment="viewing"
+        @close="closeViewer"
+        @save="downloadAsync(viewing)"
+      />
+    </Teleport>
   </div>
 </template>
