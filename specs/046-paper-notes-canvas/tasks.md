@@ -103,11 +103,11 @@ reopened, and every change and the unchanged original are there.
 - [x] T031 [US3] Select, move and resize text, image and table elements of the draft in `apps/haex-notes/app/components/notes/PageCanvas.vue`
 - [x] T032 [US3] Choose the handwriting style of a text block from `fonts.ts` in the toolbar of `apps/haex-notes/app/components/notes/PageCanvas.vue` (a picker above the selected text)
 - [x] T033 [US3] Original, draft and compare views (layer visibility) in `apps/haex-notes/app/components/notes/PageCanvas.vue`
-- [ ] T034 [P] [US3] Tests in `apps/haex-notes/app/lib/paperNotes/closeUp.test.ts`: the regions of a close-up fit into the rectangle with the rules of research R11; generated elements fully inside the rectangle are replaced, generated elements partly outside, the student's own elements and the locked original stay; `paperImport` gets the close-up and the new regions and loses the replaced ones; one undo restores elements and `paperImport`; a failed or cancelled job changes nothing and stores no asset (research R13)
-- [ ] T042 [P] [US3] `setPaperImport(page, next, label)` command with tests in `apps/haex-notes/app/lib/commands.ts` and `apps/haex-notes/app/lib/commands.test.ts`
-- [ ] T043 [US3] `PaperNoteCloseUp`, `RecognizedRegion.closeUpId` and the parsing of `paperImport.closeUps` in `apps/haex-notes/app/types/document.ts` and `apps/haex-notes/app/lib/migratePage.ts`; close-up assets in `apps/haex-notes/app/lib/collectAssets.ts`
-- [ ] T044 [US3] Read a close-up and replace the elements of the rectangle in `apps/haex-notes/app/lib/paperNotes/closeUp.ts`, reusing the job, the working copy and the mapping of US1
-- [ ] T045 [US3] "Photograph this area again": draw the rectangle on a photo page, then `PaperNoteImportDialog.vue` in close-up mode (camera or file, turn, quality hint, read with cancel, the hint of each error)
+- [x] T034 [P] [US3] Tests in `apps/haex-notes/app/lib/paperNotes/closeUp.test.ts`: the regions of a close-up fit into the rectangle with the rules of research R11; generated elements fully inside the rectangle are replaced, generated elements partly outside, the student's own elements and the locked original stay; `paperImport` gets the close-up and the new regions and loses the replaced ones; one undo restores elements and `paperImport`; a failed or cancelled job changes nothing and stores no asset (research R13)
+- [x] T042 [P] [US3] `setPaperImport(page, next, label)` command with tests in `apps/haex-notes/app/lib/commands.ts` and `apps/haex-notes/app/lib/commands.test.ts`
+- [x] T043 [US3] `PaperNoteCloseUp`, `RecognizedRegion.closeUpId` and the parsing of `paperImport.closeUps` in `apps/haex-notes/app/types/document.ts` and `apps/haex-notes/app/lib/migratePage.ts`; close-up assets in `apps/haex-notes/app/lib/collectAssets.ts`
+- [x] T044 [US3] Read a close-up and replace the elements of the rectangle in `apps/haex-notes/app/lib/paperNotes/closeUp.ts`, reusing the job, the working copy and the mapping of US1
+- [x] T045 [US3] "Photograph this area again": draw the rectangle on a photo page, then `PaperNoteImportDialog.vue` in close-up mode (camera or file, turn, quality hint, read with cancel, the hint of each error)
 
 **Checkpoint**: Quickstart steps 5–7, including 6a.
 
@@ -130,7 +130,7 @@ layer hidden, the original is not in it.
 
 ## Phase 6: Polish
 
-- [ ] T038 [P] Check every new or changed file of haex-notes stays under 500 lines
+- [x] T038 [P] Check every new or changed file of haex-notes stays under 500 lines (largest: `PageCanvas.vue` with 495 lines)
 - [ ] T039 Run `pnpm test` and `pnpm build` in `apps/haex-notes/`
 - [ ] T040 Walk through quickstart.md against holzi with Ollama and record the evidence of its last section in the PR description
 - [ ] T041 Update the state of spec 046 in holzi (`spec.md`, ticks in this file) after the merge in haextension
