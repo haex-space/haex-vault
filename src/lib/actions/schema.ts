@@ -14,6 +14,7 @@ const ALLOWED_KEYS = new Set([
   'required',
   'items',
   'enum',
+  'nullable',
 ])
 const ALLOWED_TYPES = new Set([
   'object',
@@ -49,6 +50,7 @@ function fail(field: string, message: string): ValidationResult {
 }
 
 function typeMatches(schema: JsonSchema, value: unknown): boolean {
+  if (value === null) return schema.nullable === true
   switch (schema.type) {
     case 'object':
       return (

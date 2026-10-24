@@ -2721,6 +2721,7 @@
       "delete": "Stop sharing",
       "saved": "Share saved",
       "failed": "The share could not be saved.",
+      "queryFailed": "The contact shares could not be loaded.",
       "contactQuery": "Ask for shares",
       "noShares": "No shares",
       "unreachable": "Unreachable",

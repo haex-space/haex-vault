@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { FileShare } from '@bindings/FileShare'
 import type { FileShareGrantInput } from '@bindings/FileShareGrantInput'
+import type { SourceRef } from '@bindings/SourceRef'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
@@ -17,7 +18,7 @@ export function registerFileShareActionHandlers(wm: WmStore): void {
   )
   wm.registerGlobalActionHandler('files.shares.of', async ({ input }) => {
     const share = await invoke<FileShare | null>('file_share_of', {
-      source: { kind: 'device' },
+      source: input.source as SourceRef,
       path: text(input.path),
     })
     return share ? { share } : {}
@@ -26,7 +27,7 @@ export function registerFileShareActionHandlers(wm: WmStore): void {
     invoke<FileShare>('file_share_save', {
       args: {
         shareId: input.shareId === undefined ? undefined : text(input.shareId),
-        source: { kind: 'device' },
+        source: input.source as SourceRef,
         path: text(input.path),
         name: text(input.name),
         grants: (input.grants ?? []) as FileShareGrantInput[],

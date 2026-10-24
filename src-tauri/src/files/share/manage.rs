@@ -129,7 +129,15 @@ pub async fn of(
     path: String,
 ) -> Result<Option<FileShare>, FilesError> {
     let device = here.device.to_owned();
-    let path = root_path(here, &source, &path).map_or(path, |(path, _)| path);
+    let own = here.own.clone();
+    let source_for_path = source.clone();
+    let path_for_resolution = path.clone();
+    let resolved = tauri::async_runtime::spawn_blocking(move || {
+        root_path(&own, &source_for_path, &path_for_resolution)
+    })
+    .await
+    .map_err(|error| FilesError::new(FilesErrorCode::Unsupported, format!("share path lookup: {error}")))?;
+    let path = resolved.map_or(path, |(path, _)| path);
     here.db
         .read(
             move |q| match store::share_at(q, &device, &source, &path)? {
@@ -167,7 +175,21 @@ pub async fn save(here: &Here<'_>, args: FileShareSaveArgs) -> Result<FileShare,
     let device = here.device.to_owned();
     let new = match &args.share_id {
         Some(_) => None,
-        None => Some(root_path(here, &args.source, &args.path)?),
+        None => {
+            let own = here.own.clone();
+            let source = args.source.clone();
+            let path = args.path.clone();
+            Some(
+                tauri::async_runtime::spawn_blocking(move || root_path(&own, &source, &path))
+                    .await
+                    .map_err(|error| {
+                        FilesError::new(
+                            FilesErrorCode::Unsupported,
+                            format!("share path lookup: {error}"),
+                        )
+                    })??,
+            )
+        }
     };
     for grant in &args.grants {
         store::check_vault(&grant.vault_pubkey)
@@ -263,7 +285,7 @@ pub async fn delete(here: &Here<'_>, share_id: String) -> Result<(), FilesError>
 /// The stored path and kind of a new share's root: a folder or file of this device, never in
 /// holzi's own places (FR-007, FR-015).
 fn root_path(
-    here: &Here<'_>,
+    own: &OwnPlaces,
     source: &SourceRef,
     path: &str,
 ) -> Result<(String, FileShareItemKind), FilesError> {
@@ -275,7 +297,7 @@ fn root_path(
         ));
     }
     let real = resolve(Path::new(path))?;
-    if here.own.contains(&real) {
+    if own.contains(&real) {
         return Err(FilesError::new(
             FilesErrorCode::HolziOwned,
             "holzi's own data is never shared",

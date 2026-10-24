@@ -4,22 +4,45 @@
 // only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
 
+const SOURCE: JsonSchema = {
+  type: 'object',
+  properties: {
+    kind: { type: 'string', enum: ['device', 'storage'] },
+    storageId: { type: 'string' },
+  },
+  required: ['kind'],
+}
+
+const DEVICE: JsonSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string', nullable: true },
+    isCurrent: { type: 'boolean' },
+  },
+  required: ['id', 'name', 'isCurrent'],
+}
+
 const SHARE: JsonSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
     name: { type: 'string' },
+    source: SOURCE,
     path: { type: 'string' },
     itemKind: { type: 'string', enum: ['folder', 'file'] },
+    servingDevice: DEVICE,
     grants: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           vaultPubkey: { type: 'string' },
-          contactName: { type: 'string' },
+          contactId: { type: 'string', nullable: true },
+          contactName: { type: 'string', nullable: true },
           level: { type: 'string', enum: ['read', 'readWrite'] },
         },
+        required: ['vaultPubkey', 'contactId', 'contactName', 'level'],
       },
     },
     state: {
@@ -79,6 +102,7 @@ export const FILE_SHARE_ACTIONS: readonly ActionDefinition[] = [
       type: 'object',
       properties: {
         shareId: SHARE_ID,
+        source: SOURCE,
         path: { type: 'string' },
         name: { type: 'string' },
         grants: {
@@ -93,7 +117,7 @@ export const FILE_SHARE_ACTIONS: readonly ActionDefinition[] = [
           },
         },
       },
-      required: ['path', 'name', 'grants'],
+      required: ['source', 'path', 'name', 'grants'],
     },
     result: SHARE,
     effect: 'write',

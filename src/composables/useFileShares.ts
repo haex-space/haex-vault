@@ -3,9 +3,9 @@
  * of an entry, saving and deleting it, and asking a contact's devices for the shares it gave.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { Entry } from '@bindings/Entry'
 import type { FileShare } from '@bindings/FileShare'
-import type { FileShareSaveArgs } from '@bindings/FileShareSaveArgs'
 import type { FilesContactShares } from '@bindings/FilesContactShares'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
@@ -18,14 +18,6 @@ export function useFileShares() {
     return await invoke<FileShare | null>('file_share_of', { source, path })
   }
 
-  async function saveAsync(args: FileShareSaveArgs): Promise<FileShare> {
-    return await invoke<FileShare>('file_share_save', { args })
-  }
-
-  async function deleteAsync(shareId: string): Promise<void> {
-    await invoke('file_share_delete', { shareId })
-  }
-
   /** Asks every device of the contact for its shares (FR-028); only on the person's action. */
   async function contactQueryAsync(
     contactId: string,
@@ -35,7 +27,7 @@ export function useFileShares() {
     })
   }
 
-  return { shareOfAsync, saveAsync, deleteAsync, contactQueryAsync }
+  return { shareOfAsync, contactQueryAsync }
 }
 
 /**
@@ -47,6 +39,7 @@ export function useFilesTabShares(
   sources: { state: Ref<Sources | null> },
   source: Ref<SourceRef>,
 ) {
+  const { t } = useI18n()
   const { contactQueryAsync } = useFileShares()
   const sharing = ref(false)
   const sharingEntry = ref<Entry | null>(null)
@@ -66,9 +59,16 @@ export function useFilesTabShares(
   }
 
   async function queryContactAsync(contactId: string) {
-    const answer = await contactQueryAsync(contactId).catch(() => null)
+    let answer: FilesContactShares
+    try {
+      answer = await contactQueryAsync(contactId)
+    } catch (cause) {
+      console.error('[files] querying contact shares failed', cause)
+      toast.error(t('files.shares.queryFailed'))
+      return
+    }
     const current = sources.state.value
-    if (!answer || !current) return
+    if (!current) return
     sources.state.value = {
       ...current,
       contacts: current.contacts.map((contact) =>

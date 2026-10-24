@@ -14,6 +14,7 @@ export type JsonSchema = {
   required?: readonly string[]
   items?: JsonSchema
   enum?: readonly (string | number)[]
+  nullable?: boolean
 }
 
 /** What an action acts on. For anything but `none`, the input schema declares the matching id

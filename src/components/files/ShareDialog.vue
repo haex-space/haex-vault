@@ -33,6 +33,8 @@ const existing = ref<FileShare | null>(null)
 const adding = ref('')
 const error = ref<string | null>(null)
 const saving = ref(false)
+const loading = ref(false)
+let loadGeneration = 0
 
 const contactName = (vault: string, fallback: string | null = null) =>
   props.contacts.find((contact) => contact.vaultPubkey === vault)
@@ -40,23 +42,34 @@ const contactName = (vault: string, fallback: string | null = null) =>
   fallback ??
   vault.slice(0, 8)
 
-watch(open, async (isOpen) => {
-  if (!isOpen || !props.entry) return
+watch([open, () => props.entry?.path], async ([isOpen, entryPath]) => {
+  const generation = ++loadGeneration
+  if (!isOpen || !props.entry || !entryPath) {
+    loading.value = false
+    return
+  }
   error.value = null
   adding.value = ''
   name.value = props.entry.name
   rows.value = []
-  existing.value = await shareOfAsync(
-    { kind: 'device' },
-    props.entry.path,
-  ).catch(() => null)
-  if (existing.value) {
-    name.value = existing.value.name
-    rows.value = existing.value.grants.map((grant) => ({
-      vaultPubkey: grant.vaultPubkey,
-      name: contactName(grant.vaultPubkey, grant.contactName),
-      level: grant.level,
-    }))
+  existing.value = null
+  loading.value = true
+  try {
+    const share = await shareOfAsync({ kind: 'device' }, entryPath)
+    if (generation !== loadGeneration) return
+    existing.value = share
+    if (share) {
+      name.value = share.name
+      rows.value = share.grants.map((grant) => ({
+        vaultPubkey: grant.vaultPubkey,
+        name: contactName(grant.vaultPubkey, grant.contactName),
+        level: grant.level,
+      }))
+    }
+  } catch (cause) {
+    if (generation === loadGeneration) failed(cause)
+  } finally {
+    if (generation === loadGeneration) loading.value = false
   }
 })
 
@@ -100,7 +113,7 @@ function failed(cause: unknown) {
 }
 
 async function saveNowAsync() {
-  if (!props.entry) return
+  if (!props.entry || loading.value) return
   saving.value = true
   try {
     await saveShare({
@@ -209,17 +222,21 @@ async function endAsync() {
             type="button"
             variant="outline"
             class="mr-auto"
-            :disabled="saving"
+            :disabled="saving || loading"
             data-testid="files-share-end"
             @click="endAsync"
             >{{ t('files.shares.delete') }}</UiButton
           >
-          <UiButton type="button" variant="outline" @click="open = false">{{
-            t('files.shares.cancel')
-          }}</UiButton>
+          <UiButton
+            type="button"
+            variant="outline"
+            :disabled="saving"
+            @click="open = false"
+            >{{ t('files.shares.cancel') }}</UiButton
+          >
           <UiButton
             type="submit"
-            :loading="saving"
+            :loading="saving || loading"
             data-testid="files-share-save"
             >{{ t('files.shares.save') }}</UiButton
           >

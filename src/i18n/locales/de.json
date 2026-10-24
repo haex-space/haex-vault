@@ -2721,6 +2721,7 @@
       "delete": "Freigabe beenden",
       "saved": "Freigabe gespeichert",
       "failed": "Die Freigabe konnte nicht gespeichert werden.",
+      "queryFailed": "Die Freigaben des Kontakts konnten nicht geladen werden.",
       "contactQuery": "Freigaben abfragen",
       "noShares": "Keine Freigaben",
       "unreachable": "Nicht erreichbar",
