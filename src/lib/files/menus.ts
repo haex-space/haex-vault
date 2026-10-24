@@ -16,6 +16,7 @@ export type FilesCommand =
   | 'newFolder'
   | 'newEncryptedFolder'
   | 'openSystem'
+  | 'share'
 
 export type FilesMenuItem = {
   id: FilesCommand
@@ -37,6 +38,8 @@ export type EntriesMenuInput = {
   selecting: boolean
   /** The system's apps can open files here; not on Android yet (spec 048 research R11). */
   systemApps?: boolean
+  /** The one entry may be shared with contacts: of this device, not holzi's own (spec 056). */
+  shareable?: boolean
 }
 
 /** The keys of the commands that have one (`resolveFilesShortcut`). */
@@ -66,6 +69,7 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
   if (single) entries.push(item('open'))
   if (single && input.singleFile && input.systemApps !== false)
     entries.push(item('openSystem'))
+  if (single && input.shareable) entries.push(item('share'))
   if (!input.selecting) entries.push(item('select'))
   entries.push(
     SEPARATOR,

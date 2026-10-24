@@ -3,7 +3,7 @@
 
 import type { SourceRef } from '../../types/bindings/SourceRef.ts'
 
-import { isPeerStorage } from './registry.ts'
+import { isRemoteStorage } from './registry.ts'
 
 /** What `Entry` carries about encryption (bindings `EncryptedInfo`); restated here because the
  * generated `Entry` imports without file extensions, which `node --test` cannot load. */
@@ -33,13 +33,13 @@ export type EncryptHereInput = {
 /**
  * Whether "Neuer verschlüsselter Ordner" belongs in the open folder: in a storage (FR-001) and in
  * any folder of this device (US7, FR-043), but not inside an encrypted folder, not in an extension
- * area, not in holzi's own places and not on another own device.
+ * area, not in holzi's own places and not on another device.
  */
 export function canCreateEncrypted(input: EncryptHereInput): boolean {
   if (input.path === null || input.inEncrypted || input.owned) return false
   if (input.source.kind === 'device') return true
-  // Another own device keeps its encrypted folders itself (spec 056).
-  if (isPeerStorage(input.source.storageId)) return false
+  // Another device keeps its encrypted folders itself (spec 056).
+  if (isRemoteStorage(input.source.storageId)) return false
   const folder = input.path.endsWith('/') ? input.path : `${input.path}/`
   return !EXTENSION_AREAS.some(
     (area) => folder === area || folder.startsWith(area),

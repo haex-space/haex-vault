@@ -30,6 +30,7 @@ export const FILES_ROUTE_CHILDREN = [
   { path: 'device', titleKey: 'wm.files.device' },
   { path: 'storage/:id', titleKey: 'wm.files.storage' },
   { path: 'peer/:id', titleKey: 'wm.files.peer' },
+  { path: 'share/:id', titleKey: 'wm.files.share' },
 ] as const
 
 /** The query keys a place may carry; anything else is dropped. */
@@ -48,6 +49,14 @@ export function isPeerStorage(storageId: string): boolean {
   return storageId.startsWith(PEER_PREFIX)
 }
 
+/** The prefix of a share a contact gave this vault (spec 056 US2). */
+export const SHARE_PREFIX = 'share:'
+
+/** Whether `storageId` lives on another device: an own one, or a contact's share. */
+export function isRemoteStorage(storageId: string): boolean {
+  return isPeerStorage(storageId) || storageId.startsWith(SHARE_PREFIX)
+}
+
 /** The tab location of `place`. */
 export function filesLocation(place: FilesPlace): TabLocation {
   const query: Record<string, string> = {}
@@ -62,7 +71,9 @@ export function filesLocation(place: FilesPlace): TabLocation {
       ? '/device'
       : isPeerStorage(place.source.storageId)
         ? `/peer/${place.source.storageId.slice(PEER_PREFIX.length)}`
-        : `/storage/${place.source.storageId}`
+        : place.source.storageId.startsWith(SHARE_PREFIX)
+          ? `/share/${place.source.storageId.slice(SHARE_PREFIX.length)}`
+          : `/storage/${place.source.storageId}`
   return { path, query }
 }
 
@@ -100,6 +111,13 @@ export function parseFilesPlace(location: TabLocation): FilesPlace | undefined {
   if (peer?.[1] && OPAQUE_ID.test(peer[1])) {
     return withOpen({
       source: { kind: 'storage', storageId: `${PEER_PREFIX}${peer[1]}` },
+      path,
+    })
+  }
+  const share = /^\/share\/([^/]+)$/.exec(location.path)
+  if (share?.[1] && OPAQUE_ID.test(share[1])) {
+    return withOpen({
+      source: { kind: 'storage', storageId: `${SHARE_PREFIX}${share[1]}` },
       path,
     })
   }

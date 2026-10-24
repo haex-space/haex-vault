@@ -12,6 +12,7 @@ import { shownNameKey } from '~/lib/files/encrypted'
 import {
   filesLocation,
   isPeerStorage,
+  isRemoteStorage,
   parseFilesPlace,
 } from '~/lib/files/registry'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
@@ -84,6 +85,15 @@ async function openPeerStartAsync(storageId: string) {
 }
 
 const folder = useFilesFolder(source, path)
+// Shares (spec 056 US2).
+const {
+  sharing,
+  sharingEntry,
+  receivedShare,
+  readOnlySource,
+  share,
+  queryContactAsync,
+} = useFilesTabShares(sources, source)
 // Android: "Zugriff auf alle Dateien" (FR-039); a grant in the settings loads the device at once.
 const allAccess = useFilesAllAccess(() => {
   void sources.execute()
@@ -174,7 +184,7 @@ const {
   selection,
   selecting,
   clearSelection,
-  folderOwned,
+  readOnly,
   folderForeign,
   canPaste,
   menuEntries,
@@ -205,6 +215,8 @@ const {
   tabId,
   reload: () => folder.reload(),
   activate,
+  readOnlySource,
+  share,
 })
 
 function activate(entry: Entry) {
@@ -300,6 +312,7 @@ const storageName = computed(
     )?.name ??
     sources.state.value?.devices.find((device) => device.id === storageId.value)
       ?.name ??
+    receivedShare.value?.name ??
     undefined,
 )
 
@@ -308,7 +321,7 @@ const storageName = computed(
 const settingsLink = computed(
   () =>
     storageId.value !== null &&
-    !isPeerStorage(storageId.value) &&
+    !isRemoteStorage(storageId.value) &&
     (folder.error.value?.code === 'credentials' ||
       folder.error.value?.code === 'noAccess' ||
       folder.error.value?.code === 'hostKey'),
@@ -372,6 +385,7 @@ watch(tabActive, (active) => {
           @pick="onSidebarPick"
           @pick-storage="onPickStorage"
           @add-storage="openStorageSettings"
+          @query-contact="queryContactAsync"
         />
       </nav>
       <main
@@ -403,7 +417,7 @@ watch(tabActive, (active) => {
         <FilesDropTarget
           v-else
           class="flex-1"
-          :disabled="folderOwned || !path"
+          :disabled="readOnly || !path"
           @drop="importDropped"
         >
           <FilesMenu :entries="menuEntries" @run="runMenu">
@@ -433,7 +447,7 @@ watch(tabActive, (active) => {
           v-if="selecting || canPaste"
           :selected="selection.paths.length"
           :can-paste="canPaste"
-          :read-only="folderOwned"
+          :read-only="readOnly"
           @run="runBar"
           @clear="clearSelection()"
         />
@@ -456,6 +470,11 @@ watch(tabActive, (active) => {
       :entry="renaming"
       :encrypted="namingEncrypted"
       @done="folder.reload()"
+    />
+    <FilesShareDialog
+      v-model:open="sharing"
+      :entry="sharingEntry"
+      :contacts="sources.state.value?.contacts ?? []"
     />
     <FilesEncryptedNotice v-model:open="noticing" @confirm="ackNotice" />
     <FilesOpenSystemNotice

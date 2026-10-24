@@ -150,27 +150,31 @@ Removal::Trash)` (`files/transfer/entries.rs:20`, wird `pub(crate)`), nicht übe
 (FR-038), wie 044 FR-023 es lokal tut. Löschen in Speichern und verschlüsselten Ordnern folgt deren
 Regeln.
 
-## R9 Anklopfen über Nostr
+## R9 Geräte eines Kontakts erreichen
 
-**Decision**: Zwei neue innere Arten in denselben Gift-Wraps wie die Präsenz (`presence::wrap_payload`,
-`unwrap_rumor`, `presence.rs:225`, `:283`; äußere Art 21059, flüchtig):
+**Decision** (geändert 2026-10-23, Betreiber): Das anfragende Gerät wählt jedes Gerät der
+gespeicherten Visitenkarte des Kontakts direkt an, mit `endpoint_addr_of(&d.endpoint_id, d.iroh_relay,
+&[])` (`sync/presence.rs`) und `dial_alpn(addr, FILES_ALPN)`, alle parallel; danach `foreign_auth`
+wie bei eigenen Geräten (R4). Das ist der Weg von Spec 057 (`extensions/peers/invite.rs`: keine
+Adresse von anderswo als der Karte). Antwortet nach 10 s kein Gerät, ist der Kontakt „nicht
+erreichbar“ mit dem Hinweis, eine aktuelle Karte zu teilen. Ein Gerät ohne Zugriffsrecht für die
+anfragende Vault schließt im Handshake ohne Grund (FR-009, schon gebaut).
 
-- **24103 Anklopfen**: an jeden Geräteschlüssel der Visitenkarte des Kontakts, auf dessen Relays
-  (`ContactCard.nostr_relays`), Inhalt `{ v, vault, list_payload, list_sig, reply_relays, ts, nonce }`.
-- **24104 Antwort**: an den Geräteschlüssel des Anklopfenden, auf `reply_relays`, Inhalt wie
-  `LinkMeeting` (`sync/link/meeting.rs:27`): `{ v, endpoint, iroh_relay, addrs, ts, nonce }`.
+**Folgen**: Hat ein Gerät des Eigentümers sein iroh-Relay seit der Karte gewechselt, bleibt es
+unerreichbar, bis der Kontakt eine aktuelle Karte teilt. Wer eine Endpoint-ID kennt, erfährt, dass
+das Gerät online ist, auch ohne Zugriffsrecht; die frühere Eigenschaft „antwortet nur Berechtigten“
+entfällt.
 
-Das Gerät des Eigentümers antwortet nur, wenn Siegel-Unterzeichner und vorgelegte Liste nach R4
-gültig sind und es diesem Kontakt mindestens eine aktive Dateifreigabe bedient (FR-009). Frische wie
-die Präsenz (150 s zurück, 30 s vor, `presence.rs:119`), Antworten je Vault höchstens alle 5 s.
-Ein eigener Nostr-Client hört auf Gift-Wraps an den eigenen Geräteschlüssel; der Präsenz-Client
-eignet sich nicht, weil `presence_loop::resubscribe` alle Abos beendet (`presence_loop.rs:208`). Er
-läuft in `sync::service::run` mit (`sync/service.rs:164`) und übernimmt dessen Reconnect bei
-geänderten Relays.
+**Rationale**: Derselbe Weg wie Spec 057, kein zweiter Mechanismus für dieselbe Frage, kein eigener
+Nostr-Client, keine Drosselung und kein Replay-Schutz. Das Wählen geschieht weiter nur nach einer
+Handlung des Nutzers (FR-028, FR-029).
 
-**Rationale**: Die Präsenz-Bausteine sind schon auf beliebige Empfänger ausgelegt (Empfänger ist ein
-`PublicKey`-Parameter). Eigene Geräte brauchen kein Anklopfen; ihre Adressen kommen aus der Präsenz
-(`endpoint.rs:347`).
+**Alternatives considered**: _Anklopfen über Nostr_ (ursprüngliche Entscheidung): Gift-Wraps der
+Präsenz mit den Arten 24103/24104 an die Geräteschlüssel der Karte; das Gerät antwortet nur
+Berechtigten mit seiner aktuellen Adresse. Findet Geräte auch nach einem Relay-Wechsel und verrät
+Unberechtigten nichts, braucht aber einen eigenen Nostr-Client, Frische- und Replay-Prüfung und
+Drosselung, und 056 und 057 hätten zwei Wege. Verworfen. _Erst Karte, dann Anklopfen_: beste
+Erreichbarkeit, größter Umfang, und der Vorteil des Schweigens entfällt trotzdem. Verworfen.
 
 ## R10 Dateifreigaben als Vault-Daten und der Zustand „wartet auf Gerät“
 
@@ -207,9 +211,9 @@ dürfte den Schalter des bedienenden Geräts nicht umlegen können (`storage/pre
 
 **Decision**: `Sources` (`files/browser_commands/navigate.rs:37`) bekommt `devices: Vec<FilesPeerDevice>`
 (Gerät, Name, Zustand) und `contacts: Vec<FilesContactShares>` (Kontakt, bekannte empfangene
-Dateifreigaben). Zustände kommen aus der Präsenz (eigene Geräte) bzw. dem letzten Anklopfen. Klappt der
-Nutzer einen Kontakt auf, ruft das Fenster `files_contact_query` (FR-028); sonst wird nicht
-angeklopft (FR-029). Neue Typnamen mit Präfix `FilesPeer`/`FileShare` (ts-rs-Kollisionen).
+Dateifreigaben). Zustände kommen aus der Präsenz (eigene Geräte) bzw. der letzten Abfrage beim
+Kontakt. Klappt der Nutzer einen Kontakt auf, ruft das Fenster `files_contact_query` (FR-028); sonst
+werden Geräte von Kontakten nicht angewählt (FR-029). Neue Typnamen mit Präfix `FilesPeer`/`FileShare` (ts-rs-Kollisionen).
 
 ## R14 ADR
 
@@ -261,8 +265,8 @@ Betreiber.
   Links, Verknüpfungen, Groß-/Kleinschreibung, Ziele von Verschieben, SC-005), Prüfung je Anfrage,
   Versionsstand, Rahmen (Kopf zu groß, Abbruch mitten im Rohstrom).
 - Integration: zwei Vaults im Prozess mit `Member::genesis()` und Loopback-Endpoints
-  (`sync/test_support.rs:110`, `sync/endpoint_tests.rs:18`), Anklopfen über `MockRelay`
-  (`presence_loop_tests.rs:104`); Gleichstand-Katalog des `ObjectStore`-Verhaltens auch gegen
+  (`sync/test_support.rs:110`, `sync/endpoint_tests.rs:18`), Kontakt-Geräte über die Adresse ihrer
+  Karte; Gleichstand-Katalog des `ObjectStore`-Verhaltens auch gegen
   `PeerStore`.
 - Live: Änderung im beobachteten Ordner kommt als `FolderChanged` an; Entzug beendet `Watch`.
 - Agents: ohne Berechtigung abgelehnt; mit Berechtigung ohne Bestätigung keine Freigabe (SC-010),

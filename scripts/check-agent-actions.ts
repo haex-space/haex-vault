@@ -506,3 +506,12 @@ test('the browser bridge settings are guardrails no agent can call (spec 049 FR-
     assert.equal(action?.agentCallable, false, id)
   }
 })
+
+test('agents cannot manage file shares until they get a permission of their own (spec 056 FR-045)', () => {
+  const shares = ALL_ACTIONS.filter((a) => a.id.startsWith('files.shares.'))
+  assert.equal(shares.length, 6)
+  for (const action of shares) {
+    assert.equal(action.scope, 'files.shares', action.id)
+    assert.equal(action.agentCallable, false, action.id)
+  }
+})

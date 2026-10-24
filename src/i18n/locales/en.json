@@ -214,7 +214,8 @@
     "files": {
       "device": "This device",
       "storage": "Cloud storage",
-      "peer": "Other device"
+      "peer": "Other device",
+      "share": "Share"
     },
     "contacts": {
       "list": "Contacts",
@@ -1678,7 +1679,8 @@
       },
       "files": {
         "read": "Read files",
-        "write": "Change files"
+        "write": "Change files",
+        "shares": "Manage file shares"
       },
       "contacts": {
         "read": "Read contacts",
@@ -1703,7 +1705,15 @@
       "rename": "Rename a file",
       "move": "Move files",
       "delete": "Delete files",
-      "show": "Show a file in the file browser"
+      "show": "Show a file in the file browser",
+      "shares": {
+        "list": "List file shares",
+        "of": "Share of a folder",
+        "save": "Share a folder or file",
+        "revoke": "Revoke access",
+        "delete": "Delete share",
+        "ofContact": "Shares of a contact"
+      }
     },
     "contacts": {
       "search": "Search contacts",
@@ -2506,7 +2516,8 @@
       "rename": "Rename",
       "delete": "Delete",
       "newFolder": "New folder",
-      "newEncryptedFolder": "New encrypted folder"
+      "newEncryptedFolder": "New encrypted folder",
+      "share": "Share …"
     },
     "selection": {
       "count": "{count} selected | {count} selected",
@@ -2573,7 +2584,8 @@
       "free": "{size} free",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
-      "devices": "My devices"
+      "devices": "My devices",
+      "contacts": "From contacts"
     },
     "peer": {
       "unnamed": "Unnamed device",
@@ -2692,6 +2704,28 @@
         "once": "Allow once",
         "always": "Always allow"
       }
+    },
+    "shares": {
+      "title": "Share “{name}”",
+      "name": "Share name",
+      "contacts": "Contacts",
+      "addContact": "Add contact",
+      "noContacts": "No contact with a card yet. Add a contact’s card to share with them.",
+      "level": {
+        "read": "Read",
+        "readWrite": "Read and write"
+      },
+      "remove": "Revoke access",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Stop sharing",
+      "saved": "Share saved",
+      "failed": "The share could not be saved.",
+      "queryFailed": "The contact shares could not be loaded.",
+      "contactQuery": "Ask for shares",
+      "noShares": "No shares",
+      "unreachable": "Unreachable",
+      "readOnly": "Read only"
     }
   },
   "contacts": {

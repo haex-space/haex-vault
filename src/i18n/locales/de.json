@@ -214,7 +214,8 @@
     "files": {
       "device": "Dieses Gerät",
       "storage": "Cloud-Speicher",
-      "peer": "Anderes Gerät"
+      "peer": "Anderes Gerät",
+      "share": "Freigabe"
     },
     "contacts": {
       "list": "Kontakte",
@@ -1678,7 +1679,8 @@
       },
       "files": {
         "read": "Dateien lesen",
-        "write": "Dateien ändern"
+        "write": "Dateien ändern",
+        "shares": "Dateifreigaben verwalten"
       },
       "contacts": {
         "read": "Kontakte lesen",
@@ -1703,7 +1705,15 @@
       "rename": "Datei umbenennen",
       "move": "Dateien verschieben",
       "delete": "Dateien löschen",
-      "show": "Datei im Dateibrowser zeigen"
+      "show": "Datei im Dateibrowser zeigen",
+      "shares": {
+        "list": "Dateifreigaben auflisten",
+        "of": "Freigabe eines Ordners",
+        "save": "Ordner oder Datei freigeben",
+        "revoke": "Zugriff entziehen",
+        "delete": "Freigabe löschen",
+        "ofContact": "Freigaben eines Kontakts"
+      }
     },
     "contacts": {
       "search": "Kontakte suchen",
@@ -2506,7 +2516,8 @@
       "rename": "Umbenennen",
       "delete": "Löschen",
       "newFolder": "Neuer Ordner",
-      "newEncryptedFolder": "Neuer verschlüsselter Ordner"
+      "newEncryptedFolder": "Neuer verschlüsselter Ordner",
+      "share": "Freigeben …"
     },
     "selection": {
       "count": "{count} ausgewählt | {count} ausgewählt",
@@ -2573,7 +2584,8 @@
       "free": "{size} frei",
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
-      "devices": "Meine Geräte"
+      "devices": "Meine Geräte",
+      "contacts": "Von Kontakten"
     },
     "peer": {
       "unnamed": "Gerät ohne Namen",
@@ -2692,6 +2704,28 @@
         "once": "Einmal erlauben",
         "always": "Immer erlauben"
       }
+    },
+    "shares": {
+      "title": "„{name}“ freigeben",
+      "name": "Name der Freigabe",
+      "contacts": "Kontakte",
+      "addContact": "Kontakt hinzufügen",
+      "noContacts": "Noch kein Kontakt mit Visitenkarte. Füge die Karte eines Kontakts hinzu, um mit ihm zu teilen.",
+      "level": {
+        "read": "Lesen",
+        "readWrite": "Lesen und Schreiben"
+      },
+      "remove": "Zugriff entziehen",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "delete": "Freigabe beenden",
+      "saved": "Freigabe gespeichert",
+      "failed": "Die Freigabe konnte nicht gespeichert werden.",
+      "queryFailed": "Die Freigaben des Kontakts konnten nicht geladen werden.",
+      "contactQuery": "Freigaben abfragen",
+      "noShares": "Keine Freigaben",
+      "unreachable": "Nicht erreichbar",
+      "readOnly": "Nur lesen"
     }
   },
   "contacts": {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
- * with free space where known, the other devices of the vault (spec 056 US1), and the cloud
- * storages of spec 038 (US5) with a button that leads to adding one in the settings.
+ * with free space where known, the other devices of the vault (spec 056 US1), the shares contacts
+ * gave this vault (US2: expanding a contact asks its devices, FR-028), and the cloud storages of
+ * spec 038 (US5) with a button that leads to adding one in the settings.
  */
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
@@ -20,9 +21,23 @@ const emit = defineEmits<{
   pick: [path: string]
   pickStorage: [id: string]
   addStorage: []
+  queryContact: [contactId: string]
 }>()
 
 const { t } = useI18n()
+
+/** The contacts expanded in this sidebar. */
+const expanded = ref(new Set<string>())
+
+function toggleContact(contactId: string) {
+  const next = new Set(expanded.value)
+  if (next.has(contactId)) next.delete(contactId)
+  else {
+    next.add(contactId)
+    emit('queryContact', contactId)
+  }
+  expanded.value = next
+}
 
 /** A device that cannot be opened now stays in the list, greyed out (FR-011). */
 const PEER_ICONS: Record<FilesPeerState, string> = {
@@ -117,6 +132,74 @@ const PLACE_ICONS: Record<string, string> = {
               {{ t(`files.peer.${device.state}`) }}
             </span>
           </button>
+        </li>
+      </ul>
+    </section>
+    <section v-if="sources?.contacts.length">
+      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
+        {{ t('files.sidebar.contacts') }}
+      </h2>
+      <ul>
+        <li v-for="contact in sources.contacts" :key="contact.contactId">
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            :aria-expanded="expanded.has(contact.contactId)"
+            :data-testid="`files-contact-${contact.contactName}`"
+            @click="toggleContact(contact.contactId)"
+          >
+            <Icon
+              :name="
+                expanded.has(contact.contactId)
+                  ? 'lucide:chevron-down'
+                  : 'lucide:chevron-right'
+              "
+              class="size-4 shrink-0"
+            />
+            <span class="truncate">{{ contact.contactName }}</span>
+          </button>
+          <ul v-if="expanded.has(contact.contactId)" class="pl-4">
+            <li
+              v-if="contact.shares.length === 0"
+              class="px-2 py-1.5 text-xs text-muted-foreground"
+            >
+              {{ t('files.shares.noShares') }}
+            </li>
+            <li v-for="share in contact.shares" :key="share.storageId">
+              <button
+                type="button"
+                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+                :class="[
+                  currentStorage === share.storageId
+                    ? 'bg-accent font-medium'
+                    : '',
+                  share.reachable ? '' : 'opacity-60',
+                ]"
+                :data-testid="`files-share-${share.name}`"
+                @click="emit('pickStorage', share.storageId)"
+              >
+                <Icon
+                  :name="
+                    share.itemKind === 'file'
+                      ? 'lucide:file-symlink'
+                      : 'lucide:folder-symlink'
+                  "
+                  class="size-4 shrink-0"
+                />
+                <span class="min-w-0 flex-1 truncate">{{ share.name }}</span>
+                <span
+                  v-if="!share.reachable || share.level === 'read'"
+                  class="shrink-0 text-xs text-muted-foreground"
+                >
+                  {{
+                    share.reachable
+                      ? t('files.shares.readOnly')
+                      : t('files.shares.unreachable')
+                  }}
+                </span>
+              </button>
+            </li>
+          </ul>
         </li>
       </ul>
     </section>

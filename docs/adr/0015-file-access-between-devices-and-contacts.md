@@ -28,8 +28,8 @@ included and with the same rules: read-only for the user, blocked for agents.
 `holzi-sync/1`.** They prove a device key on a device list signed by their vault identity, the vault
 identity must belong to a contact with a verified business card, and they reach only the roots shared
 with that identity, checked on every request; holzi's own data stays blocked for them. A serving device answers a Nostr knock only for an
-entitled vault, so its address is not revealed to anyone else. Public iroh address discovery stays
-off.
+entitled vault, so its address is not revealed to anyone else (replaced 2026-10-23, see the amendment
+below). Public iroh address discovery stays off.
 
 ## Consequences
 
@@ -43,3 +43,21 @@ off.
 - File contents served by this feature travel only over the direct iroh connection. A shared S3,
   WebDAV or SFTP source still contains its source data at that provider, but the feature creates no
   additional copy or share ciphertext there, so revoking needs no key rotation.
+
+## Amendment 2026-10-23: contacts are dialed from the card
+
+The operator replaced the Nostr knock. Like spec 057 (`extensions/peers/invite.rs`), the requesting
+device dials every device on the contact's stored business card by the endpoint id and iroh relay the
+card names, on `haex-vault-files/1`, and both sides prove themselves with `foreign_auth`. A device
+without a grant for the asking vault closes in the handshake without a reason. Reasons: one way to
+reach a contact's devices for 056 and 057, and no second Nostr client with freshness, replay and
+throttling rules.
+
+What changes against the decision above:
+
+- A serving device no longer stays silent towards vaults without a grant: whoever knows an endpoint
+  id learns that the device is online, although it refuses in the handshake and reveals nothing else.
+- A device that changed its iroh relay since the card stays unreachable until the contact shares a
+  current card.
+- Dialing still happens only after a user action (spec 056 FR-028, FR-029). Public iroh address
+  discovery stays off.

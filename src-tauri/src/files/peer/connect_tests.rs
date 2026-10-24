@@ -28,7 +28,7 @@ async fn a_target_without_a_way_is_refused_before_any_dial() {
     let (main, linked) = own_pair().await;
     let connections = Connections::new(Arc::clone(&linked.node), Arc::clone(&linked.ctx));
     for (target, error) in [
-        ("share:some-share".to_owned(), StorageError::Unsupported),
+        ("share:some-share".to_owned(), StorageError::NotFound),
         ("storage:s3".to_owned(), StorageError::Unsupported),
         (
             format!("peer:{}", uuid::Uuid::new_v4()),

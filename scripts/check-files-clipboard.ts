@@ -215,3 +215,30 @@ test('the folder menu creates and pastes where it may', () => {
     'paste-',
   ])
 })
+
+test('one entry of this device can be shared with contacts (spec 056)', () => {
+  assert.deepEqual(
+    ids(
+      entriesMenu({
+        count: 1,
+        singleFile: false,
+        readOnly: false,
+        selecting: false,
+        shareable: true,
+      }),
+    ),
+    ['open', 'share', 'select', 'copy', 'cut', 'rename', 'delete'],
+  )
+  assert.ok(
+    !ids(
+      entriesMenu({
+        count: 2,
+        singleFile: false,
+        readOnly: false,
+        selecting: true,
+        shareable: true,
+      }),
+    ).includes('share'),
+    'one entry at a time',
+  )
+})

@@ -43,10 +43,9 @@ Kontakte. Grundlage ist das abgestimmte Design docs/plans/2026-10-21-file-access
   beantwortet die Anfragen dieser Vault-Identität für diese Dateifreigabe nicht mehr.
 - **Empfangene Dateifreigabe**: was die Vault eines Empfängers über eine Dateifreigabe eines Kontakts
   weiß: Kontakt, Name, Stufe und bedienendes Gerät.
-- **Anklopfen**: eine kurzlebige, verschlüsselte Nachricht eines anfragenden Geräts über die
-  Nostr-Relays aus der Visitenkarte eines Kontakts, mit der es die aktuelle Adresse eines Geräts
-  dieses Kontakts erfragt. Ein Gerät antwortet nur, wenn es dem anfragenden Gerät etwas zugänglich
-  macht.
+- **Erreichen über die Karte**: Das anfragende Gerät wählt die Geräte eines Kontakts direkt an, mit
+  der Endpoint-ID und dem iroh-Relay, die die gespeicherte Visitenkarte nennt (wie Spec 057). Ein
+  Gerät ohne Zugriffsrecht für die anfragende Vault lehnt erst im Handshake ab.
 - **Versionsstand**: die Kennung des Stands einer Datei (etwa aus Größe und Änderungszeit), so wie das
   anfragende Gerät sie zuletzt gesehen hat. Ein Schreibvorgang auf eine vorhandene Datei nennt ihn; stimmt er nicht mehr, ist das
   ein **Schreibkonflikt**.
@@ -105,7 +104,8 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
 - Q: Eigene Geräte? → A: Jedes eigene Gerät liest und schreibt das ganze Dateisystem jedes anderen;
   pro Gerät abschaltbar, standardmäßig an. Fremde Vaults nur ihre Wurzeln mit ihrer Stufe.
 - Q: Wie findet ein Kontakt das bedienende Gerät? → A: Durch Anklopfen über Nostr; nur wer etwas
-  freigegeben bekommen hat, erfährt die Adresse.
+  freigegeben bekommen hat, erfährt die Adresse. _Geändert 2026-10-23 (Betreiber):_ Wie in Spec 057
+  wählt das anfragende Gerät die Geräte direkt von der gespeicherten Visitenkarte an; kein Anklopfen.
 
 ### Session 2026-10-22
 
@@ -337,11 +337,15 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Nach einem Neustart ist die Visitenkarte die Untergrenze: Ein vom Kontakt entferntes Gerät kommt mit
   einer Liste, die noch so neu ist wie die Karte, wieder hinein, bis der Nutzer eine neuere Karte
   übernimmt (bewusst akzeptiert, Betreiber 2026-10-23).
-- **Kontakt hat ein neues Gerät**: Erst nach einer aktualisierten Visitenkarte kann das Gerät über
-  deren Geräteschlüssel anklopfen; danach legt es die aktuelle Geräteliste seiner Vault vor und
-  bekommt Zugriff, ohne dass der Eigentümer eine neue Freigabe anlegt.
-- **Anklopfen ohne Zugriffsrecht oder von Unbekannten**: Das Gerät antwortet nicht und verrät nicht,
-  ob es etwas freigibt.
+- **Kontakt hat ein neues Gerät**: Das neue Gerät legt beim Verbinden die aktuelle Geräteliste seiner
+  Vault vor und bekommt Zugriff, ohne dass der Eigentümer eine neue Freigabe anlegt. Ein neues Gerät
+  des Eigentümers erreicht der Kontakt erst, wenn er eine aktualisierte Visitenkarte übernimmt.
+- **Gerät des Eigentümers hat sein iroh-Relay gewechselt**: Die gespeicherte Visitenkarte nennt das
+  alte; das Gerät bleibt „nicht erreichbar“, bis der Kontakt eine aktuelle Karte teilt (derselbe
+  Hinweis wie in Spec 057).
+- **Verbindung ohne Zugriffsrecht oder von Unbekannten**: Das Gerät schließt die Verbindung im
+  Handshake ohne Grund und gibt nichts preis. Wer die Endpoint-ID kennt, erfährt aber, dass das Gerät
+  online ist (bewusst akzeptiert, Betreiber 2026-10-23).
 - **Entzug von einem anderen Gerät, während das bedienende Gerät aus ist**: Der Entzug wirkt, sobald
   das bedienende Gerät ihn per Datensync erhalten hat. Bis dahin zeigt holzi „Entzug wartet auf
   ‹Gerät›“. Startet das bedienende Gerät und beantwortet eine Anfrage, bevor der Datensync gelaufen
@@ -391,12 +395,12 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-007**: Die eigenen Daten von holzi des bedienenden Geräts MÜSSEN für Kontakte gesperrt sein,
   auch innerhalb einer Dateifreigabe. Ein eigenes Gerät MUSS sie sehen wie der Dateibrowser des
   bedienenden Geräts: nur lesend (Spec 044 FR-037), für Agents gesperrt (Spec 044 FR-033).
-- **FR-008**: Um ein Gerät eines Kontakts zu erreichen, MUSS das anfragende Gerät anklopfen: eine
-  kurzlebige, verschlüsselte und mit seinem Geräteschlüssel unterschriebene Nachricht an die
-  Geräteschlüssel des Kontakts über die Nostr-Relays aus dessen Visitenkarte.
-- **FR-009**: Ein Gerät DARF auf ein Anklopfen nur antworten, wenn es dem anfragenden Gerät nach FR-004
-  etwas zugänglich macht; nur dann DARF es seine aktuelle Adresse nennen. Andernfalls MUSS es
-  schweigen.
+- **FR-008**: Um ein Gerät eines Kontakts zu erreichen, MUSS das anfragende Gerät jedes Gerät der
+  gespeicherten Visitenkarte des Kontakts direkt anwählen, mit dessen Endpoint-ID und iroh-Relay aus der
+  Karte (wie Spec 057). Eine Adresse von anderswo DARF es nicht verwenden. Antwortet nach 10 s kein
+  Gerät, ist der Kontakt „nicht erreichbar“ mit dem Hinweis, eine aktuelle Karte zu teilen.
+- **FR-009**: Ein Gerät, das der anfragenden Vault nach FR-004 nichts zugänglich macht, MUSS die
+  Verbindung im Handshake ohne Grund schließen; es DARF nichts darüber verraten, ob es etwas freigibt.
 - **FR-010**: holzi DARF Adressen von Geräten nicht öffentlich verzeichnen lassen (keine öffentliche
   Adressauflösung); eigene Geräte finden sich weiter über die Präsenz aus Spec 024.
 
@@ -459,10 +463,10 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 **Empfangene Dateifreigaben (Empfänger)**
 
 - **FR-028**: Der Dateibrowser MUSS unter „Von Kontakten“ die Kontakte mit bestätigten holzi-Adressen
-  zeigen. Klappt der Nutzer einen Kontakt auf, MUSS holzi bei dessen Geräten anklopfen und die
+  zeigen. Klappt der Nutzer einen Kontakt auf, MUSS holzi dessen Geräte anwählen (FR-008) und die
   Dateifreigaben abfragen, die dieser für die eigene Vault hat.
-- **FR-029**: holzi DARF nicht ohne Zutun des Nutzers bei Kontakten anklopfen, außer um eine schon
-  bekannte empfangene Dateifreigabe zu öffnen, die der Nutzer aufruft.
+- **FR-029**: holzi DARF Geräte von Kontakten nicht ohne Zutun des Nutzers anwählen, außer um eine
+  schon bekannte empfangene Dateifreigabe zu öffnen, die der Nutzer aufruft.
 - **FR-030**: Eine abgefragte Dateifreigabe MUSS als empfangene Dateifreigabe gespeichert werden und
   mit dem Datensync auf alle eigenen Geräte kommen; jedes eigene Gerät MUSS sie öffnen können.
 - **FR-031**: Eine bekannte empfangene Dateifreigabe MUSS sichtbar bleiben, wenn der Kontakt nicht

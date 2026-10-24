@@ -24,7 +24,7 @@ use crate::files::local::{resolve, resolve_entry};
 use crate::files::peer::connect::Connections;
 use crate::files::peer::store::{peer_access, PeerStore};
 use crate::files::peer::wire::Caller as PeerCaller;
-use crate::files::share::PEER_PREFIX;
+use crate::files::share::{PEER_PREFIX, SHARE_PREFIX};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::remote::Side;
@@ -74,25 +74,46 @@ pub(crate) async fn window_storage<R: tauri::Runtime>(
     files: &FilesState,
     storage_id: &str,
 ) -> Result<StorageFiles, FilesError> {
-    if storage_id.starts_with(PEER_PREFIX) {
-        return peer_storage(app, storage_id, PeerCaller::User);
+    if is_remote(storage_id) {
+        return peer_storage(app, state, storage_id, PeerCaller::User).await;
     }
     let scope = window_scope(app, state, files, storage_id);
     Ok(storage_files(state, storage_id).await?.with_scope(scope))
 }
 
-/// Another own device as a storage (spec 056 US1): its files over `haex-vault-files/1`, asked as
-/// `caller`. The serving device opens its encrypted folders itself, so no scope goes with it; an
-/// unknown device or this one answers `NotFound` on the first call.
-pub(crate) fn peer_storage<R: tauri::Runtime>(
+/// Whether `storage_id` names another own device or a share a contact gave this vault.
+pub(crate) fn is_remote(storage_id: &str) -> bool {
+    storage_id.starts_with(PEER_PREFIX) || storage_id.starts_with(SHARE_PREFIX)
+}
+
+/// Another own device (spec 056 US1) or a contact's share (US2) as a storage: its files over
+/// `haex-vault-files/1`, asked as `caller`. The serving device opens its encrypted folders itself,
+/// so no scope goes with it; an unknown device or this one answers `NotFound` on the first call.
+pub(crate) async fn peer_storage<R: tauri::Runtime>(
     app: &AppHandle<R>,
+    state: &AppState,
     storage_id: &str,
     caller: PeerCaller,
 ) -> Result<StorageFiles, FilesError> {
     Ok(StorageFiles::new(
         Arc::new(PeerStore::new(peer_links(app)?, caller)),
-        peer_access(storage_id, None),
+        remote_access(state, storage_id).await?,
     ))
+}
+
+/// What requests to `storage_id` need: the device, and for a contact's share its id at the owner.
+pub(crate) async fn remote_access(
+    state: &AppState,
+    storage_id: &str,
+) -> Result<crate::remote_storage::Access, FilesError> {
+    if !storage_id.starts_with(SHARE_PREFIX) {
+        return Ok(peer_access(storage_id, None));
+    }
+    let db = state
+        .database()
+        .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))?;
+    let share = crate::files::peer::contacts::share_of(&db, storage_id).await?;
+    Ok(peer_access(storage_id, Some(&share)))
 }
 
 /// The session's links to other devices; none while sync does not run.

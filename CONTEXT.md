@@ -499,11 +499,11 @@ What a recipient's vault knows of a contact's **Dateifreigabe**: the contact, na
 serving device. It shows in the file browser like a storage.
 _Avoid_: shared folder, mount.
 
-**Anklopfen** (knock):
-A short-lived, encrypted message over the Nostr relays of a contact's card that asks a device of
-that contact for its current address. A device answers only when it makes something reachable to
-the asking vault.
-_Avoid_: ping, presence (presence is for own devices).
+**Erreichen über die Karte** (dialing from the card):
+A device of a contact is reached at the endpoint id and iroh relay its stored business card names,
+as in spec 057; no other address is used. A device without a grant for the asking vault closes in
+the handshake.
+_Avoid_: Anklopfen, knock (dropped 2026-10-23), presence (presence is for own devices).
 
 ### Internationalisierung (i18n)
 

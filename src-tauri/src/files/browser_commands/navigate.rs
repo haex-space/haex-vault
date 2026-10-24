@@ -7,7 +7,8 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::peers::{peer_devices, watch_peer, FilesPeerDevice};
+use super::is_remote;
+use super::peers::{contact_shares, peer_devices, watch_peer, FilesPeerDevice};
 use super::{blocking, device_path, device_storage, place_of, Place};
 use crate::files::access::Want;
 use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
@@ -17,7 +18,7 @@ use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::local::drives::{drives, Drive};
 use crate::files::local::ops;
-use crate::files::share::PEER_PREFIX;
+use crate::files::peer::contacts::FilesContactShares;
 use crate::files::state::FilesState;
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
@@ -43,6 +44,8 @@ pub struct Sources {
     pub storages: Vec<StorageSource>,
     /// The other devices of the vault (spec 056 US1).
     pub devices: Vec<FilesPeerDevice>,
+    /// The contacts with a stored card and the shares they gave this vault (US2).
+    pub contacts: Vec<FilesContactShares>,
 }
 
 /// A storage for the sidebar.
@@ -97,11 +100,13 @@ pub async fn files_sources(
         Err(_) => Vec::new(),
     };
     let devices = peer_devices(&app, &state).await;
+    let contacts = contact_shares(&app, &state).await;
     Ok(Sources {
         drives,
         known,
         storages,
         devices,
+        contacts,
     })
 }
 
@@ -218,7 +223,7 @@ pub async fn files_watch(
     channel: Channel<FolderChanged>,
 ) -> Result<u64, FilesError> {
     // A folder of another own device is watched there (spec 056 FR-046).
-    if let Some(id) = storage.filter(|id| id.starts_with(PEER_PREFIX)) {
+    if let Some(id) = storage.filter(|id| is_remote(id)) {
         return watch_peer(&app, &files, &id, path, channel).await;
     }
     let source = SourceRef::Device;

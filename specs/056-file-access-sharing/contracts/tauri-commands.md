@@ -18,9 +18,9 @@ Erteilen bestätigt der Nutzer immer in einem Dialog (FR-045, research R17). Der
 
 ## Neu: Kontakte im Dateibrowser
 
-| Command               | Eingabe         | Ausgabe              | Wirkung                                                                                             |
-| --------------------- | --------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
-| `files_contact_query` | `{ contactId }` | `FilesContactShares` | klopft an (nostr-knock.md), fragt `Shares`, speichert empfangene Freigaben (FR-028, FR-030, FR-031) |
+| Command               | Eingabe         | Ausgabe              | Wirkung                                                                                                         |
+| --------------------- | --------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `files_contact_query` | `{ contactId }` | `FilesContactShares` | wählt die Geräte der Karte an (FR-008), fragt `Shares`, speichert empfangene Freigaben (FR-028, FR-030, FR-031) |
 
 ## Neu: Dateifreigaben (Aktionen `files.shares.*`, Scope `files.shares`)
 

@@ -2,7 +2,10 @@
 //! vault, and the switch that lets other own devices reach this device's files. The rows are vault
 //! data (data-model.md); the serving device checks them on every request (FR-005).
 
+pub mod commands;
 pub mod device_access;
+pub mod manage;
+pub mod received;
 pub mod store;
 
 use serde::{Deserialize, Serialize};

@@ -7,13 +7,13 @@ import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
 import type { SourceRef } from '@bindings/SourceRef'
 import { asFilesError } from '~/composables/useFiles'
-import { isPeerStorage } from '~/lib/files/registry'
+import { isRemoteStorage } from '~/lib/files/registry'
 
-/** What a folder of `source` is watched on: this device (`null`), another own device (its id), or
- * nothing (`undefined`, a storage). */
+/** What a folder of `source` is watched on: this device (`null`), another device (an own one or a
+ * contact's, its storage id), or nothing (`undefined`, a storage). */
 function watchedOn(source: SourceRef): string | null | undefined {
   if (source.kind === 'device') return null
-  return isPeerStorage(source.storageId) ? source.storageId : undefined
+  return isRemoteStorage(source.storageId) ? source.storageId : undefined
 }
 
 export function useFilesFolder(
