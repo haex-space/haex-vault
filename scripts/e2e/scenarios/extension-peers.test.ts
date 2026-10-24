@@ -24,6 +24,8 @@ import type { PeerDevice } from '../lib/peers.ts'
 const IDLE_MS = 30_000
 /** QUIC may wait one keep-alive interval after the last idle-timeout tick. */
 const IDLE_DETECTION_MS = IDLE_MS + 5_000
+/** The software-rendered Android emulator adds relay latency to the desktop baseline. */
+const MAX_MEDIAN_DELAY_MS = process.env.E2E_PLATFORM === 'android' ? 2_000 : 100
 
 scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   // Ben has a second device: a Visitenkarte names the relay only of the devices its issuer has seen
@@ -218,7 +220,10 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
     'timed messages',
     `${delays.length}/${count} arrived, delay median ${median} ms, p95 ${p95} ms`,
   )
-  assert.ok(median < 100, `median delay ${median} ms`)
+  assert.ok(
+    median < MAX_MEDIAN_DELAY_MS,
+    `median delay ${median} ms (limit ${MAX_MEDIAN_DELAY_MS} ms)`,
+  )
 
   await succeeded(anna, 'close', annaChannel)
   for (const [device, channel] of [
