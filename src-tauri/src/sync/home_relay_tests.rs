@@ -107,6 +107,33 @@ fn an_endpoint_without_a_relay_keeps_the_last_one_on_the_card() {
 }
 
 #[test]
+fn a_listed_device_without_a_relay_keeps_its_last_one_on_the_card() {
+    let main = Member::genesis();
+    let other = Member::join(&main);
+    main.add(&other);
+    renew_card(&main);
+
+    let first = address(&other, Some(OTHER_HOME));
+    main.device
+        .db()
+        .write(|tx| record_device(tx, &other.keys.device_pubkey, 1_000, Some(&first)))
+        .expect("record the listed device");
+    let before = card_of(&main);
+
+    let no_relay = address(&other, None);
+    main.device
+        .db()
+        .write(|tx| record_device(tx, &other.keys.device_pubkey, 2_000, Some(&no_relay)))
+        .expect("record the listed device without a relay");
+
+    assert_eq!(card_of(&main), before);
+    assert_eq!(
+        listed(&card_of(&main), &other).iroh_relay.as_deref(),
+        Some(OTHER_HOME)
+    );
+}
+
+#[test]
 fn a_second_device_appears_beside_the_own_one_with_the_relay_it_was_heard_at() {
     let main = Member::genesis();
     let other = Member::join(&main);

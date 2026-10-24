@@ -9,7 +9,7 @@
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
-use iroh::EndpointAddr;
+use iroh::{EndpointAddr, TransportAddr};
 
 use crate::contacts::card::own_card;
 use crate::sync::presence::record_seen;
@@ -20,11 +20,11 @@ fn relay_of(addr: &EndpointAddr) -> Option<String> {
     addr.relay_urls().next().map(ToString::to_string)
 }
 
-/// The home relay stored for `device`.
-fn stored_relay(
+/// The endpoint address stored for `device`.
+fn stored_addr(
     tx: &mut CrdtTransaction<'_>,
     device: &[u8; 32],
-) -> haex_crdt::Result<Option<String>> {
+) -> haex_crdt::Result<Option<EndpointAddr>> {
     let stored: Option<Vec<u8>> = tx
         .query_row(
             "SELECT endpoint_addr FROM device_presence_no_sync WHERE device_pubkey = ?1",
@@ -32,10 +32,7 @@ fn stored_relay(
             |r| r.get::<_, Option<Vec<u8>>>(0),
         )?
         .flatten();
-    Ok(stored
-        .and_then(|bytes| postcard::from_bytes::<EndpointAddr>(&bytes).ok())
-        .as_ref()
-        .and_then(relay_of))
+    Ok(stored.and_then(|bytes| postcard::from_bytes::<EndpointAddr>(&bytes).ok()))
 }
 
 /// [`record_seen`] for a device of the vault, and a new own card when `addr` names a home relay
@@ -48,12 +45,32 @@ pub(crate) fn record_device(
     addr: Option<&EndpointAddr>,
 ) -> haex_crdt::Result<bool> {
     let named = addr.and_then(relay_of);
-    let before = stored_relay(tx, device)?;
-    record_seen(tx, device, last_seen_ms, addr)?;
+    let stored = stored_addr(tx, device)?;
+    let before = stored.as_ref().and_then(relay_of);
+    // A presence meeting may contain fresh direct addresses without a relay. Keep the last
+    // known relay in that address, and keep the complete last address when no address was named.
+    let preserved = match addr {
+        Some(addr) if named.is_none() => stored.as_ref().and_then(|old| {
+            old.relay_urls().next().map(|relay| {
+                EndpointAddr::from_parts(
+                    addr.id,
+                    addr.addrs
+                        .iter()
+                        .cloned()
+                        .chain([TransportAddr::Relay(relay.clone())]),
+                )
+            })
+        }),
+        None => stored.clone(),
+        _ => None,
+    };
+    record_seen(tx, device, last_seen_ms, preserved.as_ref().or(addr))?;
     if named.is_none() || named == before {
         return Ok(false);
     }
-    own_card::refresh_quietly(tx);
+    // Keep the presence write and the card renewal in one transaction. If card creation fails,
+    // rolling back the relay write leaves the next meeting able to retry the renewal.
+    own_card::refresh(tx)?;
     Ok(true)
 }
 
