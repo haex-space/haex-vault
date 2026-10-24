@@ -118,6 +118,19 @@ export function useExtensionHost() {
     ),
     'notification clicks',
   )
+  // An extension leads the person to the models it may use (spec 055 US9); Rust names the calling
+  // extension, never one the extension chose.
+  keep(
+    listen<{ extensionId: string }>(
+      'extension-open-model-settings',
+      (event) => {
+        const id = encodeURIComponent(event.payload.extensionId)
+        wm.openApp('system.settings', `/extensions/${id}?section=models`)
+        void raiseWindowAsync()
+      },
+    ),
+    'requests for the model settings',
+  )
   // Where the system shows no notification of an extension (Android: the person refused the
   // permission, spec 043 FR-023), holzi shows it as a message; "open" brings the extension's tab.
   keep(

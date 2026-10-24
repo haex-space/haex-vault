@@ -12,6 +12,8 @@ pub(crate) mod model_jobs;
 pub mod permissions;
 
 #[cfg(test)]
+mod model_access_tests;
+#[cfg(test)]
 mod model_jobs_capabilities_tests;
 #[cfg(test)]
 mod model_jobs_consent_tests;

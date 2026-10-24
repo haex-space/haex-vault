@@ -39,6 +39,16 @@ function deviceText(device: DeviceState): string {
   return `${state} · ${t(key, { version: device.version })}`
 }
 
+/** `?section=models`: an extension led the person here to choose its models (spec 055 US9). */
+const modelsSection = useTemplateRef<HTMLElement>('modelsSection')
+watch(
+  [modelsSection, () => router.route.query.section],
+  ([section, wanted]) => {
+    if (section && wanted === 'models')
+      section.scrollIntoView({ block: 'start' })
+  },
+)
+
 function deviceTitle(device: DeviceState): string {
   const name = device.deviceName || t('settings.extensions.unnamedDevice')
   return device.thisDevice
@@ -107,7 +117,9 @@ function deviceTitle(device: DeviceState): string {
         <SettingsExtensionsExtensionPermissionsView
           :extension-id="extension.id"
         />
-        <SettingsExtensionsExtensionModelsView :extension-id="extension.id" />
+        <div ref="modelsSection">
+          <SettingsExtensionsExtensionModelsView :extension-id="extension.id" />
+        </div>
         <SettingsExtensionsExtensionLogsView :extension-id="extension.id" />
       </template>
       <SettingsExtensionsExtensionKeptDataView v-else :extension="extension" />

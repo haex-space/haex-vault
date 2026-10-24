@@ -119,6 +119,8 @@ Spec 055: Eine Erweiterung lässt einen Auftrag von einem Modell ausführen, das
 und erhält das Ende als Meldung `haextension:model-job:completed`. Der vollständige Vertrag steht in
 [055](../../055-extension-model-access/contracts/bridge.md); das vault-sdk spricht sie über `models`. Sie
 ersetzen `extension_ai_task_start` und `extension_ai_task_cancel` aus Spec 047, die es nicht mehr gibt.
+`extension_model_access_request` stößt die Freigabe vor dem ersten Auftrag an, `extension_model_settings_open`
+öffnet holzis Modell-Seite der aufrufenden Erweiterung (Spec 055, US9).
 
 ## Meldungen holzi → Erweiterung
 
