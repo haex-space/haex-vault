@@ -34,6 +34,7 @@ const adding = ref('')
 const error = ref<string | null>(null)
 const saving = ref(false)
 const loading = ref(false)
+const loadFailed = ref(false)
 let loadGeneration = 0
 
 const contactName = (vault: string, fallback: string | null = null) =>
@@ -49,6 +50,7 @@ watch([open, () => props.entry?.path], async ([isOpen, entryPath]) => {
     return
   }
   error.value = null
+  loadFailed.value = false
   adding.value = ''
   name.value = props.entry.name
   rows.value = []
@@ -67,7 +69,10 @@ watch([open, () => props.entry?.path], async ([isOpen, entryPath]) => {
       }))
     }
   } catch (cause) {
-    if (generation === loadGeneration) failed(cause)
+    if (generation === loadGeneration) {
+      loadFailed.value = true
+      failed(cause)
+    }
   } finally {
     if (generation === loadGeneration) loading.value = false
   }
@@ -113,7 +118,7 @@ function failed(cause: unknown) {
 }
 
 async function saveNowAsync() {
-  if (!props.entry || loading.value) return
+  if (!props.entry || loading.value || loadFailed.value) return
   saving.value = true
   try {
     await saveShare({
@@ -236,6 +241,7 @@ async function endAsync() {
           >
           <UiButton
             type="submit"
+            :disabled="saving || loading || loadFailed"
             :loading="saving || loading"
             data-testid="files-share-save"
             >{{ t('files.shares.save') }}</UiButton
