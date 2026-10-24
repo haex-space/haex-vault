@@ -22,6 +22,8 @@ import type { PeerDevice } from '../lib/peers.ts'
 
 /** The most a channel waits to notice a device that vanished without a word (FR-039: 30 s idle). */
 const IDLE_MS = 30_000
+/** QUIC may wait one keep-alive interval after the last idle-timeout tick. */
+const IDLE_DETECTION_MS = IDLE_MS + 5_000
 
 scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   // Ben has a second device: a Visitenkarte names the relay only of the devices its issuer has seen
@@ -314,7 +316,7 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   )!
   assert.equal(end.data.reason, 'timeout')
   assert.ok(
-    Date.now() - killedAt <= IDLE_MS,
+    Date.now() - killedAt <= IDLE_DETECTION_MS,
     `channel timed out after ${Date.now() - killedAt} ms`,
   )
   ctx.step(
