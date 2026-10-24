@@ -50,6 +50,19 @@ test('another own device has its own route and round-trips (spec 056)', () => {
   )
 })
 
+test('a share of a contact has its own route and round-trips (spec 056)', () => {
+  const place: FilesPlace = {
+    source: {
+      kind: 'storage',
+      storageId: 'share:7d1e4c2a-5b3f-4e8d-9a1c-2f6b8e0d4a7c',
+    },
+    path: '/Urlaub',
+  }
+  const location = filesLocation(place)
+  assert.equal(location.path, '/share/7d1e4c2a-5b3f-4e8d-9a1c-2f6b8e0d4a7c')
+  assert.deepEqual(parseFilesPlace(location), place)
+})
+
 test('the start is the device without a path', () => {
   assert.deepEqual(parseFilesPlace({ path: '/', query: {} }), {
     source: { kind: 'device' },

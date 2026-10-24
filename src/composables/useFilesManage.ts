@@ -31,6 +31,10 @@ export function useFilesManage(options: {
   tabId: string
   reload: () => unknown
   activate: (entry: Entry) => void
+  /** The open source is read-only for this vault (a share at level read, spec 056 FR-034). */
+  readOnlySource?: Ref<boolean>
+  /** Opens the share dialog for an entry of this device (spec 056 US2). */
+  share?: (entry: Entry) => void
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
@@ -51,6 +55,10 @@ export function useFilesManage(options: {
 
   /** The open folder is one of holzi's own places (FR-037): nothing changes in it. */
   const folderOwned = ref(false)
+  /** Nothing changes in the open folder: holzi's own place, or a share read only. */
+  const readOnly = computed(
+    () => folderOwned.value || (options.readOnlySource?.value ?? false),
+  )
   /** The open folder is, or lies in, an encrypted folder (spec 048). */
   const folderEncrypted = ref(false)
   /** Foreign files in the open encrypted folder (spec 048 FR-048); 0 below its top. */
@@ -105,7 +113,7 @@ export function useFilesManage(options: {
   function menuFor(targets: Selection | null) {
     if (!targets)
       return folderMenu({
-        readOnly: folderOwned.value,
+        readOnly: readOnly.value,
         canPaste: canPaste.value,
         canEncrypt: canCreateEncrypted({
           source: source.value,
@@ -118,9 +126,14 @@ export function useFilesManage(options: {
     return entriesMenu({
       count: entries.length,
       singleFile: entries.length === 1 && entries[0]?.kind === 'file',
-      readOnly: folderOwned.value || entries.some((entry) => entry.holziOwned),
+      readOnly: readOnly.value || entries.some((entry) => entry.holziOwned),
       selecting: selecting.value,
       systemApps: !isAndroid.value,
+      shareable:
+        !!options.share &&
+        source.value.kind === 'device' &&
+        !folderEncrypted.value &&
+        !entries.some((entry) => entry.holziOwned),
     })
   }
 
@@ -276,7 +289,7 @@ export function useFilesManage(options: {
         const clip = transfers.clipboard
         if (!clip || !path.value) break
         // A refused cut stays on the clipboard, so it can go elsewhere.
-        const started = await placeAsync(clip, path.value, folderOwned.value)
+        const started = await placeAsync(clip, path.value, readOnly.value)
         if (started && clip.op === 'cut') transfers.clipboard = null
         break
       }
@@ -297,6 +310,9 @@ export function useFilesManage(options: {
         if (await encryptedNoticeShownAsync().catch(() => false))
           startEncrypted()
         else noticing.value = true
+        break
+      case 'share':
+        if (first) options.share?.(first)
         break
       case 'delete':
         pendingDelete.value = entries.map((entry) => entry.path)
@@ -353,9 +369,10 @@ export function useFilesManage(options: {
       mac: /Mac/.test(navigator.userAgent),
     })
     const owned =
-      target === path.value
+      (options.readOnlySource?.value ?? false) ||
+      (target === path.value
         ? folderOwned.value
-        : (entryAt(target)?.holziOwned ?? false)
+        : (entryAt(target)?.holziOwned ?? false))
     selection.value = EMPTY_SELECTION
     void placeAsync({ ...payload, op }, target, owned)
   }
@@ -382,6 +399,7 @@ export function useFilesManage(options: {
     selecting,
     clearSelection,
     folderOwned,
+    readOnly,
     folderForeign,
     canPaste,
     menuEntries,
