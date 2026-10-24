@@ -200,7 +200,8 @@ Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt. Das SD
 - **Datagrammgröße über Relay-Pfade**: 1.024 Byte sollten passen; PR 1 misst es. Ist es knapper,
   sinkt die Grenze vor PR 4 (die Spec verlangt ≥ 1.000).
 - **Heim-Relay gewechselt**: Bis zum Anklopfen aus 056 sind solche Geräte nur mit neuer Karte
-  erreichbar (bewusst, Clarifications 2026-10-22).
+  erreichbar (bewusst, Clarifications 2026-10-22). Der Aussteller erstellt sie selbst neu; der Kontakt
+  muss sie erhalten.
 - **Fremde Relays**: Ein Beitretender muss das Relay des Gastgebers erreichen, auch wenn es nicht in
   seinen eigenen Einstellungen steht. iroh verbindet sich dafür mit dem Relay der Gegenadresse; hat der
   Nutzer alle Relays abgeschaltet, kann das ausbleiben. PR 2 testet es.

@@ -309,7 +309,9 @@ side is Rust; no bridge method exists yet (PR 4).
 - **Limits**: 16 open outgoing invitations per extension (`limit`), `channels_full` at invite time
   (`limit`), payload over 4 KiB `too_large`, a payload that is not JSON `invalid_input`.
 - **Not built**: knocking (research R5). A card without devices, a device not found and a home relay
-  that changed all end as `unreachable` with `hint: "share_current_card"`.
+  that changed all end as `unreachable` with `hint: "share_current_card"`. (Since
+  `fix/card-own-relay` the issuer's own card names every device including its own with its home relay,
+  so a vault of one device is no longer a card without a relay.)
 - **For PR 4**: `invite::invite(peers, extension_id, ExtensionRef, contact_id, &payload)` is async
   and answers `Uuid` or `PeerError` (`ContactUnknown`, `TooLarge`, `InvalidInput`, `Limit`,
   `NetworkUnavailable`); `invite::cancel` is sync (`InviteNotOpen`). The bridge checks `peers` before
