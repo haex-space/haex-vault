@@ -2556,7 +2556,8 @@
       "title": "Endgültig löschen?",
       "body": "{count} Eintrag wird endgültig gelöscht. Das lässt sich nicht rückgängig machen. | {count} Einträge werden endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
       "confirm": "Löschen",
-      "foreign": "Mit dem verschlüsselten Ordner geht {count} fremde Datei, die nicht von holzi stammt. | Mit dem verschlüsselten Ordner gehen {count} fremde Dateien, die nicht von holzi stammen."
+      "foreign": "Mit dem verschlüsselten Ordner geht {count} fremde Datei, die nicht von holzi stammt. | Mit dem verschlüsselten Ordner gehen {count} fremde Dateien, die nicht von holzi stammen.",
+      "remoteTrash": "In den Papierkorb des anderen Geräts verschoben."
     },
     "transfer": {
       "copy": "Kopieren",

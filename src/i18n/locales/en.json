@@ -2556,7 +2556,8 @@
       "title": "Delete for good?",
       "body": "{count} entry will be deleted for good. This cannot be undone. | {count} entries will be deleted for good. This cannot be undone.",
       "confirm": "Delete",
-      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder."
+      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder.",
+      "remoteTrash": "Moved to the other device's trash."
     },
     "transfer": {
       "copy": "Copying",
