@@ -253,12 +253,21 @@ jobs:
       - name: Run tests
         id: tests
         shell: bash
+        env:
+          HOLZI_WRITE_E2E_FIXTURES: '1'
         run: |
           set -euo pipefail
           mkdir -p /tmp/cores
           sudo sysctl -q -w kernel.core_pattern='/tmp/cores/core.%p.%E'
           ulimit -c unlimited
           cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }}
+
+      - name: Upload generated peers fixture
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: generated-peers-${{ matrix.features }}
+          path: src-tauri/tests/fixtures/extension_e2e/peers/peers.xt
 
       - name: Backtrace of a crashed test binary
         if: failure() && steps.tests.outcome == 'failure'
