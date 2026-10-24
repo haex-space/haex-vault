@@ -374,10 +374,11 @@ async fn read_loop(channel: Arc<Channel>, mut recv: RecvStream) {
                     "peers: channel {} sent an oversized reliable message",
                     channel.id
                 );
+                channel.end(EndReason::Lost);
                 channel
                     .connection
                     .close(ErrorCode::Protocol.as_u32().into(), b"protocol");
-                return channel.end(EndReason::Lost);
+                return;
             }
             Ok(Some(Message::Close { .. })) => return channel.end(EndReason::Closed),
             // The stream ended; the end of the connection follows and is told by its reason.
@@ -385,10 +386,11 @@ async fn read_loop(channel: Arc<Channel>, mut recv: RecvStream) {
             Ok(Some(_)) | Err(_) if channel.connection.close_reason().is_some() => return,
             Ok(Some(_)) | Err(_) => {
                 log::debug!("peers: channel {} broke the protocol", channel.id);
+                channel.end(EndReason::Lost);
                 channel
                     .connection
                     .close(ErrorCode::Protocol.as_u32().into(), b"protocol");
-                return channel.end(EndReason::Lost);
+                return;
             }
         }
     }

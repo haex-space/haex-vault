@@ -308,7 +308,13 @@ export function useExtensionFrame(
           void invoke('extension_peers_frame_overflow', {
             frame: opened.frame,
             channelId,
-          }).catch(() => {}),
+          }).catch((cause) => {
+            console.error(
+              '[extensions] failed to end a channel after frame overflow',
+              cause,
+            )
+            error.value = errString(cause)
+          }),
       )
       src.value = opened.url + currentHash()
       // A WebKitGTK load event can be lost while the development page is already rendered. Run

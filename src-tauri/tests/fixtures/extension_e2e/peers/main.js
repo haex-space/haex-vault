@@ -120,6 +120,7 @@ window.peersProbe = {
   /** Sends `count` timed fast messages of 1,024 bytes, `perSecond` of them every second. */
   async sendTimed(channelId, count, perSecond) {
     const gap = 1000 / perSecond
+    const started = performance.now()
     let failed = 0
     for (let i = 0; i < count; i++) {
       const bytes = new Uint8Array(sdk.peers.MAX_FAST_BYTES)
@@ -129,9 +130,13 @@ window.peersProbe = {
         sdk.peers.sendAsync(channelId, bytes, { reliable: false }),
       )
       if (sent.error) failed += 1
-      await new Promise((resolve) => setTimeout(resolve, gap))
+      const next = started + (i + 1) * gap
+      const wait = next - performance.now()
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
     }
-    return { ok: { sent: count, failed } }
+    return {
+      ok: { sent: count, failed, elapsedMs: performance.now() - started },
+    }
   },
   close: (channelId) => attempt(() => sdk.peers.closeAsync(channelId)),
   /** The events so far, optionally of one type; nothing of a message but its size. */

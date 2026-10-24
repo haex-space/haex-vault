@@ -194,14 +194,16 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   ctx.step('fast and reliable messages arrive, 1,025 bytes are too large')
 
   const count = 175 // five seconds at 35 messages a second
-  const timed = await succeeded<{ sent: number; failed: number }>(
-    anna,
-    'sendTimed',
-    annaChannel,
-    count,
-    35,
-  )
+  const timed = await succeeded<{
+    sent: number
+    failed: number
+    elapsedMs: number
+  }>(anna, 'sendTimed', annaChannel, count, 35)
   assert.equal(timed.failed, 0)
+  assert.ok(
+    timed.sent / (timed.elapsedMs / 1000) >= 35,
+    `send rate ${timed.sent / (timed.elapsedMs / 1000)} messages/s`,
+  )
   await ctx.waitFor(
     'the timed messages to arrive',
     async () => (await read<number[]>(tablet, 'delays')).length >= count * 0.99,
@@ -311,6 +313,10 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
     (event) => event.data.channelId === daveJoined.data.channelId,
   )!
   assert.equal(end.data.reason, 'timeout')
+  assert.ok(
+    Date.now() - killedAt <= IDLE_MS,
+    `channel timed out after ${Date.now() - killedAt} ms`,
+  )
   ctx.step(
     'a vanished device',
     `Anna heard "timeout" ${Date.now() - killedAt} ms after the kill`,

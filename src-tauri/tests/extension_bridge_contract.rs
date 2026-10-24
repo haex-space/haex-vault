@@ -102,6 +102,11 @@ fn the_methods_and_events_of_channels_are_in_both_contracts() {
             "{}",
             method.name
         );
+        assert!(
+            host.contains(&format!("`{}`", method.name)),
+            "017: {}",
+            method.name
+        );
     }
     for event in EVENTS {
         assert!(host.contains(&format!("`{event}`")), "017: {event}");
