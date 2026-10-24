@@ -142,6 +142,7 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
     const statuses = await eventsOf(anna, 'invite-status')
     throw new Error(
       `${String(error)}; Anna's invitation status: ${JSON.stringify(statuses)}`,
+      { cause: error },
     )
   }
   assert.deepEqual(await eventsOf(tablet, 'channel-opened'), [])
