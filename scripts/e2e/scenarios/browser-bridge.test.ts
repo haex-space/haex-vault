@@ -201,6 +201,13 @@ scenario('browser-bridge', { timeoutMs: 420_000 }, async (ctx) => {
         ? true
         : undefined,
     )
+    await ctx.waitFor('the revoke confirmation closes', async () =>
+      (await instance.exec<number>(
+        `return document.querySelectorAll('[data-testid="bridge-client-confirm"]').length`,
+      )) === 0
+        ? true
+        : undefined,
+    )
     ctx.step('revoked: the held connection hears it and closes')
 
     const strangerId = stranger.events()[0]?.clientId
