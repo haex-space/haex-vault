@@ -340,7 +340,17 @@ impl Vault {
 
     /// Grants the test extension `kind`/`action` on `*`, remembered for the vault.
     pub(crate) fn grant(&self, kind: &'static str, action: &'static str, status: &str) {
-        let extension_id = self.extension_id;
+        self.grant_to(self.extension_id, kind, action, status);
+    }
+
+    /// [`Self::grant`] for another extension installed here.
+    pub(crate) fn grant_to(
+        &self,
+        extension_id: Uuid,
+        kind: &'static str,
+        action: &'static str,
+        status: &str,
+    ) {
         let status = status.to_owned();
         self.db
             .write_blocking(move |tx| {

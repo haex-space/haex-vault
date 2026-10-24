@@ -23,12 +23,12 @@ use crate::files::FilesErrorCode;
 use crate::remote_storage::{ObjectStore, StorageError};
 use crate::sync::test_support::Member;
 
-fn soon() -> Instant {
+pub(super) fn soon() -> Instant {
     Instant::now() + Duration::from_secs(20)
 }
 
 /// The contact that carries `of`'s card on `on`.
-async fn contact_of(of: &Device, on: &Device) -> String {
+pub(super) async fn contact_of(of: &Device, on: &Device) -> String {
     let vault = of.member.vault;
     on.db
         .read(move |q| Ok(cards::stored(q, &vault)?))
@@ -39,7 +39,7 @@ async fn contact_of(of: &Device, on: &Device) -> String {
 }
 
 /// Ben's links, with Anna's device findable at its loopback address.
-async fn links_of(ben: &Device, anna: &Device) -> Connections {
+pub(super) async fn links_of(ben: &Device, anna: &Device) -> Connections {
     ben.node.note_presence(anna.node.addr()).await;
     Connections::new(Arc::clone(&ben.node), Arc::clone(&ben.ctx))
 }
@@ -70,7 +70,11 @@ async fn shared(level: FileShareLevel) -> (Device, Device, Connections, String) 
     (anna, ben, links, storage_id)
 }
 
-async fn files_of(ben: &Device, links: Connections, storage_id: &str) -> (StorageFiles, PeerStore) {
+pub(super) async fn files_of(
+    ben: &Device,
+    links: Connections,
+    storage_id: &str,
+) -> (StorageFiles, PeerStore) {
     let share = contacts::share_of(&ben.db, storage_id)
         .await
         .expect("share");

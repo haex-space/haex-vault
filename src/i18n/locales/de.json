@@ -2322,7 +2322,8 @@
         "contacts": "Kontakte",
         "agentTool": "Werkzeug für den Agenten",
         "model": "Modell nutzen",
-        "modelDestination": "Daten an ein Ziel außerhalb des Geräts senden"
+        "modelDestination": "Daten an ein Ziel außerhalb des Geräts senden",
+        "peers": "Kanäle zu anderen Vaults"
       },
       "effect": {
         "read": "liest nur",
@@ -2331,6 +2332,9 @@
       },
       "everyMethod": "alle Anfragen",
       "contactsGroup": "Kontakte der Gruppe „{name}“",
+      "peers": {
+        "description": "Kanäle zu derselben Erweiterung auf Geräten anderer Vaults öffnen. Mitspieler können bei direkter Verbindung die Netzwerkadresse dieses Geräts sehen."
+      },
       "everything": {
         "filesystem": "Alle Dateien und Ordner",
         "web": "Jede Website und jeder Server im Internet",
@@ -2554,7 +2558,8 @@
       "title": "Endgültig löschen?",
       "body": "{count} Eintrag wird endgültig gelöscht. Das lässt sich nicht rückgängig machen. | {count} Einträge werden endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
       "confirm": "Löschen",
-      "foreign": "Mit dem verschlüsselten Ordner geht {count} fremde Datei, die nicht von holzi stammt. | Mit dem verschlüsselten Ordner gehen {count} fremde Dateien, die nicht von holzi stammen."
+      "foreign": "Mit dem verschlüsselten Ordner geht {count} fremde Datei, die nicht von holzi stammt. | Mit dem verschlüsselten Ordner gehen {count} fremde Dateien, die nicht von holzi stammen.",
+      "remoteTrash": "In den Papierkorb des anderen Geräts verschoben."
     },
     "transfer": {
       "copy": "Kopieren",

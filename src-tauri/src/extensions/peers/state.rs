@@ -167,8 +167,14 @@ impl PeerState {
 
     /// Closes the channel `id` of `extension_id` on both sides; both hear `closed`.
     pub fn close(&self, extension_id: Uuid, id: Uuid) -> Result<(), PeerError> {
+        self.end(extension_id, id, EndReason::Closed)
+    }
+
+    /// Ends the channel `id` of `extension_id` with `reason` on both sides: for `lost`, the
+    /// other side hears `lost` too.
+    pub fn end(&self, extension_id: Uuid, id: Uuid, reason: EndReason) -> Result<(), PeerError> {
         self.channel(extension_id, id)?;
-        self.finish(id, EndReason::Closed);
+        self.finish(id, reason);
         Ok(())
     }
 
@@ -180,7 +186,7 @@ impl PeerState {
             return;
         };
         self.pending().remove(id);
-        channel.shut();
+        channel.shut(reason);
         channel.tell_closed(reason);
     }
 

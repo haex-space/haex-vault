@@ -94,22 +94,48 @@ export function eventMessage(event: FrameEvent): {
 /** Events held for a frame whose SDK is not ready yet (8 KiB of shell output each at most). */
 export const MAX_HELD_EVENTS = 256
 
+/** A `peers:message` of the channel's reliable stream; losing one ends the channel (FR-038). */
+function reliableChannel(event: FrameEvent): string | null {
+  if (event.type !== 'peers:message') return null
+  const data = event.data as { channelId?: unknown; reliable?: unknown } | null
+  return data?.reliable === true && typeof data.channelId === 'string'
+    ? data.channelId
+    : null
+}
+
+/** Whether the queue may drop the event first: shell output and fast `peers:message`. */
+function droppable(event: FrameEvent): boolean {
+  if (event.type === 'shell:output') return true
+  if (event.type !== 'peers:message') return false
+  return (event.data as { reliable?: unknown } | null)?.reliable === false
+}
+
 /**
  * Events for one frame. Until the SDK confirms its port (`haexspace:port:ready`) they are held
  * (FR-042); a new port (the frame loaded again) starts holding again. At most
- * {@link MAX_HELD_EVENTS} are held: beyond that the oldest `shell:output` goes (holzi does not
- * wait for a frame that never acknowledged, so a frame that never gets ready would hold a
- * flooding shell's whole output); only when none is held, the oldest event of any type goes.
+ * {@link MAX_HELD_EVENTS} are held: beyond that the oldest droppable event goes (`shell:output`,
+ * a fast `peers:message`; holzi does not wait for a frame that never acknowledged, so a frame
+ * that never gets ready would hold a flooding shell's whole output); only when none is held, the
+ * oldest event of any type goes. Losing a reliable `peers:message` is reported once per channel
+ * through `onLost`, so holzi ends that channel instead of delivering it with a gap (spec 057
+ * R8).
  */
 export class FrameEventQueue {
   private held: FrameEvent[] = []
   private open = false
   private readonly frame: string
   private readonly deliver: (event: FrameEvent) => void
+  private readonly onLost: (channelId: string) => void
+  private readonly reported = new Set<string>()
 
-  constructor(frame: string, deliver: (event: FrameEvent) => void) {
+  constructor(
+    frame: string,
+    deliver: (event: FrameEvent) => void,
+    onLost: (channelId: string) => void = () => {},
+  ) {
     this.frame = frame
     this.deliver = deliver
+    this.onLost = onLost
   }
 
   /** Takes an event of any frame; events of other frames are dropped. */
@@ -119,15 +145,22 @@ export class FrameEventQueue {
       this.deliver(event)
       return
     }
-    if (this.held.length >= MAX_HELD_EVENTS) {
-      const output = this.held.findIndex((e) => e.type === 'shell:output')
-      const dropped = this.held.splice(output === -1 ? 0 : output, 1)[0]
-      if (dropped && dropped.type !== 'shell:output')
-        console.warn(
-          `extension frame ${this.frame}: not ready, dropped ${dropped.type}`,
-        )
-    }
+    if (this.held.length >= MAX_HELD_EVENTS) this.dropOne()
     this.held.push(event)
+  }
+
+  private dropOne(): void {
+    const first = this.held.findIndex(droppable)
+    const dropped = this.held.splice(first === -1 ? 0 : first, 1)[0]
+    if (!dropped || droppable(dropped)) return
+    console.warn(
+      `extension frame ${this.frame}: not ready, dropped ${dropped.type}`,
+    )
+    const channel = reliableChannel(dropped)
+    if (channel !== null && !this.reported.has(channel)) {
+      this.reported.add(channel)
+      this.onLost(channel)
+    }
   }
 
   /** The port is confirmed: everything held goes out in order. */

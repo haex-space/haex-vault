@@ -209,17 +209,12 @@ impl Run<'_, '_> {
         }
     }
 
-    /// Where a file goes, after asking when its name is taken; `None` to skip it.
-    fn resolve(&mut self, rel: &[String]) -> Result<Option<Place>, Stop> {
-        let place = self.place_of(rel, false)?;
-        if !self.taken(&place)? {
-            return Ok(Some(place));
-        }
-        let name = rel.last().cloned().unwrap_or_default();
+    /// The answer to the question about `name`, or the one given for all.
+    fn choose(&mut self, name: &str) -> Result<ConflictChoice, Stop> {
         let choice = match self.for_all {
             Some(choice) => choice,
             None => {
-                let (choice, for_all) = (self.hooks.ask)(&name).ok_or(Stop::Cancelled)?;
+                let (choice, for_all) = (self.hooks.ask)(name).ok_or(Stop::Cancelled)?;
                 if for_all {
                     self.for_all = Some(choice);
                 }
@@ -227,6 +222,17 @@ impl Run<'_, '_> {
             }
         };
         self.check()?;
+        Ok(choice)
+    }
+
+    /// Where a file goes, after asking when its name is taken; `None` to skip it.
+    fn resolve(&mut self, rel: &[String]) -> Result<Option<Place>, Stop> {
+        let place = self.place_of(rel, false)?;
+        if !self.taken(&place)? {
+            return Ok(Some(place));
+        }
+        let name = rel.last().cloned().unwrap_or_default();
+        let choice = self.choose(&name)?;
         Ok(match choice {
             ConflictChoice::Replace => Some(place),
             ConflictChoice::Skip => None,
@@ -269,12 +275,20 @@ impl Run<'_, '_> {
             self.make_folder(item)?;
         } else {
             let Some(place) = self.resolve(&item.rel)? else {
-                self.done.items += 1;
-                self.done.bytes += item.size;
-                self.report();
+                self.skipped(item);
                 return Ok(());
             };
-            self.send(item, &place)?;
+            let before = self.done.bytes;
+            match self.send(item, &place) {
+                Err(Stop::Failed(error)) if error.code == FilesErrorCode::Conflict => {
+                    self.done.bytes = before;
+                    if !self.after_conflict(item, place)? {
+                        self.skipped(item);
+                        return Ok(());
+                    }
+                }
+                sent => sent?,
+            }
             self.done.items += 1;
             self.report();
         }
@@ -282,6 +296,29 @@ impl Run<'_, '_> {
             self.remove_source(item)?;
         }
         Ok(())
+    }
+
+    fn skipped(&mut self, item: &Item) {
+        self.done.items += 1;
+        self.done.bytes += item.size;
+        self.report();
+    }
+
+    /// The target changed while the file went up (spec 056 FR-036, research R7): the question as
+    /// for a taken name; "Ersetzen" sends again over what is there now, "Beide behalten" under a
+    /// free name. Returns whether the file was sent. A second conflict ends the transfer.
+    /// `ponytail:` between the question and the new `begin_upload` the target is not checked; the
+    /// upgrade is a version in the `ObjectStore` trait itself.
+    fn after_conflict(&mut self, item: &Item, place: Place) -> Result<bool, Stop> {
+        let name = item.rel.last().cloned().unwrap_or_default();
+        let choice = self.choose(&name)?;
+        let place = match (choice, place) {
+            (ConflictChoice::Skip, _) => return Ok(false),
+            (ConflictChoice::KeepBoth, Place::Key(key)) => Place::Key(self.free_key(&key)?),
+            (_, place) => place,
+        };
+        self.send(item, &place)?;
+        Ok(true)
     }
 
     fn make_folder(&mut self, item: &Item) -> Result<(), Stop> {

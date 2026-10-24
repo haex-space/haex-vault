@@ -17,8 +17,8 @@ import {
 // vault-sdk bundled in, runs its page recognition on holzi's models. A stand-in server with the
 // OpenAI-compatible interface answers for every model; holzi knows it twice, at `127.0.0.1` (this
 // device) and at this machine's address in its private network (a server, which needs consent).
-// The first job asks for a model and runs on this device; a job on the server asks for consent,
-// held for the session only; after a restart the denied consent sends nothing; revoked models are
+// Before its first job the extension asks for its grant (US9, T092) and sends nothing. The first job
+// runs on this device; a job on the server asks for consent, held for the session only; after a restart the denied consent sends nothing; revoked models are
 // asked for again. Broken output and the steps are covered by `src-tauri/src/extensions/bridge/`.
 
 const PAGE = {
@@ -47,6 +47,8 @@ interface JobEnd {
   result?: { final: unknown }
   provenance?: Array<{ attempts: Array<{ model: string; place: string }> }>
   rejected?: { code?: number }
+  models?: unknown[]
+  opened?: boolean
 }
 
 /** The answer of the stand-in to one request: what the step's instruction asks for. */
@@ -167,10 +169,18 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
         15_000,
       )
 
-    // Quickstart steps 2 and 3: no grant, holzi asks for a model; allowed and remembered.
-    await run('page')
+    // US9: no grant, the extension asks before its first job; holzi asks for a model, and
+    // nothing is sent to it.
+    await run('access')
     await asked('extension-model-pick-vision')
     await page.click('extension-permission-allow')
+    const access = await end()
+    assert.equal(access.models?.length, 1, JSON.stringify(access))
+    assert.equal(stand.hosts.length, 0, 'asking for access sends nothing')
+    ctx.step('the extension asks for its grant before the first job')
+
+    // Quickstart steps 2 and 3: the model is allowed, the job runs without a second question.
+    await run('page')
     const first = await end()
     assert.equal(first.status, 'completed', JSON.stringify(first))
     assert.deepEqual(first.result?.final, FIXED)
@@ -242,6 +252,12 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
     assert.equal((await end()).rejected?.code, 1002)
     assert.equal(sentToServer(), 4)
     ctx.step('revoked models are asked for again')
+
+    // US9: the extension leads the user to its model settings in holzi.
+    await run('settings')
+    assert.equal((await end()).opened, true)
+    await page.waitForDisplayed('[data-testid="extension-models"]', 15_000)
+    ctx.step('the extension opens its model settings')
   } finally {
     stand.server.close()
   }

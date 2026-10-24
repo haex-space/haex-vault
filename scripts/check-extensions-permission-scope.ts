@@ -31,8 +31,10 @@ test('a narrow target or a pattern ending in * is not everything', () => {
   assert.equal(everythingKey('contacts', 'read', 'Arbeit'), null)
 })
 
-test('notifications and database never count as everything', () => {
+test('notifications, peers and database never count as everything', () => {
   assert.equal(everythingKey('notifications', 'show', '*'), null)
+  assert.equal(everythingKey('peers', 'connect', '*'), null)
+  assert.equal(hasTarget('peers'), false)
   assert.equal(everythingKey('database', 'read', '*'), null)
   assert.equal(hasTarget('notifications'), false)
   assert.equal(hasTarget('filesystem'), true)

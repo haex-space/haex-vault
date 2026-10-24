@@ -74,3 +74,35 @@ fn every_reason_has_its_fixed_code_and_a_limit_where_one_applies() {
         );
     }
 }
+
+#[test]
+fn an_extension_is_named_on_the_wire_as_it_resolves_back() {
+    use crate::extensions::peers::test_support::{install, KEY, NAME};
+    use crate::sync::test_support::Member;
+
+    let db = Member::genesis().device.vault_db();
+    let id = install(&db, NAME);
+    let device = db.device_id();
+    let (named, resolved) = db
+        .read_blocking(move |q| {
+            let named = ExtensionRef::of(q, id).map_err(haex_crdt::Error::from)?;
+            let resolved = match &named {
+                Some(named) => named.resolve(q, device).map_err(haex_crdt::Error::from)?,
+                None => None,
+            };
+            Ok((named, resolved))
+        })
+        .expect("read");
+    assert_eq!(
+        named,
+        Some(ExtensionRef {
+            public_key: KEY.to_owned(),
+            name: NAME.to_owned()
+        })
+    );
+    assert_eq!(resolved, Some(id));
+    let unknown = db
+        .read_blocking(|q| ExtensionRef::of(q, Uuid::new_v4()).map_err(haex_crdt::Error::from))
+        .expect("read");
+    assert_eq!(unknown, None);
+}

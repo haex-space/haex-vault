@@ -5,14 +5,19 @@
 /**
  * The key under `extensions.permissions.everything` that names what a target `*` allows, or
  * `null` when the target is not such a wildcard. `notifications` only knows the target `*`, so it
- * allows nothing beyond the kind itself; `database` never accepts `*`.
+ * allows nothing beyond the kind itself, and so does `peers`; `database` never accepts `*`.
  */
 export function everythingKey(
   kind: string,
   action: string,
   target: string,
 ): string | null {
-  if (target !== '*' || kind === 'notifications' || kind === 'database') {
+  if (
+    target !== '*' ||
+    kind === 'notifications' ||
+    kind === 'peers' ||
+    kind === 'database'
+  ) {
     return null
   }
   return kind === 'remoteStorage' && action === 'add'
@@ -25,7 +30,7 @@ export function isEveryAction(kind: string, action: string): boolean {
   return kind === 'web' && action === '*'
 }
 
-/** Whether the target says anything: the only target of `notifications` is `*`. */
+/** Whether the target says anything: the only target of `notifications` and `peers` is `*`. */
 export function hasTarget(kind: string): boolean {
-  return kind !== 'notifications'
+  return kind !== 'notifications' && kind !== 'peers'
 }

@@ -2,6 +2,7 @@
 // §Beispiel to holzi's models through the released vault-sdk. `build.sh` bundles this file with the
 // SDK into app.js.
 //
+// `access` and `settings` are the way to the grant (US9, T092): ask before the first job, open holzi's page of this extension's models.
 // The test modes ask the model for broken output (a loop, nothing, Chinese) that holzi must drop. A
 // real model mostly obeys; the stand-in server of the e2e scene answers by the `[holzi-test:…]` mark.
 import { createHaexVaultSdk } from '@haex-space/vault-sdk'
@@ -98,11 +99,37 @@ window.modelJobs = {
   run(mode) {
     this.last = undefined
     show('läuft', null)
+    if (mode === 'access' || mode === 'settings') return this.lead(mode)
     photo()
       .then((image) => sdk.models.runAsync(jobOf(mode, image)))
       .then((end) => {
         this.last = end
         show(end.status, end)
+      })
+      .catch((error) => {
+        this.last = {
+          rejected: {
+            code: error?.code,
+            message: error?.message,
+            details: error?.details,
+          },
+        }
+        show('abgelehnt', this.last)
+      })
+  },
+  /** The way to the grant (spec 055 US9): ask before the first job, or open holzi's model page. */
+  lead(mode) {
+    const end =
+      mode === 'access'
+        ? sdk.models.requestAccessAsync({
+            needs: ['text', 'image'],
+            effort: 'low',
+          })
+        : sdk.models.openSettingsAsync().then(() => ({ opened: true }))
+    end
+      .then((answer) => {
+        this.last = mode === 'access' ? { models: answer } : answer
+        show(mode, this.last)
       })
       .catch((error) => {
         this.last = {

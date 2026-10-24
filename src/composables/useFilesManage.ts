@@ -16,6 +16,7 @@ import {
   type Selection,
 } from '~/lib/files/clipboard'
 import { asksBeforeDelete, canCreateEncrypted } from '~/lib/files/encrypted'
+import { isRemoteStorage } from '~/lib/files/registry'
 import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
 
 /**
@@ -38,8 +39,12 @@ export function useFilesManage(options: {
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
-  const { statAsync, encryptedNoticeShownAsync, encryptedNoticeAckAsync } =
-    useFiles()
+  const {
+    statAsync,
+    encryptedNoticeShownAsync,
+    encryptedNoticeAckAsync,
+    peerTrashAsync,
+  } = useFiles()
   const transfers = useFilesTransfersStore()
   const { isAndroid } = useDeviceCapabilities()
 
@@ -156,6 +161,7 @@ export function useFilesManage(options: {
     from: SourceRef,
     paths: string[],
     to: string | null,
+    onDone?: () => void,
   ): Promise<boolean> {
     try {
       await transfers.startAsync(
@@ -165,7 +171,10 @@ export function useFilesManage(options: {
         to === null ? null : { source: source.value, path: to },
         tabId,
         // A storage is not watched: its folder loads again once the transfer is through.
-        () => void reload(),
+        () => {
+          void reload()
+          onDone?.()
+        },
       )
       return true
     } catch (cause) {
@@ -255,11 +264,24 @@ export function useFilesManage(options: {
     selection.value = EMPTY_SELECTION
   }
 
-  function deleteNow() {
+  /** Deletes `pendingDelete`; `toRemoteTrash` says so once another device took it (FR-038). */
+  function deleteNow(toRemoteTrash = false) {
     const paths = pendingDelete.value
     pendingDelete.value = []
     selection.value = EMPTY_SELECTION
-    void startAsync('delete', source.value, paths, null)
+    const done = toRemoteTrash
+      ? () => toast.success(t('files.delete.remoteTrash'))
+      : undefined
+    void startAsync('delete', source.value, paths, null, done)
+  }
+
+  /** Whether the other device open here deletes into its trash; `undefined` on this device. */
+  async function remoteTrashAsync(): Promise<boolean | undefined> {
+    const open = source.value
+    if (open.kind !== 'storage' || !isRemoteStorage(open.storageId))
+      return undefined
+    // Not known: ask before deleting.
+    return await peerTrashAsync(open.storageId).catch(() => false)
   }
 
   /** Runs a command on `targets` (the context menu's, or the selection for the action bar). */
@@ -314,21 +336,25 @@ export function useFilesManage(options: {
       case 'share':
         if (first) options.share?.(first)
         break
-      case 'delete':
+      case 'delete': {
         pendingDelete.value = entries.map((entry) => entry.path)
         // Desktops move ordinary files to the trash; Android, storages and encrypted folders
-        // delete for good and ask first (FR-023, spec 048 FR-046).
+        // delete for good and ask first (FR-023, spec 048 FR-046); another device by its trash
+        // (spec 056 FR-038).
+        const remoteTrash = await remoteTrashAsync()
         if (
           asksBeforeDelete({
             source: source.value,
             android: isAndroid.value,
             inEncrypted: folderEncrypted.value,
             entries,
+            remoteTrash,
           })
         )
           await askDeleteAsync(entries)
-        else deleteNow()
+        else deleteNow(remoteTrash === true)
         break
+      }
     }
   }
 

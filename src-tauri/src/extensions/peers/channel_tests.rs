@@ -208,6 +208,11 @@ fn a_connection_end_maps_to_closed_timeout_or_lost() {
         reason: Default::default(),
     });
     assert_eq!(end_reason(&application), EndReason::Closed);
+    let lost = ConnectionError::ApplicationClosed(ApplicationClose {
+        error_code: super::LOST_CODE.into(),
+        reason: Default::default(),
+    });
+    assert_eq!(end_reason(&lost), EndReason::Lost);
     assert_eq!(
         end_reason(&ConnectionError::LocallyClosed),
         EndReason::Closed

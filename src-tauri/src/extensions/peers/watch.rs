@@ -12,13 +12,11 @@ use tauri::{AppHandle, Runtime};
 use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
-use super::FEATURE;
+use super::{permission_decision, FEATURE};
 use crate::contacts::service::{Caller, ContactsService, VaultCard};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store::{candidates, TABLES};
-use crate::extensions::permissions::{
-    evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
-};
+use crate::extensions::permissions::{Decision, PermissionKind};
 use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
 use crate::sync::foreign_auth::{Trust, Verified};
@@ -170,12 +168,7 @@ async fn peers_denied(
         host.permissions
             .temporary(extension_id, PermissionKind::Peers),
     );
-    let request = PermissionRequest {
-        kind: PermissionKind::Peers,
-        action: Action::Connect,
-        target: RequestTarget::Any,
-    };
-    Ok(evaluate(&grants, &request, device) == Decision::Deny)
+    Ok(permission_decision(&grants, device) == Decision::Deny)
 }
 
 #[cfg(test)]

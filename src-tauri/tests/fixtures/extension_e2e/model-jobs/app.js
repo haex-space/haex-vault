@@ -5523,6 +5523,18 @@ var MODEL_JOB_EVENTS = {
   /** A job of this frame ended: completed, failed or cancelled. */
   COMPLETED: "haextension:model-job:completed"
 };
+var PEERS_EVENTS = {
+  /** The outcome of an invitation, once per invitation (inviting side). */
+  INVITE_STATUS: "peers:invite-status",
+  /** A channel opened after the user accepted an invitation in holzi's prompt (invited side). */
+  CHANNEL_OPENED: "peers:channel-opened",
+  /** A device joined one of this device's lobbies by code (host). */
+  JOINED: "peers:joined",
+  /** A message on a channel; `data` is Base64 on the bridge. */
+  MESSAGE: "peers:message",
+  /** A channel ended: closed, lost or timed out. */
+  CHANNEL_CLOSED: "peers:channel-closed"
+};
 var EXTERNAL_EVENTS = {
   /** External request from authorized client */
   REQUEST: "haextension:external:request",
@@ -5870,7 +5882,30 @@ var MODEL_COMMANDS = {
   /** Starts a job; the result follows as an event */
   start: "extension_model_job_start",
   /** Cancels a running job of this frame */
-  cancel: "extension_model_job_cancel"
+  cancel: "extension_model_job_cancel",
+  /** Asks for a grant before the first job; nothing goes to a model */
+  requestAccess: "extension_model_access_request",
+  /** Opens the host's page of this extension's models */
+  openSettings: "extension_model_settings_open"
+};
+init_esm_shims();
+var PEER_COMMANDS = {
+  /** Invites a contact; the outcome follows as `peers:invite-status` */
+  invite: "extension_peers_invite",
+  /** Withdraws an open invitation on all devices of the contact */
+  inviteCancel: "extension_peers_invite_cancel",
+  /** Opens a lobby and returns its join code */
+  lobbyOpen: "extension_peers_lobby_open",
+  /** Closes a lobby; its code stops working, its channels stay open */
+  lobbyClose: "extension_peers_lobby_close",
+  /** Joins a lobby by its code; waits at most 15 s for the host */
+  join: "extension_peers_join",
+  /** Closes a channel of an own lobby and keeps the device out of that lobby */
+  remove: "extension_peers_remove",
+  /** Sends a fast or a reliable message over a channel */
+  send: "extension_peers_send",
+  /** Closes a channel on both sides */
+  close: "extension_peers_close"
 };
 init_esm_shims();
 var MAIL_COMMANDS = {
@@ -6035,7 +6070,8 @@ var FilesystemAPI = class {
     this.client = client;
   }
   /**
-   * Opens a save file dialog and saves the provided data to the selected location
+   * Opens a save file dialog and saves the provided data to the selected location.
+   * Waits for the user without the request timeout.
    * @param data The file data as Uint8Array
    * @param options Options for the save dialog
    * @returns The path where the file was saved, or null if cancelled
@@ -6049,7 +6085,8 @@ var FilesystemAPI = class {
         defaultPath: options.defaultPath,
         title: options.title,
         filters: options.filters
-      }
+      },
+      { timeout: null }
     );
     return result;
   }
@@ -6169,25 +6206,27 @@ var FilesystemAPI = class {
     );
   }
   /**
-   * Open a folder selection dialog
+   * Open a folder selection dialog; waits for the user without the request timeout
    * @param options Dialog options
    * @returns Selected folder path, or null if cancelled
    */
   async selectFolder(options = {}) {
     return this.client.request(
       FILESYSTEM_COMMANDS.selectFolder,
-      options
+      options,
+      { timeout: null }
     );
   }
   /**
-   * Open a file selection dialog
+   * Open a file selection dialog; waits for the user without the request timeout
    * @param options Dialog options
    * @returns Selected file paths, or null if cancelled
    */
   async selectFile(options = {}) {
     return this.client.request(
       FILESYSTEM_COMMANDS.selectFile,
-      options
+      options,
+      { timeout: null }
     );
   }
   /**
@@ -7060,6 +7099,24 @@ var ModelsAPI = class {
     );
     return answer.models;
   }
+  /**
+   * Asks for a grant before the first job (holzi spec 055 US9) and resolves with the allowed
+   * models that fit `needs`. Without one, the host asks the user as it would for a job, and the
+   * SDK waits for the answer. Rejects with `no_capable_model` (8001) when no model of the host
+   * fits and with a denial (1002) when the user refused. Nothing is sent to a model, and consent
+   * for a destination outside this device is asked with the first job that sends data.
+   */
+  async requestAccessAsync(request) {
+    const answer = await this.client.request(
+      MODEL_COMMANDS.requestAccess,
+      { ...request }
+    );
+    return answer.models;
+  }
+  /** Opens the host's page of this extension's models, where the user chooses models and effort. */
+  async openSettingsAsync() {
+    await this.client.request(MODEL_COMMANDS.openSettings, {});
+  }
   /** Starts a job; its end comes as {@link onCompleted}. Use {@link runAsync} to await it. */
   async startAsync(job) {
     const answer = await this.client.request(MODEL_COMMANDS.start, {
@@ -7088,24 +7145,194 @@ var ModelsAPI = class {
    * `cancelled` with the error. Errors of the start itself (an invalid job, a refused model or
    * consent, no fitting model) reject. The end can arrive before the start answers; it is kept
    * until then.
+   *
+   * Aborting `signal` asks to cancel the job, which then ends as `cancelled`; a job that had
+   * already ended keeps its actual end. A signal that is already aborted rejects with its reason
+   * and starts no job. If the cancel request fails, the run rejects with that error and the job
+   * keeps running on the host; if it reports an unknown job, the run rejects with an error.
    */
-  async runAsync(job) {
+  async runAsync(job, options = {}) {
+    const { signal } = options;
+    if (signal?.aborted) throw signal.reason;
     const ended = /* @__PURE__ */ new Map();
     let waiting = null;
     const unsubscribe = this.onCompleted((completion) => {
       if (waiting && completion.jobId === waiting.jobId) waiting.resolve(completion);
       else ended.set(completion.jobId, completion);
     });
+    let detach = () => {
+    };
     try {
       const { jobId } = await this.startAsync(job);
-      return await new Promise((resolve) => {
+      return await new Promise((resolve, reject) => {
         const early = ended.get(jobId);
-        if (early) resolve(early);
-        else waiting = { jobId, resolve };
+        if (early) return resolve(early);
+        waiting = { jobId, resolve };
+        if (!signal) return;
+        const cancel = async () => {
+          try {
+            if (!await this.cancelAsync(jobId)) {
+              reject(new Error("The model job could not be cancelled"));
+            }
+          } catch (error) {
+            reject(error);
+          }
+        };
+        if (signal.aborted) return cancel();
+        signal.addEventListener("abort", cancel, { once: true });
+        detach = () => signal.removeEventListener("abort", cancel);
       });
     } finally {
+      detach();
       unsubscribe();
     }
+  }
+};
+init_esm_shims();
+init_vaultKey();
+var PEER_ERROR_KINDS = {
+  contact_unknown: "PEER_CONTACT_UNKNOWN",
+  invite_not_open: "PEER_INVITE_UNKNOWN",
+  channel_unknown: "PEER_CHANNEL_CLOSED",
+  channel_closed: "PEER_CHANNEL_CLOSED",
+  too_large: "PEER_PAYLOAD_TOO_LARGE",
+  lobby_closed: "PEER_LOBBY_CLOSED",
+  not_admitted: "PEER_NOT_ALLOWED",
+  limit: "PEER_LIMIT",
+  network_unavailable: "PEER_NETWORK_UNAVAILABLE",
+  invalid_input: "PEER_INVALID_INPUT"
+};
+var PeerError = class extends Error {
+  constructor(code, reason, message, details = {}, options) {
+    super(message, options);
+    this.code = code;
+    this.reason = reason;
+    this.details = details;
+    this.name = "PeerError";
+    this.kind = PEER_ERROR_KINDS[reason];
+    if (typeof details.limit === "number") this.limit = details.limit;
+  }
+};
+function isPeerErrorReason(value) {
+  return typeof value === "string" && Object.hasOwn(PEER_ERROR_KINDS, value);
+}
+function toPeerError(error) {
+  if (typeof error !== "object" || error === null) return error;
+  const { code, message, details } = error;
+  if (typeof code !== "number" || typeof details !== "object" || details === null) return error;
+  const reason = details.reason;
+  if (!isPeerErrorReason(reason)) return error;
+  return new PeerError(
+    code,
+    reason,
+    typeof message === "string" ? message : reason,
+    details,
+    { cause: error }
+  );
+}
+var EVENT_NAMES = {
+  "invite-status": PEERS_EVENTS.INVITE_STATUS,
+  "channel-opened": PEERS_EVENTS.CHANNEL_OPENED,
+  joined: PEERS_EVENTS.JOINED,
+  message: PEERS_EVENTS.MESSAGE,
+  "channel-closed": PEERS_EVENTS.CHANNEL_CLOSED
+};
+function decodeEvent(type, data) {
+  if (typeof data !== "object" || data === null) return void 0;
+  if (type !== "message") return data;
+  const message = data;
+  if (typeof message.channelId !== "string" || typeof message.data !== "string") return void 0;
+  let decoded;
+  try {
+    decoded = base64ToArrayBuffer(message.data);
+  } catch {
+    return void 0;
+  }
+  if (arrayBufferToBase64(decoded) !== message.data) return void 0;
+  return {
+    channelId: message.channelId,
+    data: decoded,
+    reliable: message.reliable === true
+  };
+}
+var PeersAPI = class {
+  constructor(client) {
+    this.client = client;
+    this.MAX_FAST_BYTES = 1024;
+    this.MAX_RELIABLE_BYTES = 65536;
+    this.MAX_PAYLOAD_BYTES = 4096;
+  }
+  async call(method, params) {
+    try {
+      return await this.client.request(method, params);
+    } catch (error) {
+      throw toPeerError(error);
+    }
+  }
+  /** Invites a contact; the outcome follows as `invite-status` with this `inviteId`. */
+  async inviteAsync(contactId, payload) {
+    const answer = await this.call(PEER_COMMANDS.invite, { contactId, payload });
+    return { inviteId: answer.inviteId };
+  }
+  /** Withdraws an open invitation on all devices of the contact; no `invite-status` follows. */
+  async cancelInviteAsync(inviteId) {
+    await this.call(PEER_COMMANDS.inviteCancel, { inviteId });
+  }
+  /**
+   * Opens a lobby; `lobbyId` is 1–64 characters of `[A-Za-z0-9._-]`. The join code is opaque:
+   * hand it on as it is.
+   */
+  async openLobbyAsync(lobbyId, visibility) {
+    const answer = await this.call(PEER_COMMANDS.lobbyOpen, { lobbyId, visibility });
+    return { joinCode: answer.joinCode };
+  }
+  /** Closes a lobby: its code stops working, its channels stay open. An unknown lobby is fine. */
+  async closeLobbyAsync(lobbyId) {
+    await this.call(PEER_COMMANDS.lobbyClose, { lobbyId });
+  }
+  /**
+   * Joins a lobby by its code with a self-chosen `displayName` (1–64 characters). The host
+   * answers within 15 s; a lobby that cannot be joined for any reason rejects as `lobby_closed`.
+   */
+  async joinAsync(joinCode, displayName, payload) {
+    const answer = await this.call(PEER_COMMANDS.join, {
+      joinCode,
+      displayName,
+      payload
+    });
+    return { channelId: answer.channelId, lobbyId: answer.lobbyId };
+  }
+  /** Closes a channel of an own lobby and keeps that device (and vault) out of the lobby. */
+  async removeAsync(channelId) {
+    await this.call(PEER_COMMANDS.remove, { channelId });
+  }
+  /**
+   * Sends bytes over a channel: fast (default, at most {@link MAX_FAST_BYTES}, may be lost) or
+   * `reliable` (at most {@link MAX_RELIABLE_BYTES}, in order; 16 may wait per channel).
+   */
+  async sendAsync(channelId, data, options = {}) {
+    await this.call(PEER_COMMANDS.send, {
+      channelId,
+      data: { $bytes: arrayBufferToBase64(data) },
+      reliable: options.reliable ?? false
+    });
+  }
+  /** Closes a channel; both sides get `channel-closed` with `reason: "closed"`. */
+  async closeAsync(channelId) {
+    await this.call(PEER_COMMANDS.close, { channelId });
+  }
+  /**
+   * Listens for one of the peers events (`invite-status`, `channel-opened`, `joined`, `message`,
+   * `channel-closed`); `message.data` arrives as bytes. Returns an unsubscribe function.
+   */
+  on(type, handler) {
+    const name = EVENT_NAMES[type];
+    const wrapped = (event) => {
+      const decoded = decodeEvent(type, event.data);
+      if (decoded) handler(decoded);
+    };
+    this.client.on(name, wrapped);
+    return () => this.client.off(name, wrapped);
   }
 };
 init_esm_shims();
@@ -8183,6 +8410,7 @@ var HaexVaultSdk = class {
     this.passwords = new PasswordsAPI(this);
     this.contacts = new ContactsAPI(this);
     this.models = new ModelsAPI(this);
+    this.peers = new PeersAPI(this);
     this.mail = new MailAPI(this);
     this.notifications = new NotificationsAPI(this);
     this.tab = new TabAPI(this);
@@ -8698,9 +8926,30 @@ window.modelJobs = {
   run(mode) {
     this.last = void 0;
     show("l\xE4uft", null);
+    if (mode === "access" || mode === "settings") return this.lead(mode);
     photo().then((image) => sdk.models.runAsync(jobOf(mode, image))).then((end) => {
       this.last = end;
       show(end.status, end);
+    }).catch((error) => {
+      this.last = {
+        rejected: {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details
+        }
+      };
+      show("abgelehnt", this.last);
+    });
+  },
+  /** The way to the grant (spec 055 US9): ask before the first job, or open holzi's model page. */
+  lead(mode) {
+    const end = mode === "access" ? sdk.models.requestAccessAsync({
+      needs: ["text", "image"],
+      effort: "low"
+    }) : sdk.models.openSettingsAsync().then(() => ({ opened: true }));
+    end.then((answer) => {
+      this.last = mode === "access" ? { models: answer } : answer;
+      show(mode, this.last);
     }).catch((error) => {
       this.last = {
         rejected: {

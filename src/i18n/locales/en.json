@@ -2322,7 +2322,8 @@
         "contacts": "Contacts",
         "agentTool": "Tool for the agent",
         "model": "Use a model",
-        "modelDestination": "Send data to a destination outside this device"
+        "modelDestination": "Send data to a destination outside this device",
+        "peers": "Channels to other vaults"
       },
       "effect": {
         "read": "only reads",
@@ -2331,6 +2332,9 @@
       },
       "everyMethod": "all requests",
       "contactsGroup": "Contacts in the group “{name}”",
+      "peers": {
+        "description": "Open channels to the same extension on devices of other vaults. Other players can see this device’s network address on a direct connection."
+      },
       "everything": {
         "filesystem": "All files and folders",
         "web": "Every website and server on the internet",
@@ -2554,7 +2558,8 @@
       "title": "Delete for good?",
       "body": "{count} entry will be deleted for good. This cannot be undone. | {count} entries will be deleted for good. This cannot be undone.",
       "confirm": "Delete",
-      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder."
+      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder.",
+      "remoteTrash": "Moved to the other device's trash."
     },
     "transfer": {
       "copy": "Copying",
