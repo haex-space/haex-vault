@@ -451,6 +451,7 @@ pub fn run() {
             files::browser_commands::navigate::files_watch,
             files::browser_commands::navigate::files_unwatch,
             files::browser_commands::peers::files_peer_roots,
+            files::browser_commands::peers::files_peer_trash,
             files::browser_commands::peers::files_contact_query,
             files::share::commands::file_shares_list,
             files::share::commands::file_share_of,
