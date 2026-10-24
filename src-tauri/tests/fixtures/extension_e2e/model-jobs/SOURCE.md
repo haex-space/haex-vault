@@ -2,7 +2,8 @@
 
 The extension of the quickstart and the e2e scene `extension-model-jobs`. It sends the page recognition of
 `contracts/job-format.md` §Beispiel (read, then correct) to holzi's models, and has test modes that ask the
-model for a loop, an empty answer or Chinese text. Its bundle `../model-jobs.xt` is built and signed by
+model for a loop, an empty answer or Chinese text, and the two ways to the grant of US9 (`access`: ask
+before the first job; `settings`: open holzi's page of the extension's models). Its bundle `../model-jobs.xt` is built and signed by
 `tests/extension_e2e_fixtures.rs` with the fixtures' test key.
 
 | File               | Role                                                                                   |
@@ -19,10 +20,11 @@ model needs a photo of a page. The stand-in recognises a test mode by its mark `
 
 `app.js` contains, bundled with esbuild 0.28.2 (from holzi's `node_modules`), unchanged:
 
-- `@haex-space/vault-sdk` 4.7.1, npm tarball integrity
-  `sha512-fegwTJ4vR5jrsJMhT66PX2PmcCoXCAYWbTKdX6uutn9X91EKkgvyR7iFzoQG99pR8ugQ9aHiGJzNgR7ic0dkTg==`
-  (source: haex-space/vault-sdk, release commit `7c478834474a18f675a5d46f944c6a64141f101d`; the model API
-  came with PR #76 in 4.6.0, the retry after holzi's answer with PR #80 in 4.7.1)
+- `@haex-space/vault-sdk` 4.10.0, npm tarball integrity
+  `sha512-R6HcP2A92zg+0M5ZqR1F+WOqQNC7wvX7i0kbay4TWtdJ0PcxzIFRsYUA+d+uIn+1/iT3Xre/AVAtiAjgwyKgEA==`
+  (source: haex-space/vault-sdk, release commit `4572ee91f586acff559dcd9d72406dd0923dae15`; the model API
+  came with PR #76 in 4.6.0, the retry after holzi's answer with PR #80 in 4.7.1, `requestAccessAsync` and
+  `openSettingsAsync` with PR #90 in 4.10.0)
 - `drizzle-orm` 0.45.4, a dependency of the SDK
 
 `build.sh` checks the SDK's integrity and builds the same bytes on every run. After a change:
