@@ -20,7 +20,7 @@ use super::candidates::{fits, for_step, granted, job_models, model_permissions, 
 use super::destinations::ExtensionModelTransfer;
 use super::effort::Level;
 use super::errors::{bridge_error, JobErrorCode};
-use super::job::{Job, Step};
+use super::job::{Job, Need, Step};
 use super::model_source::JobModel;
 use crate::chat::default_model::PREF_DEFAULT_MODEL;
 use crate::error::Result as VaultResult;
@@ -172,7 +172,7 @@ pub(crate) fn choose(
 ) -> Result<Vec<Candidate>, BridgeError> {
     let listed = for_step(&facts.granted, step);
     if listed.is_empty() {
-        return Err(ask_for_model(step, facts, device));
+        return Err(ask_for_model(&step.needs, step.effort, facts, device));
     }
     let mut kept = Vec::new();
     let mut refused = false;
@@ -220,13 +220,19 @@ fn prompt(details: Value) -> BridgeError {
     .with_details(details)
 }
 
-/// No granted model fits: ask for one that does, the default model when it fits.
-fn ask_for_model(step: &Step, facts: &Facts, device: Uuid) -> BridgeError {
-    let wish = step.effort.unwrap_or(Level::None);
+/// No granted model fits what a step or a request for access needs: ask for one that does, the
+/// default model when it fits.
+pub(crate) fn ask_for_model(
+    needs: &[Need],
+    effort: Option<Level>,
+    facts: &Facts,
+    device: Uuid,
+) -> BridgeError {
+    let wish = effort.unwrap_or(Level::None);
     let fitting: Vec<&JobModel> = facts
         .models
         .iter()
-        .filter(|m| fits(&step.needs, m.capabilities.as_ref()))
+        .filter(|m| fits(needs, m.capabilities.as_ref()))
         .collect();
     if fitting.is_empty() {
         return no_capable_model();
@@ -249,7 +255,7 @@ fn ask_for_model(step: &Step, facts: &Facts, device: Uuid) -> BridgeError {
         .as_deref()
         .and_then(|id| open.iter().find(|m| m.id == id))
         .unwrap_or(first);
-    let needs: Vec<&str> = step.needs.iter().map(|need| need.as_str()).collect();
+    let needs: Vec<&str> = needs.iter().map(|need| need.as_str()).collect();
     prompt(json!({
         "resourceType": PermissionKind::Model.as_str(),
         "action": wish.as_str(),

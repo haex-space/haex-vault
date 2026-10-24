@@ -231,25 +231,24 @@ pub(crate) fn cancel(ctx: &CallContext, params: &Value) -> Result<Value, BridgeE
 /// The models the extension may use, first choice first, without address or key (FR-030). No
 /// grant gives an empty list.
 pub(crate) fn list(ctx: &CallContext, _params: &Value) -> Result<Value, BridgeError> {
-    let models: Vec<Value> = read_facts(ctx)?
-        .granted
-        .iter()
-        .map(|c| {
-            let capabilities = c.model.capabilities.as_ref();
-            let effort = match capabilities.and_then(|c| c.reasoning.as_ref()) {
-                Some(ReasoningControl::Presets { .. }) => "levels",
-                Some(ReasoningControl::ModelManaged) => "managed",
-                Some(ReasoningControl::Unavailable) | None => "none",
-            };
-            json!({
-                "id": c.model.id,
-                "name": c.model.name,
-                "provider": c.model.provider.name,
-                "place": c.model.place,
-                "capabilities": { "image": takes_images(capabilities), "effort": effort },
-                "maxEffort": c.ceiling.as_str(),
-            })
-        })
-        .collect();
+    let models: Vec<Value> = read_facts(ctx)?.granted.iter().map(entry).collect();
     Ok(json!({ "models": models }))
+}
+
+/// One granted model as the extension sees it: name, provider, place, capabilities and ceiling.
+pub(super) fn entry(c: &Candidate) -> Value {
+    let capabilities = c.model.capabilities.as_ref();
+    let effort = match capabilities.and_then(|c| c.reasoning.as_ref()) {
+        Some(ReasoningControl::Presets { .. }) => "levels",
+        Some(ReasoningControl::ModelManaged) => "managed",
+        Some(ReasoningControl::Unavailable) | None => "none",
+    };
+    json!({
+        "id": c.model.id,
+        "name": c.model.name,
+        "provider": c.model.provider.name,
+        "place": c.model.place,
+        "capabilities": { "image": takes_images(capabilities), "effort": effort },
+        "maxEffort": c.ceiling.as_str(),
+    })
 }

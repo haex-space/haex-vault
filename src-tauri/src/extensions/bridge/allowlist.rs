@@ -26,6 +26,16 @@ pub static METHODS: &[Method] = &[
         module: model_jobs::MODULE,
     },
     Method {
+        name: "extension_model_access_request",
+        handler: model_jobs::access_request,
+        module: model_jobs::MODULE,
+    },
+    Method {
+        name: "extension_model_settings_open",
+        handler: model_jobs::open_settings,
+        module: model_jobs::MODULE,
+    },
+    Method {
         name: "extension_context_get",
         handler: methods::context_get,
         module: methods::MODULE,

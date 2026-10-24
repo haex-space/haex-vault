@@ -8,6 +8,7 @@
 //! `model_source`), the grants and consents the user gives (`grants`, `destinations`), the
 //! preflight (`preflight`), the run (`runner`) and the bridge methods (`bridge`).
 
+pub(crate) mod access;
 pub(crate) mod bridge;
 mod candidates;
 pub(crate) mod destinations;
