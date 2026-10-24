@@ -9,6 +9,7 @@ import type { FileShare } from '@bindings/FileShare'
 import type { FileShareLevel } from '@bindings/FileShareLevel'
 import type { FilesContactShares } from '@bindings/FilesContactShares'
 import { asFilesError } from '~/composables/useFiles'
+import { useActionOrThrow } from '~/composables/useActionOrThrow'
 
 const props = defineProps<{
   entry: Entry | null
@@ -20,7 +21,9 @@ const open = defineModel<boolean>('open', { required: true })
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-const { shareOfAsync, saveAsync, deleteAsync } = useFileShares()
+const { shareOfAsync } = useFileShares()
+const saveShare = useActionOrThrow('files.shares.save')
+const deleteShare = useActionOrThrow('files.shares.delete')
 
 type Row = { vaultPubkey: string; name: string; level: FileShareLevel }
 
@@ -100,7 +103,7 @@ async function saveNowAsync() {
   if (!props.entry) return
   saving.value = true
   try {
-    await saveAsync({
+    await saveShare({
       shareId: existing.value?.id,
       source: { kind: 'device' },
       path: props.entry.path,
@@ -122,7 +125,7 @@ async function endAsync() {
   if (!existing.value) return
   saving.value = true
   try {
-    await deleteAsync(existing.value.id)
+    await deleteShare({ shareId: existing.value.id })
     open.value = false
   } catch (cause) {
     failed(cause)
