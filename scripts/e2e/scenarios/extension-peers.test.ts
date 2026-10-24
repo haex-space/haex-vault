@@ -299,8 +299,8 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   ctx.step('the public lobby takes a stranger as not verified')
 
   // A device that vanishes without a word ends the channel after the idle time (FR-039).
-  const killedAt = Date.now()
   await group.device('dave/pc').kill()
+  const killedAt = Date.now()
   await ctx.waitFor(
     'Anna to hear that Dave’s channel timed out',
     async () =>
