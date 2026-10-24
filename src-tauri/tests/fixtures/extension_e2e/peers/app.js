@@ -8892,7 +8892,7 @@ window.peersProbe = {
       if (sent.error) failed += 1;
       await new Promise((resolve) => setTimeout(resolve, gap));
     }
-    return { sent: count, failed };
+    return { ok: { sent: count, failed } };
   },
   close: (channelId) => attempt(() => sdk.peers.closeAsync(channelId)),
   /** The events so far, optionally of one type; nothing of a message but its size. */
