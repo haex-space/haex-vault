@@ -8,6 +8,8 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::error::Result;
+use crate::extensions::host::ExtensionHost;
+use crate::extensions::peers::channel::EndReason;
 use crate::extensions::peers::invited::Answered;
 use crate::state::AppState;
 
@@ -45,3 +47,30 @@ pub async fn extension_peer_invitation_answer(
         },
     })
 }
+
+/// A frame's queue had to drop a reliable `peers:message` of `channel_id` (the frame did not get
+/// ready): the channel ends with `lost` on both sides (FR-038). A frame that is gone, an id that
+/// is no id and a channel of another extension end nothing.
+pub fn frame_overflow(host: &ExtensionHost, frame: &str, channel_id: &str) {
+    let (Some(session), Ok(channel)) = (host.frames.get(frame), Uuid::parse_str(channel_id)) else {
+        return;
+    };
+    let _ = host
+        .peers
+        .end(session.extension_id, channel, EndReason::Lost);
+}
+
+/// holzi's window reports the overflow of a frame's queue (`FrameEventQueue`, spec 057 T066).
+#[tauri::command]
+pub async fn extension_peers_frame_overflow(
+    state: State<'_, AppState>,
+    frame: String,
+    channel_id: String,
+) -> Result<()> {
+    frame_overflow(&state.extensions(), &frame, &channel_id);
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "peers_tests.rs"]
+mod tests;

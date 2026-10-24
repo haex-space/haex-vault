@@ -7,7 +7,7 @@
 //! from [`PeerState`](super::PeerState); only that one tells the frames, so each side hears of the
 //! end exactly once. No message content is ever logged (FR-042).
 
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD;
@@ -57,10 +57,20 @@ impl EndReason {
     }
 }
 
+/// The code of a close that tells the other side the channel was `lost` here (FR-038), beside
+/// the codes of the sync protocol.
+const LOST_CODE: u32 = 0x100;
+
 /// The reason for a connection that ended with `error`: an orderly close by either side is
-/// `closed`, the idle time running out `timeout`, anything else `lost`.
+/// `closed`, one with [`LOST_CODE`] `lost`, the idle time running out `timeout`, anything else
+/// `lost`.
 pub fn end_reason(error: &ConnectionError) -> EndReason {
     match error {
+        ConnectionError::ApplicationClosed(close)
+            if close.error_code.into_inner() == u64::from(LOST_CODE) =>
+        {
+            EndReason::Lost
+        }
         ConnectionError::ApplicationClosed(_) | ConnectionError::LocallyClosed => EndReason::Closed,
         ConnectionError::TimedOut => EndReason::Timeout,
         _ => EndReason::Lost,
@@ -141,6 +151,8 @@ pub struct Channel {
     reliable: mpsc::Sender<Vec<u8>>,
     /// Fires when this side ends the channel: `Close`, then the connection closes.
     closing: CancellationToken,
+    /// Why this side ends it: `lost` reaches the other side as the code of the close.
+    ending: OnceLock<EndReason>,
     frames: Frames,
 }
 
@@ -193,6 +205,7 @@ pub fn open_announced(
         connection,
         reliable,
         closing: CancellationToken::new(),
+        ending: OnceLock::new(),
         frames: frames.clone(),
     });
     if let Err(error) = host.peers.add(Arc::clone(&channel)) {
@@ -256,12 +269,13 @@ impl Channel {
     fn end(&self, reason: EndReason) {
         match self.frames.host() {
             Some(host) => host.peers.finish(self.id, reason),
-            None => self.shut(),
+            None => self.shut(reason),
         }
     }
 
     /// Stops the channel here: the writer sends `Close` and closes the connection.
-    pub(super) fn shut(&self) {
+    pub(super) fn shut(&self, reason: EndReason) {
+        let _ = self.ending.set(reason);
         self.closing.cancel();
     }
 
@@ -322,6 +336,12 @@ async fn write_loop(
         }
     }
     if channel.connection.close_reason().is_none() {
+        // A channel ended as `lost` sends no `Close`: the code of the connection's close tells the
+        // other side, and a `Close` on the stream could be read first and say `closed`.
+        if channel.ending.get() == Some(&EndReason::Lost) {
+            channel.connection.close(LOST_CODE.into(), b"lost");
+            return;
+        }
         let close = Message::Close {
             v: VERSION,
             reason: CloseReason::Closed,

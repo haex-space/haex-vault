@@ -1,4 +1,4 @@
-//! The extension bundles of the e2e scenes of specs 017, 018 and 055 (`scripts/e2e/scenarios/extension-*.test.ts`),
+//! The extension bundles of the e2e scenes of specs 017, 018, 055 and 057 (`scripts/e2e/scenarios/extension-*.test.ts`),
 //! built with the one implementation of the bundle format (`haex-bundle`) and a test key derived
 //! from a public seed: it signs these fixtures only and must never be trusted elsewhere.
 //!
@@ -121,6 +121,28 @@ fn model_jobs() -> Vec<u8> {
     build_archive(files, manifest, &key).expect("model-jobs bundle")
 }
 
+/// The test extension of spec 057 (T069): sources and `manifest.json` in `peers/`, its code
+/// bundled with the released vault-sdk by `peers/build.sh`. It keeps no tables.
+fn peers() -> Vec<u8> {
+    let key = test_key();
+    let source = dir().join("peers");
+    let read = |name: &str| std::fs::read(source.join(name)).expect("peers source");
+    let manifest =
+        parse_restricted(&String::from_utf8(read("manifest.json")).expect("manifest text"))
+            .expect("manifest");
+    let files = vec![
+        Entry {
+            path: "index.html".into(),
+            data: read("index.html"),
+        },
+        Entry {
+            path: "app.js".into(),
+            data: read("app.js"),
+        },
+    ];
+    build_archive(files, manifest, &key).expect("peers bundle")
+}
+
 #[test]
 fn the_committed_e2e_bundles_are_what_this_builds() {
     let bundles = [
@@ -128,6 +150,7 @@ fn the_committed_e2e_bundles_are_what_this_builds() {
         ("probe-v2.xt", probe("1.1.0")),
         ("agent-tools.xt", agent_tools()),
         ("model-jobs.xt", model_jobs()),
+        ("peers.xt", peers()),
     ];
     for (file, built) in bundles {
         let path = dir().join(file);

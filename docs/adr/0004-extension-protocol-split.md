@@ -44,10 +44,12 @@ calls the host function directly. Host operations never pass through the agent.
 
 **An extension reaches a model only through a route the user set.** The bridge
 dispatches from a deny-by-default allowlist of host methods. Neither the bridge
-nor the tool connection offers MCP sampling, a path into the chat runtime, or
-extension-to-extension calls; holzi's MCP client refuses every request from the
-extension's server except `ping`. A contract test enumerates the bridge
-methods and fails if any reaches chat or model code.
+nor the tool connection offers MCP sampling or a path into the chat runtime. The
+separate peer-channel protocol permits only explicitly granted,
+extension-scoped channel operations; it does not add arbitrary
+extension-to-extension host calls. Holzi's MCP client refuses every request
+from the extension's server except `ping`. A contract test enumerates the
+bridge methods and fails if any reaches chat or model code.
 
 ## Rationale
 

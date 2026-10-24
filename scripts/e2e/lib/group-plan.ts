@@ -12,6 +12,12 @@ export type DeviceSpec = string | { name: string; main?: boolean }
 export interface GroupSpec {
   /** User name to the devices of that user's vault; the first device creates the vault. */
   users: Record<string, DeviceSpec[]>
+  /**
+   * Starts the group's own iroh relay and points every device at it, as a run with a phone does.
+   * Vaults of different users meet only through a relay: a card names a device by its id and its
+   * relay, and the devices of two vaults share no other way to find each other.
+   */
+  irohRelay?: boolean
 }
 
 export interface PlannedDevice {

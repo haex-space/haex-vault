@@ -2321,7 +2321,8 @@
         "contacts": "Kontakte",
         "agentTool": "Werkzeug für den Agenten",
         "model": "Modell nutzen",
-        "modelDestination": "Daten an ein Ziel außerhalb des Geräts senden"
+        "modelDestination": "Daten an ein Ziel außerhalb des Geräts senden",
+        "peers": "Kanäle zu anderen Vaults"
       },
       "effect": {
         "read": "liest nur",
@@ -2330,6 +2331,9 @@
       },
       "everyMethod": "alle Anfragen",
       "contactsGroup": "Kontakte der Gruppe „{name}“",
+      "peers": {
+        "description": "Kanäle zu derselben Erweiterung auf Geräten anderer Vaults öffnen. Mitspieler können bei direkter Verbindung die Netzwerkadresse dieses Geräts sehen."
+      },
       "everything": {
         "filesystem": "Alle Dateien und Ordner",
         "web": "Jede Website und jeder Server im Internet",
