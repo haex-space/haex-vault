@@ -101,8 +101,9 @@ auszuschließen."
   Prüfung ausgeschlossener Passkeys über den Bereich hinaus (036 FR-024). haex-vault 2.x ist kein
   Maßstab für Oberfläche.
 - **Client haex-pass-browser**: Repository `https://github.com/haex-space/haextension`, Revision
-  `ab4e0b0ac9a05488659836a7526a250beab9dfd9` (Merge des Begleit-PR haex-space/haextension#113 und seiner
-  Korrektur #114, 2026-10-21; die Planung lief gegen `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0`,
+  `4c32cec8f11928ab4da46dd7db1621d6a0ba1be5` (Merge des zweiten Begleit-PR haex-space/haextension#131,
+  Protokoll 3, 2026-10-23, veröffentlicht als 1.4.0; davor `ab4e0b0ac9a05488659836a7526a250beab9dfd9`,
+  Merge von #113 und seiner Korrektur #114, 2026-10-21; die Planung lief gegen `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0`,
   die erste Pin `a365af8a89f57a31427b85bfef5fe0f510253d30` spricht dasselbe Protokoll, aber
   `apps/haex-pass/app/api/external.ts` gibt es seitdem nicht mehr), Pfade
   `apps/haex-pass-browser/src/background/` (`protocol.ts`, `connection.ts`, `crypto.ts`,
