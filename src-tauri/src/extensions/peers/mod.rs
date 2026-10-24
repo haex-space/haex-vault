@@ -7,6 +7,7 @@
 //! extension the channel belongs to; nothing is stored but the permission `peers` (FR-042).
 
 pub mod admission;
+pub mod bridge;
 pub mod channel;
 pub mod invite;
 mod invite_run;
@@ -36,7 +37,9 @@ use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::ids::{ExtensionName, PublicKey};
 use crate::extensions::permissions::store::candidates;
-use crate::extensions::permissions::PermissionKind;
+use crate::extensions::permissions::{
+    evaluate, Action, Decision, Permission, PermissionKind, PermissionRequest, RequestTarget,
+};
 use crate::storage::query::Query;
 
 pub use state::PeerState;
@@ -88,6 +91,26 @@ pub struct ExtensionRef {
 }
 
 impl ExtensionRef {
+    /// How the extension `extension_id` is named on the wire, the inverse of [`Self::resolve`]:
+    /// an installed extension by its row, a development version by its registration. `None` for
+    /// an id that is neither.
+    pub fn of(q: &mut impl Query, extension_id: Uuid) -> crate::error::Result<Option<Self>> {
+        let installed: Option<(String, String)> = q.query_row(
+            "SELECT public_key, name FROM extensions WHERE id = ?1 AND state = 'installed'",
+            params![extension_id.to_string()],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        if let Some((public_key, name)) = installed {
+            return Ok(Some(Self { public_key, name }));
+        }
+        Ok(
+            crate::extensions::dev::registration(q, extension_id)?.map(|r| Self {
+                public_key: r.prefix.public_key.as_str().to_owned(),
+                name: r.prefix.name.as_str().to_owned(),
+            }),
+        )
+    }
+
     /// The id this extension has on `device`: installed and enabled, or a development version of
     /// the same key and name while developer mode is on there (as `dispatch::is_enabled` decides).
     /// `None` for anything else, a key or name that is not well-formed included.
@@ -170,6 +193,17 @@ impl From<PeerError> for BridgeError {
         };
         BridgeError::new(error.code(), reason).with_details(details)
     }
+}
+
+/// What the remembered and temporary `grants` of an extension say about `peers`/`connect` on `*`
+/// on `device`: the one decision the bridge answers by and the revoke watcher ends channels by.
+pub(crate) fn permission_decision(grants: &[Permission], device: Uuid) -> Decision {
+    let request = PermissionRequest {
+        kind: PermissionKind::Peers,
+        action: Action::Connect,
+        target: RequestTarget::Any,
+    };
+    evaluate(grants, &request, device)
 }
 
 /// Whether the `contacts` permission of `extension_id` covers `contact_id` on this device: only

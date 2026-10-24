@@ -140,6 +140,68 @@ test('a frame that is not ready holds a bounded number of events, dropping old s
   assert.equal(others[0]?.data, 1)
 })
 
+test('a full queue drops fast peer messages first, and reports a lost reliable one once', () => {
+  const delivered: FrameEvent[] = []
+  const lost: string[] = []
+  const queue = new FrameEventQueue(
+    'f1',
+    (e) => delivered.push(e),
+    (channelId) => lost.push(channelId),
+  )
+  const event = (type: string, data: unknown): FrameEvent => ({
+    frame: 'f1',
+    type,
+    data,
+    timestamp: 1,
+  })
+  const message = (channelId: string, reliable: boolean, n: number) =>
+    event('peers:message', { channelId, data: String(n), reliable })
+  const warn = console.warn
+  console.warn = () => {}
+  try {
+    queue.push(event('peers:channel-opened', 'first'))
+    queue.push(message('c1', true, 0))
+    queue.push(event('extension:permission-resolved', 'second'))
+    for (let i = 0; i < MAX_HELD_EVENTS * 2; i++)
+      queue.push(message('c1', false, i))
+    assert.deepEqual(lost, [], 'fast messages go first, nothing is reported')
+    queue.ready()
+    assert.equal(delivered.length, MAX_HELD_EVENTS)
+    assert.deepEqual(
+      delivered.slice(0, 3).map((e) => e.type),
+      [
+        'peers:channel-opened',
+        'peers:message',
+        'extension:permission-resolved',
+      ],
+      'the other events keep their order',
+    )
+    const newest = delivered.at(-1)?.data as { data: string }
+    assert.equal(newest.data, String(MAX_HELD_EVENTS * 2 - 1))
+  } finally {
+    console.warn = warn
+  }
+
+  // Nothing droppable is held: the oldest event goes, and a reliable message is reported once.
+  const reported: string[] = []
+  const busy = new FrameEventQueue(
+    'f1',
+    () => {},
+    (id) => reported.push(id),
+  )
+  console.warn = () => {}
+  try {
+    for (let i = 0; i < MAX_HELD_EVENTS; i++)
+      busy.push(message(i < 2 ? 'c2' : 'c3', true, i))
+    assert.deepEqual(reported, [])
+    busy.push(event('x', 1))
+    busy.push(event('x', 2))
+  } finally {
+    console.warn = warn
+  }
+  assert.deepEqual(reported, ['c2'], 'two losses of one channel, one report')
+})
+
 test('a file change reaches the SDK flat, other events keep their data', () => {
   const change = {
     frame: 'f1',

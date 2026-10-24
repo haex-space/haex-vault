@@ -37,9 +37,17 @@ async fn send_after_exchange(
 ) -> Option<Message> {
     let (connection, mut send, mut recv, verified) = from.dial(to).await;
     let verified = verified.expect("the exchange passes");
-    wire::write(&mut send, &message(&verified), ADMISSION_FRAME_LIMIT)
+    // The host may reject the request and close the connection before the write completes.
+    // That is still the expected no-answer outcome for this helper.
+    if wire::write(&mut send, &message(&verified), ADMISSION_FRAME_LIMIT)
         .await
-        .expect("write");
+        .is_err()
+    {
+        tokio::time::timeout(LIMIT, connection.closed())
+            .await
+            .expect("the host ends the connection");
+        return None;
+    }
     let reply = tokio::time::timeout(LIMIT, wire::read(&mut recv, ADMISSION_FRAME_LIMIT))
         .await
         .expect("an answer or an end in time")
