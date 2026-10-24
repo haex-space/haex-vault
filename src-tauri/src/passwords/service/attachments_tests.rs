@@ -76,3 +76,37 @@ async fn an_image_attachment_has_no_text() {
         Err(HolziError::InvalidInput { reason }) if reason == "not_text"
     ));
 }
+
+#[tokio::test]
+async fn the_user_gets_the_bytes_of_a_pdf_attachment() {
+    let s = setup("police.pdf", b"%PDF-1.4\n%%EOF\n");
+    let bytes = s
+        .service
+        .attachment_pdf(&Caller::User, s.attachment.clone())
+        .await
+        .unwrap();
+    assert_eq!(bytes, b"%PDF-1.4\n%%EOF\n");
+}
+
+#[tokio::test]
+async fn only_the_user_gets_the_bytes_of_a_pdf_attachment() {
+    let s = setup("police.pdf", b"%PDF-1.4");
+    let refused = s
+        .service
+        .attachment_pdf(&Caller::BuiltinAgent, s.attachment.clone())
+        .await;
+    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
+}
+
+#[tokio::test]
+async fn a_text_attachment_is_no_pdf() {
+    let s = setup("notiz.txt", b"abc");
+    let refused = s
+        .service
+        .attachment_pdf(&Caller::User, s.attachment.clone())
+        .await;
+    assert!(matches!(
+        refused,
+        Err(HolziError::InvalidInput { reason }) if reason == "not_pdf"
+    ));
+}

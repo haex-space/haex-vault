@@ -1,10 +1,12 @@
 //! Where the media server reads a file from (spec 044 FR-012, FR-013, research R4; after haex-vault 2.x (Legacy)
 //! `remote_storage/streaming/source.rs`): its size, its media type and a reader for one byte range.
 //! The server copies that reader through a fixed buffer, so no file is ever held whole in memory.
-//! Storages (US5) add a source that reads ranges from S3.
+//! Storages (US5) add a source that reads ranges from S3; attachments of the password manager
+//! (spec 058) come from memory.
 
 use std::io::SeekFrom;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt};
@@ -110,3 +112,65 @@ impl StreamingSource for StorageFileSource {
         &self.content_type
     }
 }
+
+/// A file held in memory: an attachment of the password manager (spec 058 R3), the fixtures of the
+/// platform probe. Ranges are views of the same bytes, never copies.
+pub struct BytesSource {
+    bytes: Arc<[u8]>,
+    content_type: String,
+}
+
+impl BytesSource {
+    pub fn new(bytes: Arc<[u8]>, content_type: impl Into<String>) -> Self {
+        Self {
+            bytes,
+            content_type: content_type.into(),
+        }
+    }
+}
+
+/// `len` bytes of `bytes` from `start`, cut at the end.
+struct Slice {
+    bytes: Arc<[u8]>,
+    start: usize,
+    end: usize,
+}
+
+impl AsRef<[u8]> for Slice {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes[self.start..self.end]
+    }
+}
+
+#[async_trait]
+impl StreamingSource for BytesSource {
+    async fn size(&self) -> std::io::Result<u64> {
+        Ok(self.bytes.len() as u64)
+    }
+
+    async fn open_range(
+        &self,
+        start: u64,
+        len: u64,
+    ) -> std::io::Result<Box<dyn AsyncRead + Send + Unpin>> {
+        let start = usize::try_from(start)
+            .unwrap_or(usize::MAX)
+            .min(self.bytes.len());
+        let end = start
+            .saturating_add(usize::try_from(len).unwrap_or(usize::MAX))
+            .min(self.bytes.len());
+        Ok(Box::new(std::io::Cursor::new(Slice {
+            bytes: Arc::clone(&self.bytes),
+            start,
+            end,
+        })))
+    }
+
+    fn content_type(&self) -> &str {
+        &self.content_type
+    }
+}
+
+#[cfg(test)]
+#[path = "streaming_tests.rs"]
+mod tests;

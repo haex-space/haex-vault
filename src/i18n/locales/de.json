@@ -2037,7 +2037,8 @@
         "missing": "Dieser Anhang ist auf diesem Gerät nicht verfügbar.",
         "binary": "Diese Datei ist kein Text.",
         "notText": "Diese Datei lässt sich hier nicht anzeigen.",
-        "unreadable": "Die Datei lässt sich nicht lesen."
+        "unreadable": "Die Datei lässt sich nicht lesen.",
+        "pdfUnreadable": "Dieses PDF lässt sich nicht anzeigen."
       }
     },
     "lightbox": {

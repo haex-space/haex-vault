@@ -1,5 +1,6 @@
 //! Attachment methods of the service (spec 034, US5, FR-019..FR-021): add from a file, rename,
-//! remove, save to a file, preview an image and read a text for the attachment view (spec 058). For the user alone (rule Z11). The file travels as
+//! remove, save to a file, preview an image, and read a text or a PDF for the attachment view
+//! (spec 058). For the user alone (rule Z11). The file travels as
 //! the choice of the system's dialog (spec 043, a path or a provider address) and is read and
 //! written on a blocking thread, so a 25 MiB attachment never crosses the webview.
 
@@ -93,6 +94,17 @@ impl PasswordsService {
         tauri::async_runtime::spawn_blocking(move || attachment_view::text_of(&name, bytes))
             .await
             .map_err(io_failed)?
+    }
+
+    /// The bytes of a PDF attachment for the attachment view (spec 058 FR-004), served by the
+    /// media server.
+    pub async fn attachment_pdf(&self, caller: &Caller, attachment_id: String) -> Result<Vec<u8>> {
+        require_user(caller)?;
+        let (name, bytes) = self
+            .db()
+            .read(move |q| binaries::attachment_data(q, &attachment_id).map_err(Into::into))
+            .await?;
+        attachment_view::pdf_bytes(&name, bytes)
     }
 
     /// The bytes of an image attachment for the preview.

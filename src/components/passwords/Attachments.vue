@@ -2,7 +2,7 @@
 /**
  * The attachments of an entry (spec 034, US5, FR-019..FR-021; spec 036, US6, FR-037..FR-041): cards
  * in a grid of three, two or one columns by the width of the container; a tap on an image opens the
- * lightbox over the entry's images in card order, a tap on a text the attachment view over the
+ * lightbox over the entry's images in card order, a tap on a text or a PDF the attachment view over the
  * whole password manager window (spec 058), a tap on anything else saves it. Adding through
  * the system's file dialog or by dropping files, renaming, removing and saving work as in 034.
  * Files travel as the dialog's choice (spec 043: a path or an address), never through the webview;
