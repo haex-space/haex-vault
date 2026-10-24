@@ -22,6 +22,13 @@ fn test_key() -> SigningKey {
     SigningKey::from_bytes(&seed.into())
 }
 
+fn digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 /// The probe at `version`; 1.1.0 adds a column (the update of `extension-two-devices`). It
 /// declares reading the contacts of the group "Arbeit" (spec 051, `extension-contacts`).
 fn probe(version: &str) -> Vec<u8> {
@@ -160,9 +167,9 @@ fn the_committed_e2e_bundles_are_what_this_builds() {
         let committed =
             std::fs::read(&path).expect("fixture (HOLZI_WRITE_E2E_FIXTURES=1 builds it)");
         eprintln!(
-            "{file}: built {:x}, committed {:x}",
-            Sha256::digest(&built),
-            Sha256::digest(&committed)
+            "{file}: built {}, committed {}",
+            digest(&built),
+            digest(&committed)
         );
         assert!(
             committed == built,
