@@ -1,6 +1,6 @@
-use super::{
-    capabilities, desktop, os_name, ModelPresets, PlatformCapabilities, PlatformName, ANDROID, IOS,
-};
+#[cfg(target_os = "linux")]
+use super::{capabilities, os_name};
+use super::{desktop, ModelPresets, PlatformCapabilities, PlatformName, ANDROID, IOS};
 
 #[test]
 fn desktop_offers_every_desktop_facility() {
