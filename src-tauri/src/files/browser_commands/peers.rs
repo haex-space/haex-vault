@@ -11,7 +11,8 @@ use tokio::time::{Duration, Instant};
 use ts_rs::TS;
 
 use super::navigate::{FolderChanged, KnownPlace};
-use super::peer_links;
+use super::{peer_links, remote_access};
+use crate::files::peer::contacts::{self, FilesContactShares};
 use crate::files::peer::store::{peer_access, PeerStore};
 use crate::files::peer::wire::{read_head, Caller, Reply, WireRoot};
 use crate::files::share::PEER_PREFIX;
@@ -111,7 +112,7 @@ pub async fn watch_peer(
     channel: Channel<FolderChanged>,
 ) -> Result<u64, FilesError> {
     let store = PeerStore::new(peer_links(app)?, Caller::User);
-    let access = peer_access(storage_id, None);
+    let access = remote_access(&app.state::<AppState>(), storage_id).await?;
     let mut changes = store
         .watch(
             &access,
@@ -174,4 +175,33 @@ pub async fn files_peer_roots(
         drives: places(drives),
         known: places(known),
     })
+}
+
+/// Asks every device of the contact `contact_id` for the shares it gave this vault (spec 056 US2,
+/// FR-028): only when the person expands the contact.
+#[tauri::command]
+pub async fn files_contact_query(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    contact_id: String,
+) -> Result<FilesContactShares, FilesError> {
+    let db = state
+        .database()
+        .map_err(|_| FilesError::new(crate::files::FilesErrorCode::Unsupported, "no open vault"))?;
+    let links = peer_links(&app)?;
+    contacts::query(&db, &links, contact_id).await
+}
+
+/// The contacts with a stored card and what is known of their shares, for the sidebar (FR-031).
+pub async fn contact_shares(app: &AppHandle, state: &AppState) -> Vec<FilesContactShares> {
+    let Ok(db) = state.database() else {
+        return Vec::new();
+    };
+    let links = peer_links(app).ok();
+    contacts::known(&db, links.as_deref())
+        .await
+        .unwrap_or_else(|error| {
+            log::warn!("files: the contacts' shares could not be listed: {error}");
+            Vec::new()
+        })
 }

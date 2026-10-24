@@ -11,7 +11,7 @@ use super::prompt::{FilesAgentPermissionRequest, PermissionPrompt, EVENT_PERMISS
 use crate::error::HolziError;
 use crate::files::access::AgentGrants;
 use crate::files::browser_commands::{
-    device_storage, peer_storage, window_storage, KnownPlace, StorageSource,
+    device_storage, is_remote, peer_storage, window_storage, KnownPlace, StorageSource,
 };
 use crate::files::encrypted::device::DeviceRoot;
 use crate::files::local::OwnPlaces;
@@ -19,7 +19,6 @@ use crate::files::peer::wire::Caller as PeerCaller;
 use crate::files::permissions::{
     self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
 };
-use crate::files::share::PEER_PREFIX;
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
@@ -202,8 +201,14 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
             );
         }
         // Another own device answers an agent as one (FR-007: holzi's own data stays closed).
-        if storage_id.starts_with(PEER_PREFIX) {
-            return peer_storage(&self.app, storage_id, PeerCaller::Agent);
+        if is_remote(storage_id) {
+            return peer_storage(
+                &self.app,
+                &self.app.state::<AppState>(),
+                storage_id,
+                PeerCaller::Agent,
+            )
+            .await;
         }
         window_storage(
             &self.app,

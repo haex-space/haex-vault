@@ -5,12 +5,15 @@
 
 pub mod client;
 pub mod connect;
+pub mod contacts;
 pub mod exact;
 pub mod handshake;
 pub mod serve;
 pub mod store;
 pub mod wire;
 
+#[cfg(test)]
+mod contact_tests;
 #[cfg(test)]
 mod own_device_tests;
 #[cfg(test)]
