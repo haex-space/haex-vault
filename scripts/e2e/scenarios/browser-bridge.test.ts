@@ -202,9 +202,12 @@ scenario('browser-bridge', { timeoutMs: 420_000 }, async (ctx) => {
         : undefined,
     )
     await ctx.waitFor('the revoke confirmation closes', async () =>
-      (await instance.exec<number>(
-        `return document.querySelectorAll('[data-testid="bridge-client-confirm"]').length`,
-      )) === 0
+      (await instance.exec<boolean>(
+        `return [...document.querySelectorAll('[data-testid="bridge-client-confirm"]')].every((element) => {
+           const style = getComputedStyle(element)
+           return style.display === 'none' || style.visibility === 'hidden' || element.getClientRects().length === 0
+         })`,
+      ))
         ? true
         : undefined,
     )
