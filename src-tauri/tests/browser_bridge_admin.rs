@@ -17,6 +17,7 @@ use holzi_lib::browser_bridge::declaration::BridgeAccess;
 use holzi_lib::browser_bridge::prompts::{
     ApprovalAnswer, BridgeAnswer, BridgeQuestion, WriteAnswer,
 };
+use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
 use holzi_lib::browser_bridge::runtime::Notice;
 use holzi_lib::browser_bridge::server::Running;
 use holzi_lib::error::HolziError;
@@ -320,7 +321,7 @@ async fn a_change_wider_than_the_declaration_or_for_nobody_is_refused() {
     let bridge = fx.bridge().await;
     let client = TestClient::new(46);
     let reader = client.handshake_with(
-        2,
+        PROTOCOL_VERSION,
         json!({ "core": { "passwords": [{ "target": "web", "operation": "read" }] } }),
     );
     let (_socket, _) = decided(

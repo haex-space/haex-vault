@@ -4,8 +4,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// The protocol version holzi speaks; a handshake below it is refused (FR-006).
-pub const PROTOCOL_VERSION: u32 = 2;
+/// The protocol version holzi speaks; a handshake below it is refused (FR-049). Version 3 adds the
+/// proof of the client's key (FR-048).
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// The target pair of the password manager (FR-029); anything else is not supported.
 pub const CORE_EXTENSION_PUBLIC_KEY: &str = "__core__";
@@ -16,6 +17,7 @@ pub const CORE_EXTENSION_NAME: &str = "core";
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Incoming {
     Handshake(Handshake),
+    Proof(ProofEnvelope),
     Request(RequestEnvelope),
     Ping,
     Pong,
@@ -53,6 +55,15 @@ pub struct RequestEnvelope {
     pub extension_name: Option<String>,
 }
 
+/// The client's answer to the challenge, sealed to the bridge key like a request (FR-048).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProofEnvelope {
+    pub public_key: String,
+    pub iv: String,
+    pub message: String,
+}
+
 impl RequestEnvelope {
     /// Whether the request names the password manager (FR-029).
     pub fn targets_core(&self) -> bool {
@@ -66,6 +77,7 @@ impl RequestEnvelope {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Outgoing {
     HandshakeResponse(HandshakeResponse),
+    Challenge(ChallengeFrame),
     Response(ResponseEnvelope),
     AuthorizationUpdate { authorized: bool },
     Pong,
@@ -79,6 +91,17 @@ pub struct HandshakeResponse {
     pub server_public_key: String,
     pub authorized: bool,
     pub pending_approval: bool,
+}
+
+/// The challenge of protocol 3 (FR-048): random bytes sealed to the client's key like an answer,
+/// with the bridge key the proof is sealed to.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChallengeFrame {
+    pub server_public_key: String,
+    pub public_key: String,
+    pub iv: String,
+    pub message: String,
 }
 
 /// The answer envelope; `clientId` is empty and the extension fields are `null`, as in the
@@ -116,7 +139,9 @@ impl ErrorFrame {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorCode {
     ParseError,
+    ProtocolUpdateRequired,
     PermissionsDeclarationRequired,
+    ProofFailed,
     Unauthorized,
     DecryptionError,
     InvalidRequest,
@@ -135,9 +160,13 @@ impl ErrorCode {
     pub fn message(self) -> &'static str {
         match self {
             Self::ParseError => "Could not read the message",
-            Self::PermissionsDeclarationRequired => {
-                "Protocol version 2 with a declaration of password permissions is required"
+            Self::ProtocolUpdateRequired => {
+                "Protocol version 3 is required; update haex-pass to 1.4.0 or newer"
             }
+            Self::PermissionsDeclarationRequired => {
+                "A declaration of password permissions is required"
+            }
+            Self::ProofFailed => "The client did not prove that it holds its key",
             Self::Unauthorized => "Client not authorized",
             Self::DecryptionError => "Could not decrypt the request",
             Self::InvalidRequest => "Invalid request",

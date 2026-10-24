@@ -163,6 +163,8 @@ percent-encoding = "2.3"
 tokio-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
 aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
 curve25519-dalek = "5"
+# The constant-time comparison of the key proof (spec 049, FR-048); in the lock via aes-gcm.
+subtle = "2.6"
 
 # haex-crdt 0.4.0, originally pinned per plans/001-desktop-mvp.md at commit
 # 1c069ef; no tagged releases past v0.1.0 exist yet, so holzi pins main by

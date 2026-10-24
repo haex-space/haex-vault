@@ -13,6 +13,7 @@ use bridge_fixture::*;
 use holzi_lib::browser_bridge::approvals::Status;
 use holzi_lib::browser_bridge::declaration::BridgeAccess;
 use holzi_lib::browser_bridge::prompts::{BridgeAnswer, BridgeQuestion, WriteAnswer};
+use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::{ItemInput, PresetInput};
 
@@ -569,7 +570,7 @@ async fn a_declaration_without_writing_is_refused_without_a_question() {
     send(
         &mut socket,
         client.handshake_with(
-            2,
+            PROTOCOL_VERSION,
             json!({ "core": { "passwords": [{ "target": "*", "operation": "read" }] } }),
         ),
     )

@@ -416,6 +416,13 @@ async fn no_secret_reaches_an_answer_an_error_a_question_or_the_log() {
     let keys = private_key_markers(&fx).await;
     assert_eq!(keys.len(), 9, "three passkeys, three spellings each");
     markers.extend(keys);
+    // The challenges of the key proof (FR-048) as the test clients opened them.
+    let challenges = CHALLENGES.lock().expect("challenges").clone();
+    assert!(
+        !challenges.is_empty(),
+        "the probe went through the key proof"
+    );
+    markers.extend(challenges);
     let lines = LINES.lock().expect("lines").clone();
     assert!(
         lines.iter().any(|l| l.contains("get-items -> ok")),

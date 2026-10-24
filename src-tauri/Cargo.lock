@@ -4728,6 +4728,7 @@ dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.0",
  "spki",
+ "subtle",
  "sysinfo 0.39.6",
  "tauri",
  "tauri-build",
