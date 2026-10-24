@@ -258,7 +258,7 @@ jobs:
           mkdir -p /tmp/cores
           sudo sysctl -q -w kernel.core_pattern='/tmp/cores/core.%p.%E'
           ulimit -c unlimited
-          cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }}
+          cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }} --test extension_e2e_fixtures
 
       - name: Backtrace of a crashed test binary
         if: failure() && steps.tests.outcome == 'failure'
