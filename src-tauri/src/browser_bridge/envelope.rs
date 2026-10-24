@@ -130,7 +130,8 @@ pub fn decode_key(b64: &str) -> Result<[u8; KEY_LEN], EnvelopeError> {
 /// order; it is refused, so no message is ever sealed under a key an attacker can predict.
 // ponytail: the raw shared secret is the AES key, with no KDF and no associated data, because the
 // unchanged client does it so (research R3). Ceiling: departs from RFC 7748 §6.1's advice; every
-// message has its own key and a random IV, so no nonce is ever reused. Upgrade path: a protocol v3
+// message has its own key and a random IV, so no nonce is ever reused. Upgrade path: a future
+// protocol v4
 // with HKDF and the action as associated data, agreed with the extension.
 pub fn agree(
     secret: &[u8; KEY_LEN],

@@ -221,7 +221,7 @@ impl Reply {
     }
 }
 
-/// Reads a frame; anything that is not one of the four known frames is a `PARSE_ERROR`.
+/// Reads a frame; anything that is not one of the five known frames is a `PARSE_ERROR`.
 pub fn parse(text: &str) -> Result<Incoming, ErrorCode> {
     serde_json::from_str(text).map_err(|_| ErrorCode::ParseError)
 }

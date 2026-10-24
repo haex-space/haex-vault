@@ -296,6 +296,7 @@ impl Connection {
     ) -> Flow {
         let mut challenge = Zeroizing::new([0u8; CHALLENGE_LEN]);
         if getrandom::fill(challenge.as_mut()).is_err() {
+            log::warn!("browser bridge: could not create handshake challenge");
             return Flow::Close;
         }
         let plaintext =
