@@ -428,14 +428,16 @@ What an extension asks of holzi's language and vision models through the SDK (`m
 up to four steps, each with the extension's instruction, text or images or the result of an earlier
 step, and the format of the answer as a schema. holzi picks a granted model per step, drops broken
 output (empty, a loop, a switch of script, not the format) and tries the next granted model; only an
-answer in the format is a result. A job has no tools, lives only in memory and leaves no trace in
-the vault.
+answer in the format is a result. A job gives its model no tools of holzi, lives only in memory and
+leaves no trace in the vault; a connected subscription (Claude Code, Codex) runs as an agent with full
+access, which the grant says to the user.
 _Avoid_: agent task (the earlier spec 047), prompt, request.
 
 **Modellfreigabe** (model grant, spec 055):
 The **Berechtigung** of kind `model`: an extension may use this model up to this effort (`none` to
 `high`). The user answers a first job's question or sets it in the extension's settings, where the
-granted models also get their rank. A wish above the ceiling is capped, not refused.
+granted models also get their rank. Every model holzi knows can be granted, whatever its source. A wish
+above the ceiling is capped, not refused.
 _Avoid_: model permission, model access.
 
 **Ziel (Ort)** (destination and its place, spec 055):

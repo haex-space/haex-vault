@@ -1,6 +1,6 @@
 //! Tests for the source of a job's adapter (spec 055 T022): a remote model is built from its rows
-//! when it is tried; a provider that cannot be built, a local model and a command-line agent give
-//! no adapter.
+//! when it is tried, a connected subscription gets its agent; a provider that cannot be built and a
+//! local model give no adapter.
 
 use super::model_source::{JobModel, ModelSource, Providers};
 use super::place::Place;
@@ -65,7 +65,7 @@ fn a_remote_model_gets_the_adapter_of_its_provider() {
         None,
     );
     let model = JobModel::new(model_row(&server, "m", None), server);
-    assert!(Providers.adapter(&model).is_ok());
+    assert!(Providers::default().adapter(&model).is_ok());
 }
 
 #[test]
@@ -73,15 +73,34 @@ fn a_provider_that_cannot_be_built_gives_a_message_and_no_adapter() {
     let mut legacy = provider(ProviderKind::ApiKey, Some("https://api.example.com"), None);
     legacy.adapter = None;
     let model = JobModel::new(model_row(&legacy, "m", None), legacy);
-    let message = Providers.adapter(&model).err().expect("no adapter");
+    let message = Providers::default()
+        .adapter(&model)
+        .err()
+        .expect("no adapter");
     assert!(message.contains("missing adapter"), "{message}");
 }
 
 #[test]
-fn a_local_model_and_a_command_line_agent_take_no_job() {
-    for kind in [ProviderKind::Local, ProviderKind::CliDelegate] {
-        let source = provider(kind, None, None);
-        let model = JobModel::new(model_row(&source, "m", None), source);
-        assert!(Providers.adapter(&model).is_err(), "{kind:?}");
-    }
+fn a_local_model_takes_no_job_yet() {
+    let source = provider(ProviderKind::Local, None, None);
+    let model = JobModel::new(model_row(&source, "m", None), source);
+    assert!(Providers::default().adapter(&model).is_err());
+}
+
+#[test]
+fn a_connected_subscription_gets_an_adapter_and_a_broken_one_gives_a_message() {
+    let mut agent = provider(ProviderKind::CliDelegate, Some("claude"), Some("token"));
+    agent.adapter = Some("claude".into());
+    let model = JobModel::new(model_row(&agent, "m", None), agent.clone());
+    assert!(model.runs_agent());
+    assert!(Providers::default().adapter(&model).is_ok());
+
+    // An adapter nobody knows: the job tries the next model.
+    agent.adapter = Some("unknown".into());
+    let model = JobModel::new(model_row(&agent, "m", None), agent);
+    let message = Providers::default()
+        .adapter(&model)
+        .err()
+        .expect("no adapter");
+    assert!(message.contains("invalid or missing adapter"), "{message}");
 }

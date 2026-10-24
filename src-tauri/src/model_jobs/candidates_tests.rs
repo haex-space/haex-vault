@@ -131,7 +131,7 @@ fn a_denial_of_a_model_takes_it_away_whatever_its_effort() {
 }
 
 #[test]
-fn every_model_counts_for_a_grant_of_all_but_no_agent_no_transcription_and_no_orphan() {
+fn every_chat_model_counts_for_a_grant_of_all_agents_too_but_no_transcription_and_no_orphan() {
     let v = vault();
     let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
     let agent = provider(
@@ -151,11 +151,24 @@ fn every_model_counts_for_a_grant_of_all_but_no_agent_no_transcription_and_no_or
         .unwrap();
     v.grant("*", "medium", 1);
 
-    assert_eq!(v.ids(vec![]), [("a".to_owned(), Level::Medium)]);
+    let mut granted = v.ids(vec![]);
+    granted.sort();
+    assert_eq!(
+        granted,
+        [
+            ("a".to_owned(), Level::Medium),
+            ("claude".to_owned(), Level::Medium)
+        ]
+    );
     let all =
         v.db.read_blocking(|q| job_models(q).map_err(Into::into))
             .unwrap();
-    assert_eq!(all.len(), 1);
+    assert_eq!(all.len(), 2);
+    // Only the subscription is an agent, and it talks to its vendor: a destination outside the device.
+    let agents: Vec<_> = all.iter().filter(|m| m.runs_agent()).collect();
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].name, "claude");
+    assert!(agents[0].place.needs_consent());
 }
 
 #[test]

@@ -18,7 +18,7 @@ use crate::extensions::permissions::{
 };
 use crate::model_capabilities::ModelCapabilities;
 use crate::storage::models::list_all_models;
-use crate::storage::providers::{list_providers, Provider, ProviderCapability, ProviderKind};
+use crate::storage::providers::{list_providers, Provider, ProviderCapability};
 use crate::storage::query::Query;
 
 /// A model a step may go to, and the highest effort it may be used with.
@@ -28,12 +28,12 @@ pub(crate) struct Candidate {
     pub ceiling: Level,
 }
 
-/// The models of the vault that can take a job: chat models of a local provider or a provider
-/// with an address. A command-line agent never can: it brings its own tools (FR-026).
+/// The models of the vault that can take a job: the chat models of every provider, whatever their
+/// source (spec 055 FR-031): a local one, one with an address, a connected subscription.
 pub(crate) fn job_models(q: &mut impl Query) -> Result<Vec<JobModel>> {
     let providers: HashMap<Uuid, Provider> = list_providers(q)?
         .into_iter()
-        .filter(|p| p.capability == ProviderCapability::Chat && p.kind != ProviderKind::CliDelegate)
+        .filter(|p| p.capability == ProviderCapability::Chat)
         .map(|p| (p.id, p))
         .collect();
     Ok(list_all_models(q)?

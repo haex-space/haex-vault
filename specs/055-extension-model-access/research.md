@@ -298,14 +298,20 @@ und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
   (`cli_delegate/claude.rs`, `codex.rs`, `current_dir(tmp)`); Anhänge liegen dort als Datei, die der Agent
   mit seinem Lesewerkzeug öffnet. Die Antwort kommt als Text, den die Prüfung des Auftrags wie jede andere
   Ausgabe gegen das Format prüft (R2, R5).
-- **Entscheidung** (Clarifications 2026-10-23): Abos sind Kandidaten wie andere Modelle. Der Lauf nimmt den
-  Autonomie-Modus aus der Tresoreinstellung `chat.autonomy_mode`; `standard` wird für den Auftrag zu
-  `gated_permissive`, weil es keinen Chat für Rückfragen gibt, damit gelten die Verbotsregeln des Nutzers.
-  Der Kontext für den Adapter bekommt keinen Chat: Freigaben laufen nie über den Chat, Kindprozesse hängen
-  an der Tresorsitzung wie im Chat. Der Ort ist `cloud` (Dienst des Anbieters), also mit Einwilligung (R6).
-  Fähigkeiten: Beide nehmen Bilder über die Datei im Arbeitsverzeichnis. Der Aufwand geht als `--effort`
-  bzw. die Codex-Entsprechung mit. Die Freigabe zeigt beim Abo einen Hinweis auf Datei- und Befehlszugriff
-  (FR-032).
+- **Entscheidung** (Clarifications 2026-10-23, korrigiert 2026-10-24): Abos sind Kandidaten wie andere Modelle
+  (`candidates::job_models` filtert sie nicht mehr). Der Adapter wird mit einem Kontext ohne Chat gebaut
+  (`model_jobs/delegate.rs`: keine wartenden Freigaben, kein Ereignis, kein Tresor, Kindprozesse in der
+  Registry der Tresorsitzung wie im Chat) und fragt den Agenten mit `Ungated`, ohne Thread. Der Plan, den
+  Modus des Chats zu übernehmen und `standard` als `gated_permissive` zu behandeln, scheitert an
+  `approval_bridge.rs`: `gated_permissive` protokolliert jeden Aufruf in einem Chat-Thread und verweigert, wenn
+  kein Thread da ist (Test `gated_permissive_denies_when_there_is_no_thread_to_audit_against`); ein Auftrag
+  darf nichts speichern (FR-028) und hat keinen Thread. `standard` würde auf eine Freigabe warten, die
+  niemand erteilt. Den Dateizugriff braucht Claude Code schon, um ein Bild zu lesen. Der Ort ist `cloud`
+  (Dienst des Anbieters), also mit Einwilligung (R6). Fähigkeiten: Claude Code nimmt Bilder (Anhänge liegen als
+  Datei im Arbeitsverzeichnis, die Modelle melden Bildfähigkeit über die Modell-API); Codex schreibt keine
+  Anhänge und meldet nichts, es gilt daher nur für Textschritte, bis der Nutzer „Nimmt Bilder an“ setzt. Der
+  Aufwand geht als `--effort` mit. Die Freigabe zeigt beim Abo einen Hinweis auf Datei- und Befehlszugriff
+  (FR-032, `agent` in `ExtensionModelChoice` und `ExtensionModelEntry`).
 - **Verworfen**: Abos ohne Werkzeuge (`claude --tools ""`); der Nutzer will ihnen den vollen Zugriff lassen,
   und für Codex gibt es laut `codex exec --help` (0.147.0) keinen Schalter ohne Shell.
 

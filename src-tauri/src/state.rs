@@ -69,7 +69,9 @@ impl AppState {
             extensions: {
                 let extensions = Arc::new(crate::extensions::host::ExtensionHost::default());
                 // Spec 017 US11: a vault close ends the shells of extensions with its other children.
-                extensions.shells.set_children(children);
+                extensions.shells.set_children(children.clone());
+                // Spec 055 R16: the agent of a subscription that runs a model job ends with it.
+                extensions.set_model_children(children);
                 extensions
             },
         }

@@ -996,6 +996,7 @@
         "none": "holzi knows no model yet.",
         "notAllowed": "Not allowed",
         "takesImages": "takes images",
+        "agent": "agent with file and command access",
         "denied": "refused",
         "held": "for this session only",
         "moveUp": "Move up",
@@ -2371,7 +2372,8 @@
         "intro": "The extension wants to use one of holzi's models. Pick one that fits the job:",
         "models": "Models",
         "effort": "Highest effort",
-        "effortHint": "The extension can ask for less effort, never more."
+        "effortHint": "The extension can ask for less effort, never more.",
+        "agent": "An agent: the extension then instructs a program that can read and change files and run commands on this device."
       },
       "modelDestination": {
         "intro": "The extension wants to send a job to a model outside this device:",

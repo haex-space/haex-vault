@@ -11,7 +11,13 @@ import {
 } from '~/lib/extensions/modelGrants'
 
 defineProps<{
-  models: { id: string; name: string; provider: string; place: string }[]
+  models: {
+    id: string
+    name: string
+    provider: string
+    place: string
+    agent?: boolean
+  }[]
 }>()
 const modelId = defineModel<string>('modelId', { required: true })
 const effort = defineModel<string>('effort', { required: true })
@@ -44,6 +50,9 @@ const effortOptions = computed(() =>
           <span>{{ model.name }}</span>
           <span class="text-xs text-muted-foreground">
             {{ model.provider }} · {{ t(placeLabelKey(model.place)) }}
+          </span>
+          <span v-if="model.agent" class="text-xs text-warning">
+            {{ t('extensions.permissionRequest.model.agent') }}
           </span>
         </span>
       </label>

@@ -360,7 +360,7 @@ async fn a_provider_that_cannot_be_reached_is_unavailable_without_its_address() 
         ceiling: Level::None,
     };
 
-    let run = run(&Providers, &step(json!({})), &[model]).await;
+    let run = run(&Providers::default(), &step(json!({})), &[model]).await;
 
     assert_eq!(run.attempts[0].outcome, Outcome::Unavailable);
     let reason = run.attempts[0].reason.clone().unwrap_or_default();
