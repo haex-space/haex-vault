@@ -68,8 +68,9 @@ pub async fn join(
         .map_err(|_| PeerError::LobbyClosed)?;
     let connection = match timeout_at(deadline, session.node.dial_alpn(addr, EXT_PEER_ALPN)).await {
         Ok(Ok(connection)) => connection,
-        Ok(Err(error)) => {
-            log::debug!("peers: the host of a lobby was not reached: {error}");
+        Ok(Err(_)) => {
+            // The error text can name the host's address (FR-042), so it is not logged.
+            log::debug!("peers: the host of a lobby was not reached");
             return Err(PeerError::NetworkUnavailable);
         }
         Err(_) => return Err(PeerError::NetworkUnavailable),
