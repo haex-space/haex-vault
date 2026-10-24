@@ -118,8 +118,17 @@ async fn two_acceptances_at_once_give_one_channel() {
     asked(b1).await;
     asked(b2).await;
 
-    assert_eq!(b1.host.peers.answer_invitation(id, true), Answered::Open);
-    assert_eq!(b2.host.peers.answer_invitation(id, true), Answered::Open);
+    // The first answer may finish the invitation and withdraw the other prompt before this
+    // synchronous test call reaches it. Both results are valid; the assertions below verify that
+    // exactly one device still gets a channel.
+    assert!(matches!(
+        b1.host.peers.answer_invitation(id, true),
+        Answered::Open | Answered::Gone
+    ));
+    assert!(matches!(
+        b2.host.peers.answer_invitation(id, true),
+        Answered::Open | Answered::Gone
+    ));
     let status = first_status(a).await;
     // Each device either got its channel or heard that its prompt is gone, the winner never both.
     for vault in [b1, b2] {

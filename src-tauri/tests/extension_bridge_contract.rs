@@ -59,3 +59,57 @@ fn each_method_is_listed_once() {
     names.dedup();
     assert_eq!(names.len(), count);
 }
+
+/// The methods of channels between extensions (spec 057): all in `extensions::peers::bridge`,
+/// named by the 017 contract and by the contract of 057 it points to, with their events.
+#[test]
+fn the_methods_and_events_of_channels_are_in_both_contracts() {
+    const EVENTS: [&str; 5] = [
+        "peers:invite-status",
+        "peers:channel-opened",
+        "peers:joined",
+        "peers:message",
+        "peers:channel-closed",
+    ];
+    let peers: Vec<_> = METHODS
+        .iter()
+        .filter(|m| m.name.starts_with("extension_peers_"))
+        .collect();
+    assert_eq!(
+        peers.len(),
+        8,
+        "{:?}",
+        peers.iter().map(|m| m.name).collect::<Vec<_>>()
+    );
+    let own = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../specs/057-extension-peer-channels/contracts/bridge.md"),
+    )
+    .expect("the contract of 057");
+    let host = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../specs/017-extension-host/contracts/bridge.md"),
+    )
+    .expect("the bridge contract");
+    for method in peers {
+        assert_eq!(
+            method.module, "holzi_lib::extensions::peers::bridge",
+            "{}",
+            method.name
+        );
+        assert!(
+            own.contains(&format!("`{}`", method.name)),
+            "{}",
+            method.name
+        );
+        assert!(
+            host.contains(&format!("`{}`", method.name)),
+            "017: {}",
+            method.name
+        );
+    }
+    for event in EVENTS {
+        assert!(host.contains(&format!("`{event}`")), "017: {event}");
+        assert!(own.contains(&format!("`{event}`")), "057: {event}");
+    }
+}

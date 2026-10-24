@@ -85,6 +85,10 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
   gehen über den Sync der eigenen Geräte. Diese Spec baut keinen eigenen Sync.
   Geräteeigene Daten (angewendete Migrationen, vorläufige Berechtigungen,
   Schlüssel-Wert-Speicher, Protokolle) folgen [ADR-0001](../../docs/adr/0001-device-scoped-data-convention.md).
+- [`057-extension-peer-channels`](../057-extension-peer-channels/spec.md): Kanäle zwischen
+  derselben Erweiterung auf Geräten anderer Vaults. Die Berechtigung `peers`, acht Methoden
+  `extension_peers_*` und fünf Meldungen `peers:*` kommen über diese Brücke
+  ([contracts/bridge.md](contracts/bridge.md)); der Rest ist dort geregelt.
 - [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md): Die Dateifunktionen dieser
   Spec arbeiten auf dem Dateisystem des Geräts. Ob ein Ordner synchronisiert wird, ändert an
   den Berechtigungen nichts.

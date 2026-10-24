@@ -2,6 +2,8 @@
 #![allow(clippy::disallowed_methods)]
 
 use std::path::Path;
+// Only the folder-watch tests wait on a deadline, and they do not exist on mobile.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::time::{Duration, Instant};
 
 use serde_json::Value;

@@ -12,6 +12,7 @@ use ts_rs::TS;
 
 use super::navigate::{FolderChanged, KnownPlace};
 use super::{peer_links, remote_access};
+use crate::files::peer::client::PeerLinks;
 use crate::files::peer::contacts::{self, FilesContactShares};
 use crate::files::peer::store::{peer_access, PeerStore};
 use crate::files::peer::wire::{read_head, Caller, Reply, WireRoot};
@@ -175,6 +176,17 @@ pub async fn files_peer_roots(
         drives: places(drives),
         known: places(known),
     })
+}
+
+/// Whether deleting on the other device or share `storage_id` goes to its trash (spec 056 FR-038,
+/// research R8); without one the window asks before deleting.
+#[tauri::command]
+pub async fn files_peer_trash(app: AppHandle, storage_id: String) -> Result<bool, FilesError> {
+    let link = peer_links(&app)?
+        .link(&storage_id)
+        .await
+        .map_err(storage_error)?;
+    Ok(link.welcome.trash)
 }
 
 /// Asks every device of the contact `contact_id` for the shares it gave this vault (spec 056 US2,

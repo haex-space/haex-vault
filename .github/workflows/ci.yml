@@ -396,6 +396,28 @@ jobs:
         if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
         run: cargo install tauri-driver --locked --version 2.0.6
 
+      # Spec 057 (T081): the desktop peer scenario starts a local relay for the vault group, just
+      # like the Android scenarios do. Keep the binary version tied to the release holzi uses.
+      - name: Read the iroh-relay version
+        id: e2e-iroh-relay
+        run: |
+          version=$(sed -n '/^name = "iroh-relay"$/{n;s/^version = "\(.*\)"$/\1/p}' src-tauri/Cargo.lock)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache iroh-relay
+        id: cache-e2e-iroh-relay
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/iroh-relay
+          key: iroh-relay-${{ steps.e2e-iroh-relay.outputs.version }}-${{ runner.os }}
+
+      - name: Install iroh-relay
+        if: steps.cache-e2e-iroh-relay.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ steps.e2e-iroh-relay.outputs.version }}
+        run: cargo install iroh-relay --locked --version "$VERSION" --features server
+
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite

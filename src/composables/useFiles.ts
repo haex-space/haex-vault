@@ -109,6 +109,11 @@ export function useFiles() {
     return await invoke<FilesPeerRoots>('files_peer_roots', { storageId })
   }
 
+  /** Whether deleting on the other device or share `storageId` goes to its trash (spec 056). */
+  async function peerTrashAsync(storageId: string): Promise<boolean> {
+    return await invoke<boolean>('files_peer_trash', { storageId })
+  }
+
   async function unwatchAsync(id: number): Promise<void> {
     await invoke('files_unwatch', { id })
   }
@@ -263,6 +268,7 @@ export function useFiles() {
     watchAsync,
     unwatchAsync,
     peerRootsAsync,
+    peerTrashAsync,
     openSystemAsync,
     createFolderAsync,
     renameAsync,

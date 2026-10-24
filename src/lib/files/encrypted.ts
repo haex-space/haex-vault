@@ -52,13 +52,21 @@ export type DeleteInput = {
   /** The open folder is, or lies in, an encrypted folder. */
   inEncrypted: boolean
   entries: readonly EncryptedEntry[]
+  /** On another device or a contact's share: whether that device deletes into its trash. */
+  remoteTrash?: boolean
 }
 
 /**
  * Whether deleting asks first because it is for good (spec 044 FR-023, spec 048 FR-046): on
- * Android, in a storage, and in or of an encrypted folder, which has no trash.
+ * Android, in a storage, and in or of an encrypted folder, which has no trash. On another device
+ * only that device's trash counts (spec 056 FR-038).
  */
 export function asksBeforeDelete(input: DeleteInput): boolean {
+  if (
+    input.source.kind === 'storage' &&
+    isRemoteStorage(input.source.storageId)
+  )
+    return input.remoteTrash !== true
   return (
     input.android ||
     input.source.kind === 'storage' ||

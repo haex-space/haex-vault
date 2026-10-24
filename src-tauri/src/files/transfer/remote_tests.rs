@@ -459,3 +459,6 @@ async fn an_upload_of_a_name_kept_for_encrypted_folders_is_refused() {
     assert_eq!(result.unwrap_err().code, FilesErrorCode::InvalidName);
     assert!(fake.keys(BUCKET).is_empty());
 }
+
+#[path = "remote_conflict_tests.rs"]
+mod conflict;

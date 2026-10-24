@@ -182,6 +182,23 @@ test('deleting asks first where there is no trash', () => {
   assert.equal(on({ entries: [plain, folder] }), true, 'of an encrypted folder')
 })
 
+test('another device asks only when it has no trash (spec 056 FR-038)', () => {
+  const peer = { kind: 'storage', storageId: 'peer:0b5c1f9e' } as const
+  const share = { kind: 'storage', storageId: 'share:4d1e' } as const
+  const on = (input: Partial<Parameters<typeof asksBeforeDelete>[0]>) =>
+    asksBeforeDelete({
+      source: peer,
+      android: false,
+      inEncrypted: false,
+      entries: [{ kind: 'file', encrypted: null }],
+      ...input,
+    })
+  assert.equal(on({ remoteTrash: true }), false, 'into its trash')
+  assert.equal(on({ remoteTrash: false }), true, 'for good there')
+  assert.equal(on({}), true, 'unknown: ask')
+  assert.equal(on({ source: share, remoteTrash: true, android: true }), false)
+})
+
 test('another own device keeps its encrypted folders itself (spec 056)', () => {
   assert.equal(
     canCreateEncrypted({

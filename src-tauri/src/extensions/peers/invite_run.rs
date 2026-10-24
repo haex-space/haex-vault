@@ -164,7 +164,8 @@ async fn reach(run: &Run, node: &SyncNode, addr: EndpointAddr) -> Option<Link> {
         let connection = node
             .dial_alpn(addr, EXT_PEER_ALPN)
             .await
-            .map_err(|error| log::debug!("peers: a device of a card was not reached: {error}"))
+            // The error text can name the device's address (FR-042), so it is not logged.
+            .map_err(|_| log::debug!("peers: a device of a card was not reached"))
             .ok()?;
         let reached = prove(run, &connection).await;
         if reached.is_none() {

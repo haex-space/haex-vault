@@ -474,28 +474,119 @@ and show the permission text. Each task carries the story whose method or text i
 
 ### Tests
 
-- [ ] T058 [P] [US3] Bridge tests in `src-tauri/src/extensions/peers/bridge_tests.rs`: every `extension_peers_*` method answers `1002` with `peers` denied and `1004` with `details { resourceType: "peers", action: "connect", target: "*" }` when asked, before anything leaves the device (FR-002, SC-006); ids of another extension answer like unknown ones (FR-006); oversize parameters → `7000 too_large` with `details.limit`; malformed parameters → `3001 invalid_input`; no endpoint → `8001 network_unavailable` (FR-044)
-- [ ] T059 [P] [US2] Frame queue cases in `scripts/check-extensions-bridge.ts`: `peers:message` with `reliable: false` is dropped before other events when 256 are held; a held `peers:message` with `reliable: true` that would be dropped triggers `extension_peers_frame_overflow` once; other events keep their order
-- [ ] T060 [P] [US3] Contract test `src-tauri/tests/extension_bridge_contract.rs` lists the new methods and their module `extensions::peers::bridge`
+- [x] T058 [P] [US3] Bridge tests in `src-tauri/src/extensions/peers/bridge_tests.rs`: every `extension_peers_*` method answers `1002` with `peers` denied and `1004` with `details { resourceType: "peers", action: "connect", target: "*" }` when asked, before anything leaves the device (FR-002, SC-006); ids of another extension answer like unknown ones (FR-006); oversize parameters → `7000 too_large` with `details.limit`; malformed parameters → `3001 invalid_input`; no endpoint → `8001 network_unavailable` (FR-044)
+- [x] T059 [P] [US2] Frame queue cases in `scripts/check-extensions-bridge.ts`: `peers:message` with `reliable: false` is dropped before other events when 256 are held; a held `peers:message` with `reliable: true` that would be dropped triggers `extension_peers_frame_overflow` once; other events keep their order
+- [x] T060 [P] [US3] Contract test `src-tauri/tests/extension_bridge_contract.rs` lists the new methods and their module `extensions::peers::bridge`
 
 ### Implementation
 
-- [ ] T061 [US1] `extension_peers_invite { contactId, payload }` and `extension_peers_invite_cancel { inviteId }` in a new `src-tauri/src/extensions/peers/bridge.rs` (contact scope through the grant resolution of `src-tauri/src/extensions/contacts.rs`)
-- [ ] T062 [US4] `extension_peers_lobby_open`, `extension_peers_lobby_close`, `extension_peers_join` (blocking at most 15 s via `extensions::bridge::blocking::block_on`) and `extension_peers_remove` in `src-tauri/src/extensions/peers/bridge.rs`
-- [ ] T063 [US2] `extension_peers_send { channelId, data: {"$bytes"}, reliable? }` and `extension_peers_close { channelId }` in `src-tauri/src/extensions/peers/bridge.rs`; `ponytail:` comment on one call per datagram (research R8) with the batching upgrade
-- [ ] T064 [US3] Register all eight methods in `src-tauri/src/extensions/bridge/allowlist.rs` with `MODULE`; each checks `peers`/`connect`/`*` through the existing `evaluate` path
-- [ ] T065 [US3] Limits per extension in `src-tauri/src/extensions/peers/state.rs`: 16 channels, 4 lobbies, 16 open outgoing invitations → `7000 limit` (FR-041)
-- [ ] T066 [US2] Frame queue in `src/lib/extensions/bridge.ts`: `peers:message` with `reliable: false` droppable like `shell:output`; dropping a reliable one calls `extension_peers_frame_overflow { frame, channelId }`
-- [ ] T067 [US2] Command `extension_peers_frame_overflow` in `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`: closes the channel with `lost` on both sides (FR-038)
-- [ ] T068 [P] [US3] Permission texts: kind `peers` in the install dialog and permission list (`src/components/extensions/InstallDialog.vue`, `src/components/extensions/PermissionSummary.vue`) and the runtime question (`src/components/extensions/PermissionRequestDialog.vue`): "Verbindungen zu derselben Erweiterung auf Geräten anderer Vaults öffnen. Mitspieler können bei direkter Verbindung die Netzwerkadresse dieses Geräts sehen." (FR-003); keys `extensions.permissions.peers.*` in `src/i18n/locales/de.json` and `en.json`; check `src-tauri/src/extensions/commands/permission_list.rs` names the kind
-- [ ] T069 [US1] Test extension `src-tauri/tests/fixtures/extension_e2e/peers/` (`manifest.json` with `peers` and `contacts`, `index.html`, `main.js`, `build.sh`, `SOURCE.md` like `model-jobs/`): invite, lobby, join, send counters, timestamps for SC-004, shows every `peers:*` event; bundled with the released vault-sdk that contains `client.peers` (needs T079); built and signed by `src-tauri/tests/extension_e2e_fixtures.rs` into `src-tauri/tests/fixtures/extension_e2e/peers.xt`
-- [ ] T070 [US3] Bridge contract in `specs/017-extension-host/contracts/bridge.md`: method rows for `extension_peers_*` and rows for the `peers:*` events in "Meldungen holzi → Erweiterung", linking to `specs/057-extension-peer-channels/contracts/bridge.md`
+- [x] T061 [US1] `extension_peers_invite { contactId, payload }` and `extension_peers_invite_cancel { inviteId }` in a new `src-tauri/src/extensions/peers/bridge.rs` (contact scope through the grant resolution of `src-tauri/src/extensions/contacts.rs`)
+- [x] T062 [US4] `extension_peers_lobby_open`, `extension_peers_lobby_close`, `extension_peers_join` (blocking at most 15 s via `extensions::bridge::blocking::block_on`) and `extension_peers_remove` in `src-tauri/src/extensions/peers/bridge.rs`
+- [x] T063 [US2] `extension_peers_send { channelId, data: {"$bytes"}, reliable? }` and `extension_peers_close { channelId }` in `src-tauri/src/extensions/peers/bridge.rs`; `ponytail:` comment on one call per datagram (research R8) with the batching upgrade
+- [x] T064 [US3] Register all eight methods in `src-tauri/src/extensions/bridge/allowlist.rs` with `MODULE`; each checks `peers`/`connect`/`*` through the existing `evaluate` path
+- [x] T065 [US3] Limits per extension in `src-tauri/src/extensions/peers/state.rs`: 16 channels, 4 lobbies, 16 open outgoing invitations → `7000 limit` (FR-041)
+- [x] T066 [US2] Frame queue in `src/lib/extensions/bridge.ts`: `peers:message` with `reliable: false` droppable like `shell:output`; dropping a reliable one calls `extension_peers_frame_overflow { frame, channelId }`
+- [x] T067 [US2] Command `extension_peers_frame_overflow` in `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`: closes the channel with `lost` on both sides (FR-038)
+- [x] T068 [P] [US3] Permission texts: kind `peers` in the install dialog and permission list (`src/components/extensions/InstallDialog.vue`, `src/components/extensions/PermissionSummary.vue`) and the runtime question (`src/components/extensions/PermissionRequestDialog.vue`): "Verbindungen zu derselben Erweiterung auf Geräten anderer Vaults öffnen. Mitspieler können bei direkter Verbindung die Netzwerkadresse dieses Geräts sehen." (FR-003); keys `extensions.permissions.peers.*` in `src/i18n/locales/de.json` and `en.json`; check `src-tauri/src/extensions/commands/permission_list.rs` names the kind
+- [x] T069 [US1] Test extension `src-tauri/tests/fixtures/extension_e2e/peers/` (`manifest.json` with `peers` and `contacts`, `index.html`, `main.js`, `build.sh`, `SOURCE.md` like `model-jobs/`): invite, lobby, join, send counters, timestamps for SC-004, shows every `peers:*` event; bundled with the released vault-sdk that contains `client.peers` (needs T079); built and signed by `src-tauri/tests/extension_e2e_fixtures.rs` into `src-tauri/tests/fixtures/extension_e2e/peers.xt`
+- [x] T070 [US3] Bridge contract in `specs/017-extension-host/contracts/bridge.md`: method rows for `extension_peers_*` and rows for the `peers:*` events in "Meldungen holzi → Erweiterung", linking to `specs/057-extension-peer-channels/contracts/bridge.md`
 
 **Checkpoint**: `cargo test … --test extension_bridge_contract`, `nix develop --command pnpm check:extensions`, `nix develop --command pnpm typecheck`.
+
+### Notes from implementing PR 4 (2026-10-24)
+
+T058–T070 and T080–T086 are done; T081 and T085 differ from the text in the ways below. T087 (the
+hand check of quickstart §1–§6 with real devices, one of them Android) is **not done** and stays
+with the operator. Phase 9 was done in `haex-space/vault-sdk#88` (4.9.0); the fixture uses that
+release.
+
+- **Graphify**: bounded queries for a permission check of a wildcard kind, a frame event queue
+  that drops when full, and the name and key of the calling extension. Noisy results, no
+  candidate for the bridge file or the queue beyond the ones extended. Evaluated and not
+  merged: `notifications::check_permission` and `shell::check` have the shape of
+  `peers::bridge::check_permission` but ask for another kind, action and target, so a shared
+  helper would touch two other features (left for the operator). `watch::peers_denied` shared
+  its request with the bridge instead: `peers::permission_decision`.
+- **Shared code extended beyond the plan**: `peers/mod.rs` (`ExtensionRef::of`, the inverse of
+  `resolve`, so the bridge names the caller on the wire as the other side resolves it, without
+  reading the manifest on every call; `permission_decision`), `peers/watch.rs` (uses it),
+  `peers/state.rs` (`PeerState::end(extension, id, reason)`, `close` delegates), `peers/channel.rs`
+  (see "Lost" below), `peers/test_support.rs` (`Vault::grant_to`), `peers/join.rs` and
+  `peers/invite_run.rs` (two debug lines no longer print a dial error), `extensions/commands/peers.rs`,
+  `lib.rs`, `bridge/allowlist.rs`, `src/lib/extensions/bridge.ts`,
+  `src/composables/useExtensionFrame.ts`, `src/lib/extensions/permissionScope.ts`,
+  `PermissionSummary.vue`, the i18n files, `scripts/e2e/lib/scenario.ts` and `group-plan.ts` (a group
+  can ask for its own iroh relay: `irohRelay: true`), 017's `bridge.md` and `spec.md`, `plans/README.md`.
+- **Lost on both sides (T067)**: contracts/bridge.md says holzi tells both sides `lost`. The wire
+  had only `Close { reason: Closed }`, and a `Close` on the stream can be read before the close of
+  the connection and say `closed`. A channel that ends as `lost` now sends no `Close`; it closes the
+  connection with its own code (`LOST_CODE`), which `end_reason` reads as `lost`. This also changes
+  the earlier internal case (a reliable message that finds no room while no frame exists): the
+  other side now hears `lost` there too. The wire protocol document needs no new message.
+- **Bridge details (T061–T065)**: the checks are in this order: permission, parameters, work. A
+  missing `payload` counts as `null`. An id that is no UUID is `3001 invalid_input`; an id of
+  another extension or an unknown one is `1001`, the same answer (tested). `contact_unknown` also
+  covers a contact outside the `contacts` grant, as `invite` already did; there is no `contacts`
+  prompt from `extension_peers_invite`. The limits of T065 were in `state.rs` already (PR 1–3);
+  the bridge tests check them through the bridge (4 lobbies, `limit: 4`; channels and queue by
+  PR 1's tests). `send` reads the permission on every call (`ponytail:` comment).
+- **Frame queue (T066, T059)**: droppable are `shell:output` and `peers:message` with
+  `reliable: false`; losing a reliable one is reported once per channel through a callback of the
+  queue, which `useExtensionFrame.ts` turns into `extension_peers_frame_overflow`. The command
+  ends nothing for a frame that is gone or a channel of another extension.
+- **Texts (T068)**: `kinds.peers` and `extensions.permissions.peers.description` (the FR-003
+  text) in de and en. The install dialog, the runtime question and the settings list all use
+  `PermissionSummary.vue`, so they show it; the target `*` is not shown as a wildcard warning.
+  `permission_list.rs` names the kind generically and needed no change.
+- **Fixture (T069)**: built with the released `@haex-space/vault-sdk` 4.9.0 (integrity pinned in
+  `peers/build.sh`), no workaround. It exposes `window.peersProbe` instead of buttons; the scene
+  calls it inside the frame.
+- **E2E (T080, T081)**: `scripts/e2e/scenarios/extension-peers.test.ts` with four devices: Anna
+  (laptop), Ben (desktop and tablet) and Dave (pc). Ben has two devices because a Visitenkarte
+  names the relay only of devices its issuer has seen, never its own: with one device per vault
+  the invitation is `unreachable` (`share_current_card`), which the scene's first run showed. This
+  is a property of cards (051), not of this PR. Covered: install and grant, card exchange, the
+  invitation prompt on the tablet while no frame has heard of it, accept, status and channel
+  opened, fast and reliable messages, `7000 too_large`, 175 timed messages at 35 a second (175 of
+  175 arrived, delay median 7 ms, p95 9 ms from extension to extension on one machine), close
+  heard once on both sides, the lobby for contacts (contact in, stranger `not_admitted`, removed
+  player `not_admitted`, closed lobby `lobby_closed`), the public lobby (`verified: false`), and a
+  killed device ending the channel as `timeout` 35 s later. Not covered in the scene: the
+  decline paths, expiry, notifications with buttons (the prompt is the window's), Android. T081 is
+  partial: the scene runs through the group's iroh relay (`irohRelay: true`) and passes with
+  and without `HOLZI_E2E_SYNC_LOOPBACK=1`, but nothing in the scene proves that the datagrams took
+  the relay path; `max_datagram_size >= 1024` is checked implicitly because a channel does not
+  open below it. No platform exclusion was added.
+- **Environment of the E2E run**: the scene was run here only after a temporary local bypass of
+  the driver-version check in `lib/preflight.ts` (host web view 2.54.2, dev-shell driver 2.54.1),
+  reverted and never committed. Run it after the atoms pin follows the host.
+- **Android clippy (T085)**: runs here with the NDK's clang as `CC_aarch64_linux_android` (the
+  host `gcc` cannot build `aws-lc-sys` for ARM). `--lib --bins -- -D warnings` is clean. With
+  `--all-targets` it stops on two unused imports on `main` that PR 4 does not touch
+  (`extensions/fs/fs_tests.rs`, `platform/mod_tests.rs`); nothing of PR 4 was reported.
+- **Security pass (T084)**: no log line in `extensions/peers/` prints payloads, message data,
+  secrets or lobby/join codes; two debug lines printed the text of a failed dial, which can name
+  the other device's address, and were cut. The `expect`s in non-test code are on fixed-size
+  serialisation and HMAC keys, not on wire input.
+- **Size (T083)**: the largest new file is `bridge_tests.rs` (434 lines, with `bridge_flow_tests.rs`
+  beside it); `peers/test_support.rs` has 483. `sync/endpoint.rs` and `lib.rs` are over 500 as
+  before.
+- **Checks**: see the report of the PR; `cargo test --lib` has 3,335 tests, all passing; the known
+  flake `contacts::phone::acceptance_tests::two_thousand_contacts_sync_in_time_both_ways` failed
+  once in the full run and passed alone.
+- **For haex-doom**: errors reject as `PeerError` with `reason`; `payload` may be omitted;
+  `from.name` is the card name; one device of a contact is enough for an invitation, but a contact
+  whose card lacks the relay of its devices answers `unreachable` with `hint: "share_current_card"`;
+  a reliable message that the frame cannot take ends the channel as `lost` on both sides; a
+  full reliable queue is `7000 limit` with `details.limit: 16`; the round trip of a fast message
+  between two extensions on one machine is about 7 ms.
 
 ---
 
 ## Phase 9: vault-sdk `client.peers` (separate change in `haex-space/vault-sdk`)
+
+Done in `haex-space/vault-sdk#88`, released as 4.9.0; ticked by the author of PR 4, who did not
+work in that repository.
 
 **Purpose**: The SDK surface of contracts/sdk.md. Own topic branch in a repository-local worktree of
 `haex-space/vault-sdk` (for example `.worktrees/feat-peers` on `feat/peers`), Conventional Commits
@@ -503,27 +594,27 @@ and show the permission text. Each task carries the story whose method or text i
 (`pnpm lint`, `pnpm typecheck`, `pnpm test`). Paths below are relative to that repository. Pattern:
 the contacts API of `feat(contacts): read the host's address book (#71)`.
 
-- [ ] T071 vault-sdk: graphify consultation in that repository before naming `PeersAPI`, `PEERS_EVENTS`, `PeerError`; note candidates in the PR
-- [ ] T072 [P] vault-sdk: bridge method names in a new `src/commands/peers.ts` (`PEER_COMMANDS`, the eight `extension_peers_*` names of contracts/bridge.md) and export in `src/commands/index.ts`
-- [ ] T073 [P] vault-sdk: types in a new `src/types/peers.ts` (`PeerVisibility`, `PeerInviteStatus` with `hint?: "share_current_card"`, `PeerChannelOpened` with `from: { contactId?: string; name: string }`, `PeerJoined`, `PeerMessage` with `data: Uint8Array`, `PeerChannelClosed`, `PeerErrorReason`), re-exported from `src/types.ts`; manifest permission `peers?: { target: "*"; action?: "connect" }[]` in `src/types.ts`
-- [ ] T074 [P] vault-sdk: events `PEERS_EVENTS` (`peers:invite-status`, `peers:channel-opened`, `peers:joined`, `peers:message`, `peers:channel-closed`) in `src/events.ts`
-- [ ] T075 vault-sdk: `PeersAPI` in a new `src/api/peers.ts` with `inviteAsync`, `cancelInviteAsync`, `openLobbyAsync`, `closeLobbyAsync`, `joinAsync`, `removeAsync`, `sendAsync` (bytes as `{"$bytes"}`, `reliable` default false), `closeAsync`, `on(type, handler)` decoding `peers:message.data` from Base64; constants `MAX_FAST_BYTES = 1024`, `MAX_RELIABLE_BYTES = 65536`, `MAX_PAYLOAD_BYTES = 4096`; `PeerError` mapping `reason` to the names of contracts/sdk.md
-- [ ] T076 vault-sdk: wire `client.peers` in `src/client.ts` and export the API and types from `src/index.ts`
-- [ ] T077 [P] vault-sdk: tests in `src/api/__tests__/peers.test.ts` (request names and parameters, Base64 round trip of `data`, error mapping per reason, events decoded)
-- [ ] T078 vault-sdk: README section on `client.peers` (invitation accepted only in holzi's prompt, no accept/decline in the SDK, lobbies, size limits)
-- [ ] T079 vault-sdk: PR against `main` of `haex-space/vault-sdk`, released by release-please; holzi T069 and haex-doom pin the released version
+- [x] T071 vault-sdk: graphify consultation in that repository before naming `PeersAPI`, `PEERS_EVENTS`, `PeerError`; note candidates in the PR
+- [x] T072 [P] vault-sdk: bridge method names in a new `src/commands/peers.ts` (`PEER_COMMANDS`, the eight `extension_peers_*` names of contracts/bridge.md) and export in `src/commands/index.ts`
+- [x] T073 [P] vault-sdk: types in a new `src/types/peers.ts` (`PeerVisibility`, `PeerInviteStatus` with `hint?: "share_current_card"`, `PeerChannelOpened` with `from: { contactId?: string; name: string }`, `PeerJoined`, `PeerMessage` with `data: Uint8Array`, `PeerChannelClosed`, `PeerErrorReason`), re-exported from `src/types.ts`; manifest permission `peers?: { target: "*"; action?: "connect" }[]` in `src/types.ts`
+- [x] T074 [P] vault-sdk: events `PEERS_EVENTS` (`peers:invite-status`, `peers:channel-opened`, `peers:joined`, `peers:message`, `peers:channel-closed`) in `src/events.ts`
+- [x] T075 vault-sdk: `PeersAPI` in a new `src/api/peers.ts` with `inviteAsync`, `cancelInviteAsync`, `openLobbyAsync`, `closeLobbyAsync`, `joinAsync`, `removeAsync`, `sendAsync` (bytes as `{"$bytes"}`, `reliable` default false), `closeAsync`, `on(type, handler)` decoding `peers:message.data` from Base64; constants `MAX_FAST_BYTES = 1024`, `MAX_RELIABLE_BYTES = 65536`, `MAX_PAYLOAD_BYTES = 4096`; `PeerError` mapping `reason` to the names of contracts/sdk.md
+- [x] T076 vault-sdk: wire `client.peers` in `src/client.ts` and export the API and types from `src/index.ts`
+- [x] T077 [P] vault-sdk: tests in `src/api/__tests__/peers.test.ts` (request names and parameters, Base64 round trip of `data`, error mapping per reason, events decoded)
+- [x] T078 vault-sdk: README section on `client.peers` (invitation accepted only in holzi's prompt, no accept/decline in the SDK, lobbies, size limits)
+- [x] T079 vault-sdk: PR against `main` of `haex-space/vault-sdk`, released by release-please; holzi T069 and haex-doom pin the released version
 
 ---
 
 ## Phase 10: Polish & Cross-Cutting Concerns (PR 4)
 
-- [ ] T080 [P] E2E scene `scripts/e2e/scenarios/extension-peers.test.ts` with two users with own vaults (`scripts/e2e/lib/group.ts`), cards exchanged, the `peers` fixture installed: invite → holzi's prompt → accept → channel → messages → close; contacts-only lobby with a non-contact refused; public lobby joined by the non-contact
-- [ ] T081 [P] E2E relay and idle: the same scene with `HOLZI_E2E_SYNC_LOOPBACK=1` on one device so the channel runs through the scene's iroh relay (SC-005, `max_datagram_size ≥ 1024` on the relay path); cutting one device's network yields `timeout` within 30 s on the other (FR-039); add the scene to `scripts/e2e/platform-exclusions.ts` only where a platform cannot run it, with the reason
-- [ ] T082 [P] Docs: `CONTEXT.md` entries from T005 checked against the final names; `plans/README.md` row updated per merged PR; `specs/017-extension-host/spec.md` "Beziehung"/follow-up list points to 057
-- [ ] T083 Size and structure: every new or touched hand-written file ≤ 500 LoC (`extensions/peers/*`, `sync/foreign_auth.rs`); `sync/endpoint.rs` grows only by the handler hand-over
-- [ ] T084 Security pass: grep the new code for logging of payloads, message data, secrets or addresses (FR-042, FR-043); secrets in `Zeroizing`; no `unwrap`/`expect` on wire input
-- [ ] T085 Clippy also for Android: `nix develop --command scripts/with-nix-host-bridge.sh cargo clippy -j 4 --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android --all-targets -- -D warnings` (notification buttons and network change on Android)
-- [ ] T086 Full checks: `nix develop --command pnpm lint:all`, `nix develop --command pnpm typecheck`, `nix develop --command pnpm typecheck:scripts`, `nix develop --command pnpm check:extensions`, `nix develop --command pnpm format:check`, and the affected `cargo test` targets
+- [x] T080 [P] E2E scene `scripts/e2e/scenarios/extension-peers.test.ts` with two users with own vaults (`scripts/e2e/lib/group.ts`), cards exchanged, the `peers` fixture installed: invite → holzi's prompt → accept → channel → messages → close; contacts-only lobby with a non-contact refused; public lobby joined by the non-contact
+- [ ] T081 [P] E2E relay and idle: the same scene with `HOLZI_E2E_SYNC_LOOPBACK=1` on one device so the channel runs through the scene's iroh relay (SC-005, `max_datagram_size ≥ 1024` on the relay path); cutting one device's network yields `timeout` within 30 s on the other (FR-039); add the scene to `scripts/e2e/platform-exclusions.ts` only where a platform cannot run it, with the reason. The current scenario exercises the configured relay but still lacks a transport-path assertion.
+- [x] T082 [P] Docs: `CONTEXT.md` entries from T005 checked against the final names; `plans/README.md` row updated per merged PR; `specs/017-extension-host/spec.md` "Beziehung"/follow-up list points to 057
+- [x] T083 Size and structure: every new or touched hand-written file ≤ 500 LoC (`extensions/peers/*`, `sync/foreign_auth.rs`); `sync/endpoint.rs` grows only by the handler hand-over
+- [x] T084 Security pass: grep the new code for logging of payloads, message data, secrets or addresses (FR-042, FR-043); secrets in `Zeroizing`; no `unwrap`/`expect` on wire input
+- [x] T085 Clippy also for Android: `nix develop --command scripts/with-nix-host-bridge.sh cargo clippy -j 4 --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android --all-targets -- -D warnings` (notification buttons and network change on Android)
+- [x] T086 Full checks: `nix develop --command pnpm lint:all`, `nix develop --command pnpm typecheck`, `nix develop --command pnpm typecheck:scripts`, `nix develop --command pnpm check:extensions`, `nix develop --command pnpm format:check`, and the affected `cargo test` targets
 - [ ] T087 Run quickstart.md §1–§6 by hand with two or three vaults (one Android device for §6); record SC-001–SC-012 measurements and open findings in the PR
 
 ---

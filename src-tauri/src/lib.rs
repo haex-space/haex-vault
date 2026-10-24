@@ -102,7 +102,9 @@ use extensions::commands::model_grants::{
     extension_model_grants_list, extension_model_grants_reorder, extension_model_grants_revoke,
     extension_model_grants_set,
 };
-use extensions::commands::peers::extension_peer_invitation_answer;
+use extensions::commands::peers::{
+    extension_peer_invitation_answer, extension_peers_frame_overflow,
+};
 use extensions::commands::permissions::{
     extension_permission_cancel, extension_permission_remove, extension_permission_resolve,
     extension_permission_set, extension_permissions_list,
@@ -451,6 +453,7 @@ pub fn run() {
             files::browser_commands::navigate::files_watch,
             files::browser_commands::navigate::files_unwatch,
             files::browser_commands::peers::files_peer_roots,
+            files::browser_commands::peers::files_peer_trash,
             files::browser_commands::peers::files_contact_query,
             files::share::commands::file_shares_list,
             files::share::commands::file_share_of,
@@ -679,6 +682,7 @@ pub fn run() {
             extension_dialog_resolve,
             extension_encrypted_folder_choose_resolve,
             extension_peer_invitation_answer,
+            extension_peers_frame_overflow,
             extension_permissions_list,
             extension_permission_set,
             extension_permission_remove,

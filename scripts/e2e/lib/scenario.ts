@@ -245,10 +245,10 @@ export async function runScenario(
         )
       }
       // A phone sits behind the emulator's network: the devices reach each other through a local
-      // iroh relay (spec 043).
+      // iroh relay (spec 043). So do vaults of different users, which a scenario asks for (spec 057).
       const phoneHost = deps.createPhoneHost?.({ scenario: name, env })
       let irohRelay: IrohRelay | undefined
-      if (phoneHost !== undefined) {
+      if (phoneHost !== undefined || spec.irohRelay === true) {
         const started = await startIrohRelay({
           logFile: join(env.runDir, name, 'iroh-relay.log'),
         })
