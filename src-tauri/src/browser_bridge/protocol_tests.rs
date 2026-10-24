@@ -4,8 +4,8 @@
 use serde_json::{json, Value};
 
 use super::protocol::{
-    parse, render, ErrorCode, ErrorFrame, HandshakeResponse, Incoming, Outgoing, Reply,
-    ResponseEnvelope,
+    parse, render, ChallengeFrame, ErrorCode, ErrorFrame, HandshakeResponse, Incoming, Outgoing,
+    Reply, ResponseEnvelope, PROTOCOL_VERSION,
 };
 
 fn as_json(frame: &Outgoing) -> Value {
@@ -148,4 +148,51 @@ fn replies_carry_data_or_a_fixed_error() {
         json!({ "requestId": "r2", "success": false, "error": "Not supported", "errorCode": "NOT_SUPPORTED" })
     );
     assert_eq!(ErrorCode::UserCancelled.message(), "USER_CANCELLED");
+}
+
+#[test]
+fn the_proof_of_protocol_3_parses_and_the_challenge_has_the_contract_shape() {
+    assert_eq!(PROTOCOL_VERSION, 3);
+    let text = json!({ "type": "proof", "publicKey": "AAAA", "iv": "BBBB", "message": "CCCC" })
+        .to_string();
+    let Ok(Incoming::Proof(proof)) = parse(&text) else {
+        panic!("proof expected");
+    };
+    assert_eq!(
+        (
+            proof.public_key.as_str(),
+            proof.iv.as_str(),
+            proof.message.as_str()
+        ),
+        ("AAAA", "BBBB", "CCCC")
+    );
+    let challenge = Outgoing::Challenge(ChallengeFrame {
+        server_public_key: "S".into(),
+        public_key: "P".into(),
+        iv: "I".into(),
+        message: "M".into(),
+    });
+    assert_eq!(
+        as_json(&challenge),
+        json!({ "type": "challenge", "serverPublicKey": "S", "publicKey": "P", "iv": "I", "message": "M" })
+    );
+}
+
+#[test]
+fn an_outdated_client_and_a_failed_proof_get_their_own_codes() {
+    for (code, wire) in [
+        (
+            ErrorCode::ProtocolUpdateRequired,
+            "PROTOCOL_UPDATE_REQUIRED",
+        ),
+        (ErrorCode::ProofFailed, "PROOF_FAILED"),
+    ] {
+        let frame = as_json(&Outgoing::Error(ErrorFrame::new(code)));
+        assert_eq!(frame["type"], "error");
+        assert_eq!(frame["code"], wire);
+        assert!(!frame["message"].as_str().expect("text").is_empty());
+    }
+    assert!(ErrorCode::ProtocolUpdateRequired
+        .message()
+        .contains("update haex-pass"));
 }

@@ -1,7 +1,8 @@
 //! A stand-in for haex-pass-browser in the end-to-end scenario `browser-bridge` (spec 049, T035):
 //! connects to the External Bridge like the extension (origin `chrome-extension://e2e`, X25519 key
-//! from a seed, protocol v2 with a password declaration), waits for the approval and prints what it
-//! hears as one line per event, `BRIDGE {json}`. Built only with `--features e2e`.
+//! from a seed, protocol 3 with a password declaration, answering the challenge with its key like
+//! haex-pass-browser 1.4.0), waits for the approval and prints what it hears as one line per event,
+//! `BRIDGE {json}`. Built only with `--features e2e`.
 //!
 //! Usage: `e2e_bridge_client <port> <seed 0-255> [--hold] [--request <action> <json payload>]`.
 //! Without `--hold` it ends once it is approved or turned away (after the request, if one is given);
@@ -98,7 +99,7 @@ async fn run(args: Args) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let handshake = json!({
         "type": "handshake",
-        "version": 2,
+        "version": 3,
         "client": {
             "clientId": client_id,
             "clientName": "haex-pass Browser Extension",
@@ -129,6 +130,27 @@ async fn run(args: Args) -> Result<(), String> {
                     "pending": frame["pendingApproval"],
                 }));
                 frame["authorized"] == true
+            }
+            Some("challenge") => {
+                // Proves the key (spec 049, FR-048): open with our secret, seal back to the bridge.
+                let plain = ServerKeys::from_secret(secret)
+                    .open_request(
+                        frame["publicKey"].as_str().unwrap_or_default(),
+                        frame["iv"].as_str().unwrap_or_default(),
+                        frame["message"].as_str().unwrap_or_default(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                let challenge: Value = serde_json::from_slice(&plain).map_err(|e| e.to_string())?;
+                let key = frame["serverPublicKey"].as_str().unwrap_or_default();
+                let sealed = seal(key, &challenge)?;
+                let proof = json!({
+                    "type": "proof", "message": sealed.0, "iv": sealed.1, "publicKey": sealed.2
+                });
+                socket
+                    .send(Message::text(proof.to_string()))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                false
             }
             Some("authorizationUpdate") => {
                 say(json!({ "event": "authorization", "authorized": frame["authorized"] }));
@@ -181,14 +203,21 @@ async fn run(args: Args) -> Result<(), String> {
 
 /// Seals a request with a fresh key and a random IV, as `background/crypto.ts` does.
 fn seal_request(server_key: &str, payload: &Value) -> Result<(String, String, String), String> {
+    let mut payload = payload.clone();
+    let mut tag = [0u8; 1];
+    getrandom::fill(&mut tag).map_err(|e| e.to_string())?;
+    payload["requestId"] = json!(format!("e2e-{}", u32::from(tag[0])));
+    seal(server_key, &payload)
+}
+
+/// Seals `plaintext` to the bridge key with a fresh key and a random IV: message, IV, key.
+fn seal(server_key: &str, plaintext: &Value) -> Result<(String, String, String), String> {
     let server = decode_key(server_key).map_err(|e| e.to_string())?;
     let mut ephemeral = [0u8; 32];
     let mut iv = [0u8; 12];
     getrandom::fill(&mut ephemeral).map_err(|e| e.to_string())?;
     getrandom::fill(&mut iv).map_err(|e| e.to_string())?;
-    let mut payload = payload.clone();
-    payload["requestId"] = json!(format!("e2e-{}", u32::from(iv[0])));
-    let sealed = seal_with(ephemeral, iv, &server, payload.to_string().as_bytes())
+    let sealed = seal_with(ephemeral, iv, &server, plaintext.to_string().as_bytes())
         .map_err(|e| e.to_string())?;
     Ok((sealed.message, sealed.iv, sealed.public_key))
 }

@@ -12,7 +12,7 @@ defineProps<{
   disabled?: boolean
 }>()
 
-const model = defineModel<string | number | null>()
+const model = defineModel<string | number | null>({ default: null })
 
 const LIST_CLASS =
   'flex flex-col gap-0 divide-y divide-background overflow-hidden rounded-xl bg-muted'

@@ -272,21 +272,21 @@ plans/README.md                                # Zeile 049                      
 
 ## Complexity Tracking
 
-| Aufwand                                                      | Warum nötig                                                                                                               |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Eine neue CRDT-Tabelle und Migration                         | Gemerkte Zulassungen und Sperren je Gerät (FR-009, ADR-0001); `_no_sync` scheidet aus (R13)                               |
-| Drei direkte Rust-Abhängigkeiten (alle im Lockfile)          | WebSocket-Server mit Zugriff auf den Upgrade-Header, X25519 und AES-GCM, wie es der unveränderte Client verlangt (R1, R3) |
-| Eine neue Aufrufer-Variante                                  | Eigener Eingang mit eigenen Freigaben (ADR-0007, R5)                                                                      |
-| Änderung am Passkey-Dienst (`UserPresence`, `PasskeyTarget`) | FR-031, FR-033, FR-034; ADR-0015                                                                                          |
-| Begleit-PR in einem anderen Repository                       | Ohne ihn erreicht keine Passkey-Anmeldung holzi (R19)                                                                     |
+| Aufwand                                                      | Warum nötig                                                                                                                                                            |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eine neue CRDT-Tabelle und Migration                         | Gemerkte Zulassungen und Sperren je Gerät (FR-009, ADR-0001); `_no_sync` scheidet aus (R13)                                                                            |
+| Vier direkte Rust-Abhängigkeiten (alle im Lockfile)          | WebSocket-Server mit Zugriff auf den Upgrade-Header, X25519, AES-GCM und konstante Vergleiche für den Besitznachweis, wie es der unveränderte Client verlangt (R1, R3) |
+| Eine neue Aufrufer-Variante                                  | Eigener Eingang mit eigenen Freigaben (ADR-0007, R5)                                                                                                                   |
+| Änderung am Passkey-Dienst (`UserPresence`, `PasskeyTarget`) | FR-031, FR-033, FR-034; ADR-0015                                                                                                                                       |
+| Begleit-PR in einem anderen Repository                       | Ohne ihn erreicht keine Passkey-Anmeldung holzi (R19)                                                                                                                  |
 
 ## Bewusste Grenzen (aus research.md)
 
 - **Schlüsselableitung**: Das Protokoll leitet keinen Schlüssel ab und authentisiert `action`
   nicht. Das bleibt aus Kompatibilitätsgründen (R3).
-- **Besitz des privaten Schlüssels**: Der Client weist ihn nicht nach. Ein lokales Programm, das
-  Fingerabdruck, Schlüssel und Herkunft kennt, kann Anfragen stellen, aber keine Antwort lesen
-  (Spec, Assumptions).
+- **Besitz des privaten Schlüssels**: Seit Protokoll 3 weist der Client ihn im verschlüsselten
+  Challenge-Response nach. Ein lokales Programm, das nur Fingerabdruck und Herkunft kennt, kann
+  daher keine Antwort lesen (Spec, Assumptions).
 - **Adressen mit Verweis**: Sie sind für `get-items` keine Treffer (R7).
 - **`last_seen_at`**: wird bei jedem zugelassenen Handshake synchronisiert, obwohl nur dieses Gerät
   es liest (R13).

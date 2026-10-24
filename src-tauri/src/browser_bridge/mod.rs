@@ -51,6 +51,8 @@ pub const EVENT_CHANGED: &str = "browser-bridge-changed";
 
 /// Event after a presence confirmation with a wrong vault password.
 pub const EVENT_WRONG_PASSPHRASE: &str = "browser-bridge-wrong-passphrase";
+/// A client with protocol 2 was refused; the window asks to update haex-pass (FR-049).
+pub const EVENT_OUTDATED_CLIENT: &str = "browser-bridge-outdated-client";
 
 /// The state of the bridge as the settings show it (FR-037).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -110,6 +112,7 @@ impl BrowserBridge {
                     }
                     Notice::Changed => handle.emit(EVENT_CHANGED, ()),
                     Notice::WrongPassphrase => handle.emit(EVENT_WRONG_PASSPHRASE, ()),
+                    Notice::OutdatedClient => handle.emit(EVENT_OUTDATED_CLIENT, ()),
                 };
                 if let Err(error) = sent {
                     log::warn!("browser bridge: could not tell the window: {error}");

@@ -581,9 +581,9 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Independent Test**: `tests/browser_bridge_instances.rs`, `protocol_tests.rs`, the e2e scenario with the protocol-3 test client, quickstart M13 and M14.
 
-- [ ] T089 New worktree `.worktrees/049-g` on branch `049-external-bridge-g` from `main` after PR I is released as 1.4.0 (T106), with a real `pnpm install`.
-- [ ] T090 Tests first, `src-tauri/src/browser_bridge/protocol_tests.rs`: parse `proof`; `challenge` and the two new error frames serialise as in [contracts/wire-protocol.md](./contracts/wire-protocol.md); a handshake with `version: 2` is recognised as too old.
-- [ ] T091 Integration tests first, new file `src-tauri/tests/browser_bridge_instances.rs` (SC-011, SC-012):
+- [x] T089 New worktree `.worktrees/049-g` on branch `049-external-bridge-g` from `main` after PR I is released as 1.4.0 (T106), with a real `pnpm install`.
+- [x] T090 Tests first, `src-tauri/src/browser_bridge/protocol_tests.rs`: parse `proof`; `challenge` and the two new error frames serialise as in [contracts/wire-protocol.md](./contracts/wire-protocol.md); a handshake with `version: 2` is recognised as too old.
+- [x] T091 Integration tests first, new file `src-tauri/tests/browser_bridge_instances.rs` (SC-011, SC-012):
   - protocol 2 → `PROTOCOL_UPDATE_REQUIRED`, closed, no question;
   - protocol 3 with the right proof → the approval question, as before;
   - an approved instance's client id, public key and origin, but no private key: no proof within the deadline, a wrong proof, a second proof, and the proof taken from another connection → `PROOF_FAILED` or closed, no question, no request answered, no row written;
@@ -591,15 +591,19 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - two instances: key A approved and remembered, key B with the same origin → asked; key A with another origin → asked;
   - a second device: the vault holds the remembered approval of device A; a bridge started for device B (register a second row in `known_devices` in the fixture) → asked for the same key and origin;
   - after the proof, a repeated handshake of the same client id on the same connection needs no new challenge.
-- [ ] T092 `protocol.rs`: frames `challenge` and `proof`, `ErrorCode::ProtocolUpdateRequired` and `ErrorCode::ProofFailed` with fixed messages (FR-039); the update message says to update haex-pass.
-- [ ] T093 `connection.rs`: the state `AwaitingProof` per research R22 and data-model "Verbindung":
+- [x] T092 `protocol.rs`: frames `challenge` and `proof`, `ErrorCode::ProtocolUpdateRequired` and `ErrorCode::ProofFailed` with fixed messages (FR-039); the update message says to update haex-pass.
+- [x] T093 `connection.rs`: the state `AwaitingProof` per research R22 and data-model "Verbindung":
   - draw 32 random bytes, seal them with `seal_response` to the handshake key, send `challenge` with `serverPublicKey`;
   - open `proof` with the bridge key and compare in constant time; keep the challenge only until it is used or the handshake deadline passes, and zero it;
   - only then call `decide`, show a question or answer requests.
-- [ ] T093a The outdated-extension hint (FR-049): the first refused protocol-2 handshake of a bridge run sends the event `browser-bridge-outdated-client` (once per run) that the window shows as a toast, and `BridgeOverview` carries `outdatedClientSeen: boolean` so the page "Browser-Erweiterungen" shows the hint while the bridge runs. Integration test: two protocol-2 handshakes → one notice, overview flag set; German and English text in words.
-- [ ] T094 `tests/common/bridge_fixture.rs` and `src-tauri/src/bin/e2e_bridge_client.rs`: the test client speaks protocol 3 and answers the challenge; add a helper that sends a handshake and returns the challenge frame, for the negative cases. Update every existing bridge test to the new helper without changing what it checks.
-- [ ] T095 Leak test (`tests/browser_bridge_leaks.rs`): plant the challenge bytes as a marker; they appear in no log line, no notice and no question.
-- [ ] T096 Run `cargo fmt`, `pnpm lint:rust` (both feature sets), Android clippy, all bridge test binaries, `check:browser-bridge`, the e2e `browser-bridge` scenario; then the spec's "As built" note, the pin of the client in `spec.md` and `contracts/wire-protocol.md` to the merge of PR I, and open PR G.
+- [x] T093a The outdated-extension hint (FR-049): the first refused protocol-2 handshake of a bridge run sends the event `browser-bridge-outdated-client` (once per run) that the window shows as a toast, and `BridgeOverview` carries `outdatedClientSeen: boolean` so the page "Browser-Erweiterungen" shows the hint while the bridge runs. Integration test: two protocol-2 handshakes → one notice, overview flag set; German and English text in words.
+- [x] T094 `tests/common/bridge_fixture.rs` and `src-tauri/src/bin/e2e_bridge_client.rs`: the test client speaks protocol 3 and answers the challenge; add a helper that sends a handshake and returns the challenge frame, for the negative cases. Update every existing bridge test to the new helper without changing what it checks.
+- [x] T095 Leak test (`tests/browser_bridge_leaks.rs`): plant the challenge bytes as a marker; they appear in no log line, no notice and no question.
+- [x] T096 Run `cargo fmt`, `pnpm lint:rust` (both feature sets), Android clippy, all bridge test binaries, `check:browser-bridge`, the e2e `browser-bridge` scenario; then the spec's "As built" note, the pin of the client in `spec.md` and `contracts/wire-protocol.md` to the merge of PR I, and open PR G.
+
+**As built (PR G)**: the proof lives in `browser_bridge/connection.rs`, state `AwaitingProof` with the challenge in `Zeroizing`, compared with `subtle::ConstantTimeEq` (`subtle` was already in the lock via aes-gcm). The connection is bound to its client only after the proof, so a failed attempt never counts as a connection of the instance or touches `last_seen_at`. The handshake deadline now covers the proof too; a proof that is late gets `PROOF_FAILED`. A repeated handshake while the challenge is out is ignored, one from another client closes. The outdated-client hint is `BridgeCore::note_outdated_client` (an `AtomicBool`, `Notice::OutdatedClient` once per run) and `BridgeOverview.outdatedClientSeen`; the window shows a toast from `Prompts.vue` and a hint on the settings page. The test fixture's `recv` answers a challenge with the key of the test client it was sealed to, so the existing tests run through the proof unchanged; the new tests in `tests/browser_bridge_instances.rs` read raw frames with `recv_frame`. A mutation that accepts any decryptable proof fails the impersonation test.
+
+PR I (Phase 13) is haex-space/haextension#131, merged 2026-10-23, released as 1.4.0 the same day with `pnpm release:haex-pass-browser minor`; AMO signed it.
 
 **Checkpoint**: PR G complete. Run quickstart M13 and M14 with haex-pass-browser 1.4.0 and with 1.3.0.
 
@@ -609,16 +613,16 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 **Goal**: haex-pass-browser speaks protocol 3, shows its own fingerprint, and still works with a holzi that does not ask for a proof yet (spec, section "Änderungen an haex-pass-browser", points 7 to 9).
 
-- [ ] T097 Worktree in `haex-space/haextension` on branch `feat/haex-pass-browser-protocol-3` from `origin/main`; run the app's install there.
-- [ ] T098 [P] Tests first (vitest, `background/__tests__/connection.test.ts`):
+- [x] T097 Worktree in `haex-space/haextension` on branch `feat/haex-pass-browser-protocol-3` from `origin/main`; run the app's install there.
+- [x] T098 [P] Tests first (vitest, `background/__tests__/connection.test.ts`):
   - a `challenge` sealed to the extension's key is opened and answered with a `proof` that the server key opens to the same bytes;
   - a `handshakeResponse` without a preceding `challenge` (holzi before PR G) still leads to "paired" or "pending" as before;
   - a `challenge` the extension cannot open sends no `proof` and shows an error.
-- [ ] T099 `background/protocol.ts` and `connection.ts`: `PROTOCOL_VERSION = 3`, the `challenge` and `proof` messages, using `decryptMessageEnvelope` and the request sealing that exist.
-- [ ] T100 [P] Options page: show the instance's fingerprint (the `clientId`) in groups of four like holzi's dialog, with the sentence that it must match the one holzi shows. German and English.
-- [ ] T101 [P] Texts for `PROTOCOL_UPDATE_REQUIRED` and `PROOF_FAILED` in German and English instead of the raw code.
-- [ ] T102 Run the app's `lint`, `typecheck` and `test`; open the PR (push as `haex-space`, no agent attribution).
-- [ ] T103 After merge, release with `pnpm release:haex-pass-browser minor` from the haextension root (1.4.0); watch `browser-extension-release.yml` and confirm AMO signed 1.4.0. Only then start PR G (T089).
+- [x] T099 `background/protocol.ts` and `connection.ts`: `PROTOCOL_VERSION = 3`, the `challenge` and `proof` messages, using `decryptMessageEnvelope` and the request sealing that exist.
+- [x] T100 [P] Options page: show the instance's fingerprint (the `clientId`) in groups of four like holzi's dialog, with the sentence that it must match the one holzi shows. German and English.
+- [x] T101 [P] Texts for `PROTOCOL_UPDATE_REQUIRED` and `PROOF_FAILED` in German and English instead of the raw code.
+- [x] T102 Run the app's `lint`, `typecheck` and `test`; open the PR (push as `haex-space`, no agent attribution).
+- [x] T103 After merge, release with `pnpm release:haex-pass-browser minor` from the haextension root (1.4.0); watch `browser-extension-release.yml` and confirm AMO signed 1.4.0. Only then start PR G (T089).
 
 ---
 

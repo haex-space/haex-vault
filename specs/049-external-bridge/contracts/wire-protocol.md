@@ -7,7 +7,7 @@ Ab PR G spricht holzi Protokoll 3: Der Handshake verlangt den Nachweis des Clien
 Protokoll 3; bis PR G gilt 2 ohne die Abschnitte zum Nachweis.
 
 Gegenstück: `haex-pass-browser` in `https://github.com/haex-space/haextension`, Revision
-`ab4e0b0ac9a05488659836a7526a250beab9dfd9`. Die Pfade unten liegen unter
+`4c32cec8f11928ab4da46dd7db1621d6a0ba1be5` (haex-pass-browser 1.4.0, Protokoll 3). Die Pfade unten liegen unter
 `apps/haex-pass-browser/src/`.
 
 - Die Form der Nachrichten ist die der Vorlage haex-vault 2.x

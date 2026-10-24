@@ -379,8 +379,8 @@ onBeforeUnmount(() => {
           v-if="preview.duplicates > 0"
           radio
           :model-value="onDuplicate"
-          @update:model-value="onDuplicate = $event as OnDuplicate"
           :label="t('passwords.import.onDuplicate')"
+          @update:model-value="onDuplicate = $event as OnDuplicate"
         >
           <SettingsOptionRow
             type="radio"

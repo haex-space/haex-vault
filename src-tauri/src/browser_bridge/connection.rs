@@ -1,10 +1,15 @@
-//! One connection of a client (spec 049, data-model "Verbindung", research R4): the upgrade with
-//! the origin check, the handshake, waiting for approval, and requests that run beside each other.
+//! One connection of a client (spec 049, data-model "Verbindung", research R4, R22): the upgrade
+//! with the origin check, the handshake, the proof of the client's key, waiting for approval, and
+//! requests that run beside each other.
 
 use std::sync::Arc;
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use futures::{SinkExt, StreamExt};
-use serde_json::Value;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use subtle::ConstantTimeEq;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
@@ -13,6 +18,7 @@ use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 use tokio_util::sync::CancellationToken;
+use zeroize::Zeroizing;
 
 use super::approvals::{kept_name, ClientIdentity, Decision};
 use super::declaration::{canonical, Declared};
@@ -20,13 +26,16 @@ use super::envelope::{client_id_of, decode_key, seal_response, KEY_LEN};
 use super::methods;
 use super::origin::extension_origin;
 use super::protocol::{
-    parse, render, ErrorCode, ErrorFrame, Handshake, HandshakeResponse, Incoming, Outgoing,
-    RequestEnvelope, ResponseEnvelope, PROTOCOL_VERSION,
+    parse, render, ChallengeFrame, ErrorCode, ErrorFrame, Handshake, HandshakeResponse, Incoming,
+    Outgoing, ProofEnvelope, RequestEnvelope, ResponseEnvelope, PROTOCOL_VERSION,
 };
 use super::runtime::{BridgeCore, Control};
 
 /// How many frames may wait for the socket.
 const OUTBOX: usize = 32;
+
+/// Length of the challenge a client answers to prove its key (FR-048).
+const CHALLENGE_LEN: usize = 32;
 
 /// Serves one accepted TCP connection until it ends; `_slot` holds its place among the
 /// connections (research R1).
@@ -75,8 +84,20 @@ struct Peer {
 
 enum State {
     AwaitingHandshake,
+    /// The handshake named a client; nothing is decided until it proves its key (FR-048).
+    AwaitingProof {
+        peer: Peer,
+        declared: Declared,
+        challenge: Zeroizing<[u8; CHALLENGE_LEN]>,
+    },
     Pending(Peer),
     Authorized(Peer),
+}
+
+/// The plaintext of a proof.
+#[derive(Deserialize)]
+struct Proof {
+    challenge: String,
 }
 
 enum Flow {
@@ -120,7 +141,7 @@ impl Connection {
         loop {
             let flow = tokio::select! {
                 _ = self.token.cancelled() => Flow::Close,
-                _ = &mut deadline, if matches!(self.state, State::AwaitingHandshake) => Flow::Close,
+                _ = &mut deadline, if self.unproven() => self.on_deadline(&out).await,
                 Some(signal) = control.recv() => self.on_control(signal, &out).await,
                 frame = source.next() => match frame {
                     Some(Ok(Message::Text(text))) => self.on_text(text.as_str(), conn_id, &out).await,
@@ -140,6 +161,26 @@ impl Connection {
         self.core.unregister(conn_id);
         drop(out);
         let _ = writer.await;
+    }
+
+    /// Whether the connection has not yet shown which client it is (research R4, R22).
+    fn unproven(&self) -> bool {
+        matches!(
+            self.state,
+            State::AwaitingHandshake | State::AwaitingProof { .. }
+        )
+    }
+
+    /// The handshake deadline passed before the handshake or the proof (FR-048).
+    async fn on_deadline(&self, out: &mpsc::Sender<Message>) -> Flow {
+        if matches!(self.state, State::AwaitingProof { .. }) {
+            send(
+                out,
+                &Outgoing::Error(ErrorFrame::new(ErrorCode::ProofFailed)),
+            )
+            .await;
+        }
+        Flow::Close
     }
 
     async fn on_control(&mut self, signal: Control, out: &mpsc::Sender<Message>) -> Flow {
@@ -165,6 +206,7 @@ impl Connection {
     async fn on_text(&mut self, text: &str, conn_id: u64, out: &mpsc::Sender<Message>) -> Flow {
         match parse(text) {
             Ok(Incoming::Handshake(handshake)) => self.on_handshake(handshake, conn_id, out).await,
+            Ok(Incoming::Proof(proof)) => self.on_proof(proof, conn_id, out).await,
             Ok(Incoming::Request(request)) => {
                 self.on_request(request, out).await;
                 Flow::Continue
@@ -187,9 +229,16 @@ impl Connection {
         conn_id: u64,
         out: &mpsc::Sender<Message>,
     ) -> Flow {
+        if handshake.version < PROTOCOL_VERSION {
+            // haex-pass-browser up to 1.3.0 does not show this answer; the window says it (FR-049).
+            self.core.note_outdated_client();
+            let frame = ErrorFrame::new(ErrorCode::ProtocolUpdateRequired);
+            send(out, &Outgoing::Error(frame)).await;
+            return Flow::Close;
+        }
         let declared = match Declared::read(handshake.client.permissions.as_ref()) {
-            Ok(declared) if handshake.version >= PROTOCOL_VERSION => declared,
-            _ => {
+            Ok(declared) => declared,
+            Err(_) => {
                 let frame = ErrorFrame::new(ErrorCode::PermissionsDeclarationRequired);
                 send(out, &Outgoing::Error(frame)).await;
                 self.answer(out, false, false).await;
@@ -219,15 +268,109 @@ impl Connection {
             public_key,
         };
         // The extension repeats its handshake while it waits; the same client gets the current
-        // state, another client on this socket ends it (research R4).
+        // state without a new proof, another client on this socket ends it (research R4, R22).
         match &self.state {
-            State::Pending(known) | State::Authorized(known)
-                if known.identity.client_id != peer.identity.client_id =>
-            {
-                return Flow::Close;
+            State::Pending(known) | State::Authorized(known) => {
+                if known.identity.client_id != peer.identity.client_id {
+                    return Flow::Close;
+                }
+                self.decide(peer, declared, conn_id, out).await
             }
-            _ => {}
+            State::AwaitingProof { peer: known, .. } => {
+                if known.identity.client_id == peer.identity.client_id {
+                    Flow::Continue
+                } else {
+                    Flow::Close
+                }
+            }
+            State::AwaitingHandshake => self.challenge(peer, declared, out).await,
         }
+    }
+
+    /// Sends the challenge only the holder of the handshake's key can open (FR-048).
+    async fn challenge(
+        &mut self,
+        peer: Peer,
+        declared: Declared,
+        out: &mpsc::Sender<Message>,
+    ) -> Flow {
+        let mut challenge = Zeroizing::new([0u8; CHALLENGE_LEN]);
+        if getrandom::fill(challenge.as_mut()).is_err() {
+            log::warn!("browser bridge: could not create handshake challenge");
+            return Flow::Close;
+        }
+        let plaintext =
+            Zeroizing::new(json!({ "challenge": STANDARD.encode(*challenge) }).to_string());
+        let Ok(sealed) = seal_response(&peer.public_key, plaintext.as_bytes()) else {
+            return Flow::Close;
+        };
+        let frame = Outgoing::Challenge(ChallengeFrame {
+            server_public_key: self.core.keys.public_b64(),
+            public_key: sealed.public_key,
+            iv: sealed.iv,
+            message: sealed.message,
+        });
+        send(out, &frame).await;
+        self.state = State::AwaitingProof {
+            peer,
+            declared,
+            challenge,
+        };
+        Flow::Continue
+    }
+
+    /// Checks the proof; only a client that opened the challenge goes on to the decision. A
+    /// proof without a challenge, a second one or a wrong one ends the connection (FR-048).
+    async fn on_proof(
+        &mut self,
+        proof: ProofEnvelope,
+        conn_id: u64,
+        out: &mpsc::Sender<Message>,
+    ) -> Flow {
+        let state = std::mem::replace(&mut self.state, State::AwaitingHandshake);
+        let State::AwaitingProof {
+            peer,
+            declared,
+            challenge,
+        } = state
+        else {
+            send(
+                out,
+                &Outgoing::Error(ErrorFrame::new(ErrorCode::ProofFailed)),
+            )
+            .await;
+            return Flow::Close;
+        };
+        let answered = self
+            .core
+            .keys
+            .open_request(&proof.public_key, &proof.iv, &proof.message)
+            .ok()
+            .and_then(|plain| serde_json::from_slice::<Proof>(&plain).ok())
+            .and_then(|proof| STANDARD.decode(proof.challenge).ok())
+            .map(Zeroizing::new);
+        let proven =
+            answered.is_some_and(|bytes| bool::from(bytes.as_slice().ct_eq(&challenge[..])));
+        if !proven {
+            log::info!("browser bridge: a client did not prove its key");
+            send(
+                out,
+                &Outgoing::Error(ErrorFrame::new(ErrorCode::ProofFailed)),
+            )
+            .await;
+            return Flow::Close;
+        }
+        self.decide(peer, declared, conn_id, out).await
+    }
+
+    /// Blocked, approved or asked, for a client that proved its key on this connection.
+    async fn decide(
+        &mut self,
+        peer: Peer,
+        declared: Declared,
+        conn_id: u64,
+        out: &mpsc::Sender<Message>,
+    ) -> Flow {
         self.core.bind(conn_id, &peer.identity.client_id);
         let decision = match self.core.decide(&peer.identity).await {
             Ok(decision) => decision,

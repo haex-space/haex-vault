@@ -144,6 +144,15 @@ watch(() => bridgeStore.changes, reloadAsync)
     </SettingsGroup>
 
     <p
+      v-if="overview?.outdatedClientSeen"
+      class="rounded-xl bg-muted px-3 py-2 text-sm"
+      role="status"
+      data-testid="browser-bridge-outdated-client"
+    >
+      {{ t('browserBridge.settings.outdatedClientHint') }}
+    </p>
+
+    <p
       v-if="overview?.state === 'portInUse'"
       class="rounded-xl bg-muted px-3 py-2 text-sm"
       role="status"

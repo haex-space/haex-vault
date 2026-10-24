@@ -14,8 +14,16 @@ const OVERVIEW = {
     state: { type: 'string' },
     clients: { type: 'array' },
     blocked: { type: 'array' },
+    outdatedClientSeen: { type: 'boolean' },
   },
-  required: ['enabled', 'port', 'state', 'clients', 'blocked'],
+  required: [
+    'enabled',
+    'port',
+    'state',
+    'clients',
+    'blocked',
+    'outdatedClientSeen',
+  ],
 } as const
 
 const CLIENT = {

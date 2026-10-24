@@ -14,6 +14,7 @@ use bridge_fixture::*;
 use holzi_lib::browser_bridge::approvals::Status;
 use holzi_lib::browser_bridge::declaration::BridgeAccess;
 use holzi_lib::browser_bridge::prompts::BridgeQuestion;
+use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
 use holzi_lib::browser_bridge::runtime::{Limits, Notice};
 use holzi_lib::browser_bridge::server::StartError;
 
@@ -167,7 +168,7 @@ async fn a_changed_declaration_is_asked_again_and_runs_nothing_until_then() {
     let (_, key) = approved(&mut fx, bridge.port(), &client).await;
 
     let wider = client.handshake_with(
-        2,
+        PROTOCOL_VERSION,
         json!({ "core": {
             "passwords": [{ "target": "*", "operation": "readWrite" }],
             "bookmarks": [{ "target": "*", "operation": "readWrite" }]
@@ -265,16 +266,30 @@ async fn web_pages_and_missing_origins_get_no_socket() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn handshakes_without_a_declaration_or_below_v2_are_refused() {
+async fn handshakes_without_a_declaration_or_below_v3_are_refused() {
     let mut fx = fixture();
     let bridge = fx.bridge().await;
     let client = TestClient::new(8);
     let passwords =
         json!({ "core": { "passwords": [{ "target": "*", "operation": "readWrite" }] } });
+    // Below protocol 3: no declaration check, the client is told to update (FR-049).
+    for version in [1, 2] {
+        let mut socket = extension(bridge.port()).await;
+        send(
+            &mut socket,
+            client.handshake_with(version, passwords.clone()),
+        )
+        .await;
+        let error = recv(&mut socket).await.expect("error");
+        assert_eq!(error["code"], "PROTOCOL_UPDATE_REQUIRED");
+        closed(&mut socket).await;
+    }
     for handshake in [
-        client.handshake_with(1, passwords),
-        client.handshake_with(2, json!({ "core": { "database": [{ "target": "*" }] } })),
-        client.handshake_with(2, Value::Null),
+        client.handshake_with(
+            PROTOCOL_VERSION,
+            json!({ "core": { "database": [{ "target": "*" }] } }),
+        ),
+        client.handshake_with(PROTOCOL_VERSION, Value::Null),
     ] {
         let mut socket = extension(bridge.port()).await;
         send(&mut socket, handshake).await;

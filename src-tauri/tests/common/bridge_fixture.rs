@@ -2,6 +2,10 @@
 //! its questions caught, and a client that speaks the protocol of haex-pass-browser
 //! (`contracts/wire-protocol.md`). Included per binary via
 //! `#[path = "common/bridge_fixture.rs"] mod bridge_fixture;`.
+//!
+//! [`recv`] answers a challenge of protocol 3 (FR-048) by itself, with the key of the test client
+//! it was sealed to, so a test that is not about the proof reads frames as before; tests about the
+//! proof read with [`recv_frame`].
 #![allow(dead_code, clippy::disallowed_methods)]
 
 use std::sync::{Arc, Mutex};
@@ -27,6 +31,7 @@ use holzi_lib::browser_bridge::envelope::{client_id_of, seal_with, ServerKeys};
 use holzi_lib::browser_bridge::prompts::{
     ApprovalAnswer, BridgeAnswer, BridgePrompts, BridgeQuestion,
 };
+use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
 use holzi_lib::browser_bridge::runtime::{Limits, Notice};
 use holzi_lib::browser_bridge::server::{start, Running, StartArgs, StartError};
 use holzi_lib::identity::{
@@ -184,12 +189,25 @@ pub struct TestClient {
     pub id: String,
 }
 
+/// The secrets of every test client of this binary, so [`recv`] can answer a challenge.
+static SECRETS: Mutex<Vec<[u8; 32]>> = Mutex::new(Vec::new());
+
+/// The challenges [`recv`] answered, as the client opened them: markers for the leak test.
+pub static CHALLENGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
 impl TestClient {
     pub fn new(seed: u8) -> Self {
         let secret = [seed; 32];
         let public = MontgomeryPoint::mul_base_clamped(secret).to_bytes();
         let id = client_id_of(&public).expect("id");
+        SECRETS.lock().expect("secrets").push(secret);
         Self { secret, public, id }
+    }
+
+    /// The proof for `challenge` as this client sends it, or `None` when the challenge was not
+    /// sealed to its key.
+    pub fn prove(&self, challenge: &Value) -> Option<Value> {
+        proof_with(self.secret, challenge)
     }
 
     pub fn handshake_with(&self, version: u32, permissions: Value) -> Value {
@@ -208,7 +226,7 @@ impl TestClient {
 
     pub fn handshake(&self) -> Value {
         self.handshake_with(
-            2,
+            PROTOCOL_VERSION,
             json!({ "core": { "passwords": [{ "target": "*", "operation": "readWrite" }] } }),
         )
     }
@@ -280,8 +298,55 @@ pub async fn send(socket: &mut Socket, frame: Value) {
         .expect("send");
 }
 
-/// The next JSON frame, or `None` when the server closed.
+/// Opens a challenge with `secret` and seals it back to the bridge key, as haex-pass-browser 1.4.0
+/// does (FR-048); `None` when it does not open with that key.
+pub fn proof_with(secret: [u8; 32], challenge: &Value) -> Option<Value> {
+    let plain = ServerKeys::from_secret(secret)
+        .open_request(
+            challenge["publicKey"].as_str()?,
+            challenge["iv"].as_str()?,
+            challenge["message"].as_str()?,
+        )
+        .ok()?;
+    let opened: Value = serde_json::from_slice(&plain).ok()?;
+    CHALLENGES
+        .lock()
+        .expect("challenges")
+        .push(opened["challenge"].as_str()?.to_owned());
+    let server: [u8; 32] = STANDARD
+        .decode(challenge["serverPublicKey"].as_str()?)
+        .ok()?
+        .try_into()
+        .ok()?;
+    let mut ephemeral = [0u8; 32];
+    let mut iv = [0u8; 12];
+    getrandom::fill(&mut ephemeral).expect("random");
+    getrandom::fill(&mut iv).expect("random");
+    let sealed = seal_with(ephemeral, iv, &server, opened.to_string().as_bytes()).ok()?;
+    Some(json!({
+        "type": "proof", "publicKey": sealed.public_key, "iv": sealed.iv, "message": sealed.message
+    }))
+}
+
+/// The next JSON frame, or `None` when the server closed. A challenge is answered with the key of
+/// the test client it was sealed to and not returned.
 pub async fn recv(socket: &mut Socket) -> Option<Value> {
+    loop {
+        let frame = recv_frame(socket).await?;
+        if frame["type"] != "challenge" {
+            return Some(frame);
+        }
+        let secrets = SECRETS.lock().expect("secrets").clone();
+        let proof = secrets
+            .into_iter()
+            .find_map(|secret| proof_with(secret, &frame))
+            .expect("a challenge for a test client of this binary");
+        send(socket, proof).await;
+    }
+}
+
+/// The next JSON frame as it comes, a challenge too, or `None` when the server closed.
+pub async fn recv_frame(socket: &mut Socket) -> Option<Value> {
     loop {
         match tokio::time::timeout(WAIT, socket.next())
             .await
