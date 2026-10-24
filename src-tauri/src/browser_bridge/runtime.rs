@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -56,6 +57,8 @@ pub enum Notice {
     Changed,
     /// The vault password of a presence confirmation was wrong; the window says so (FR-033).
     WrongPassphrase,
+    /// A client with protocol 2 was refused; once per run, the window asks to update it (FR-049).
+    OutdatedClient,
 }
 
 pub type Notifier = Arc<dyn Fn(Notice) + Send + Sync>;
@@ -95,6 +98,8 @@ pub struct BridgeCore {
     notify: Notifier,
     session: Mutex<SessionDecisions>,
     hub: Mutex<Hub>,
+    /// A client with an old protocol was refused in this run (FR-049).
+    outdated_client: AtomicBool,
 }
 
 impl BridgeCore {
@@ -119,7 +124,21 @@ impl BridgeCore {
             notify,
             session: Mutex::new(SessionDecisions::default()),
             hub: Mutex::new(Hub::default()),
+            outdated_client: AtomicBool::new(false),
         }
+    }
+
+    /// Notes a refused client with an old protocol; the window hears it once per run (FR-049).
+    pub(super) fn note_outdated_client(&self) {
+        if !self.outdated_client.swap(true, Ordering::SeqCst) {
+            self.notify(Notice::OutdatedClient);
+            self.notify(Notice::Changed);
+        }
+    }
+
+    /// Whether a client with an old protocol was refused in this run (FR-049).
+    pub fn outdated_client_seen(&self) -> bool {
+        self.outdated_client.load(Ordering::SeqCst)
     }
 
     pub(super) fn notify(&self, notice: Notice) {

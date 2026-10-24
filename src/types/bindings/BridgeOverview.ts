@@ -9,4 +9,8 @@ export type BridgeOverview = { enabled: boolean, port: number, state: BridgeRunS
 /**
  * Approved clients, remembered and for this session (FR-037).
  */
-clients: Array<BridgeClientView>, blocked: Array<BridgeClientView>, };
+clients: Array<BridgeClientView>, blocked: Array<BridgeClientView>,
+/**
+ * A client with protocol 2 was refused in this run of the bridge (FR-049).
+ */
+outdatedClientSeen: boolean, };

@@ -31,6 +31,8 @@ pub struct BridgeOverview {
     /// Approved clients, remembered and for this session (FR-037).
     pub clients: Vec<BridgeClientView>,
     pub blocked: Vec<BridgeClientView>,
+    /// A client with protocol 2 was refused in this run of the bridge (FR-049).
+    pub outdated_client_seen: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -114,6 +116,10 @@ async fn overview<R: Runtime>(
         state: bridge.run_state(vault_open).await,
         clients: lists.clients,
         blocked: lists.blocked,
+        outdated_client_seen: bridge
+            .core()
+            .await
+            .is_some_and(|core| core.outdated_client_seen()),
     })
 }
 

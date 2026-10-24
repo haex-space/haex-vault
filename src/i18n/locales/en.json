@@ -2979,7 +2979,9 @@
       "state": "State",
       "portInUseHint": "Port {port} is in use, for example by another holzi instance or by HaexVault 2.x. Choose another port and set it in the extension too.",
       "portInvalid": "The port must be between 1024 and 65535.",
-      "changePort": "Choose another port"
+      "changePort": "Choose another port",
+      "outdatedClient": "An outdated version of haex-pass tried to connect. Please update the extension to 1.4.0 or newer.",
+      "outdatedClientHint": "An outdated version of haex-pass was refused because it does not prove that it holds its key. Update the extension to 1.4.0 or newer, then it connects as usual."
     },
     "state": {
       "off": "Off",

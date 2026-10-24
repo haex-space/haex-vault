@@ -2979,7 +2979,9 @@
       "state": "Zustand",
       "portInUseHint": "Port {port} ist belegt, etwa von einer anderen holzi-Instanz oder von HaexVault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
       "portInvalid": "Der Port muss zwischen 1024 und 65535 liegen.",
-      "changePort": "Anderen Port wählen"
+      "changePort": "Anderen Port wählen",
+      "outdatedClient": "Eine veraltete Version von haex-pass wollte sich verbinden. Bitte aktualisiere die Erweiterung auf 1.4.0 oder neuer.",
+      "outdatedClientHint": "Eine veraltete Version von haex-pass wurde abgewiesen, weil sie nicht nachweist, dass sie ihren Schlüssel besitzt. Aktualisiere die Erweiterung auf 1.4.0 oder neuer, dann verbindet sie sich wie gewohnt."
     },
     "state": {
       "off": "Aus",

@@ -25,6 +25,7 @@ export const useBrowserBridgeStore = defineStore('browserBridge', () => {
   async function startAsync(
     onQuestion: () => void,
     onWrongPassphrase: () => void,
+    onOutdatedClient: () => void,
   ): Promise<void> {
     if (unlisten.length > 0) return
     unlisten = await Promise.all([
@@ -39,6 +40,8 @@ export const useBrowserBridgeStore = defineStore('browserBridge', () => {
         changes.value += 1
       }),
       listen('browser-bridge-wrong-passphrase', onWrongPassphrase),
+      // haex-pass up to 1.3.0 does not show why holzi refused it (049 FR-049).
+      listen('browser-bridge-outdated-client', onOutdatedClient),
     ])
   }
 
