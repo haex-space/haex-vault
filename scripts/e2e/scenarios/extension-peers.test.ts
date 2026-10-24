@@ -73,8 +73,8 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
         await pages.tablet.invoke('extension_list'),
       )
       const permissions = unwrap<Array<{ kind: string; status: string }>>(
-        'extension_permission_list',
-        await pages.tablet.invoke('extension_permission_list', {
+        'extension_permissions_list',
+        await pages.tablet.invoke('extension_permissions_list', {
           extensionId: extensions.ben.id,
         }),
       )
