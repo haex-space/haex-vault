@@ -250,10 +250,6 @@ jobs:
       # it only wraps workspace crates — so the order here is deliberate.
       # A test binary that crashes (a signal, not a failed test) leaves a core
       # file; the step after this one prints its backtrace.
-      - name: Debug peers fixture before tests
-        shell: bash
-        run: sha256sum src-tauri/tests/fixtures/extension_e2e/peers/peers.xt
-
       - name: Run tests
         id: tests
         shell: bash
@@ -262,7 +258,7 @@ jobs:
           mkdir -p /tmp/cores
           sudo sysctl -q -w kernel.core_pattern='/tmp/cores/core.%p.%E'
           ulimit -c unlimited
-          cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }} --test extension_e2e_fixtures
+          cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }}
 
       - name: Backtrace of a crashed test binary
         if: failure() && steps.tests.outcome == 'failure'
