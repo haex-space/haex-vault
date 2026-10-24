@@ -15,12 +15,13 @@ export function registerFileShareActionHandlers(wm: WmStore): void {
   wm.registerGlobalActionHandler('files.shares.list', () =>
     invoke<FileShare[]>('file_shares_list'),
   )
-  wm.registerGlobalActionHandler('files.shares.of', ({ input }) =>
-    invoke<FileShare | null>('file_share_of', {
+  wm.registerGlobalActionHandler('files.shares.of', async ({ input }) => {
+    const share = await invoke<FileShare | null>('file_share_of', {
       source: { kind: 'device' },
       path: text(input.path),
-    }),
-  )
+    })
+    return share ? { share } : {}
+  })
   wm.registerGlobalActionHandler('files.shares.save', ({ input }) =>
     invoke<FileShare>('file_share_save', {
       args: {

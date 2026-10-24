@@ -31,6 +31,11 @@ const SHARE: JsonSchema = {
 
 const SHARES: JsonSchema = { type: 'array', items: SHARE }
 
+const SHARE_LOOKUP: JsonSchema = {
+  type: 'object',
+  properties: { share: SHARE },
+}
+
 const SHARE_ID: JsonSchema = { type: 'string', description: 'The share.' }
 
 /** The fields every share action shares. */
@@ -55,13 +60,13 @@ export const FILE_SHARE_ACTIONS: readonly ActionDefinition[] = [
     id: 'files.shares.of',
     titleKey: 'actions.files.shares.of',
     description:
-      'The share of a folder or file of this device, if there is one.',
+      'The share of a folder or file of this device, if there is one; the result has a share field only when found.',
     input: {
       type: 'object',
       properties: { path: { type: 'string' } },
       required: ['path'],
     },
-    result: SHARE,
+    result: SHARE_LOOKUP,
     effect: 'read',
     ...SHARED,
   },

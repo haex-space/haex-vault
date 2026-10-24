@@ -93,6 +93,9 @@ impl Connections {
         let slot = self.slot(key);
         let mut slot = slot.lock().await;
         if let Some(link) = slot.as_ref().filter(|link| link.is_reusable()) {
+            if vault.is_some_and(|vault| link.verified.vault != vault) {
+                return Err(StorageError::MissingRight);
+            }
             return Ok(Arc::clone(link));
         }
         let link = PeerLink::open(&self.node, &self.ctx.local(), addr)
