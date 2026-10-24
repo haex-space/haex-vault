@@ -84,17 +84,18 @@ nötig (Spalte `kind` ist Text).
 - **Verbindungen** je Gegenstelle mit `Mode::OwnDevice` oder `Mode::Contact { vault }` (research R4).
 - **Laufende Streams** je (Freigabe, Vault): ein `CancellationToken`; ein Entzug oder Herabstufen
   bricht sie ab (FR-024).
-- **Adressen von Kontakt-Geräten**: aus Antworten auf das Anklopfen, in der `MemoryLookup` des
-  Endpoints, verfallen mit der Sitzung.
+- **Adressen von Kontakt-Geräten**: keine eigenen; jede Verbindung wählt Endpoint-ID und iroh-Relay der
+  gespeicherten Visitenkarte (research R9).
 - **Beobachtungen** (`Watch`) je Stream: ein Watcher auf dem bedienenden Gerät, endet mit dem Stream.
 - **Upload-Sitzungen** des bedienenden Geräts: je Upload-ID Ziel, erwarteter Versionsstand und
   Zwischendatei; beim Abbruch, Entzug oder Sperren aufgeräumt.
 
 ## Typen für das Fenster (ts-rs, Präfix gegen Namenskollisionen)
 
-- `FileShare { id, name, source: SourceRef, path, itemKind, servingDevice: VaultDeviceRef, grants:
+- `FileShare { id, name, source: SourceRef, path, itemKind, servingDevice: FileShareDevice, grants:
 FileShareGrant[], state: FileShareState }`
-- `FileShareGrant { vaultPubkey, contactId, contactName, level: FileShareLevel }`
+- `FileShareDevice { id, name, isCurrent }`: das bedienende Gerät
+- `FileShareGrant { vaultPubkey, contactId, contactName, level: FileShareLevel }`: Kontakt und Name von der gespeicherten Karte, beide fehlen ohne Karte
 - `FileShareLevel = "read" | "readWrite"`
 - `FileShareState = "active" | "sourceMissing" | "sourceUnavailable" | "pending"`
 - `FilesPeerDevice { id, name, state: FilesPeerState }`: `id` ist die Speicher-ID `peer:<vault_device_uuid>`
