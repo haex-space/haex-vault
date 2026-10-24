@@ -14,6 +14,7 @@ Erteilen bestätigt der Nutzer immer in einem Dialog (FR-045, research R17). Der
 | `files_list`, `files_stat`, `files_open`, `files_thumbnail`, `files_read_text`, Transfers, Suche | unverändert; `SourceRef::Storage { storageId: "peer:…" \| "share:…" }` wird über `PeerStore` aufgelöst (research R2)                                  |
 | `files_watch`                                                                                    | neuer Parameter `storage` (`peer:`/`share:`); Meldungen kommen über `Watch` vom bedienenden Gerät, das Ende als letzte Meldung (FR-046, research R16) |
 | `files_peer_roots` (neu)                                                                         | `{ storageId }` → `FilesPeerRoots`: Laufwerke und bekannte Orte eines anderen eigenen Geräts; das Fenster öffnet dort den persönlichen Ordner         |
+| `files_peer_trash` (neu)                                                                         | `{ storageId }` → `bool`: ob Löschen dort in den Papierkorb geht (`Welcome.trash`); ohne Papierkorb fragt das Fenster vorher (FR-038, research R8)    |
 | `files_open_system`                                                                              | für `peer:`/`share:` erst herunterladen in den Zwischenspeicher wie bei Speichern                                                                     |
 
 ## Neu: Kontakte im Dateibrowser
