@@ -136,7 +136,12 @@ pub async fn of(
         root_path(&own, &source_for_path, &path_for_resolution)
     })
     .await
-    .map_err(|error| FilesError::new(FilesErrorCode::Unsupported, format!("share path lookup: {error}")))?;
+    .map_err(|error| {
+        FilesError::new(
+            FilesErrorCode::Unsupported,
+            format!("share path lookup: {error}"),
+        )
+    })?;
     let path = resolved.map_or(path, |(path, _)| path);
     here.db
         .read(
