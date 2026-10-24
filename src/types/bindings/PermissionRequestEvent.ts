@@ -34,7 +34,11 @@ onDevice: boolean, },
  * For `model` (spec 055): the models of the vault that fit the job, the proposed one
  * (`target`) first. The user picks one and the highest effort it may be used with.
  */
-models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean, }>,
+models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean,
+/**
+ * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
+ */
+agent: boolean, }>,
 /**
  * For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
  * and place, and what the step would send.
