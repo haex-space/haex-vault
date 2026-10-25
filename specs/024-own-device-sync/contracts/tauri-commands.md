@@ -53,6 +53,15 @@ interface VaultDevice {
   online: boolean
   lastSeen: number | null // ms; null = "noch nie online gesehen"
   problem: DeviceProblem
+  // Spec 059: Versionsstand; bei isCurrent der des laufenden holzi, sonst der zuletzt im Handshake
+  // gesehene, null solange dieses Gerät keinen sah.
+  schema: DeviceSchema | null
+}
+
+interface DeviceSchema {
+  protocol: number // Sync-Protokoll
+  holziMigration: number // Vault-Schema (Zahl der holzi-Migrationen)
+  crdtTrigger: number // Änderungsverfolgung (Version der CRDT-Trigger)
 }
 
 interface SyncStatus {

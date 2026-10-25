@@ -410,7 +410,7 @@ die Stelle ist als Erweiterungspunkt für 027/028 angelegt. Geheimnisse werden n
 
 ## R14 Doppelte Geräte und Versionen (FR-029, FR-030)
 
-**Entscheidung**: Die Protokollversion steckt im ALPN; die Schema-Version (Migrationsstand von
+**Entscheidung** (geändert durch Spec 059: die ALPN bleibt `holzi-sync/1`, die Versionsprüfung ist `v` in `Challenge`/`Response`, beide Seiten nennen ihren Stand vor der Entscheidung): Die Protokollversion steckt im ALPN; die Schema-Version (Migrationsstand von
 holzi und haex-crdt-Triggerversion) wird im Handshake verglichen. Bei Abweichung: kein Sync, beide
 zeigen „ein Gerät muss aktualisiert werden“. Doppelt: zwei gleichzeitige Präsenzmeldungen oder
 Verbindungen mit demselben Geräteschlüssel, aber verschiedenen `endpoint_id`s, oder dieselbe

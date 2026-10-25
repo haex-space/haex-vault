@@ -1204,7 +1204,8 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
 - **FR-029**: Geräte mit unverträglichen Versionen des Sync oder des
   Vault-Schemas DÜRFEN nicht miteinander synchronisieren. Beide MÜSSEN den
   Grund zeigen (FR-034), und keine Änderung DARF dadurch verloren gehen; nach
-  dem Aktualisieren synchronisieren sie ohne weiteres Zutun.
+  dem Aktualisieren synchronisieren sie ohne weiteres Zutun. (Ergänzt durch Spec 059: die Liste zeigt die
+  Werte, die verglichen werden, und nennt das zu aktualisierende Gerät.)
 - **FR-030**: Treten zwei Geräte mit demselben Geräteschlüssel oder derselben
   Gerätekennung auf, MUSS holzi den Sync mit beiden anhalten und der Nutzerin
   melden, dass ein Gerät doppelt vorhanden ist.
