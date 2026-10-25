@@ -61,26 +61,27 @@ impl LocalSlot for ChatSlot {
         let chat = self.app.state::<ChatState>();
         let state = self.app.state::<AppState>();
 
-        if let Some(adapter) = loaded_adapter(&chat, model_id) {
-            return Ok(Loan::of(adapter));
-        }
-        if local_model_of(&chat).is_none() {
-            let session = load_local_session(&self.app, &state, model_id)
-                .await
-                .map_err(|error| error.to_string())?;
-            return Ok(Loan::of(session.adapter));
-        }
-
-        // The chat's place is taken by another local model: wait until nothing runs in it.
+        // The local adapter is shared with the chat. Keep the operation slot until the job's
+        // stream ends so a chat turn cannot use it concurrently, even when it is the same model.
         let operation = loop {
             if let Ok(guard) = chat.acquire_operation() {
                 break guard;
             }
             tokio::time::sleep(RETRY).await;
         };
+        if let Some(adapter) = loaded_adapter(&chat, model_id) {
+            return Ok(Loan::until(adapter, move || drop(operation)));
+        }
+        if local_model_of(&chat).is_none() {
+            let session = load_local_session(&self.app, &state, model_id)
+                .await
+                .map_err(|error| error.to_string())?;
+            return Ok(Loan::until(session.adapter, move || drop(operation)));
+        }
+
         // The chat may have loaded the wanted model, or let go of its own, while the job waited.
         if let Some(adapter) = loaded_adapter(&chat, model_id) {
-            return Ok(Loan::of(adapter));
+            return Ok(Loan::until(adapter, move || drop(operation)));
         }
         let previous = local_model_of(&chat);
 
@@ -97,16 +98,18 @@ impl LocalSlot for ChatSlot {
         let release = move || {
             // Without a model of its own the chat has nothing to get back; the place is free.
             let Some(previous) = previous else {
+                drop(operation);
                 return;
             };
             tauri::async_runtime::spawn(give_back(app, previous, generation, operation));
         };
+        let mut loan = Loan::pending(release);
         match load_local_session(&self.app, &state, model_id).await {
-            Ok(session) => Ok(Loan::until(session.adapter, release)),
-            Err(error) => {
-                release();
-                Err(error.to_string())
+            Ok(session) => {
+                loan.install(session.adapter);
+                Ok(loan)
             }
+            Err(error) => Err(error.to_string()),
         }
     }
 }

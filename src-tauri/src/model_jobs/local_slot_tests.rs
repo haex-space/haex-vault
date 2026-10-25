@@ -224,3 +224,15 @@ fn a_build_without_a_slot_has_no_local_models() {
         .expect("no adapter");
     assert!(message.contains("not available"), "{message}");
 }
+
+#[test]
+fn a_pending_loan_releases_the_place_when_loading_is_cancelled() {
+    let released = Arc::new(AtomicUsize::new(0));
+    {
+        let released = Arc::clone(&released);
+        let _loan = Loan::pending(move || {
+            released.fetch_add(1, Ordering::SeqCst);
+        });
+    }
+    assert_eq!(released.load(Ordering::SeqCst), 1);
+}

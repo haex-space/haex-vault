@@ -24,30 +24,39 @@ pub(crate) trait LocalSlot: Send + Sync {
 
 /// An adapter on loan from the slot. Dropping it gives the place back.
 pub(crate) struct Loan {
-    adapter: Arc<dyn ProviderAdapter>,
+    adapter: Option<Arc<dyn ProviderAdapter>>,
     release: Option<Box<dyn FnOnce() + Send>>,
 }
 
 // Only the chat's place (`chat_slot`, with `llm-cpu`) makes loans outside of tests.
 #[cfg_attr(not(feature = "llm-cpu"), allow(dead_code))]
 impl Loan {
-    /// A loan that costs the chat nothing: the model was already there, or sits next to it.
-    pub(crate) fn of(adapter: Arc<dyn ProviderAdapter>) -> Self {
-        Self {
-            adapter,
-            release: None,
-        }
-    }
-
     /// A loan that runs `release` when it ends, for example to give the chat its model back.
     pub(crate) fn until(
         adapter: Arc<dyn ProviderAdapter>,
         release: impl FnOnce() + Send + 'static,
     ) -> Self {
         Self {
-            adapter,
+            adapter: Some(adapter),
             release: Some(Box::new(release)),
         }
+    }
+
+    /// A loan whose adapter will be installed after a model load. Dropping it before then still
+    /// runs `release`, which makes a cancelled load restore the place it displaced.
+    pub(crate) fn pending(release: impl FnOnce() + Send + 'static) -> Self {
+        Self {
+            adapter: None,
+            release: Some(Box::new(release)),
+        }
+    }
+
+    /// Completes a pending loan once its adapter has been loaded.
+    pub(crate) fn install(&mut self, adapter: Arc<dyn ProviderAdapter>) {
+        assert!(
+            self.adapter.replace(adapter).is_none(),
+            "loan adapter installed twice"
+        );
     }
 }
 
@@ -84,7 +93,12 @@ impl ProviderAdapter for LocalJobAdapter {
             .lend(&self.model_id)
             .await
             .map_err(|reason| AdapterError::Unavailable { reason })?;
-        let mut inner = loan.adapter.stream_chat(req).await?;
+        let adapter = Arc::clone(
+            loan.adapter
+                .as_ref()
+                .expect("a local slot must return a completed loan"),
+        );
+        let mut inner = adapter.stream_chat(req).await?;
         // The loan lives as long as the pump: the task ends with the stream, or is aborted when
         // the job drops it, and either way the loan goes with it.
         let (tx, rx) = mpsc::unbounded_channel();
