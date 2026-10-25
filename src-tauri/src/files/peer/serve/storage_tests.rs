@@ -9,7 +9,9 @@ use crate::files::encrypted::test_support::{filled, tree, Scene, BUCKET, STORAGE
 use crate::files::peer::contact_tests::{contact_of, files_of, links_of};
 use crate::files::peer::contacts;
 use crate::files::peer::test_support::{store_card, Device};
-use crate::files::share::{FileShareItemKind, FileShareLevel};
+use crate::files::peer::wire::FailCode;
+use crate::files::share::store::FileShareRow;
+use crate::files::share::{FileShareItemKind, FileShareLevel, FileShareSourceState};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesErrorCode, SourceRef};
 use crate::sync::test_support::Member;
@@ -175,6 +177,38 @@ async fn a_read_share_of_a_storage_takes_nothing() {
         .await
         .expect_err("read only");
     assert_eq!(refused.code, FilesErrorCode::NoAccess);
+    assert_eq!(scene.fake.keys(BUCKET), ["Fotos/a.txt"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_storage_share_root_is_not_a_mutable_target() {
+    let scene = Arc::new(Scene::new());
+    scene.fake.insert(BUCKET, "Fotos/a.txt", b"im Speicher");
+    let share = FileShareRow {
+        id: "share".to_owned(),
+        vault_device_uuid: "device".to_owned(),
+        source: SourceRef::Storage {
+            storage_id: STORAGE.to_owned(),
+        },
+        path: "/Fotos".to_owned(),
+        item_kind: FileShareItemKind::Folder,
+        name: "Fotos".to_owned(),
+        created_at: "2026-10-23T10:00:00.000Z".to_owned(),
+        changed_at: "2026-10-23T10:00:00.000Z".to_owned(),
+        served_at: None,
+        source_state: FileShareSourceState::Ok,
+    };
+    let target = super::InStorage {
+        files: Arc::new(scene.files()),
+        at: crate::files::peer::serve::roots::in_storage(&share, "/").expect("root"),
+        share,
+    };
+    assert_eq!(super::delete(&target).await, Err(FailCode::Refused));
+    assert_eq!(super::create_folder(&target).await, Err(FailCode::Refused));
+    assert_eq!(
+        super::move_entry(&target, &target).await,
+        Err(FailCode::Refused)
+    );
     assert_eq!(scene.fake.keys(BUCKET), ["Fotos/a.txt"]);
 }
 

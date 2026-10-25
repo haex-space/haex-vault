@@ -215,6 +215,9 @@ pub async fn open_read(
 
 /// Creates the folder `at`; an entry of that name answers `NameTaken`.
 pub async fn create_folder(at: &InStorage) -> Result<(), FailCode> {
+    if at.at.key.is_empty() {
+        return Err(FailCode::Refused);
+    }
     let (parent, name) = at.parent_and_name()?;
     at.files
         .create_folder(&parent, &name)
@@ -226,6 +229,9 @@ pub async fn create_folder(at: &InStorage) -> Result<(), FailCode> {
 /// Renames `from` to `to` in the same folder; a move into another folder of a storage is not
 /// offered (`Unsupported`).
 pub async fn move_entry(from: &InStorage, to: &InStorage) -> Result<(), FailCode> {
+    if from.at.key.is_empty() || to.at.key.is_empty() {
+        return Err(FailCode::Refused);
+    }
     let ((from_parent, _), (to_parent, name)) = (from.parent_and_name()?, to.parent_and_name()?);
     if from.share.id != to.share.id || from_parent != to_parent {
         return Err(FailCode::Unsupported);
@@ -240,6 +246,9 @@ pub async fn move_entry(from: &InStorage, to: &InStorage) -> Result<(), FailCode
 
 /// Removes the entry `at` for good.
 pub async fn delete(at: &InStorage) -> Result<(), FailCode> {
+    if at.at.key.is_empty() {
+        return Err(FailCode::Refused);
+    }
     at.files
         .delete(&at.path(), &CancellationToken::new(), &mut |_| {})
         .await

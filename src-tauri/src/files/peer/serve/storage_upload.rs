@@ -120,6 +120,9 @@ pub struct StorageUpload {
 impl StorageUpload {
     /// Starts writing the file `target`; nothing reaches the provider before the first full part.
     pub async fn begin(target: InStorage) -> Result<Self, FailCode> {
+        if target.at.key.is_empty() {
+            return Err(FailCode::Refused);
+        }
         let files = Arc::clone(&target.files);
         match route(&files, &target.path()).await.map_err(fail_of)? {
             Route::Encrypted(at) => {
