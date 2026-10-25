@@ -249,6 +249,7 @@ First hand test with Claude Code: the choice offered only `Kein`, `Niedrig`, `Mi
 - [x] T097 [US2] (2026-10-25, FR-006) The extension has no say about the effort: `effort` is gone from the step and from the request for access (`job.rs`, `access.rs`, 3001 for the field), the effort of a run is the one the user chose (`effort::applied_effort`), the question starts at `medium` or the middle of the model's levels (`startingEffort`); the fixture `model-jobs` sends none
 - [ ] T098 [US2] vault-sdk (own repo, own PR): drop `effort` from `ModelJobStep` and `ModelAccessRequest`, `ModelEffort` with `xhigh` and `max`; README note. haex-notes drops its `effort` fields first (a host that still accepts none is no problem for it), then holzi's change lands
 - [ ] T099 [US2] haex-notes (`haextension`): drop `effort` from the jobs of the page recognition
+- [x] T100 [US8] (haex-vault#565) The models of every provider are read again at each vault open (FR-037): `providers/refresh_all.rs`, started after `open_instance` and `import_instance`; test `providers/refresh_all_tests.rs`
 
 ---
 
