@@ -7,7 +7,9 @@
 pub mod change;
 pub mod check;
 pub mod ops;
+mod permit;
 pub mod roots;
+pub mod streams;
 pub mod upload;
 pub mod watch;
 
@@ -20,22 +22,24 @@ use iroh::endpoint::{Connection, RecvStream, SendStream};
 use iroh::protocol::{AcceptError, ProtocolHandler};
 use tokio::io::AsyncReadExt;
 use tokio::sync::Semaphore;
+use tokio_util::sync::CancellationToken;
 
-use self::roots::Located;
+use self::permit::{again, grant_of, locate, permit};
+use self::streams::{StreamKey, Streams};
 use self::upload::Uploads;
 use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::handshake;
 use crate::files::peer::wire::{
-    read_head, write_head, FailCode, Mode, Op, Reply, Request, MAX_LIST, MAX_PART, VERSION,
+    read_head, write_head, FailCode, Mode, Op, Reply, Request, MAX_LIST, MAX_PART,
+    STREAM_CANCELLED, VERSION,
 };
-use crate::files::share::store::{self, FileShareRow};
-use crate::files::share::{device_access, FileShareLevel, FEATURE};
+use crate::files::share::FEATURE;
 use crate::files::transfer::local::Removal;
 use crate::remote_storage::local::LocalStore;
-use crate::remote_storage::local_fs::resolve;
 use crate::sync::endpoint::NodeTasks;
 use crate::sync::foreign_auth::{Local, SeenGenerations};
 use crate::sync::keys::DeviceKeys;
+use crate::vault_events::{changes_channel, VaultChanges};
 use crate::vault_gate::VaultDb;
 
 /// Most requests one connection runs at once (research R6).
@@ -63,6 +67,10 @@ pub struct ServeContext {
     pub store: LocalStore,
     /// How deleting removes here: into the trash on desktops (research R8).
     pub removal: Removal,
+    /// The open vault's changes, which [`crate::files::share::served`] follows.
+    pub changes: VaultChanges,
+    /// The running requests of contacts, cancelled by a revoke (FR-024).
+    pub streams: Streams,
     /// Locks peer writes to one target while checking and replacing it.
     write_locks: Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
     slots: Arc<Semaphore>,
@@ -87,6 +95,8 @@ impl ServeContext {
             seen: SeenGenerations::default(),
             store: LocalStore::new(),
             removal: crate::files::transfer::platform_removal(),
+            changes: changes_channel(),
+            streams: Streams::default(),
             write_locks: Mutex::new(HashMap::new()),
             slots: Arc::new(Semaphore::new(STREAMS_PER_DEVICE)),
         }
@@ -211,6 +221,7 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
     if request.v != VERSION {
         return answer(send, Reply::Failed(FailCode::Unsupported)).await;
     }
+    let cancel = stream_token(ctx, peer, &request.op).await;
     match &request.op {
         Op::Read {
             share,
@@ -226,10 +237,17 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
                 Ok((size, len, mut reader)) => {
                     if write_head(&mut send, &Reply::Reading { size, len })
                         .await
-                        .is_ok()
-                        && tokio::io::copy(&mut reader, &mut send).await.is_ok()
+                        .is_err()
                     {
-                        let _ = send.finish();
+                        return;
+                    }
+                    tokio::select! {
+                        copied = tokio::io::copy(&mut reader, &mut send) => if copied.is_ok() {
+                            let _ = send.finish();
+                        },
+                        () = cancel.cancelled() => {
+                            let _ = send.reset(STREAM_CANCELLED.into());
+                        }
                     }
                 }
                 Err(code) => answer(send, Reply::Failed(code)).await,
@@ -245,14 +263,21 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
                     .await
                     .is_ok()
             };
-            watch::run(&at, send, still).await;
+            watch::run(&at, send, still, &cancel).await;
         }
         Op::UploadPart {
             upload_id,
             number,
             len,
         } => {
-            let reply = part(ctx, peer, &request, upload_id, *number, *len, &mut recv).await;
+            let reply = tokio::select! {
+                reply = part(ctx, peer, &request, upload_id, *number, *len, &mut recv) => reply,
+                () = cancel.cancelled() => {
+                    // Nothing half stays behind a revoke (FR-024).
+                    let _ = peer.uploads.abort(ctx, upload_id).await;
+                    Err(FailCode::Refused)
+                }
+            };
             answer(send, reply.unwrap_or_else(Reply::Failed)).await;
         }
         _ => {
@@ -355,105 +380,31 @@ async fn part(
     ))
 }
 
-/// Checks a request about the upload `upload_id` again, with the root and path it began with.
-async fn again(
-    ctx: &ServeContext,
-    peer: &Peer,
-    request: &Request,
-    upload_id: &str,
-) -> Result<(), FailCode> {
-    let upload = peer.uploads.get(upload_id).ok_or(FailCode::NotFound)?;
-    locate(ctx, peer, request, upload.share.as_deref(), &upload.path)
-        .await
-        .map(|_| ())
-}
-
-/// Checks `request` against what holds now (FR-005) and returns the share it names with the level
-/// of the asking vault.
-async fn permit(
-    ctx: &ServeContext,
-    peer: &Peer,
-    request: &Request,
-    share: Option<&str>,
-) -> Result<Option<(FileShareRow, FileShareLevel)>, FailCode> {
-    let grant = match peer.mode {
-        Mode::OwnDevice => {
-            let on = ctx
-                .db
-                .read(|q| Ok(device_access::enabled(q)?))
-                .await
-                .map_err(|_| FailCode::Internal)?;
-            if !on {
-                return Err(FailCode::Refused);
-            }
-            None
+/// The token a contact's request runs under, for the share and level it is allowed as now; a request
+/// that is not allowed gets one nobody cancels, as it is refused anyway.
+async fn stream_token(ctx: &ServeContext, peer: &Peer, op: &Op) -> CancellationToken {
+    if peer.mode != Mode::Contact {
+        return CancellationToken::new();
+    }
+    let share = match op {
+        Op::UploadPart { upload_id, .. }
+        | Op::FinishUpload { upload_id }
+        | Op::AbortUpload { upload_id } => {
+            peer.uploads.get(upload_id).and_then(|upload| upload.share)
         }
-        Mode::AccessOff => None,
-        Mode::Contact => {
-            if !handshake::still_contact(&ctx.db, peer.vault).await {
-                return Err(FailCode::Refused);
-            }
-            match share {
-                Some(id) => grant_of(ctx, peer.vault, id).await?,
-                None => None,
-            }
-        }
+        op => op.share().map(str::to_owned),
     };
-    check::allowed(
-        peer.mode,
-        &request.op,
-        grant.as_ref().map(|(row, level)| (row, *level)),
-    )?;
-    Ok(grant)
-}
-
-/// The share `id` if this device serves it and `vault` holds a grant in it.
-async fn grant_of(
-    ctx: &ServeContext,
-    vault: [u8; 32],
-    id: &str,
-) -> Result<Option<(FileShareRow, FileShareLevel)>, FailCode> {
-    let (id, device, vault) = (
-        id.to_owned(),
-        ctx.device.clone(),
-        crate::sync::keys::hex(&vault),
-    );
-    ctx.db
-        .read(move |q| {
-            let Some(row) = store::get_share(q, &id)? else {
-                return Ok(None);
-            };
-            if row.vault_device_uuid != device {
-                return Ok(None);
-            }
-            Ok(store::grant_for(q, &id, &vault)?.map(|level| (row, level)))
-        })
-        .await
-        .map_err(|_| FailCode::Internal)
-}
-
-/// The target of `path` after every check: the request may run, the path stays in its root, and
-/// holzi's own places are kept as FR-007 says.
-async fn locate(
-    ctx: &ServeContext,
-    peer: &Peer,
-    request: &Request,
-    share: Option<&str>,
-    path: &str,
-) -> Result<Located, FailCode> {
-    let grant = permit(ctx, peer, request, share).await?;
-    let at = match (peer.mode, &grant) {
-        (Mode::OwnDevice, None) => roots::on_device(path)?,
-        (Mode::Contact, Some((row, _))) => roots::in_share(row, path)?,
-        _ => return Err(FailCode::Refused),
+    let Some(share) = share else {
+        return CancellationToken::new();
     };
-    check::at_root(&request.op, &at.key)?;
-    // Inside its root, links resolved; a new name resolves to where it would be.
-    let real = resolve(&at.root, &at.key).map_err(ops::fail_of)?;
-    let writes = request.op.writes();
-    let own = ctx.own.touches(&real, writes) || ctx.own.contains_resolved(&at.path());
-    check::own_data(peer.mode, request.caller, writes, own)?;
-    Ok(at)
+    match grant_of(ctx, peer.vault, &share).await {
+        Ok(Some((_, level))) => ctx.streams.token(StreamKey {
+            share,
+            vault: peer.vault,
+            level,
+        }),
+        _ => CancellationToken::new(),
+    }
 }
 
 pub(crate) async fn answer(mut send: SendStream, reply: Reply) {

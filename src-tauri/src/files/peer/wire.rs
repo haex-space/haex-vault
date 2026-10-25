@@ -11,6 +11,8 @@ use crate::sync::wire::{expect_value, write_value, WireError};
 
 /// The version every message carries.
 pub const VERSION: u8 = 1;
+/// The code a cancelled read stream is reset with: a revoke, the switch or the close ended it.
+pub const STREAM_CANCELLED: u32 = 1;
 /// The largest head of a request or an answer.
 pub const HEAD_LIMIT: usize = 64 * 1024;
 /// The most entries of one listing (`MAX_ENTRIES` of the file browser).

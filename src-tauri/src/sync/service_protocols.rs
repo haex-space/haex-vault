@@ -12,6 +12,7 @@ use crate::files::peer::serve::ServeContext;
 use crate::state::AppState;
 use crate::sync::endpoint::Protocols;
 use crate::sync::keys::DeviceKeys;
+use crate::vault_events::VaultChanges;
 use crate::vault_gate::VaultDb;
 
 /// The extension host whose channels the endpoint serves, and a handle on the open vault for
@@ -25,6 +26,8 @@ pub struct PeerDeps {
 /// `haex-vault-files/1`.
 pub struct FilesDeps {
     pub db: VaultDb,
+    /// The vault's changes, which the shares this device serves follow.
+    pub changes: VaultChanges,
     pub own: OwnPlaces,
     pub known: Vec<Place>,
     pub device: String,
@@ -42,6 +45,7 @@ pub fn files_deps<R: Runtime>(
     };
     Ok(Some(FilesDeps {
         db: state.database()?,
+        changes: state.vault_changes().clone(),
         own: OwnPlaces::from_app(app),
         known: known_places(app),
         device: device.to_string(),
@@ -91,6 +95,7 @@ pub fn file_protocols(
 
     let Some(FilesDeps {
         db,
+        changes,
         own,
         known,
         device,
@@ -98,14 +103,9 @@ pub fn file_protocols(
     else {
         return (protocols, None);
     };
-    let ctx = Arc::new(ServeContext::new(
-        keys.clone(),
-        vault,
-        db,
-        own,
-        known,
-        device,
-    ));
+    let mut ctx = ServeContext::new(keys.clone(), vault, db, own, known, device);
+    ctx.changes = changes;
+    let ctx = Arc::new(ctx);
     let handler = Arc::clone(&ctx);
     let protocols = protocols.with(crate::sync::wire::FILES_ALPN, move |tasks| {
         FilesProtocol::new(handler, tasks)
