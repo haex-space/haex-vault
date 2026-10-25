@@ -28,17 +28,16 @@ use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
-use tokio::io::AsyncRead;
 
 use crate::files::encrypted::format::vectors;
 use crate::files::media::MediaServer;
-use crate::files::streaming::StreamingSource;
+use crate::files::streaming::BytesSource;
 
 /// Every result line starts with this, so the CI finds it in stdout or in logcat.
 pub const RESULT_MARKER: &str = "HOLZI_PROBE_RESULT";
@@ -166,37 +165,6 @@ pub const FIXTURES: [(&str, &[u8], &str); 3] = [
     ),
 ];
 
-/// A file built into the probe.
-pub struct Fixture {
-    bytes: &'static [u8],
-    content_type: &'static str,
-}
-
-#[async_trait]
-impl StreamingSource for Fixture {
-    async fn size(&self) -> std::io::Result<u64> {
-        Ok(self.bytes.len() as u64)
-    }
-
-    async fn open_range(
-        &self,
-        start: u64,
-        len: u64,
-    ) -> std::io::Result<Box<dyn AsyncRead + Send + Unpin>> {
-        let start = usize::try_from(start)
-            .unwrap_or(usize::MAX)
-            .min(self.bytes.len());
-        let end = start
-            .saturating_add(usize::try_from(len).unwrap_or(usize::MAX))
-            .min(self.bytes.len());
-        Ok(Box::new(std::io::Cursor::new(&self.bytes[start..end])))
-    }
-
-    fn content_type(&self) -> &str {
-        self.content_type
-    }
-}
-
 /// Serves [`FIXTURES`] through `media`; returns their URLs by name.
 pub fn serve_fixtures(media: &MediaServer) -> serde_json::Value {
     let urls: serde_json::Map<_, _> = FIXTURES
@@ -204,10 +172,7 @@ pub fn serve_fixtures(media: &MediaServer) -> serde_json::Value {
         .map(|(name, bytes, content_type)| {
             let url = media.register(
                 "platform-probe",
-                std::sync::Arc::new(Fixture {
-                    bytes,
-                    content_type,
-                }),
+                Arc::new(BytesSource::new(Arc::from(*bytes), *content_type)),
             );
             ((*name).to_owned(), serde_json::Value::String(url))
         })

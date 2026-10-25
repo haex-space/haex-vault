@@ -1,7 +1,7 @@
-//! Tests for attachments shown inside holzi (spec 058, research R2): text the way the file viewer
-//! reads it, and the refusal of everything that is not text.
+//! Tests for attachments shown inside holzi (spec 058, research R2, R3): text the way the file
+//! viewer reads it, PDFs as they are, and the refusal of everything else.
 
-use super::attachment_view::text_of;
+use super::attachment_view::{pdf_bytes, text_of};
 use crate::error::HolziError;
 use crate::files::local::text::TEXT_LIMIT;
 
@@ -57,5 +57,23 @@ fn a_nul_byte_near_the_start_marks_a_binary_file() {
 fn a_name_the_file_viewer_does_not_show_as_text_is_refused() {
     for name in ["bild.png", "police.pdf", "tabelle.ods", "ohne-endung"] {
         assert_eq!(reason(text_of(name, b"abc".to_vec())), "not_text", "{name}");
+    }
+}
+
+#[test]
+fn a_pdf_attachment_keeps_its_bytes() {
+    for name in ["police.pdf", "Brief.PDF"] {
+        assert_eq!(pdf_bytes(name, b"%PDF-1.4".to_vec()).unwrap(), b"%PDF-1.4");
+    }
+}
+
+#[test]
+fn a_name_that_is_no_pdf_is_refused() {
+    for name in ["notiz.txt", "bild.png", "ohne-endung"] {
+        assert_eq!(
+            reason(pdf_bytes(name, b"%PDF".to_vec())),
+            "not_pdf",
+            "{name}"
+        );
     }
 }

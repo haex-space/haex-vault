@@ -1,9 +1,11 @@
 <script setup lang="ts">
 /**
- * The attachment view (spec 058, US1, FR-003, FR-005, FR-006): one text attachment to read, over the
- * whole password manager window. The text comes from the text reader of the file viewer and shows
- * with the same `FilesTextContent`, so both apps look alike (SC-003). Nothing lands on the device;
- * the text lives in this component and goes with it. Escape and the close button close it; the list
+ * The attachment view (spec 058, US1, US2, FR-003 to FR-006): one text or PDF attachment to read,
+ * over the whole password manager window. The text comes from the text reader of the file viewer
+ * and shows with the same `FilesTextContent`; a PDF comes from the media server and shows in the
+ * same `FilesPdfViewer`, so both apps look alike (SC-003). Nothing lands on the device; the text
+ * lives in this component and goes with it, the PDF's URL is released when the view moves on or
+ * closes. Escape and the close button close it; the list
  * gives the focus back to the card. The view has `role="dialog"`, so the list shortcuts leave its
  * keys alone and Ctrl+C copies the selected text. Locking the vault ends the window's process
  * (spec 013), and the view with it (FR-008).
@@ -21,11 +23,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const { attachmentTextAsync } = usePasswords()
+const { attachmentTextAsync, attachmentOpenAsync } = usePasswords()
+const { releaseAsync } = useFiles()
+const { tabId } = useWmTab()
 
 const kind = computed(() => fileKind(props.attachment.fileName))
 const text = ref<TextContent | null>(null)
+/** The media server's URL of the PDF on show. */
+const url = ref<string | null>(null)
 const failed = ref<string | null>(null)
+let mounted = true
+
+function dropUrl() {
+  const current = url.value
+  url.value = null
+  if (current) void releaseAsync(current).catch(() => {})
+}
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -50,6 +63,7 @@ function failureText(cause: unknown): string {
         return t('passwords.attachments.viewer.notText')
       if (reason === 'unreadable')
         return t('passwords.attachments.viewer.unreadable')
+      if (reason === 'not_pdf') return t('passwords.attachments.viewer.notText')
     }
   }
   return errString(cause)
@@ -59,24 +73,26 @@ watch(
   () => [props.attachment.id, props.attachment.binaryHash] as const,
   async ([id, binaryHash]) => {
     text.value = null
+    dropUrl()
     failed.value = null
-    if (kind.value !== 'text') {
-      failed.value = t('passwords.attachments.viewer.notText')
-      return
-    }
+    const current = () =>
+      mounted &&
+      id === props.attachment.id &&
+      binaryHash === props.attachment.binaryHash
     try {
-      const content = await attachmentTextAsync(id)
-      if (
-        id === props.attachment.id &&
-        binaryHash === props.attachment.binaryHash
-      )
-        text.value = content
+      if (kind.value === 'text') {
+        const content = await attachmentTextAsync(id)
+        if (current()) text.value = content
+      } else if (kind.value === 'pdf') {
+        const opened = await attachmentOpenAsync(id, tabId)
+        // Moved on while it was being served: give the URL back at once.
+        if (current()) url.value = opened
+        else void releaseAsync(opened).catch(() => {})
+      } else {
+        failed.value = t('passwords.attachments.viewer.notText')
+      }
     } catch (cause) {
-      if (
-        id === props.attachment.id &&
-        binaryHash === props.attachment.binaryHash
-      )
-        failed.value = failureText(cause)
+      if (current()) failed.value = failureText(cause)
     }
   },
   { immediate: true },
@@ -115,6 +131,10 @@ function onKeydown(event: KeyboardEvent) {
 
 const panel = useTemplateRef<HTMLElement>('panel')
 onMounted(() => panel.value?.focus())
+onBeforeUnmount(() => {
+  mounted = false
+  dropUrl()
+})
 </script>
 
 <template>
@@ -175,6 +195,12 @@ onMounted(() => panel.value?.focus())
           {{ t('passwords.attachments.viewer.empty') }}
         </p>
         <FilesTextContent v-else :text="text" />
+      </div>
+      <div v-else-if="url" data-testid="passwords-attachment-viewer-pdf">
+        <LazyFilesPdfViewer
+          :url="url"
+          @failed="failed = t('passwords.attachments.viewer.pdfUnreadable')"
+        />
       </div>
     </div>
   </div>

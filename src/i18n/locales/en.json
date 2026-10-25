@@ -2038,7 +2038,8 @@
         "missing": "This attachment is not available on this device.",
         "binary": "This file is not text.",
         "notText": "This file cannot be shown here.",
-        "unreadable": "The file cannot be read."
+        "unreadable": "The file cannot be read.",
+        "pdfUnreadable": "This PDF cannot be shown."
       }
     },
     "lightbox": {

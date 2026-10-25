@@ -129,6 +129,12 @@ export function usePasswords() {
     })
   const attachmentTextAsync = (attachmentId: string) =>
     invoke<TextContent>('passwords_attachment_text', { args: { attachmentId } })
+  /** A PDF attachment as a URL of the media server for `tabId` (spec 058); release it with
+   * `files_release`. */
+  const attachmentOpenAsync = (attachmentId: string, tabId: string) =>
+    invoke<string>('passwords_attachment_open', {
+      args: { attachmentId, tabId },
+    })
 
   const createGroupAsync = (args: {
     name: string
@@ -296,6 +302,7 @@ export function usePasswords() {
     attachmentSaveAsync,
     attachmentPreviewAsync,
     attachmentTextAsync,
+    attachmentOpenAsync,
     importPreviewAsync,
     importRunAsync,
     importCancelAsync,

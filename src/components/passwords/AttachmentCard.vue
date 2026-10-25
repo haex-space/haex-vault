@@ -4,7 +4,7 @@
  * when the card comes into view, else a type icon; the name, the size and the type for every
  * attachment; buttons Speichern unter, Umbenennen (inline: Enter or the check confirms, Escape
  * cancels) and Entfernen, as in spec 034. A tap on the card opens an image in the lightbox, a text
- * in the attachment view (spec 058 FR-001) and saves anything else.
+ * or a PDF in the attachment view (spec 058 FR-001) and saves anything else.
  */
 import type { AttachmentView } from '@bindings/AttachmentView'
 import { fileKind, formatFileSize, type FileKind } from '~/lib/passwords/format'
@@ -96,7 +96,7 @@ function confirmRename() {
 
 function activate() {
   if (kind.value === 'image') emit('open')
-  else if (kind.value === 'text') emit('view')
+  else if (kind.value === 'text' || kind.value === 'pdf') emit('view')
   else emit('save')
 }
 </script>
@@ -112,7 +112,7 @@ function activate() {
       type="button"
       class="group flex aspect-[4/3] items-center justify-center bg-muted/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       :aria-label="
-        kind === 'image' || kind === 'text'
+        kind !== 'other'
           ? t('passwords.attachments.open', { name: attachment.fileName })
           : t('passwords.attachments.saveAs', { name: attachment.fileName })
       "

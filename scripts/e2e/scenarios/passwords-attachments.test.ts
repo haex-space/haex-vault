@@ -9,6 +9,7 @@ import {
   selectTab,
   slideSettled,
 } from '../lib/passwords.ts'
+import { fileFixture } from '../lib/file-fixtures.ts'
 import { solidPng } from '../lib/png.ts'
 import { KEY, resizeAppWindow } from '../lib/settings.ts'
 
@@ -18,7 +19,9 @@ import { KEY, resizeAppWindow } from '../lib/settings.ts'
 // reaches the PDF, Escape closes it and gives the focus back to the card; renaming works; at 360 px
 // nothing scrolls sideways; a tap on the PDF opens no lightbox. Spec 058, US1: a tap on a text opens
 // the attachment view with its text, Escape closes it and gives the focus back to the card, a binary
-// file with a text name shows a notice, and at 360 px the view scrolls nothing sideways.
+// file with a text name shows a notice, and at 360 px the view scrolls nothing sideways. Spec 058,
+// US2: a tap on a PDF shows its first page with the page counter of the file viewer; a PDF that
+// cannot be read shows a notice.
 
 async function openExtra(ctx: ScenarioContext, instance: FlowInstance) {
   await selectTab(instance, 'extra')
@@ -77,10 +80,8 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
   await createAndUnlock(instance, { name: 'e2e-passwords-attachments' })
   await openPasswords(instance)
   const entry = await createEntry(instance, { title: 'Ausweis' })
-  const [red, green, pdf, blue, broken, note, binary] = await addAttachments(
-    instance,
-    entry,
-    [
+  const [red, green, pdf, blue, broken, note, binary, letter] =
+    await addAttachments(instance, entry, [
       { name: 'rot.png', content: solidPng(64, 48, [220, 40, 40]) },
       { name: 'gruen.png', content: solidPng(48, 64, [40, 180, 60]) },
       { name: 'vertrag.pdf', content: '%PDF-1.4\n% e2e\n%%EOF\n' },
@@ -88,9 +89,9 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
       { name: 'kaputt.png', content: 'this is no image' },
       { name: 'notiz.txt', content: 'Grüße aus der Vault\nZweite Zeile\n' },
       { name: 'binaer.txt', content: new Uint8Array([0x61, 0x00, 0x62]) },
-    ],
-  )
-  assert.ok(red && green && pdf && blue && broken && note && binary)
+      { name: 'brief.pdf', content: fileFixture('brief.pdf') },
+    ])
+  assert.ok(red && green && pdf && blue && broken && note && binary && letter)
 
   await instance.click(`passwords-entry-${entry}`)
   await openExtra(ctx, instance)
@@ -107,6 +108,7 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
     'image',
     'text',
     'text',
+    'pdf',
   ])
   const meta = await instance.exec<string>(
     `return document.querySelector('[data-testid="passwords-attachment-meta-' + arguments[0] + '"]').textContent`,
@@ -272,11 +274,34 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
   )
   ctx.step('at 360 px the attachment view scrolls nothing sideways')
 
-  // Last, as it opens the native save dialog, which WebDriver cannot operate (and Tauri's IPC
-  // cannot be stubbed): a tap on the PDF opens no lightbox. That the dialog appears is checked by
-  // hand (quickstart M6).
-  await instance.click(`passwords-attachment-open-${pdf}`)
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  // Spec 058 US2: a PDF opens in the attachment view, not in the lightbox.
+  await tapCard(instance, letter)
+  await instance.waitForDisplayed('passwords-attachment-viewer-pdf')
+  await ctx.waitFor('the page counter of the PDF', async () =>
+    /1\D+2/.test(
+      await instance.exec<string>(
+        `const el = document.querySelector('[data-testid="files-pdf-page"]')
+           return el ? el.textContent : ''`,
+      ),
+    ),
+  )
   assert.equal(await lightboxOpen(instance), false)
-  ctx.step('a tap on the PDF opens no lightbox')
+  await instance.exec(
+    `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
+  await ctx.waitFor(
+    'Escape to close the PDF attachment view',
+    async () => !(await viewerOpen(instance)),
+  )
+  ctx.step('Escape closes the PDF attachment view, not the lightbox')
+
+  await tapCard(instance, pdf)
+  await instance.waitForDisplayed('passwords-attachment-viewer-failed')
+  await instance.click('passwords-attachment-viewer-close')
+  await ctx.waitFor(
+    'the attachment view to close',
+    async () => !(await viewerOpen(instance)),
+  )
+  ctx.step('a PDF that cannot be read shows a notice')
 })

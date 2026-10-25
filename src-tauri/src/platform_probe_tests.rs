@@ -1,5 +1,7 @@
 use tokio::io::AsyncReadExt;
 
+use crate::files::streaming::StreamingSource;
+
 use super::*;
 
 #[test]
@@ -140,10 +142,7 @@ async fn the_fixtures_get_server_urls_and_are_read_in_ranges() {
             .starts_with("http://127.0.0.1:"));
     }
     let (_, bytes, _) = FIXTURES[2];
-    let fixture = Fixture {
-        bytes,
-        content_type: "application/pdf",
-    };
+    let fixture = BytesSource::new(Arc::from(bytes), "application/pdf");
     assert_eq!(fixture.size().await.unwrap(), bytes.len() as u64);
     let mut part = Vec::new();
     fixture
