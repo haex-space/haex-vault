@@ -1,7 +1,8 @@
-//! The uploads of one connection (spec 056 FR-035, FR-036, FR-044): each writes a temporary file
-//! next to its target through [`LocalStore`](crate::remote_storage::local::LocalStore) and puts it
-//! in place only while the target is still as the other side saw it. They belong to the
-//! connection: when it ends, every one left is dropped with its temporary file.
+//! The uploads of one connection (spec 056 FR-035, FR-036, FR-044): on this device each writes a
+//! temporary file next to its target through [`LocalStore`](crate::remote_storage::local::LocalStore);
+//! into a storage the parts go on to the provider ([`super::storage_upload`], T081). A file is put
+//! in place only while the target is still as the other side saw it. Uploads belong to the
+//! connection: when it ends, every one left is dropped with what it sent.
 
 use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex};
@@ -10,7 +11,9 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use super::ops::fail_of;
-use super::roots::Located;
+use super::storage::version;
+use super::storage_upload::StorageUpload;
+use super::target::Target;
 use super::ServeContext;
 use crate::files::peer::wire::{Expected, FailCode};
 use crate::remote_storage::local::access_of;
@@ -27,13 +30,18 @@ fn deadline() -> Instant {
     Instant::now() + STEP_LIMIT
 }
 
+/// What an upload into a storage sent so far; taken when it ends.
+type Sink = Arc<tokio::sync::Mutex<Option<StorageUpload>>>;
+
 /// One running upload: what it was asked for, so every later request is checked again (FR-005).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Upload {
     pub share: Option<String>,
     pub path: String,
     expected: Expected,
-    at: Located,
+    target: Target,
+    /// Set for an upload into a storage.
+    sink: Option<Sink>,
     target_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
@@ -54,12 +62,12 @@ impl Uploads {
         self.map().get(id).cloned()
     }
 
-    /// Starts writing `at` (asked as `share` and `path`); refused at once when the target already
-    /// differs from `expected`.
+    /// Starts writing `target` (asked as `share` and `path`); refused at once when the target
+    /// already differs from `expected`.
     pub async fn begin(
         &self,
         ctx: &ServeContext,
-        at: Located,
+        target: Target,
         share: Option<String>,
         path: String,
         expected: Expected,
@@ -67,40 +75,44 @@ impl Uploads {
         if self.map().len() >= UPLOADS_PER_CONNECTION {
             return Err(FailCode::Busy);
         }
-        let target_lock = ctx.write_lock(&at.root.join(&at.key));
+        let target_lock = ctx.write_lock(&target.lock_key());
         let _target_guard = target_lock.lock().await;
-        check(ctx, &at, &expected).await?;
-        let root = at.root.clone();
-        let key = at.key.clone();
-        let id = ctx
-            .store
-            .begin_upload(&access_of(&at.root), &at.key, deadline())
-            .await
-            .map_err(fail_of)?;
+        check(ctx, &target, &expected).await?;
+        let (id, sink) = match &target {
+            Target::Device(at) => (
+                ctx.store
+                    .begin_upload(&access_of(&at.root), &at.key, deadline())
+                    .await
+                    .map_err(fail_of)?,
+                None,
+            ),
+            Target::Storage(at) => (
+                uuid::Uuid::new_v4().to_string(),
+                Some(Arc::new(tokio::sync::Mutex::new(Some(
+                    StorageUpload::begin((**at).clone()).await?,
+                )))),
+            ),
+        };
         drop(_target_guard);
-        let closed = {
+        let upload = Upload {
+            share,
+            path,
+            expected,
+            target,
+            sink,
+            target_lock,
+        };
+        let refused = {
             let mut uploads = self.map();
             if self.closed.load(Ordering::Acquire) {
-                true
+                Some(upload)
             } else {
-                uploads.insert(
-                    id.clone(),
-                    Upload {
-                        share,
-                        path,
-                        expected,
-                        at,
-                        target_lock,
-                    },
-                );
-                false
+                uploads.insert(id.clone(), upload);
+                None
             }
         };
-        if closed {
-            let _ = ctx
-                .store
-                .abort_upload(&access_of(&root), &key, &id, deadline())
-                .await;
+        if let Some(upload) = refused {
+            drop_upload(ctx, &id, upload).await;
             return Err(FailCode::Internal);
         }
         Ok(id)
@@ -115,43 +127,53 @@ impl Uploads {
         body: Vec<u8>,
     ) -> Result<String, FailCode> {
         let upload = self.get(id).ok_or(FailCode::NotFound)?;
-        ctx.store
-            .upload_part(
-                &access_of(&upload.at.root),
-                &upload.at.key,
-                id,
-                number,
-                body,
-                deadline(),
-            )
-            .await
-            .map_err(fail_of)
+        match (&upload.target, &upload.sink) {
+            (Target::Device(at), _) => ctx
+                .store
+                .upload_part(&access_of(&at.root), &at.key, id, number, body, deadline())
+                .await
+                .map_err(fail_of),
+            (Target::Storage(_), Some(sink)) => {
+                let mut sink = sink.lock().await;
+                let running = sink.as_mut().ok_or(FailCode::NotFound)?;
+                running.part(body).await?;
+                Ok(number.to_string())
+            }
+            (Target::Storage(_), None) => Err(FailCode::Internal),
+        }
     }
 
     /// Puts the file of upload `id` in place, unless its target changed since the other side saw
     /// it: then the upload is dropped, the target stays as it is, and the answer is `Conflict`.
     pub async fn finish(&self, ctx: &ServeContext, id: &str) -> Result<(), FailCode> {
         let upload = self.map().remove(id).ok_or(FailCode::NotFound)?;
-        let _target_guard = upload.target_lock.lock().await;
-        let access = access_of(&upload.at.root);
-        if let Err(code) = check(ctx, &upload.at, &upload.expected).await {
-            let _ = ctx
-                .store
-                .abort_upload(&access, &upload.at.key, id, deadline())
-                .await;
+        let target_lock = Arc::clone(&upload.target_lock);
+        let _target_guard = target_lock.lock().await;
+        if let Err(code) = check(ctx, &upload.target, &upload.expected).await {
+            drop_upload(ctx, id, upload).await;
             return Err(code);
         }
-        match upload.expected {
-            Expected::Absent => ctx
-                .store
-                .finish_upload_if_absent(&access, &upload.at.key, id, deadline())
-                .await
-                .map_err(fail_of),
-            Expected::Version { .. } => ctx
-                .store
-                .finish_upload(&access, &upload.at.key, id, &[], deadline())
-                .await
-                .map_err(fail_of),
+        match (&upload.target, &upload.sink) {
+            (Target::Device(at), _) => {
+                let access = access_of(&at.root);
+                match upload.expected {
+                    Expected::Absent => ctx
+                        .store
+                        .finish_upload_if_absent(&access, &at.key, id, deadline())
+                        .await
+                        .map_err(fail_of),
+                    Expected::Version { .. } => ctx
+                        .store
+                        .finish_upload(&access, &at.key, id, &[], deadline())
+                        .await
+                        .map_err(fail_of),
+                }
+            }
+            (Target::Storage(_), Some(sink)) => {
+                let running = sink.lock().await.take().ok_or(FailCode::NotFound)?;
+                running.finish().await
+            }
+            (Target::Storage(_), None) => Err(FailCode::Internal),
         }
     }
 
@@ -160,10 +182,8 @@ impl Uploads {
         let Some(upload) = self.map().remove(id) else {
             return Ok(());
         };
-        ctx.store
-            .abort_upload(&access_of(&upload.at.root), &upload.at.key, id, deadline())
-            .await
-            .map_err(fail_of)
+        drop_upload(ctx, id, upload).await;
+        Ok(())
     }
 
     /// Drops every upload left, at the end of the connection.
@@ -176,19 +196,44 @@ impl Uploads {
     }
 }
 
-/// Whether the target `at` is still as `expected`.
-async fn check(ctx: &ServeContext, at: &Located, expected: &Expected) -> Result<(), FailCode> {
-    let head = ctx
-        .store
-        .head(&access_of(&at.root), &at.key, deadline())
-        .await;
-    let same = match (expected, head) {
-        (Expected::Absent, Err(StorageError::NotFound)) => true,
-        (Expected::Version { size, etag }, Ok(head)) => {
-            head.size == *size && head.etag.as_deref() == Some(etag.as_str())
+/// Drops what the upload `id` sent so far.
+async fn drop_upload(ctx: &ServeContext, id: &str, upload: Upload) {
+    match (&upload.target, upload.sink) {
+        (Target::Device(at), _) => {
+            let _ = ctx
+                .store
+                .abort_upload(&access_of(&at.root), &at.key, id, deadline())
+                .await;
         }
-        (_, Err(StorageError::NotFound)) | (_, Ok(_)) => false,
-        (_, Err(error)) => return Err(fail_of(error)),
+        (Target::Storage(_), Some(sink)) => {
+            if let Some(running) = sink.lock().await.take() {
+                running.abort().await;
+            }
+        }
+        (Target::Storage(_), None) => {}
+    }
+}
+
+/// Whether the target is still as `expected`.
+async fn check(ctx: &ServeContext, target: &Target, expected: &Expected) -> Result<(), FailCode> {
+    let now = match target {
+        Target::Device(at) => match ctx
+            .store
+            .head(&access_of(&at.root), &at.key, deadline())
+            .await
+        {
+            Ok(head) => Some((head.size, head.etag.unwrap_or_default())),
+            Err(StorageError::NotFound) => None,
+            Err(error) => return Err(fail_of(error)),
+        },
+        Target::Storage(at) => version(&at.files, &at.path()).await?,
+    };
+    let same = match (expected, now) {
+        (Expected::Absent, None) => true,
+        (Expected::Version { size, etag }, Some((now_size, now_etag))) => {
+            now_size == *size && now_etag == *etag
+        }
+        _ => false,
     };
     if same {
         Ok(())

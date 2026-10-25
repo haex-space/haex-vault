@@ -2,7 +2,7 @@
 //! folder and a key below it, which [`crate::remote_storage::local::LocalStore`] resolves without
 //! letting `..` or a link leave the root (FR-006). An own device's paths start at the file system
 //! root (on Windows the first part is the drive, `/C:/…`); a contact's paths start at the root of
-//! its share.
+//! its share, which may lie in a storage or an encrypted folder of it (T081).
 
 use std::path::{Path, PathBuf};
 
@@ -66,7 +66,7 @@ pub fn on_device(path: &str) -> Result<Located, FailCode> {
 /// The path a contact's `path` names in `share`: below the shared folder, or the shared file.
 pub fn in_share(share: &FileShareRow, path: &str) -> Result<Located, FailCode> {
     if share.source != SourceRef::Device {
-        // Shares of a storage or an encrypted folder come with the delivery for contacts.
+        // A share of a storage is reached through `in_storage`.
         return Err(FailCode::Unsupported);
     }
     let shared = on_device(&share.path)?.path();
@@ -93,6 +93,56 @@ pub fn in_share(share: &FileShareRow, path: &str) -> Result<Located, FailCode> {
                 key,
                 only: Some(name),
             })
+        }
+    }
+}
+
+/// What a contact's `path` names in a share of a storage (T081): the window path of the folder it
+/// may not leave, the key below it, and for a share of a single file its name.
+pub fn in_storage(share: &FileShareRow, path: &str) -> Result<StorageAt, FailCode> {
+    let shared = parts(&share.path)?;
+    let rest = parts(path)?;
+    let folder = |parts: &[&str]| format!("/{}", parts.join("/"));
+    match share.item_kind {
+        FileShareItemKind::Folder => Ok(StorageAt {
+            folder: folder(&shared),
+            key: rest.join("/"),
+            only: None,
+        }),
+        FileShareItemKind::File => {
+            let Some((name, parent)) = shared.split_last() else {
+                return Err(FailCode::NotFound);
+            };
+            let key = match rest.as_slice() {
+                [] => String::new(),
+                [only] if only == name => (*name).to_owned(),
+                _ => return Err(FailCode::NotFound),
+            };
+            Ok(StorageAt {
+                folder: folder(parent),
+                key,
+                only: Some((*name).to_owned()),
+            })
+        }
+    }
+}
+
+/// A target in a storage: the window path of the folder it may not leave, the key below it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageAt {
+    pub folder: String,
+    pub key: String,
+    /// For a share of a single file: its name, the only entry below `folder` the contact sees.
+    pub only: Option<String>,
+}
+
+impl StorageAt {
+    /// The window path in the storage the request is about.
+    pub fn path(&self) -> String {
+        match (self.folder.trim_end_matches('/'), self.key.as_str()) {
+            ("", "") => "/".to_owned(),
+            (folder, "") => folder.to_owned(),
+            (folder, key) => format!("{folder}/{key}"),
         }
     }
 }

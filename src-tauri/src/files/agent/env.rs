@@ -302,4 +302,8 @@ impl SharesEnv for TauriSharesEnv {
     fn confirm(&self) -> &ShareConfirm {
         &self.confirm
     }
+
+    fn storages(&self) -> Option<crate::files::peer::serve::storage::StorageOpener> {
+        Some(crate::files::browser_commands::storage_opener(&self.app))
+    }
 }

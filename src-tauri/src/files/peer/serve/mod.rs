@@ -9,7 +9,10 @@ pub mod check;
 pub mod ops;
 mod permit;
 pub mod roots;
+pub mod storage;
+mod storage_upload;
 pub mod streams;
+pub mod target;
 pub mod upload;
 pub mod watch;
 
@@ -25,7 +28,9 @@ use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use self::permit::{again, grant_of, locate, permit};
+use self::storage::StorageOpener;
 use self::streams::{StreamKey, Streams};
+use self::target::Target;
 use self::upload::Uploads;
 use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::handshake;
@@ -71,6 +76,8 @@ pub struct ServeContext {
     pub changes: VaultChanges,
     /// The running requests of contacts, cancelled by a revoke (FR-024).
     pub streams: Streams,
+    /// Opens the storage a share lies in (T081); without one such shares answer `Unsupported`.
+    pub storages: Option<StorageOpener>,
     /// Locks peer writes to one target while checking and replacing it.
     write_locks: Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
     slots: Arc<Semaphore>,
@@ -97,6 +104,7 @@ impl ServeContext {
             removal: crate::files::transfer::platform_removal(),
             changes: changes_channel(),
             streams: Streams::default(),
+            storages: None,
             write_locks: Mutex::new(HashMap::new()),
             slots: Arc::new(Semaphore::new(STREAMS_PER_DEVICE)),
         }
@@ -231,7 +239,7 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
         } => {
             let opened = async {
                 let at = locate(ctx, peer, &request, share.as_deref(), path).await?;
-                ops::open_read(ctx, &at, *start, *len).await
+                target::open_read(ctx, &at, *start, *len).await
             };
             match opened.await {
                 Ok((size, len, mut reader)) => {
@@ -255,7 +263,11 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
         }
         Op::Watch { share, path } => {
             let at = match locate(ctx, peer, &request, share.as_deref(), path).await {
-                Ok(at) => at,
+                Ok(Target::Device(at)) => at,
+                // A storage is not watched; the other side reloads when it looks again.
+                Ok(Target::Storage(_)) => {
+                    return answer(send, Reply::Failed(FailCode::Unsupported)).await
+                }
                 Err(code) => return answer(send, Reply::Failed(code)).await,
             };
             let still = || async {
@@ -305,11 +317,11 @@ async fn reply_to(ctx: &ServeContext, peer: &Peer, request: &Request) -> Result<
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
             let max = (*max).min(MAX_LIST) as usize;
             let hide_own = check::hides_own(peer.mode, request.caller);
-            Ok(Reply::Entries(ops::list(ctx, &at, max, hide_own).await?))
+            Ok(Reply::Entries(target::list(ctx, &at, max, hide_own).await?))
         }
         Op::Stat { share, path } => {
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
-            Ok(Reply::Entry(ops::stat(ctx, &at).await?))
+            Ok(Reply::Entry(target::stat(ctx, &at).await?))
         }
         Op::BeginUpload {
             share,
@@ -334,18 +346,18 @@ async fn reply_to(ctx: &ServeContext, peer: &Peer, request: &Request) -> Result<
         }
         Op::CreateFolder { share, path } => {
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
-            change::create_folder(&at).await?;
+            target::create_folder(ctx, &at).await?;
             Ok(Reply::Done)
         }
         Op::Move { share, from, to } => {
             let from = locate(ctx, peer, request, share.as_deref(), from).await?;
             let to = locate(ctx, peer, request, share.as_deref(), to).await?;
-            change::move_entry(&from, &to).await?;
+            target::move_entry(ctx, &from, &to).await?;
             Ok(Reply::Done)
         }
         Op::Delete { share, path } => {
             let at = locate(ctx, peer, request, share.as_deref(), path).await?;
-            let trashed = change::delete(ctx, &at).await?;
+            let trashed = target::delete(ctx, &at).await?;
             Ok(Reply::Deleted { trashed })
         }
         Op::Read { .. } | Op::Watch { .. } | Op::UploadPart { .. } => Err(FailCode::Internal),

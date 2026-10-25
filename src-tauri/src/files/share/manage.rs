@@ -13,7 +13,8 @@ use super::{FileShareItemKind, FileShareLevel, FileShareSourceState};
 use crate::contacts::card::received;
 use crate::files::local::{resolve, OwnPlaces};
 use crate::files::peer::connect::key_of;
-use crate::files::{FilesError, FilesErrorCode, SourceRef};
+use crate::files::peer::serve::storage::StorageOpener;
+use crate::files::{EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::passwords::clock;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -175,12 +176,25 @@ pub async fn of_contact(here: &Here<'_>, contact_id: String) -> Result<Vec<FileS
         .map_err(failed)
 }
 
-/// Creates or changes a share as `args` say; its view afterwards.
+/// Creates or changes a share as `args` say; its view afterwards. A new share of a storage needs
+/// `storages`, which opens it here.
 pub async fn save(here: &Here<'_>, args: FileShareSaveArgs) -> Result<FileShare, FilesError> {
+    save_from(here, args, None).await
+}
+
+/// [`save`], with what opens the storage of a new share (T081).
+pub async fn save_from(
+    here: &Here<'_>,
+    args: FileShareSaveArgs,
+    storages: Option<&StorageOpener>,
+) -> Result<FileShare, FilesError> {
     let device = here.device.to_owned();
-    let new = match &args.share_id {
-        Some(_) => None,
-        None => {
+    let new = match (&args.share_id, &args.source) {
+        (Some(_), _) => None,
+        (None, SourceRef::Storage { storage_id }) => {
+            Some(storage_root(storages, storage_id, &args.path).await?)
+        }
+        (None, SourceRef::Device) => {
             let own = here.own.clone();
             let source = args.source.clone();
             let path = args.path.clone();
@@ -289,16 +303,44 @@ pub async fn delete(here: &Here<'_>, share_id: String) -> Result<(), FilesError>
 
 /// The stored path and kind of a new share's root: a folder or file of this device, never in
 /// holzi's own places (FR-007, FR-015).
+/// The path a share of `storage_id` stores for the window path `path`, and what lies there: a
+/// storage of this vault only, never another device's or a received share (FR-015), nor the device
+/// as a storage.
+async fn storage_root(
+    storages: Option<&StorageOpener>,
+    storage_id: &str,
+    path: &str,
+) -> Result<(String, FileShareItemKind), FilesError> {
+    if crate::files::browser_commands::is_remote(storage_id) || storage_id.starts_with("device:") {
+        return Err(FilesError::new(
+            FilesErrorCode::Unsupported,
+            "only storages of this vault can be shared",
+        ));
+    }
+    let opener = storages.ok_or_else(|| {
+        FilesError::new(
+            FilesErrorCode::Unsupported,
+            "storages cannot be opened here",
+        )
+    })?;
+    let entry = opener(storage_id.to_owned()).await?.stat(path).await?;
+    let kind = match entry.kind {
+        EntryKind::Dir => FileShareItemKind::Folder,
+        EntryKind::File => FileShareItemKind::File,
+    };
+    Ok((entry.path, kind))
+}
+
 fn root_path(
     own: &OwnPlaces,
     source: &SourceRef,
     path: &str,
 ) -> Result<(String, FileShareItemKind), FilesError> {
     if *source != SourceRef::Device {
-        // Shares of a storage or an encrypted folder come with their own delivery.
+        // A storage's share is found by its window path as it is.
         return Err(FilesError::new(
             FilesErrorCode::Unsupported,
-            "only folders and files of this device can be shared yet",
+            "not a path of this device",
         ));
     }
     let real = resolve(Path::new(path))?;

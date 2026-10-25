@@ -17,6 +17,7 @@ use crate::contacts::service::{Caller as ContactsCaller, CardInto, ContactsServi
 use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::client::{PeerLink, PeerLinks};
 use crate::files::peer::handshake::DialError;
+use crate::files::peer::serve::storage::StorageOpener;
 use crate::files::peer::serve::{FilesProtocol, ServeContext};
 use crate::files::share::store::{self, NewFileShare};
 use crate::files::share::{FileShareItemKind, FileShareLevel};
@@ -42,6 +43,11 @@ pub(crate) struct Device {
 impl Device {
     /// `member`'s device, serving `haex-vault-files/1`.
     pub(crate) async fn of(member: Member) -> Self {
+        Self::serving(member, None).await
+    }
+
+    /// [`Device::of`], opening the storages its shares lie in with `storages` (T081).
+    pub(crate) async fn serving(member: Member, storages: Option<StorageOpener>) -> Self {
         let db = member.device.vault_db();
         let uuid = member.device.db().device_id().to_string();
         {
@@ -74,6 +80,7 @@ impl Device {
         );
         // Tests never move anything into the user's trash.
         ctx.removal = Removal::Permanent;
+        ctx.storages = storages;
         let ctx = Arc::new(ctx);
         let handler_ctx = Arc::clone(&ctx);
         let protocols = Protocols::default().with(FILES_ALPN, move |tasks| {
@@ -129,18 +136,25 @@ impl Device {
 
     /// Shares `path` (a folder or file below the root) of this device as `name`; returns its id.
     pub(crate) fn share(&self, path: &Path, item_kind: FileShareItemKind, name: &str) -> String {
-        let (device, path, name) = (
-            self.uuid.clone(),
-            path.to_string_lossy().into_owned(),
-            name.to_owned(),
-        );
+        self.share_of(SourceRef::Device, &path.to_string_lossy(), item_kind, name)
+    }
+
+    /// Shares the window path `path` of `source` as `name`; returns its id.
+    pub(crate) fn share_of(
+        &self,
+        source: SourceRef,
+        path: &str,
+        item_kind: FileShareItemKind,
+        name: &str,
+    ) -> String {
+        let (device, path, name) = (self.uuid.clone(), path.to_owned(), name.to_owned());
         self.db
             .write_blocking(move |tx| {
                 Ok(store::create_share(
                     tx,
                     &NewFileShare {
                         vault_device_uuid: &device,
-                        source: &SourceRef::Device,
+                        source: &source,
                         path: &path,
                         item_kind,
                         name: &name,

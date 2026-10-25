@@ -20,8 +20,10 @@ use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply
 use crate::contacts::agent::grants_from;
 use crate::contacts::service::{ContactsService, VaultCard};
 use crate::files::access::{check, Target, Verdict, Want};
+use crate::files::encrypted::route::{route, Route};
 use crate::files::local::{resolve, OwnPlaces};
 use crate::files::peer::connect::key_of;
+use crate::files::peer::serve::storage::StorageOpener;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::share::manage::{self, FileShare, FileShareSaveArgs, Here};
 use crate::files::share::{FileShareLevel, FEATURE};
@@ -48,6 +50,11 @@ pub trait SharesEnv: Send + Sync {
     fn own(&self) -> OwnPlaces;
 
     fn confirm(&self) -> &ShareConfirm;
+
+    /// Opens a storage of this vault, for a share of it (T081); none: storages are not shared.
+    fn storages(&self) -> Option<StorageOpener> {
+        None
+    }
 }
 
 /// The share actions of one agent.
@@ -259,7 +266,10 @@ impl<E: SharesEnv> SharesAgent<E> {
                 ));
             }
         }
-        let share = manage::save(here, args).await.map_err(files_error)?;
+        let storages = self.env.storages();
+        let share = manage::save_from(here, args, storages.as_ref())
+            .await
+            .map_err(files_error)?;
         value_of(&self.redact_share(here.db, share).await)
     }
 
@@ -269,9 +279,8 @@ impl<E: SharesEnv> SharesAgent<E> {
         args: &FileShareSaveArgs,
         grants: &crate::files::access::AgentGrants,
     ) -> Result<(), NativeError> {
-        if args.source != SourceRef::Device {
-            // Storages and encrypted folders as sources come with T081; `manage` refuses them.
-            return Ok(());
+        if let SourceRef::Storage { storage_id } = &args.source {
+            return self.may_share_storage(storage_id, &args.path, grants).await;
         }
         let path = args.path.clone();
         let real = tokio::task::spawn_blocking(move || resolve(std::path::Path::new(&path)))
@@ -288,6 +297,38 @@ impl<E: SharesEnv> SharesAgent<E> {
             Verdict::Allowed => Ok(()),
             Verdict::Refused(error) => Err(files_error(error)),
             Verdict::ReadOnly | Verdict::Ask => Err(refused("not granted")),
+        }
+    }
+
+    /// A folder or file of a storage the agent may read itself, outside every encrypted folder: what
+    /// an encrypted folder holds is given away by the user only.
+    async fn may_share_storage(
+        &self,
+        storage_id: &str,
+        path: &str,
+        grants: &crate::files::access::AgentGrants,
+    ) -> Result<(), NativeError> {
+        match check(
+            &self.caller,
+            &Target::Storage(storage_id.to_owned()),
+            Want::Read,
+            &self.env.own(),
+            grants,
+        ) {
+            Verdict::Allowed => {}
+            Verdict::Refused(error) => return Err(files_error(error)),
+            Verdict::ReadOnly | Verdict::Ask => return Err(refused("not granted")),
+        }
+        let opener = self
+            .env
+            .storages()
+            .ok_or_else(|| refused("storages cannot be shared here"))?;
+        let files = opener(storage_id.to_owned()).await.map_err(files_error)?;
+        match route(&files, path).await.map_err(files_error)? {
+            Route::Plain => Ok(()),
+            Route::Encrypted(_) => Err(refused(
+                "the contents of an encrypted folder are shared by the user only",
+            )),
         }
     }
 

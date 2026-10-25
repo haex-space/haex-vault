@@ -81,6 +81,21 @@ pub(crate) async fn window_storage<R: tauri::Runtime>(
     Ok(storage_files(state, storage_id).await?.with_scope(scope))
 }
 
+/// What opens a storage of this vault with the window's scope, for the shares this device serves
+/// (spec 056 T081).
+pub(crate) fn storage_opener<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> crate::files::peer::serve::storage::StorageOpener {
+    let app = app.clone();
+    Arc::new(move |storage_id: String| {
+        let app = app.clone();
+        Box::pin(async move {
+            let (state, files) = (app.state::<AppState>(), app.state::<FilesState>());
+            window_storage(&app, &state, &files, &storage_id).await
+        })
+    })
+}
+
 /// Whether `storage_id` names another own device or a share a contact gave this vault.
 pub(crate) fn is_remote(storage_id: &str) -> bool {
     storage_id.starts_with(PEER_PREFIX) || storage_id.starts_with(SHARE_PREFIX)

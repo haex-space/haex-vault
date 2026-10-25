@@ -14,10 +14,11 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::contacts::service::{Caller as ContactsCaller, ContactsService, VaultCard};
 use crate::files::peer::connect::key_of;
 use crate::files::peer::handshake;
-use crate::files::peer::serve::roots;
-use crate::files::peer::serve::ServeContext;
+use crate::files::peer::serve::{roots, storage, ServeContext};
+use crate::files::peer::wire::FailCode;
 use crate::files::share::store::{self, FileShareRow};
 use crate::files::share::{device_access, received, FileShareSourceState, FEATURE};
+use crate::files::{FilesErrorCode, SourceRef};
 use crate::vault_gate::VaultDb;
 
 /// Whether a change of `table` can change what this device serves.
@@ -61,8 +62,12 @@ pub async fn apply(ctx: &ServeContext, cards: &mut HashSet<String>) {
     cancel_revoked(ctx).await;
 }
 
-/// What is at the root of `share` now (FR-022): there, gone, or not reachable.
+/// What is at the root of `share` now (FR-022): there, gone, or not reachable. A storage's share
+/// keeps what is stored; [`storage_found`] asks the storage.
 pub fn found_at(share: &FileShareRow) -> FileShareSourceState {
+    if share.source != SourceRef::Device {
+        return share.source_state;
+    }
     let Ok(at) = roots::on_device(&share.path) else {
         return FileShareSourceState::Missing;
     };
@@ -85,6 +90,32 @@ pub async fn note_source(db: &VaultDb, share: &FileShareRow, reached: bool) {
             Err(_) => return,
         }
     };
+    note_state(db, share, found).await;
+}
+
+/// What the storage of `share` has at its root (T081); `None` when it cannot be asked here.
+async fn storage_found(ctx: &ServeContext, share: &FileShareRow) -> Option<FileShareSourceState> {
+    let SourceRef::Storage { storage_id } = &share.source else {
+        return None;
+    };
+    let files = match storage::open(ctx, storage_id).await {
+        Ok(files) => files,
+        Err(FailCode::Unsupported) => return None,
+        Err(_) => return Some(FileShareSourceState::Unavailable),
+    };
+    let asked = tokio::time::timeout(STORAGE_CHECK, files.stat(&share.path)).await;
+    Some(match asked {
+        Ok(Ok(_)) => FileShareSourceState::Ok,
+        Ok(Err(error)) if error.code == FilesErrorCode::NotFound => FileShareSourceState::Missing,
+        _ => FileShareSourceState::Unavailable,
+    })
+}
+
+/// How long the storage of a share may take to answer whether its root is there.
+const STORAGE_CHECK: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Writes `found` as the state of `share`'s source when it differs from what is stored.
+pub async fn note_state(db: &VaultDb, share: &FileShareRow, found: FileShareSourceState) {
     if found == share.source_state {
         return;
     }
@@ -104,18 +135,25 @@ async fn confirm(ctx: &ServeContext) -> crate::error::Result<()> {
         .db
         .read(move |q| Ok(store::shares_served_by(q, &device)?))
         .await?;
-    let found = tokio::task::spawn_blocking(move || {
+    let mut found = tokio::task::spawn_blocking(move || {
         shares
             .into_iter()
             .map(|share| {
                 let found = found_at(&share);
                 (share, found)
             })
-            .filter(|(share, found)| share.is_pending() || *found != share.source_state)
             .collect::<Vec<_>>()
     })
     .await
     .unwrap_or_default();
+    for (share, state) in &mut found {
+        if share.source != SourceRef::Device {
+            if let Some(now) = storage_found(ctx, share).await {
+                *state = now;
+            }
+        }
+    }
+    found.retain(|(share, found)| share.is_pending() || *found != share.source_state);
     if found.is_empty() {
         return Ok(());
     }

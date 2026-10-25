@@ -8,6 +8,7 @@ use tauri::{AppHandle, Runtime};
 use crate::error::Result;
 use crate::extensions::host::ExtensionHost;
 use crate::files::local::{known_places, OwnPlaces, Place};
+use crate::files::peer::serve::storage::StorageOpener;
 use crate::files::peer::serve::ServeContext;
 use crate::state::AppState;
 use crate::sync::endpoint::Protocols;
@@ -31,6 +32,8 @@ pub struct FilesDeps {
     pub own: OwnPlaces,
     pub known: Vec<Place>,
     pub device: String,
+    /// Opens the storages the shares this device serves lie in (T081).
+    pub storages: StorageOpener,
 }
 
 /// What serving files needs, when this device is known to its vault as `device`.
@@ -49,6 +52,7 @@ pub fn files_deps<R: Runtime>(
         own: OwnPlaces::from_app(app),
         known: known_places(app),
         device: device.to_string(),
+        storages: crate::files::browser_commands::storage_opener(app),
     }))
 }
 
@@ -99,12 +103,14 @@ pub fn file_protocols(
         own,
         known,
         device,
+        storages,
     }) = files
     else {
         return (protocols, None);
     };
     let mut ctx = ServeContext::new(keys.clone(), vault, db, own, known, device);
     ctx.changes = changes;
+    ctx.storages = Some(storages);
     let ctx = Arc::new(ctx);
     let handler = Arc::clone(&ctx);
     let protocols = protocols.with(crate::sync::wire::FILES_ALPN, move |tasks| {

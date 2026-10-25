@@ -1,12 +1,17 @@
 //! The checks before a request runs (spec 056 FR-004, FR-005, FR-007): what holds now for the
 //! connection's device, the share it names, the path and holzi's own places.
 
-use super::roots::{self, Located};
+use std::sync::Arc;
+
+use super::roots;
+use super::storage::{self, InStorage};
+use super::target::Target;
 use super::{check, ops, Peer, ServeContext};
 use crate::files::peer::handshake;
 use crate::files::peer::wire::{FailCode, Mode, Request};
 use crate::files::share::store::{self, FileShareRow};
 use crate::files::share::{device_access, served, FileShareLevel};
+use crate::files::SourceRef;
 use crate::remote_storage::local_fs::resolve;
 
 /// Checks a request about the upload `upload_id` again, with the root and path it began with.
@@ -92,18 +97,30 @@ pub(super) async fn grant_of(
 }
 
 /// The target of `path` after every check: the request may run, the path stays in its root, and
-/// holzi's own places are kept as FR-007 says.
+/// holzi's own places are kept as FR-007 says. A share of a storage leads into it (T081).
 pub(super) async fn locate(
     ctx: &ServeContext,
     peer: &Peer,
     request: &Request,
     share: Option<&str>,
     path: &str,
-) -> Result<Located, FailCode> {
+) -> Result<Target, FailCode> {
     let grant = permit(ctx, peer, request, share).await?;
     let at = match (peer.mode, &grant) {
         (Mode::OwnDevice, None) => roots::on_device(path)?,
-        (Mode::Contact, Some((row, _))) => roots::in_share(row, path)?,
+        (Mode::Contact, Some((row, _))) => match &row.source {
+            SourceRef::Device => roots::in_share(row, path)?,
+            SourceRef::Storage { storage_id } => {
+                let at = roots::in_storage(row, path)?;
+                check::at_root(&request.op, &at.key)?;
+                let files = storage::open(ctx, storage_id).await?;
+                return Ok(Target::Storage(Box::new(InStorage {
+                    files: Arc::new(files),
+                    at,
+                    share: row.clone(),
+                })));
+            }
+        },
         _ => return Err(FailCode::Refused),
     };
     check::at_root(&request.op, &at.key)?;
@@ -116,5 +133,5 @@ pub(super) async fn locate(
     let writes = request.op.writes();
     let own = ctx.own.touches(&real, writes) || ctx.own.contains_resolved(&at.path());
     check::own_data(peer.mode, request.caller, writes, own)?;
-    Ok(at)
+    Ok(Target::Device(at))
 }
