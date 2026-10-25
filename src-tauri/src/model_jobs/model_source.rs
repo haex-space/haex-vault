@@ -5,7 +5,8 @@
 //!
 //! The source is a trait so tests can hand in a scripted adapter; holzi itself uses
 //! [`Providers`]. Local models take jobs once they can read images (Phase 8); until then they are
-//! unavailable.
+//! unavailable. A connected subscription (Claude Code, Codex) takes jobs with the access it has in
+//! holzi (spec 055 FR-032, R16).
 
 use std::sync::Arc;
 
@@ -14,7 +15,9 @@ use crate::model_capabilities::ModelCapabilities;
 use crate::providers::build_adapter;
 use crate::storage::models::ModelRow;
 use crate::storage::providers::{Provider, ProviderKind};
+use crate::vault_gate::ChildRegistry;
 
+use super::delegate::{job_context, JobAgent};
 use super::place::{place_of, Place};
 
 /// A model a job may be sent to, with what the run needs to know about it.
@@ -48,6 +51,12 @@ impl JobModel {
         }
     }
 
+    /// Whether the model is an agent with tools of its own (a subscription), not a plain model: the
+    /// grant says so to the user (FR-032).
+    pub fn runs_agent(&self) -> bool {
+        self.provider.kind == ProviderKind::CliDelegate
+    }
+
     /// The values a message about this model must never carry: the provider's key and address.
     pub fn secrets(&self) -> Vec<String> {
         let key = self
@@ -69,8 +78,18 @@ pub(crate) trait ModelSource: Send + Sync {
     fn adapter(&self, model: &JobModel) -> Result<Arc<dyn ProviderAdapter>, String>;
 }
 
-/// holzi's own source: remote models through their provider.
-pub(crate) struct Providers;
+/// holzi's own source: remote models through their provider, a subscription through its agent.
+#[derive(Default)]
+pub(crate) struct Providers {
+    /// Where the processes of an agent register, so that closing the vault ends them.
+    children: ChildRegistry,
+}
+
+impl Providers {
+    pub(crate) fn new(children: ChildRegistry) -> Self {
+        Self { children }
+    }
+}
 
 impl ModelSource for Providers {
     fn adapter(&self, model: &JobModel) -> Result<Arc<dyn ProviderAdapter>, String> {
@@ -79,8 +98,11 @@ impl ModelSource for Providers {
                 .map(Arc::from)
                 .map_err(|error| error.to_string()),
             ProviderKind::Local => Err("local models cannot take jobs yet".into()),
-            // Never a candidate (FR-026): such a provider runs an agent with its own tools.
-            ProviderKind::CliDelegate => Err("a command-line agent cannot take jobs".into()),
+            ProviderKind::CliDelegate => {
+                build_adapter(&model.provider, Some(job_context(self.children.clone())))
+                    .map(|inner| Arc::new(JobAgent::new(inner)) as Arc<dyn ProviderAdapter>)
+                    .map_err(|error| error.to_string())
+            }
         }
     }
 }

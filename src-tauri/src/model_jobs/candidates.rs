@@ -28,12 +28,12 @@ pub(crate) struct Candidate {
     pub ceiling: Level,
 }
 
-/// The models of the vault that can take a job: chat models of a local provider or a provider
-/// with an address. A command-line agent never can: it brings its own tools (FR-026).
+/// The models of the vault that can take a job: the chat models of every provider, whatever their
+/// source (spec 055 FR-031): a local one, one with an address, a connected subscription.
 pub(crate) fn job_models(q: &mut impl Query) -> Result<Vec<JobModel>> {
     let providers: HashMap<Uuid, Provider> = list_providers(q)?
         .into_iter()
-        .filter(|p| p.capability == ProviderCapability::Chat && p.kind != ProviderKind::CliDelegate)
+        .filter(|p| p.capability == ProviderCapability::Chat)
         .map(|p| (p.id, p))
         .collect();
     Ok(list_all_models(q)?
@@ -140,15 +140,27 @@ pub(crate) fn takes_images(capabilities: Option<&ModelCapabilities>) -> bool {
 }
 
 /// Whether a model can do what a step needs. Every chat model takes text.
-pub(crate) fn fits(needs: &[Need], capabilities: Option<&ModelCapabilities>) -> bool {
-    !needs.contains(&Need::Image) || takes_images(capabilities)
+pub(crate) fn fits(needs: &[Need], model: &JobModel) -> bool {
+    if !needs.contains(&Need::Image) {
+        return true;
+    }
+
+    // Codex receives only the transcript text today; unlike Claude, its adapter does not write
+    // the request's attachment bytes into the invocation workspace.
+    if model.provider.kind == ProviderKind::CliDelegate
+        && model.provider.adapter.as_deref() == Some("codex")
+    {
+        return false;
+    }
+
+    takes_images(model.capabilities.as_ref())
 }
 
 /// The candidates of one step, in the order of `granted`.
 pub(crate) fn for_step(granted: &[Candidate], step: &Step) -> Vec<Candidate> {
     granted
         .iter()
-        .filter(|c| fits(&step.needs, c.model.capabilities.as_ref()))
+        .filter(|c| fits(&step.needs, &c.model))
         .cloned()
         .collect()
 }

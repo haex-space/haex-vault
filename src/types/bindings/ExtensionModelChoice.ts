@@ -3,4 +3,8 @@
 /**
  * One model the question of a job offers.
  */
-export type ExtensionModelChoice = { id: string, name: string, provider: string, place: string, takesImages: boolean, };
+export type ExtensionModelChoice = { id: string, name: string, provider: string, place: string, takesImages: boolean,
+/**
+ * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
+ */
+agent: boolean, };

@@ -13,6 +13,7 @@ use super::notifications::{NotificationSpec, NotificationState, Respond, ShownNo
 use super::permissions::prompts::PermissionState;
 use super::registry::start::Started;
 use crate::model_jobs::model_source::{ModelSource, Providers};
+use crate::vault_gate::ChildRegistry;
 
 /// What holzi's window reports about itself for `extension_context_get`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +96,8 @@ pub struct ExtensionHost {
     desktop: OnceLock<Arc<dyn Desktop>>,
     /// Where model jobs get their adapters; holzi's providers unless a test sets a scripted one.
     model_source: OnceLock<Arc<dyn ModelSource>>,
+    /// The vault's registry of child processes, for the agents of subscriptions that run model jobs.
+    model_children: OnceLock<ChildRegistry>,
 }
 
 /// A running SQL call; dropping it frees its place.
@@ -121,8 +124,18 @@ impl ExtensionHost {
     /// Where model jobs get their adapters.
     pub(crate) fn model_source(&self) -> Arc<dyn ModelSource> {
         self.model_source
-            .get_or_init(|| Arc::new(Providers))
+            .get_or_init(|| {
+                Arc::new(Providers::new(
+                    self.model_children.get().cloned().unwrap_or_default(),
+                ))
+            })
             .clone()
+    }
+
+    /// The vault's registry of child processes; set once, at start, so that closing the vault ends
+    /// the agent of a running model job with its other children.
+    pub fn set_model_children(&self, children: ChildRegistry) {
+        let _ = self.model_children.set(children);
     }
 
     /// Sets where model jobs get their adapters; only the first call counts.

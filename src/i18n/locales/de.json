@@ -996,6 +996,7 @@
         "none": "holzi kennt noch kein Modell.",
         "notAllowed": "Nicht erlaubt",
         "takesImages": "nimmt Bilder",
+        "agent": "Agent mit Datei- und Befehlszugriff",
         "denied": "verweigert",
         "held": "nur für diese Sitzung",
         "moveUp": "Nach oben",
@@ -2375,7 +2376,8 @@
         "intro": "Die Erweiterung möchte ein Modell von holzi nutzen. Wähle eines, das zum Auftrag passt:",
         "models": "Modelle",
         "effort": "Höchster Aufwand",
-        "effortHint": "Die Erweiterung kann weniger Aufwand verlangen, nie mehr."
+        "effortHint": "Die Erweiterung kann weniger Aufwand verlangen, nie mehr.",
+        "agent": "Ein Agent: Die Erweiterung steuert damit ein Programm, das auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann."
       },
       "modelDestination": {
         "intro": "Die Erweiterung möchte einen Auftrag an ein Modell außerhalb dieses Geräts senden:",

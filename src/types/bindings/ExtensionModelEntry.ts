@@ -17,6 +17,10 @@ provider: string,
  */
 place: string, takesImages: boolean,
 /**
+ * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
+ */
+agent: boolean,
+/**
  * The highest effort allowed (`none`, `low`, `medium`, `high`); absent when the extension
  * may not use the model.
  */

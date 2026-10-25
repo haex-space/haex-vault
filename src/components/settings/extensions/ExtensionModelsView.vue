@@ -78,6 +78,7 @@ function moveAsync(model: ExtensionModelEntry, delta: -1 | 1) {
 function detail(model: ExtensionModelEntry): string {
   const parts = [model.provider, t(placeLabelKey(model.place))]
   if (model.takesImages) parts.push(t('settings.extensions.models.takesImages'))
+  if (model.agent) parts.push(t('settings.extensions.models.agent'))
   if (model.denied) parts.push(t('settings.extensions.models.denied'))
   if (model.held) parts.push(t('settings.extensions.models.held'))
   return parts.join(' · ')

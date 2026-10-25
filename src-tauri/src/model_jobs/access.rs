@@ -56,7 +56,7 @@ pub(crate) fn request(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
     let models: Vec<Value> = facts
         .granted
         .iter()
-        .filter(|c| fits(&needs, c.model.capabilities.as_ref()))
+        .filter(|c| fits(&needs, &c.model))
         .map(entry)
         .collect();
     if models.is_empty() {

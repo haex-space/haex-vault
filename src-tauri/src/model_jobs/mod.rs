@@ -11,6 +11,7 @@
 pub(crate) mod access;
 pub(crate) mod bridge;
 mod candidates;
+mod delegate;
 pub(crate) mod destinations;
 pub(crate) mod effort;
 mod errors;
@@ -29,6 +30,8 @@ pub(crate) mod test_support;
 
 #[cfg(test)]
 mod candidates_tests;
+#[cfg(test)]
+mod delegate_tests;
 #[cfg(test)]
 mod destinations_tests;
 #[cfg(test)]

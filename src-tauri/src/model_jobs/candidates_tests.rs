@@ -131,7 +131,7 @@ fn a_denial_of_a_model_takes_it_away_whatever_its_effort() {
 }
 
 #[test]
-fn every_model_counts_for_a_grant_of_all_but_no_agent_no_transcription_and_no_orphan() {
+fn every_chat_model_counts_for_a_grant_of_all_agents_too_but_no_transcription_and_no_orphan() {
     let v = vault();
     let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
     let agent = provider(
@@ -151,11 +151,24 @@ fn every_model_counts_for_a_grant_of_all_but_no_agent_no_transcription_and_no_or
         .unwrap();
     v.grant("*", "medium", 1);
 
-    assert_eq!(v.ids(vec![]), [("a".to_owned(), Level::Medium)]);
+    let mut granted = v.ids(vec![]);
+    granted.sort();
+    assert_eq!(
+        granted,
+        [
+            ("a".to_owned(), Level::Medium),
+            ("claude".to_owned(), Level::Medium)
+        ]
+    );
     let all =
         v.db.read_blocking(|q| job_models(q).map_err(Into::into))
             .unwrap();
-    assert_eq!(all.len(), 1);
+    assert_eq!(all.len(), 2);
+    // Only the subscription is an agent, and it talks to its vendor: a destination outside the device.
+    let agents: Vec<_> = all.iter().filter(|m| m.runs_agent()).collect();
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].name, "claude");
+    assert!(agents[0].place.needs_consent());
 }
 
 #[test]
@@ -222,6 +235,40 @@ fn a_step_with_images_goes_only_to_models_that_take_images() {
     // A model nobody knows about takes no image (FR-019).
     assert_eq!(names(for_step(&all, &read)), ["vision"]);
     assert_eq!(names(for_step(&all, &fix)), ["text", "unknown", "vision"]);
+}
+
+#[test]
+fn codex_stays_for_text_but_not_for_image_steps() {
+    let v = vault();
+    let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
+    let mut codex_provider = provider(ProviderKind::CliDelegate, Some("codex"), Some("auth"));
+    codex_provider.adapter = Some("codex".to_owned());
+    let vision = model_row(&server, "vision", images());
+    let codex = model_row(&codex_provider, "codex", images());
+    store_models(&v.db, &server, std::slice::from_ref(&vision));
+    store_models(&v.db, &codex_provider, std::slice::from_ref(&codex));
+    v.grant("*", "low", 1);
+
+    let all = v.candidates(vec![]);
+    let step = |value| job::parse(&value).unwrap().steps.remove(0);
+    let format = json!({ "name": "f", "version": 1, "schema": { "type": "object" } });
+    let read = step(json!({ "steps": [{
+        "id": "read", "needs": ["text", "image"], "instruction": "Lies.",
+        "input": { "images": [{ "mimeType": "image/png", "data": "iVBORw0KGgo=" }] },
+        "format": format,
+    }]}));
+    let fix = step(json!({ "steps": [{
+        "id": "fix", "needs": ["text"], "instruction": "Korrigiere.",
+        "input": { "text": "Tsest" }, "format": format,
+    }]}));
+
+    let names = |list: Vec<Candidate>| {
+        let mut names: Vec<String> = list.into_iter().map(|c| c.model.name).collect();
+        names.sort();
+        names
+    };
+    assert_eq!(names(for_step(&all, &read)), ["vision"]);
+    assert_eq!(names(for_step(&all, &fix)), ["codex", "vision"]);
 }
 
 #[test]

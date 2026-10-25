@@ -36,6 +36,8 @@ pub struct ExtensionModelEntry {
     /// `this_device`, `network` or `cloud`.
     pub place: String,
     pub takes_images: bool,
+    /// A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
+    pub agent: bool,
     /// The highest effort allowed (`none`, `low`, `medium`, `high`); absent when the extension
     /// may not use the model.
     #[ts(optional)]
@@ -57,6 +59,8 @@ pub struct ExtensionModelChoice {
     pub provider: String,
     pub place: String,
     pub takes_images: bool,
+    /// A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
+    pub agent: bool,
 }
 
 fn place_of(model: &JobModel) -> String {
@@ -91,6 +95,7 @@ pub(crate) fn entries(
         provider: model.provider.name.clone(),
         place: place_of(model),
         takes_images: takes_images(model.capabilities.as_ref()),
+        agent: model.runs_agent(),
         ceiling: allowed.map(|level| level.as_str().to_owned()),
         denied: denies(&all, &model.id),
         held: allowed.is_some() && ceiling(&stored, &model.id, device).is_none(),
@@ -118,7 +123,7 @@ pub(crate) fn choices(
 ) -> Result<Vec<ExtensionModelChoice>> {
     let mut fitting: Vec<JobModel> = job_models(q)?
         .into_iter()
-        .filter(|m| super::candidates::fits(needs, m.capabilities.as_ref()))
+        .filter(|m| super::candidates::fits(needs, m))
         .collect();
     fitting.sort_by(|a, b| {
         (a.id != proposed, &a.name, &a.id).cmp(&(b.id != proposed, &b.name, &b.id))
@@ -131,6 +136,7 @@ pub(crate) fn choices(
             provider: m.provider.name.clone(),
             place: place_of(m),
             takes_images: takes_images(m.capabilities.as_ref()),
+            agent: m.runs_agent(),
         })
         .collect())
 }
