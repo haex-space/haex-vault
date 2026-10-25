@@ -285,8 +285,12 @@ und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
   für Bildmodelle geplant hatte: Ist es schon geladen, nutzt der Auftrag es zwischen zwei Chat-Zügen; sonst
   wartet der Auftrag, bis kein Zug läuft, lädt es (mit der Prüfsumme wie im Chat) und der Chat lädt sein
   Modell beim nächsten Zug wieder (FR-033). Die Wartezeit zählt zur Höchstdauer. Fähigkeiten wie im Chat:
-  GGUF-Modelle nehmen keine Bilder (`ModelCapabilities::local()`), Bildschritte übergehen sie (FR-019).
-  Ohne `llm-cpu` gibt es keine lokalen Modelle und damit keinen Kandidaten.
+  GGUF-Modelle nehmen heute keine Bilder (`ModelCapabilities::local()` sagt für alle „keine“), Bildschritte
+  übergehen sie (FR-019). Das ist der Stand des Ladewegs, kein Grundsatz: Sobald ein lokales Modell Bilder
+  lesen kann, kommt die Fähigkeit aus dem Modell oder dem Katalog (`vision`, T061) statt pauschal, und es
+  erscheint für Bildschritte wie jedes andere; die Auswahl dafür hängt nur an `fits`, nicht an der Quelle.
+  Offen bleibt ein Weg, der schnell genug ist (R8: mistral.rs war 4–8× langsamer als Ollama). Ohne `llm-cpu`
+  gibt es keine lokalen Modelle und damit keinen Kandidaten.
 - **Verworfen**: Ein eigener Platz für Aufträge (doppelter Grafikspeicher); den Chat für einen Auftrag
   unterbrechen (verfälscht den Zug, FR-033).
 
