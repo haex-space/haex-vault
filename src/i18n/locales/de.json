@@ -771,7 +771,17 @@
       },
       "problem": {
         "incompatible_version": "Eines der Geräte muss aktualisiert werden, sonst synchronisieren sie nicht.",
+        "incompatible_version_other": "{name} muss aktualisiert werden, sonst synchronisieren sie nicht.",
+        "incompatible_version_this": "Dieses Gerät muss aktualisiert werden, sonst synchronisieren sie nicht.",
         "duplicate": "Dieses Gerät ist doppelt vorhanden. Der Sync mit ihm ist angehalten."
+      },
+      "schema": {
+        "protocol": "Sync-Protokoll",
+        "migration": "Vault-Schema",
+        "trigger": "Änderungsverfolgung",
+        "lower": "niedriger als dieses Gerät",
+        "higher": "höher als dieses Gerät",
+        "unknown": "Stand noch nicht bekannt"
       },
       "notice": {
         "awaiting_admission": "Dieses Gerät wartet auf Aufnahme durch ein Hauptgerät.",

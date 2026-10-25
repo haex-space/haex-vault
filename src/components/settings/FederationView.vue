@@ -17,6 +17,9 @@ let ticker: ReturnType<typeof setInterval> | undefined
 const manages = computed(() =>
   canManageDevices(store.status?.thisDevice ?? null),
 )
+const ownSchema = computed(
+  () => store.devices.find((device) => device.isCurrent)?.schema ?? null,
+)
 const notice = computed(() => {
   const place = store.status?.thisDevice
   return place === 'awaiting_admission' || place === 'removed' ? place : null
@@ -87,6 +90,7 @@ onBeforeUnmount(() => {
         :key="device.vaultDeviceUuid"
         :device="device"
         :now="now"
+        :own="ownSchema"
         :removable="manages"
       />
     </SettingsGroup>

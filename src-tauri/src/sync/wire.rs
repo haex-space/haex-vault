@@ -26,8 +26,10 @@ pub const HANDSHAKE_FRAME_LIMIT: usize = 64 * 1024;
 /// Largest frame after the handshake.
 pub const FRAME_LIMIT: usize = 4 * 1024 * 1024;
 
-/// Version of the messages below, sent in `Challenge` and `Response`.
-pub const PROTOCOL_VERSION: u8 = 1;
+/// Version of the messages below, sent in `Challenge` and `Response`. It is the first field, so
+/// the byte after the variant tag of both frames, and a side reads it before it decodes anything
+/// else of a `Challenge` (spec 059 research R2): version 2 added `Challenge::schema`.
+pub const PROTOCOL_VERSION: u8 = 2;
 
 /// What the handshake compares; devices sync only with equal versions
 /// (FR-029).
@@ -99,6 +101,10 @@ pub enum Message {
         /// The accepting side's effective list, so the dialing side can
         /// push a better one before its `Response`.
         list: ListRef,
+        /// The accepting side's version state, named before either side decides, so the dialing
+        /// side knows it also when it refuses (spec 059 FR-005). Last field: an older reader
+        /// stops before it.
+        schema: SchemaVersion,
     },
     Response {
         v: u8,
@@ -228,6 +234,20 @@ pub async fn read_value<R: AsyncRead + Unpin, T: serde::de::DeserializeOwned>(
     reader: &mut R,
     limit: usize,
 ) -> Result<Option<T>, WireError> {
+    let Some(bytes) = read_raw(reader, limit).await? else {
+        return Ok(None);
+    };
+    postcard::from_bytes(&bytes)
+        .map(Some)
+        .map_err(WireError::Codec)
+}
+
+/// Reads one frame of at most `limit` bytes without decoding it. `Ok(None)` when the stream
+/// ended cleanly before a frame started.
+pub async fn read_raw<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    limit: usize,
+) -> Result<Option<Vec<u8>>, WireError> {
     let mut len = [0u8; 4];
     match reader.read_exact(&mut len).await {
         Ok(_) => {}
@@ -246,9 +266,7 @@ pub async fn read_value<R: AsyncRead + Unpin, T: serde::de::DeserializeOwned>(
             e.into()
         }
     })?;
-    postcard::from_bytes(&bytes)
-        .map(Some)
-        .map_err(WireError::Codec)
+    Ok(Some(bytes))
 }
 
 /// [`expect_frame`] for any message type.
@@ -265,6 +283,36 @@ pub async fn expect_frame<R: AsyncRead + Unpin>(
     limit: usize,
 ) -> Result<Message, WireError> {
     read_frame(reader, limit).await?.ok_or(WireError::Closed)
+}
+
+/// Why reading the accepting side's first message failed.
+#[derive(Debug, thiserror::Error)]
+pub enum ChallengeError {
+    /// The frame speaks another protocol version (its first byte). Nothing else of it is read:
+    /// an older `Challenge` has no `schema` and would not decode.
+    #[error("the accepting side speaks protocol version {0}")]
+    Version(u8),
+    #[error(transparent)]
+    Wire(#[from] WireError),
+}
+
+/// The postcard tag of [`Message::Challenge`]: the index of the first variant. A test pins it.
+const CHALLENGE_TAG: u8 = 0;
+
+/// Reads the `Challenge` of the accepting side: the version byte (right after the variant tag)
+/// is checked before the frame is decoded, so a device of another protocol version ends with
+/// [`ChallengeError::Version`] instead of a decode error (spec 059 research R2).
+pub async fn expect_challenge<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    limit: usize,
+) -> Result<Message, ChallengeError> {
+    let bytes = read_raw(reader, limit).await?.ok_or(WireError::Closed)?;
+    match (bytes.first(), bytes.get(1)) {
+        (Some(&CHALLENGE_TAG), Some(&v)) if v != PROTOCOL_VERSION => {
+            Err(ChallengeError::Version(v))
+        }
+        _ => postcard::from_bytes(&bytes).map_err(|e| ChallengeError::Wire(WireError::Codec(e))),
+    }
 }
 
 #[cfg(test)]

@@ -14,7 +14,8 @@ Nachrichten oder zu große Rahmen schließen die Verbindung mit einem Fehlercode
 ```text
 A = annehmendes Gerät, D = wählendes Gerät
 
-A → D  Challenge   { v: 1, nonce_a: [u8;32], endpoint_a: [u8;32], list: ListRef }
+A → D  Challenge   { v: 2, nonce_a: [u8;32], endpoint_a: [u8;32], list: ListRef,
+                     schema: SchemaVersion }
 D → A  DeviceListPush*   (wenn die geltende Liste von D vor der von A rangiert)
 D → A  Response    { v: 1, device_d: [u8;32], vault: [u8;32], nonce_d: [u8;32],
                      schema: SchemaVersion, list: ListRef, sig_d: [u8;64] }
@@ -41,7 +42,16 @@ lp(endpoint_x) ‖ lp(endpoint_y) ‖ lp(vault)))`, `lp` = `u32 BE Länge ‖ By
 - `RejectCode`: `ForeignVault`, `NotOnList`, `Removed`, `BadSignature`, `Incompatible`,
   `Duplicate`, `Closing`. Vor `Accept` fließt nur die Geräteliste (FR-009).
 
-`SchemaVersion = { protocol: 1, holzi_migration: u32, crdt_trigger: u32 }`.
+`SchemaVersion = { protocol: 2, holzi_migration: u32, crdt_trigger: u32 }`.
+
+**Spec 059 (Versionsstände der Geräte)**: `Challenge.schema` ist der Stand des annehmenden Geräts und das
+letzte Feld, `v` und `SchemaVersion.protocol` sind `PROTOCOL_VERSION` (2). Beide Seiten halten den Stand,
+den sie sehen, für das Gerät fest, das die geltende Liste für den Endpunkt der Verbindung nennt, bevor sie
+entscheiden, also auch bei `Reject`. Das wählende Gerät liest die `Challenge` als ganzen Rahmen und prüft
+`v` (das Byte nach dem Variantenkennzeichen), bevor es dekodiert; bei einem anderen `v` endet es mit
+`Incompatible`, ohne zu antworten. Vor `Accept` fließen damit Geräteliste und die drei Zahlen des
+Versionsstands (FR-009). Die ALPN bleibt `holzi-sync/1`. Einzelheiten:
+[specs/059-device-versions/contracts/sync-protocol.md](../../059-device-versions/contracts/sync-protocol.md).
 
 ### 2. Nachrichten nach dem Handshake
 

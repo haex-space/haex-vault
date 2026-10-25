@@ -116,7 +116,7 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
   setting({
     id: 'settings.devices.list',
     description:
-      "List the vault's devices: this device first and marked, then the others by name, each with its role (main or linked), whether it is online, when it was last online (epoch milliseconds, absent if never seen) and why sync with it is halted, if it is. A device without a name has no alias.",
+      "List the vault's devices: this device first and marked, then the others by name, each with its role (main or linked), whether it is online, when it was last online (epoch milliseconds, absent if never seen) and why sync with it is halted, if it is, and its sync versions (schema: protocol, holziMigration for the vault schema, crdtTrigger for the change tracking), which tell which device has to be updated when they differ; absent if this device never saw them. A device without a name has no alias.",
     result: ANY_OBJECT,
     scope: 'settings.read',
     effect: 'read',

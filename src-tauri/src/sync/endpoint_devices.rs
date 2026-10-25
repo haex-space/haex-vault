@@ -7,8 +7,9 @@ use std::sync::Arc;
 
 use super::{Inner, Problem, RejectCode};
 use crate::sync::handshake;
+use crate::sync::peer_schema;
 use crate::sync::problems;
-use crate::sync::wire::ErrorCode;
+use crate::sync::wire::{ErrorCode, SchemaVersion};
 
 /// Records `device` as seen right now. Best-effort.
 pub(super) async fn mark_seen(inner: &Arc<Inner>, device: [u8; 32]) {
@@ -26,6 +27,30 @@ pub(super) async fn mark_seen(inner: &Arc<Inner>, device: [u8; 32]) {
     }
 }
 
+/// Records the version state the device at `endpoint` named in a handshake (spec 059). The device
+/// is the one the signed list gives that endpoint, never what the peer claims; an endpoint the
+/// list does not name gets nothing. The list is told only when a value changed. Best-effort.
+pub(super) async fn record_peer_schema(
+    inner: &Arc<Inner>,
+    endpoint: [u8; 32],
+    schema: SchemaVersion,
+) {
+    let Some(device) = device_at(inner, endpoint).await else {
+        return;
+    };
+    let replica = Arc::clone(&inner.replica);
+    let changed =
+        tokio::task::spawn_blocking(move || peer_schema::record(&replica, &device, schema))
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|r| r.map_err(|e| e.to_string()));
+    match changed {
+        Ok(true) => notify_devices_changed(inner),
+        Ok(false) => {}
+        Err(error) => log::warn!("sync: recording a device's version state failed: {error}"),
+    }
+}
+
 /// Turns a handshake failure into a halted device where it names one: the
 /// device that proved its key, or, when the peer refused this device for
 /// its version or as a duplicate, the device the list gives that endpoint.
@@ -34,10 +59,12 @@ pub(super) async fn note_failure(
     error: &handshake::HandshakeError,
     remote: [u8; 32],
 ) {
-    use handshake::HandshakeError::{Halted, RefusedByPeer};
+    use handshake::HandshakeError::{Halted, Refused, RefusedByPeer};
     let (device, problem) = match error {
         Halted { problem, device } => (Some(*device), *problem),
-        RefusedByPeer(RejectCode::Incompatible) => {
+        // The peer refused this device, or this device refused a peer of another protocol version
+        // before it could read its state (`Challenge` of another version, spec 059 R2).
+        RefusedByPeer(RejectCode::Incompatible) | Refused(RejectCode::Incompatible) => {
             (device_at(inner, remote).await, Problem::IncompatibleVersion)
         }
         RefusedByPeer(RejectCode::Duplicate) => {

@@ -2,19 +2,24 @@
 /**
  * One device of the vault (spec 024, user story 4, FR-033 to FR-035): its name, its role, this device
  * marked, and for the others whether it is online, else when it was last online, or "never seen";
- * a device sync is halted with shows why. `now` comes from the list, so all rows age together.
+ * a device sync is halted with shows why, naming the device to update when its version state shows
+ * which one it is (spec 059, FR-012). `now` comes from the list, so all rows age together.
  */
 import type { VaultDevice } from '@bindings/VaultDevice'
 import {
   deviceStatus,
   elapsedSince,
-  problemLabelKey,
+  problemMessageKey,
   roleLabelKey,
+  schemaDiff,
+  type SchemaFacts,
 } from '~/lib/sync/deviceStatus'
 
 const props = defineProps<{
   device: VaultDevice
   now: number
+  /** The version state of this device, the reference for the marks (spec 059); `null` if unknown. */
+  own?: SchemaFacts | null
   /** A main device may remove any other device (FR-035); never this one (FR-026). */
   removable?: boolean
 }>()
@@ -25,6 +30,20 @@ const router = useTabRouter()
 function onRemove() {
   router.push(`/federation/devices/${props.device.devicePubkey}/remove`)
 }
+
+const diff = computed(() =>
+  props.device.isCurrent
+    ? null
+    : schemaDiff(props.own ?? null, props.device.schema),
+)
+
+const problem = computed(() =>
+  props.device.problem
+    ? t(problemMessageKey(props.device.problem, diff.value), {
+        name: props.device.alias ?? t('settings.federation.unnamed'),
+      })
+    : null,
+)
 
 const status = computed(() => {
   const state = deviceStatus(props.device)
@@ -56,13 +75,14 @@ const status = computed(() => {
         ·
         <span data-testid="settings-device-status">{{ status }}</span>
       </template>
+      <SettingsDeviceSchemaValues class="block" :device="device" :diff="diff" />
       <span
-        v-if="device.problem"
+        v-if="problem"
         class="block text-destructive"
         data-testid="settings-device-problem"
         role="alert"
       >
-        {{ t(problemLabelKey(device.problem)) }}
+        {{ problem }}
       </span>
     </template>
     <span

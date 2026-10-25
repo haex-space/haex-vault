@@ -42,6 +42,9 @@ mod migrations_passwords_owner_tests;
 mod migrations_passwords_refs;
 #[cfg(test)]
 mod migrations_passwords_refs_tests;
+mod migrations_peer_schema;
+#[cfg(test)]
+mod migrations_peer_schema_tests;
 pub mod migrations_storage;
 #[cfg(test)]
 mod migrations_storage_tests;

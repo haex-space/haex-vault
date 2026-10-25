@@ -4,7 +4,7 @@
 //! The accepting side A opens the first stream:
 //!
 //! ```text
-//! A → D  Challenge { nonce_a, endpoint_a, list }
+//! A → D  Challenge { v, nonce_a, endpoint_a, list, schema }
 //! D → A  DeviceListPush*   (when D's effective list ranks before A's)
 //! D → A  Response { device_d, vault, nonce_d, schema, list, sig_d }
 //! A → D  DeviceListPush*   (when A's effective list ranks before D's)
@@ -17,7 +17,9 @@
 //! endpoint the connection really comes from. A pushed list travels with
 //! its base lists and is stored once it checks out; only then does each
 //! side look the other up in its effective list: listed with exactly this
-//! endpoint, never removed. Before `Accept` nothing but device lists flows.
+//! endpoint, never removed. Before `Accept` nothing but device lists and the
+//! two version states flows; each side hands the other's `schema` to its
+//! `on_schema` callback before it decides, also when it then refuses (spec 059).
 //!
 //! Maintainability exception (spaex 500-LoC rule): both sides of the handshake run the same
 //! transcript, list pushes and admission, so they have stayed in one file. Concrete split plan,
@@ -39,8 +41,8 @@ use crate::sync::problems::Problem;
 use crate::sync::replica::Replica;
 use crate::sync::signing::{self, lp, Domain};
 use crate::sync::wire::{
-    expect_frame, write_frame, ListRef, Message, RejectCode, SchemaVersion, Signature,
-    HANDSHAKE_FRAME_LIMIT, PROTOCOL_VERSION,
+    expect_challenge, expect_frame, write_frame, ChallengeError, ListRef, Message, RejectCode,
+    SchemaVersion, Signature, HANDSHAKE_FRAME_LIMIT, PROTOCOL_VERSION,
 };
 
 /// Most device lists a side may push in one handshake.
@@ -114,10 +116,22 @@ where
     R: AsyncRead + Unpin + Send,
 {
     let noop = |_tables: BTreeSet<String>| {};
-    accept_with(send, recv, replica, local, remote_endpoint, &noop).await
+    let no_schema = |_schema: SchemaVersion| {};
+    accept_with(
+        send,
+        recv,
+        replica,
+        local,
+        remote_endpoint,
+        &noop,
+        &no_schema,
+    )
+    .await
 }
 
-/// The accepting side with a callback for device lists learned in the handshake.
+/// The accepting side with a callback for device lists learned in the handshake and one for the
+/// dialing side's version state, called once the dialer proved its key and before the versions
+/// are compared (spec 059 FR-005).
 pub(crate) async fn accept_with<W, R>(
     send: &mut W,
     recv: &mut R,
@@ -125,6 +139,7 @@ pub(crate) async fn accept_with<W, R>(
     local: &Local<'_>,
     remote_endpoint: [u8; 32],
     on_applied: &(dyn Fn(BTreeSet<String>) + Send + Sync),
+    on_schema: &(dyn Fn(SchemaVersion) + Send + Sync),
 ) -> Result<Peer, HandshakeError>
 where
     W: AsyncWrite + Unpin + Send,
@@ -137,6 +152,7 @@ where
         nonce_a,
         endpoint_a: local.keys.endpoint_id,
         list: effective_ref(&lists)?,
+        schema: local.schema,
     };
     write_frame(send, &challenge, HANDSHAKE_FRAME_LIMIT).await?;
 
@@ -165,10 +181,13 @@ where
         Err(RejectCode::ForeignVault)
     } else if signing::verify(Domain::DeviceAuth, &their_transcript, &sig_d.0, &device_d).is_err() {
         Err(RejectCode::BadSignature)
-    } else if v != PROTOCOL_VERSION || schema != local.schema {
-        Err(RejectCode::Incompatible)
     } else {
-        Ok(())
+        on_schema(schema);
+        if v != PROTOCOL_VERSION || schema != local.schema {
+            Err(RejectCode::Incompatible)
+        } else {
+            Ok(())
+        }
     };
     if let Err(code) = checked {
         return refuse(send, code, &device_d).await;
@@ -213,10 +232,22 @@ where
     R: AsyncRead + Unpin + Send,
 {
     let noop = |_tables: BTreeSet<String>| {};
-    dial_with(send, recv, replica, local, remote_endpoint, &noop).await
+    let no_schema = |_schema: SchemaVersion| {};
+    dial_with(
+        send,
+        recv,
+        replica,
+        local,
+        remote_endpoint,
+        &noop,
+        &no_schema,
+    )
+    .await
 }
 
-/// The dialing side with a callback for device lists learned in the handshake.
+/// The dialing side with a callback for device lists learned in the handshake and one for the
+/// accepting side's version state, called as soon as its `Challenge` is read. The dialer still
+/// answers with its `Response` when the states differ, so the accepting side learns its state too.
 pub(crate) async fn dial_with<W, R>(
     send: &mut W,
     recv: &mut R,
@@ -224,17 +255,27 @@ pub(crate) async fn dial_with<W, R>(
     local: &Local<'_>,
     remote_endpoint: [u8; 32],
     on_applied: &(dyn Fn(BTreeSet<String>) + Send + Sync),
+    on_schema: &(dyn Fn(SchemaVersion) + Send + Sync),
 ) -> Result<Peer, HandshakeError>
 where
     W: AsyncWrite + Unpin + Send,
     R: AsyncRead + Unpin + Send,
 {
+    let challenge = match expect_challenge(recv, HANDSHAKE_FRAME_LIMIT).await {
+        Ok(message) => message,
+        // Another protocol version: its `Challenge` may not decode, and its state stays unknown.
+        Err(ChallengeError::Version(_)) => {
+            return Err(HandshakeError::Refused(RejectCode::Incompatible))
+        }
+        Err(ChallengeError::Wire(error)) => return Err(error.into()),
+    };
     let Message::Challenge {
         v,
         nonce_a,
         endpoint_a,
         list: their_list,
-    } = expect_frame(recv, HANDSHAKE_FRAME_LIMIT).await?
+        schema: their_schema,
+    } = challenge
     else {
         return Err(HandshakeError::Protocol("expected a Challenge"));
     };
@@ -244,6 +285,7 @@ where
     if endpoint_a != remote_endpoint {
         return Err(HandshakeError::Refused(RejectCode::BadSignature));
     }
+    on_schema(their_schema);
 
     let lists = load_lists(replica, local.vault).await?;
     let own = effective_ref(&lists)?;
@@ -530,6 +572,10 @@ fn notify_applied(on_applied: &(dyn Fn(BTreeSet<String>) + Send + Sync), changed
         on_applied(BTreeSet::from(["device_lists".to_owned()]));
     }
 }
+
+#[cfg(test)]
+#[path = "handshake_schema_tests.rs"]
+mod schema_tests;
 
 #[cfg(test)]
 #[path = "handshake_refusal_tests.rs"]

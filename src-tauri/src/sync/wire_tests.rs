@@ -20,6 +20,7 @@ fn samples() -> Vec<Message> {
             nonce_a: [1; 32],
             endpoint_a: [2; 32],
             list,
+            schema,
         },
         Message::Response {
             v: PROTOCOL_VERSION,
@@ -138,4 +139,80 @@ async fn an_end_inside_a_frame_is_an_error() {
         read_frame(&mut b, FRAME_LIMIT).await,
         Err(WireError::Closed)
     ));
+}
+
+fn challenge(v: u8, schema: SchemaVersion) -> Message {
+    Message::Challenge {
+        v,
+        nonce_a: [1; 32],
+        endpoint_a: [2; 32],
+        list: ListRef {
+            generation: 3,
+            list_hash: [9; 32],
+        },
+        schema,
+    }
+}
+
+const SCHEMA: SchemaVersion = SchemaVersion {
+    protocol: 2,
+    holzi_migration: 40,
+    crdt_trigger: 27,
+};
+
+/// Spec 059 research R2: the version sits right after the variant tag, and a reader that knows
+/// only the fields up to `list` decodes a `Challenge` that has `schema` after them.
+#[test]
+fn the_version_is_the_byte_after_the_challenge_tag() {
+    let bytes = postcard::to_stdvec(&challenge(PROTOCOL_VERSION, SCHEMA)).expect("encode");
+    assert_eq!(bytes[0], CHALLENGE_TAG);
+    assert_eq!(bytes[1], PROTOCOL_VERSION);
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+enum OlderMessage {
+    Challenge {
+        v: u8,
+        nonce_a: [u8; 32],
+        endpoint_a: [u8; 32],
+        list: ListRef,
+    },
+}
+
+#[test]
+fn an_older_reader_decodes_a_challenge_with_a_schema_at_the_end() {
+    let bytes = postcard::to_stdvec(&challenge(PROTOCOL_VERSION, SCHEMA)).expect("encode");
+    let OlderMessage::Challenge { v, .. } = postcard::from_bytes(&bytes).expect("older decode");
+    assert_eq!(v, PROTOCOL_VERSION);
+}
+
+#[tokio::test]
+async fn a_challenge_of_another_version_is_named_before_it_is_decoded() {
+    let (mut a, mut b) = duplex(1 << 10);
+    // An older Challenge: version 1 and no schema, so it would not decode as a current one.
+    let mut old = postcard::to_stdvec(&challenge(1, SCHEMA)).expect("encode");
+    old.truncate(old.len() - 3);
+    a.write_all(&(old.len() as u32).to_be_bytes())
+        .await
+        .expect("len");
+    a.write_all(&old).await.expect("body");
+
+    let error = expect_challenge(&mut b, HANDSHAKE_FRAME_LIMIT)
+        .await
+        .expect_err("another version");
+    assert!(matches!(error, ChallengeError::Version(1)), "{error:?}");
+}
+
+#[tokio::test]
+async fn a_current_challenge_is_read_whole() {
+    let (mut a, mut b) = duplex(1 << 10);
+    let sent = challenge(PROTOCOL_VERSION, SCHEMA);
+    write_frame(&mut a, &sent, HANDSHAKE_FRAME_LIMIT)
+        .await
+        .expect("write");
+    let read = expect_challenge(&mut b, HANDSHAKE_FRAME_LIMIT)
+        .await
+        .expect("read");
+    assert_eq!(read, sent);
 }

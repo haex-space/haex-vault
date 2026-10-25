@@ -30,6 +30,7 @@ async fn run_with_callbacks(
     a_applied: &(dyn Fn(BTreeSet<String>) + Send + Sync),
     d_applied: &(dyn Fn(BTreeSet<String>) + Send + Sync),
 ) -> (Result<Peer, HandshakeError>, Result<Peer, HandshakeError>) {
+    let no_schema = |_schema: SchemaVersion| {};
     let (a_side, d_side) = duplex(1 << 20);
     let (mut a_recv, mut a_send) = split(a_side);
     let (mut d_recv, mut d_send) = split(d_side);
@@ -41,6 +42,7 @@ async fn run_with_callbacks(
             &a_local,
             endpoint_a_sees,
             a_applied,
+            &no_schema,
         ),
         dial_with(
             &mut d_send,
@@ -49,6 +51,7 @@ async fn run_with_callbacks(
             &d_local,
             a.keys.endpoint_id,
             d_applied,
+            &no_schema,
         ),
     )
 }

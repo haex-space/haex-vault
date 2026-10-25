@@ -23,7 +23,9 @@ import {
   deviceStatus,
   elapsedSince,
   problemLabelKey,
+  problemMessageKey,
   roleLabelKey,
+  schemaDiff,
   sortDevices,
 } from '../src/lib/sync/deviceStatus.ts'
 import {
@@ -473,6 +475,16 @@ test('roles and problems name texts that exist in German and English (FR-037)', 
     roleLabelKey('linked'),
     problemLabelKey('incompatible_version'),
     problemLabelKey('duplicate'),
+    problemMessageKey('incompatible_version', {
+      protocol: 'equal',
+      holziMigration: 'lower',
+      crdtTrigger: 'equal',
+    }),
+    problemMessageKey('incompatible_version', {
+      protocol: 'equal',
+      holziMigration: 'higher',
+      crdtTrigger: 'equal',
+    }),
   ]
   for (const locale of ['de', 'en'] as const) {
     const available = localeKeys(locale)
@@ -482,6 +494,44 @@ test('roles and problems name texts that exist in German and English (FR-037)', 
       locale,
     )
   }
+})
+
+const OWN = { protocol: 2, holziMigration: 40, crdtTrigger: 27 }
+
+test('schema diff: each value of the other device against this one, unknown while either is missing (spec 059)', () => {
+  assert.deepEqual(schemaDiff(OWN, { ...OWN }), {
+    protocol: 'equal',
+    holziMigration: 'equal',
+    crdtTrigger: 'equal',
+  })
+  assert.deepEqual(
+    schemaDiff(OWN, { protocol: 2, holziMigration: 39, crdtTrigger: 28 }),
+    { protocol: 'equal', holziMigration: 'lower', crdtTrigger: 'higher' },
+  )
+  assert.equal(schemaDiff(OWN, null), null)
+  assert.equal(schemaDiff(null, OWN), null)
+})
+
+test('the version message names the device to update only when every difference points one way (FR-012)', () => {
+  const key = (other: typeof OWN | null) =>
+    problemMessageKey('incompatible_version', schemaDiff(OWN, other))
+  const plain = 'settings.federation.problem.incompatible_version'
+  assert.equal(key({ ...OWN, holziMigration: 39 }), `${plain}_other`)
+  assert.equal(
+    key({ protocol: 1, holziMigration: 39, crdtTrigger: 27 }),
+    `${plain}_other`,
+  )
+  assert.equal(key({ ...OWN, holziMigration: 41 }), `${plain}_this`)
+  // Opposite directions say nothing about who has to update.
+  assert.equal(key({ ...OWN, holziMigration: 39, crdtTrigger: 28 }), plain)
+  // Unknown state, or no difference at all: the text of before.
+  assert.equal(key(null), plain)
+  assert.equal(key({ ...OWN }), plain)
+  // A duplicate keeps its own text whatever the values say.
+  assert.equal(
+    problemMessageKey('duplicate', schemaDiff(OWN, { ...OWN, protocol: 1 })),
+    'settings.federation.problem.duplicate',
+  )
 })
 
 test('only a main device manages devices (FR-035)', () => {

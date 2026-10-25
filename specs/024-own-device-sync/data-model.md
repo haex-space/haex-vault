@@ -192,12 +192,15 @@ stehen oder dort entfernt sind, sowie Zeilen (offen oder abgelehnt), die älter 
 
 ### `device_presence_no_sync` (neu, gerätelokal)
 
-| Spalte          | Typ         | Regeln                                                                 |
-| --------------- | ----------- | ---------------------------------------------------------------------- |
-| `device_pubkey` | BLOB(32) PK |                                                                        |
-| `last_seen`     | INTEGER     | jüngster Zeitpunkt aus Verbindung, Präsenz oder drittem Gerät (FR-033) |
-| `endpoint_addr` | BLOB        | letzte bekannte Erreichbarkeit (postcard `EndpointAddr`)               |
-| `problem`       | TEXT NULL   | `incompatible_version` \| `duplicate` \| NULL                          |
+| Spalte           | Typ          | Regeln                                                                 |
+| ---------------- | ------------ | ---------------------------------------------------------------------- |
+| `device_pubkey`  | BLOB(32) PK  |                                                                        |
+| `last_seen`      | INTEGER      | jüngster Zeitpunkt aus Verbindung, Präsenz oder drittem Gerät (FR-033) |
+| `endpoint_addr`  | BLOB         | letzte bekannte Erreichbarkeit (postcard `EndpointAddr`)               |
+| `problem`        | TEXT NULL    | `incompatible_version` \| `duplicate` \| NULL                          |
+| `peer_protocol`  | INTEGER NULL | Spec 059: `SchemaVersion.protocol` des Geräts im letzten Handshake     |
+| `peer_migration` | INTEGER NULL | Spec 059: `SchemaVersion.holzi_migration`                              |
+| `peer_trigger`   | INTEGER NULL | Spec 059: `SchemaVersion.crdt_trigger`; alle drei `NULL` = unbekannt   |
 
 „Zuletzt online“ über ein drittes Gerät: Geräte tauschen im Handshake ihre `last_seen`-Werte aus
 und übernehmen den jeweils jüngeren. Die Zeile eines entfernten Geräts wird gelöscht.

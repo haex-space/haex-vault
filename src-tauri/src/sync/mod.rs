@@ -19,6 +19,7 @@ pub mod inbound;
 pub mod keys;
 pub mod link;
 pub mod outbound;
+pub mod peer_schema;
 pub mod presence;
 pub mod presence_loop;
 pub mod problems;

@@ -226,6 +226,13 @@ async fn a_connected_device_shows_as_online_with_its_role_and_the_view_is_told()
     );
     assert!(other.last_seen.is_some(), "a connected device has a time");
     assert_eq!(other.problem, None);
+    // Spec 059 FR-001, FR-002, FR-005: both rows show the version state of this build, the other
+    // one as its handshake with this device named it.
+    let own_state = holzi_lib::sync::device_view::DeviceSchema::from(
+        holzi_lib::sync::handshake::local_schema(),
+    );
+    assert_eq!(this.schema, Some(own_state));
+    assert_eq!(other.schema, Some(own_state));
     assert!(
         told.load(Ordering::SeqCst) > 0,
         "FR-034: the device view was told a device came online"

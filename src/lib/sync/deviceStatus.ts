@@ -51,6 +51,64 @@ export function problemLabelKey(
   return `settings.federation.problem.${problem}`
 }
 
+/** The three values two devices compare before they sync (spec 059); `VaultDevice.schema` has them. */
+export type SchemaFacts = {
+  protocol: number
+  holziMigration: number
+  crdtTrigger: number
+}
+
+export type SchemaField = keyof SchemaFacts
+
+/** The values in the order the list shows them. */
+export const SCHEMA_FIELDS: readonly SchemaField[] = [
+  'protocol',
+  'holziMigration',
+  'crdtTrigger',
+]
+
+/** How a device's value stands against this device's: `lower` means it is the smaller one. */
+export type SchemaOrder = 'equal' | 'lower' | 'higher'
+
+export type SchemaDiff = Record<SchemaField, SchemaOrder>
+
+/** Each value of `other` against `own` (spec 059 FR-003); `null` while either state is unknown. */
+export function schemaDiff(
+  own: SchemaFacts | null,
+  other: SchemaFacts | null,
+): SchemaDiff | null {
+  if (own === null || other === null) return null
+  const order = (field: SchemaField): SchemaOrder =>
+    other[field] === own[field]
+      ? 'equal'
+      : other[field] < own[field]
+        ? 'lower'
+        : 'higher'
+  return {
+    protocol: order('protocol'),
+    holziMigration: order('holziMigration'),
+    crdtTrigger: order('crdtTrigger'),
+  }
+}
+
+/** The i18n key of the reason sync with a device is halted. A version problem names the device to
+ * update when every differing value points the same way (spec 059 FR-012): the other device when
+ * all of its values are lower, this one when all are higher; else the plain text. */
+export function problemMessageKey(
+  problem: 'incompatible_version' | 'duplicate',
+  diff: SchemaDiff | null,
+): string {
+  const plain = problemLabelKey(problem)
+  if (problem !== 'incompatible_version' || diff === null) return plain
+  const orders = SCHEMA_FIELDS.map((field) => diff[field]).filter(
+    (order) => order !== 'equal',
+  )
+  if (orders.length === 0) return plain
+  if (orders.every((order) => order === 'lower')) return `${plain}_other`
+  if (orders.every((order) => order === 'higher')) return `${plain}_this`
+  return plain
+}
+
 /** This device first, then the others by name ignoring case, devices without a name last. The
  * backend sorts the same way; this keeps a list sorted after a local update. */
 export function sortDevices<T extends DeviceFacts>(devices: readonly T[]): T[] {

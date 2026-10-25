@@ -29,6 +29,12 @@ fn list(devices: Vec<ListedDevice>) -> SignedList {
     }
 }
 
+const OWN_SCHEMA: SchemaVersion = SchemaVersion {
+    protocol: 2,
+    holzi_migration: 40,
+    crdt_trigger: 27,
+};
+
 fn known(tag: u8, alias: Option<&str>) -> KnownDevice {
     KnownDevice {
         installation_uuid: Uuid::from_bytes([tag + 100; 16]),
@@ -50,6 +56,7 @@ fn build_with(
         facts,
         connected,
         own_device: [own; 32],
+        own_schema: OWN_SCHEMA,
         key: None,
     })
 }
@@ -89,6 +96,7 @@ fn a_connected_device_is_online_and_others_show_when_they_were_last_seen() {
         Facts {
             last_seen_ms: 5_000,
             problem: None,
+            schema: None,
         },
     )]);
     let connected = HashSet::from([[3u8; 32]]);
@@ -126,6 +134,7 @@ fn a_halted_device_shows_why() {
         Facts {
             last_seen_ms: 0,
             problem: Some(Problem::IncompatibleVersion),
+            schema: None,
         },
     )]);
 
@@ -158,6 +167,7 @@ fn a_device_without_an_alias_is_named_from_its_sealed_name_when_the_key_opens_it
         facts: &HashMap::new(),
         connected: &HashSet::new(),
         own_device: [1; 32],
+        own_schema: OWN_SCHEMA,
         key: Some(&key),
     });
 
@@ -199,6 +209,69 @@ fn it_serializes_camel_case_with_nulls() {
             "online": true,
             "lastSeen": null,
             "problem": null,
+            "schema": {
+                "protocol": OWN_SCHEMA.protocol,
+                "holziMigration": OWN_SCHEMA.holzi_migration,
+                "crdtTrigger": OWN_SCHEMA.crdt_trigger,
+            },
         })
+    );
+}
+
+fn device_of(devices: &[VaultDevice], tag: u8) -> &VaultDevice {
+    devices
+        .iter()
+        .find(|d| d.device_pubkey == hex(&[tag; 32]))
+        .expect("listed")
+}
+
+#[test]
+fn this_device_shows_its_own_state_and_the_others_the_state_they_showed() {
+    let signed = list(vec![
+        listed(1, Role::Main),
+        listed(2, Role::Linked),
+        listed(3, Role::Linked),
+    ]);
+    let older = SchemaVersion {
+        protocol: 2,
+        holzi_migration: 39,
+        crdt_trigger: 27,
+    };
+    let facts = HashMap::from([(
+        [2; 32],
+        Facts {
+            last_seen_ms: 1,
+            problem: Some(Problem::IncompatibleVersion),
+            schema: Some(older),
+        },
+    )]);
+
+    let devices = build_with(&signed, &[], &facts, &HashSet::new(), 1);
+
+    assert_eq!(device_of(&devices, 1).schema, Some(OWN_SCHEMA.into()));
+    assert_eq!(device_of(&devices, 2).schema, Some(older.into()));
+    assert_eq!(
+        device_of(&devices, 3).schema,
+        None,
+        "a device this one never saw a state of shows none (FR-007)"
+    );
+}
+
+#[test]
+fn a_vault_with_only_this_device_still_shows_its_state() {
+    let signed = list(vec![listed(1, Role::Main)]);
+
+    let devices = build_with(&signed, &[], &HashMap::new(), &HashSet::new(), 1);
+
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0].schema, Some(OWN_SCHEMA.into()));
+}
+
+#[test]
+fn the_state_serializes_with_camel_case_names() {
+    let json = serde_json::to_value(DeviceSchema::from(OWN_SCHEMA)).expect("json");
+    assert_eq!(
+        json,
+        serde_json::json!({ "protocol": 2, "holziMigration": 40, "crdtTrigger": 27 })
     );
 }
