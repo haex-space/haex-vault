@@ -3,4 +3,4 @@
 /**
  * What a permission is for.
  */
-export type AgentFileKind = "device" | "storage" | "encryptedFolder" | "contacts";
+export type AgentFileKind = "device" | "storage" | "encryptedFolder" | "contacts" | "fileShares";

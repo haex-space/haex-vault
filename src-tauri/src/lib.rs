@@ -405,6 +405,16 @@ pub fn run() {
                 .native_actions
                 .add(files_agent.clone());
             app.manage(files_agent);
+            // Spec 056 US6: the share actions of the built-in agent, confirmed in the window.
+            let share_confirm = files::agent::share_confirm::ShareConfirm::default();
+            app.manage(share_confirm.clone());
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    files::agent::shares::SharesAgent::builtin(
+                        files::agent::env::TauriSharesEnv::new(app.handle().clone(), share_confirm),
+                    ),
+                ));
             // Spec 017, US9: holzi's protected places, known places and dialogs for extensions.
             app.state::<AppState>()
                 .extensions()
@@ -464,6 +474,7 @@ pub fn run() {
             files::share::commands::file_shares_of_contact,
             files::share::commands::files_device_access_get,
             files::share::commands::files_device_access_set,
+            files::agent::share_confirm::file_share_confirm_answer,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,

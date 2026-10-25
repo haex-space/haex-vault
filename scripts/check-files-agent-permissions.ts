@@ -28,6 +28,7 @@ test('without rows the built-in agent reaches the device and every storage asks'
     {
       agentId: BUILTIN_AGENT,
       device: true,
+      fileShares: false,
       storages: [
         { id: 's1', name: 'Fotos', status: 'ask' },
         { id: 's2', name: 'Archiv', status: 'ask' },
@@ -146,4 +147,21 @@ test('the contacts ask without a row; remembered answers for all and for groups 
     { target: 'group:g2', groupId: 'g2', status: 'denied' },
   ])
   assert.deepEqual(builtin!.folders, [])
+})
+
+test('managing file shares is off until the user turns it on, per agent (spec 056 FR-045)', () => {
+  const agents = agentFiles(
+    [
+      row(BUILTIN_AGENT, 'fileShares', '', 'granted'),
+      row('ext-1', 'fileShares', '', 'denied'),
+    ],
+    STORAGES,
+  )
+  assert.deepEqual(
+    agents.map((agent) => [agent.agentId, agent.fileShares]),
+    [
+      [BUILTIN_AGENT, true],
+      ['ext-1', false],
+    ],
+  )
 })

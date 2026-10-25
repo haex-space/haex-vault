@@ -1045,7 +1045,12 @@
       "contacts": "Kontakte",
       "contactsDescription": "Adressbuch",
       "contactsGroup": "Kontakte der Gruppe „{name}“",
-      "contactsGroupUnknown": "Kontakte einer gelöschten Gruppe"
+      "contactsGroupUnknown": "Kontakte einer gelöschten Gruppe",
+      "receivedShare": "„{name}“ von {contact}",
+      "peerDescription": "Anderes Gerät dieser Vault",
+      "receivedDescription": "Freigabe eines Kontakts",
+      "fileShares": "Dateifreigaben verwalten",
+      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst"
     },
     "storage": {
       "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
@@ -2770,6 +2775,15 @@
           "pending": "Änderung wartet auf {device}",
           "sourceMissing": "Quelle fehlt",
           "sourceUnavailable": "Quelle nicht verfügbar"
+        },
+        "confirm": {
+          "titleNew": "Neue Dateifreigabe durch den Agent",
+          "titleMore": "Mehr Zugriff durch den Agent",
+          "body": "Der Agent möchte „{name}“ von {device} freigeben. Erst deine Bestätigung gibt die Dateien weiter.",
+          "noContacts": "Noch für keinen Kontakt.",
+          "allow": "Freigeben",
+          "deny": "Ablehnen",
+          "thisDevice": "diesem Gerät"
         }
       }
     }

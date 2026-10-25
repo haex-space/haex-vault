@@ -14,10 +14,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Zurück",
-      "en": "Back"
-    }
+    "titles": { "de": "Zurück", "en": "Back" }
   },
   {
     "toolName": "wm_tab_forward",
@@ -34,10 +31,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Vor",
-      "en": "Forward"
-    }
+    "titles": { "de": "Vor", "en": "Forward" }
   },
   {
     "toolName": "wm_tab_go",
@@ -59,10 +53,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Im Verlauf springen",
-      "en": "Jump in history"
-    }
+    "titles": { "de": "Im Verlauf springen", "en": "Jump in history" }
   },
   {
     "toolName": "wm_tab_navigate",
@@ -79,18 +70,13 @@
           "type": "string",
           "description": "App-relative location starting with '/', optionally with a query."
         },
-        "replace": {
-          "type": "boolean"
-        }
+        "replace": { "type": "boolean" }
       },
       "required": ["to"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Im Tab navigieren",
-      "en": "Navigate in tab"
-    }
+    "titles": { "de": "Im Tab navigieren", "en": "Navigate in tab" }
   },
   {
     "toolName": "wm_app_open",
@@ -112,10 +98,7 @@
     },
     "effect": "write",
     "core": true,
-    "titles": {
-      "de": "App öffnen",
-      "en": "Open app"
-    }
+    "titles": { "de": "App öffnen", "en": "Open app" }
   },
   {
     "toolName": "wm_tab_new",
@@ -141,10 +124,7 @@
     },
     "effect": "write",
     "core": true,
-    "titles": {
-      "de": "Neuer Tab",
-      "en": "New tab"
-    }
+    "titles": { "de": "Neuer Tab", "en": "New tab" }
   },
   {
     "toolName": "wm_tab_activate",
@@ -161,10 +141,7 @@
     },
     "effect": "write",
     "core": true,
-    "titles": {
-      "de": "Tab aktivieren",
-      "en": "Activate tab"
-    }
+    "titles": { "de": "Tab aktivieren", "en": "Activate tab" }
   },
   {
     "toolName": "wm_tab_close",
@@ -181,10 +158,7 @@
     },
     "effect": "destructive",
     "core": true,
-    "titles": {
-      "de": "Tab schließen",
-      "en": "Close tab"
-    }
+    "titles": { "de": "Tab schließen", "en": "Close tab" }
   },
   {
     "toolName": "wm_window_focus",
@@ -201,10 +175,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Fenster fokussieren",
-      "en": "Focus window"
-    }
+    "titles": { "de": "Fenster fokussieren", "en": "Focus window" }
   },
   {
     "toolName": "wm_window_minimize",
@@ -221,10 +192,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Fenster minimieren",
-      "en": "Minimize window"
-    }
+    "titles": { "de": "Fenster minimieren", "en": "Minimize window" }
   },
   {
     "toolName": "wm_window_toggleMaximize",
@@ -257,18 +225,10 @@
           "type": "string",
           "description": "Window to act on. Required for agents; users default to the focused window."
         },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "width": {
-          "type": "number"
-        },
-        "height": {
-          "type": "number"
-        }
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
       },
       "required": ["x", "y", "width", "height"]
     },
@@ -294,10 +254,7 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Fenster schließen",
-      "en": "Close window"
-    }
+    "titles": { "de": "Fenster schließen", "en": "Close window" }
   },
   {
     "toolName": "wm_window_moveToWorkspace",
@@ -328,16 +285,10 @@
     "toolName": "wm_workspace_create",
     "actionId": "wm.workspace.create",
     "description": "Create a new empty workspace at the end and switch to it.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Arbeitsbereich anlegen",
-      "en": "Create workspace"
-    }
+    "titles": { "de": "Arbeitsbereich anlegen", "en": "Create workspace" }
   },
   {
     "toolName": "wm_workspace_switch",
@@ -354,10 +305,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Arbeitsbereich wechseln",
-      "en": "Switch workspace"
-    }
+    "titles": { "de": "Arbeitsbereich wechseln", "en": "Switch workspace" }
   },
   {
     "toolName": "wm_workspace_delete",
@@ -374,34 +322,22 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Arbeitsbereich löschen",
-      "en": "Delete workspace"
-    }
+    "titles": { "de": "Arbeitsbereich löschen", "en": "Delete workspace" }
   },
   {
     "toolName": "wm_windows_overview",
     "actionId": "wm.windows.overview",
     "description": "Open the window overview.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Fensterübersicht öffnen",
-      "en": "Open window overview"
-    }
+    "titles": { "de": "Fensterübersicht öffnen", "en": "Open window overview" }
   },
   {
     "toolName": "wm_workspaces_overview",
     "actionId": "wm.workspaces.overview",
     "description": "Open the workspace overview.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
     "titles": {
@@ -413,25 +349,16 @@
     "toolName": "wm_launcher_open",
     "actionId": "wm.launcher.open",
     "description": "Open the app launcher.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Launcher öffnen",
-      "en": "Open launcher"
-    }
+    "titles": { "de": "Launcher öffnen", "en": "Open launcher" }
   },
   {
     "toolName": "wm_state_get",
     "actionId": "wm.state.get",
     "description": "Read the open workspaces, windows (geometry, minimized, maximized) and their tabs with app, current location, title and attention flag. Workspaces carry a workspaceId, windows a windowId and tabs a tabId; actions on a tab, window or workspace need that id as their target.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": true,
     "titles": {
@@ -454,19 +381,13 @@
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Tab-Verlauf lesen",
-      "en": "Read tab history"
-    }
+    "titles": { "de": "Tab-Verlauf lesen", "en": "Read tab history" }
   },
   {
     "toolName": "wm_apps_list",
     "actionId": "wm.apps.list",
     "description": "List every installed app that can be opened: holzi's system apps and all installed extensions, each with its id, title, an extension's description, whether several instances are allowed, and its location patterns.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": true,
     "titles": {
@@ -478,31 +399,19 @@
     "toolName": "wm_actions_list",
     "actionId": "wm.actions.list",
     "description": "List every action with its description, input schema, target, permission scope, effect and whether agents may call it.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Aktionen auflisten",
-      "en": "List actions"
-    }
+    "titles": { "de": "Aktionen auflisten", "en": "List actions" }
   },
   {
     "toolName": "chat_conversation_new",
     "actionId": "chat.conversation.new",
     "description": "Start a new conversation in the chat.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Neue Unterhaltung",
-      "en": "New conversation"
-    }
+    "titles": { "de": "Neue Unterhaltung", "en": "New conversation" }
   },
   {
     "toolName": "chat_conversation_open",
@@ -520,10 +429,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Unterhaltung öffnen",
-      "en": "Open conversation"
-    }
+    "titles": { "de": "Unterhaltung öffnen", "en": "Open conversation" }
   },
   {
     "toolName": "chat_conversation_rename",
@@ -536,18 +442,13 @@
           "type": "string",
           "description": "Conversation id (see chat.conversations.list)."
         },
-        "title": {
-          "type": "string"
-        }
+        "title": { "type": "string" }
       },
       "required": ["threadId", "title"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Unterhaltung umbenennen",
-      "en": "Rename conversation"
-    }
+    "titles": { "de": "Unterhaltung umbenennen", "en": "Rename conversation" }
   },
   {
     "toolName": "chat_conversation_delete",
@@ -565,25 +466,16 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Unterhaltung löschen",
-      "en": "Delete conversation"
-    }
+    "titles": { "de": "Unterhaltung löschen", "en": "Delete conversation" }
   },
   {
     "toolName": "chat_conversations_list",
     "actionId": "chat.conversations.list",
     "description": "List all conversations with id, title and creation time.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Unterhaltungen auflisten",
-      "en": "List conversations"
-    }
+    "titles": { "de": "Unterhaltungen auflisten", "en": "List conversations" }
   },
   {
     "toolName": "chat_messages_list",
@@ -601,10 +493,7 @@
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Nachrichten lesen",
-      "en": "Read messages"
-    }
+    "titles": { "de": "Nachrichten lesen", "en": "Read messages" }
   },
   {
     "toolName": "chat_model_select",
@@ -612,19 +501,12 @@
     "description": "Choose and load the model the chat answers with.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "modelId": {
-          "type": "string"
-        }
-      },
+      "properties": { "modelId": { "type": "string" } },
       "required": ["modelId"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Modell wählen",
-      "en": "Choose model"
-    }
+    "titles": { "de": "Modell wählen", "en": "Choose model" }
   },
   {
     "toolName": "chat_reasoning_set",
@@ -632,33 +514,20 @@
     "description": "Set the reasoning effort for the active model; omit 'level' for automatic.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "level": {
-          "type": "string"
-        }
-      }
+      "properties": { "level": { "type": "string" } }
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Denkaufwand setzen",
-      "en": "Set reasoning effort"
-    }
+    "titles": { "de": "Denkaufwand setzen", "en": "Set reasoning effort" }
   },
   {
     "toolName": "chat_model_retryLoad",
     "actionId": "chat.model.retryLoad",
     "description": "Retry loading the active model after a failure.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Modell erneut laden",
-      "en": "Retry loading model"
-    }
+    "titles": { "de": "Modell erneut laden", "en": "Retry loading model" }
   },
   {
     "toolName": "chat_model_downloadRecommended",
@@ -666,11 +535,7 @@
     "description": "Download a model from the recommended catalog.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "entryId": {
-          "type": "string"
-        }
-      },
+      "properties": { "entryId": { "type": "string" } },
       "required": ["entryId"]
     },
     "effect": "write",
@@ -686,11 +551,7 @@
     "description": "Send dictated text automatically when recording stops, or not.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        }
-      },
+      "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
     },
     "effect": "write",
@@ -704,25 +565,16 @@
     "toolName": "settings_get",
     "actionId": "settings.get",
     "description": "Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore, autonomy mode and delegate deny rules. Never includes credentials.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": true,
-    "titles": {
-      "de": "Einstellungen lesen",
-      "en": "Read settings"
-    }
+    "titles": { "de": "Einstellungen lesen", "en": "Read settings" }
   },
   {
     "toolName": "settings_devices_list",
     "actionId": "settings.devices.list",
     "description": "List the vault's devices: this device first and marked, then the others by name, each with its role (main or linked), whether it is online, when it was last online (epoch milliseconds, absent if never seen) and why sync with it is halted, if it is, and its sync versions (schema: protocol, holziMigration for the vault schema, crdtTrigger for the change tracking), which tell which device has to be updated when they differ; absent if this device never saw them. A device without a name has no alias.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
     "titles": {
@@ -734,10 +586,7 @@
     "toolName": "settings_devices_identity",
     "actionId": "settings.devices.identity",
     "description": "The vault's public identity: its public key as npub and hex, which names the vault in member lists and rights. Never a private key.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
     "titles": {
@@ -749,10 +598,7 @@
     "toolName": "settings_models_list",
     "actionId": "settings.models.list",
     "description": "List the installed models.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": true,
     "titles": {
@@ -764,16 +610,10 @@
     "toolName": "settings_models_checkUpdates",
     "actionId": "settings.models.checkUpdates",
     "description": "Check installed HuggingFace models for newer revisions.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Modell-Updates prüfen",
-      "en": "Check model updates"
-    }
+    "titles": { "de": "Modell-Updates prüfen", "en": "Check model updates" }
   },
   {
     "toolName": "settings_device_setAlias",
@@ -781,19 +621,12 @@
     "description": "Rename this device (the name other devices see).",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "alias": {
-          "type": "string"
-        }
-      },
+      "properties": { "alias": { "type": "string" } },
       "required": ["alias"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Gerätename ändern",
-      "en": "Rename device"
-    }
+    "titles": { "de": "Gerätename ändern", "en": "Rename device" }
   },
   {
     "toolName": "settings_sessionRestore_set",
@@ -801,11 +634,7 @@
     "description": "Turn saving and restoring the open workspaces, windows and tabs (with their back/forward history) on or off for the whole vault. Turning it off deletes the saved session.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        }
-      },
+      "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
     },
     "effect": "write",
@@ -832,10 +661,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Sprache festlegen",
-      "en": "Set the language"
-    }
+    "titles": { "de": "Sprache festlegen", "en": "Set the language" }
   },
   {
     "toolName": "settings_appearance_setColorScheme",
@@ -844,28 +670,19 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "scheme": {
-          "type": "string",
-          "enum": ["light", "dark", "system"]
-        }
+        "scheme": { "type": "string", "enum": ["light", "dark", "system"] }
       },
       "required": ["scheme"]
     },
     "effect": "write",
     "core": true,
-    "titles": {
-      "de": "Farbschema festlegen",
-      "en": "Set the color scheme"
-    }
+    "titles": { "de": "Farbschema festlegen", "en": "Set the color scheme" }
   },
   {
     "toolName": "settings_appearance_removeBackground",
     "actionId": "settings.appearance.removeBackground",
     "description": "Remove the workspace background image for the whole vault; the default background shows again. Only the user can choose a new image, in Settings → General → Appearance.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
     "titles": {
@@ -884,9 +701,7 @@
           "type": "object",
           "description": "Either { preset: <id of a colour field> } or { custom: '#rrggbb' }. Accent presets: teal, blue, violet, pink, red, orange, yellow, green, neutral. Tint presets (window, container, text, component): neutral, warm, cool, green, violet, rose.",
           "properties": {
-            "preset": {
-              "type": "string"
-            },
+            "preset": { "type": "string" },
             "custom": {
               "type": "string",
               "description": "A colour as #rrggbb."
@@ -897,9 +712,7 @@
           "type": "object",
           "description": "Either { preset: <id of a colour field> } or { custom: '#rrggbb' }. Accent presets: teal, blue, violet, pink, red, orange, yellow, green, neutral. Tint presets (window, container, text, component): neutral, warm, cool, green, violet, rose.",
           "properties": {
-            "preset": {
-              "type": "string"
-            },
+            "preset": { "type": "string" },
             "custom": {
               "type": "string",
               "description": "A colour as #rrggbb."
@@ -910,9 +723,7 @@
           "type": "object",
           "description": "Either { preset: <id of a colour field> } or { custom: '#rrggbb' }. Accent presets: teal, blue, violet, pink, red, orange, yellow, green, neutral. Tint presets (window, container, text, component): neutral, warm, cool, green, violet, rose.",
           "properties": {
-            "preset": {
-              "type": "string"
-            },
+            "preset": { "type": "string" },
             "custom": {
               "type": "string",
               "description": "A colour as #rrggbb."
@@ -923,9 +734,7 @@
           "type": "object",
           "description": "Either { preset: <id of a colour field> } or { custom: '#rrggbb' }. Accent presets: teal, blue, violet, pink, red, orange, yellow, green, neutral. Tint presets (window, container, text, component): neutral, warm, cool, green, violet, rose.",
           "properties": {
-            "preset": {
-              "type": "string"
-            },
+            "preset": { "type": "string" },
             "custom": {
               "type": "string",
               "description": "A colour as #rrggbb."
@@ -936,9 +745,7 @@
           "type": "object",
           "description": "Either { preset: <id of a colour field> } or { custom: '#rrggbb' }. Accent presets: teal, blue, violet, pink, red, orange, yellow, green, neutral. Tint presets (window, container, text, component): neutral, warm, cool, green, violet, rose.",
           "properties": {
-            "preset": {
-              "type": "string"
-            },
+            "preset": { "type": "string" },
             "custom": {
               "type": "string",
               "description": "A colour as #rrggbb."
@@ -953,34 +760,22 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Darstellung festlegen",
-      "en": "Set the appearance"
-    }
+    "titles": { "de": "Darstellung festlegen", "en": "Set the appearance" }
   },
   {
     "toolName": "settings_appearance_reset",
     "actionId": "settings.appearance.reset",
     "description": "Reset the whole appearance (accent, tints, window hint) of the vault to the defaults. The color scheme stays.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Darstellung zurücksetzen",
-      "en": "Reset the appearance"
-    }
+    "titles": { "de": "Darstellung zurücksetzen", "en": "Reset the appearance" }
   },
   {
     "toolName": "settings_appearance_export",
     "actionId": "settings.appearance.export",
     "description": "The appearance and the color scheme of the vault as the text of an appearance file (JSON).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": false,
     "titles": {
@@ -994,11 +789,7 @@
     "description": "Apply the text of an appearance file (JSON): color scheme and appearance, all or nothing. A file with any fault changes nothing.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "file": {
-          "type": "string"
-        }
-      },
+      "properties": { "file": { "type": "string" } },
       "required": ["file"]
     },
     "effect": "write",
@@ -1024,25 +815,16 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Standard-Modell setzen",
-      "en": "Set default model"
-    }
+    "titles": { "de": "Standard-Modell setzen", "en": "Set default model" }
   },
   {
     "toolName": "settings_models_clearDefault",
     "actionId": "settings.models.clearDefault",
     "description": "Remove the default chat model of this device.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    },
+    "inputSchema": { "type": "object", "properties": {} },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Standard-Modell entfernen",
-      "en": "Clear default model"
-    }
+    "titles": { "de": "Standard-Modell entfernen", "en": "Clear default model" }
   },
   {
     "toolName": "settings_models_setStt",
@@ -1050,11 +832,7 @@
     "description": "Switch the speech-to-text model to a catalog entry, downloading it if needed.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "catalogId": {
-          "type": "string"
-        }
-      },
+      "properties": { "catalogId": { "type": "string" } },
       "required": ["catalogId"]
     },
     "effect": "write",
@@ -1070,11 +848,7 @@
     "description": "Download a chat model from the recommended catalog.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "entryId": {
-          "type": "string"
-        }
-      },
+      "properties": { "entryId": { "type": "string" } },
       "required": ["entryId"]
     },
     "effect": "write",
@@ -1091,27 +865,13 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "repoId": {
-          "type": "string"
-        },
-        "filename": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "tokenizerRepo": {
-          "type": "string"
-        },
-        "contextWindow": {
-          "type": "integer"
-        },
-        "forceTooBig": {
-          "type": "boolean"
-        }
+        "repoId": { "type": "string" },
+        "filename": { "type": "string" },
+        "revision": { "type": "string" },
+        "name": { "type": "string" },
+        "tokenizerRepo": { "type": "string" },
+        "contextWindow": { "type": "integer" },
+        "forceTooBig": { "type": "boolean" }
       },
       "required": ["repoId", "filename"]
     },
@@ -1159,10 +919,7 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Modell löschen",
-      "en": "Delete model"
-    }
+    "titles": { "de": "Modell löschen", "en": "Delete model" }
   },
   {
     "toolName": "settings_delegate_refreshModels",
@@ -1170,11 +927,7 @@
     "description": "Refresh a connected delegate provider's model list.",
     "inputSchema": {
       "type": "object",
-      "properties": {
-        "providerId": {
-          "type": "string"
-        }
-      },
+      "properties": { "providerId": { "type": "string" } },
       "required": ["providerId"]
     },
     "effect": "write",
@@ -1216,9 +969,7 @@
     "toolName": "files_sources",
     "actionId": "files.sources",
     "description": "Where files can be reached: the drives and known folders of this device (source \"device\") and the storages you have access to (source \"storage:<id>\"). Call it first to learn where to list or search. A storage the user names but that is not listed can be used as \"storage:<name>\"; holzi asks the user then.",
-    "inputSchema": {
-      "type": "object"
-    },
+    "inputSchema": { "type": "object" },
     "effect": "read",
     "core": false,
     "titles": {
@@ -1242,19 +993,13 @@
           "type": "string",
           "description": "On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         },
-        "limit": {
-          "type": "integer",
-          "description": "At most 2000."
-        }
+        "limit": { "type": "integer", "description": "At most 2000." }
       },
       "required": ["source", "path"]
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Ordner auflisten",
-      "en": "List a folder"
-    },
+    "titles": { "de": "Ordner auflisten", "en": "List a folder" },
     "runner": "native"
   },
   {
@@ -1277,10 +1022,7 @@
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Angaben zu einer Datei",
-      "en": "Details of a file"
-    },
+    "titles": { "de": "Angaben zu einer Datei", "en": "Details of a file" },
     "runner": "native"
   },
   {
@@ -1298,10 +1040,7 @@
           "type": "string",
           "description": "Where to start. On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         },
-        "query": {
-          "type": "string",
-          "description": "Part of the name."
-        },
+        "query": { "type": "string", "description": "Part of the name." },
         "types": {
           "type": "array",
           "items": {
@@ -1309,27 +1048,16 @@
             "enum": ["image", "video", "audio", "document", "text"]
           }
         },
-        "sizeMin": {
-          "type": "integer"
-        },
-        "sizeMax": {
-          "type": "integer"
-        },
-        "modifiedAfter": {
-          "type": "string"
-        },
-        "modifiedBefore": {
-          "type": "string"
-        }
+        "sizeMin": { "type": "integer" },
+        "sizeMax": { "type": "integer" },
+        "modifiedAfter": { "type": "string" },
+        "modifiedBefore": { "type": "string" }
       },
       "required": ["source", "path", "query"]
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Dateien suchen",
-      "en": "Search files"
-    },
+    "titles": { "de": "Dateien suchen", "en": "Search files" },
     "runner": "native"
   },
   {
@@ -1352,10 +1080,7 @@
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Datei lesen",
-      "en": "Read a file"
-    },
+    "titles": { "de": "Datei lesen", "en": "Read a file" },
     "runner": "native"
   },
   {
@@ -1373,18 +1098,13 @@
           "type": "string",
           "description": "The parent folder. On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         },
-        "name": {
-          "type": "string"
-        }
+        "name": { "type": "string" }
       },
       "required": ["source", "path", "name"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Ordner anlegen",
-      "en": "Create a folder"
-    },
+    "titles": { "de": "Ordner anlegen", "en": "Create a folder" },
     "runner": "native"
   },
   {
@@ -1406,10 +1126,7 @@
           },
           "description": "The files and folders, by path."
         },
-        "to": {
-          "type": "string",
-          "description": "The folder they go into."
-        },
+        "to": { "type": "string", "description": "The folder they go into." },
         "toSource": {
           "type": "string",
           "description": "Where `to` lies, as `source`; the same as `source` when left out."
@@ -1424,10 +1141,7 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Dateien kopieren",
-      "en": "Copy files"
-    },
+    "titles": { "de": "Dateien kopieren", "en": "Copy files" },
     "runner": "native"
   },
   {
@@ -1445,18 +1159,13 @@
           "type": "string",
           "description": "On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         },
-        "newName": {
-          "type": "string"
-        }
+        "newName": { "type": "string" }
       },
       "required": ["source", "path", "newName"]
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Datei umbenennen",
-      "en": "Rename a file"
-    },
+    "titles": { "de": "Datei umbenennen", "en": "Rename a file" },
     "runner": "native"
   },
   {
@@ -1478,10 +1187,7 @@
           },
           "description": "The files and folders, by path."
         },
-        "to": {
-          "type": "string",
-          "description": "The folder they go into."
-        },
+        "to": { "type": "string", "description": "The folder they go into." },
         "toSource": {
           "type": "string",
           "description": "Where `to` lies, as `source`; the same as `source` when left out."
@@ -1496,10 +1202,7 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Dateien verschieben",
-      "en": "Move files"
-    },
+    "titles": { "de": "Dateien verschieben", "en": "Move files" },
     "runner": "native"
   },
   {
@@ -1526,10 +1229,7 @@
     },
     "effect": "destructive",
     "core": false,
-    "titles": {
-      "de": "Dateien löschen",
-      "en": "Delete files"
-    },
+    "titles": { "de": "Dateien löschen", "en": "Delete files" },
     "runner": "native"
   },
   {
@@ -1558,6 +1258,117 @@
     }
   },
   {
+    "toolName": "files_shares_list",
+    "actionId": "files.shares.list",
+    "description": "List the file shares of this vault with their contacts.",
+    "inputSchema": { "type": "object" },
+    "effect": "read",
+    "core": false,
+    "titles": { "de": "Dateifreigaben auflisten", "en": "List file shares" },
+    "runner": "native"
+  },
+  {
+    "toolName": "files_shares_of",
+    "actionId": "files.shares.of",
+    "description": "The share of a folder or file of this device, if there is one; the result has a share field only when found.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "path": { "type": "string" } },
+      "required": ["path"]
+    },
+    "effect": "read",
+    "core": false,
+    "titles": { "de": "Freigabe eines Ordners", "en": "Share of a folder" },
+    "runner": "native"
+  },
+  {
+    "toolName": "files_shares_save",
+    "actionId": "files.shares.save",
+    "description": "Share a folder or file of this device with contacts, or change the name and contacts of a share; the grants replace the share’s grants.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string", "description": "The share." },
+        "source": {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string", "enum": ["device", "storage"] },
+            "storageId": { "type": "string" }
+          },
+          "required": ["kind"]
+        },
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "grants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "vaultPubkey": { "type": "string" },
+              "level": { "type": "string", "enum": ["read", "readWrite"] }
+            },
+            "required": ["vaultPubkey", "level"]
+          }
+        }
+      },
+      "required": ["source", "path", "name", "grants"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": {
+      "de": "Ordner oder Datei freigeben",
+      "en": "Share a folder or file"
+    },
+    "runner": "native"
+  },
+  {
+    "toolName": "files_shares_revoke",
+    "actionId": "files.shares.revoke",
+    "description": "Take a contact’s access to a share away.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string", "description": "The share." },
+        "vaultPubkey": { "type": "string" }
+      },
+      "required": ["shareId", "vaultPubkey"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": { "de": "Zugriff entziehen", "en": "Revoke access" },
+    "runner": "native"
+  },
+  {
+    "toolName": "files_shares_delete",
+    "actionId": "files.shares.delete",
+    "description": "Delete a share; its contacts lose access.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string", "description": "The share." }
+      },
+      "required": ["shareId"]
+    },
+    "effect": "destructive",
+    "core": false,
+    "titles": { "de": "Freigabe löschen", "en": "Delete share" },
+    "runner": "native"
+  },
+  {
+    "toolName": "files_shares_ofContact",
+    "actionId": "files.shares.ofContact",
+    "description": "The shares a contact has access to.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "contactId": { "type": "string" } },
+      "required": ["contactId"]
+    },
+    "effect": "read",
+    "core": false,
+    "titles": { "de": "Freigaben eines Kontakts", "en": "Shares of a contact" },
+    "runner": "native"
+  },
+  {
     "toolName": "contacts_search",
     "actionId": "contacts.search",
     "description": "Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. Needs the user to allow reading contacts.",
@@ -1577,10 +1388,7 @@
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Kontakte suchen",
-      "en": "Search contacts"
-    }
+    "titles": { "de": "Kontakte suchen", "en": "Search contacts" }
   },
   {
     "toolName": "contacts_get",
@@ -1589,19 +1397,13 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "The contact id."
-        }
+        "id": { "type": "string", "description": "The contact id." }
       },
       "required": ["id"]
     },
     "effect": "read",
     "core": false,
-    "titles": {
-      "de": "Kontakt lesen",
-      "en": "Read a contact"
-    }
+    "titles": { "de": "Kontakt lesen", "en": "Read a contact" }
   },
   {
     "toolName": "contacts_update",
@@ -1610,10 +1412,7 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "The contact id."
-        },
+        "id": { "type": "string", "description": "The contact id." },
         "givenName": {
           "type": "string",
           "description": "The new text; an empty text clears the field."
@@ -1643,28 +1442,20 @@
           "items": {
             "type": "object",
             "properties": {
-              "id": {
-                "type": "string"
-              },
+              "id": { "type": "string" },
               "kind": {
                 "type": "string",
                 "description": "phone, email, address, url, date, im, relation, custom or a kind of a newer holzi."
               },
-              "label": {
-                "type": "string"
-              },
-              "value": {
-                "type": "string"
-              }
+              "label": { "type": "string" },
+              "value": { "type": "string" }
             }
           },
           "description": "Values to change (with id) or add (without id)."
         },
         "remove": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "items": { "type": "string" },
           "description": "Ids of values to remove."
         }
       },
@@ -1672,9 +1463,6 @@
     },
     "effect": "write",
     "core": false,
-    "titles": {
-      "de": "Kontakt ändern",
-      "en": "Change a contact"
-    }
+    "titles": { "de": "Kontakt ändern", "en": "Change a contact" }
   }
 ]

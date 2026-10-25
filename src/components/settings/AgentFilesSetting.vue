@@ -6,11 +6,15 @@
  * for encrypted folders (spec 048 FR-033) list with storage, status and reach; a revoke removes
  * the answer at once, so the agent is asked again. The contacts (spec 051 FR-030) follow: all of
  * them by selection, where "Fragt nach" revokes the answer, and remembered answers for single groups
- * with a revoke. Writes go through the catalog actions, which no agent may call (guardrails).
+ * with a revoke. Other own devices and the shares contacts gave this vault list as storages (spec
+ * 056 FR-040), and "Dateifreigaben verwalten" lets an agent manage file shares (FR-045). Writes go
+ * through the catalog actions, which no agent may call (guardrails).
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentFilePermissionView } from '@bindings/AgentFilePermissionView'
 import type { ContactGroup } from '@bindings/ContactGroup'
+import type { Sources } from '@bindings/Sources'
+import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
 import {
   agentFiles,
   BUILTIN_AGENT,
@@ -25,6 +29,8 @@ const removePermission = useActionOrThrow('settings.agents.files.remove')
 
 const rows = ref<AgentFilePermissionView[] | null>(null)
 const groups = ref<ContactGroup[]>([])
+/** Other own devices and received shares, as storages (spec 056). */
+const remote = ref<{ id: string; name: string }[]>([])
 const busy = ref(false)
 const loadError = ref<string | null>(null)
 const opError = ref<string | null>(null)
@@ -35,10 +41,31 @@ async function reloadAsync() {
       'files_agent_permissions',
     )
     groups.value = await invoke<ContactGroup[]>('contacts_groups')
+    // Without the other devices the settings still show the rest.
+    const sources = await invoke<Sources>('files_sources').catch(() => null)
+    remote.value = sources ? remoteStorages(sources) : []
     loadError.value = null
   } catch (error: unknown) {
     loadError.value = errString(error)
   }
+}
+
+function remoteStorages(sources: Sources) {
+  return [
+    ...sources.devices.map((device) => ({
+      id: device.id,
+      name: device.name ?? t('files.peer.unnamed'),
+    })),
+    ...sources.contacts.flatMap((contact) =>
+      contact.shares.map((share) => ({
+        id: share.storageId,
+        name: t('settings.agentFiles.receivedShare', {
+          name: share.name,
+          contact: contact.contactName,
+        }),
+      })),
+    ),
+  ]
 }
 
 onMounted(reloadAsync)
@@ -48,9 +75,21 @@ onVaultTablesChanged(['agent_file_permissions'], () => {
 
 const agents = computed(() =>
   rows.value && overview.value
-    ? agentFiles(rows.value, overview.value.storages)
+    ? agentFiles(rows.value, [...overview.value.storages, ...remote.value])
     : [],
 )
+
+function storageIcon(id: string): string {
+  if (isPeerStorage(id)) return 'lucide:monitor-smartphone'
+  return isRemoteStorage(id) ? 'lucide:folder-symlink' : 'lucide:cloud'
+}
+
+function storageDescription(id: string): string {
+  if (isPeerStorage(id)) return t('settings.agentFiles.peerDescription')
+  return isRemoteStorage(id)
+    ? t('settings.agentFiles.receivedDescription')
+    : t('settings.agentFiles.storageDescription')
+}
 
 const agentName = (agentId: string) =>
   agentId === BUILTIN_AGENT ? t('settings.agentFiles.builtin') : agentId
@@ -80,7 +119,7 @@ const groupName = (groupId: string) => {
 
 async function saveAsync(
   agentId: string,
-  kind: 'device' | 'storage' | 'contacts',
+  kind: 'device' | 'storage' | 'contacts' | 'fileShares',
   target: string,
   status: string,
 ) {
@@ -162,8 +201,8 @@ function onStorage(agentId: string, storageId: string, next: string) {
         v-for="storage in agent.storages"
         :key="storage.id"
         :title="storage.name"
-        :description="t('settings.agentFiles.storageDescription')"
-        icon="lucide:cloud"
+        :description="storageDescription(storage.id)"
+        :icon="storageIcon(storage.id)"
         :label-for="`agent-files-storage-${agent.agentId}-${storage.id}`"
       >
         <SettingsSelect
@@ -188,6 +227,27 @@ function onStorage(agentId: string, storageId: string, next: string) {
           :disabled="busy"
           :data-testid="`agent-files-contacts-${agent.agentId}`"
           @update:model-value="onContacts(agent.agentId, $event)"
+        />
+      </SettingsRow>
+      <SettingsRow
+        :title="t('settings.agentFiles.fileShares')"
+        :description="t('settings.agentFiles.fileSharesDescription')"
+        icon="lucide:share-2"
+        :label-for="`agent-files-shares-${agent.agentId}`"
+      >
+        <ShadcnSwitch
+          :id="`agent-files-shares-${agent.agentId}`"
+          :model-value="agent.fileShares"
+          :disabled="busy"
+          :data-testid="`agent-files-shares-${agent.agentId}`"
+          @update:model-value="
+            saveAsync(
+              agent.agentId,
+              'fileShares',
+              '',
+              $event === true ? 'granted' : 'denied',
+            )
+          "
         />
       </SettingsRow>
       <SettingsRow

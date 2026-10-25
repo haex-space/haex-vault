@@ -4,6 +4,7 @@
 // catalog; `check:agent-actions` fails when the snapshot differs from what this script builds.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import * as prettier from 'prettier'
 
 import {
   listAgentActions,
@@ -39,6 +40,9 @@ export function evalTools(): AgentActionDef[] {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  writeFileSync(TOOLS_PATH, `${JSON.stringify(evalTools(), null, 2)}\n`)
+  const formatted = await prettier.format(JSON.stringify(evalTools()), {
+    parser: 'json',
+  })
+  writeFileSync(TOOLS_PATH, formatted)
   console.log(`wrote ${TOOLS_PATH}`)
 }

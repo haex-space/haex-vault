@@ -49,6 +49,8 @@ pub struct FakeEnv {
     pub device: Option<(DeviceRoot, Scope)>,
     pub prompt: PermissionPrompt,
     pub asked: Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
+    /// Shares a contact gave this vault for reading only (spec 056 FR-041).
+    pub read_only: Vec<String>,
 }
 
 #[async_trait]
@@ -151,6 +153,10 @@ impl AgentEnv for FakeEnv {
         (root.storage_id == storage_id).then(|| root.clone())
     }
 
+    async fn read_only(&self, storage_id: &str) -> bool {
+        self.read_only.iter().any(|id| id == storage_id)
+    }
+
     fn prompt(&self) -> &PermissionPrompt {
         &self.prompt
     }
@@ -227,6 +233,7 @@ impl Scene {
             protocol: Protocol::S3,
             prompt,
             asked,
+            read_only: Vec::new(),
         };
         let agent = FilesAgent {
             env,
@@ -268,6 +275,7 @@ impl Scene {
                 .map(|scope| (device.root.clone(), scope.clone())),
             prompt,
             asked,
+            read_only: Vec::new(),
         };
         let agent = FilesAgent {
             env,
@@ -311,6 +319,7 @@ impl Scene {
             protocol: Protocol::S3,
             prompt,
             asked,
+            read_only: Vec::new(),
         };
         let agent = FilesAgent {
             env,

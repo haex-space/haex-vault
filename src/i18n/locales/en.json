@@ -1045,7 +1045,12 @@
       "contacts": "Contacts",
       "contactsDescription": "Address book",
       "contactsGroup": "Contacts in the group “{name}”",
-      "contactsGroupUnknown": "Contacts of a deleted group"
+      "contactsGroupUnknown": "Contacts of a deleted group",
+      "receivedShare": "“{name}” from {contact}",
+      "peerDescription": "Another device of this vault",
+      "receivedDescription": "A contact's share",
+      "fileShares": "Manage file shares",
+      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -2770,6 +2775,15 @@
           "pending": "Change waiting for {device}",
           "sourceMissing": "Source missing",
           "sourceUnavailable": "Source unavailable"
+        },
+        "confirm": {
+          "titleNew": "New file share by the agent",
+          "titleMore": "More access by the agent",
+          "body": "The agent wants to share “{name}” from {device}. Only your confirmation gives the files away.",
+          "noContacts": "Not for any contact yet.",
+          "allow": "Share",
+          "deny": "Decline",
+          "thisDevice": "this device"
         }
       }
     }

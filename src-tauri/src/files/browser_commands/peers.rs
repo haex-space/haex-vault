@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 use tokio::time::{Duration, Instant};
 use ts_rs::TS;
 
@@ -50,7 +50,10 @@ pub struct FilesPeerDevice {
 }
 
 /// Every other device of the effective list; empty without an open vault or a sync service.
-pub async fn peer_devices(app: &AppHandle, state: &AppState) -> Vec<FilesPeerDevice> {
+pub async fn peer_devices<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+) -> Vec<FilesPeerDevice> {
     let Some(runtime) = app
         .try_state::<Arc<SyncRegistry>>()
         .and_then(|registry| registry.get())
@@ -205,7 +208,10 @@ pub async fn files_contact_query(
 }
 
 /// The contacts with a stored card and what is known of their shares, for the sidebar (FR-031).
-pub async fn contact_shares(app: &AppHandle, state: &AppState) -> Vec<FilesContactShares> {
+pub async fn contact_shares<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+) -> Vec<FilesContactShares> {
     let Ok(db) = state.database() else {
         return Vec::new();
     };
