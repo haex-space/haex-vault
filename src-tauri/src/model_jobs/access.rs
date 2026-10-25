@@ -8,7 +8,6 @@ use serde_json::{json, Value};
 
 use super::bridge::entry;
 use super::candidates::fits;
-use super::effort::Level;
 use super::errors::refusal;
 use super::job::{JobError, Need};
 use super::preflight::{ask_for_model, read_facts};
@@ -22,11 +21,9 @@ pub(crate) const MODEL_SETTINGS_EVENT: &str = "extension-open-model-settings";
 #[serde(deny_unknown_fields)]
 struct RawRequest {
     needs: Vec<String>,
-    #[serde(default)]
-    effort: Option<String>,
 }
 
-fn parse(params: &Value) -> Result<(Vec<Need>, Option<Level>), JobError> {
+fn parse(params: &Value) -> Result<Vec<Need>, JobError> {
     let raw = RawRequest::deserialize(params)
         .map_err(|error| JobError::Invalid(format!("the request: {error}")))?;
     let mut needs = Vec::new();
@@ -38,20 +35,13 @@ fn parse(params: &Value) -> Result<(Vec<Need>, Option<Level>), JobError> {
         }
         needs.push(need);
     }
-    let effort = match raw.effort.as_deref() {
-        None => None,
-        Some(text) => Some(
-            Level::parse(text)
-                .ok_or_else(|| JobError::Invalid(format!("unknown effort {text:?}")))?,
-        ),
-    };
-    Ok((needs, effort))
+    Ok(needs)
 }
 
-/// `{needs, effort?}`: the granted models that fit, first choice first, or the question for a
+/// `{needs}`: the granted models that fit, first choice first, or the question for a
 /// grant (1004), `no_capable_model` (8001) or `consent_denied` (1002) as for a step.
 pub(crate) fn request(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
-    let (needs, effort) = parse(params).map_err(|error| refusal(&error))?;
+    let needs = parse(params).map_err(|error| refusal(&error))?;
     let facts = read_facts(ctx)?;
     let models: Vec<Value> = facts
         .granted
@@ -60,7 +50,7 @@ pub(crate) fn request(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
         .map(entry)
         .collect();
     if models.is_empty() {
-        return Err(ask_for_model(&needs, effort, &facts, ctx.device));
+        return Err(ask_for_model(&needs, &facts, ctx.device));
     }
     Ok(json!({ "models": models }))
 }

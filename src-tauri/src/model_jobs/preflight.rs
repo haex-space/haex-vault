@@ -172,7 +172,7 @@ pub(crate) fn choose(
 ) -> Result<Vec<Candidate>, BridgeError> {
     let listed = for_step(&facts.granted, step);
     if listed.is_empty() {
-        return Err(ask_for_model(&step.needs, step.effort, facts, device));
+        return Err(ask_for_model(&step.needs, facts, device));
     }
     let mut kept = Vec::new();
     let mut refused = false;
@@ -222,13 +222,7 @@ fn prompt(details: Value) -> BridgeError {
 
 /// No granted model fits what a step or a request for access needs: ask for one that does, the
 /// default model when it fits.
-pub(crate) fn ask_for_model(
-    needs: &[Need],
-    effort: Option<Level>,
-    facts: &Facts,
-    device: Uuid,
-) -> BridgeError {
-    let wish = effort.unwrap_or(Level::None);
+pub(crate) fn ask_for_model(needs: &[Need], facts: &Facts, device: Uuid) -> BridgeError {
     let fitting: Vec<&JobModel> = facts.models.iter().filter(|m| fits(needs, m)).collect();
     if fitting.is_empty() {
         return no_capable_model();
@@ -238,7 +232,7 @@ pub(crate) fn ask_for_model(
         .filter(|m| {
             evaluate(
                 &facts.model_permissions,
-                &model_request(wish, &m.id),
+                &model_request(Level::None, &m.id),
                 device,
             ) != Decision::Deny
         })
@@ -254,7 +248,8 @@ pub(crate) fn ask_for_model(
     let needs: Vec<&str> = needs.iter().map(|need| need.as_str()).collect();
     prompt(json!({
         "resourceType": PermissionKind::Model.as_str(),
-        "action": wish.as_str(),
+        // The user chooses the effort with the model; the question names none.
+        "action": Level::None.as_str(),
         "target": target.id,
         "needs": needs,
     }))

@@ -25,7 +25,6 @@ Step {
     version: number        // ganze Zahl >= 1
     schema: object         // Schema-Teilmenge, siehe unten
   }
-  effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max"
   maxOutputTokens?: number // bis zur Obergrenze (Standard 4096, höchstens 16384)
 }
 
@@ -66,10 +65,10 @@ Modul `S/model_jobs/schema.rs` (nicht der Aktionsprüfer von Spec 018: dessen Te
 
 ## Aufwand
 
-- Die Erweiterung gibt höchstens einen Wunsch an. holzi bildet `min(Wunsch, höchster freigegebener Aufwand)`;
-  fehlt der Wunsch, gilt `none`.
+- Die Erweiterung nennt keinen Aufwand; ein Feld `effort` im Schritt ist falsch geformt (3001). Den Aufwand legt
+  der Nutzer je Modell fest (Freigabe, `ExtensionModelEntry.ceiling`); holzi ordnet ihn dem Modell zu.
 - Die Stufen sind die gängigen Namen der Anbieter, aufsteigend: `none`, `low`, `medium`, `high`, `xhigh`, `max`
-  (`minimal` zählt als `low`). Der Nutzer wählt den höchsten Aufwand aus den Stufen, die das Modell selbst hat
+  (`minimal` zählt als `low`). Der Nutzer wählt aus den Stufen, die das Modell selbst hat
   (`ExtensionModelEntry.efforts`); ein Modell ohne Wahl des Aufwands hat nur „erlaubt“ (`none`).
 - Die Stufen eines Modells kommen in der vom Anbieter gemeldeten Reihenfolge, die nicht als aufsteigend zugesichert
   ist. Sind alle Namen bekannt (`none`/`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), ordnet holzi sie

@@ -14,7 +14,7 @@ export function withoutModels<T extends { kind: string }>(
   return rows.filter((row) => row.kind !== MODEL_KIND)
 }
 
-/** The efforts a grant can allow, lowest first; a model offers the ones it has (`efforts`). */
+/** The efforts the user can choose, lowest first; a model offers the ones it has (`efforts`). */
 export const EFFORT_LEVELS = [
   'none',
   'low',
@@ -34,9 +34,9 @@ const byLevel = (a: string, b: string) =>
   EFFORT_LEVELS.indexOf(b as EffortLevel)
 
 /**
- * The ceilings to choose from for a model that offers `efforts`: its own levels, lowest first.
- * A model without a choice of effort has only `none`, which then means "allowed"; the ceiling
- * the extension has now stays in the list even when the model no longer offers it.
+ * The efforts to choose from for a model that offers `efforts`: its own levels, lowest first.
+ * A model without a choice of effort has only `none`, which then means "allowed"; the effort
+ * the model has now stays in the list even when the model no longer offers it.
  */
 export function ceilingChoices(
   efforts: readonly string[],
@@ -49,15 +49,15 @@ export function ceilingChoices(
 }
 
 /**
- * The ceiling a question starts with for a model: the highest level the model offers that is not
- * above the effort the job wished for, else its lowest; `none` for a model without a choice.
+ * The effort a question starts with for a model, which the user changes: `medium` when the model
+ * has it, else the middle one of its own levels (the upper of two); `none` for a model without a
+ * choice of effort. The extension has no say (spec 055 FR-036).
  */
-export function effortFor(efforts: readonly string[], wish: string): string {
+export function startingEffort(efforts: readonly string[]): string {
   const offered = [...efforts].sort(byLevel)
   if (offered.length === 0) return 'none'
-  const wished = isEffortLevel(wish) ? wish : 'none'
-  const within = offered.filter((level) => byLevel(level, wished) <= 0)
-  return within.at(-1) ?? (offered[0] as string)
+  if (offered.includes('medium')) return 'medium'
+  return offered[Math.floor(offered.length / 2)] as string
 }
 
 /** The i18n key of an effort level. */

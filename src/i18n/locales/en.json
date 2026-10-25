@@ -1002,7 +1002,7 @@
         "held": "for this session only",
         "moveUp": "Move up",
         "moveDown": "Move down",
-        "ceiling": "Highest effort for {name}"
+        "ceiling": "Effort for {name}"
       }
     },
     "agentFiles": {
@@ -2376,8 +2376,8 @@
       "model": {
         "intro": "The extension wants to use one of holzi's models. Pick one that fits the job:",
         "models": "Models",
-        "effort": "Highest effort",
-        "effortHint": "The extension can ask for less effort, never more.",
+        "effort": "Effort",
+        "effortHint": "You set the effort; the extension cannot change it.",
         "agent": "An agent: the extension then instructs a program that can read and change files and run commands on this device."
       },
       "modelDestination": {

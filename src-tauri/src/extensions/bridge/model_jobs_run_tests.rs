@@ -165,15 +165,12 @@ fn without_a_grant_the_user_is_asked_for_a_fitting_model_and_no_model_is_called(
             insert_or_update(tx, PrefScope::Vault, PREF_DEFAULT_MODEL, &default).map(drop)
         })
         .unwrap();
-    let mut wish = step();
-    wish["effort"] = json!("low");
-
-    let details = prompt_of(start(&s, &job(vec![wish])));
+    let details = prompt_of(start(&s, &job(vec![step()])));
 
     assert_eq!(
         details,
         json!({
-            "resourceType": "model", "action": "low", "target": rows[1].id, "needs": ["text"]
+            "resourceType": "model", "action": "none", "target": rows[1].id, "needs": ["text"]
         })
     );
     assert!(source.asked().is_empty());
@@ -468,10 +465,7 @@ fn a_wish_above_the_ceiling_is_capped_and_the_provenance_names_what_was_sent() {
     store_models(&s.ctx.db, &server, std::slice::from_ref(&row));
     let source = scripted(&s, &[(&row.id, Script::Answer(GOOD.into()))]);
     allow(&s, "model", "medium", &row.id, "granted");
-    let mut wish = step();
-    wish["effort"] = json!("high");
-
-    start(&s, &job(vec![wish])).unwrap();
+    start(&s, &job(vec![step()])).unwrap();
     let data = completion(&s);
 
     assert_eq!(data["provenance"][0]["attempts"][0]["effort"], "medium");

@@ -21,7 +21,7 @@ result: {
     provider: string,      // Anzeigename des Anbieters
     place: "this_device" | "network" | "cloud",
     capabilities: { image: boolean, effort: "none" | "managed" | "levels" },
-    maxEffort: "none" | "low" | "medium" | "high" | "xhigh" | "max"   // höchster freigegebener Aufwand
+    maxEffort: "none" | "low" | "medium" | "high" | "xhigh" | "max"   // der vom Nutzer gewählte Aufwand (Name aus früherer Fassung)
   } ]
 }
 ```
@@ -100,7 +100,7 @@ holzi nimmt immer die aufrufende. Sie erfährt nichts über die Seite und kann d
 ## `extension_model_access_request` (US9, FR-035)
 
 ```text
-params: { needs: ("text" | "image")[], effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" }
+params: { needs: ("text" | "image")[] }
 result: { models: [ …wie extension_model_list… ] }   // die freigegebenen Modelle, die zu `needs` passen
 ```
 

@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import {
   EFFORT_LEVELS,
   ceilingChoices,
-  effortFor,
+  startingEffort,
   effortLabelKey,
   isEffortLevel,
   moved,
@@ -42,15 +42,15 @@ test('a model offers its own efforts as ceilings, one without a choice only none
   ])
 })
 
-test('a question starts with the wished effort within what the model offers', () => {
-  const claude = ['low', 'medium', 'high', 'xhigh', 'max']
-  assert.equal(effortFor(claude, 'medium'), 'medium')
-  assert.equal(effortFor(claude, 'high'), 'high')
-  assert.equal(effortFor(['low', 'max'], 'medium'), 'low')
-  // All above the wish: the lowest one is the nearest.
-  assert.equal(effortFor(['medium', 'high'], 'low'), 'medium')
-  assert.equal(effortFor(claude, ''), 'low')
-  assert.equal(effortFor([], 'high'), 'none')
+test("a question starts with medium or the middle of the model's own levels", () => {
+  assert.equal(
+    startingEffort(['low', 'medium', 'high', 'xhigh', 'max']),
+    'medium',
+  )
+  assert.equal(startingEffort(['low', 'high']), 'high')
+  assert.equal(startingEffort(['low', 'high', 'max']), 'high')
+  assert.equal(startingEffort(['max']), 'max')
+  assert.equal(startingEffort([]), 'none')
 })
 
 test('only the models the extension may use are ranked, in the order they come', () => {

@@ -32,7 +32,7 @@ encryptedFolder?: { storageName: string, folderName: string,
 onDevice: boolean, },
 /**
  * For `model` (spec 055): the models of the vault that fit the job, the proposed one
- * (`target`) first. The user picks one and the highest effort it may be used with.
+ * (`target`) first. The user picks one and the effort it is used with.
  */
 models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean,
 /**

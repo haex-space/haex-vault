@@ -1002,7 +1002,7 @@
         "held": "nur für diese Sitzung",
         "moveUp": "Nach oben",
         "moveDown": "Nach unten",
-        "ceiling": "Höchster Aufwand für {name}"
+        "ceiling": "Aufwand für {name}"
       }
     },
     "agentFiles": {
@@ -2376,8 +2376,8 @@
       "model": {
         "intro": "Die Erweiterung möchte ein Modell von holzi nutzen. Wähle eines, das zum Auftrag passt:",
         "models": "Modelle",
-        "effort": "Höchster Aufwand",
-        "effortHint": "Die Erweiterung kann weniger Aufwand verlangen, nie mehr.",
+        "effort": "Aufwand",
+        "effortHint": "Den Aufwand legst du fest; die Erweiterung kann ihn nicht ändern.",
         "agent": "Ein Agent: Die Erweiterung steuert damit ein Programm, das auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann."
       },
       "modelDestination": {

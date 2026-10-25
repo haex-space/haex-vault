@@ -3,7 +3,6 @@
 use base64::Engine;
 use serde_json::{json, Value};
 
-use super::effort::Level;
 use super::job::{parse, JobError, Need};
 use super::limits::{MAX_IMAGES, MAX_STEPS};
 
@@ -23,7 +22,7 @@ fn read_step() -> Value {
                 "regions": { "type": "array", "items": { "type": "object", "properties": {
                     "text": { "type": "string" } } } } } }
         },
-        "effort": "medium", "maxOutputTokens": 8192
+        "maxOutputTokens": 8192
     })
 }
 
@@ -66,7 +65,6 @@ fn a_two_step_job_is_parsed_and_decoded() {
     assert_eq!(read.needs, [Need::Text, Need::Image]);
     assert_eq!(read.input.images[0].bytes, [1, 2, 3]);
     assert_eq!(read.input.images[0].mime_type, "image/jpeg");
-    assert_eq!(read.effort, Some(Level::Medium));
     assert_eq!(read.max_output_tokens, 8192);
     assert_eq!(read.format.name, "page-recognition");
 
@@ -76,7 +74,6 @@ fn a_two_step_job_is_parsed_and_decoded() {
         (source.step.as_str(), source.pointer.as_str()),
         ("read", "/regions")
     );
-    assert_eq!(fix.effort, None);
     assert_eq!(fix.max_output_tokens, 4096);
 }
 
@@ -272,9 +269,12 @@ fn the_format_needs_a_name_a_version_and_a_schema_in_the_subset() {
 }
 
 #[test]
-fn effort_and_the_answer_length_are_checked() {
-    let max_effort = step_with(read_step(), |s| s["effort"] = json!("max"));
-    assert!(invalid(&job(vec![max_effort])).contains("effort"));
+fn the_extension_cannot_wish_an_effort_and_the_answer_length_is_checked() {
+    // The user chooses the effort with the model (spec 055 FR-036), the extension has no say.
+    for wish in ["low", "max"] {
+        let step = step_with(read_step(), |s| s["effort"] = json!(wish));
+        assert!(invalid(&job(vec![step])).contains("effort"), "{wish}");
+    }
     for tokens in [json!(0), json!(16_385), json!(-1), json!("many")] {
         let step = step_with(read_step(), |s| s["maxOutputTokens"] = tokens.clone());
         assert!(parse(&job(vec![step])).is_err(), "{tokens}");

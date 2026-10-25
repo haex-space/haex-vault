@@ -212,7 +212,7 @@ impl Setup {
 fn text_step() -> Value {
     json!({
         "id": "fix", "needs": ["text"], "instruction": "Korrigiere.",
-        "input": { "text": "Tsest" }, "effort": "medium",
+        "input": { "text": "Tsest" },
         "format": { "name": "text-fix", "version": 1, "schema": { "type": "object" } }
     })
 }

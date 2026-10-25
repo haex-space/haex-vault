@@ -56,12 +56,10 @@ fn without_a_fitting_grant_holzi_asks_like_for_the_first_job() {
     let source = scripted(&s, &[(&vision[0].id, Script::Answer(GOOD.into()))]);
     allow(&s, "model", "medium", &text[0].id, "granted");
 
-    let details = prompt_of(request(
-        &s,
-        json!({ "needs": ["text", "image"], "effort": "low" }),
-    ));
+    let details = prompt_of(request(&s, json!({ "needs": ["text", "image"] })));
     assert_eq!(details["resourceType"], "model");
-    assert_eq!(details["action"], "low");
+    // The user chooses the effort with the model; the question names none.
+    assert_eq!(details["action"], "none");
     assert_eq!(details["target"], json!(vision[0].id));
     assert_eq!(details["needs"], json!(["text", "image"]));
 
@@ -98,7 +96,8 @@ fn a_wrong_form_answers_3001() {
         json!({}),
         json!({ "needs": ["sound"] }),
         json!({ "needs": ["text", "text"] }),
-        json!({ "needs": ["text"], "effort": "extreme" }),
+        // The extension has no say about the effort.
+        json!({ "needs": ["text"], "effort": "low" }),
         json!({ "needs": ["text"], "model": "x" }),
     ] {
         let error = request(&s, params.clone()).expect_err("refused");

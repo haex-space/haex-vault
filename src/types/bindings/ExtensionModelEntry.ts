@@ -22,11 +22,11 @@ place: string, takesImages: boolean,
 agent: boolean,
 /**
  * The efforts the model offers, lowest first (`none`, `low`, `medium`, `high`, `xhigh`, `max`);
- * empty when it has no choice of effort. The ceiling is one of them.
+ * empty when it has no choice of effort. The effort the user chose is one of them.
  */
 efforts: Array<string>,
 /**
- * The highest effort allowed (`none`, `low`, `medium`, `high`); absent when the extension
+ * The effort the user chose for the model (one of `efforts`); absent when the extension
  * may not use the model.
  */
 ceiling?: string,

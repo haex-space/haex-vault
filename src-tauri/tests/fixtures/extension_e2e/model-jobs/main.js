@@ -55,7 +55,6 @@ function read(image, extra) {
     instruction: extra ? `${READ}\n${extra}` : READ,
     input: { images: [image] },
     format: pageFormat,
-    effort: 'medium',
     maxOutputTokens: 8192,
   }
 }
@@ -72,7 +71,6 @@ function jobOf(mode, image) {
         instruction: FIX,
         input: { from: { step: 'read', pointer: '/regions' } },
         format: textFix,
-        effort: 'low',
       },
     ],
   }
@@ -123,7 +121,6 @@ window.modelJobs = {
       mode === 'access'
         ? sdk.models.requestAccessAsync({
             needs: ['text', 'image'],
-            effort: 'low',
           })
         : sdk.models.openSettingsAsync().then(() => ({ opened: true }))
     end

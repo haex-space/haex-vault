@@ -29,8 +29,8 @@ pub enum PermissionKind {
     /// A tool the extension offers to the agent (spec 018): declared in the manifest's `tools`,
     /// the action is its effect and the target its name; `*` stands for every tool.
     AgentTool,
-    /// Use of one model of holzi, or of every model (`*`), up to an effort (spec 055 R3): the
-    /// action is the highest effort the extension may ask for. Granted only by the user, when
+    /// Use of one model of holzi, or of every model (`*`), with an effort (spec 055 R3): the
+    /// action is the effort the user chose for it. Granted only by the user, when
     /// asked, never from a manifest.
     Model,
     /// Sending the data of a model job to one provider outside this device (spec 055 R3): the
@@ -128,8 +128,9 @@ pub enum Action {
     Destructive,
     /// Every effect: the `*` row of an extension's agent tools.
     AnyEffect,
-    /// The highest effort a model may be used with (spec 055): `none` < `low` < `medium` < `high`,
-    /// a higher one covers a lower one.
+    /// The effort the user chose for a model (spec 055 FR-036): `none` < `low` < `medium` < `high` <
+    /// `xhigh` < `max`, a higher one covers a lower one, so that the grant also answers the question
+    /// whether the model may be used at all.
     Effort(Level),
     /// Open channels to other vaults (spec 057); covers only itself.
     Connect,

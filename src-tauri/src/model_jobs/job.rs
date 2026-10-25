@@ -6,7 +6,6 @@ use base64::Engine;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::effort::Level;
 use super::limits::{
     DEFAULT_OUTPUT_TOKENS, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_INPUT_TEXT_BYTES,
     MAX_INSTRUCTION_BYTES, MAX_OUTPUT_TOKENS, MAX_STEPS,
@@ -88,7 +87,6 @@ pub struct Step {
     pub instruction: String,
     pub input: StepInput,
     pub format: Format,
-    pub effort: Option<Level>,
     pub max_output_tokens: usize,
 }
 
@@ -111,8 +109,6 @@ struct RawStep {
     instruction: String,
     input: RawInput,
     format: RawFormat,
-    #[serde(default)]
-    effort: Option<String>,
     #[serde(default)]
     max_output_tokens: Option<usize>,
 }
@@ -223,13 +219,6 @@ fn parse_step(raw: RawStep, earlier: &[Step], images_in_all: &mut usize) -> Resu
     }
 
     let format = parse_format(&id, raw.format)?;
-    let effort = match raw.effort.as_deref() {
-        None => None,
-        Some(text) => Some(
-            Level::parse(text)
-                .ok_or_else(|| invalid(format!("step {id}: unknown effort {text:?}")))?,
-        ),
-    };
     let max_output_tokens = raw.max_output_tokens.unwrap_or(DEFAULT_OUTPUT_TOKENS);
     if !(1..=MAX_OUTPUT_TOKENS).contains(&max_output_tokens) {
         return Err(invalid(format!(
@@ -246,7 +235,6 @@ fn parse_step(raw: RawStep, earlier: &[Step], images_in_all: &mut usize) -> Resu
             from,
         },
         format,
-        effort,
         max_output_tokens,
     })
 }

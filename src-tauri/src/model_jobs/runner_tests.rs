@@ -92,7 +92,6 @@ async fn the_request_carries_no_tool_the_instruction_the_images_and_the_schema()
     let read = step(json!({
         "needs": ["text", "image"],
         "input": { "text": "Seite 3", "images": [{ "mimeType": "image/png", "data": "iVBORw0KGgo=" }] },
-        "effort": "high",
         "maxOutputTokens": 8192,
     }));
 
@@ -120,7 +119,7 @@ async fn the_request_carries_no_tool_the_instruction_the_images_and_the_schema()
     assert_eq!(message.attachments[0].kind, AttachmentKind::Image);
     assert_eq!(message.attachments[0].media_type, "image/png");
     assert_eq!(message.attachments[0].bytes[..4], [0x89, b'P', b'N', b'G']);
-    // The wish `high` is capped at the ceiling `medium`, and the provenance says so (FR-006).
+    // The effort is the one the user chose for the model, `medium`, and the provenance says so.
     assert_eq!(request.reasoning_option.as_deref(), Some("medium"));
     assert!(request.reasoning_requested);
     assert_eq!(run.attempts[0].effort, "medium");

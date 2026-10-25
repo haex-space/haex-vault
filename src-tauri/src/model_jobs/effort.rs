@@ -1,12 +1,11 @@
-//! The effort of a model job (spec 055 FR-006, `contracts/job-format.md` §Aufwand): the wish of
-//! the extension, capped at what the user allowed, mapped onto what the model offers.
+//! The effort of a model job (spec 055 FR-003, FR-036, `contracts/job-format.md` §Aufwand): the
+//! user chooses it for each model, the extension has no say; holzi maps it onto what the model offers.
 
 use serde::{Deserialize, Serialize};
 
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 
-/// An effort the user may allow and an extension may wish for: the well-known names of the
-/// providers, in ascending order. A model offers the ones it has (`offered`); `minimal` counts as
+/// An effort the user may choose for a model: the well-known names of the providers, in ascending order. A model offers the ones it has (`offered`); `minimal` counts as
 /// `low`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -99,6 +98,11 @@ impl Applied {
             _ => None,
         }
     }
+}
+
+/// The effort the user chose for a model, mapped onto the model's options.
+pub fn applied_effort(chosen: Level, capabilities: Option<&ModelCapabilities>) -> Applied {
+    effective(Some(chosen), chosen, capabilities)
 }
 
 /// Caps the wish (none when absent) at `ceiling` and maps it onto the model's options.

@@ -26,7 +26,7 @@ const failure = ref<string | null>(null)
 const rank = computed(() => rankOf(models.value))
 
 /**
- * The ceilings of one model: "Nicht erlaubt" (`''`) and the efforts the model offers. A model
+ * The efforts of one model: "Nicht erlaubt" (`''`) and the efforts the model offers. A model
  * without a choice of effort has only `none`, which says "Erlaubt".
  */
 function ceilingOptions(model: ExtensionModelEntry): SettingsSelectOption[] {
