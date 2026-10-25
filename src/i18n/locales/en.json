@@ -2776,15 +2776,15 @@
           "sourceMissing": "Source missing",
           "sourceUnavailable": "Source unavailable"
         },
-      "confirm": {
-        "titleNew": "New file share by the agent",
-        "titleMore": "More access by the agent",
-        "body": "The agent wants to share “{name}” from {device}. Only your confirmation gives the files away.",
-        "noContacts": "Not for any contact yet.",
-        "allow": "Share",
-        "deny": "Decline",
-        "thisDevice": "this device"
-      }
+        "confirm": {
+          "titleNew": "New file share by the agent",
+          "titleMore": "More access by the agent",
+          "body": "The agent wants to share “{name}” from {device}. Only your confirmation gives the files away.",
+          "noContacts": "Not for any contact yet.",
+          "allow": "Share",
+          "deny": "Decline",
+          "thisDevice": "this device"
+        }
       }
     }
   },

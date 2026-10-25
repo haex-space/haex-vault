@@ -2776,15 +2776,15 @@
           "sourceMissing": "Quelle fehlt",
           "sourceUnavailable": "Quelle nicht verfügbar"
         },
-      "confirm": {
-        "titleNew": "Neue Dateifreigabe durch den Agent",
-        "titleMore": "Mehr Zugriff durch den Agent",
-        "body": "Der Agent möchte „{name}“ von {device} freigeben. Erst deine Bestätigung gibt die Dateien weiter.",
-        "noContacts": "Noch für keinen Kontakt.",
-        "allow": "Freigeben",
-        "deny": "Ablehnen",
-        "thisDevice": "diesem Gerät"
-      }
+        "confirm": {
+          "titleNew": "Neue Dateifreigabe durch den Agent",
+          "titleMore": "Mehr Zugriff durch den Agent",
+          "body": "Der Agent möchte „{name}“ von {device} freigeben. Erst deine Bestätigung gibt die Dateien weiter.",
+          "noContacts": "Noch für keinen Kontakt.",
+          "allow": "Freigeben",
+          "deny": "Ablehnen",
+          "thisDevice": "diesem Gerät"
+        }
       }
     }
   },
