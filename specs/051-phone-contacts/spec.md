@@ -470,8 +470,8 @@ Empfänger beim Senden offline war.
   eigenen Kontakts enthalten, die der Nutzer für die Karte gewählt hat (Standard: nur der Name), und
   MUSS mit der Vault-Identität unterschrieben sein. Eine Karte DARF keinen Schlüssel und kein Geheimnis
   enthalten.
-- **FR-010**: Ändern sich Geräteliste oder Nostr-Relays der eigenen Vault, MUSS ein Hauptgerät eine
-  neue Visitenkarte erstellen; ältere bleiben gültig, werden aber von der neueren ersetzt.
+- **FR-010**: Ändern sich Geräteliste, Nostr-Relays oder das Heim-Relay eines Geräts der eigenen Vault,
+  MUSS ein Hauptgerät eine neue Visitenkarte erstellen; ältere bleiben gültig, werden aber von der neueren ersetzt.
 - **FR-011**: holzi MUSS eine Visitenkarte als Link, über die Zwischenablage und per Kamera als QR-Code
   einlesen können. Vor jeder Anzeige MUSS es die Unterschrift prüfen; eine ungültige, veränderte oder
   eigene Karte MUSS es mit einem Hinweis abweisen. Nach einer Vorschau MUSS der Nutzer wählen: neuer
