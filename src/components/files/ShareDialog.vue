@@ -2,7 +2,9 @@
 /**
  * Sharing a folder or file of this device with contacts (spec 056 US2, FR-016, FR-017): the name of
  * the share, the contacts with a stored card, and a level for each. An existing share opens with
- * its contacts; saving replaces them, and the share can be ended here.
+ * its contacts; saving replaces them, and the share can be ended here. From the overview it edits a
+ * given share, which may be served by another own device: its name and contacts, never its root
+ * (FR-019).
  */
 import type { Entry } from '@bindings/Entry'
 import type { FileShare } from '@bindings/FileShare'
@@ -13,6 +15,8 @@ import { useActionOrThrow } from '~/composables/useActionOrThrow'
 
 const props = defineProps<{
   entry: Entry | null
+  /** A share to edit as it is, instead of the one at `entry`. */
+  share?: FileShare | null
   /** The contacts with a stored card (`Sources.contacts`). */
   contacts: readonly FilesContactShares[]
 }>()
@@ -43,21 +47,32 @@ const contactName = (vault: string, fallback: string | null = null) =>
   fallback ??
   vault.slice(0, 8)
 
-watch([open, () => props.entry?.path], async ([isOpen, entryPath]) => {
-  const generation = ++loadGeneration
-  if (!isOpen || !props.entry || !entryPath) {
-    loading.value = false
-    return
-  }
+watch(
+  [open, () => props.entry?.path, () => props.share],
+  async ([isOpen, entryPath, given]) => {
+    const generation = ++loadGeneration
+    if (!isOpen || (!given && (!props.entry || !entryPath))) {
+      loading.value = false
+      return
+    }
+    await loadAsync(generation, given ?? null, entryPath ?? '')
+  },
+)
+
+async function loadAsync(
+  generation: number,
+  given: FileShare | null,
+  entryPath: string,
+) {
   error.value = null
   loadFailed.value = false
   adding.value = ''
-  name.value = props.entry.name
+  name.value = given?.name ?? props.entry?.name ?? ''
   rows.value = []
   existing.value = null
   loading.value = true
   try {
-    const share = await shareOfAsync({ kind: 'device' }, entryPath)
+    const share = given ?? (await shareOfAsync({ kind: 'device' }, entryPath))
     if (generation !== loadGeneration) return
     existing.value = share
     if (share) {
@@ -76,7 +91,7 @@ watch([open, () => props.entry?.path], async ([isOpen, entryPath]) => {
   } finally {
     if (generation === loadGeneration) loading.value = false
   }
-})
+}
 
 const levelOptions = computed(() => [
   { value: 'read', label: t('files.shares.level.read') },
@@ -118,13 +133,14 @@ function failed(cause: unknown) {
 }
 
 async function saveNowAsync() {
-  if (!props.entry || loading.value || loadFailed.value) return
+  const path = props.entry?.path ?? existing.value?.path
+  if (!path || loading.value || loadFailed.value) return
   saving.value = true
   try {
     await saveShare({
       shareId: existing.value?.id,
-      source: { kind: 'device' },
-      path: props.entry.path,
+      source: existing.value?.source ?? { kind: 'device' },
+      path,
       name: name.value,
       grants: rows.value.map((row) => ({
         vaultPubkey: row.vaultPubkey,
@@ -156,7 +172,7 @@ async function endAsync() {
 <template>
   <UiDrawerModal
     v-model:open="open"
-    :title="t('files.shares.title', { name: entry?.name ?? '' })"
+    :title="t('files.shares.title', { name: entry?.name ?? share?.name ?? '' })"
   >
     <template #content>
       <form

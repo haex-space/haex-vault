@@ -2,8 +2,9 @@
 /**
  * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
  * with free space where known, the other devices of the vault (spec 056 US1), the shares contacts
- * gave this vault (US2: expanding a contact asks its devices, FR-028), and the cloud storages of
- * spec 038 (US5) with a button that leads to adding one in the settings.
+ * gave this vault (US2: expanding a contact asks its devices, FR-028), the overview of the vault's
+ * own shares (US4, FR-020), and the cloud storages of spec 038 (US5) with a button that leads to
+ * adding one in the settings.
  */
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
@@ -25,6 +26,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+/** "Meine Dateifreigaben" is open. */
+const overviewOpen = ref(false)
 
 /** The contacts expanded in this sidebar. */
 const expanded = ref(new Set<string>())
@@ -204,6 +208,17 @@ const PLACE_ICONS: Record<string, string> = {
       </ul>
     </section>
     <section v-if="sources">
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+        data-testid="files-my-shares"
+        @click="overviewOpen = true"
+      >
+        <Icon name="lucide:share-2" class="size-4 shrink-0" />
+        <span class="truncate">{{ t('files.sidebar.myShares') }}</span>
+      </button>
+    </section>
+    <section v-if="sources">
       <div class="flex items-center justify-between gap-2 pb-1 pl-2">
         <h2 class="text-xs font-medium text-muted-foreground">
           {{ t('files.sidebar.storages') }}
@@ -237,5 +252,9 @@ const PLACE_ICONS: Record<string, string> = {
         </li>
       </ul>
     </section>
+    <FilesSharesOverview
+      v-model:open="overviewOpen"
+      :contacts="sources?.contacts ?? []"
+    />
   </div>
 </template>

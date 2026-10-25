@@ -348,6 +348,8 @@ async function removePhotoAsync() {
         @changed="loadAsync"
       />
 
+      <ContactsFileSharesSection :contact-id="contact.id" />
+
       <p
         class="px-1 text-sm text-muted-foreground"
         data-testid="contacts-origin"

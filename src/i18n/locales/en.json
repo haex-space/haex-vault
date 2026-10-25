@@ -794,6 +794,12 @@
         "use": "Use {url}",
         "add": "Add",
         "remove": "Delete {url}"
+      },
+      "deviceAccess": {
+        "title": "File access from devices",
+        "description": "The other devices of this vault may open this device's files. Shares to contacts keep working.",
+        "saved": "Saved.",
+        "failed": "The setting could not be changed"
       }
     },
     "link": {
@@ -1656,6 +1662,11 @@
           "update": "Change the approval of a browser extension",
           "revoke": "Revoke the approval of a browser extension",
           "unblock": "Unblock a browser extension"
+        }
+      },
+      "files": {
+        "deviceAccess": {
+          "set": "Turn file access from devices on or off"
         }
       }
     },
@@ -2592,7 +2603,8 @@
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",
-      "contacts": "From contacts"
+      "contacts": "From contacts",
+      "myShares": "My file shares"
     },
     "peer": {
       "unnamed": "Unnamed device",
@@ -2732,7 +2744,20 @@
       "contactQuery": "Ask for shares",
       "noShares": "No shares",
       "unreachable": "Unreachable",
-      "readOnly": "Read only"
+      "readOnly": "Read only",
+      "overview": {
+        "title": "My file shares",
+        "empty": "No file shares yet. Share a folder or file with “Share …” in its context menu.",
+        "thisDevice": "This device",
+        "edit": "Edit",
+        "noContacts": "Not shared with any contact yet",
+        "state": {
+          "active": "Active",
+          "pending": "Change waiting for {device}",
+          "sourceMissing": "Source missing",
+          "sourceUnavailable": "Source unavailable"
+        }
+      }
     }
   },
   "contacts": {
@@ -2971,6 +2996,12 @@
       "accepted": "Business card saved on {name}",
       "confirmed": "Confirmed holzi addresses",
       "confirmedAt": "confirmed on {at}"
+    },
+    "fileShares": {
+      "title": "File shares",
+      "level": "Level in “{name}”",
+      "revoke": "Revoke access to “{name}”",
+      "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}."
     }
   },
   "browserBridge": {
