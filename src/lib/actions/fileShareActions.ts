@@ -1,7 +1,8 @@
-// File share actions (spec 056 US2, contracts/tauri-commands.md): list, save, revoke and delete
-// shares of this vault. The window runs them (`stores/fileShareActionHandlers.ts`); agents may not
-// call them until they get a permission of their own (US6, FR-045). Pure, relative `.ts` imports
-// only.
+// File share actions (spec 056 US2, US6, contracts/tauri-commands.md): list, save, revoke and
+// delete shares of this vault. For the user the window runs them (`stores/fileShareActionHandlers.ts`);
+// for an agent they run in Rust (`runner: 'native'`, `src-tauri/src/files/agent/shares.rs`) with its
+// permission "Dateifreigaben verwalten", and giving files away waits for the user's confirmation
+// (FR-045). Pure, relative `.ts` imports only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
 
 const SOURCE: JsonSchema = {
@@ -65,7 +66,8 @@ const SHARE_ID: JsonSchema = { type: 'string', description: 'The share.' }
 const SHARED = {
   target: 'none',
   scope: 'files.shares',
-  agentCallable: false,
+  agentCallable: true,
+  runner: 'native',
   binding: 'global',
 } as const
 

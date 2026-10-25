@@ -137,15 +137,24 @@ test('every built-in-callable read action runs for a built-in agent naming its t
   }
 })
 
-/** The ids of the Rust executor of the file actions (`FILE_ACTION_IDS`). */
+/** The ids of the Rust executors of the file and share actions (`FILE_ACTION_IDS`,
+ * `SHARE_ACTION_IDS`). */
 function nativeExecutorIds(): string[] {
-  const source = readFileSync(
-    new URL('../src-tauri/src/files/agent/exec.rs', import.meta.url),
-    'utf8',
-  )
-  const list = /FILE_ACTION_IDS: &\[&str\] = &\[([^\]]*)\]/.exec(source)?.[1]
-  assert.ok(list, 'FILE_ACTION_IDS not found')
-  return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? '')
+  const ids = (file: string, name: string) => {
+    const source = readFileSync(
+      new URL(`../src-tauri/src/files/agent/${file}`, import.meta.url),
+      'utf8',
+    )
+    const list = new RegExp(`${name}: &\\[&str\\] = &\\[([^\\]]*)\\]`).exec(
+      source,
+    )?.[1]
+    assert.ok(list, `${name} not found`)
+    return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? '')
+  }
+  return [
+    ...ids('exec.rs', 'FILE_ACTION_IDS'),
+    ...ids('shares.rs', 'SHARE_ACTION_IDS'),
+  ]
 }
 
 test('every native action has its Rust executor and every executor its action (ADR 0011)', () => {
@@ -507,11 +516,12 @@ test('the browser bridge settings are guardrails no agent can call (spec 049 FR-
   }
 })
 
-test('agents cannot manage file shares until they get a permission of their own (spec 056 FR-045)', () => {
+test('agents manage file shares in Rust, under a permission of their own (spec 056 FR-045)', () => {
   const shares = ALL_ACTIONS.filter((a) => a.id.startsWith('files.shares.'))
   assert.equal(shares.length, 6)
   for (const action of shares) {
     assert.equal(action.scope, 'files.shares', action.id)
-    assert.equal(action.agentCallable, false, action.id)
+    assert.equal(action.agentCallable, true, action.id)
+    assert.equal(action.runner, 'native', action.id)
   }
 })

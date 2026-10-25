@@ -435,16 +435,11 @@ test('every guardrail action is refused for both agent kinds and runs for the us
   }
 })
 
-test('every other action is callable by an agent naming its target, except the platform back hook and file shares', async () => {
+test('every other action is callable by an agent naming its target, except the platform back hook', async () => {
   const field = { tab: 'tabId', window: 'windowId', workspace: 'workspaceId' }
   for (const action of ALL_ACTIONS.filter((a) => a.scope !== 'guardrails')) {
     if (action.id === 'wm.system.back') {
       assert.equal(action.agentCallable, false)
-      continue
-    }
-    // Agents manage file shares only with a permission of their own (spec 056 US6, FR-045).
-    if (action.scope === 'files.shares') {
-      assert.equal(action.agentCallable, false, action.id)
       continue
     }
     assert.equal(action.agentCallable, true, action.id)
