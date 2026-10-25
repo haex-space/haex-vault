@@ -2,6 +2,6 @@
 
 export type ExtensionModelGrantArgs = { extensionId: string, modelId: string,
 /**
- * The highest effort: `none`, `low`, `medium` or `high`.
+ * The effort the user chose: one the model offers (`none`, `low`, `medium`, `high`, `xhigh`, `max`).
  */
 effort: string, };

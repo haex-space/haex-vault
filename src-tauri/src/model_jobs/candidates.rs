@@ -21,7 +21,8 @@ use crate::storage::models::list_all_models;
 use crate::storage::providers::{list_providers, Provider, ProviderCapability, ProviderKind};
 use crate::storage::query::Query;
 
-/// A model a step may go to, and the highest effort it may be used with.
+/// A model a step may go to, and the effort the user chose for it (stored as the highest effort
+/// the grant covers, which is why it is called the ceiling).
 #[derive(Debug, Clone)]
 pub(crate) struct Candidate {
     pub model: JobModel,
@@ -45,12 +46,11 @@ pub(crate) fn job_models(q: &mut impl Query) -> Result<Vec<JobModel>> {
         .collect())
 }
 
-/// The highest effort `permissions` allow for `model_id`, or `None` when the model may not be
-/// used. Every effort up to it is allowed, because a job may use any of them (its wish capped at
-/// the ceiling): a denial of the model, whatever its effort, covers `none` and so takes the model
-/// away entirely.
+/// The effort `permissions` allow for `model_id`, which is the one the user chose for it, or `None`
+/// when the model may not be used. A grant covers every effort up to its own (`Action::covers`):
+/// a denial of the model, whatever its effort, covers `none` and so takes the model away entirely.
 pub(crate) fn ceiling(permissions: &[Permission], model_id: &str, device: Uuid) -> Option<Level> {
-    [Level::None, Level::Low, Level::Medium, Level::High]
+    Level::ALL
         .into_iter()
         .take_while(|level| {
             evaluate(permissions, &model_request(*level, model_id), device) == Decision::Allow

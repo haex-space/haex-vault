@@ -10,7 +10,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionModelEntry } from '@bindings/ExtensionModelEntry'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import {
-  EFFORT_LEVELS,
+  ceilingChoices,
   effortLabelKey,
   moved,
   placeLabelKey,
@@ -25,14 +25,22 @@ const models = ref<ExtensionModelEntry[]>([])
 const failure = ref<string | null>(null)
 const rank = computed(() => rankOf(models.value))
 
-/** `''` is "Nicht erlaubt". */
-const ceilingOptions = computed<SettingsSelectOption[]>(() => [
-  { value: '', label: t('settings.extensions.models.notAllowed') },
-  ...EFFORT_LEVELS.map((value) => ({
-    value,
-    label: t(effortLabelKey(value)),
-  })),
-])
+/**
+ * The efforts of one model: "Nicht erlaubt" (`''`) and the efforts the model offers. A model
+ * without a choice of effort has only `none`, which says "Erlaubt".
+ */
+function ceilingOptions(model: ExtensionModelEntry): SettingsSelectOption[] {
+  return [
+    { value: '', label: t('settings.extensions.models.notAllowed') },
+    ...ceilingChoices(model.efforts, model.ceiling).map((value) => ({
+      value,
+      label:
+        model.efforts.length === 0
+          ? t('settings.extensions.models.allowed')
+          : t(effortLabelKey(value)),
+    })),
+  ]
+}
 
 async function loadAsync() {
   try {
@@ -132,7 +140,7 @@ onMounted(loadAsync)
       </template>
       <SettingsSelect
         :model-value="model.ceiling ?? ''"
-        :options="ceilingOptions"
+        :options="ceilingOptions(model)"
         :aria-label="
           t('settings.extensions.models.ceiling', { name: model.name })
         "

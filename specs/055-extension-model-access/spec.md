@@ -29,6 +29,8 @@
 - Q: Was gilt im Autonomie-Modus „Standard“, wenn es im Auftrag keinen Chat zum Bestätigen gibt? → A: Zuerst „wie Gegated (permissiv)“; das geht nicht, weil dieser Modus jeden Aufruf verweigert, für den er keinen Chat-Verlauf zum Protokollieren hat, und ein Auftrag nichts protokollieren darf (FR-028). Ein Abo läuft im Auftrag deshalb mit vollem Zugriff, wie der Nutzer es wollte (Korrektur 2026-10-24, FR-032).
 - Q: Wählt der Nutzer Modelle und Aufwand in der Erweiterung oder in holzi? → A: In holzi. Die Erweiterung bekommt kein eigenes Auswahlmenü, kann aber holzis Modell-Seite für sich öffnen und die Freigabe vor dem ersten Auftrag anstoßen (US9).
 - Q: Erkennt holzi ein lokales Ollama selbst, samt Bildfähigkeit seiner Modelle? → A: Nicht in dieser Ergänzung; die wenigsten Nutzer haben ein lokales Ollama. Es kann später nachgeliefert werden.
+- Q: Darf eine Erweiterung einen Aufwand wünschen? → A: Nein. Den Aufwand legt allein der Nutzer fest, je Modell und aus den Stufen, die das Modell selbst hat; die Erweiterung kann weder einen Aufwand nennen noch ihn ändern (Korrektur 2026-10-25, FR-003, FR-006, FR-036).
+- Q: Wann liest holzi die Modelle der Anbieter neu? → A: Bei jedem Start von holzi (Öffnen eines Tresors), nicht nur beim Verbinden eines Anbieters (FR-037).
 
 ## User Scenarios & Testing
 
@@ -50,7 +52,7 @@ Eine Erweiterung schickt holzi eine Anfrage mit Text und/oder Bildern. Sie liefe
 
 ### User Story 2 - Der Nutzer bestimmt pro Erweiterung Modelle und Aufwand (Priority: P1)
 
-In den Einstellungen der Erweiterung sieht der Nutzer die Modelle, die holzi kennt, und legt fest, welche die Erweiterung nutzen darf und mit welchem höchsten Aufwand (Effort). Der Berechtigungszustand `denied` sperrt den Zugriff. Steht die Berechtigung auf `ask`, fragt holzi bei der ersten Anfrage den Nutzer, statt stillschweigend zu verarbeiten.
+In den Einstellungen der Erweiterung sieht der Nutzer die Modelle, die holzi kennt, und legt fest, welche die Erweiterung nutzen darf und mit welchem Aufwand (Effort) sie laufen; den Aufwand wählt er je Modell aus dessen eigenen Stufen, die Erweiterung hat darauf keinen Einfluss. Der Berechtigungszustand `denied` sperrt den Zugriff. Steht die Berechtigung auf `ask`, fragt holzi bei der ersten Anfrage den Nutzer, statt stillschweigend zu verarbeiten.
 
 **Why this priority**: Der Nutzer behält die Kontrolle darüber, welche Erweiterung welche Modelle, auch bezahlte, und wie intensiv anspricht.
 
@@ -59,7 +61,7 @@ In den Einstellungen der Erweiterung sieht der Nutzer die Modelle, die holzi ken
 **Acceptance Scenarios**:
 
 1. **Given** eine Erweiterung ohne Freigaben, **When** sie zum ersten Mal anfragt, **Then** fragt holzi den Nutzer, welche Modelle und welchen Aufwand er erlaubt.
-2. **Given** eine Freigabe mit höchstem Aufwand „mittel“, **When** die Erweiterung „hoch“ verlangt, **Then** wird der Aufwand auf „mittel“ begrenzt und die Herkunftsangabe nennt den tatsächlichen Aufwand.
+2. **Given** eine Freigabe mit dem Aufwand „mittel“ für ein Modell, **When** die Erweiterung eine Anfrage stellt, **Then** läuft sie mit „mittel“, gleich was die Erweiterung sonst sendet, und die Herkunftsangabe nennt den tatsächlichen Aufwand. Eine Anfrage, die einen Aufwand nennt, wird als falsch geformt abgelehnt.
 3. **Given** ein widerrufenes Modell, **When** die Erweiterung es bei der nächsten Anfrage nennt, **Then** wird die Anfrage abgelehnt; eine bereits laufende Anfrage darf zu Ende laufen oder abgebrochen werden.
 4. **Given** mehrere freigegebene Modelle, **When** die Erweiterung nur nennt, was sie braucht, **Then** wählt holzi das nach der Rangfolge des Nutzers passende Modell.
 5. **Given** eine Erweiterung mit Freigaben, **When** sie die Liste ihrer Modelle abfragt, **Then** erhält sie nur die für sie freigegebenen Modelle mit Namen, Fähigkeiten und Ort, nie Adressen oder Schlüssel; bei fehlender Freigabe ist die Liste leer.
@@ -178,7 +180,7 @@ Modelle und Aufwand wählt der Nutzer immer in holzi, nie in einem Menü der Erw
 **Acceptance Scenarios**:
 
 1. **Given** eine aktive Erweiterung, **When** sie holzis Modell-Seite öffnet, **Then** zeigt holzi die Modelle genau dieser Erweiterung und nie die einer anderen; ist die Seite schon offen, holt holzi sie nach vorn, statt eine weitere zu öffnen.
-2. **Given** eine Erweiterung ohne passende Freigabe und ein passendes Modell im Tresor, **When** sie die Freigabe für einen Bildschritt anstößt, **Then** fragt holzi wie beim ersten Auftrag (Modell, höchster Aufwand, Sitzung oder dauerhaft), und die Erweiterung erhält danach ihre freigegebenen Modelle.
+2. **Given** eine Erweiterung ohne passende Freigabe und ein passendes Modell im Tresor, **When** sie die Freigabe für einen Bildschritt anstößt, **Then** fragt holzi wie beim ersten Auftrag (Modell, Aufwand, Sitzung oder dauerhaft), und die Erweiterung erhält danach ihre freigegebenen Modelle.
 3. **Given** eine passende Freigabe besteht schon, **When** die Erweiterung die Freigabe anstößt, **Then** fragt holzi nicht und liefert die freigegebenen Modelle.
 4. **Given** kein Modell im Tresor passt, **When** die Erweiterung die Freigabe anstößt, **Then** erhält sie `no_capable_model` und kann dem Nutzer anbieten, holzis Modell-Seite zu öffnen.
 5. **Given** die Freigabe wird angestoßen, **When** holzi fragt, **Then** wird nichts an ein Modell gesendet und keine Einwilligung für ein Ziel eingeholt; die kommt mit dem ersten Auftrag, der Daten sendet (FR-015).
@@ -204,10 +206,12 @@ Modelle und Aufwand wählt der Nutzer immer in holzi, nie in einem Menü der Erw
 
 - **FR-001**: holzi MUST einer berechtigten, aktiven Erweiterung erlauben, Anfragen mit Text und/oder Bildern an Modelle von holzi zu stellen.
 - **FR-002**: Eine Anfrage mit dem Berechtigungszustand `denied` MUST abgelehnt werden, bevor ein Modell angesprochen wird. Der Zustand `ask` MUST zuerst die übliche Berechtigungsabfrage auslösen und darf weder verarbeitet noch als endgültig abgelehnt behandelt werden.
-- **FR-003**: Der Nutzer MUST pro Erweiterung festlegen können, welche Modelle sie nutzen darf und mit welchem höchsten Aufwand; ohne ausdrückliche Freigabe MUST kein Modell nutzbar sein. Die Zustände `granted`, `denied` und `ask` folgen dabei dem bestehenden Berechtigungsmodell.
+- **FR-003**: Der Nutzer MUST pro Erweiterung festlegen können, welche Modelle sie nutzen darf und mit welchem Aufwand je Modell; ohne ausdrückliche Freigabe MUST kein Modell nutzbar sein. Die Zustände `granted`, `denied` und `ask` folgen dabei dem bestehenden Berechtigungsmodell.
 - **FR-004**: Steht die Berechtigung einer Erweiterung auf `ask`, MUST holzi bei der ersten passenden Anfrage den Nutzer um Freigabe bitten, statt stillschweigend zu verarbeiten oder zu scheitern. Die Abfrage folgt den übrigen Berechtigungsabfragen von holzi: Erlauben gilt für die Tresorsitzung oder dauerhaft; ein gespeichertes `denied` hat Vorrang vor einer Freigabe.
 - **FR-005**: Ein Widerruf MUST ab der nächsten Anfrage wirken.
-- **FR-006**: Verlangt eine Erweiterung mehr Aufwand als erlaubt, MUST er auf das Erlaubte begrenzt werden; das Ergebnis MUST den tatsächlichen Aufwand nennen.
+- **FR-006**: Der Aufwand, mit dem ein Modell läuft, MUST der sein, den der Nutzer für dieses Modell gewählt hat. Eine Erweiterung MUST keinen Aufwand nennen können, weder in einem Auftrag noch bei der Anfrage einer Freigabe; ein solches Feld MUST als falsch geformt abgelehnt werden. Das Ergebnis MUST den tatsächlichen Aufwand nennen.
+- **FR-036**: Der Nutzer MUST den Aufwand einer Erweiterung für ein Modell aus den Stufen wählen, die dieses Modell selbst hat (bei Claude `low` bis `max` mit allen Zwischenstufen), nicht aus einer festen Liste. Ein Modell ohne Wahl des Aufwands bietet nur „erlaubt“. Die Frage nach einem Modell beginnt bei `medium`, wenn das Modell es hat, sonst bei der mittleren Stufe; der Nutzer ändert sie.
+- **FR-037**: holzi MUST die Modelle aller Anbieter bei jedem Öffnen eines Tresors im Hintergrund neu lesen, nicht nur beim Verbinden. Ein Anbieter, der nicht antwortet, behält seine bisherige Liste und stört den Start nicht.
 - **FR-007**: Nennt eine Erweiterung nur, was sie braucht, MUST holzi unter den freigegebenen und geeigneten Modellen nach der Rangfolge des Nutzers das passende wählen.
 - **FR-008**: Jeder Auftrag MUST ein Ergebnisformat haben, das die Erweiterung mit der Anfrage vorgibt (Name, Version, Aufbau); holzi MUST die Ausgabe dagegen prüfen. Freier Modelltext MUST NICHT als Erfolg gelten.
 - **FR-009**: Ein Auftrag MUST aus mehreren Schritten mit je eigenem Modell bestehen können; das Ergebnis eines Schritts MUST dem nächsten als Eingabe dienen.
@@ -236,11 +240,11 @@ Modelle und Aufwand wählt der Nutzer immer in holzi, nie in einem Menü der Erw
 - **FR-032**: Ein Abo MUST in einem Auftrag mit dem Zugriff laufen, den es in holzi hat; holzi schränkt es für Aufträge nicht zusätzlich ein. Die Freigabe eines Abos MUST sichtbar sagen, dass die Erweiterung damit einen Agenten anweist, der auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann. Ein Abo sendet an den Dienst seines Anbieters und hat damit ein Ziel außerhalb des Geräts (FR-015). Der Agent läuft ohne Rückfragen und ohne Verbotsregeln (Autonomie-Modus „Ungegated“), gleich welchen Modus der Nutzer für den Chat eingestellt hat: Ein Auftrag hat keinen Chat zum Fragen und keinen Verlauf zum Protokollieren, und „Gegated (permissiv)“ verweigert in dieser Lage jeden Aufruf (Clarifications 2026-10-24). Die Verbotsregeln des Chats gelten in Aufträgen nicht; die Freigabe sagt das.
 - **FR-033**: Ein Auftrag auf einem lokal installierten Modell MUST auf dem Gerät bleiben. Ist dafür ein anderes Modell zu laden als das des Chats, MUST der Auftrag warten, bis ein laufender Chat-Zug fertig ist, und darf ihn weder unterbrechen noch verfälschen; der Chat lädt sein Modell beim nächsten Zug wieder. Die Wartezeit zählt zur Höchstdauer des Auftrags (FR-029).
 - **FR-034**: Eine aktive Erweiterung MUST holzis Modell-Seite für sich selbst öffnen können; holzi MUST dabei nur die Modelle der aufrufenden Erweiterung zeigen und eine schon offene Seite nach vorn holen statt eine weitere zu öffnen. Eine Erweiterung MUST NICHT Modelle oder Aufwand für sich festlegen können; das bleibt beim Nutzer in holzi (FR-003).
-- **FR-035**: Eine aktive Erweiterung MUST die Freigabe für das, was sie braucht (Text, Bild, gewünschter Aufwand), vor dem ersten Auftrag anstoßen können. holzi MUST dann wie beim ersten Auftrag fragen (FR-004), ohne etwas an ein Modell zu senden und ohne eine Einwilligung für ein Ziel einzuholen. Die Antwort MUST die freigegebenen Modelle wie FR-030 nennen, oder `no_capable_model` beziehungsweise die Ablehnung.
+- **FR-035**: Eine aktive Erweiterung MUST die Freigabe für das, was sie braucht (Text, Bild), vor dem ersten Auftrag anstoßen können. holzi MUST dann wie beim ersten Auftrag fragen (FR-004), ohne etwas an ein Modell zu senden und ohne eine Einwilligung für ein Ziel einzuholen. Die Antwort MUST die freigegebenen Modelle wie FR-030 nennen, oder `no_capable_model` beziehungsweise die Ablehnung.
 
 ### Key Entities
 
-- **Modellfreigabe**: Pro Erweiterung die erlaubten Modelle, deren Rangfolge und der höchste Aufwand.
+- **Modellfreigabe**: Pro Erweiterung die erlaubten Modelle, deren Rangfolge und der vom Nutzer gewählte Aufwand je Modell.
 - **Auftrag**: Eine Anfrage einer Erweiterung mit Eingabe (Text, Bilder), eigener Anweisung, Ergebnisformat und einem oder mehreren Schritten.
 - **Schritt**: Ein einzelner Modellaufruf eines Auftrags mit benötigter Fähigkeit (zum Beispiel Bild lesen, Text korrigieren).
 - **Ergebnisformat**: Name, Version und Aufbau des erwarteten Ergebnisses, von der Erweiterung vorgegeben; das erste Beispiel ist „Seitenerkennung“ von haex-notes.
@@ -288,7 +292,7 @@ Modelle und Aufwand wählt der Nutzer immer in holzi, nie in einem Menü der Erw
 - Das feste Format `paper-note-recognition` aus Spec 047 entfällt: haex-notes gibt „Seitenerkennung“ künftig selbst vor. Die dort gebaute Hostschnittstelle (Start, Abbruch, Ergebnisprüfung, Ereignis bei Abschluss) wird weiterverwendet und verallgemeinert.
 - Einwilligung und erste Freigabe nutzen die Berechtigungsabfrage, die holzi für Erweiterungen schon hat (Spec 017, CONTEXT.md): Der Nutzer erlaubt für die Tresorsitzung oder dauerhaft und kann in den Einstellungen widerrufen. Ein Auftrag fragt nicht jedes Mal neu.
 - Wählt die Erweiterung kein Modell, entscheidet holzi nach der Rangfolge, die der Nutzer pro Erweiterung festlegt; ein lokales Modell wird gewählt, wenn kein höher geranktes geeignetes Modell existiert.
-- Verlangter Aufwand über dem Erlaubten wird begrenzt und nicht abgelehnt; das Ergebnis nennt den tatsächlichen Aufwand.
+- Der Aufwand ist allein die Wahl des Nutzers je Modell; das Ergebnis nennt den tatsächlichen Aufwand.
 - Die Qualität einzelner Modelle bei Handschrift, Tabellen und Positionen wird gesondert gemessen (Testfotos liegen vor); die Wahl eines Modells ist daher keine Voraussetzung dieser Spec.
 - Das Handy nimmt nur das Foto auf; es läuft dort kein lokales Bildmodell. Wo das Foto ausgewertet wird, bestimmen die freigegebenen Modelle und Ziele.
 - Ein Schul-Server ist für holzi nur ein weiterer Anbieter mit Adresse und Schlüssel.

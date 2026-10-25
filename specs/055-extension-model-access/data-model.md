@@ -7,15 +7,15 @@ werden nie gespeichert (FR-028).
 
 ### `extension_permissions` (vorhanden): zwei neue Arten, keine Schemaänderung
 
-| Art                | `target`             | `action`                              | Bedeutung                                                                                   |
-| ------------------ | -------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `model`            | `models.id` oder `*` | `none` \| `low` \| `medium` \| `high` | Die Erweiterung darf dieses Modell mit höchstens diesem Aufwand nutzen. `*` = jedes Modell. |
-| `modelDestination` | `providers.id`       | `send`                                | Die Erweiterung darf Bilder und Texte an das Ziel dieses Anbieters senden.                  |
+| Art                | `target`             | `action`                                                  | Bedeutung                                                                                   |
+| ------------------ | -------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `model`            | `models.id` oder `*` | `none` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` | Die Erweiterung darf dieses Modell mit höchstens diesem Aufwand nutzen. `*` = jedes Modell. |
+| `modelDestination` | `providers.id`       | `send`                                                    | Die Erweiterung darf Bilder und Texte an das Ziel dieses Anbieters senden.                  |
 
 - `status` ist `granted`, `denied` oder `ask`; `denied` schlägt `granted` (wie in `evaluate.rs`).
   Eine abgelehnte `model`-Zeile nimmt das Modell ganz heraus, gleich mit welchem Aufwand: Ein Auftrag darf jede
   Stufe bis zur Obergrenze nutzen, also muss jede darunter erlaubt sein.
-- Aufwand ist geordnet: `none` < `low` < `medium` < `high`. Eine Zeile mit höherem Wert deckt niedrigere ab
+- Aufwand ist geordnet: `none` < `low` < `medium` < `high` < `xhigh` < `max`. Eine Zeile mit höherem Wert deckt niedrigere ab
   (`Action::covers`). Die Zuordnung auf die Stufen des Modells steht in `contracts/job-format.md` §Aufwand.
 - Beide Arten sind vault-weit (nicht gerätegebunden); sie synchronisieren wie jede Berechtigung
   (`extension_permissions`, Entwicklungsversionen in `dev_extension_permissions_no_sync`).

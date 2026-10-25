@@ -1,6 +1,6 @@
 //! Tests for the effort of a model job (spec 055 FR-006).
 
-use super::effort::{effective, Applied, Level};
+use super::effort::{effective, offered, Applied, Level};
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 
 fn presets(ids: &[&str]) -> ModelCapabilities {
@@ -86,7 +86,7 @@ fn known_names_never_exceed_the_level() {
         option(&effective(Some(Level::Medium), Level::High, Some(&five))),
         Some("medium")
     );
-    // `xhigh` and `max` lie above the highest level the user can grant.
+    // `xhigh` is above `high`: a wish for `high` does not take it.
     assert_eq!(
         option(&effective(Some(Level::High), Level::High, Some(&five))),
         Some("high")
@@ -213,10 +213,78 @@ fn a_level_is_parsed_and_printed_by_its_name() {
         ("low", Level::Low),
         ("medium", Level::Medium),
         ("high", Level::High),
+        ("xhigh", Level::XHigh),
+        ("max", Level::Max),
     ] {
         assert_eq!(Level::parse(text), Some(level));
         assert_eq!(level.as_str(), text);
     }
-    assert_eq!(Level::parse("max"), None);
-    assert!(Level::None < Level::Low && Level::Low < Level::Medium && Level::Medium < Level::High);
+    assert_eq!(Level::parse("minimal"), None);
+    assert_eq!(Level::parse("High"), None);
+    assert!(Level::ALL.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn a_wish_above_high_takes_the_models_own_top_options() {
+    let anthropic = presets(&["low", "medium", "high", "xhigh", "max"]);
+    let wish = |wish, ceiling| {
+        effective(Some(wish), ceiling, Some(&anthropic))
+            .option_id()
+            .map(str::to_owned)
+    };
+    assert_eq!(wish(Level::Max, Level::Max).as_deref(), Some("max"));
+    assert_eq!(wish(Level::XHigh, Level::Max).as_deref(), Some("xhigh"));
+    assert_eq!(wish(Level::High, Level::Max).as_deref(), Some("high"));
+    // The ceiling caps the wish.
+    assert_eq!(wish(Level::Max, Level::High).as_deref(), Some("high"));
+    assert_eq!(wish(Level::Max, Level::XHigh).as_deref(), Some("xhigh"));
+    // A model without `xhigh` takes the highest option that does not exceed the wish.
+    let without = presets(&["low", "medium", "high", "max"]);
+    assert_eq!(
+        option(&effective(Some(Level::XHigh), Level::Max, Some(&without))),
+        Some("high")
+    );
+    let applied = effective(Some(Level::Max), Level::Max, Some(&anthropic));
+    assert_eq!(applied.reported(), "max");
+}
+
+#[test]
+fn a_model_offers_the_efforts_it_has() {
+    let levels = |capabilities: &ModelCapabilities| offered(Some(capabilities));
+    assert_eq!(
+        levels(&presets(&["max", "low", "xhigh", "high", "medium"])),
+        [
+            Level::Low,
+            Level::Medium,
+            Level::High,
+            Level::XHigh,
+            Level::Max
+        ]
+    );
+    // `minimal` counts as `low`; an off switch is `none`.
+    assert_eq!(
+        levels(&presets(&["off", "minimal", "low", "high"])),
+        [Level::None, Level::Low, Level::High]
+    );
+    // Names of the provider's own: the scale the levels are mapped onto it.
+    assert_eq!(
+        levels(&presets(&["quick", "thorough"])),
+        [Level::Low, Level::Medium, Level::High]
+    );
+    assert_eq!(
+        levels(&presets(&["off", "quick", "thorough"])),
+        [Level::None, Level::Low, Level::Medium, Level::High]
+    );
+    // No choice of effort, nothing to offer.
+    assert!(offered(None).is_empty());
+    for control in [
+        ReasoningControl::ModelManaged,
+        ReasoningControl::Unavailable,
+    ] {
+        let caps = ModelCapabilities {
+            reasoning: Some(control),
+            ..Default::default()
+        };
+        assert!(offered(Some(&caps)).is_empty());
+    }
 }

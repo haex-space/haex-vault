@@ -212,7 +212,7 @@ impl Setup {
 fn text_step() -> Value {
     json!({
         "id": "fix", "needs": ["text"], "instruction": "Korrigiere.",
-        "input": { "text": "Tsest" }, "effort": "medium",
+        "input": { "text": "Tsest" },
         "format": { "name": "text-fix", "version": 1, "schema": { "type": "object" } }
     })
 }
@@ -370,7 +370,7 @@ fn revoking_and_reordering_hold_from_the_next_start() {
 fn a_wrong_effort_or_model_id_is_refused() {
     let s = setup();
     for (model_id, effort) in [
-        (s.id(0), "max"),
+        (s.id(0), "bogus"),
         ("*".to_owned(), "low"),
         (String::new(), "low"),
     ] {
@@ -402,7 +402,7 @@ fn a_start_without_a_grant_asks_with_the_models_that_fit() {
     assert_eq!(
         refused.details,
         Some(json!({
-            "resourceType": "model", "action": "medium", "target": s.id(0),
+            "resourceType": "model", "action": "none", "target": s.id(0),
             "needs": ["text", "image"]
         }))
     );
@@ -484,10 +484,7 @@ fn a_denial_keeps_the_model_away_and_the_next_start_asks_for_another() {
     s.start(image_step());
     s.answer(PermissionDecision::Deny, true, None);
 
-    assert_eq!(
-        s.model_rows(),
-        [("medium".into(), s.id(0), "denied".into())]
-    );
+    assert_eq!(s.model_rows(), [("none".into(), s.id(0), "denied".into())]);
     // The only model that takes images is refused.
     let refused = s.start(image_step());
     assert_eq!(refused.code.as_u16(), 1002);

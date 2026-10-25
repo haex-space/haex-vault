@@ -11,7 +11,7 @@
  * would be sent.
  */
 import { MODEL_DESTINATION_KIND } from '~/lib/extensions/modelConsent'
-import { MODEL_KIND, proposedEffort } from '~/lib/extensions/modelGrants'
+import { MODEL_KIND, startingEffort } from '~/lib/extensions/modelGrants'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -29,16 +29,26 @@ const destinationKind = computed(
 const modelId = ref('')
 const effort = ref('none')
 
+/** The effort the question starts with for a model; the user changes it. */
+function effortOf(id: string): string {
+  const model = store.shown?.models?.find((m) => m.id === id)
+  return startingEffort(model?.efforts ?? [])
+}
+
 watch(
   () => store.shown?.requestId,
   () => {
     remember.value = rememberByDefault()
     failure.value = null
     modelId.value = store.shown?.target ?? ''
-    effort.value = proposedEffort(store.shown?.action ?? '')
+    effort.value = effortOf(modelId.value)
   },
   { immediate: true },
 )
+// Another model offers other efforts.
+watch(modelId, (id) => {
+  effort.value = effortOf(id)
+})
 
 async function answerAsync(decision: 'allow' | 'deny') {
   const question = store.shown

@@ -14,17 +14,50 @@ export function withoutModels<T extends { kind: string }>(
   return rows.filter((row) => row.kind !== MODEL_KIND)
 }
 
-/** The efforts a grant can allow, lowest first. */
-export const EFFORT_LEVELS = ['none', 'low', 'medium', 'high'] as const
+/** The efforts the user can choose, lowest first; a model offers the ones it has (`efforts`). */
+export const EFFORT_LEVELS = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
 export type EffortLevel = (typeof EFFORT_LEVELS)[number]
 
 export function isEffortLevel(value: string): value is EffortLevel {
   return (EFFORT_LEVELS as readonly string[]).includes(value)
 }
 
-/** The ceiling a question starts with: the effort the job wished for, or `none`. */
-export function proposedEffort(action: string): EffortLevel {
-  return isEffortLevel(action) ? action : 'none'
+const byLevel = (a: string, b: string) =>
+  EFFORT_LEVELS.indexOf(a as EffortLevel) -
+  EFFORT_LEVELS.indexOf(b as EffortLevel)
+
+/**
+ * The efforts to choose from for a model that offers `efforts`: its own levels, lowest first.
+ * A model without a choice of effort has only `none`, which then means "allowed"; the effort
+ * the model has now stays in the list even when the model no longer offers it.
+ */
+export function ceilingChoices(
+  efforts: readonly string[],
+  current?: string,
+): string[] {
+  const choices = efforts.length > 0 ? [...efforts] : ['none']
+  if (current && isEffortLevel(current) && !choices.includes(current))
+    choices.push(current)
+  return choices.sort(byLevel)
+}
+
+/**
+ * The effort a question starts with for a model, which the user changes: `medium` when the model
+ * has it, else the middle one of its own levels (the upper of two); `none` for a model without a
+ * choice of effort. The extension has no say (spec 055 FR-036).
+ */
+export function startingEffort(efforts: readonly string[]): string {
+  const offered = [...efforts].sort(byLevel)
+  if (offered.length === 0) return 'none'
+  if (offered.includes('medium')) return 'medium'
+  return offered[Math.floor(offered.length / 2)] as string
 }
 
 /** The i18n key of an effort level. */

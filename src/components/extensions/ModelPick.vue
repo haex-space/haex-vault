@@ -5,26 +5,34 @@
  * needs, the one it proposes first; the user's pick goes back with the answer.
  */
 import {
-  EFFORT_LEVELS,
+  ceilingChoices,
   effortLabelKey,
   placeLabelKey,
 } from '~/lib/extensions/modelGrants'
 
-defineProps<{
+const props = defineProps<{
   models: {
     id: string
     name: string
     provider: string
     place: string
     agent?: boolean
+    efforts: string[]
   }[]
 }>()
 const modelId = defineModel<string>('modelId', { required: true })
 const effort = defineModel<string>('effort', { required: true })
 const { t } = useI18n()
 
+/** The efforts of the chosen model; a model without a choice of effort shows no select. */
+const offered = computed(
+  () => props.models.find((m) => m.id === modelId.value)?.efforts ?? [],
+)
 const effortOptions = computed(() =>
-  EFFORT_LEVELS.map((value) => ({ value, label: t(effortLabelKey(value)) })),
+  ceilingChoices(offered.value).map((value) => ({
+    value,
+    label: t(effortLabelKey(value)),
+  })),
 )
 </script>
 
@@ -58,13 +66,14 @@ const effortOptions = computed(() =>
       </label>
     </ShadcnRadioGroup>
     <UiSelect
+      v-if="offered.length > 0"
       id="extension-model-effort"
       v-model="effort"
       :options="effortOptions"
       :label="t('extensions.permissionRequest.model.effort')"
       data-testid="extension-model-effort"
     />
-    <p class="text-xs text-muted-foreground">
+    <p v-if="offered.length > 0" class="text-xs text-muted-foreground">
       {{ t('extensions.permissionRequest.model.effortHint') }}
     </p>
   </div>

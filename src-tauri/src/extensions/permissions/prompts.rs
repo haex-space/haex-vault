@@ -49,7 +49,7 @@ pub struct PermissionRequestEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encrypted_folder: Option<FolderNames>,
     /// For `model` (spec 055): the models of the vault that fit the job, the proposed one
-    /// (`target`) first. The user picks one and the highest effort it may be used with.
+    /// (`target`) first. The user picks one and the effort it is used with.
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub models: Option<Vec<ExtensionModelChoice>>,

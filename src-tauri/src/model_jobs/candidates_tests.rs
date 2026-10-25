@@ -112,6 +112,23 @@ fn only_granted_models_are_candidates_with_the_highest_effort_allowed() {
 }
 
 #[test]
+fn a_ceiling_may_be_one_of_the_efforts_above_high() {
+    let v = vault();
+    let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
+    let rows = [model_row(&server, "a", None), model_row(&server, "b", None)];
+    store_models(&v.db, &server, &rows);
+    v.grant(&rows[0].id, "xhigh", 1);
+    v.grant(&rows[1].id, "max", 2);
+
+    let mut granted = v.ids(vec![]);
+    granted.sort();
+    assert_eq!(
+        granted,
+        [("a".to_owned(), Level::XHigh), ("b".to_owned(), Level::Max)]
+    );
+}
+
+#[test]
 fn a_denial_of_a_model_takes_it_away_whatever_its_effort() {
     let v = vault();
     let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);

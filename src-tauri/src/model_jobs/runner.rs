@@ -12,7 +12,7 @@ use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 use super::candidates::Candidate;
-use super::effort::{effective, Applied};
+use super::effort::{applied_effort, Applied};
 use super::errors::{contains_sensitive, sanitize, JobErrorCode};
 use super::guard;
 use super::job::Step;
@@ -44,7 +44,7 @@ pub(crate) enum Outcome {
 pub(crate) struct Attempt {
     pub model: String,
     pub place: Place,
-    /// The effort actually sent: `none`, `managed`, `low`, `medium` or `high`.
+    /// The effort actually sent: `none`, `managed`, `low`, `medium`, `high`, `xhigh` or `max`.
     pub effort: String,
     pub outcome: Outcome,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,11 +253,8 @@ pub(crate) async fn run_step(
     let mut attempts = Vec::new();
     let mut last = (JobErrorCode::Unavailable, "no model was tried".to_owned());
     for candidate in candidates {
-        let applied = effective(
-            step.effort,
-            candidate.ceiling,
-            candidate.model.capabilities.as_ref(),
-        );
+        // The effort is the user's choice for this model, never the extension's wish.
+        let applied = applied_effort(candidate.ceiling, candidate.model.capabilities.as_ref());
         let secrets = candidate.model.secrets();
         let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
         let attempt = |outcome, reason: Option<String>| Attempt {

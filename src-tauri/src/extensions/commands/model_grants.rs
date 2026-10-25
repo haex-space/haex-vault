@@ -26,7 +26,7 @@ use crate::vault_gate::VaultDb;
 pub struct ExtensionModelGrantArgs {
     pub extension_id: String,
     pub model_id: String,
-    /// The highest effort: `none`, `low`, `medium` or `high`.
+    /// The effort the user chose: one the model offers (`none`, `low`, `medium`, `high`, `xhigh`, `max`).
     pub effort: String,
 }
 
@@ -47,13 +47,13 @@ pub struct ExtensionModelOrderArgs {
     pub model_ids: Vec<String>,
 }
 
-/// The model and ceiling the user picked in a question about a model.
+/// The model and effort the user picked in a question about a model.
 #[derive(Debug, Clone, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct ExtensionModelPick {
     pub model_id: String,
-    /// `none`, `low`, `medium` or `high`.
+    /// `none`, `low`, `medium`, `high`, `xhigh` or `max`.
     pub effort: String,
 }
 

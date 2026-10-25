@@ -21,7 +21,7 @@ result: {
     provider: string,      // Anzeigename des Anbieters
     place: "this_device" | "network" | "cloud",
     capabilities: { image: boolean, effort: "none" | "managed" | "levels" },
-    maxEffort: "none" | "low" | "medium" | "high"   // höchster freigegebener Aufwand
+    maxEffort: "none" | "low" | "medium" | "high" | "xhigh" | "max"   // der vom Nutzer gewählte Aufwand (Name aus früherer Fassung)
   } ]
 }
 ```
@@ -100,7 +100,7 @@ holzi nimmt immer die aufrufende. Sie erfährt nichts über die Seite und kann d
 ## `extension_model_access_request` (US9, FR-035)
 
 ```text
-params: { needs: ("text" | "image")[], effort?: "none" | "low" | "medium" | "high" }
+params: { needs: ("text" | "image")[] }
 result: { models: [ …wie extension_model_list… ] }   // die freigegebenen Modelle, die zu `needs` passen
 ```
 
@@ -123,7 +123,7 @@ data: {
   result?: { steps: [ { id: string, result: <Wert nach format.schema> } ], final: <Ergebnis des letzten Schritts> },
   provenance: [ { stepId: string, formatName: string, formatVersion: number,
                   attempts: [ { model: string, place: "this_device"|"network"|"cloud",
-                                effort: "none"|"low"|"medium"|"high"|"managed",
+                                effort: "none"|"low"|"medium"|"high"|"xhigh"|"max"|"managed",
                                 outcome: "used" | "unusable" | "unavailable" | "timeout", reason?: string } ] } ],
   error?: { code: "unusable"|"unavailable"|"timeout"|"cancelled"|"consent_denied"|"no_capable_model",
             message: string, stepId?: string }

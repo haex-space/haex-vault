@@ -241,6 +241,18 @@ Delivery G (R17), PRs in order: holzi (T088–T091, T093), vault-sdk (T094), the
 
 ---
 
+## Phase 13: Efforts of the model itself (added 2026-10-25, FR-036)
+
+First hand test with Claude Code: the choice offered only `Kein`, `Niedrig`, `Mittel` and `Hoch`, while the model has `low` to `max` with steps between.
+
+- [x] T096 [US2] (`effort::Level` with `xhigh` and `max`, `offered`; `ExtensionModelEntry.efforts` and `ExtensionModelChoice.efforts`; `ceilingChoices` and `effortFor` in `modelGrants.ts`; the SDK type `ModelEffort` follows in its own PR) The ceiling is chosen from the efforts the model offers: Rust and frontend tests first (`model_jobs/effort_tests.rs`, `candidates_tests.rs`, `scripts/check-extensions-model-grants.ts`), then `Level`, `grants.rs`, `ModelPick.vue`, `ExtensionModelsView.vue`, `PermissionRequestDialog.vue`, labels de/en; contracts `job-format.md`, `bridge.md`, `data-model.md`
+- [x] T097 [US2] (2026-10-25, FR-006) The extension has no say about the effort: `effort` is gone from the step and from the request for access (`job.rs`, `access.rs`, 3001 for the field), the effort of a run is the one the user chose (`effort::applied_effort`), the question starts at `medium` or the middle of the model's levels (`startingEffort`); the fixture `model-jobs` sends none
+- [ ] T098 [US2] vault-sdk (own repo, own PR): drop `effort` from `ModelJobStep` and `ModelAccessRequest`, `ModelEffort` with `xhigh` and `max`; README note. haex-notes drops its `effort` fields first (a host that still accepts none is no problem for it), then holzi's change lands
+- [ ] T099 [US2] haex-notes (`haextension`): drop `effort` from the jobs of the page recognition
+- [x] T100 [US8] (haex-vault#565) The models of every provider are read again at each vault open (FR-037): `providers/refresh_all.rs`, started after `open_instance` and `import_instance`; test `providers/refresh_all_tests.rs`
+
+---
+
 ## Dependencies & Execution Order
 
 - Phase 1 (T001–T003) before Phase 2. Phase 2 blocks every story; inside it T004–T005 (permission kinds), T006–T007, T008–T011, T012–T015 and T016–T017 are separate groups (parallel where marked), T019 and T020 last.

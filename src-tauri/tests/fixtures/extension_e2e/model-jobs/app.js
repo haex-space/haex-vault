@@ -8889,7 +8889,6 @@ function read(image, extra) {
 ${extra}` : READ,
     input: { images: [image] },
     format: page_format_default,
-    effort: "medium",
     maxOutputTokens: 8192
   };
 }
@@ -8903,8 +8902,7 @@ function jobOf(mode, image) {
         needs: ["text"],
         instruction: FIX,
         input: { from: { step: "read", pointer: "/regions" } },
-        format: textFix,
-        effort: "low"
+        format: textFix
       }
     ]
   };
@@ -8944,8 +8942,7 @@ window.modelJobs = {
   /** The way to the grant (spec 055 US9): ask before the first job, or open holzi's model page. */
   lead(mode) {
     const end = mode === "access" ? sdk.models.requestAccessAsync({
-      needs: ["text", "image"],
-      effort: "low"
+      needs: ["text", "image"]
     }) : sdk.models.openSettingsAsync().then(() => ({ opened: true }));
     end.then((answer) => {
       this.last = mode === "access" ? { models: answer } : answer;
