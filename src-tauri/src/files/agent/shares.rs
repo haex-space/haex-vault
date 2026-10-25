@@ -344,10 +344,12 @@ impl<E: SharesEnv> SharesAgent<E> {
             return Err(no_contact());
         };
         let name = self.readable(db, &contact_id).await?;
-        Ok(if name.is_empty() {
+        Ok(if !name.is_empty() {
+            name
+        } else if !card.card.name.trim().is_empty() {
             card.card.name
         } else {
-            name
+            crate::contacts::card::received::npub(&card.card.vault)
         })
     }
 
