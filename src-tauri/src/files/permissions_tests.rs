@@ -336,3 +336,48 @@ fn a_folder_row_keeps_its_reach_and_leaves_with_its_storage() {
         .collect();
     assert_eq!(left, ["s10/abc"]);
 }
+
+#[test]
+fn managing_file_shares_is_off_until_granted_and_takes_no_target() {
+    let (_dir, db) = vault();
+    assert!(!grants(&db, BUILTIN_AGENT).file_shares, "off by default");
+    for bad in [
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::FileShares,
+            "",
+            AgentFileStatus::Read,
+        ),
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::FileShares,
+            "x",
+            AgentFileStatus::Granted,
+        ),
+    ] {
+        assert!(put(&db, bad.clone()).is_err(), "{bad:?}");
+    }
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::FileShares,
+            "",
+            AgentFileStatus::Granted,
+        ),
+    )
+    .expect("granted");
+    assert!(grants(&db, BUILTIN_AGENT).file_shares);
+    assert!(!grants(&db, "other").file_shares, "per agent");
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::FileShares,
+            "",
+            AgentFileStatus::Denied,
+        ),
+    )
+    .expect("denied");
+    assert!(!grants(&db, BUILTIN_AGENT).file_shares);
+}

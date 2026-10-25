@@ -35,6 +35,8 @@ pub enum AgentFileKind {
     /// The address book (spec 051 FR-030, research R15), `target` = `*` or `group:<group id>`.
     /// Not about files; it shares the table, the question and the settings with them.
     Contacts,
+    /// Managing file shares (spec 056 FR-045, research R17), `target` empty; only the user sets it.
+    FileShares,
 }
 
 impl AgentFileKind {
@@ -44,6 +46,7 @@ impl AgentFileKind {
             Self::Storage => "storage",
             Self::EncryptedFolder => "encryptedFolder",
             Self::Contacts => "contacts",
+            Self::FileShares => "fileShares",
         }
     }
 
@@ -53,13 +56,14 @@ impl AgentFileKind {
             "storage" => Some(Self::Storage),
             "encryptedFolder" => Some(Self::EncryptedFolder),
             "contacts" => Some(Self::Contacts),
+            "fileShares" => Some(Self::FileShares),
             _ => None,
         }
     }
 }
 
-/// The decision; `granted` for the device, `read` and `readWrite` for a storage, a folder and the
-/// contacts.
+/// The decision; `granted` for the device and for managing file shares, `read` and `readWrite` for
+/// a storage, a folder and the contacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -93,7 +97,9 @@ impl AgentFileStatus {
     /// Whether this status belongs to `kind`.
     fn fits(self, kind: AgentFileKind) -> bool {
         match kind {
-            AgentFileKind::Device => matches!(self, Self::Granted | Self::Denied),
+            AgentFileKind::Device | AgentFileKind::FileShares => {
+                matches!(self, Self::Granted | Self::Denied)
+            }
             AgentFileKind::Storage | AgentFileKind::EncryptedFolder | AgentFileKind::Contacts => {
                 matches!(self, Self::Read | Self::ReadWrite | Self::Denied)
             }
@@ -135,7 +141,8 @@ impl AgentFileReach {
 pub struct AgentFilePermission {
     pub agent_id: String,
     pub kind: AgentFileKind,
-    /// Empty for the device, the storage id for a storage, `*` or `group:<id>` for the contacts.
+    /// Empty for the device and for file shares, the storage id for a storage, `*` or `group:<id>`
+    /// for the contacts.
     pub target: String,
     pub status: AgentFileStatus,
     #[ts(type = "number")]
@@ -254,6 +261,9 @@ pub fn grants_of(q: &mut impl Query, agent_id: &str) -> Result<AgentGrants> {
             (AgentFileKind::Storage, status) => {
                 grants.storages.insert(row.target, storage_grant(status));
             }
+            (AgentFileKind::FileShares, status) => {
+                grants.file_shares = status == AgentFileStatus::Granted;
+            }
             (AgentFileKind::EncryptedFolder, status) => {
                 let reach = match row.reach {
                     Some(AgentFileReach::Cloud) => Locality::Cloud,
@@ -276,7 +286,9 @@ pub fn grants_of(q: &mut impl Query, agent_id: &str) -> Result<AgentGrants> {
 /// Writes `row` under its derived id: a new one is inserted, a known one updated.
 pub fn set(tx: &mut CrdtTransaction<'_>, row: &AgentFilePermission) -> Result<()> {
     let target_ok = match row.kind {
-        AgentFileKind::Device => row.target.is_empty() && row.reach.is_none(),
+        AgentFileKind::Device | AgentFileKind::FileShares => {
+            row.target.is_empty() && row.reach.is_none()
+        }
         AgentFileKind::Storage => !row.target.is_empty() && row.reach.is_none(),
         AgentFileKind::Contacts => row.reach.is_none() && is_contacts_target(&row.target),
         AgentFileKind::EncryptedFolder => {

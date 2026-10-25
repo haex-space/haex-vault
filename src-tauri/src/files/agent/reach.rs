@@ -290,6 +290,13 @@ impl<E: AgentEnv> FilesAgent<E> {
             &self.env.own(),
             &grants,
         ) {
+            // The narrower of the agent's grant and this vault's level wins (spec 056 FR-041).
+            Verdict::Allowed if want == Want::Write && self.env.read_only(&storage.id).await => {
+                Err(files_error(FilesError::new(
+                    FilesErrorCode::ReadOnly,
+                    "this share is given to this vault for reading only",
+                )))
+            }
             Verdict::Allowed => self
                 .env
                 .open_storage(&storage.id)

@@ -77,6 +77,8 @@ pub struct AgentGrants {
     pub storages: HashMap<String, StorageGrant>,
     /// By `<storage_id>/<folder_id>`.
     pub folders: HashMap<String, FolderGrant>,
+    /// "Dateifreigaben verwalten" (spec 056 FR-045); off without a row.
+    pub file_shares: bool,
 }
 
 impl AgentGrants {
