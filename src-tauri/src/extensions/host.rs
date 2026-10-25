@@ -12,6 +12,7 @@ use super::bridge::frames::FrameRegistry;
 use super::notifications::{NotificationSpec, NotificationState, Respond, ShownNotification};
 use super::permissions::prompts::PermissionState;
 use super::registry::start::Started;
+use crate::model_jobs::local_slot::LocalSlot;
 use crate::model_jobs::model_source::{ModelSource, Providers};
 use crate::vault_gate::ChildRegistry;
 
@@ -98,6 +99,8 @@ pub struct ExtensionHost {
     model_source: OnceLock<Arc<dyn ModelSource>>,
     /// The vault's registry of child processes, for the agents of subscriptions that run model jobs.
     model_children: OnceLock<ChildRegistry>,
+    /// Where model jobs borrow a local model from: the chat's place (spec 055 FR-033).
+    model_local: OnceLock<Arc<dyn LocalSlot>>,
 }
 
 /// A running SQL call; dropping it frees its place.
@@ -127,6 +130,7 @@ impl ExtensionHost {
             .get_or_init(|| {
                 Arc::new(Providers::new(
                     self.model_children.get().cloned().unwrap_or_default(),
+                    self.model_local.get().cloned(),
                 ))
             })
             .clone()
@@ -136,6 +140,13 @@ impl ExtensionHost {
     /// the agent of a running model job with its other children.
     pub fn set_model_children(&self, children: ChildRegistry) {
         let _ = self.model_children.set(children);
+    }
+
+    /// Sets where model jobs borrow a local model from; only the first call counts, and only before
+    /// the first job asks for its source.
+    #[cfg(feature = "llm-cpu")]
+    pub(crate) fn set_model_local(&self, slot: Arc<dyn LocalSlot>) {
+        let _ = self.model_local.set(slot);
     }
 
     /// Sets where model jobs get their adapters; only the first call counts.

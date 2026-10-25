@@ -5,12 +5,14 @@
 //!
 //! The parts of a job (`job`, `schema`, `guard`, `effort`, `place`, `limits`), the errors
 //! (`errors`), the registry of running jobs (`state`), the models a step may go to (`candidates`,
-//! `model_source`), the grants and consents the user gives (`grants`, `destinations`), the
+//! `model_source`, `local_slot`, `chat_slot`), the grants and consents the user gives (`grants`, `destinations`), the
 //! preflight (`preflight`), the run (`runner`) and the bridge methods (`bridge`).
 
 pub(crate) mod access;
 pub(crate) mod bridge;
 mod candidates;
+#[cfg(feature = "llm-cpu")]
+pub(crate) mod chat_slot;
 mod delegate;
 pub(crate) mod destinations;
 pub(crate) mod effort;
@@ -19,6 +21,7 @@ pub(crate) mod grants;
 mod guard;
 mod job;
 mod limits;
+pub(crate) mod local_slot;
 pub(crate) mod model_source;
 mod place;
 mod preflight;
@@ -42,6 +45,8 @@ mod errors_tests;
 mod guard_tests;
 #[cfg(test)]
 mod job_tests;
+#[cfg(test)]
+mod local_slot_tests;
 #[cfg(test)]
 mod model_source_tests;
 #[cfg(test)]
