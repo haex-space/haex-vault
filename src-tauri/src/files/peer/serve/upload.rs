@@ -136,8 +136,7 @@ impl Uploads {
             (Target::Storage(_), Some(sink)) => {
                 let mut sink = sink.lock().await;
                 let running = sink.as_mut().ok_or(FailCode::NotFound)?;
-                running.part(body).await?;
-                Ok(number.to_string())
+                running.part(number, body).await
             }
             (Target::Storage(_), None) => Err(FailCode::Internal),
         }

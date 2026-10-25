@@ -115,6 +115,9 @@ pub struct StorageUpload {
     target: InStorage,
     provider: Provider,
     sealing: Option<Sealing>,
+    next_number: u32,
+    last_number: Option<u16>,
+    last_result: Option<String>,
 }
 
 impl StorageUpload {
@@ -143,18 +146,30 @@ impl StorageUpload {
                         at,
                     }),
                     target,
+                    next_number: 1,
+                    last_number: None,
+                    last_result: None,
                 })
             }
             Route::Plain => Ok(Self {
                 provider: Provider::new(object_key(&target.path()).map_err(fail_of)?),
                 sealing: None,
                 target,
+                next_number: 1,
+                last_number: None,
+                last_result: None,
             }),
         }
     }
 
-    /// Takes the next part.
-    pub async fn part(&mut self, body: Vec<u8>) -> Result<(), FailCode> {
+    /// Takes the next part, replaying the result when the previous request is retried.
+    pub async fn part(&mut self, number: u16, body: Vec<u8>) -> Result<String, FailCode> {
+        if self.last_number == Some(number) {
+            return self.last_result.clone().ok_or(FailCode::Internal);
+        }
+        if u32::from(number) != self.next_number {
+            return Err(FailCode::Refused);
+        }
         let files = Arc::clone(&self.target.files);
         let bodies = match &mut self.sealing {
             Some(sealing) => sealing.parts.push(&body),
@@ -164,7 +179,11 @@ impl StorageUpload {
         for body in bodies {
             self.provider.send(&files, body).await?;
         }
-        Ok(())
+        let result = number.to_string();
+        self.next_number += 1;
+        self.last_number = Some(number);
+        self.last_result = Some(result.clone());
+        Ok(result)
     }
 
     /// Puts the file in place; in an encrypted folder its sidecar shows it, as the next version of

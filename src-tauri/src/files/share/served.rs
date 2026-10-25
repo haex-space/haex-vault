@@ -56,10 +56,10 @@ pub async fn apply(ctx: &ServeContext, cards: &mut HashSet<String>) {
     if let Err(error) = forget_lost_contacts(ctx, cards).await {
         log::warn!("files: grants of removed contacts were not cleaned up: {error}");
     }
+    cancel_revoked(ctx).await;
     if let Err(error) = confirm(ctx).await {
         log::warn!("files: changes to shares were not confirmed: {error}");
     }
-    cancel_revoked(ctx).await;
 }
 
 /// What is at the root of `share` now (FR-022): there, gone, or not reachable. A storage's share
