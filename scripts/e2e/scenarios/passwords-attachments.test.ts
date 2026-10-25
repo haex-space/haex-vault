@@ -286,12 +286,15 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
     ),
   )
   assert.equal(await lightboxOpen(instance), false)
-  await instance.click('passwords-attachment-viewer-close')
+  await instance.exec(
+    `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
   await ctx.waitFor(
-    'the attachment view to close',
+    'Escape to close the PDF attachment view',
     async () => !(await viewerOpen(instance)),
   )
-  ctx.step('a PDF opens in the attachment view with its page counter')
+  ctx.step('Escape closes the PDF attachment view, not the lightbox')
 
   await tapCard(instance, pdf)
   await instance.waitForDisplayed('passwords-attachment-viewer-failed')

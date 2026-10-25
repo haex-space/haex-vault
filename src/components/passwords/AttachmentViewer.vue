@@ -32,6 +32,7 @@ const text = ref<TextContent | null>(null)
 /** The media server's URL of the PDF on show. */
 const url = ref<string | null>(null)
 const failed = ref<string | null>(null)
+let mounted = true
 
 function dropUrl() {
   const current = url.value
@@ -75,7 +76,9 @@ watch(
     dropUrl()
     failed.value = null
     const current = () =>
-      id === props.attachment.id && binaryHash === props.attachment.binaryHash
+      mounted &&
+      id === props.attachment.id &&
+      binaryHash === props.attachment.binaryHash
     try {
       if (kind.value === 'text') {
         const content = await attachmentTextAsync(id)
@@ -89,11 +92,7 @@ watch(
         failed.value = t('passwords.attachments.viewer.notText')
       }
     } catch (cause) {
-      if (
-        id === props.attachment.id &&
-        binaryHash === props.attachment.binaryHash
-      )
-        failed.value = failureText(cause)
+      if (current()) failed.value = failureText(cause)
     }
   },
   { immediate: true },
@@ -132,7 +131,10 @@ function onKeydown(event: KeyboardEvent) {
 
 const panel = useTemplateRef<HTMLElement>('panel')
 onMounted(() => panel.value?.focus())
-onBeforeUnmount(dropUrl)
+onBeforeUnmount(() => {
+  mounted = false
+  dropUrl()
+})
 </script>
 
 <template>
