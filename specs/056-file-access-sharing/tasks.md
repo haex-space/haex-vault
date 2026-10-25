@@ -228,7 +228,7 @@ story builds on these.
 - [ ] T075 E2E per spec 033 in `scripts/e2e/scenarios/file-shares.test.ts`, helpers in `scripts/e2e/lib/` with checks via `pnpm check:e2e-lib`: second vault, card exchange, own-device browse and copy, contact share read, revoke; run locally only after asking (OOM risk), otherwise via CI
 - [ ] T076 [P] Performance check against SC-001/SC-002/SC-006 on two devices in one network; note results in the PR (quickstart.md)
 - [x] T077 [P] Docs: mark the 056 row in `plans/README.md` per merged PR; `specs/044-file-browser/spec.md` "Folgende Specs" points to the built feature; `CONTEXT.md` entries from T005 checked against the final names — done with PR G; the README row lists the PRs, the CONTEXT.md entries match the built names
-- [ ] T078 Size and structure: every new or touched hand-written file ≤ 500 LoC (`files/peer/serve/*`, `files/peer/store.rs`, `sync/endpoint.rs` already has a documented exception — do not grow it beyond the handler registration)
+- [x] T078 Size and structure: every new or touched hand-written file ≤ 500 LoC (`files/peer/serve/*`, `files/peer/store.rs`, `sync/endpoint.rs` already has a documented exception — do not grow it beyond the handler registration) — checked with PR G: every file 056 added or touched is ≤ 500 LoC (largest `share/manage.rs` 444, `peer/serve/mod.rs` 434); the files above 500 in `sync/` (`handshake.rs`, `presence_loop.rs`, `endpoint.rs` with its exception) were not grown by 056
 - [ ] T079 Run quickstart.md §1–§5 by hand on two devices and two vaults; record open findings
 
 - [ ] T080 Delete `specs/029-own-s3-storage/` once 056 is in use (it stays until then, commit `fe7c2784`); check that no document still links it and mark the 056 row in `plans/README.md`
