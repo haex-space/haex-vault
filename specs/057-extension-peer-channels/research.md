@@ -149,7 +149,13 @@ Beitrittscodes tragen die aktuelle Adresse des Gastgebers (R6) und brauchen beid
 (`sync/endpoint.rs:176`); das bleibt so (056 FR-010).
 
 **Bekannte Grenze**: iroh wählt das Heim-Relay nach Latenz; wechselt es (Reise, anderes Netz), stimmt
-das Relay der Karte nicht mehr, und das Gerät ist bis zu einer neuen Karte nicht erreichbar.
+das Relay der Karte nicht mehr, und das Gerät ist bis zu einer neuen Karte nicht erreichbar. Der
+Aussteller erstellt diese Karte selbst neu (051 research R12), der Kontakt muss sie aber erst erhalten.
+
+**Eigenes Gerät auf der Karte**: Die Karte nannte früher das Relay nur von Geräten, deren Meldung der
+Aussteller gehört hatte, nie das seines eigenen Geräts. Eine Vault mit einem Gerät veröffentlichte so
+eine Karte ohne Relay, und Einladungen an sie endeten als `unreachable`. Seither steht jedes Gerät der
+Vault mit seinem Heim-Relay auf der Karte, das eigene eingeschlossen, gleich für eines oder viele.
 
 ## R6 Beitrittscode und Geheimnis
 

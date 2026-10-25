@@ -14,6 +14,7 @@ pub mod events;
 pub mod foreign_auth;
 pub mod genesis;
 pub mod handshake;
+pub(crate) mod home_relay;
 pub mod inbound;
 pub mod keys;
 pub mod link;

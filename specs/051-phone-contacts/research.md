@@ -165,6 +165,13 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
   zeigen. Neu erstellt wird beim Wechsel der Geräteliste (die fünf Stellen, die eine Liste
   unterschreiben, rufen danach `own_card::refresh`), bei Änderung der Nostr-Relays und bei Änderung der
   gewählten Angaben (FR-010).
+- **Heim-Relay jedes Geräts**: Die Karte nennt alle Geräte der wirksamen Liste gleich, das eigene des
+  Ausstellers eingeschlossen, jeweils mit dem Heim-Relay, wenn es bekannt ist; eine Vault mit einem
+  Gerät ist kein Sonderfall. Das Relay kommt aus `device_presence_no_sync`. Ein Gerät hört seine eigene
+  Meldung nie, daher trägt `sync/home_relay.rs` das eigene Relay dort ein, sobald der Endpunkt es
+  erreicht hat. Nennt eine Meldung oder der eigene Endpunkt ein anderes Heim-Relay als das gespeicherte,
+  erstellt ein Hauptgerät eine neue Karte (`own_card::refresh`). Das Format ändert sich nicht, ältere
+  Karten bleiben gültig.
 - **Warum nicht die unterschriebene Geräteliste mitgeben**: Ihre Regeln (Generation, `base_list_hash`)
   kann ein Fremder ohne frühere Listen nicht prüfen, und Gerätenamen sind mit dem eigenen
   Inhaltsschlüssel versiegelt. Die Karte bestätigt die Geräte mit der Unterschrift der Vault-Identität.

@@ -29,10 +29,11 @@ use nostr::event::Event;
 use nostr::key::PublicKey;
 
 use crate::sync::admission::{self, ADMISSION_KIND};
+use crate::sync::home_relay;
 use crate::sync::keys::DeviceKeys;
 use crate::sync::presence::{
-    build, mailbox_keys, now_ms, record_seen, unwrap_rumor, wrap_payload, PresenceContent,
-    PresenceError, PRESENCE_KIND,
+    build, mailbox_keys, now_ms, unwrap_rumor, wrap_payload, PresenceContent, PresenceError,
+    PRESENCE_KIND,
 };
 use iroh::RelayUrl;
 
@@ -93,6 +94,7 @@ pub async fn run(
     // relay is told at once instead of on the next tick (spec 043).
     let mut addr_changes = Box::pin(node.addr_changes());
     let mut announced_relay = node.addr().relay_urls().next().cloned();
+    note_own_address(node, replica, keys);
     let mut subscribed: Option<Subscription> = None;
     let mut asking_since = now_ms();
 
@@ -140,6 +142,7 @@ pub async fn run(
                 let relay = addr.relay_urls().next().cloned();
                 if relay != announced_relay {
                     announced_relay = relay;
+                    note_own_address(node, replica, keys);
                     if let Err(error) =
                         publish_own(&client, node, replica, keys, vault, day, asking_since).await
                     {
@@ -474,18 +477,39 @@ async fn record_listed(
     if let Some(addr) = &addr {
         node.note_presence(addr.clone()).await;
     }
-    let write_result = replica.db().write(|tx| {
-        record_seen(tx, &sender, now_ms(), addr.as_ref())?;
-        Ok(())
-    });
-    if let Err(error) = write_result {
-        log::warn!("sync: recording presence for a device failed: {error}");
-        return false;
+    let write_result = replica
+        .db()
+        .write(|tx| home_relay::record_device(tx, &sender, now_ms(), addr.as_ref()));
+    match write_result {
+        // A renewed own card is a change the sessions have to carry on.
+        Ok(card_renewed) => {
+            if card_renewed {
+                node.local_changed();
+            }
+        }
+        Err(error) => {
+            log::warn!("sync: recording presence for a device failed: {error}");
+            return false;
+        }
     }
     // This write does not go through `VaultDb`, so it never reaches the
     // gate's sync-notify signal (spec 024, FR-010): the caller nudges
     // reconnect directly instead of leaving it to its own periodic tick.
     true
+}
+
+/// Records this device's own address, so the own card names its home relay as it does for every
+/// other device; the sessions are told when that renewed the card.
+fn note_own_address(
+    node: &crate::sync::endpoint::SyncNode,
+    replica: &crate::sync::replica::Replica,
+    keys: &DeviceKeys,
+) {
+    match home_relay::note_own(replica, &keys.device_pubkey, &node.addr()) {
+        Ok(true) => node.local_changed(),
+        Ok(false) => {}
+        Err(error) => log::warn!("sync: recording this device's own address failed: {error}"),
+    }
 }
 
 /// Where this device stands on the effective list.
@@ -598,6 +622,9 @@ pub(crate) fn read_roster(
     .map_err(|e| PresenceError::Malformed(e.to_string()))
 }
 
+#[cfg(test)]
+#[path = "presence_loop_relay_tests.rs"]
+mod relay_tests;
 #[cfg(test)]
 #[path = "presence_loop_request_tests.rs"]
 mod request_tests;

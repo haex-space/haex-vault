@@ -8,7 +8,7 @@ struct ContactCard {
     vault: [u8; 32],             // x-only Public Key der Vault-Identität
     issued_at: u64,              // Unix-Sekunden
     list_generation: u64,        // Generation der Geräteliste, aus der die Geräte stammen
-    devices: Vec<CardDevice>,    // Hauptgeräte und verknüpfte Geräte der wirksamen Liste
+    devices: Vec<CardDevice>,    // Hauptgeräte und verknüpfte Geräte der wirksamen Liste, das eigene eingeschlossen
     nostr_relays: Vec<String>,   // effective_nostr_relays() beim Erstellen
     name: String,                // Anzeigename der eigenen Vault
     values: Vec<CardValue>,      // vom Nutzer gewählte Angaben des eigenen Kontakts
@@ -16,6 +16,9 @@ struct ContactCard {
 struct CardDevice { device_pubkey: [u8; 32], endpoint_id: [u8; 32], iroh_relay: Option<String> }
 struct CardValue { kind: String, label: String, value: String }
 ```
+
+`iroh_relay` ist das Heim-Relay des Geräts beim Erstellen, wenn es bekannt ist, auch beim Gerät des
+Ausstellers selbst und bei einer Vault mit nur einem Gerät.
 
 ## Unterschrift und Text
 
