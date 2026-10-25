@@ -461,6 +461,8 @@ pub fn run() {
             files::share::commands::file_share_revoke,
             files::share::commands::file_share_delete,
             files::share::commands::file_shares_of_contact,
+            files::share::commands::files_device_access_get,
+            files::share::commands::files_device_access_set,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,

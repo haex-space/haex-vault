@@ -247,6 +247,25 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
+    // Lets other own devices reach this device's files: a guardrail, never callable by agents
+    // (spec 056 FR-014, research R12).
+    id: 'settings.files.deviceAccess.set',
+    description:
+      "Turn on or off whether the other devices of this vault may open this device's files. Shares to contacts work either way.",
+    input: {
+      type: 'object',
+      properties: { enabled: { type: 'boolean' } },
+      required: ['enabled'],
+    },
+    result: {
+      type: 'object',
+      properties: { enabled: { type: 'boolean' } },
+      required: ['enabled'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
+  setting({
     id: 'settings.general.setLanguage',
     description:
       'Set the interface language (German or English) for the whole vault, on all its devices. It applies at once.',

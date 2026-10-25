@@ -1,6 +1,7 @@
 //! The file browser on another own device (spec 056 US1, T037): browsing, reading, copying in,
 //! renaming and deleting through `StorageFiles` over `PeerStore`, holzi's own data kept read-only,
-//! the device switch, and a watched folder (scenarios 2, 4, 5, 7, 8).
+//! the device switch, which leaves contacts in (US5), and a watched folder (scenarios 2, 4, 5, 7,
+//! 8).
 
 use std::sync::Arc;
 
@@ -9,14 +10,15 @@ use tokio_util::sync::CancellationToken;
 
 use crate::files::encrypted::test_support::transfer;
 use crate::files::peer::store::{peer_access, PeerStore};
-use crate::files::peer::test_support::{own_pair, Device, Fixed};
-use crate::files::peer::wire::{read_head, Caller, Reply};
-use crate::files::share::device_access;
+use crate::files::peer::test_support::{own_pair, store_card, Device, Fixed};
+use crate::files::peer::wire::{read_head, Caller, FailCode, Mode, Op, Reply};
+use crate::files::share::{device_access, FileShareItemKind, FileShareLevel};
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::local::Outcome;
 use crate::files::transfer::remote::Side;
 use crate::files::transfer::{ConflictChoice, TransferOp};
 use crate::files::{EntryKind, FilesErrorCode};
+use crate::sync::test_support::Member;
 
 /// `on` as a storage of `from`, asked by `caller`; a second handle on it for a transfer.
 async fn device(
@@ -175,6 +177,48 @@ async fn switching_off_refuses_changes_too() {
     let refused = files.create_folder(&root, "neu").await.expect_err("create");
     assert_eq!(refused.code, FilesErrorCode::NoAccess);
     assert!(!main.root().join("neu").exists());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_switch_turns_own_devices_away_and_leaves_contacts_in() {
+    let (main, linked) = own_pair().await;
+    let ben = Device::of(Member::genesis()).await;
+    store_card(&ben, &main).await;
+    main.write("Fotos/a.jpg", b"aaaa");
+    let share = main.share(
+        &main.root().join("Fotos"),
+        FileShareItemKind::Folder,
+        "Fotos",
+    );
+    main.grant(&share, ben.member.vault, FileShareLevel::Read);
+    main.db
+        .write_blocking(|tx| Ok(device_access::set_enabled(tx, false, "t")?))
+        .expect("off");
+
+    let link = linked.link_to(&main).await.expect("an answer");
+    assert_eq!(link.welcome.mode, Mode::AccessOff, "US5 scenario 2");
+    assert_eq!(
+        link.ask(Caller::User, Op::Shares).await.expect("answer").0,
+        Reply::Failed(FailCode::Refused)
+    );
+
+    let link = ben.link_to(&main).await.expect("contact link");
+    assert_eq!(link.welcome.mode, Mode::Contact);
+    let files = StorageFiles::new(
+        Arc::new(PeerStore::new(
+            Arc::new(Fixed(Arc::new(link))),
+            Caller::User,
+        )),
+        peer_access("share:x", Some(&share)),
+    );
+    let names: Vec<String> = files
+        .list("/")
+        .await
+        .expect("the share works on (scenario 4)")
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert_eq!(names, ["a.jpg"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

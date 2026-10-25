@@ -399,6 +399,7 @@ const EXPECTED_GUARDRAILS = [
   'settings.autonomy.setMode',
   'settings.delegate.setDenyRules',
   'settings.privacy.screenCapture.set',
+  'settings.files.deviceAccess.set',
   'settings.agents.files.set',
   'settings.agents.files.remove',
 ]

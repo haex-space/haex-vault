@@ -92,5 +92,7 @@ onBeforeUnmount(() => {
     </SettingsGroup>
 
     <SettingsSyncServersGroup />
+
+    <SettingsFileDeviceAccessSetting />
   </section>
 </template>
