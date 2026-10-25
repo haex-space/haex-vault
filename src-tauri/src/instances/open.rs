@@ -156,6 +156,8 @@ pub async fn open_instance(
     crate::sync::start_for_active_instance(&app, &state).await;
     // Spec 049: the External Bridge, when this device turned it on.
     crate::browser_bridge::start_for_active_instance(&app, &state);
+    // Spec 055 FR-037: the models of every provider are read again.
+    crate::providers::refresh_all::start_after_open(&state);
     // Spec 034: the password manager tidies its binary data once per open.
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.

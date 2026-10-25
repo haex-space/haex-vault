@@ -17,6 +17,9 @@ pub mod local;
 mod openai_compatible_tests;
 #[cfg(test)]
 mod providers_tests;
+pub mod refresh_all;
+#[cfg(test)]
+mod refresh_all_tests;
 
 use serde::Serialize;
 use tauri::State;
