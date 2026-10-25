@@ -92,6 +92,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       online: device.online,
       ...(device.lastSeen === null ? {} : { lastSeen: device.lastSeen }),
       ...(device.problem === null ? {} : { problem: device.problem }),
+      ...(device.schema === null ? {} : { schema: device.schema }),
     })),
   }))
   on('settings.devices.identity', async () => {

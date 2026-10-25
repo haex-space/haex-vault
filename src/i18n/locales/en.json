@@ -771,7 +771,17 @@
       },
       "problem": {
         "incompatible_version": "One of the devices has to be updated, or they will not sync.",
+        "incompatible_version_other": "{name} has to be updated, or they will not sync.",
+        "incompatible_version_this": "This device has to be updated, or they will not sync.",
         "duplicate": "This device exists twice. Sync with it is halted."
+      },
+      "schema": {
+        "protocol": "Sync protocol",
+        "migration": "Vault schema",
+        "trigger": "Change tracking",
+        "lower": "lower than this device",
+        "higher": "higher than this device",
+        "unknown": "State not known yet"
       },
       "notice": {
         "awaiting_admission": "This device is waiting to be admitted by a main device.",

@@ -47,16 +47,38 @@ scenario('settings-federation', {}, async (ctx) => {
   assert.deepEqual(listed, [{ title: renamed, current: true, mark: true }])
   ctx.step('this device, marked, with its new name')
 
+  // Spec 059 FR-002: this device's row shows its three version values, none of them marked, and no
+  // "not known yet" hint (that one is for other devices).
+  const schemaText = await instance.exec<string>(
+    `return document.querySelector('[data-testid="settings-device"][data-current] [data-testid="settings-device-schema"]')?.textContent ?? ''`,
+  )
+  assert.match(schemaText, /\d+\D+\d+\D+\d+/, schemaText)
+  const marked = await instance.exec<number>(
+    `return document.querySelectorAll('[data-testid="settings-device-schema"] [data-order="lower"], [data-testid="settings-device-schema"] [data-order="higher"], [data-testid="settings-device-schema-unknown"]').length`,
+  )
+  assert.equal(marked, 0)
+  ctx.step('this device shows its version state, nothing marked')
+
   const outcome = await runAction(instance, 'settings.devices.list')
   assert.ok(outcome.ok, `settings.devices.list: ${JSON.stringify(outcome)}`)
   const devices = (
     outcome.result as {
-      devices: Array<{ alias?: string; isCurrent: boolean }>
+      devices: Array<{
+        alias?: string
+        isCurrent: boolean
+        schema?: {
+          protocol: number
+          holziMigration: number
+          crdtTrigger: number
+        }
+      }>
     }
   ).devices
   assert.equal(devices.length, 1)
   assert.equal(devices[0]?.alias, renamed)
   assert.equal(devices[0]?.isCurrent, true)
+  // Spec 059 FR-011: the action carries the version state too.
+  assert.equal(typeof devices[0]?.schema?.holziMigration, 'number')
   ctx.step('settings.devices.list')
   // FR-008: the built-in servers are always listed and can be switched off, not removed; added ones
   // can be switched off or removed.
