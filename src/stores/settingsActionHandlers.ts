@@ -138,6 +138,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       enabled: input.enabled === true,
     }),
   }))
+  on('settings.files.deviceAccess.set', async ({ input }) => ({
+    enabled: await invoke<boolean>('files_device_access_set', {
+      enabled: input.enabled === true,
+    }),
+  }))
   // Spec 049: the External Bridge of this device; Rust validates the port.
   on('settings.browserBridge.set', async ({ input }) =>
     invoke<BridgeOverview>('browser_bridge_configure', {

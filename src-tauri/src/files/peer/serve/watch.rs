@@ -7,6 +7,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use iroh::endpoint::SendStream;
+use tokio_util::sync::CancellationToken;
 
 use super::roots::Located;
 use crate::files::peer::wire::{write_head, FailCode, Reply};
@@ -14,8 +15,8 @@ use crate::files::peer::wire::{write_head, FailCode, Reply};
 /// How often a quiet watch checks again whether it may go on.
 pub const RECHECK: Duration = Duration::from_secs(10);
 
-/// Watches `at` until the other side ends the stream or `still` says no more.
-pub async fn run<F, Fut>(at: &Located, mut send: SendStream, still: F)
+/// Watches `at` until the other side ends the stream, `still` says no more or `cancel` ends it.
+pub async fn run<F, Fut>(at: &Located, mut send: SendStream, still: F, cancel: &CancellationToken)
 where
     F: Fn() -> Fut,
     Fut: Future<Output = bool>,
@@ -59,6 +60,7 @@ where
             }
             _ = tick.tick() => if !still().await { break },
             _ = send.stopped() => break,
+            () = cancel.cancelled() => break,
         }
     }
     let _ = send.finish();

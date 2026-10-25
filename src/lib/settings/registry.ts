@@ -252,7 +252,7 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     },
   ),
   subView('extensions.detail', 'extensions/:extensionId', 'extensions'),
-  categoryLocation('federation'),
+  categoryLocation('federation', ['settings.federation.deviceAccess.title']),
   subView('federation.link', 'federation/devices/link', 'federation', {
     icon: 'lucide:qr-code',
     row: true,

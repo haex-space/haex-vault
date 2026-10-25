@@ -51,16 +51,18 @@ Regeln:
 
 ## Neu: Schalter „Geräte-Dateizugriff“
 
-| Aktion / Command                                              | Eingabe       | Ausgabe   |
-| ------------------------------------------------------------- | ------------- | --------- |
-| `settings.files.deviceAccess.get` / `files_device_access_get` | —             | `boolean` |
-| `settings.files.deviceAccess.set` / `files_device_access_set` | `{ enabled }` | `()`      |
+| Aktion / Command                                              | Eingabe       | Ausgabe                      |
+| ------------------------------------------------------------- | ------------- | ---------------------------- |
+| `files_device_access_get` (Command, liest nur)                | —             | `boolean`                    |
+| `settings.files.deviceAccess.set` / `files_device_access_set` | `{ enabled }` | `{ enabled }` (Stand danach) |
+
+Wie `settings.privacy.screenCapture.set` ist nur das Setzen eine Aktion (`scope: 'guardrails'`); das
+Lesen ruft das Fenster direkt.
 
 ## Geändert: Kontakte
 
-| Command                  | Änderung                                                                         |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `contacts_delete_impact` | neu: `{ contactId }` → `{ shares: { id, name }[] }` für den Löschdialog (FR-023) |
+Der Löschdialog nennt die betroffenen Dateifreigaben über `files.shares.ofContact`
+(`file_shares_of_contact`, FR-023); ein eigenes `contacts_delete_impact` braucht es nicht.
 
 ## Ereignisse
 

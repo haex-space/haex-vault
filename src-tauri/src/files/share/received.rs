@@ -158,6 +158,24 @@ pub fn apply_answer(
     Ok(())
 }
 
+/// The vaults this vault holds received shares of.
+pub fn owners(q: &mut impl Query) -> Result<Vec<String>> {
+    Ok(q.query_map(
+        "SELECT DISTINCT owner_vault_pubkey FROM haex_file_shares_received",
+        &[],
+        |r| r.get::<_, String>(0),
+    )?)
+}
+
+/// Forgets every share `owner_vault` gave this vault (FR-023).
+pub fn forget_vault(tx: &mut CrdtTransaction<'_>, owner_vault: &str) -> Result<()> {
+    tx.execute(
+        "DELETE FROM haex_file_shares_received WHERE owner_vault_pubkey = ?1",
+        params![owner_vault],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "received_tests.rs"]
 mod tests;

@@ -45,7 +45,7 @@ pub(super) async fn links_of(ben: &Device, anna: &Device) -> Connections {
 }
 
 /// Anna shares `Fotos` with Ben at `level`; Ben asks Anna's devices and gets its storage id.
-async fn shared(level: FileShareLevel) -> (Device, Device, Connections, String) {
+pub(super) async fn shared(level: FileShareLevel) -> (Device, Device, Connections, String) {
     let anna = Device::of(Member::genesis()).await;
     let ben = Device::of(Member::genesis()).await;
     store_card(&anna, &ben).await;

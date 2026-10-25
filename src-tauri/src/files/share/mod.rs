@@ -6,6 +6,7 @@ pub mod commands;
 pub mod device_access;
 pub mod manage;
 pub mod received;
+pub mod served;
 pub mod store;
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ use crate::files::SourceRef;
 pub const FEATURE: &str = "fileShares";
 
 /// How far a contact may go in a share (FR-016): read, or read and write below the root.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum FileShareLevel {

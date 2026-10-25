@@ -3,6 +3,7 @@
 
 use tauri::{AppHandle, State};
 
+use super::device_access;
 use super::manage::{self, FileShare, FileShareSaveArgs, Here};
 use crate::device::commands::resolve_vault_device_uuid;
 use crate::files::state::FilesState;
@@ -128,4 +129,34 @@ pub async fn file_shares_of_contact(
         contact_id,
     )
     .await
+}
+
+/// Whether other own devices may reach this device's files (spec 056 FR-014).
+#[tauri::command]
+pub async fn files_device_access_get(state: State<'_, AppState>) -> Result<bool, FilesError> {
+    let db = state
+        .database()
+        .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))?;
+    db.read(|q| Ok(device_access::enabled(q)?))
+        .await
+        .map_err(|error| FilesError::new(FilesErrorCode::Unsupported, error.to_string()))
+}
+
+/// Turns this device's switch on or off; only the user, through a guardrail action (research R12).
+/// Returns the state now.
+#[tauri::command]
+pub async fn files_device_access_set(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<bool, FilesError> {
+    let db = state
+        .database()
+        .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))?;
+    let now = crate::passwords::clock::now();
+    db.write(move |tx| {
+        device_access::set_enabled(tx, enabled, &now)?;
+        Ok(device_access::enabled(tx)?)
+    })
+    .await
+    .map_err(|error| FilesError::new(FilesErrorCode::Unsupported, error.to_string()))
 }

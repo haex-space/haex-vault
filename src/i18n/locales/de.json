@@ -804,6 +804,12 @@
         "use": "{url} verwenden",
         "add": "Hinzufügen",
         "remove": "{url} löschen"
+      },
+      "deviceAccess": {
+        "title": "Geräte-Dateizugriff",
+        "description": "Andere Geräte dieser Vault dürfen die Dateien dieses Geräts öffnen. Freigaben an Kontakte gelten weiter.",
+        "saved": "Gespeichert.",
+        "failed": "Die Einstellung konnte nicht geändert werden"
       }
     },
     "link": {
@@ -1667,6 +1673,11 @@
           "update": "Zulassung einer Browser-Erweiterung ändern",
           "revoke": "Zulassung einer Browser-Erweiterung widerrufen",
           "unblock": "Sperre einer Browser-Erweiterung aufheben"
+        }
+      },
+      "files": {
+        "deviceAccess": {
+          "set": "Geräte-Dateizugriff ein- oder ausschalten"
         }
       }
     },
@@ -2606,7 +2617,8 @@
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
-      "contacts": "Von Kontakten"
+      "contacts": "Von Kontakten",
+      "myShares": "Meine Dateifreigaben"
     },
     "peer": {
       "unnamed": "Gerät ohne Namen",
@@ -2746,7 +2758,20 @@
       "contactQuery": "Freigaben abfragen",
       "noShares": "Keine Freigaben",
       "unreachable": "Nicht erreichbar",
-      "readOnly": "Nur lesen"
+      "readOnly": "Nur lesen",
+      "overview": {
+        "title": "Meine Dateifreigaben",
+        "empty": "Noch keine Dateifreigaben. Gib einen Ordner oder eine Datei über „Freigeben …“ im Kontextmenü frei.",
+        "thisDevice": "Dieses Gerät",
+        "edit": "Bearbeiten",
+        "noContacts": "Für noch keinen Kontakt freigegeben",
+        "state": {
+          "active": "Aktiv",
+          "pending": "Änderung wartet auf {device}",
+          "sourceMissing": "Quelle fehlt",
+          "sourceUnavailable": "Quelle nicht verfügbar"
+        }
+      }
     }
   },
   "contacts": {
@@ -2985,6 +3010,13 @@
       "accepted": "Visitenkarte bei {name} gespeichert",
       "confirmed": "Bestätigte holzi-Adressen",
       "confirmedAt": "bestätigt am {at}"
+    },
+    "fileShares": {
+      "title": "Dateifreigaben",
+      "level": "Stufe in „{name}“",
+      "revoke": "Zugriff auf „{name}“ entziehen",
+      "affected": "Der Kontakt verliert den Zugriff auf die Dateifreigabe {names}. | Der Kontakt verliert den Zugriff auf die Dateifreigaben {names}.",
+      "lookupFailed": "Die Dateifreigaben konnten nicht geprüft werden. Das Löschen bleibt gesperrt."
     }
   },
   "browserBridge": {

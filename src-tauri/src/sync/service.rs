@@ -213,6 +213,8 @@ async fn run<R: Runtime>(
     let peer_host = deps.peers.as_ref().map(|peers| Arc::clone(&peers.host));
     let (peer_protocols, peer_ctx) = peer_protocols(deps.peers, &deps.keys, vault, &devices_app);
     let (protocols, files) = file_protocols(peer_protocols, deps.files, &deps.keys, vault);
+    // Spec 056: the shares this device serves follow the vault's changes.
+    let served_loop = crate::files::share::served::follow(files.clone());
     let node = match SyncNode::bind_with(
         deps.replica,
         deps.keys,
@@ -325,6 +327,7 @@ async fn run<R: Runtime>(
         _ = presence_loop => {}
         _ = reconnect_loop => {}
         _ = network_loop => {}
+        () = served_loop => {}
     }
     runtime.cancel.cancel();
     drop(registered);
