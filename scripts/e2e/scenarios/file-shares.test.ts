@@ -91,7 +91,7 @@ scenario('file-shares', { timeoutMs: 600_000 }, async (ctx) => {
   // §1: copy from the laptop onto the phone, through the file browser's transfers.
   await runAction(phone, 'wm.app.open', {
     appId: 'system.files',
-    at: '/device',
+    at: `/device?p=${encodeURIComponent(phoneFiles.folder)}`,
   })
   await phone.exec(
     `return ${TRANSFERS}.startAsync('copy', arguments[0], arguments[1], arguments[2], 'e2e').then(() => true)`,
