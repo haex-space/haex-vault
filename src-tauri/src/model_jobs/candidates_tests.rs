@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::candidates::{ceiling, for_step, granted, job_models, model_permissions, Candidate};
 use super::effort::Level;
 use super::job;
+use super::place::Place;
 use super::test_support::{model_row, provider, remember, store_models};
 use crate::adapters::AttachmentKind;
 use crate::extensions::permissions::order::set_order;
@@ -323,4 +324,35 @@ fn a_ceiling_needs_every_effort_below_it() {
         ceiling(&[row(Level::High, PermissionStatus::Ask)], model, device),
         None
     );
+}
+
+#[test]
+fn a_local_model_is_a_candidate_for_text_and_passed_over_for_images_without_consent() {
+    let v = vault();
+    let installed = provider(ProviderKind::Local, None, None);
+    let row = model_row(
+        &installed,
+        "qwen3-4b",
+        Some(ModelCapabilities::local("qwen3-4b")),
+    );
+    store_models(&v.db, &installed, &[row]);
+    v.grant("*", "low", 1);
+    let all = v.candidates(vec![]);
+    let step = |value| job::parse(&value).unwrap().steps.remove(0);
+    let format = json!({ "name": "f", "version": 1, "schema": { "type": "object" } });
+    let read = step(json!({ "steps": [{
+        "id": "read", "needs": ["text", "image"], "instruction": "Lies.",
+        "input": { "images": [{ "mimeType": "image/png", "data": "iVBORw0KGgo=" }] },
+        "format": format,
+    }]}));
+    let fix = step(json!({ "steps": [{
+        "id": "fix", "needs": ["text"], "instruction": "Korrigiere.",
+        "input": { "text": "Tsest" }, "format": format,
+    }]}));
+
+    // Its capabilities say so today; the pick depends on them, not on where the model comes from.
+    assert_eq!(for_step(&all, &fix).len(), 1);
+    assert!(for_step(&all, &read).is_empty());
+    // It never leaves the device, so no consent is asked for it (FR-015).
+    assert_eq!(all[0].model.place, Place::ThisDevice);
 }

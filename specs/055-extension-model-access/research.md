@@ -282,9 +282,15 @@ und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
   Chat hält genau ein lokales Modell im Speicher (`chat/model_loading.rs::load_model_inner`, nur mit
   `llm-cpu`); ein zweites daneben passt auf einer 8-GB-Karte nicht.
 - **Entscheidung**: Ein lokales Modell wird Quelle für Aufträge über den einen Platz des Chats, wie T062 es
-  für Bildmodelle geplant hatte: Ist es schon geladen, nutzt der Auftrag es zwischen zwei Chat-Zügen; sonst
-  wartet der Auftrag, bis kein Zug läuft, lädt es (mit der Prüfsumme wie im Chat) und der Chat lädt sein
-  Modell beim nächsten Zug wieder (FR-033). Die Wartezeit zählt zur Höchstdauer. Fähigkeiten wie im Chat:
+  für Bildmodelle geplant hatte (`model_jobs/local_slot.rs`, `chat_slot.rs`). Drei Wege, je nachdem, was der Chat
+  hält: Das Modell des Auftrags ist schon geladen, dann nutzt der Auftrag es. Der Chat hält kein lokales Modell
+  (nichts oder ein Modell auf einem Server), dann ist im Speicher nichts im Weg, und der Auftrag lädt das Modell
+  für sich (mit der Prüfsumme wie im Chat) und gibt es danach frei. Der Chat hält ein anderes lokales Modell, dann
+  wartet der Auftrag, bis kein Zug und keine Ladung läuft, nimmt den Platz, und lädt danach das Modell des Chats
+  wieder (FR-033). Das Zurückladen geschieht gleich nach dem Auftrag, nicht erst beim nächsten Zug: Sonst zeigte
+  der Chat bis dahin „kein Modell“, und die Eingabe wäre gesperrt, bevor ein Zug es nachladen könnte. Dafür weist
+  der Chat Nachrichten ab, solange der Auftrag den Platz hält (wie während jeder Ladung), und eine Reihe von
+  Aufträgen lädt je Auftrag zweimal; ein Zwischenspeicher dafür bleibt offen. Die Wartezeit zählt zur Höchstdauer. Fähigkeiten wie im Chat:
   GGUF-Modelle nehmen heute keine Bilder (`ModelCapabilities::local()` sagt für alle „keine“), Bildschritte
   übergehen sie (FR-019). Das ist der Stand des Ladewegs, kein Grundsatz: Sobald ein lokales Modell Bilder
   lesen kann, kommt die Fähigkeit aus dem Modell oder dem Katalog (`vision`, T061) statt pauschal, und es

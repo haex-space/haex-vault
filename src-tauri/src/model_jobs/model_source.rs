@@ -4,9 +4,9 @@
 //! next model can take over.
 //!
 //! The source is a trait so tests can hand in a scripted adapter; holzi itself uses
-//! [`Providers`]. Local models take jobs once they can read images (Phase 8); until then they are
-//! unavailable. A connected subscription (Claude Code, Codex) takes jobs with the access it has in
-//! holzi (spec 055 FR-032, R16).
+//! [`Providers`]. A locally installed model takes jobs through the chat's single model place
+//! (spec 055 FR-033, R15); a build without local inference has none. A connected subscription
+//! (Claude Code, Codex) takes jobs with the access it has in holzi (spec 055 FR-032, R16).
 
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ use crate::storage::providers::{Provider, ProviderKind};
 use crate::vault_gate::ChildRegistry;
 
 use super::delegate::{job_context, JobAgent};
+use super::local_slot::{LocalJobAdapter, LocalSlot};
 use super::place::{place_of, Place};
 
 /// A model a job may be sent to, with what the run needs to know about it.
@@ -78,16 +79,19 @@ pub(crate) trait ModelSource: Send + Sync {
     fn adapter(&self, model: &JobModel) -> Result<Arc<dyn ProviderAdapter>, String>;
 }
 
-/// holzi's own source: remote models through their provider, a subscription through its agent.
+/// holzi's own source: remote models through their provider, a subscription through its agent, a
+/// local model through the chat's place.
 #[derive(Default)]
 pub(crate) struct Providers {
     /// Where the processes of an agent register, so that closing the vault ends them.
     children: ChildRegistry,
+    /// Where a local model is lent from; `None` in a build without local inference.
+    local: Option<Arc<dyn LocalSlot>>,
 }
 
 impl Providers {
-    pub(crate) fn new(children: ChildRegistry) -> Self {
-        Self { children }
+    pub(crate) fn new(children: ChildRegistry, local: Option<Arc<dyn LocalSlot>>) -> Self {
+        Self { children, local }
     }
 }
 
@@ -97,7 +101,14 @@ impl ModelSource for Providers {
             ProviderKind::ApiKey => build_adapter(&model.provider, None)
                 .map(Arc::from)
                 .map_err(|error| error.to_string()),
-            ProviderKind::Local => Err("local models cannot take jobs yet".into()),
+            ProviderKind::Local => self
+                .local
+                .as_ref()
+                .map(|slot| {
+                    Arc::new(LocalJobAdapter::new(Arc::clone(slot), model.id.clone()))
+                        as Arc<dyn ProviderAdapter>
+                })
+                .ok_or_else(|| "local models are not available in this build".into()),
             ProviderKind::CliDelegate => {
                 build_adapter(&model.provider, Some(job_context(self.children.clone())))
                     .map(|inner| Arc::new(JobAgent::new(inner)) as Arc<dyn ProviderAdapter>)

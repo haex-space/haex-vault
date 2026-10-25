@@ -37,6 +37,19 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
 **Lokal mit Bild**: Ein lokales Bildmodell lesen lassen. Bei laufendem Netzwerkmitschnitt darf kein Bildbyte das
 Gerät verlassen (SC-003). Ein reines Textmodell lehnt denselben Auftrag vor dem Senden ab (SC-006).
 
+### Textauftrag auf einem lokal installierten Modell
+
+Ein installiertes GGUF-Modell (Einstellungen → Modelle) nimmt Textschritte an, zum Beispiel die Korrektur von
+haex-notes; Bildschritte übergeht es, solange seine Fähigkeiten keine Bilder nennen (FR-019):
+
+1. Dem Modell der Erweiterung freigeben (Einstellungen → Erweiterungen → Modelle). Der Ort ist „dieses Gerät“, es
+   fragt keine Einwilligung zum Versand.
+2. Auftrag mit einem Textschritt starten. Die Herkunft nennt das lokale Modell, und bei laufendem Netzwerkmitschnitt
+   verlässt nichts das Gerät (SC-014).
+3. Hält der Chat dasselbe Modell: der Auftrag antwortet ohne neue Ladung. Hält er ein anderes: der Auftrag wartet
+   auf einen laufenden Zug, lädt sein Modell (der Chat zeigt die Ladung), und danach lädt der Chat sein eigenes
+   wieder. Hält der Chat kein lokales Modell: der Auftrag lädt für sich und gibt es frei.
+
 ### Lokales Bildmodell einrichten (Ollama)
 
 holzi lädt Bildmodelle nicht selbst (research R8). Sie laufen in einem Ollama auf demselben Gerät:

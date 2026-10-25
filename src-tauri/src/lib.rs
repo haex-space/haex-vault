@@ -323,6 +323,13 @@ pub fn run() {
                 .set_desktop(std::sync::Arc::new(extensions::desktop::AppDesktop::new(
                     app.handle().clone(),
                 )));
+            // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
+            #[cfg(feature = "llm-cpu")]
+            app.state::<AppState>()
+                .extensions()
+                .set_model_local(std::sync::Arc::new(model_jobs::chat_slot::ChatSlot::new(
+                    app.handle().clone(),
+                )));
             // Spec 017, US12: holzi's window is built here, not from `tauri.conf.json`, so its
             // document can frame development servers while developer mode is on (`dev_csp`).
             let window = app

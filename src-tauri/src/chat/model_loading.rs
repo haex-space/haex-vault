@@ -624,6 +624,19 @@ async fn load_local_model_from_metadata(
     })
 }
 
+/// Loads an installed local model into a session of its own, apart from the chat's: the model of a
+/// job that does not take the chat's place (spec 055 FR-033). Runs the same integrity check as a
+/// load in the chat.
+#[cfg(feature = "llm-cpu")]
+pub(crate) async fn load_local_session(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    model_id: &str,
+) -> Result<ActiveSession> {
+    let metadata = resolve_local_model_metadata(app, state, model_id, false).await?;
+    load_local_model_from_metadata(model_id, metadata).await
+}
+
 /// Returns the cached display name for a model when its row can be read.
 pub(crate) async fn resolve_display_name(
     state: &State<'_, AppState>,

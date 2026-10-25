@@ -1,11 +1,26 @@
 //! Tests for the source of a job's adapter (spec 055 T022): a remote model is built from its rows
-//! when it is tried, a connected subscription gets its agent; a provider that cannot be built and a
-//! local model give no adapter.
+//! when it is tried, a connected subscription gets its agent, a local model one over the chat's
+//! place; a provider that cannot be built and a local model without a place give no adapter.
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::local_slot::{Loan, LocalSlot};
 use super::model_source::{JobModel, ModelSource, Providers};
 use super::place::Place;
 use super::test_support::{model_row, provider};
 use crate::storage::providers::ProviderKind;
+
+/// A slot that lends nothing: building the adapter must not ask it.
+struct NoSlot;
+
+#[async_trait]
+impl LocalSlot for NoSlot {
+    async fn lend(&self, _model_id: &str) -> Result<Loan, String> {
+        Err("not asked".into())
+    }
+}
 
 #[test]
 fn a_model_names_the_id_its_provider_knows_and_where_it_runs() {
@@ -81,9 +96,14 @@ fn a_provider_that_cannot_be_built_gives_a_message_and_no_adapter() {
 }
 
 #[test]
-fn a_local_model_takes_no_job_yet() {
-    let source = provider(ProviderKind::Local, None, None);
-    let model = JobModel::new(model_row(&source, "m", None), source);
+fn a_local_model_gets_an_adapter_when_the_chat_has_a_place_to_lend() {
+    let installed = provider(ProviderKind::Local, None, None);
+    let model = JobModel::new(model_row(&installed, "m", None), installed);
+    let slot: Arc<dyn LocalSlot> = Arc::new(NoSlot);
+
+    assert!(Providers::new(Default::default(), Some(slot))
+        .adapter(&model)
+        .is_ok());
     assert!(Providers::default().adapter(&model).is_err());
 }
 
