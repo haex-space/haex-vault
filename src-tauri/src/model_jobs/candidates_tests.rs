@@ -238,6 +238,40 @@ fn a_step_with_images_goes_only_to_models_that_take_images() {
 }
 
 #[test]
+fn codex_stays_for_text_but_not_for_image_steps() {
+    let v = vault();
+    let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
+    let mut codex_provider = provider(ProviderKind::CliDelegate, Some("codex"), Some("auth"));
+    codex_provider.adapter = Some("codex".to_owned());
+    let vision = model_row(&server, "vision", images());
+    let codex = model_row(&codex_provider, "codex", images());
+    store_models(&v.db, &server, &[vision.clone()]);
+    store_models(&v.db, &codex_provider, std::slice::from_ref(&codex));
+    v.grant("*", "low", 1);
+
+    let all = v.candidates(vec![]);
+    let step = |value| job::parse(&value).unwrap().steps.remove(0);
+    let format = json!({ "name": "f", "version": 1, "schema": { "type": "object" } });
+    let read = step(json!({ "steps": [{
+        "id": "read", "needs": ["text", "image"], "instruction": "Lies.",
+        "input": { "images": [{ "mimeType": "image/png", "data": "iVBORw0KGgo=" }] },
+        "format": format,
+    }]}));
+    let fix = step(json!({ "steps": [{
+        "id": "fix", "needs": ["text"], "instruction": "Korrigiere.",
+        "input": { "text": "Tsest" }, "format": format,
+    }]}));
+
+    let names = |list: Vec<Candidate>| {
+        let mut names: Vec<String> = list.into_iter().map(|c| c.model.name).collect();
+        names.sort();
+        names
+    };
+    assert_eq!(names(for_step(&all, &read)), ["vision"]);
+    assert_eq!(names(for_step(&all, &fix)), ["codex", "vision"]);
+}
+
+#[test]
 fn a_ceiling_needs_every_effort_below_it() {
     let model = "6f1c1d52-3a8b-4f0e-9c55-0a1b2c3d4e5f:m";
     let row = |action, status| Permission {

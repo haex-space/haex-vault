@@ -229,11 +229,7 @@ pub(crate) fn ask_for_model(
     device: Uuid,
 ) -> BridgeError {
     let wish = effort.unwrap_or(Level::None);
-    let fitting: Vec<&JobModel> = facts
-        .models
-        .iter()
-        .filter(|m| fits(needs, m.capabilities.as_ref()))
-        .collect();
+    let fitting: Vec<&JobModel> = facts.models.iter().filter(|m| fits(needs, m)).collect();
     if fitting.is_empty() {
         return no_capable_model();
     }

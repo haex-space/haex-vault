@@ -18,7 +18,7 @@ use crate::extensions::permissions::{
 };
 use crate::model_capabilities::ModelCapabilities;
 use crate::storage::models::list_all_models;
-use crate::storage::providers::{list_providers, Provider, ProviderCapability};
+use crate::storage::providers::{list_providers, Provider, ProviderCapability, ProviderKind};
 use crate::storage::query::Query;
 
 /// A model a step may go to, and the highest effort it may be used with.
@@ -140,15 +140,27 @@ pub(crate) fn takes_images(capabilities: Option<&ModelCapabilities>) -> bool {
 }
 
 /// Whether a model can do what a step needs. Every chat model takes text.
-pub(crate) fn fits(needs: &[Need], capabilities: Option<&ModelCapabilities>) -> bool {
-    !needs.contains(&Need::Image) || takes_images(capabilities)
+pub(crate) fn fits(needs: &[Need], model: &JobModel) -> bool {
+    if !needs.contains(&Need::Image) {
+        return true;
+    }
+
+    // Codex receives only the transcript text today; unlike Claude, its adapter does not write
+    // the request's attachment bytes into the invocation workspace.
+    if model.provider.kind == ProviderKind::CliDelegate
+        && model.provider.adapter.as_deref() == Some("codex")
+    {
+        return false;
+    }
+
+    takes_images(model.capabilities.as_ref())
 }
 
 /// The candidates of one step, in the order of `granted`.
 pub(crate) fn for_step(granted: &[Candidate], step: &Step) -> Vec<Candidate> {
     granted
         .iter()
-        .filter(|c| fits(&step.needs, c.model.capabilities.as_ref()))
+        .filter(|c| fits(&step.needs, &c.model))
         .cloned()
         .collect()
 }

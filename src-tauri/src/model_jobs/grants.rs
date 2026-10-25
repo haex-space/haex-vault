@@ -123,7 +123,7 @@ pub(crate) fn choices(
 ) -> Result<Vec<ExtensionModelChoice>> {
     let mut fitting: Vec<JobModel> = job_models(q)?
         .into_iter()
-        .filter(|m| super::candidates::fits(needs, m.capabilities.as_ref()))
+        .filter(|m| super::candidates::fits(needs, m))
         .collect();
     fitting.sort_by(|a, b| {
         (a.id != proposed, &a.name, &a.id).cmp(&(b.id != proposed, &b.name, &b.id))
