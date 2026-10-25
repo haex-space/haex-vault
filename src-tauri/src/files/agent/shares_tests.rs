@@ -100,6 +100,10 @@ impl Scene {
         self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Read);
     }
 
+    fn deny_contacts(&self) {
+        self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Denied);
+    }
+
     async fn run(&self, action: &str, input: Value) -> Result<Value, NativeError> {
         self.agent
             .run(action, input, &CancellationToken::new())
@@ -211,6 +215,28 @@ async fn a_confirmed_share_is_made_and_taking_away_asks_nothing() {
         .expect("deleted");
     assert!(scene.shares().await.is_empty());
     assert_eq!(scene.asked().len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn share_results_redact_contacts_the_agent_can_no_longer_read() {
+    let scene = Scene::new(true).await;
+    scene.manage();
+    scene
+        .run("files.shares.save", scene.save(None, FileShareLevel::Read))
+        .await
+        .expect("confirmed");
+
+    scene.deny_contacts();
+    let shares = scene
+        .run("files.shares.list", json!({}))
+        .await
+        .expect("list")
+        .as_array()
+        .expect("a list")
+        .clone();
+    let grant = &shares[0]["grants"][0];
+    assert!(grant["contactId"].is_null());
+    assert!(grant["contactName"].is_null());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

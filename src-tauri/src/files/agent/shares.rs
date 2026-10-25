@@ -136,30 +136,35 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
             own: &own,
         };
         let result = match action_id {
-            "files.shares.list" => value_of(&manage::list(&here).await.map_err(files_error)?),
+            "files.shares.list" => {
+                let shares = manage::list(&here).await.map_err(files_error)?;
+                value_of(&self.redact_shares(&db, shares).await)
+            }
             "files.shares.of" => {
                 let input: OfInput = parse(input)?;
                 let share = manage::of(&here, SourceRef::Device, input.path)
                     .await
                     .map_err(files_error)?;
+                let share = match share {
+                    Some(share) => Some(self.redact_share(&db, share).await),
+                    None => None,
+                };
                 Ok(share.map_or_else(|| json!({}), |share| json!({ "share": share })))
             }
             "files.shares.ofContact" => {
                 let input: ContactInput = parse(input)?;
                 self.readable(&db, &input.contact_id).await?;
-                value_of(
-                    &manage::of_contact(&here, input.contact_id)
-                        .await
-                        .map_err(files_error)?,
-                )
+                let shares = manage::of_contact(&here, input.contact_id)
+                    .await
+                    .map_err(files_error)?;
+                value_of(&self.redact_shares(&db, shares).await)
             }
             "files.shares.revoke" => {
                 let input: RevokeInput = parse(input)?;
-                value_of(
-                    &manage::revoke(&here, input.share_id, input.vault_pubkey)
-                        .await
-                        .map_err(files_error)?,
-                )
+                let share = manage::revoke(&here, input.share_id, input.vault_pubkey)
+                    .await
+                    .map_err(files_error)?;
+                value_of(&self.redact_share(&db, share).await)
             }
             "files.shares.delete" => {
                 let input: ShareInput = parse(input)?;
@@ -179,6 +184,28 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
 }
 
 impl<E: SharesEnv> SharesAgent<E> {
+    /// Removes contact identities the agent is not allowed to read from share results.
+    async fn redact_share(&self, db: &VaultDb, mut share: FileShare) -> FileShare {
+        for grant in &mut share.grants {
+            let Some(contact_id) = grant.contact_id.clone() else {
+                continue;
+            };
+            if self.readable(db, &contact_id).await.is_err() {
+                grant.contact_id = None;
+                grant.contact_name = None;
+            }
+        }
+        share
+    }
+
+    async fn redact_shares(&self, db: &VaultDb, shares: Vec<FileShare>) -> Vec<FileShare> {
+        let mut redacted = Vec::with_capacity(shares.len());
+        for share in shares {
+            redacted.push(self.redact_share(db, share).await);
+        }
+        redacted
+    }
+
     /// Creates or changes a share; what gives more away waits for the user (FR-045).
     async fn save(
         &self,
@@ -232,7 +259,8 @@ impl<E: SharesEnv> SharesAgent<E> {
                 ));
             }
         }
-        value_of(&manage::save(here, args).await.map_err(files_error)?)
+        let share = manage::save(here, args).await.map_err(files_error)?;
+        value_of(&self.redact_share(here.db, share).await)
     }
 
     /// Whether the agent may share the folder or file `args` names: one it may read itself.
