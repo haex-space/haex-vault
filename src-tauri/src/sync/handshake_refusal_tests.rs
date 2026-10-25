@@ -143,7 +143,7 @@ async fn a_copy_of_the_accepting_device_is_a_duplicate() {
 #[test]
 fn the_schema_names_this_builds_migrations_and_triggers() {
     let schema = local_schema();
-    assert_eq!(schema.protocol, 1);
+    assert_eq!(schema.protocol, u32::from(PROTOCOL_VERSION));
     assert!(schema.holzi_migration >= 21);
     assert_eq!(schema.crdt_trigger, HOLZI_TRIGGER_VERSION as u32);
 }

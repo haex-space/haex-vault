@@ -49,6 +49,7 @@ use super::migrations_model_access::MODEL_ACCESS_0037;
 use super::migrations_passwords::PASSWORDS_0022;
 use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
 use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
+use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 
 /// CRDT trigger-schema version holzi installs on open.
@@ -680,6 +681,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0039_file_shares"),
         FILE_SHARES_0039.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0040_device_peer_schema"),
+        PEER_SCHEMA_0040.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

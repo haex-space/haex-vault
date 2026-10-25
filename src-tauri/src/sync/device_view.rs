@@ -17,8 +17,11 @@ use crate::storage::known_devices::{self, KnownDevice};
 use crate::storage::query::Query;
 use crate::sync::content_keys::{self, ContentKey};
 use crate::sync::device_list::{self, Role, SignedList};
+use crate::sync::handshake::local_schema;
 use crate::sync::keys::{self, hex};
+use crate::sync::peer_schema;
 use crate::sync::problems::Problem;
+use crate::sync::wire::SchemaVersion;
 
 /// A device's role in the vault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -47,6 +50,29 @@ impl From<Problem> for DeviceProblem {
     }
 }
 
+/// The version state of a device: what two devices compare before they sync (spec 059, FR-001).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceSchema {
+    /// The version of the sync protocol.
+    pub protocol: u32,
+    /// How many holzi migrations the device knows: how the vault's tables are built.
+    pub holzi_migration: u32,
+    /// The version of the rules that track changes for the sync.
+    pub crdt_trigger: u32,
+}
+
+impl From<SchemaVersion> for DeviceSchema {
+    fn from(schema: SchemaVersion) -> Self {
+        Self {
+            protocol: schema.protocol,
+            holzi_migration: schema.holzi_migration,
+            crdt_trigger: schema.crdt_trigger,
+        }
+    }
+}
+
 /// One device of the vault for the settings' device list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -66,6 +92,9 @@ pub struct VaultDevice {
     #[ts(type = "number | null")]
     pub last_seen: Option<u64>,
     pub problem: Option<DeviceProblem>,
+    /// This device's own state for the row of this device; for the others the state they showed in
+    /// their last handshake with this device, `None` while it never saw one (spec 059, FR-007).
+    pub schema: Option<DeviceSchema>,
 }
 
 /// What the device-local presence table knows of a device.
@@ -73,6 +102,7 @@ pub struct VaultDevice {
 pub struct Facts {
     pub last_seen_ms: u64,
     pub problem: Option<Problem>,
+    pub schema: Option<SchemaVersion>,
 }
 
 /// Everything [`build`] needs.
@@ -83,6 +113,8 @@ pub struct Inputs<'a> {
     pub facts: &'a HashMap<[u8; 32], Facts>,
     pub connected: &'a HashSet<[u8; 32]>,
     pub own_device: [u8; 32],
+    /// The state of this build, shown on the row of this device.
+    pub own_schema: SchemaVersion,
     /// A content key to open sealed names with, for a device without an
     /// alias of its own here.
     pub key: Option<&'a ContentKey>,
@@ -131,6 +163,11 @@ pub fn build(inputs: &Inputs<'_>) -> Vec<VaultDevice> {
                     online: is_current || inputs.connected.contains(&listed.device_pubkey),
                     last_seen: (facts.last_seen_ms > 0).then_some(facts.last_seen_ms),
                     problem: facts.problem.map(Into::into),
+                    schema: if is_current {
+                        Some(inputs.own_schema.into())
+                    } else {
+                        facts.schema.map(Into::into)
+                    },
                 }
             })
             .collect(),
@@ -160,19 +197,38 @@ pub fn load(
     let valid = device_list::valid_lists(&device_list::load_all(q)?, &vault);
     let known = known_devices::list_devices(q)?;
     let key = content_keys::current_key(q, &[])?;
-    let rows: Vec<(Vec<u8>, i64, Option<String>)> = q.query_map(
-        "SELECT device_pubkey, last_seen, problem FROM device_presence_no_sync",
+    type Row = (
+        Vec<u8>,
+        i64,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+    );
+    let rows: Vec<Row> = q.query_map(
+        "SELECT device_pubkey, last_seen, problem, peer_protocol, peer_migration, peer_trigger \
+         FROM device_presence_no_sync",
         &[],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        },
     )?;
     let facts: HashMap<[u8; 32], Facts> = rows
         .into_iter()
-        .filter_map(|(device, seen, problem)| {
+        .filter_map(|(device, seen, problem, protocol, migration, trigger)| {
             Some((
                 device.try_into().ok()?,
                 Facts {
                     last_seen_ms: u64::try_from(seen).unwrap_or(0),
                     problem: problem.as_deref().and_then(Problem::parse),
+                    schema: peer_schema::from_columns(protocol, migration, trigger),
                 },
             ))
         })
@@ -183,6 +239,7 @@ pub fn load(
         facts: &facts,
         connected,
         own_device: own.device_pubkey,
+        own_schema: local_schema(),
         key: key.as_ref(),
     }))
 }

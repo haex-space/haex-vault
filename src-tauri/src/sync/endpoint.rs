@@ -502,6 +502,11 @@ async fn run_connection(inner: Arc<Inner>, connection: Connection, side: Side) {
         vault: inner.vault,
         schema: local_schema(),
     };
+    // The other side's version state, kept for the device list whether the handshake accepts or
+    // refuses it (spec 059 FR-005, FR-006): written once the handshake is over, so a device a
+    // pushed list just added is already on the list.
+    let seen_schema = std::sync::Mutex::new(None);
+    let on_schema = |schema| *seen_schema.lock().unwrap_or_else(|e| e.into_inner()) = Some(schema);
     let handshake = match side {
         Side::Accept => {
             handshake::accept_with(
@@ -511,6 +516,7 @@ async fn run_connection(inner: Arc<Inner>, connection: Connection, side: Side) {
                 &local,
                 remote,
                 inner.on_applied.as_ref(),
+                &on_schema,
             )
             .await
         }
@@ -522,10 +528,15 @@ async fn run_connection(inner: Arc<Inner>, connection: Connection, side: Side) {
                 &local,
                 remote,
                 inner.on_applied.as_ref(),
+                &on_schema,
             )
             .await
         }
     };
+    let seen = seen_schema.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some(schema) = seen {
+        record_peer_schema(&inner, remote, schema).await;
+    }
     let peer = match handshake {
         Ok(peer) => peer,
         Err(error) => {
@@ -667,7 +678,9 @@ fn register(
 
 #[path = "endpoint_devices.rs"]
 mod devices;
-use devices::{clear_problem, flag, mark_seen, note_failure, notify_devices_changed};
+use devices::{
+    clear_problem, flag, mark_seen, note_failure, notify_devices_changed, record_peer_schema,
+};
 
 #[path = "endpoint_protocols.rs"]
 mod protocols;
