@@ -198,3 +198,68 @@ async fn migration_0034_keeps_the_known_raw_contacts_on_this_device() {
     .await
     .expect("join");
 }
+
+fn display_name(db: &Database, id: &str) -> Option<String> {
+    let id = id.to_owned();
+    crate::storage::query::read(db, move |q| {
+        use crate::storage::query::Query;
+        q.query_row(
+            "SELECT display_name FROM haex_contacts WHERE id = ?1",
+            &[&id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+    })
+    .expect("read")
+    .expect("the contact exists")
+}
+
+#[tokio::test]
+async fn migration_0041_clears_the_npub_a_card_stored_as_display_name() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let old = open(
+            dir.path(),
+            "contacts-card-names",
+            true,
+            migration_source_before("0041_contacts_card_display_name"),
+        );
+        let device = device(&old);
+        old.write(move |tx| {
+            for (id, kind, name) in [
+                ("npub-card", "card", "npub1abcdef"),
+                ("named-card", "card", "Ada Lovelace"),
+                ("npub-own", "holzi", "npub1abcdef"),
+            ] {
+                tx.execute(
+                    "INSERT INTO haex_contacts (id, display_name, origin_kind, origin_device, \
+                     origin_caller, created_at, updated_at) \
+                     VALUES (?1, ?2, ?3, ?4, 'user', 't', 't')",
+                    &[&id, &name, &kind, &device],
+                )?;
+            }
+            Ok(())
+        })
+        .expect("insert contacts");
+        drop(old);
+
+        let db = open(
+            dir.path(),
+            "contacts-card-names",
+            false,
+            holzi_migration_source(),
+        );
+        assert_eq!(display_name(&db, "npub-card"), None, "the npub goes");
+        assert_eq!(
+            display_name(&db, "named-card").as_deref(),
+            Some("Ada Lovelace"),
+            "a name the card carried stays"
+        );
+        assert_eq!(
+            display_name(&db, "npub-own").as_deref(),
+            Some("npub1abcdef"),
+            "only card contacts are touched"
+        );
+    })
+    .await
+    .expect("join");
+}
