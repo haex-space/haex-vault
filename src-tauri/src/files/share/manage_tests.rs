@@ -1,5 +1,5 @@
-//! Managing shares (spec 056 US2, FR-015–FR-019): only this device's own files, grants only for
-//! vaults with a stored card, one share per root, and edits from another own device.
+//! Managing shares (spec 056 US2, FR-015–FR-019, T081): only this device's own files and storages,
+//! grants only for vaults with a stored card, one share per root, and edits from another own device.
 
 use super::{FileShareGrantInput, FileShareSaveArgs, FileShareState, Here};
 use crate::contacts::card::received;
@@ -136,7 +136,7 @@ async fn only_vaults_with_a_stored_card_get_a_grant() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzis_own_data_and_other_sources_are_never_shared_from_here() {
+async fn holzis_own_data_is_never_shared() {
     let (anna, _ben) = anna_and_ben().await;
     let own = OwnPlaces::new(vec![anna.own_place()]);
     let here = Here {
@@ -148,13 +148,6 @@ async fn holzis_own_data_and_other_sources_are_never_shared_from_here() {
         .await
         .expect_err("own data");
     assert_eq!(refused.code, FilesErrorCode::HolziOwned);
-
-    let mut storage = args(&anna.root(), "Cloud", Vec::new());
-    storage.source = SourceRef::Storage {
-        storage_id: "s1".to_owned(),
-    };
-    let refused = super::save(&here, storage).await.expect_err("storage");
-    assert_eq!(refused.code, FilesErrorCode::Unsupported);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -196,4 +189,64 @@ async fn another_own_device_changes_name_and_grants_but_not_the_root() {
         FileShareState::Pending,
         "the serving device has not seen it yet (FR-026)"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_folder_of_a_storage_is_shared_by_its_window_path_and_another_devices_never() {
+    use std::sync::Arc;
+
+    use crate::files::encrypted::test_support::{filled, tree, STORAGE};
+    use crate::files::peer::serve::storage::StorageOpener;
+
+    let (anna, ben) = anna_and_ben().await;
+    let scene = Arc::new(filled(&tree(&[("Briefe/a.txt", "geheim")])).await);
+    let opened = Arc::clone(&scene);
+    let opener: StorageOpener = Arc::new(move |_| {
+        let files = opened.files();
+        Box::pin(async move { Ok(files) })
+    });
+    let own = OwnPlaces::new(vec![anna.own_place()]);
+    let here = Here {
+        db: &anna.db,
+        device: &anna.uuid,
+        own: &own,
+    };
+    let of = |storage_id: &str, path: &str| FileShareSaveArgs {
+        share_id: None,
+        source: SourceRef::Storage {
+            storage_id: storage_id.to_owned(),
+        },
+        path: path.to_owned(),
+        name: "Briefe".to_owned(),
+        grants: vec![grant(ben.member.vault, FileShareLevel::Read)],
+    };
+
+    let share = super::save_from(&here, of(STORAGE, "/Unterlagen/Briefe"), Some(&opener))
+        .await
+        .expect("a folder in an encrypted folder");
+    assert_eq!(share.item_kind, FileShareItemKind::Folder);
+    assert_eq!(share.path, "/Unterlagen/Briefe");
+    let file = super::save_from(
+        &here,
+        of(STORAGE, "/Unterlagen/Briefe/a.txt"),
+        Some(&opener),
+    )
+    .await
+    .expect("a file");
+    assert_eq!(file.item_kind, FileShareItemKind::File);
+
+    for remote in ["peer:x", "share:y", "device:/"] {
+        let refused = super::save_from(&here, of(remote, "/"), Some(&opener))
+            .await
+            .expect_err(remote);
+        assert_eq!(refused.code, FilesErrorCode::Unsupported, "{remote}");
+    }
+    let without = super::save(&here, of(STORAGE, "/Unterlagen"))
+        .await
+        .expect_err("no opener");
+    assert_eq!(without.code, FilesErrorCode::Unsupported);
+    let missing = super::save_from(&here, of(STORAGE, "/fehlt"), Some(&opener))
+        .await
+        .expect_err("nothing there");
+    assert_eq!(missing.code, FilesErrorCode::NotFound);
 }

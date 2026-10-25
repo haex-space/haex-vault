@@ -65,13 +65,14 @@ pub async fn file_share_save(
     args: FileShareSaveArgs,
 ) -> Result<FileShare, FilesError> {
     let (db, device) = here(&app, &state).await?;
-    manage::save(
+    manage::save_from(
         &Here {
             db: &db,
             device: &device,
             own: &files.own,
         },
         args,
+        Some(&crate::files::browser_commands::storage_opener(&app)),
     )
     .await
 }
