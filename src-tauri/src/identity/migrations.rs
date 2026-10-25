@@ -686,6 +686,50 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
         MigrationName::from("0040_device_peer_schema"),
         PEER_SCHEMA_0040.to_owned(),
     );
+    // Fixes a bug where accepting a business card without a name wrote the sender's npub into
+    // `display_name`, so the list showed the npub forever even after the user filled in name
+    // parts (`derived_name` always prefers `display_name`). This migration is data-only and does
+    // not require a trigger-version bump.
+    m.insert(
+        MigrationName::from("0041_contacts_card_display_name"),
+        "UPDATE haex_contacts SET display_name = NULL \
+         WHERE origin_kind = 'card' AND display_name LIKE 'npub1%';"
+            .to_owned(),
+    );
 
     Arc::new(StaticMigrationSource(m))
+}
+
+/// Returns the current migration set with the pre-renumbering icon-set journal name.
+///
+/// The SQL is unchanged; only its journal name moved from `0035_file_icon_sets` to
+/// `0036_file_icon_sets` when the chat-message tool-origin migration landed first.
+pub fn holzi_migration_source_with_legacy_icon_set_name() -> Arc<StaticMigrationSource> {
+    let current = holzi_migration_source();
+    let mut migrations = current.0.clone();
+    let icon_sets = migrations
+        .remove(&MigrationName::from("0036_file_icon_sets"))
+        .expect("current migration source contains 0036_file_icon_sets");
+    migrations.insert(MigrationName::from("0035_file_icon_sets"), icon_sets);
+
+    Arc::new(StaticMigrationSource(migrations))
+}
+
+/// Returns the current migration set with the pre-renumbering contacts journal name.
+///
+/// The SQL is unchanged; only its journal name moved from `0040_contacts_card_display_name` to
+/// `0041_contacts_card_display_name` when the peer schema migration took the `0040` slot.
+pub fn holzi_migration_source_with_legacy_contacts_display_name() -> Arc<StaticMigrationSource> {
+    let current = holzi_migration_source();
+    let mut migrations = current.0.clone();
+    let card_display_name = migrations
+        .get(&MigrationName::from("0041_contacts_card_display_name"))
+        .cloned()
+        .expect("current migration source contains 0041_contacts_card_display_name");
+    migrations.insert(
+        MigrationName::from("0040_contacts_card_display_name"),
+        card_display_name,
+    );
+
+    Arc::new(StaticMigrationSource(migrations))
 }

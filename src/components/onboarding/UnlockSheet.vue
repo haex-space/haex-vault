@@ -34,6 +34,22 @@ const canSubmit = computed(
   () => passphrase.value.length > 0 && !submitting.value && props.name != null,
 )
 
+function errorKind(e: unknown): unknown {
+  if (e && typeof e === 'object' && 'kind' in e) {
+    return (e as { kind: unknown }).kind
+  }
+  if (typeof e !== 'string') return undefined
+
+  try {
+    const parsed: unknown = JSON.parse(e)
+    return parsed && typeof parsed === 'object' && 'kind' in parsed
+      ? (parsed as { kind: unknown }).kind
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function onSubmit() {
   if (!canSubmit.value || props.name == null) return
   submitting.value = true
@@ -50,19 +66,42 @@ async function onSubmit() {
     emit('unlocked', info.name)
     emit('update:open', false)
   } catch (e) {
-    // Contract FR-021: NotFound and WrongPassphrase MUST both surface as the same generic
-    // message on the frontend. Typed discriminator stays in logs only. `VaultAlreadyOpenElsewhere`
-    // gets its own message (spec 013 US4, contracts/frontend-surface.md): a different, actionable
-    // situation — another process, not a typo — so lumping it into the generic text would send
-    // the operator retyping a passphrase that was never wrong.
-    const kind =
-      e && typeof e === 'object' && 'kind' in e
-        ? (e as { kind: unknown }).kind
-        : undefined
-    error.value =
-      kind === 'VaultAlreadyOpenElsewhere'
-        ? t('errors.vaultAlreadyOpenElsewhere')
-        : t('errors.openFailed')
+    const kind = errorKind(e)
+    switch (kind) {
+      case 'WrongPassphrase':
+        error.value = t('errors.wrongPassphrase')
+        break
+      case 'NotFound':
+        error.value = t('errors.vaultNotFound')
+        break
+      case 'VaultAlreadyOpenElsewhere':
+        error.value = t('errors.vaultAlreadyOpenElsewhere')
+        break
+      case 'CrdtIo':
+        error.value = t('errors.vaultIo')
+        break
+      case 'CrdtSqlite':
+      case 'NotAValidInstance':
+        error.value = t('errors.vaultUnreadable')
+        break
+      case 'PathResolution':
+      case 'Io':
+        error.value = t('errors.vaultIo')
+        break
+      case 'CrdtInit':
+      case 'CrdtHlc':
+      case 'DeviceIdMismatch':
+      case 'MigrationMissingFromSource':
+      case 'MigrationContentDrift':
+      case 'MigrationCompatibility':
+      case 'CrdtSignatureVerificationFailed':
+      case 'CrdtUnexpectedSignatureUnderNoop':
+      case 'CrdtAlreadyInstalled':
+        error.value = t('errors.vaultIncompatible')
+        break
+      default:
+        error.value = t('errors.openFailed')
+    }
   } finally {
     submitting.value = false
   }

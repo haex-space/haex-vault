@@ -40,6 +40,9 @@ pub use presence::ProcessPresence;
 pub use startup::cleanup_orphans_on_startup;
 
 #[cfg(test)]
+#[path = "open_tests.rs"]
+mod open_tests;
+#[cfg(test)]
 mod paths_tests;
 #[cfg(test)]
 mod startup_tests;

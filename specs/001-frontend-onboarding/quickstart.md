@@ -88,7 +88,7 @@ attestation, no restore-pairing handshake.
 
 - **Blank window in Tauri**: Nuxt dev server not yet up. Wait for `pnpm dev` in another terminal, or use `pnpm tauri dev` which starts both.
 - **`instances/` not created**: backend calls `create_dir_all` on first path resolution — check the app has write permission to `AppLocalData`.
-- **"Öffnen fehlgeschlagen" after correct passphrase**: verify `haex-crdt` version matches the one used to create the DB. Migration is out of scope for this spec.
+- **Unlock error after a correct passphrase**: use the specific message shown by the unlock dialog. A missing file, unreadable storage, or migration/compatibility problem is reported separately; verify the `haex-crdt` version and inspect the vault copy/synchronization state before retrying.
 - **Icons render as boxes**: `@iconify-json/lucide` not installed, or `nuxt.config.ts` icon settings not committed. Re-run `pnpm install` and restart dev server.
 
 ## Definition of "onboarding-complete"

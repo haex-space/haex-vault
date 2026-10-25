@@ -78,7 +78,7 @@ On every subsequent launch, the landing shows the operator's instances (from `<A
 
 **Why this priority**: Without Unlock, every launch would force re-Anlegen. This is the daily entry point and must ship for v1.
 
-**Independent Test**: With at least one instance in `instances/`, launch the app; verify (1) the instance appears in the list with its correct alias and last-access timestamp, (2) clicking opens the Unlock sheet, (3) correct passphrase unlocks and navigates to the federation view, (4) wrong passphrase shows an inline error without leaking whether the file exists or not.
+**Independent Test**: With at least one instance in `instances/`, launch the app; verify (1) the instance appears in the list with its correct alias and last-access timestamp, (2) clicking opens the Unlock sheet, (3) correct passphrase unlocks and navigates to the federation view, (4) wrong passphrase and missing vault show distinct inline errors.
 
 **Acceptance Scenarios**:
 
@@ -148,7 +148,7 @@ This user story belongs to the superseded paper-seed/federation-root design and 
 
 - **FR-019**: Clicking an instance in the list MUST open the Unlock sheet with only a passphrase field.
 - **FR-020**: On correct passphrase, the backend MUST unlock SQLCipher, start the Nostr relay endpoint, start the iroh peer, and mark the instance as active in `AppState`. The frontend MUST navigate to `/federation/<instance-id>`.
-- **FR-021**: On incorrect passphrase, the sheet MUST show an inline error without disclosing whether the file exists or the passphrase policy was violated (avoid oracle).
+- **FR-021**: On an incorrect passphrase, the sheet MUST show the localized wrong-passphrase error. If the selected vault file is missing, it MUST show a distinct missing-file error; storage, corruption, and compatibility failures MUST likewise retain their typed, localized errors. This intentionally exposes whether the selected vault exists so the operator can diagnose synchronization and file problems.
 - **FR-022**: _(superseded by spec 013 FR-010 and [ADR 0003](../../docs/adr/0003-one-vault-session-per-app-process.md): if an instance is already active, `open_instance` now refuses with `VaultAlreadyActive` instead of switching to the requested one — the atomic switch described here is removed. The frontend still MUST NOT orchestrate a separate close/open sequence, but there is no in-process sequence to orchestrate any more: a different vault is only reachable after the active one is fully closed, in a new process.)_
 - **FR-023**: The list MUST support a per-item context menu with "In Papierkorb verschieben". Removing an item while retaining its file is not supported in v1 because the list is a directory scan and no exclusion metadata is persisted. Silent hard-delete MUST NOT be an option.
 

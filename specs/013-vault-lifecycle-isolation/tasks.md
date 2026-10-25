@@ -487,9 +487,9 @@ vault list, and a startup cleanup that never deletes another process's work in p
       models or staging leftovers.
 - [x] T066 [P] [US4] In `scripts/check-vault-lifecycle.ts` add: `useErrorString` maps
       `VaultAlreadyOpenElsewhere`, `VaultAlreadyActive` and `VaultClosed` to their `errors.*` keys;
-      `UnlockSheet` shows the dedicated message for `VaultAlreadyOpenElsewhere` and still shows the
-      generic `errors.openFailed` for `WrongPassphrase` and `NotFound` (spec 001 FR-021); `pages/index.vue`
-      re-syncs the list on window focus and when the unlock sheet opens.
+      `UnlockSheet` shows distinct localized messages for `VaultAlreadyOpenElsewhere`,
+      `WrongPassphrase`, `NotFound`, and storage/compatibility failures; `pages/index.vue` re-syncs
+      the list on window focus and when the unlock sheet opens.
 - [x] T067 [P] [US4] Create `src-tauri/src/instances/presence_tests.rs` (declare it in
       `src-tauri/src/instances/presence.rs` with the `#[path]` idiom) over a temporary data location:
       the first `announce` runs its callback while it is the only process; a second `announce` while
