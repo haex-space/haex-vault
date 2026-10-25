@@ -34,6 +34,22 @@ const canSubmit = computed(
   () => passphrase.value.length > 0 && !submitting.value && props.name != null,
 )
 
+function errorKind(e: unknown): unknown {
+  if (e && typeof e === 'object' && 'kind' in e) {
+    return (e as { kind: unknown }).kind
+  }
+  if (typeof e !== 'string') return undefined
+
+  try {
+    const parsed: unknown = JSON.parse(e)
+    return parsed && typeof parsed === 'object' && 'kind' in parsed
+      ? (parsed as { kind: unknown }).kind
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function onSubmit() {
   if (!canSubmit.value || props.name == null) return
   submitting.value = true
@@ -50,10 +66,7 @@ async function onSubmit() {
     emit('unlocked', info.name)
     emit('update:open', false)
   } catch (e) {
-    const kind =
-      e && typeof e === 'object' && 'kind' in e
-        ? (e as { kind: unknown }).kind
-        : undefined
+    const kind = errorKind(e)
     switch (kind) {
       case 'WrongPassphrase':
         error.value = t('errors.wrongPassphrase')

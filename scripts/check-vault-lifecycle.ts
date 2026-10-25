@@ -134,6 +134,17 @@ for (const [kind, expected] of [
   })
 }
 
+test('UnlockSheet maps a JSON-serialized backend error to its distinct open error', async () => {
+  const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
+    throw JSON.stringify({ kind: 'WrongPassphrase' })
+  })
+  passphrase.value = 'some-passphrase'
+
+  await onSubmit()
+
+  assert.equal(error.value, 'errors.wrongPassphrase')
+})
+
 // pages/index.vue (T075): re-syncs the vault list on window focus, on document visibilitychange
 // (only while actually visible), and when an instance is selected (opening the unlock sheet) —
 // and removes both listeners on unmount.
