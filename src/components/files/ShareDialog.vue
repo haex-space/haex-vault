@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
- * Sharing a folder or file of this device with contacts (spec 056 US2, FR-016, FR-017): the name of
- * the share, the contacts with a stored card, and a level for each. An existing share opens with
- * its contacts; saving replaces them, and the share can be ended here. From the overview it edits a
- * given share, which may be served by another own device: its name and contacts, never its root
- * (FR-019).
+ * Sharing a folder or file of this device or of a storage of the vault (T081) with contacts (spec
+ * 056 US2, FR-016, FR-017): the name of the share, the contacts with a stored card, and a level for
+ * each. An existing share opens with its contacts; saving replaces them, and the share can be ended
+ * here. From the overview it edits a given share, which may be served by another own device: its
+ * name and contacts, never its root (FR-019).
  */
 import type { Entry } from '@bindings/Entry'
 import type { FileShare } from '@bindings/FileShare'
 import type { FileShareLevel } from '@bindings/FileShareLevel'
+import type { SourceRef } from '@bindings/SourceRef'
 import type { FilesContactShares } from '@bindings/FilesContactShares'
 import { asFilesError } from '~/composables/useFiles'
 import { useActionOrThrow } from '~/composables/useActionOrThrow'
@@ -17,6 +18,8 @@ const props = defineProps<{
   entry: Entry | null
   /** A share to edit as it is, instead of the one at `entry`. */
   share?: FileShare | null
+  /** Where `entry` lies: this device unless a storage of the vault (T081). */
+  source?: SourceRef
   /** The contacts with a stored card (`Sources.contacts`). */
   contacts: readonly FilesContactShares[]
 }>()
@@ -30,6 +33,8 @@ const saveShare = useActionOrThrow('files.shares.save')
 const deleteShare = useActionOrThrow('files.shares.delete')
 
 type Row = { vaultPubkey: string; name: string; level: FileShareLevel }
+
+const entrySource = (): SourceRef => props.source ?? { kind: 'device' }
 
 const name = ref('')
 const rows = ref<Row[]>([])
@@ -72,7 +77,7 @@ async function loadAsync(
   existing.value = null
   loading.value = true
   try {
-    const share = given ?? (await shareOfAsync({ kind: 'device' }, entryPath))
+    const share = given ?? (await shareOfAsync(entrySource(), entryPath))
     if (generation !== loadGeneration) return
     existing.value = share
     if (share) {
@@ -139,7 +144,7 @@ async function saveNowAsync() {
   try {
     await saveShare({
       shareId: existing.value?.id,
-      source: existing.value?.source ?? { kind: 'device' },
+      source: existing.value?.source ?? entrySource(),
       path,
       name: name.value,
       grants: rows.value.map((row) => ({

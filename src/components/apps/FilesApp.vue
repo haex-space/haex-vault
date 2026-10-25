@@ -474,6 +474,7 @@ watch(tabActive, (active) => {
     <FilesShareDialog
       v-model:open="sharing"
       :entry="sharingEntry"
+      :source="source"
       :contacts="sources.state.value?.contacts ?? []"
     />
     <FilesEncryptedNotice v-model:open="noticing" @confirm="ackNotice" />

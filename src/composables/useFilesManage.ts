@@ -25,6 +25,17 @@ import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
  * dialogs, and the transfers they start (`stores/filesTransfers.ts`). `shown` is the folder as
  * listed, `reload` loads it again, `activate` opens an entry.
  */
+/** Whether entries of `source` may be shared with contacts: this device outside its encrypted
+ * folders, or a storage of the vault, also inside its encrypted folders, which the serving device
+ * opens (spec 056 T081); never another device or a received share (FR-015). */
+function shareableSource(source: SourceRef, inEncrypted: boolean): boolean {
+  if (source.kind === 'device') return !inEncrypted
+  return (
+    !isRemoteStorage(source.storageId) &&
+    !source.storageId.startsWith('device:')
+  )
+}
+
 export function useFilesManage(options: {
   source: Ref<SourceRef>
   path: Ref<string | null>
@@ -34,7 +45,8 @@ export function useFilesManage(options: {
   activate: (entry: Entry) => void
   /** The open source is read-only for this vault (a share at level read, spec 056 FR-034). */
   readOnlySource?: Ref<boolean>
-  /** Opens the share dialog for an entry of this device (spec 056 US2). */
+  /** Opens the share dialog for an entry of this device or of a storage of the vault (spec 056 US2,
+   * T081). */
   share?: (entry: Entry) => void
 }) {
   const { source, path, shown, tabId, reload, activate } = options
@@ -136,9 +148,8 @@ export function useFilesManage(options: {
       systemApps: !isAndroid.value,
       shareable:
         !!options.share &&
-        source.value.kind === 'device' &&
-        !folderEncrypted.value &&
-        !entries.some((entry) => entry.holziOwned),
+        !entries.some((entry) => entry.holziOwned) &&
+        shareableSource(source.value, folderEncrypted.value),
     })
   }
 
