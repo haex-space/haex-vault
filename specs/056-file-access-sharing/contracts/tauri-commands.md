@@ -44,10 +44,14 @@ Regeln:
 - `save` auf eine schon freigegebene Quelle aktualisiert dieselbe Freigabe (FR-017).
 - `grants` nur für Kontakte mit gespeicherter Karte (FR-016).
 - Jede Änderung setzt `changed_at`; auf dem bedienenden Gerät setzt der Abonnent `served_at`.
-- Aufruf durch einen Agent: ohne `AgentFileKind::FileShares` → `Refused`; Anlegen, neuer Kontakt oder
-  höhere Stufe → Bestätigungsdialog `FileShareConfirmRequest` über das Fenster, Antwort bestätigen oder
-  ablehnen; ohne Antwort in 120 s oder ohne Fenster → `Refused`; Entziehen, Löschen und Herabstufen
-  ohne Dialog.
+- Aufruf durch einen Agent: die Aktionen laufen dann in Rust (`runner: 'native'`,
+  `files/agent/shares.rs`); ohne `AgentFileKind::FileShares` → `files_not_granted` mit Namen der
+  Berechtigung; Anlegen, neuer Kontakt oder höhere Stufe → Ereignis `file-share-confirm-request` mit
+  `FileShareConfirmRequest`, Antwort `file_share_confirm_answer { requestId, confirmed }`; ohne Antwort
+  in 120 s, ohne Fenster oder abgelehnt → `denied_by_user`; Entziehen, Löschen und Herabstufen ohne
+  Dialog. Jeder Kontakt, der dazukommt oder mehr bekommt, muss für den Agent über seine
+  Kontakte-Berechtigung lesbar sein, und eine neue Freigabe nur einen Ordner, den er selbst lesen
+  darf; sonst `files_not_granted`.
 
 ## Neu: Schalter „Geräte-Dateizugriff“
 
@@ -67,4 +71,6 @@ Der Löschdialog nennt die betroffenen Dateifreigaben über `files.shares.ofCont
 ## Ereignisse
 
 - `vault-data-changed` mit `haex_file_shares*` aktualisiert Übersicht, Dialog und Seitenleiste.
+- `file-share-confirm-request` (`FileShareConfirmRequest`): Bestätigung, bevor ein Agent etwas
+  freigibt (FR-045).
 - Transfers melden `Conflict` wie bisher über ihre Konfliktfrage (research R7).

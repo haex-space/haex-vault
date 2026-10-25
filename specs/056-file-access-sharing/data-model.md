@@ -105,7 +105,9 @@ FileShareGrant[], state: FileShareState }`
 - `FilesContactShares { contactId, contactName, vaultPubkey, shares: FilesReceivedShare[] }`
 - `FilesReceivedShare { storageId, name, itemKind, level, reachable }`
 
-- `FileShareConfirmRequest { requestId, sourceLabel, path, deviceName, contactName, level }` für den
-  Bestätigungsdialog bei Agents (research R17)
+- `FileShareConfirmRequest { requestId, agentId, newShare, shareName, path, deviceName?, grants:
+FileShareConfirmGrant[] }` für den Bestätigungsdialog bei Agents (research R17); `grants` nennt nur
+  die Kontakte, die neu dazukommen oder mehr bekommen, je `{ contactName, level }`, so bestätigt ein
+  Dialog alle zusammen; `deviceName` fehlt für dieses Gerät
 
 `Sources` bekommt `devices: FilesPeerDevice[]` und `contacts: FilesContactShares[]`.
