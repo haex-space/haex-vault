@@ -5,27 +5,52 @@ import { test } from 'node:test'
 
 import {
   EFFORT_LEVELS,
+  ceilingChoices,
+  effortFor,
   effortLabelKey,
   isEffortLevel,
   moved,
   placeLabelKey,
-  proposedEffort,
   rankOf,
   withoutModels,
 } from '../src/lib/extensions/modelGrants.ts'
 
-test('the efforts go from none to high, and only they are levels', () => {
-  assert.deepEqual([...EFFORT_LEVELS], ['none', 'low', 'medium', 'high'])
+test('the efforts go from none to max, and only they are levels', () => {
+  assert.deepEqual(
+    [...EFFORT_LEVELS],
+    ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+  )
   for (const level of EFFORT_LEVELS) assert.ok(isEffortLevel(level))
-  for (const other of ['', 'max', 'xhigh', 'High', 'managed'])
+  for (const other of ['', 'High', 'managed', 'minimal'])
     assert.ok(!isEffortLevel(other), other)
 })
 
-test('a question starts with the wished effort, an unknown one with none', () => {
-  assert.equal(proposedEffort('medium'), 'medium')
-  assert.equal(proposedEffort('none'), 'none')
-  assert.equal(proposedEffort('max'), 'none')
-  assert.equal(proposedEffort(''), 'none')
+test('a model offers its own efforts as ceilings, one without a choice only none', () => {
+  assert.deepEqual(ceilingChoices(['max', 'low', 'high', 'medium', 'xhigh']), [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ])
+  assert.deepEqual(ceilingChoices([]), ['none'])
+  // The ceiling the extension has stays in the list, in its place.
+  assert.deepEqual(ceilingChoices(['low', 'max'], 'medium'), [
+    'low',
+    'medium',
+    'max',
+  ])
+})
+
+test('a question starts with the wished effort within what the model offers', () => {
+  const claude = ['low', 'medium', 'high', 'xhigh', 'max']
+  assert.equal(effortFor(claude, 'medium'), 'medium')
+  assert.equal(effortFor(claude, 'high'), 'high')
+  assert.equal(effortFor(['low', 'max'], 'medium'), 'low')
+  // All above the wish: the lowest one is the nearest.
+  assert.equal(effortFor(['medium', 'high'], 'low'), 'medium')
+  assert.equal(effortFor(claude, ''), 'low')
+  assert.equal(effortFor([], 'high'), 'none')
 })
 
 test('only the models the extension may use are ranked, in the order they come', () => {

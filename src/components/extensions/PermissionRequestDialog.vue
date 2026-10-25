@@ -11,7 +11,7 @@
  * would be sent.
  */
 import { MODEL_DESTINATION_KIND } from '~/lib/extensions/modelConsent'
-import { MODEL_KIND, proposedEffort } from '~/lib/extensions/modelGrants'
+import { MODEL_KIND, effortFor } from '~/lib/extensions/modelGrants'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -29,16 +29,27 @@ const destinationKind = computed(
 const modelId = ref('')
 const effort = ref('none')
 
+/** The ceiling the question starts with for a model: what the job wished for, within the efforts
+ * that model offers. */
+function startingEffort(id: string): string {
+  const model = store.shown?.models?.find((m) => m.id === id)
+  return effortFor(model?.efforts ?? [], store.shown?.action ?? '')
+}
+
 watch(
   () => store.shown?.requestId,
   () => {
     remember.value = rememberByDefault()
     failure.value = null
     modelId.value = store.shown?.target ?? ''
-    effort.value = proposedEffort(store.shown?.action ?? '')
+    effort.value = startingEffort(modelId.value)
   },
   { immediate: true },
 )
+// Another model offers other efforts.
+watch(modelId, (id) => {
+  effort.value = startingEffort(id)
+})
 
 async function answerAsync(decision: 'allow' | 'deny') {
   const question = store.shown

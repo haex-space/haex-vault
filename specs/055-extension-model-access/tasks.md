@@ -241,6 +241,15 @@ Delivery G (R17), PRs in order: holzi (T088–T091, T093), vault-sdk (T094), the
 
 ---
 
+## Phase 13: Efforts of the model itself (added 2026-10-25, FR-036)
+
+First hand test with Claude Code: the choice offered only `Kein`, `Niedrig`, `Mittel` and `Hoch`, while the model has `low` to `max` with steps between.
+
+- [x] T096 [US2] (`effort::Level` with `xhigh` and `max`, `offered`; `ExtensionModelEntry.efforts` and `ExtensionModelChoice.efforts`; `ceilingChoices` and `effortFor` in `modelGrants.ts`; the SDK type `ModelEffort` follows in its own PR) The ceiling is chosen from the efforts the model offers: Rust and frontend tests first (`model_jobs/effort_tests.rs`, `candidates_tests.rs`, `scripts/check-extensions-model-grants.ts`), then `Level`, `grants.rs`, `ModelPick.vue`, `ExtensionModelsView.vue`, `PermissionRequestDialog.vue`, labels de/en; contracts `job-format.md`, `bridge.md`, `data-model.md`
+- [ ] T097 [US2] vault-sdk (own repo, own PR): `ModelEffort` and `maxEffort` with `xhigh` and `max`; README note
+
+---
+
 ## Dependencies & Execution Order
 
 - Phase 1 (T001–T003) before Phase 2. Phase 2 blocks every story; inside it T004–T005 (permission kinds), T006–T007, T008–T011, T012–T015 and T016–T017 are separate groups (parallel where marked), T019 and T020 last.

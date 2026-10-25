@@ -995,6 +995,7 @@
         "title": "Models",
         "none": "holzi knows no model yet.",
         "notAllowed": "Not allowed",
+        "allowed": "Allowed",
         "takesImages": "takes images",
         "agent": "agent with file and command access",
         "denied": "refused",
@@ -2444,7 +2445,9 @@
         "none": "None",
         "low": "Low",
         "medium": "Medium",
-        "high": "High"
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Maximum"
       },
       "place": {
         "this_device": "This device",

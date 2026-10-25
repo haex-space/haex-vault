@@ -38,7 +38,11 @@ models?: Array<{ id: string, name: string, provider: string, place: string, take
 /**
  * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
  */
-agent: boolean, }>,
+agent: boolean,
+/**
+ * The efforts the model offers, lowest first; empty when it has no choice of effort.
+ */
+efforts: Array<string>, }>,
 /**
  * For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
  * and place, and what the step would send.

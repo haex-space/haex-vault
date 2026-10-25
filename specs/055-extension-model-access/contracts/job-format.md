@@ -25,7 +25,7 @@ Step {
     version: number        // ganze Zahl >= 1
     schema: object         // Schema-Teilmenge, siehe unten
   }
-  effort?: "none" | "low" | "medium" | "high"
+  effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max"
   maxOutputTokens?: number // bis zur Obergrenze (Standard 4096, höchstens 16384)
 }
 
@@ -68,6 +68,9 @@ Modul `S/model_jobs/schema.rs` (nicht der Aktionsprüfer von Spec 018: dessen Te
 
 - Die Erweiterung gibt höchstens einen Wunsch an. holzi bildet `min(Wunsch, höchster freigegebener Aufwand)`;
   fehlt der Wunsch, gilt `none`.
+- Die Stufen sind die gängigen Namen der Anbieter, aufsteigend: `none`, `low`, `medium`, `high`, `xhigh`, `max`
+  (`minimal` zählt als `low`). Der Nutzer wählt den höchsten Aufwand aus den Stufen, die das Modell selbst hat
+  (`ExtensionModelEntry.efforts`); ein Modell ohne Wahl des Aufwands hat nur „erlaubt“ (`none`).
 - Die Stufen eines Modells kommen in der vom Anbieter gemeldeten Reihenfolge, die nicht als aufsteigend zugesichert
   ist. Sind alle Namen bekannt (`none`/`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), ordnet holzi sie
   nach Rang; sonst gilt die gemeldete Reihenfolge.
@@ -77,13 +80,13 @@ Modul `S/model_jobs/schema.rs` (nicht der Aktionsprüfer von Spec 018: dessen Te
   - `Presets{options}`: `none` nimmt den Ausschalter (`none`/`off`), wenn das Modell einen hat; `low`, `medium`
     und `high` nehmen ihn nie.
     - Alle Namen bekannt: die Stufe nimmt die höchste Option, die sie nicht übersteigt (`minimal` zählt als
-      `low`; `xhigh` und `max` liegen über `high`, der höchsten Freigabe), und die niedrigste, wenn alle höher
-      liegen. Beispiel Anthropic `low, medium, high, max`: `high` sendet `high`, nie `max`; bei `low, high`
-      sendet `medium` `low`.
+      `low`), und die niedrigste, wenn alle höher liegen. Beispiel Anthropic `low, medium, high, max`:
+      `high` sendet `high`, `xhigh` ebenfalls `high` (das Modell hat kein `xhigh`), `max` sendet `max`, wenn
+      die Freigabe `max` erlaubt; bei `low, high` sendet `medium` `low`.
     - Ein Name des Anbieters dabei (gemeldete Reihenfolge): eine Option, die wie die Stufe heißt, gewinnt;
       sonst `low` = erste, `high` = letzte, `medium` = mittlere (bei zwei die höhere).
 - Die Herkunft nennt in `attempts[].effort` die tatsächlich gesendete Stufe: bei einem bekannten Namen dessen
-  Stufe (`xhigh`/`max` als `high`), sonst die gedeckelte. Hat ein Modell keinen Ausschalter, sendet `none` die
+  Stufe, sonst die gedeckelte. Hat ein Modell keinen Ausschalter, sendet `none` die
   niedrigste Option und die Herkunft nennt `low`.
 
 ## Prüfung der Ausgabe (Wächter und Schema)

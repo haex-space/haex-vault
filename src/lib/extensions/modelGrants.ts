@@ -14,17 +14,50 @@ export function withoutModels<T extends { kind: string }>(
   return rows.filter((row) => row.kind !== MODEL_KIND)
 }
 
-/** The efforts a grant can allow, lowest first. */
-export const EFFORT_LEVELS = ['none', 'low', 'medium', 'high'] as const
+/** The efforts a grant can allow, lowest first; a model offers the ones it has (`efforts`). */
+export const EFFORT_LEVELS = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
 export type EffortLevel = (typeof EFFORT_LEVELS)[number]
 
 export function isEffortLevel(value: string): value is EffortLevel {
   return (EFFORT_LEVELS as readonly string[]).includes(value)
 }
 
-/** The ceiling a question starts with: the effort the job wished for, or `none`. */
-export function proposedEffort(action: string): EffortLevel {
-  return isEffortLevel(action) ? action : 'none'
+const byLevel = (a: string, b: string) =>
+  EFFORT_LEVELS.indexOf(a as EffortLevel) -
+  EFFORT_LEVELS.indexOf(b as EffortLevel)
+
+/**
+ * The ceilings to choose from for a model that offers `efforts`: its own levels, lowest first.
+ * A model without a choice of effort has only `none`, which then means "allowed"; the ceiling
+ * the extension has now stays in the list even when the model no longer offers it.
+ */
+export function ceilingChoices(
+  efforts: readonly string[],
+  current?: string,
+): string[] {
+  const choices = efforts.length > 0 ? [...efforts] : ['none']
+  if (current && isEffortLevel(current) && !choices.includes(current))
+    choices.push(current)
+  return choices.sort(byLevel)
+}
+
+/**
+ * The ceiling a question starts with for a model: the highest level the model offers that is not
+ * above the effort the job wished for, else its lowest; `none` for a model without a choice.
+ */
+export function effortFor(efforts: readonly string[], wish: string): string {
+  const offered = [...efforts].sort(byLevel)
+  if (offered.length === 0) return 'none'
+  const wished = isEffortLevel(wish) ? wish : 'none'
+  const within = offered.filter((level) => byLevel(level, wished) <= 0)
+  return within.at(-1) ?? (offered[0] as string)
 }
 
 /** The i18n key of an effort level. */

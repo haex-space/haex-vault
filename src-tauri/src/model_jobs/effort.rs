@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 
-/// An effort the user may allow and an extension may wish for.
+/// An effort the user may allow and an extension may wish for: the well-known names of the
+/// providers, in ascending order. A model offers the ones it has (`offered`); `minimal` counts as
+/// `low`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Level {
@@ -13,17 +15,24 @@ pub enum Level {
     Low,
     Medium,
     High,
+    #[serde(rename = "xhigh")]
+    XHigh,
+    Max,
 }
 
 impl Level {
+    /// Every level, lowest first.
+    pub const ALL: [Level; 6] = [
+        Level::None,
+        Level::Low,
+        Level::Medium,
+        Level::High,
+        Level::XHigh,
+        Level::Max,
+    ];
+
     pub fn parse(text: &str) -> Option<Self> {
-        match text {
-            "none" => Some(Level::None),
-            "low" => Some(Level::Low),
-            "medium" => Some(Level::Medium),
-            "high" => Some(Level::High),
-            _ => None,
-        }
+        Self::ALL.into_iter().find(|level| level.as_str() == text)
     }
 
     pub fn as_str(self) -> &'static str {
@@ -32,8 +41,34 @@ impl Level {
             Level::Low => "low",
             Level::Medium => "medium",
             Level::High => "high",
+            Level::XHigh => "xhigh",
+            Level::Max => "max",
         }
     }
+}
+
+/// The levels a model offers, lowest first: the ones its own options name. A model whose options
+/// have names of the provider's own offers `low`, `medium` and `high` (and `none` with an off
+/// switch), the scale `effective` maps onto them. A model without a choice of effort offers none.
+pub fn offered(capabilities: Option<&ModelCapabilities>) -> Vec<Level> {
+    let Some(ReasoningControl::Presets { options }) =
+        capabilities.and_then(|c| c.reasoning.as_ref())
+    else {
+        return Vec::new();
+    };
+    let ids: Vec<&str> = options.iter().map(|o| o.id.as_str()).collect();
+    let mut levels: Vec<Level> = if ids.iter().all(|id| rank(id).is_some()) {
+        ids.iter().filter_map(|id| level_of(id)).collect()
+    } else {
+        let mut own = vec![Level::Low, Level::Medium, Level::High];
+        if ids.iter().any(|id| is_off(id)) {
+            own.push(Level::None);
+        }
+        own
+    };
+    levels.sort();
+    levels.dedup();
+    levels
 }
 
 /// What was actually applied, as the provenance names it.
@@ -48,7 +83,7 @@ pub enum Applied {
 }
 
 impl Applied {
-    /// The text of the provenance: `none`, `managed`, `low`, `medium` or `high`.
+    /// The text of the provenance: `none`, `managed`, `low`, `medium`, `high`, `xhigh` or `max`.
     pub fn reported(&self) -> &str {
         match self {
             Applied::NotSet => "none",
@@ -70,8 +105,8 @@ impl Applied {
 ///
 /// `none` takes the model's off switch (`none`/`off`) when it has one; the other levels never take
 /// it. When every name is a known one, the options are put in order and the level takes the
-/// highest option that does not exceed it (`minimal` counts as `low`; `xhigh` and `max` exceed
-/// `high`), or the lowest one when all exceed it. Otherwise the order the provider reported is
+/// highest option that does not exceed it (`minimal` counts as `low`), or the lowest one when all
+/// exceed it. Otherwise the order the provider reported is
 /// kept (it is not promised to be ascending): an option named like the level wins, else `low`
 /// takes the first, `high` the last and `medium` the middle one (the upper of two).
 pub fn effective(
@@ -105,7 +140,7 @@ pub fn effective(
             None => match level {
                 Level::None | Level::Low => lowest,
                 Level::Medium => on[on.len() / 2],
-                Level::High => on[on.len() - 1],
+                Level::High | Level::XHigh | Level::Max => on[on.len() - 1],
             },
         },
     };
@@ -146,16 +181,19 @@ fn rank_of(level: Level) -> u8 {
         Level::Low => 2,
         Level::Medium => 3,
         Level::High => 4,
+        Level::XHigh => 5,
+        Level::Max => 6,
     }
 }
 
-/// The level a known name stands for; `xhigh` and `max` are reported as `high`, the top of the
-/// scale an extension can ask for.
+/// The level a known name stands for (`minimal` counts as `low`).
 fn level_of(id: &str) -> Option<Level> {
     Some(match rank(id)? {
         0 => Level::None,
         1 | 2 => Level::Low,
         3 => Level::Medium,
-        _ => Level::High,
+        4 => Level::High,
+        5 => Level::XHigh,
+        _ => Level::Max,
     })
 }

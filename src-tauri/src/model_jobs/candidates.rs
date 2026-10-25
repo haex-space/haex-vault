@@ -50,7 +50,7 @@ pub(crate) fn job_models(q: &mut impl Query) -> Result<Vec<JobModel>> {
 /// the ceiling): a denial of the model, whatever its effort, covers `none` and so takes the model
 /// away entirely.
 pub(crate) fn ceiling(permissions: &[Permission], model_id: &str, device: Uuid) -> Option<Level> {
-    [Level::None, Level::Low, Level::Medium, Level::High]
+    Level::ALL
         .into_iter()
         .take_while(|level| {
             evaluate(permissions, &model_request(*level, model_id), device) == Decision::Allow

@@ -12,7 +12,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::candidates::{ceiling, granted, job_models, model_permissions, takes_images};
-use super::effort::Level;
+use super::effort::{offered, Level};
 use super::job::Need;
 use super::model_source::JobModel;
 use crate::error::{HolziError, Result};
@@ -38,6 +38,9 @@ pub struct ExtensionModelEntry {
     pub takes_images: bool,
     /// A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
     pub agent: bool,
+    /// The efforts the model offers, lowest first (`none`, `low`, `medium`, `high`, `xhigh`, `max`);
+    /// empty when it has no choice of effort. The ceiling is one of them.
+    pub efforts: Vec<String>,
     /// The highest effort allowed (`none`, `low`, `medium`, `high`); absent when the extension
     /// may not use the model.
     #[ts(optional)]
@@ -61,6 +64,15 @@ pub struct ExtensionModelChoice {
     pub takes_images: bool,
     /// A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
     pub agent: bool,
+    /// The efforts the model offers, lowest first; empty when it has no choice of effort.
+    pub efforts: Vec<String>,
+}
+
+fn efforts_of(model: &JobModel) -> Vec<String> {
+    offered(model.capabilities.as_ref())
+        .into_iter()
+        .map(|level| level.as_str().to_owned())
+        .collect()
 }
 
 fn place_of(model: &JobModel) -> String {
@@ -96,6 +108,7 @@ pub(crate) fn entries(
         place: place_of(model),
         takes_images: takes_images(model.capabilities.as_ref()),
         agent: model.runs_agent(),
+        efforts: efforts_of(model),
         ceiling: allowed.map(|level| level.as_str().to_owned()),
         denied: denies(&all, &model.id),
         held: allowed.is_some() && ceiling(&stored, &model.id, device).is_none(),
@@ -137,6 +150,7 @@ pub(crate) fn choices(
             place: place_of(m),
             takes_images: takes_images(m.capabilities.as_ref()),
             agent: m.runs_agent(),
+            efforts: efforts_of(m),
         })
         .collect())
 }
