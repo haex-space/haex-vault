@@ -14,7 +14,7 @@ use crate::files::peer::test_support::{store_card, Device};
 use crate::files::peer::wire::WireShare;
 use crate::files::share::received::{self, Answerer};
 use crate::files::share::store;
-use crate::files::share::{FileShareItemKind, FileShareLevel, FileShareSourceState};
+use crate::files::share::{device_access, FileShareItemKind, FileShareLevel, FileShareSourceState};
 use crate::sync::keys::hex;
 use crate::sync::test_support::Member;
 
@@ -88,6 +88,19 @@ async fn a_missing_root_shows_as_missing_and_back_as_ok() {
     std::fs::rename(anna.root().join("Bilder"), anna.root().join("Fotos")).expect("back");
     apply(&anna.ctx, &mut HashSet::new()).await;
     assert_eq!(row(&anna, &share).source_state, FileShareSourceState::Ok);
+}
+
+#[tokio::test]
+async fn switching_off_cancels_an_own_device_read_in_progress() {
+    let anna = Device::of(Member::genesis()).await;
+    let running = anna.ctx.streams.own_device_token();
+
+    anna.db
+        .write_blocking(|tx| Ok(device_access::set_enabled(tx, false, "t")?))
+        .expect("off");
+    apply(&anna.ctx, &mut HashSet::new()).await;
+
+    assert!(running.is_cancelled());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

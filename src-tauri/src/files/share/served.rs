@@ -17,12 +17,14 @@ use crate::files::peer::handshake;
 use crate::files::peer::serve::roots;
 use crate::files::peer::serve::ServeContext;
 use crate::files::share::store::{self, FileShareRow};
-use crate::files::share::{received, FileShareSourceState, FEATURE};
+use crate::files::share::{device_access, received, FileShareSourceState, FEATURE};
 use crate::vault_gate::VaultDb;
 
 /// Whether a change of `table` can change what this device serves.
 fn concerns_shares(table: &str) -> bool {
-    table.starts_with("haex_file_share") || table.starts_with("haex_contacts")
+    table.starts_with("haex_file_share")
+        || table.starts_with("haex_contacts")
+        || table == "haex_file_device_access_no_sync"
 }
 
 /// Follows the vault's changes for `ctx`; never ends, the session drops it. Without a files server
@@ -188,6 +190,15 @@ async fn forget_lost_contacts(
 /// Cancels the running requests whose grant is gone or lower now, or whose vault is no contact any
 /// more (FR-024).
 async fn cancel_revoked(ctx: &ServeContext) {
+    let own_device_enabled = ctx
+        .db
+        .read(|q| Ok(device_access::enabled(q)))
+        .await
+        .ok()
+        .and_then(Result::ok);
+    if own_device_enabled == Some(false) {
+        ctx.streams.cancel_own_device();
+    }
     for key in ctx.streams.keys() {
         let (share, vault) = (key.share.clone(), crate::sync::keys::hex(&key.vault));
         let level = ctx

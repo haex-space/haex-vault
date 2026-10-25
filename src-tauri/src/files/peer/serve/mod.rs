@@ -380,9 +380,13 @@ async fn part(
     ))
 }
 
-/// The token a contact's request runs under, for the share and level it is allowed as now; a request
-/// that is not allowed gets one nobody cancels, as it is refused anyway.
+/// The token a request runs under: own-device requests share the device-access generation; contact
+/// requests share the token for the share and level they are allowed as now. A request that is not
+/// allowed gets one nobody cancels, as it is refused anyway.
 async fn stream_token(ctx: &ServeContext, peer: &Peer, op: &Op) -> CancellationToken {
+    if peer.mode == Mode::OwnDevice {
+        return ctx.streams.own_device_token();
+    }
     if peer.mode != Mode::Contact {
         return CancellationToken::new();
     }

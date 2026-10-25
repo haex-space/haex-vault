@@ -28,6 +28,7 @@ const error = ref<string | null>(null)
 const busy = ref(false)
 const editing = ref<FileShare | null>(null)
 const editOpen = ref(false)
+let reloadGeneration = 0
 
 function failed(cause: unknown) {
   const code = asFilesError(cause)?.code
@@ -36,16 +37,21 @@ function failed(cause: unknown) {
 
 async function reloadAsync() {
   if (!open.value) return
+  const generation = ++reloadGeneration
   try {
-    shares.value = (await listShares()) as FileShare[]
+    const result = (await listShares()) as FileShare[]
+    if (!open.value || generation !== reloadGeneration) return
+    shares.value = result
     error.value = null
   } catch (cause) {
+    if (!open.value || generation !== reloadGeneration) return
     failed(cause)
   }
 }
 
 watch(open, (isOpen) => {
   if (isOpen) void reloadAsync()
+  else reloadGeneration++
 })
 onVaultTablesChanged(['haex_file_share*'], reloadAsync)
 

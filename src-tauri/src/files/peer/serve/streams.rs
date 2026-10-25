@@ -19,9 +19,18 @@ pub struct StreamKey {
 }
 
 /// The tokens of the running requests of contacts.
-#[derive(Default)]
 pub struct Streams {
     map: Mutex<HashMap<StreamKey, CancellationToken>>,
+    own_device: Mutex<CancellationToken>,
+}
+
+impl Default for Streams {
+    fn default() -> Self {
+        Self {
+            map: Mutex::default(),
+            own_device: Mutex::new(CancellationToken::new()),
+        }
+    }
 }
 
 impl Streams {
@@ -32,6 +41,26 @@ impl Streams {
     /// The token requests allowed as `key` run under.
     pub fn token(&self, key: StreamKey) -> CancellationToken {
         self.map().entry(key).or_default().clone()
+    }
+
+    /// The token for requests from another own device.
+    pub fn own_device_token(&self) -> CancellationToken {
+        self.own_device
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
+    }
+
+    /// Ends every own-device request; later ones get a new token.
+    pub fn cancel_own_device(&self) {
+        let token = {
+            let mut token = self
+                .own_device
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            std::mem::replace(&mut *token, CancellationToken::new())
+        };
+        token.cancel();
     }
 
     /// Every key with running or past requests.
@@ -46,3 +75,7 @@ impl Streams {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "streams_tests.rs"]
+mod tests;

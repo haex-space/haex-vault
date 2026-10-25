@@ -27,12 +27,14 @@ function failed(cause: unknown) {
 }
 
 async function reloadAsync() {
+  const contactId = props.contactId
   try {
-    shares.value = (await sharesOf({
-      contactId: props.contactId,
-    })) as FileShare[]
+    const result = (await sharesOf({ contactId })) as FileShare[]
+    if (contactId !== props.contactId) return
+    shares.value = result
     error.value = null
   } catch (cause) {
+    if (contactId !== props.contactId) return
     failed(cause)
   }
 }

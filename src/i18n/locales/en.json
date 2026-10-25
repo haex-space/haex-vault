@@ -3001,7 +3001,8 @@
       "title": "File shares",
       "level": "Level in “{name}”",
       "revoke": "Revoke access to “{name}”",
-      "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}."
+      "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}.",
+      "lookupFailed": "The file shares could not be checked. Deletion remains disabled."
     }
   },
   "browserBridge": {

@@ -27,19 +27,30 @@ const busy = ref(false)
 const sharesOf = useActionOrThrow('files.shares.ofContact')
 /** The names of the file shares that lose the contacts. */
 const affected = ref<string[]>([])
+const lookupPending = ref(false)
+const lookupError = ref<string | null>(null)
 
-watch(open, async (isOpen) => {
+watch(open, async (isOpen, _previous, onCleanup) => {
+  let stale = false
+  onCleanup(() => (stale = true))
   affected.value = []
+  lookupError.value = null
+  lookupPending.value = false
   if (!isOpen) return
-  const lists = await Promise.all(
-    props.ids.map((contactId) =>
-      sharesOf({ contactId }).then(
-        (shares) => shares as FileShare[],
-        () => [],
+  lookupPending.value = true
+  try {
+    const lists = await Promise.all(
+      props.ids.map(
+        async (contactId) => (await sharesOf({ contactId })) as FileShare[],
       ),
-    ),
-  )
-  affected.value = [...new Set(lists.flat().map((share) => share.name))]
+    )
+    if (stale) return
+    affected.value = [...new Set(lists.flat().map((share) => share.name))]
+  } catch (cause) {
+    if (!stale) lookupError.value = errString(cause)
+  } finally {
+    if (!stale) lookupPending.value = false
+  }
 })
 
 async function confirmAsync() {
@@ -89,6 +100,14 @@ async function confirmAsync() {
             )
           }}
         </ShadcnAlertDialogDescription>
+        <ShadcnAlertDialogDescription
+          v-if="lookupError"
+          class="text-destructive"
+          data-testid="contacts-delete-file-shares-error"
+          role="alert"
+        >
+          {{ t('contacts.fileShares.lookupFailed') }}: {{ lookupError }}
+        </ShadcnAlertDialogDescription>
       </ShadcnAlertDialogHeader>
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>{{
@@ -97,6 +116,7 @@ async function confirmAsync() {
         <UiButton
           variant="destructive"
           :loading="busy"
+          :disabled="busy || lookupPending || lookupError !== null"
           data-testid="contacts-delete-confirm"
           @click="confirmAsync"
         >
