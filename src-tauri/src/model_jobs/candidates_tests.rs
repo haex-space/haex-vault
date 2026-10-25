@@ -245,7 +245,7 @@ fn codex_stays_for_text_but_not_for_image_steps() {
     codex_provider.adapter = Some("codex".to_owned());
     let vision = model_row(&server, "vision", images());
     let codex = model_row(&codex_provider, "codex", images());
-    store_models(&v.db, &server, &[vision.clone()]);
+    store_models(&v.db, &server, std::slice::from_ref(&vision));
     store_models(&v.db, &codex_provider, std::slice::from_ref(&codex));
     v.grant("*", "low", 1);
 
