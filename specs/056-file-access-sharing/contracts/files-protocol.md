@@ -72,6 +72,14 @@ Regeln:
   `User` nur lesend, für `Agent` gesperrt; bei `Contact` immer gesperrt (FR-007).
 - Upload-Sitzungen gehören der Verbindung; schließt sie, räumt das bedienende Gerät ihre
   Zwischendateien auf.
+- Freigabe eines Speichers (T081): Das bedienende Gerät öffnet den Speicher mit seinen Zugangsdaten
+  und die verschlüsselten Ordner mit den Schlüsseln der Vault; beides verlässt das Gerät nie
+  (FR-043). Der Kontakt sieht Klarnamen und Klartext. `ListDir` liefert dort kein `etag`, erst
+  `Stat` (Anbieter-ETag, im verschlüsselten Ordner die Id der gezeigten Version). Hochladen reicht
+  die Teile an den Anbieter weiter, in einen verschlüsselten Ordner versiegelt; sichtbar wird die
+  Datei erst mit ihrem Sidecar. `Move` nur im selben Ordner (Umbenennen), sonst `Unsupported`;
+  `Delete` ohne Papierkorb (`trashed = false`). Andere eigene Geräte, empfangene Freigaben und das
+  Gerät als Speicher (`device:`) werden nie weiter freigegeben.
 
 ## Fehler
 

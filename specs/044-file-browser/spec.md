@@ -67,9 +67,11 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 - **Spec 036** (Anhänge mit Vorschau): verwandter Viewer für Anhänge von Passwörtern. Bild- und
   PDF-Viewer DÜRFEN geteilt werden; 036 FR-039 („keine PDF-Vorschau“) bleibt bis zu einer eigenen
   Änderung dort bestehen.
-- **Folgende Specs**: Spec 056 (Dateizugriff zwischen eigenen Geräten und Dateifreigaben an Kontakte)
-  und die Sync-Regeln (ersetzen 025, noch ohne Nummer) bauen auf dem Dateibrowser auf, etwa mit
-  „Freigeben …“ oder einem Sync-Status je Ordner. Sie sind nicht Teil dieser Spec.
+- **Folgende Specs**: Spec 056 (`specs/056-file-access-sharing/`, umgesetzt 2026-10-25) baut auf dem
+  Dateibrowser auf: andere eigene Geräte und empfangene Dateifreigaben stehen in der Seitenleiste wie
+  Speicher, „Freigeben …“ im Kontextmenü und „Meine Dateifreigaben“ verwalten die eigenen. Die
+  Sync-Regeln (ersetzen 025, noch ohne Nummer) mit einem Sync-Status je Ordner folgen. Beide sind
+  nicht Teil dieser Spec.
 
 ## Clarifications
 
