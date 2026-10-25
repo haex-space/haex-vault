@@ -62,7 +62,8 @@ Regeln:
 - `Move` nur innerhalb derselben Wurzel; dazwischen kopiert der Anfragende und löscht (Spec Edge
   Cases).
 - `Read` streamt ohne Zeitlimit; ein Entzug, Sperren oder Abbruch beendet den Stream mit
-  `STREAM_CANCELLED`.
+  `STREAM_CANCELLED` (QUIC-Reset-Code 1). Ein Entzug oder Herabstufen bricht auch ein laufendes
+  Hochladen ab und verwirft die Zwischendatei.
 - `Delete` auf dem Gerät geht in den Papierkorb, wo `trash = true` (research R8).
 - `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern antwortet es mit `Unsupported`. Das
   bedienende Gerät prüft mit jedem Stapel und alle 10 s erneut; ein Entzug, der Schalter oder das
