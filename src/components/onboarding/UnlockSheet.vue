@@ -50,19 +50,45 @@ async function onSubmit() {
     emit('unlocked', info.name)
     emit('update:open', false)
   } catch (e) {
-    // Contract FR-021: NotFound and WrongPassphrase MUST both surface as the same generic
-    // message on the frontend. Typed discriminator stays in logs only. `VaultAlreadyOpenElsewhere`
-    // gets its own message (spec 013 US4, contracts/frontend-surface.md): a different, actionable
-    // situation — another process, not a typo — so lumping it into the generic text would send
-    // the operator retyping a passphrase that was never wrong.
     const kind =
       e && typeof e === 'object' && 'kind' in e
         ? (e as { kind: unknown }).kind
         : undefined
-    error.value =
-      kind === 'VaultAlreadyOpenElsewhere'
-        ? t('errors.vaultAlreadyOpenElsewhere')
-        : t('errors.openFailed')
+    switch (kind) {
+      case 'WrongPassphrase':
+        error.value = t('errors.wrongPassphrase')
+        break
+      case 'NotFound':
+        error.value = t('errors.vaultNotFound')
+        break
+      case 'VaultAlreadyOpenElsewhere':
+        error.value = t('errors.vaultAlreadyOpenElsewhere')
+        break
+      case 'CrdtIo':
+        error.value = t('errors.vaultIo')
+        break
+      case 'CrdtSqlite':
+      case 'NotAValidInstance':
+        error.value = t('errors.vaultUnreadable')
+        break
+      case 'PathResolution':
+      case 'Io':
+        error.value = t('errors.vaultIo')
+        break
+      case 'CrdtInit':
+      case 'CrdtHlc':
+      case 'DeviceIdMismatch':
+      case 'MigrationMissingFromSource':
+      case 'MigrationContentDrift':
+      case 'MigrationCompatibility':
+      case 'CrdtSignatureVerificationFailed':
+      case 'CrdtUnexpectedSignatureUnderNoop':
+      case 'CrdtAlreadyInstalled':
+        error.value = t('errors.vaultIncompatible')
+        break
+      default:
+        error.value = t('errors.openFailed')
+    }
   } finally {
     submitting.value = false
   }

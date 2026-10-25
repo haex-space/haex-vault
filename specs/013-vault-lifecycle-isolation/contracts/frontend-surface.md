@@ -37,8 +37,8 @@ hides the spinner. It lives at `public/closing.html` in the repository root and 
 | `VaultClosed`               | "Die Vault wurde geschlossen."                             | "The vault was closed."                         |
 
 Keys live under `errors.*` in `src/i18n/locales/de.json` and `en.json`. The unlock flow shows
-`VaultAlreadyOpenElsewhere` as its own message and keeps the generic failure text for
-`NotFound`/`WrongPassphrase` (spec 001 FR-021).
+`VaultAlreadyOpenElsewhere`, `WrongPassphrase`, `NotFound`, storage, and compatibility failures
+with distinct localized messages; unknown failures use the generic fallback.
 
 ## Passphrase lifetime (FR-016)
 

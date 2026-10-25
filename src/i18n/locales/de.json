@@ -1444,6 +1444,11 @@
   },
   "errors": {
     "openFailed": "Öffnen fehlgeschlagen",
+    "wrongPassphrase": "Die Passphrase ist falsch",
+    "vaultNotFound": "Die Vault-Datei wurde nicht gefunden",
+    "vaultIo": "Die Vault-Datei konnte nicht gelesen werden",
+    "vaultUnreadable": "Die Vault-Datei ist nicht lesbar oder beschädigt",
+    "vaultIncompatible": "Die Vault ist beschädigt oder mit dieser Version nicht kompatibel",
     "nameConflict": "Eine Instanz mit diesem Namen existiert bereits",
     "invalidName": "Ungültiger Name",
     "weakPassphrase": "Passphrase erfüllt nicht die Richtlinie",

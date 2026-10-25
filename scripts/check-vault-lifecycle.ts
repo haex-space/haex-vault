@@ -93,9 +93,8 @@ test('useErrorString maps VaultAlreadyOpenElsewhere, VaultAlreadyActive and Vaul
   assert.equal(errString({ kind: 'VaultClosed' }), 'errors.vaultClosed')
 })
 
-// UnlockSheet (T074): `VaultAlreadyOpenElsewhere` gets its own message; `WrongPassphrase` and
-// `NotFound` both still fall back to the generic `errors.openFailed` (spec 001 FR-021 — the typed
-// discriminator must not leak which of the two it was).
+// UnlockSheet: every open failure keeps its typed discriminator at the UI boundary, so the operator
+// can distinguish a bad passphrase, a missing vault and an unreadable/incompatible vault file.
 
 function loadUnlockSheet(openAsync: () => Promise<{ name: string }>) {
   return loadScriptSetup<{
@@ -113,19 +112,17 @@ function loadUnlockSheet(openAsync: () => Promise<{ name: string }>) {
   )
 }
 
-test('UnlockSheet shows the dedicated message for VaultAlreadyOpenElsewhere', async () => {
-  const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
-    throw { kind: 'VaultAlreadyOpenElsewhere' }
-  })
-  passphrase.value = 'some-passphrase'
-
-  await onSubmit()
-
-  assert.equal(error.value, 'errors.vaultAlreadyOpenElsewhere')
-})
-
-for (const kind of ['WrongPassphrase', 'NotFound']) {
-  test(`UnlockSheet still shows the generic errors.openFailed for ${kind}`, async () => {
+for (const [kind, expected] of [
+  ['VaultAlreadyOpenElsewhere', 'errors.vaultAlreadyOpenElsewhere'],
+  ['WrongPassphrase', 'errors.wrongPassphrase'],
+  ['NotFound', 'errors.vaultNotFound'],
+  ['CrdtSqlite', 'errors.vaultUnreadable'],
+  ['NotAValidInstance', 'errors.vaultUnreadable'],
+  ['PathResolution', 'errors.vaultIo'],
+  ['Io', 'errors.vaultIo'],
+  ['CrdtInit', 'errors.vaultIncompatible'],
+] as const) {
+  test(`UnlockSheet maps ${kind} to a distinct open error`, async () => {
     const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
       throw { kind }
     })
@@ -133,7 +130,7 @@ for (const kind of ['WrongPassphrase', 'NotFound']) {
 
     await onSubmit()
 
-    assert.equal(error.value, 'errors.openFailed')
+    assert.equal(error.value, expected)
   })
 }
 

@@ -53,7 +53,10 @@ mod migrations_tests;
 
 pub use bootstrap::HolziBootstrap;
 pub use installation::{installation_id_path, read_or_mint_installation_uuid};
-pub use migrations::{holzi_migration_source, HOLZI_TRIGGER_VERSION};
+pub use migrations::{
+    holzi_migration_source, holzi_migration_source_with_legacy_contacts_display_name,
+    holzi_migration_source_with_legacy_icon_set_name, HOLZI_TRIGGER_VERSION,
+};
 
 /// Nil UUID reserved as the sentinel row in `known_devices` representing
 /// vault-scope for tables with a device-discriminating primary key. See

@@ -2,15 +2,15 @@
 //!
 //! Contract: `tauri-commands.md` §`open_instance`. One app process serves at most one vault
 //! session (spec 013 FR-010, ADR 0003): opening or creating while one is already active or a
-//! close is under way is refused, checked before any path is resolved. WrongPassphrase and
-//! NotFound both surface as generic "open failed" on the frontend (FR-021); the typed
-//! discriminator is for logs and telemetry only.
+//! close is under way is refused, checked before any path is resolved. Typed open failures are
+//! preserved for the frontend so it can distinguish an incorrect passphrase, a missing vault,
+//! and storage/compatibility failures.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use filetime::{set_file_mtime, FileTime};
-use haex_crdt::{rusqlite, Database};
+use haex_crdt::{rusqlite, Database, Error as CrdtError};
 use serde::Deserialize;
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
@@ -195,7 +195,25 @@ pub(super) fn open_existing_database(
     installation_id_file: &Path,
 ) -> Result<Arc<Database>> {
     let config = vault_config(passphrase, db_path, installation_id_file, false);
-    match Database::open(config) {
+    let opened = match Database::open(config) {
+        // Parallel branches renamed migrations 0035 and 0040. Older vaults have the original
+        // journal names; retry with a compatibility source whose SQL is identical but preserves
+        // the matching legacy name.
+        Err(CrdtError::MigrationMissingFromSource { name, .. })
+            if name == "0035_file_icon_sets" || name == "0040_contacts_card_display_name" =>
+        {
+            let mut legacy_config = vault_config(passphrase, db_path, installation_id_file, false);
+            legacy_config.migration_source = if name == "0035_file_icon_sets" {
+                crate::identity::holzi_migration_source_with_legacy_icon_set_name()
+            } else {
+                crate::identity::holzi_migration_source_with_legacy_contacts_display_name()
+            };
+            Database::open(legacy_config)
+        }
+        other => other,
+    };
+
+    match opened {
         Ok(db) => {
             // Spec 022: secure_delete, legacy cleanup and the one-time VACUUM, before the
             // frontend sees the vault. Logs and carries on on failure.

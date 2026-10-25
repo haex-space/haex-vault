@@ -315,7 +315,7 @@ pub struct OpenInstanceArgs {
 **Failure modes**:
 
 - `HolziError::NotFound { name }` — no such file.
-- `HolziError::WrongPassphrase` — SQLCipher rejected. **The frontend MUST NOT expose whether the error was `NotFound` vs `WrongPassphrase`** (FR-021); it renders both as a generic "Öffnen fehlgeschlagen". The typed error is for logs and telemetry only.
+- `HolziError::WrongPassphrase` — SQLCipher rejected; the frontend renders the localized wrong-passphrase message.
 - `HolziError::NotAValidInstance { reason }` — the database or SQLCipher format is invalid.
 - `HolziError::Io` — read error.
 - Any haex-crdt-mapped variant listed in [Error mapping](#error-mapping) if migrations or CRDT installation fail.
@@ -509,6 +509,9 @@ pub enum HolziError {
 
 ## Frontend error handling
 
-- `WrongPassphrase` and `NotFound` MUST both surface to the operator as a single generic message (FR-021). Do not branch UI on the discriminator.
-- All other errors surface via `sonner` toast with the localized message from `i18n/locales/{de,en}.json` under `errors.<kind>`.
+- Unlock errors branch on the typed discriminator and render a localized message: `WrongPassphrase`,
+  `NotFound`, `CrdtIo`, `CrdtSqlite`, and known migration/compatibility failures each have a distinct
+  message. Unknown discriminators use the generic fallback.
+- Other errors surface via `sonner` toast with the localized message from `i18n/locales/{de,en}.json`
+  under `errors.<kind>`.
 - Fallback for unknown discriminators: log to console + generic toast.
