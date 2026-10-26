@@ -229,17 +229,21 @@ fn a_detail_that_does_not_validate_is_skipped_and_counted() {
 }
 
 #[test]
-fn a_holzi_address_as_a_detail_is_skipped_only_the_card_names_a_vault() {
+fn a_holzi_address_as_a_detail_stays_an_unconfirmed_value_and_names_no_vault() {
     let mut sent = envelope();
     sent.card = None;
-    sent.values = vec![value(
-        "holzi_vault",
-        "",
-        &crate::contacts::card::received::npub(&vault_of(&THEIR_SECRET)),
-    )];
+    let npub = crate::contacts::card::received::npub(&vault_of(&THEIR_SECRET));
+    sent.values = vec![
+        value("holzi_vault", "other", &npub),
+        value("holzi_vault", "other", "nope"),
+    ];
     let read = decode(&text_of(&sent), &own()).expect("decodes");
-    assert!(read.envelope.values.is_empty());
-    assert_eq!(read.skipped, 1);
+    assert_eq!(
+        read.envelope.values,
+        vec![value("holzi_vault", "other", &npub)]
+    );
+    assert_eq!(read.skipped, 1, "an invalid one is left out like any other");
+    assert!(read.card.is_none(), "only a signed card confirms a vault");
 }
 
 #[test]
