@@ -128,6 +128,25 @@ layer hidden, the original is not in it.
 
 ---
 
+## Phase 7: User Story 5 + 6 - Attachments, paper and margins (added 2026-10-26)
+
+Implementation in `haex-space/haextension` under `apps/haex-notes/`. The paper menu (T042) is delivered in
+haex-space/haextension#138. Tests stay in separate `*.test.ts` files.
+
+- [x] T042 [US6] (haex-space/haextension#138) Template and paper colour menu: `PageBackgroundMenu.vue`, `lib/pageBackground.ts` with test (FR-027)
+- [ ] T043 [US5] Tests first in `app/lib/attachments.test.ts`: `addAttachment` / `removeAttachment` as undoable commands; the `original` attachment cannot be removed; `collectAssetIds` takes the assets of the attachments with it; a page without attachments loads as before
+- [ ] T044 [US5] Model and storage: `PageAttachment` in `app/types/document.ts`, `attachments` column and migration `0006` in `app/database/schemas/index.ts` and `app/database/migrations/`, `serializePageDoc` and `migratePage.ts`, `app/lib/attachments.ts` with the commands (FR-022, FR-024)
+- [ ] T045 [US5] Import without an original layer: `app/lib/paperNotes/importPage.ts` writes the `original` attachment and `paperImport.pageFit`; layers are Text, Objects, Own; a page without a draft (`failed`, `manual`) gets the layer "Photo" with the upright photo as an ordinary image; update `importPage.test.ts` (FR-025)
+- [ ] T046 [US5] Migration of earlier photo pages on load (data-model.md "Migration and compatibility"): the original layer of a `ready` page becomes the attachment and goes away, `pageFit` from its element; in `failed` and `manual` it becomes the layer "Photo"; test in `migratePage.test.ts`
+- [ ] T047 [US5] Close-up reading without the original layer: `app/lib/paperNotes/closeUp.ts` (and its callers) use `paperImport.pageFit`; update tests (FR-021)
+- [ ] T048 [US5] Remove the view switch: delete `PaperViewSwitch.vue`, `lib/paperNotes/views.ts` and its test, the `showOriginal` option of the PDF export (`PdfExportDialog.vue`, `usePdfExport.ts`) (FR-010, FR-026)
+- [ ] T049 [US5] Attachments UI: paperclip button with the count in the toolbar, `PageAttachmentsMenu.vue` (list, add, save, remove, original protected) and `AttachmentPanel.vue` as a side window next to the page (image with zoom and pan; other files with name, type, size and save) (FR-023, FR-024)
+- [ ] T050 [US5] Sharing and trash: `collectAssets.ts` and the share and restore paths carry the attachments; a missing file shows a placeholder with name and size
+- [ ] T051 [US6] Page margins: `PageBackground.margins` in `app/types/document.ts`, `lib/pageBackground.ts` (`changedMargins`), `lib/render/paper.ts` draws within them, a margin editor in `PageBackgroundMenu.vue`, the PDF export shows the margins; tests (FR-028)
+- [ ] T052 Walk through quickstart steps 1, 6, 6b and 8 in the app and record the evidence in the PR descriptions; update the ticks here
+
+**Checkpoint**: The page list of a notebook of N photos has N entries; every original opens in two steps (SC-008).
+
 ## Phase 6: Polish
 
 - [x] T038 [P] Check every new or changed file of haex-notes stays under 500 lines (largest: `PageCanvas.vue` with 495 lines)

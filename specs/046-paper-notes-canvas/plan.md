@@ -11,7 +11,7 @@ repository's own worktree.
 ## Summary
 
 Schüler importieren ein Foto handschriftlicher Notizen, eines Tafelbilds oder eines Arbeitsblatts und erhalten einen
-aufgeräumten, bearbeitbaren Canvas-Entwurf. Das unveränderte Foto bleibt auf einer gesperrten Originalebene. Texte
+aufgeräumten, bearbeitbaren Canvas-Entwurf. Das unveränderte Foto hängt als Anhang „Original“ an der Seite (US5, FR-022). Texte
 werden zu bearbeitbarem Text in einer wählbaren Handschrift, Tabellen zu Zeilen und Zellen, Zeichnungen zu
 verschiebbaren Bildausschnitten. Es gibt keinen Prüfteil: Ein Korrekturschritt setzt Rechtschreibung und eindeutige
 Lesefehler direkt ein.
@@ -51,8 +51,8 @@ Die Oberfläche blockiert während der Erkennung nicht; ein Abbruch ist jederzei
 haex-notes; keine Geheimnisse in Git; keine persönliche Handschrift im ersten Release.
 
 **PDF Defaults**: automatische Seitengröße und Ausrichtung, beibehaltene Proportion, hohe Qualität, sichtbarer
-Canvas-Zustand, eine Notizseite je PDF-Seite. Papierformat, Ausrichtung, Ränder, Qualität und die Sichtbarkeit der
-Originalebene sind einstellbar.
+Canvas-Zustand, eine Notizseite je PDF-Seite. Papierformat, Ausrichtung, Ränder und Qualität sind einstellbar; Anhänge
+gehören nicht in die PDF.
 
 **Scale/Scope**: Einzelne Fotos mit mehreren Text-, Tabellen- und Bildregionen. Kein Batch- oder Mehrseitenimport.
 
@@ -133,7 +133,7 @@ nutzt Notebook-Store, Undo-Commands und Asset-Store.
 
 1. **Canvas-Basis**: `text` und `image` zeichnen, Assets asynchron laden, Tabellenzellen (`cells`) zeichnen und
    bearbeiten, auswählen, verschieben, skalieren, speichern.
-2. **Import**: Original-Asset, Arbeitskopie mit Drehen und Qualitätshinweis, gesperrte Originalebene, `paperImport`,
+2. **Import**: Original-Asset, Arbeitskopie mit Drehen und Qualitätshinweis, Anhang „Original“, `paperImport`,
    manueller Weg bei jedem Fehler.
 3. **Erkennung**: vault-sdk auf 4.7.1, `runPageJob`, Auftrag mit zwei Schritten, Abbildung mit Layout, Drehhinweis
    und einmaliges Nachlesen, Herkunft, Fehlerhinweise, Abbruch.

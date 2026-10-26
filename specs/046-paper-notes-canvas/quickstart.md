@@ -29,13 +29,13 @@ Erwartet:
 - Die Abbildung erzeugt Text-, Tabellen- und Bildelemente, übergeht leere Regionen und ungültige Boxen und legt
   Kanten und Überlappungen nach research R11 zurecht.
 - Ein Drehhinweis führt genau einmal zu einem neuen Auftrag mit gedrehter Arbeitskopie.
-- Jeder Fehlercode ergibt eine Seite mit Original und den Hinweis aus dem Vertrag.
+- Jeder Fehlercode ergibt eine Seite mit dem Foto (Ebene „Foto“, zusätzlich als Anhang) und den Hinweis aus dem Vertrag.
 - Text, Bilder und Zelltexte werden gezeichnet, auch im Export; fehlende Assets zeigen einen Platzhalter.
 
 ## Handtest
 
-1. Notizbuch öffnen, „Foto importieren“ wählen, ein Foto aufnehmen oder auswählen. Das Original steht auf einer
-   sichtbaren, gesperrten Ebene.
+1. Notizbuch öffnen, „Foto importieren“ wählen, ein Foto aufnehmen oder auswählen. Die Seite zeigt nur den Entwurf;
+   das Original hängt als Anhang „Original“ an der Seite.
 2. Ein schlechtes Foto zeigt den Qualitätshinweis mit „Neu aufnehmen“ und „Trotzdem lesen“.
 3. Lesen starten. holzi fragt beim ersten Mal nach dem Modell; „Merken“ und erlauben. Der Entwurf zeigt Texte,
    die Tabelle mit Zeilen und Zellen und die Zeichnung als Bild; der Rechtschreibfehler ist korrigiert, Abkürzungen
@@ -43,13 +43,17 @@ Erwartet:
 4. Ein seitliches Foto lesen: Der Entwurf steht aufrecht, das Original ist unverändert gespeichert.
 5. Eine Zelle der Tabelle ändern, eine Zeile einfügen, die Zeichnung verschieben und vergrößern, einen Text ändern und
    den Handschriftstil wechseln.
-6. Zwischen Original, Entwurf und Vergleich umschalten; das Original bleibt Byte für Byte gleich.
+6. Den Anhang „Original“ öffnen: Er erscheint neben der Seite, mit Zoom, und bleibt Byte für Byte gleich; die Seite bleibt
+   bearbeitbar. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
+   speichern, neu öffnen, wieder entfernen. Die Seitenliste hat keinen zweiten Eintrag.
+   6b. Vorlage und Papierfarbe der Seite wechseln (kariert, Creme) und den Seitenrand ändern: Rückgängig stellt den alten
+   Stand her, nach Speichern und Öffnen steht er noch da.
    6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
    im Rechteck sind ersetzt, eigene Striche und das Original sind unverändert; Rückgängig stellt den alten Stand her.
    Abbrechen während des Lesens ändert nichts.
 7. Speichern, schließen, neu öffnen: Ebenen, Zellen, Positionen und Herkunft sind erhalten.
-8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung, Qualität und eingeblendetem
-   Original.
+8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung und Qualität: Die PDF zeigt
+   die Seite mit Papier und Rand, keinen Anhang.
 9. Ziel außerhalb des Geräts: In holzi den Server im Netz an die erste Stelle der Rangfolge setzen und lesen. holzi
    fragt vor dem Versand mit Ziel und Ort; „ablehnen“ ergibt eine Seite mit Original und den Hinweis zur Ablehnung.
 10. In holzi die Freigabe widerrufen und lesen: Der Hinweis nennt das fehlende Modell; der manuelle Canvas bleibt
