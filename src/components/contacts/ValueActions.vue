@@ -15,7 +15,7 @@ const props = defineProps<{
   label: string
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { isAndroid } = useDeviceCapabilities()
 
 const ICONS = {
@@ -36,7 +36,9 @@ const targets = computed(() =>
 
 async function copyAsync() {
   try {
-    await navigator.clipboard.writeText(displayValue(props.kind, props.value))
+    await navigator.clipboard.writeText(
+      displayValue(props.kind, props.value, locale.value),
+    )
     toast.success(t('contacts.copied', { what: props.label }))
   } catch {
     toast.error(t('contacts.copyFailed'))

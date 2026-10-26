@@ -25,7 +25,7 @@ const props = defineProps<{
 
 const selection = defineModel<ShareSelection>('selection', { required: true })
 
-const { t, d } = useI18n()
+const { t, d, locale } = useI18n()
 const { kindName, labelName } = useContactLabels()
 
 const headRows = computed(() =>
@@ -78,7 +78,7 @@ const foreignCard = computed(() =>
           />
           <span class="min-w-0 flex-1">
             <span class="block truncate">{{
-              displayValue(row.kind, row.value)
+              displayValue(row.kind, row.value, locale)
             }}</span>
             <span class="block text-sm text-muted-foreground">{{
               `${kindName(row.kind)} · ${labelName(row.label)}`

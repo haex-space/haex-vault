@@ -2934,7 +2934,7 @@
       "service": "Service",
       "handle": "Handle",
       "date": "Date",
-      "datePlaceholder": "YYYY-MM-DD or --MM-DD"
+      "datePlaceholder": "{full} or {short}"
     },
     "address": {
       "street": "Street",
@@ -3005,6 +3005,11 @@
       "start": "Select",
       "done": "Done",
       "count": "None selected | One selected | {count} selected"
+    },
+    "date": {
+      "day": "DD",
+      "month": "MM",
+      "year": "YYYY"
     },
     "card": {
       "confirmed": "Confirmed holzi addresses",
