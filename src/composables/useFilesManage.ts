@@ -323,7 +323,7 @@ export function useFilesManage(options: {
         if (!clip || !path.value) break
         // A refused paste stays on the clipboard, so it can go elsewhere.
         const started = await placeAsync(clip, path.value, readOnly.value)
-        if (started) transfers.clipboard = null
+        if (started && transfers.clipboard === clip) transfers.clipboard = null
         break
       }
       case 'rename':

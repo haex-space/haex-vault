@@ -145,6 +145,16 @@ enum Work {
     Remote { job: RemoteJob, plan: Arc<Plan> },
 }
 
+impl Work {
+    fn op(&self) -> TransferOp {
+        match self {
+            Self::Local { job, .. } => job.op,
+            Self::StorageDelete { .. } => TransferOp::Delete,
+            Self::Remote { plan, .. } => plan.op,
+        }
+    }
+}
+
 /// A transfer the manager knows: running, or failed and able to start again.
 struct Known {
     work: Work,
@@ -323,6 +333,9 @@ impl TransferManager {
     /// Holds a running transfer between two chunks, or lets it go on; tells the window.
     pub fn pause(&self, id: &str, paused: bool) {
         if let Some(known) = self.known().get(id) {
+            if known.work.op() == TransferOp::Delete {
+                return;
+            }
             known.pause.set(paused);
             let _ = known.channel.send(TransferEvent::Paused { paused });
         }
