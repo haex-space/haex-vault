@@ -1,41 +1,47 @@
 use super::*;
+use crate::contacts::card::own_card;
 use crate::contacts::model::OriginKind;
 use crate::contacts::service::test_support::{card_vault, person, value, TestVault};
+use crate::sync::keys;
 
 /// Ben's card, renewed once more each call (a later `issued_at`).
 async fn bens_card(ben: &TestVault) -> String {
     ben.db
         .write_blocking(|tx| own_card::refresh(tx).map_err(haex_crdt::Error::from))
         .expect("refresh");
-    ben.service
-        .own_card(&Caller::User)
-        .await
-        .expect("own card")
-        .text
+    ben.db
+        .read_blocking(|q| own_card::stored_text(q).map_err(haex_crdt::Error::from))
+        .expect("read")
         .expect("a card")
+}
+
+/// Ben's card with a name and values of his own, signed by his vault: what an older version of
+/// holzi handed out, which `holzi:card:` text still reads.
+async fn bens_card_with(ben: &TestVault, name: &str, values: Vec<format::CardValue>) -> String {
+    let text = bens_card(ben).await;
+    let mut card = format::parse(&text).expect("a card").card;
+    card.name = name.to_owned();
+    card.values = values;
+    let secret = ben
+        .db
+        .read_blocking(|q| keys::vault_secret(q))
+        .expect("read")
+        .expect("a main device");
+    format::sign(card, &secret).expect("sign").0.text()
 }
 
 async fn ben_with_values() -> (TestVault, String) {
     let ben = card_vault();
-    let own = ben
-        .service
-        .create(
-            &Caller::User,
-            &[],
-            person(
-                "Ben",
-                "Krüger",
-                vec![value("email", "work", "ben@example.org")],
-            ),
-        )
-        .await
-        .expect("create");
-    let email = own.values[0].id.clone();
-    ben.service
-        .own_card_set(&Caller::User, Some(own.id), vec![email])
-        .await
-        .expect("set");
-    let text = bens_card(&ben).await;
+    let text = bens_card_with(
+        &ben,
+        "Ben Krüger",
+        vec![format::CardValue {
+            kind: "email".to_owned(),
+            label: "work".to_owned(),
+            value: "ben@example.org".to_owned(),
+        }],
+    )
+    .await;
     (ben, text)
 }
 
@@ -252,7 +258,14 @@ async fn only_the_user_reads_cards_in() {
         .card_preview(&Caller::BuiltinAgent, "holzi:card:x".into())
         .await
         .is_err());
-    assert!(mara.service.own_card(&Caller::BuiltinAgent).await.is_err());
+    assert!(mara
+        .service
+        .share_options(
+            &Caller::BuiltinAgent,
+            crate::contacts::ids::SELF_CONTACT_ID.to_owned()
+        )
+        .await
+        .is_err());
 }
 
 /// Spec 057 T013: holzi's handshakes find a vault's card, a blocked vault is told apart from an

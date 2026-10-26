@@ -35,19 +35,19 @@ Erwartet: alles grün; `pnpm check:e2e-exclusions` ohne neue Ausnahme.
 
 ## Szenarien der E2E-Läufe (Bezug zur Spec)
 
-| Szenario                       | Prüft                                                         |
-| ------------------------------ | ------------------------------------------------------------- |
-| `contacts-basic`               | US1: anlegen, eigene Angabe, suchen, ändern, löschen          |
-| `contacts-two-devices`         | US1-4: Änderung und Löschung kommen auf dem zweiten Gerät an  |
-| `android-contacts-import`      | US2-1/2: Übersicht, 2 Konten, Anzahl und Inhalt               |
-| `android-contacts-denied`      | US2-6: Berechtigung verweigert, Erklärung                     |
-| `android-contacts-two-way`     | US2-3/4/5/7: Änderungen in beide Richtungen, Ausschalten      |
-| `android-contacts-desktop`     | US3-1/2/4/6: Telefon und Laptop, Ziele vom Laptop             |
-| `android-contacts-targets`     | US3-4/5: Ziel entfernen (löschen/behalten), Mehrfachauswahl   |
-| `android-contacts-mass-delete` | FR-016: Konto weg, Berechtigung weg, > 10 % gelöscht          |
-| `contacts-card`                | US4-1/2/3/4/5: Karte zeigen, einlesen, ungültig, älter, neuer |
-| `extension-contacts`           | US5: ohne, mit, nur Gruppe                                    |
-| `agent-contacts`               | US6-1/2/3 über den eingebauten Agenten                        |
+| Szenario                       | Prüft                                                               |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `contacts-basic`               | US1: anlegen, eigene Angabe, suchen, ändern, löschen                |
+| `contacts-two-devices`         | US1-4: Änderung und Löschung kommen auf dem zweiten Gerät an        |
+| `android-contacts-import`      | US2-1/2: Übersicht, 2 Konten, Anzahl und Inhalt                     |
+| `android-contacts-denied`      | US2-6: Berechtigung verweigert, Erklärung                           |
+| `android-contacts-two-way`     | US2-3/4/5/7: Änderungen in beide Richtungen, Ausschalten            |
+| `android-contacts-desktop`     | US3-1/2/4/6: Telefon und Laptop, Ziele vom Laptop                   |
+| `android-contacts-targets`     | US3-4/5: Ziel entfernen (löschen/behalten), Mehrfachauswahl         |
+| `android-contacts-mass-delete` | FR-016: Konto weg, Berechtigung weg, > 10 % gelöscht                |
+| `contacts-share`               | US4-1/2/3/4/5: Karte teilen, einlesen, ungültig, älter, neuer (060) |
+| `extension-contacts`           | US5: ohne, mit, nur Gruppe                                          |
+| `agent-contacts`               | US6-1/2/3 über den eingebauten Agenten                              |
 
 Kontakte für Android-Szenarien legt `PhoneControls.insertContact` über
 `adb shell content insert --uri content://com.android.contacts/raw_contacts …` an; jedes Szenario

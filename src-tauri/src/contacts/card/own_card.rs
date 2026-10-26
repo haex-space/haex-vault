@@ -1,108 +1,23 @@
-//! The vault's own Visitenkarte (spec 051 FR-009, FR-010, research R12). Only a main device holds
-//! the vault secret and signs it; the newest card lies in the synced `haex_contacts_own_card`, so a
-//! linked device shows it too. A main device makes a new card when the device list changes (each
-//! place that signs a list calls [`refresh`] in the same transaction), when the Nostr-Relays
-//! change and when the person changes what the card carries.
+//! The vault's own Visitenkarte (spec 051 FR-009, FR-010, research R12; spec 060). Only a main device
+//! holds the vault secret and signs one. A main device keeps the newest card in the synced
+//! `haex_contacts_own_card` (made when the device list or the Nostr-Relays change); a share of the
+//! own contact signs a fresh card with only the devices and relays the person chose and stores
+//! nothing (spec 060 FR-008, FR-016).
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
-use super::format::{self, CardDevice, CardValue, ContactCard, VERSION};
-use crate::contacts::kinds;
-use crate::contacts::store as contacts_store;
+use super::format::{self, CardDevice, ContactCard, SignedCard, VERSION};
+use crate::contacts::model::Head;
+use crate::contacts::share::name::name_for;
+use crate::contacts::{ids, store as contacts_store};
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
-use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 use crate::sync::{device_list, keys, presence, servers};
-
-/// The vault setting with the id of the person's own contact.
-pub const PREF_OWN_CONTACT: &str = "contacts.card.own_contact";
-/// The vault setting with the ids of the own contact's values the card carries (JSON list).
-pub const PREF_VALUES: &str = "contacts.card.values";
-
-/// The own card as the window shows it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
-#[ts(
-    export,
-    export_to = "../../src/types/bindings/",
-    rename = "ContactsOwnCard"
-)]
-#[serde(rename_all = "camelCase")]
-pub struct OwnCard {
-    /// The card as text; `None` before a main device made one.
-    pub text: Option<String>,
-    pub qr_svg: Option<String>,
-    pub issued_at: Option<String>,
-    /// This device holds the vault secret and makes the card.
-    pub can_sign: bool,
-    /// Chosen values that did not fit the card.
-    pub omitted: Vec<String>,
-    /// The person's own contact and the values the card carries.
-    pub own_contact: Option<String>,
-    pub value_ids: Vec<String>,
-}
-
-/// What the card carries, as the person chose.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Choice {
-    pub own_contact: Option<String>,
-    pub value_ids: Vec<String>,
-}
-
-pub fn choice(q: &mut impl Query) -> Result<Choice> {
-    let own_contact = preferences::get(q, PrefScope::Vault, PREF_OWN_CONTACT)?;
-    let value_ids = preferences::get(q, PrefScope::Vault, PREF_VALUES)?
-        .and_then(|json| serde_json::from_str(&json).ok())
-        .unwrap_or_default();
-    Ok(Choice {
-        own_contact,
-        value_ids,
-    })
-}
-
-pub fn set_choice(tx: &mut CrdtTransaction<'_>, choice: &Choice) -> Result<()> {
-    match &choice.own_contact {
-        Some(id) => {
-            preferences::insert_or_update(tx, PrefScope::Vault, PREF_OWN_CONTACT, id)?;
-        }
-        None => {
-            preferences::delete(tx, PrefScope::Vault, PREF_OWN_CONTACT)?;
-        }
-    }
-    let json = serde_json::to_string(&choice.value_ids).unwrap_or_default();
-    preferences::insert_or_update(tx, PrefScope::Vault, PREF_VALUES, &json)?;
-    Ok(())
-}
-
-/// Name and values of the own contact for the card; empty without one.
-fn own_part(q: &mut impl Query, choice: &Choice) -> Result<(String, Vec<CardValue>)> {
-    let Some(id) = &choice.own_contact else {
-        return Ok((String::new(), Vec::new()));
-    };
-    let contact = match contacts_store::load(q, id) {
-        Ok(contact) => contact,
-        Err(HolziError::ContactsNotFound) => return Ok((String::new(), Vec::new())),
-        Err(error) => return Err(error),
-    };
-    let values = choice
-        .value_ids
-        .iter()
-        .filter_map(|wanted| contact.values.iter().find(|value| &value.id == wanted))
-        .filter(|value| kinds::is_known(&value.kind) && !kinds::is_holzi_address(&value.kind))
-        .map(|value| CardValue {
-            kind: value.kind.clone(),
-            label: value.label.clone(),
-            value: value.value.clone(),
-        })
-        .collect();
-    Ok((contact.name, values))
-}
 
 fn unix_seconds() -> u64 {
     SystemTime::now()
@@ -112,7 +27,7 @@ fn unix_seconds() -> u64 {
 }
 
 /// The stored own card, decoded.
-fn stored(q: &mut impl Query) -> Result<Option<format::SignedCard>> {
+pub(crate) fn stored(q: &mut impl Query) -> Result<Option<format::SignedCard>> {
     let bytes: Option<Vec<u8>> = q.query_row(
         "SELECT card FROM haex_contacts_own_card WHERE id = 1",
         &[],
@@ -121,20 +36,36 @@ fn stored(q: &mut impl Query) -> Result<Option<format::SignedCard>> {
     Ok(bytes.and_then(|bytes| format::from_bytes(bytes).ok()))
 }
 
-/// Makes and stores a new own card, on a main device; a linked device does nothing.
-pub fn refresh(tx: &mut CrdtTransaction<'_>) -> Result<()> {
-    let Some(secret) = keys::vault_secret(tx)? else {
-        return Ok(());
+/// The stored own card as `holzi:card:` text, for tests that hand it to another vault.
+#[cfg(test)]
+pub(crate) fn stored_text(q: &mut impl Query) -> Result<Option<String>> {
+    Ok(stored(q)?.map(|card| card.text()))
+}
+
+/// What a card of this vault can name: the identity, the effective device list's generation, the
+/// devices and the Nostr-Relays, as they are now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Addresses {
+    pub vault: [u8; 32],
+    pub list_generation: u64,
+    pub devices: Vec<CardDevice>,
+    /// The `vault_device_uuid` of each device, in the same order.
+    pub device_uuids: Vec<String>,
+    pub nostr_relays: Vec<String>,
+}
+
+/// The addresses a card of this vault carries; `None` while the vault has no identity or no valid
+/// device list yet.
+pub fn addresses(q: &mut impl Query) -> Result<Option<Addresses>> {
+    let Some(vault) = keys::vault_pubkey(q)? else {
+        return Ok(None);
     };
-    let Some(vault) = keys::vault_pubkey(tx)? else {
-        return Ok(());
-    };
-    let rows = device_list::load_all(tx)?;
+    let rows = device_list::load_all(q)?;
     let valid = device_list::valid_lists(&rows, &vault);
     let Some(list) = device_list::effective(&valid) else {
-        return Ok(());
+        return Ok(None);
     };
-    let relays: BTreeMap<[u8; 32], String> = presence::load_all(tx)?
+    let relays: BTreeMap<[u8; 32], String> = presence::load_all(q)?
         .into_iter()
         .filter_map(|seen| {
             let relay = seen.endpoint_addr?.relay_urls().next()?.to_string();
@@ -151,23 +82,120 @@ pub fn refresh(tx: &mut CrdtTransaction<'_>) -> Result<()> {
             iroh_relay: relays.get(&device.device_pubkey).cloned(),
         })
         .collect();
-    let mut nostr_relays = servers::read(tx)?.effective_nostr_relays();
+    let mut nostr_relays = servers::read(q)?.effective_nostr_relays();
     nostr_relays.truncate(format::MAX_RELAYS);
-    let chosen = choice(tx)?;
-    let (name, values) = own_part(tx, &chosen)?;
+    Ok(Some(Addresses {
+        vault,
+        list_generation: list.list.generation,
+        devices,
+        device_uuids: list
+            .list
+            .devices
+            .iter()
+            .map(|device| device.vault_device_uuid.to_string())
+            .collect(),
+        nostr_relays,
+    }))
+}
+
+fn invalid(reason: &str) -> HolziError {
+    HolziError::ShareInvalid {
+        reason: reason.to_owned(),
+    }
+}
+
+/// The card of this vault with the devices and relays named, or with all of them for `None`. A
+/// device or relay the vault does not have is [`HolziError::ShareInvalid`]. The card carries no
+/// values; its `name` is the name of a share of the own contact (spec 060 FR-011). `None` while
+/// the vault has no addresses yet.
+pub fn build_card(
+    q: &mut impl Query,
+    devices: Option<&[[u8; 32]]>,
+    relays: Option<&[String]>,
+) -> Result<Option<ContactCard>> {
+    let Some(known) = addresses(q)? else {
+        return Ok(None);
+    };
+    let chosen_devices = match devices {
+        None => known.devices.clone(),
+        Some(wanted) => wanted
+            .iter()
+            .map(|key| {
+                known
+                    .devices
+                    .iter()
+                    .find(|device| &device.device_pubkey == key)
+                    .cloned()
+                    .ok_or_else(|| invalid("a device is not on the device list"))
+            })
+            .collect::<Result<Vec<_>>>()?,
+    };
+    let chosen_relays = match relays {
+        None => known.nostr_relays.clone(),
+        Some(wanted) => wanted
+            .iter()
+            .map(|url| {
+                known
+                    .nostr_relays
+                    .contains(url)
+                    .then(|| url.clone())
+                    .ok_or_else(|| invalid("a relay is not one of the vault's"))
+            })
+            .collect::<Result<Vec<_>>>()?,
+    };
+    // The own contact is there in every vault; a missing one must not stop a card.
+    let head = match contacts_store::load(q, ids::SELF_CONTACT_ID) {
+        Ok(contact) => contact.head,
+        Err(HolziError::ContactsNotFound) => Head::default(),
+        Err(error) => return Err(error),
+    };
+    let (name, _) = name_for(&head, Some(known.vault));
+    Ok(Some(ContactCard {
+        version: VERSION,
+        vault: known.vault,
+        issued_at: 0,
+        list_generation: known.list_generation,
+        devices: chosen_devices,
+        nostr_relays: chosen_relays,
+        name,
+        values: Vec::new(),
+    }))
+}
+
+/// A card for one share: signed now with only the devices and relays chosen, never stored, and
+/// without the 2,048 characters of a QR code of its own (the limit is that of the whole share). A
+/// linked device has no vault secret and gives `None`.
+pub fn build_for_share(
+    q: &mut impl Query,
+    devices: &[[u8; 32]],
+    relays: &[String],
+) -> Result<Option<SignedCard>> {
+    let Some(secret) = keys::vault_secret(q)? else {
+        return Ok(None);
+    };
+    let Some(mut card) = build_card(q, Some(devices), Some(relays))? else {
+        return Ok(None);
+    };
+    // A later `issued_at` than any card this vault made before, so a receiver never takes it for
+    // an older one (spec 051 FR-012).
+    let previous = stored(q)?.map_or(0, |card| card.card.issued_at);
+    card.issued_at = unix_seconds().max(previous + 1);
+    let (signed, _) = format::sign_with(card, &secret, None)?;
+    Ok(Some(signed))
+}
+
+/// Makes and stores a new own card, on a main device; a linked device does nothing.
+pub fn refresh(tx: &mut CrdtTransaction<'_>) -> Result<()> {
+    let Some(secret) = keys::vault_secret(tx)? else {
+        return Ok(());
+    };
+    let Some(mut card) = build_card(tx, None, None)? else {
+        return Ok(());
+    };
     // A newer card replaces an older one only with a later `issued_at` (FR-012).
     let previous = stored(tx)?.map_or(0, |card| card.card.issued_at);
     let issued_at = unix_seconds().max(previous + 1);
-    let card = ContactCard {
-        version: VERSION,
-        vault,
-        issued_at,
-        list_generation: list.list.generation,
-        devices,
-        nostr_relays,
-        name,
-        values,
-    };
+    card.issued_at = issued_at;
     let (signed, _omitted) = format::sign(card, &secret)?;
     let at = clock::format_millis(i64::try_from(issued_at.saturating_mul(1000)).unwrap_or(0));
     let updated = tx.execute(
@@ -189,43 +217,6 @@ pub fn refresh_quietly(tx: &mut CrdtTransaction<'_>) {
     if let Err(error) = refresh(tx) {
         log::warn!("contacts: the own business card was not renewed: {error}");
     }
-}
-
-/// The own card as the window shows it.
-pub fn read(q: &mut impl Query) -> Result<OwnCard> {
-    let can_sign = keys::vault_secret(q)?.is_some();
-    let choice = choice(q)?;
-    let card = stored(q)?;
-    let (_, chosen) = own_part(q, &choice)?;
-    let (text, qr_svg, issued_at, omitted) = match card {
-        Some(card) => {
-            let text = card.text();
-            let omitted = chosen
-                .into_iter()
-                .filter(|value| !card.card.values.contains(value))
-                .map(|value| value.value)
-                .collect();
-            let at = clock::format_millis(
-                i64::try_from(card.card.issued_at.saturating_mul(1000)).unwrap_or(0),
-            );
-            (
-                Some(text.clone()),
-                Some(format::qr_svg(&text)?),
-                Some(at),
-                omitted,
-            )
-        }
-        None => (None, None, None, Vec::new()),
-    };
-    Ok(OwnCard {
-        text,
-        qr_svg,
-        issued_at,
-        can_sign,
-        omitted,
-        own_contact: choice.own_contact,
-        value_ids: choice.value_ids,
-    })
 }
 
 #[cfg(test)]

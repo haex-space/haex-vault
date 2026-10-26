@@ -10,6 +10,7 @@
 mod cards;
 mod contacts;
 mod groups;
+mod share;
 mod targets;
 #[cfg(test)]
 pub(crate) mod test_support;
