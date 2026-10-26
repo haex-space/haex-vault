@@ -24,9 +24,9 @@ Das Element `latex` gibt es im Dokumentmodell seit der ersten Fassung (`app/type
 LaTeX-Quelle (bleibt editierbar), `svg` das gesetzte Ergebnis in `currentColor`, `color` die Tinte, dazu `x`, `y`,
 `width`, `height` und `rotation` wie beim Bild. Neu ist, dass es erzeugt, gezeichnet und bearbeitet wird:
 
-- Eine Region `formula` wird zu einem `latex`-Element auf der Ebene „Text“. Höhe und Breite folgen dem gesetzten
-  SVG und der Box der Region: Das SVG wird auf die Höhe der Box gebracht und, wenn es dann breiter ist als die Box,
-  auf deren Breite verkleinert; es wird nie über seine natürliche Größe hinaus vergrößert.
+- Eine Region `formula` wird zu einem `latex`-Element auf der Ebene „Text“. Das gesetzte SVG steht in der
+  Schriftgröße, die ein einzeiliger Textblock der Höhe der Box hätte (`fontSizeFor`), und wird verkleinert, wenn es
+  dann breiter ist als die Box; es wird nie vergrößert. Es steht in der Box senkrecht mittig.
 - Lässt sich die Quelle nicht setzen, entsteht stattdessen ein `text`-Element mit der Quelle (FR-030).
 - Eine Tabellenzelle, deren ganzer Inhalt `$…$` ist, wird im Zellraster als gesetzte Formel gezeichnet; das SVG wird
   dabei nicht gespeichert, sondern beim Zeichnen aus der Zelle gesetzt (Zwischenspeicher je Quelle). Der Zelltext
