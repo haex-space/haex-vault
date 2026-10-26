@@ -101,7 +101,7 @@ pub fn validate(
 }
 
 /// The place with a normalised path: a device path absolute without a trailing `/`, a storage
-/// path as a folder key (`Fotos/`, or empty for the root).
+/// path as a window path (`/Fotos`, or `/` for the root).
 fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace, SyncRuleError> {
     let invalid = |reason: &str| SyncRuleError::new(SyncRuleErrorCode::InvalidPlace, reason);
     if is_contact_share(&place.source) {
@@ -127,12 +127,7 @@ fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace,
             }
         }
         SourceRef::Storage { .. } => {
-            let trimmed = place.path.trim_matches('/');
-            if trimmed.is_empty() {
-                String::new()
-            } else {
-                format!("{trimmed}/")
-            }
+            format!("/{}", place.path.trim_matches('/'))
         }
     };
     Ok(SyncRulePlace {
@@ -151,7 +146,11 @@ fn overlap(a: &SyncRulePlace, b: &SyncRulePlace) -> bool {
             let (a, b) = (Path::new(&a.path), Path::new(&b.path));
             a.starts_with(b) || b.starts_with(a)
         }
-        SourceRef::Storage { .. } => a.path.starts_with(&b.path) || b.path.starts_with(&a.path),
+        SourceRef::Storage { .. } => {
+            let folder = |path: &str| format!("{}/", path.trim_end_matches('/'));
+            let (a, b) = (folder(&a.path), folder(&b.path));
+            a.starts_with(&b) || b.starts_with(&a)
+        }
     }
 }
 

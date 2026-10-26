@@ -70,7 +70,7 @@ fn a_good_rule_is_normalised() {
     )
     .expect("accepted");
     assert_eq!(got.place_a, device("/home/anna/Fotos"));
-    assert_eq!(got.place_b, storage("s3", "Backup/Fotos/"));
+    assert_eq!(got.place_b, storage("s3", "/Backup/Fotos"));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn b_to_a_is_stored_as_a_to_b_with_swapped_places() {
     d.direction = SyncRuleDirection::BToA;
     let got = validate(d, &[], &own()).expect("accepted");
     assert_eq!(got.direction, SyncRuleDirection::AToB);
-    assert_eq!(got.place_a, storage("s3", "x/"));
+    assert_eq!(got.place_a, storage("s3", "/x"));
     assert_eq!(got.place_b, device("/home/a"));
 }
 
@@ -163,10 +163,11 @@ fn the_two_places_of_one_rule_must_not_overlap() {
 
 #[test]
 fn a_place_must_not_overlap_another_rule_also_crosswise() {
+    // Stored rules are normalised (window paths).
     let others = [stored_rule(
         "Alt",
         device("/home/a"),
-        storage("s3", "Fotos/"),
+        storage("s3", "/Fotos"),
     )];
     assert_eq!(
         code(validate(
