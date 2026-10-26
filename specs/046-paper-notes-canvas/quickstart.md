@@ -44,7 +44,7 @@ Erwartet:
 5. Eine Zelle der Tabelle ändern, eine Zeile einfügen, die Zeichnung verschieben und vergrößern, einen Text ändern und
    den Handschriftstil wechseln.
 6. Den Anhang „Original“ öffnen: Er erscheint neben der Seite, mit Zoom, und bleibt Byte für Byte gleich; die Seite bleibt
-   bearbeitbar. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
+   bearbeitbar. Im Vollbild öffnen: Es ist nur der Anhang zu sehen, weder die Seite noch das Original. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
    speichern, neu öffnen, wieder entfernen. Die Seitenliste hat keinen zweiten Eintrag.
    6b. Vorlage und Papierfarbe der Seite wechseln (kariert, Creme) und den Seitenrand ändern: Rückgängig stellt den alten
    Stand her, nach Speichern und Öffnen steht er noch da.
