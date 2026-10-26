@@ -22,6 +22,7 @@ use crate::files::{FilesError, FilesErrorCode};
 pub struct DevicePlace {
     root: PathBuf,
     /// Mirrored deletions go to the system's trash (desktops); otherwise to the rule trash.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     system_trash: bool,
 }
 
@@ -29,6 +30,7 @@ impl DevicePlace {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
             root: root.into(),
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             system_trash: cfg!(not(any(target_os = "android", target_os = "ios"))),
         }
     }
@@ -38,6 +40,7 @@ impl DevicePlace {
     pub fn with_rule_trash(root: impl Into<PathBuf>) -> Self {
         Self {
             root: root.into(),
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             system_trash: false,
         }
     }
@@ -273,8 +276,6 @@ impl Place for DevicePlace {
             if place.system_trash && trash::delete(&at).is_ok() {
                 return Ok(Trashed::System);
             }
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            let _ = &place;
             move_file(&at, &target)?;
             Ok(Trashed::Rule(rule))
         })
