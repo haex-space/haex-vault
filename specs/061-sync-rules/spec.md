@@ -360,10 +360,11 @@ löschen.
 - **FR-008**: Eine Datei MUSS als geändert gelten, wenn sich Größe oder Änderungszeit gegenüber dem Stand
   derselben Seite unterscheiden. Die Änderungszeiten verschiedener Seiten DÜRFEN NICHT zur Erkennung
   von Änderungen verglichen werden.
-- **FR-009**: Eine verschwundene und eine neue Datei mit gleicher Größe und gleicher Änderungszeit MÜSSEN
-  als Verschiebung oder Umbenennung gelten und auf der Gegenseite als solche ausgeführt werden, statt
-  gelöscht und neu kopiert zu werden. Nur bei mehreren nicht eindeutig zuordenbaren Kandidaten DARF
-  holzi eine Prüfsumme bilden.
+- **FR-009**: Eine verschwundene und eine neue Datei mit gleicher Größe und gleicher Änderungszeit DARF holzi
+  nur dann als Verschiebung oder Umbenennung behandeln, wenn eine verlässliche Dateiidentität oder der Inhalt
+  bestätigt wurde. Bei mehreren nicht eindeutig zuordenbaren Kandidaten MUSS holzi eine Prüfsumme zur
+  Disambiguierung bilden. Ohne diese Bestätigung MUSS holzi die Dateien als neue bzw. verschwundene Dateien nach
+  dem gewählten Löschmodus behandeln.
 - **FR-010**: Bei einer einseitigen Regel MUSS ein Abgleich nur Änderungen vom Quellort zum Zielort
   übertragen. Eine Änderung im Zielort DARF er NICHT überschreiben; er MUSS sie im Regelstatus melden.
 - **FR-011**: Bei einer beidseitigen Regel MUSS ein Abgleich Änderungen in beide Richtungen übertragen.
@@ -398,8 +399,10 @@ löschen.
   sie dort bewusst bleibt, damit sie nicht zurückkopiert wird.
 - **FR-021**: Der Löschmodus „Nachfragen“ MUSS die anstehenden Löschungen mit ihrer Zahl im Regelstatus
   auflisten und erst nach Bestätigung des Nutzers ausführen; der Nutzer MUSS verwerfen können.
-- **FR-022**: Meldet ein Ort eine leere Liste oder fehlt sein Wurzelordner, MUSS der Abgleich mit „Ort
-  nicht erreichbar“ abbrechen. Eine leere Liste DARF NIE als „alles gelöscht“ gelten.
+- **FR-022**: Fehlt der Wurzelordner, ist er nicht lesbar oder meldet ein Ort `Unreachable`, MUSS der Abgleich
+  mit „Ort nicht erreichbar“ abbrechen. Eine verifizierte, absichtlich leere Zielseite ist beim ersten Abgleich
+  ohne vorhandenen Stand zulässig. Eine leere Liste bei einem bereits bekannten Ort DARF dagegen NIE als „alles
+  gelöscht“ gelten, sondern muss den Abgleich ebenfalls geschlossen abbrechen.
 
 **Fehler und Status**
 
@@ -458,7 +461,9 @@ löschen.
 - **FR-039**: Die Ausnahmedatei MUSS wie jede andere Datei abgeglichen werden (bei einer
   einseitigen Regel vom Quellort zum Zielort, bei einer beidseitigen in beide Richtungen mit
   Konfliktkopie). Angewendet MUSS die Vereinigung der Muster beider Orte werden: Eine Datei ist
-  ausgenommen, sobald das Muster einer der beiden Seiten sie trifft.
+  ausgenommen, sobald das Muster einer der beiden Seiten sie trifft. Bei einem Konflikt müssen beide
+  ursprünglichen Dateien als Konfliktkopien erhalten bleiben; anschließend wird die Vereinigung als aktive
+  `.haex-ignore`-Datei auf beiden Seiten hergestellt und bei allen folgenden Läufen weiter angewendet.
 - **FR-040**: Eine Datei, die nachträglich ausgenommen wird, MUSS an beiden Orten unberührt bleiben und
   aus dem Stand fallen. Ein Abgleich DARF sie wegen der Ausnahme weder löschen noch kopieren.
   Wird eine Ausnahme später aufgehoben, gilt die Datei für den nächsten Abgleich als neu (FR-012a bei

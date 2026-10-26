@@ -21,9 +21,10 @@ flaky under load; not related.
 
 **Organization**: Grouped by user story in priority order (P1: US1, US2; P2: US3, US4; P3: US5).
 
-**Shipping note**: PR A = Phase 1 + Phase 2 (foundation, no visible change); PR B = US1; PR C = US2;
-PR D = US3; PR E = US4; PR F = US5 + Polish. Each PR is reviewed and merged before the next one starts on top
-of `main`. Work in `.worktrees/061-sync-rules` (other sessions switch branches in the main checkout). The
+**Shipping note**: PR A = Phase 1 + Phase 2 (foundation, no visible change); PR B = US1; PR C = US2 plus the
+mirror-delete prerequisite T044/T047; PR D = the remaining US3 work (T048–T051); PR E = US4; PR F = US5 + Polish.
+Each PR is reviewed and merged before the next one starts on top of `main`. Work in `.worktrees/061-sync-rules`
+(other sessions switch branches in the main checkout). The
 documentation PR #580 (design, spec, plan, tasks) lands first.
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -68,7 +69,7 @@ offered in the UI yet; every later story builds on these.
 
 ### Exclusions and plan types
 
-- [ ] T018 Exclusion matcher in a new `src-tauri/src/file_sync/ignore.rs`: `Matcher::new(a_text, b_text)` builds two `GitignoreBuilder`s, adds the fixed exclusions, evaluates `matched_path_or_any_parents`, never excludes `.haex-ignore`, collects line errors with line numbers, caps 64 KiB / 2 000 lines (contracts/ignore-file.md). Tests in `ignore_tests.rs`: negation, directory-only, anchored, nested parent, union of both sides, fixed exclusions (`.holzi-trash/`, `.*.holzi-part-*`, `.DS_Store`), bad line skipped and reported, size cap.
+- [ ] T018 Exclusion matcher in a new `src-tauri/src/file_sync/ignore.rs`: `Matcher::new(a_text, b_text)` builds two `GitignoreBuilder`s, adds the fixed exclusions, evaluates `matched_path_or_any_parents`, never excludes `.haex-ignore`, collects line errors with line numbers, rejects files over 64 KiB / 2 000 lines and fails the run closed for an existing oversized file (contracts/ignore-file.md). Tests in `ignore_tests.rs`: negation, directory-only, anchored, nested parent, union of both sides, fixed exclusions (`.holzi-trash/`, `.*.holzi-part-*`, `.DS_Store`), bad line skipped and reported, rejected editor write, oversized file abort.
 - [ ] T019 Plan types in a new `src-tauri/src/file_sync/plan.rs`: `Step` (`Copy`, `Move`, `Delete`, `Conflict`, `Adopt`, `Skip`, `Report`), `Plan { steps, counts, hash_reads, ignored }`, `build` signature `build(rule, left: &Facts, right: &Facts, state: &State, ignore: &Matcher, hashes: &dyn Fn(Side, &str) -> Option<Hash>) -> Plan` with the step order of research R3 (folders, moves, copies and conflict copies, deletions last); `todo!()`-free skeleton that returns an empty plan, so US1 to US3 fill the rows.
 
 **Checkpoint**: `cargo test -j 4 --lib file_sync::` and `identity::migrations_sync_rules` green; nothing visible yet.
@@ -85,13 +86,13 @@ rules list in the file browser can create, run and delete a rule.
 
 ### Tests (write first)
 
-- [ ] T020 [P] [US1] Plan tests (one-way rows) in `src-tauri/src/file_sync/plan_tests.rs`: new → copy, changed → copy, unchanged → nothing, target changed → `Report` and no overwrite (FR-010), deleted at source with `keep` → nothing and `kept` stays, move on the source side found by size and time (FR-009), ignored paths absent from the plan.
+- [ ] T020 [P] [US1] Plan tests (one-way rows) in `src-tauri/src/file_sync/plan_tests.rs`: new → copy, changed → copy, unchanged → nothing, target changed → `Report` and no overwrite (FR-010), deleted at source with `keep` → nothing and `kept` stays, move on the source side found by size and time only after identity/content verification (FR-009), ignored paths absent from the plan.
 - [ ] T021 [P] [US1] Engine tests in `src-tauri/src/file_sync/execute_tests.rs` and `run_tests.rs` with `MemPlace` and a temp folder: first run copies everything, second run copies nothing, abort after the third of five copies leaves state only for the finished ones and no half file (SC-005, FR-014, FR-015), the target's measured time is stored (not the source's), a failing file does not stop the run and is retried next run (FR-023), symlinks are skipped and listed (FR-018).
 
 ### Implementation
 
-- [ ] T022 [US1] Plan rows for one-way in `plan.rs` (`build`): scan against state, moves by size and time with a hash only for ambiguous pairs (FR-009), `Report` for target deviations, `kept` handling. Pure; keep every decision in this function (one implementation per rule).
-- [ ] T023 [US1] Scan in a new `src-tauri/src/file_sync/scan.rs`: list both sides in parallel, read both `.haex-ignore` through `read_text`, build `Matcher`, return `Facts` and ignore errors; an empty listing or a missing root returns `PlaceError::Unreachable` (FR-022, used fully in US3).
+- [ ] T022 [US1] Plan rows for one-way in `plan.rs` (`build`): scan against state, moves by size and time only after reliable identity/content verification (hash when needed), `Report` for target deviations, `kept` handling. Pure; keep every decision in this function (one implementation per rule).
+- [ ] T023 [US1] Scan in a new `src-tauri/src/file_sync/scan.rs`: list both sides in parallel, read both `.haex-ignore` through `read_text`, build `Matcher`, return `Facts` and ignore errors; a missing/unreadable root or `Unreachable` returns `PlaceError::Unreachable`, while a verified empty target is allowed on the first run without state; an empty known place remains protected (FR-022, used fully in US3).
 - [ ] T024 [US1] Executor in a new `src-tauri/src/file_sync/execute.rs`: run steps in plan order, `Copy` through `copy_file` into a temp name and rename (FR-014), measure the target afterwards (`stat`), write the state row in one transaction after each step (FR-015), `Move` through `rename`, collect failures per file without stopping (FR-023); honour the cancel token between steps and pass it into `copy_file`.
 - [ ] T025 [US1] One run in a new `src-tauri/src/file_sync/run.rs`: scan → plan → execute → write result to the rule row; return `Outcome { done, partial, waiting, error, cancelled }` with counters. Tests in `run_tests.rs` (T021).
 - [ ] T026 [US1] Service and scheduling in a new `src-tauri/src/file_sync/schedule.rs` and `mod.rs` (`FileSyncState`, `start_for_active_instance`): one control task per vault session with a timer per active rule (interval, 60 min safety net for local places), "due" marker when a run is active, at most 2 runs at once, every active rule due once at start (catch up), cancel on `gate.token()` (research R8). Register `crate::file_sync::start_for_active_instance(&app, &state)` in `src-tauri/src/instances/open.rs` **and** `src-tauri/src/instances/import.rs` (memory: both starts), and manage `FileSyncState` in `lib.rs`.
@@ -100,7 +101,7 @@ rules list in the file browser can create, run and delete a rule.
 - [ ] T029 [US1] Commands in a new `src-tauri/src/file_sync/commands.rs`: `sync_rules_list`, `sync_rules_create`, `sync_rules_update`, `sync_rules_delete`, `sync_rules_set_enabled`, `sync_rules_run_now`, `sync_rules_cancel`; register in the single `generate_handler![…]` in `src-tauri/src/lib.rs` behind `gate.wrap(...)`. Update drops state when places or direction change; delete leaves files untouched (FR-006). Tests in `commands_tests.rs` for create/validate/update/delete.
 - [ ] T030 [P] [US1] Composable and store: `src/composables/useSyncRules.ts` (all `invoke('sync_rules_*')`) and `src/stores/syncRules.ts` after `src/stores/syncDevices.ts` (listen/stop, generation counter, coalescing load; classify each ref on remount: dialog and error state reset, running state survives); pure helpers in `src/lib/files/syncRules.ts` without nested binding imports (`typecheck:scripts`).
 - [ ] T031 [US1] `FilesFolderPicker` in a new `src/components/files/FolderPicker.vue`: choose a source (`files_sources`: Meine Geräte, Speicher, eigener Ordner) and navigate folders with `files_list`; emits `{ source, path }`; no contact shares, no holzi-owned area; `data-testid` for each step. Pure part (path helpers) in `src/lib/files/syncRules.ts`.
-- [ ] T032 [US1] Rules page in a new `src/components/files/SyncRules.vue` (list: name, places, direction, status badge `ShadcnBadge`, last run; actions: run now, pause, delete) and create dialog `src/components/files/SyncRuleDialog.vue` (`UiDrawerModal`; two pickers, direction, delete mode with defaults mirror/keep, interval); route `sync-rules` in `src/lib/files/registry.ts` and `src/components/wm/appRoutes.ts`, sidebar button `data-testid="files-sync-rules"` in `src/components/files/Sidebar.vue` before the storages section (`lucide:refresh-cw`); i18n `files.sidebar.syncRules`, `files.syncRules.*` in `src/i18n/locales/de.json` and `en.json`.
+- [ ] T032 [US1] Rules page in a new `src/components/files/SyncRules.vue` (list: name, places, direction, status badge `ShadcnBadge`, last run; actions: run now, pause, delete) and create dialog `src/components/files/SyncRuleDialog.vue` (`UiDrawerModal`; two pickers, one-way direction and keep mode in the MVP; expose beidseitig and its mirror default only after the mirror-delete path in T047 is available, interval); route `sync-rules` in `src/lib/files/registry.ts` and `src/components/wm/appRoutes.ts`, sidebar button `data-testid="files-sync-rules"` in `src/components/files/Sidebar.vue` before the storages section (`lucide:refresh-cw`); i18n `files.sidebar.syncRules`, `files.syncRules.*` in `src/i18n/locales/de.json` and `en.json`.
 - [ ] T033 [P] [US1] Check script `scripts/check-files-sync-rules.ts` (picked up by the `check-files-*` glob): status labels, picker path helpers, defaults per direction; run `pnpm check:files`.
 - [ ] T034 [US1] E2E `scripts/e2e/scenarios/files-sync-rules.test.ts` (one-way part): two folders through `deviceFiles(prefix)` after `createAndUnlock`, create the rule in the dialog, run now, assert files arrived and that a deletion at the source stays at the target; add to `scripts/e2e/platform-exclusions.ts` if not stable on Android (`check:e2e-exclusions`).
 
@@ -118,7 +119,7 @@ rules list in the file browser can create, run and delete a rule.
 
 - [ ] T035 [P] [US2] Plan tests (two-way rows) in `plan_tests.rs`: new on either side → copy, one side changed → that side wins, both changed → conflict (newer keeps the name, `Conflict { keep, aside }`), deleted vs. changed → changed stays and is copied back (FR-013), move on one side → move on the other, equal-size equal-time moves with two candidates → hash decides, no clock comparison across sides except to choose the newer in a conflict (FR-008).
 - [ ] T036 [P] [US2] First-sync tests in `plan_tests.rs` and `run_tests.rs`: no state, same name and size and equal hash → `Adopt` without copying; equal size but different hash → conflict copy; different size → conflict copy; hash reads counted in `Plan.hash_reads` (FR-012a); changing places discards state and repeats the first-sync rule.
-- [ ] T037 [P] [US2] Engine tests in `execute_tests.rs`: conflict copy name `Name (Konflikt Gerätename Datum).Endung` with device name from `known_devices` alias, both sides get both files, a name collision of the conflict name gets a counter, the ignore file itself syncs with a conflict copy when both sides differ (FR-039).
+- [ ] T037 [P] [US2] Engine tests in `execute_tests.rs`: conflict copy name `Name (Konflikt Gerätename Datum).Endung` with device name from `known_devices` alias, both sides get both files, a name collision of the conflict name gets a counter, and conflicting ignore files retain both conflict copies while the merged pattern union becomes the active file on both sides (FR-039).
 
 ### Implementation
 
@@ -142,12 +143,12 @@ rules list in the file browser can create, run and delete a rule.
 ### Tests (write first)
 
 - [ ] T044 [P] [US3] Plan tests for delete modes in `plan_tests.rs`: `mirror` → `Delete` with trash, `keep` → no step and `kept = 1` so the file is not copied back, `ask` → `Delete` marked pending, delete vs. change (FR-013), restored file leaves the pending list.
-- [ ] T045 [P] [US3] Guard tests in `run_tests.rs` (SC-004): a place that lists empty, a missing root, an unreadable root and an `Unreachable` error all abort with "Ort nicht erreichbar" and call no delete or overwrite on `MemPlace`; a place that is empty because the user emptied it (state shows files, root exists, listing succeeds with zero entries) is also treated as unreachable and reported, never mirrored.
+- [ ] T045 [P] [US3] Guard tests in `run_tests.rs` (SC-004): a missing root, an unreadable root and an `Unreachable` error abort with "Ort nicht erreichbar" and call no delete or overwrite on `MemPlace`; a reachable, intentionally empty target on the first run is allowed, while a place that is empty because the user emptied it (state shows files, root exists, listing succeeds with zero entries) is treated as unreachable and reported, never mirrored.
 - [ ] T046 [P] [US3] Trash tests in `place_device_tests.rs`/`place_storage_tests.rs`: desktop local → system trash (behind `cfg`), Android and storages → `.holzi-trash/<run>/<path>`, `.holzi-trash` never listed or synced, S3 without rename falls back to copy then delete, a failed move leaves the original.
 
 ### Implementation
 
-- [ ] T047 [US3] Delete rows and modes in `plan::build` and `execute::delete_step` (the only place that applies a delete mode): mirror through `Place::trash`, keep marks the state, ask writes `haex_sync_rule_pending_no_sync`; refine the guard in `scan.rs` (FR-022) and make it a distinct `Outcome::waiting` with reason.
+- [ ] T047 [US3] Delete rows and modes in `plan::build` and `execute::delete_step` (the only place that applies a delete mode): mirror through `Place::trash`, keep marks the state, ask writes `haex_sync_rule_pending_no_sync`; refine the guard in `scan.rs` (FR-022) and make it a distinct `Outcome::waiting` with reason. The mirror path and its tests must land before two-way rules with the mirror default are exposed; this is a prerequisite for the PR C two-way work.
 - [ ] T048 [US3] Pending flow: `sync_rules_pending_list` and `sync_rules_pending_resolve` (`delete`, `keep`, `restore`) in `commands.rs` with `choice = delete` executing the delete in the next run (or immediately when idle); a confirmed delete is checked against the current state again before it runs (the file may have changed meanwhile). Tests in `commands_tests.rs`.
 - [ ] T049 [US3] Failures per file: executor records `error` items with the reason and keeps going, the rule ends `partial`, the next run retries (FR-023); locked vault mid-run → `cancelled` and no half file (FR-026), covered with a cancel token test in `run_tests.rs`.
 - [ ] T050 [P] [US3] UI in a new `src/components/files/SyncRulePending.vue` (list of pending deletions with count, confirm or discard per item and for all) and the error/conflict lists in `SyncRules.vue`; i18n; `data-testid`s.
@@ -165,7 +166,7 @@ rules list in the file browser can create, run and delete a rule.
 
 ### Tests (write first)
 
-- [ ] T052 [P] [US4] Log tests in a new `src-tauri/src/file_sync/log_tests.rs`: depth 10 keeps the latest ten, depth 0 writes nothing, shrinking trims immediately for every rule, 5 000-item cap with "not listed" flag, `trash_kind`/`trash_path` stored, log removed with the rule, no file content stored (FR-045).
+- [ ] T052 [P] [US4] Log tests in a new `src-tauri/src/file_sync/log_tests.rs`: depth 10 keeps the latest ten, depth 0 writes nothing, shrinking trims immediately for every rule, every file action is listed without a per-run cap, `trash_kind`/`trash_path` stored, log removed with the rule, no file content stored (FR-045).
 - [ ] T053 [P] [US4] Ignore tests in `run_tests.rs` (SC-009): a file excluded after the first run stays on both sides and drops from state, an exclusion lifted later makes the file new (FR-040), the union of both sides excludes, a line error shows in the status but does not stop the run, an unwritable place returns `readOnly` from `ignore_set`.
 - [ ] T054 [P] [US4] Preview tests in `commands_tests.rs`: `sync_rules_preview` changes nothing (no `put`, no state write), works for a draft without saving, reports `hashReads` and `ignored`.
 
@@ -223,8 +224,8 @@ rules list in the file browser can create, run and delete a rule.
 - **Setup (Phase 1)**: none; T001–T003 are decision spikes that block the tasks naming them (T001 → T014, T002 → T009, T003 → T016); T007 before any code using `ignore`; T008 before any code.
 - **Foundational (Phase 2)**: after Setup; blocks all stories. T009 → T010–T012; T011 before T012–T013; T014 before T015–T017; T018 and T019 can follow T011.
 - **US1 (Phase 3)**: after Phase 2. T020–T021 before T022–T025; T023 before T025; T024 before T025; T026 after T025; T027 parallel to T026; T028 and T029 after T026; T030–T033 after T029; T034 last.
-- **US2 (Phase 4)**: after US1 (executor, run, schedule). T035–T037 before T038–T039; T040 after T038; T041 after T039; T042 after T041.
-- **US3 (Phase 5)**: after US1; independent of US2 except for the shared `plan.rs` (merge order PR C → PR D). T044–T046 before T047.
+- **US2 (Phase 4)**: after US1 (executor, run, schedule) and the mirror-delete prerequisite T047. T035–T037 before T038–T039; T040 after T038; T041 after T039; T042 after T041; T043 only after T047.
+- **US3 (Phase 5)**: T044–T046 before T047. The mirror-delete subset T044/T047 is included in PR C before two-way rules are exposed; the remaining pending/protection work (T048–T051) follows in PR D.
 - **US4 (Phase 6)**: after US1 (commands, run); T055 before T058–T060; preview and ignore commands (T056) before T057/T058.
 - **US5 (Phase 7)**: after US1 (commands); needs `AgentFileKind` (T063) before T064–T066.
 - **Polish (Phase 8)**: after all stories; T070 only after the references in other docs are ready, in the last PR.
