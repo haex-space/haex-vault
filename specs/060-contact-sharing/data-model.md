@@ -73,6 +73,7 @@ pub struct ShareEnvelope { version: u8, name: String, name_parts: NameParts, hea
 // Auswahl im Teilen-Dialog (kommt von der Oberfläche oder vom Agenten)
 pub struct ShareSelection {
     pub values: Vec<String>,      // Kennungen von haex_contacts_values.id des Kontakts
+    pub display_name: bool, pub nickname: bool,
     pub organization: bool, pub job_title: bool, pub note: bool,
     pub holzi: HolziSelection,
 }
@@ -86,7 +87,7 @@ Kennung gegen den Kontakt und jede Gerätekennung gegen die wirksame Gerätelist
 
 ```text
 rows:  [ShareRow { id, group, kind, label, value }]   // alle vorgewählt
-head:  { organization?, jobTitle?, note? }             // Zeilen, wenn belegt
+head:  { displayName?, nickname?, organization?, jobTitle?, note? } // Zeilen, wenn belegt
 holzi: None
      | Card { npub, devices: n, relays: n, issuedAt }  // fremder Kontakt mit Karte
      | Own  { canSign: bool, npub, devices: [ShareDevice], relays: [string] }
@@ -109,6 +110,7 @@ Fehler: `ShareTooLarge` (über 16 384) statt eines abgeschnittenen Textes.
 ```text
 name, npub?, nameIsNpub: bool, vaultName: string        // Vault, in die gespeichert würde
 target: New | Contact { id, name }                      // vorgewählt oder gewählt
+targetRevision?: string                                 // opaque snapshot; required for an existing target
 targets: [ShareTarget { id, name, reason: Vault | Hint }]  // Hinweise nach Telefon/E-Mail
 identity: None | New | Matches | Mismatch { existingNpub }
 items: [ShareItem { id: u32, kind, label, value, state, choices: [Choice], default: Choice,
@@ -120,9 +122,11 @@ blocked: bool
 
 - `ShareItem.state`: `New`, `Same` (schon da: keine Wahl), `Conflict` (einfeldig belegt, Wert
   weicht ab).
-- Posten-Arten: `NamePart(field)`, `Organization`, `JobTitle`, `Note`, `Value`, `HolziAddresses`.
+- Posten-Arten: `NamePart(field)`, `DisplayName`, `Nickname`, `Organization`, `JobTitle`, `Note`, `Value`,
+  `HolziAddresses`.
 - `Choice`: `Add`, `Update`, `Skip`, `Keep`, `Replace` (nur alte Karte). Je Art nur erlaubte:
-  `Value`: Add/Update/Skip; einfeldig: Keep/Update; `HolziAddresses`: Add/Skip (+ Replace).
+  `Value`: Add/Update/Skip; einfeldig (auch Anzeigename und Spitzname): Keep/Update;
+  `HolziAddresses`: Add/Skip (+ Replace).
 - `Decision { item: u32, choice: Choice, value_id?: String }`; `value_id` nur bei `Update` einer Angabe.
 - `ExistingValue { id, kind, label, value }`: die Werte derselben Art am Kontakt, aus denen der Nutzer bei
   `Update` einen wählt.

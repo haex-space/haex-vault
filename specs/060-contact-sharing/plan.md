@@ -24,7 +24,8 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Karten speichern** (R5): `haex_contacts_cards` wird mit dem Hash des unterschriebenen Inhalts als
   Primärschlüssel neu aufgebaut (Migration `0043`, `HOLZI_TRIGGER_VERSION` 28); mehrere Karten je Vault, Adressen
   als Vereinigung, Schwellwert = neueste Karte, Prüfung beim Lesen.
-- **Einlesen** (R6): `contacts_share_preview`/`contacts_share_accept` mit Posten und Wahlen; die
+- **Einlesen** (R6): `contacts_share_preview`/`contacts_share_accept` mit Posten, Wahlen und einer
+  Zielrevision gegen veraltete Vorschauen; die
   Vault-Identität eines Kontakts wird nie ersetzt, der Ich-Kontakt ist nie Ziel.
 - **Agent** (R8): Aktion `contacts.share` (`destructive`, `runner: native`), eigene Abfrage mit änderbarer Auswahl
   (`ContactShareConfirm`), neues Merkmal `Tool::confirms_itself` gegen die doppelte Abfrage.

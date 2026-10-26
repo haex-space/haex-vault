@@ -86,7 +86,7 @@ seinem Adressbuch teilt.“
 - Q: Welchen Namen sieht der Empfänger? → A: Die Namensteile des Kontakts; fehlen sie, die `npub`
   seiner Vault-Identität (beim Ich-Kontakt die eigene); gibt es auch die nicht, bleibt der Name leer. Das
   gilt für jeden Kontakt. Anzeigename, Spitzname, Organisation, Telefonnummer und E-Mail-Adresse sind
-  kein Namens-Ersatz beim Teilen, denn sie sind abwählbare Zeilen.
+  kein Namens-Ersatz beim Teilen, denn sie sind jeweils eigene, abwählbare Zeilen.
 - Q: Wird die Weitergabe als vCard abgebildet? → A: Nein, vorerst bleibt es beim eigenen Format. vCard
   ist ein späteres, eigenes Ziel.
 
@@ -171,7 +171,8 @@ Kontakt auf einem zweiten Gerät derselben Vault wiederfinden. Löschen ist nirg
 
 ### User Story 2 - Meinen Kontakt teilen und vorher wählen, was mit rausgeht (Priority: P1)
 
-Der Nutzer wählt bei „Ich“ „Teilen“. Der Dialog zeigt alle Angaben mit Checkboxen: Telefonnummern,
+Der Nutzer wählt bei „Ich“ „Teilen“. Der Dialog zeigt alle Angaben mit Checkboxen: Anzeigename, Spitzname,
+Telefonnummern,
 E-Mail-Adressen, Anschriften, Geburtstag, Webseiten, Messenger-Kennungen, Organisation, Notiz und die
 holzi-Adressen, also jedes Gerät mit seiner iroh-Adresse und jedes Nostr-Relay. Alles ist angehakt, der
 Nutzer wählt ab, was er nicht weitergeben will, und bekommt darunter Link, QR-Code und eine
@@ -469,7 +470,8 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 
 - **FR-008**: holzi MUSS bei jedem Kontakt, auch beim Ich-Kontakt, die Aktion „Teilen“ anbieten. Sie MUSS
   für jeden Kontakt denselben Dialog öffnen.
-- **FR-009**: Der Dialog MUSS jede Angabe des Kontakts als eigene Zeile mit Checkbox zeigen: Telefon-
+- **FR-009**: Der Dialog MUSS jede Angabe des Kontakts als eigene Zeile mit Checkbox zeigen: Anzeigename,
+  Spitzname, Telefon-
   nummern, E-Mail-Adressen, Anschriften, Webseiten, Messenger-Kennungen, SIP-Adressen, Ereignisse wie
   den Geburtstag, Beziehungen, eigene Angaben und Angaben unbekannter Art, dazu Organisation, Position
   und Notiz, soweit der Kontakt sie hat. Alle Zeilen MÜSSEN vorgewählt sein, jede MUSS abwählbar
@@ -481,11 +483,13 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - **FR-011**: Der Name des Kontakts MUSS immer mitgehen und DARF nicht abwählbar sein. Als Name MUSS holzi
   die Namensteile des Kontakts verwenden; fehlen sie, die `npub` seiner Vault-Identität (beim
   Ich-Kontakt die eigene); gibt es auch diese nicht, MUSS der Name leer bleiben. Anzeigename, Spitzname,
-  Organisation, Telefonnummer und E-Mail-Adresse DÜRFEN nicht als Namens-Ersatz dienen.
+  Organisation, Telefonnummer und E-Mail-Adresse DÜRFEN nicht als Namens-Ersatz dienen; Anzeigename und
+  Spitzname MÜSSEN aber als eigene, abwählbare Angaben teilbar sein.
 - **FR-012**: Beim Ich-Kontakt MUSS der Dialog die holzi-Adressen der eigenen Vault zeigen: jedes Gerät
-  mit seiner iroh-Adresse und jedes Nostr-Relay als eigene, abwählbare Zeile. Die Vault-Identität MUSS
-  immer mitgehen. holzi MUSS dafür bei jedem Teilen eine frisch unterschriebene Karte erzeugen, die nur
-  die gewählten Geräte und Relays enthält und keine Angaben des Kontakts.
+  mit seiner iroh-Adresse und jedes Nostr-Relay als eigene, abwählbare Zeile. Wenn eine Karte mitgeht,
+  MUSS die Vault-Identität darin immer mitgehen. holzi MUSS dafür bei jedem Teilen eine frisch unterschriebene
+  Karte erzeugen, die nur die gewählten Geräte und Relays enthält und keine Angaben des Kontakts. Kann das
+  Gerät nicht unterschreiben, MUSS die Karte mitsamt Identität entfallen und FR-016 den Nutzer informieren.
 - **FR-013**: Bei einem fremden Kontakt mit bestätigten holzi-Adressen MUSS der Dialog genau eine Zeile
   „holzi-Adressen (bestätigt)“ zeigen. Ist sie gewählt, MUSS holzi die ursprüngliche, vom Kontakt
   unterschriebene Karte unverändert mitschicken. Die Zeile MUSS darauf hinweisen, dass die Karte auch die
@@ -567,9 +571,14 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Nutzer den zu ersetzenden, und hat er keinen, bietet die Vorschau nur „Hinzufügen“ an. Eine Angabe,
   die der Kontakt schon mit gleicher Art und gleichem Wert hat, MUSS holzi ohne Frage und ohne
   Duplikat übergehen. Mit den Standardwerten fügt ein einziger Bestätigen-Klick alles Neue hinzu.
-- **FR-024c**: Für Felder, die ein Kontakt nur einmal hat (Namensteile, Organisation, Position, Notiz),
+- **FR-024c**: Für Felder, die ein Kontakt nur einmal hat (Namensteile, Anzeigename, Spitzname, Organisation,
+  Position, Notiz),
   MUSS holzi ein leeres Feld ohne Frage füllen. Ist es belegt und weicht der Wert der Weitergabe
   ab, MUSS die Vorschau „Behalten“ (vorgewählt) oder „Aktualisieren“ anbieten.
+- **FR-024d**: Die Vorschau für ein vorhandenes Ziel MUSS eine undurchsichtige Revision des Zielkontakts
+  ausgeben. `contacts_share_accept` MUSS diese Revision zurückgeben und die Annahme ablehnen, wenn sich
+  der Zielkontakt seit der Vorschau geändert hat; holzi MUSS dann eine frische Vorschau liefern und darf
+  nichts schreiben. Die separate Prüfung, ob ein `value_id` zum Zielkontakt gehört, bleibt zusätzlich nötig.
 - **FR-025**: Eine Weitergabe DARF bestätigte holzi-Adressen eines vorhandenen Kontakts nie entfernen,
   ersetzen oder verkürzen, auch nicht durch eine neuere Karte derselben Vault. Neue Geräte und Relays
   einer gültig unterschriebenen Karte derselben Vault-Identität MUSS die Vorschau als eine Angabe

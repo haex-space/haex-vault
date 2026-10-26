@@ -27,13 +27,13 @@ struct ShareEnvelope {
     version: u8,              // 1; jede andere Zahl wird abgewiesen (FR-022)
     name: String,             // FR-011: Namensteile, sonst npub, sonst ""
     name_parts: NameParts,    // vorhandene Namensteile, einzeln (für die Wahl je Feld, FR-024c)
-    head: ShareHead,          // Organisation, Position, Notiz, soweit gewählt
+    head: ShareHead,          // Anzeigename, Spitzname, Organisation, Position, Notiz, soweit gewählt
     values: Vec<ShareValue>,  // gewählte Angaben, in der Reihenfolge des Kontakts
     card: Option<Vec<u8>>,    // eine Karte nach Spec 051 (len ‖ postcard ‖ Signatur), unverändert
 }
 
 struct NameParts { prefix, given, middle, family, suffix: Option<String> }
-struct ShareHead { organization, job_title, note: Option<String> }
+struct ShareHead { display_name, nickname, organization, job_title, note: Option<String> }
 struct ShareValue { kind: String, label: String, value: String }
 ```
 
@@ -49,7 +49,7 @@ Angaben, Positionen.
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | Angaben je Umschlag                                         | 200                                                                                                                                                         | neu                            |
 | Zeichen je Angabe (`value`)                                 | `kinds::MAX_VALUE_CHARS` (4 096)                                                                                                                            | `kinds.rs`                     |
-| Zeichen `kind`, `label`, Namensteil, Organisation, Position | 1 024                                                                                                                                                       | wie `card::format::MAX_STRING` |
+| Zeichen `kind`, `label`, Namensteil, Anzeigename, Spitzname, Organisation, Position | 1 024                                                                                                                                                       | wie `card::format::MAX_STRING` |
 | Zeichen Notiz                                               | 4 096                                                                                                                                                       | wie `MAX_VALUE_CHARS`          |
 | Karte                                                       | Grenzen von `card::format::check_limits` (32 Geräte, 10 Relays, 1 KiB je Text); die 2 048 Zeichen von `MAX_TEXT` gelten für die Karte im Umschlag **nicht** | `format.rs`                    |
 | Gesamttext                                                  | 16 384                                                                                                                                                      | neu                            |
@@ -88,11 +88,14 @@ umsetzt: eine neuere Karte ersetzt die gespeicherten Karten dieser Vault, eine �
    gespeicherten Karte);
 3. sonst `""`.
 
-Anzeigename, Spitzname, Organisation, Telefonnummer und E-Mail-Adresse sind kein Ersatz.
+Anzeigename, Spitzname, Organisation, Telefonnummer und E-Mail-Adresse sind kein Ersatz. Anzeigename und
+Spitzname sind trotzdem eigenständige, einzeln auswählbare Angaben im Umschlag; sie werden nicht in `name`
+eingebaut.
 
 ## Fehler
 
 Alle Fehler des Einlesens sind `HolziError`-Varianten mit stabilen Codes für die Oberfläche:
 `ShareInvalid { reason }` (Form, Version, Grenzen), `CardInvalid { reason }` (Unterschrift, Format der
-Karte), `CardOwn`, `CardOlder` (nur alte Karte), `ShareTooLarge` (Bauen). Die Oberfläche zeigt für jede
-einen Hinweistext und speichert nichts.
+Karte), `CardOwn`, `CardOlder` (nur alte Karte), `ShareTooLarge` (Bauen) und `SharePreviewStale` (das
+Ziel hat sich seit der Vorschau geändert). Die Oberfläche zeigt für jede einen Hinweistext; bei
+`SharePreviewStale` lädt sie die frische Vorschau, und es wird nichts geschrieben.

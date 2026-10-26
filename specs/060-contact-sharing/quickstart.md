@@ -37,10 +37,10 @@ Nach `cargo test` die ts-rs-Bindings von Leerzeichen am Zeilenende befreien, wie
    ein Nostr-Relay abwählen. Der Link ändert sich mit der Auswahl; der QR-Code erscheint nur, solange der
    Text in 2 048 Zeichen passt.
 3. **Einlesen**: Den Link in B einfügen (Kontakte → Einlesen). Die Vorschau zeigt Name, die gewählten
-   Angaben, die `npub` in Kurzform und den Hinweis zu „bestätigt“. Als neuen Kontakt speichern. Die
-   abgewählten Angaben fehlen.
-4. **Nichts geht verloren**: In B einen Kontakt „Anna“ mit Handynummer anlegen. Den Link aus Schritt 2 nur
-   mit der E-Mail-Adresse erzeugen und zu diesem Kontakt hinzufügen. Die Handynummer bleibt. Eine zweite
+   Angaben, die `npub` in Kurzform und den Hinweis zu „bestätigt“. Als neuen Kontakt speichern und an diesem
+   Kontakt die Test-Handynummer ergänzen. Die abgewählten Angaben fehlen.
+4. **Nichts geht verloren**: In A eine neue Weitergabe nur mit der E-Mail-Adresse erzeugen (die Karte
+   abwählen) und sie in B beim in Schritt 3 angelegten Kontakt einlesen. Die Handynummer bleibt. Eine zweite
    E-Mail-Adresse zeigt „Hinzufügen“ (vorgewählt) oder „Aktualisieren“.
 5. **Identität**: In einer dritten Vault C eine Karte für „Anna“ erzeugen und in B zu Annas Kontakt
    (mit bestätigter Identität aus A) hinzufügen wollen. Die Vorschau lässt es nicht zu.
@@ -49,7 +49,8 @@ Nach `cargo test` die ts-rs-Bindings von Leerzeichen am Zeilenende befreien, wie
    Vorschau in C meldet „nicht über holzi erreichbar“.
 7. **Deep Link**: Den Link als Nachricht in einer anderen App öffnen. holzi kommt nach vorn (Entsperren
    zuerst, wenn die Vault gesperrt ist) und zeigt die Vorschau; es ist nichts gespeichert. Auf Android
-   zusätzlich den QR-Code mit der Systemkamera scannen.
+   zusätzlich den QR-Code mit der Systemkamera scannen. Auf macOS zusätzlich mit zwei Prozessen prüfen,
+   dass ein Link, den der Prozess ohne offene Vault empfängt, im Prozess mit offener Vault erscheint.
 8. **Agent**: Im Chat „gib mir den Kontakt von Anna zum Weiterschicken“. Es erscheint genau eine Abfrage
    (der Teilen-Dialog mit dem Vorschlag). Eine Angabe abwählen und freigeben: der Agent erhält den Text
    ohne sie. Ablehnen: der Agent erhält nichts. Im Plan-Modus lehnt der Chat die Aktion ab.

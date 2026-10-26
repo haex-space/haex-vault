@@ -18,16 +18,22 @@ Typen (`ContactsOwnCard`, `ContactsOwnCardSetArgs`, `ContactsCardTextArgs`, `Con
 | `contacts_share_options`       | `{ contactId }`               | `ContactShareOptions` | Zeilen des Teilen-Dialogs, alles vorgewählt (FR-009, FR-012, FR-013) |
 | `contacts_share_build`         | `{ contactId, selection }`    | `ContactShareOutput`  | Text, QR, Größe (FR-018, FR-019)                                     |
 | `contacts_share_preview`       | `{ text, target? }`           | `ContactSharePreview` | Prüfen und Vorschau, nichts gespeichert (FR-021, FR-021a)            |
-| `contacts_share_accept`        | `{ text, target, decisions }` | `Contact`             | Speichern nach den Wahlen (FR-024 bis FR-025a)                       |
+| `contacts_share_accept`        | `{ text, target, decisions, previewRevision? }` | `Contact`             | Speichern nach den Wahlen (FR-024 bis FR-025a)                       |
 | `contact_share_confirm_answer` | `{ requestId, selection? }`   | –                     | Antwort auf die Abfrage eines Agenten (FR-030, FR-031)               |
 
 - `target`: `{ kind: 'new' }` oder `{ kind: 'contact', id }`. Fehlt es in der Vorschau, wählt der Dienst nach
   FR-024 (Vault vorgewählt, sonst `new`). Der Ich-Kontakt als Ziel: `ShareInvalid`.
+- Bei einem vorhandenen Ziel liefert die Vorschau `targetRevision`. `contacts_share_accept` MUSS genau diese
+  Revision als `previewRevision` zurückbekommen. Hat sich der Kontakt seit der Vorschau geändert, bricht der
+  Dienst mit `SharePreviewStale` und einer frischen Vorschau ab; es wird nichts geschrieben. Für ein neues
+  Ziel ist keine Revision nötig.
 - `decisions`: ein Eintrag je Posten, der eine Wahl braucht; fehlende Einträge heißen Standard. Wahlen,
   die der Posten nicht erlaubt, und `Update` auf eine Angabe, die nicht zu dem Kontakt gehört:
   `ShareInvalid`, nichts wird geschrieben.
+- Die Mitgliedschaft eines `value_id` im Zielkontakt bleibt eine eigene Prüfung und wird nicht durch die
+  Revisionsprüfung ersetzt.
 - `contacts_share_accept` schreibt in **einer** Transaktion und rechnet Posten, Karte und Ziel aus dem
-  Text neu; was die Vorschau schon zeigte, zählt nicht.
+  Text neu; die Revision schützt dabei die Werte, die der Nutzer in der Vorschau gesehen hat.
 
 ## Ereignis
 

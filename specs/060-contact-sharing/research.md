@@ -42,7 +42,8 @@ Telefonverknüpfung und wird dort nie erreicht.
 ## R3 Das Format der Weitergabe
 
 - **Entscheidung**: ein Umschlag (`ShareEnvelope`, postcard) in `haex-vault://contact/<base64url>`; der
-  Umschlag trägt Namen, Namensteile, gewählte Angaben und optional die Karte als unveränderte Bytes.
+  Umschlag trägt Namen, Namensteile, die eigenständigen Felder Anzeigename und Spitzname, gewählte Angaben
+  und optional die Karte als unveränderte Bytes.
   Einzelheiten in `contracts/share-format.md`.
 - **Begründung**: Die Karte (Spec 051) ist signiert und unteilbar; die Angaben sind es nicht und
   brauchen es nicht. Ein Umschlag trennt beides sauber, und dieselbe Struktur gilt für den eigenen und
@@ -105,12 +106,15 @@ Telefonverknüpfung und wird dort nie erreicht.
 ## R6 Einlesen: Vorschau und Entscheidungen
 
 - **Entscheidung**: Zwei Befehle statt Kartenvorschau und Annahme der Spec 051:
-  `contacts_share_preview(text, target?)` und `contacts_share_accept(text, target, decisions)`.
-  Die Vorschau rechnet aus Umschlag und gewähltem Ziel eine Liste von **Posten** (Namensteile,
-  Organisation, Position, Notiz, jede Angabe, die holzi-Adressen), jeder mit Zustand (`new`, `same`,
-  `conflict`, `invalid`) und den erlaubten Wahlen. `accept` rechnet die Posten aus dem Text **noch
-  einmal** und wendet nur Wahlen an, deren Posten-Kennung dazu passt; die Kennung ist `index` im
-  Umschlag, kein Wert aus der Oberfläche (FR-022, FR-025a).
+  `contacts_share_preview(text, target?)` und `contacts_share_accept(text, target, decisions, preview_revision?)`.
+  Die Vorschau rechnet aus Umschlag und gewähltem Ziel eine Liste von **Posten** (Namensteile, Anzeigename,
+  Spitzname, Organisation, Position, Notiz, jede Angabe, die holzi-Adressen), jeder mit Zustand (`new`, `same`,
+  `conflict`, `invalid`) und den erlaubten Wahlen. Für ein vorhandenes Ziel liefert sie zusätzlich eine
+  undurchsichtige Revision des Zielkontakts. `accept` rechnet die Posten aus dem Text **noch einmal** und
+  wendet nur Wahlen an, deren Posten-Kennung dazu passt; die Kennung ist `index` im Umschlag, kein Wert aus
+  der Oberfläche (FR-022, FR-025a). Vor dem Schreiben vergleicht `accept` die Revision. Bei einer Änderung
+  bricht es mit `SharePreviewStale` und einer frischen Vorschau ab; die Prüfung der `value_id`-Mitgliedschaft
+  bleibt davon getrennt.
 - **Wahlen** (FR-024b/c, FR-025): Angabe: `add` (Standard), `update(value_id)`, `skip`; einfeldig:
   `keep` (Standard), `update`; holzi-Adressen: `add` (Standard), `skip`, bei einer alten Karte
   zusätzlich `replace`. Die Vault-Identität eines vorhandenen Kontakts kommt nie in `update`: Der Posten
@@ -127,11 +131,11 @@ Telefonverknüpfung und wird dort nie erreicht.
 ## R7 Teilen: Optionen und Bauen
 
 - **Entscheidung**: `contacts_share_options(contact_id)` liefert die Zeilen des Dialogs (Kennungen,
-  Art, Bezeichnung, Wert, vorgewählt = alles), beim Ich-Kontakt die Geräte und Relays als eigene Zeilen
+  Art, Bezeichnung, Wert, vorgewählt = alles), einschließlich Anzeigename und Spitzname; beim Ich-Kontakt die Geräte und Relays als eigene Zeilen
   und `can_sign`, beim fremden Kontakt die Zeile „holzi-Adressen (bestätigt)“ nur mit gespeicherter
   Karte. `contacts_share_build(contact_id, selection)` baut Text, QR (`Option<String>` SVG, nur
   `len <= 2048`) und die Größe. Ein Befehl für beide Fälle; die Auswahl lebt nur im Dialog (FR-010).
-- **Auswahl**: `ShareSelection { values: Vec<String>, organization: bool, job_title: bool, note: bool,
+- **Auswahl**: `ShareSelection { values: Vec<String>, display_name: bool, nickname: bool, organization: bool, job_title: bool, note: bool,
 holzi: HolziSelection }` mit `HolziSelection::{None, Card, Own { devices, relays }}`. Der Dienst
   prüft sie gegen den Kontakt (jede Kennung muss ihm gehören), nie gegen den Aufrufer.
 - **Name** (FR-011): `share::name_for(head, vault_for_npub)`; einzige Stelle der Regel.
@@ -193,11 +197,19 @@ android:host="contact"/>` in der verfolgten `AndroidManifest.xml`; `MainActivity
      ab, wenn andere holzi-Prozesse laufen (`presence.lock` lässt sich nicht exklusiv sperren), und
      wartet bis 2 s, dass die Datei verschwindet (Rückmeldung „abgeholt“).
   2. Jeder Prozess mit **offener** Vault prüft das Verzeichnis alle 500 ms und holt eine Datei durch
-     atomares `rename` in `<uuid>.claimed-<pid>`; wer gewinnt, zeigt die Vorschau (und bringt das Fenster
-     nach vorn); der Prozess ohne offene Vault ignoriert den Posteingang.
+     atomares `rename` in `<uuid>.claimed-<pid>`; wer gewinnt, liest sie ein und löscht die behauptete Datei
+     sofort nach erfolgreichem Lesen, bevor er die URL an das Frontend weitergibt und die Vorschau zeigt.
+     Bei einem Lesefehler löscht er sie ebenfalls und meldet den Fehler; der Prozess ohne offene Vault ignoriert
+     den Posteingang. Das spätere Abbrechen, Verbrauchen oder Fehlschlagen der Vorschau löscht den zugehörigen
+     In-Memory-Eintrag idempotent. Ein Cleanup-Lauf löscht verwaiste `.claimed-*`-Dateien, die älter als der
+     bestehende 2-Sekunden-Handoff-Timeout sind, falls der Prozess zwischen `rename` und dem Löschen abstürzt.
   3. Holt keiner die Datei ab, löscht der neue Prozess sie und hält die URL selbst, bis der Nutzer
      eine Vault öffnet.
-     macOS liefert die URL an die laufende App (`onOpenUrl`); dort ist nichts weiter nötig.
+     macOS liefert die URL an den Prozess, den das Betriebssystem erreicht (`onOpenUrl`). Dieser Handler darf
+     eine URL nur dann lokal weitergeben, wenn dieser Prozess eine Vault geöffnet hat; andernfalls legt er sie
+     über denselben Posteingang als `<uuid>.url` ab. Dadurch kann ein anderer Prozess mit offener Vault sie
+     übernehmen; der Empfängerprozess hält sie nur dann selbst im Speicher, wenn innerhalb des 2-Sekunden-
+     Handoffs niemand claimt.
      Bei mehreren Vaults in mehreren Prozessen gewinnt der erste, der abholt. Die Vorschau nennt deshalb
      den Namen der Vault, in die gespeichert würde (Abbrechen ist immer möglich).
 - **Risiko / Spike zuerst**: Dieser Teil ist am wenigsten gesichert (Deep Link auf Linux nur mit
@@ -245,9 +257,9 @@ android:host="contact"/>` in der verfolgten `AndroidManifest.xml`; `MainActivity
   und `migrations_contacts_cards_hash_tests.rs`, `files/agent`-nahe Tests für `ContactsShareAgent`
   (Ablehnung, Auswahl eingeschränkt, ohne Freigabe `NotFound`).
 - Frontend: `scripts/check-contacts-share.ts` (Optionen → Auswahl → Anzeige, „Ich“ als Anzeige,
-  Posten-Zustände), `check-contacts-search.ts` (Ich über echten Namen).
+  Posten-Zustände, stale preview), `check-contacts-search.ts` (Ich über echten Namen).
 - E2E: `contacts-share.test.ts` (Ich pflegen, teilen mit Abwahl, in zweiter Vault einlesen,
-  Handynummer bleibt, Identität wird nicht ersetzt), `agent-contacts.test.ts` erweitert (Teilen,
-  Bestätigen, Ablehnen); Android-Probe für den Deep Link.
+  Handynummer bleibt, Identität wird nicht ersetzt, stale preview), `agent-contacts.test.ts` erweitert
+  (Teilen, Bestätigen, Ablehnen); Android-Probe und macOS-Zwei-Prozess-Probe für den Deep Link.
 - Vor dem Push: `pnpm typecheck:scripts`, `pnpm check:contacts`, `pnpm check:agent-actions`, alle
   `check:*`, `cargo clippy` auch für `aarch64-linux-android` (Rust mit `cfg`-Zweigen), gezielte `cargo test -j 4`.
