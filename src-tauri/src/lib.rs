@@ -125,9 +125,9 @@ use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
 use passwords::commands::agent::passwords_agent_search;
 use passwords::commands::attachments::{
-    passwords_attachment_add, passwords_attachment_open, passwords_attachment_preview,
-    passwords_attachment_remove, passwords_attachment_rename, passwords_attachment_save,
-    passwords_attachment_text,
+    passwords_attachment_add, passwords_attachment_open, passwords_attachment_open_system,
+    passwords_attachment_preview, passwords_attachment_remove, passwords_attachment_rename,
+    passwords_attachment_save, passwords_attachment_text,
 };
 use passwords::commands::copy::passwords_copy;
 use passwords::commands::history::{
@@ -666,6 +666,7 @@ pub fn run() {
             passwords_attachment_preview,
             passwords_attachment_text,
             passwords_attachment_open,
+            passwords_attachment_open_system,
             passwords_import_preview,
             passwords_import_run,
             passwords_import_cancel,

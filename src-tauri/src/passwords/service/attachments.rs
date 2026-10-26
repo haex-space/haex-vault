@@ -1,8 +1,12 @@
 //! Attachment methods of the service (spec 034, US5, FR-019..FR-021): add from a file, rename,
-//! remove, save to a file, preview an image, and read a text or a PDF for the attachment view
-//! (spec 058). For the user alone (rule Z11). The file travels as
+//! remove, save to a file, preview an image, read a text or a PDF for the attachment view, and copy
+//! an attachment for the system's app (spec 058). For the user alone (rule Z11). The file travels as
 //! the choice of the system's dialog (spec 043, a path or a provider address) and is read and
 //! written on a blocking thread, so a 25 MiB attachment never crosses the webview.
+
+use std::path::PathBuf;
+
+use uuid::Uuid;
 
 use super::{require_user, PasswordsService};
 use crate::error::{HolziError, Result};
@@ -11,6 +15,7 @@ use crate::files::picked::{Opener, PickedFile};
 use crate::passwords::access::Caller;
 use crate::passwords::model::AttachmentView;
 use crate::passwords::{attachment_view, binaries};
+use crate::storage::preferences::{self, PrefScope};
 
 fn io_failed(error: tauri::Error) -> HolziError {
     HolziError::Io {
@@ -105,6 +110,45 @@ impl PasswordsService {
             .read(move |q| binaries::attachment_data(q, &attachment_id).map_err(Into::into))
             .await?;
         attachment_view::pdf_bytes(&name, bytes)
+    }
+
+    /// A decrypted copy of an attachment below `root` for the system's app (spec 058 FR-010,
+    /// FR-011). Without `confirmed`, and unless "Nicht mehr fragen" was chosen on `device` before,
+    /// the answer is `None` and nothing is read; `confirmed` with `dont_ask_again` remembers that
+    /// choice for `device` alone.
+    pub async fn attachment_copy_for_app(
+        &self,
+        caller: &Caller,
+        attachment_id: String,
+        root: PathBuf,
+        device: Uuid,
+        confirmed: bool,
+        dont_ask_again: bool,
+    ) -> Result<Option<PathBuf>> {
+        require_user(caller)?;
+        let scope = PrefScope::Device(device);
+        if !confirmed {
+            let ack = self
+                .db()
+                .read(move |q| preferences::get(q, scope, attachment_view::OPEN_ACK_KEY))
+                .await?;
+            if ack.as_deref() != Some("1") {
+                return Ok(None);
+            }
+        } else if dont_ask_again {
+            self.db()
+                .write(move |tx| {
+                    preferences::insert_or_update(tx, scope, attachment_view::OPEN_ACK_KEY, "1")
+                })
+                .await?;
+        }
+        let (name, bytes) = self
+            .db()
+            .read(move |q| binaries::attachment_data(q, &attachment_id).map_err(Into::into))
+            .await?;
+        attachment_view::write_copy(&root, &name, &bytes)
+            .await
+            .map(Some)
     }
 
     /// The bytes of an image attachment for the preview.

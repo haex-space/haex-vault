@@ -4,7 +4,8 @@
  * when the card comes into view, else a type icon; the name, the size and the type for every
  * attachment; buttons Speichern unter, Umbenennen (inline: Enter or the check confirms, Escape
  * cancels) and Entfernen, as in spec 034. A tap on the card opens an image in the lightbox, a text
- * or a PDF in the attachment view (spec 058 FR-001) and saves anything else.
+ * or a PDF in the attachment view (spec 058 FR-001) and saves anything else. On the desktop the card
+ * also offers "Mit System-App öffnen" (spec 058 FR-009).
  */
 import type { AttachmentView } from '@bindings/AttachmentView'
 import { fileKind, formatFileSize, type FileKind } from '~/lib/passwords/format'
@@ -13,11 +14,14 @@ import type { Thumbnail } from '~/lib/images/thumbnailCache'
 const props = defineProps<{
   attachment: AttachmentView
   readonly?: boolean
+  /** "Mit System-App öffnen" is offered (spec 058 FR-009). */
+  systemApps?: boolean
 }>()
 
 const emit = defineEmits<{
   open: []
   view: []
+  openSystem: []
   save: []
   rename: [fileName: string]
   remove: []
@@ -182,6 +186,18 @@ function activate() {
         >
       </template>
       <div class="flex items-center justify-end gap-0.5">
+        <UiButton
+          v-if="systemApps"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="t('passwords.attachments.openSystem')"
+          :tooltip="t('passwords.attachments.openSystem')"
+          :data-testid="`passwords-attachment-open-system-${attachment.id}`"
+          @click="emit('openSystem')"
+        >
+          <Icon name="lucide:external-link" class="size-4" />
+        </UiButton>
         <UiButton
           type="button"
           variant="ghost"

@@ -12,6 +12,7 @@ import type { GroupPatch } from '@bindings/GroupPatch'
 import type { ItemDetail } from '@bindings/ItemDetail'
 import type { ItemInput } from '@bindings/ItemInput'
 import type { ItemPatch } from '@bindings/ItemPatch'
+import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 import type { PickedFile } from '@bindings/PickedFile'
 import type { Preset } from '@bindings/Preset'
 import type { RefMark } from '@bindings/RefMark'
@@ -134,6 +135,16 @@ export function usePasswords() {
   const attachmentOpenAsync = (attachmentId: string, tabId: string) =>
     invoke<string>('passwords_attachment_open', {
       args: { attachmentId, tabId },
+    })
+  /** Opens an attachment with the system's app (spec 058); `needsNotice` until the user confirmed
+   * the notice about the decrypted copy, or chose "Nicht mehr fragen" on this device. */
+  const attachmentOpenSystemAsync = (
+    attachmentId: string,
+    confirmed = false,
+    dontAskAgain = false,
+  ) =>
+    invoke<OpenSystemOutcome>('passwords_attachment_open_system', {
+      args: { attachmentId, confirmed, dontAskAgain },
     })
 
   const createGroupAsync = (args: {
@@ -303,6 +314,7 @@ export function usePasswords() {
     attachmentPreviewAsync,
     attachmentTextAsync,
     attachmentOpenAsync,
+    attachmentOpenSystemAsync,
     importPreviewAsync,
     importRunAsync,
     importCancelAsync,

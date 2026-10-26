@@ -14,7 +14,7 @@ const MAX_NAME: usize = 255;
 
 /// Characters Windows refuses in a name; refused everywhere, as a folder made here may later be
 /// copied to a Windows drive or a storage.
-const FORBIDDEN: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
+pub(crate) const FORBIDDEN: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
 
 /// Whether `name` may name an entry.
 pub fn check_name(name: &str) -> Result<(), FilesError> {

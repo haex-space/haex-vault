@@ -14,11 +14,16 @@ import type { AttachmentView } from '@bindings/AttachmentView'
 import type { TextContent } from '@bindings/TextContent'
 import { fileKind } from '~/lib/passwords/format'
 
-const props = defineProps<{ attachment: AttachmentView }>()
+const props = defineProps<{
+  attachment: AttachmentView
+  /** "Mit System-App öffnen" is offered (spec 058 FR-009). */
+  systemApps?: boolean
+}>()
 
 const emit = defineEmits<{
   close: []
   save: []
+  openSystem: []
 }>()
 
 const { t } = useI18n()
@@ -173,6 +178,18 @@ onBeforeUnmount(() => {
       >
         <Icon name="lucide:download" class="size-4" />
       </UiButton>
+      <UiButton
+        v-if="systemApps"
+        type="button"
+        variant="ghost"
+        size="icon"
+        :aria-label="t('passwords.attachments.openSystem')"
+        :tooltip="t('passwords.attachments.openSystem')"
+        data-testid="passwords-attachment-viewer-open-system"
+        @click="emit('openSystem')"
+      >
+        <Icon name="lucide:external-link" class="size-4" />
+      </UiButton>
     </div>
 
     <div class="relative min-h-0 flex-1 overflow-auto">
@@ -182,10 +199,22 @@ onBeforeUnmount(() => {
         data-testid="passwords-attachment-viewer-failed"
       >
         <p class="text-sm text-muted-foreground">{{ failed }}</p>
-        <UiButton type="button" @click="emit('save')">
-          <Icon name="lucide:download" class="size-4" />
-          {{ t('passwords.attachments.download') }}
-        </UiButton>
+        <div class="flex flex-wrap justify-center gap-2">
+          <UiButton type="button" @click="emit('save')">
+            <Icon name="lucide:download" class="size-4" />
+            {{ t('passwords.attachments.download') }}
+          </UiButton>
+          <UiButton
+            v-if="systemApps"
+            type="button"
+            variant="outline"
+            data-testid="passwords-attachment-viewer-failed-open-system"
+            @click="emit('openSystem')"
+          >
+            <Icon name="lucide:external-link" class="size-4" />
+            {{ t('passwords.attachments.openSystem') }}
+          </UiButton>
+        </div>
       </div>
       <div v-else-if="text" data-testid="passwords-attachment-viewer-text">
         <p

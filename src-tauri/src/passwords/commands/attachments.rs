@@ -2,19 +2,21 @@
 //! the choice of the system's dialogs (spec 043: a path or a provider address), never as bytes
 //! through the webview; only the bytes of an image
 //! preview go back, as raw bytes (`tauri::ipc::Response`), and the text of a text attachment for
-//! the attachment view (spec 058); a PDF reaches the view as a URL of the media server.
+//! the attachment view (spec 058); a PDF reaches the view as a URL of the media server, and on the
+//! desktop any attachment opens with the system's app after the notice of spec 048.
 
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Response;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
 use super::service;
-use crate::error::Result;
+use crate::error::{HolziError, Result};
 use crate::files::local::text::TextContent;
 use crate::files::media::MediaServer;
+use crate::files::state::FilesState;
 use crate::files::streaming::BytesSource;
 use crate::files::PickedFile;
 use crate::passwords::access::Caller;
@@ -43,6 +45,28 @@ pub struct AttachmentRenameArgs {
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentIdArgs {
     pub attachment_id: String,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentOpenSystemArgs {
+    pub attachment_id: String,
+    /// The user confirmed the notice about the decrypted copy.
+    pub confirmed: bool,
+    /// "Nicht mehr fragen" was ticked in the notice (this device only).
+    pub dont_ask_again: bool,
+}
+
+/// What "Mit System-App öffnen" did (spec 058 FR-010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum OpenSystemOutcome {
+    /// The copy was written and the system's app started.
+    Opened,
+    /// The notice has to be shown first; nothing was read.
+    NeedsNotice,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -148,4 +172,55 @@ pub async fn passwords_attachment_open(
         &args.tab_id,
         Arc::new(BytesSource::new(Arc::from(bytes), "application/pdf")),
     ))
+}
+
+/// Opens an attachment with the system's app (spec 058 FR-009 to FR-012): without `confirmed`, and
+/// unless "Nicht mehr fragen" was chosen on this device, the answer is `needsNotice`. The copy lies
+/// below the folder of spec 048 for decrypted copies, which goes when the vault closes and after a
+/// crash; when no app opens it, it goes at once. Not on mobiles (spec 044 R11).
+#[tauri::command]
+pub async fn passwords_attachment_open_system(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    files: State<'_, FilesState>,
+    args: AttachmentOpenSystemArgs,
+) -> Result<OpenSystemOutcome> {
+    #[cfg(mobile)]
+    {
+        let _ = (app, state, files, args);
+        Err(HolziError::InvalidInput {
+            reason: "unsupported".to_owned(),
+        })
+    }
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        // Arms the clean-up on close also when the file browser never ran in this session.
+        files.forget_on_close(state.gate());
+        let db = crate::state_utils::active_database(&state)?;
+        let device = crate::device::commands::resolve_vault_device_uuid(&app, &db).await?;
+        let copy = service(&state)?
+            .attachment_copy_for_app(
+                &Caller::User,
+                args.attachment_id,
+                files.opened_encrypted.clone(),
+                device,
+                args.confirmed,
+                args.dont_ask_again,
+            )
+            .await?;
+        let Some(path) = copy else {
+            return Ok(OpenSystemOutcome::NeedsNotice);
+        };
+        if let Err(error) = app.opener().open_path(path.to_string_lossy(), None::<&str>) {
+            // The opener's error can quote the path (FR-013).
+            let _ = error;
+            log::warn!("passwords: the system could not open an attachment");
+            crate::passwords::attachment_view::remove_copy(&path).await;
+            return Err(HolziError::InvalidInput {
+                reason: "no_app".to_owned(),
+            });
+        }
+        Ok(OpenSystemOutcome::Opened)
+    }
 }
