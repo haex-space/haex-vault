@@ -29,7 +29,7 @@ Zeilen gelten (FR-038).
 2. Ein Pfad ist ausgenommen, wenn er selbst oder ein Elternordner trifft.
 3. `.haex-ignore` selbst ist nie ausgenommen.
 4. Feste Ausnahmen (immer, nicht änderbar): `.holzi-trash/`, die temporären Kopierdateien der Regel
-   (`.*.holzi-part-*`), `.DS_Store`, `Thumbs.db`, `desktop.ini`.
+   (`.*.holzi-part-*`, `.*.holzi-old-*`), `.DS_Store`, `Thumbs.db`, `desktop.ini`.
 5. Eine Datei, die ausgenommen ist, erscheint nicht im Plan, nicht im Stand und nicht in den Zählern (nur in der
    Zahl „ausgenommen“ der Vorschau und des Editors, FR-042).
 6. Wird eine Ausnahme aufgehoben, gilt die Datei im nächsten Lauf als neu (FR-040).
