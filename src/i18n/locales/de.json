@@ -2504,6 +2504,7 @@
     "pathBar": "Pfad",
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",
+    "loading": "Ordner wird geladen …",
     "symlink": "Verknüpfung",
     "holziOwned": "Eigene Daten von holzi, nur lesen",
     "search": {
