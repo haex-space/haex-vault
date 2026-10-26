@@ -15,5 +15,6 @@ pub mod phone;
 pub mod photos;
 pub mod search;
 pub mod service;
+pub mod share;
 mod store;
 pub mod targets;

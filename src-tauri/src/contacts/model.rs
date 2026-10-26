@@ -135,6 +135,9 @@ pub struct Contact {
     pub issues: Vec<ContactIssue>,
     /// The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
     pub card: Option<crate::contacts::card::received::ContactCardInfo>,
+    /// The own contact, "Ich" (spec 060): the person of this vault. `name` stays the name its
+    /// name parts give; only the window shows the word "Ich".
+    pub is_self: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -193,6 +196,8 @@ pub struct ContactHeader {
     pub issue: Option<IssueReason>,
     /// The contact has confirmed holzi addresses (a Visitenkarte).
     pub has_card: bool,
+    /// The own contact, "Ich" (spec 060).
+    pub is_self: bool,
 }
 
 /// A value for a new contact or a new value of an existing one.

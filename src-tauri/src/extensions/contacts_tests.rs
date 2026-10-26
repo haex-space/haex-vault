@@ -189,6 +189,8 @@ impl Setup {
             .as_array()
             .unwrap()
             .iter()
+            // The own contact (spec 060) is there in every vault; these tests are about the rest.
+            .filter(|contact| contact["isSelf"] != true)
             .map(|contact| contact["id"].as_str().unwrap().to_owned())
             .collect();
         ids.sort();
@@ -371,4 +373,39 @@ fn malformed_parameters_are_a_validation_error() {
             "{method}"
         );
     }
+}
+
+#[test]
+fn a_star_grant_sees_the_own_contact_marked_and_a_group_grant_does_not() {
+    let s = setup();
+    s.permit("arbeit", "granted");
+    let answer = s.call("extension_contacts_list", json!({})).unwrap();
+    assert!(
+        answer["contacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|contact| contact["isSelf"] != true),
+        "the own contact is in no group"
+    );
+
+    s.permit("*", "granted");
+    let answer = s.call("extension_contacts_list", json!({})).unwrap();
+    let own: Vec<&Value> = answer["contacts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|contact| contact["isSelf"] == true)
+        .collect();
+    assert_eq!(own.len(), 1);
+    let id = own[0]["id"].as_str().unwrap();
+    let detail = s
+        .call("extension_contacts_read", json!({ "id": id }))
+        .unwrap();
+    assert_eq!(detail["isSelf"], true);
+
+    let other = s
+        .call("extension_contacts_read", json!({ "id": s.friend }))
+        .unwrap();
+    assert!(other.get("isSelf").is_none());
 }

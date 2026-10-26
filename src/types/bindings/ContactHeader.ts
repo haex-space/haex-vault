@@ -21,4 +21,8 @@ issue: ContactsPhoneIssueReason | null,
 /**
  * The contact has confirmed holzi addresses (a Visitenkarte).
  */
-hasCard: boolean, };
+hasCard: boolean,
+/**
+ * The own contact, "Ich" (spec 060).
+ */
+isSelf: boolean, };

@@ -7,8 +7,10 @@
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::error::HolziError;
+use crate::sync::keys::hex;
 use crate::sync::signing::{self, Domain};
 
 /// The start of a card's text.
@@ -65,6 +67,18 @@ impl SignedCard {
     /// The card as text: link, clipboard and QR code.
     pub fn text(&self) -> String {
         format!("{PREFIX}{}", URL_SAFE_NO_PAD.encode(&self.bytes))
+    }
+
+    /// SHA-256 (hex) of the signed payload, the key of the card in `haex_contacts_cards` (spec 060
+    /// research R5): the same card is the same row on every device, and a row whose key is not the
+    /// hash of its card is not trusted. The two length bytes in front and the signature behind the
+    /// payload are not part of it, so a card signed again over the same content keeps its key.
+    pub fn hash(&self) -> String {
+        let payload = self
+            .bytes
+            .get(2..self.bytes.len().saturating_sub(64))
+            .unwrap_or_default();
+        hex(&Sha256::digest(payload))
     }
 }
 
@@ -134,14 +148,24 @@ fn text_len(bytes: &[u8]) -> usize {
 /// Signs a card with the vault secret. Values that do not fit 2,048 characters are left out from
 /// the end and returned; devices and relays are never left out.
 pub fn sign(
+    card: ContactCard,
+    secret: &[u8; 32],
+) -> Result<(SignedCard, Vec<CardValue>), HolziError> {
+    sign_with(card, secret, Some(MAX_TEXT))
+}
+
+/// [`sign`] with its own text limit. `None` signs the card as it is: a card inside a share has no
+/// QR code of its own, and the 2,048 characters of a QR code belong to the whole share (spec 060).
+pub fn sign_with(
     mut card: ContactCard,
     secret: &[u8; 32],
+    max_text: Option<usize>,
 ) -> Result<(SignedCard, Vec<CardValue>), HolziError> {
     check_limits(&card)?;
     let mut omitted = Vec::new();
     loop {
         let bytes = encode(&card, secret)?;
-        if text_len(&bytes) <= MAX_TEXT {
+        if max_text.is_none_or(|max| text_len(&bytes) <= max) {
             omitted.reverse();
             return Ok((SignedCard { card, bytes }, omitted));
         }

@@ -118,18 +118,23 @@ pub async fn query(
     contact_id: String,
 ) -> Result<FilesContactShares, FilesError> {
     let id = contact_id.clone();
-    let card = db
+    let (card, addresses) = db
         .read(move |q| {
             let Some(card) = cards::stored_of_contact(q, &id)? else {
                 return Ok(None);
             };
-            Ok((!cards::is_blocked(q, &card.card.vault)?).then_some(card))
+            if cards::is_blocked(q, &card.card.vault)? {
+                return Ok(None);
+            }
+            // The devices of all stored cards of the vault, not of one (spec 060).
+            let addresses = cards::addresses(q, &card.card.vault)?;
+            Ok(Some((card, addresses)))
         })
         .await
         .map_err(failed)?
         .ok_or_else(|| FilesError::new(FilesErrorCode::NotFound, "no stored card"))?;
     let vault = card.card.vault;
-    let asks = card.card.devices.iter().map(|device| async move {
+    let asks = addresses.devices.iter().map(|device| async move {
         let addr = endpoint_addr_of(&device.endpoint_id, device.iroh_relay.as_deref(), &[]).ok()?;
         let asked = async {
             let link = links.link_to_contact(vault, addr).await.ok()?;

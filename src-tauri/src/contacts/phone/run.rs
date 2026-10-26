@@ -89,7 +89,8 @@ fn unlinked_headers(
         .map(|link| link.contact_id.clone())
         .collect();
     let mut headers = db.read_blocking(|q| contacts_store::headers(q).map_err(Into::into))?;
-    headers.retain(|header| !linked.contains(&header.id));
+    // The own contact (spec 060) never matches a phone contact and is never merged into.
+    headers.retain(|header| !header.is_self && !linked.contains(&header.id));
     Ok(headers)
 }
 

@@ -58,7 +58,14 @@ async fn a_new_contact_keeps_its_values_and_origin() {
         .await
         .expect("get");
     assert_eq!(again, contact);
-    let headers = vault.service.list(&Caller::User, &[]).await.expect("list");
+    let headers: Vec<_> = vault
+        .service
+        .list(&Caller::User, &[])
+        .await
+        .expect("list")
+        .into_iter()
+        .filter(|header| !header.is_self)
+        .collect();
     assert_eq!(headers.len(), 1);
     assert_eq!(headers[0].phones, ["0170 1234567", "030 5550101"]);
     assert_eq!(headers[0].emails, ["anna@example.org"]);
@@ -441,4 +448,156 @@ async fn search_finds_only_within_the_scope() {
         vault.service.search(&extension, &[], "anna").await,
         Err(HolziError::ContactsForbidden)
     ));
+}
+
+// --- The own contact, "Ich" (spec 060) ---
+
+fn own() -> String {
+    crate::contacts::ids::SELF_CONTACT_ID.to_owned()
+}
+
+fn callers() -> Vec<(&'static str, Caller)> {
+    vec![
+        ("user", Caller::User),
+        ("builtin agent", Caller::BuiltinAgent),
+        (
+            "extension",
+            Caller::Extension {
+                id: "ext".to_owned(),
+            },
+        ),
+    ]
+}
+
+fn all_grants() -> Vec<Grant> {
+    vec![Grant::new(GrantAction::ReadWrite, Scope::All)]
+}
+
+#[tokio::test]
+async fn the_own_contact_is_there_in_a_new_vault_and_empty() {
+    let vault = test_vault();
+    let contact = vault
+        .service
+        .get(&Caller::User, &[], &own())
+        .await
+        .expect("the own contact");
+    assert!(contact.is_self);
+    assert!(contact.values.is_empty());
+    assert_eq!(contact.head, crate::contacts::model::Head::default());
+    let headers = vault.service.list(&Caller::User, &[]).await.expect("list");
+    assert_eq!(headers.iter().filter(|header| header.is_self).count(), 1);
+}
+
+#[tokio::test]
+async fn nobody_deletes_the_own_contact() {
+    let vault = test_vault();
+    for (who, caller) in callers() {
+        let refused = vault
+            .service
+            .delete(&caller, &all_grants(), vec![own()])
+            .await;
+        assert!(
+            matches!(refused, Err(HolziError::ContactsSelf)),
+            "{who} must not delete the own contact"
+        );
+    }
+    assert!(vault.service.get(&Caller::User, &[], &own()).await.is_ok());
+}
+
+#[tokio::test]
+async fn a_bulk_delete_with_the_own_contact_deletes_nothing() {
+    let vault = test_vault();
+    let anna = vault
+        .service
+        .create(&Caller::User, &[], anna())
+        .await
+        .expect("create")
+        .id;
+    let refused = vault
+        .service
+        .delete(&Caller::User, &[], vec![anna.clone(), own()])
+        .await;
+    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(
+        vault.service.get(&Caller::User, &[], &anna).await.is_ok(),
+        "the other contact stays, too"
+    );
+    let refused = vault
+        .service
+        .delete(&Caller::User, &[], vec![own(), anna.clone()])
+        .await;
+    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(vault.service.get(&Caller::User, &[], &anna).await.is_ok());
+}
+
+#[tokio::test]
+async fn the_display_name_of_the_own_contact_cannot_be_set() {
+    let vault = test_vault();
+    for patch in [Patch::Set("Martin".to_owned()), Patch::Clear] {
+        let refused = vault
+            .service
+            .update(
+                &Caller::User,
+                &[],
+                &own(),
+                ContactPatch {
+                    display_name: patch,
+                    ..ContactPatch::default()
+                },
+            )
+            .await;
+        assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    }
+}
+
+#[tokio::test]
+async fn the_own_contact_takes_name_parts_and_details_even_from_empty() {
+    let vault = test_vault();
+    let updated = vault
+        .service
+        .update(
+            &Caller::User,
+            &[],
+            &own(),
+            ContactPatch {
+                given_name: Patch::Set("Martin".to_owned()),
+                values: Some(ValuesPatch {
+                    upsert: vec![ValueUpsert {
+                        id: None,
+                        kind: "email".to_owned(),
+                        label: "home".to_owned(),
+                        value: "martin@example.org".to_owned(),
+                        position: None,
+                    }],
+                    remove: vec![],
+                }),
+                ..ContactPatch::default()
+            },
+        )
+        .await
+        .expect("update the own contact");
+    assert!(updated.is_self);
+    assert_eq!(updated.name, "Martin");
+    assert_eq!(updated.values.len(), 1);
+
+    // And clearing everything again leaves it there, empty.
+    let cleared = vault
+        .service
+        .update(
+            &Caller::User,
+            &[],
+            &own(),
+            ContactPatch {
+                given_name: Patch::Clear,
+                values: Some(ValuesPatch {
+                    upsert: vec![],
+                    remove: updated.values.iter().map(|v| v.id.clone()).collect(),
+                }),
+                ..ContactPatch::default()
+            },
+        )
+        .await
+        .expect("empty the own contact");
+    assert!(cleared.values.is_empty());
+    assert!(vault.service.get(&Caller::User, &[], &own()).await.is_ok());
 }

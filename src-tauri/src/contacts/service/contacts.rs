@@ -14,7 +14,7 @@ use crate::contacts::kinds::{self, EMAIL, PHONE};
 use crate::contacts::model::{
     Contact, ContactHeader, ContactInput, ContactPatch, Head, Origin, OriginKind, ValueInput,
 };
-use crate::contacts::{photos, search, store};
+use crate::contacts::{ids, photos, search, store};
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
 use crate::patch::Patch;
@@ -73,6 +73,10 @@ fn no_identity() -> HolziError {
 /// Fails unless the stored contact has something to be found by (after a write, in the same
 /// transaction, so a refused change writes nothing).
 fn check_identity(q: &mut impl crate::storage::query::Query, contact_id: &str) -> Result<()> {
+    // The own contact is there from the start and may be empty (spec 060 FR-003).
+    if ids::is_self(contact_id) {
+        return Ok(());
+    }
     let contact = store::load(q, contact_id)?;
     let count = |kind: &str| contact.values.iter().filter(|v| v.kind == kind).count();
     if store::has_identity(&contact.head, count(PHONE), count(EMAIL)) {
@@ -194,6 +198,11 @@ impl ContactsService {
                 value: upsert.value.clone(),
             })?;
         }
+        // The display name of the own contact is "Ich" in the window and stays unset (spec 060
+        // FR-003); its name parts and everything else can change.
+        if ids::is_self(id) && !matches!(patch.display_name, Patch::Keep) {
+            return Err(HolziError::ContactsSelf);
+        }
         let id = id.to_owned();
         let (caller, grants) = (caller.clone(), grants.to_vec());
         self.db()
@@ -270,6 +279,10 @@ impl ContactsService {
         self.db()
             .write(move |tx| {
                 for id in &ids {
+                    // The own contact is never deleted, by anyone (spec 060 FR-002).
+                    if crate::contacts::ids::is_self(id) {
+                        return Err(HolziError::ContactsSelf.into());
+                    }
                     let groups =
                         store::group_ids_if_exists(tx, id)?.ok_or(HolziError::ContactsNotFound)?;
                     authorize_write(&caller, &grants, &groups).map_err(HolziError::from)?;

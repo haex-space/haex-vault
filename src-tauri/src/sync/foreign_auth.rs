@@ -388,6 +388,9 @@ async fn foreign_trust(
     let trust = match card {
         VaultCard::Blocked => return Err(Refused("blocked")),
         VaultCard::Stored { contact_id, card } => {
+            // `card` is the newest stored card of the vault (`received::stored`). Addresses that a
+            // share added from other cards only serve to dial; they never lower this threshold, so
+            // an older card that still names a removed device cannot let it in (spec 060 R5).
             if generation < card.card.list_generation {
                 return Err(Refused("a list older than the stored card's"));
             }

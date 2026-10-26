@@ -246,6 +246,21 @@ pub enum HolziError {
     #[error("The business card is too large")]
     CardTooLarge,
 
+    // --- Sharing contacts (spec 060, contracts/share-format.md) ---
+    /// The own contact, "Ich", cannot be deleted, renamed in its display name or given phone
+    /// targets (FR-001 to FR-003, FR-006).
+    #[error("This is your own contact")]
+    ContactsSelf,
+
+    /// A share that is no share of this version: wrong form, unknown version, a limit broken, or a
+    /// choice the preview does not offer; `reason` names the problem for the window.
+    #[error("Invalid share: {reason}")]
+    ShareInvalid { reason: String },
+
+    /// The share is larger than the limit for link and clipboard (FR-019).
+    #[error("The share is too large")]
+    ShareTooLarge,
+
     /// The phone's address book refused a call; `reason` names the kind of failure, never a
     /// contact's data.
     #[error("The phone's address book failed: {reason}")]

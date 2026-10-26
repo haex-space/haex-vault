@@ -29,6 +29,7 @@ struct Cases {
 
 fn header(contact: &CaseContact) -> ContactHeader {
     ContactHeader {
+        is_self: false,
         id: contact.id.clone(),
         name: contact.name.clone(),
         given_name: contact.given_name.clone(),

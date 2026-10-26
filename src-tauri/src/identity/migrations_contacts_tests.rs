@@ -136,8 +136,8 @@ async fn deleting_a_contact_takes_everything_that_hangs_off_it() {
                 &[],
             )?;
             tx.execute(
-                "INSERT INTO haex_contacts_cards (vault_pubkey, contact_id, card, issued_at, \
-                 received_at) VALUES ('pk', 'c1', x'00', 't', 't')",
+                "INSERT INTO haex_contacts_cards (hash, vault_pubkey, contact_id, card, \
+                 issued_at, received_at) VALUES ('h', 'pk', 'c1', x'00', 't', 't')",
                 &[],
             )?;
             tx.execute(

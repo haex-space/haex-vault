@@ -72,11 +72,16 @@ impl Rig {
             .expect("status")
     }
 
+    /// The headers of the contacts the sync tests are about: every vault has the own contact
+    /// (spec 060), which never takes part in the sync.
     pub fn headers(&self) -> Vec<crate::contacts::model::ContactHeader> {
-        self.vault
+        let mut headers = self
+            .vault
             .db
             .read_blocking(|q| crate::contacts::store::headers(q).map_err(haex_crdt::Error::from))
-            .expect("headers")
+            .expect("headers");
+        headers.retain(|header| !header.is_self);
+        headers
     }
 
     pub fn contact(&self, id: &str) -> crate::contacts::model::Contact {

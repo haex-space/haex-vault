@@ -8,6 +8,16 @@ use uuid::Uuid;
 /// Generated once; **never change** it, or old and new devices would derive different ids.
 pub const NS_CONTACTS: Uuid = Uuid::from_u128(0x5c0f_7a2e_9d41_4b8a_a6e3_1f2d_0c9b_8e47);
 
+/// `haex_contacts.id` of the own contact, "Ich" (spec 060 FR-001): one fixed row per vault, made by
+/// migration `0042_contacts_self`, so every device and every copy of a vault carries the same id.
+/// Generated once; **never change**, or the rows of old and new devices would be two contacts.
+pub const SELF_CONTACT_ID: &str = "1ce52853-b579-4ffd-b9ef-f27071a414ed";
+
+/// Whether `id` is the own contact.
+pub fn is_self(id: &str) -> bool {
+    id == SELF_CONTACT_ID
+}
+
 fn derive(kind: &str, parts: &[&str]) -> String {
     let name = std::iter::once(kind)
         .chain(parts.iter().copied())

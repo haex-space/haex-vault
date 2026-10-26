@@ -136,7 +136,8 @@ async fn only_phones_with_the_sync_on_are_offered() {
             .list(&Caller::User, &[])
             .await
             .expect("list")
-            .is_empty(),
+            .iter()
+            .all(|header| header.is_self),
         "a refused target writes nothing"
     );
 }
@@ -298,4 +299,72 @@ async fn only_the_user_decides_where_a_contact_goes() {
         .await;
     assert!(agent.is_err(), "an agent cannot choose a phone");
     assert!(vault.service.phones(&Caller::BuiltinAgent).await.is_err());
+}
+
+#[tokio::test]
+async fn the_own_contact_goes_to_no_phone() {
+    let vault = test_vault();
+    let phone = add_phone(&vault, "Pixel", true, vec![account("", "")]);
+    let anna = create(&vault, "Anna", vec![]).await;
+    let own = crate::contacts::ids::SELF_CONTACT_ID.to_owned();
+
+    let refused = vault
+        .service
+        .targets_set(
+            &Caller::User,
+            Selection::Contacts(vec![anna.clone(), own.clone()]),
+            phone.clone(),
+            None,
+        )
+        .await;
+    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(
+        targets_of(&vault, &anna).await.is_empty(),
+        "a refused change writes nothing"
+    );
+    assert!(targets_of(&vault, &own).await.is_empty());
+}
+
+#[tokio::test]
+async fn a_group_holding_the_own_contact_skips_it() {
+    let vault = test_vault();
+    let phone = add_phone(&vault, "Pixel", true, vec![account("", "")]);
+    let group = vault
+        .service
+        .group_save(&Caller::User, None, "Familie".into())
+        .await
+        .expect("group");
+    let input = ContactInput {
+        groups: vec![group.id.clone()],
+        ..person("Anna", "Beck", vec![])
+    };
+    let anna = vault
+        .service
+        .create(&Caller::User, &[], input)
+        .await
+        .expect("create")
+        .id;
+    vault
+        .service
+        .update(
+            &Caller::User,
+            &[],
+            crate::contacts::ids::SELF_CONTACT_ID,
+            crate::contacts::model::ContactPatch {
+                groups: Some(vec![group.id.clone()]),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("the own contact joins a group");
+
+    vault
+        .service
+        .targets_set(&Caller::User, Selection::Group(group.id), phone, None)
+        .await
+        .expect("set");
+    assert_eq!(targets_of(&vault, &anna).await.len(), 1);
+    assert!(targets_of(&vault, crate::contacts::ids::SELF_CONTACT_ID)
+        .await
+        .is_empty());
 }

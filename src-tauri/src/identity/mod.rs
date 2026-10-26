@@ -18,6 +18,12 @@ mod migrations_browser_clients;
 #[cfg(test)]
 mod migrations_browser_clients_tests;
 mod migrations_contacts;
+mod migrations_contacts_cards;
+#[cfg(test)]
+mod migrations_contacts_cards_tests;
+mod migrations_contacts_self;
+#[cfg(test)]
+mod migrations_contacts_self_tests;
 #[cfg(test)]
 mod migrations_contacts_tests;
 pub mod migrations_encrypted_folders;
