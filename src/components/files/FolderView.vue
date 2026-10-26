@@ -5,8 +5,9 @@
  * folder that takes a moment to load shows the loader over it (`FilesLoader`); a folder the system
  * denies shows why. A press reports the entry with the keys held (the frame decides between opening
  * and selecting, `lib/files/clipboard.ts`); a double click, Enter or Space opens it, a click on the
- * empty area clears the selection. Entries drag onto a folder row or the open folder (FR-018). The
- * keyboard moves the focus through the entries (`focusEntry`, FR-017b), and a new folder takes the
+ * empty area clears the selection. Dragging with the mouse from the empty area pulls up a band that
+ * selects the entries it touches (Ctrl, Cmd or Shift add to the selection). Entries drag onto a
+ * folder row or the open folder (FR-018). The keyboard moves the focus through the entries (`focusEntry`, FR-017b), and a new folder takes the
  * focus unless a text field has it.
  */
 import type { Entry } from '@bindings/Entry'
@@ -14,11 +15,16 @@ import type { FilesError } from '@bindings/FilesError'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { FilesView } from '~/composables/useFilesPrefs'
 import {
+  bandBetween,
+  bandSelection,
+  type CellGrid,
   type ClickKeys,
   type DragPayload,
   dragPayload,
   ENTRIES_MIME,
+  indexesInBand,
   parseDragPayload,
+  type Selection,
 } from '~/lib/files/clipboard'
 import { shownNameKey } from '~/lib/files/encrypted'
 import { isEditableTarget } from '~/lib/wm/keybindings'
@@ -42,6 +48,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   press: [entry: Entry, keys: ClickKeys]
+  /** A band dragged over the entries sets the selection. */
+  band: [selection: Selection]
   open: [entry: Entry]
   clear: []
   /** The context menu opens over an entry, or over the empty area (`null`). */
@@ -242,7 +250,141 @@ function open(entry: Entry) {
   if (!touch) emit('open', entry)
 }
 
+// --- Selecting with a band ---
+// A press with the mouse on the empty area, then a drag of a few pixels, pulls up a band over the
+// entries. The rows are virtual, so the band is worked out from the layout (`indexesInBand`) and
+// not from the elements on screen; dragging past the top or bottom edge scrolls.
+
+/** How far the pointer moves before a press becomes a band, so a click stays a click. */
+const BAND_THRESHOLD = 4
+/** The zone along the top and bottom edge that scrolls while a band is dragged. */
+const BAND_EDGE = 32
+
+const cells = computed<CellGrid>(() =>
+  props.view === 'list'
+    ? { columns: 1, cellWidth: Infinity, cellHeight: ROW_HEIGHT }
+    : {
+        columns: columns.value,
+        cellWidth: TILE_WIDTH,
+        cellHeight: TILE_HEIGHT,
+      },
+)
+
+/** The drawn band, in the list's visible pixels. */
+const bandBox = ref<{
+  left: number
+  top: number
+  width: number
+  height: number
+} | null>(null)
+
+let bandPress: { x: number; y: number } | null = null
+let bandPointer: { x: number; y: number } | null = null
+let bandBase: Selection = { paths: [], anchor: null }
+let bandAdditive = false
+let bandActive = false
+let bandFrame = 0
+let bandHits: string[] = []
+/** The click that ends a band must not clear what the band selected. */
+let swallowClick = false
+
+function onBandDown(event: PointerEvent) {
+  if (event.pointerType !== 'mouse' || event.button !== 0) return
+  const scroller = containerProps.value.ref.value
+  if (!scroller) return
+  if ((event.target as HTMLElement | null)?.closest('[data-path]')) return
+  const rect = scroller.getBoundingClientRect()
+  // The scroll bar is no empty area.
+  if (event.clientX - rect.left >= scroller.clientWidth) return
+  bandPress = {
+    x: event.clientX - rect.left + scroller.scrollLeft,
+    y: event.clientY - rect.top + scroller.scrollTop,
+  }
+  bandPointer = { x: event.clientX, y: event.clientY }
+  bandAdditive = event.ctrlKey || event.metaKey || event.shiftKey
+  bandBase = { paths: [...props.selected], anchor: props.selected[0] ?? null }
+  bandHits = []
+  scroller.setPointerCapture(event.pointerId)
+}
+
+function onBandMove(event: PointerEvent) {
+  if (!bandPress) return
+  bandPointer = { x: event.clientX, y: event.clientY }
+  updateBand()
+}
+
+function updateBand() {
+  const scroller = containerProps.value.ref.value
+  if (!scroller || !bandPress || !bandPointer) return
+  const rect = scroller.getBoundingClientRect()
+  const to = {
+    x:
+      Math.min(Math.max(bandPointer.x - rect.left, 0), scroller.clientWidth) +
+      scroller.scrollLeft,
+    y: bandPointer.y - rect.top + scroller.scrollTop,
+  }
+  if (!bandActive) {
+    if (Math.hypot(to.x - bandPress.x, to.y - bandPress.y) < BAND_THRESHOLD)
+      return
+    bandActive = true
+    bandFrame = requestAnimationFrame(bandTick)
+  }
+  const box = bandBetween(bandPress, to)
+  bandBox.value = {
+    left: box.left - scroller.scrollLeft,
+    top: box.top - scroller.scrollTop,
+    width: box.right - box.left,
+    height: box.bottom - box.top,
+  }
+  const hits = indexesInBand(box, cells.value, props.entries.length).map(
+    (index) => props.entries[index]!.path,
+  )
+  if (
+    hits.length === bandHits.length &&
+    hits.every((path, index) => path === bandHits[index])
+  )
+    return
+  bandHits = hits
+  emit('band', bandSelection(bandBase, hits, bandAdditive))
+}
+
+/** Scrolls while the pointer is held near the top or bottom edge, and follows the wheel. */
+function bandTick() {
+  bandFrame = 0
+  const scroller = containerProps.value.ref.value
+  if (!bandActive || !scroller || !bandPointer) return
+  const rect = scroller.getBoundingClientRect()
+  const above = rect.top + BAND_EDGE - bandPointer.y
+  const below = bandPointer.y - (rect.bottom - BAND_EDGE)
+  if (above > 0) scroller.scrollTop -= Math.min(above, BAND_EDGE * 2) / 3
+  else if (below > 0) scroller.scrollTop += Math.min(below, BAND_EDGE * 2) / 3
+  updateBand()
+  bandFrame = requestAnimationFrame(bandTick)
+}
+
+function onBandEnd(event: PointerEvent) {
+  if (!bandPress) return
+  const scroller = containerProps.value.ref.value
+  if (scroller?.hasPointerCapture(event.pointerId))
+    scroller.releasePointerCapture(event.pointerId)
+  if (bandActive) {
+    swallowClick = true
+    setTimeout(() => (swallowClick = false), 0)
+  }
+  bandPress = null
+  bandPointer = null
+  bandActive = false
+  bandBox.value = null
+  if (bandFrame) cancelAnimationFrame(bandFrame)
+  bandFrame = 0
+}
+
+onBeforeUnmount(() => {
+  if (bandFrame) cancelAnimationFrame(bandFrame)
+})
+
 function onBackgroundClick(event: MouseEvent) {
+  if (swallowClick) return
   if (!(event.target as HTMLElement | null)?.closest('[data-path]')) {
     emit('clear')
   }
@@ -349,11 +491,15 @@ const errorText = computed(() => {
     <div
       v-else
       v-bind="containerProps"
-      class="h-full overflow-y-auto"
+      class="h-full overflow-y-auto select-none"
       role="list"
       :aria-busy="loading"
       data-testid="files-entries"
       @click="onBackgroundClick"
+      @pointerdown="onBandDown"
+      @pointermove="onBandMove"
+      @pointerup="onBandEnd"
+      @pointercancel="onBandEnd"
     >
       <div v-bind="wrapperProps">
         <template v-if="view === 'list'">
@@ -442,6 +588,22 @@ const errorText = computed(() => {
           </div>
         </template>
       </div>
+    </div>
+    <div
+      v-if="bandBox"
+      class="pointer-events-none absolute inset-0 overflow-hidden"
+      aria-hidden="true"
+    >
+      <div
+        class="absolute border border-primary bg-primary/15"
+        :style="{
+          left: `${bandBox.left}px`,
+          top: `${bandBox.top}px`,
+          width: `${bandBox.width}px`,
+          height: `${bandBox.height}px`,
+        }"
+        data-testid="files-band"
+      />
     </div>
     <FilesLoader :loading="loading" />
   </div>

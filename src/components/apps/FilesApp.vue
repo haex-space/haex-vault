@@ -190,6 +190,7 @@ const {
   menuEntries,
   dimmed,
   onPress,
+  onBand,
   onContext,
   runMenu,
   runBar,
@@ -433,6 +434,7 @@ watch(tabActive, (active) => {
               :dimmed="dimmed"
               :settings-link="settingsLink"
               @press="onPress"
+              @band="onBand"
               @open="activate"
               @clear="clearSelection()"
               @context="onContext"
