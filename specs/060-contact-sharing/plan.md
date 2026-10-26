@@ -37,7 +37,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 
 **Language/Version**: Rust (Tauri 2, Edition wie `src-tauri/Cargo.toml`); TypeScript (strict), Vue 3, Nuxt 4 (SPA)
 
-**Primary Dependencies**: neu `tauri-plugin-deep-link` 2.4.9 und `@tauri-apps/plugin-deep-link`; vorhanden `postcard`,
+**Primary Dependencies**: neu `tauri-plugin-deep-link` (2.6.2, `rust-ini` in `Cargo.lock` auf 0.21.1) und `@tauri-apps/plugin-deep-link`; vorhanden `postcard`,
 `serde`, `base64`, `sha2`, `qrcode`, `ts-rs`, `vue-i18n`, haex-ui, `@tauri-apps/plugin-barcode-scanner`
 
 **Storage**: Vault-Datenbank (haex-crdt): feste Zeile in `haex_contacts` (0042), neu aufgebaute
@@ -148,7 +148,7 @@ src-tauri/src/
 src-tauri/
 ├── Cargo.toml                          # tauri-plugin-deep-link
 ├── tauri.conf.json                     # plugins.deep-link
-├── capabilities/default.json, mobile.json   # deep-link:default
+├── capabilities/default.json                # deep-link:default (gilt auch mobil)
 └── gen/android/app/src/main/AndroidManifest.xml   # Intent-Filter
 
 src/
