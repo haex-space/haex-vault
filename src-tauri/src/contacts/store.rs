@@ -76,12 +76,9 @@ fn present(text: &Option<String>) -> Option<&str> {
     text.as_deref().map(str::trim).filter(|t| !t.is_empty())
 }
 
-/// The name the list shows: the stored display name, else the name parts, else the nickname, the
-/// organization, the first phone number or e-mail address.
+/// The name the list shows: the name parts (first and last name), else the stored display name,
+/// else the nickname, the organization, the first phone number or e-mail address.
 pub fn derived_name(head: &Head, phones: &[String], emails: &[String]) -> String {
-    if let Some(name) = present(&head.display_name) {
-        return name.to_owned();
-    }
     let parts: Vec<&str> = [
         &head.name_prefix,
         &head.given_name,
@@ -95,7 +92,8 @@ pub fn derived_name(head: &Head, phones: &[String], emails: &[String]) -> String
     if !parts.is_empty() {
         return parts.join(" ");
     }
-    present(&head.nickname)
+    present(&head.display_name)
+        .or_else(|| present(&head.nickname))
         .or_else(|| present(&head.organization))
         .or_else(|| phones.first().map(String::as_str))
         .or_else(|| emails.first().map(String::as_str))
@@ -490,3 +488,7 @@ pub fn all_groups(q: &mut impl Query) -> Result<Vec<Group>> {
         },
     )?)
 }
+
+#[cfg(test)]
+#[path = "store_tests.rs"]
+mod tests;

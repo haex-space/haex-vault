@@ -688,8 +688,8 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     );
     // Fixes a bug where accepting a business card without a name wrote the sender's npub into
     // `display_name`, so the list showed the npub forever even after the user filled in name
-    // parts (`derived_name` always prefers `display_name`). This migration is data-only and does
-    // not require a trigger-version bump.
+    // parts (`derived_name` always prefers `display_name`). This data-only migration clears it
+    // back to NULL for card contacts, so the list falls back to the name parts.
     m.insert(
         MigrationName::from("0041_contacts_card_display_name"),
         "UPDATE haex_contacts SET display_name = NULL \

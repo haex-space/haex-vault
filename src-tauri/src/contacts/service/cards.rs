@@ -273,13 +273,12 @@ impl ContactsService {
                     }
                     (CardInto::New, None) => {
                         let id = Uuid::new_v4().to_string();
-                        let name = if card.card.name.trim().is_empty() {
-                            received::npub(&card.card.vault)
-                        } else {
-                            card.card.name.clone()
-                        };
+                        // Leave display_name unset when the card carries no name, so the list
+                        // falls back to the name parts the user enters later instead of being
+                        // stuck on the vault's npub (display_name always wins in derived_name).
+                        let name = card.card.name.trim();
                         let head = Head {
-                            display_name: Some(name),
+                            display_name: (!name.is_empty()).then(|| name.to_owned()),
                             ..Head::default()
                         };
                         store::insert(tx, &id, &head, &origin, &now)?;
