@@ -93,6 +93,11 @@ scenario('file-shares', { timeoutMs: 600_000 }, async (ctx) => {
     appId: 'system.files',
     at: `/device?p=${encodeURIComponent(phoneFiles.folder)}`,
   })
+  // The store of the transfers exists once the file browser is mounted.
+  await ctx.waitFor(
+    'the file browser to hold its transfers',
+    async () => await phone.exec<boolean>(`return !!${TRANSFERS}`),
+  )
   await phone.exec(
     `return ${TRANSFERS}.startAsync('copy', arguments[0], arguments[1], arguments[2], 'e2e').then(() => true)`,
     [
