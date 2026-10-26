@@ -13,7 +13,7 @@ import type { VaultDevice } from '@bindings/VaultDevice'
 import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 import { contactTitle } from '~/lib/contacts/self'
 
-const { t, d } = useI18n()
+const { t, d, locale } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useContactsStore()
@@ -268,7 +268,7 @@ async function removePhotoAsync() {
         <SettingsRow
           v-for="value in values"
           :key="value.id"
-          :title="displayValue(value.kind, value.value)"
+          :title="displayValue(value.kind, value.value, locale)"
           :description="labelName(value.label)"
           :data-testid="`contacts-value-${value.id}`"
         >

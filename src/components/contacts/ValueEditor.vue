@@ -7,6 +7,11 @@
  */
 import type { DraftValue } from '~/lib/contacts/draft'
 import {
+  datePattern,
+  formatEventDate,
+  parseTypedDate,
+} from '~/lib/contacts/eventDate'
+import {
   ADDRESS_PARTS,
   customLabel,
   displayValue,
@@ -26,7 +31,7 @@ const emit = defineEmits<{
   remove: []
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const fieldLabels = useFieldLabels()
 const { kindName, labelName } = useContactLabels()
 
@@ -69,7 +74,25 @@ function setAddressPart(part: (typeof ADDRESS_PARTS)[number], text: string) {
 }
 
 const im = computed(() => parseIm(model.value.value))
-const date = computed(() => parseEventDate(model.value.value))
+// The date is typed in the order of the language and stored as `YYYY-MM-DD` or `--MM-DD`; what is
+// typed stays as typed while the person edits, a date that is not complete yet goes on as typed and
+// the backend says what it refuses on saving.
+const dateText = ref(
+  formatEventDate(parseEventDate(model.value.value), locale.value),
+)
+function setDate(text: string) {
+  dateText.value = text
+  setValue(serializeEventDate(parseTypedDate(text, locale.value) ?? text))
+}
+const datePlaceholder = computed(() =>
+  t('contacts.editor.datePlaceholder', {
+    ...datePattern(locale.value, {
+      day: t('contacts.date.day'),
+      month: t('contacts.date.month'),
+      year: t('contacts.date.year'),
+    }),
+  }),
+)
 </script>
 
 <template>
@@ -109,7 +132,7 @@ const date = computed(() => parseEventDate(model.value.value))
       data-testid="contacts-editor-readonly"
     >
       {{ labelName(model.label) }}:
-      {{ displayValue(model.kind, model.value) }} ·
+      {{ displayValue(model.kind, model.value, locale) }} ·
       {{ t('contacts.readOnly') }}
     </p>
 
@@ -190,13 +213,13 @@ const date = computed(() => parseEventDate(model.value.value))
       <UiInput
         v-else-if="definition?.input === 'date'"
         :id="`${uid}-date`"
-        :model-value="date"
+        :model-value="dateText"
         :label="t('contacts.editor.date')"
-        :placeholder="t('contacts.editor.datePlaceholder')"
+        :placeholder="datePlaceholder"
         :labels="fieldLabels.input.value"
         label-bg="var(--muted)"
         data-testid="contacts-editor-date"
-        @update:model-value="setValue(serializeEventDate(String($event ?? '')))"
+        @update:model-value="setDate(String($event ?? ''))"
       />
       <UiInput
         v-else
