@@ -250,6 +250,7 @@ First hand test with Claude Code: the choice offered only `Kein`, `Niedrig`, `Mi
 - [ ] T098 [US2] vault-sdk (own repo, own PR): drop `effort` from `ModelJobStep` and `ModelAccessRequest`, `ModelEffort` with `xhigh` and `max`; README note. haex-notes drops its `effort` fields first (a host that still accepts none is no problem for it), then holzi's change lands
 - [ ] T099 [US2] haex-notes (`haextension`): drop `effort` from the jobs of the page recognition
 - [x] T100 [US8] (haex-vault#565) The models of every provider are read again at each vault open (FR-037): `providers/refresh_all.rs`, started after `open_instance` and `import_instance`; test `providers/refresh_all_tests.rs`
+- [x] T101 [US8] (FR-038) Job log in `src-tauri/src/model_jobs/trace.rs`: every try (model, place, effort, outcome), the cause of a model that could not answer (adapter, start, stream, unusable answer), a refused start and unreadable models; `trace_tests.rs` checks that key and address are redacted and that a provider's answer body is never logged
 
 ---
 

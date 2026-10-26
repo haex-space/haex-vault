@@ -17,6 +17,7 @@ use super::model_source::ModelSource;
 use super::preflight::{preflight, read_facts, reread_facts, still_allowed, Ready};
 use super::runner::{run_job, JobEnd, JobRun, Recheck};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
+use super::trace;
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
@@ -65,6 +66,14 @@ fn emit_completion(emitter: &dyn Emit, host: &ExtensionHost, extension_id: Uuid,
 /// `{job}`: parses and checks the job before any model is asked (a wrong form answers 3001, a
 /// limit 7000, a missing grant or consent 1004), registers it and starts the run.
 pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let started = begin(ctx, params);
+    if let Err(error) = &started {
+        trace::refused(error);
+    }
+    started
+}
+
+fn begin(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let job = params
         .get("job")
         .ok_or_else(|| refusal(&JobError::Invalid("the call needs a job".into())))?;

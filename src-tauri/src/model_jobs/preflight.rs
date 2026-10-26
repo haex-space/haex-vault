@@ -72,7 +72,10 @@ pub(crate) fn read_facts(ctx: &CallContext) -> Result<Facts, BridgeError> {
         .read_blocking(move |q| {
             facts_of(q, extension_id, device, held, destinations).map_err(Into::into)
         })
-        .map_err(|_| bridge_error(JobErrorCode::Unavailable, "the models could not be read"))
+        .map_err(|error| {
+            log::warn!("model job: the models could not be read: {error}");
+            bridge_error(JobErrorCode::Unavailable, "the models could not be read")
+        })
 }
 
 /// [`read_facts`] for a running job, between two of its steps.
