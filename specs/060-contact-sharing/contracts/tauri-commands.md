@@ -101,7 +101,7 @@ Beschreibung der Aktionen in `contactsActions.ts` nennt das Feld, damit ein Agen
 ## Deep Link (Plattform)
 
 - Schema `haex-vault://contact/<base64url>`; Konfiguration in `tauri.conf.json`
-  (`plugins.deep-link`), `capabilities/default.json` und `mobile.json` (`deep-link:default`),
-  `AndroidManifest.xml` (Intent-Filter), `lib.rs` (`.plugin(tauri_plugin_deep_link::init())`).
+  (`plugins.deep-link`), `capabilities/default.json` (`deep-link:default`, gilt auch mobil),
+  `AndroidManifest.xml` (Intent-Filter, vom Plugin beim Android-Build erzeugt), `lib.rs` (`.plugin(tauri_plugin_deep_link::init())`).
 - Desktop-Weiterleitung zwischen Prozessen: Verzeichnis `<AppLocalData>/link-inbox/` (siehe `research.md` R9).
 - Der Link öffnet **nur** die Vorschau: Er ruft `contacts_share_preview` auf, nie `contacts_share_accept`.

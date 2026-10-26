@@ -173,14 +173,15 @@ Geprüft: in dieser Arbeitskopie gibt es weder `tauri-plugin-deep-link` noch Sin
 Brauchbar ist ihr `useDeepLink.ts` (Zwischenspeicher im Modul, Wiederabspiel nach dem Öffnen der Vault).
 
 - **Entscheidung**:
-  1. `tauri-plugin-deep-link = "2.4.9"`, `@tauri-apps/plugin-deep-link`, Schema `haex-vault` in
+  1. `tauri-plugin-deep-link` (Cargo löst 2.6.2 auf; `rust-ini` muss in `Cargo.lock` auf 0.21.1 stehen, 0.21.3
+     bricht das Plugin mit E0063), `@tauri-apps/plugin-deep-link` 2.6.2, Schema `haex-vault` in
      `tauri.conf.json` (`plugins.deep-link.desktop.schemes`, `mobile` mit Schema und Host `contact`),
-     `deep-link:default` in `capabilities/default.json` und `mobile.json`, `.plugin(deep_link::init())`
-     in `lib.rs`.
-  2. Android: Intent-Filter `VIEW`/`DEFAULT`/`BROWSABLE` mit `<data android:scheme="haex-vault"
-android:host="contact"/>` in der verfolgten `AndroidManifest.xml`; `MainActivity` hat
-     `launchMode="singleTask"` schon, `onNewIntent` leitet das Plugin weiter (Annahme: Dokumentation des
-     Plugins, nicht ausgeführt; der Android-E2E prüft es).
+     `deep-link:default` nur in `capabilities/default.json` (es gilt auch mobil, `mobile.json` braucht es
+     nicht), `.plugin(tauri_plugin_deep_link::init())` in `lib.rs`.
+  2. Android: den Intent-Filter erzeugt die `build.rs` des Plugins beim Android-Build aus
+     `plugins.deep-link.mobile` und schreibt ihn zwischen zwei Marker in die verfolgte
+     `AndroidManifest.xml`; der erzeugte Block wird eingecheckt. `MainActivity` hat `launchMode="singleTask"`
+     schon (Ergebnis des Spikes unten).
   3. Frontend: neues `useDeepLink.ts` (`getCurrent`, `onOpenUrl`, Ereignis `deep-link-received`), eine
      wartende URL im Speicher des Moduls, Wiederabspiel nach `sessionRestored` in
      `[instance].vue` (wie `consumeDeepLink`), dort öffnet `wm.app.open` die Kontakte-App auf `/import`.
@@ -212,12 +213,37 @@ android:host="contact"/>` in der verfolgten `AndroidManifest.xml`; `MainActivity
      Handoffs niemand claimt.
      Bei mehreren Vaults in mehreren Prozessen gewinnt der erste, der abholt. Die Vorschau nennt deshalb
      den Namen der Vault, in die gespeichert würde (Abbrechen ist immer möglich).
-- **Risiko / Spike zuerst**: Dieser Teil ist am wenigsten gesichert (Deep Link auf Linux nur mit
-  installiertem Paket, im Entwicklungsbetrieb `register_all`; Android-Emulator-Probe wie
-  bei den anderen Android-E2E-Szenen). Aufgabe T-Spike (am Anfang): Plugin einbinden, ein Link öffnet
-  die App auf Android und Linux. Scheitert der Posteingang, fällt die Umsetzung auf „neuer Prozess
-  hält den Link selbst“ zurück (Schritt 3 allein); die Spec bleibt erfüllt, weil die Vorschau dann nach
+- **Risiko**: Der Posteingang zwischen Prozessen ist nicht erprobt. Scheitert er, fällt die Umsetzung auf „neuer
+  Prozess hält den Link selbst“ zurück (Schritt 3 allein); die Spec bleibt erfüllt, weil die Vorschau dann nach
   dem Entsperren im neuen Prozess erscheint.
+
+### Ergebnis des Spikes (2026-10-26, Aufgabe T001)
+
+Aufbau: Plugin, Konfiguration und eine Log-Zeile in `setup` (`get_current` und `on_open_url`), Debug-Build ohne
+`llm-cpu` und `voice`, ein Android-Debug-APK für x86_64, Emulator mit API 35.
+
+- **Linux** (bestanden): Start des Binarys mit `haex-vault://contact/spike-cold-start` als Argument; `get_current()`
+  liefert die URL zerlegt (Schema `haex-vault`, Host `contact`, Pfad). Die README des Plugins sagt dasselbe: Auf
+  Linux und Windows startet das System einen **neuen Prozess** mit der URL als Argument, Ereignisse gibt es nur auf
+  macOS, iOS und Android. Das bestätigt den Posteingang für den Desktop. **Nicht erprobt**: die Registrierung
+  des Schemas beim System (`xdg-open`, `register_all()`), weil sie die Desktop-Konfiguration des Rechners
+  verändert; sie gehört in den E2E des Pakets.
+- **Android** (bestanden): Der Android-Build schrieb den Intent-Filter (`VIEW`/`DEFAULT`/`BROWSABLE`, Schema
+  `haex-vault`, Host `contact`) selbst in die `AndroidManifest.xml`; `dumpsys package` zeigt ihn als
+  registriert. Ein `VIEW`-Intent per `adb` startet `MainActivity` kalt. **Wichtig für die Umsetzung**:
+  - beim Kaltstart liefert `get_current()` in `setup` noch `None`; die URL kommt etwa 0,7 s später über
+    `on_open_url`. Das Frontend darf sich also nicht auf `getCurrent()` allein verlassen, sondern nutzt
+    `getCurrent()` **und** `onOpenUrl()` und entfernt doppelte Zustellung derselben URL (T050);
+  - bei laufender App (`singleTask`) kommt ein zweiter Link ohne Neustart ebenfalls über `on_open_url`.
+  - **Nicht geprüft**: dass ein JS-Listener (`onOpenUrl`) beim Kaltstart den Link erhält; der Spike hat nur die
+    Rust-Seite beobachtet. Das prüft der Android-E2E (T062).
+- **Build-Befund**: Ein frisches `cargo add` löst `rust-ini` 0.21.3 auf, und das Plugin 2.6.2 kompiliert damit nicht;
+  `cargo update -p rust-ini --precise 0.21.1` behebt es (nur `Cargo.lock`). Der Android-Build lief mit
+  `tauri android build --debug --apk --target x86_64 -- --no-default-features` fehlerfrei.
+- **Aufräumen**: AVD, Systemabbild API 35 und die Android-Ziele im gemeinsamen Target-Verzeichnis sind
+  wieder gelöscht. Die Änderungen des Spikes liegen als lokaler Commit auf dem Branch `060-spike-deep-link`
+  (nicht zum Mergen).
+
 - **Verworfen**: Single-Instance-Plugin (Mehrprozess-Entwurf); Sockets oder Named Pipes (plattformspezifisch,
   mehr Code als ein Verzeichnis); Weiterleitung über iroh (die Prozesse gehören zu verschiedenen Vaults).
 
