@@ -177,7 +177,7 @@ jobs:
           NO_STRIP: 'true'
         run: corepack pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
-      # Every installer is renamed to `holzi-<version>-<platform>.<ext>`, so a release's files say
+      # Every installer is renamed to `haexvault-<version>-<platform>.<ext>`, so a release's files say
       # which machine they are for.
       - name: Collect the installers
         shell: bash
@@ -193,7 +193,7 @@ jobs:
           for file in "$bundle"/{deb/*.deb,rpm/*.rpm,appimage/*.AppImage,nsis/*.exe,msi/*.msi,dmg/*.dmg}; do
             [ -f "$file" ] || continue
             ext="${file##*.}"
-            cp "$file" "$out/holzi-$VERSION-$PLATFORM.$ext"
+            cp "$file" "$out/haexvault-$VERSION-$PLATFORM.$ext"
             count=$((count + 1))
           done
           ls -l "$out"
@@ -239,7 +239,7 @@ jobs:
           (cd installers && sha256sum holzi-* > SHA256SUMS-desktop.txt)
           # `android-release.yml` starts with the same tag; whoever is first creates the release.
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "holzi $TAG" --generate-notes \
+            gh release create "$TAG" --verify-tag --title "HaexVault $TAG" --generate-notes \
               || gh release view "$TAG" > /dev/null
           fi
           gh release upload "$TAG" installers/* --clobber

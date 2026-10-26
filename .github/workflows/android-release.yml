@@ -177,7 +177,7 @@ jobs:
               echo "::error::$abi APK is signed with $actual ($signers signers), expected $expected"
               exit 1
             fi
-            cp "$apk" "$RUNNER_TEMP/apks/holzi-$VERSION-$abi.apk"
+            cp "$apk" "$RUNNER_TEMP/apks/haexvault-$VERSION-$abi.apk"
             count=$((count + 1))
           done
           echo "checked $count APKs"
@@ -214,7 +214,7 @@ jobs:
           set -euo pipefail
           # `desktop-release.yml` starts with the same tag; whoever is first creates the release.
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "holzi $TAG" --generate-notes \
+            gh release create "$TAG" --verify-tag --title "HaexVault $TAG" --generate-notes \
               || gh release view "$TAG" > /dev/null
           fi
           gh release upload "$TAG" apks/*.apk --clobber
