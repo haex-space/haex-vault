@@ -33,7 +33,9 @@
 
 - Die Spec nennt `.holzi-trash` und die Prüfsumme als sichtbares Verhalten (Name des Papierkorb-Ordners,
   Kontrolle nach dem Kopieren); Formate und Module bleiben Sache des Plans.
-- Offen für den Plan: ob verschlüsselte Ordner (048) Größe und Änderungszeit je Datei im Klartext
-  liefern (Annahme in der Spec).
+- Geklärt 2026-10-26: verschlüsselte Ordner (048) liefern Größe, Änderungszeit und Klartext-Prüfsumme
+  je Datei aus der Sidecar-Datei. Offen für den Plan: Eine Datei, die in einen verschlüsselten Ordner
+  geschrieben wird, bekommt die Schreibzeit als Änderungszeit; ob eine Quellzeit mitgegeben werden
+  soll, ist eine Planfrage (FR-016 verlangt es nur, wo der Ort es erlaubt).
 - SC-007 (10 000 Dateien unter 5 Sekunden) ist ein Richtwert des Autors, nicht vom Betreiber vorgegeben;
   im Plan gegenprüfen.
