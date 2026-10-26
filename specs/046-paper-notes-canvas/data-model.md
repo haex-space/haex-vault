@@ -87,17 +87,53 @@ aufgehoben.
 Ein Nahfoto wird erst gespeichert, wenn sein Ergebnis übernommen ist; ein Fehler oder Abbruch hinterlässt nichts.
 Das Ersetzen ändert Elemente und `paperImport` in einem Kommando, sodass ein Rückgängig beides zurücknimmt.
 
+## `PageAttachment` (neu, 2026-10-26)
+
+```ts
+interface PageAttachment {
+  id: string;                 // UUID
+  kind: "original" | "file";  // "original": das Foto der Seite, gegen Entfernen geschützt
+  assetId: string;            // Datei im Asset-Speicher, wie `originalAssetId`
+  name: string;               // Dateiname, den der Schüler sieht
+  mimeType: string;
+  size: number;               // Bytes
+  addedAt: string;            // ISO 8601
+}
+```
+
+`pages.attachments` (neue JSON-Spalte, Migration `0006`) hält die Liste; `null` heißt keine Anhänge. Höchstens ein
+Anhang hat die Art `original`, und zwar genau dann, wenn `paperImport` gesetzt ist; sein `assetId` ist
+`paperImport.originalAssetId`. Der Anhang `original` steht unverändert, ungedreht und in voller Auflösung da: die
+Drehung steht in `paperImport.rotation`, nicht im Anhang. `collectAssetIds` nimmt die Assets der Anhänge mit, damit
+Teilen und Papierkorb sie mitnehmen.
+
+`paperImport.pageFit` (neu) hält, wohin die Arbeitskopie auf der Seite gepasst wurde (`x`, `y`, `scale` der Seite),
+damit ein Nahfoto die Rechtecke der Regionen der Seite zuordnen kann, ohne dass das Foto als Element auf der Seite
+liegt.
+
 ## Ebenen einer importierten Seite
 
 ```text
-Papierhintergrund
-Original (sichtbar, gesperrt; ImageElement mit rotation, damit es aufrecht steht)
+Papierhintergrund (Vorlage, Farbe, Seitenrand)
 Text (TextElements)
 Objekte (TableElements und ImageElement-Ausschnitte)
 Eigene Ergänzungen (aktive Ebene für neue Striche)
 ```
 
-Die Originalebene ist nie die aktive Ebene; Änderungen aus dem Editor erreichen sie nicht.
+Es gibt keine Originalebene mehr: Das Original ist der Anhang `original`, und die Ansicht Original/Entwurf/Vergleich
+entfällt. Eine Seite ohne Entwurf (`failed`, `manual`) bekommt zusätzlich die Ebene „Foto“ mit dem Foto als
+gewöhnlichem `ImageElement` (entzerrt, aufrecht, nicht gesperrt), damit etwas zu bearbeiten ist; der Schüler kann sie
+löschen, das Original bleibt als Anhang.
+
+## `PageBackground.margins` (neu, 2026-10-26)
+
+```ts
+interface PageMargins { top: number; bottom: number; left: number; right: number } // Seitenpixel
+```
+
+`PageBackground.margins` ist optional; fehlt es, gelten die Werte der Vorlage (bisher fest: oben 60, unten 40, links 50,
+rechts 40). Die Vorlagen zeichnen ihre Linien innerhalb der Ränder; neue Inhalte lassen sich nur dort ablegen. Ein
+Ändern verschiebt keine vorhandenen Elemente. Die Spalte `background` hält den Wert; es braucht keine Migration.
 
 ## Zustandsübergänge
 
@@ -117,6 +153,7 @@ Blatt neu.
 ## Migration and compatibility
 
 - Seiten ohne `paperImport` und Tabellen ohne `cells` laden wie bisher.
-- Die Migration `0005` fügt nur die Spalte `paper_import` hinzu.
+- Die Migration `0005` fügt nur die Spalte `paper_import` hinzu; `0006` fügt `attachments` hinzu.
+- Eine Seite aus einem Foto mit `processing.state = ready` und einer gesperrten Originalebene (vor `0006`) wird beim Laden umgestellt: Der Anhang `original` entsteht aus `paperImport`, `pageFit` aus dem Element der Originalebene, und die Originalebene entfällt. Bei `failed` und `manual` wird die Originalebene zur Ebene „Foto".
 - Eine unbekannte `paperImport.version` bleibt als Metadaten erhalten und wird als nicht unterstützt angezeigt.
 - Ein fehlendes Bild-Asset zeigt einen Platzhalter und behält die Element-Daten.
