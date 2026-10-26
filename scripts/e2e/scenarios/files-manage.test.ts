@@ -108,6 +108,9 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     ctx.step('a taken name: keep both')
 
     // Cancelled at its conflict: nothing new, no part file.
+    // Paste clears the clipboard now, so copy the source again for this second attempt.
+    await contextMenu(instance, 'files-entry-b.txt')
+    await instance.click('files-menu-copy')
     await instance.click('files-action-paste')
     await instance.waitForDisplayed('files-conflict')
     await instance.click('files-conflict-cancel')
