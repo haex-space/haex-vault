@@ -115,6 +115,9 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   je Regel (Lauf-Protokoll); ältere werden verworfen. Wie viele Läufe, stellt der Nutzer in einem
   eigenen Menüpunkt der Einstellungen ein, Vorgabe 10. Aus einer gespiegelten Löschung führt ein Eintrag
   zum Papierkorb-Ort.
+- Q: Dürfen zwei Geräte Regeln für denselben Ort haben? → A: Ja, ohne Abstimmung. Regeln verschiedener
+  Geräte sind unabhängig, Ketten wie Laptop↔Telefon und Telefon↔NAS sind möglich. Schutz bieten der
+  Papierkorb bei „Spiegeln“ und die Konfliktkopie.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -319,7 +322,9 @@ löschen.
 - **Sehr große Dateien und Abbruch**: Kopien setzen fort, ohne bei jedem Abbruch von vorn zu beginnen.
 - **Symbolische Links und Verknüpfungen** im Ort: werden nicht verfolgt, sondern als eigene Einträge
   übersprungen und im Status genannt.
-- **Eine Regel pro Ort und Gegenüber**: überlappende Regeln sind unzulässig (Story 4).
+- **Überlappende Regeln**: auf einem Gerät unzulässig (Story 4). Auf verschiedenen Geräten sind sie
+  erlaubt und unabhängig; gleichzeitige Änderungen führen zu Konfliktkopien, gespiegelte Löschungen
+  gehen in den Papierkorb.
 - **Regel nach Löschen eines Orts oder Speichers**: die Regel steht auf „Fehler: Ort nicht mehr
   vorhanden“ und löscht nichts, bis der Nutzer sie anpasst.
 - **Erster Abgleich mit Dateien auf beiden Seiten gleichen Namens**: gleicher Inhalt (Prüfsumme) wird
@@ -340,8 +345,10 @@ löschen.
   sein.
 - **FR-003**: Eine Regel MUSS dem Gerät gehören, auf dem sie angelegt wurde, und nur dort laufen. Sie
   DARF NICHT auf andere Geräte synchronisiert werden.
-- **FR-004**: holzi MUSS beim Speichern überlappende Regeln ablehnen (derselbe Ort, oder ein Ort
-  innerhalb des anderen), auch Regeln, deren Ort als Zielort für eine andere Regel dient.
+- **FR-004**: holzi MUSS beim Speichern überlappende Regeln desselben Geräts ablehnen (derselbe Ort,
+  oder ein Ort innerhalb des anderen), auch Regeln, deren Ort als Zielort für eine andere Regel dient.
+  Regeln verschiedener Geräte DÜRFEN denselben Ort nutzen; sie sind unabhängig und stimmen sich nicht
+  ab.
 - **FR-005**: Vorgaben beim Anlegen: Löschmodus „Spiegeln“ bei beidseitig, „Behalten“ bei einseitig;
   Intervall 15 Minuten.
 - **FR-006**: Das Löschen einer Regel DARF keine Datei in einem der Orte verändern oder löschen.
