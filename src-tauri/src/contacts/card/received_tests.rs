@@ -234,6 +234,11 @@ async fn a_row_that_does_not_fit_its_content_is_ignored_by_every_reader() {
     assert_eq!(found.devices.len(), 1, "only the good card counts");
     assert_eq!(found.devices[0].endpoint_id, [101; 32]);
     assert!(newest(&mara, &OTHER_SECRET).is_none());
+    let card_contacts = mara
+        .db
+        .read_blocking(|q| Ok(with_cards(q)?))
+        .expect("card contacts");
+    assert_eq!(card_contacts, std::collections::BTreeSet::from([ben]));
 }
 
 #[tokio::test]

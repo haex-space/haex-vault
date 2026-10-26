@@ -106,7 +106,7 @@ function secondLine(header: (typeof shown.value)[number]): string {
       {{ t('contacts.loading') }}
     </p>
     <p
-      v-else-if="sections.length === 0 && !(split.own && router.route.query.q)"
+      v-else-if="sections.length === 0 && !split.own"
       class="p-4 text-muted-foreground"
       data-testid="contacts-empty"
     >

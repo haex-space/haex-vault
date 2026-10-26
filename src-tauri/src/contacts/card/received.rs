@@ -203,13 +203,11 @@ pub fn of(q: &mut impl Query, contact_id: &str) -> Result<Option<ContactCardInfo
 
 /// The contacts that have a card.
 pub fn with_cards(q: &mut impl Query) -> Result<BTreeSet<String>> {
-    Ok(
-        q.query_map("SELECT contact_id FROM haex_contacts_cards", &[], |r| {
-            r.get(0)
-        })?
+    Ok(q.query_map(SELECT_ROWS, &[], raw_row)?
         .into_iter()
-        .collect(),
-    )
+        .filter_map(verified)
+        .map(|(contact_id, _)| contact_id)
+        .collect())
 }
 
 /// The newest stored card of a vault: the contact it is on and the card.
