@@ -5,6 +5,8 @@
 //! schema is a hint. The deadline of the job and its cancel token end the run at once: the stream
 //! is dropped, which aborts the generation.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value;
@@ -172,7 +174,7 @@ pub(crate) fn request(
 
 /// The message of a request that failed before the stream: never the body of the provider's
 /// answer, which can echo the request (`contracts/bridge.md` §Ereignis).
-fn start_failure(error: &AdapterError) -> String {
+pub(super) fn start_failure(error: &AdapterError) -> String {
     match error {
         AdapterError::Status { status, .. } => {
             format!("the provider answered with status {status}")
@@ -189,7 +191,7 @@ fn start_failure(error: &AdapterError) -> String {
 
 /// Stream errors may contain provider response bodies. Keep their category, never their details:
 /// the extension must not receive an answer body or arbitrary provider text.
-fn stream_failure(error: &StreamError) -> &'static str {
+pub(super) fn stream_failure(error: &StreamError) -> &'static str {
     match error {
         StreamError::Validation(_) => "the provider response was invalid",
         StreamError::Model(_) => "the provider rejected the request",
@@ -205,13 +207,19 @@ async fn answer(
     source: &dyn ModelSource,
     candidate: &Candidate,
     request: ChatRequest,
+    started: &AtomicBool,
 ) -> Result<String, Miss> {
-    let adapter = source.adapter(&candidate.model).map_err(|message| {
-        trace::failed(&candidate.model, "adapter", &message);
+    let adapter = source.adapter(&candidate.model).map_err(|_| {
+        trace::failed(
+            &candidate.model,
+            "adapter",
+            "the model adapter is unavailable",
+        );
         Miss::Unavailable("the model adapter is unavailable".into())
     })?;
+    started.store(true, Ordering::Release);
     let mut stream = adapter.stream_chat(request).await.map_err(|error| {
-        trace::failed(&candidate.model, "start", &trace::adapter_error(&error));
+        trace::failed(&candidate.model, "start", &start_failure(&error));
         Miss::Unavailable(start_failure(&error))
     })?;
     let mut text = String::new();
@@ -228,7 +236,7 @@ async fn answer(
             Ok(StreamChunk::AgentActivity { .. }) => {}
             Ok(StreamChunk::Done { .. }) => break,
             Err(error) => {
-                trace::failed(&candidate.model, "stream", &trace::stream_error(&error));
+                trace::failed(&candidate.model, "stream", stream_failure(&error));
                 return Err(Miss::Unavailable(stream_failure(&error).into()));
             }
         }
@@ -270,16 +278,21 @@ pub(crate) async fn run_step(
             outcome,
             reason: reason.map(|r| sanitize(&r, &known)),
         };
+        let started = AtomicBool::new(false);
         let asked = answer(
             source,
             candidate,
             request(step, candidate, &applied, handed),
+            &started,
         );
         // `biased`: a job cancelled or over time before this try must not start a request.
         let outcome = tokio::select! {
             biased;
             () = cancel.cancelled() => {
-                trace::tried(&candidate.model, applied.reported(), Outcome::Cancelled);
+                if started.load(Ordering::Acquire) {
+                    trace::tried(&candidate.model, applied.reported(), Outcome::Cancelled);
+                    attempts.push(attempt(Outcome::Cancelled, None));
+                }
                 return StepRun { attempts, end: StepEnd::Cancelled };
             },
             () = tokio::time::sleep_until(deadline) => {

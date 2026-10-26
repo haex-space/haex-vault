@@ -325,6 +325,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
 
     assert_eq!(run.end, StepEnd::Cancelled);
     assert_eq!(source.asked().len(), 1);
+    assert_eq!(outcomes(&run), [("slow".into(), Outcome::Cancelled, None)]);
     for _ in 0..10 {
         tokio::task::yield_now().await;
     }
@@ -342,6 +343,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
     )
     .await;
     assert_eq!(run.end, StepEnd::Cancelled);
+    assert!(run.attempts.is_empty());
     assert!(fresh.asked().is_empty());
 }
 
