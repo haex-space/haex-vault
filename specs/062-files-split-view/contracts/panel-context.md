@@ -16,6 +16,8 @@ type FilesPanelContext = {
    *  wird es zuerst aktiv (Verlaufstausch). Mischt `split`, `side` und `o.*` ein
    *  (contracts/split-location.md Regel 3). */
   go(place: FilesPlace, options?: { replace?: boolean }): void
+  /** Setzt den Startort dieses Panels ohne Aktivierung oder Änderung der Panel-Historien. */
+  initialize(place: FilesPlace): void
   setQuery(
     patch: Partial<Pick<FilesPlace, 'open' | 'q' | 't' | 's' | 'd'>>,
     options?: { push?: boolean },
@@ -44,7 +46,10 @@ Pflichten des Panels:
   (`FolderView takesFocus = context.active`); ein inaktives Panel nimmt nie programmatisch Fokus.
 - Das Panel meldet sich mit `register` an und entfernt sich beim Unmount.
 - Ein Panel beginnt ohne Pfad (`path === null`) am Startordner wie bisher (Gerät: Home oder erstes
-  Laufwerk; Speicher: Wurzel; anderes Gerät: Home des Geräts); dazu schreibt es mit `go(…, { replace: true })`.
+  Laufwerk; Speicher: Wurzel; anderes Gerät: Home des Geräts). Die Initialisierung setzt den Ort
+  dieses Panels mit dem rahmeninternen, nicht aktivierenden `initialize(place)` per `replace`; sie
+  darf `active`, Seitenhistorie und die Aktivierung des Panels nicht ändern. `go` behält seine
+  aktivierende Semantik für Benutzernavigation.
 - Der Viewer eines Panels rendert in `#files-viewer-host` des Rahmens (Teleport), nicht im Panel.
 - Der Rahmen besitzt `useFilesSplit` (Zustand, Spiegel in den Ort, Verlaufstausch über
   `router.swapHistory`). Das Panel kennt nur diesen Kontext.
