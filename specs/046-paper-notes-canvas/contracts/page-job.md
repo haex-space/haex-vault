@@ -159,16 +159,16 @@ Return ONLY {"texts": [...]} with one corrected text per region that has a "text
 
 ## Abbildung des Ergebnisses
 
-| Teil von `read`                                       | Wird zu                                                                                             |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `kind: "text"` mit `text`                             | `TextElement` auf der Textebene; Text aus `fix` (research R12), Font des gewählten Handschriftstils |
-| `kind: "table"` mit `rows`                            | `TableElement` mit `cells` auf der Objektebene (research R9)                                        |
-| `kind: "image"`                                       | `ImageElement` mit dem Ausschnitt der Quellbox aus der Arbeitskopie (Asset)                         |
-| `kind: "formula"` mit `latex`                         | `LatexElement` auf der Textebene (data-model.md); lässt sich die Quelle nicht setzen, ein `TextElement` mit ihr |
-| Zelle `$…$` einer Tabelle                             | bleibt `$…$` in `cells` und wird beim Zeichnen als Formel gesetzt                                   |
-| `box`                                                 | Seitenkoordinaten nach research R11; eine Box mit `x2 <= x1` oder `y2 <= y1` wird übergangen        |
-| `rotation` ungleich 0                                 | Arbeitskopie drehen, Auftrag einmal neu starten (research R10)                                      |
-| Region ohne Inhalt (leerer `text`, leeres `latex`, `rows` ohne Zelle) | wird übergangen                                                                                     |
+| Teil von `read`                                                       | Wird zu                                                                                                         |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `kind: "text"` mit `text`                                             | `TextElement` auf der Textebene; Text aus `fix` (research R12), Font des gewählten Handschriftstils             |
+| `kind: "table"` mit `rows`                                            | `TableElement` mit `cells` auf der Objektebene (research R9)                                                    |
+| `kind: "image"`                                                       | `ImageElement` mit dem Ausschnitt der Quellbox aus der Arbeitskopie (Asset)                                     |
+| `kind: "formula"` mit `latex`                                         | `LatexElement` auf der Textebene (data-model.md); lässt sich die Quelle nicht setzen, ein `TextElement` mit ihr |
+| Zelle `$…$` einer Tabelle                                             | bleibt `$…$` in `cells` und wird beim Zeichnen als Formel gesetzt                                               |
+| `box`                                                                 | Seitenkoordinaten nach research R11; eine Box mit `x2 <= x1` oder `y2 <= y1` wird übergangen                    |
+| `rotation` ungleich 0                                                 | Arbeitskopie drehen, Auftrag einmal neu starten (research R10)                                                  |
+| Region ohne Inhalt (leerer `text`, leeres `latex`, `rows` ohne Zelle) | wird übergangen                                                                                                 |
 
 Die `provenance` des Auftrags ergibt die Herkunft der Seite: Name und Ort des Modells aus dem Versuch mit
 `outcome: "used"` im Schritt `read`.

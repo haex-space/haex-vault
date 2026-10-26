@@ -76,13 +76,13 @@ Regeln:
 
 ## `RecognizedRegion`
 
-| Feld         | Typ                            | Regeln                                                           |
-| ------------ | ------------------------------ | ---------------------------------------------------------------- |
-| `id`         | string                         | Eindeutig innerhalb des Imports.                                 |
-| `kind`       | `"text" \| "table" \| "image" \| "formula"` | Aus dem Ergebnis von `read`.                              |
-| `sourceBox`  | `[x1, y1, x2, y2]`, je 0–1000  | Relativ zur gelesenen Aufnahme; `x2 > x1` und `y2 > y1`.         |
-| `elementIds` | string[]                       | Die erzeugten Elemente; leer, wenn der Schüler sie gelöscht hat. |
-| `closeUpId`  | string, optional               | Gesetzt, wenn die Region aus einem Nahfoto stammt.               |
+| Feld         | Typ                                         | Regeln                                                           |
+| ------------ | ------------------------------------------- | ---------------------------------------------------------------- |
+| `id`         | string                                      | Eindeutig innerhalb des Imports.                                 |
+| `kind`       | `"text" \| "table" \| "image" \| "formula"` | Aus dem Ergebnis von `read`.                                     |
+| `sourceBox`  | `[x1, y1, x2, y2]`, je 0–1000               | Relativ zur gelesenen Aufnahme; `x2 > x1` und `y2 > y1`.         |
+| `elementIds` | string[]                                    | Die erzeugten Elemente; leer, wenn der Schüler sie gelöscht hat. |
+| `closeUpId`  | string, optional                            | Gesetzt, wenn die Region aus einem Nahfoto stammt.               |
 
 Eine Region gilt als ersetzt, sobald ein Nahfoto ihre Elemente ersetzt hat; ihr Eintrag fällt dann weg.
 
@@ -108,13 +108,13 @@ Das Ersetzen ändert Elemente und `paperImport` in einem Kommando, sodass ein R�
 
 ```ts
 interface PageAttachment {
-  id: string;                 // UUID
-  kind: "original" | "file";  // "original": das Foto der Seite, gegen Entfernen geschützt
-  assetId: string;            // Datei im Asset-Speicher, wie `originalAssetId`
-  name: string;               // Dateiname, den der Schüler sieht
-  mimeType: string;
-  size: number;               // Bytes
-  addedAt: string;            // ISO 8601
+  id: string // UUID
+  kind: 'original' | 'file' // "original": das Foto der Seite, gegen Entfernen geschützt
+  assetId: string // Datei im Asset-Speicher, wie `originalAssetId`
+  name: string // Dateiname, den der Schüler sieht
+  mimeType: string
+  size: number // Bytes
+  addedAt: string // ISO 8601
 }
 ```
 
@@ -141,7 +141,12 @@ löschen, das Original bleibt als Anhang.
 ## `PageBackground.margins` (neu, 2026-10-26)
 
 ```ts
-interface PageMargins { top: number; bottom: number; left: number; right: number } // Seitenpixel
+interface PageMargins {
+  top: number
+  bottom: number
+  left: number
+  right: number
+} // Seitenpixel
 ```
 
 `PageBackground.margins` ist optional; fehlt es, gelten die Werte der Vorlage (bisher fest: oben 60, unten 40, links 50,
