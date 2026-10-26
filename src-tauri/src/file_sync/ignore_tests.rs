@@ -73,9 +73,9 @@ fn files_over_the_limits_stop_the_run() {
     let long = "x\n".repeat(MAX_LINES + 1);
     assert!(matches!(
         Exclusions::new(None, Some(&long)),
-        Err(TooLarge {
+        Err(Error::TooLarge(TooLarge {
             side: SyncRuleSide::B
-        })
+        }))
     ));
     let big = "a".repeat(MAX_BYTES + 1);
     assert!(!fits(&big));

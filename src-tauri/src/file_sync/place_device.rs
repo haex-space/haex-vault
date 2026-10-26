@@ -2,8 +2,9 @@
 //! the system's trash on desktops and the rule trash elsewhere. Every call runs on a blocking
 //! thread.
 
+use std::ffi::OsString;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
@@ -41,12 +42,59 @@ impl DevicePlace {
         }
     }
 
-    fn at(&self, path: &str) -> PathBuf {
-        if path.is_empty() {
-            self.root.clone()
-        } else {
-            self.root.join(path)
+    fn at(&self, path: &str) -> Result<PathBuf, FilesError> {
+        if !path.is_empty()
+            && path
+                .split(['/', '\\'])
+                .any(|part| part.is_empty() || part == "." || part == "..")
+        {
+            return Err(FilesError::invalid_path(
+                "a device path has a non-normal component",
+            ));
         }
+        let relative = Path::new(path);
+        if relative
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(FilesError::invalid_path(
+                "a device path must be relative to its place",
+            ));
+        }
+
+        let root =
+            std::fs::canonicalize(&self.root).map_err(|error| io_error(error, &self.root))?;
+        let candidate = root.join(relative);
+        let mut existing = candidate.clone();
+        let mut missing = Vec::<OsString>::new();
+        loop {
+            match std::fs::symlink_metadata(&existing) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(FilesError::invalid_path(
+                        "a device path cannot cross a symbolic link",
+                    ));
+                }
+                Ok(_) => break,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    let Some(name) = existing.file_name() else {
+                        return Err(unreachable("the place's folder is missing"));
+                    };
+                    missing.push(name.to_owned());
+                    existing.pop();
+                }
+                Err(error) => return Err(io_error(error, &existing)),
+            }
+        }
+        let resolved =
+            std::fs::canonicalize(&existing).map_err(|error| io_error(error, &existing))?;
+        if !resolved.starts_with(&root) {
+            return Err(FilesError::invalid_path("a device path leaves its place"));
+        }
+        let mut safe = resolved;
+        for name in missing.iter().rev() {
+            safe.push(name);
+        }
+        Ok(safe)
     }
 }
 
@@ -165,48 +213,68 @@ impl Place for DevicePlace {
     }
 
     async fn stat(&self, path: &str) -> Result<Option<Facts>, FilesError> {
-        let at = self.at(path);
-        blocking(move || match std::fs::symlink_metadata(&at) {
-            Ok(meta) if meta.is_file() => Ok(Some(facts_of(&meta))),
-            Ok(_) => Ok(None),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(io_error(error, &at)),
+        let place = self.clone();
+        let path = path.to_owned();
+        blocking(move || {
+            let at = place.at(&path)?;
+            match std::fs::symlink_metadata(&at) {
+                Ok(meta) if meta.is_file() => Ok(Some(facts_of(&meta))),
+                Ok(_) => Ok(None),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(io_error(error, &at)),
+            }
         })
         .await
     }
 
     async fn hash(&self, path: &str, cancel: &CancellationToken) -> Result<String, FilesError> {
-        let (at, cancel) = (self.at(path), cancel.clone());
-        blocking(move || hash_file(&at, &cancel)).await
+        let (place, path, cancel) = (self.clone(), path.to_owned(), cancel.clone());
+        blocking(move || {
+            let at = place.at(&path)?;
+            hash_file(&at, &cancel)
+        })
+        .await
     }
 
     async fn create_folder(&self, path: &str) -> Result<(), FilesError> {
-        let at = self.at(path);
-        blocking(move || std::fs::create_dir_all(&at).map_err(|error| io_error(error, &at))).await
+        let (place, path) = (self.clone(), path.to_owned());
+        blocking(move || {
+            let at = place.at(&path)?;
+            std::fs::create_dir_all(&at).map_err(|error| io_error(error, &at))
+        })
+        .await
     }
 
     async fn rename(&self, from: &str, to: &str) -> Result<(), FilesError> {
-        let (from, to) = (self.at(from), self.at(to));
-        blocking(move || move_file(&from, &to)).await
+        let (place, from, to) = (self.clone(), from.to_owned(), to.to_owned());
+        blocking(move || {
+            let (from, to) = (place.at(&from)?, place.at(&to)?);
+            move_file(&from, &to)
+        })
+        .await
     }
 
     async fn delete(&self, path: &str) -> Result<(), FilesError> {
-        let at = self.at(path);
-        blocking(move || std::fs::remove_file(&at).map_err(|error| io_error(error, &at))).await
+        let (place, path) = (self.clone(), path.to_owned());
+        blocking(move || {
+            let at = place.at(&path)?;
+            std::fs::remove_file(&at).map_err(|error| io_error(error, &at))
+        })
+        .await
     }
 
     async fn trash(&self, path: &str, run: &str) -> Result<Trashed, FilesError> {
-        let at = self.at(path);
-        let rule = trash_path(run, path);
-        let target = self.at(&rule);
-        let system_trash = self.system_trash;
+        let (place, path, run) = (self.clone(), path.to_owned(), run.to_owned());
         blocking(move || {
+            let at = place.at(&path)?;
+            let rule = trash_path(&run, &path);
+            let target = place.at(&rule)?;
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            if system_trash && trash::delete(&at).is_ok() {
+            if place.system_trash && trash::delete(&at).is_ok() {
                 return Ok(Trashed::System);
             }
             #[cfg(any(target_os = "android", target_os = "ios"))]
-            let _ = system_trash;
+            let _ = &place;
             move_file(&at, &target)?;
             Ok(Trashed::Rule(rule))
         })
@@ -214,8 +282,9 @@ impl Place for DevicePlace {
     }
 
     async fn read_text(&self, path: &str, max: usize) -> Result<Option<String>, FilesError> {
-        let at = self.at(path);
+        let (place, path) = (self.clone(), path.to_owned());
         blocking(move || {
+            let at = place.at(&path)?;
             let meta = match std::fs::metadata(&at) {
                 Ok(meta) => meta,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -236,13 +305,13 @@ impl Place for DevicePlace {
     }
 
     async fn write_text(&self, path: &str, text: &str) -> Result<(), FilesError> {
-        let at = self.at(path);
-        let text = text.to_owned();
-        let (folder, name) = split(path);
-        let part = self
-            .at(folder)
-            .join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
+        let (place, path, text) = (self.clone(), path.to_owned(), text.to_owned());
         blocking(move || {
+            let at = place.at(&path)?;
+            let (folder, name) = split(&path);
+            let part = place
+                .at(folder)?
+                .join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
             std::fs::write(&part, text).map_err(|error| io_error(error, &part))?;
             std::fs::rename(&part, &at).map_err(|error| {
                 let _ = std::fs::remove_file(&part);
@@ -257,7 +326,7 @@ impl Place for DevicePlace {
     }
 
     fn full_path(&self, path: &str) -> String {
-        self.at(path).to_string_lossy().into_owned()
+        self.root.join(path).to_string_lossy().into_owned()
     }
 }
 

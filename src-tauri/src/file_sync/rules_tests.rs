@@ -132,6 +132,25 @@ fn contact_shares_own_places_and_bad_paths_are_refused() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn a_device_symlink_into_an_own_place_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let own_root = root.path().join("own");
+    let link = root.path().join("linked");
+    std::fs::create_dir(&own_root).unwrap();
+    std::os::unix::fs::symlink(&own_root, &link).unwrap();
+    let own = OwnPlaces::new(vec![std::fs::canonicalize(&own_root).unwrap()]);
+    assert_eq!(
+        code(validate(
+            draft(device(link.to_str().unwrap()), device("/home/b")),
+            &[],
+            &own,
+        )),
+        SyncRuleErrorCode::InvalidPlace
+    );
+}
+
 #[test]
 fn the_two_places_of_one_rule_must_not_overlap() {
     assert_eq!(

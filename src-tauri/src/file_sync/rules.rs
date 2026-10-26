@@ -116,15 +116,18 @@ fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace,
             if !path.is_absolute() {
                 return Err(invalid("a device place needs an absolute path"));
             }
-            if own.touches(path, true) {
+            let resolved = std::fs::canonicalize(path).ok();
+            if own.touches(path, true)
+                || resolved
+                    .as_deref()
+                    .is_some_and(|real| own.touches(real, true))
+            {
                 return Err(invalid("holzi's own places cannot be a place of a rule"));
             }
-            let text = place.path.trim_end_matches(['/', '\\']);
-            if text.is_empty() {
-                place.path.clone()
-            } else {
-                text.to_owned()
-            }
+            path.components()
+                .collect::<std::path::PathBuf>()
+                .to_string_lossy()
+                .into_owned()
         }
         SourceRef::Storage { .. } => {
             format!("/{}", place.path.trim_matches('/'))

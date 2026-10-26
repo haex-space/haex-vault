@@ -39,6 +39,19 @@ pub struct TooLarge {
     pub side: SyncRuleSide,
 }
 
+/// An exclusion file was within its size limits, but its matcher could not be built.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildError {
+    pub side: SyncRuleSide,
+}
+
+/// Why an exclusion set could not be created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    TooLarge(TooLarge),
+    Build(BuildError),
+}
+
 /// The exclusions of one run.
 pub struct Exclusions {
     fixed: Gitignore,
@@ -49,12 +62,12 @@ pub struct Exclusions {
 
 impl Exclusions {
     /// The exclusions from the exclusion files of both places (`None` where there is none).
-    pub fn new(a: Option<&str>, b: Option<&str>) -> Result<Self, TooLarge> {
+    pub fn new(a: Option<&str>, b: Option<&str>) -> Result<Self, Error> {
         let mut errors = Vec::new();
         let mut sides = Vec::new();
         for (side, text) in [(SyncRuleSide::A, a), (SyncRuleSide::B, b)] {
             let Some(text) = text else { continue };
-            check(text).map_err(|()| TooLarge { side })?;
+            check(text).map_err(|()| Error::TooLarge(TooLarge { side }))?;
             let mut builder = GitignoreBuilder::new("");
             for (index, line) in text.lines().enumerate() {
                 if builder.add_line(None, line).is_err() {
@@ -65,7 +78,10 @@ impl Exclusions {
                     });
                 }
             }
-            sides.push(builder.build().unwrap_or_else(|_| Gitignore::empty()));
+            let matcher = builder
+                .build()
+                .map_err(|_| Error::Build(BuildError { side }))?;
+            sides.push(matcher);
         }
         let mut fixed = GitignoreBuilder::new("");
         for line in FIXED {

@@ -129,3 +129,23 @@ async fn stat_and_delete() {
     place.delete("x.txt").await.unwrap();
     assert_eq!(place.stat("x.txt").await.unwrap(), None);
 }
+
+#[tokio::test]
+async fn operations_reject_paths_that_are_not_normal_relative_names() {
+    let (_dir, root) = folder();
+    let place = DevicePlace::with_rule_trash(&root);
+    let error = place.stat("../outside").await.unwrap_err();
+    assert_eq!(error.code, FilesErrorCode::InvalidPath);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn operations_reject_symbolic_links_inside_the_place() {
+    let (_dir, root) = folder();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("secret.txt"), "secret").unwrap();
+    std::os::unix::fs::symlink(outside.path(), root.join("link")).unwrap();
+    let place = DevicePlace::with_rule_trash(&root);
+    let error = place.stat("link/secret.txt").await.unwrap_err();
+    assert_eq!(error.code, FilesErrorCode::InvalidPath);
+}
