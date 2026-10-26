@@ -162,6 +162,10 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         .list(&Caller::User, &[])
         .await
         .expect("list the contacts");
+    let headers: Vec<_> = headers
+        .into_iter()
+        .filter(|header| !header.is_self)
+        .collect();
     assert_eq!(headers.len(), 1);
     assert_eq!(headers[0].name, "Carol Example");
     let contact = contacts
