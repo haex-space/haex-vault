@@ -46,20 +46,21 @@ Erwartet:
 6. Den Anhang „Original“ öffnen: Er erscheint neben der Seite, mit Zoom, und bleibt Byte für Byte gleich; die Seite bleibt
    bearbeitbar. Im Vollbild öffnen: Es ist nur der Anhang zu sehen, weder die Seite noch das Original. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
    speichern, neu öffnen, wieder entfernen. Die Seitenliste hat keinen zweiten Eintrag.
+   6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
+   im Rechteck sind ersetzt, eigene Striche und der Anhang „Original“ sind unverändert; Rückgängig stellt den alten Stand her.
+   Abbrechen während des Lesens ändert nichts.
+   6b. Vorlage und Papierfarbe der Seite wechseln (kariert, Creme) und den Seitenrand ändern: Rückgängig stellt den alten
+   Stand her, nach Speichern und Öffnen steht er noch da.
    6c. Eine Seite mit Reaktionsgleichungen lesen (eine Zeile und eine Tabellenzelle mit nur einer Formel): Sie stehen als
    gesetzte Formeln da, eine Formel im Satz als Text mit Indizes. Doppelklick auf eine Formel: Quelle mit Vorschau;
    eine kaputte Quelle wird nicht übernommen, Rückgängig stellt die alte her. „Formel einfügen“ legt eine neue an. Im
    PDF stehen die Formeln wie auf der Seite.
-   6b. Vorlage und Papierfarbe der Seite wechseln (kariert, Creme) und den Seitenrand ändern: Rückgängig stellt den alten
-   Stand her, nach Speichern und Öffnen steht er noch da.
-   6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
-   im Rechteck sind ersetzt, eigene Striche und das Original sind unverändert; Rückgängig stellt den alten Stand her.
-   Abbrechen während des Lesens ändert nichts.
 7. Speichern, schließen, neu öffnen: Ebenen, Zellen, Positionen und Herkunft sind erhalten.
 8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung und Qualität: Die PDF zeigt
    die Seite mit Papier und Rand, keinen Anhang.
 9. Ziel außerhalb des Geräts: In holzi den Server im Netz an die erste Stelle der Rangfolge setzen und lesen. holzi
-   fragt vor dem Versand mit Ziel und Ort; „ablehnen“ ergibt eine Seite mit Original und den Hinweis zur Ablehnung.
+   fragt vor dem Versand mit Ziel und Ort; „ablehnen“ ergibt eine Seite mit Foto (Ebene „Foto“, zusätzlich als Anhang)
+   und den Hinweis zur Ablehnung.
 10. In holzi die Freigabe widerrufen und lesen: Der Hinweis nennt das fehlende Modell; der manuelle Canvas bleibt
     nutzbar. Ebenso beim Abbrechen während des Lesens.
 

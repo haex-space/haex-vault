@@ -149,7 +149,7 @@ haex-space/haextension#138. Tests stay in separate `*.test.ts` files.
 
 ## Phase 8: User Story 3 extension - Formulas as LaTeX (added 2026-10-26)
 
-Implementation in `haex-space/haextension` under `apps/haex-notes/`, except T062. Spec: FR-029..FR-033, SC-009,
+Implementation in `haex-space/haextension` under `apps/haex-notes/`, except T061. Spec: FR-029..FR-033, SC-009,
 data-model.md "LatexElement und Formelzellen", `contracts/page-job.md` (format v2). The photos with formulas are
 private: they are only read locally to measure, never copied into a repository, and no content of them goes into a
 spec, a test or a PR description.

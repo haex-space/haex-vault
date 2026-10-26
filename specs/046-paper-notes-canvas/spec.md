@@ -71,7 +71,7 @@ Ein Schüler bearbeitet den erzeugten Entwurf wie eine digitale Notizseite. Er k
 2. **Given** eine Zeichnung oder ein Diagramm, **When** der Schüler es auswählt, **Then** kann er es verschieben und in der Größe verändern.
 3. **Given** ein Entwurf mit mehreren Ebenen, **When** der Schüler eine Ebene ein- oder ausblendet, **Then** werden die entsprechenden Inhalte ein- oder ausgeblendet, ohne Daten zu verlieren. Das Original ist keine dieser Ebenen, sondern ein Anhang (User Story 5).
 4. **Given** ein gespeicherter Entwurf, **When** der Schüler ihn später erneut öffnet, **Then** sind Text, visuelle Inhalte, Bearbeitungen und Ebenenzustände weiterhin vorhanden.
-5. **Given** eine Stelle des Entwurfs, die schlecht oder gar nicht erkannt wurde, **When** der Schüler ein Rechteck darüber zieht und ein Nahfoto der Stelle lesen lässt, **Then** ersetzt das Ergebnis die erzeugten Elemente, die ganz im Rechteck liegen, eigene Ergänzungen und das Original bleiben, und ein Rückgängig stellt den vorherigen Stand her.
+5. **Given** eine Stelle des Entwurfs, die schlecht oder gar nicht erkannt wurde, **When** der Schüler ein Rechteck darüber zieht und ein Nahfoto der Stelle lesen lässt, **Then** ersetzt das Ergebnis die erzeugten Elemente, die ganz im Rechteck liegen, eigene Ergänzungen und der Anhang „Original“ bleiben unverändert, und ein Rückgängig stellt den vorherigen Stand her.
 
 ### User Story 4 - Eine lesbare Version exportieren (Priority: P2)
 
@@ -84,8 +84,8 @@ Ein Schüler exportiert den fertig bearbeiteten Canvas als PDF, um ihn abzugeben
 **Acceptance Scenarios**:
 
 1. **Given** ein fertig bearbeiteter Canvas, **When** der Schüler PDF-Export auswählt, **Then** enthält die PDF die sichtbaren bereinigten Text- und Bildelemente in ihrer aktuellen Anordnung.
-2. **Given** ein Canvas mit ausgeblendeter Originalebene, **When** der Schüler exportiert, **Then** wird das Originalbild nicht in die bereinigte PDF aufgenommen.
-3. **Given** ein Canvas, bei dem die Originalebene sichtbar ist, **When** der Schüler exportiert, **Then** wird die PDF entsprechend der gewählten Sichtbarkeit erstellt.
+2. **Given** ein Canvas mit einem Anhang „Original“, **When** der Schüler exportiert, **Then** wird der Anhang nicht in die bereinigte PDF aufgenommen.
+3. **Given** ein Canvas mit Papier und Seitenrand, **When** der Schüler exportiert, **Then** zeigt die PDF den sichtbaren Seitenzustand einschließlich Papier und Seitenrand.
 
 ### User Story 5 - Das Original als Anhang der Seite (Priority: P1)
 
