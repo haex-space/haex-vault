@@ -200,6 +200,35 @@ keyAlias=holzi
 password=...
 ```
 
+### Desktop releases
+
+The same tag `v<version>` also starts `.github/workflows/desktop-release.yml`.
+It builds the installers for Linux (`.deb`, `.rpm`, `.AppImage`), Windows
+(`.exe` installer and `.msi`) and macOS (`.dmg` for Apple Silicon and for
+Intel), each with local inference and voice, and attaches them to the tag's
+release together with `SHA256SUMS-desktop.txt`. The tag must match `version`
+in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Starting the
+workflow by hand, or a pull request that changes it, builds the installers
+without a release (artifacts `holzi-desktop-<platform>`).
+
+The installers are not signed yet, so Windows SmartScreen and macOS Gatekeeper
+warn when they are opened. macOS signing and notarization start on their own
+once these repository secrets exist (they need a paid Apple Developer
+account):
+
+| Secret                       | Content                                                    |
+| ---------------------------- | ---------------------------------------------------------- |
+| `APPLE_CERTIFICATE`          | the "Developer ID Application" certificate, `.p12`, base64 |
+| `APPLE_CERTIFICATE_PASSWORD` | the password of that `.p12`                                |
+| `APPLE_SIGNING_IDENTITY`     | the certificate's name, `Developer ID Application: …`      |
+| `APPLE_ID`                   | the Apple ID used for notarization                         |
+| `APPLE_PASSWORD`             | an app-specific password of that Apple ID                  |
+| `APPLE_TEAM_ID`              | the team ID                                                |
+
+With a signed build, `bundle.macOS.entitlements` also has to grant
+`com.apple.security.device.audio-input`, or the hardened runtime blocks the
+microphone. Windows signing is not wired up.
+
 ## Development setup
 
 The repository uses the Claude speckit integration. After a fresh clone,

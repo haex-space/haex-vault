@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "holzi",
+  "productName": "HaexVault",
   "version": "0.1.0",
   "identifier": "com.haex.holzi",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "create": false,
-        "title": "Holzi",
+        "title": "HaexVault",
         "width": 800,
         "height": 600,
         "resizable": true,
