@@ -45,6 +45,7 @@ scenario(
       ctx.step('the laptop offers the phone as a target')
 
       await openContacts(laptop)
+      await laptop.click('contacts-add')
       await laptop.click('contacts-new')
       await laptop.waitForDisplayed('contacts-editor')
       await laptop.type('contacts-field-givenName', 'Carla')
