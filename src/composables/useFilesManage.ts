@@ -321,9 +321,9 @@ export function useFilesManage(options: {
       case 'paste': {
         const clip = transfers.clipboard
         if (!clip || !path.value) break
-        // A refused cut stays on the clipboard, so it can go elsewhere.
+        // A refused paste stays on the clipboard, so it can go elsewhere.
         const started = await placeAsync(clip, path.value, readOnly.value)
-        if (started && clip.op === 'cut') transfers.clipboard = null
+        if (started) transfers.clipboard = null
         break
       }
       case 'rename':

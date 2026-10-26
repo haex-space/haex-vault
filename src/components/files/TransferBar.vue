@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The transfer bar (spec 044 FR-019, FR-021): every running or failed transfer with its progress,
- * cancel, and for a failed one the reason and "try again". A name conflict, or files about to
+ * pause, cancel, and for a failed one the reason and "try again". A name conflict, or files about to
  * leave an encrypted folder (spec 048 FR-019), opens its question in the tab that started the
  * transfer; any other tab offers a button for it.
  */
@@ -35,6 +35,19 @@ function label(transfer: TransferView): string {
   return t(`files.transfer.${transfer.op}`)
 }
 
+function icon(transfer: TransferView): string {
+  if (transfer.state === 'failed') return 'lucide:circle-alert'
+  return transfer.state === 'paused' ? 'lucide:pause' : 'lucide:loader'
+}
+
+function pauseLabel(transfer: TransferView): string {
+  return t(
+    transfer.state === 'paused'
+      ? 'files.transfer.resume'
+      : 'files.transfer.pause',
+  )
+}
+
 function share(transfer: TransferView): number {
   const progress = transfer.progress
   if (!progress) return 0
@@ -46,9 +59,13 @@ function detail(transfer: TransferView): string {
   const progress = transfer.progress
   if (!progress) return ''
   const items = `${progress.itemsDone} / ${progress.itemsTotal}`
-  return progress.bytesTotal > 0
-    ? `${items} · ${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`
-    : items
+  const text =
+    progress.bytesTotal > 0
+      ? `${items} · ${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`
+      : items
+  return transfer.state === 'paused'
+    ? `${t('files.transfer.paused')} · ${text}`
+    : text
 }
 
 function failure(transfer: TransferView): string {
@@ -91,14 +108,14 @@ function cancelAsking() {
       :data-testid="`files-transfer-${transfer.state}`"
     >
       <Icon
-        :name="
-          transfer.state === 'failed' ? 'lucide:circle-alert' : 'lucide:loader'
-        "
+        :name="icon(transfer)"
         class="size-4 shrink-0"
         :class="
           transfer.state === 'failed'
             ? 'text-destructive'
-            : 'animate-spin text-muted-foreground'
+            : transfer.state === 'paused'
+              ? 'text-muted-foreground'
+              : 'animate-spin text-muted-foreground'
         "
       />
       <div class="flex min-w-0 flex-1 flex-col gap-1">
@@ -114,7 +131,7 @@ function cancelAsking() {
           }}</span>
         </div>
         <div
-          v-if="transfer.state === 'running'"
+          v-if="transfer.state !== 'failed'"
           class="h-1 overflow-hidden rounded bg-muted"
         >
           <div
@@ -139,6 +156,24 @@ function cancelAsking() {
         @click="run(() => store.retryAsync(transfer.key))"
       >
         {{ t('files.transfer.retry') }}
+      </UiButton>
+      <UiButton
+        v-if="transfer.state !== 'failed' && transfer.op !== 'delete'"
+        variant="ghost"
+        size="icon"
+        :aria-label="pauseLabel(transfer)"
+        :tooltip="pauseLabel(transfer)"
+        data-testid="files-transfer-pause"
+        @click="
+          run(() =>
+            store.pauseAsync(transfer.key, transfer.state === 'running'),
+          )
+        "
+      >
+        <Icon
+          :name="transfer.state === 'paused' ? 'lucide:play' : 'lucide:pause'"
+          class="size-4"
+        />
       </UiButton>
       <UiButton
         variant="ghost"

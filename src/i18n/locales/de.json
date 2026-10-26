@@ -2605,6 +2605,9 @@
       "move": "Verschieben",
       "delete": "Löschen",
       "retry": "Erneut versuchen",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "paused": "Pausiert",
       "cancel": "Abbrechen"
     },
     "view": {
