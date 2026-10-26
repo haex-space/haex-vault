@@ -2800,6 +2800,7 @@
     "noName": "No name",
     "self": "Me",
     "new": "New contact",
+    "add": "Add",
     "cancel": "Cancel",
     "save": "Save",
     "back": "Back",
@@ -3006,7 +3007,6 @@
       "count": "None selected | One selected | {count} selected"
     },
     "card": {
-      "menu": "Business card",
       "import": "Read a business card",
       "paste": "Link of the business card",
       "check": "Check",

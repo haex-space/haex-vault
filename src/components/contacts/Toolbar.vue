@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
  * The first row of the address book (spec 051, FR-002, FR-004): the sidebar button, the search
- * field bound to `?q=` of the place, the Visitenkarte menu (read one in) and "+" for a
- * new contact. While a contact is open the search
+ * field bound to `?q=` of the place, and "+", a menu with a new contact and reading a Visitenkarte in. While a contact is open the search
  * leaves the row.
  */
 import { Search } from '@lucide/vue'
@@ -96,17 +95,24 @@ function newContact() {
     <ShadcnDropdownMenu v-if="!entryOpen">
       <ShadcnDropdownMenuTrigger as-child>
         <UiButton
-          variant="ghost"
           size="icon"
           class="shrink-0"
-          :aria-label="t('contacts.card.menu')"
-          :tooltip="t('contacts.card.menu')"
-          data-testid="contacts-card-menu"
+          :aria-label="t('contacts.add')"
+          :tooltip="t('contacts.add')"
+          data-testid="contacts-add"
         >
-          <Icon name="lucide:id-card" class="size-4" />
+          <Icon name="lucide:plus" class="size-4" />
         </UiButton>
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end">
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="contacts-new"
+          @select="newContact"
+        >
+          <Icon name="lucide:user-plus" class="size-4" />
+          {{ t('contacts.new') }}
+        </ShadcnDropdownMenuItem>
         <ShadcnDropdownMenuItem
           class="gap-2"
           data-testid="contacts-card-menu-import"
@@ -117,16 +123,5 @@ function newContact() {
         </ShadcnDropdownMenuItem>
       </ShadcnDropdownMenuContent>
     </ShadcnDropdownMenu>
-    <UiButton
-      v-if="!entryOpen"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('contacts.new')"
-      :tooltip="t('contacts.new')"
-      data-testid="contacts-new"
-      @click="newContact"
-    >
-      <Icon name="lucide:plus" class="size-4" />
-    </UiButton>
   </div>
 </template>

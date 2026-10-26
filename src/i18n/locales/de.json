@@ -2800,6 +2800,7 @@
     "noName": "Ohne Namen",
     "self": "Ich",
     "new": "Neuer Kontakt",
+    "add": "Hinzufügen",
     "cancel": "Abbrechen",
     "save": "Speichern",
     "back": "Zurück",
@@ -3006,7 +3007,6 @@
       "count": "Keiner ausgewählt | Einer ausgewählt | {count} ausgewählt"
     },
     "card": {
-      "menu": "Visitenkarte",
       "import": "Visitenkarte einlesen",
       "paste": "Link der Visitenkarte",
       "check": "Prüfen",
