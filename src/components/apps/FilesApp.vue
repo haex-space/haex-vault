@@ -342,7 +342,7 @@ const tabActive = computed(
 watch(tabActive, (active) => {
   if (!active) return
   void sources.execute()
-  if (storageId.value !== null) void folder.reload()
+  if (storageId.value !== null) void folder.reload(true)
 })
 </script>
 

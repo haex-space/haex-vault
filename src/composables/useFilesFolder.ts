@@ -1,7 +1,8 @@
 /**
  * The open folder of a file browser tab (spec 044 FR-003, FR-006): its entries, loading and error,
  * kept current by watching it (this device, or another own device, spec 056 FR-046) and by loading
- * again when the window gets the focus back, in case the watch missed a change.
+ * again when the window gets the focus back, in case the watch missed a change. Those reloads are
+ * quiet: only opening a folder and reloading on request set `loading`, which shows the loader.
  */
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -29,11 +30,11 @@ export function useFilesFolder(
   let watchId: number | null = null
   let reloadTimer: ReturnType<typeof setTimeout> | null = null
 
-  async function loadAsync() {
+  async function loadAsync(quiet = false) {
     const current = path.value
     if (current === null) return
     const mine = ++generation
-    loading.value = true
+    if (!quiet) loading.value = true
     try {
       const listed = await listAsync(source.value, current)
       if (mine !== generation) return
@@ -55,7 +56,7 @@ export function useFilesFolder(
     if (reloadTimer) clearTimeout(reloadTimer)
     reloadTimer = setTimeout(() => {
       reloadTimer = null
-      void loadAsync()
+      void loadAsync(true)
     }, 150)
   }
 
@@ -90,7 +91,7 @@ export function useFilesFolder(
   }
 
   function onFocus() {
-    if (document.visibilityState !== 'hidden') void loadAsync()
+    if (document.visibilityState !== 'hidden') void loadAsync(true)
   }
 
   watch(

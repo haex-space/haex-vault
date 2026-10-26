@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
  * The open folder as list or grid (spec 044 FR-003, FR-008): both scroll virtually, so a folder
- * with 50 000 entries mounts only the rows on screen. Loading, empty and error states replace the
- * list; a folder the system denies shows why. A press reports the entry with the keys held (the
- * frame decides between opening and selecting, `lib/files/clipboard.ts`); a double click, Enter or
- * Space opens it, a click on the empty area clears the selection. Entries drag onto a folder row or
- * the open folder (FR-018). The keyboard moves the focus through the entries (`focusEntry`, FR-017b),
- * and a new folder takes the focus unless a text field has it.
+ * with 50 000 entries mounts only the rows on screen. Empty and error states replace the list, a
+ * folder that takes a moment to load shows the loader over it (`FilesLoader`); a folder the system
+ * denies shows why. A press reports the entry with the keys held (the frame decides between opening
+ * and selecting, `lib/files/clipboard.ts`); a double click, Enter or Space opens it, a click on the
+ * empty area clears the selection. Entries drag onto a folder row or the open folder (FR-018). The
+ * keyboard moves the focus through the entries (`focusEntry`, FR-017b), and a new folder takes the
+ * focus unless a text field has it.
  */
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -310,7 +311,7 @@ const errorText = computed(() => {
 <template>
   <div
     ref="container"
-    class="h-full min-h-0 outline-none"
+    class="relative h-full min-h-0 outline-none"
     :class="dropOver === folder ? 'ring-2 ring-primary ring-inset' : ''"
     tabindex="-1"
     data-files-list
@@ -442,5 +443,6 @@ const errorText = computed(() => {
         </template>
       </div>
     </div>
+    <FilesLoader :loading="loading" />
   </div>
 </template>

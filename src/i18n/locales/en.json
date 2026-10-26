@@ -2507,6 +2507,7 @@
     "pathBar": "Path",
     "menu": "Sort and show",
     "empty": "This folder is empty.",
+    "loading": "Loading folder …",
     "symlink": "Link",
     "holziOwned": "holzi's own data, read-only",
     "search": {
