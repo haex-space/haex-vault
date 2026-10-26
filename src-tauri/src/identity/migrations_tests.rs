@@ -62,7 +62,7 @@ pub(super) fn open(
     .expect("open the test vault")
 }
 
-fn device_of(db: &Database, dir: &Path) -> Uuid {
+pub(super) fn device_of(db: &Database, dir: &Path) -> Uuid {
     let installation_uuid =
         read_or_mint_installation_uuid(&installation_id_path(dir)).expect("installation uuid");
     crate::storage::query::read(db, |r| {
