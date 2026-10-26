@@ -19,6 +19,11 @@ const SUMMARY: JsonSchema = {
       description: 'Group names.',
     },
     photo: { type: 'string', description: 'Hash of the photo, if any.' },
+    isSelf: {
+      type: 'boolean',
+      description:
+        'Present and true only on the contact that is the user themselves; its name is their real name.',
+    },
   },
 }
 
@@ -62,6 +67,11 @@ const CONTACT: JsonSchema = {
       description:
         "The confirmed holzi addresses from the contact's business card: vault identity, devices and Nostr relays; absent without a card.",
     },
+    isSelf: {
+      type: 'boolean',
+      description:
+        'Present and true only on the contact that is the user themselves; its name is their real name.',
+    },
     updatedAt: { type: 'string' },
   },
 }
@@ -78,7 +88,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     id: 'contacts.search',
     titleKey: 'actions.contacts.search',
     description:
-      'Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. Needs the user to allow reading contacts.',
+      'Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. The contact marked isSelf is the user themselves. Needs the user to allow reading contacts.',
     input: {
       type: 'object',
       properties: {
@@ -109,7 +119,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     id: 'contacts.get',
     titleKey: 'actions.contacts.get',
     description:
-      'Read one contact with all its values (phone numbers, addresses, dates, …) and their ids. Needs the user to allow reading contacts.',
+      'Read one contact with all its values (phone numbers, addresses, dates, …) and their ids. The contact marked isSelf is the user themselves. Needs the user to allow reading contacts.',
     input: {
       type: 'object',
       properties: { id: ID },

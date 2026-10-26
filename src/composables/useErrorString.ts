@@ -106,6 +106,10 @@ export function useErrorString() {
       if (kind === 'CardOwn') return t('contacts.error.cardOwn')
       if (kind === 'CardOlder') return t('contacts.error.cardOlder')
       if (kind === 'CardTooLarge') return t('contacts.error.cardTooLarge')
+      // Spec 060: the own contact and the shares of contacts.
+      if (kind === 'ContactsSelf') return t('contacts.error.self')
+      if (kind === 'ShareInvalid') return t('contacts.error.shareInvalid')
+      if (kind === 'ShareTooLarge') return t('contacts.error.shareTooLarge')
       // Spec 017: the extension host's kinds name a reason or a state, never data of an extension.
       if (kind === 'ExtensionInstall') {
         const key = `extensions.install.errors.${String(reason)}`

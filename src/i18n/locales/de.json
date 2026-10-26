@@ -2803,6 +2803,8 @@
     "empty": "Noch keine Kontakte.",
     "noMatch": "Kein Kontakt passt zur Suche.",
     "noName": "Ohne Namen",
+    "self": "Ich",
+    "selfNameHint": "Dieser Kontakt heißt immer „Ich“, egal welchen Namen du einträgst. Er geht an kein Telefon.",
     "new": "Neuer Kontakt",
     "cancel": "Abbrechen",
     "save": "Speichern",
@@ -2982,7 +2984,10 @@
       "cardInvalid": "Das ist keine gültige Visitenkarte, oder sie wurde verändert.",
       "cardOwn": "Das ist die Visitenkarte deiner eigenen Vault.",
       "cardOlder": "Diese Visitenkarte ist älter als die gespeicherte. Es bleibt alles, wie es ist.",
-      "cardTooLarge": "Die Visitenkarte ist zu groß."
+      "cardTooLarge": "Die Visitenkarte ist zu groß.",
+      "self": "Das ist dein eigener Kontakt. Er lässt sich nicht löschen, und sein Anzeigename ist immer „Ich“.",
+      "shareInvalid": "Das ist keine gültige Weitergabe, oder sie stammt aus einer neueren Version von holzi.",
+      "shareTooLarge": "Die Weitergabe ist für einen Link zu groß. Wähle einige Angaben ab."
     },
     "targets": {
       "title": "Abgleich mit Telefonen",

@@ -7,6 +7,7 @@
  * selected and sent to it or taken off it together (FR-018c).
  */
 import { filterContacts, sortByName } from '~/lib/contacts/search'
+import { contactTitle, splitSelf } from '~/lib/contacts/self'
 import { fold } from '~/lib/search/fold'
 
 const { t } = useI18n()
@@ -27,10 +28,18 @@ const shown = computed(() => {
   return sortByName(filterContacts(inPlace, router.route.query.q ?? ''))
 })
 
+// The own contact stands apart above the letters (spec 060 FR-001); a search or a group that does
+// not match it leaves it out like any other contact.
+const split = computed(() => splitSelf(shown.value))
+const titleLabels = computed(() => ({
+  self: t('contacts.self'),
+  noName: t('contacts.noName'),
+}))
+
 /** The rows under their first letter; names that do not start with a letter go under "#". */
 const sections = computed(() => {
   const result: { letter: string; headers: typeof shown.value }[] = []
-  for (const header of shown.value) {
+  for (const header of split.value.others) {
     const first = [...fold(header.name)][0]?.toUpperCase() ?? ''
     const letter = /\p{L}/u.test(first) ? first : '#'
     const last = result.at(-1)
@@ -55,12 +64,15 @@ function stopSelecting() {
   selected.value = new Set()
 }
 
-function open(id: string) {
-  if (selecting.value) toggle(id)
-  else void router.push(`/entry/${id}`)
+function open(id: string, isSelf = false) {
+  // The own contact goes to no phone, so it is never selected.
+  if (selecting.value && !isSelf) toggle(id)
+  else if (!selecting.value) void router.push(`/entry/${id}`)
 }
 
 function secondLine(header: (typeof shown.value)[number]): string {
+  // The own contact reads "Ich"; its real name goes beneath.
+  if (header.isSelf && header.name) return header.name
   return header.organization ?? header.phones[0] ?? header.emails[0] ?? ''
 }
 </script>
@@ -72,7 +84,7 @@ function secondLine(header: (typeof shown.value)[number]): string {
         {{ group ? group.name : t('contacts.title') }}
       </h1>
       <UiButton
-        v-if="store.phones.length && !selecting && shown.length"
+        v-if="store.phones.length && !selecting && split.others.length"
         variant="ghost"
         size="sm"
         data-testid="contacts-select"
@@ -94,12 +106,45 @@ function secondLine(header: (typeof shown.value)[number]): string {
       {{ t('contacts.loading') }}
     </p>
     <p
-      v-else-if="shown.length === 0"
+      v-else-if="sections.length === 0 && !(split.own && router.route.query.q)"
       class="p-4 text-muted-foreground"
       data-testid="contacts-empty"
     >
       {{ router.route.query.q ? t('contacts.noMatch') : t('contacts.empty') }}
     </p>
+    <section
+      v-if="split.own"
+      class="flex flex-col gap-1"
+      data-testid="contacts-self"
+    >
+      <h2 class="px-2 pt-2 text-xs font-semibold text-muted-foreground">
+        {{ t('contacts.self') }}
+      </h2>
+      <ul
+        class="flex flex-col divide-y divide-background overflow-hidden rounded-xl bg-muted"
+      >
+        <li>
+          <button
+            type="button"
+            class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
+            :data-testid="`contacts-row-${split.own.id}`"
+            @click="open(split.own.id, true)"
+          >
+            <ContactsAvatar :name="split.own.name" :photo="split.own.photo" />
+            <span class="flex min-w-0 flex-1 flex-col">
+              <span
+                class="truncate font-medium"
+                data-testid="contacts-row-name"
+                >{{ contactTitle(split.own, titleLabels) }}</span
+              >
+              <span class="truncate text-sm text-muted-foreground">{{
+                secondLine(split.own)
+              }}</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+    </section>
     <section
       v-for="section in sections"
       :key="section.letter"
