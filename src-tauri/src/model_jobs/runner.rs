@@ -203,6 +203,9 @@ pub(super) fn stream_failure(error: &StreamError) -> &'static str {
 }
 
 /// Asks the model and collects its answer as text.
+///
+/// `started` is set immediately before the provider request begins so a caller can distinguish
+/// cancellation before a request from cancellation while a request is in flight.
 async fn answer(
     source: &dyn ModelSource,
     candidate: &Candidate,
