@@ -107,10 +107,6 @@ Anhang hat die Art `original`, und zwar genau dann, wenn `paperImport` gesetzt i
 Drehung steht in `paperImport.rotation`, nicht im Anhang. `collectAssetIds` nimmt die Assets der Anhänge mit, damit
 Teilen und Papierkorb sie mitnehmen.
 
-`paperImport.pageFit` (neu) hält, wohin die Arbeitskopie auf der Seite gepasst wurde (`x`, `y`, `scale` der Seite),
-damit ein Nahfoto die Rechtecke der Regionen der Seite zuordnen kann, ohne dass das Foto als Element auf der Seite
-liegt.
-
 ## Ebenen einer importierten Seite
 
 ```text
@@ -154,6 +150,6 @@ Blatt neu.
 
 - Seiten ohne `paperImport` und Tabellen ohne `cells` laden wie bisher.
 - Die Migration `0005` fügt nur die Spalte `paper_import` hinzu; `0006` fügt `attachments` hinzu.
-- Eine Seite aus einem Foto mit `processing.state = ready` und einer gesperrten Originalebene (vor `0006`) wird beim Laden umgestellt: Der Anhang `original` entsteht aus `paperImport`, `pageFit` aus dem Element der Originalebene, und die Originalebene entfällt. Bei `failed` und `manual` wird die Originalebene zur Ebene „Foto".
+- Eine Seite aus einem Foto mit `processing.state = ready` und einer gesperrten Originalebene (vor `0006`) wird beim Laden umgestellt: Der Anhang `original` entsteht aus `paperImport` (Name und Größe sind dann unbekannt), und die Originalebene entfällt. Bei `failed` und `manual` wird die Originalebene zur Ebene „Foto".
 - Eine unbekannte `paperImport.version` bleibt als Metadaten erhalten und wird als nicht unterstützt angezeigt.
 - Ein fehlendes Bild-Asset zeigt einen Platzhalter und behält die Element-Daten.
