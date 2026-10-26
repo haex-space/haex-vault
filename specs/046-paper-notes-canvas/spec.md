@@ -32,7 +32,9 @@
 - Q: Was kann ein Anhang sein? → A: Jede Datei (Foto, PDF, Arbeitsblatt), die der Schüler an die Seite hängt; das Original des Fotos ist der erste Anhang und gegen Löschen geschützt.
 - Q: Was heißt „Seitenränder anpassen“? → A: Der Rand der Notizseite selbst: wo Linien oder Karos aufhören und wo Text und Zeichnungen stehen dürfen, je Seite nachträglich einstellbar; er gilt für Bildschirm und PDF. Der Rand im PDF-Export bleibt zusätzlich.
 - Q: Woher kommt das Papier der erkannten Seite? → A: Der Schüler wählt Vorlage und Papierfarbe nachträglich im Seitenmenü (haextension#138). Ob die Erkennung die Vorlage des Fotos (kariert, liniert, blanko) vorschlägt, ist eine spätere Ergänzung des Auftragsformats.
-- Q: Formeln? → A: Formeln (Mathematik, Chemie, Physik) sollen als LaTeX erkannt und gesetzt werden. Das ändert das Format des Auftrags und braucht Testfotos mit Formeln; es folgt als eigene Ergänzung.
+- Q: Formeln? → A: Formeln (Mathematik, Chemie, Physik) werden als LaTeX erkannt und gesetzt, nicht als Handschrift oder Bild übernommen. Auf den Hefterseiten stehen sie als eigene Zeile, in Tabellenzellen (Reaktionsgleichungen) und mitten im Satz.
+- Q: Wie weit geht das in der ersten Fassung? → A: Eine Formelzeile und eine Tabellenzelle, die nur eine Formel enthält, werden gesetzt. Eine Formel mitten im Satz bleibt Text; das Modell schreibt sie dort in Unicode (H₃O⁺, SO₄²⁻), weil das Mischen von Text und gesetzter Formel in einem umbrochenen Textblock eine eigene Aufgabe ist. Strukturformeln und Skizzen (Lewis-Formeln) bleiben Bilder.
+- Q: Womit wird gesetzt? → A: Mit MathJax (SVG-Ausgabe, mit der Chemie-Erweiterung `\ce{…}` für Reaktionsgleichungen), geladen erst, wenn eine Seite eine Formel braucht. Das gesetzte SVG wird mit der Quelle gespeichert.
 
 
 ### User Story 1 - Foto in einen sauberen Entwurf umwandeln (Priority: P1)
@@ -164,7 +166,11 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **FR-026**: Das PDF MUST nur die Seite zeigen, wie sie zu sehen ist; Anhänge gehören nicht hinein. Die Option „Original einbeziehen“ des Exports entfällt, weil das Original keine Ebene mehr ist.
 - **FR-027**: Der Schüler MUST Vorlage (blanko, kariert 5 mm und 10 mm, liniert, Punktraster, Lineaturen, Notenlinien, Millimeterpapier) und Papierfarbe einer Seite nachträglich ändern können. Die Wahl ist ein Schritt, den Rückgängig zurücknimmt, wird mit der Seite gespeichert und im PDF gezeigt.
 - **FR-028**: Der Schüler MUST den Rand einer Seite (oben, unten, links, rechts) nachträglich ändern können. Der Rand bestimmt, wo Linien und Karos der Vorlage gezeichnet werden und wo neue Inhalte stehen dürfen; vorhandene Inhalte bleiben, wo sie stehen. Er wird mit der Seite gespeichert, ist rückgängig zu machen und gilt im PDF.
-- **FR-029**: Formeln der Mathematik, Chemie und Physik SHOULD als LaTeX erkannt und gesetzt werden (eigenes Element mit editierbarer Quelle). Das ist nicht Teil der Anhänge und kommt mit einer Erweiterung des Auftragsformats (`contracts/page-job.md`), sobald Testfotos mit Formeln vorliegen.
+- **FR-029**: Das System MUST Formeln der Mathematik, Chemie und Physik, die auf einer Seite als eigene Zeile oder allein in einer Tabellenzelle stehen, als LaTeX erkennen und als gesetzte Formel übernehmen (`latex`-Element mit editierbarer Quelle; Chemie in der Schreibweise `\ce{…}`). Eine Formel mitten im Satz bleibt Text in Unicode; Strukturformeln und Skizzen bleiben Bilder. Die gesetzte Formel steht in der Tintenfarbe der Seite, nicht in Handschrift.
+- **FR-030**: Das System MUST eine Formel, deren LaTeX-Quelle sich nicht setzen lässt, nicht verlieren und nicht als Fehler zeigen: Die Quelle bleibt als gewöhnlicher Text stehen, den der Schüler bearbeiten kann. Das Erkennungsformat zählt Formeln als eigene Art von Region; bei einer Tabelle steht eine Formelzelle als `$…$` in der Zelle.
+- **FR-031**: Der Schüler MUST eine Formel bearbeiten können: Ein Doppelklick auf eine gesetzte Formel öffnet ihre LaTeX-Quelle mit einer Vorschau, die beim Tippen folgt; eine Quelle, die sich nicht setzen lässt, wird nicht übernommen und zeigt den Grund. Das Übernehmen ist ein Schritt, den Rückgängig zurücknimmt. Eine Tabellenzelle mit `$…$` verhält sich ebenso.
+- **FR-032**: Der Schüler MUST eine Formel von Hand einfügen können: ein Knopf in der Werkzeugleiste legt eine Formel an der Seite ab und öffnet ihre Quelle. Verschieben und Skalieren gelten wie bei Text und Bild.
+- **FR-033**: Gesetzte Formeln MUST im PDF so stehen wie auf der Seite, nach Speichern und Öffnen erhalten bleiben und beim Teilen mitgehen (das gesetzte SVG liegt im Seiten-JSON).
 
 
 ### Key Entities
@@ -201,6 +207,7 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **SC-006**: Bei einem Ausfall der automatischen Verarbeitung bleibt das Originalbild für 100 % der erfolgreich importierten Testseiten als Anhang zugänglich und der Nutzer kann den Entwurf manuell weiterbearbeiten.
 - **SC-007**: Eine spätere Pilotbewertung kann die wahrgenommene Übersichtlichkeit und Bearbeitbarkeit erfassen; sie ist kein technisches Release-Gate dieser Ausbaustufe.
 - **SC-008**: In einem Heft aus N importierten Fotos hat die Seitenliste genau N Einträge und jede Seite zeigt höchstens eine Fassung des Inhalts; das Original jeder Seite ist in höchstens zwei Bedienschritten geöffnet (Anhänge, Anhang), im Seitenfenster oder im Vollbild.
+- **SC-009**: Auf den annotierten Referenz-Fixtures mit Formeln wird jede Formel, die als eigene Zeile oder allein in einer Zelle steht, entweder als gesetzte Formel übernommen oder als Text erhalten; keine geht verloren (FR-030). Die Genauigkeit der LaTeX-Quelle hängt vom Modell ab und ist kein Release-Gate; sie wird je Modell gemessen und im PR festgehalten.
 
 ## Assumptions
 
