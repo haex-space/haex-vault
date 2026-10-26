@@ -420,10 +420,12 @@ löschen.
 
 - Die Gegenseite eines eigenen Geräts wird über den Zugriff aus Spec 056 erreicht; es gibt keinen
   Transport und keinen Dateiindex der Regeln über die Geräte hinweg.
-- Ein Ort stellt Größe und Änderungszeit je Datei bereit, so wie der Dateibrowser sie zeigt. Ob ein
-  verschlüsselter Ordner (Spec 048) beides im Klartext je Datei liefert, prüft der Plan. Liefert er es
-  nicht, entscheidet der Plan über einen Ersatz; die Anforderung, dass ein verschlüsselter Ordner als Ort
-  funktioniert, bleibt.
+- Ein Ort stellt Größe und Änderungszeit je Datei bereit, so wie der Dateibrowser sie zeigt. Geprüft
+  am 2026-10-26: Ein verschlüsselter Ordner (Spec 048) führt beides je Datei in seiner verschlüsselten
+  Sidecar-Datei und liefert es nach dem Entsperren wie jeder andere Ort; dort liegt zusätzlich die
+  Prüfsumme des Klartexts, die ohne Lesen der Datei verfügbar ist. Schreibt holzi eine Datei in einen
+  verschlüsselten Ordner, setzt es als Änderungszeit die Schreibzeit; ein Wert der Quelle lässt sich
+  derzeit nicht mitgeben.
 - Ein Speicher ändert die Änderungszeit einer Datei nach dem Kopieren nicht immer auf den Wert der Quelle
   (zum Beispiel S3). Dann nutzt der Stand die vom Ort gemeldete Zeit nach dem Kopieren, nicht die der
   Quelle; die Erkennung vergleicht nur Werte derselben Seite.

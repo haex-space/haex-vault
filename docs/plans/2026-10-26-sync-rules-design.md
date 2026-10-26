@@ -23,7 +23,7 @@ cloud backup are the same mechanism.
 | 3   | Concurrent changes        | Conflict copy: the newer version keeps the name, the older one is stored beside it as `name (Konflikt <device> <date>).ext`; both sides get both. Changed on one side and deleted on the other: the changed file stays and is copied back.     |
 | 4   | Deletions                 | Per rule: mirror, keep or ask. Mirror moves to the system trash where one exists, else to a `.holzi-trash` folder of the rule. Defaults: mirror for two-way, keep for one-way. "Ask" lists pending deletions in the rule status.             |
 | 5   | When does it run?         | While holzi runs with an unlocked vault: file watcher on local folders, interval for remote places (default 15 min), "sync now". Android needs the background service, a separate spec. The status shows "paused, holzi not active".          |
-| 6   | Encryption in the cloud   | None of its own. Whoever wants ciphertext at the provider picks an encrypted folder (048) as the place. The rule sees plaintext because the folder is unlocked. Open check: whether 048 keeps a plaintext size/time usable for change detection. |
+| 6   | Encryption in the cloud   | None of its own. Whoever wants ciphertext at the provider picks an encrypted folder (048) as the place. The rule sees plaintext because the folder is unlocked. |
 | 7   | Change and move detection | Size plus modification time against the remembered state of the same side; clocks of different devices are never compared (only to pick the newer side in a conflict). A vanished and a new file with equal size and time are a move. A checksum is computed only for ambiguous candidates and to verify a copy. |
 
 ## Model
@@ -99,7 +99,7 @@ rule-owned keys, a cross-device file index.
 
 ## Open
 
-- Whether spec 048 keeps a usable plaintext size and modification time per object (decision 6).
+- Checked 2026-10-26: spec 048 keeps size, modification time and a plaintext checksum per file in its sidecar (decision 6 holds). A write into an encrypted folder sets the write time as modification time.
 - Number of the new spec (next free is 061 unless another branch took it; 045 is the dock).
 - Update the references to 025 and the "sync rules" wording in 056 and the sync architecture once the
   spec exists.
