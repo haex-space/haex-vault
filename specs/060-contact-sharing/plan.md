@@ -76,12 +76,13 @@ _GATE: vor Phase 0 und nach Phase 1 geprüft._
   Englisch, ohne Claude-Zusätze (Vorgabe des Betreibers).
 - ADR für Entwurfsbeschlüsse: Die Kombination aus Umschlag, „nie überschreiben“, Hash-Schlüssel der Karten und
   Deep-Link-Schema ist ein Entwurfsbeschluss, der Spec 051 (FR-009, FR-012) ändert: **ADR 0017 „Kontakte werden
-  über eine Weitergabe geteilt“** im selben PR (Aufgabe in `tasks.md`).
+  über eine Weitergabe geteilt“** wird in diesem Feature-Arbeitsstrang vor den Implementierungs-PRs angelegt
+  (T059).
 - Eine Umsetzung je Regel: Namensregel nur in `share::name_for`; Prüfung der Karten nur in
   `received::verified`; Schutz des Ich-Kontakts nur im Dienst (`service/contacts.rs`), nie in der Oberfläche.
 - Jedes Gerät und jedes System: Rust-Zweige mit `cfg` auch für `aarch64-linux-android` linten.
 
-Nach Phase 1: bestanden, mit dem ADR. Keine Komplexitätsabweichung außer
+Nach Phase 1: bestanden; das ADR wird vor den Implementierungs-PRs angelegt. Keine Komplexitätsabweichung außer
 dem Posteingang (siehe unten).
 
 ## Project Structure
