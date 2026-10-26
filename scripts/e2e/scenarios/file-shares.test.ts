@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { unwrap } from '../lib/flows.ts'
-import { acceptCard, ownCardText } from '../lib/peers.ts'
+import { acceptCard } from '../lib/peers.ts'
 import { deviceFiles } from '../lib/platform/device-files.ts'
 import type { InvokeResult } from '../lib/platform/host.ts'
 import { scenario } from '../lib/scenario.ts'
+import { ownCardText } from '../lib/share.ts'
 import { runAction } from '../lib/settings.ts'
 import { names, type Page } from '../lib/storage-files.ts'
 

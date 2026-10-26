@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
+import {
+  SELF_CONTACT_ID,
+  cardTextOf,
+  readShare,
+  shareLink,
+} from '../lib/share.ts'
 import { unwrap, type FlowInstance } from '../lib/flows.ts'
 import {
   contactHeaders,
@@ -8,12 +14,13 @@ import {
   openContacts,
 } from '../lib/contacts.ts'
 
-// Spec 051 US4-1 to US4-5 (quickstart `contacts-card`): two vaults. Ben chooses his own contact
-// and an e-mail address for his Visitenkarte and opens it; Mara pastes the link, sees the preview
-// (nothing is stored yet) and takes it as a new contact with confirmed holzi addresses. A changed
-// link is refused; Ben's newer card replaces the addresses, his older one changes nothing. A holzi
-// address typed in by hand shows as unconfirmed. US4-6 (the phone keeps holzi addresses) is the
-// phone sync's rule, covered by its tests (FR-014).
+// Spec 060 US2 and spec 051 US4 (quickstart `contacts-share`): two vaults. Ben fills his own contact
+// "Ich", opens the share dialog, deselects his phone number and gets a link and a QR code that carry
+// exactly the rest. Mara reads the card inside it with the Visitenkarte import of spec 051 (the import
+// of shares comes with its own scenario): the preview stores nothing, the card becomes a contact with
+// confirmed holzi addresses, a changed card is refused, Ben's newer card replaces the addresses, his
+// older one changes nothing. A holzi address typed in by hand shows as unconfirmed. US4-6 (the phone
+// keeps holzi addresses) is the phone sync's rule, covered by its tests (FR-014).
 
 /** The error kind of a command that must fail. */
 async function refusal(
@@ -26,47 +33,84 @@ async function refusal(
   return (result.error as { kind?: string }).kind ?? JSON.stringify(result)
 }
 
-scenario('contacts-card', { timeoutMs: 240_000 }, async (ctx) => {
+/** The text of the share the dialog shows now. */
+async function shareLinkText(
+  instance: Pick<FlowInstance, 'exec'>,
+): Promise<string> {
+  return instance.exec<string>(
+    `return document.querySelector('[data-testid="contacts-share-link"]')?.textContent?.trim() ?? ''`,
+  )
+}
+
+scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
   const group = await ctx.group({
     users: { ben: ['laptop'], mara: ['desktop'] },
   })
   const ben = group.device('ben/laptop').page
   const mara = group.device('mara/desktop').page
 
-  const own = await createContact(ben, {
-    head: { givenName: 'Ben', familyName: 'Krüger' },
-    values: [
-      { kind: 'email', label: 'work', value: 'ben@example.org' },
-      { kind: 'phone', label: 'mobile', value: '0170 1111' },
-    ],
-    groups: [],
-  })
-  const ownContact = unwrap<{ values: Array<{ id: string; kind: string }> }>(
-    'contacts_get',
-    await ben.invoke('contacts_get', { args: { id: own } }),
-  )
-  const email = ownContact.values.find((value) => value.kind === 'email')!.id
   unwrap(
-    'contacts_own_card_set',
-    await ben.invoke('contacts_own_card_set', {
-      args: { ownContact: own, valueIds: [email] },
+    'contacts_update',
+    await ben.invoke('contacts_update', {
+      args: {
+        id: SELF_CONTACT_ID,
+        patch: {
+          givenName: 'Ben',
+          familyName: 'Krüger',
+          values: {
+            upsert: [
+              { kind: 'email', label: 'work', value: 'ben@example.org' },
+              { kind: 'phone', label: 'mobile', value: '0170 1111' },
+            ],
+          },
+        },
+      },
     }),
   )
-  await openContacts(ben)
-  await ben.click('contacts-card-menu')
-  await ben.click('contacts-card-menu-own')
-  await ben.waitForDisplayed('contacts-own-card-qr')
-  const older = await ben.exec<string>(
-    `return document.querySelector('[data-testid="contacts-own-card-text"]')?.textContent?.trim() ?? ''`,
+  const ownContact = unwrap<{ values: Array<{ id: string; kind: string }> }>(
+    'contacts_get',
+    await ben.invoke('contacts_get', { args: { id: SELF_CONTACT_ID } }),
   )
-  assert.ok(older.startsWith('holzi:card:'), older)
-  ctx.step('Ben shows his card as QR code and link')
+  const phone = ownContact.values.find((value) => value.kind === 'phone')!.id
+  await openContacts(ben)
+  await ben.click(`contacts-row-${SELF_CONTACT_ID}`)
+  await ben.click('contacts-share-open')
+  await ben.waitForDisplayed('contacts-share-link')
+  const everythingLink = await shareLinkText(ben)
+  assert.equal(
+    readShare(everythingLink).values.length,
+    2,
+    'everything is chosen at first',
+  )
+  await ben.click(`contacts-share-check-${phone}`)
+  await ctx.waitFor(
+    'the link after the change',
+    async () => {
+      const text = await shareLinkText(ben)
+      return text !== '' && text !== everythingLink
+    },
+    { timeoutMs: 15_000, fixed: true },
+  )
+  const older = await shareLinkText(ben)
+  const chosen = readShare(older)
+  assert.deepEqual(
+    chosen.values.map((value) => value.value),
+    ['ben@example.org'],
+    'the deselected phone number is not in the share',
+  )
+  assert.equal(chosen.name, 'Ben Krüger')
+  assert.ok(chosen.card, 'the vault identity goes along')
+  await ben.waitForDisplayed('contacts-share-qr')
+  ctx.step(
+    'Ben shares "Ich" as link and QR code with his phone number left out',
+  )
 
+  const olderCard = cardTextOf(older)
   await openContacts(mara)
   await mara.click('contacts-card-menu')
   await mara.click('contacts-card-menu-import')
   await mara.waitForDisplayed('contacts-card-text')
-  await mara.type('contacts-card-text', older)
+  await mara.type('contacts-card-text', olderCard)
   await mara.click('contacts-card-check')
   await mara.waitForDisplayed('contacts-card-preview')
   const shown = await mara.exec<string>(
@@ -89,15 +133,11 @@ scenario('contacts-card', { timeoutMs: 240_000 }, async (ctx) => {
     await mara.invoke('contacts_get', { args: { id: header!.id } }),
   )
   assert.equal(accepted.origin.kind, 'card')
-  assert.deepEqual(
-    accepted.values.map((value) => value.value),
-    ['ben@example.org'],
-    'only what Ben put on the card',
-  )
+  assert.deepEqual(accepted.values, [], 'a card carries no details any more')
   assert.equal(accepted.card?.devices.length, 1)
   ctx.step('the card became a contact with confirmed holzi addresses')
 
-  const chars = [...older]
+  const chars = [...olderCard]
   const at = chars.length - 12
   chars[at] = chars[at] === 'A' ? 'B' : 'A'
   assert.equal(
@@ -106,17 +146,10 @@ scenario('contacts-card', { timeoutMs: 240_000 }, async (ctx) => {
   )
   ctx.step('a changed card is refused')
 
-  unwrap(
-    'contacts_own_card_set',
-    await ben.invoke('contacts_own_card_set', {
-      args: { ownContact: own, valueIds: [] },
-    }),
-  )
-  const newer = unwrap<{ text: string }>(
-    'contacts_own_card',
-    await ben.invoke('contacts_own_card'),
-  ).text
-  assert.notEqual(newer, older)
+  // A card of the same second would not be newer.
+  await new Promise((resolve) => setTimeout(resolve, 1_100))
+  const newer = cardTextOf(await shareLink(ben, SELF_CONTACT_ID))
+  assert.notEqual(newer, olderCard)
   const preview = unwrap<{ existingContact: { id: string } | null }>(
     'contacts_card_preview',
     await mara.invoke('contacts_card_preview', { args: { text: newer } }),
@@ -131,7 +164,7 @@ scenario('contacts-card', { timeoutMs: 240_000 }, async (ctx) => {
   assert.ok(updated.card.issuedAt > accepted.card!.issuedAt)
   assert.equal(
     await refusal(mara, 'contacts_card_accept', {
-      text: older,
+      text: olderCard,
       into: { kind: 'contact', contactId: header!.id },
     }),
     'CardOlder',

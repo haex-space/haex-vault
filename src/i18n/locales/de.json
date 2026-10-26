@@ -222,7 +222,6 @@
       "group": "Gruppe",
       "entry": "Kontakt",
       "edit": "Kontakt bearbeiten",
-      "card": "Meine Visitenkarte",
       "cardImport": "Visitenkarte einlesen"
     }
   },
@@ -1247,13 +1246,6 @@
           "permission": "holzi darf nicht auf die Kontakte des Telefons zugreifen.",
           "failed": "Das Telefon hat die Änderung abgelehnt. holzi versucht es beim nächsten Abgleich wieder."
         }
-      },
-      "card": {
-        "title": "Visitenkarte",
-        "ownContact": "Eigener Kontakt",
-        "ownContactHint": "Sein Name steht auf deiner Visitenkarte, dazu die Angaben, die du hier wählst.",
-        "noOwnContact": "Keiner",
-        "onCard": "Auf der Visitenkarte"
       },
       "blocked": {
         "title": "Blockierte Vaults",
@@ -3016,17 +3008,7 @@
     },
     "card": {
       "menu": "Visitenkarte",
-      "own": "Meine Visitenkarte",
       "import": "Visitenkarte einlesen",
-      "copied": "Link der Visitenkarte kopiert",
-      "copy": "Link kopieren",
-      "qr": "QR-Code der Visitenkarte",
-      "issuedAt": "Erstellt {at}",
-      "noneYet": "Noch keine Visitenkarte: Ein Hauptgerät der Vault erstellt sie.",
-      "linkedDevice": "Dieses Gerät zeigt die Karte, die ein Hauptgerät der Vault erstellt hat. Nur Hauptgeräte erstellen neue.",
-      "omitted": "Passt nicht mehr auf die Karte: {values}",
-      "noOwnContact": "Du hast noch keinen eigenen Kontakt gewählt; die Karte trägt dann keinen Namen.",
-      "choose": "Inhalt wählen",
       "paste": "Link der Visitenkarte",
       "check": "Prüfen",
       "scan": "Scannen",
@@ -3041,6 +3023,27 @@
       "accepted": "Visitenkarte bei {name} gespeichert",
       "confirmed": "Bestätigte holzi-Adressen",
       "confirmedAt": "bestätigt am {at}"
+    },
+    "share": {
+      "title": "Kontakt teilen",
+      "intro": "Wähle, was weitergegeben wird. Der Name geht immer mit. Nichts davon wird gespeichert.",
+      "name": "Name beim Empfänger: {name}",
+      "noName": "Der Kontakt hat keinen Namen; beim Empfänger bleibt er leer.",
+      "all": "Alle",
+      "none": "Keine",
+      "ownAddresses": "Meine holzi-Adressen",
+      "identity": "Vault-Identität, geht immer mit",
+      "linkedDevice": "Auf diesem Gerät können keine holzi-Adressen mitgehen, weil nur ein Hauptgerät sie unterschreiben kann. Teile von einem Hauptgerät aus, wenn sie mitgehen sollen.",
+      "confirmedRow": "{devices} Geräte, {relays} Relays · bestätigt am {at}",
+      "confirmedHint": "Der ursprüngliche Nachweis des Kontakts geht unverändert mit. Er enthält auch Angaben, die der Kontakt selbst dafür freigegeben hat; Geräte und Relays gehen nur gemeinsam mit.",
+      "photoHint": "Fotos werden nicht per Link, Zwischenablage oder QR-Code weitergegeben.",
+      "nothing": "Es gibt nichts weiterzugeben: keinen Namen, keine Angabe und keine Adressen.",
+      "qr": "QR-Code der Weitergabe",
+      "noQr": "Zu groß für einen QR-Code ({size} Zeichen, höchstens 2048). Link und Zwischenablage gehen trotzdem.",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
+      "size": "{size} Zeichen",
+      "action": "Teilen"
     },
     "fileShares": {
       "title": "Dateifreigaben",
