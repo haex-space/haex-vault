@@ -133,7 +133,7 @@ zur Veranschaulichung der Form.
       "input": { "images": [{ "mimeType": "image/jpeg", "data": "<base64>" }] },
       "format": {
         "name": "page-recognition",
-        "version": 1,
+        "version": 2,
         "schema": {
           "type": "object",
           "required": ["regions"],
@@ -145,7 +145,7 @@ zur Veranschaulichung der Form.
                 "type": "object",
                 "required": ["kind", "box"],
                 "properties": {
-                  "kind": { "enum": ["text", "image", "table"] },
+                  "kind": { "enum": ["text", "image", "table", "formula"] },
                   "box": {
                     "type": "array",
                     "items": {
@@ -157,6 +157,7 @@ zur Veranschaulichung der Form.
                     "maxItems": 4
                   },
                   "text": { "type": "string", "maxLength": 20000 },
+                  "latex": { "type": "string", "maxLength": 4000 },
                   "rows": {
                     "type": "array",
                     "items": { "type": "array", "items": { "type": "string" } }

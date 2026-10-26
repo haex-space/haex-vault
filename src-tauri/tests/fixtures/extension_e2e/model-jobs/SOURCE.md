@@ -1,7 +1,8 @@
 # Test extension `model-jobs` (spec 055, T065)
 
 The extension of the quickstart and the e2e scene `extension-model-jobs`. It sends the page recognition of
-`contracts/job-format.md` §Beispiel (read, then correct) to holzi's models, and has test modes that ask the
+`contracts/job-format.md` §Beispiel (read, then correct) to holzi's models, in the format `page-recognition` v2
+and with the instruction of haex-notes (spec 046 `contracts/page-job.md`, with formulas as LaTeX), and has test modes that ask the
 model for a loop, an empty answer or Chinese text, and the two ways to the grant of US9 (`access`: ask
 before the first job; `settings`: open holzi's page of the extension's models). Its bundle `../model-jobs.xt` is built and signed by
 `tests/extension_e2e_fixtures.rs` with the fixtures' test key.
