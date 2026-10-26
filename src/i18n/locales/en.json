@@ -222,7 +222,6 @@
       "group": "Group",
       "entry": "Contact",
       "edit": "Edit contact",
-      "card": "My business card",
       "cardImport": "Read a business card"
     }
   },
@@ -1247,13 +1246,6 @@
           "permission": "holzi may not access the phone's contacts.",
           "failed": "The phone refused the change. holzi tries again at the next sync."
         }
-      },
-      "card": {
-        "title": "Business card",
-        "ownContact": "Own contact",
-        "ownContactHint": "Its name is on your business card, with the values you choose here.",
-        "noOwnContact": "None",
-        "onCard": "On the business card"
       },
       "blocked": {
         "title": "Blocked vaults",
@@ -3013,17 +3005,7 @@
     },
     "card": {
       "menu": "Business card",
-      "own": "My business card",
       "import": "Read a business card",
-      "copied": "Link of the business card copied",
-      "copy": "Copy link",
-      "qr": "QR code of the business card",
-      "issuedAt": "Made {at}",
-      "noneYet": "No business card yet: a main device of the vault makes it.",
-      "linkedDevice": "This device shows the card a main device of the vault made. Only main devices make new ones.",
-      "omitted": "No longer fits the card: {values}",
-      "noOwnContact": "You have not chosen your own contact yet, so the card carries no name.",
-      "choose": "Choose the content",
       "paste": "Link of the business card",
       "check": "Check",
       "scan": "Scan",
@@ -3038,6 +3020,27 @@
       "accepted": "Business card saved on {name}",
       "confirmed": "Confirmed holzi addresses",
       "confirmedAt": "confirmed on {at}"
+    },
+    "share": {
+      "title": "Share contact",
+      "intro": "Choose what is passed on. The name always goes along. None of this is saved.",
+      "name": "Name for the receiver: {name}",
+      "noName": "The contact has no name; it stays empty for the receiver.",
+      "all": "All",
+      "none": "None",
+      "ownAddresses": "My holzi addresses",
+      "identity": "Vault identity, always goes along",
+      "linkedDevice": "This device cannot pass on holzi addresses because only a main device signs them. Share from a main device if they should go along.",
+      "confirmedRow": "{devices} devices, {relays} relays · confirmed {at}",
+      "confirmedHint": "The contact's original proof goes along unchanged. It also holds what the contact released for it; devices and relays go together only.",
+      "photoHint": "Photos are not passed on by link, clipboard or QR code.",
+      "nothing": "There is nothing to share: no name, no detail and no addresses.",
+      "qr": "QR code of the share",
+      "noQr": "Too large for a QR code ({size} characters, at most 2048). The link and the clipboard still work.",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "size": "{size} characters",
+      "action": "Share"
     },
     "fileShares": {
       "title": "File shares",

@@ -25,6 +25,7 @@ const id = computed(() => router.route.params.id ?? '')
 const contact = ref<Contact | null>(null)
 const missing = ref(false)
 const deleteOpen = ref(false)
+const shareOpen = ref(false)
 
 async function loadAsync() {
   try {
@@ -169,6 +170,14 @@ async function removePhotoAsync() {
         >
           <Icon name="lucide:pencil" class="size-4" />
           {{ t('contacts.edit') }}
+        </UiButton>
+        <UiButton
+          variant="outline"
+          data-testid="contacts-share-open"
+          @click="shareOpen = true"
+        >
+          <Icon name="lucide:share-2" class="size-4" />
+          {{ t('contacts.share.action') }}
         </UiButton>
         <UiButton
           v-if="!contact.isSelf"
@@ -380,6 +389,8 @@ async function removePhotoAsync() {
       >
         {{ origin }}
       </p>
+
+      <ContactsShareDialog v-model:open="shareOpen" :contact-id="contact.id" />
 
       <ContactsDeleteDialog
         v-if="!contact.isSelf"
