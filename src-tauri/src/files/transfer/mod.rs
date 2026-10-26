@@ -150,7 +150,7 @@ impl Work {
         match self {
             Self::Local { job, .. } => job.op,
             Self::StorageDelete { .. } => TransferOp::Delete,
-            Self::Remote { plan, .. } => plan.op,
+            Self::Remote { job, .. } => job.op,
         }
     }
 }
