@@ -2803,6 +2803,8 @@
     "empty": "No contacts yet.",
     "noMatch": "No contact matches the search.",
     "noName": "No name",
+    "self": "Me",
+    "selfNameHint": "This contact is always called “Me”, whatever name you enter. It goes to no phone.",
     "new": "New contact",
     "cancel": "Cancel",
     "save": "Save",
@@ -2982,7 +2984,10 @@
       "cardInvalid": "This is no valid business card, or it was changed.",
       "cardOwn": "This is the business card of your own vault.",
       "cardOlder": "This business card is older than the stored one. Everything stays as it is.",
-      "cardTooLarge": "The business card is too large."
+      "cardTooLarge": "The business card is too large.",
+      "self": "This is your own contact. It cannot be deleted, and its display name is always “Me”.",
+      "shareInvalid": "This is not a valid share, or it comes from a newer version of holzi.",
+      "shareTooLarge": "The share is too large for a link. Deselect some details."
     },
     "targets": {
       "title": "Sync with phones",

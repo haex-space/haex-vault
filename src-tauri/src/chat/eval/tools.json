@@ -1371,7 +1371,7 @@
   {
     "toolName": "contacts_search",
     "actionId": "contacts.search",
-    "description": "Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. Needs the user to allow reading contacts.",
+    "description": "Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. The contact marked isSelf is the user themselves. Needs the user to allow reading contacts.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1393,7 +1393,7 @@
   {
     "toolName": "contacts_get",
     "actionId": "contacts.get",
-    "description": "Read one contact with all its values (phone numbers, addresses, dates, …) and their ids. Needs the user to allow reading contacts.",
+    "description": "Read one contact with all its values (phone numbers, addresses, dates, …) and their ids. The contact marked isSelf is the user themselves. Needs the user to allow reading contacts.",
     "inputSchema": {
       "type": "object",
       "properties": {

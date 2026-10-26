@@ -11,6 +11,7 @@ import type { Contact } from '@bindings/Contact'
 import type { ContactValue } from '@bindings/ContactValue'
 import type { VaultDevice } from '@bindings/VaultDevice'
 import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
+import { contactTitle } from '~/lib/contacts/self'
 
 const { t, d } = useI18n()
 const { errString } = useErrorString()
@@ -65,6 +66,16 @@ const holziAddresses = computed(() =>
   (contact.value?.values ?? []).filter((value) =>
     (HOLZI_ADDRESS_KINDS as readonly string[]).includes(value.kind),
   ),
+)
+
+/** "Ich" for the own contact (spec 060); the name parts under it keep the real name. */
+const title = computed(() =>
+  contact.value
+    ? contactTitle(contact.value, {
+        self: t('contacts.self'),
+        noName: t('contacts.noName'),
+      })
+    : '',
 )
 
 const subtitle = computed(() =>
@@ -160,6 +171,7 @@ async function removePhotoAsync() {
           {{ t('contacts.edit') }}
         </UiButton>
         <UiButton
+          v-if="!contact.isSelf"
           variant="ghost"
           size="icon"
           :aria-label="t('contacts.delete.title')"
@@ -217,8 +229,15 @@ async function removePhotoAsync() {
             class="truncate text-2xl font-semibold"
             data-testid="contacts-entry-name"
           >
-            {{ contact.name || t('contacts.noName') }}
+            {{ title }}
           </h1>
+          <p
+            v-if="contact.isSelf && contact.name"
+            class="truncate text-muted-foreground"
+            data-testid="contacts-entry-real-name"
+          >
+            {{ contact.name }}
+          </p>
           <p
             v-if="contact.head.nickname"
             class="truncate text-muted-foreground"
@@ -343,14 +362,19 @@ async function removePhotoAsync() {
       </div>
 
       <ContactsTargetsSection
+        v-if="!contact.isSelf"
         :contact="contact"
         :device-name="deviceName"
         @changed="loadAsync"
       />
 
-      <ContactsFileSharesSection :contact-id="contact.id" />
+      <ContactsFileSharesSection
+        v-if="!contact.isSelf"
+        :contact-id="contact.id"
+      />
 
       <p
+        v-if="!contact.isSelf"
         class="px-1 text-sm text-muted-foreground"
         data-testid="contacts-origin"
       >
@@ -358,6 +382,7 @@ async function removePhotoAsync() {
       </p>
 
       <ContactsDeleteDialog
+        v-if="!contact.isSelf"
         v-model:open="deleteOpen"
         :ids="[contact.id]"
         :name="contact.name"

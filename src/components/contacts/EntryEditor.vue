@@ -22,6 +22,7 @@ import {
 import { KINDS } from '~/lib/contacts/kinds'
 import { focusAfterMenu } from '~/lib/contacts/menuFocus'
 import { NEW_CONTACT } from '~/lib/contacts/registry'
+import { SELF_CONTACT_ID } from '~/lib/contacts/self'
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
@@ -33,6 +34,7 @@ const { kindName } = useContactLabels()
 
 const id = computed(() => router.route.params.id ?? NEW_CONTACT)
 const isNew = computed(() => id.value === NEW_CONTACT)
+const isSelf = computed(() => id.value === SELF_CONTACT_ID)
 
 const before = ref<Draft | null>(null)
 const draft = ref<Draft>(emptyDraft())
@@ -64,12 +66,16 @@ watch(id, loadAsync, { immediate: true })
 
 /** Name fields shown at once; the rest behind "more". */
 const NAME_FIELDS: readonly HeadField[] = ['givenName', 'familyName']
-const MORE_FIELDS: readonly HeadField[] = HEAD_FIELDS.filter(
-  (field) =>
-    !NAME_FIELDS.includes(field) &&
-    field !== 'note' &&
-    field !== 'organization' &&
-    field !== 'jobTitle',
+const MORE_FIELDS = computed<readonly HeadField[]>(() =>
+  HEAD_FIELDS.filter(
+    (field) =>
+      !NAME_FIELDS.includes(field) &&
+      // The own contact is always "Ich": it has no display name to enter (spec 060 FR-003).
+      !(isSelf.value && field === 'displayName') &&
+      field !== 'note' &&
+      field !== 'organization' &&
+      field !== 'jobTitle',
+  ),
 )
 const showMore = ref(false)
 
@@ -192,6 +198,13 @@ function cancel() {
       </p>
 
       <SettingsGroup :label="t('contacts.editor.name')">
+        <li
+          v-if="isSelf"
+          class="px-4 pt-3 text-sm text-muted-foreground"
+          data-testid="contacts-editor-self-hint"
+        >
+          {{ t('contacts.selfNameHint') }}
+        </li>
         <li class="grid gap-2 px-4 py-3 sm:grid-cols-2">
           <UiInput
             v-for="field in NAME_FIELDS"
