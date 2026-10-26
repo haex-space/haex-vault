@@ -21,7 +21,8 @@ import { KEY, resizeAppWindow } from '../lib/settings.ts'
 // the attachment view with its text, Escape closes it and gives the focus back to the card, a binary
 // file with a text name shows a notice, and at 360 px the view scrolls nothing sideways. Spec 058,
 // US2: a tap on a PDF shows its first page with the page counter of the file viewer; a PDF that
-// cannot be read shows a notice.
+// cannot be read shows a notice. Spec 058, US3: "Mit System-App öffnen" shows the notice about the
+// decrypted copy before anything opens.
 
 async function openExtra(ctx: ScenarioContext, instance: FlowInstance) {
   await selectTab(instance, 'extra')
@@ -228,6 +229,31 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
     async () => !(await viewerOpen(instance)),
   )
   ctx.step('a binary file with a text name shows a notice instead of text')
+
+  // Spec 058 US3: "Mit System-App öffnen" asks first (the notice of spec 048). Only up to the
+  // notice: confirming would start an app on the runner; the copy and its clean-up are covered by
+  // the Rust tests and the quickstart.
+  await instance.exec(
+    `document.querySelector('[data-testid="passwords-attachment-card-' + arguments[0] + '"]').scrollIntoView({ block: 'center' })
+     return true`,
+    [note],
+  )
+  await instance.click(`passwords-attachment-open-system-${note}`)
+  await instance.waitForDisplayed('files-open-system-notice')
+  await instance.exec(
+    `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
+  await ctx.waitFor(
+    'the notice to close',
+    async () =>
+      !(await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-testid="files-open-system-notice"]'))`,
+      )),
+  )
+  ctx.step(
+    'opening with the system app shows the notice about the decrypted copy first',
+  )
 
   // Renaming: Enter confirms, Escape cancels.
   // In the middle of the frame, away from the floating buttons of the window manager.

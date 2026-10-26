@@ -2072,7 +2072,10 @@
         "notText": "Diese Datei lässt sich hier nicht anzeigen.",
         "unreadable": "Die Datei lässt sich nicht lesen.",
         "pdfUnreadable": "Dieses PDF lässt sich nicht anzeigen."
-      }
+      },
+      "openSystem": "Mit System-App öffnen",
+      "openSystemNoApp": "Für diese Datei ist keine App installiert.",
+      "openSystemUnwritable": "Die Kopie für die andere App ließ sich nicht anlegen."
     },
     "lightbox": {
       "of": " von ",

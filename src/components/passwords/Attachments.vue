@@ -3,7 +3,9 @@
  * The attachments of an entry (spec 034, US5, FR-019..FR-021; spec 036, US6, FR-037..FR-041): cards
  * in a grid of three, two or one columns by the width of the container; a tap on an image opens the
  * lightbox over the entry's images in card order, a tap on a text or a PDF the attachment view over the
- * whole password manager window (spec 058), a tap on anything else saves it. Adding through
+ * whole password manager window (spec 058), a tap on anything else saves it. On the desktop every
+ * attachment also opens with the system's app, after the notice of spec 048 about the decrypted
+ * copy (spec 058 US3). Adding through
  * the system's file dialog or by dropping files, renaming, removing and saving work as in 034.
  * Files travel as the dialog's choice (spec 043: a path or an address), never through the webview;
  * nothing of the choice is stored. An attachment is saved
@@ -33,7 +35,9 @@ const {
   attachmentRenameAsync,
   attachmentRemoveAsync,
   attachmentSaveAsync,
+  attachmentOpenSystemAsync,
 } = usePasswords()
+const { isAndroid } = useDeviceCapabilities()
 const { pickManyAsync, pickSaveTargetAsync } = usePickedFile()
 
 const root = ref<HTMLElement | null>(null)
@@ -124,6 +128,41 @@ async function downloadAsync(attachment: AttachmentView) {
   }
 }
 
+/** "Mit System-App öffnen" exists where the file browser offers it (not on Android, FR-009). */
+const systemApps = computed(() => !isAndroid.value)
+/** The attachment waiting for the notice about the decrypted copy. */
+const pendingOpen = ref<AttachmentView | null>(null)
+const noticing = ref(false)
+
+/** The reasons of `passwords_attachment_open_system` in words; anything else as usual. */
+function openSystemError(cause: unknown): string {
+  const reason = (cause as { kind?: unknown; reason?: unknown } | null)?.reason
+  if (reason === 'no_app') return t('passwords.attachments.openSystemNoApp')
+  if (reason === 'unwritable')
+    return t('passwords.attachments.openSystemUnwritable')
+  return errString(cause)
+}
+
+async function openSystemAsync(attachment: AttachmentView) {
+  try {
+    const outcome = await attachmentOpenSystemAsync(attachment.id)
+    if (outcome !== 'needsNotice') return
+    pendingOpen.value = attachment
+    noticing.value = true
+  } catch (cause) {
+    toast.error(openSystemError(cause))
+  }
+}
+
+async function confirmOpenAsync(dontAskAgain: boolean) {
+  const attachment = pendingOpen.value
+  pendingOpen.value = null
+  if (!attachment) return
+  await attachmentOpenSystemAsync(attachment.id, true, dontAskAgain).catch(
+    (cause: unknown) => toast.error(openSystemError(cause)),
+  )
+}
+
 function openImage(attachment: AttachmentView) {
   const index = images.value.findIndex((image) => image.id === attachment.id)
   if (index >= 0) void lightbox.value?.open(index)
@@ -200,8 +239,10 @@ onBeforeUnmount(() => {
             <PasswordsAttachmentCard
               :attachment="attachment"
               :readonly="readonly"
+              :system-apps="systemApps"
               @open="openImage(attachment)"
               @view="view(attachment)"
+              @open-system="openSystemAsync(attachment)"
               @save="downloadAsync(attachment)"
               @rename="(name: string) => renameAsync(attachment, name)"
               @remove="removeAsync(attachment)"
@@ -239,9 +280,15 @@ onBeforeUnmount(() => {
     <Teleport v-if="viewing && viewerTarget" :to="viewerTarget">
       <PasswordsAttachmentViewer
         :attachment="viewing"
+        :system-apps="systemApps"
         @close="closeViewer"
         @save="downloadAsync(viewing)"
+        @open-system="openSystemAsync(viewing)"
       />
     </Teleport>
+    <FilesOpenSystemNotice
+      v-model:open="noticing"
+      @confirm="confirmOpenAsync"
+    />
   </div>
 </template>

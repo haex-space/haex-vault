@@ -2072,7 +2072,10 @@
         "notText": "This file cannot be shown here.",
         "unreadable": "The file cannot be read.",
         "pdfUnreadable": "This PDF cannot be shown."
-      }
+      },
+      "openSystem": "Open with system app",
+      "openSystemNoApp": "No app is installed for this file.",
+      "openSystemUnwritable": "The copy for the other app could not be created."
     },
     "lightbox": {
       "of": " of ",
