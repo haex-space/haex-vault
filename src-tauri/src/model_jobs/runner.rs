@@ -19,6 +19,7 @@ use super::job::Step;
 use super::limits::MAX_RESULT_BYTES;
 use super::model_source::ModelSource;
 use super::place::Place;
+use super::trace;
 use crate::adapters::types::{
     Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk,
     StreamError,
@@ -204,13 +205,14 @@ async fn answer(
     candidate: &Candidate,
     request: ChatRequest,
 ) -> Result<String, Miss> {
-    let adapter = source
-        .adapter(&candidate.model)
-        .map_err(|_| Miss::Unavailable("the model adapter is unavailable".into()))?;
-    let mut stream = adapter
-        .stream_chat(request)
-        .await
-        .map_err(|error| Miss::Unavailable(start_failure(&error)))?;
+    let adapter = source.adapter(&candidate.model).map_err(|message| {
+        trace::failed(&candidate.model, "adapter", &message);
+        Miss::Unavailable("the model adapter is unavailable".into())
+    })?;
+    let mut stream = adapter.stream_chat(request).await.map_err(|error| {
+        trace::failed(&candidate.model, "start", &trace::adapter_error(&error));
+        Miss::Unavailable(start_failure(&error))
+    })?;
     let mut text = String::new();
     while let Some(chunk) = stream.next().await {
         match chunk {
@@ -224,7 +226,10 @@ async fn answer(
             Ok(StreamChunk::ToolCalls(_)) => return Err(Miss::Unusable("tool call".into())),
             Ok(StreamChunk::AgentActivity { .. }) => {}
             Ok(StreamChunk::Done { .. }) => break,
-            Err(error) => return Err(Miss::Unavailable(stream_failure(&error).into())),
+            Err(error) => {
+                trace::failed(&candidate.model, "stream", &trace::stream_error(&error));
+                return Err(Miss::Unavailable(stream_failure(&error).into()));
+            }
         }
     }
     Ok(text)
@@ -274,6 +279,7 @@ pub(crate) async fn run_step(
             biased;
             () = cancel.cancelled() => return StepRun { attempts, end: StepEnd::Cancelled },
             () = tokio::time::sleep_until(deadline) => {
+                trace::tried(&candidate.model, applied.reported(), Outcome::Timeout);
                 attempts.push(attempt(Outcome::Timeout, None));
                 return StepRun {
                     attempts,
@@ -288,6 +294,7 @@ pub(crate) async fn run_step(
                     Miss::Unusable("sensitive output".into())
                 }
                 Ok(value) => {
+                    trace::tried(&candidate.model, applied.reported(), Outcome::Used);
                     attempts.push(attempt(Outcome::Used, None));
                     return StepRun {
                         attempts,
@@ -302,6 +309,10 @@ pub(crate) async fn run_step(
             Miss::Unusable(reason) => (Outcome::Unusable, JobErrorCode::Unusable, reason),
             Miss::Unavailable(reason) => (Outcome::Unavailable, JobErrorCode::Unavailable, reason),
         };
+        trace::tried(&candidate.model, applied.reported(), outcome);
+        if outcome == Outcome::Unusable {
+            trace::failed(&candidate.model, "answer", &reason);
+        }
         let entry = attempt(outcome, Some(reason));
         last = (code, entry.reason.clone().unwrap_or_default());
         attempts.push(entry);

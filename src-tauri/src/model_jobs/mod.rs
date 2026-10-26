@@ -6,7 +6,8 @@
 //! The parts of a job (`job`, `schema`, `guard`, `effort`, `place`, `limits`), the errors
 //! (`errors`), the registry of running jobs (`state`), the models a step may go to (`candidates`,
 //! `model_source`, `local_slot`, `chat_slot`), the grants and consents the user gives (`grants`, `destinations`), the
-//! preflight (`preflight`), the run (`runner`) and the bridge methods (`bridge`).
+//! preflight (`preflight`), the run (`runner`), what it writes to the log (`trace`) and the bridge
+//! methods (`bridge`).
 
 pub(crate) mod access;
 pub(crate) mod bridge;
@@ -30,6 +31,7 @@ mod schema;
 mod state;
 #[cfg(test)]
 pub(crate) mod test_support;
+mod trace;
 
 #[cfg(test)]
 mod candidates_tests;
@@ -59,6 +61,8 @@ mod runner_tests;
 mod schema_tests;
 #[cfg(test)]
 mod state_tests;
+#[cfg(test)]
+mod trace_tests;
 
 pub(crate) use job::Need;
 pub(crate) use state::{JobOwner, JobRegistry};
