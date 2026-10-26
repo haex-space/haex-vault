@@ -1,0 +1,245 @@
+name: Desktop release
+
+# Installers for Linux, Windows and macOS. A tag `v*` builds them and attaches them to the GitHub
+# release of that tag (the Android APKs come from `android-release.yml`, the same tag starts both);
+# `workflow_dispatch` builds them without a release. A pull request that changes this file builds
+# them too, so a change to the workflow is tried before a tag depends on it.
+#
+# The installers are not signed yet: Windows SmartScreen and macOS Gatekeeper warn about them.
+# macOS signing and notarization switch on by themselves once the repository has the secrets
+# APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD
+# and APPLE_TEAM_ID (README, "Desktop releases").
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['.github/workflows/desktop-release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Read the app version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A tag that disagrees with the app's version would publish installers that call themselves
+      # another release. The Cargo version is the one the binary reports.
+      - name: Read the app version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo_version=$(sed -n 's/^version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml | head -n 1)
+          if [ "$version" != "$cargo_version" ]; then
+            echo "::error::src-tauri/tauri.conf.json says $version, src-tauri/Cargo.toml says $cargo_version"
+            exit 1
+          fi
+          if [ "$REF_TYPE" = tag ] && [ "$REF_NAME" != "v$version" ]; then
+            echo "::error::tag $REF_NAME does not match version $version in src-tauri/tauri.conf.json"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Installers (${{ matrix.name }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+          # Both Mac builds run on an Apple Silicon runner; the Intel one is cross-compiled, so it
+          # does not depend on the hosted Intel runners that GitHub is retiring.
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+          - name: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.19.0
+
+      # The Tauri CLI runs `beforeBuildCommand` (`pnpm generate`), so `pnpm` itself has to be on PATH.
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      # The packages Tauri needs on Linux, plus libasound (cpal) and libclang (bindgen for
+      # haex-crdt's SQLCipher hooks).
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo sed -i \
+            -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            /etc/apt/apt-mirrors.txt /etc/apt/sources.list \
+            /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get update -o Acquire::Retries=3
+          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            patchelf \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libasound2-dev \
+            libclang-dev
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+
+      # macOS signs and notarizes only when the repository has the Apple credentials; Tauri reads
+      # them from the environment. Without them the build is unsigned. The certificate is a
+      # base64 .p12 file, `APPLE_PASSWORD` an app-specific password of the Apple ID.
+      - name: Pass the Apple signing credentials on
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "No Apple credentials in the repository: the macOS installer stays unsigned."
+            exit 0
+          fi
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value="${!name}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is not set although APPLE_CERTIFICATE is"
+              exit 1
+            fi
+            echo "::add-mask::$value"
+            {
+              echo "$name<<APPLE_EOF"
+              echo "$value"
+              echo "APPLE_EOF"
+            } >> "$GITHUB_ENV"
+          done
+
+      # No cargo cache: releases are rare, and a release build's cache would push the CI's
+      # caches out of the repository's 10 GB. Local inference and voice are in on purpose (the
+      # default features): the release is the full app. The runner's default shell on Windows on
+      # purpose: under Git Bash, `perl` is Git's MSYS Perl, which lacks modules openssl-src
+      # (SQLCipher) needs; PowerShell finds Strawberry Perl.
+      - name: Build the installers
+        env:
+          # linuxdeploy's bundled `strip` does not know the newer ELF sections of Ubuntu 24.04.
+          NO_STRIP: 'true'
+        run: corepack pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      # Every installer is renamed to `holzi-<version>-<platform>.<ext>`, so a release's files say
+      # which machine they are for.
+      - name: Collect the installers
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/$TARGET/release/bundle"
+          out="$RUNNER_TEMP/installers"
+          mkdir -p "$out"
+          count=0
+          for file in "$bundle"/{deb/*.deb,rpm/*.rpm,appimage/*.AppImage,nsis/*.exe,msi/*.msi,dmg/*.dmg}; do
+            [ -f "$file" ] || continue
+            ext="${file##*.}"
+            cp "$file" "$out/holzi-$VERSION-$PLATFORM.$ext"
+            count=$((count + 1))
+          done
+          ls -l "$out"
+          expected=$(echo '${{ matrix.bundles }}' | tr ',' '\n' | wc -l)
+          if [ "$count" -ne "$expected" ]; then
+            echo "::error::found $count installers for ${{ matrix.bundles }}"
+            find "$bundle" -maxdepth 2 -type f || true
+            exit 1
+          fi
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holzi-desktop-${{ matrix.name }}
+          path: ${{ runner.temp }}/installers/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # A job of its own, so the write token never shares a job with the build.
+  publish:
+    name: Attach the installers to the release
+    if: github.ref_type == 'tag'
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download the installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: holzi-desktop-*
+          path: installers
+          merge-multiple: true
+
+      - name: Attach them to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -l installers
+          (cd installers && sha256sum holzi-* > SHA256SUMS-desktop.txt)
+          # `android-release.yml` starts with the same tag; whoever is first creates the release.
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "holzi $TAG" --generate-notes \
+              || gh release view "$TAG" > /dev/null
+          fi
+          gh release upload "$TAG" installers/* --clobber

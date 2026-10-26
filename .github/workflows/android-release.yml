@@ -212,8 +212,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" apks/*.apk --clobber
-          else
-            gh release create "$TAG" apks/*.apk --verify-tag --title "holzi $TAG" --generate-notes
+          # `desktop-release.yml` starts with the same tag; whoever is first creates the release.
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "holzi $TAG" --generate-notes \
+              || gh release view "$TAG" > /dev/null
           fi
+          gh release upload "$TAG" apks/*.apk --clobber
