@@ -12,6 +12,7 @@ use super::model_source::JobModel;
 use super::runner::Outcome;
 use crate::adapters::{AdapterError, StreamError};
 use crate::extensions::error::BridgeError;
+use serde_json::Value;
 
 /// The cause of a request that failed before its stream, without the body of the provider's answer.
 pub(super) fn adapter_error(error: &AdapterError) -> String {
@@ -26,13 +27,20 @@ pub(super) fn stream_error(error: &StreamError) -> String {
     error.to_string()
 }
 
+/// The model name as one redacted log-safe label.
+pub(super) fn model_label(model: &JobModel) -> String {
+    let secrets = model.secrets();
+    let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
+    sanitize(&model.name, &known)
+}
+
 /// The line for a model that could not give an answer: where it failed and why.
 pub(super) fn failure_line(model: &JobModel, stage: &str, detail: &str) -> String {
     let secrets = model.secrets();
     let known: Vec<&str> = secrets.iter().map(String::as_str).collect();
     format!(
         "model job: {} ({:?}) failed at {stage}: {}",
-        model.name,
+        model_label(model),
         model.place,
         sanitize(detail, &known)
     )
@@ -47,16 +55,23 @@ pub(super) fn failed(model: &JobModel, stage: &str, detail: &str) {
 pub(super) fn tried(model: &JobModel, effort: &str, outcome: Outcome) {
     log::info!(
         "model job: {} ({:?}, effort {effort}) ended {outcome:?}",
-        model.name,
+        model_label(model),
         model.place
     );
 }
 
-/// A job that was refused before any model was asked; the message is the one the extension got.
+/// A refusal line that keeps only the stable reason, never untrusted validation text.
+pub(super) fn refused_line(error: &BridgeError) -> String {
+    let reason = error
+        .details
+        .as_ref()
+        .and_then(|details| details.get("reason"))
+        .and_then(Value::as_str)
+        .unwrap_or("refused");
+    format!("model job: start refused with {:?}: {reason}", error.code)
+}
+
+/// A job that was refused before any model was asked; only its stable reason is logged.
 pub(super) fn refused(error: &BridgeError) {
-    log::warn!(
-        "model job: start refused with {:?}: {}",
-        error.code,
-        error.message
-    );
+    log::warn!("{}", refused_line(error));
 }
