@@ -38,6 +38,7 @@ pub(crate) enum Outcome {
     Unusable,
     Unavailable,
     Timeout,
+    Cancelled,
 }
 
 /// One try of a model, as the provenance lists it.
@@ -277,7 +278,10 @@ pub(crate) async fn run_step(
         // `biased`: a job cancelled or over time before this try must not start a request.
         let outcome = tokio::select! {
             biased;
-            () = cancel.cancelled() => return StepRun { attempts, end: StepEnd::Cancelled },
+            () = cancel.cancelled() => {
+                trace::tried(&candidate.model, applied.reported(), Outcome::Cancelled);
+                return StepRun { attempts, end: StepEnd::Cancelled };
+            },
             () = tokio::time::sleep_until(deadline) => {
                 trace::tried(&candidate.model, applied.reported(), Outcome::Timeout);
                 attempts.push(attempt(Outcome::Timeout, None));
