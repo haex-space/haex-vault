@@ -426,9 +426,13 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   sperrt auch die Tastatur. Nach dem Öffnen eines Ordners hat die Liste den Fokus.
 - **FR-018**: Der Nutzer MUSS eine Auswahl kopieren und verschieben können, über Menü, eine
   Zwischenablage innerhalb von holzi und Ziehen innerhalb von holzi, auch zwischen Gerät und
-  Speicher.
+  Speicher. Mit dem Start des Einfügens (Kopieren wie Verschieben) ist die Zwischenablage leer; ein
+  abgelehntes Einfügen lässt sie unverändert.
 - **FR-019**: Transfers MÜSSEN Fortschritt zeigen, abbrechbar sein und in einer Transferleiste stehen,
-  solange sie laufen oder gescheitert sind.
+  solange sie laufen oder gescheitert sind. Kopieren und Verschieben MÜSSEN sich pausieren und
+  fortsetzen lassen (Löschen nicht); die Pause hält den Transfer zwischen zwei Blöcken an und lässt
+  sich abbrechen. Reißt eine Verbindung während einer langen Pause ab, setzt der Transfer mit der
+  Wiederholung der Netzfehler fort (eine Datei in einem Stück beginnt von vorn).
 - **FR-020**: Ein abgebrochener oder gescheiterter Transfer DARF am Ziel keine halbe Datei und kein
   halbes Objekt hinterlassen.
 - **FR-021**: Bei einem Namenskonflikt am Ziel MUSS holzi fragen: ersetzen, beide behalten (mit neuem

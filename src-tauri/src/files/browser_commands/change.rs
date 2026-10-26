@@ -267,6 +267,16 @@ pub fn files_transfer_cancel(transfers: State<'_, TransferManager>, transfer_id:
     transfers.cancel(&transfer_id);
 }
 
+/// Holds a transfer or lets it go on; the window hears it as `paused`.
+#[tauri::command]
+pub fn files_transfer_pause(
+    transfers: State<'_, TransferManager>,
+    transfer_id: String,
+    paused: bool,
+) {
+    transfers.pause(&transfer_id, paused);
+}
+
 /// Starts a failed transfer again.
 #[tauri::command]
 pub fn files_transfer_retry(

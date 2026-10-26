@@ -6,4 +6,4 @@ import type { TransferProgress } from "./TransferProgress";
 /**
  * What the window hears of a transfer.
  */
-export type TransferEvent = { "kind": "progress", progress: TransferProgress, } | { "kind": "conflict", name: string, } | { "kind": "conflict", leavesEncryption: Leaving, } | { "kind": "done" } | { "kind": "cancelled" } | { "kind": "failed", error: FilesError, };
+export type TransferEvent = { "kind": "progress", progress: TransferProgress, } | { "kind": "conflict", name: string, } | { "kind": "conflict", leavesEncryption: Leaving, } | { "kind": "paused", paused: boolean, } | { "kind": "done" } | { "kind": "cancelled" } | { "kind": "failed", error: FilesError, };

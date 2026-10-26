@@ -456,6 +456,7 @@ pub fn run() {
             files::browser_commands::change::files_import_dropped,
             files::browser_commands::change::files_transfer_answer,
             files::browser_commands::change::files_transfer_cancel,
+            files::browser_commands::change::files_transfer_pause,
             files::browser_commands::change::files_transfer_retry,
             files::browser_commands::search::files_search_start,
             files::browser_commands::search::files_search_cancel,

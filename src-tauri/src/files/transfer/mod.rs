@@ -5,6 +5,7 @@
 
 pub(crate) mod entries;
 pub mod local;
+mod pause;
 pub mod remote;
 mod remote_plan;
 mod remote_plan_encrypted;
@@ -23,6 +24,7 @@ use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
 use crate::vault_gate::VaultGate;
 use local::{Hooks, Job, Outcome, Removal, Totals};
+use pause::Pause;
 use remote::{Plan, RemoteJob};
 
 /// What a transfer does.
@@ -107,6 +109,10 @@ pub enum TransferEvent {
         #[serde(rename = "leavesEncryption")]
         leaves_encryption: Leaving,
     },
+    /// The transfer was paused or goes on ([`TransferManager::pause`]).
+    Paused {
+        paused: bool,
+    },
     Done,
     Cancelled,
     /// May start again with [`TransferManager::retry`].
@@ -144,6 +150,7 @@ struct Known {
     work: Work,
     channel: Channel<TransferEvent>,
     cancel: CancellationToken,
+    pause: Pause,
     answers: Sender<(TransferAnswer, bool)>,
 }
 
@@ -219,6 +226,7 @@ impl TransferManager {
         channel: Channel<TransferEvent>,
     ) -> Result<(), FilesError> {
         let cancel = gate.token().child_token();
+        let pause = Pause::default();
         let (answers, answered) = mpsc::channel();
         self.known().insert(
             id.to_owned(),
@@ -226,6 +234,7 @@ impl TransferManager {
                 work: work.clone(),
                 channel: channel.clone(),
                 cancel: cancel.clone(),
+                pause: pause.clone(),
                 answers,
             },
         );
@@ -238,7 +247,8 @@ impl TransferManager {
                 removal,
             } => gate
                 .spawn_blocking(move || {
-                    let outcome = work_local(&job, &totals, removal, &cancel, &channel, &answered);
+                    let outcome =
+                        work_local(&job, &totals, removal, &cancel, &pause, &channel, &answered);
                     manager.finish(&owned_id, outcome, &channel);
                 })
                 .map(drop),
@@ -249,9 +259,16 @@ impl TransferManager {
                         let _ = channel.send(event);
                     };
                     let outcome = if confirm_leaving(&plan, &cancel, &send, &answered) {
-                        with_hooks(Removal::Permanent, &cancel, &channel, &answered, |hooks| {
-                            remote::run_remote(&job, &plan, &handle, &remote::RETRIES, hooks)
-                        })
+                        with_hooks(
+                            Removal::Permanent,
+                            &cancel,
+                            &pause,
+                            &channel,
+                            &answered,
+                            |hooks| {
+                                remote::run_remote(&job, &plan, &handle, &remote::RETRIES, hooks)
+                            },
+                        )
                     } else {
                         Outcome::Cancelled
                     };
@@ -300,6 +317,14 @@ impl TransferManager {
     pub fn cancel(&self, id: &str) {
         if let Some(known) = self.known().remove(id) {
             known.cancel.cancel();
+        }
+    }
+
+    /// Holds a running transfer between two chunks, or lets it go on; tells the window.
+    pub fn pause(&self, id: &str, paused: bool) {
+        if let Some(known) = self.known().get(id) {
+            known.pause.set(paused);
+            let _ = known.channel.send(TransferEvent::Paused { paused });
         }
     }
 
@@ -383,25 +408,29 @@ fn work_local(
     totals: &Totals,
     removal: Removal,
     cancel: &CancellationToken,
+    pause: &Pause,
     channel: &Channel<TransferEvent>,
     answered: &Receiver<(TransferAnswer, bool)>,
 ) -> Outcome {
-    with_hooks(removal, cancel, channel, answered, |hooks| {
+    with_hooks(removal, cancel, pause, channel, answered, |hooks| {
         local::run(job, totals, hooks)
     })
 }
 
 /// Runs `work` with the hooks of a running transfer: progress at most every [`PROGRESS_EVERY`],
-/// and the window asked about conflicts.
+/// and the window asked about conflicts. The copy loops report after every chunk, so a pause waits
+/// in the progress hook.
 fn with_hooks(
     removal: Removal,
     cancel: &CancellationToken,
+    pause: &Pause,
     channel: &Channel<TransferEvent>,
     answered: &Receiver<(TransferAnswer, bool)>,
     work: impl FnOnce(Hooks<'_>) -> Outcome,
 ) -> Outcome {
     let mut last = Instant::now() - PROGRESS_EVERY;
     let mut progress = |progress: TransferProgress| {
+        pause.wait(cancel);
         let finished = progress.items_done == progress.items_total;
         if finished || last.elapsed() >= PROGRESS_EVERY {
             last = Instant::now();
@@ -454,3 +483,7 @@ pub fn same_device(a: &std::path::Path, b: &std::path::Path) -> bool {
         a.components().next() == b.components().next()
     }
 }
+
+#[cfg(test)]
+#[path = "pause_tests.rs"]
+mod pause_tests;
