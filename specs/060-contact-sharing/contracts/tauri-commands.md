@@ -13,13 +13,13 @@ Typen (`ContactsOwnCard`, `ContactsOwnCardSetArgs`, `ContactsCardTextArgs`, `Con
 
 ## Befehle
 
-| Befehl                         | Argumente                     | Antwort               | Zweck                                                                |
-| ------------------------------ | ----------------------------- | --------------------- | -------------------------------------------------------------------- |
-| `contacts_share_options`       | `{ contactId }`               | `ContactShareOptions` | Zeilen des Teilen-Dialogs, alles vorgewählt (FR-009, FR-012, FR-013) |
-| `contacts_share_build`         | `{ contactId, selection }`    | `ContactShareOutput`  | Text, QR, Größe (FR-018, FR-019)                                     |
-| `contacts_share_preview`       | `{ text, target? }`           | `ContactSharePreview` | Prüfen und Vorschau, nichts gespeichert (FR-021, FR-021a)            |
+| Befehl                         | Argumente                                       | Antwort               | Zweck                                                                |
+| ------------------------------ | ----------------------------------------------- | --------------------- | -------------------------------------------------------------------- |
+| `contacts_share_options`       | `{ contactId }`                                 | `ContactShareOptions` | Zeilen des Teilen-Dialogs, alles vorgewählt (FR-009, FR-012, FR-013) |
+| `contacts_share_build`         | `{ contactId, selection }`                      | `ContactShareOutput`  | Text, QR, Größe (FR-018, FR-019)                                     |
+| `contacts_share_preview`       | `{ text, target? }`                             | `ContactSharePreview` | Prüfen und Vorschau, nichts gespeichert (FR-021, FR-021a)            |
 | `contacts_share_accept`        | `{ text, target, decisions, previewRevision? }` | `Contact`             | Speichern nach den Wahlen (FR-024 bis FR-025a)                       |
-| `contact_share_confirm_answer` | `{ requestId, selection? }`   | –                     | Antwort auf die Abfrage eines Agenten (FR-030, FR-031)               |
+| `contact_share_confirm_answer` | `{ requestId, selection? }`                     | –                     | Antwort auf die Abfrage eines Agenten (FR-030, FR-031)               |
 
 - `target`: `{ kind: 'new' }` oder `{ kind: 'contact', id }`. Fehlt es in der Vorschau, wählt der Dienst nach
   FR-024 (Vault vorgewählt, sonst `new`). Der Ich-Kontakt als Ziel: `ShareInvalid`.

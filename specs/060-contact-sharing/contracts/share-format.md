@@ -45,14 +45,14 @@ Angaben, Positionen.
 
 ## Grenzen (beim Bauen und beim Lesen)
 
-| Grenze                                                      | Wert                                                                                                                                                        | Herkunft                       |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Angaben je Umschlag                                         | 200                                                                                                                                                         | neu                            |
-| Zeichen je Angabe (`value`)                                 | `kinds::MAX_VALUE_CHARS` (4 096)                                                                                                                            | `kinds.rs`                     |
+| Grenze                                                                              | Wert                                                                                                                                                        | Herkunft                       |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Angaben je Umschlag                                                                 | 200                                                                                                                                                         | neu                            |
+| Zeichen je Angabe (`value`)                                                         | `kinds::MAX_VALUE_CHARS` (4 096)                                                                                                                            | `kinds.rs`                     |
 | Zeichen `kind`, `label`, Namensteil, Anzeigename, Spitzname, Organisation, Position | 1 024                                                                                                                                                       | wie `card::format::MAX_STRING` |
-| Zeichen Notiz                                               | 4 096                                                                                                                                                       | wie `MAX_VALUE_CHARS`          |
-| Karte                                                       | Grenzen von `card::format::check_limits` (32 Geräte, 10 Relays, 1 KiB je Text); die 2 048 Zeichen von `MAX_TEXT` gelten für die Karte im Umschlag **nicht** | `format.rs`                    |
-| Gesamttext                                                  | 16 384                                                                                                                                                      | neu                            |
+| Zeichen Notiz                                                                       | 4 096                                                                                                                                                       | wie `MAX_VALUE_CHARS`          |
+| Karte                                                                               | Grenzen von `card::format::check_limits` (32 Geräte, 10 Relays, 1 KiB je Text); die 2 048 Zeichen von `MAX_TEXT` gelten für die Karte im Umschlag **nicht** | `format.rs`                    |
+| Gesamttext                                                                          | 16 384                                                                                                                                                      | neu                            |
 
 Beim Lesen: Angaben bekannter Art laufen durch `kinds::validate`; eine ungültige wird mit einem Hinweis
 übergangen (nicht abgewiesen) und zählt in der Vorschau als „übergangen“. Eine Angabe unbekannter Art
