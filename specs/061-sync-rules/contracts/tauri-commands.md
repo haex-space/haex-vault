@@ -12,8 +12,8 @@ SyncRuleDirection  'aToB' | 'bToA' | 'both'
 SyncRuleDeleteMode 'mirror' | 'keep' | 'ask'
 SyncRuleDraft      { name, placeA, placeB, direction, deleteMode, intervalSecs, enabled }
 SyncRule           SyncRuleDraft + { id, createdAt, updatedAt, status, lastRunAt, lastError }
-SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused', reason?, pendingDeletes, conflicts,
-                     ignored, ignoreErrors: { line, text }[], deviations: number }
+SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused'|'inactive', reason?, pendingDeletes,
+                     conflicts, errors: { path, reason }[], ignored, ignoreErrors: { line, text }[], deviations: number }
 SyncRulePlan       { steps: SyncRulePlanStep[], counts, hashReads, ignored }
 SyncRulePlanStep   { action, path, side, detail? }
 SyncRulePending    { path, side }

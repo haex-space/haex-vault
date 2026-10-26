@@ -90,7 +90,8 @@ Dateiinhalte (FR-045).
 
 - `FileSyncState`: je Regel `Steuerung` (Zeitgeber, optional `FolderWatch`, „fällig“-Vermerk, Abbruch-Token des
   Laufs). Beim Sperren der Vault weg.
-- Statusableitung (research.md R9) aus `last_outcome` und der Steuerung.
+- Statusableitung (research.md R9) aus `last_outcome` und der Steuerung. Der Frontend-Zustand umfasst
+  `active`, `running`, `waiting`, `error`, `paused` und `inactive` (letzteres bedeutet „holzi nicht aktiv").
 
 ## Einstellung
 
@@ -111,5 +112,6 @@ angelegt ──► aktiv ──► läuft ──► aktiv         (Ergebnis done
               │          ├────► wartet ──► aktiv  (Ort wieder erreichbar)
               │          └────► Fehler  ──► aktiv  (Regel geändert oder behoben)
               ├─► pausiert ◄──► aktiv
+              ├─► holzi nicht aktiv ──► aktiv     (Vault/Anwendung wieder aktiv)
               └─► gelöscht (Zeilen aller Tabellen weg; Dateien beider Orte unberührt)
 ```
