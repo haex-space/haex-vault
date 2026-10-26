@@ -41,6 +41,12 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   auf einer Seite gelöscht wurde.
 - **Regel-Papierkorb**: der Ordner `.holzi-trash` im Ort, in den eine gespiegelte Löschung wandert,
   wenn der Ort keinen Papierkorb des Systems hat.
+- **Ausnahmedatei**: die Datei `.haex-ignore` im Wurzelordner eines Orts. Sie nennt je Zeile ein
+  **Ausnahmemuster** in der Schreibweise von `.gitignore` (`#` Kommentar, `*`, `**`, `/` am Ende für
+  Ordner, `!` hebt auf). Eine Datei oder ein Ordner, auf den ein Muster zutrifft, ist **ausgenommen**
+  und wird nicht abgeglichen. Unterordner haben keine eigene Ausnahmedatei.
+- **Feste Ausnahmen**: was eine Regel immer ausnimmt, auch ohne Ausnahmedatei: `.holzi-trash`, die
+  temporären Kopierdateien der Regel und Systemmüll (`.DS_Store`, `Thumbs.db`, `desktop.ini`).
 - **Regelstatus**: der Zustand einer Regel: **aktiv**, **läuft**, **wartet** (ein Ort ist nicht
   erreichbar), **Fehler**, **pausiert** oder **holzi nicht aktiv**.
 
@@ -87,6 +93,17 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
 - Q: Wie erkennt holzi Änderungen und Verschiebungen? → A: Größe und Änderungszeit gegen den Stand
   derselben Seite. Eine verschwundene und eine neue Datei mit gleicher Größe und Änderungszeit sind eine
   Verschiebung. Eine Prüfsumme nur für nicht eindeutige Kandidaten und zur Kontrolle nach dem Kopieren.
+
+### Session 2026-10-26 (Klärung)
+
+- Q: Was passiert beim ersten Abgleich, wenn beide Orte schon gleichnamige Dateien haben? → A: Eine
+  Prüfsumme je gleichnamiger Datei mit gleicher Größe; gleich wird ohne Kopieren übernommen, verschieden
+  wird eine Konfliktkopie.
+- Q: Dürfen Regeln Dateien ausnehmen? → A: Ja, mit einer Ausnahmedatei `.haex-ignore` im Wurzelordner
+  eines Orts (Schreibweise von `.gitignore`), dazu feste Ausnahmen. Die Oberfläche der Sync-Regeln
+  bearbeitet diese Datei; sie ist die einzige Quelle der Muster. Die Datei wird wie jede Datei
+  abgeglichen; angewendet wird die Vereinigung der Muster beider Seiten. Nachträglich ausgenommene
+  Dateien bleiben an beiden Orten unberührt.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -155,7 +172,10 @@ umbenennen und löschen, auch dieselbe Datei auf beiden Seiten; nach dem Abgleic
 6. **Given** der Löschmodus „Spiegeln“, **When** Anna auf einer Seite eine Datei löscht, **Then** landet
    sie auf der anderen Seite im Papierkorb des Systems, sonst im Regel-Papierkorb, nicht endgültig
    gelöscht.
-7. **Given** der Laptop führt die Regel aus und das Telefon ist aus, **When** der Abgleich fällig ist,
+7. **Given** beide Orte enthalten schon viele gleichnamige Dateien, von denen die meisten gleichen
+   Inhalt haben, **When** der erste Abgleich läuft, **Then** übernimmt holzi die gleichen ohne Kopieren
+   und legt nur für die tatsächlich verschiedenen Konfliktkopien an.
+8. **Given** der Laptop führt die Regel aus und das Telefon ist aus, **When** der Abgleich fällig ist,
    **Then** steht die Regel auf „wartet“ ohne Fehler, und der Abgleich läuft nach, sobald das Telefon
    erreichbar ist.
 
@@ -218,6 +238,17 @@ Orte und Stand prüfen.
    Stand, und holzi zeigt vorab den Plan.
 7. **Given** holzi läuft nicht oder die Vault ist gesperrt, **When** Anna den Bereich später öffnet,
    **Then** steht der Status zuvor als „holzi nicht aktiv“, und die Regel holt den Abgleich nach.
+8. **Given** eine Regel, **When** Anna „Ausnahmen“ wählt, **Then** zeigt holzi die Muster der
+   Ausnahmedatei in einem kleinen Editor, dazu die festen Ausnahmen (nicht änderbar) und, wie viele
+   Dateien die Muster gerade ausnehmen.
+9. **Given** der Editor, **When** Anna ein Muster `*.tmp` und `node_modules/` einträgt und speichert,
+   **Then** liegt die Ausnahmedatei im Ort, und der nächste Abgleich nimmt solche Dateien nicht mehr mit;
+   die Vorschau nennt die Zahl der ausgenommenen Dateien.
+10. **Given** ein Muster, das Dateien trifft, die schon an beiden Orten liegen, **When** der Abgleich
+    läuft, **Then** bleiben sie an beiden Orten unberührt und werden nicht gelöscht oder mehr
+    kopiert.
+11. **Given** ein Ort, in den holzi nicht schreiben kann, **When** Anna „Ausnahmen“ öffnet, **Then**
+    zeigt der Editor die Muster nur an und nennt den Grund.
 
 ---
 
@@ -272,8 +303,9 @@ löschen.
 - **Eine Regel pro Ort und Gegenüber**: überlappende Regeln sind unzulässig (Story 4).
 - **Regel nach Löschen eines Orts oder Speichers**: die Regel steht auf „Fehler: Ort nicht mehr
   vorhanden“ und löscht nichts, bis der Nutzer sie anpasst.
-- **Erster Abgleich mit Dateien auf beiden Seiten gleichen Namens und verschiedenen Inhalts**: als
-  Konflikt behandeln (Konfliktkopie), nie stillschweigend überschreiben.
+- **Erster Abgleich mit Dateien auf beiden Seiten gleichen Namens**: gleicher Inhalt (Prüfsumme) wird
+  ohne Kopieren als abgeglichen übernommen, verschiedener Inhalt wird als Konflikt behandelt
+  (Konfliktkopie), nie stillschweigend überschrieben (FR-012a).
 
 ## Requirements _(mandatory)_
 
@@ -312,7 +344,12 @@ löschen.
 - **FR-012**: Eine Datei, die seit dem letzten Abgleich auf beiden Seiten geändert wurde, MUSS zu einer
   Konfliktkopie führen: Die Version mit der neueren Änderungszeit behält den Namen, die ältere wird als
   `Name (Konflikt Gerätename Datum).Endung` daneben abgelegt; beide Seiten bekommen beide Dateien.
-  Das gilt auch für den ersten Abgleich, wenn dieselbe Datei auf beiden Seiten verschieden ist.
+- **FR-012a**: Beim ersten Abgleich einer Regel (und nach dem Ändern ihrer Orte oder Richtung), wenn es
+  noch keinen Stand gibt, MUSS holzi gleichnamige Dateien beider Orte mit gleicher Größe per Prüfsumme
+  vergleichen. Sind sie gleich, MUSS holzi sie ohne Kopieren als abgeglichen in den Stand übernehmen.
+  Sind sie verschieden (auch bei verschiedener Größe), MUSS eine Konfliktkopie entstehen (FR-012).
+  Liefert ein Ort die Prüfsumme nicht ohne Lesen der Datei, MUSS holzi die Datei dafür lesen. Die
+  Vorschau (FR-007) MUSS zeigen, wie viele Dateien so verglichen werden.
 - **FR-013**: Eine Datei, die auf einer Seite gelöscht und auf der anderen geändert wurde, DARF NICHT
   gelöscht werden; die geänderte Datei MUSS auf die Seite zurückkopiert werden, auf der sie fehlt.
 - **FR-014**: Eine Kopie MUSS zuerst in eine temporäre Datei am Ziel gehen und erst nach vollständiger
@@ -370,8 +407,8 @@ löschen.
 **Oberfläche**
 
 - **FR-032**: Der Dateibrowser MUSS einen Bereich „Sync-Regeln“ zeigen: Liste mit Name, Orten,
-  Richtung, Status und letztem Abgleich; je Regel „Jetzt abgleichen“, Pause, Vorschau, Bearbeiten,
-  Löschen und die Listen der Fehler, anstehenden Löschungen und Konflikte.
+  Richtung, Status und letztem Abgleich; je Regel „Jetzt abgleichen“, Pause, Vorschau, Ausnahmen,
+  Bearbeiten, Löschen und die Listen der Fehler, anstehenden Löschungen und Konflikte.
 - **FR-033**: Das Anlegen MUSS zwei Ortswähler nutzen, die der Ordnerwähler des Dateibrowsers sind.
 - **FR-034**: Neue Oberflächenbausteine, die in haex-ui fehlen, MÜSSEN dort ergänzt statt lokal
   nachgebaut werden.
@@ -384,12 +421,37 @@ löschen.
 - **FR-036**: Eine Regel läuft ohne Agent; sie hat nur die Rechte, die der Nutzer beim Anlegen bestätigt
   hat. Die eigenen Daten von holzi bleiben für Agents gesperrt (Spec 044 FR-033).
 
+**Ausnahmen**
+
+- **FR-037**: Eine Regel MUSS Dateien und Ordner nicht abgleichen, die die festen Ausnahmen oder ein
+  Muster einer Ausnahmedatei treffen. Die festen Ausnahmen gelten immer.
+- **FR-038**: Die Ausnahmedatei `.haex-ignore` MUSS im Wurzelordner eines Orts liegen, in der
+  Schreibweise von `.gitignore` (`#` Kommentar, `*`, `**`, Ordner mit `/` am Ende, `!` hebt auf).
+  Ausnahmedateien in Unterordnern DÜRFEN NICHT ausgewertet werden. Eine Zeile, die holzi nicht
+  versteht, MUSS es überspringen und im Regelstatus nennen; sie stoppt den Abgleich nicht.
+- **FR-039**: Die Ausnahmedatei MUSS wie jede andere Datei abgeglichen werden (bei einer
+  einseitigen Regel vom Quellort zum Zielort, bei einer beidseitigen in beide Richtungen mit
+  Konfliktkopie). Angewendet MUSS die Vereinigung der Muster beider Orte werden: Eine Datei ist
+  ausgenommen, sobald das Muster einer der beiden Seiten sie trifft.
+- **FR-040**: Eine Datei, die nachträglich ausgenommen wird, MUSS an beiden Orten unberührt bleiben und
+  aus dem Stand fallen. Ein Abgleich DARF sie wegen der Ausnahme weder löschen noch kopieren.
+  Wird eine Ausnahme später aufgehoben, gilt die Datei für den nächsten Abgleich als neu (FR-012a bei
+  Dateien auf beiden Seiten).
+- **FR-041**: Die Oberfläche der Sync-Regeln MUSS die Ausnahmedatei in einem kleinen Editor zeigen und
+  speichern können; die Datei ist die einzige Quelle der Muster, die Oberfläche hält keine eigene
+  Kopie. Er bearbeitet die Datei im Quellort (bei beidseitig im Ort A). Ist dieser Ort nicht
+  beschreibbar, MUSS der Editor die Muster nur anzeigen und den Grund nennen.
+- **FR-042**: Der Editor und die Vorschau MÜSSEN nennen, wie viele Dateien die Ausnahmen gerade
+  ausnehmen, und die festen Ausnahmen getrennt und nicht änderbar zeigen.
+
 ### Key Entities
 
 - **Sync-Regel**: Name, Zustand (aktiv oder pausiert), Ort A, Ort B, Richtung, Löschmodus, Intervall.
   Gehört dem ausführenden Gerät und wird nicht synchronisiert.
 - **Ort**: Quelle plus Ordnerpfad. Quellen sind lokal, eigenes Gerät, S3, WebDAV, SFTP, verschlüsselter
   Ordner.
+- **Ausnahmedatei**: `.haex-ignore` im Wurzelordner eines Orts mit Ausnahmemustern. Liegt im Ort, nicht
+  in der Regel, und wird mit abgeglichen.
 - **Stand**: je Regel und Datei der relative Pfad sowie Größe und Änderungszeit auf Seite A und B beim
   letzten erfolgreichen Abgleich, dazu die Vermerke „bewusst behalten“.
 - **Plan**: die Schritte eines Abgleichs (kopieren, verschieben, löschen, Konfliktkopie).
@@ -415,6 +477,8 @@ löschen.
 - **SC-007**: Ein Abgleich eines unveränderten Ordners mit 10 000 Dateien lokal dauert unter 5 Sekunden.
 - **SC-008**: Der Nutzer erkennt am Regelstatus ohne weitere Hilfe, ob eine Regel läuft, wartet oder
   einen Fehler hat, und worin der Fehler besteht.
+- **SC-009**: Eine ausgenommene Datei wird in keinem Test kopiert, verschoben oder gelöscht, auch nicht,
+  wenn die Ausnahme erst nach dem ersten Abgleich dazukommt.
 
 ## Assumptions
 
@@ -450,3 +514,5 @@ löschen.
   vorgesehen; jede Regel läuft auf genau einem Gerät.
 - **Automatisches Aufräumen des Regel-Papierkorbs**, **Versionsverlauf** und **Bandbreitenbegrenzung**:
   spätere Erweiterungen.
+- **Ausnahmedateien in Unterordnern** und **Muster, die nur eine Regel betreffen**: nicht vorgesehen; die
+  Ausnahmen gehören zum Ort, nicht zur Regel.
