@@ -9,6 +9,10 @@ import type { ContactShareTarget } from "./ContactShareTarget";
  */
 export type ContactSharePreview = { name: string, npub?: string,
 /**
+ * The vault identity, hex; what blocking the vault names.
+ */
+vaultPubkey?: string,
+/**
  * The name is the `npub` of the vault: the sender gave no name.
  */
 nameIsNpub: boolean, target: ContactShareTarget,
