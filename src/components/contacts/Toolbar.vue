@@ -20,11 +20,11 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 
-/** A contact or a Visitenkarte is open: no search there. */
+/** A contact or the reading of a share is open: no search there. */
 const entryOpen = computed(
   () =>
     router.route.path.startsWith('/entry/') ||
-    router.route.path.startsWith('/card'),
+    router.route.path.startsWith('/import'),
 )
 
 const query = ref(router.route.query.q ?? '')
@@ -110,10 +110,10 @@ function newContact() {
         <ShadcnDropdownMenuItem
           class="gap-2"
           data-testid="contacts-card-menu-import"
-          @select="router.push('/card/import')"
+          @select="router.push('/import')"
         >
           <Icon name="lucide:scan-qr-code" class="size-4" />
-          {{ t('contacts.card.import') }}
+          {{ t('contacts.import.menu') }}
         </ShadcnDropdownMenuItem>
       </ShadcnDropdownMenuContent>
     </ShadcnDropdownMenu>

@@ -128,3 +128,189 @@ pub struct ContactShareOutput {
     /// Characters of the text.
     pub size: u32,
 }
+
+// --- Reading a share in (spec 060 US4, data-model.md §2) ---
+
+/// Where a share goes: a new contact or one that exists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ContactShareTarget {
+    New,
+    Contact { id: String },
+}
+
+/// Why a contact is offered as the target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum ContactShareReason {
+    /// It has the vault identity of the share already (spec 051 FR-013).
+    Vault,
+    /// It has the same phone number or e-mail address; only a hint.
+    Hint,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ContactShareCandidate {
+    pub id: String,
+    pub name: String,
+    pub reason: ContactShareReason,
+}
+
+/// What the share says about the vault identity of the target.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ContactShareIdentity {
+    /// The share carries no card.
+    None,
+    /// The share would confirm a vault identity for the first time.
+    New,
+    /// The target's confirmed vault identity is the share's.
+    Matches,
+    /// The target has another confirmed vault identity; only a new contact can take the share.
+    Mismatch { existing_npub: String },
+}
+
+/// What an item of the share is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ContactShareItemKind {
+    /// One of `prefix`, `given`, `middle`, `family`, `suffix`.
+    NamePart {
+        field: String,
+    },
+    DisplayName,
+    Nickname,
+    Organization,
+    JobTitle,
+    Note,
+    Value,
+    HolziAddresses,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum ContactShareState {
+    /// The target does not have it.
+    New,
+    /// The target has it already; there is nothing to choose.
+    Same,
+    /// A field the target has once and filled, with another text.
+    Conflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum ContactShareChoice {
+    Add,
+    Update,
+    Skip,
+    Keep,
+    /// Only for the addresses of an old `holzi:card:` text.
+    Replace,
+}
+
+/// A value of the target an `Update` can replace.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ContactShareExisting {
+    pub id: String,
+    pub kind: String,
+    pub label: String,
+    pub value: String,
+}
+
+/// The confirmed holzi addresses of a share against what the target has.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ContactShareAddresses {
+    pub npub: String,
+    pub devices: u32,
+    pub relays: u32,
+    pub new_devices: u32,
+    pub new_relays: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct ContactShareItem {
+    /// The place of the item in the preview; a decision names it.
+    pub id: u32,
+    pub item: ContactShareItemKind,
+    /// The kind of a value item.
+    pub value_kind: Option<String>,
+    pub label: String,
+    /// What the share says.
+    pub value: String,
+    pub state: ContactShareState,
+    /// What the person may choose; empty when there is nothing to choose.
+    pub choices: Vec<ContactShareChoice>,
+    pub default: Option<ContactShareChoice>,
+    /// The target's values of the same kind, for `Update`.
+    pub existing: Vec<ContactShareExisting>,
+    /// What a single field of the target says now, for a conflict.
+    pub current: Option<String>,
+    /// Only for the holzi addresses.
+    pub addresses: Option<ContactShareAddresses>,
+}
+
+/// What a share shows before anything is stored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct ContactSharePreview {
+    pub name: String,
+    pub npub: Option<String>,
+    /// The vault identity, hex; what blocking the vault names.
+    pub vault_pubkey: Option<String>,
+    /// The name is the `npub` of the vault: the sender gave no name.
+    pub name_is_npub: bool,
+    pub target: ContactShareTarget,
+    /// The name of the target, if it is a contact.
+    pub target_name: Option<String>,
+    /// Opaque; `contacts_share_accept` gives it back for a target that exists.
+    pub target_revision: Option<String>,
+    pub candidates: Vec<ContactShareCandidate>,
+    pub identity: ContactShareIdentity,
+    pub items: Vec<ContactShareItem>,
+    /// There are holzi addresses to reach the contact by (FR-017a).
+    pub reachable: bool,
+    /// Details left out because they did not validate.
+    pub skipped: u32,
+    pub blocked: bool,
+    /// The share is an old `holzi:card:` text.
+    pub legacy_card: bool,
+}
+
+/// What the person chose for one item.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct ContactShareDecision {
+    pub item: u32,
+    pub choice: ContactShareChoice,
+    /// For `Update` of a value: the value of the target to replace.
+    pub value_id: Option<String>,
+}

@@ -261,6 +261,11 @@ pub enum HolziError {
     #[error("The share is too large")]
     ShareTooLarge,
 
+    /// The contact a share was previewed for changed before it was accepted; the window loads the
+    /// preview again and nothing was written (FR-024d).
+    #[error("The contact changed since the preview")]
+    SharePreviewStale,
+
     /// The phone's address book refused a call; `reason` names the kind of failure, never a
     /// contact's data.
     #[error("The phone's address book failed: {reason}")]

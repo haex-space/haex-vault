@@ -15,6 +15,15 @@ import {
   toggleValue,
   type ShareOptions,
 } from '../src/lib/contacts/share.ts'
+import {
+  choose,
+  defaultDecisions,
+  replacing,
+  summary,
+  toArgs as importArgs,
+  validate,
+  type ImportPreview,
+} from '../src/lib/contacts/shareImport.ts'
 
 const own: ShareOptions = {
   rows: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
@@ -141,4 +150,108 @@ test('the own card counts only where this device can sign it', () => {
   assert.equal(canBuild(linked, selectAll(linked)), false)
   const main: ShareOptions = { ...linked, holzi: { ...own.holzi } as never }
   assert.equal(canBuild(main, selectAll(main)), true)
+})
+
+// --- Reading a share in ---
+
+const imported: ImportPreview = {
+  target: { kind: 'contact', id: 'c1' },
+  identity: { kind: 'matches' },
+  blocked: false,
+  items: [
+    {
+      id: 0,
+      item: { type: 'namePart', field: 'given' },
+      state: 'same',
+      choices: [],
+      existing: [],
+    },
+    {
+      id: 1,
+      item: { type: 'namePart', field: 'family' },
+      state: 'conflict',
+      choices: ['keep', 'update'],
+      default: 'keep',
+      existing: [],
+    },
+    {
+      id: 2,
+      item: { type: 'value' },
+      state: 'new',
+      choices: ['add', 'update', 'skip'],
+      default: 'add',
+      existing: [{ id: 'v1' }, { id: 'v2' }],
+    },
+    {
+      id: 3,
+      item: { type: 'holziAddresses' },
+      state: 'new',
+      choices: ['add', 'skip'],
+      default: 'add',
+      existing: [],
+    },
+  ],
+}
+
+test('the defaults add what is new and replace nothing', () => {
+  const decisions = defaultDecisions(imported)
+  assert.deepEqual(
+    [...decisions.values()].map((d) => [d.item, d.choice]),
+    [
+      [1, 'keep'],
+      [2, 'add'],
+      [3, 'add'],
+    ],
+    'the same item has no decision',
+  )
+  assert.equal(validate(imported, decisions), null)
+  assert.deepEqual(summary(imported, decisions), {
+    added: 2,
+    updated: 0,
+    skipped: 0,
+    kept: 1,
+  })
+})
+
+test('an update names the value it replaces before it can be accepted', () => {
+  let decisions = choose(imported, defaultDecisions(imported), 2, 'update')
+  assert.equal(decisions.get(2)?.valueId, 'v1', 'starts at the first one')
+  decisions = replacing(decisions, 2, 'v2')
+  assert.equal(decisions.get(2)?.valueId, 'v2')
+  const bare = new Map(decisions)
+  bare.set(2, { item: 2, choice: 'update' })
+  assert.equal(validate(imported, bare), 'needsValue')
+})
+
+test('a choice an item does not offer is ignored', () => {
+  const decisions = defaultDecisions(imported)
+  assert.equal(choose(imported, decisions, 3, 'update'), decisions)
+  assert.equal(choose(imported, decisions, 0, 'add'), decisions)
+  assert.equal(choose(imported, decisions, 9, 'add'), decisions)
+})
+
+test('the holzi addresses are added or skipped as one', () => {
+  const decisions = choose(imported, defaultDecisions(imported), 3, 'skip')
+  assert.equal(decisions.get(3)?.choice, 'skip')
+  assert.deepEqual(
+    importArgs(imported, decisions).map((d) => d.item),
+    [1, 2, 3],
+  )
+})
+
+test('a blocked vault or a mismatching identity cannot be accepted', () => {
+  const decisions = defaultDecisions(imported)
+  assert.equal(validate({ ...imported, blocked: true }, decisions), 'blocked')
+  assert.equal(
+    validate({ ...imported, identity: { kind: 'mismatch' } }, decisions),
+    'mismatch',
+  )
+  assert.equal(
+    validate(
+      { ...imported, target: { kind: 'new' }, identity: { kind: 'mismatch' } },
+      decisions,
+    ),
+    null,
+    'a new contact takes another identity',
+  )
 })

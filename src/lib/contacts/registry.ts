@@ -1,11 +1,11 @@
 // Address book registry (spec 051): the places of the app "Kontakte" as route patterns with fixed
 // title keys. Pure — the Vue side attaches the components in `components/wm/appRoutes.ts`. No
 // name or value of a contact goes into a path or a tab title; places carry opaque ids only, and
-// `entry/new` is the editor of a new contact; `card/import` reads a Visitenkarte in.
+// `entry/new` is the editor of a new contact; `import` reads a share in.
 import { matchRoute } from '../wm/routeMatch.ts'
 
 export type ContactsLocation = {
-  id: 'list' | 'group' | 'entry' | 'edit' | 'cardImport'
+  id: 'list' | 'group' | 'entry' | 'edit' | 'import'
   /** Route pattern relative to `/` (`''` is `/` itself). */
   pattern: string
   /** Static title in the history list and the tab; never built from a stored value. */
@@ -17,11 +17,7 @@ export const CONTACTS_LOCATIONS: readonly ContactsLocation[] = [
   { id: 'group', pattern: 'group/:id', titleKey: 'wm.contacts.group' },
   { id: 'edit', pattern: 'entry/:id/edit', titleKey: 'wm.contacts.edit' },
   { id: 'entry', pattern: 'entry/:id', titleKey: 'wm.contacts.entry' },
-  {
-    id: 'cardImport',
-    pattern: 'card/import',
-    titleKey: 'wm.contacts.cardImport',
-  },
+  { id: 'import', pattern: 'import', titleKey: 'wm.contacts.import' },
 ]
 
 export type ContactsRoutePattern = {
