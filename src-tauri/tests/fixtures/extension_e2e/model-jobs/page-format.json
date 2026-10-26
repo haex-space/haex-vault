@@ -1,6 +1,6 @@
 {
   "name": "page-recognition",
-  "version": 1,
+  "version": 2,
   "schema": {
     "type": "object",
     "required": ["regions"],
@@ -12,7 +12,7 @@
           "type": "object",
           "required": ["kind", "box"],
           "properties": {
-            "kind": { "enum": ["text", "image", "table"] },
+            "kind": { "enum": ["text", "image", "table", "formula"] },
             "box": {
               "type": "array",
               "items": { "type": "number", "minimum": 0, "maximum": 1000 },
@@ -20,6 +20,7 @@
               "maxItems": 4
             },
             "text": { "type": "string", "maxLength": 20000 },
+            "latex": { "type": "string", "maxLength": 4000 },
             "rows": {
               "type": "array",
               "items": { "type": "array", "items": { "type": "string" } }

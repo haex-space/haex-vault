@@ -162,7 +162,7 @@ spec, a test or a PR description.
 - [x] T058 (haex-space/haextension#141) [US3] Insert a formula by hand: an `addLatex` action in `app/stores/notebook.ts` and a toolbar button in `app/pages/notebook/[id].vue` that places a formula on the page and opens its source (FR-032)
 - [x] T059 (haex-space/haextension#141) [US3] Check that the PDF export and a shared page carry formulas: a test that `serializePageDoc` keeps `latex` elements byte for byte, and quickstart step 6c
 - [ ] T060 [US3] Measure the formula recognition per model on the private reference photos locally (a local model and a subscription model): count formula lines found, set, and kept as text; record only the counts in the PR description (SC-009)
-- [ ] T061 [US3] Update the test extension of spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/` in holzi: instruction, format `page-recognition` v2, its `SOURCE.md`) and rebuild `model-jobs.xt` as `build.sh` says, so that the fixture and this contract stay the same
+- [x] T061 [US3] Update the test extension of spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/` in holzi: instruction, format `page-recognition` v2, its `SOURCE.md`) and rebuild `model-jobs.xt` as `build.sh` says, so that the fixture and this contract stay the same
 
 **Checkpoint**: Quickstart step 6c.
 
