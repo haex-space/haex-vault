@@ -73,6 +73,7 @@ pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeEr
     started
 }
 
+/// Performs the synchronous validation, preflight, and registration before spawning the run.
 fn begin(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let job = params
         .get("job")

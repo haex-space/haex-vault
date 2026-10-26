@@ -2,8 +2,9 @@
 //! provider's key and address and the body it answered with are not.
 
 use super::model_source::JobModel;
+use super::runner::{start_failure, stream_failure};
 use super::test_support::{model_row, provider};
-use super::trace::{adapter_error, failure_line, model_label, refused_line, stream_error};
+use super::trace::{failure_line, model_label, refused_line};
 use crate::adapters::{AdapterError, StreamError};
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::storage::providers::ProviderKind;
@@ -15,18 +16,18 @@ fn a_status_names_the_number_and_never_the_body_that_may_echo_the_request() {
         status: 400,
         body: "echoed: Das ist meine Mitschrift".into(),
     };
-    let line = adapter_error(&error);
-    assert_eq!(line, "provider status 400");
+    let line = start_failure(&error);
+    assert_eq!(line, "the provider answered with status 400");
 }
 
 #[test]
-fn a_failure_keeps_its_cause() {
-    let line = adapter_error(&AdapterError::Unavailable {
+fn failures_use_bounded_categories_without_provider_details() {
+    let line = start_failure(&AdapterError::Unavailable {
         reason: "claude is not installed".into(),
     });
-    assert!(line.contains("claude is not installed"), "{line}");
-    let line = stream_error(&StreamError::Model("unknown model".into()));
-    assert!(line.contains("unknown model"), "{line}");
+    assert_eq!(line, "the provider is unavailable");
+    let line = stream_failure(&StreamError::Model("unknown model".into()));
+    assert_eq!(line, "the provider rejected the request");
 }
 
 #[test]

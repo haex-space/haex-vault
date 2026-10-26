@@ -10,22 +10,8 @@
 use super::errors::sanitize;
 use super::model_source::JobModel;
 use super::runner::Outcome;
-use crate::adapters::{AdapterError, StreamError};
 use crate::extensions::error::BridgeError;
 use serde_json::Value;
-
-/// The cause of a request that failed before its stream, without the body of the provider's answer.
-pub(super) fn adapter_error(error: &AdapterError) -> String {
-    match error {
-        AdapterError::Status { status, .. } => format!("provider status {status}"),
-        other => other.to_string(),
-    }
-}
-
-/// The cause of a stream that failed.
-pub(super) fn stream_error(error: &StreamError) -> String {
-    error.to_string()
-}
 
 /// The model name as one redacted log-safe label.
 pub(super) fn model_label(model: &JobModel) -> String {
