@@ -2799,7 +2799,6 @@
     "noMatch": "No contact matches the search.",
     "noName": "No name",
     "self": "Me",
-    "selfNameHint": "This contact is always called “Me”, whatever name you enter. It goes to no phone.",
     "new": "New contact",
     "cancel": "Cancel",
     "save": "Save",
