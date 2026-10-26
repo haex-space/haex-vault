@@ -13,7 +13,7 @@ scenario('contacts-basic', {}, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-contacts' })
   await openContacts(instance)
-  await instance.waitForDisplayed('contacts-empty')
+  await instance.waitForDisplayed('contacts-self')
   ctx.step('opened')
 
   // The editor starts with a phone and an e-mail row; a custom value is added from the menu.
@@ -125,7 +125,7 @@ scenario('contacts-basic', {}, async (ctx) => {
   await instance.click(`contacts-row-${anna.id}`)
   await instance.click('contacts-delete')
   await instance.click('contacts-delete-confirm')
-  await instance.waitForDisplayed('contacts-empty')
+  await instance.waitForDisplayed('contacts-self')
   assert.deepEqual(await contactHeaders(instance), [])
   ctx.step('deleted')
 })

@@ -17,6 +17,8 @@ export interface ContactHeader {
   groups: string[]
   /** The phones the contact goes to. */
   targets: string[]
+  /** The fixed contact of the vault user, which the spec 051 scenarios do not exercise. */
+  isSelf: boolean
 }
 
 /** Opens the address book from the launcher, fits its window into the virtual screen and waits
@@ -32,11 +34,13 @@ export async function openContacts(instance: FlowInstance): Promise<void> {
 /** What the backend holds right now. */
 export async function contactHeaders(
   instance: Pick<FlowInstance, 'invoke'>,
+  includeSelf = false,
 ): Promise<ContactHeader[]> {
-  return unwrap<ContactHeader[]>(
+  const headers = unwrap<ContactHeader[]>(
     'contacts_list',
     await instance.invoke('contacts_list'),
   )
+  return includeSelf ? headers : headers.filter((header) => !header.isSelf)
 }
 
 /** Creates a contact through the command and returns its id. */
