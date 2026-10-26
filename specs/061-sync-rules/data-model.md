@@ -82,9 +82,9 @@ geschrieben. Eine Verkleinerung der Tiefe führt `trim` für alle Regeln sofort 
 | `trash_kind` | TEXT NULL | `system` oder `rule` bei gespiegelter Löschung                     |
 | `trash_path` | TEXT NULL | Pfad im Regel-Papierkorb (nur `rule`)                              |
 
-PK `(run_id, seq)`. Ein Lauf schreibt höchstens 5 000 Einträge; darüber hinaus zählt er weiter, schreibt aber nur
-Zähler und einen Hinweis „weitere nicht aufgeführt“ (Schutz der Datenbankgröße). Das Protokoll enthält keine
-Dateiinhalte (FR-045).
+PK `(run_id, seq)`. Für jede Dateiaktion wird ein Eintrag geschrieben, damit jede Datei eines noch gespeicherten
+Laufs auffindbar bleibt. Der Speicherbedarf wächst daher mit Protokolltiefe mal Dateien je Regel; die Einstellung
+der Protokolltiefe ist die Begrenzung für die Datenbankgröße. Das Protokoll enthält keine Dateiinhalte (FR-045).
 
 ## Laufzeitzustand (nicht gespeichert)
 

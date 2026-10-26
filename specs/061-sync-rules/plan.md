@@ -22,8 +22,9 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   beantwortet der Plan, nicht der Nutzer.
 - **Plan und Stand** (R3, R4): `plan::build(state, left, right, rule)` ist rein; der Stand hält je Datei Größe
   und Zeit beider Seiten nach dem letzten Erfolg und wird erst nach dem Schritt fortgeschrieben.
-- **Prüfsumme** (R5): nur für gleichnamige Dateien gleicher Größe beim ersten Abgleich und zur Kontrolle nach
-  dem Kopieren; Streaming-SHA-256, bei verschlüsselten Ordnern aus der Sidecar-Datei.
+- **Prüfsumme** (R5): zur Kontrolle nach dem Kopieren und überall dort, wo eine Verschiebung nicht bereits über
+  eine verlässliche Dateiidentität bestätigt ist; bei mehreren gleich großen und gleich datierten Kandidaten zur
+  Disambiguierung. Streaming-SHA-256, bei verschlüsselten Ordnern aus der Sidecar-Datei.
 - **Ausnahmen** (R6): Crate `ignore` (nur `GitignoreBuilder`), Vereinigung beider Ausnahmedateien.
 - **Speicher** (R7): neue Migration mit Tabellen `*_no_sync` und `vault_device_uuid` (ADR 0018 begründet die
   Abweichung von ADR 0001); Protokolltiefe als Einstellung des Geräts.
@@ -44,7 +45,8 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 `tokio`, `tokio-util`, `ts-rs` 12, `vue-i18n`, haex-ui
 
 **Storage**: Vault-Datenbank (haex-crdt), neue Migration `0044_sync_rules` mit fünf Tabellen `*_no_sync`
-(keine Trigger-Version-Erhöhung, kein Sync); Einstellung `syncRules.logDepth` als `PrefScope::Device`
+(keine Trigger-Version-Erhöhung, kein Sync); Einstellung `syncRules.logDepth` als `PrefScope::Device`. Die
+Laufdateien wachsen mit Protokolltiefe mal Dateien je Regel, ohne künstliche Eintragsgrenze pro Lauf.
 
 **Testing**: gezieltes `cargo test -j 4 --lib file_sync::` und `identity::migrations_sync_rules`;
 `node --test` (`pnpm check:files`, `check:settings`, `check:agent-actions`); E2E `files-sync-rules`;
