@@ -236,7 +236,7 @@ jobs:
         run: |
           set -euo pipefail
           ls -l installers
-          (cd installers && sha256sum holzi-* > SHA256SUMS-desktop.txt)
+          (cd installers && sha256sum haexvault-* > SHA256SUMS-desktop.txt)
           # `android-release.yml` starts with the same tag; whoever is first creates the release.
           if ! gh release view "$TAG" > /dev/null 2>&1; then
             gh release create "$TAG" --verify-tag --title "HaexVault $TAG" --generate-notes \
