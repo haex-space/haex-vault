@@ -2,6 +2,7 @@
 // which kinds the editor knows, their labels and how a stored value reads as text. The checks of a
 // value run in Rust (`src-tauri/src/contacts/kinds.rs`); this file only shapes input and output.
 // Pure, so `scripts/check-contacts-kinds.ts` runs it without vue.
+import { formatEventDate } from './eventDate.ts'
 
 export type KindId =
   | 'phone'
@@ -225,8 +226,12 @@ export function serializeEventDate(date: string): string {
 }
 
 /** A stored value as one line of text for the list and the clipboard; an unknown kind shows its
- * raw value. */
-export function displayValue(kind: string, value: string): string {
+ * raw value. With a `locale` an event date reads in the order of that language. */
+export function displayValue(
+  kind: string,
+  value: string,
+  locale?: string,
+): string {
   switch (kind) {
     case 'address': {
       const parts = parseAddress(value)
@@ -248,6 +253,7 @@ export function displayValue(kind: string, value: string): string {
     }
     case 'event': {
       const date = parseEventDate(value)
+      if (locale) return formatEventDate(date, locale)
       return date.startsWith('--') ? date.slice(2) : date
     }
     default:
