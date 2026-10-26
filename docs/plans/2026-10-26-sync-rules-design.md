@@ -16,14 +16,14 @@ cloud backup are the same mechanism.
 
 ## Decisions
 
-| #   | Question                  | Decision                                                                                                                                                                                                                                       |
-| --- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Which places?             | Any place of the file browser on both sides. Contacts' shares (foreign vaults) are excluded: sync and revocation collide.                                                                                                                      |
-| 2   | Who runs a rule?          | One device per rule: the device that created it. The rule is device-local and not synced (spec 024). The other side is reached through the live access of 056. No shared file index, no reconciliation between devices.                          |
-| 3   | Concurrent changes        | Conflict copy: the newer version keeps the name, the older one is stored beside it as `name (Konflikt <device> <date>).ext`; both sides get both. Changed on one side and deleted on the other: the changed file stays and is copied back.     |
-| 4   | Deletions                 | Per rule: mirror, keep or ask. Mirror moves to the system trash where one exists, else to a `.holzi-trash` folder of the rule. Defaults: mirror for two-way, keep for one-way. "Ask" lists pending deletions in the rule status.             |
-| 5   | When does it run?         | While holzi runs with an unlocked vault: file watcher on local folders, interval for remote places (default 15 min), "sync now". Android needs the background service, a separate spec. The status shows "paused, holzi not active".          |
-| 6   | Encryption in the cloud   | None of its own. Whoever wants ciphertext at the provider picks an encrypted folder (048) as the place. The rule sees plaintext because the folder is unlocked. |
+| #   | Question                  | Decision                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Which places?             | Any place of the file browser on both sides. Contacts' shares (foreign vaults) are excluded: sync and revocation collide.                                                                                                                                                                                        |
+| 2   | Who runs a rule?          | One device per rule: the device that created it. The rule is device-local and not synced (spec 024). The other side is reached through the live access of 056. No shared file index, no reconciliation between devices.                                                                                          |
+| 3   | Concurrent changes        | Conflict copy: the newer version keeps the name, the older one is stored beside it as `name (Konflikt <device> <date>).ext`; both sides get both. Changed on one side and deleted on the other: the changed file stays and is copied back.                                                                       |
+| 4   | Deletions                 | Per rule: mirror, keep or ask. Mirror moves to the system trash where one exists, else to a `.holzi-trash` folder of the rule. Defaults: mirror for two-way, keep for one-way. "Ask" lists pending deletions in the rule status.                                                                                 |
+| 5   | When does it run?         | While holzi runs with an unlocked vault: file watcher on local folders, interval for remote places (default 15 min), "sync now". Android needs the background service, a separate spec. The status shows "paused, holzi not active".                                                                             |
+| 6   | Encryption in the cloud   | None of its own. Whoever wants ciphertext at the provider picks an encrypted folder (048) as the place. The rule sees plaintext because the folder is unlocked.                                                                                                                                                  |
 | 7   | Change and move detection | Size plus modification time against the remembered state of the same side; clocks of different devices are never compared (only to pick the newer side in a conflict). A vanished and a new file with equal size and time are a move. A checksum is computed only for ambiguous candidates and to verify a copy. |
 
 ## Model
@@ -48,14 +48,14 @@ preview and the confirmation for "ask".
 
 ## Plan per file
 
-| Side A                                    | Side B    | Action                                                           |
-| ----------------------------------------- | --------- | ---------------------------------------------------------------- |
-| new                                       | –         | copy to B (A→B or both)                                          |
-| changed                                   | unchanged | copy to B                                                        |
-| changed                                   | changed   | conflict copy, both sides get both                               |
-| deleted                                   | unchanged | deletion mode: mirror, keep or ask                               |
-| deleted                                   | changed   | changed file stays and is copied back                            |
-| vanished + new with equal size and time   | –         | execute as a move on B                                           |
+| Side A                                  | Side B    | Action                                |
+| --------------------------------------- | --------- | ------------------------------------- |
+| new                                     | –         | copy to B (A→B or both)               |
+| changed                                 | unchanged | copy to B                             |
+| changed                                 | changed   | conflict copy, both sides get both    |
+| deleted                                 | unchanged | deletion mode: mirror, keep or ask    |
+| deleted                                 | changed   | changed file stays and is copied back |
+| vanished + new with equal size and time | –         | execute as a move on B                |
 
 One-way considers only the source direction. A change at the target is ignored and reported in the
 status by default; resetting the target is not the default because it would overwrite data.

@@ -267,7 +267,7 @@ Orte und Stand prüfen.
     letzten Läufe mit Zählern; ein Lauf lässt sich aufklappen und zeigt je Datei Pfad, Aktion und
     Seite.
 13. **Given** eine gespiegelte Löschung im Protokoll, **When** Anna den Eintrag öffnet, **Then**
-    führt er zum Papierkorb-Ort, in dem die Datei liegt.
+    führt er zum Regel-Papierkorb, in dem die Datei liegt; beim Papierkorb des Systems nennt er diesen.
 14. **Given** die Einstellungen, **When** Anna den Menüpunkt „Sync-Protokoll“ öffnet, **Then** kann sie
     die Protokolltiefe ändern; verkleinert sie sie, verwirft holzi die ältesten Läufe sofort, und bei 0
     führt holzi kein Protokoll.
@@ -477,12 +477,13 @@ löschen.
   Fehler) und Seite. Auch ein Lauf, der abbricht oder wartet, MUSS mit Grund erscheinen.
 - **FR-044**: Die Zahl der Läufe, die das Protokoll je Regel behält (Protokolltiefe), MUSS der Nutzer
   in einem eigenen Menüpunkt „Sync-Protokoll“ der Einstellungen ändern können. Vorgabe ist 10, erlaubt
-  sind 0 bis 100. Bei 0 führt holzi kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts,
-  wird nicht synchronisiert, und eine Verkleinerung MUSS die ältesten Läufe sofort verwerfen.
+  sind 0 bis 100. Bei 0 führt holzi kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts
+  und nur für dieses Gerät, und eine Verkleinerung MUSS die ältesten Läufe sofort verwerfen.
 - **FR-045**: Das Protokoll DARF nur auf dem ausführenden Gerät liegen, wird nicht synchronisiert und
   MUSS beim Löschen der Regel mit ihr verschwinden. Es DARF keine Dateiinhalte enthalten.
-- **FR-046**: Zu einer gespiegelten Löschung MUSS der Protokolleintrag den Papierkorb-Ort nennen und
-  dorthin führen, solange die Datei dort liegt.
+- **FR-046**: Zu einer gespiegelten Löschung MUSS der Protokolleintrag nennen, wohin die Datei gegangen
+  ist. Liegt sie im Regel-Papierkorb des Orts, MUSS er dorthin führen, solange die Datei dort liegt. Beim
+  Papierkorb des Systems nennt er ihn nur, weil holzi ihn nicht öffnen kann.
 
 ### Key Entities
 
