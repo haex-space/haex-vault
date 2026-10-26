@@ -187,7 +187,7 @@ and on Android (research R9).
 ## Dependencies & Execution Order
 
 - Phase 1: T001 first (it gates T047–T052); T002 ∥ T001. Phase 2 does not need the spike except T013 ∥ others.
-- Phase 2: T003 ∥ T004 ∥ T005 ∥ T009 ∥ T013 ∥ T016; T006 after T004 and T005; T007 and T008 after T006; T010 after T005 and T009; T011 after T010; T012 after T010; T014 after T009 and T013; T015 after T014.
+- Phase 2: T003 ∥ T005 ∥ T009 ∥ T013 ∥ T016; T004 after T003; T006 after T004 and T005; T007 and T008 after T006; T010 after T005 and T009; T011 after T010; T012 after T010; T014 after T009 and T013; T015 after T014.
 - US1 (T017–T023) needs T003 and T006; it is independent of the share work. US2 needs Phase 2 and T017 (the own contact exists): T024 → T025; T026 needs T014, T016, T024; T027 after T026; T028 after T026; T029 ∥ T030 after T028's bindings; T031 after T029, T030; T032 after T031; T033 after T032.
 - US3 (T034–T037) extends T026/T031. US4: T038 and T039 need T010 and T014; T040 ∥ T041 after them; T042 after T038, T039; T043 after T042; T044 after T043; T045 after T043; T046 after T045; T047 after T001; T048 → T049 (T049 needs T047, T048); T050 ∥ T047; T051 needs T046, T050; T052 after T050.
 - US5 (T053–T058) needs T026 (build) and T031; T053 ∥ T054; T055 after both and T056; T057 after T054 and T031; T058 last.
