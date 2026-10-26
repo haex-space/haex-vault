@@ -14,7 +14,7 @@ Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001,
 | `name`                             | TEXT      | nicht leer, höchstens 80 Zeichen                                                                                                                                       |
 | `enabled`                          | INTEGER   | 1 aktiv, 0 pausiert                                                                                                                                                    |
 | `place_a_source`, `place_b_source` | TEXT      | `SourceRef` wie im Fenster: `device` oder Speicher-ID (`<id>`, `peer:<Gerät>`); nie `share:<id>`. Ein verschlüsselter Ordner ist Quelle plus Fensterpfad (research R1) |
-| `place_a_path`, `place_b_path`     | TEXT      | Ordnerpfad der Quelle (Gerät: absolut; Speicher: Schlüssel mit `/` am Ende)                                                                                            |
+| `place_a_path`, `place_b_path`     | TEXT      | Ordnerpfad der Quelle (Gerät: absolut; Speicher: Fensterpfad wie `/Fotos`, Wurzel `/`)                                                                                 |
 | `direction`                        | TEXT      | `aToB`, `bToA`, `both`                                                                                                                                                 |
 | `delete_mode`                      | TEXT      | `mirror`, `keep`, `ask`                                                                                                                                                |
 | `interval_secs`                    | INTEGER   | 60 bis 86 400; Vorgabe 900                                                                                                                                             |
@@ -34,7 +34,7 @@ immer A als Quellort; `bToA` ist beim Speichern auf `aToB` mit vertauschten Orte
 | ---------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `rule_id`              | TEXT         | FK auf Regel, `ON DELETE CASCADE`                                                                                                   |
 | `vault_device_uuid`    | TEXT         | FK                                                                                                                                  |
-| `path`                 | TEXT         | relativ zum Ort, `/` als Trenner, Unicode NFC                                                                                       |
+| `path`                 | TEXT         | relativ zum Ort, `/` als Trenner, Namen so, wie der Ort sie meldet (keine Unicode-Normalisierung)                                   |
 | `a_size`, `a_mtime_ms` | INTEGER NULL | Stand von Seite A nach dem letzten Erfolg; NULL = Datei dort nicht vorhanden                                                        |
 | `b_size`, `b_mtime_ms` | INTEGER NULL | dito für Seite B                                                                                                                    |
 | `kept`                 | INTEGER      | 1 = Löschmodus „Behalten“ hat sie bewusst stehen lassen                                                                             |

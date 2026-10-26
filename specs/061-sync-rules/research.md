@@ -91,7 +91,7 @@ vollständig kopierte Dateien nicht erneut übertragen werden, nicht das Fortset
 
 ## R3 — Der Plan ist reine Logik
 
-**Entscheidung.** `plan::build(rule, left: &Facts, right: &Facts, state: &State, ignore: &Matcher) -> Plan`
+**Entscheidung.** `plan::build(rule, a: &Listing, b: &Listing, state: &[StateRow], exclusions: &Exclusions, hashes: &Hashes) -> Plan`
 ohne Ein- und Ausgabe. `Facts` sind Pfad → (Größe, Zeit, Art, Flags). `Plan` ist eine Liste von Schritten:
 `Copy { from, path }`, `Move { side, from, to }`, `Delete { side, path, mode }`, `Conflict { path, keep, aside }`,
 `Adopt { path }` (gleiche Prüfsumme, nur Stand), `Skip { path, reason }`, `Report { path, what }` (Abweichung am
