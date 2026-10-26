@@ -249,7 +249,8 @@ pub fn attachment_data(q: &mut impl Query, attachment_id: &str) -> Result<(Strin
 }
 
 /// The data and the media type of an image attachment (`png`, `jpg`, `jpeg`, `gif`, `webp`), for
-/// the preview; anything else, a PDF included, is `not_previewable` and only downloads (FR-021).
+/// the thumbnail and the lightbox; anything else is `not_previewable` here. Text and PDF reach the
+/// attachment view through `attachment_view` (spec 058).
 pub fn preview_bytes(q: &mut impl Query, attachment_id: &str) -> Result<(Vec<u8>, &'static str)> {
     let (name, data) = attachment_data(q, attachment_id)?;
     let extension = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
