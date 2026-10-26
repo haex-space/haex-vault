@@ -108,9 +108,14 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     ctx.step('a taken name: keep both')
 
     // Cancelled at its conflict: nothing new, no part file.
-    // Paste clears the clipboard now, so copy the source again for this second attempt.
+    // Paste clears the clipboard now, so copy the source in the folder again for this second
+    // attempt (a file copied into its own folder gets a free name without asking).
+    await doubleClick(instance, 'files-entry-ordner')
+    await instance.waitForDisplayed('files-entry-x.txt')
     await contextMenu(instance, 'files-entry-b.txt')
     await instance.click('files-menu-copy')
+    await instance.click('files-up')
+    await instance.waitForDisplayed('files-entry-ordner')
     await instance.click('files-action-paste')
     await instance.waitForDisplayed('files-conflict')
     await instance.click('files-conflict-cancel')
