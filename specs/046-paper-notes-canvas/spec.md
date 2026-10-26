@@ -36,7 +36,6 @@
 - Q: Wie weit geht das in der ersten Fassung? → A: Eine Formelzeile und eine Tabellenzelle, die nur eine Formel enthält, werden gesetzt. Eine Formel mitten im Satz bleibt Text; das Modell schreibt sie dort in Unicode (H₃O⁺, SO₄²⁻), weil das Mischen von Text und gesetzter Formel in einem umbrochenen Textblock eine eigene Aufgabe ist. Strukturformeln und Skizzen (Lewis-Formeln) bleiben Bilder.
 - Q: Womit wird gesetzt? → A: Mit MathJax (SVG-Ausgabe, mit der Chemie-Erweiterung `\ce{…}` für Reaktionsgleichungen), geladen erst, wenn eine Seite eine Formel braucht. Das gesetzte SVG wird mit der Quelle gespeichert.
 
-
 ### User Story 1 - Foto in einen sauberen Entwurf umwandeln (Priority: P1)
 
 Ein Schüler fotografiert seine handschriftlichen Unterrichtsnotizen und importiert das Bild in haex-notes. Die Anwendung erstellt daraus einen aufgeräumten Entwurf, in dem erkannter Text und visuelle Inhalte getrennt bearbeitet werden können.
@@ -99,7 +98,7 @@ Ein Schüler digitalisiert den Schulhefter eines Fachs Seite für Seite. Jede Se
 
 1. **Given** ein importiertes Foto, **When** die Seite entsteht, **Then** zeigt sie nur die digitale Fassung, und das unveränderte Foto liegt als Anhang „Original“ an der Seite.
 2. **Given** eine Seite mit Anhängen, **When** der Schüler den Anhang öffnet, **Then** erscheint er in einem Seitenfenster neben der Seite (mit Zoom), und die Seite bleibt bearbeitbar.
-2a. **Given** ein Übungsblatt mit Fragen als Anhang, dessen Antworten auf der Seite oder im Original stehen, **When** der Schüler den Anhang im Vollbild öffnet, **Then** sieht er nur das Blatt, weder die Seite noch das Original, bis er das Vollbild schließt.
+   2a. **Given** ein Übungsblatt mit Fragen als Anhang, dessen Antworten auf der Seite oder im Original stehen, **When** der Schüler den Anhang im Vollbild öffnet, **Then** sieht er nur das Blatt, weder die Seite noch das Original, bis er das Vollbild schließt.
 3. **Given** ein Anhang, **When** der Schüler ihn sichert, **Then** erhält er die Datei unverändert.
 4. **Given** eine Seite, **When** der Schüler eine Datei anhängt, **Then** erscheint sie in der Liste der Anhänge, bleibt nach Speichern und erneutem Öffnen erhalten und lässt sich wieder entfernen.
 5. **Given** der Anhang „Original“, **When** der Schüler versucht, ihn zu entfernen, **Then** entfernt ihn nur, wer die Seite selbst löscht; ein Entfernen der Seite aus dem Papierkorb bringt ihn mit zurück.
@@ -171,7 +170,6 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **FR-031**: Der Schüler MUST eine Formel bearbeiten können: Ein Doppelklick auf eine gesetzte Formel öffnet ihre LaTeX-Quelle mit einer Vorschau, die beim Tippen folgt; eine Quelle, die sich nicht setzen lässt, wird nicht übernommen und zeigt den Grund. Das Übernehmen ist ein Schritt, den Rückgängig zurücknimmt. Eine Tabellenzelle mit `$…$` verhält sich ebenso.
 - **FR-032**: Der Schüler MUST eine Formel von Hand einfügen können: ein Knopf in der Werkzeugleiste legt eine Formel an der Seite ab und öffnet ihre Quelle. Verschieben und Skalieren gelten wie bei Text und Bild.
 - **FR-033**: Gesetzte Formeln MUST im PDF so stehen wie auf der Seite, nach Speichern und Öffnen erhalten bleiben und beim Teilen mitgehen (das gesetzte SVG liegt im Seiten-JSON).
-
 
 ### Key Entities
 
