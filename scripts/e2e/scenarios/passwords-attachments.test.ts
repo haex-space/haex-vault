@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
-import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
+import { createAndUnlock, type FlowInstance, unwrap } from '../lib/flows.ts'
 import {
   addAttachments,
   createEntry,
@@ -232,28 +232,42 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
 
   // Spec 058 US3: "Mit System-App öffnen" asks first (the notice of spec 048). Only up to the
   // notice: confirming would start an app on the runner; the copy and its clean-up are covered by
-  // the Rust tests and the quickstart.
-  await instance.exec(
-    `document.querySelector('[data-testid="passwords-attachment-card-' + arguments[0] + '"]').scrollIntoView({ block: 'center' })
-     return true`,
+  // the Rust tests and the quickstart. The feature is desktop-only, while the rest of this
+  // scenario also runs on Android.
+  const { platform } = unwrap<{ platform: string }>(
+    'platform_capabilities',
+    await instance.invoke('platform_capabilities'),
+  )
+  const systemOpenShown = await instance.exec<boolean>(
+    `return Boolean(document.querySelector('[data-testid="passwords-attachment-open-system-' + arguments[0] + '"]'))`,
     [note],
   )
-  await instance.click(`passwords-attachment-open-system-${note}`)
-  await instance.waitForDisplayed('files-open-system-notice')
-  await instance.exec(
-    `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
-     return true`,
-  )
-  await ctx.waitFor(
-    'the notice to close',
-    async () =>
-      !(await instance.exec<boolean>(
-        `return Boolean(document.querySelector('[data-testid="files-open-system-notice"]'))`,
-      )),
-  )
-  ctx.step(
-    'opening with the system app shows the notice about the decrypted copy first',
-  )
+  assert.equal(systemOpenShown, platform !== 'android')
+  if (platform !== 'android') {
+    await instance.exec(
+      `document.querySelector('[data-testid="passwords-attachment-card-' + arguments[0] + '"]').scrollIntoView({ block: 'center' })
+       return true`,
+      [note],
+    )
+    await instance.click(`passwords-attachment-open-system-${note}`)
+    await instance.waitForDisplayed('files-open-system-notice')
+    await instance.exec(
+      `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+       return true`,
+    )
+    await ctx.waitFor(
+      'the notice to close',
+      async () =>
+        !(await instance.exec<boolean>(
+          `return Boolean(document.querySelector('[data-testid="files-open-system-notice"]'))`,
+        )),
+    )
+    ctx.step(
+      'opening with the system app shows the notice about the decrypted copy',
+    )
+  } else {
+    ctx.step('the system-app action is not offered on Android')
+  }
 
   // Renaming: Enter confirms, Escape cancels.
   // In the middle of the frame, away from the floating buttons of the window manager.
