@@ -47,6 +47,10 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   und wird nicht abgeglichen. Unterordner haben keine eigene Ausnahmedatei.
 - **Feste Ausnahmen**: was eine Regel immer ausnimmt, auch ohne Ausnahmedatei: `.holzi-trash`, die
   temporären Kopierdateien der Regel und Systemmüll (`.DS_Store`, `Thumbs.db`, `desktop.ini`).
+- **Lauf-Protokoll**: die Liste der letzten Abgleiche einer Regel. Je Lauf stehen dort Beginn, Dauer,
+  Ergebnis, Zähler (kopiert, verschoben, gelöscht, Konflikte, Fehler) und je Datei Pfad, Aktion und Seite.
+  Wie viele Läufe je Regel erhalten bleiben, stellt der Nutzer in den Einstellungen ein
+  (**Protokolltiefe**, Vorgabe 10).
 - **Regelstatus**: der Zustand einer Regel: **aktiv**, **läuft**, **wartet** (ein Ort ist nicht
   erreichbar), **Fehler**, **pausiert** oder **holzi nicht aktiv**.
 
@@ -104,6 +108,13 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   bearbeitet diese Datei; sie ist die einzige Quelle der Muster. Die Datei wird wie jede Datei
   abgeglichen; angewendet wird die Vereinigung der Muster beider Seiten. Nachträglich ausgenommene
   Dateien bleiben an beiden Orten unberührt.
+- Q: Gilt nach langer Pause eines Orts eine Schwelle für Löschungen? → A: Nein. Jede Regel gleicht
+  nach dem Stand ab, egal wie alt er ist; der Schutz vor Massenlöschen bleibt bei FR-022 (leerer oder
+  fehlender Ort) und beim Löschmodus „Nachfragen“.
+- Q: Wie nachvollziehbar ist, was ein Abgleich getan hat? → A: Zähler plus Dateiliste der letzten Läufe
+  je Regel (Lauf-Protokoll); ältere werden verworfen. Wie viele Läufe, stellt der Nutzer in einem
+  eigenen Menüpunkt der Einstellungen ein, Vorgabe 10. Aus einer gespiegelten Löschung führt ein Eintrag
+  zum Papierkorb-Ort.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -249,6 +260,14 @@ Orte und Stand prüfen.
     kopiert.
 11. **Given** ein Ort, in den holzi nicht schreiben kann, **When** Anna „Ausnahmen“ öffnet, **Then**
     zeigt der Editor die Muster nur an und nennt den Grund.
+12. **Given** eine Regel mit mehreren Läufen, **When** Anna ihr Protokoll öffnet, **Then** sieht sie die
+    letzten Läufe mit Zählern; ein Lauf lässt sich aufklappen und zeigt je Datei Pfad, Aktion und
+    Seite.
+13. **Given** eine gespiegelte Löschung im Protokoll, **When** Anna den Eintrag öffnet, **Then**
+    führt er zum Papierkorb-Ort, in dem die Datei liegt.
+14. **Given** die Einstellungen, **When** Anna den Menüpunkt „Sync-Protokoll“ öffnet, **Then** kann sie
+    die Protokolltiefe ändern; verkleinert sie sie, verwirft holzi die ältesten Läufe sofort, und bei 0
+    führt holzi kein Protokoll.
 
 ---
 
@@ -444,6 +463,20 @@ löschen.
 - **FR-042**: Der Editor und die Vorschau MÜSSEN nennen, wie viele Dateien die Ausnahmen gerade
   ausnehmen, und die festen Ausnahmen getrennt und nicht änderbar zeigen.
 
+**Protokoll**
+
+- **FR-043**: holzi MUSS zu jeder Regel ein Lauf-Protokoll führen: je Lauf Beginn, Dauer, Ergebnis,
+  Zähler und je Datei Pfad, Aktion (kopiert, verschoben, gelöscht, Konfliktkopie, übersprungen,
+  Fehler) und Seite. Auch ein Lauf, der abbricht oder wartet, MUSS mit Grund erscheinen.
+- **FR-044**: Die Zahl der Läufe, die das Protokoll je Regel behält (Protokolltiefe), MUSS der Nutzer
+  in einem eigenen Menüpunkt „Sync-Protokoll“ der Einstellungen ändern können. Vorgabe ist 10, erlaubt
+  sind 0 bis 100. Bei 0 führt holzi kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts,
+  wird nicht synchronisiert, und eine Verkleinerung MUSS die ältesten Läufe sofort verwerfen.
+- **FR-045**: Das Protokoll DARF nur auf dem ausführenden Gerät liegen, wird nicht synchronisiert und
+  MUSS beim Löschen der Regel mit ihr verschwinden. Es DARF keine Dateiinhalte enthalten.
+- **FR-046**: Zu einer gespiegelten Löschung MUSS der Protokolleintrag den Papierkorb-Ort nennen und
+  dorthin führen, solange die Datei dort liegt.
+
 ### Key Entities
 
 - **Sync-Regel**: Name, Zustand (aktiv oder pausiert), Ort A, Ort B, Richtung, Löschmodus, Intervall.
@@ -455,6 +488,7 @@ löschen.
 - **Stand**: je Regel und Datei der relative Pfad sowie Größe und Änderungszeit auf Seite A und B beim
   letzten erfolgreichen Abgleich, dazu die Vermerke „bewusst behalten“.
 - **Plan**: die Schritte eines Abgleichs (kopieren, verschieben, löschen, Konfliktkopie).
+- **Lauf-Protokoll**: je Regel die letzten Läufe mit Zählern und Dateiliste; Tiefe nach Einstellung.
 - **Regelstatus**: Zustand, letzter Abgleich, Fehlerliste, Abweichungen, anstehende Löschungen,
   Konflikte.
 
@@ -479,6 +513,9 @@ löschen.
   einen Fehler hat, und worin der Fehler besteht.
 - **SC-009**: Eine ausgenommene Datei wird in keinem Test kopiert, verschoben oder gelöscht, auch nicht,
   wenn die Ausnahme erst nach dem ersten Abgleich dazukommt.
+- **SC-010**: Nach einem beliebigen Lauf findet der Nutzer in unter 30 Sekunden heraus, was mit einer
+  bestimmten Datei geschehen ist (kopiert, verschoben, gelöscht oder wo sie liegt), sofern der Lauf noch
+  im Protokoll steht.
 
 ## Assumptions
 
@@ -514,5 +551,7 @@ löschen.
   vorgesehen; jede Regel läuft auf genau einem Gerät.
 - **Automatisches Aufräumen des Regel-Papierkorbs**, **Versionsverlauf** und **Bandbreitenbegrenzung**:
   spätere Erweiterungen.
+- **Protokoll-Export und -Suche** und ein unbegrenztes Protokoll: nicht vorgesehen; die Tiefe ist
+  begrenzt (FR-044).
 - **Ausnahmedateien in Unterordnern** und **Muster, die nur eine Regel betreffen**: nicht vorgesehen; die
   Ausnahmen gehören zum Ort, nicht zur Regel.
