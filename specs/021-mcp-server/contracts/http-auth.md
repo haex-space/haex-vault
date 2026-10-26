@@ -19,7 +19,9 @@ Autorisierungsserver nach der MCP-Autorisierung.
 - Access-Token: 1 h, nur im Speicher. Refresh-Token: Zugangsnachweis des Agenten (`token_hash`),
   rotiert bei jeder Verwendung.
 - `redirect_uri`: nur `http://127.0.0.1:*`, `http://localhost:*` oder eigene Schemata
-  nativer Clients; sonst Ablehnung.
+  nativer Clients; sonst Ablehnung. Bei `/oauth/authorize` MUSS sie zu den für `client_id`
+  registrierten URIs passen; bei Loopback-URIs darf nur der Port abweichen. Der akzeptierte Wert
+  wird am `authorization_code` gebunden und `/oauth/token` lehnt einen anderen `redirect_uri` ab.
 - Ablauf 90 Tage (R9) und Widerruf machen den Refresh-Token ungültig.
 
 ## Abwehr

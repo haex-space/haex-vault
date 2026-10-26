@@ -67,21 +67,21 @@ Dateien und Kontakte: unverändert `agent_file_permissions` (`migrations_agent_f
 
 ## haex_mcp_agent_log_no_sync
 
-| Spalte              | Typ     | Regel                                                                                                |
-| ------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `id`                | TEXT PK | UUID                                                                                                 |
-| `vault_device_uuid` | TEXT    | Gerät                                                                                                |
-| `agent_id`          | TEXT    | bleibt nach Widerruf stehen; Anzeige „widerrufener Agent“                                            |
-| `created_at`        | INTEGER | Unix-ms                                                                                              |
-| `tool`              | TEXT    | Werkzeugname (`settings_appearance_set`, `x_mail_list_new`, …)                                       |
-| `effect`            | TEXT    | `read`, `write`, `destructive`                                                                       |
-| `target`            | TEXT    | Lesbares Ziel, ≤ 200 Zeichen                                                                         |
-| `input`             | TEXT    | JSON der Eingaben, Felder mit `x-holzi-secret` als `•••`, Werte > 200 Zeichen gekürzt                |
-| `outcome`           | TEXT    | `ok`, `denied_rights`, `denied_user`, `denied_plan`, `no_answer`, `error`, `unavailable`, `too_many` |
-| `asked`             | INTEGER | 1, wenn eine Rückfrage gezeigt wurde                                                                 |
+| Spalte              | Typ     | Regel                                                                                                                        |
+| ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | TEXT PK | UUID                                                                                                                         |
+| `vault_device_uuid` | TEXT    | Gerät                                                                                                                        |
+| `agent_id`          | TEXT    | bleibt nach Widerruf stehen; Anzeige „widerrufener Agent“                                                                    |
+| `created_at`        | INTEGER | Unix-ms                                                                                                                      |
+| `tool`              | TEXT    | Werkzeugname (`settings_appearance_set`, `x_mail_list_new`, …)                                                               |
+| `effect`            | TEXT    | `read`, `write`, `destructive`                                                                                               |
+| `target`            | TEXT    | Lesbares Ziel, ≤ 200 Zeichen                                                                                                 |
+| `input`             | TEXT    | JSON der Eingaben, Schema-Geheimnisse und credential-tragende Werte in rohen Befehlen als `•••`, Werte > 200 Zeichen gekürzt |
+| `outcome`           | TEXT    | `ok`, `denied_rights`, `denied_user`, `denied_plan`, `no_answer`, `error`, `unavailable`, `too_many`                         |
+| `asked`             | INTEGER | 1, wenn eine Rückfrage gezeigt wurde                                                                                         |
 
-Grenzen: 30 Tage, höchstens 10 000 Einträge je Agent und Gerät; Bereinigung beim Schreiben. Kein
-Ergebnis, kein Dateiinhalt, kein Geheimnis (FR-028).
+Grenzen: 30 Tage, höchstens 10 000 Einträge je Agent und Gerät; Bereinigung beim Schreiben und
+Lesen. Kein Ergebnis, kein Dateiinhalt, kein Geheimnis (FR-028).
 
 ## Einstellungen (Geräteeinstellungen)
 

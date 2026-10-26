@@ -175,9 +175,14 @@ Datei); für das Protokoll ist „wandert nicht zu anderen Geräten“ gewollt u
 
 **Entscheidung**: Ziel und Eingaben werden aus dem Eingabeschema geschrieben; Felder mit
 `"x-holzi-secret": true` im Schema werden durch `•••` ersetzt, Werte über 200 Zeichen gekürzt.
+Zusätzlich werden credential-tragende Werte in rohen Befehlen und Argumentlisten von `run_command`
+vor dem Persistieren und vor einer Rückfrage redigiert, auch wenn das Schemafeld selbst kein
+`x-holzi-secret` trägt; ein kurzer Wert wie `--token=abc` darf nie im Protokoll erscheinen.
 `check-agent-actions.ts` prüft schon, dass kein Schema ein Geheimnis benennt; neu prüft es, dass
 `passwords.secret.get` keine geheimen Eingaben hat. Ergebnisse werden nie geschrieben. Höchstens
-10 000 Einträge je Agent und Gerät, ältere als 30 Tage werden beim Schreiben entfernt.
+10 000 Einträge je Agent und Gerät; ältere als 30 Tage werden beim Schreiben und beim Lesen
+entfernt, sodass sie auch ohne weitere Werkzeugaufrufe nicht sichtbar bleiben. Der Log-Test deckt
+ein Secret innerhalb eines Command-Arguments ab.
 
 ## R11 Grenzen
 
