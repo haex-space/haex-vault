@@ -39,6 +39,8 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
+use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
+use super::migrations_contacts_self::CONTACTS_SELF_0042;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
@@ -106,7 +108,9 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 /// - 26: `0038_browser_clients` (spec 049) added the CRDT-tracked `haex_browser_clients`.
 /// - 27: `0039_file_shares` (spec 056) added the CRDT-tracked `haex_file_shares`,
 ///   `haex_file_share_grants` and `haex_file_shares_received`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 27;
+/// - 28: `0043_contacts_cards_hash` (spec 060) rebuilt the CRDT-tracked `haex_contacts_cards`
+///   with the hash of the signed card as its primary key.
+pub const HOLZI_TRIGGER_VERSION: i32 = 28;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -695,6 +699,15 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
         "UPDATE haex_contacts SET display_name = NULL \
          WHERE origin_kind = 'card' AND display_name LIKE 'npub1%';"
             .to_owned(),
+    );
+    // Spec 060: the own contact, "Ich", and the cards of other vaults keyed by their hash.
+    m.insert(
+        MigrationName::from("0042_contacts_self"),
+        CONTACTS_SELF_0042.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0043_contacts_cards_hash"),
+        CONTACTS_CARDS_0043.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

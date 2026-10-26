@@ -346,3 +346,59 @@ async fn a_run_for_changes_in_the_vault_leaves_the_phones_deletions_to_a_full_ru
         "the full run sees all eleven at once and asks"
     );
 }
+
+#[tokio::test]
+async fn the_own_contact_is_never_matched_with_a_phone_contact() {
+    let rig = Rig::new();
+    // The phone has a contact with the very name and number the own contact is given.
+    rig.book
+        .add(GOOGLE, vec![name("Anna", "Beck"), phone("0170 1234567", 2)]);
+    rig.vault
+        .service
+        .update(
+            &Caller::User,
+            &[],
+            crate::contacts::ids::SELF_CONTACT_ID,
+            ContactPatch {
+                given_name: crate::patch::Patch::Set("Anna".to_owned()),
+                family_name: crate::patch::Patch::Set("Beck".to_owned()),
+                values: Some(crate::contacts::model::ValuesPatch {
+                    upsert: vec![crate::contacts::model::ValueUpsert {
+                        id: None,
+                        kind: "phone".to_owned(),
+                        label: "mobile".to_owned(),
+                        value: "0170 1234567".to_owned(),
+                        position: None,
+                    }],
+                    remove: vec![],
+                }),
+                ..ContactPatch::default()
+            },
+        )
+        .await
+        .expect("fill the own contact");
+    rig.start();
+
+    assert!(
+        rig.links()
+            .iter()
+            .all(|link| link.contact_id != crate::contacts::ids::SELF_CONTACT_ID),
+        "no phone contact is linked to the own contact"
+    );
+    assert_eq!(
+        rig.headers().len(),
+        1,
+        "the phone contact came in as a contact of its own"
+    );
+    let own = rig
+        .vault
+        .service
+        .get(&Caller::User, &[], crate::contacts::ids::SELF_CONTACT_ID)
+        .await
+        .unwrap();
+    assert_eq!(
+        own.values.len(),
+        1,
+        "nothing was merged into the own contact"
+    );
+}

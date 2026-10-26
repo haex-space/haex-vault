@@ -140,11 +140,11 @@ impl Connections {
                 if cards::is_blocked(q, &vault)? {
                     return Ok(None);
                 }
-                let Some((_, card)) = cards::stored(q, &vault)? else {
+                if cards::stored(q, &vault)?.is_none() {
                     return Ok(None);
-                };
-                let relay = card
-                    .card
+                }
+                // The devices of all stored cards of the vault, not of one (spec 060).
+                let relay = cards::addresses(q, &vault)?
                     .devices
                     .iter()
                     .find(|device| hex(&device.endpoint_id) == share.owner_endpoint_id)

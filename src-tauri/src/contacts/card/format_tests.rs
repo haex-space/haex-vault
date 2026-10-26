@@ -123,3 +123,49 @@ fn a_card_too_large_without_values_is_not_made() {
         .collect();
     assert!(matches!(sign(big, &SECRET), Err(HolziError::CardTooLarge)));
 }
+
+#[test]
+fn the_hash_is_of_the_signed_content_and_stays_for_a_new_signature() {
+    let one = signed(card(1));
+    assert_eq!(one.hash().len(), 64, "SHA-256 as hex");
+    assert_eq!(one.hash(), one.hash());
+    assert_ne!(one.hash(), signed(card(2)).hash(), "another content");
+    let mut moved = card(1);
+    moved.issued_at += 1;
+    assert_ne!(one.hash(), signed(moved).hash(), "another time");
+    // Signed again over the same content, the key stays even when the signature differs.
+    let again = signed(card(1));
+    assert_eq!(one.hash(), again.hash());
+}
+
+#[test]
+fn the_hash_does_not_depend_on_the_length_bytes_or_the_signature() {
+    let one = signed(card(1));
+    let mut other_signature = one.clone();
+    let last = other_signature.bytes.len() - 1;
+    other_signature.bytes[last] ^= 1;
+    assert_eq!(one.hash(), other_signature.hash());
+}
+
+#[test]
+fn sign_with_none_keeps_a_card_that_sign_refuses() {
+    let mut big = card(0);
+    big.devices = (0..32u8)
+        .map(|n| CardDevice {
+            device_pubkey: [n; 32],
+            endpoint_id: [n.wrapping_add(100); 32],
+            iroh_relay: Some(format!("https://relay-{n}.example.org/some/long/path/")),
+        })
+        .collect();
+    big.nostr_relays = (0..10)
+        .map(|n| format!("wss://relay-{n}.example.org/some/long/path"))
+        .collect();
+    assert!(matches!(
+        sign(big.clone(), &SECRET),
+        Err(HolziError::CardTooLarge)
+    ));
+    let (kept, omitted) = sign_with(big.clone(), &SECRET, None).expect("sign without a limit");
+    assert!(omitted.is_empty());
+    assert_eq!(kept.card, big);
+    assert_eq!(from_bytes(kept.bytes.clone()).expect("reads back"), kept);
+}

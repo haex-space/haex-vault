@@ -202,10 +202,16 @@ pub async fn invite(
         return Err(PeerError::ContactUnknown);
     }
     let contact = contact_id.to_owned();
-    let card = session
+    // The devices of all stored cards of the contact's vault, not of one (spec 060).
+    let addresses = session
         .ctx
         .db
-        .read(move |q| received::stored_of_contact(q, &contact).map_err(Into::into))
+        .read(move |q| {
+            let Some(card) = received::stored_of_contact(q, &contact)? else {
+                return Ok(None);
+            };
+            Ok(Some(received::addresses(q, &card.card.vault)?))
+        })
         .await
         .map_err(|error| {
             log::warn!("peers: the card of a contact could not be read: {error}");
@@ -217,8 +223,7 @@ pub async fn invite(
             limit: super::limits::CHANNELS_PER_EXTENSION,
         });
     }
-    let addrs: Vec<EndpointAddr> = card
-        .card
+    let addrs: Vec<EndpointAddr> = addresses
         .devices
         .iter()
         .filter_map(|d| endpoint_addr_of(&d.endpoint_id, d.iroh_relay.as_deref(), &[]).ok())

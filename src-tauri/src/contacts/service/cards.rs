@@ -286,7 +286,7 @@ impl ContactsService {
                     }
                 };
                 add_values(tx, &contact_id, &card.card.values)?;
-                received::save(tx, &contact_id, &card)?;
+                received::replace(tx, &contact_id, &card)?;
                 store::touch(tx, &contact_id, &now)?;
                 Ok(store::load(tx, &contact_id)?)
             })

@@ -14,7 +14,7 @@ use crate::contacts::access::require_user;
 use crate::contacts::model::TargetInput;
 use crate::contacts::phone::state::{self, PhoneSummary};
 use crate::contacts::phone::Account;
-use crate::contacts::{store, targets};
+use crate::contacts::{ids, store, targets};
 use crate::error::{HolziError, Result};
 use crate::storage::query::Query;
 
@@ -124,11 +124,19 @@ impl ContactsService {
         self.db()
             .write(move |tx| {
                 let account = account_on(tx, &device, account.as_ref())?;
-                let ids = match selection {
-                    Selection::Contacts(ids) => ids,
-                    Selection::Group(group) => members(tx, &group)?,
+                let chosen = match selection {
+                    Selection::Contacts(chosen) => chosen,
+                    // The own contact goes to no phone, so a group that holds it just skips it.
+                    Selection::Group(group) => members(tx, &group)?
+                        .into_iter()
+                        .filter(|id| !ids::is_self(id))
+                        .collect(),
                 };
-                for id in &ids {
+                for id in &chosen {
+                    // The own contact is never written to a phone (spec 060 FR-006).
+                    if ids::is_self(id) {
+                        return Err(HolziError::ContactsSelf.into());
+                    }
                     store::group_ids_if_exists(tx, id)?.ok_or(HolziError::ContactsNotFound)?;
                     targets::set(tx, id, &device, (&account.0, &account.1))?;
                 }

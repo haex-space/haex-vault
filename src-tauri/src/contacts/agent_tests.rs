@@ -372,3 +372,92 @@ async fn a_change_with_a_write_grant_reaches_the_phone_like_a_change_in_the_wind
         "origin unchanged"
     );
 }
+
+#[tokio::test]
+async fn an_agent_with_a_read_grant_sees_the_own_contact_with_its_real_name_and_is_self() {
+    let vault = test_vault();
+    vault
+        .service
+        .update(
+            &Caller::User,
+            &[],
+            crate::contacts::ids::SELF_CONTACT_ID,
+            ContactPatch {
+                given_name: crate::patch::Patch::Set("Martin".to_owned()),
+                family_name: crate::patch::Patch::Set("Drechsel".to_owned()),
+                ..ContactPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    vault
+        .db
+        .write_blocking(|tx| {
+            Ok(permissions::set(
+                tx,
+                &AgentFilePermission {
+                    agent_id: "builtin".into(),
+                    kind: AgentFileKind::Contacts,
+                    target: "*".into(),
+                    status: Read,
+                    updated_at: 1,
+                    reach: None,
+                },
+            )?)
+        })
+        .unwrap();
+    let (prompt, asked) = window(once(FilesAgentChoice::Deny));
+    let agent = agent(&vault, prompt);
+    let found = agent
+        .search("Drechsel", None, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].display_name, "Martin Drechsel", "not the word Ich");
+    assert!(found[0].is_self);
+    let json = serde_json::to_value(&found[0]).unwrap();
+    assert_eq!(json["isSelf"], true);
+
+    let own = agent
+        .get(
+            crate::contacts::ids::SELF_CONTACT_ID,
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(own.display_name, "Martin Drechsel");
+    assert!(own.is_self);
+    assert!(asked.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn other_contacts_carry_no_is_self() {
+    let vault = test_vault();
+    let ben = with_ben(&vault).await;
+    vault
+        .db
+        .write_blocking(|tx| {
+            Ok(permissions::set(
+                tx,
+                &AgentFilePermission {
+                    agent_id: "builtin".into(),
+                    kind: AgentFileKind::Contacts,
+                    target: "*".into(),
+                    status: Read,
+                    updated_at: 1,
+                    reach: None,
+                },
+            )?)
+        })
+        .unwrap();
+    let (prompt, _) = window(once(FilesAgentChoice::Deny));
+    let found = agent(&vault, prompt)
+        .get(&ben, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(!found.is_self);
+    assert!(serde_json::to_value(&found)
+        .unwrap()
+        .get("isSelf")
+        .is_none());
+}

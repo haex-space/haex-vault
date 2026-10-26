@@ -22,6 +22,9 @@ pub struct OutsideSummary {
     pub groups: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<String>,
+    /// Set only on the vault user's own contact (spec 060).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_self: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -85,6 +88,9 @@ pub struct OutsideContact {
     pub photo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub holzi_addresses: Option<OutsideAddresses>,
+    /// Set only on the vault user's own contact (spec 060).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_self: bool,
     pub updated_at: String,
 }
 
@@ -103,6 +109,7 @@ pub fn summary(header: ContactHeader, groups: &[Group]) -> OutsideSummary {
         phones: header.phones,
         emails: header.emails,
         photo: header.photo,
+        is_self: header.is_self,
     }
 }
 
@@ -146,6 +153,7 @@ pub fn contact(contact: Contact) -> OutsideContact {
                 .collect(),
             nostr_relays: card.nostr_relays,
         }),
+        is_self: contact.is_self,
         updated_at: contact.updated_at,
     }
 }

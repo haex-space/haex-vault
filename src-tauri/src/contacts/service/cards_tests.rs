@@ -57,8 +57,9 @@ async fn a_card_becomes_a_new_contact_with_confirmed_addresses() {
             .list(&Caller::User, &[])
             .await
             .expect("list")
-            .is_empty(),
-        "a preview stores nothing"
+            .iter()
+            .all(|header| header.is_self),
+        "a preview stores nothing (the own contact is always there)"
     );
 
     let contact = mara
@@ -139,7 +140,8 @@ async fn a_changed_card_is_refused_and_nothing_is_stored() {
         .list(&Caller::User, &[])
         .await
         .expect("list")
-        .is_empty());
+        .iter()
+        .all(|header| header.is_self));
 }
 
 #[tokio::test]

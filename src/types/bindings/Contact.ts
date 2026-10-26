@@ -30,4 +30,9 @@ issues: Array<ContactIssue>,
 /**
  * The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
  */
-card: ContactCardInfo | null, createdAt: string, updatedAt: string, };
+card: ContactCardInfo | null,
+/**
+ * The own contact, "Ich" (spec 060): the person of this vault. `name` stays the name its
+ * name parts give; only the window shows the word "Ich".
+ */
+isSelf: boolean, createdAt: string, updatedAt: string, };
