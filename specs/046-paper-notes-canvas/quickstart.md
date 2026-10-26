@@ -46,6 +46,10 @@ Erwartet:
 6. Den Anhang „Original“ öffnen: Er erscheint neben der Seite, mit Zoom, und bleibt Byte für Byte gleich; die Seite bleibt
    bearbeitbar. Im Vollbild öffnen: Es ist nur der Anhang zu sehen, weder die Seite noch das Original. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
    speichern, neu öffnen, wieder entfernen. Die Seitenliste hat keinen zweiten Eintrag.
+   6c. Eine Seite mit Reaktionsgleichungen lesen (eine Zeile und eine Tabellenzelle mit nur einer Formel): Sie stehen als
+   gesetzte Formeln da, eine Formel im Satz als Text mit Indizes. Doppelklick auf eine Formel: Quelle mit Vorschau;
+   eine kaputte Quelle wird nicht übernommen, Rückgängig stellt die alte her. „Formel einfügen“ legt eine neue an. Im
+   PDF stehen die Formeln wie auf der Seite.
    6b. Vorlage und Papierfarbe der Seite wechseln (kariert, Creme) und den Seitenrand ändern: Rückgängig stellt den alten
    Stand her, nach Speichern und Öffnen steht er noch da.
    6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente

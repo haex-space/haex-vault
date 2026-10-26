@@ -18,6 +18,23 @@ braucht. Die Commands in `app/lib/commands.ts` fügen hinzu, entfernen, ersetzen
 Zeilen oder Spalten hinzufügen und entfernen (`app/lib/tableActions.ts`) hält `cells` passend: neue Zellen sind
 leer, entfernte Zellen gehen mit. Eine geteilte Seite nimmt die Zelltexte im Seiten-JSON mit.
 
+## `LatexElement` und Formelzellen (2026-10-26)
+
+Das Element `latex` gibt es im Dokumentmodell seit der ersten Fassung (`app/types/document.ts`): `source` ist die
+LaTeX-Quelle (bleibt editierbar), `svg` das gesetzte Ergebnis in `currentColor`, `color` die Tinte, dazu `x`, `y`,
+`width`, `height` und `rotation` wie beim Bild. Neu ist, dass es erzeugt, gezeichnet und bearbeitet wird:
+
+- Eine Region `formula` wird zu einem `latex`-Element auf der Ebene „Text“. Höhe und Breite folgen dem gesetzten
+  SVG und der Box der Region: Das SVG wird auf die Höhe der Box gebracht und, wenn es dann breiter ist als die Box,
+  auf deren Breite verkleinert; es wird nie über seine natürliche Größe hinaus vergrößert.
+- Lässt sich die Quelle nicht setzen, entsteht stattdessen ein `text`-Element mit der Quelle (FR-030).
+- Eine Tabellenzelle, deren ganzer Inhalt `$…$` ist, wird im Zellraster als gesetzte Formel gezeichnet; das SVG wird
+  dabei nicht gespeichert, sondern beim Zeichnen aus der Zelle gesetzt (Zwischenspeicher je Quelle). Der Zelltext
+  bleibt die Quelle und wird beim Bearbeiten als solche gezeigt.
+- Das SVG nutzt `currentColor`; beim Zeichnen wird es mit der Tintenfarbe des Elements gefärbt. Die Seite speichert
+  das gesetzte SVG im Element, damit die Anzeige ohne MathJax auskommt, bis jemand die Quelle ändert.
+- `collectAssetIds` ändert sich nicht: Formeln sind keine Assets.
+
 ## `PaperNoteImport`
 
 Optionales Feld der Seite (neue JSON-Spalte `paper_import`, Migration `0005`). Es fehlt bei gewöhnlichen Seiten.
@@ -62,7 +79,7 @@ Regeln:
 | Feld         | Typ                            | Regeln                                                           |
 | ------------ | ------------------------------ | ---------------------------------------------------------------- |
 | `id`         | string                         | Eindeutig innerhalb des Imports.                                 |
-| `kind`       | `"text" \| "table" \| "image"` | Aus dem Ergebnis von `read`.                                     |
+| `kind`       | `"text" \| "table" \| "image" \| "formula"` | Aus dem Ergebnis von `read`.                              |
 | `sourceBox`  | `[x1, y1, x2, y2]`, je 0–1000  | Relativ zur gelesenen Aufnahme; `x2 > x1` und `y2 > y1`.         |
 | `elementIds` | string[]                       | Die erzeugten Elemente; leer, wenn der Schüler sie gelöscht hat. |
 | `closeUpId`  | string, optional               | Gesetzt, wenn die Region aus einem Nahfoto stammt.               |
