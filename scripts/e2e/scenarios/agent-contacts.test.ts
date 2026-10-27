@@ -61,6 +61,23 @@ async function waitForRequests(provider: Provider, count: number) {
   }
 }
 
+/** Waits for a tool result whose content proves that the requested action finished. */
+async function waitForToolResult(
+  provider: Provider,
+  matches: RegExp,
+): Promise<string> {
+  const end = Date.now() + 60_000
+  for (;;) {
+    const result = turnRequests(provider)
+      .map((request) => toolResult(request))
+      .find((text) => matches.test(text))
+    if (result !== undefined) return result
+    if (Date.now() >= end)
+      throw new Error(`no tool result matched ${matches} within 60000 ms`)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
 const questionText = (instance: FlowInstance) =>
   instance.exec<string>(
     `const el = document.querySelector('[data-testid="files-agent-permission"]')
@@ -229,8 +246,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   // The chat's own approval did not come first, although Auto asks for risky actions.
   assert.equal(await questionText(instance), '')
   await instance.click('contacts-share-confirm-deny')
-  requests = await waitForRequests(provider, 13)
-  const declined = toolResult(requests.at(-1))
+  const declined = await waitForToolResult(provider, /denied_by_user/)
   assert.match(declined, /denied_by_user/, declined)
   assert.doesNotMatch(declined, /Krüger|0170|haex-vault:/)
   ctx.step('"Ablehnen" gives the agent nothing of Ben')
@@ -239,8 +255,9 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.waitForDisplayed('contacts-share-confirm-intro', 30_000)
   await instance.click(`contacts-share-check-${valueId}`)
   await instance.click('contacts-share-confirm-allow')
-  requests = await waitForRequests(provider, 14)
-  const shared = JSON.parse(toolResult(requests.at(-1))) as { link: string }
+  const shared = JSON.parse(
+    await waitForToolResult(provider, /haex-vault:/),
+  ) as { link: string }
   const text = readShare(shared.link)
   assert.equal(text.name, 'Ben Krüger')
   assert.deepEqual(text.values, [])
