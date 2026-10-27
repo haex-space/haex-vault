@@ -11,12 +11,27 @@ Vorbereitung:
 - ein LUKS-Stick. Ohne echten zweiten Stick geht ein Image:
 
 ```sh
+loop_device=
+cleanup() {
+  sudo systemctl restart udisks2 || true
+  if test -n "$loop_device"; then
+    udisksctl loop-delete -b "$loop_device" || true
+  fi
+  rm -f /tmp/luks.img
+}
+trap cleanup EXIT
+
 truncate -s 64M /tmp/luks.img
 sudo cryptsetup luksFormat -q --type luks2 /tmp/luks.img   # Passwort z. B. "geheim"
-udisksctl loop-setup -f /tmp/luks.img                      # meldet /dev/loopN
-udisksctl unlock -b /dev/loopN                             # einmal entsperren …
-sudo mkfs.ext4 -L BACKUP /dev/mapper/luks-*                # … und formatieren
-udisksctl lock -b /dev/loopN
+loop_device=$(udisksctl loop-setup -f /tmp/luks.img | sed -n 's/.* as \(\/dev\/[^. ]*\)\.$/\1/p')
+test -n "$loop_device"
+mapper=$(udisksctl unlock -b "$loop_device" | sed -n 's/.* as \(\/dev\/[^. ]*\)\.$/\1/p')
+test -n "$mapper"
+sudo mkfs.ext4 -L BACKUP "$mapper"                    # … und formatieren
+mountpoint=$(udisksctl mount -b "$mapper" | sed -n 's/.* at \(.*\)\.$/\1/p')
+printf 'test file\n' | sudo tee "$mountpoint/x.txt" >/dev/null
+udisksctl unmount -b "$mapper"
+udisksctl lock -b "$loop_device"
 ```
 
 1. **US1**:
@@ -41,20 +56,21 @@ udisksctl lock -b /dev/loopN
      mit URL `haex:drive:<uuid>` und Tag `haex-drive`.
    - Auswerfen und wieder klicken: Es öffnet ohne Dialog.
    - Auf einem zweiten eigenen Gerät nach dem Sync dasselbe (SC-003).
-6. **FR-017**: Während des Entsperrens `ps aux | grep -i geheim`: kein Treffer. Im Log (`RUST_LOG=debug`)
+6. **FR-017**: Während des Entsperrens `ps aux | grep -i '[g]eheim'`: kein Treffer. Im Log (`RUST_LOG=debug`)
    steht das Passwort nicht.
-7. **FR-025**: Tab auf `BACKUP/ordner` lassen, haex beenden und das Image sperren. haex starten: Der Tab
+7. **FR-025**: Tab auf `BACKUP/ordner` lassen, haex beenden, das Dateisystem aushängen und das Image
+   sperren. haex starten: Der Tab
    zeigt „ist gesperrt“ mit „Entsperren“. Danach ist `ordner` offen.
 8. **FR-024**: `systemctl stop udisks2` (mit sudo), haex neu starten. Eingehängte Laufwerke stehen in
    der Liste, ohne Knöpfe.
 
-Aufräumen: `udisksctl loop-delete -b /dev/loopN`, `rm /tmp/luks.img`.
-
 ## macOS
 
-- USB-Stick (APFS oder exFAT) einstecken: wie Linux 1–3.
-- Ein verschlüsseltes APFS-Volume (Festplattendienstprogramm → „APFS (verschlüsselt)“) wie Linux 4–5.
-  Während des Entsperrens zeigt `ps -ef | grep diskutil` kein Passwort.
+- USB-Stick (APFS oder exFAT) einstecken: Er erscheint mit seinem Label, lässt sich öffnen und über
+  den vorgesehenen Auswerfen-Knopf sicher entfernen.
+- Ein verschlüsseltes APFS-Volume (Festplattendienstprogramm → „APFS (verschlüsselt)“) erscheint
+  gesperrt, lässt sich über den Entsperrdialog öffnen und danach sicher auswerfen. Während des
+  Entsperrens zeigt `ps -ef | grep '[d]iskutil'` kein Passwort.
 
 ## Windows
 

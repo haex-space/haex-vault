@@ -118,8 +118,10 @@ Primärquellen stehen bei jeder Entscheidung.
     - Das System-Volume (Rolle `System`) erscheint nur als `/`.
     - Das Daten-Volume (Rolle `Data`) erscheint nicht eigens; es steckt hinter `/` über das Firmlink.
     - Eingehängte Volumes erscheinen bei `/` oder unter `/Volumes`.
-    - Nicht eingehängte Volumes erscheinen nur, wenn sie `removable` oder gesperrt sind; interne nicht
-      eingehängte Volumes sind auf macOS fast immer Systemteile.
+    - Nicht eingehängte Volumes mit einem nutzbaren Dateisystem erscheinen ebenfalls, wenn sie
+      gewöhnliche interne Volumes sind; Systemrollen, EFI-Partitionen und unformatierte Volumes
+      bleiben ausgeschlossen. Das APFS-Volume mit Rolle `Data` ist eine bewusste Ausnahme und wird
+      nicht separat gelistet, weil es hinter `/` über das Firmlink steckt.
     - Die Rollen-Schlüssel (`Roles` in `apfs list -plist`) sind UNVERIFIED und werden mit den Fixtures
       aus dem Spike geprüft.
 - **Risiko (UNVERIFIED)**: Apple dokumentiert die Plist-Schlüssel nicht; die Namen stammen aus
@@ -236,8 +238,11 @@ password, url: "haex:drive:<key>", tags: ["haex-drive"] })`. Ein normaler Eintra
   - `go()` und `onSidebarPick` in `FilesApp.vue` sowie `filesActionHandlers.ts` setzen sie aus der
     Laufwerksliste. Der passende Eintrag ist das Laufwerk mit dem längsten `path`-Präfix.
   - Beim Laden gilt:
-    - Liefert `files_list` `notFound`, steckt das Laufwerk mit `drive` und ist es nicht eingehängt
-      oder gesperrt, zeigt der Tab `DriveNotice` mit „Einhängen“ oder „Entsperren“.
+    - Liefert `files_list` `notFound`, prüft der Tab zuerst, ob das an `p` gemeldete Laufwerk mit der
+      gespeicherten Identität `drive` übereinstimmt. Wenn nicht, sucht er das gespeicherte Laufwerk
+      und remapt den Pfad von `droot` auf dessen aktuellen Mount-Pfad, bevor er erneut lädt.
+    - Ist das gespeicherte Laufwerk nicht vorhanden, nicht zugänglich, nicht eingehängt oder
+      gesperrt, zeigt der Tab stattdessen `DriveNotice` mit „Einhängen“ oder „Entsperren“.
     - Nach Erfolg öffnet er `neuerPfad + (p ohne droot)` (FR-025).
     - Fehlt das Laufwerk, gilt der Rücksprung: Der Tab steigt mit `parentPath` auf, bis
       `files_stat` einen Ordner findet, und zeigt einen Hinweis. Ganz oben landet er im Startordner.

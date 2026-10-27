@@ -265,10 +265,10 @@ to FR-007, FR-023, FR-024).
   - cleanup in `after()`
   - Pattern of the docker skip in `scripts/e2e/lib/rustfs.ts`: scenarios skip when `udisksAvailable()` is false.
 - [ ] T035 [US1] Create `scripts/e2e/scenarios/files-drives.test.ts` (style of `files-basic.test.ts`; read it first). US1 part:
-  - open the file browser, attach a vfat image labelled `E2EFOTOS`: within the SC-001 limit (3 s plus the runner tolerance constant the other timed scenarios use; T074 adds the exact measurement) the sidebar shows `files-drive-E2EFOTOS` with the USB/removable icon
+  - open the file browser, attach a vfat image labelled `E2EFOTOS`: within the SC-001 limit (3 s plus the runner tolerance constant the other timed scenarios use; T074 adds the exact measurement) the sidebar shows `files-drive-<drive-id>-E2EFOTOS` with the USB/removable icon
   - click it: it mounts and the folder view shows the image's test file
   - detach it while a tab shows it: the entry disappears and the tab jumps to an existing parent folder with the toast
-- [ ] T036 [US1] `cargo test -j 4 --lib files::local::drives files::browser_commands::drives`, `pnpm check:files`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm test:e2e --grep files-drives`, clippy for `x86_64-unknown-linux-gnu` and `aarch64-linux-android`, then quickstart Linux steps 1, 2, 8 by hand
+- [ ] T036 [US1] `cargo test -j 4 --lib files::`, `pnpm check:files`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm test:e2e --grep files-drives`, clippy for `x86_64-unknown-linux-gnu` and `aarch64-linux-android`, then quickstart Linux steps 1, 2, 8 by hand
 
 **Checkpoint**: US1 works on Linux and Android (MVP, PR A).
 
@@ -286,7 +286,10 @@ the outcome (FR-008 to FR-012, US2 scenarios 1–6).
 - [ ] T039 [P] [US2] `src-tauri/src/files/search_manager.rs`: keep `(root, token)` per search and `pub fn cancel_under(&self, prefix: &Path) -> usize`; test.
 - [ ] T040 [P] [US2] `src-tauri/src/files/transfer/mod.rs`:
   - `pub fn touching(&self, prefix: &Path) -> Vec<String>` (ids of running transfers whose `Job.sources`/`target` or `RemoteJob` side `Side::Device` paths start with `prefix`)
-  - `pub fn cancel_touching(&self, prefix: &Path) -> usize` via the existing `cancel(id)`
+  - `pub fn cancel_touching(&self, prefix: &Path) -> usize` while keeping every matching job
+    trackable and awaiting its worker before `unwatch_under`, `release_under`, `cancel_under`,
+    `end_under` and `backend.release`; `TransferManager::cancel` must not remove a job until its
+    completion can be observed
   - Test it in `transfer` tests (local copy into the prefix, remote job from a device path, storage job ignored).
 - [ ] T041 [US2] Extension watches: in `src-tauri/src/extensions/fs/watch.rs`, call the existing `end_unless` with a predicate "root not under prefix" through a small `pub fn end_under(prefix)` wrapper; test in its `*_tests.rs`.
 - [ ] T042 [US2] `src-tauri/src/files/local/drives/udisks.rs` `release(id)`:
@@ -327,7 +330,8 @@ already looks for saved entries; without any it always shows the dialog.
 - [ ] T047 [US3] `src-tauri/src/files/local/drives/udisks.rs` `unlock(id, secret)`:
   - `Encrypted.Unlock(secret, {})` → cleartext object, then read it again
   - with no `Filesystem` interface → `Encrypted.Lock` again and `driveNoFilesystem` (FR-020)
-  - else `Filesystem.Mount({})` → path
+  - else `Filesystem.Mount({})` → path; if mounting fails after the unlock, lock the cleartext
+    device again and return the mount error
   - `Error.Failed` during unlock → `unlockFailed` with the message
   - The secret is passed as `&str` borrowed from `DriveSecret` only for the call.
   - Test the decision logic (cleartext without filesystem, error mapping) in `udisks_tests.rs` with the pure helpers.

@@ -35,7 +35,7 @@ Ablauf in Rust:
 4. Gesperrt, und das Backend kann ein Passwort annehmen: Einträge mit `haex:drive:<key>` suchen (nur
    mit offenem Vault).
    - Genau einer: Passwort in Rust lesen und entsperren. Gelingt das, einhängen → `opened`. Sonst
-     `needsPassword { reason: 'savedFailed', message }`.
+     `needsPassword { reason: 'savedFailed', message, candidates: [] }`.
    - Keiner oder mehrere: `needsPassword { reason: 'none' | 'several', candidates }`. Bei `several`
      sind das die Treffer, sonst eine leere Liste.
 
