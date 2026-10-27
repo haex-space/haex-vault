@@ -4,7 +4,7 @@
 use super::model_source::JobModel;
 use super::runner::{start_failure, stream_failure};
 use super::test_support::{model_row, provider};
-use super::trace::{failure_line, model_label, refused_line};
+use super::trace::{cut_off, ended_line, failure_line, model_label, refused_line};
 use crate::adapters::{AdapterError, StreamError};
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::storage::providers::ProviderKind;
@@ -69,5 +69,31 @@ fn a_refused_start_log_does_not_repeat_untrusted_validation_text() {
     assert_eq!(
         refused_line(&error),
         "model job: start refused with Validation: invalid_input"
+    );
+}
+
+#[test]
+fn an_answer_that_hit_the_token_limit_is_cut_off_whatever_the_provider_calls_it() {
+    assert!(cut_off(Some("max_tokens")));
+    assert!(cut_off(Some("length")));
+    assert!(!cut_off(Some("end_turn")));
+    assert!(!cut_off(Some("stop")));
+    assert!(!cut_off(None));
+}
+
+#[test]
+fn the_line_of_an_answer_names_the_finish_reason_and_the_tokens_used() {
+    let server = provider(ProviderKind::ApiKey, None, Some("sk-key-123456"));
+    let model = JobModel::new(model_row(&server, "claude-model", None), server);
+
+    let line = ended_line(&model, Some("max_tokens"), Some(8192));
+    assert!(
+        line.contains("answer ended: max_tokens, 8192 tokens"),
+        "{line}"
+    );
+    let line = ended_line(&model, None, None);
+    assert!(
+        line.contains("answer ended: none, unknown tokens"),
+        "{line}"
     );
 }

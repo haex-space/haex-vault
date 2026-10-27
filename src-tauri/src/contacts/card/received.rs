@@ -210,6 +210,15 @@ pub fn with_cards(q: &mut impl Query) -> Result<BTreeSet<String>> {
         .collect())
 }
 
+/// The keys of the cards stored on a contact, sorted; they tell whether its addresses changed.
+pub fn hashes_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Vec<String>> {
+    Ok(q.query_map(
+        "SELECT hash FROM haex_contacts_cards WHERE contact_id = ?1 ORDER BY hash",
+        params![contact_id],
+        |r| r.get(0),
+    )?)
+}
+
 /// The newest stored card of a vault: the contact it is on and the card.
 pub fn stored(q: &mut impl Query, vault: &[u8; 32]) -> Result<Option<(String, SignedCard)>> {
     Ok(cards_of_vault(q, vault)?.into_iter().next())

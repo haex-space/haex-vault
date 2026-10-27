@@ -12,7 +12,6 @@ use image::{DynamicImage, ImageFormat, RgbImage};
 use super::*;
 use crate::contacts::card::format::{self, CardDevice, ContactCard};
 use crate::contacts::model::{ContactInput, Head, ValueInput};
-use crate::contacts::service::CardInto;
 use crate::extensions::bridge::dispatch::{call as bridge_call, Emit};
 use crate::extensions::commands::permissions::{set, PermissionSetArgs};
 use crate::extensions::host::ExtensionHost;
@@ -123,14 +122,7 @@ fn setup() -> Setup {
     let friend = create(person("Anna", vec![private]));
     let other = create(person("Bodo", vec![]));
     block_on(service.set_photo(&user, &colleague, png())).unwrap();
-    block_on(service.card_accept(
-        &user,
-        card_text(),
-        CardInto::Contact {
-            contact_id: friend.clone(),
-        },
-    ))
-    .unwrap();
+    block_on(service.accept_defaults(card_text(), Some(friend.clone()))).unwrap();
     let unknown = friend.clone();
     vault
         .write_blocking(move |tx| {

@@ -18,7 +18,7 @@ pub(crate) mod test_support;
 use crate::vault_gate::VaultDb;
 
 pub use super::access::{Caller, Grant};
-pub use cards::{CardInto, CardPreview, VaultCard};
+pub use cards::VaultCard;
 pub use contacts::MAX_NOTE_BYTES;
 pub use targets::{OnPhone, Selection};
 

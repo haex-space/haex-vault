@@ -23,7 +23,7 @@ use super::channel::{self, Channel, Frames, Opening, Origin};
 use super::lobby::{self, Visibility};
 use super::ExtensionRef;
 use crate::contacts::card::own_card;
-use crate::contacts::service::{Caller, CardInto, ContactsService};
+use crate::contacts::service::ContactsService;
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::events::FRAME_EVENT;
 use crate::extensions::fake_desktop::FakeDesktop;
@@ -420,7 +420,7 @@ pub(crate) async fn store_card(of: &Vault, on: &Vault) -> String {
         .expect("read the card")
         .expect("a main device has a card");
     ContactsService::new(on.db.clone())
-        .card_accept(&Caller::User, text, CardInto::New)
+        .accept_defaults(text, None)
         .await
         .expect("accept the card")
         .id
