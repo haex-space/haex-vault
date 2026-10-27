@@ -46,6 +46,34 @@ pub(super) fn tried(model: &JobModel, effort: &str, outcome: Outcome) {
     );
 }
 
+/// Whether a provider ended an answer because it hit the token limit (Anthropic `max_tokens`,
+/// OpenAI-compatible `length`): the answer is cut off, not wrong.
+pub(super) fn cut_off(finish_reason: Option<&str>) -> bool {
+    matches!(finish_reason, Some("max_tokens" | "length"))
+}
+
+/// How an answer ended: the finish reason the provider named and the tokens it used, which
+/// includes the tokens of a model that thinks before it answers.
+pub(super) fn ended_line(
+    model: &JobModel,
+    finish_reason: Option<&str>,
+    tokens: Option<usize>,
+) -> String {
+    let reason = finish_reason.unwrap_or("none");
+    let tokens = tokens.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+    format!(
+        "model job: {} ({:?}) answer ended: {}, {tokens} tokens",
+        model_label(model),
+        model.place,
+        sanitize(reason, &[])
+    )
+}
+
+/// How an answer ended, for the line a failed try leaves.
+pub(super) fn ended(model: &JobModel, finish_reason: Option<&str>, tokens: Option<usize>) {
+    log::info!("{}", ended_line(model, finish_reason, tokens));
+}
+
 /// A refusal line that keeps only the stable reason, never untrusted validation text.
 pub(super) fn refused_line(error: &BridgeError) -> String {
     let reason = error
