@@ -67,8 +67,8 @@ use chat::thread_commands::{
 };
 use contacts::commands::agent::{contacts_agent_get, contacts_agent_search, contacts_agent_update};
 use contacts::commands::cards::{
-    contacts_block, contacts_blocked, contacts_card_accept, contacts_card_preview,
-    contacts_share_build, contacts_share_options, contacts_unblock,
+    contacts_block, contacts_blocked, contacts_share_accept, contacts_share_build,
+    contacts_share_options, contacts_share_preview, contacts_unblock,
 };
 use contacts::commands::contacts::{
     contacts_create, contacts_delete, contacts_get, contacts_group_delete, contacts_group_members,
@@ -616,8 +616,8 @@ pub fn run() {
             contacts_targets_remove,
             contacts_share_options,
             contacts_share_build,
-            contacts_card_preview,
-            contacts_card_accept,
+            contacts_share_preview,
+            contacts_share_accept,
             contacts_blocked,
             contacts_block,
             contacts_unblock,

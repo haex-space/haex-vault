@@ -16,8 +16,13 @@ import { ownCardText } from '../lib/share.ts'
 
 /** The most a channel waits to notice a device that vanished without a word (FR-039: 30 s idle). */
 const IDLE_MS = 30_000
-/** QUIC may wait one keep-alive interval after the last idle-timeout tick. */
+/**
+ * QUIC restarts the idle time with the first keep-alive it sends after the last packet it got
+ * (RFC 9000 §10.1), and iroh sends one every 5 s: the timeout comes at most this long after the kill.
+ */
 const IDLE_DETECTION_MS = IDLE_MS + 5_000
+/** The way of the event into Anna's frame and the scene's read of it; on the emulator a read is slow. */
+const HEARING_MS = process.env.E2E_PLATFORM === 'android' ? 2_000 : 1_000
 /** The software-rendered Android emulator adds relay latency to the desktop baseline. */
 const MAX_MEDIAN_DELAY_MS = process.env.E2E_PLATFORM === 'android' ? 2_000 : 100
 
@@ -198,9 +203,13 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
     elapsedMs: number
   }>(anna, 'sendTimed', annaChannel, count, 35)
   assert.equal(timed.failed, 0)
+  // The extension sends on a fixed schedule and waits out the gap after the last message too, so
+  // its time is never under the planned five seconds; keeping 35 a second means ending within one
+  // more gap of them.
+  const gap = 1000 / 35
   assert.ok(
-    timed.sent / (timed.elapsedMs / 1000) >= 35,
-    `send rate ${timed.sent / (timed.elapsedMs / 1000)} messages/s`,
+    timed.elapsedMs <= (count + 1) * gap,
+    `${count} messages took ${timed.elapsedMs} ms, planned ${count * gap} ms`,
   )
   await ctx.waitFor(
     'the timed messages to arrive',
@@ -302,12 +311,16 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   // A device that vanishes without a word ends the channel after the idle time (FR-039).
   await group.device('dave/pc').kill()
   const killedAt = Date.now()
+  let heardMs = 0
   await ctx.waitFor(
     'Anna to hear that Dave’s channel timed out',
-    async () =>
-      (await eventsOf(anna, 'channel-closed')).some(
+    async () => {
+      const heard = (await eventsOf(anna, 'channel-closed')).some(
         (event) => event.data.channelId === daveJoined.data.channelId,
-      ),
+      )
+      heardMs = Date.now() - killedAt
+      return heard
+    },
     { timeoutMs: IDLE_MS * 3 },
   )
   const end = (await eventsOf(anna, 'channel-closed')).find(
@@ -315,11 +328,11 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   )!
   assert.equal(end.data.reason, 'timeout')
   assert.ok(
-    Date.now() - killedAt <= IDLE_DETECTION_MS,
-    `channel timed out after ${Date.now() - killedAt} ms`,
+    heardMs <= IDLE_DETECTION_MS + HEARING_MS,
+    `channel timed out after ${heardMs} ms`,
   )
   ctx.step(
     'a vanished device',
-    `Anna heard "timeout" ${Date.now() - killedAt} ms after the kill`,
+    `Anna heard "timeout" ${heardMs} ms after the kill`,
   )
 })

@@ -4,6 +4,7 @@ import { translations } from '../lib/translations.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { PROCESS_END_LIMIT_MS } from '../lib/close-promises.ts'
 import {
+  contactHeaders,
   openContactsSettings,
   phoneCommand,
   startPhoneSync,
@@ -59,11 +60,11 @@ scenario('android-contacts-denied', { needs: { phone: true } }, async (ctx) => {
       )
       return status.state === 'paused' && status.paused === 'permission'
     })
-    const headers = unwrap<unknown[]>(
-      'contacts_list',
-      await next.invoke('contacts_list'),
+    assert.equal(
+      (await contactHeaders(next)).length,
+      1,
+      'nothing changed in the address book',
     )
-    assert.equal(headers.length, 1, 'nothing changed in the address book')
     ctx.step('a permission taken back pauses the sync')
   } finally {
     phone.removeTestContacts()

@@ -85,12 +85,12 @@ export async function eventsOf(
   return read<ProbeEvent[]>(device, 'events', type)
 }
 
-/** Stores a Visitenkarte on a new contact; the contact's id. */
+/** Reads a share or a Visitenkarte in as a new contact with the defaults; the contact's id. */
 export async function acceptCard(page: Page, text: string): Promise<string> {
   return unwrap<{ id: string }>(
-    'contacts_card_accept',
-    await page.invoke('contacts_card_accept', {
-      args: { text, into: { kind: 'new' } },
+    'contacts_share_accept',
+    await page.invoke('contacts_share_accept', {
+      args: { text, target: { kind: 'new' }, decisions: [] },
     }),
   ).id
 }
