@@ -46,7 +46,7 @@ pub struct RunReport {
 }
 
 impl RunReport {
-    fn stopped(outcome: SyncRuleOutcome, error: impl Into<String>) -> Self {
+    pub(super) fn stopped(outcome: SyncRuleOutcome, error: impl Into<String>) -> Self {
         Self {
             outcome,
             error: Some(error.into()),
@@ -97,14 +97,24 @@ async fn run_inner(
     }
     let scanned = match scan(a, b, ctx.cancel).await {
         Ok(scanned) => scanned,
-        Err(ScanError::Unreachable { side, reason }) => {
-            return RunReport::stopped(
-                SyncRuleOutcome::Waiting,
-                format!("{}: {reason}", name(side)),
-            );
-        }
-        Err(ScanError::Failed { side, reason }) => {
-            return RunReport::stopped(SyncRuleOutcome::Error, format!("{}: {reason}", name(side)));
+        Err(error) => {
+            if ctx.cancel.is_cancelled() {
+                return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
+            }
+            match error {
+                ScanError::Unreachable { side, reason } => {
+                    return RunReport::stopped(
+                        SyncRuleOutcome::Waiting,
+                        format!("{}: {reason}", name(side)),
+                    );
+                }
+                ScanError::Failed { side, reason } => {
+                    return RunReport::stopped(
+                        SyncRuleOutcome::Error,
+                        format!("{}: {reason}", name(side)),
+                    );
+                }
+            }
         }
     };
     let (device, id) = (ctx.device.to_owned(), rule.id.clone());

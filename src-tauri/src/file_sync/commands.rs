@@ -231,8 +231,12 @@ pub async fn sync_rules_update(
 ) -> Result<SyncRuleView, SyncRuleError> {
     let (db, device) = here(&app)?;
     let own = app.state::<FilesState>().own.clone();
-    let rule = update(&db, &device, &own, &id, draft).await?;
-    app.state::<FileSyncState>().send(Command::Reload);
+    let sync = app.state::<FileSyncState>();
+    sync.cancel_and_wait(id.clone()).await;
+    let result = update(&db, &device, &own, &id, draft).await;
+    sync.send(Command::Reload);
+    sync.release_cancel(id);
+    let rule = result?;
     Ok(view_one(&app, rule))
 }
 

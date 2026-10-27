@@ -40,6 +40,7 @@ const minutes = ref(String(DEFAULT_INTERVAL_MINUTES))
 const consent = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+const autoName = ref('')
 
 /** A fresh dialog each time it opens. */
 watch(open, (isOpen) => {
@@ -52,6 +53,7 @@ watch(open, (isOpen) => {
   minutes.value = String(DEFAULT_INTERVAL_MINUTES)
   consent.value = false
   error.value = null
+  autoName.value = ''
 })
 
 watch(direction, (next) => {
@@ -60,7 +62,15 @@ watch(direction, (next) => {
 
 /** The name follows the source folder until the user types one. */
 watch(placeA, (next) => {
-  if (next && name.value.trim() === '') name.value = lastName(next.path)
+  if (!next) return
+  if (name.value.trim() === '' || name.value === autoName.value) {
+    autoName.value = lastName(next.path)
+    name.value = autoName.value
+  }
+})
+
+watch(name, (next) => {
+  if (next !== autoName.value) autoName.value = ''
 })
 
 /** The place copied from, and the one copied to. */
@@ -84,6 +94,19 @@ const cloudHint = computed(
       target.value.source.kind === 'storage',
       target.value.encrypted,
     ),
+)
+const targetLabel = computed(() =>
+  t(
+    direction.value === 'bToA'
+      ? 'files.syncRules.placeA'
+      : 'files.syncRules.placeB',
+  ),
+)
+const cloudHintText = computed(() =>
+  t('files.syncRules.cloudHint', { place: targetLabel.value }),
+)
+const decryptConsentText = computed(() =>
+  t('files.syncRules.decryptConsent', { place: targetLabel.value }),
 )
 
 const directionOptions = computed(() => [
@@ -117,7 +140,9 @@ async function saveAsync() {
       placeB: { source: placeB.value.source, path: placeB.value.path },
       direction: direction.value,
       deleteMode: deleteMode.value,
-      intervalSecs: intervalSecs(Number(minutes.value)),
+      intervalSecs: intervalSecs(
+        String(minutes.value).trim() === '' ? Number.NaN : Number(minutes.value),
+      ),
       enabled: true,
       allowDecrypted: needsConsent.value && consent.value,
     })
@@ -195,7 +220,7 @@ async function saveAsync() {
           class="text-xs text-muted-foreground"
           data-testid="files-sync-rule-cloud-hint"
         >
-          {{ t('files.syncRules.cloudHint') }}
+          {{ cloudHintText }}
         </p>
         <label
           v-if="needsConsent"
@@ -206,7 +231,7 @@ async function saveAsync() {
             v-model="consent"
             data-testid="files-sync-rule-consent-check"
           />
-          <span>{{ t('files.syncRules.decryptConsent') }}</span>
+          <span>{{ decryptConsentText }}</span>
         </label>
         <p
           v-if="error"

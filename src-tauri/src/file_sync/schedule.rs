@@ -8,12 +8,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::FutureExt;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::task::JoinSet;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
-use super::model::SyncRule;
+use super::model::{SyncRule, SyncRuleOutcome};
 use super::run::RunReport;
 use crate::files::SourceRef;
 
@@ -205,7 +206,16 @@ pub async fn control<R: Runner>(
                 .insert(id.clone());
             runner.changed(Some(id.clone()));
             let (runner, rule) = (Arc::clone(&runner), rule.clone());
-            runs.spawn(async move { (rule.id.clone(), runner.run(rule, cancel).await) });
+            runs.spawn(async move {
+                let id = rule.id.clone();
+                let report = std::panic::AssertUnwindSafe(runner.run(rule, cancel))
+                    .catch_unwind()
+                    .await
+                    .unwrap_or_else(|_| {
+                        RunReport::stopped(SyncRuleOutcome::Error, "rule run panicked")
+                    });
+                (id, report)
+            });
         }
         due = waiting;
     }
