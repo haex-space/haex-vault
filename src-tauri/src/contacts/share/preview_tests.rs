@@ -420,6 +420,18 @@ async fn addresses_that_bring_nothing_new_are_not_asked_about_and_an_old_card_ma
     assert!(legacy.legacy_card);
     let holzi = item(&legacy, &ContactShareItemKind::HolziAddresses);
     assert!(holzi.choices.contains(&Choice::Replace));
+
+    let older = card(
+        &BEN,
+        &[1, 4],
+        &["wss://one.example.org", "wss://three.example.org"],
+        1_759_999_999,
+    );
+    let preview = preview_of(&vault, older.text(), None)
+        .await
+        .expect("preview");
+    let holzi = item(&preview, &ContactShareItemKind::HolziAddresses);
+    assert!(!holzi.choices.contains(&Choice::Replace));
 }
 
 #[tokio::test]
