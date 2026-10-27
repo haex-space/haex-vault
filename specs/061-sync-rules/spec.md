@@ -119,6 +119,12 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   Geräte sind unabhängig, Ketten wie Laptop↔Telefon und Telefon↔NAS sind möglich. Schutz bieten der
   Papierkorb bei „Spiegeln“ und die Konfliktkopie.
 
+### Session 2026-10-27
+
+- Q: Darf eine Regel aus einem verschlüsselten Ordner entschlüsselt auf ein anderes Gerät oder in einen normalen
+  Ordner spiegeln? → A: Ja, wenn der Nutzer beim Anlegen zustimmt (FR-030a); etwa für einen verschlüsselten Ordner auf
+  einem exponierten Gerät, dessen Inhalt auf ein anderes eigenes Gerät soll.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Ordner einseitig sichern (Priority: P1)
@@ -430,6 +436,11 @@ löschen.
 - **FR-030**: Die Regel DARF keine eigene Verschlüsselung und keine eigenen Schlüssel haben. Der Nutzer
   verschlüsselt beim Anbieter, indem er einen verschlüsselten Ordner (Spec 048) als Ort wählt; die
   Regel MUSS mit einem solchen Ort wie mit jedem anderen arbeiten, solange er entsperrt ist.
+- **FR-030a**: Ist Ort A ein verschlüsselter Ordner und Ort B nicht, MUSS der Dialog beim Anlegen oder Ändern
+  darauf hinweisen, dass die Dateien an Ort B entschlüsselt liegen, und die Zustimmung des Nutzers einholen. Nur mit
+  dieser Zustimmung DARF die Regel Dateien aus dem verschlüsselten Ordner entschlüsselt ablegen (Spec 048 FR-019);
+  ohne sie MUSS holzi jede solche Datei mit Grund unter den Fehlern nennen. Ist Ort B selbst ein verschlüsselter
+  Ordner, braucht es keine Zustimmung.
 - **FR-031**: Beim Wählen eines Speichers ohne Verschlüsselung als Zielort MUSS der Dialog auf den
   verschlüsselten Ordner hinweisen.
 

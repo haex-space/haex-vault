@@ -55,6 +55,7 @@ use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
 use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
+use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -722,6 +723,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0045_mcp_agents"),
         MCP_AGENTS_0045.to_owned(),
+    );
+    // Spec 061: consent for storing files of encrypted places decrypted at the other place.
+    m.insert(
+        MigrationName::from("0046_sync_rules_decrypt"),
+        SYNC_RULES_DECRYPT_0046.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

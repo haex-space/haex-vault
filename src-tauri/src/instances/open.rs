@@ -154,6 +154,9 @@ pub async fn open_instance(
     crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     crate::sync::start_for_active_instance(&app, &state).await;
+    // Spec 061: sync rules run on this device while the vault is open; other own devices are
+    // reached through the sync just started.
+    crate::file_sync::service::start_for_active_instance(&app, &state);
     // Spec 049: the External Bridge, when this device turned it on.
     crate::browser_bridge::start_for_active_instance(&app, &state);
     // Spec 021: the MCP access for external agents, when this device turned it on.

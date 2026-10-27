@@ -203,7 +203,7 @@ pub(super) fn storage_of(source: &SourceRef) -> Option<&str> {
 /// Where a window path of a source leads (spec 048 research R17). It lives for one command, so the
 /// storage is not boxed.
 #[allow(clippy::large_enum_variant)]
-pub(super) enum Place {
+pub(crate) enum Place {
     /// A storage, or an encrypted folder on this device (`device`) seen as the device's storage;
     /// `path` is the window path in that storage.
     Storage {
@@ -227,7 +227,7 @@ impl Place {
 
 /// Where `path` of `source` leads. A device path into an encrypted folder is checked like the
 /// device folder that holds the folder: no change in holzi's own places (FR-037).
-pub(super) async fn place_of(
+pub(crate) async fn place_of(
     app: &AppHandle,
     state: &AppState,
     files: &FilesState,

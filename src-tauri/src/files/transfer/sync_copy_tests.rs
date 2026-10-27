@@ -31,6 +31,7 @@ async fn run(one: OneTransferOwned) -> Outcome {
                 to: &one.to,
                 folder: &one.folder,
                 replaces: one.replaces,
+                decrypts: false,
             },
             &handle,
             &cancel,
