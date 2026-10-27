@@ -40,6 +40,8 @@ const props = defineProps<{
   folder: string
   /** Selected paths. */
   selected: readonly string[]
+  /** The path from which the next range selection starts. */
+  selectionAnchor: string | null
   /** Paths cut to holzi's clipboard, shown faded. */
   dimmed: readonly string[]
   /** An error of a storage's credentials offers its settings (US5). */
@@ -284,7 +286,7 @@ let bandBase: Selection = { paths: [], anchor: null }
 let bandAdditive = false
 let bandActive = false
 let bandFrame = 0
-let bandHits: string[] = []
+let bandHits: string[] | null = null
 /** The click that ends a band must not clear what the band selected. */
 let swallowClick = false
 
@@ -302,8 +304,8 @@ function onBandDown(event: PointerEvent) {
   }
   bandPointer = { x: event.clientX, y: event.clientY }
   bandAdditive = event.ctrlKey || event.metaKey || event.shiftKey
-  bandBase = { paths: [...props.selected], anchor: props.selected[0] ?? null }
-  bandHits = []
+  bandBase = { paths: [...props.selected], anchor: props.selectionAnchor }
+  bandHits = null
   scroller.setPointerCapture(event.pointerId)
 }
 
@@ -340,8 +342,9 @@ function updateBand() {
     (index) => props.entries[index]!.path,
   )
   if (
+    bandHits !== null &&
     hits.length === bandHits.length &&
-    hits.every((path, index) => path === bandHits[index])
+    hits.every((path, index) => path === bandHits![index])
   )
     return
   bandHits = hits
