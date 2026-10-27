@@ -190,6 +190,7 @@ const {
   menuEntries,
   dimmed,
   onPress,
+  onBand,
   onContext,
   runMenu,
   runBar,
@@ -430,9 +431,11 @@ watch(tabActive, (active) => {
               :view="prefs.view.value"
               :folder="path ?? ''"
               :selected="selection.paths"
+              :selection-anchor="selection.anchor"
               :dimmed="dimmed"
               :settings-link="settingsLink"
               @press="onPress"
+              @band="onBand"
               @open="activate"
               @clear="clearSelection()"
               @context="onContext"

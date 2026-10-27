@@ -111,6 +111,11 @@ export function useFilesManage(options: {
     if (result.activate) activate(entry)
   }
 
+  /** A band dragged over the entries sets the selection. */
+  function onBand(next: Selection) {
+    selection.value = next
+  }
+
   /** What the open context menu acts on: entries, or the folder's empty area (`null`). */
   const menuTargets = ref<Selection | null>(null)
 
@@ -443,6 +448,7 @@ export function useFilesManage(options: {
     dimmed,
     errorText,
     onPress,
+    onBand,
     onContext,
     runMenu,
     runBar,
