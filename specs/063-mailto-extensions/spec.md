@@ -192,8 +192,9 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 - **FR-007**: holzi MUSS dem Öffner die gelesenen Felder als Text übergeben (Empfänger, Kopie,
   Blindkopie, Betreff, Text), nie den rohen Link und nie rohe Kopfzeilen. Zeilenumbrüche in Empfänger,
   Kopie, Blindkopie und Betreff MÜSSEN abgelehnt werden.
-- **FR-008**: holzi MUSS Grenzen setzen (Anzahl der Empfänger, Länge von Betreff und Text) und einen
-  Link darüber ablehnen, nicht kürzen. Die Grenzen stehen im Vertrag.
+- **FR-008**: holzi MUSS höchstens 50 Empfänger je Feld, höchstens 998 Zeichen im Betreff und
+  höchstens 16 KiB im Text zulassen. Einen Link über einer dieser Grenzen MUSS holzi ablehnen, nicht
+  kürzen.
 - **FR-009**: Die Übergabe MUSS über die Bridge der Extension laufen und MUSS die Extension starten,
   wenn sie nicht läuft, und den Link zustellen, sobald sie bereit ist. Antwortet sie nicht in
   angemessener Zeit, MUSS holzi das dem Nutzer sagen.
