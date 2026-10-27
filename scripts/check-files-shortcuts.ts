@@ -33,6 +33,7 @@ const resolve = (
     textSelected: false,
     grid: false,
     typing: false,
+    split: false,
     ...extra,
   })
 
@@ -219,4 +220,44 @@ test('type-to-jump finds the next name that starts with the letters', () => {
   assert.equal(typeAhead(names, 'bri', 0), 1)
   assert.equal(typeAhead(names, 'x', 2), -1)
   assert.equal(typeAhead([], 'a', -1), -1)
+})
+
+test('in the split view Tab switches the panel and F5 and F6 act on the other panel', () => {
+  const split = { split: true }
+  assert.deepEqual(resolve('Tab', split), command('switchPanel'))
+  assert.deepEqual(resolve('F5', split), command('copyToOther'))
+  assert.deepEqual(resolve('F6', split), command('moveToOther'))
+  // Reloading is Ctrl+R (Cmd+R on macOS) there; F5 is no longer reload.
+  assert.deepEqual(resolve('r', { ...split, ctrlKey: true }), command('reload'))
+  assert.deepEqual(
+    resolve('r', { ...split, metaKey: true }, 'mac'),
+    command('reload'),
+  )
+  // Shift+Tab stays the browser's, so a keyboard user can leave the list backwards.
+  assert.equal(resolve('Tab', { ...split, shiftKey: true }), null)
+  assert.equal(resolve('F5', { ...split, shiftKey: true }), null)
+  assert.equal(resolve('F6', { ...split, shiftKey: true }), null)
+  // Chords with Tab, F5 or F6 are not ours.
+  for (const key of ['Tab', 'F5', 'F6']) {
+    assert.equal(resolve(key, { ...split, ctrlKey: true }), null)
+    assert.equal(resolve(key, { ...split, altKey: true }), null)
+    assert.equal(resolve(key, { ...split, metaKey: true }, 'mac'), null)
+  }
+})
+
+test('without the split view Tab and F6 are not ours and F5 reloads', () => {
+  assert.equal(resolve('Tab'), null)
+  assert.equal(resolve('F6'), null)
+  assert.deepEqual(resolve('F5'), command('reload'))
+  assert.equal(resolve('F5', { shiftKey: true }), null)
+})
+
+test('the keys of the split view need the focus in the list and stay out of fields, dialogs and selected text', () => {
+  const split = { split: true }
+  for (const key of ['Tab', 'F5', 'F6']) {
+    assert.equal(resolve(key, { ...split, inList: false }), null)
+    assert.equal(resolve(key, { ...split, target: INPUT }), null)
+    assert.equal(resolve(key, { ...split, inDialog: true }), null)
+    assert.equal(resolve(key, { ...split, textSelected: true }), null)
+  }
 })

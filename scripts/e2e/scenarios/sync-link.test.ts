@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
 import { expectOnline } from '../lib/group-expect.ts'
-import { addThread, expectThreads } from '../lib/sync-flows.ts'
+import { addThread, expectThreads, NO_IROH_RELAY } from '../lib/sync-flows.ts'
 import {
   deviceRows,
   linkProgress,
@@ -33,6 +33,7 @@ scenario('sync-link', { timeoutMs: 360_000 }, async (ctx) => {
       vaultName: device.vaultName,
       passphrase: device.passphrase,
       relayUrl: g.relay.url,
+      irohRelays: g.irohRelay ? [g.irohRelay.url] : NO_IROH_RELAY,
     })
     return device
   }

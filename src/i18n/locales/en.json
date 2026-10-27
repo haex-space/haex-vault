@@ -79,6 +79,8 @@
       "passphraseHint": "For this device only. It is never sent.",
       "nostr": "Nostr relays",
       "nostrDescription": "Only needed if the main device uses its own Nostr relays (Settings, Federation): add them and switch off the default servers it does not use.",
+      "iroh": "iroh relays",
+      "irohDescription": "Only needed if the main device uses its own iroh relays (Settings, Federation): add them and switch off the default servers it does not use.",
       "submit": "Link",
       "cancel": "Cancel",
       "retry": "Try again",
@@ -1441,6 +1443,7 @@
     "vaultIo": "The vault file could not be read",
     "vaultUnreadable": "The vault file is unreadable or damaged",
     "vaultIncompatible": "The vault is damaged or incompatible with this version",
+    "vaultNewerVersion": "The vault was opened by a newer version and cannot be read by this one. Start the newer version or update the app",
     "nameConflict": "An instance with that name already exists",
     "invalidName": "Invalid name",
     "weakPassphrase": "Passphrase does not meet policy",
@@ -2554,7 +2557,9 @@
       "delete": "Delete",
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
-      "share": "Share …"
+      "share": "Share …",
+      "copyToOther": "Copy to other panel",
+      "moveToOther": "Move to other panel"
     },
     "selection": {
       "count": "{count} selected | {count} selected",
@@ -2709,7 +2714,9 @@
       "damaged": "Damaged: this cannot be decrypted.",
       "otherVault": "This folder belongs to another vault.",
       "newerFormat": "This needs a newer version of holzi.",
-      "needsNotice": "This needs the notice first."
+      "needsNotice": "This needs the notice first.",
+      "sameFolder": "Source and target are the same folder.",
+      "noOtherPanel": "There is no second panel open."
     },
     "allAccess": {
       "title": "Access to all files",
@@ -2790,6 +2797,12 @@
           "thisDevice": "this device"
         }
       }
+    },
+    "split": {
+      "toggle": "Two panels",
+      "tooNarrow": "The window is too narrow for two panels.",
+      "panelLeft": "Left panel",
+      "panelRight": "Right panel"
     }
   },
   "contacts": {

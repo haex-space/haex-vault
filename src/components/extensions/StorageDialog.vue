@@ -7,7 +7,8 @@
  * has a field for credentials: an extension can draw a look-alike in its frame, and what the user
  * types there would reach it. Escape and the cancel button answer "no".
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useFrameDialogFocus } from '~/composables/useFrameDialogFocus'
 import {
   isFolderProtocol,
   type StorageChoice,
@@ -51,11 +52,7 @@ function confirm() {
   })
 }
 
-onMounted(() => {
-  root.value
-    ?.querySelector<HTMLElement>('[data-testid="storage-dialog-confirm"]')
-    ?.focus()
-})
+const reclaimFocus = useFrameDialogFocus(root, 'storage-dialog-confirm')
 </script>
 
 <template>
@@ -64,6 +61,7 @@ onMounted(() => {
     class="flex items-center justify-center bg-background/70 p-4"
     data-testid="storage-dialog"
     @keydown.esc="emit('answer', { confirm: false })"
+    @focusout="reclaimFocus"
   >
     <div
       role="alertdialog"

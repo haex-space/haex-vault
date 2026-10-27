@@ -4,15 +4,16 @@
  * new installation enters the code a main device shows, gives this device a name and the new vault
  * its own passphrase. The vault is created here and stays only when the link finishes; nothing is
  * created before the user chose to link, so there is no vault to leave behind (FR-025). The
- * passphrase never leaves this device. A main device that uses its own Nostr servers cannot tell a
- * new installation about them, so the form takes them: the built-in ones are listed and can be
- * switched off, added ones switched off or removed, as in the settings.
+ * passphrase never leaves this device. A main device that uses its own Nostr-Relays or iroh-Relays
+ * cannot tell a new installation about them, so the form takes them: the built-in ones are listed
+ * and can be switched off, added ones switched off or removed, as in the settings.
  */
 import {
   serverEntries,
   withEnabled,
   withoutServer,
 } from '~/lib/sync/serverEntries'
+import type { Ref } from 'vue'
 import type { LinkJoinState } from '@bindings/LinkJoinState'
 
 interface Props {
@@ -36,10 +37,12 @@ const vaultName = ref('')
 const deviceName = ref('')
 const passphrase = ref('')
 const passphraseConfirm = ref('')
-/** The Nostr servers added here, and the ones, built-in or added, switched off. */
+/** The servers added here, and the ones of both kinds, built-in or added, switched off. */
 const nostrRelays = ref<string[]>([])
+const irohRelays = ref<string[]>([])
 const disabledRelays = ref<string[]>([])
 const defaultNostrRelays = ref<string[]>([])
+const defaultIrohRelays = ref<string[]>([])
 const submitting = ref(false)
 const error = ref<string | null>(null)
 /** `null` while the form is shown. */
@@ -70,6 +73,7 @@ function reset() {
   passphrase.value = ''
   passphraseConfirm.value = ''
   nostrRelays.value = []
+  irohRelays.value = []
   disabledRelays.value = []
   error.value = null
   state.value = null
@@ -79,7 +83,10 @@ let stopListening: (() => void) | undefined
 onMounted(async () => {
   // Only for showing; linking works without, with the backend's own built-in servers.
   syncServersDefaultsAsync()
-    .then((defaults) => (defaultNostrRelays.value = defaults.nostrRelays))
+    .then((defaults) => {
+      defaultNostrRelays.value = defaults.nostrRelays
+      defaultIrohRelays.value = defaults.irohRelays
+    })
     .catch(() => {})
   stopListening = await onJoinState((next) => {
     if (state.value !== null) state.value = next
@@ -130,10 +137,12 @@ async function onSubmit() {
       deviceName: deviceName.value.trim(),
       passphrase: passphrase.value,
       servers:
-        nostrRelays.value.length || disabledRelays.value.length
+        nostrRelays.value.length ||
+        irohRelays.value.length ||
+        disabledRelays.value.length
           ? {
               nostrRelays: nostrRelays.value,
-              irohRelays: [],
+              irohRelays: irohRelays.value,
               disabled: disabledRelays.value,
             }
           : undefined,
@@ -169,8 +178,14 @@ async function onCancel() {
   await joinCancelAsync()
 }
 
-async function addNostrRelayAsync(url: string): Promise<boolean> {
-  nostrRelays.value = [...nostrRelays.value, url]
+type Kind = 'nostr' | 'iroh'
+const added: Record<Kind, Ref<string[]>> = {
+  nostr: nostrRelays,
+  iroh: irohRelays,
+}
+
+async function addRelayAsync(kind: Kind, url: string): Promise<boolean> {
+  added[kind].value = [...added[kind].value, url]
   return true
 }
 
@@ -178,9 +193,9 @@ function onToggleRelay(url: string, enabled: boolean) {
   disabledRelays.value = withEnabled(disabledRelays.value, url, enabled)
 }
 
-function onRemoveRelay(url: string) {
-  const rest = withoutServer(nostrRelays.value, disabledRelays.value, url)
-  nostrRelays.value = rest.added
+function onRemoveRelay(kind: Kind, url: string) {
+  const rest = withoutServer(added[kind].value, disabledRelays.value, url)
+  added[kind].value = rest.added
   disabledRelays.value = rest.disabled
 }
 
@@ -266,9 +281,22 @@ function onOpenVault() {
           placeholder="wss://"
           :none-note="t('settings.federation.servers.nostrNone')"
           test-id="link-servers-nostr"
-          :add-async="addNostrRelayAsync"
+          :add-async="(url: string) => addRelayAsync('nostr', url)"
           @toggle="onToggleRelay"
-          @remove="onRemoveRelay"
+          @remove="onRemoveRelay('nostr', $event)"
+        />
+        <SettingsServerList
+          :label="t('onboarding.link.iroh')"
+          :description="t('onboarding.link.irohDescription')"
+          :entries="
+            serverEntries(defaultIrohRelays, irohRelays, disabledRelays)
+          "
+          placeholder="https://"
+          :none-note="t('settings.federation.servers.irohNone')"
+          test-id="link-servers-iroh"
+          :add-async="(url: string) => addRelayAsync('iroh', url)"
+          @toggle="onToggleRelay"
+          @remove="onRemoveRelay('iroh', $event)"
         />
         <p v-if="error" class="text-sm text-destructive" role="alert">
           {{ error }}

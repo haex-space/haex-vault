@@ -50,3 +50,31 @@ fn opens_a_vault_with_the_legacy_contacts_display_name_migration_name() {
         "legacy contacts migration name must be accepted"
     );
 }
+
+#[test]
+fn refuses_a_vault_that_holds_a_migration_this_build_does_not_know() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db_path = dir.path().join("newer.db");
+    let installation_id = installation_id_path(dir.path());
+    let passphrase = "newer-vault-passphrase";
+
+    let current = crate::identity::holzi_migration_source();
+    let mut newer_migrations = current.0.clone();
+    newer_migrations.insert(
+        MigrationName::from("9999_from_a_newer_build"),
+        "CREATE TABLE newer_build_marker_no_sync (id TEXT PRIMARY KEY NOT NULL);".to_owned(),
+    );
+
+    let mut newer_config = vault_config(passphrase, &db_path, &installation_id, true);
+    newer_config.migration_source = Arc::new(StaticMigrationSource(newer_migrations));
+    Database::open(newer_config).expect("create a vault of a newer build");
+
+    let opened = open_existing_database(passphrase, &db_path, &installation_id);
+    assert!(
+        matches!(
+            opened,
+            Err(crate::error::HolziError::MigrationMissingFromSource { .. })
+        ),
+        "a vault of a newer build must report the unknown migration"
+    );
+}

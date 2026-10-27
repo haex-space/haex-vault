@@ -14,6 +14,7 @@ import {
   canGoBack,
   createHistory,
   go,
+  MAX_HISTORY_ENTRIES,
   push,
   removeEntry,
   replace,
@@ -180,5 +181,40 @@ export function skipTabEntry(
   const next = removeEntry(history, history.index, direction)
   if (next === history) return false
   histories.set(tabId, next)
+  return true
+}
+
+/** Whether `history` keeps the invariants of a tab history: `1 ≤ entries.length ≤ MAX_HISTORY_ENTRIES`
+ * and `0 ≤ index < entries.length`. */
+function isValidHistory(history: TabHistory): boolean {
+  const { entries, index } = history
+  return (
+    entries.length >= 1 &&
+    entries.length <= MAX_HISTORY_ENTRIES &&
+    Number.isInteger(index) &&
+    index >= 0 &&
+    index < entries.length
+  )
+}
+
+/** Replaces one tab's whole history (spec 062: the file browser swaps the history of its active
+ * panel in and out); `true` if it did. Refuses a tab without a history and a history that breaks
+ * the invariants, and changes nothing then. Stores a copy, so the caller's object stays its own. */
+export function setTabHistory(
+  histories: TabHistories,
+  tabId: string,
+  history: TabHistory,
+): boolean {
+  if (!histories.has(tabId) || !isValidHistory(history)) return false
+  histories.set(tabId, {
+    entries: history.entries.map((entry) => ({
+      location: {
+        path: entry.location.path,
+        query: { ...entry.location.query },
+      },
+      title: entry.title,
+    })),
+    index: history.index,
+  })
   return true
 }

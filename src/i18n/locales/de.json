@@ -79,6 +79,8 @@
       "passphraseHint": "Nur für dieses Gerät. Sie wird nie übertragen.",
       "nostr": "Nostr-Relays",
       "nostrDescription": "Nur nötig, wenn das Hauptgerät eigene Nostr-Relays nutzt (Einstellungen, Föderation): füge sie hinzu und schalte die Standardserver ab, die es nicht nutzt.",
+      "iroh": "iroh-Relays",
+      "irohDescription": "Nur nötig, wenn das Hauptgerät eigene iroh-Relays nutzt (Einstellungen, Föderation): füge sie hinzu und schalte die Standardserver ab, die es nicht nutzt.",
       "submit": "Verknüpfen",
       "cancel": "Abbrechen",
       "retry": "Erneut versuchen",
@@ -1441,6 +1443,7 @@
     "vaultIo": "Die Vault-Datei konnte nicht gelesen werden",
     "vaultUnreadable": "Die Vault-Datei ist nicht lesbar oder beschädigt",
     "vaultIncompatible": "Die Vault ist beschädigt oder mit dieser Version nicht kompatibel",
+    "vaultNewerVersion": "Die Vault wurde mit einer neueren Version geöffnet und kann mit dieser nicht gelesen werden. Starte die neuere Version oder aktualisiere die App",
     "nameConflict": "Eine Instanz mit diesem Namen existiert bereits",
     "invalidName": "Ungültiger Name",
     "weakPassphrase": "Passphrase erfüllt nicht die Richtlinie",
@@ -2554,7 +2557,9 @@
       "delete": "Löschen",
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
-      "share": "Freigeben …"
+      "share": "Freigeben …",
+      "copyToOther": "In das andere Panel kopieren",
+      "moveToOther": "In das andere Panel verschieben"
     },
     "selection": {
       "count": "{count} ausgewählt | {count} ausgewählt",
@@ -2709,7 +2714,9 @@
       "damaged": "Beschädigt: Das lässt sich nicht entschlüsseln.",
       "otherVault": "Dieser Ordner gehört einer anderen Vault.",
       "newerFormat": "Dafür braucht es eine neuere Version von holzi.",
-      "needsNotice": "Das geht erst nach dem Hinweis."
+      "needsNotice": "Das geht erst nach dem Hinweis.",
+      "sameFolder": "Quelle und Ziel sind derselbe Ordner.",
+      "noOtherPanel": "Es ist kein zweites Panel offen."
     },
     "allAccess": {
       "title": "Zugriff auf alle Dateien",
@@ -2790,6 +2797,12 @@
           "thisDevice": "diesem Gerät"
         }
       }
+    },
+    "split": {
+      "toggle": "Zwei Panels",
+      "tooNarrow": "Das Fenster ist zu schmal für zwei Panels.",
+      "panelLeft": "Linkes Panel",
+      "panelRight": "Rechtes Panel"
     }
   },
   "contacts": {

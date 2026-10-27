@@ -12,6 +12,15 @@ fn the_first_announce_runs_its_callback_while_alone() {
 }
 
 #[test]
+fn only_the_process_that_started_alone_reports_it() {
+    let dir = tempfile::tempdir().expect("dir");
+    let first = ProcessPresence::announce(dir.path(), || {}).expect("first announce");
+    let second = ProcessPresence::announce(dir.path(), || {}).expect("second announce");
+    assert!(first.was_alone());
+    assert!(!second.was_alone());
+}
+
+#[test]
 fn a_second_announce_while_the_first_is_alive_does_not_run_its_callback() {
     let dir = tempfile::tempdir().expect("dir");
     let _first = ProcessPresence::announce(dir.path(), || {}).expect("first announce");

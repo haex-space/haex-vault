@@ -49,6 +49,12 @@
       }
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["haex-vault"] },
+      "mobile": [{ "scheme": ["haex-vault"], "host": "contact" }]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
