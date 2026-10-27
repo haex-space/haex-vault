@@ -97,6 +97,7 @@ impl Runner for Fake {
 
 struct Loop {
     fake: Arc<Fake>,
+    shared: Arc<Mutex<Shared>>,
     commands: tokio::sync::mpsc::UnboundedSender<Command>,
     token: CancellationToken,
     task: tokio::task::JoinHandle<()>,
@@ -107,18 +108,35 @@ fn start(rules: Vec<SyncRule>) -> Loop {
     *fake.rules.lock().unwrap() = rules;
     let (commands, received) = unbounded_channel();
     let token = CancellationToken::new();
+    let shared = Arc::new(Mutex::new(Shared::default()));
     let task = tokio::spawn(control(
         Arc::clone(&fake),
         received,
-        Arc::new(Mutex::new(Shared::default())),
+        Arc::clone(&shared),
         token.clone(),
     ));
     Loop {
         fake,
+        shared,
         commands,
         token,
         task,
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_cancel_requested_before_the_command_reaches_the_loop_prevents_a_run() {
+    let l = start(vec![rule("a", true, true)]);
+    l.shared
+        .lock()
+        .unwrap()
+        .cancel_requested
+        .insert("a".to_owned());
+    l.commands.send(Command::Cancel("a".to_owned())).unwrap();
+    settle(TICK).await;
+    assert!(runs(&l).is_empty());
+    l.token.cancel();
+    l.task.await.unwrap();
 }
 
 async fn settle(by: Duration) {

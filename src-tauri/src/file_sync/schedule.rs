@@ -57,6 +57,8 @@ pub struct Shared {
     pub running: HashSet<String>,
     /// The report of each rule's last run in this session.
     pub last: HashMap<String, RunReport>,
+    /// Rules whose cancellation has been requested before the command reaches the loop.
+    pub cancel_requested: HashSet<String>,
 }
 
 /// The interval of `rule` (research R8).
@@ -122,6 +124,11 @@ pub async fn control<R: Runner>(
                         cancel.cancel();
                     }
                     due.retain(|other| other != &id);
+                    shared
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .cancel_requested
+                        .remove(&id);
                 }
             },
             Some(id) = changes.recv() => {
@@ -164,6 +171,14 @@ pub async fn control<R: Runner>(
         }
         let mut waiting = Vec::new();
         for id in due.drain(..) {
+            if shared
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .cancel_requested
+                .contains(&id)
+            {
+                continue;
+            }
             let Some(rule) = rules.iter().find(|rule| rule.id == id && rule.enabled) else {
                 continue;
             };
@@ -194,6 +209,11 @@ pub async fn control<R: Runner>(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .running
+        .clear();
+    shared
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .cancel_requested
         .clear();
 }
 

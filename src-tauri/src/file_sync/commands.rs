@@ -243,11 +243,11 @@ pub async fn sync_rules_set_enabled(
     enabled: bool,
 ) -> Result<SyncRuleView, SyncRuleError> {
     let (db, device) = here(&app)?;
-    let rule = set_enabled(&db, &device, &id, enabled).await?;
     let sync = app.state::<FileSyncState>();
     if !enabled {
-        sync.send(Command::Cancel(id));
+        sync.cancel_and_wait(id.clone()).await;
     }
+    let rule = set_enabled(&db, &device, &id, enabled).await?;
     sync.send(Command::Reload);
     Ok(view_one(&app, rule))
 }
@@ -256,7 +256,7 @@ pub async fn sync_rules_set_enabled(
 pub async fn sync_rules_delete(app: AppHandle, id: String) -> Result<(), SyncRuleError> {
     let (db, device) = here(&app)?;
     let sync = app.state::<FileSyncState>();
-    sync.send(Command::Cancel(id.clone()));
+    sync.cancel_and_wait(id.clone()).await;
     delete(&db, &device, &id).await?;
     sync.send(Command::Reload);
     Ok(())
@@ -272,7 +272,7 @@ pub async fn sync_rules_run_now(app: AppHandle, id: String) -> Result<(), SyncRu
 
 #[tauri::command]
 pub async fn sync_rules_cancel(app: AppHandle, id: String) -> Result<(), SyncRuleError> {
-    app.state::<FileSyncState>().send(Command::Cancel(id));
+    app.state::<FileSyncState>().cancel_and_wait(id).await;
     Ok(())
 }
 

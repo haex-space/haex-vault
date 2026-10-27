@@ -69,6 +69,38 @@ impl FileSyncState {
             let _ = session.commands.send(command);
         }
     }
+
+    /// Cancels a rule and waits until the session has stopped its run, if any.
+    pub async fn cancel_and_wait(&self, id: String) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        session
+            .shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .cancel_requested
+            .insert(id.clone());
+        if session.commands.send(Command::Cancel(id.clone())).is_err() {
+            session
+                .shared
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .cancel_requested
+                .remove(&id);
+            return;
+        }
+        loop {
+            let done = {
+                let shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
+                !shared.cancel_requested.contains(&id) && !shared.running.contains(&id)
+            };
+            if done {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }
 }
 
 /// Starts the loop for the vault just opened.
