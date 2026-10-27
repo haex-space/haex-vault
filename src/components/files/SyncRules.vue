@@ -71,6 +71,7 @@ async function act(view: SyncRuleView, work: () => Promise<unknown>) {
 async function confirmDeleteAsync() {
   const view = deleting.value
   deleting.value = null
+  // action-exempt: sync-rule controls are window-local; no sync-rule action catalog exists yet.
   if (view) await act(view, () => deleteAsync(view.rule.id))
 }
 </script>
