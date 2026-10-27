@@ -9,6 +9,7 @@ import { FILE_SHARE_ACTIONS } from './fileShareActions.ts'
 import { FILES_ACTIONS } from './filesActions.ts'
 import { PASSWORDS_ACTIONS } from './passwordsActions.ts'
 import { SETTINGS_ACTIONS } from './settingsActions.ts'
+import { MCP_AGENT_ACTIONS } from './settingsMcpAgentActions.ts'
 import type { ActionDefinition } from './types.ts'
 
 export const ALL_ACTIONS: readonly ActionDefinition[] = [
@@ -19,6 +20,7 @@ export const ALL_ACTIONS: readonly ActionDefinition[] = [
   ...CHAT_ACTIONS,
   ...CHAT_MODEL_ACTIONS,
   ...SETTINGS_ACTIONS,
+  ...MCP_AGENT_ACTIONS,
   ...PASSWORDS_ACTIONS,
   ...FILES_ACTIONS,
   ...FILE_SHARE_ACTIONS,

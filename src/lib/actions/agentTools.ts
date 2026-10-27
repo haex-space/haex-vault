@@ -98,7 +98,31 @@ export function toAgentActionDef(
   }
 }
 
-/** The definitions to push to Rust: only what the built-in agent may call (FR-001, FR-003). */
+/**
+ * What the frontend pushes to Rust (spec 021 research R4): every action any agent may call, with
+ * its scope and whether the built-in agent may call it. Rust registers the built-in agent's share
+ * as chat tools and offers external agents from the whole list, by their rights per scope.
+ */
+export type PushedActionDef = AgentActionDef & {
+  scope: ActionDefinition['scope']
+  builtinAgentCallable: boolean
+}
+
+/** The definitions to push with `set_agent_actions`; guardrails are never among them. */
+export function listPushedActions(
+  catalog: readonly ActionDefinition[],
+  titleOf: TitleOf,
+): PushedActionDef[] {
+  return catalog
+    .filter((def) => def.agentCallable && def.scope !== 'guardrails')
+    .map((def) => ({
+      ...toAgentActionDef(def, titleOf),
+      scope: def.scope,
+      builtinAgentCallable: def.builtinAgentCallable !== false,
+    }))
+}
+
+/** What the built-in agent may call of the catalog (FR-001, FR-003); the eval snapshot holds it. */
 export function listAgentActions(
   catalog: readonly ActionDefinition[],
   titleOf: TitleOf,

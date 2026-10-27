@@ -17,6 +17,9 @@ export type FilesCommand =
   | 'newEncryptedFolder'
   | 'openSystem'
   | 'share'
+  /** Only in the split view (spec 062): the selection into the other panel's folder. */
+  | 'copyToOther'
+  | 'moveToOther'
 
 export type FilesMenuItem = {
   id: FilesCommand
@@ -40,6 +43,10 @@ export type EntriesMenuInput = {
   systemApps?: boolean
   /** The one entry may be shared with contacts: of this device, not holzi's own (spec 056). */
   shareable?: boolean
+  /** The tab shows two panels: the menu offers copying and moving into the other one (spec 062). */
+  split?: boolean
+  /** The other panel's folder takes no changes: holzi's own place, or a share read only. */
+  readOnlyTarget?: boolean
 }
 
 /** The keys of the commands that have one (`resolveFilesShortcut`). */
@@ -51,6 +58,8 @@ const SHORTCUTS: Partial<Record<FilesCommand, ShortcutHint>> = {
   rename: { key: 'F2' },
   delete: { key: 'Delete' },
   newFolder: { mod: true, shift: true, key: 'N' },
+  copyToOther: { key: 'F5' },
+  moveToOther: { key: 'F6' },
 }
 
 const item = (id: FilesCommand, disabled = false): FilesMenuItem => ({
@@ -75,6 +84,15 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
     SEPARATOR,
     item('copy'),
     item('cut', input.readOnly),
+    ...(input.split
+      ? [
+          item('copyToOther', input.count === 0 || !!input.readOnlyTarget),
+          item(
+            'moveToOther',
+            input.count === 0 || input.readOnly || !!input.readOnlyTarget,
+          ),
+        ]
+      : []),
     SEPARATOR,
     item('rename', input.readOnly || !single),
     item('delete', input.readOnly),
