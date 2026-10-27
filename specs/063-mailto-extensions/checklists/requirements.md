@@ -35,5 +35,5 @@
   des Projekts und die Nachbar-Repos benennen muss. Sie sagt nicht, wie sie gebaut werden.
 - FR-018 lässt offen, wie holzi eine Schleife je Plattform vermeidet; das klärt `speckit-clarify` oder
   der Plan.
-- Offene Frage für `speckit-clarify`: Soll ein Link von außen in der zuletzt aktiven Vault landen oder
-  der Nutzer die Vault wählen können (Edge Case „Mehrere Fenster oder Vaults“)?
+- Die Edge Case „Mehrere Fenster oder Vaults“ ist entschieden: Ein Link von außen geht an die zuletzt
+  aktive Vault; die Öffnen-Auswahl nennt die Vault nicht weiter.
