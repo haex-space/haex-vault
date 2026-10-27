@@ -77,8 +77,13 @@ const im = computed(() => parseIm(model.value.value))
 // The date is typed in the order of the language and stored as `YYYY-MM-DD` or `--MM-DD`; what is
 // typed stays as typed while the person edits, a date that is not complete yet goes on as typed and
 // the backend says what it refuses on saving.
-const dateText = ref(
-  formatEventDate(parseEventDate(model.value.value), locale.value),
+const dateText = ref('')
+watch(
+  [() => model.value.value, locale],
+  ([value]) => {
+    dateText.value = formatEventDate(parseEventDate(value), locale.value)
+  },
+  { immediate: true },
 )
 function setDate(text: string) {
   dateText.value = text
