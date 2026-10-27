@@ -431,6 +431,7 @@ watch(tabActive, (active) => {
               :view="prefs.view.value"
               :folder="path ?? ''"
               :selected="selection.paths"
+              :selection-anchor="selection.anchor"
               :dimmed="dimmed"
               :settings-link="settingsLink"
               @press="onPress"
