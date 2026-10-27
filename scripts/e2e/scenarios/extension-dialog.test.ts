@@ -50,10 +50,20 @@ scenario('extension-dialog', { timeoutMs: 180_000 }, async (ctx) => {
        }).then((a) => JSON.parse(JSON.stringify(a)))`,
     )
     await page.waitForDisplayed('extension-dialog', 10_000)
-    await ctx.waitFor(
-      'the confirm button to take the keyboard',
-      async () => (await focused()) === 'extension-dialog-confirm',
-    )
+    try {
+      await ctx.waitFor(
+        'the confirm button to take the keyboard',
+        async () => (await focused()) === 'extension-dialog-confirm',
+      )
+    } catch (error) {
+      const at = await page.exec<string>(
+        `const el = document.activeElement
+         return el === null ? 'nothing' : el.outerHTML.slice(0, 200)`,
+      )
+      throw new Error(`${String(error)}; the keyboard is at ${at}`, {
+        cause: error,
+      })
+    }
     assert.equal(
       await page.exec<boolean>(
         `return document.querySelector(arguments[0]).inert`,

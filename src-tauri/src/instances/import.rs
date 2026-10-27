@@ -221,6 +221,8 @@ pub async fn import_instance(
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
     crate::contacts::phone::trigger::watch(&app);
+    // Spec 060 (research R9): links other holzi processes got for this vault.
+    crate::deep_link::start_for_active_instance(&app);
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();

@@ -4,9 +4,11 @@ import { useWmTab } from '~/composables/useWmTab'
 import {
   canGoBack,
   canGoForward,
+  createHistory,
   currentLocation,
   parseLocation,
   withQuery,
+  type TabHistory,
   type TabLocation,
 } from '~/lib/wm/navigation'
 import { matchRoute } from '~/lib/wm/routeMatch'
@@ -30,6 +32,10 @@ export type TabRouter = {
   ): void
   back(): void
   forward(): void
+  /** Swaps this tab's whole history for `next` and returns the one it had (spec 062: the file
+   * browser keeps the history of each panel and gives the tab the one of the active panel);
+   * `null` and no change if `next` breaks the invariants of a history or there is no tab. */
+  swapHistory(next: TabHistory): TabHistory | null
   /** Drops the current entry because its target no longer exists and moves on in the last travel
    * direction (FR-027); `false` if it was the only entry. */
   skipCurrent(): boolean
@@ -52,6 +58,7 @@ const INERT_ROUTER: TabRouter = {
   back() {},
   forward() {},
   skipCurrent: () => false,
+  swapHistory: () => null,
 }
 
 /**
@@ -116,5 +123,12 @@ export function useTabRouter(): TabRouter {
       wm.goTab(tabId, 1)
     },
     skipCurrent: () => wm.skipCurrent(tabId),
+    swapHistory: (next: TabHistory) => {
+      // JSON round trip, not structuredClone: the store's histories are reactive proxies.
+      const previous = JSON.parse(
+        JSON.stringify(history.value ?? createHistory()),
+      ) as TabHistory
+      return wm.setHistory(tabId, next) ? previous : null
+    },
   }) as TabRouter
 }

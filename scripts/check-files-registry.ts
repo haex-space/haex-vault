@@ -96,3 +96,23 @@ test('a search and its filter round-trip with the place', () => {
   }
   assert.deepEqual(parseFilesPlace(filesLocation(place)), place)
 })
+
+test('the split keys of spec 062 are not part of a place', () => {
+  // `split`, `side` and `o.*` belong to the frame (`lib/files/split.ts`): a place never carries them
+  // and building a location from a place never emits them.
+  const location = {
+    path: '/device',
+    query: {
+      p: '/home/anna',
+      split: '1',
+      side: 'r',
+      'o.src': 'storage:abc-123',
+      'o.p': '/x',
+      'o.q': 'urlaub',
+    },
+  }
+  const place = parseFilesPlace(location)
+  assert.deepEqual(place, { source: { kind: 'device' }, path: '/home/anna' })
+  const built = filesLocation({ ...place!, q: 'x' })
+  assert.deepEqual(built.query, { p: '/home/anna', q: 'x' })
+})

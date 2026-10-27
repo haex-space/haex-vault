@@ -170,14 +170,21 @@ export function isWithin(inner: string, outer: string): boolean {
  * folder they are in, so there is nothing to do. */
 export type PasteRefusal = 'intoItself' | 'holziOwned' | 'nothing'
 
-/** Whether `items` from `folder` may be copied (`copy`) or moved (`cut`) into `target`. */
+/**
+ * Whether `items` from `folder` may be copied (`copy`) or moved (`cut`) into `target`. The paths of
+ * two sources are separate namespaces: with `sameSource` false (a storage and another storage, the
+ * device and a storage) `/backup` going into `/backup/2026` is not "into itself" and a cut from `/`
+ * to `/` is not "the same folder", so only the rule of holzi's own places applies (spec 062).
+ */
 export function pasteRefusal(
   op: FilesClipboard['op'],
   folder: string,
   items: readonly ClipboardItem[],
   target: { path: string; holziOwned: boolean },
+  sameSource = true,
 ): PasteRefusal | null {
   if (target.holziOwned) return 'holziOwned'
+  if (!sameSource) return null
   if (
     items.some(
       (item) => item.kind === 'dir' && isWithin(target.path, item.path),

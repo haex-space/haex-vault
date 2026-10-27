@@ -144,6 +144,8 @@ export interface FormLink {
   passphrase: string
   /** The only Nostr server: the built-in ones are switched off and this one is added. */
   relayUrl: string
+  /** The only iroh-Relays, as for the group's other devices: the built-in ones are switched off. */
+  irohRelays: string[]
 }
 
 /**
@@ -163,6 +165,9 @@ export async function submitLinkForm(
   await page.type('#link-passphrase-confirm', link.passphrase)
   await addServer(page, 'link-servers-nostr', link.relayUrl)
   await switchOffDefaultServers(page, 'link-servers-nostr')
+  for (const url of link.irohRelays)
+    await addServer(page, 'link-servers-iroh', url)
+  await switchOffDefaultServers(page, 'link-servers-iroh')
   await page.click('link-submit')
 }
 

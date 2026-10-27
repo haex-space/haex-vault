@@ -21,6 +21,11 @@ export type FilesKeyCommand =
   | 'focusSearch'
   | 'reload'
   | 'toggleHidden'
+  /** Only in the split view (spec 062): Tab makes the other panel the active one, F5 copies the
+   * selection into the other panel's folder, F6 moves it. */
+  | 'switchPanel'
+  | 'copyToOther'
+  | 'moveToOther'
 
 /** Where a move takes the focus: the next or previous entry, the entry below or above in the grid,
  * the first or the last. */
@@ -49,6 +54,8 @@ export type FilesKeyEvent = {
   textSelected: boolean
   /** The folder shows as a grid: Left and Right move along a row, Up and Down between rows. */
   grid: boolean
+  /** The tab shows two panels (spec 062): Tab, F5 and F6 then change their meaning. */
+  split: boolean
   /** Type-to-jump has letters pending: a Space then belongs to the name instead of opening. */
   typing: boolean
 }
@@ -112,8 +119,15 @@ function action(event: FilesKeyEvent): FilesKeyAction | null {
   switch (event.key) {
     case 'F2':
       return event.shiftKey ? null : command('rename')
+    // In the split view F5 copies into the other panel; reloading stays on Ctrl+R (spec 062).
     case 'F5':
-      return event.shiftKey ? null : command('reload')
+      if (event.shiftKey) return null
+      return command(event.split ? 'copyToOther' : 'reload')
+    case 'F6':
+      return event.split && !event.shiftKey ? command('moveToOther') : null
+    // Shift+Tab stays the browser's: it leaves the list backwards, so the keyboard is never caught.
+    case 'Tab':
+      return event.split && !event.shiftKey ? command('switchPanel') : null
     case 'Delete':
       return event.shiftKey ? null : command('delete')
     case 'Backspace':
