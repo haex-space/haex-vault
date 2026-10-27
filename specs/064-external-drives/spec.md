@@ -1,6 +1,6 @@
 # Feature Specification: Externe Laufwerke im Dateibrowser
 
-**Feature Branch**: `063-external-drives`
+**Feature Branch**: `064-external-drives`
 
 **Created**: 2026-10-27
 
@@ -55,6 +55,8 @@ festplatten, usb sticks etc" (Betreiber, 2026-10-27). Abgestimmtes Design:
 
 - **Spec 044** (Dateibrowser): erweitert FR-002 (Laufwerke als Quelle) und die Seitenleiste. Der
   Randfall „Ein Laufwerk wird entfernt“ und das Springen zum nächsten vorhandenen Ordner bleiben.
+  Das Springen steht in 044, ist aber im Code noch nicht umgesetzt; diese Spec setzt es um, weil
+  US1 und FR-025 darauf bauen (research R10).
 - **Spec 056** (Dateizugriff zwischen eigenen Geräten): Andere eigene Geräte sehen weiterhin nur
   eingehängte Laufwerke; Einhängen, Entsperren und Auswerfen aus der Ferne gibt es nicht.
 - **Spec 034** (Passwortmanager) und **Spec 052** (Zugangsdaten aus dem Passwortmanager wählen):
@@ -230,8 +232,9 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 **Liste**
 
 - **FR-001**: Die Seitenleiste MUSS unter „Laufwerke“ das Systemlaufwerk, interne Partitionen und alle
-  Wechseldatenträger zeigen, eingehängt oder nicht. Partitionen, die das System als Systempartition
-  oder als zu ignorieren kennzeichnet, und unformatierte Partitionen MÜSSEN fehlen.
+  Wechseldatenträger zeigen, eingehängt oder nicht. Partitionen, die das System als zu ignorieren
+  kennzeichnet (etwa EFI und Wiederherstellung), eingehängte Systemorte außer dem Systemlaufwerk und
+  Partitionen ohne Dateisystem (etwa Auslagerung) MÜSSEN fehlen.
 - **FR-002**: Jedes Laufwerk MUSS seinen Namen (Bezeichnung des Datenträgers, sonst „Datenträger
   (<Größe>)“), ein Symbol nach Art und bei eingehängten den freien Platz zeigen, wo bekannt. Gesperrte
   Laufwerke MÜSSEN ein Schloss zeigen.
@@ -254,6 +257,8 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 - **FR-008**: Eingehängte Wechseldatenträger MÜSSEN einen „Auswerfen“-Knopf haben, eingehängte interne
   Laufwerke einen „Aushängen“-Knopf. Systemorte (`/`, `/home`, `/boot` und dergleichen) DÜRFEN keinen
   der beiden haben. FR-009 bis FR-012 gelten für beide; ausgeschaltet werden nur Wechseldatenträger.
+  „Aushängen“ gibt es nur, wo das System es einer App ohne Administratorrechte erlaubt (unter Windows
+  nicht; unter Linux fragt das System bei internen Laufwerken selbst nach).
 - **FR-009**: Vor dem Aushängen MUSS haex alles freigeben, was es selbst auf dem Laufwerk offen hält
   (Ordnerbeobachtung, Viewer, Suche).
 - **FR-010**: Läuft eine Übertragung von oder zu dem Laufwerk, MUSS haex vor dem Auswerfen fragen und
@@ -338,8 +343,11 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 
 - Die Desktop-Systeme bieten einen Dienst, über den eine normale App Laufwerke ohne eigene
   Administratorrechte einhängen und auswerfen kann (Linux: udisks2; macOS und Windows hängen ohnehin
-  selbst ein). Ob BitLocker To Go ohne Administratorrechte mit Passwort entsperrbar ist, klärt die
-  Research; sonst greift FR-019.
+  selbst ein). BitLocker To Go lässt sich unter Windows ohne Administratorrechte nicht mit einem
+  Passwort entsperren (research R6); dort greift FR-019. Unter Linux entsperrt das System auch
+  BitLocker-Laufwerke mit Passwort.
+- Unter Windows erscheinen nur Laufwerke mit Laufwerksbuchstaben; Windows gibt Wechseldatenträgern
+  selbst einen. Den Zustand „nicht eingehängt“ gibt es dort nicht.
 - Die Warnung vor dem Löschen eines Eintrags, den eine haex-Funktion nutzt (034 FR-034), gilt für
   Laufwerks-Einträge nicht: Gelöscht heißt nur, dass beim nächsten Mal der Dialog kommt.
 - Volume-Verbünde (LVM), RAID und Netzlaufwerke sind nicht Teil dieser Spec; Netzlaufwerke, die das

@@ -1,7 +1,7 @@
 # External drives in the file browser
 
-**Status**: Design agreed with the operator on 2026-10-27; to be specified as its own spec (number
-assigned at specify time). Extends the drives of [spec 044](../../specs/044-file-browser/spec.md)
+**Status**: Design agreed with the operator on 2026-10-27; specified as [spec 064](../../specs/064-external-drives/spec.md)
+. Extends the drives of [spec 044](../../specs/044-file-browser/spec.md)
 FR-002 and the sidebar of the [file browser design](2026-10-07-file-browser-design.md).
 
 ## Context
