@@ -190,9 +190,9 @@ fn changed_on_both_sides_the_target_version_goes_aside() {
     assert_eq!(
         plan.steps,
         [
-            Step::Move {
+            Step::Aside {
                 side: SyncRuleSide::B,
-                from: "x".to_owned(),
+                path: "x".to_owned(),
                 to: "x.conflict".to_owned(),
             },
             copy("x", false),

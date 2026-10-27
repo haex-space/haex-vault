@@ -31,11 +31,17 @@ pub enum Deviation {
 pub enum Step {
     /// Creates the folder `path` on `side`.
     Folder { side: SyncRuleSide, path: String },
-    /// Moves a file on `side` from `from` to `to`: as it moved on the other side (FR-009), or the
-    /// older version of a conflict going aside (FR-012).
+    /// Moves a file on `side` from `from` to `to`, as it moved on the other side (FR-009).
     Move {
         side: SyncRuleSide,
         from: String,
+        to: String,
+    },
+    /// Moves the version of `path` on `side` to the conflict name `to` (FR-012); the other version
+    /// is copied to `path` after.
+    Aside {
+        side: SyncRuleSide,
+        path: String,
         to: String,
     },
     /// Copies `path` from `from` to the other side; `replaces` when a file is there.
@@ -63,7 +69,7 @@ impl Step {
     fn rank(&self) -> u8 {
         match self {
             Self::Folder { .. } => 0,
-            Self::Move { .. } => 1,
+            Self::Move { .. } | Self::Aside { .. } => 1,
             Self::Copy { .. } => 2,
             _ => 3,
         }
@@ -383,9 +389,9 @@ impl<'i, 'p> OneWay<'i, 'p> {
     /// The target's version moves to a conflict name; then the source's version is copied.
     fn aside_and_copy(&mut self, path: &str) {
         let aside = (self.inputs.conflict_name)(SyncRuleSide::B, path);
-        self.push(Step::Move {
+        self.push(Step::Aside {
             side: SyncRuleSide::B,
-            from: path.to_owned(),
+            path: path.to_owned(),
             to: aside,
         });
         self.push(Step::Copy {

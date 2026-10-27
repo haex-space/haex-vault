@@ -3,6 +3,7 @@
 //! last success and builds a plan before it changes anything (research R3).
 
 pub mod conflict;
+pub mod execute;
 pub mod ignore;
 pub mod model;
 pub mod place;
@@ -10,6 +11,8 @@ pub mod place_device;
 pub mod place_storage;
 pub mod plan;
 pub mod rules;
+pub mod run;
+pub mod scan;
 pub mod store;
 #[cfg(test)]
 pub mod test_support;
