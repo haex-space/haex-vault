@@ -35,7 +35,7 @@ zusätzliche abschalten oder löschen. Sind alle Nostr-Server abgeschaltet, find
 sind alle iroh-Server abgeschaltet, verbinden sie sich nur direkt. Eine neue Installation kann die
 Server nicht aus einer Vault lesen, die sie noch nicht hat; ohne diese Angabe fände sie ein
 Hauptgerät mit eigenen Servern nicht. Die Verknüpfen-Maske der Startseite bietet dafür die Nostr-Server
-an (iroh-Server dort nicht; die E2E-Szenarien mit eigenem Nostr-Relay nutzen die Angabe per Befehl).
+und die iroh-Server an (FR-008: eigene Server statt der öffentlichen, auch beim Verknüpfen).
 Die eingebauten Server stehen dort wie in den Einstellungen immer in der Liste (`sync_servers_defaults`), mit einem Kästchen zum Abschalten.
 
 ### Typen

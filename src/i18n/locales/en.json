@@ -79,6 +79,8 @@
       "passphraseHint": "For this device only. It is never sent.",
       "nostr": "Nostr relays",
       "nostrDescription": "Only needed if the main device uses its own Nostr relays (Settings, Federation): add them and switch off the default servers it does not use.",
+      "iroh": "iroh relays",
+      "irohDescription": "Only needed if the main device uses its own iroh relays (Settings, Federation): add them and switch off the default servers it does not use.",
       "submit": "Link",
       "cancel": "Cancel",
       "retry": "Try again",
