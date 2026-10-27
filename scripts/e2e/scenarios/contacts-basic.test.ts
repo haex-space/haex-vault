@@ -17,6 +17,7 @@ scenario('contacts-basic', {}, async (ctx) => {
   ctx.step('opened')
 
   // The editor starts with a phone and an e-mail row; a custom value is added from the menu.
+  await instance.click('contacts-add')
   await instance.click('contacts-new')
   await instance.waitForDisplayed('contacts-editor')
   await instance.type('contacts-field-givenName', 'Anna')

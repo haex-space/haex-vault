@@ -107,7 +107,7 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
 
   const olderCard = cardTextOf(older)
   await openContacts(mara)
-  await mara.click('contacts-card-menu')
+  await mara.click('contacts-add')
   await mara.click('contacts-card-menu-import')
   await mara.waitForDisplayed('contacts-card-text')
   await mara.type('contacts-card-text', olderCard)
