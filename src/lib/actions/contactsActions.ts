@@ -167,6 +167,57 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     agentCallable: true,
     binding: 'global',
   },
+  {
+    id: 'contacts.share',
+    titleKey: 'actions.contacts.share',
+    description:
+      'Turn one contact into a text (a link) that the user can hand to someone else. Data leaves the vault with it, so the user is shown what goes along in a dialog on every call, may change the choice or decline, and you get the text only for what they left chosen; a refusal comes back as denied_by_user. `selection` is only a proposal and cannot reach beyond what the dialog offers: leave it out to propose everything, or name the ids of the values (from contacts.get) and set the head fields you do not want to false. Needs the user to allow reading contacts.',
+    input: {
+      type: 'object',
+      properties: {
+        contactId: ID,
+        selection: {
+          type: 'object',
+          description:
+            'What you propose to share; anything left out is proposed as shared.',
+          properties: {
+            values: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Ids of the values (contacts.get) that go along.',
+            },
+            displayName: { type: 'boolean' },
+            nickname: { type: 'boolean' },
+            organization: { type: 'boolean' },
+            jobTitle: { type: 'boolean' },
+            note: { type: 'boolean' },
+          },
+        },
+      },
+      required: ['contactId'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        link: {
+          type: 'string',
+          description: 'The text to hand over (a haex-vault://contact/… link).',
+        },
+        qrAvailable: {
+          type: 'boolean',
+          description: 'Whether the text is short enough for a QR code.',
+        },
+        size: { type: 'integer', description: 'Characters of the text.' },
+      },
+    },
+    target: 'none',
+    scope: 'contacts.read',
+    effect: 'destructive',
+    agentCallable: true,
+    runner: 'native',
+    confirmsItself: true,
+    binding: 'global',
+  },
 ]
 
 const HEAD_KEYS = [

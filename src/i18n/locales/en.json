@@ -1743,7 +1743,8 @@
     "contacts": {
       "search": "Search contacts",
       "get": "Read a contact",
-      "update": "Change a contact"
+      "update": "Change a contact",
+      "share": "Share a contact as a link"
     }
   },
   "passwords": {
@@ -3083,7 +3084,13 @@
       "copy": "Copy link",
       "copied": "Link copied",
       "size": "{size} characters",
-      "action": "Share"
+      "action": "Share",
+      "confirm": {
+        "title": "Share this contact?",
+        "intro": "The assistant wants to hand out “{name}” as a link. Check what goes along; you can change the choice. Without your approval it gets none of it.",
+        "allow": "Approve",
+        "deny": "Decline"
+      }
     },
     "fileShares": {
       "title": "File shares",

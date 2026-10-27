@@ -4,15 +4,15 @@
  * What the question names for an encrypted folder (FR-030a); only the user sees it, never the
  * agent.
  */
-export type FilesAgentFolderQuestion = {
+export type FilesAgentFolderQuestion = { 
 /**
  * The decrypted name.
  */
-name: string,
+name: string, 
 /**
  * The model the read contents go to.
  */
-model: string,
+model: string, 
 /**
  * Whether it runs in the cloud rather than on this device.
  */

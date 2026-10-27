@@ -144,6 +144,10 @@ impl Tool for NativeActionTool {
         Some(&self.def)
     }
 
+    fn confirms_itself(&self) -> bool {
+        self.def.confirms_itself
+    }
+
     async fn execute(&self, input: Value, cancel: CancellationToken) -> ToolResult {
         let run = self.executor.run(&self.def.action_id, input, &cancel);
         let outcome = tokio::select! {

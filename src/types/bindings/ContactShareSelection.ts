@@ -2,9 +2,9 @@
 import type { ContactShareHolziChoice } from "./ContactShareHolziChoice";
 
 /**
- * What the person chose in the dialog.
+ * What the person chose in the dialog (and what an agent proposes, spec 060 FR-030).
  */
-export type ContactShareSelection = {
+export type ContactShareSelection = { 
 /**
  * Ids of the value rows that go.
  */

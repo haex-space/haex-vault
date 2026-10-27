@@ -3,15 +3,15 @@
 /**
  * The deletions a run held back (FR-016).
  */
-export type ContactsPhoneMassDelete = {
+export type ContactsPhoneMassDelete = { 
 /**
  * Contacts deleted on the phone that would go from the address book.
  */
-fromPhone: number,
+fromPhone: number, 
 /**
  * Contacts deleted in holzi that would go from the phone.
  */
-fromHolzi: number,
+fromHolzi: number, 
 /**
  * Contacts linked on this phone.
  */

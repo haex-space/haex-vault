@@ -4,11 +4,11 @@ import type { ContactValuesPatch } from "./ContactValuesPatch";
 /**
  * A partial update of a contact: an absent field keeps its value, `null` clears it.
  */
-export type ContactPatch = { displayName?: string | null, givenName?: string | null, familyName?: string | null, middleName?: string | null, namePrefix?: string | null, nameSuffix?: string | null, nickname?: string | null, organization?: string | null, jobTitle?: string | null, note?: string | null,
+export type ContactPatch = { displayName?: string | null, givenName?: string | null, familyName?: string | null, middleName?: string | null, namePrefix?: string | null, nameSuffix?: string | null, nickname?: string | null, organization?: string | null, jobTitle?: string | null, note?: string | null, 
 /**
  * The value rows to write; absent writes none.
  */
-values?: ContactValuesPatch,
+values?: ContactValuesPatch, 
 /**
  * Group ids; replaces the memberships when present.
  */

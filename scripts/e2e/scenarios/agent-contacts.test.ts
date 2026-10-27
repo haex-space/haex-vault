@@ -8,6 +8,7 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { createContact } from '../lib/contacts.ts'
+import { readShare } from '../lib/share.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 
 // Spec 051 US6-1 to US6-3 (quickstart `agent-contacts`): a scripted model reaches the contacts
@@ -16,6 +17,9 @@ import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 // settings it finds Ben but may not change him: the write question, denied, keeps the read grant.
 // "Immer erlauben" lets the change through, and it is stored like one made in holzi. That it
 // reaches the phones is the phone sync's rule, tested in `contacts/agent_tests.rs`.
+// Spec 060 US5: `contacts_share` asks in the share dialog on every call, in "Auto" too and without a
+// second question of the chat. "Ablehnen" gives the agent nothing of Ben; after "Freigeben" with the
+// phone number deselected the text the agent gets lacks it.
 
 type Message = { role: string; content: unknown }
 type Body = { tools?: { name: string }[]; messages?: Message[] }
@@ -204,4 +208,41 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   assert.equal(stored.origin.kind, 'holzi')
   assert.deepEqual(await contactsRows(instance), [['*', 'readWrite']])
   ctx.step('"Immer erlauben" lets the change through and is kept')
+
+  // Turn 4 (spec 060 US5): the agent shares Ben. One dialog per call: "Ablehnen" first.
+  const share = { tool: 'contacts_share', input: { contactId: ben } }
+  provider.behave({
+    kind: 'script',
+    steps: [
+      { tool: 'find_actions', input: { query: 'Kontakt teilen' } },
+      share,
+      share,
+      { text: 'fertig' },
+    ],
+  })
+  await startReply(instance, provider, 'Gib mir Bens Kontakt als Link')
+  await instance.waitForDisplayed('contacts-share-confirm-intro', 30_000)
+  const asked = await instance.exec<string>(
+    `return document.querySelector('[data-testid="contacts-share-confirm-intro"]')?.textContent ?? ''`,
+  )
+  assert.match(asked, /Ben Krüger/)
+  // The chat's own approval did not come first, although Auto asks for risky actions.
+  assert.equal(await questionText(instance), '')
+  await instance.click('contacts-share-confirm-deny')
+  requests = await waitForRequests(provider, 12)
+  const declined = toolResult(requests[11])
+  assert.match(declined, /denied_by_user/, declined)
+  assert.doesNotMatch(declined, /Krüger|0170|haex-vault:/)
+  ctx.step('"Ablehnen" gives the agent nothing of Ben')
+
+  // The same call asks again; this time the phone number is taken out before "Freigeben".
+  await instance.waitForDisplayed('contacts-share-confirm-intro', 30_000)
+  await instance.click(`contacts-share-check-${valueId}`)
+  await instance.click('contacts-share-confirm-allow')
+  requests = await waitForRequests(provider, 13)
+  const shared = JSON.parse(toolResult(requests[12])) as { link: string }
+  const text = readShare(shared.link)
+  assert.equal(text.name, 'Ben Krüger')
+  assert.deepEqual(text.values, [])
+  ctx.step('"Freigeben" with the number removed hands over a text without it')
 })

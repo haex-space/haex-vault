@@ -2,11 +2,11 @@
 import type { ExtensionModelPick } from "./ExtensionModelPick";
 import type { PermissionDecision } from "./PermissionDecision";
 
-export type PermissionResolveArgs = { requestId: string, decision: PermissionDecision,
+export type PermissionResolveArgs = { requestId: string, decision: PermissionDecision, 
 /**
  * Store the decision; else it holds until the vault closes.
  */
-remember: boolean,
+remember: boolean, 
 /**
  * For a question about a model (spec 055): the user's pick instead of the proposed one.
  */

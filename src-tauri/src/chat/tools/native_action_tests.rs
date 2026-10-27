@@ -128,3 +128,14 @@ async fn images_of_a_reply_reach_the_tool_result() {
     assert_eq!(result.images.len(), 1);
     assert_eq!(result.images[0].name, "a.jpg");
 }
+
+#[test]
+fn an_action_confirms_itself_only_when_its_definition_says_so() {
+    let mut definition = def("files.list", "destructive");
+    let tool = NativeActionTool::new(definition.clone(), Arc::new(Echo));
+    assert!(!tool.confirms_itself());
+    definition.confirms_itself = true;
+    let tool = NativeActionTool::new(definition, Arc::new(Echo));
+    assert!(tool.confirms_itself());
+    assert_eq!(tool.risk_class(), RiskClass::Risky);
+}

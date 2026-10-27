@@ -4,7 +4,7 @@
  * What the window needs to ask (contracts/bridge.md §Befehle für holzis Fenster). `contact_name`
  * is the name from the address book of this vault and never goes to an extension.
  */
-export type ExtensionPeerInvitation = { inviteId: string, extensionId: string, extensionName: string, contactName: string,
+export type ExtensionPeerInvitation = { inviteId: string, extensionId: string, extensionName: string, contactName: string, 
 /**
  * The user clicked the notification: the window comes forward with the prompt.
  */

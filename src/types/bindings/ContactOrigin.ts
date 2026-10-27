@@ -4,15 +4,15 @@ import type { ContactOriginKind } from "./ContactOriginKind";
 /**
  * The origin of a contact: what, on which device, by whom, and from which phone account.
  */
-export type ContactOrigin = { kind: ContactOriginKind,
+export type ContactOrigin = { kind: ContactOriginKind, 
 /**
  * The `vault_device_uuid` of the device that created the contact.
  */
-device: string,
+device: string, 
 /**
  * `user`, `builtin_agent`, `external_agent:<id>`, `extension:<id>` or `internal:<name>`.
  */
-caller: string,
+caller: string, 
 /**
  * For a contact from a phone: `account_type/account_name` (empty for the local account).
  */

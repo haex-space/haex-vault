@@ -470,16 +470,19 @@ Empfänger beim Senden offline war.
   eigenen Kontakts enthalten, die der Nutzer für die Karte gewählt hat (Standard: nur der Name), und
   MUSS mit der Vault-Identität unterschrieben sein. Eine Karte DARF keinen Schlüssel und kein Geheimnis
   enthalten.
+  (Ergänzt durch Spec 060: die eigene Visitenkarte wird über den Teilen-Dialog des Kontakts „Ich“ weitergegeben, als Link `haex-vault://contact/…` mit Auswahl je Angabe; nichts davon wird gespeichert.)
 - **FR-010**: Ändern sich Geräteliste, Nostr-Relays oder das Heim-Relay eines Geräts der eigenen Vault,
   MUSS ein Hauptgerät eine neue Visitenkarte erstellen; ältere bleiben gültig, werden aber von der neueren ersetzt.
 - **FR-011**: holzi MUSS eine Visitenkarte als Link, über die Zwischenablage und per Kamera als QR-Code
   einlesen können. Vor jeder Anzeige MUSS es die Unterschrift prüfen; eine ungültige, veränderte oder
   eigene Karte MUSS es mit einem Hinweis abweisen. Nach einer Vorschau MUSS der Nutzer wählen: neuer
   Kontakt oder Hinzufügen zu einem vorhandenen Kontakt; erst dann wird gespeichert.
+  (Ergänzt durch Spec 060: Link, Zwischenablage und QR-Code tragen die Weitergabe jedes Kontakts; ein Text `holzi:card:` wird weiter gelesen, mit „Hinzufügen“ als Standard.)
 - **FR-012**: Erhält holzi auf irgendeinem Weg (erneutes Einlesen, Einladung, Annahme, Mitgliederliste
   aus 027 oder 028) eine gültige Karte oder Geräteliste derselben Vault-Identität, die neuer ist als die
   gespeicherte, MUSS es die bestätigten holzi-Adressen des Kontakts damit ersetzen. Eine ältere DARF
   nichts ändern.
+  (Ergänzt durch Spec 060: eine Weitergabe fügt Adressen nur hinzu (mehrere Karten je Vault, die Adressen sind ihre Vereinigung, die neueste setzt den Schwellwert); „Ersetzen“ gibt es nur für den alten Kartentext.)
 - **FR-013**: Eine bestätigte Vault-Identität DARF nur bei einem Kontakt stehen.
 - **FR-014**: holzi-Adressen und eigene Angaben DÜRFEN NICHT ins Telefon-Adressbuch geschrieben werden,
   und ein Abgleich DARF sie NICHT verändern oder löschen. Für Arten, die spätere Specs einführen, legen
@@ -494,6 +497,7 @@ Empfänger beim Senden offline war.
   Zielkonto, Stand des letzten Abgleichs, nicht angekommene Änderungen), Inhalt der eigenen
   Visitenkarte (FR-009) und Liste der blockierten Vaults (FR-039). Die App „Kontakte“ MUSS dorthin
   verlinken.
+  (Ergänzt durch Spec 060: die Karte der eigenen Vault wird nicht mehr in den Einstellungen gewählt, sondern beim Teilen.)
 - **FR-016**: Würde ein Abgleich mehr als 10 Kontakte und zugleich mehr als 10 % der mit diesem Telefon
   abgeglichenen Kontakte auf einmal löschen (in welcher Richtung auch immer), MUSS holzi das vorher anzeigen und den Nutzer entscheiden lassen: löschen oder die
   betroffenen Kontakte behalten (im Adressbuch beziehungsweise neu ins Telefon schreiben).

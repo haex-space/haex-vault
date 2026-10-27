@@ -423,6 +423,20 @@ pub fn run() {
                         files::agent::env::TauriSharesEnv::new(app.handle().clone(), share_confirm),
                     ),
                 ));
+            // Spec 060 US5: the share action for contacts, confirmed in the window every time.
+            let contact_share_confirm =
+                contacts::agent_share_confirm::ContactShareConfirm::default();
+            app.manage(contact_share_confirm.clone());
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    contacts::agent_share::ContactsShareAgent::builtin(
+                        contacts::agent_share::TauriContactsShareEnv::new(
+                            app.handle().clone(),
+                            contact_share_confirm,
+                        ),
+                    ),
+                ));
             // Spec 017, US9: holzi's protected places, known places and dialogs for extensions.
             app.state::<AppState>()
                 .extensions()
@@ -484,6 +498,7 @@ pub fn run() {
             files::share::commands::files_device_access_get,
             files::share::commands::files_device_access_set,
             files::agent::share_confirm::file_share_confirm_answer,
+            contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,

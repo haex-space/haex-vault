@@ -1743,7 +1743,8 @@
     "contacts": {
       "search": "Kontakte suchen",
       "get": "Kontakt lesen",
-      "update": "Kontakt ändern"
+      "update": "Kontakt ändern",
+      "share": "Kontakt als Link weitergeben"
     }
   },
   "passwords": {
@@ -3083,7 +3084,13 @@
       "copy": "Link kopieren",
       "copied": "Link kopiert",
       "size": "{size} Zeichen",
-      "action": "Teilen"
+      "action": "Teilen",
+      "confirm": {
+        "title": "Kontakt weitergeben?",
+        "intro": "Der Assistent möchte „{name}“ als Link weitergeben. Prüfe, was mitgehen soll; du kannst die Auswahl ändern. Ohne Freigabe bekommt er nichts davon.",
+        "allow": "Freigeben",
+        "deny": "Ablehnen"
+      }
     },
     "fileShares": {
       "title": "Dateifreigaben",

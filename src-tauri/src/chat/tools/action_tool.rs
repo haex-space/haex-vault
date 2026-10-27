@@ -70,6 +70,11 @@ pub struct AgentActionDef {
     /// `native`: a Rust executor runs it ([`super::native_action`]); absent: the window does.
     #[serde(default)]
     pub runner: Option<ActionRunner>,
+    /// The action asks the user itself, with its own dialog, every call (`contacts.share`): the
+    /// general tool approval is left out in Manual and Auto, so there is one question, not two.
+    /// Plan mode still refuses it.
+    #[serde(default)]
+    pub confirms_itself: bool,
 }
 
 pub struct ActionTool {

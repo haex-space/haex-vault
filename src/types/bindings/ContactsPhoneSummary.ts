@@ -4,19 +4,19 @@ import type { ContactsPhoneAccount } from "./ContactsPhoneAccount";
 /**
  * A phone of the vault with the sync on, as a target for contacts (FR-018c).
  */
-export type ContactsPhoneSummary = {
+export type ContactsPhoneSummary = { 
 /**
  * The phone's `vault_device_uuid`.
  */
-device: string,
+device: string, 
 /**
  * The phone's name in the vault.
  */
-name: string | null,
+name: string | null, 
 /**
  * The account new contacts go to there.
  */
-target: ContactsPhoneAccount | null,
+target: ContactsPhoneAccount | null, 
 /**
  * The phone's accounts as its last run saw them.
  */

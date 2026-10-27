@@ -3,11 +3,11 @@
 /**
  * The text of a share, which is link, clipboard text and QR code at once (FR-018).
  */
-export type ContactShareOutput = { link: string,
+export type ContactShareOutput = { link: string, 
 /**
  * The QR code as SVG; only when the text fits one (FR-019).
  */
-qrSvg?: string,
+qrSvg?: string, 
 /**
  * Characters of the text.
  */
