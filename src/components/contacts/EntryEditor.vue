@@ -19,7 +19,7 @@ import {
   type Draft,
   type HeadField,
 } from '~/lib/contacts/draft'
-import { KINDS } from '~/lib/contacts/kinds'
+import { HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 import { focusAfterMenu } from '~/lib/contacts/menuFocus'
 import { NEW_CONTACT } from '~/lib/contacts/registry'
 import { SELF_CONTACT_ID } from '~/lib/contacts/self'
@@ -63,6 +63,18 @@ async function loadAsync() {
   }
 }
 watch(id, loadAsync, { immediate: true })
+
+/** The kinds the menu offers: the own contact has no holzi addresses to type in, holzi knows its
+ * own (spec 060 FR-005). */
+const offeredKinds = computed(() =>
+  KINDS.filter(
+    (kind) =>
+      !(
+        isSelf.value &&
+        (HOLZI_ADDRESS_KINDS as readonly string[]).includes(kind.id)
+      ),
+  ),
+)
 
 /** Name fields shown at once; the rest behind "more". */
 const NAME_FIELDS: readonly HeadField[] = ['givenName', 'familyName']
@@ -198,13 +210,6 @@ function cancel() {
       </p>
 
       <SettingsGroup :label="t('contacts.editor.name')">
-        <li
-          v-if="isSelf"
-          class="px-4 pt-3 text-sm text-muted-foreground"
-          data-testid="contacts-editor-self-hint"
-        >
-          {{ t('contacts.selfNameHint') }}
-        </li>
         <li class="grid gap-2 px-4 py-3 sm:grid-cols-2">
           <UiInput
             v-for="field in NAME_FIELDS"
@@ -279,7 +284,7 @@ function cancel() {
               @close-auto-focus="onMenuClosed"
             >
               <ShadcnDropdownMenuItem
-                v-for="kind in KINDS"
+                v-for="kind in offeredKinds"
                 :key="kind.id"
                 class="gap-2"
                 :data-testid="`contacts-editor-add-${kind.id}`"

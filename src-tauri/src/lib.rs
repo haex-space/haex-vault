@@ -9,6 +9,7 @@ pub mod contacts;
 pub mod device;
 pub mod error;
 pub mod extensions;
+pub mod file_sync;
 pub mod files;
 pub mod hardware;
 pub mod identity;

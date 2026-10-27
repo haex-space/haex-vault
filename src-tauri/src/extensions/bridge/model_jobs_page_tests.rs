@@ -48,6 +48,33 @@ fn a_page_with_text_image_and_table_passes_with_its_empty_cells() {
 }
 
 #[test]
+fn a_formula_line_and_a_formula_cell_pass_with_their_latex() {
+    let page = json!({ "regions": [
+        { "kind": "formula", "box": [60, 300, 700, 360],
+          "latex": "\\ce{H2SO3 + H2O -> H3O+ + HSO3-}" },
+        { "kind": "table", "box": [58, 470, 978, 986],
+          "rows": [["Salz", "Formel"], ["Natriumcarbonat", "$\\ce{Na2CO3}$"]] }
+    ]});
+
+    let end = read(&page);
+
+    assert_eq!(end["status"], "completed", "{end}");
+    assert_eq!(end["result"]["final"], page);
+}
+
+#[test]
+fn a_region_of_an_unknown_kind_is_unusable() {
+    let page = json!({ "regions": [
+        { "kind": "equation", "box": [60, 300, 700, 360], "latex": "a^2 + b^2 = c^2" }
+    ]});
+
+    let end = read(&page);
+
+    assert_eq!(end["status"], "failed", "{end}");
+    assert_eq!(end["error"]["code"], "unusable");
+}
+
+#[test]
 fn a_table_with_a_missing_cell_is_unusable() {
     let page = json!({ "regions": [
         { "kind": "table", "box": [58, 67, 978, 986], "rows": [["Tag", "Fach"], ["Mo", null]] }

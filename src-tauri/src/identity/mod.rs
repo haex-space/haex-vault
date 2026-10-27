@@ -54,6 +54,9 @@ mod migrations_peer_schema_tests;
 pub mod migrations_storage;
 #[cfg(test)]
 mod migrations_storage_tests;
+mod migrations_sync_rules;
+#[cfg(test)]
+mod migrations_sync_rules_tests;
 #[cfg(test)]
 mod migrations_tests;
 

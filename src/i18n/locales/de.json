@@ -2799,8 +2799,8 @@
     "noMatch": "Kein Kontakt passt zur Suche.",
     "noName": "Ohne Namen",
     "self": "Ich",
-    "selfNameHint": "Dieser Kontakt heißt immer „Ich“, egal welchen Namen du einträgst. Er geht an kein Telefon.",
     "new": "Neuer Kontakt",
+    "add": "Hinzufügen",
     "cancel": "Abbrechen",
     "save": "Speichern",
     "back": "Zurück",
@@ -2934,7 +2934,7 @@
       "service": "Dienst",
       "handle": "Kennung",
       "date": "Datum",
-      "datePlaceholder": "JJJJ-MM-TT oder --MM-TT"
+      "datePlaceholder": "{full} oder {short}"
     },
     "address": {
       "street": "Straße",
@@ -3006,8 +3006,12 @@
       "done": "Fertig",
       "count": "Keiner ausgewählt | Einer ausgewählt | {count} ausgewählt"
     },
+    "date": {
+      "day": "TT",
+      "month": "MM",
+      "year": "JJJJ"
+    },
     "card": {
-      "menu": "Visitenkarte",
       "import": "Visitenkarte einlesen",
       "paste": "Link der Visitenkarte",
       "check": "Prüfen",

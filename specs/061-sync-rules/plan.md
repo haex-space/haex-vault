@@ -86,7 +86,7 @@ _GATE: vor Phase 0 und nach Phase 1 geprüft._
 - ADR für Entwurfsbeschlüsse: Tabellen `*_no_sync` mit `vault_device_uuid` für geräteeigene Daten, die nicht
   synchronisiert werden dürfen, weicht von ADR 0001 ab (dort: nachverfolgte Tabellen). **ADR 0018
   „Sync-Regeln und ihr Zustand bleiben auf dem ausführenden Gerät“** im selben PR (Aufgabe in `tasks.md`).
-- Eine Umsetzung je Regel: Vergleich nur in `plan::build`; Muster nur in `ignore::Matcher`; Löschmodus nur in
+- Eine Umsetzung je Regel: Vergleich nur in `plan::build`; Muster nur in `ignore::Exclusions`; Löschmodus nur in
   `execute::delete_step`; Überlappungsprüfung nur in `rules::validate`.
 - Jedes Gerät und jedes System: Rust-Zweige mit `cfg` (Trash, Wächter) auch für `aarch64-linux-android` linten.
 
@@ -123,7 +123,7 @@ src-tauri/src/
 │   ├── place_device.rs                 # Ausprägung Gerät (Dateisystem, Papierkorb des Systems)
 │   ├── place_storage.rs                # Ausprägung Speicher (StorageFiles, Peer, verschlüsselt)
 │   ├── scan.rs                         # Listen beider Seiten zu Facts (Pfad, Größe, Zeit, Flags)
-│   ├── ignore.rs                       # Matcher aus .haex-ignore (beide Seiten), feste Ausnahmen
+│   ├── ignore.rs                       # Exclusions aus .haex-ignore (beide Seiten), feste Ausnahmen
 │   ├── plan.rs                         # build: Stand + Seiten -> Plan (rein)
 │   ├── execute.rs                      # Schritte ausführen, Stand fortschreiben, Konfliktkopien
 │   ├── run.rs                          # ein Lauf: scan, plan, execute, Protokoll, Statuswechsel
