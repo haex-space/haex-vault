@@ -54,17 +54,19 @@ contacts every time).
 
 **`Drive`** (ts-rs binding changes with it):
 
-| Field        | Meaning                                                                       |
-| ------------ | ----------------------------------------------------------------------------- |
-| `id`         | Stable backend id: udisks object path, BSD name (`disk4s1`), volume GUID path |
-| `name`       | Volume label, else "Datenträger (32 GB)"                                      |
-| `path`       | Mount path, `null` while not mounted                                          |
-| `kind`       | `system` \| `internal` \| `removable`; picks the icon (hard drive or USB)     |
-| `state`      | `mounted` \| `unmounted` \| `locked`                                          |
-| `canEject`   | Show the eject button                                                         |
-| `volumeUuid` | For the password manager link; only on encrypted drives                       |
-| `total`      | As today                                                                      |
-| `free`       | As today                                                                      |
+| Field         | Meaning                                                                         |
+| ------------- | ------------------------------------------------------------------------------- |
+| `id`          | Session-local backend id: udisks object path, BSD name (`disk4s1`), `E:\\`, or `/storage/…` |
+| `key`         | Lowercase stable filesystem or encrypted-container UUID, when available        |
+| `label`       | Volume label; otherwise the UI shows "Datenträger (<Größe>)"                    |
+| `path`        | Mount path, `null` exactly while not mounted                                    |
+| `kind`        | `system` \| `internal` \| `removable`; picks the icon and ordering             |
+| `state`        | `mounted` \| `unmounted` \| `locked`                                           |
+| `release`     | `none` \| `unmount` \| `eject`; determines the available release action         |
+| `encrypted`   | Whether an encrypted container backs the filesystem                             |
+| `size`        | Block size in bytes, for the fallback label                                     |
+| `total`       | As today, only while mounted                                                     |
+| `free`        | As today, only while mounted                                                     |
 
 **Which unmounted drives appear**: all removable media, and internal partitions the system does not
 mark as system partitions (udisks `HintSystem`/`HintIgnore`), so EFI, recovery and swap stay hidden.
