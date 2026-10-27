@@ -9,6 +9,7 @@ mod pause;
 pub mod remote;
 mod remote_plan;
 mod remote_plan_encrypted;
+pub mod sync_copy;
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};

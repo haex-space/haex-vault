@@ -7,21 +7,21 @@ Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001,
 
 ## `haex_sync_rules_no_sync` — Regel
 
-| Spalte                             | Typ       | Hinweis                                                                                                                         |
-| ---------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                               | TEXT PK   | UUID v4                                                                                                                         |
-| `vault_device_uuid`                | TEXT      | FK, Gerät, das die Regel führt                                                                                                  |
-| `name`                             | TEXT      | nicht leer, höchstens 80 Zeichen                                                                                                |
-| `enabled`                          | INTEGER   | 1 aktiv, 0 pausiert                                                                                                             |
-| `place_a_source`, `place_b_source` | TEXT      | `device` oder Speicher-ID (`<id>`, `peer:<Gerät>`, `device:<Wurzel>` für verschlüsselte Ordner auf dem Gerät); nie `share:<id>` |
-| `place_a_path`, `place_b_path`     | TEXT      | Ordnerpfad der Quelle (Gerät: absolut; Speicher: Schlüssel mit `/` am Ende)                                                     |
-| `direction`                        | TEXT      | `aToB`, `bToA`, `both`                                                                                                          |
-| `delete_mode`                      | TEXT      | `mirror`, `keep`, `ask`                                                                                                         |
-| `interval_secs`                    | INTEGER   | 60 bis 86 400; Vorgabe 900                                                                                                      |
-| `created_at`, `updated_at`         | TEXT      | ISO 8601                                                                                                                        |
-| `last_run_at`                      | TEXT NULL | Ende des letzten Laufs                                                                                                          |
-| `last_outcome`                     | TEXT NULL | `done`, `partial`, `waiting`, `error`, `cancelled`                                                                              |
-| `last_error`                       | TEXT NULL | Grund bei `error`/`waiting`                                                                                                     |
+| Spalte                             | Typ       | Hinweis                                                                                                                                                                |
+| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                               | TEXT PK   | UUID v4                                                                                                                                                                |
+| `vault_device_uuid`                | TEXT      | FK, Gerät, das die Regel führt                                                                                                                                         |
+| `name`                             | TEXT      | nicht leer, höchstens 80 Zeichen                                                                                                                                       |
+| `enabled`                          | INTEGER   | 1 aktiv, 0 pausiert                                                                                                                                                    |
+| `place_a_source`, `place_b_source` | TEXT      | `SourceRef` wie im Fenster: `device` oder Speicher-ID (`<id>`, `peer:<Gerät>`); nie `share:<id>`. Ein verschlüsselter Ordner ist Quelle plus Fensterpfad (research R1) |
+| `place_a_path`, `place_b_path`     | TEXT      | Ordnerpfad der Quelle (Gerät: absolut; Speicher: Fensterpfad wie `/Fotos`, Wurzel `/`)                                                                                 |
+| `direction`                        | TEXT      | `aToB`, `bToA`, `both`                                                                                                                                                 |
+| `delete_mode`                      | TEXT      | `mirror`, `keep`, `ask`                                                                                                                                                |
+| `interval_secs`                    | INTEGER   | 60 bis 86 400; Vorgabe 900                                                                                                                                             |
+| `created_at`, `updated_at`         | TEXT      | ISO 8601                                                                                                                                                               |
+| `last_run_at`                      | TEXT NULL | Ende des letzten Laufs                                                                                                                                                 |
+| `last_outcome`                     | TEXT NULL | `done`, `partial`, `waiting`, `error`, `cancelled`                                                                                                                     |
+| `last_error`                       | TEXT NULL | Grund bei `error`/`waiting`                                                                                                                                            |
 
 Validierung (`rules::validate`): Orte nicht gleich; keine Überlappung mit einer anderen Regel dieses Geräts (der
 Pfad eines Orts liegt nicht in dem eines anderen Orts derselben Quelle, auch nicht über Kreuz A/B); Quelle ist
@@ -30,14 +30,15 @@ immer A als Quellort; `bToA` ist beim Speichern auf `aToB` mit vertauschten Orte
 
 ## `haex_sync_rule_files_no_sync` — Stand
 
-| Spalte                 | Typ          | Hinweis                                                                      |
-| ---------------------- | ------------ | ---------------------------------------------------------------------------- |
-| `rule_id`              | TEXT         | FK auf Regel, `ON DELETE CASCADE`                                            |
-| `vault_device_uuid`    | TEXT         | FK                                                                           |
-| `path`                 | TEXT         | relativ zum Ort, `/` als Trenner, Unicode NFC                                |
-| `a_size`, `a_mtime_ms` | INTEGER NULL | Stand von Seite A nach dem letzten Erfolg; NULL = Datei dort nicht vorhanden |
-| `b_size`, `b_mtime_ms` | INTEGER NULL | dito für Seite B                                                             |
-| `kept`                 | INTEGER      | 1 = Löschmodus „Behalten“ hat sie bewusst stehen lassen                      |
+| Spalte                 | Typ          | Hinweis                                                                                                                             |
+| ---------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `rule_id`              | TEXT         | FK auf Regel, `ON DELETE CASCADE`                                                                                                   |
+| `vault_device_uuid`    | TEXT         | FK                                                                                                                                  |
+| `path`                 | TEXT         | relativ zum Ort, `/` als Trenner, Namen so, wie der Ort sie meldet (keine Unicode-Normalisierung)                                   |
+| `a_size`, `a_mtime_ms` | INTEGER NULL | Stand von Seite A nach dem letzten Erfolg; NULL = Datei dort nicht vorhanden                                                        |
+| `b_size`, `b_mtime_ms` | INTEGER NULL | dito für Seite B                                                                                                                    |
+| `kept`                 | INTEGER      | 1 = Löschmodus „Behalten“ hat sie bewusst stehen lassen                                                                             |
+| `hash`                 | TEXT NULL    | SHA-256 des Inhalts (hex), sobald holzi ihn kennt (Kontrolle nach dem Kopieren, erster Abgleich); bestätigt Verschiebungen (FR-009) |
 
 PK `(rule_id, path)`. Ein Wechsel von Orten oder Richtung löscht alle Zeilen der Regel.
 
@@ -61,7 +62,7 @@ wenn die Datei wieder auftaucht.
 | `id`                                                           | TEXT PK   | UUID                                     |
 | `rule_id`, `vault_device_uuid`                                 | TEXT      | FK; `rule_id` mit `ON DELETE CASCADE`    |
 | `started_ms`, `duration_ms`                                    | INTEGER   |                                          |
-| `trigger`                                                      | TEXT      | `interval`, `watch`, `manual`, `startup` |
+| `cause`                                                        | TEXT      | `interval`, `watch`, `manual`, `startup` |
 | `outcome`                                                      | TEXT      | wie `last_outcome`                       |
 | `error`                                                        | TEXT NULL |                                          |
 | `copied`, `moved`, `deleted`, `conflicts`, `errors`, `skipped` | INTEGER   | Zähler                                   |

@@ -17,7 +17,7 @@ SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused'|'inact
 SyncRulePlan       { steps: SyncRulePlanStep[], counts, hashReads, ignored }
 SyncRulePlanStep   { action, path, side, detail? }
 SyncRulePending    { path, side }
-SyncRuleRun        { id, startedMs, durationMs, trigger, outcome, error?, copied, moved, deleted, conflicts,
+SyncRuleRun        { id, startedMs, durationMs, cause, outcome, error?, copied, moved, deleted, conflicts,
                      errors, skipped, itemsTruncated }
 SyncRuleRunItem    { seq, path, action, side, detail?, trashKind?, trashPath? }
 SyncRuleIgnore     { content, writable, reason?, fixed: string[], ignoredNow: number }
