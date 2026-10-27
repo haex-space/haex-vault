@@ -1,6 +1,6 @@
 //! The fixture of the MCP server tests (spec 021): a real vault, the server on a socket in a
 //! temporary directory, a fake window that answers action calls and records them, the registration
-//! dialogs caught on a channel, and agents that are real rmcp clients talking through the real
+//! dialogs and call prompts caught on channels, and agents that are real rmcp clients talking through the real
 //! `--mcp-agent` helper. Included per binary via `#[path = "common/mcp_fixture.rs"] mod mcp_fixture;`.
 #![allow(dead_code, clippy::disallowed_methods)]
 
@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
-use rmcp::service::{RoleClient, RunningService};
+use rmcp::service::{Peer, RoleClient, RunningService};
 use rmcp::ServiceExt;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -25,15 +25,18 @@ use holzi_lib::identity::{
     holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
     HOLZI_TRIGGER_VERSION,
 };
+use holzi_lib::mcp_server::agent_log::{self, AgentLogEntry};
+use holzi_lib::mcp_server::connection::now_millis;
 use holzi_lib::mcp_server::endpoint::{self, endpoint_name};
 use holzi_lib::mcp_server::grants::Rights;
 use holzi_lib::mcp_server::helper::{self, HelperArgs, HelperEnv};
 use holzi_lib::mcp_server::prompts::{
-    new_registration_prompts, RegistrationAnswer, RegistrationDecision, RegistrationPrompts,
-    RegistrationQuestion,
+    new_registration_prompts, CallDecision, CallPrompts, CallQuestion, RegistrationAnswer,
+    RegistrationDecision, RegistrationPrompts, RegistrationQuestion,
 };
-use holzi_lib::mcp_server::registry::AgentMode;
+use holzi_lib::mcp_server::registry::{self, AgentMode};
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
+use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
@@ -78,6 +81,9 @@ pub struct Fixture {
     pub env: HelperEnv,
     pub prompts: RegistrationPrompts,
     pub asked: mpsc::UnboundedReceiver<(String, RegistrationQuestion)>,
+    pub calls: CallPrompts,
+    pub call_asked: mpsc::UnboundedReceiver<(String, CallQuestion)>,
+    pub limits: Limits,
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
     /// `(actionId, caller)` of every action the fake window ran.
@@ -87,6 +93,11 @@ pub struct Fixture {
 }
 
 pub fn fixture() -> Fixture {
+    fixture_with(Duration::from_secs(300))
+}
+
+/// A fixture whose call prompts end after `call_timeout`.
+pub fn fixture_with(call_timeout: Duration) -> Fixture {
     let dir = tempfile::tempdir().expect("tempdir");
     let database = Database::open(DatabaseConfig {
         path: dir.path().join("vault.db"),
@@ -117,6 +128,11 @@ pub fn fixture() -> Fixture {
             tell.send((id.to_owned(), question.clone())).is_ok()
         },
     ));
+    let calls: CallPrompts = PromptPark::new(call_timeout);
+    let (tell, call_asked) = mpsc::unbounded_channel();
+    calls.set_emitter(Arc::new(move |id: &str, question: &CallQuestion| {
+        tell.send((id.to_owned(), question.clone())).is_ok()
+    }));
     let catalog = ActionCatalog::default();
     catalog.replace(test_catalog());
     let bridge = ActionBridge::default();
@@ -148,6 +164,9 @@ pub fn fixture() -> Fixture {
         env,
         prompts,
         asked,
+        calls,
+        call_asked,
+        limits: Limits::default(),
         catalog,
         bridge,
         window_calls,
@@ -169,8 +188,9 @@ impl Fixture {
             catalog: self.catalog.clone(),
             bridge: self.bridge.clone(),
             prompts: self.prompts.clone(),
+            calls: self.calls.clone(),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),
-            limits: Limits::default(),
+            limits: self.limits,
         })
         .await
         .expect("the server starts")
@@ -212,13 +232,17 @@ impl Fixture {
     }
 
     pub fn register(&self, id: &str, rights: Rights) {
+        self.register_as(id, rights, AgentMode::Manual);
+    }
+
+    pub fn register_as(&self, id: &str, rights: Rights, mode: AgentMode) {
         assert!(self.prompts.answer(
             id,
             RegistrationAnswer {
                 decision: RegistrationDecision::Register,
                 remember: false,
                 rights,
-                mode: AgentMode::Manual,
+                mode,
             }
         ));
     }
@@ -235,13 +259,59 @@ impl Fixture {
         ));
     }
 
-    /// Connects `slug`, registers it with `rights` and returns it once it sees tools.
+    /// Connects `slug`, registers it with `rights` in Auto, so reading and changing run without a
+    /// prompt, and returns it once it sees tools.
     pub async fn registered(&mut self, slug: &str, rights: Rights) -> (Agent, JoinHandle<i32>) {
+        self.registered_as(slug, rights, AgentMode::Auto).await
+    }
+
+    pub async fn registered_as(
+        &mut self,
+        slug: &str,
+        rights: Rights,
+        mode: AgentMode,
+    ) -> (Agent, JoinHandle<i32>) {
         let (agent, helper) = self.agent(slug).await.expect("connected");
         let (id, _) = self.next_question().await;
-        self.register(&id, rights);
+        self.register_as(&id, rights, mode);
         wait_for_tools(&agent).await;
         (agent, helper)
+    }
+
+    pub async fn next_call(&mut self) -> (String, CallQuestion) {
+        tokio::time::timeout(WAIT, self.call_asked.recv())
+            .await
+            .expect("a call prompt in time")
+            .expect("the prompt channel is open")
+    }
+
+    pub async fn no_call_prompt(&mut self) {
+        assert!(
+            tokio::time::timeout(Duration::from_millis(300), self.call_asked.recv())
+                .await
+                .is_err(),
+            "no call prompt"
+        );
+    }
+
+    pub fn answer_call(&self, id: &str, decision: CallDecision) {
+        assert!(self.calls.answer(id, decision), "the prompt waits");
+    }
+
+    /// The log of the agent registered as `slug`, newest first.
+    pub async fn log_of(&self, slug: &str) -> Vec<AgentLogEntry> {
+        let device = self.device;
+        let slug = slug.to_owned();
+        self.db
+            .write(move |tx| {
+                let agent = registry::list(tx, device)?
+                    .into_iter()
+                    .find(|agent| agent.slug == slug)
+                    .expect("registered");
+                agent_log::read(tx, device, agent.id, None, 200, now_millis())
+            })
+            .await
+            .expect("the log")
     }
 
     pub fn credential_file(&self, slug: &str) -> std::path::PathBuf {
@@ -294,9 +364,17 @@ pub async fn wait_for_tools(agent: &Agent) {
     }
 }
 
-pub async fn call(agent: &Agent, tool: &str) -> CallToolResult {
+pub async fn call(agent: &Peer<RoleClient>, tool: &str) -> CallToolResult {
     agent
         .call_tool(CallToolRequestParams::new(tool.to_owned()))
+        .await
+        .expect("tools/call")
+}
+
+pub async fn call_with(agent: &Peer<RoleClient>, tool: &str, arguments: Value) -> CallToolResult {
+    let arguments = arguments.as_object().cloned().unwrap_or_default();
+    agent
+        .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments))
         .await
         .expect("tools/call")
 }

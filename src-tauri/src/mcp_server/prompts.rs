@@ -1,7 +1,8 @@
-//! The registration dialog (spec 021 US1, FR-006, FR-009, FR-011): an unknown agent that connects
-//! asks holzi's window, and the answer carries its rights and approval mode. The question parks on
-//! `prompt_park.rs` for five minutes. At most one dialog per slug and three in all may be open; a
-//! further unknown agent is turned away without a dialog.
+//! The questions to the user (spec 021): the registration dialog (US1, FR-006, FR-009, FR-011) and
+//! the call prompt (US3, FR-021 to FR-023). An unknown agent that connects asks holzi's window, and
+//! the answer carries its rights and approval mode; at most one dialog per slug and three in all
+//! may be open, a further unknown agent is turned away without a dialog. A call asks when the
+//! agent's approval mode says so. Both park on `prompt_park.rs` for five minutes.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -12,6 +13,8 @@ use ts_rs::TS;
 
 use super::grants::Rights;
 use super::registry::{AgentMode, Transport};
+use crate::chat::tools::action_tool::{ActionEffect, ActionTitles, AgentActionDef};
+use crate::chat::tools::permission::{decide, Decision};
 use crate::prompt_park::PromptPark;
 
 /// How long a registration dialog waits (data-model.md, "Registrierungsdialog").
@@ -22,6 +25,8 @@ pub const MAX_OPEN_REGISTRATIONS: usize = 3;
 
 /// Event a registration question goes out on (contracts/tauri-commands.md).
 pub const EVENT_REGISTRATION_REQUEST: &str = "mcp-registration-request";
+/// Event a call prompt goes out on.
+pub const EVENT_CALL_REQUEST: &str = "mcp-call-request";
 /// Event that closes a dialog nobody waits for any more.
 pub const EVENT_PROMPT_CLOSED: &str = "mcp-prompt-closed";
 /// Event the settings reload on.
@@ -97,6 +102,103 @@ pub type RegistrationPrompts = PromptPark<RegistrationQuestion, RegistrationAnsw
 
 pub fn new_registration_prompts() -> RegistrationPrompts {
     PromptPark::new(REGISTRATION_TIMEOUT)
+}
+
+/// How long a call prompt waits (FR-023).
+pub const CALL_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// The scope whose actions hand out a secret; they ask in every approval mode (FR-021).
+pub const SECRET_SCOPE: &str = "passwords.secret";
+
+/// Whether a call runs, asks first, or is refused (FR-021): the approval mode of the agent decides
+/// as for the built-in agent (ADR-0006), and a secret always asks.
+pub fn call_gate(mode: AgentMode, def: &AgentActionDef) -> Decision {
+    if def.scope == SECRET_SCOPE {
+        return Decision::Ask;
+    }
+    decide(mode.permission_mode(), def.effect.risk_class())
+}
+
+/// The localized names of an action, for the prompt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct CallTitles {
+    pub de: String,
+    pub en: String,
+}
+
+impl From<&ActionTitles> for CallTitles {
+    fn from(titles: &ActionTitles) -> Self {
+        Self {
+            de: titles.de.clone(),
+            en: titles.en.clone(),
+        }
+    }
+}
+
+/// What a call prompt shows (FR-022).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct CallQuestion {
+    pub agent_id: String,
+    /// The agent's own claim, never checked.
+    pub client_name: String,
+    pub action_id: String,
+    pub titles: CallTitles,
+    pub effect: CallEffect,
+    pub target: Option<String>,
+    /// The inputs without secrets (`redact.rs`).
+    #[ts(type = "Record<string, unknown>")]
+    pub input: serde_json::Value,
+    /// The answer hands a secret to the agent and its provider.
+    pub secret: bool,
+}
+
+/// The effect of the called action, as the prompt names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum CallEffect {
+    Read,
+    Write,
+    Destructive,
+}
+
+impl From<ActionEffect> for CallEffect {
+    fn from(effect: ActionEffect) -> Self {
+        match effect {
+            ActionEffect::Read => Self::Read,
+            ActionEffect::Write => Self::Write,
+            ActionEffect::Destructive => Self::Destructive,
+        }
+    }
+}
+
+/// The window's answer to a call prompt (`mcp_call_answer`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum CallDecision {
+    Allow,
+    Deny,
+}
+
+/// The payload of [`EVENT_CALL_REQUEST`].
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct CallPromptEvent {
+    pub request_id: String,
+    /// Unix milliseconds.
+    pub expires_at: i64,
+    pub question: CallQuestion,
+}
+
+pub type CallPrompts = PromptPark<CallQuestion, CallDecision>;
+
+pub fn new_call_prompts() -> CallPrompts {
+    PromptPark::new(CALL_TIMEOUT)
 }
 
 /// Keeps the count of open registration dialogs (FR-011). Cheap to clone.

@@ -93,29 +93,22 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
     }
 }
 
-/// Whether `rights` cover `def`. `changes_allowed` is `false` until the approval prompts exist
-/// (tasks.md shipping note, T050): then only reading actions are offered, whatever the level.
-fn covers(rights: &Rights, def: &AgentActionDef, changes_allowed: bool) -> bool {
+/// Whether `rights` cover `def`. Whether a covered call asks first is the approval mode's matter
+/// (`prompts::call_gate`).
+fn covers(rights: &Rights, def: &AgentActionDef) -> bool {
     if def.scope == GUARDRAILS_SCOPE {
         return false;
     }
     match rights.operate.get(&def.scope) {
         None => false,
         Some(OperateLevel::Read) => def.effect == ActionEffect::Read,
-        Some(OperateLevel::Write) => changes_allowed || def.effect == ActionEffect::Read,
+        Some(OperateLevel::Write) => true,
     }
 }
 
 /// The actions of `catalog` an agent with `rights` sees (FR-012, FR-013).
-pub fn offers<'a>(
-    rights: &Rights,
-    catalog: &'a [AgentActionDef],
-    changes_allowed: bool,
-) -> Vec<&'a AgentActionDef> {
-    catalog
-        .iter()
-        .filter(|def| covers(rights, def, changes_allowed))
-        .collect()
+pub fn offers<'a>(rights: &Rights, catalog: &'a [AgentActionDef]) -> Vec<&'a AgentActionDef> {
+    catalog.iter().filter(|def| covers(rights, def)).collect()
 }
 
 /// The action behind `tool_name`, if the agent may call it (FR-014); checked again on every call,
@@ -124,10 +117,9 @@ pub fn check<'a>(
     rights: &Rights,
     catalog: &'a [AgentActionDef],
     tool_name: &str,
-    changes_allowed: bool,
 ) -> Option<&'a AgentActionDef> {
     catalog
         .iter()
         .find(|def| def.tool_name == tool_name)
-        .filter(|def| covers(rights, def, changes_allowed))
+        .filter(|def| covers(rights, def))
 }
