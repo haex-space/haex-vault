@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { createWriteStream, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createInterface } from 'node:readline'
+import { buildInstanceEnv } from './instance.ts'
 import { stopGroup } from './processes.ts'
 
 /** A JSON-RPC message from the server. */
@@ -38,7 +39,8 @@ export interface McpAgent {
 export function startMcpAgent(options: {
   app: string
   slug: string
-  env: Record<string, string>
+  root: string
+  marker: string
   logFile: string
 }): McpAgent {
   mkdirSync(dirname(options.logFile), { recursive: true })
@@ -47,7 +49,7 @@ export function startMcpAgent(options: {
     // A log that cannot be written must not take the run down with it.
   })
   const child = spawn(options.app, ['--mcp-agent', options.slug], {
-    env: options.env,
+    env: buildInstanceEnv(options.root, options.marker),
     detached: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   })

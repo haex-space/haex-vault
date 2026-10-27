@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
-import { buildInstanceEnv } from '../lib/instance.ts'
 import { startMcpAgent } from '../lib/mcp-agent.ts'
 import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 
@@ -33,7 +32,8 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   const agent = startMcpAgent({
     app: ctx.app.path,
     slug: 'e2e-agent',
-    env: buildInstanceEnv(instance.root, instance.marker),
+    root: instance.root,
+    marker: instance.marker,
     logFile: join(process.env.E2E_RUN_DIR ?? '.', 'mcp-agent', 'agent.log'),
   })
   ctx.onTeardown(() => agent.stop())
