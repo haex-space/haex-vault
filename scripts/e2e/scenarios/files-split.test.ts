@@ -30,6 +30,7 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-split' })
+    files.ensureFolder()
 
     // After the start: on Android it clears the app's data, where the folder lives.
     for (const [path, name] of [

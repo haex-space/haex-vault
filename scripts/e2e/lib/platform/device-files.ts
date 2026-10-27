@@ -20,6 +20,8 @@ import { PACKAGE } from './android.ts'
 export interface DeviceFiles {
   folder: string
   path: (name: string) => string
+  /** Ensures `folder` exists before the app creates entries below it. */
+  ensureFolder: () => void
   write: (name: string, content: string | Uint8Array) => void
   read: (name: string) => string
   readBytes: (name: string) => Buffer
@@ -66,6 +68,7 @@ export function deviceFiles(
     return {
       folder,
       path,
+      ensureFolder: () => mkdirSync(folder, { recursive: true }),
       write: (name, content) => writeFileSync(path(name), content),
       read: (name) => readFileSync(path(name), 'utf8'),
       readBytes: (name) => readFileSync(path(name)),
@@ -113,6 +116,13 @@ export function deviceFiles(
   return {
     folder,
     path,
+    ensureFolder: () => {
+      adb.shell('mkdir', '-p', folder)
+      adb.shell(
+        `chmod a+rwx ${quote(ANDROID_FILES)} ${quote(ANDROID_DOWNLOADS)} 2>/dev/null;`,
+        `chmod -R a+rwX ${quote(folder)} 2>/dev/null; true`,
+      )
+    },
     write: (name, content) => {
       throughLocal((local) => {
         writeFileSync(local, content)
