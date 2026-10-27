@@ -26,6 +26,16 @@ festplatten, usb sticks etc" (Betreiber, 2026-10-27). Abgestimmtes Design:
 - Q: Wie findet haex das Passwort eines Laufwerks? → A: Ein normaler Eintrag im Passwortmanager, dessen
   URL `haex:drive:<Volume-UUID>` ist, mit dem Tag `haex-drive`. Es gibt keine eigene Verknüpfung
   daneben; neue Bezeichner heißen `haex`, nicht `holzi`.
+- Q: Was passiert mit einem von haex entsperrten Laufwerk, wenn der Vault sperrt oder haex endet? →
+  A: Nichts. Es bleibt entsperrt und eingehängt, bis der Nutzer es auswirft oder abzieht; beim
+  Auswerfen sperrt haex den verschlüsselten Container immer wieder.
+- Q: Lassen sich eingehängte interne Partitionen in haex wieder aushängen? → A: Ja. Jedes eingehängte
+  Laufwerk außer den Systemorten (`/`, `/home`, `/boot` und dergleichen) bekommt einen Knopf:
+  „Auswerfen“ (aushängen und ausschalten) bei Wechseldatenträgern, „Aushängen“ bei internen.
+- Q: Was zeigt ein wiederhergestellter Tab, dessen Laufwerk steckt, aber nicht eingehängt oder
+  gesperrt ist? → A: „Laufwerk <Name> ist nicht eingehängt“ mit „Einhängen“ bzw. „Entsperren“; danach
+  öffnet er den gemerkten Ordner. Fehlt das Laufwerk ganz, springt er wie in 044 zum nächsten
+  vorhandenen Ordner. Ungefragt eingehängt wird nichts.
 
 ## Begriffe
 
@@ -51,6 +61,8 @@ festplatten, usb sticks etc" (Betreiber, 2026-10-27). Abgestimmtes Design:
   Laufwerks-Einträge folgen dem Muster von 052 (vorhandenen Eintrag wählen oder neuen anlegen, Tag als
   Konvention). Tags bleiben gewöhnliche Tags.
 - **Spec 024** (Sync): Laufwerks-Einträge sind Vault-Daten und kommen auf alle eigenen Geräte.
+- **Spec 022** (Sitzung wiederherstellen): Ein Tab merkt sich zusätzlich das Laufwerk seines Ordners
+  (FR-025).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -84,7 +96,12 @@ wird; er erscheint mit Namen; ein Klick zeigt seinen Inhalt. Abziehen entfernt i
    Systempartitionen wie EFI, Wiederherstellung oder Auslagerung nicht.
 7. **Given** ein Tab zeigt einen Ordner auf einem Stick, **When** der Stick abgezogen wird, **Then**
    verschwindet er aus der Liste und der Tab springt zum nächsten vorhandenen Ordner (044).
-8. **Given** Android, **When** ein OTG-Stick eingesteckt wird, **Then** erscheint er ohne Neuöffnen in
+8. **Given** ein Tab stand vor dem Neustart in einem Ordner auf einem Stick, der noch steckt, aber
+   nicht eingehängt ist, **When** haex die Sitzung wiederherstellt, **Then** zeigt der Tab „Laufwerk
+   <Name> ist nicht eingehängt“ mit „Einhängen“ (bei gesperrtem Laufwerk „Entsperren“); nach dem
+   Klick öffnet er den gemerkten Ordner, auch wenn das System das Laufwerk an einem anderen Ort
+   einhängt.
+9. **Given** Android, **When** ein OTG-Stick eingesteckt wird, **Then** erscheint er ohne Neuöffnen in
    der Liste; Einhängen und Auswerfen bietet haex dort nicht an.
 
 ---
@@ -113,8 +130,10 @@ eingehängt.
    fragt haex „Übertragung abbrechen und auswerfen?“ und wirft nur nach Bestätigung aus.
 4. **Given** ein anderes Programm hält das Laufwerk, **When** der Nutzer auswirft, **Then** bleibt es
    eingehängt und haex sagt, dass es noch von einem anderen Programm benutzt wird.
-5. **Given** das Systemlaufwerk oder ein internes Laufwerk, **When** der Nutzer die Seitenleiste
-   ansieht, **Then** gibt es dort keinen „Auswerfen“-Knopf.
+5. **Given** das Systemlaufwerk oder ein anderer Systemort, **When** der Nutzer die Seitenleiste
+   ansieht, **Then** gibt es dort weder „Auswerfen“ noch „Aushängen“.
+6. **Given** eine eingehängte interne Partition, die kein Systemort ist, **When** der Nutzer
+   „Aushängen“ wählt, **Then** ist sie danach ausgehängt und bleibt als nicht eingehängt in der Liste.
 
 ---
 
@@ -186,6 +205,8 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 - **Kein Laufwerksdienst des Systems vorhanden** (minimale Linux-Installation, Sandbox): haex zeigt wie
   heute nur die eingehängten Laufwerke, ohne Einhängen und Auswerfen.
 - **Unformatierte Partition**: erscheint nicht.
+- **Einhängen scheitert aus anderem Grund** (Dateisystem beschädigt, Windows im Ruhezustand): haex
+  zeigt den Grund, den das System nennt; das Laufwerk bleibt nicht eingehängt.
 - **Read-only-Datenträger** (etwa ein Installationsstick): erscheint und lässt sich öffnen; Ändern
   schlägt wie bei jedem schreibgeschützten Ordner fehl.
 - **Stick wird während des Einhängens abgezogen**: Das Einhängen bricht mit einem Hinweis ab; der
@@ -197,6 +218,8 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 - **Mehrere Dateibrowser-Fenster**: Alle zeigen dieselbe Liste; ein Auswerfen in einem Fenster wirkt in
   allen.
 - **Laufwerks-Eintrag gelöscht**: Beim nächsten Klick öffnet sich der Dialog.
+- **Vault sperrt oder haex endet**: Entsperrte und eingehängte Laufwerke bleiben es; sie gehören dem
+  System, nicht dem Vault.
 - **Nutzer trägt die URL `haex:drive:<UUID>` selbst in einen Eintrag ein**: Der Eintrag gilt wie ein
   gemerkter.
 
@@ -228,14 +251,16 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 
 **Auswerfen**
 
-- **FR-008**: Eingehängte Wechseldatenträger MÜSSEN einen „Auswerfen“-Knopf haben, System- und interne
-  Laufwerke nicht.
+- **FR-008**: Eingehängte Wechseldatenträger MÜSSEN einen „Auswerfen“-Knopf haben, eingehängte interne
+  Laufwerke einen „Aushängen“-Knopf. Systemorte (`/`, `/home`, `/boot` und dergleichen) DÜRFEN keinen
+  der beiden haben. FR-009 bis FR-012 gelten für beide; ausgeschaltet werden nur Wechseldatenträger.
 - **FR-009**: Vor dem Aushängen MUSS haex alles freigeben, was es selbst auf dem Laufwerk offen hält
   (Ordnerbeobachtung, Viewer, Suche).
 - **FR-010**: Läuft eine Übertragung von oder zu dem Laufwerk, MUSS haex vor dem Auswerfen fragen und
   die Übertragung nur nach Bestätigung abbrechen.
 - **FR-011**: Nach erfolgreichem Auswerfen MUSS haex melden, dass der Datenträger abgezogen werden
-  kann; wo das System es erlaubt, MUSS haex den Datenträger auch ausschalten.
+  kann; wo das System es erlaubt, MUSS haex den Datenträger auch ausschalten. Ein verschlüsseltes
+  Laufwerk MUSS beim Auswerfen wieder gesperrt werden.
 - **FR-012**: Hält ein anderes Programm das Laufwerk, MUSS haex das sagen und das Laufwerk eingehängt
   lassen.
 
@@ -276,11 +301,18 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 - **FR-024**: Fehlt der Laufwerksdienst des Systems, MUSS haex die eingehängten Laufwerke wie bisher
   zeigen, ohne Einhängen und Auswerfen.
 
+**Sitzung**
+
+- **FR-025**: Zum Ordner eines Tabs MUSS sich haex merken, auf welchem Laufwerk und wo darin er liegt.
+  Steckt das Laufwerk beim Wiederherstellen (Spec 022), ist aber nicht eingehängt oder gesperrt, MUSS
+  der Tab das sagen und „Einhängen“ bzw. „Entsperren“ anbieten und danach den Ordner öffnen, auch an
+  einem neuen Einhängeort. Ungefragt DARF haex dabei nichts einhängen. Fehlt das Laufwerk, gilt 044.
+
 ### Key Entities
 
 - **Laufwerk**: Kennung (stabil, solange der Datenträger steckt), Name, Art (System, intern,
   wechselbar), Zustand (eingehängt, nicht eingehängt, gesperrt), Pfad wenn eingehängt, Gesamt- und
-  freier Platz wenn bekannt, ob auswerfbar, Volume-UUID bei verschlüsselten. Wird nicht gespeichert,
+  freier Platz wenn bekannt, ob auswerfbar oder aushängbar, Volume-UUID bei verschlüsselten. Wird nicht gespeichert,
   sondern vom System erfragt.
 - **Laufwerks-Eintrag**: ein normaler Eintrag des Passwortmanagers; URL `haex:drive:<Volume-UUID>`,
   Tag `haex-drive`, Passwort. Synchronisiert wie jeder Eintrag.
