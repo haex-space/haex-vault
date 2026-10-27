@@ -88,6 +88,44 @@ test('within means the folder itself or below, not a sibling with the same start
   assert.ok(!isWithin('C:\\DatenAlt', 'C:\\Daten'))
 })
 
+test('paste rules across sources: the paths of two sources are not compared', () => {
+  const dir = [{ path: '/backup', kind: 'dir' as const }]
+  const into = (path: string) => ({ path, holziOwned: false })
+  // Storage A `/backup` into storage B `/backup/2026` is not "into itself".
+  assert.equal(pasteRefusal('cut', '/', dir, into('/backup/2026'), false), null)
+  assert.equal(
+    pasteRefusal('copy', '/', dir, into('/backup/2026'), false),
+    null,
+  )
+  // A cut from the root of one storage to the root of another is not "nothing".
+  assert.equal(pasteRefusal('cut', '/', dir, into('/'), false), null)
+  // The same source keeps both rules.
+  assert.equal(
+    pasteRefusal('cut', '/', dir, into('/backup/2026'), true),
+    'intoItself',
+  )
+  assert.equal(
+    pasteRefusal(
+      'cut',
+      '/x',
+      [{ path: '/x/f', kind: 'file' }],
+      into('/x'),
+      true,
+    ),
+    'nothing',
+  )
+  // Holzi's own places refuse whatever the source.
+  assert.equal(
+    pasteRefusal('copy', '/', dir, { path: '/own', holziOwned: true }, false),
+    'holziOwned',
+  )
+  // Leaving the argument out is the same source, as before.
+  assert.equal(
+    pasteRefusal('cut', '/x', [{ path: '/x/f', kind: 'file' }], into('/x')),
+    'nothing',
+  )
+})
+
 test('paste rules: own places, into itself, cut into the same folder', () => {
   const dir = [{ path: '/x/a', kind: 'dir' as const }]
   const file = [{ path: '/x/f', kind: 'file' as const }]
@@ -291,4 +329,74 @@ test('a band replaces the selection, with a key it adds to it', () => {
     anchor: '/x/a',
   })
   assert.deepEqual(bandSelection(base, [], false), EMPTY_SELECTION)
+})
+
+test('the split view adds copying and moving into the other panel, after copy and cut', () => {
+  const input = {
+    count: 2,
+    singleFile: false,
+    readOnly: false,
+    selecting: true,
+  }
+  assert.deepEqual(ids(entriesMenu({ ...input, split: true })), [
+    'copy',
+    'cut',
+    'copyToOther',
+    'moveToOther',
+    'rename-',
+    'delete',
+  ])
+  // Without the split view the menu is the one it was.
+  assert.deepEqual(ids(entriesMenu(input)), [
+    'copy',
+    'cut',
+    'rename-',
+    'delete',
+  ])
+  assert.deepEqual(entriesMenu({ ...input, split: false }), entriesMenu(input))
+})
+
+test('the two commands name F5 and F6 and follow the write rules', () => {
+  const input = {
+    count: 1,
+    singleFile: true,
+    readOnly: false,
+    selecting: false,
+    split: true,
+  }
+  const entries = entriesMenu(input)
+  const copyTo = entries.find(
+    (entry) => 'id' in entry && entry.id === 'copyToOther',
+  )
+  const moveTo = entries.find(
+    (entry) => 'id' in entry && entry.id === 'moveToOther',
+  )
+  assert.deepEqual(copyTo && 'shortcut' in copyTo && copyTo.shortcut, {
+    key: 'F5',
+  })
+  assert.deepEqual(moveTo && 'shortcut' in moveTo && moveTo.shortcut, {
+    key: 'F6',
+  })
+  assert.equal(ids(entries).filter((id) => id.endsWith('ToOther-')).length, 0)
+  // The other panel is read only: nothing goes there.
+  assert.deepEqual(
+    ids(entriesMenu({ ...input, readOnlyTarget: true })).filter((id) =>
+      id.includes('ToOther'),
+    ),
+    ['copyToOther-', 'moveToOther-'],
+  )
+  // The open place is read only (holzi's own): it may be copied from, not moved from.
+  assert.deepEqual(
+    ids(entriesMenu({ ...input, readOnly: true })).filter((id) =>
+      id.includes('ToOther'),
+    ),
+    ['copyToOther', 'moveToOther-'],
+  )
+  // Nothing selected: neither.
+  assert.deepEqual(
+    ids(entriesMenu({ ...input, count: 0 })).filter((id) =>
+      id.includes('ToOther'),
+    ),
+    ['copyToOther-', 'moveToOther-'],
+  )
 })
