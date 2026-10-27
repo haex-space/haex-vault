@@ -35,6 +35,8 @@ pub enum Command {
     Reload,
     /// Stops the running run of the rule.
     Cancel(String),
+    /// Releases the guard installed while a cancellation is being coordinated.
+    ReleaseCancel(String),
 }
 
 /// What the loop needs from the session.
@@ -59,6 +61,8 @@ pub struct Shared {
     pub last: HashMap<String, RunReport>,
     /// Rules whose cancellation has been requested before the command reaches the loop.
     pub cancel_requested: HashSet<String>,
+    /// Cancellations the loop has received, for callers waiting before a destructive action.
+    pub cancel_processed: HashSet<String>,
 }
 
 /// The interval of `rule` (research R8).
@@ -127,8 +131,13 @@ pub async fn control<R: Runner>(
                     shared
                         .lock()
                         .unwrap_or_else(|e| e.into_inner())
-                        .cancel_requested
-                        .remove(&id);
+                        .cancel_processed
+                        .insert(id);
+                }
+                Command::ReleaseCancel(id) => {
+                    let mut shared = shared.lock().unwrap_or_else(|e| e.into_inner());
+                    shared.cancel_requested.remove(&id);
+                    shared.cancel_processed.remove(&id);
                 }
             },
             Some(id) = changes.recv() => {
@@ -214,6 +223,11 @@ pub async fn control<R: Runner>(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .cancel_requested
+        .clear();
+    shared
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .cancel_processed
         .clear();
 }
 

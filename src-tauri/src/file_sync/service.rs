@@ -75,30 +75,42 @@ impl FileSyncState {
         let Some(session) = self.session() else {
             return;
         };
-        session
-            .shared
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .cancel_requested
-            .insert(id.clone());
+        {
+            let mut shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
+            shared.cancel_processed.remove(&id);
+            shared.cancel_requested.insert(id.clone());
+        }
         if session.commands.send(Command::Cancel(id.clone())).is_err() {
-            session
-                .shared
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .cancel_requested
-                .remove(&id);
+            let mut shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
+            shared.cancel_requested.remove(&id);
+            shared.cancel_processed.remove(&id);
             return;
         }
         loop {
             let done = {
                 let shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
-                !shared.cancel_requested.contains(&id) && !shared.running.contains(&id)
+                shared.cancel_processed.contains(&id) && !shared.running.contains(&id)
             };
             if done {
                 return;
             }
             tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }
+
+    /// Releases the guard after the database operation and its reload command are queued.
+    pub fn release_cancel(&self, id: String) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        if session
+            .commands
+            .send(Command::ReleaseCancel(id.clone()))
+            .is_err()
+        {
+            let mut shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
+            shared.cancel_requested.remove(&id);
+            shared.cancel_processed.remove(&id);
         }
     }
 }

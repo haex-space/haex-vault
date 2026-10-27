@@ -135,6 +135,10 @@ async fn a_cancel_requested_before_the_command_reaches_the_loop_prevents_a_run()
     l.commands.send(Command::Cancel("a".to_owned())).unwrap();
     settle(TICK).await;
     assert!(runs(&l).is_empty());
+    l.commands
+        .send(Command::ReleaseCancel("a".to_owned()))
+        .unwrap();
+    settle(TICK).await;
     l.token.cancel();
     l.task.await.unwrap();
 }
