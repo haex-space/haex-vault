@@ -26,7 +26,7 @@ pub struct RunContext<'a> {
     /// Today as `2026-10-27`, for conflict copies.
     pub today: &'a str,
     /// The time the run ends with, ISO 8601.
-    pub now: &'a dyn Fn() -> String,
+    pub now: &'a (dyn Fn() -> String + Sync),
     pub run_id: &'a str,
     pub cancel: &'a CancellationToken,
 }

@@ -397,6 +397,7 @@ pub fn run() {
             app.manage(files_state);
             app.manage(files::transfer::TransferManager::default());
             app.manage(files::search::SearchManager::default());
+            app.manage(file_sync::service::FileSyncState::default());
             // Spec 044 US6 (ADR 0011): the file actions of the built-in agent run here, without a
             // window; a storage without a grant is asked for through the window.
             // Spec 049: the External Bridge asks the window; it starts when a vault opens.
@@ -476,6 +477,13 @@ pub fn run() {
             files::browser_commands::peers::files_peer_trash,
             files::browser_commands::peers::files_contact_query,
             files::share::commands::file_shares_list,
+            file_sync::commands::sync_rules_list,
+            file_sync::commands::sync_rules_create,
+            file_sync::commands::sync_rules_update,
+            file_sync::commands::sync_rules_set_enabled,
+            file_sync::commands::sync_rules_delete,
+            file_sync::commands::sync_rules_run_now,
+            file_sync::commands::sync_rules_cancel,
             files::share::commands::file_share_of,
             files::share::commands::file_share_save,
             files::share::commands::file_share_revoke,
