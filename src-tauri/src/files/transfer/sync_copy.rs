@@ -30,10 +30,14 @@ pub struct OneTransfer<'a> {
     pub folder: &'a str,
     /// Whether the plan expects an entry of that name in `folder`.
     pub replaces: bool,
+    /// Whether the user agreed that files of an encrypted folder are stored decrypted at the
+    /// target (spec 048 FR-019, spec 061 FR-030a).
+    pub decrypts: bool,
 }
 
-/// Runs `one`. Files leaving an encrypted folder for an ordinary folder of a storage are refused:
-/// nobody confirms them while a rule runs (spec 048 FR-019).
+/// Runs `one`. Files leaving an encrypted folder for an ordinary folder of a storage need the
+/// user's agreement given with the rule (`decrypts`); nobody can confirm them while it runs (spec
+/// 048 FR-019).
 pub fn transfer_one(
     one: &OneTransfer<'_>,
     handle: &Handle,
@@ -47,6 +51,7 @@ pub fn transfer_one(
         to,
         folder,
         replaces,
+        decrypts,
     } = *one;
     let mut asked = 0u32;
     let mut skipped = false;
@@ -86,11 +91,14 @@ pub fn transfer_one(
                 target: folder.to_owned(),
             };
             match prepare_remote(&job, handle, free_space) {
-                Ok(plan) if plan.leaving() > 0 => Outcome::Failed(FilesError::new(
+                Ok(plan) if plan.leaving() > 0 && !decrypts => Outcome::Failed(FilesError::new(
                     FilesErrorCode::NotGranted,
                     "files may not leave an encrypted folder for an ordinary folder",
                 )),
-                Ok(plan) => run_remote(&job, &plan, handle, &RETRIES, hooks),
+                Ok(plan) => {
+                    plan.confirm_leaving();
+                    run_remote(&job, &plan, handle, &RETRIES, hooks)
+                }
                 Err(error) => Outcome::Failed(error),
             }
         }

@@ -14,7 +14,7 @@ use crate::storage::query::Query;
 
 const RULE_COLUMNS: &str = "id, name, enabled, place_a_source, place_a_path, place_b_source, \
      place_b_path, direction, delete_mode, interval_secs, created_at, updated_at, last_run_at, \
-     last_outcome, last_error";
+     last_outcome, last_error, allow_decrypted";
 
 /// Size and modification time of a file on one side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +66,8 @@ pub fn insert_rule(
     tx.execute(
         "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
          place_a_source, place_a_path, place_b_source, place_b_path, direction, delete_mode, \
-         interval_secs, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
+         interval_secs, created_at, updated_at, allow_decrypted) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)",
         params![
             id,
             device,
@@ -80,7 +80,8 @@ pub fn insert_rule(
             stored(&draft.direction),
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
-            now
+            now,
+            i64::from(draft.allow_decrypted)
         ],
     )?;
     Ok(())
@@ -101,7 +102,7 @@ pub fn update_rule(
     tx.execute(
         "UPDATE haex_sync_rules_no_sync SET name = ?3, enabled = ?4, place_a_source = ?5, \
          place_a_path = ?6, place_b_source = ?7, place_b_path = ?8, direction = ?9, \
-         delete_mode = ?10, interval_secs = ?11, updated_at = ?12 \
+         delete_mode = ?10, interval_secs = ?11, updated_at = ?12, allow_decrypted = ?13 \
          WHERE id = ?1 AND vault_device_uuid = ?2",
         params![
             id,
@@ -115,7 +116,8 @@ pub fn update_rule(
             stored(&draft.direction),
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
-            now
+            now,
+            i64::from(draft.allow_decrypted)
         ],
     )?;
     let moved = before.place_a != draft.place_a
@@ -388,6 +390,7 @@ fn rule_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<SyncRule>> {
             .get::<_, Option<String>>(13)?
             .and_then(|text| parse(&text)),
         last_error: r.get(14)?,
+        allow_decrypted: r.get::<_, i64>(15)? != 0,
     }))
 }
 

@@ -65,6 +65,9 @@ impl StoragePlace {
                 to: &side,
                 folder: &folder,
                 replaces: false,
+                // A move within the place never takes a file out of an encrypted folder (into the
+                // rule trash, say); that fails instead.
+                decrypts: false,
             };
             match transfer_one(&one, &handle, &CancellationToken::new(), &mut |_| {}) {
                 Outcome::Done => Ok(()),
@@ -294,6 +297,7 @@ impl Place for StoragePlace {
                 to: &side,
                 folder: &folder,
                 replaces,
+                decrypts: false,
             };
             let outcome = transfer_one(&one, &handle, &CancellationToken::new(), &mut |_| {});
             drop(dir);

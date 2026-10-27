@@ -7,4 +7,4 @@ import type { SyncRulePlace } from "./SyncRulePlace";
 /**
  * A stored rule with the result of its last run.
  */
-export type SyncRule = { id: string, name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean, createdAt: string, updatedAt: string, lastRunAt: string | null, lastOutcome: SyncRuleOutcome | null, lastError: string | null, };
+export type SyncRule = { id: string, name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean, allowDecrypted: boolean, createdAt: string, updatedAt: string, lastRunAt: string | null, lastOutcome: SyncRuleOutcome | null, lastError: string | null, };

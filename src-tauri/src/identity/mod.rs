@@ -55,6 +55,7 @@ pub mod migrations_storage;
 #[cfg(test)]
 mod migrations_storage_tests;
 mod migrations_sync_rules;
+mod migrations_sync_rules_decrypt;
 #[cfg(test)]
 mod migrations_sync_rules_tests;
 #[cfg(test)]

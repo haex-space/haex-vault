@@ -165,3 +165,37 @@ async fn deleting_the_device_takes_its_rules_along() {
     .await
     .expect("join");
 }
+
+#[tokio::test]
+async fn migration_0045_adds_the_decrypt_switch_off_for_existing_rules() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let old = open(
+            dir.path(),
+            "sync-rules-decrypt",
+            true,
+            migration_source_before("0045_sync_rules_decrypt"),
+        );
+        let device = device_of(&old, dir.path()).to_string();
+        fill(&old, &device);
+        drop(old);
+        let db = open(
+            dir.path(),
+            "sync-rules-decrypt",
+            false,
+            holzi_migration_source(),
+        );
+        let allowed: i64 = db
+            .with_connection(|conn| {
+                Ok(conn.query_row(
+                    "SELECT allow_decrypted FROM haex_sync_rules_no_sync WHERE id = 'r1'",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .expect("read");
+        assert_eq!(allowed, 0, "an existing rule does not decrypt (FR-030a)");
+    })
+    .await
+    .expect("join");
+}
