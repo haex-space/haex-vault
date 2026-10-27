@@ -1,7 +1,7 @@
 # External agents reach holzi through one in-process MCP server, with per-agent credentials
 
-Status: proposed
-Date: 2026-10-26
+Status: accepted
+Date: 2026-10-27
 
 ## Context
 
