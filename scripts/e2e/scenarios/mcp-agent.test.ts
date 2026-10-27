@@ -26,6 +26,7 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.click('mcp-switch')
   await instance.waitForDisplayed(
     '[data-testid="mcp-state"][data-state="running"]',
+    30_000,
   )
   ctx.step('turned on')
 
