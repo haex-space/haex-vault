@@ -103,16 +103,16 @@ async fn run_session(
     let declined = CancellationToken::new();
     let ended = core.token.child_token();
     let registration = ticket.map(|ticket| {
-        tokio::spawn(register(
-            Arc::clone(&core),
-            session.clone(),
-            peer.clone(),
-            controls.clone(),
+        tokio::spawn(register(RegistrationContext {
+            core: Arc::clone(&core),
+            session: session.clone(),
+            peer: peer.clone(),
+            controls: controls.clone(),
             ticket,
-            greeting.slug.clone(),
-            ended.clone(),
-            declined.clone(),
-        ))
+            slug: greeting.slug.clone(),
+            ended: ended.clone(),
+            declined: declined.clone(),
+        }))
     });
     let watcher = tokio::spawn(tell_catalog_changes(
         Arc::clone(&core),
@@ -210,8 +210,8 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
     }
 }
 
-/// Asks the window once the agent introduced itself, and acts on the answer.
-async fn register(
+/// Inputs shared by the registration task.
+struct RegistrationContext {
     core: Arc<Core>,
     session: Session,
     peer: Peer<RoleServer>,
@@ -220,7 +220,20 @@ async fn register(
     slug: String,
     ended: CancellationToken,
     declined: CancellationToken,
-) {
+}
+
+/// Asks the window once the agent introduced itself, and acts on the answer.
+async fn register(context: RegistrationContext) {
+    let RegistrationContext {
+        core,
+        session,
+        peer,
+        controls,
+        ticket,
+        slug,
+        ended,
+        declined,
+    } = context;
     let _ticket = ticket;
     let mut initialized = session.initialized();
     // The guard `wait_for` returns must not live across the awaits below.

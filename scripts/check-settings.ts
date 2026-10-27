@@ -51,6 +51,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.dock': '/general/dock',
   'general.licenses': '/general/licenses',
   ai: '/ai',
+  'ai.agents': '/ai/agents',
   'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
   'ai.servers': '/ai/servers',
