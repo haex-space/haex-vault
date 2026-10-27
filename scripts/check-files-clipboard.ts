@@ -4,10 +4,13 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  bandBetween,
+  bandSelection,
   clickEntry,
   dragPayload,
   dropOp,
   EMPTY_SELECTION,
+  indexesInBand,
   isWithin,
   menuSelection,
   parseDragPayload,
@@ -241,4 +244,51 @@ test('one entry of this device can be shared with contacts (spec 056)', () => {
     ).includes('share'),
     'one entry at a time',
   )
+})
+
+const LIST = { columns: 1, cellWidth: Infinity, cellHeight: 40 }
+const GRID = { columns: 3, cellWidth: 100, cellHeight: 100 }
+
+test('a band is the same from every corner', () => {
+  const box = { left: 10, top: 20, right: 50, bottom: 80 }
+  assert.deepEqual(bandBetween({ x: 10, y: 20 }, { x: 50, y: 80 }), box)
+  assert.deepEqual(bandBetween({ x: 50, y: 80 }, { x: 10, y: 20 }), box)
+  assert.deepEqual(bandBetween({ x: 50, y: 20 }, { x: 10, y: 80 }), box)
+})
+
+test('a band over the list touches the rows it crosses', () => {
+  // Rows are 40 high: a band from y 30 to y 90 crosses rows 0, 1 and 2.
+  const band = { left: 5, top: 30, right: 20, bottom: 90 }
+  assert.deepEqual(indexesInBand(band, LIST, 10), [0, 1, 2])
+  const inside = { left: 5, top: 45, right: 20, bottom: 50 }
+  assert.deepEqual(indexesInBand(inside, LIST, 10), [1])
+})
+
+test('a band over the grid touches the cells in its rectangle', () => {
+  // Cells are 100 x 100, three per row: x 50-150 spans columns 0-1, y 50-150 rows 0-1.
+  const band = { left: 50, top: 50, right: 150, bottom: 150 }
+  assert.deepEqual(indexesInBand(band, GRID, 9), [0, 1, 3, 4])
+})
+
+test('a band stops at the last entry and past the columns', () => {
+  const tall = { left: 0, top: 0, right: 300, bottom: 1000 }
+  assert.deepEqual(indexesInBand(tall, GRID, 4), [0, 1, 2, 3])
+  const beside = { left: 320, top: 0, right: 400, bottom: 100 }
+  assert.deepEqual(indexesInBand(beside, GRID, 9), [])
+  const below = { left: 0, top: 500, right: 50, bottom: 600 }
+  assert.deepEqual(indexesInBand(below, LIST, 3), [])
+  assert.deepEqual(indexesInBand(tall, GRID, 0), [])
+})
+
+test('a band replaces the selection, with a key it adds to it', () => {
+  const base: Selection = { paths: ['/x/a'], anchor: '/x/a' }
+  assert.deepEqual(bandSelection(base, ['/x/c', '/x/d'], false), {
+    paths: ['/x/c', '/x/d'],
+    anchor: '/x/c',
+  })
+  assert.deepEqual(bandSelection(base, ['/x/a', '/x/c'], true), {
+    paths: ['/x/a', '/x/c'],
+    anchor: '/x/a',
+  })
+  assert.deepEqual(bandSelection(base, [], false), EMPTY_SELECTION)
 })
