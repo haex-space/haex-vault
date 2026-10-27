@@ -121,6 +121,7 @@ for (const [kind, expected] of [
   ['PathResolution', 'errors.vaultIo'],
   ['Io', 'errors.vaultIo'],
   ['CrdtInit', 'errors.vaultIncompatible'],
+  ['MigrationMissingFromSource', 'errors.vaultNewerVersion'],
 ] as const) {
   test(`UnlockSheet maps ${kind} to a distinct open error`, async () => {
     const { onSubmit, error, passphrase } = loadUnlockSheet(() => {

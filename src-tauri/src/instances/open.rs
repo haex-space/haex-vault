@@ -224,7 +224,11 @@ pub(super) fn open_existing_database(
         }
         Err(e) if is_wrong_passphrase(&e) => Err(HolziError::WrongPassphrase),
         // A held `fs2` lock maps to `VaultAlreadyOpenElsewhere` in `From<CrdtError>`.
-        Err(e) => Err(HolziError::from(e)),
+        Err(e) => {
+            // The frontend folds several kinds into one message; the log keeps the real one.
+            log::warn!("open vault failed: {e}");
+            Err(HolziError::from(e))
+        }
     }
 }
 
