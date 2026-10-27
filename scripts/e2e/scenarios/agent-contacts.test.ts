@@ -229,8 +229,8 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   // The chat's own approval did not come first, although Auto asks for risky actions.
   assert.equal(await questionText(instance), '')
   await instance.click('contacts-share-confirm-deny')
-  requests = await waitForRequests(provider, 12)
-  const declined = toolResult(requests[11])
+  requests = await waitForRequests(provider, 13)
+  const declined = toolResult(requests.at(-1))
   assert.match(declined, /denied_by_user/, declined)
   assert.doesNotMatch(declined, /Krüger|0170|haex-vault:/)
   ctx.step('"Ablehnen" gives the agent nothing of Ben')
@@ -239,8 +239,8 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.waitForDisplayed('contacts-share-confirm-intro', 30_000)
   await instance.click(`contacts-share-check-${valueId}`)
   await instance.click('contacts-share-confirm-allow')
-  requests = await waitForRequests(provider, 13)
-  const shared = JSON.parse(toolResult(requests[12])) as { link: string }
+  requests = await waitForRequests(provider, 14)
+  const shared = JSON.parse(toolResult(requests.at(-1))) as { link: string }
   const text = readShare(shared.link)
   assert.equal(text.name, 'Ben Krüger')
   assert.deepEqual(text.values, [])
