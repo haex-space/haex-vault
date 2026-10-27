@@ -28,7 +28,7 @@ export async function openContacts(instance: FlowInstance): Promise<void> {
   await instance.click('[data-app-id="system.contacts"]')
   await instance.waitForDisplayed('contacts-search')
   await resizeAppWindow(instance, 'system.contacts', 760, 560)
-  await instance.waitForDisplayed('contacts-new')
+  await instance.waitForDisplayed('contacts-add')
 }
 
 /** What the backend holds right now. */
