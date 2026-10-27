@@ -15,6 +15,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
 pub mod models;
@@ -208,7 +209,12 @@ fn clear_inherited_nix_library_path() {
 pub fn run() {
     clear_inherited_nix_library_path();
     let mut args = std::env::args().skip(1);
-    if args.next().as_deref() == Some("--internal-cli-delegate-approval-bridge") {
+    let first = args.next();
+    // Spec 021: an agent started holzi as its MCP server; no window, no vault, no Tauri.
+    if first.as_deref() == Some(mcp_server::helper::FLAG) {
+        std::process::exit(mcp_server::helper::run_process(args));
+    }
+    if first.as_deref() == Some("--internal-cli-delegate-approval-bridge") {
         let Some(socket_flag) = args.next().filter(|arg| arg == "--socket") else {
             eprintln!("missing --socket for CLI delegate approval bridge");
             return;
@@ -403,6 +409,10 @@ pub fn run() {
             let browser_bridge = browser_bridge::BrowserBridge::default();
             browser_bridge.attach(app.handle());
             app.manage(browser_bridge);
+            // Spec 021: the MCP access asks the window to register agents.
+            let mcp = mcp_server::McpServer::default();
+            mcp.attach(app.handle());
+            app.manage(mcp);
             let prompt = files::agent::prompt::PermissionPrompt::default();
             app.manage(prompt.clone());
             let files_agent: files::agent::commands::BuiltinFilesAgent =
@@ -497,6 +507,10 @@ pub fn run() {
             browser_bridge::commands::browser_bridge_client_revoke,
             browser_bridge::commands::browser_bridge_client_unblock,
             browser_bridge::commands::browser_bridge_notify,
+            mcp_server::commands::mcp_status,
+            mcp_server::commands::mcp_configure,
+            mcp_server::commands::mcp_registration_answer,
+            mcp_server::commands::mcp_setup_snippet,
             files::agent::commands::files_agent_permissions,
             files::agent::commands::files_agent_permission_set,
             files::agent::commands::files_agent_permission_remove,
