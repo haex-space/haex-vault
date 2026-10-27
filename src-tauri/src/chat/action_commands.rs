@@ -20,6 +20,9 @@ use super::tools::native_action::NativeActionTool;
 use super::tools::Tool;
 use crate::error::{HolziError, Result};
 
+/// The scope no agent may ever call (spec 020 FR-032).
+pub const GUARDRAILS_SCOPE: &str = "guardrails";
+
 #[cfg(test)]
 #[path = "action_commands_tests.rs"]
 mod tests;
@@ -43,9 +46,12 @@ pub struct RespondActionCallArgs {
     pub outcome: ActionOutcomeWire,
 }
 
-/// Replaces every tool of the source `action` by `actions`; the host-CLI and MCP tools stay.
-/// Validates first, so a bad push leaves the registry as it was. A native action needs an executor
-/// and every executor its definition (ADR 0011).
+/// Replaces every tool of the source `action` by the actions the built-in agent may call; the
+/// host-CLI and MCP tools stay. The full list, including actions only external agents may call,
+/// goes to the [`ChatState::action_catalog`] the MCP server offers from (spec 021 research R4).
+/// Validates first, so a bad push leaves registry and catalog as they were. A native action needs
+/// an executor and every executor its definition (ADR 0011). No agent action may lie in the scope
+/// `guardrails` (spec 020 FR-032).
 pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) -> Result<usize> {
     let mut seen = HashSet::new();
     let mut native = HashSet::new();
@@ -73,6 +79,11 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
                 ),
             });
         }
+        if def.scope == GUARDRAILS_SCOPE {
+            return Err(HolziError::InvalidInput {
+                reason: format!("guardrail action offered to agents: {}", def.action_id),
+            });
+        }
         if def.runner == Some(ActionRunner::Native) {
             if chat.native_actions.get(&def.action_id).is_none() {
                 return Err(HolziError::InvalidInput {
@@ -92,14 +103,19 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
             reason: format!("native executor without definition: {id}"),
         });
     }
-    let count = actions.len();
     let mut registry = chat
         .tool_registry
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     registry.remove_source(ACTION_SOURCE);
-    let search_defs = actions.clone();
-    for def in actions {
+    let builtin: Vec<AgentActionDef> = actions
+        .iter()
+        .filter(|def| def.builtin_agent_callable)
+        .cloned()
+        .collect();
+    let count = builtin.len();
+    let search_defs = builtin.clone();
+    for def in builtin {
         let tool: Arc<dyn Tool> = match chat.native_actions.get(&def.action_id) {
             Some(executor) if def.runner == Some(ActionRunner::Native) => {
                 Arc::new(NativeActionTool::new(def, executor))
@@ -115,6 +131,8 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
         )));
         registry.register(Arc::new(AskUserTool));
     }
+    drop(registry);
+    chat.action_catalog.replace(actions);
     Ok(count)
 }
 

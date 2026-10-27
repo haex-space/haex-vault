@@ -57,4 +57,9 @@ phoneContacts: boolean,
 /**
  * The External Bridge for browser extensions (spec 049 FR-043).
  */
-browserBridge: boolean, };
+browserBridge: boolean,
+/**
+ * External agents reach holzi through the `--mcp-agent` helper (spec 021 research R1, R12).
+ * Phones need the HTTP way of spec 021 PR G instead.
+ */
+mcpHelper: boolean, };

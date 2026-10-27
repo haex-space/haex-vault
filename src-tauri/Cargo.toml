@@ -241,7 +241,13 @@ eventsource-stream = "0.2"
 # minimal hand-rolled stdio JSON-RPC loop instead of depending on rmcp's
 # `server`/`transport-io` features for one tool — considered and
 # rejected as unnecessary weight for that single-tool surface.
-rmcp = { version = "=3.5.0", default-features = false, features = ["client", "transport-child-process"] }
+# `server` (spec 021): holzi is also the MCP server external agents reach over a Unix socket or a
+# named pipe (`mcp_server/`, ADR-0005); it adds no crate the dev-dependency entry below did not
+# already build.
+rmcp = { version = "=3.5.0", default-features = false, features = ["client", "transport-child-process", "server"] }
+# The config and runtime directories of the `--mcp-agent` helper (spec 021, contracts/agent-helper.md),
+# which runs without Tauri's path resolver. Already in the lockfile through other crates.
+dirs = "7"
 
 # Per-invocation disposable CLAUDE_CONFIG_DIR/CODEX_HOME + cwd (spec
 # 007-cli-delegate FR-003) — was dev-dependency-only (tests used it for

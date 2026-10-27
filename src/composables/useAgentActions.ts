@@ -2,18 +2,29 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import {
   ACTION_LOCALES,
-  listAgentActions,
+  listPushedActions,
   toOutcomeWire,
   type ActionLocale,
 } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
-import type { ActionOutcome } from '~/lib/actions/types'
+import type { ActionCaller, ActionOutcome } from '~/lib/actions/types'
 
-/** `action-call-request` (contracts/tauri-commands.md): a model in the chat asks for an action. */
+/**
+ * `action-call-request` (contracts/tauri-commands.md): a model in the chat or an external agent
+ * (spec 021) asks for an action. Rust names the caller; it never comes from the call's input.
+ */
 interface ActionCallRequest {
   requestId: string
   actionId: string
   input: Record<string, unknown>
+  caller?: ActionCaller
+}
+
+/** The caller Rust named; an agent caller only, never the user. */
+function agentCaller(caller: ActionCaller | undefined): ActionCaller {
+  return caller?.kind === 'externalAgent'
+    ? { kind: 'externalAgent', agentId: caller.agentId }
+    : { kind: 'builtinAgent' }
 }
 
 let listener: Promise<void> | null = null
@@ -21,9 +32,10 @@ let startup: Promise<void> | null = null
 let localeWatchStarted = false
 
 /**
- * The built-in agent's access to the actions (spec 032, ADR-0006). Pushes the definitions the
- * built-in agent may call to Rust as tools (`set_agent_actions`) and runs the calls Rust sends back
- * (`action-call-request`) through the same runner a click uses, with caller `builtinAgent`.
+ * The agents' access to the actions (spec 032, spec 021, ADR-0006). Pushes the definitions any agent
+ * may call to Rust (`set_agent_actions`); Rust gives the built-in agent its share and offers the rest
+ * to registered external agents by their rights. Runs the calls Rust sends back
+ * (`action-call-request`) through the same runner a click uses, with the caller Rust named.
  *
  * Call `startAsync()` once per vault session, from the workspace page: both Tauri commands need
  * an open vault, and the listener stays for the session like the sync listener. Definitions are
@@ -42,17 +54,19 @@ export function useAgentActions() {
     // Only the active language is loaded lazily; the titles need every catalog language.
     await Promise.all(ACTION_LOCALES.map((code) => loadLocaleMessages(code)))
     await invoke('set_agent_actions', {
-      args: { actions: listAgentActions(ALL_ACTIONS, titleOf) },
+      args: { actions: listPushedActions(ALL_ACTIONS, titleOf) },
     })
   }
 
-  /** Runs a request as the built-in agent and sends its outcome without raw errors to Rust. */
+  /** Runs a request as its agent and sends its outcome without raw errors to Rust. */
   async function runCallAsync(request: ActionCallRequest): Promise<void> {
     let outcome: ActionOutcome
     try {
-      outcome = await wm.runAction(request.actionId, request.input, {
-        kind: 'builtinAgent',
-      })
+      outcome = await wm.runAction(
+        request.actionId,
+        request.input,
+        agentCaller(request.caller),
+      )
     } catch (error) {
       console.error('[agent] running an action failed', error)
       outcome = {

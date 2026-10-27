@@ -7,7 +7,8 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::action_bridge::{
-    ActionBridge, ActionOutcomeWire, ActionReply, ACTION_FAILED_MESSAGE, EVENT_ACTION_CALL_REQUEST,
+    ActionBridge, ActionCaller, ActionOutcomeWire, ActionReply, ACTION_FAILED_MESSAGE,
+    EVENT_ACTION_CALL_REQUEST,
 };
 use super::ChoiceOption;
 
@@ -78,6 +79,52 @@ async fn a_call_emits_the_request_and_returns_the_answer() {
             result: json!({ "done": true })
         }
     );
+}
+
+/// Spec 021 T009: the window learns who asks, so the runner applies that caller's rules.
+#[tokio::test]
+async fn a_call_names_its_caller() {
+    let (bridge, mut events) = bridge_with_events(Duration::from_secs(5));
+    let chat = bridge.clone();
+    let builtin = tokio::spawn(async move {
+        chat.call("wm.state.get", json!({}), &CancellationToken::new())
+            .await
+    });
+    let (_, payload) = events.recv().await.expect("the chat's request");
+    assert_eq!(payload["caller"], json!({ "kind": "builtinAgent" }));
+    bridge.resolve(
+        request_id(&payload),
+        ActionReply::Ok {
+            result: Value::Null,
+        },
+    );
+    builtin.await.expect("the chat's call");
+
+    let agent = bridge.clone();
+    let external = tokio::spawn(async move {
+        agent
+            .call_as(
+                ActionCaller::ExternalAgent {
+                    agent_id: "a1".to_owned(),
+                },
+                "wm.state.get",
+                json!({}),
+                &CancellationToken::new(),
+            )
+            .await
+    });
+    let (_, payload) = events.recv().await.expect("the agent's request");
+    assert_eq!(
+        payload["caller"],
+        json!({ "kind": "externalAgent", "agentId": "a1" })
+    );
+    bridge.resolve(
+        request_id(&payload),
+        ActionReply::Ok {
+            result: Value::Null,
+        },
+    );
+    external.await.expect("the agent's call");
 }
 
 #[tokio::test]
