@@ -79,6 +79,17 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await instance.waitForDisplayed('files-entry-eins.txt')
     assert.equal(await visiblePanels(instance), 1, 'one panel to begin with')
 
+    // The default desktop viewport keeps the sidebar open, leaving less than the 720 px needed by
+    // two panels. Hide it before checking the split layout; the product correctly keeps one panel
+    // visible while the area is too narrow.
+    await instance.click('files-sidebar-toggle')
+    await ctx.waitFor('the panel area to fit two panels', () =>
+      instance.exec<boolean>(
+        `const area = document.querySelector('[data-files-app] > div > div:last-child')
+         return Boolean(area && area.getBoundingClientRect().width >= 720)`,
+      ),
+    )
+
     // The switch shows two panels: the second at the first one's place, the first one active.
     await instance.click('files-split-toggle')
     await ctx.waitFor(
