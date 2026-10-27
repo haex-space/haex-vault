@@ -212,6 +212,7 @@ pub async fn control<R: Runner>(
                     .catch_unwind()
                     .await
                     .unwrap_or_else(|_| {
+                        log::warn!("file_sync: a run of {id} panicked");
                         RunReport::stopped(SyncRuleOutcome::Error, "rule run panicked")
                     });
                 (id, report)
