@@ -54,16 +54,16 @@ export const useMcpAgentsStore = defineStore('mcpAgents', () => {
     requestId: string,
     answer: RegistrationAnswer,
   ): Promise<void> {
-    remove(requestId)
     await invoke('mcp_registration_answer', { args: { requestId, answer } })
+    remove(requestId)
   }
 
   async function answerCallAsync(
     requestId: string,
     decision: CallDecision,
   ): Promise<void> {
-    remove(requestId)
     await invoke('mcp_call_answer', { args: { requestId, decision } })
+    remove(requestId)
   }
 
   return {
