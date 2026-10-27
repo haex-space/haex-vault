@@ -383,7 +383,7 @@ pub(super) fn plan(
             (ContactShareState::Same, Vec::new(), None)
         } else {
             let mut choices = vec![ContactShareChoice::Add, ContactShareChoice::Skip];
-            if decoded.legacy_card && known_vault {
+            if newer_text {
                 choices.push(ContactShareChoice::Replace);
             }
             (

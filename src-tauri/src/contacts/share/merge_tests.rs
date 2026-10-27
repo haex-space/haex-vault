@@ -195,6 +195,64 @@ async fn add_is_the_default_update_replaces_only_that_value_and_skip_leaves_it()
 }
 
 #[tokio::test]
+async fn two_updates_cannot_replace_the_same_value() {
+    let vault = test_vault();
+    let id = vault
+        .service
+        .create(
+            &Caller::User,
+            &[],
+            person(
+                "Anna",
+                "Beck",
+                vec![input("email", "work", "old@example.org")],
+            ),
+        )
+        .await
+        .expect("create")
+        .id;
+    let before = contact(&vault, &id).await;
+    let old = before
+        .values
+        .iter()
+        .find(|value| value.value == "old@example.org")
+        .expect("old")
+        .id
+        .clone();
+    let share = text(&envelope(
+        vec![
+            value("email", "work", "first@example.org"),
+            value("email", "home", "second@example.org"),
+        ],
+        None,
+    ));
+    let preview = preview_into(&vault, &share, &id).await;
+    let items: Vec<_> = preview
+        .items
+        .iter()
+        .filter(|item| item.value.ends_with("@example.org"))
+        .collect();
+    assert_eq!(items.len(), 2);
+    let error = read_in(
+        &vault,
+        &share,
+        &id,
+        items
+            .iter()
+            .map(|item| decision(item.id, Choice::Update, Some(&old)))
+            .collect(),
+    )
+    .await
+    .expect_err("duplicate updates must be rejected");
+    assert!(matches!(error, HolziError::ShareInvalid { .. }));
+    let after = contact(&vault, &id).await;
+    assert_eq!(
+        values_of(&after),
+        vec![("email".to_owned(), "old@example.org".to_owned())]
+    );
+}
+
+#[tokio::test]
 async fn an_identical_value_is_never_duplicated_and_two_shares_lose_nothing() {
     let vault = test_vault();
     let id = anna(&vault).await;
@@ -365,6 +423,13 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
         .find(|item| item.item == ContactShareItemKind::HolziAddresses)
         .expect("holzi")
         .id;
+    assert!(!preview
+        .items
+        .iter()
+        .find(|item| item.id == holzi)
+        .expect("holzi")
+        .choices
+        .contains(&Choice::Replace));
     assert!(matches!(
         read_in(
             &vault,
@@ -413,7 +478,7 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
             vec![decision(holzi, Choice::Replace, None)]
         )
         .await,
-        Err(HolziError::CardOlder)
+        Err(HolziError::ShareInvalid { .. })
     ));
     assert_eq!(card_rows(&vault), 2);
 }

@@ -4,6 +4,8 @@
 //! value, adds holzi addresses next to the ones a contact has. It replaces only what the person
 //! chose for exactly that item, and never the confirmed vault identity of a contact.
 
+use std::collections::HashSet;
+
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
@@ -100,6 +102,14 @@ pub fn apply(
     let mut picks = Vec::with_capacity(plan.preview.items.len());
     for (item, decision) in plan.preview.items.iter().zip(&by_item) {
         picks.push(chosen(item, *decision)?);
+    }
+    let mut updated_values = HashSet::new();
+    for pick in &picks {
+        if let Some((ContactShareChoice::Update, Some(value_id))) = pick {
+            if !updated_values.insert(value_id.as_str()) {
+                return Err(invalid("two updates target the same value"));
+            }
+        }
     }
 
     let now = clock::now();

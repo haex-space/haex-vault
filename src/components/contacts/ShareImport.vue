@@ -32,8 +32,20 @@ const { blockAsync } = useContactCards()
 const text = ref('')
 const preview = ref<ContactSharePreview | null>(null)
 const decisions = ref<Decisions>(new Map())
+const previewedText = ref('')
 const error = ref<string | null>(null)
 const busy = ref(false)
+let previewSeq = 0
+
+watch(text, () => {
+  previewSeq += 1
+  if (preview.value && text.value.trim() !== previewedText.value) {
+    preview.value = null
+    decisions.value = new Map()
+    previewedText.value = ''
+  }
+  if (busy.value) busy.value = false
+})
 
 const problem = computed(() =>
   preview.value ? validate(preview.value, decisions.value) : null,
@@ -50,20 +62,27 @@ const vaultLocked = computed(
 async function previewAsync(target?: ContactShareTarget) {
   error.value = null
   busy.value = true
+  const seq = ++previewSeq
+  const source = text.value.trim()
   try {
-    const shown = await sharePreviewAsync(text.value.trim(), target)
+    const shown = await sharePreviewAsync(source, target)
+    if (seq !== previewSeq) return
+    previewedText.value = source
     preview.value = shown
     decisions.value = defaultDecisions(shown)
   } catch (cause) {
+    if (seq !== previewSeq) return
     preview.value = null
     error.value = errString(cause)
   } finally {
-    busy.value = false
+    if (seq === previewSeq) busy.value = false
   }
 }
 
 async function checkAsync() {
   preview.value = null
+  previewedText.value = ''
+  decisions.value = new Map()
   if (!text.value.trim()) return
   await previewAsync()
 }
@@ -73,6 +92,7 @@ async function scanAsync() {
     const { scan, Format } = await import('@tauri-apps/plugin-barcode-scanner')
     const scanned = await scan({ formats: [Format.QRCode] })
     text.value = scanned.content
+    await nextTick()
     await checkAsync()
   } catch (cause) {
     toast.error(errString(cause))
@@ -107,7 +127,7 @@ async function acceptAsync() {
     // action-exempt: the contact actions join the catalog with spec 051 US6 (T083); until then the
     // choice after the preview calls the command.
     const contact = await shareAcceptAsync(
-      text.value.trim(),
+      previewedText.value,
       shown.target,
       toArgs(shown, decisions.value),
       shown.targetRevision,
