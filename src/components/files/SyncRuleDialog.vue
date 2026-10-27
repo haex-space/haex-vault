@@ -141,7 +141,9 @@ async function saveAsync() {
       direction: direction.value,
       deleteMode: deleteMode.value,
       intervalSecs: intervalSecs(
-        String(minutes.value).trim() === '' ? Number.NaN : Number(minutes.value),
+        String(minutes.value).trim() === ''
+          ? Number.NaN
+          : Number(minutes.value),
       ),
       enabled: true,
       allowDecrypted: needsConsent.value && consent.value,
