@@ -138,6 +138,8 @@ export function useFilesKeyboard(options: {
         target?.closest('[role="dialog"], [role="alertdialog"], [role="menu"]'),
       ),
       textSelected: (window.getSelection()?.toString() ?? '') !== '',
+      // The split view arrives with spec 062; until a panel passes it, there is one panel.
+      split: false,
       grid: grid.value,
       typing: typing(),
     })

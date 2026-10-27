@@ -39,7 +39,8 @@ const KEYS = ['p', 'open', 'q', 't', 's', 'd'] as const
 /** The keys a place keeps as they are. */
 const PASSED = ['q', 't', 's', 'd'] as const
 
-const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/
+/** What the id of a storage, an own device or a share may look like in a tab location. */
+export const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/
 
 /** The prefix of another own device's storage id (spec 056). */
 export const PEER_PREFIX = 'peer:'

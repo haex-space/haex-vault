@@ -2554,7 +2554,9 @@
       "delete": "Löschen",
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
-      "share": "Freigeben …"
+      "share": "Freigeben …",
+      "copyToOther": "In das andere Panel kopieren",
+      "moveToOther": "In das andere Panel verschieben"
     },
     "selection": {
       "count": "{count} ausgewählt | {count} ausgewählt",
@@ -2710,7 +2712,9 @@
       "damaged": "Beschädigt: Das lässt sich nicht entschlüsseln.",
       "otherVault": "Dieser Ordner gehört einer anderen Vault.",
       "newerFormat": "Dafür braucht es eine neuere Version von holzi.",
-      "needsNotice": "Das geht erst nach dem Hinweis."
+      "needsNotice": "Das geht erst nach dem Hinweis.",
+      "sameFolder": "Quelle und Ziel sind derselbe Ordner.",
+      "noOtherPanel": "Es ist kein zweites Panel offen."
     },
     "allAccess": {
       "title": "Zugriff auf alle Dateien",
@@ -2852,6 +2856,12 @@
         "unsupported": "Beidseitige Regeln kommen mit einer späteren Version.",
         "unavailable": "Die Vault ist gerade nicht verfügbar."
       }
+    },
+    "split": {
+      "toggle": "Zwei Panels",
+      "tooNarrow": "Das Fenster ist zu schmal für zwei Panels.",
+      "panelLeft": "Linkes Panel",
+      "panelRight": "Rechtes Panel"
     }
   },
   "contacts": {

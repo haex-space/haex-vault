@@ -2554,7 +2554,9 @@
       "delete": "Delete",
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
-      "share": "Share …"
+      "share": "Share …",
+      "copyToOther": "Copy to other panel",
+      "moveToOther": "Move to other panel"
     },
     "selection": {
       "count": "{count} selected | {count} selected",
@@ -2710,7 +2712,9 @@
       "damaged": "Damaged: this cannot be decrypted.",
       "otherVault": "This folder belongs to another vault.",
       "newerFormat": "This needs a newer version of holzi.",
-      "needsNotice": "This needs the notice first."
+      "needsNotice": "This needs the notice first.",
+      "sameFolder": "Source and target are the same folder.",
+      "noOtherPanel": "There is no second panel open."
     },
     "allAccess": {
       "title": "Access to all files",
@@ -2852,6 +2856,12 @@
         "unsupported": "Two-way rules come with a later version.",
         "unavailable": "The vault is not available right now."
       }
+    },
+    "split": {
+      "toggle": "Two panels",
+      "tooNarrow": "The window is too narrow for two panels.",
+      "panelLeft": "Left panel",
+      "panelRight": "Right panel"
     }
   },
   "contacts": {

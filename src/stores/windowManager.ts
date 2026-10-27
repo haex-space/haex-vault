@@ -438,21 +438,17 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   }
 
   // Navigation changes a tab's saved history (spec 022 clarification 2026-09-26).
-  const navigate: typeof navigation.navigate = (...args) => {
-    const changed = navigation.navigate(...args)
-    session.saveSoon()
-    return changed
-  }
-  const goTab: typeof navigation.go = (...args) => {
-    const changed = navigation.go(...args)
-    session.saveSoon()
-    return changed
-  }
-  const skipCurrent: typeof navigation.skipCurrent = (...args) => {
-    const changed = navigation.skipCurrent(...args)
-    session.saveSoon()
-    return changed
-  }
+  const saving =
+    <A extends unknown[], R>(fn: (...args: A) => R) =>
+    (...args: A): R => {
+      const result = fn(...args)
+      session.saveSoon()
+      return result
+    }
+  const navigate = saving(navigation.navigate)
+  const goTab = saving(navigation.go)
+  const setHistory = saving(navigation.setHistory)
+  const skipCurrent = saving(navigation.skipCurrent)
 
   return {
     ...toRefs(state),
@@ -496,6 +492,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     historyOf: navigation.historyOf,
     navigate,
     goTab,
+    setHistory,
     skipCurrent,
     runAction: navigation.runAction,
     registerGlobalActionHandler: navigation.registerGlobalActionHandler,
