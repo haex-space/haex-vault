@@ -166,6 +166,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.autonomy',
     'ai.denyRules',
     'ai.files',
+    'ai.agents',
   ])
   assert.deepEqual(rows('general'), [
     'general.basic',
@@ -183,7 +184,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['chat', ['ai.default', 'ai.providers', 'ai.servers']],
       ['local', ['ai.installed', 'ai.download']],
       ['speech', ['ai.speech']],
-      ['agents', ['ai.autonomy', 'ai.denyRules', 'ai.files']],
+      ['agents', ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents']],
     ],
   )
   // Rows without a group stay one list each, in order.
