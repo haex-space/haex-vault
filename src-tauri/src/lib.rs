@@ -9,6 +9,7 @@ pub mod contacts;
 pub mod device;
 pub mod error;
 pub mod extensions;
+pub mod file_sync;
 pub mod files;
 pub mod hardware;
 pub mod identity;
@@ -67,7 +68,7 @@ use chat::thread_commands::{
 use contacts::commands::agent::{contacts_agent_get, contacts_agent_search, contacts_agent_update};
 use contacts::commands::cards::{
     contacts_block, contacts_blocked, contacts_card_accept, contacts_card_preview,
-    contacts_own_card, contacts_own_card_set, contacts_unblock,
+    contacts_share_build, contacts_share_options, contacts_unblock,
 };
 use contacts::commands::contacts::{
     contacts_create, contacts_delete, contacts_get, contacts_group_delete, contacts_group_members,
@@ -456,6 +457,7 @@ pub fn run() {
             files::browser_commands::change::files_import_dropped,
             files::browser_commands::change::files_transfer_answer,
             files::browser_commands::change::files_transfer_cancel,
+            files::browser_commands::change::files_transfer_pause,
             files::browser_commands::change::files_transfer_retry,
             files::browser_commands::search::files_search_start,
             files::browser_commands::search::files_search_cancel,
@@ -612,8 +614,8 @@ pub fn run() {
             contacts_phones,
             contacts_targets_set,
             contacts_targets_remove,
-            contacts_own_card,
-            contacts_own_card_set,
+            contacts_share_options,
+            contacts_share_build,
             contacts_card_preview,
             contacts_card_accept,
             contacts_blocked,

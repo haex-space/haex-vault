@@ -18,11 +18,11 @@ fn address(member: &Member, relay: Option<&str>) -> EndpointAddr {
 }
 
 fn card_of(member: &Member) -> ContactCard {
-    let card = crate::storage::query::read(member.device.db(), |r| {
-        own_card::read(r).map_err(haex_crdt::Error::from)
+    let text = crate::storage::query::read(member.device.db(), |r| {
+        own_card::stored_text(r).map_err(haex_crdt::Error::from)
     })
     .expect("read the own card");
-    parse(card.text.as_deref().expect("a card"))
+    parse(text.as_deref().expect("a card"))
         .expect("a valid card")
         .card
 }

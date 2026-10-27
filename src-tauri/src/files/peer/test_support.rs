@@ -212,9 +212,8 @@ pub(crate) async fn store_card(of: &Device, on: &Device) {
         .expect("refresh the card");
     let text = of
         .db
-        .read_blocking(|q| own_card::read(q).map_err(haex_crdt::Error::from))
+        .read_blocking(|q| own_card::stored_text(q).map_err(haex_crdt::Error::from))
         .expect("read the card")
-        .text
         .expect("a main device has a card");
     ContactsService::new(on.db.clone())
         .card_accept(&ContactsCaller::User, text, CardInto::New)

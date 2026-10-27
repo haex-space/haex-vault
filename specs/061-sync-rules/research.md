@@ -37,9 +37,13 @@ sie als **Risiko** mit einer Aufgabe zum Klären am Anfang der Umsetzung.
 - _`SourceRef` um Peer und Freigaben erweitern und ein Merkmal über alles ziehen_: ändert 044/056 für ein
   Feature, das nur lesen und kopieren will. Verworfen; `Place` kann später darauf aufsetzen.
 
-**Risiko 0.** Wie ein verschlüsselter Ordner als Ort adressiert wird (Speicher-ID plus Pfad durch `Route`, oder
-`device:<Wurzel>` für Ordner auf dem Gerät), ist aus der Lesung nicht eindeutig. **Klären** (T003): die Ortsform
-für verschlüsselte Ordner festlegen und in `PlaceRef` abbilden, bevor `place_storage.rs` fertig ist.
+**Geklärt (T003, 2026-10-26).** Ein Ort wird wie im Fenster adressiert: `SourceRef` plus Fensterpfad.
+`files::browser_commands::place_of(app, state, files, source, path, want)` löst ihn auf: ein Speicher (auch ein
+anderes Gerät über `peer:<Gerät>`) wird über `window_storage` mit dem `Scope` geöffnet, der Pfade durch
+verschlüsselte Ordner nach ihren entschlüsselten Namen führt; ein Gerätepfad in einen verschlüsselten Ordner
+auf dem Gerät (`DeviceRoot`) wird zum Speicher `device:<Wurzel>` mit Fensterpfad; jeder andere Gerätepfad bleibt
+`Place::Device`. Der Motor speichert deshalb nur `SourceRef` und Fensterpfad und löst den Ort bei jedem Lauf mit
+`place_of` neu auf (sichtbar machen als `pub(crate)`). Ein eigenes Format für verschlüsselte Orte entfällt.
 
 ## R2 — Kopieren über `files::transfer`
 
@@ -65,10 +69,21 @@ für verschlüsselte Ordner festlegen und in `PlaceRef` abbilden, bevor `place_s
 verpackt `RemoteJob` oder `local::run` und gibt Größe und die danach gemessene Zeit des Ziels zurück (für den
 Stand).
 
-**Risiko 1.** „Replace schiebt beiseite“ könnte Reste hinterlassen oder auf dem Ziel zwei Schritte brauchen,
-wo ein atomarer Austausch gewünscht ist. **Klären** (T001): Verhalten von Replace in `local::run` und
-`run_remote` mit Tests für vorhandenes Ziel, Abbruch und Peer-Version. Falls es Reste hinterlässt, bekommt
-`copy_file` einen Modus „ersetzen ohne Beiseiteschieben“ (Teildatei, dann Austausch).
+**Geklärt (T001, 2026-10-26).** Kein eigener Ersetzungsmodus nötig; das Verhalten ist durch vorhandene Tests
+festgehalten (`files/transfer/local_replace_tests.rs`, `remote_conflict_tests.rs`):
+
+- Gerät: Replace schiebt das Ziel als `.<Name>.holzi-old-<uuid>` im selben Ordner beiseite, schreibt die neue
+  Datei als `.<Name>.holzi-part-<uuid>` und benennt sie um; erst danach geht das Alte endgültig. Ein Fehler oder
+  Abbruch legt das Alte zurück. Reste bleiben nur bei einem Absturz mitten darin; deshalb gehören
+  `.*.holzi-old-*` zu den festen Ausnahmen. Die Änderungszeit der Quelle bleibt erhalten (`set_modified`).
+- Speicher: Herunterladen in eine Teildatei mit Umbenennen; Hochladen bei S3 als ein `put` oder Mehrteil-Upload,
+  bei SFTP als Teildatei mit `rename_over`, bei WebDAV als `PUT` einer temporären Datei mit `MOVE`. Unter dem
+  Namen liegt nie eine halbe Datei. Entfernte Ziele setzen die Zeit selbst.
+- Peer (056 FR-036): Hat sich das Ziel nach dem Plan geändert, endet der Upload mit `Conflict` und
+  `run_remote` fragt ein zweites Mal (`after_conflict`); „Replace“ würde dann über die fremde Änderung
+  schreiben. `copy_file` antwortet deshalb auf die erste Frage mit `Replace` (der Plan hat entschieden) und auf
+  jede weitere Frage zur selben Datei mit `Skip`; die Datei gilt als „zwischendurch geändert“ und kommt in den
+  nächsten Lauf.
 
 **Risiko 2.** Fortsetzen nach Abbruch fehlt. FR-017 verlangt es nur für große Dateien innerhalb des Laufs; ein
 neuer Lauf überträgt eine abgebrochene Datei neu (Teildatei wird verworfen). Die Spec (SC-005) verlangt, dass
@@ -76,7 +91,7 @@ vollständig kopierte Dateien nicht erneut übertragen werden, nicht das Fortset
 
 ## R3 — Der Plan ist reine Logik
 
-**Entscheidung.** `plan::build(rule, left: &Facts, right: &Facts, state: &State, ignore: &Matcher) -> Plan`
+**Entscheidung.** `plan::build(rule, a: &Listing, b: &Listing, state: &[StateRow], exclusions: &Exclusions, hashes: &Hashes) -> Plan`
 ohne Ein- und Ausgabe. `Facts` sind Pfad → (Größe, Zeit, Art, Flags). `Plan` ist eine Liste von Schritten:
 `Copy { from, path }`, `Move { side, from, to }`, `Delete { side, path, mode }`, `Conflict { path, keep, aside }`,
 `Adopt { path }` (gleiche Prüfsumme, nur Stand), `Skip { path, reason }`, `Report { path, what }` (Abweichung am
@@ -152,9 +167,8 @@ wünscht die gewohnte Schreibweise. Verworfen.
 CASCADE`. Stand je Datei und Protokoll haben Hunderttausende Zeilen und würden jedes Gerät belasten; die Regeln
 selbst dürfen laut Spec (FR-003) nicht auf andere Geräte. Die Abweichung von ADR 0001 hält **ADR 0018** fest.
 
-**Risiko 3.** Die Nummer `0044` hängt davon ab, in welcher Reihenfolge 060 und diese Spec landen. **Klären**
-(T002): bei der Umsetzung die höchste vergebene Nummer prüfen und, wenn nötig, `0044` auf die nächste freie
-verschieben; die Namensfolge ist in `migrations.rs` geordnet.
+**Geklärt (T002, 2026-10-26).** `0042_contacts_self` und `0043_contacts_cards_hash` sind auf `main`; `0044` ist
+frei und wird `0044_sync_rules`.
 
 **Einstellung Protokolltiefe.** `storage/preferences.rs` führt Einstellungen je Gerät (`PrefScope::Device`);
 Schlüssel `syncRules.logDepth`, Wert ganze Zahl 0 bis 100, geprüft in `validate_value`. Die Vorgabe 10 gilt, solange

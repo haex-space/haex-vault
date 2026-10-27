@@ -224,6 +224,13 @@ export function useFiles() {
     await invoke('files_transfer_cancel', { transferId })
   }
 
+  async function transferPauseAsync(
+    transferId: string,
+    paused: boolean,
+  ): Promise<void> {
+    await invoke('files_transfer_pause', { transferId, paused })
+  }
+
   async function transferRetryAsync(transferId: string): Promise<void> {
     await invoke('files_transfer_retry', { transferId })
   }
@@ -280,6 +287,7 @@ export function useFiles() {
     importDroppedAsync,
     transferAnswerAsync,
     transferCancelAsync,
+    transferPauseAsync,
     transferRetryAsync,
     searchStartAsync,
     searchCancelAsync,

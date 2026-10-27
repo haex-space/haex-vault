@@ -3,21 +3,13 @@ import type { Contact } from '@bindings/Contact'
 import type { ContactsBlockedVault } from '@bindings/ContactsBlockedVault'
 import type { ContactsCardInto } from '@bindings/ContactsCardInto'
 import type { ContactsCardPreview } from '@bindings/ContactsCardPreview'
-import type { ContactsOwnCard } from '@bindings/ContactsOwnCard'
 
 /**
- * Visitenkarten and blocked vaults (spec 051 US4, contracts/tauri-commands.md §Visitenkarten):
- * thin `invoke` wrappers. Every card is checked in the backend, on the preview and again on
- * accepting.
+ * Reading Visitenkarten in and blocked vaults (spec 051 US4, contracts/tauri-commands.md
+ * §Visitenkarten): thin `invoke` wrappers. Every card is checked in the backend, on the preview and
+ * again on accepting. Sharing a contact is `useContactShare` (spec 060).
  */
 export function useContactCards() {
-  const ownCardAsync = () => invoke<ContactsOwnCard>('contacts_own_card')
-
-  const ownCardSetAsync = (ownContact: string | null, valueIds: string[]) =>
-    invoke<ContactsOwnCard>('contacts_own_card_set', {
-      args: ownContact ? { ownContact, valueIds } : { valueIds },
-    })
-
   const previewAsync = (text: string) =>
     invoke<ContactsCardPreview>('contacts_card_preview', { args: { text } })
 
@@ -33,8 +25,6 @@ export function useContactCards() {
     invoke('contacts_unblock', { args: { vaultPubkey } })
 
   return {
-    ownCardAsync,
-    ownCardSetAsync,
     previewAsync,
     acceptAsync,
     blockedAsync,

@@ -24,7 +24,7 @@ export type TransferView = {
   /** How many files leave an encrypted folder for an ordinary one; the transfer waits for the
    * answer before it starts (spec 048 FR-019). */
   leaving: number | null
-  state: 'running' | 'failed'
+  state: 'running' | 'paused' | 'failed'
   error: FilesError | null
 }
 
@@ -63,6 +63,11 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
         if ('leavesEncryption' in event)
           transfer.leaving = event.leavesEncryption.count
         else transfer.conflict = event.name
+        break
+      case 'paused':
+        // A failure that came first stays: the transfer is not running any more.
+        if (transfer.state !== 'failed')
+          transfer.state = event.paused ? 'paused' : 'running'
         break
       case 'done':
         drop(key)
@@ -166,6 +171,12 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
     if (id) await files.transferCancelAsync(id)
   }
 
+  /** Holds a running transfer, or lets a paused one go on (the event moves the state). */
+  async function pauseAsync(key: number, paused: boolean): Promise<void> {
+    const id = await ids.get(key)
+    if (id) await files.transferPauseAsync(id, paused)
+  }
+
   async function retryAsync(key: number): Promise<void> {
     const transfer = view(key)
     const id = await ids.get(key)
@@ -193,6 +204,7 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
     importAsync,
     answerAsync,
     cancelAsync,
+    pauseAsync,
     retryAsync,
   }
 })

@@ -10,7 +10,6 @@ use uuid::Uuid;
 use super::{caller_text, Caller, ContactsService};
 use crate::contacts::access::require_user;
 use crate::contacts::card::format::{self, CardValue, SignedCard};
-use crate::contacts::card::own_card::{self, Choice, OwnCard};
 use crate::contacts::card::received::{self, BlockedVault};
 use crate::contacts::kinds;
 use crate::contacts::model::{Contact, Head, Origin, OriginKind};
@@ -149,60 +148,6 @@ fn add_values(tx: &mut CrdtTransaction<'_>, contact_id: &str, values: &[CardValu
 }
 
 impl ContactsService {
-    /// The own card; a main device makes the first one when there is none yet.
-    pub async fn own_card(&self, caller: &Caller) -> Result<OwnCard> {
-        require_user(caller)?;
-        let card = self
-            .db()
-            .read(|q| own_card::read(q).map_err(Into::into))
-            .await?;
-        if card.text.is_some() || !card.can_sign {
-            return Ok(card);
-        }
-        self.db()
-            .write(|tx| {
-                own_card::refresh(tx)?;
-                Ok(own_card::read(tx)?)
-            })
-            .await
-    }
-
-    /// Chooses the own contact and the values the card carries; a main device makes a new card.
-    pub async fn own_card_set(
-        &self,
-        caller: &Caller,
-        own_contact: Option<String>,
-        value_ids: Vec<String>,
-    ) -> Result<OwnCard> {
-        require_user(caller)?;
-        self.db()
-            .write(move |tx| {
-                let value_ids = match &own_contact {
-                    Some(id) => {
-                        let contact = store::load(tx, id)?;
-                        if !value_ids
-                            .iter()
-                            .all(|wanted| contact.values.iter().any(|value| &value.id == wanted))
-                        {
-                            return Err(invalid("a value is not one of the own contact").into());
-                        }
-                        value_ids
-                    }
-                    None => Vec::new(),
-                };
-                own_card::set_choice(
-                    tx,
-                    &Choice {
-                        own_contact,
-                        value_ids,
-                    },
-                )?;
-                own_card::refresh(tx)?;
-                Ok(own_card::read(tx)?)
-            })
-            .await
-    }
-
     /// Checks a card and shows what it carries; nothing is stored (FR-011).
     pub async fn card_preview(&self, caller: &Caller, text: String) -> Result<CardPreview> {
         require_user(caller)?;

@@ -2,15 +2,9 @@ import assert from 'node:assert/strict'
 import { unwrap } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
 import { fixture, install, openFromLauncher } from '../lib/extensions.ts'
-import {
-  acceptCard,
-  eventsOf,
-  ownCardText,
-  probe,
-  read,
-  succeeded,
-} from '../lib/peers.ts'
+import { acceptCard, eventsOf, probe, read, succeeded } from '../lib/peers.ts'
 import type { PeerDevice } from '../lib/peers.ts'
+import { ownCardText } from '../lib/share.ts'
 
 // Spec 057 (quickstart §2–§5, tasks T080, T081): three vaults, each with the test extension `peers`
 // that declares the permission `peers`; the scene grants it. Anna and Ben are contacts, Dave is

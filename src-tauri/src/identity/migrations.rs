@@ -53,6 +53,7 @@ use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
 use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
 use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
+use super::migrations_sync_rules::SYNC_RULES_0044;
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -708,6 +709,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0043_contacts_cards_hash"),
         CONTACTS_CARDS_0043.to_owned(),
+    );
+    // Spec 061: sync rules and their state, kept on the device that runs them (ADR 0018).
+    m.insert(
+        MigrationName::from("0044_sync_rules"),
+        SYNC_RULES_0044.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

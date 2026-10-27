@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The first row of the address book (spec 051, FR-002, FR-004): the sidebar button, the search
- * field bound to `?q=` of the place, the Visitenkarte menu (own card, read one in) and "+" for a
+ * field bound to `?q=` of the place, the Visitenkarte menu (read one in) and "+" for a
  * new contact. While a contact is open the search
  * leaves the row.
  */
@@ -107,14 +107,6 @@ function newContact() {
         </UiButton>
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end">
-        <ShadcnDropdownMenuItem
-          class="gap-2"
-          data-testid="contacts-card-menu-own"
-          @select="router.push('/card')"
-        >
-          <Icon name="lucide:qr-code" class="size-4" />
-          {{ t('contacts.card.own') }}
-        </ShadcnDropdownMenuItem>
         <ShadcnDropdownMenuItem
           class="gap-2"
           data-testid="contacts-card-menu-import"

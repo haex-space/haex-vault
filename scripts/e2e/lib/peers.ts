@@ -1,7 +1,6 @@
 // Helpers for the scene of channels between extensions (spec 057): exchanging Visitenkarten, and
 // calling the test extension `peers` inside its frame (`window.peersProbe`, see
 // `src-tauri/tests/fixtures/extension_e2e/peers/main.js`).
-import { createContact } from './contacts.ts'
 import { unwrap } from './flows.ts'
 import { inFrame } from './extensions.ts'
 import type { InstalledExtension } from './extensions.ts'
@@ -84,25 +83,6 @@ export async function eventsOf(
   type: string,
 ): Promise<ProbeEvent[]> {
   return read<ProbeEvent[]>(device, 'events', type)
-}
-
-/** The Visitenkarte of the vault behind `page`, made from a new own contact called `name`. */
-export async function ownCardText(page: Page, name: string): Promise<string> {
-  const own = await createContact(page, {
-    head: { givenName: name },
-    values: [],
-    groups: [],
-  })
-  unwrap(
-    'contacts_own_card_set',
-    await page.invoke('contacts_own_card_set', {
-      args: { ownContact: own, valueIds: [] },
-    }),
-  )
-  return unwrap<{ text: string }>(
-    'contacts_own_card',
-    await page.invoke('contacts_own_card'),
-  ).text
 }
 
 /** Stores a Visitenkarte on a new contact; the contact's id. */

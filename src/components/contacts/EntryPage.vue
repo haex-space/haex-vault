@@ -13,7 +13,7 @@ import type { VaultDevice } from '@bindings/VaultDevice'
 import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 import { contactTitle } from '~/lib/contacts/self'
 
-const { t, d } = useI18n()
+const { t, d, locale } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useContactsStore()
@@ -25,6 +25,7 @@ const id = computed(() => router.route.params.id ?? '')
 const contact = ref<Contact | null>(null)
 const missing = ref(false)
 const deleteOpen = ref(false)
+const shareOpen = ref(false)
 
 async function loadAsync() {
   try {
@@ -171,6 +172,14 @@ async function removePhotoAsync() {
           {{ t('contacts.edit') }}
         </UiButton>
         <UiButton
+          variant="outline"
+          data-testid="contacts-share-open"
+          @click="shareOpen = true"
+        >
+          <Icon name="lucide:share-2" class="size-4" />
+          {{ t('contacts.share.action') }}
+        </UiButton>
+        <UiButton
           v-if="!contact.isSelf"
           variant="ghost"
           size="icon"
@@ -259,7 +268,7 @@ async function removePhotoAsync() {
         <SettingsRow
           v-for="value in values"
           :key="value.id"
-          :title="displayValue(value.kind, value.value)"
+          :title="displayValue(value.kind, value.value, locale)"
           :description="labelName(value.label)"
           :data-testid="`contacts-value-${value.id}`"
         >
@@ -380,6 +389,8 @@ async function removePhotoAsync() {
       >
         {{ origin }}
       </p>
+
+      <ContactsShareDialog v-model:open="shareOpen" :contact-id="contact.id" />
 
       <ContactsDeleteDialog
         v-if="!contact.isSelf"

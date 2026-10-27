@@ -30,11 +30,11 @@ fn meeting_at(receiver: &Member, signer: &DeviceKeys, relay: &str, day: u32) -> 
 }
 
 fn card_relay_of(member: &Member, device: &DeviceKeys) -> (Option<String>, u64) {
-    let card = crate::storage::query::read(member.device.db(), |r| {
-        own_card::read(r).map_err(haex_crdt::Error::from)
+    let text = crate::storage::query::read(member.device.db(), |r| {
+        own_card::stored_text(r).map_err(haex_crdt::Error::from)
     })
     .expect("read the own card");
-    let card = parse(card.text.as_deref().expect("a card"))
+    let card = parse(text.as_deref().expect("a card"))
         .expect("a valid card")
         .card;
     let relay = card

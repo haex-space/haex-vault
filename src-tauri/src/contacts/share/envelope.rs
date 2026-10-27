@@ -87,8 +87,7 @@ pub struct Decoded {
     pub envelope: ShareEnvelope,
     /// The card of the envelope, checked: format, limits and signature hold.
     pub card: Option<SignedCard>,
-    /// Details left out: a known kind that does not validate, or a holzi address, which only the
-    /// signed card may carry.
+    /// Details left out: a known kind that does not validate.
     pub skipped: usize,
     /// It came as a `holzi:card:` text, which also replaces an older card of the vault (051 FR-012).
     pub legacy_card: bool,
@@ -207,12 +206,9 @@ fn own_check(card: SignedCard, own_vault: &[u8; 32]) -> Result<SignedCard> {
     Ok(card)
 }
 
-/// A known kind must validate; an unknown one stays as it is. A holzi address in a detail would
-/// name a vault without a signature, so only the card may carry one.
+/// A known kind must validate; an unknown one stays as it is. A holzi address as a detail is an
+/// ordinary, unconfirmed value (FR-014): it proves nothing, only the signed card does.
 fn valid_value(value: &ShareValue) -> bool {
-    if kinds::is_holzi_address(&value.kind) {
-        return false;
-    }
     !kinds::is_known(&value.kind)
         || kinds::validate(&value.kind, &value.label, &value.value).is_ok()
 }

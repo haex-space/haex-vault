@@ -8813,7 +8813,7 @@ var manifest_default = {
 // page-format.json
 var page_format_default = {
   name: "page-recognition",
-  version: 1,
+  version: 2,
   schema: {
     type: "object",
     required: ["regions"],
@@ -8825,7 +8825,7 @@ var page_format_default = {
           type: "object",
           required: ["kind", "box"],
           properties: {
-            kind: { enum: ["text", "image", "table"] },
+            kind: { enum: ["text", "image", "table", "formula"] },
             box: {
               type: "array",
               items: { type: "number", minimum: 0, maximum: 1e3 },
@@ -8833,6 +8833,7 @@ var page_format_default = {
               maxItems: 4
             },
             text: { type: "string", maxLength: 2e4 },
+            latex: { type: "string", maxLength: 4e3 },
             rows: {
               type: "array",
               items: { type: "array", items: { type: "string" } }
@@ -8856,12 +8857,17 @@ var PIXEL = {
 };
 var READ = `This is a photo of a student's handwritten notes, a blackboard picture or a worksheet, in German.
 Split the page into regions and return ONLY a JSON object:
-{"regions": [{"kind": "text" | "table" | "image", "box": [x1, y1, x2, y2], "text": "...", "rows": [["cell", ...], ...]}], "rotation": 0}
+{"regions": [{"kind": "text" | "table" | "image" | "formula", "box": [x1, y1, x2, y2], "text": "...", "latex": "...", "rows": [["cell", ...], ...]}], "rotation": 0}
 Rules:
 - box uses coordinates 0-1000 relative to the image width and height.
 - "text": transcribe the handwriting exactly as written, keep line breaks, do not correct anything.
 - "table": give "rows" as a list of rows of cell strings, an empty cell as "", no "text".
-- "image": drawings, diagrams, sketches and photos, no "text".
+- "formula": a line that is a formula of mathematics, chemistry or physics and nothing else. Give "latex" as valid
+  LaTeX, no "text". Write chemistry with \\ce{...}, for example \\ce{H2SO3 + H2O -> H3O+ + HSO3-}, and keep charges
+  and indices. Do not use "formula" for a formula inside a sentence.
+- Inside a sentence write a formula in plain text with Unicode indices and charges (H\u2083O\u207A, SO\u2084\xB2\u207B).
+- In a table cell that contains only a formula, write it as $...$ with the same LaTeX rules.
+- "image": drawings, diagrams, sketches and photos, no "text". Structural formulas (Lewis structures) are images.
 - List regions in reading order. Do not invent content that is not on the page.
 - "rotation": the clockwise degrees (0, 90, 180 or 270) the photo must be turned to stand upright.`;
 var FIX = `These are the regions of a German page read from handwriting. Correct only spelling and words
