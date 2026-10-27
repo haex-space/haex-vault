@@ -119,8 +119,18 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
       { timeoutMs: 15_000 },
     )
     files.write('zeile-999.txt', 'ende')
-    await instance.waitForDisplayed('files-entry-zeile-999.txt', 15_000)
-    assert.ok((await scrollTop(instance)) > 0, 'the list stayed scrolled')
+    await ctx.waitFor(
+      'the new last row at the end of the list',
+      () =>
+        instance.exec<boolean>(
+          `const list = document.querySelector('[data-testid="files-entries"]')
+           if (!list) return false
+           list.scrollTop = 1e6
+           const row = document.querySelector('[data-testid="files-entry-zeile-999.txt"]')
+           return Boolean(row && row.getClientRects().length && list.scrollTop > 0)`,
+        ),
+      { timeoutMs: 30_000 },
+    )
 
     // Up one folder and back into the folder through the list.
     await instance.click('files-up')

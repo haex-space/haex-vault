@@ -1,7 +1,9 @@
 # Vertrag: Rahmen ↔ Panel (intern)
 
-Der Rahmen (`FilesApp.vue`) stellt jedem `FilesPanel` per `provide/inject` (Schlüssel
-`FILES_PANEL_KEY`) folgendes bereit:
+Der Rahmen (`FilesApp.vue`) stellt per `provide/inject` (Schlüssel `FILES_PANEL_KEY`) eine Funktion
+`(side) => FilesPanelContext` bereit; ein `FilesPanel` holt seinen Kontext mit `useFilesPanel(side)`
+(`composables/useFilesSplit.ts`). Der Kontext je Seite ist nötig, weil `side` und `active` je Panel
+verschieden sind:
 
 ```ts
 type FilesPanelContext = {
@@ -18,8 +20,9 @@ type FilesPanelContext = {
   go(place: FilesPlace, options?: { replace?: boolean }): void
   /** Setzt den Startort dieses Panels ohne Aktivierung oder Änderung der Panel-Historien. */
   initialize(place: FilesPlace): void
+  /** `null` entfernt den Schlüssel (`open`, `q`, `t`, `s`, `d`). */
   setQuery(
-    patch: Partial<Pick<FilesPlace, 'open' | 'q' | 't' | 's' | 'd'>>,
+    patch: Partial<Record<'open' | 'q' | 't' | 's' | 'd', string | null>>,
     options?: { push?: boolean },
   ): void
   /** Meldet Ziel und Neuladen dieses Panels an; der Rahmen gibt sie dem Gegenpanel. */
@@ -34,6 +37,14 @@ type FilesPanelContext = {
   sources: Ref<Sources | null>
   reloadSources(): void
   tabId: string
+  /** Der Tab ist der vorderste seines Fensters (ein Speicher lädt dann neu). */
+  tabActive: ComputedRef<boolean>
+  openStorageSettings(): void
+  /** Elemente des Rahmens, in die ein Panel Pfadleiste und Viewer teleportiert; `null`, bis der
+   *  Rahmen eingehängt ist. Elemente statt IDs, denn mehrere Dateibrowser-Tabs sind zugleich
+   *  eingehängt. */
+  pathHost: Readonly<Ref<HTMLElement | null>>
+  viewerHost: Readonly<Ref<HTMLElement | null>>
 }
 ```
 
@@ -50,7 +61,12 @@ Pflichten des Panels:
   dieses Panels mit dem rahmeninternen, nicht aktivierenden `initialize(place)` per `replace`; sie
   darf `active`, Seitenhistorie und die Aktivierung des Panels nicht ändern. `go` behält seine
   aktivierende Semantik für Benutzernavigation.
-- Der Viewer eines Panels rendert in `#files-viewer-host` des Rahmens (Teleport), nicht im Panel.
+- Der Viewer eines Panels rendert in `viewerHost` des Rahmens (Teleport), nicht im Panel. Mit einem
+  Panel steht die Pfadleiste in der Werkzeugleiste des Rahmens (`pathHost`, Teleport); mit zwei Panels
+  im Kopf des jeweiligen Panels.
+- Tastenereignisse außerhalb beider Panels (Werkzeugleiste, Seitenleiste) gibt der Rahmen an das aktive
+  Panel weiter (`PanelHandle.keydown`); Ereignisse aus einem Panel behandelt dessen Wurzel, der Rahmen
+  überspringt sie (`closest('[data-files-panel]')`).
 - Der Rahmen besitzt `useFilesSplit` (Zustand, Spiegel in den Ort, Verlaufstausch über
   `router.swapHistory`). Das Panel kennt nur diesen Kontext.
 - Das Panel setzt `data-files-panel="left|right"` und `data-active` an seine Wurzel, die E2E-Selektoren

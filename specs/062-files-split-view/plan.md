@@ -106,7 +106,7 @@ src/
 │       ├── PanelDialogs.vue     # NEU, nur falls Panel.vue über 500 Zeilen käme: die Dialoge des Panels
 │       ├── Toolbar.vue          # geändert: Split-Schalter; Pfadleiste wird je Panel (PathBar)
 │       ├── PathBar.vue          # NEU: aus Toolbar.vue gelöst (Hinauf, Pfad, Neuladen)
-│       ├── FolderView.vue       # geändert: `droppable` (FR-011), `takesFocus` nur im aktiven Panel, `focusLast()`
+│       ├── FolderView.vue       # geändert: `droppable` (FR-011), `takesFocus` nur im aktiven Panel
 │       ├── ActionBar.vue        # geändert: zwei Schaltflächen mit Kürzel (nur im Split)
 │       └── Sidebar.vue          # unverändert (wirkt auf das aktive Panel über den Rahmen)
 ├── stores/

@@ -26,8 +26,9 @@ const isEntryCommand = (
   (ENTRY_COMMANDS as readonly string[]).includes(command)
 
 /**
- * The keyboard shortcuts of a file browser tab (spec 044 FR-017b, `lib/files/shortcuts.ts`): the
- * frame (`FilesApp.vue`) listens on its root, so they only act with the focus in its window. The
+ * The keyboard shortcuts of a file browser panel (spec 044 FR-017b, `lib/files/shortcuts.ts`): the
+ * panel (`Panel.vue`) listens on its root, and the frame (`FilesApp.vue`) hands it the keys of the
+ * toolbar and the sidebar (`useFilesSplit`), so they act with the focus anywhere in the window. The
  * window manager takes its chords in the capture phase before this (`useWmKeyboard`).
  */
 export function useFilesKeyboard(options: {
