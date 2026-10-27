@@ -7,7 +7,6 @@ use tokio::io::{duplex, split};
 
 use super::*;
 use crate::contacts::card::own_card;
-use crate::contacts::service::CardInto;
 use crate::sync::test_support::Member;
 use crate::sync::wire::EXT_PEER_ALPN;
 
@@ -59,7 +58,7 @@ async fn store_card(of: &Side, on: &Side) -> String {
         .expect("read the card")
         .expect("a main device has a card");
     ContactsService::new(on.db.clone())
-        .card_accept(&Caller::User, text, CardInto::New)
+        .accept_defaults(text, None)
         .await
         .expect("accept the card")
         .id

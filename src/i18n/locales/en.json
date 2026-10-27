@@ -222,7 +222,7 @@
       "group": "Group",
       "entry": "Contact",
       "edit": "Edit contact",
-      "cardImport": "Read a business card"
+      "import": "Read a business card"
     }
   },
   "chat": {
@@ -3021,21 +3021,57 @@
       "year": "YYYY"
     },
     "card": {
-      "import": "Read a business card",
-      "paste": "Link of the business card",
+      "confirmed": "Confirmed holzi addresses",
+      "confirmedAt": "confirmed on {at}"
+    },
+    "import": {
+      "menu": "Read a contact",
+      "title": "Read a contact",
+      "paste": "Link, text or business card",
       "check": "Check",
       "scan": "Scan",
       "preview": "Preview",
-      "devices": "One device | {count} devices",
-      "blockedNote": "This vault is blocked.",
+      "vault": "It will be saved in the vault “{vault}”.",
+      "identityNew": "“Confirmed” only proves that these holzi addresses belong to the vault {npub}, not who the person is.",
+      "identityMatches": "Fits the vault of this contact.",
+      "identityMismatch": "This contact belongs to another vault ({npub}). Its vault identity is never replaced; choose a new contact.",
+      "unreachable": "This contact cannot be reached through holzi: the share holds no holzi addresses.",
+      "skipped": "One invalid detail was left out. | {count} invalid details were left out.",
+      "legacy": "This is a business card in the older format.",
+      "target": "Where to?",
+      "targetLabel": "Contact",
+      "targetNew": "New contact",
+      "reason": {
+        "vault": "has this vault already",
+        "hint": "same phone number or e-mail address"
+      },
+      "items": "Details",
+      "same": "Already there.",
+      "fills": "Will be filled in.",
+      "current": "Now: {value}",
+      "choiceLabel": "What should happen?",
+      "choice": {
+        "add": "Add",
+        "update": "Update",
+        "skip": "Do not take",
+        "keep": "Keep",
+        "replace": "Replace"
+      },
+      "replaces": "Replaces",
+      "replacesOne": "Replaces: {value}",
+      "replaceHint": "Replaces this vault's stored holzi addresses with those of this card.",
+      "addresses": "Vault {npub} · {devices} devices, {relays} relays, of which new: {newDevices} devices, {newRelays} relays",
+      "summary": "{added} to add, {updated} to update, {skipped} not taken",
+      "accept": "Take over",
+      "accepted": "Saved with {name}",
+      "stale": "The contact changed since the preview. The preview is loaded again; please choose once more.",
+      "blocked": "This vault is blocked.",
       "block": "Block vault",
-      "update": "Update {name}",
-      "asNew": "New contact",
-      "addTo": "Add to contact …",
-      "add": "Add",
-      "accepted": "Business card saved on {name}",
-      "confirmed": "Confirmed holzi addresses",
-      "confirmedAt": "confirmed on {at}"
+      "problem": {
+        "blocked": "This vault is blocked.",
+        "mismatch": "This contact has another vault identity. Choose a new contact.",
+        "needsValue": "Choose which detail is replaced."
+      }
     },
     "share": {
       "title": "Share contact",
