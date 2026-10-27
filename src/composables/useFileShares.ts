@@ -31,32 +31,12 @@ export function useFileShares() {
 }
 
 /**
- * The shares of a file browser tab (spec 056 US2): the open source as a share a contact gave this
- * vault (read only at level read, FR-034), the share dialog for an entry, and asking a contact's
- * devices when the person expands it (FR-028), whose answer replaces that contact in `sources`.
+ * Asking a contact's devices what they share when the person expands the contact in the sidebar
+ * (spec 056 FR-028): the answer replaces that contact in `sources`.
  */
-export function useFilesTabShares(
-  sources: { state: Ref<Sources | null> },
-  source: Ref<SourceRef>,
-) {
+export function useFilesContactQuery(sources: { state: Ref<Sources | null> }) {
   const { t } = useI18n()
   const { contactQueryAsync } = useFileShares()
-  const sharing = ref(false)
-  const sharingEntry = ref<Entry | null>(null)
-
-  const receivedShare = computed(() => {
-    const open = source.value
-    if (open.kind !== 'storage') return undefined
-    return sources.state.value?.contacts
-      .flatMap((contact) => contact.shares)
-      .find((share) => share.storageId === open.storageId)
-  })
-  const readOnlySource = computed(() => receivedShare.value?.level === 'read')
-
-  function share(entry: Entry) {
-    sharingEntry.value = entry
-    sharing.value = true
-  }
 
   async function queryContactAsync(contactId: string) {
     let answer: FilesContactShares
@@ -77,12 +57,39 @@ export function useFilesTabShares(
     }
   }
 
+  return { queryContactAsync }
+}
+
+/**
+ * The shares of one file browser panel (spec 056 US2): the open source as a share a contact gave
+ * this vault (read only at level read, FR-034) and the share dialog for an entry.
+ */
+export function useFilesTabShares(
+  sources: { state: Ref<Sources | null> },
+  source: Ref<SourceRef>,
+) {
+  const sharing = ref(false)
+  const sharingEntry = ref<Entry | null>(null)
+
+  const receivedShare = computed(() => {
+    const open = source.value
+    if (open.kind !== 'storage') return undefined
+    return sources.state.value?.contacts
+      .flatMap((contact) => contact.shares)
+      .find((share) => share.storageId === open.storageId)
+  })
+  const readOnlySource = computed(() => receivedShare.value?.level === 'read')
+
+  function share(entry: Entry) {
+    sharingEntry.value = entry
+    sharing.value = true
+  }
+
   return {
     sharing,
     sharingEntry,
     receivedShare,
     readOnlySource,
     share,
-    queryContactAsync,
   }
 }
