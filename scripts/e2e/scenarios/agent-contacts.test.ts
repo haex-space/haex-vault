@@ -256,7 +256,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.click(`contacts-share-check-${valueId}`)
   await instance.click('contacts-share-confirm-allow')
   const shared = JSON.parse(
-    await waitForToolResult(provider, /haex-vault:/),
+    await waitForToolResult(provider, /"link":"haex-vault:/),
   ) as { link: string }
   const text = readShare(shared.link)
   assert.equal(text.name, 'Ben Krüger')
