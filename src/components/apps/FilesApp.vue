@@ -119,7 +119,7 @@ watch(tabActive, (active) => {
           @query-contact="queryContactAsync"
         />
       </nav>
-      <div class="relative flex min-w-0 flex-1">
+      <div class="relative flex min-h-0 min-w-0 flex-1">
         <FilesPanel side="left" />
         <!-- The viewer of a panel covers the whole panel area. -->
         <div ref="viewerHost" class="contents" />

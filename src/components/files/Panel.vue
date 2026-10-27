@@ -292,7 +292,7 @@ watch(context.tabActive, (active) => {
 <template>
   <div
     ref="root"
-    class="flex min-w-0 flex-1 flex-col"
+    class="flex min-h-0 min-w-0 flex-1 flex-col"
     :data-files-panel="side"
     :data-active="context.active.value"
     @keydown="onKeydown"
@@ -314,7 +314,7 @@ watch(context.tabActive, (active) => {
       @filter="onFilter"
     />
     <main
-      class="relative flex min-w-0 flex-1 flex-col"
+      class="relative flex min-h-0 min-w-0 flex-1 flex-col"
       data-testid="files-main"
     >
       <FilesForeignHint
