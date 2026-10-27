@@ -1486,7 +1486,25 @@
             "nickname": { "type": "boolean" },
             "organization": { "type": "boolean" },
             "jobTitle": { "type": "boolean" },
-            "note": { "type": "boolean" }
+            "note": { "type": "boolean" },
+            "holzi": {
+              "type": "object",
+              "description": "Which confirmed holzi addresses to propose: none, the stored card, or selected own-vault devices and relays.",
+              "properties": {
+                "kind": { "type": "string", "enum": ["none", "card", "own"] },
+                "devices": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Device public keys for the own-vault card."
+                },
+                "relays": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Nostr relay URLs for the own-vault card."
+                }
+              },
+              "required": ["kind"]
+            }
           }
         }
       },
