@@ -87,6 +87,13 @@ impl FileSyncState {
             return;
         }
         loop {
+            // Closing a vault can stop the control loop after the command was sent but before it
+            // was received. Do not leave a command caller waiting for a marker that will never be
+            // written; a replacement session must not satisfy the old cancellation either.
+            match self.session() {
+                Some(current) if Arc::ptr_eq(&current, &session) => {}
+                _ => return,
+            }
             let done = {
                 let shared = session.shared.lock().unwrap_or_else(|e| e.into_inner());
                 shared.cancel_processed.contains(&id) && !shared.running.contains(&id)
