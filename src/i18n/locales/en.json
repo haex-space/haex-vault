@@ -612,6 +612,11 @@
           "title": "Files",
           "description": "What agents may do on this device and in cloud storages.",
           "keywords": "files access permission cloud storage device revoke"
+        },
+        "agents": {
+          "title": "External agents",
+          "description": "Connect Claude Code, Codex and other agents over MCP",
+          "keywords": "MCP agent agents Claude Code Codex connect register rights external"
         }
       },
       "federation": {
@@ -1631,6 +1636,9 @@
       "agents": {
         "files": {
           "set": "Set an agent's file permission"
+        },
+        "mcp": {
+          "enable": "Turn the MCP access for external agents on or off"
         }
       },
       "general": {
@@ -1700,7 +1708,8 @@
       },
       "guardrails": "Guardrails (user only)",
       "passwords": {
-        "read": "Search passwords"
+        "read": "Search passwords",
+        "secret": "Read one secret of an entry (asks every time)"
       },
       "files": {
         "read": "Read files",
@@ -3178,6 +3187,66 @@
       "expires": "Expires in {seconds} s.",
       "confirm": "Confirm",
       "wrongPassphrase": "Wrong password. The request was cancelled."
+    }
+  },
+  "mcpAgents": {
+    "registration": {
+      "title": "Register agent",
+      "name": "Name",
+      "claimed": "as the agent says",
+      "version": "Version",
+      "connection": "Connection",
+      "rights": "What may the agent do?",
+      "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
+      "remember": "Remember the refusal",
+      "register": "Register",
+      "deny": "Decline"
+    },
+    "transport": {
+      "ipc": "Program on this device",
+      "http": "Local address on this device"
+    },
+    "level": {
+      "none": "Nothing",
+      "read": "Read",
+      "write": "Read and change"
+    },
+    "mode": {
+      "label": "Approval",
+      "manual": "Manual",
+      "manualHint": "Asks before every call",
+      "auto": "Auto",
+      "autoHint": "Asks only before destructive calls",
+      "plan": "Plan",
+      "planHint": "Read only, everything else is refused"
+    },
+    "settings": {
+      "enabled": "Access for external agents",
+      "enabledHint": "Agents on this device may connect and ask to be registered",
+      "state": "State",
+      "soon": "The access can be turned on once holzi can ask before every call of an agent. That comes with one of the next versions."
+    },
+    "state": {
+      "off": "Off",
+      "running": "Ready",
+      "inUse": "Another holzi instance serves this vault",
+      "noVault": "No vault open",
+      "notAvailable": "Not available on this device"
+    },
+    "setup": {
+      "title": "Connect an agent",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "Run the command in a terminal",
+      "codex": "Codex",
+      "codexHint": "Run the command in a terminal",
+      "other": "Other MCP client",
+      "otherHint": "Add it to the client's MCP configuration",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "notification": {
+      "title": "An agent wants to use holzi",
+      "body": "Open holzi to register or decline it."
     }
   }
 }

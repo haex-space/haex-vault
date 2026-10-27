@@ -11,6 +11,7 @@
     "check:chat-state": "node --test scripts/check-chat-state.ts scripts/check-chat-navigation.ts scripts/check-chat-live-data.ts scripts/check-chat-tool-notice.ts scripts/check-chat-tool-text.ts scripts/check-chat-tool-origin.ts",
     "check:wm-navigation": "node --test scripts/check-wm-navigation.ts scripts/check-wm-actions.ts scripts/check-wm-app-match.ts scripts/check-wm-nav-store.ts scripts/check-wm-keys.ts",
     "check:agent-actions": "node --test scripts/check-agent-actions.ts",
+    "check:mcp-actions": "node --test scripts/check-mcp-actions.ts",
     "check:wm-state": "node --test scripts/check-wm-state.ts scripts/check-wm-focus.ts scripts/check-wm-geometry.ts scripts/check-wm-persistence.ts scripts/check-wm-session.ts scripts/check-wm-dock.ts scripts/check-wm-background.ts",
     "check:settings": "node --test scripts/check-settings.ts scripts/check-provider-address.ts",
     "check:vault-data": "node --test scripts/check-vault-data.ts",

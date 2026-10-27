@@ -612,6 +612,11 @@
           "title": "Dateien",
           "description": "Was Agents auf dem Gerät und in Cloud-Speichern dürfen.",
           "keywords": "Dateien Zugriff Berechtigung Cloud-Speicher Gerät widerrufen"
+        },
+        "agents": {
+          "title": "Externe Agenten",
+          "description": "Claude Code, Codex und andere Agenten über MCP verbinden",
+          "keywords": "MCP Agent Agenten Claude Code Codex verbinden registrieren Rechte extern"
         }
       },
       "federation": {
@@ -1631,6 +1636,9 @@
       "agents": {
         "files": {
           "set": "Dateirechte eines Agents setzen"
+        },
+        "mcp": {
+          "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten"
         }
       },
       "general": {
@@ -1700,7 +1708,8 @@
       },
       "guardrails": "Leitplanken (nur Nutzer)",
       "passwords": {
-        "read": "Passwörter durchsuchen"
+        "read": "Passwörter durchsuchen",
+        "secret": "Ein Geheimnis eines Eintrags lesen (Rückfrage bei jedem Abruf)"
       },
       "files": {
         "read": "Dateien lesen",
@@ -3178,6 +3187,66 @@
       "expires": "Läuft in {seconds} s ab.",
       "confirm": "Bestätigen",
       "wrongPassphrase": "Passwort falsch. Der Vorgang wurde abgebrochen."
+    }
+  },
+  "mcpAgents": {
+    "registration": {
+      "title": "Agent registrieren",
+      "name": "Name",
+      "claimed": "Angabe des Agenten",
+      "version": "Version",
+      "connection": "Verbindung",
+      "rights": "Was darf der Agent?",
+      "rightsHint": "Ab Werk darf ein Agent nur lesen. Leitplanken wie Freigabestufen und Agenten-Rechte kann kein Agent ändern.",
+      "remember": "Ablehnung merken",
+      "register": "Registrieren",
+      "deny": "Ablehnen"
+    },
+    "transport": {
+      "ipc": "Programm auf diesem Gerät",
+      "http": "Lokale Adresse auf diesem Gerät"
+    },
+    "level": {
+      "none": "Nichts",
+      "read": "Lesen",
+      "write": "Lesen und ändern"
+    },
+    "mode": {
+      "label": "Freigabestufe",
+      "manual": "Manuell",
+      "manualHint": "Fragt vor jedem Aufruf",
+      "auto": "Auto",
+      "autoHint": "Fragt nur vor zerstörenden Aufrufen",
+      "plan": "Plan",
+      "planHint": "Nur lesen, alles andere wird abgelehnt"
+    },
+    "settings": {
+      "enabled": "Zugang für externe Agenten",
+      "enabledHint": "Agenten auf diesem Gerät dürfen sich verbinden und um Registrierung bitten",
+      "state": "Zustand",
+      "soon": "Der Zugang lässt sich einschalten, sobald holzi vor jedem Aufruf eines Agenten nachfragen kann. Das kommt mit einer der nächsten Versionen."
+    },
+    "state": {
+      "off": "Aus",
+      "running": "Bereit",
+      "inUse": "Eine andere holzi-Instanz bedient diese Vault",
+      "noVault": "Keine Vault geöffnet",
+      "notAvailable": "Auf diesem Gerät nicht verfügbar"
+    },
+    "setup": {
+      "title": "Agent verbinden",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "Befehl im Terminal ausführen",
+      "codex": "Codex",
+      "codexHint": "Befehl im Terminal ausführen",
+      "other": "Anderer MCP-Client",
+      "otherHint": "In die MCP-Konfiguration des Clients eintragen",
+      "copy": "Kopieren",
+      "copied": "Kopiert"
+    },
+    "notification": {
+      "title": "Ein Agent möchte holzi nutzen",
+      "body": "Öffne holzi, um ihn zu registrieren oder abzulehnen."
     }
   }
 }

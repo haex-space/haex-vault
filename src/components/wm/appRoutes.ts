@@ -97,6 +97,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.files': defineAsyncComponent(
     () => import('~/components/settings/AgentFilesSetting.vue'),
   ),
+  'ai.agents': defineAsyncComponent(
+    () => import('~/components/settings/agents/AgentsView.vue'),
+  ),
   storage: defineAsyncComponent(
     () => import('~/components/settings/storage/StorageListView.vue'),
   ),
