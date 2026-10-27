@@ -219,3 +219,23 @@ async fn a_reload_runs_a_new_rule_once() {
     l.token.cancel();
     l.task.await.unwrap();
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_reload_runs_a_rule_that_was_enabled_or_reconfigured() {
+    let l = start(vec![rule("a", false, true)]);
+    settle(TICK).await;
+    assert!(runs(&l).is_empty());
+
+    l.fake.rules.lock().unwrap()[0].enabled = true;
+    l.commands.send(Command::Reload).unwrap();
+    settle(TICK).await;
+    assert_eq!(runs(&l), ["a"]);
+
+    l.fake.rules.lock().unwrap()[0].place_b.path = "/new".to_owned();
+    l.commands.send(Command::Reload).unwrap();
+    settle(TICK).await;
+    assert_eq!(runs(&l), ["a", "a"]);
+
+    l.token.cancel();
+    l.task.await.unwrap();
+}

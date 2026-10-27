@@ -100,11 +100,18 @@ pub async fn control<R: Runner>(
                     }
                 }
                 Command::Reload => {
+                    let previous = rules;
                     rules = runner.rules().await;
                     watches = watch_all(&*runner, &rules, &changes_tx);
-                    // A rule that is new or active again runs once now.
+                    // A rule that is new, active again, or reset by a place/direction change runs
+                    // once now. The store clears its state for the latter, so waiting for the old
+                    // interval would leave the new rule without its first meeting.
                     for rule in rules.iter().filter(|rule| rule.enabled) {
-                        if !last_start.contains_key(&rule.id) && !due.contains(&rule.id) {
+                        let before = previous.iter().find(|old| old.id == rule.id);
+                        if (starts_after_reload(before, rule)
+                            || !last_start.contains_key(&rule.id))
+                            && !due.contains(&rule.id)
+                        {
                             due.push(rule.id.clone());
                         }
                     }
@@ -188,6 +195,15 @@ pub async fn control<R: Runner>(
         .unwrap_or_else(|e| e.into_inner())
         .running
         .clear();
+}
+
+fn starts_after_reload(before: Option<&SyncRule>, rule: &SyncRule) -> bool {
+    before.is_some_and(|before| {
+        !before.enabled
+            || before.place_a != rule.place_a
+            || before.place_b != rule.place_b
+            || before.direction != rule.direction
+    })
 }
 
 fn watch_all<R: Runner>(
