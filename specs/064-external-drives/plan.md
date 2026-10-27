@@ -91,7 +91,7 @@ Ordner kommt dazu.
 
 **Scale/Scope**:
 
-- Rust: 1 neues Modul mit 7 Dateien plus Tests, 1 neue Befehlsdatei, kleine Erweiterungen an 6
+- Rust: 1 neues Modul (`drives/`, je Plattform und Aufgabe eine Datei) plus Tests, 1 neue Befehlsdatei, kleine Erweiterungen an 6
   bestehenden Modulen.
 - Frontend: 3 Composables, 1 reine Bibliothek, 2 neue Komponenten, 4 geänderte Dateien.
 - Dazu 1 E2E-Szenario und eine CI-Anpassung.

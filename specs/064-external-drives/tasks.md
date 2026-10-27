@@ -221,7 +221,7 @@ to FR-007, FR-023, FR-024).
   - The types `DriveOpened` (all variants of `contracts/commands.md`, unused ones included so the binding is final) and `DrivesChanged` as `#[ts(export)]`.
   - Manage `DriveMonitor` as Tauri state (where `FilesState` is created).
   - Register the commands in `src-tauri/src/lib.rs` next to `files_sources`, and call `drive_monitor.unsubscribe_all()` in `on_page_load` `Started` next to `files.unwatch_all()`.
-- [ ] T025 [P] [US1] Tests in `src-tauri/src/files/browser_commands/drives_tests.rs`: `files_drive_open` on mounted / unmounted (fake records `mount`) / unknown id (`driveGone`), through the inner function that takes the backend (the command is a thin wrapper)
+- [ ] T025 [P] [US1] Tests in `src-tauri/src/files/browser_commands/drives_tests.rs`: `files_drive_open` on mounted / unmounted (fake records `mount`) / unknown id (`driveGone`), and a fake whose `mount` fails with `driveGone` (stick pulled while mounting, spec edge case), through the inner function that takes the backend (the command is a thin wrapper)
 
 ### Frontend
 
@@ -265,7 +265,7 @@ to FR-007, FR-023, FR-024).
   - cleanup in `after()`
   - Pattern of the docker skip in `scripts/e2e/lib/rustfs.ts`: scenarios skip when `udisksAvailable()` is false.
 - [ ] T035 [US1] Create `scripts/e2e/scenarios/files-drives.test.ts` (style of `files-basic.test.ts`; read it first). US1 part:
-  - open the file browser, attach a vfat image labelled `E2EFOTOS`: within 5 s (CI tolerance) the sidebar shows `files-drive-E2EFOTOS` with the USB/removable icon
+  - open the file browser, attach a vfat image labelled `E2EFOTOS`: within the SC-001 limit (3 s plus the runner tolerance constant the other timed scenarios use; T074 adds the exact measurement) the sidebar shows `files-drive-E2EFOTOS` with the USB/removable icon
   - click it: it mounts and the folder view shows the image's test file
   - detach it while a tab shows it: the entry disappears and the tab jumps to an existing parent folder with the toast
 - [ ] T036 [US1] `cargo test -j 4 --lib files::local::drives files::browser_commands::drives`, `pnpm check:files`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm test:e2e --grep files-drives`, clippy for `x86_64-unknown-linux-gnu` and `aarch64-linux-android`, then quickstart Linux steps 1, 2, 8 by hand
@@ -349,7 +349,7 @@ already looks for saved entries; without any it always shows the dialog.
     - exactly one → read and unlock (returns `opened`, or on `unlockFailed` → `needsPassword { reason: savedFailed, message }`)
     - none → `needsPassword { reason: none, candidates: [] }`
     - several → `reason: several` with the matches
-  - Without a vault → `needsPassword { reason: none }`; the dialog learns `noVault` from the candidates call.
+  - Without a vault → `needsPassword { reason: none }`; the dialog learns `noVault` from the candidates call. This is a safeguard (FR-018, research R7): test it in `drives_tests.rs` with a state that has no database, not in the E2E.
   - Add `files_drive_unlock(id, secret, remember)` with `remember` accepted but only `no` implemented yet (`yes` → `driveUnsupported` until T055), and `files_drive_unlock_candidates(query)` (entries with a password, titles/usernames/URLs only, pattern `remote_storage::credentials::candidates`).
   - Register them in `lib.rs`. Tests in `drives_tests.rs` with the fake backend and a test vault: each branch, and that a typed secret reaches the fake's `unlock` unchanged.
 - [ ] T051 [US3] Frontend:
@@ -454,11 +454,11 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
 the plist keys are UNVERIFIED until T066.
 
 - [ ] T066 Spike on a Mac (or a `macos-latest` workflow run with `workflow_dispatch`):
-  - capture the real outputs of `diskutil list -plist`, `diskutil info -plist <id>` for the boot volume, an external USB stick and a disk image (`hdiutil create -size 64m -fs APFS -encryption AES-256 -stdinpass`, attached), and `diskutil apfs list -plist` with that image locked
+  - capture the real outputs of `diskutil list -plist`, `diskutil info -plist <id>` for the boot volume, the EFI partition, the APFS Preboot/Recovery/VM/Update volumes, an external USB stick and a disk image (`hdiutil create -size 64m -fs APFS -encryption AES-256 -stdinpass`, attached), and `diskutil apfs list -plist` with that image locked
   - store them as fixtures in `src-tauri/src/files/local/drives/fixtures/macos/*.plist`
   - record in `research.md` R5 which keys exist (confirm or correct the UNVERIFIED list)
   - Do not commit any personal disk names or serials; anonymise them.
-- [ ] T067 Create `src-tauri/src/files/local/drives/macos_plist.rs`, pure: parse the fixtures' structure with `plist` into `Drive`s (`kind` by `Internal`/`RemovableMediaOrExternalDevice`/root, `locked` from the APFS list, `key` = `VolumeUUID`/`APFSVolumeUUID` lowercase). Missing keys mean "unknown", not an error. Tests in `macos_plist_tests.rs` over the fixtures.
+- [ ] T067 Create `src-tauri/src/files/local/drives/macos_plist.rs`, pure: parse the fixtures' structure with `plist` into `Drive`s (`kind` by `Internal`/`RemovableMediaOrExternalDevice`/root, `locked` from the APFS list, `key` = `VolumeUUID`/`APFSVolumeUUID` lowercase). Apply the visibility rule of research R5 (no system roles, no EFI, `Data` not on its own, unmounted only when removable or locked). Missing keys mean "unknown", not an error. Tests in `macos_plist_tests.rs` over the fixtures, including that none of EFI, Preboot, Recovery, VM, Update appears (SC-006).
 - [ ] T068 Create `src-tauri/src/files/local/drives/macos.rs`:
   - fingerprint gate: names in `/dev` starting with `disk` plus the entries of `/Volumes`; `list()` reruns `diskutil` only when it changed, else it returns the cached list with fresh `free` values via `space()`
   - `mount` → `diskutil mount <id>`

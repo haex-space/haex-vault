@@ -104,12 +104,24 @@ Primärquellen stehen bei jeder Entscheidung.
   - Liste: `diskutil list -plist`, `diskutil info -plist <disk>` je Volume, `diskutil apfs list -plist`
     für gesperrte APFS-Volumes (`Locked`, `APFSVolumeUUID`). Geparst mit dem Crate `plist` 1.x (schon
     im Lockfile, neu als direkte Abhängigkeit nur für macOS).
-  - Befehle: `diskutil mount <id>`, `diskutil unmount <id>`, `diskutil eject <id>`, `diskutil apfs
-unlockVolume <id> -stdinpassphrase` mit dem Passwort über stdin
-    ([diskutil(8)](https://keith.github.io/xcode-man-pages/diskutil.8.html)). `-passphrase` steht in
-    der Prozessliste und ist deshalb verboten (FR-017).
+  - Befehle:
+    - `diskutil mount <id>`, `diskutil unmount <id>`, `diskutil eject <id>`
+    - zum Entsperren `diskutil apfs unlockVolume <id> -stdinpassphrase`, das Passwort über stdin
+      ([diskutil(8)](https://keith.github.io/xcode-man-pages/diskutil.8.html), selbst geprüft)
+    - `-passphrase` steht in der Prozessliste und ist deshalb verboten (FR-017).
   - Art: `Internal = false` oder `RemovableMediaOrExternalDevice = true` → `removable`; bei `/` →
     `system`; sonst `internal`.
+  - **Sichtbarkeit** (Analyse C1, SC-006). macOS legt auf jeder internen Platte Volumes an, die
+    niemand öffnen soll:
+    - Volumes mit einer APFS-Systemrolle (`Preboot`, `Recovery`, `VM`, `Update`, `Hardware`, `xART`)
+      und Partitionen vom Typ `EFI` erscheinen nie.
+    - Das System-Volume (Rolle `System`) erscheint nur als `/`.
+    - Das Daten-Volume (Rolle `Data`) erscheint nicht eigens; es steckt hinter `/` über das Firmlink.
+    - Eingehängte Volumes erscheinen bei `/` oder unter `/Volumes`.
+    - Nicht eingehängte Volumes erscheinen nur, wenn sie `removable` oder gesperrt sind; interne nicht
+      eingehängte Volumes sind auf macOS fast immer Systemteile.
+    - Die Rollen-Schlüssel (`Roles` in `apfs list -plist`) sind UNVERIFIED und werden mit den Fixtures
+      aus dem Spike geprüft.
 - **Risiko (UNVERIFIED)**: Apple dokumentiert die Plist-Schlüssel nicht; die Namen stammen aus
   Fremd-Parsern ([ghw](https://github.com/jaypipes/ghw/blob/main/pkg/block/block_darwin.go),
   [fleet](https://github.com/fleetdm/fleet/blob/main/orbit/pkg/table/diskutil/apfs/apfs_darwin.go)).
@@ -147,7 +159,8 @@ unlockVolume <id> -stdinpassphrase` mit dem Passwort über stdin
     `GetVolumeInformationW`): UNVERIFIED, Spike. Ist es das nicht, erscheint es als eingehängt, und
     der Fehler beim Öffnen sagt „gesperrt – im System entsperren“ mit demselben Knopf.
 - **Abhängigkeit**: `windows-sys` (schon transitiv im Lockfile) als direkte Abhängigkeit für
-  `cfg(windows)` mit den Features für `Win32_Storage_FileSystem`, `Win32_System_Ioctl`,
+  `cfg(windows)` mit den Features `Win32_Foundation`, `Win32_Storage_FileSystem`, `Win32_System_IO`
+  (`DeviceIoControl`), `Win32_System_Ioctl`,
   `Win32_Devices_DeviceAndDriverInstallation`, `Win32_UI_Shell`. Version wie die neueste bereits
   vorhandene, um keine weitere Version zu ziehen.
 
@@ -174,6 +187,9 @@ password, url: "haex:drive:<key>", tags: ["haex-drive"] })`. Ein normaler Eintra
 - **Ohne Vault**: `AppState::database()` liefert `NoActiveInstance`. Dann meldet der Befehl, dass der
   Passwortmanager fehlt, und der Dialog graut den Teil aus (FR-018). Laut ADR 0003 beendet das
   Schließen des Vaults den Prozess; einen „gesperrt, aber laufend“-Zustand gibt es nicht.
+  - Im Fenster ist der Fall deshalb vermutlich nicht erreichbar (Analyse U1). FR-018 ist eine
+    Absicherung.
+  - Geprüft wird sie in Rust (`noVault` bei fehlender Datenbank), nicht im E2E.
 - **Entscheidung „ohne Dialog“** (FR-013): `files_drive_open` versucht bei genau einem passenden
   Eintrag selbst zu entsperren. Scheitert das, liefert er `needsPassword` mit dem Grund
   `savedFailed`. Das Passwort verlässt Rust dabei nie.

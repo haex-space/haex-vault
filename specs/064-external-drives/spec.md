@@ -197,8 +197,9 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 7. **Given** der gewählte Eintrag hat schon eine andere URL, **When** der Nutzer „merken“ setzt,
    **Then** fragt haex, ob die URL ersetzt werden soll; ohne Zustimmung nutzt haex den Eintrag nur
    dieses eine Mal.
-8. **Given** kein Vault ist offen, **When** der Dialog erscheint, **Then** funktioniert das
-   Passwortfeld, der Passwortmanager-Teil ist ausgegraut.
+8. **Given** der Passwortmanager ist nicht erreichbar (Absicherung; im Workspace ist immer ein Vault
+   offen), **When** der Dialog erscheint, **Then** funktioniert das Passwortfeld, der
+   Passwortmanager-Teil ist ausgegraut.
 
 ---
 
@@ -288,8 +289,9 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 - **FR-017**: Das Passwort DARF nur an den Entsperrdienst des Systems gehen. Es DARF nicht protokolliert,
   nicht als Programmargument übergeben (in Prozesslisten sichtbar) und nach dem Entsperren nicht in der
   Oberfläche gehalten werden.
-- **FR-018**: Ohne offenen Vault MUSS das Passwortfeld funktionieren; der Passwortmanager-Teil MUSS
-  ausgegraut sein.
+- **FR-018**: Ist der Passwortmanager nicht erreichbar, MUSS das Passwortfeld weiter funktionieren
+  und der Passwortmanager-Teil ausgegraut sein. Das ist eine Absicherung: Der Dateibrowser läuft im
+  Workspace eines offenen Vaults, und das Schließen des Vaults beendet haex (ADR 0003).
 - **FR-019**: Wo das System einer App das Entsperren mit Passwort nicht erlaubt, MUSS haex den
   Entsperrdialog des Systems öffnen; der Passwortmanager-Teil entfällt dort.
 - **FR-020**: Enthält ein entsperrtes Laufwerk kein Dateisystem, das haex direkt öffnen kann, MUSS haex
@@ -315,7 +317,7 @@ Dialog. Auf einem zweiten eigenen Gerät nach dem Sync dasselbe.
 
 ### Key Entities
 
-- **Laufwerk**: Kennung (stabil, solange der Datenträger steckt), Name, Art (System, intern,
+- **Laufwerk**: Kennung (stabil, solange der Datenträger steckt), Name (Bezeichnung des Datenträgers oder Ersatzname), Art (System, intern,
   wechselbar), Zustand (eingehängt, nicht eingehängt, gesperrt), Pfad wenn eingehängt, Gesamt- und
   freier Platz wenn bekannt, ob auswerfbar oder aushängbar, Volume-UUID bei verschlüsselten. Wird nicht gespeichert,
   sondern vom System erfragt.
