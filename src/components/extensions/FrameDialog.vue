@@ -3,23 +3,18 @@
  * A confirmation an extension asked for (spec 017, T118, `extension_dialog_confirm`): drawn over
  * the extension's own tab only, never over holzi. Escape and the cancel button answer "no".
  *
- * It takes the focus when it opens: `autofocus` only works while a document loads, and the
- * keyboard would otherwise stay in the frame below, where Enter asks the same question again.
+ * It holds the keyboard while it is open (`useFrameDialogFocus`).
  */
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import type { FrameDialog } from '~/composables/useExtensionFrame'
+import { useFrameDialogFocus } from '~/composables/useFrameDialogFocus'
 
 defineProps<{ dialog: FrameDialog }>()
 const emit = defineEmits<{ answer: [confirmed: boolean] }>()
 const { t } = useI18n()
 
 const root = ref<HTMLElement | null>(null)
-
-onMounted(() => {
-  root.value
-    ?.querySelector<HTMLElement>('[data-testid="extension-dialog-confirm"]')
-    ?.focus()
-})
+const reclaimFocus = useFrameDialogFocus(root, 'extension-dialog-confirm')
 </script>
 
 <template>
@@ -28,6 +23,7 @@ onMounted(() => {
     class="flex items-center justify-center bg-background/70 p-4"
     data-testid="extension-dialog"
     @keydown.esc="emit('answer', false)"
+    @focusout="reclaimFocus"
   >
     <div
       role="alertdialog"

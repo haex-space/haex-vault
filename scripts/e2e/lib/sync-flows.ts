@@ -10,7 +10,7 @@ import type { FlowInstance } from './flows.ts'
  * point at a closed port, which refuses at once (as in `tests/common/sync_fixture.rs`). A run with a
  * phone passes the local iroh relay instead (spec 043): the phone is behind the emulator's own
  * network, which the other devices reach only through a relay. */
-const NO_IROH_RELAY = ['https://127.0.0.1:1']
+export const NO_IROH_RELAY = ['https://127.0.0.1:1']
 
 interface Thread {
   id: string

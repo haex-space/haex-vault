@@ -79,6 +79,8 @@
       "passphraseHint": "Nur für dieses Gerät. Sie wird nie übertragen.",
       "nostr": "Nostr-Relays",
       "nostrDescription": "Nur nötig, wenn das Hauptgerät eigene Nostr-Relays nutzt (Einstellungen, Föderation): füge sie hinzu und schalte die Standardserver ab, die es nicht nutzt.",
+      "iroh": "iroh-Relays",
+      "irohDescription": "Nur nötig, wenn das Hauptgerät eigene iroh-Relays nutzt (Einstellungen, Föderation): füge sie hinzu und schalte die Standardserver ab, die es nicht nutzt.",
       "submit": "Verknüpfen",
       "cancel": "Abbrechen",
       "retry": "Erneut versuchen",
