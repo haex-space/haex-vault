@@ -1,4 +1,10 @@
-import { inject, nextTick, provide, type InjectionKey } from 'vue'
+import {
+  inject,
+  nextTick,
+  provide,
+  shallowReactive,
+  type InjectionKey,
+} from 'vue'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import {
@@ -177,7 +183,7 @@ export function useFilesSplit(options: {
     mirror()
   }
 
-  const handles = new Map<SplitSide, PanelHandle>()
+  const handles = shallowReactive(new Map<SplitSide, PanelHandle>())
   const openStorageSettings = () => openApp('system.settings', '/storage')
 
   /** Keys outside both panels act on the active panel (FR-016); the panels handle their own. */

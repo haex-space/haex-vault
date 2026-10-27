@@ -178,7 +178,13 @@ export function useFilesKeyboard(options: {
       event.preventDefault()
       return
     }
-    if (runCommand(action.command, current)) event.preventDefault()
+    if (
+      runCommand(action.command, current) ||
+      (options.split.value &&
+        (action.command === 'copyToOther' || action.command === 'moveToOther'))
+    ) {
+      event.preventDefault()
+    }
   }
 
   return { onKeydown }
