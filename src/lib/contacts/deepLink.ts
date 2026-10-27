@@ -5,7 +5,7 @@
 export const CONTACT_LINK_PREFIX = 'haex-vault://contact/'
 
 /** More than a share can be (16,384 characters of text, FR-018) is not a share. Rust agrees. */
-export const MAX_LINK_LENGTH = 32 * 1024
+export const MAX_LINK_LENGTH = 16 * 1024
 
 /** The same link arriving twice within this time is one link (a start brings it through
  * `getCurrent` and through `onOpenUrl`). */

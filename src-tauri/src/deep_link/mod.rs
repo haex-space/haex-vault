@@ -22,7 +22,7 @@ pub const RECEIVED_EVENT: &str = "deep-link-received";
 pub const LINK_PREFIX: &str = "haex-vault://contact/";
 
 /// More than a share can be (spec 060 FR-018: 16,384 characters of text) is not a share.
-const MAX_LINK_LEN: usize = 32 * 1024;
+const MAX_LINK_LEN: usize = 16 * 1024;
 
 /// How often a process with an open vault looks into the inbox.
 const WATCH_INTERVAL: Duration = Duration::from_millis(500);
