@@ -268,6 +268,7 @@ const { onKeydown } = useFilesKeyboard({
 function focus() {
   const entry = selection.value.anchor ?? shown.value[0]?.path
   if (entry) void folderView.value?.focusEntry(entry)
+  else folderView.value?.focus()
 }
 
 const unregister = context.register({

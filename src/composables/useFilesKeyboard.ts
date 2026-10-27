@@ -14,6 +14,7 @@ import { detectPlatform } from '~/lib/wm/keybindings'
 /** What the folder view offers the keyboard (`FolderView.vue`). */
 export type FolderKeys = {
   focusEntry: (path: string) => Promise<void>
+  focus: () => void
   rowLength: number
 }
 
