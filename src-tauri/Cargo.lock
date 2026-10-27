@@ -4713,6 +4713,7 @@ dependencies = [
  "curve25519-dalek",
  "data-encoding",
  "dav-server",
+ "dirs 7.0.0",
  "dunce",
  "ed25519-dalek",
  "either",

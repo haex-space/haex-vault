@@ -11,7 +11,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -115,10 +115,24 @@ impl From<ActionOutcomeWire> for ActionReply {
     }
 }
 
+/// Who asks the window to run an action (spec 020 FR-029, ADR-0005). It travels with every
+/// `action-call-request`, so the runner applies the rules of that caller; it always comes from the
+/// entrance in Rust, never from the call's input.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ActionCaller {
+    /// The model of the holzi chat (spec 032).
+    BuiltinAgent,
+    /// A registered external agent (spec 021).
+    #[serde(rename_all = "camelCase")]
+    ExternalAgent { agent_id: String },
+}
+
 /// One action call while it waits; the park gives it its request id.
 struct ActionCall {
     action_id: String,
     input: Value,
+    caller: ActionCaller,
 }
 
 /// Shared by every `ActionTool` and by the two commands. Cheap to clone.
@@ -148,21 +162,38 @@ impl ActionBridge {
     /// Set once from `setup()`, where the `AppHandle` exists (`ChatState` is managed without one).
     /// A second call is ignored.
     pub fn set_emitter(&self, emitter: EventEmitter) {
-        self.park.set_emitter_once(Arc::new(
-            move |request_id: &str, call: &ActionCall| {
+        self.park
+            .set_emitter_once(Arc::new(move |request_id: &str, call: &ActionCall| {
                 emitter(
                     EVENT_ACTION_CALL_REQUEST,
-                    json!({ "requestId": request_id, "actionId": call.action_id, "input": call.input }),
+                    json!({
+                        "requestId": request_id,
+                        "actionId": call.action_id,
+                        "input": call.input,
+                        "caller": call.caller,
+                    }),
                 );
                 true
-            },
-        ));
+            }));
     }
 
-    /// Emits one call and waits for the answer. Never fails: a missing emitter, a timeout or a
-    /// cancelled turn are replies like any other, so a model sees them as tool errors.
+    /// Emits one call of the built-in agent and waits for the answer. Never fails: a missing
+    /// emitter, a timeout or a cancelled turn are replies like any other, so a model sees them as
+    /// tool errors.
     pub async fn call(
         &self,
+        action_id: &str,
+        input: Value,
+        cancel: &CancellationToken,
+    ) -> ActionReply {
+        self.call_as(ActionCaller::BuiltinAgent, action_id, input, cancel)
+            .await
+    }
+
+    /// [`Self::call`] for `caller`; the MCP server calls with [`ActionCaller::ExternalAgent`].
+    pub async fn call_as(
+        &self,
+        caller: ActionCaller,
         action_id: &str,
         input: Value,
         cancel: &CancellationToken,
@@ -179,6 +210,7 @@ impl ActionBridge {
         let call = ActionCall {
             action_id: action_id.to_owned(),
             input,
+            caller,
         };
         // Whatever ends the wait, the call is gone from the park: a late answer finds nothing.
         match self.park.ask(&call, cancel, |_| {}).await {

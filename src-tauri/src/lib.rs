@@ -16,6 +16,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
 pub mod models;
@@ -209,7 +210,12 @@ fn clear_inherited_nix_library_path() {
 pub fn run() {
     clear_inherited_nix_library_path();
     let mut args = std::env::args().skip(1);
-    if args.next().as_deref() == Some("--internal-cli-delegate-approval-bridge") {
+    let first = args.next();
+    // Spec 021: an agent started holzi as its MCP server; no window, no vault, no Tauri.
+    if first.as_deref() == Some(mcp_server::helper::FLAG) {
+        std::process::exit(mcp_server::helper::run_process(args));
+    }
+    if first.as_deref() == Some("--internal-cli-delegate-approval-bridge") {
         let Some(socket_flag) = args.next().filter(|arg| arg == "--socket") else {
             eprintln!("missing --socket for CLI delegate approval bridge");
             return;
@@ -408,12 +414,17 @@ pub fn run() {
             app.manage(files_state);
             app.manage(files::transfer::TransferManager::default());
             app.manage(files::search::SearchManager::default());
+            app.manage(file_sync::service::FileSyncState::default());
             // Spec 044 US6 (ADR 0011): the file actions of the built-in agent run here, without a
             // window; a storage without a grant is asked for through the window.
             // Spec 049: the External Bridge asks the window; it starts when a vault opens.
             let browser_bridge = browser_bridge::BrowserBridge::default();
             browser_bridge.attach(app.handle());
             app.manage(browser_bridge);
+            // Spec 021: the MCP access asks the window to register agents.
+            let mcp = mcp_server::McpServer::default();
+            mcp.attach(app.handle());
+            app.manage(mcp);
             let prompt = files::agent::prompt::PermissionPrompt::default();
             app.manage(prompt.clone());
             let files_agent: files::agent::commands::BuiltinFilesAgent =
@@ -487,6 +498,13 @@ pub fn run() {
             files::browser_commands::peers::files_peer_trash,
             files::browser_commands::peers::files_contact_query,
             files::share::commands::file_shares_list,
+            file_sync::commands::sync_rules_list,
+            file_sync::commands::sync_rules_create,
+            file_sync::commands::sync_rules_update,
+            file_sync::commands::sync_rules_set_enabled,
+            file_sync::commands::sync_rules_delete,
+            file_sync::commands::sync_rules_run_now,
+            file_sync::commands::sync_rules_cancel,
             files::share::commands::file_share_of,
             files::share::commands::file_share_save,
             files::share::commands::file_share_revoke,
@@ -508,6 +526,10 @@ pub fn run() {
             browser_bridge::commands::browser_bridge_client_revoke,
             browser_bridge::commands::browser_bridge_client_unblock,
             browser_bridge::commands::browser_bridge_notify,
+            mcp_server::commands::mcp_status,
+            mcp_server::commands::mcp_configure,
+            mcp_server::commands::mcp_registration_answer,
+            mcp_server::commands::mcp_setup_snippet,
             files::agent::commands::files_agent_permissions,
             files::agent::commands::files_agent_permission_set,
             files::agent::commands::files_agent_permission_remove,

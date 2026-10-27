@@ -7,6 +7,8 @@ describe('deviceFiles on Linux', () => {
     const files = deviceFiles('holzi-device-files-test-', {})
     try {
       files.write('a.txt', 'nichts')
+      files.write('created/nested.txt', 'nested')
+      assert.equal(files.read('created/nested.txt'), 'nested')
       files.tree('sub', 1, 1)
       files.write('sub/d0/f0-0.txt', 'Hallo aus dem verschlüsselten Ordner')
       files.write(

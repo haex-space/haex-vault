@@ -93,3 +93,65 @@ fn an_executor_without_definition_is_refused() {
     // Pushed as a window action it is no definition of the executor either.
     assert!(register_agent_actions(&chat, vec![def("files.list", false)]).is_err());
 }
+
+fn external_only(action_id: &str) -> AgentActionDef {
+    serde_json::from_value(json!({
+        "toolName": action_id.replace('.', "_"),
+        "actionId": action_id,
+        "description": "d",
+        "inputSchema": { "type": "object" },
+        "effect": "write",
+        "scope": "chat.write",
+        "builtinAgentCallable": false,
+    }))
+    .expect("a valid definition")
+}
+
+/// Spec 021 T010 (research R4): the chat gets only what the built-in agent may call, the catalog
+/// of the MCP server gets everything that was pushed.
+#[test]
+fn the_built_in_agent_gets_its_actions_and_the_catalog_gets_all() {
+    let chat = ChatState::new();
+    let registered = register_agent_actions(
+        &chat,
+        vec![
+            def("wm.state.get", false),
+            external_only("chat.message.send"),
+        ],
+    )
+    .expect("registered");
+    assert_eq!(registered, 1);
+    let tools = action_tools(&chat);
+    assert!(tools.contains(&"wm_state_get".to_owned()), "{tools:?}");
+    assert!(
+        !tools.contains(&"chat_message_send".to_owned()),
+        "{tools:?}"
+    );
+    let catalog: Vec<String> = chat
+        .action_catalog
+        .snapshot()
+        .iter()
+        .map(|def| def.action_id.clone())
+        .collect();
+    assert_eq!(catalog, ["wm.state.get", "chat.message.send"]);
+}
+
+/// Spec 020 FR-032: a guardrail action never reaches any agent, even if the window pushed one.
+#[test]
+fn a_guardrail_action_is_refused_and_changes_nothing() {
+    let chat = ChatState::new();
+    register_agent_actions(&chat, vec![def("wm.state.get", false)]).expect("registered");
+    let before = action_tools(&chat);
+    let guardrail: AgentActionDef = serde_json::from_value(json!({
+        "toolName": "settings_agents_mcp_enable",
+        "actionId": "settings.agents.mcp.enable",
+        "description": "d",
+        "inputSchema": { "type": "object" },
+        "effect": "write",
+        "scope": "guardrails",
+    }))
+    .expect("a definition");
+    assert!(register_agent_actions(&chat, vec![guardrail]).is_err());
+    assert_eq!(action_tools(&chat), before);
+    assert_eq!(chat.action_catalog.snapshot().len(), 1);
+}

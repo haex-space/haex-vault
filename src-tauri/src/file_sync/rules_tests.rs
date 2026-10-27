@@ -31,6 +31,7 @@ fn draft(a: SyncRulePlace, b: SyncRulePlace) -> SyncRuleDraft {
         delete_mode: SyncRuleDeleteMode::Mirror,
         interval_secs: 900,
         enabled: true,
+        allow_decrypted: false,
     }
 }
 
@@ -45,6 +46,7 @@ fn stored_rule(name: &str, a: SyncRulePlace, b: SyncRulePlace) -> SyncRule {
         delete_mode: d.delete_mode,
         interval_secs: d.interval_secs,
         enabled: true,
+        allow_decrypted: false,
         created_at: String::new(),
         updated_at: String::new(),
         last_run_at: None,

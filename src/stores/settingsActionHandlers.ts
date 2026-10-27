@@ -18,6 +18,7 @@ import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
+import type { McpStatus } from '~/types/bindings/McpStatus'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
@@ -166,6 +167,12 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   on('settings.browserBridge.client.revoke', async ({ input }) =>
     invoke<BridgeOverview>('browser_bridge_client_revoke', {
       args: { clientId: String(input.clientId) },
+    }),
+  )
+  // Spec 021: the MCP access of this device; Rust starts or stops it.
+  on('settings.agents.mcp.enable', async ({ input }) =>
+    invoke<McpStatus>('mcp_configure', {
+      args: { enabled: input.enabled === true },
     }),
   )
   on('settings.browserBridge.client.unblock', async ({ input }) =>

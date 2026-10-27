@@ -69,6 +69,9 @@ pub struct PlatformCapabilities {
     pub phone_contacts: bool,
     /// The External Bridge for browser extensions (spec 049 FR-043).
     pub browser_bridge: bool,
+    /// External agents reach holzi through the `--mcp-agent` helper (spec 021 research R1, R12).
+    /// Phones need the HTTP way of spec 021 PR G instead.
+    pub mcp_helper: bool,
 }
 
 /// A desktop system; only a release build restarts at the vault picker after closing.
@@ -88,6 +91,7 @@ pub const fn desktop(platform: PlatformName, release: bool) -> PlatformCapabilit
         model_presets: ModelPresets::Desktop,
         phone_contacts: false,
         browser_bridge: true,
+        mcp_helper: true,
     }
 }
 
@@ -107,6 +111,7 @@ pub const ANDROID: PlatformCapabilities = PlatformCapabilities {
     model_presets: ModelPresets::Phone,
     phone_contacts: true,
     browser_bridge: false,
+    mcp_helper: false,
 };
 
 /// iOS is not a target yet (spec 043 is Android only); it gets the mobile limits without the

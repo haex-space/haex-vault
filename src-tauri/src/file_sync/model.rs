@@ -95,6 +95,8 @@ pub struct SyncRuleDraft {
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
     pub enabled: bool,
+    /// The user agreed that files of an encrypted place A are stored decrypted at B (FR-030a).
+    pub allow_decrypted: bool,
 }
 
 /// A stored rule with the result of its last run.
@@ -110,6 +112,7 @@ pub struct SyncRule {
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
     pub enabled: bool,
+    pub allow_decrypted: bool,
     pub created_at: String,
     pub updated_at: String,
     pub last_run_at: Option<String>,
@@ -128,6 +131,7 @@ impl SyncRule {
             delete_mode: self.delete_mode,
             interval_secs: self.interval_secs,
             enabled: self.enabled,
+            allow_decrypted: self.allow_decrypted,
         }
     }
 

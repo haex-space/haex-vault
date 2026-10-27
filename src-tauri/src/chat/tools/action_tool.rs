@@ -70,6 +70,17 @@ pub struct AgentActionDef {
     /// `native`: a Rust executor runs it ([`super::native_action`]); absent: the window does.
     #[serde(default)]
     pub runner: Option<ActionRunner>,
+    /// The permission scope (spec 020 FR-031); external agents get rights per scope (spec 021).
+    #[serde(default)]
+    pub scope: String,
+    /// `false`: only external agents may call it; it would re-enter the running chat turn
+    /// (ADR-0006, `builtinAgentCallable`).
+    #[serde(default = "builtin_by_default")]
+    pub builtin_agent_callable: bool,
+}
+
+fn builtin_by_default() -> bool {
+    true
 }
 
 pub struct ActionTool {

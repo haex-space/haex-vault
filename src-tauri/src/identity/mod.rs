@@ -38,6 +38,9 @@ mod migrations_file_shares_tests;
 mod migrations_icon_sets;
 #[cfg(test)]
 mod migrations_icon_sets_tests;
+mod migrations_mcp_agents;
+#[cfg(test)]
+mod migrations_mcp_agents_tests;
 mod migrations_model_access;
 #[cfg(test)]
 mod migrations_model_access_tests;
@@ -55,6 +58,7 @@ pub mod migrations_storage;
 #[cfg(test)]
 mod migrations_storage_tests;
 mod migrations_sync_rules;
+mod migrations_sync_rules_decrypt;
 #[cfg(test)]
 mod migrations_sync_rules_tests;
 #[cfg(test)]

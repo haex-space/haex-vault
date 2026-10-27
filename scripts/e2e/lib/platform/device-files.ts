@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join, relative } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { createAdb } from './adb.ts'
 import type { Adb } from './adb.ts'
@@ -69,7 +69,10 @@ export function deviceFiles(
       folder,
       path,
       ensureFolder: () => mkdirSync(folder, { recursive: true }),
-      write: (name, content) => writeFileSync(path(name), content),
+      write: (name, content) => {
+        mkdirSync(dirname(path(name)), { recursive: true })
+        writeFileSync(path(name), content)
+      },
       read: (name) => readFileSync(path(name), 'utf8'),
       readBytes: (name) => readFileSync(path(name)),
       tree: (sub, folders, files) => {
@@ -126,7 +129,7 @@ export function deviceFiles(
     write: (name, content) => {
       throughLocal((local) => {
         writeFileSync(local, content)
-        adb.shell('mkdir', '-p', folder)
+        adb.shell('mkdir', '-p', dirname(path(name)))
         adb.push(local, path(name))
       })
       // The shell user creates the file and its parent folders: open them up so the app may read,

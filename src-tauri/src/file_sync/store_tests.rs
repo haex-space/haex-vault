@@ -47,6 +47,7 @@ fn draft(a: &str, b: &str) -> SyncRuleDraft {
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
+        allow_decrypted: false,
     }
 }
 
