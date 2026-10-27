@@ -2861,8 +2861,8 @@
     "noMatch": "Kein Kontakt passt zur Suche.",
     "noName": "Ohne Namen",
     "self": "Ich",
-    "selfNameHint": "Dieser Kontakt heißt immer „Ich“, egal welchen Namen du einträgst. Er geht an kein Telefon.",
     "new": "Neuer Kontakt",
+    "add": "Hinzufügen",
     "cancel": "Abbrechen",
     "save": "Speichern",
     "back": "Zurück",
@@ -3074,7 +3074,6 @@
       "year": "JJJJ"
     },
     "card": {
-      "menu": "Visitenkarte",
       "import": "Visitenkarte einlesen",
       "paste": "Link der Visitenkarte",
       "check": "Prüfen",
