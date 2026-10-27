@@ -6,6 +6,7 @@ pub mod caller;
 pub mod catalog;
 pub mod chat;
 pub mod contacts;
+pub mod deep_link;
 pub mod device;
 pub mod error;
 pub mod extensions;
@@ -269,6 +270,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // Spec 043 (ADR-0010): Android platform code; does nothing elsewhere.
         .plugin(tauri_plugin_holzi_android::init())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
@@ -307,6 +309,15 @@ pub fn run() {
                     log::warn!("startup orphan cleanup failed: {e}");
                 }
             })?;
+            // Spec 060 research R9: a process the system started for a link, while others run, hands
+            // it to them and ends; the window of the one that takes it shows the preview.
+            #[cfg(desktop)]
+            if deep_link::handed_over_at_start(app.handle(), presence.was_alone()) {
+                std::process::exit(0);
+            }
+            #[cfg(any(target_os = "linux", windows))]
+            deep_link::register_for_development(app.handle());
+            deep_link::watch_opened_links(app.handle());
             app.manage(presence);
             // Spec 038: deleting the credentials of a storage connection in the password manager
             // warns first (spec 034 FR-034); the provider reads the vault open when it is asked.

@@ -47,6 +47,24 @@ watch(text, () => {
   if (busy.value) busy.value = false
 })
 
+const inbox = useShareInboxStore()
+
+// Spec 060 FR-018a: the text of a link that was opened outside holzi is read in as if pasted;
+// only the preview is shown, nothing is stored before "Übernehmen". Taken out of the inbox at
+// once, so a later link can come in (also while this page is open).
+watch(
+  () => inbox.text,
+  async (waiting) => {
+    if (waiting === null) return
+    const linked = inbox.take()
+    if (linked === null) return
+    text.value = linked
+    await nextTick()
+    await checkAsync()
+  },
+  { immediate: true },
+)
+
 const problem = computed(() =>
   preview.value ? validate(preview.value, decisions.value) : null,
 )

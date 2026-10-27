@@ -93,6 +93,20 @@ watch([sessionRestored, () => route.query.open], ([restored]) => {
   }
 })
 
+// Spec 060 FR-018a: a link of a share opens the reading-in page as a preview, once the saved
+// session is in place; a link that arrives later opens it the same way. The text stays in the
+// inbox store for the page, never in the address.
+const shareInbox = useShareInboxStore()
+watch([sessionRestored, () => shareInbox.text], ([restored, text]) => {
+  if (restored && text !== null) {
+    void wm
+      .runAction('wm.app.open', { appId: 'contacts', at: '/import' })
+      .then((outcome) => {
+        if (!outcome.ok) console.error('[wm] opening the share failed', outcome)
+      })
+  }
+})
+
 // Normally already set by the caller (pages/index.vue) before navigating
 // here; set again so a direct/refreshed load of this route still resolves
 // the same instance for components that only read the store (ChatApp.vue

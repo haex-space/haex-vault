@@ -16,6 +16,7 @@ pub const PRESENCE_LOCK_FILE: &str = "presence.lock";
 /// ends or crashes, so a crashed process never blocks a later start's cleanup.
 pub struct ProcessPresence {
     _file: File,
+    alone: bool,
 }
 
 impl ProcessPresence {
@@ -48,19 +49,28 @@ impl ProcessPresence {
             .open(&path)
             .map_err(HolziError::from)?;
 
-        match file.try_lock() {
+        let alone = match file.try_lock() {
             Ok(()) => {
                 on_alone();
                 file.unlock().map_err(HolziError::from)?;
                 file.lock_shared().map_err(HolziError::from)?;
+                true
             }
             Err(TryLockError::WouldBlock) => {
                 file.lock_shared().map_err(HolziError::from)?;
+                false
             }
             Err(TryLockError::Error(e)) => return Err(HolziError::from(e)),
-        }
+        };
 
-        Ok(Self { _file: file })
+        Ok(Self { _file: file, alone })
+    }
+
+    /// Whether this process took the exclusive lock in [`ProcessPresence::announce`], that is no
+    /// other holzi process was running or starting then (spec 060 research R9: a link opened by a
+    /// new process goes to the others' inbox only when there are others).
+    pub fn was_alone(&self) -> bool {
+        self.alone
     }
 }
 
