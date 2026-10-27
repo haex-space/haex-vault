@@ -44,6 +44,19 @@ export const focusedPanel = (instance: Instance) =>
      return panel ? panel.getAttribute('data-files-panel') : null`,
   )
 
+/** Where the focus is, for a failure message: the panel, the element and the active panel. */
+export const describeFocus = (instance: Instance) =>
+  instance.exec<string>(
+    `const el = document.activeElement
+     if (!el) return 'nothing'
+     const panel = el.closest('[data-files-panel]')
+     const active = document.querySelector('[data-files-panel][data-active="true"]')
+     return (panel ? panel.getAttribute('data-files-panel') : 'outside') + ' <' + el.tagName.toLowerCase() +
+       (el.getAttribute('data-testid') ? ' ' + el.getAttribute('data-testid') : '') +
+       (el.hasAttribute('data-files-list') ? ' list' : '') + '> active=' +
+       (active ? active.getAttribute('data-files-panel') : 'none')`,
+  )
+
 /** The names of the entries in the panel on `side`, in the order shown. */
 export const namesIn = (instance: Instance, side: PanelSide) =>
   instance.exec<string[]>(

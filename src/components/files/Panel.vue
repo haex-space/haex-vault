@@ -266,7 +266,12 @@ const { onKeydown } = useFilesKeyboard({
 
 /** The last entry the keyboard or the pointer reached, else the first. */
 function focus() {
-  const entry = selection.value.anchor ?? shown.value[0]?.path
+  // The anchor may be an entry of a folder this panel has left: then the first entry, or the empty
+  // list itself, takes the focus.
+  const anchor = selection.value.anchor
+  const entry =
+    shown.value.find((candidate) => candidate.path === anchor)?.path ??
+    shown.value[0]?.path
   if (entry) void folderView.value?.focusEntry(entry)
   else folderView.value?.focus()
 }

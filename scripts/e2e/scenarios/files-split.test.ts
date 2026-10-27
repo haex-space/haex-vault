@@ -4,6 +4,7 @@ import { deviceFiles } from '../lib/extension-files.ts'
 import {
   activePanel,
   entryIn,
+  describeFocus,
   focusedPanel,
   focusList,
   inPanel,
@@ -133,10 +134,15 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await press(KEY.tab)
     await active('right', 'Tab to make the right panel the active one')
-    await ctx.waitFor(
-      'the focus in the right list',
-      async () => (await focusedPanel(instance)) === 'right',
-    )
+    await ctx
+      .waitFor(
+        'the focus in the right list',
+        async () => (await focusedPanel(instance)) === 'right',
+      )
+      .catch(async (error: Error) => {
+        error.message += `; the focus is on ${await describeFocus(instance)}`
+        throw error
+      })
     await press(chord(KEY.alt, KEY.arrowLeft))
     await shows('right', 'split-a', 'the right panel back in the parent')
     assert.ok(
