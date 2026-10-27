@@ -222,7 +222,7 @@
       "group": "Gruppe",
       "entry": "Kontakt",
       "edit": "Kontakt bearbeiten",
-      "cardImport": "Visitenkarte einlesen"
+      "import": "Visitenkarte einlesen"
     }
   },
   "chat": {
@@ -3012,21 +3012,57 @@
       "year": "JJJJ"
     },
     "card": {
-      "import": "Visitenkarte einlesen",
-      "paste": "Link der Visitenkarte",
+      "confirmed": "Bestätigte holzi-Adressen",
+      "confirmedAt": "bestätigt am {at}"
+    },
+    "import": {
+      "menu": "Kontakt einlesen",
+      "title": "Kontakt einlesen",
+      "paste": "Link, Text oder Visitenkarte",
       "check": "Prüfen",
       "scan": "Scannen",
       "preview": "Vorschau",
-      "devices": "Ein Gerät | {count} Geräte",
-      "blockedNote": "Diese Vault ist blockiert.",
+      "vault": "Wird in der Vault „{vault}“ gespeichert.",
+      "identityNew": "„Bestätigt“ belegt nur, dass diese holzi-Adressen zur Vault {npub} gehören, nicht, wer die Person ist.",
+      "identityMatches": "Passt zur Vault dieses Kontakts.",
+      "identityMismatch": "Dieser Kontakt gehört zu einer anderen Vault ({npub}). Seine Vault-Identität wird nie ersetzt; wähle einen neuen Kontakt.",
+      "unreachable": "Dieser Kontakt ist nicht über holzi erreichbar: Die Weitergabe enthält keine holzi-Adressen.",
+      "skipped": "Eine ungültige Angabe wurde übergangen. | {count} ungültige Angaben wurden übergangen.",
+      "legacy": "Das ist eine Visitenkarte im älteren Format.",
+      "target": "Wohin?",
+      "targetLabel": "Kontakt",
+      "targetNew": "Neuer Kontakt",
+      "reason": {
+        "vault": "hat diese Vault schon",
+        "hint": "gleiche Telefonnummer oder E-Mail-Adresse"
+      },
+      "items": "Angaben",
+      "same": "Schon vorhanden.",
+      "fills": "Wird ergänzt.",
+      "current": "Jetzt: {value}",
+      "choiceLabel": "Was soll passieren?",
+      "choice": {
+        "add": "Hinzufügen",
+        "update": "Aktualisieren",
+        "skip": "Nicht übernehmen",
+        "keep": "Behalten",
+        "replace": "Ersetzen"
+      },
+      "replaces": "Ersetzt",
+      "replacesOne": "Ersetzt: {value}",
+      "replaceHint": "Ersetzt die gespeicherten holzi-Adressen dieser Vault durch die dieser Karte.",
+      "addresses": "Vault {npub} · {devices} Geräte, {relays} Relays, davon neu: {newDevices} Geräte, {newRelays} Relays",
+      "summary": "{added} hinzufügen, {updated} aktualisieren, {skipped} nicht übernehmen",
+      "accept": "Übernehmen",
+      "accepted": "Bei {name} gespeichert",
+      "stale": "Der Kontakt hat sich seit der Vorschau geändert. Die Vorschau ist neu geladen, bitte noch einmal wählen.",
+      "blocked": "Diese Vault ist blockiert.",
       "block": "Vault blockieren",
-      "update": "Bei {name} aktualisieren",
-      "asNew": "Neuer Kontakt",
-      "addTo": "Zu Kontakt hinzufügen …",
-      "add": "Hinzufügen",
-      "accepted": "Visitenkarte bei {name} gespeichert",
-      "confirmed": "Bestätigte holzi-Adressen",
-      "confirmedAt": "bestätigt am {at}"
+      "problem": {
+        "blocked": "Diese Vault ist blockiert.",
+        "mismatch": "Dieser Kontakt hat eine andere Vault-Identität. Wähle einen neuen Kontakt.",
+        "needsValue": "Wähle, welche Angabe ersetzt wird."
+      }
     },
     "share": {
       "title": "Kontakt teilen",
