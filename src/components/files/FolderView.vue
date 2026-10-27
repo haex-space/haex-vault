@@ -30,23 +30,29 @@ import { shownNameKey } from '~/lib/files/encrypted'
 import { isEditableTarget } from '~/lib/wm/keybindings'
 import { formatFileSize } from '~/lib/passwords/format'
 
-const props = defineProps<{
-  source: SourceRef
-  entries: Entry[]
-  loading: boolean
-  error: FilesError | null
-  view: FilesView
-  /** The open folder, where a drop on the empty area goes. */
-  folder: string
-  /** Selected paths. */
-  selected: readonly string[]
-  /** The path from which the next range selection starts. */
-  selectionAnchor: string | null
-  /** Paths cut to holzi's clipboard, shown faded. */
-  dimmed: readonly string[]
-  /** An error of a storage's credentials offers its settings (US5). */
-  settingsLink?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    source: SourceRef
+    entries: Entry[]
+    loading: boolean
+    error: FilesError | null
+    view: FilesView
+    /** The open folder, where a drop on the empty area goes. */
+    folder: string
+    /** Selected paths. */
+    selected: readonly string[]
+    /** The path from which the next range selection starts. */
+    selectionAnchor: string | null
+    /** Paths cut to holzi's clipboard, shown faded. */
+    dimmed: readonly string[]
+    /** An error of a storage's credentials offers its settings (US5). */
+    settingsLink?: boolean
+    /** The list may take the focus by itself after a folder opened: not in the panel that is not the
+     * active one (spec 062 R4). */
+    takesFocus?: boolean
+  }>(),
+  { takesFocus: true },
+)
 
 const emit = defineEmits<{
   press: [entry: Entry, keys: ClickKeys]
@@ -160,6 +166,7 @@ onMounted(takeFocus)
 /** Gives the list the focus after a folder opened, so the keys act there (FR-017b): unless a text
  * field or a place outside the file browser has it. */
 function takeFocus() {
+  if (!props.takesFocus) return
   const active = document.activeElement
   const frame = container.value?.closest('[data-files-app]')
   const lost = !active || active === document.body

@@ -97,7 +97,7 @@ Alle Entscheidungen beruhen auf dem Stand von `main` (2026-10-26). Es gibt keine
 ## R6 – Viewer über beiden Panels
 
 - **Decision**: Das Panel behält die Viewer-Logik (`open`, Geschwister aus `shown`), rendert den
-  Viewer aber mit `<Teleport defer to="#files-viewer-host">` in ein Element des Rahmens, das die
+  Viewer aber mit `<Teleport defer :to="viewerHost">` in ein Element des Rahmens, das die
   gesamte Panelfläche überdeckt (FR-019). Weil nur das aktive Panel navigiert, gibt es höchstens ein
   `open` im Tab (kein `o.open`).
 - **Rationale**: Die Freigabe-URLs sind an den Tab gebunden (Spec 044 FR-016, `files_open(tabId)`),
