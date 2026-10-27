@@ -51,12 +51,19 @@ type TabRouter = {
   back(): void
   forward(): void
   skipCurrent(): boolean // Eintrag mit verschwundenem Ziel überspringen (FR-027)
+  swapHistory(next: TabHistory): TabHistory | null // ganze Historie des Tabs tauschen (Spec 062)
 }
 ```
 
 - `to` als String: `'/models/hf/abc?sort=size'` (Query wird geparst); relative
   Pfade sind nicht erlaubt.
 - Alle Aufrufe wirken ausschließlich auf den eigenen Tab (FR-008).
+- `swapHistory(next)` (Spec 062, Dateibrowser mit zwei Panels) ersetzt die ganze Historie des eigenen
+  Tabs durch `next` und gibt die bisherige zurück; verletzt `next` die Invarianten von `TabHistory`
+  (1 bis 50 Einträge, Index in Grenzen) oder gibt es keinen Tab, ist das Ergebnis `null` und nichts
+  ändert sich. Der Store tut dasselbe mit `setHistory(tabId, history): boolean`; beides setzt den
+  letzten Laufweg und den dynamischen Titel des Tabs zurück und speichert die Sitzung (Spec 022).
+  Der inerte Router gibt `null` zurück.
 - Außerhalb einer Shell liefert `useTabRouter()` einen inerten Router mit Ort
   `/` (wie `useWmTab()`), damit Apps in Test-Harnesses montierbar bleiben.
 

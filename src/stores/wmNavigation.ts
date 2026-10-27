@@ -12,6 +12,7 @@ import {
   goTab,
   navigateTab,
   resolveSystemBack,
+  setTabHistory,
   skipTabEntry,
   syncHistories,
   type TabHistories,
@@ -103,6 +104,18 @@ export function createWmNavigation(deps: {
     return changed
   }
 
+  /** Replaces a tab's whole history (spec 062: the file browser swaps the history of its active
+   * panel); `false` and no change for a tab without history or a history that breaks its
+   * invariants. The last travel direction and the dynamic title belong to the old history. */
+  function setHistory(tabId: string, history: TabHistory): boolean {
+    const changed = setTabHistory(histories, tabId, history)
+    if (changed) {
+      lastDirection.delete(tabId)
+      deps.clearTitleOverride(tabId)
+    }
+    return changed
+  }
+
   /** Drops the tab's current entry (its target is gone) and moves on in the last travel
    * direction; `false` if it was the only entry. */
   function skipCurrent(tabId: string): boolean {
@@ -175,6 +188,7 @@ export function createWmNavigation(deps: {
     historyOf,
     navigate,
     go,
+    setHistory,
     skipCurrent,
     runAction,
     registerGlobalActionHandler,
