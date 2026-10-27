@@ -4,7 +4,7 @@ import type { ContactShareChoice } from "./ContactShareChoice";
 /**
  * What the person chose for one item.
  */
-export type ContactShareDecision = { item: number, choice: ContactShareChoice, 
+export type ContactShareDecision = { item: number, choice: ContactShareChoice,
 /**
  * For `Update` of a value: the value of the target to replace.
  */

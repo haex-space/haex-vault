@@ -5,31 +5,31 @@ import type { ContactShareExisting } from "./ContactShareExisting";
 import type { ContactShareItemKind } from "./ContactShareItemKind";
 import type { ContactShareState } from "./ContactShareState";
 
-export type ContactShareItem = { 
+export type ContactShareItem = {
 /**
  * The place of the item in the preview; a decision names it.
  */
-id: number, item: ContactShareItemKind, 
+id: number, item: ContactShareItemKind,
 /**
  * The kind of a value item.
  */
-valueKind?: string, label: string, 
+valueKind?: string, label: string,
 /**
  * What the share says.
  */
-value: string, state: ContactShareState, 
+value: string, state: ContactShareState,
 /**
  * What the person may choose; empty when there is nothing to choose.
  */
-choices: Array<ContactShareChoice>, default?: ContactShareChoice, 
+choices: Array<ContactShareChoice>, default?: ContactShareChoice,
 /**
  * The target's values of the same kind, for `Update`.
  */
-existing: Array<ContactShareExisting>, 
+existing: Array<ContactShareExisting>,
 /**
  * What a single field of the target says now, for a conflict.
  */
-current?: string, 
+current?: string,
 /**
  * Only for the holzi addresses.
  */

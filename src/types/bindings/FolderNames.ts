@@ -3,7 +3,7 @@
 /**
  * What a question about an encrypted folder names for the user.
  */
-export type FolderNames = { storageName: string, folderName: string, 
+export type FolderNames = { storageName: string, folderName: string,
 /**
  * The folder lies on this device, not in a cloud storage (spec 048 US7).
  */

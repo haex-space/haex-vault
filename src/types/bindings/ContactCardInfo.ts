@@ -4,15 +4,15 @@ import type { ContactCardDevice } from "./ContactCardDevice";
 /**
  * The confirmed holzi addresses of a contact, from its Visitenkarte (FR-008, FR-009).
  */
-export type ContactCardInfo = { 
+export type ContactCardInfo = {
 /**
  * The vault identity, hex.
  */
-vaultPubkey: string, 
+vaultPubkey: string,
 /**
  * The vault identity as `npub1…`.
  */
-npub: string, 
+npub: string,
 /**
  * The name the card carries.
  */

@@ -4,19 +4,19 @@ import type { FileShareConfirmGrant } from "./FileShareConfirmGrant";
 /**
  * The payload of [`EVENT_SHARE_CONFIRM`]: what the agent wants to give whom.
  */
-export type FileShareConfirmRequest = { requestId: string, agentId: string, 
+export type FileShareConfirmRequest = { requestId: string, agentId: string,
 /**
  * The share is new, not one that gets another contact or a higher level.
  */
-newShare: boolean, shareName: string, 
+newShare: boolean, shareName: string,
 /**
  * Window path of the shared folder or file.
  */
-path: string, 
+path: string,
 /**
  * The device that serves it; `None` for this device.
  */
-deviceName: string | null, 
+deviceName: string | null,
 /**
  * Only the contacts that are new or get a higher level.
  */

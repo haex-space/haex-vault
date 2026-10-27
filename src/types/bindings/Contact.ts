@@ -10,27 +10,27 @@ import type { ContactValue } from "./ContactValue";
 /**
  * A contact with everything the window shows.
  */
-export type Contact = { id: string, 
+export type Contact = { id: string,
 /**
  * The display name as stored, or derived from the name parts when none is stored.
  */
-name: string, head: ContactHead, 
+name: string, head: ContactHead,
 /**
  * Hash of the photo in `haex_contacts_binaries`.
  */
-photo: string | null, origin: ContactOrigin, values: Array<ContactValue>, groups: Array<ContactGroup>, 
+photo: string | null, origin: ContactOrigin, values: Array<ContactValue>, groups: Array<ContactGroup>,
 /**
  * The phones the contact goes to (FR-018b).
  */
-targets: Array<ContactTarget>, 
+targets: Array<ContactTarget>,
 /**
  * Changes that did not reach a phone (FR-025).
  */
-issues: Array<ContactIssue>, 
+issues: Array<ContactIssue>,
 /**
  * The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
  */
-card: ContactCardInfo | null, 
+card: ContactCardInfo | null,
 /**
  * The own contact, "Ich" (spec 060): the person of this vault. `name` stays the name its
  * name parts give; only the window shows the word "Ich".

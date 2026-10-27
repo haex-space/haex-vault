@@ -3,11 +3,11 @@
 /**
  * A phone a contact goes to and the account it goes into there (FR-018b).
  */
-export type ContactTarget = { 
+export type ContactTarget = {
 /**
  * The phone's `vault_device_uuid`.
  */
-device: string, 
+device: string,
 /**
  * Empty for the local account.
  */

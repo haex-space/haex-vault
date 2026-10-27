@@ -4,19 +4,19 @@ import type { CredentialsInput } from "./CredentialsInput";
 /**
  * The user's answer to a storage dialog (contracts/tauri-commands.md `storage_dialog_resolve`).
  */
-export type StorageAnswer = { "kind": "cancel" } | { "kind": "confirm", 
+export type StorageAnswer = { "kind": "cancel" } | { "kind": "confirm",
 /**
  * An existing connection the user chose for the new storage.
  */
-connectionId?: string, 
+connectionId?: string,
 /**
  * New credentials; only holzi's window over the whole app sends them.
  */
-credentials?: CredentialsInput, name?: string, bucket?: string, 
+credentials?: CredentialsInput, name?: string, bucket?: string,
 /**
  * The user's word to make a missing folder of a WebDAV or SFTP storage (spec 050 FR-006).
  */
-createFolder?: boolean, 
+createFolder?: boolean,
 /**
  * The host key (an OpenSSH line) the user confirmed in holzi's window after
  * `hostKeyUnknown` (SFTP, spec 050 research R5).

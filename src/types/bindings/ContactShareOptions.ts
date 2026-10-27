@@ -6,11 +6,11 @@ import type { ContactShareRow } from "./ContactShareRow";
 /**
  * What the dialog shows for a contact, everything chosen.
  */
-export type ContactShareOptions = { rows: Array<ContactShareRow>, head: ContactShareHead, holzi: ContactShareHolzi, 
+export type ContactShareOptions = { rows: Array<ContactShareRow>, head: ContactShareHead, holzi: ContactShareHolzi,
 /**
  * The name as the receiver sees it (FR-011); it always goes along.
  */
-name: string, 
+name: string,
 /**
  * Whether there is anything to share at all with everything chosen (FR-017).
  */

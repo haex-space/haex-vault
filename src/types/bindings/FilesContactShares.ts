@@ -4,7 +4,7 @@ import type { FilesReceivedShare } from "./FilesReceivedShare";
 /**
  * A contact with a stored card and the shares it gave this vault.
  */
-export type FilesContactShares = { contactId: string, 
+export type FilesContactShares = { contactId: string,
 /**
  * The name the card carries.
  */
