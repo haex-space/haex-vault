@@ -187,6 +187,10 @@ impl<E: ContactsShareEnv + 'static> NativeExecutor for ContactsShareAgent<E> {
         SHARE_ACTION_IDS
     }
 
+    fn confirming_action_ids(&self) -> &'static [&'static str] {
+        SHARE_ACTION_IDS
+    }
+
     async fn run(
         &self,
         action_id: &str,
