@@ -1443,6 +1443,7 @@
     "vaultIo": "The vault file could not be read",
     "vaultUnreadable": "The vault file is unreadable or damaged",
     "vaultIncompatible": "The vault is damaged or incompatible with this version",
+    "vaultNewerVersion": "The vault was opened by a newer version and cannot be read by this one. Start the newer version or update the app",
     "nameConflict": "An instance with that name already exists",
     "invalidName": "Invalid name",
     "weakPassphrase": "Passphrase does not meet policy",

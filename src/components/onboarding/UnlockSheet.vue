@@ -88,10 +88,13 @@ async function onSubmit() {
       case 'Io':
         error.value = t('errors.vaultIo')
         break
+      case 'MigrationMissingFromSource':
+        // The vault holds a migration this build does not know: it was last opened by a newer one.
+        error.value = t('errors.vaultNewerVersion')
+        break
       case 'CrdtInit':
       case 'CrdtHlc':
       case 'DeviceIdMismatch':
-      case 'MigrationMissingFromSource':
       case 'MigrationContentDrift':
       case 'MigrationCompatibility':
       case 'CrdtSignatureVerificationFailed':
