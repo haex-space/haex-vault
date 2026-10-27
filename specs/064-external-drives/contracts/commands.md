@@ -22,7 +22,7 @@ files_drives_unwatch(id: number): void
 files_drive_open(id: string): DriveOpened
 
 type DriveOpened =
-  | { kind: 'opened'; path: string } // eingehängt (ggf. vorher eingehängt/entsperrt)
+  | { kind: 'opened'; path: string; rememberFailed: 'urlTaken' | 'failed' | null } // eingehängt (ggf. vorher eingehängt/entsperrt)
   | { kind: 'needsPassword'; reason: 'none' | 'several' | 'savedFailed'; message: string | null; candidates: DriveEntry[] }
   | { kind: 'systemDialog' } // Windows/BitLocker: Dialog des Systems geöffnet (FR-019)
 ```
@@ -51,17 +51,17 @@ type DriveSecret =
   | { kind: 'typed'; password: string }
   | { kind: 'entry'; itemId: string }
 
-type DriveRemember =
-  | { kind: 'no' }
-  | { kind: 'yes' } // typed: neuer Eintrag; entry ohne URL: URL setzen
-  | { kind: 'replaceUrl' } // entry mit anderer URL: nach Zustimmung ersetzen
+type DriveRemember = 'no' | 'yes' // typed: neuer Eintrag; entry ohne URL: URL setzen
+
+files_drive_link_entry(id: string, itemId: string): void // nach Zustimmung: URL des Eintrags ersetzen
 ```
 
-- Gemerkt wird erst nach erfolgreichem Entsperren (FR-016). Scheitert das Merken (etwa ein Konflikt
-  beim Eintrag), bleibt das Laufwerk offen, und die Antwort trägt `rememberFailed: true`.
-- `remember` ≠ `no` mit `entry`, dessen URL schon `haex:drive:<key>` ist: keine Änderung.
-- `entry` mit einer anderen URL und `remember: yes`: Fehler `urlTaken`. Die Oberfläche fragt dann und
-  ruft erneut mit `replaceUrl` auf.
+- Gemerkt wird erst nach erfolgreichem Entsperren (FR-016). Scheitert das Merken, bleibt das Laufwerk
+  offen; die Antwort trägt `rememberFailed: 'failed'` (etwa ein Konflikt beim Eintrag).
+- `remember: yes` mit `entry`, dessen URL schon `haex:drive:<key>` ist: keine Änderung.
+- `entry` mit einer anderen URL und `remember: yes`: Das Laufwerk ist offen, die Antwort trägt
+  `rememberFailed: 'urlTaken'`. Die Oberfläche fragt und ruft bei Zustimmung `files_drive_link_entry`
+  auf; so wird nicht zweimal entsperrt.
 
 ```ts
 files_drive_unlock_candidates(query: string): DriveEntry[] // Einträge mit Passwort, wie storage_credentials_candidates
@@ -90,17 +90,17 @@ Reihenfolge:
 
 ## Neue `FilesErrorCode`
 
-| Code                | Wann                                                             | Oberfläche                                 |
-| ------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
-| `driveCancelled`    | Abfrage des Systems abgebrochen oder abgelehnt (FR-007)          | kurzer Hinweis, kein Dialog                |
-| `driveBusy`         | ein anderes Programm hält das Laufwerk (FR-012)                  | Hinweis „wird noch … benutzt“              |
-| `driveGone`         | `id` ist nicht (mehr) in der Liste (abgezogen)                   | Hinweis, Liste aktualisiert sich ohnehin   |
-| `driveFailed`       | System meldet einen anderen Fehler; `message` = Text des Systems | Hinweis mit Text                           |
-| `unlockFailed`      | Entsperren gescheitert; `message` = Text des Systems             | Dialog bleibt offen, zeigt Text (FR-015)   |
-| `driveNoFilesystem` | entsperrt, aber kein lesbares Dateisystem (LVM u. a.) (FR-020)   | Hinweis „nicht unterstützt“                |
-| `driveUnsupported`  | Plattform/Backend kann die Aktion nicht (kein udisks2, Android)  | Knopf erscheint gar nicht; nur Absicherung |
-| `noVault`           | Passwortmanager nötig, aber kein Vault offen                     | Teil ausgegraut                            |
-| `urlTaken`          | gewählter Eintrag hat eine andere URL                            | Rückfrage „URL ersetzen?“                  |
+| Code                | Wann                                                                | Oberfläche                                 |
+| ------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| `driveCancelled`    | Abfrage des Systems abgebrochen oder abgelehnt (FR-007)             | kurzer Hinweis, kein Dialog                |
+| `driveBusy`         | ein anderes Programm hält das Laufwerk (FR-012)                     | Hinweis „wird noch … benutzt“              |
+| `driveGone`         | `id` ist nicht (mehr) in der Liste (abgezogen)                      | Hinweis, Liste aktualisiert sich ohnehin   |
+| `driveFailed`       | System meldet einen anderen Fehler; `message` = Text des Systems    | Hinweis mit Text                           |
+| `unlockFailed`      | Entsperren gescheitert; `message` = Text des Systems                | Dialog bleibt offen, zeigt Text (FR-015)   |
+| `driveNoFilesystem` | entsperrt, aber kein lesbares Dateisystem (LVM u. a.) (FR-020)      | Hinweis „nicht unterstützt“                |
+| `driveUnsupported`  | Plattform/Backend kann die Aktion nicht (kein udisks2, Android)     | Knopf erscheint gar nicht; nur Absicherung |
+| `noVault`           | Passwortmanager nötig, aber kein Vault offen                        | Teil ausgegraut                            |
+| `urlTaken`          | nur intern: `link_entry` ohne Ersetzen; nach außen `rememberFailed` | Rückfrage „URL ersetzen?“                  |
 
 ## Nebenwirkungen auf bestehende Befehle
 

@@ -26,8 +26,9 @@ Je Laufwerk eine Zeile, `:key="drive.id"`, `data-testid="files-drive-<label ?? i
   `CredentialsEntryPicker.vue`, bei `several` vorbefüllt mit den Treffern).
 - Checkbox „Im Passwortmanager merken“, Vorgabe aus. Beim Eintippen heißt sie so; bei einem gewählten
   Eintrag „Mit diesem Laufwerk verknüpfen“.
-- Bei `urlTaken` eine Rückfrage: „Der Eintrag hat schon die Adresse <url>. Durch die Laufwerks-Adresse
-  ersetzen?“ Ja → `replaceUrl`; Nein → `remember: no`.
+- Bei `rememberFailed: 'urlTaken'` (das Laufwerk ist schon offen) eine Rückfrage: „Der Eintrag hat
+  schon die Adresse <url>. Durch die Laufwerks-Adresse ersetzen?“ Ja → `files_drive_link_entry`; Nein →
+  nichts.
 - Fehler `unlockFailed`: Text unter dem Feld, Dialog bleibt offen. Das Passwortfeld wird nach jedem
   Versuch geleert (FR-017).
 - `noVault`: Auswahl und Checkbox ausgegraut mit Hinweis „Passwortmanager nur mit offenem Vault“.

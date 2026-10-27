@@ -205,6 +205,7 @@ der Umbau von Spec 062 (`Panel.vue`) sie nur verschiebt (R14).
      Einhängen, Monitor
    - die Befehle `files_drives_watch`/`unwatch` und `files_drive_open` (ohne Entsperren)
    - Seitenleiste mit Zuständen, `useFilesDrives`
+   - der Rücksprung zum nächsten vorhandenen Ordner für alle Gerätepfade (R10, US1 Szenario 7)
    - CI-Spike R12 und E2E für Einstecken, Einhängen und Abziehen
 2. **PR B – Freigeben und Auswerfen** (US2):
    - Präfix-Freigaben in `state.rs`, `media/server.rs`, `search_manager.rs` und bei den
@@ -214,9 +215,9 @@ der Umbau von Spec 062 (`Panel.vue`) sie nur verschiebt (R14).
 3. **PR C – Entsperren und Passwortmanager** (US3, US4):
    - `unlock.rs`, `files_drive_unlock`/`unlock_candidates`, Entsperren in `files_drive_open`
    - `DriveUnlockDialog.vue`, E2E mit dem LUKS-Image
-4. **PR D – Sitzung und Rücksprung** (FR-025, R10):
+4. **PR D – Sitzung** (FR-025, R10):
    - `drive`/`droot` im Tab-Ort, `useFilesDriveRestore`, `DriveNotice.vue`
-   - der Rücksprung für alle Gerätepfade, E2E Neustart
+   - E2E Neustart
 5. **PR E – macOS** (R5): Spike mit echten Plist-Ausgaben als Fixtures, `macos.rs`/`macos_plist.rs`,
    manueller Test nach quickstart.
 6. **PR F – Windows** (R6):
