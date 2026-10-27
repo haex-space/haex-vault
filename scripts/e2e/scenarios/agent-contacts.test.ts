@@ -41,6 +41,7 @@ function toolResult(body: Body | undefined): string {
     (block: { type?: string }) => block.type === 'tool_result',
   ) as { content?: unknown } | undefined
   const content = result?.content
+  if (typeof content === 'string') return content
   if (Array.isArray(content)) {
     return content.map((block: { text?: string }) => block.text ?? '').join('')
   }
