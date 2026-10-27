@@ -21,7 +21,7 @@ leer, entfernte Zellen gehen mit. Eine geteilte Seite nimmt die Zelltexte im Sei
 ## `LatexElement` und Formelzellen (2026-10-26)
 
 Das Element `latex` gibt es im Dokumentmodell seit der ersten Fassung (`app/types/document.ts`): `source` ist die
-LaTeX-Quelle (bleibt editierbar), `svg` das gesetzte Ergebnis in `currentColor`, `color` die Tinte, dazu `x`, `y`,
+LaTeX-Quelle (bleibt editierbar; der Editor zeigt sie in der einfachen Schreibweise, wo das geht, FR-031), `svg` das gesetzte Ergebnis in `currentColor`, `color` die Tinte, dazu `x`, `y`,
 `width`, `height` und `rotation` wie beim Bild. Neu ist, dass es erzeugt, gezeichnet und bearbeitet wird:
 
 - Eine Region `formula` wird zu einem `latex`-Element auf der Ebene „Text“. Das gesetzte SVG steht in der
