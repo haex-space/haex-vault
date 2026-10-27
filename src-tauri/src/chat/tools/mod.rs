@@ -9,6 +9,7 @@
 pub mod action_bridge;
 #[cfg(test)]
 mod action_bridge_tests;
+pub mod action_catalog;
 pub mod action_tool;
 #[cfg(test)]
 mod action_tool_tests;
