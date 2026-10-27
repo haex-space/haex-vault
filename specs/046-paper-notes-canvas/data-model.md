@@ -109,7 +109,7 @@ Das Ersetzen ändert Elemente und `paperImport` in einem Kommando, sodass ein R�
 ```ts
 interface PageAttachment {
   id: string // UUID
-  kind: 'original' | 'file' // "original": das Foto der Seite, gegen Entfernen geschützt
+  kind: 'original' | 'file' // "original": das Foto der Seite; Entfernen löst die Seite vom Foto (`paperImport` fällt weg)
   assetId: string // Datei im Asset-Speicher, wie `originalAssetId`
   name: string // Dateiname, den der Schüler sieht
   mimeType: string

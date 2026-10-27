@@ -2,7 +2,6 @@ use super::*;
 use crate::contacts::access::Caller;
 use crate::contacts::model::{ContactPatch, ValueUpsert, ValuesPatch};
 use crate::contacts::service::test_support::{card_vault, person, test_vault, value, TestVault};
-use crate::contacts::service::CardInto;
 use crate::contacts::share::envelope::{decode, Decoded, QR_MAX};
 use crate::patch::Patch;
 use crate::sync::test_support::Member;
@@ -500,7 +499,7 @@ async fn a_foreign_contact_shares_its_original_card_unchanged_and_the_row_can_be
     let stored = format::parse(&text).expect("a card");
     let contact = mara
         .service
-        .card_accept(&Caller::User, text, CardInto::New)
+        .accept_defaults(text, None)
         .await
         .expect("accept");
     let options = options_of(&mara, &contact.id).await;
@@ -571,13 +570,7 @@ async fn a_nameless_contact_with_a_card_gets_the_npub_as_its_name() {
         .id;
     vault
         .service
-        .card_accept(
-            &Caller::User,
-            text,
-            CardInto::Contact {
-                contact_id: id.clone(),
-            },
-        )
+        .accept_defaults(text, Some(id.clone()))
         .await
         .expect("accept");
     let options = options_of(&vault, &id).await;
@@ -634,7 +627,7 @@ async fn a_stored_card_that_fails_its_check_is_not_offered() {
     let mara = card_vault();
     let contact = mara
         .service
-        .card_accept(&Caller::User, text, CardInto::New)
+        .accept_defaults(text, None)
         .await
         .expect("accept");
     mara.db

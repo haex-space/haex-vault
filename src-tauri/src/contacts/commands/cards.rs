@@ -9,9 +9,9 @@ use super::service;
 use crate::contacts::access::Caller;
 use crate::contacts::card::received::BlockedVault;
 use crate::contacts::model::Contact;
-use crate::contacts::service::{CardInto, CardPreview};
 use crate::contacts::share::model::{
-    ContactShareOptions, ContactShareOutput, ContactShareSelection,
+    ContactShareDecision, ContactShareOptions, ContactShareOutput, ContactSharePreview,
+    ContactShareSelection, ContactShareTarget,
 };
 use crate::error::Result;
 use crate::state::AppState;
@@ -43,21 +43,28 @@ pub struct ShareBuildArgs {
 #[ts(
     export,
     export_to = "../../src/types/bindings/",
-    rename = "ContactsCardTextArgs"
+    optional_fields,
+    rename = "ContactsSharePreviewArgs"
 )]
-pub struct CardTextArgs {
+pub struct SharePreviewArgs {
     pub text: String,
+    pub target: Option<ContactShareTarget>,
 }
 
 #[derive(Debug, Deserialize, TS)]
 #[ts(
     export,
     export_to = "../../src/types/bindings/",
-    rename = "ContactsCardAcceptArgs"
+    optional_fields,
+    rename = "ContactsShareAcceptArgs"
 )]
-pub struct CardAcceptArgs {
+#[serde(rename_all = "camelCase")]
+pub struct ShareAcceptArgs {
     pub text: String,
-    pub into: CardInto,
+    pub target: ContactShareTarget,
+    #[serde(default)]
+    pub decisions: Vec<ContactShareDecision>,
+    pub preview_revision: Option<String>,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -93,25 +100,31 @@ pub async fn contacts_share_build(
         .await
 }
 
-/// Checks a Visitenkarte and shows what it carries.
+/// Checks a share (or an old Visitenkarte text) and shows what reading it in would do.
 #[tauri::command]
-pub async fn contacts_card_preview(
+pub async fn contacts_share_preview(
     state: State<'_, AppState>,
-    args: CardTextArgs,
-) -> Result<CardPreview> {
+    args: SharePreviewArgs,
+) -> Result<ContactSharePreview> {
     service(&state)?
-        .card_preview(&Caller::User, args.text)
+        .share_preview(&Caller::User, args.text, args.target)
         .await
 }
 
-/// Stores a Visitenkarte as a new contact or on an existing one.
+/// Reads a share in as a new contact or into an existing one, after the person's choices.
 #[tauri::command]
-pub async fn contacts_card_accept(
+pub async fn contacts_share_accept(
     state: State<'_, AppState>,
-    args: CardAcceptArgs,
+    args: ShareAcceptArgs,
 ) -> Result<Contact> {
     service(&state)?
-        .card_accept(&Caller::User, args.text, args.into)
+        .share_accept(
+            &Caller::User,
+            args.text,
+            args.target,
+            args.decisions,
+            args.preview_revision,
+        )
         .await
 }
 

@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
-import {
-  SELF_CONTACT_ID,
-  cardTextOf,
-  readShare,
-  shareLink,
-} from '../lib/share.ts'
+import { SELF_CONTACT_ID, readShare, shareLink } from '../lib/share.ts'
 import { unwrap, type FlowInstance } from '../lib/flows.ts'
 import {
   contactHeaders,
@@ -14,13 +9,13 @@ import {
   openContacts,
 } from '../lib/contacts.ts'
 
-// Spec 060 US2 and spec 051 US4 (quickstart `contacts-share`): two vaults. Ben fills his own contact
-// "Ich", opens the share dialog, deselects his phone number and gets a link and a QR code that carry
-// exactly the rest. Mara reads the card inside it with the Visitenkarte import of spec 051 (the import
-// of shares comes with its own scenario): the preview stores nothing, the card becomes a contact with
-// confirmed holzi addresses, a changed card is refused, Ben's newer card replaces the addresses, his
-// older one changes nothing. A holzi address typed in by hand shows as unconfirmed. US4-6 (the phone
-// keeps holzi addresses) is the phone sync's rule, covered by its tests (FR-014).
+// Spec 060 US2 to US4 and spec 051 US4 (quickstart `contacts-share`): two vaults. Ben fills his own
+// contact "Ich", opens the share dialog, deselects his phone number and gets a link and a QR code
+// that carry exactly the rest. Mara pastes the link, sees the preview (nothing is stored yet) and
+// takes it as a new contact with confirmed holzi addresses. A changed link is refused; Ben's second
+// share goes to the same contact (one vault, one contact) and only adds. A holzi address typed in by
+// hand shows as unconfirmed. US4-6 (the phone keeps holzi addresses) is the phone sync's rule,
+// covered by its tests (FR-014).
 
 /** The error kind of a command that must fail. */
 async function refusal(
@@ -105,71 +100,105 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
     'Ben shares "Ich" as link and QR code with his phone number left out',
   )
 
-  const olderCard = cardTextOf(older)
   await openContacts(mara)
   await mara.click('contacts-add')
-  await mara.click('contacts-card-menu-import')
-  await mara.waitForDisplayed('contacts-card-text')
-  await mara.type('contacts-card-text', olderCard)
-  await mara.click('contacts-card-check')
-  await mara.waitForDisplayed('contacts-card-preview')
+  await mara.click('contacts-import-menu')
+  await mara.waitForDisplayed('contacts-import-text')
+  await mara.type('contacts-import-text', older)
+  await mara.click('contacts-import-check')
+  await mara.waitForDisplayed('contacts-import-preview')
   const shown = await mara.exec<string>(
-    `return document.querySelector('[data-testid="contacts-card-preview-name"]')?.textContent ?? ''`,
+    `return document.querySelector('[data-testid="contacts-import-name"]')?.textContent ?? ''`,
   )
   assert.ok(shown.includes('Ben Krüger'), shown)
   assert.equal((await contactHeaders(mara)).length, 0, 'nothing stored yet')
   ctx.step('Mara sees the preview before anything is stored')
 
-  await mara.click('contacts-card-new')
+  await mara.click('contacts-import-accept')
   await mara.waitForDisplayed('contacts-card-addresses', 15_000)
   await expectContacts(ctx, mara, ['Ben Krüger'], 'Ben in the address book')
   const [header] = await contactHeaders(mara)
   const accepted = unwrap<{
     origin: { kind: string }
     values: Array<{ value: string }>
-    card: { devices: unknown[]; issuedAt: string } | null
+    card: { devices: unknown[]; nostrRelays: string[] } | null
   }>(
     'contacts_get',
     await mara.invoke('contacts_get', { args: { id: header!.id } }),
   )
   assert.equal(accepted.origin.kind, 'card')
-  assert.deepEqual(accepted.values, [], 'a card carries no details any more')
+  assert.deepEqual(
+    accepted.values.map((value) => value.value),
+    ['ben@example.org'],
+    'only what Ben chose, not the phone number he left out',
+  )
   assert.equal(accepted.card?.devices.length, 1)
-  ctx.step('the card became a contact with confirmed holzi addresses')
+  ctx.step('the share became a contact with confirmed holzi addresses')
 
-  const chars = [...olderCard]
+  const chars = [...older]
   const at = chars.length - 12
   chars[at] = chars[at] === 'A' ? 'B' : 'A'
-  assert.equal(
-    await refusal(mara, 'contacts_card_preview', { text: chars.join('') }),
-    'CardInvalid',
+  assert.ok(
+    ['CardInvalid', 'ShareInvalid'].includes(
+      await refusal(mara, 'contacts_share_preview', { text: chars.join('') }),
+    ),
   )
-  ctx.step('a changed card is refused')
+  ctx.step('a changed share is refused')
 
-  // A card of the same second would not be newer.
-  await new Promise((resolve) => setTimeout(resolve, 1_100))
-  const newer = cardTextOf(await shareLink(ben, SELF_CONTACT_ID))
-  assert.notEqual(newer, olderCard)
-  const preview = unwrap<{ existingContact: { id: string } | null }>(
-    'contacts_card_preview',
-    await mara.invoke('contacts_card_preview', { args: { text: newer } }),
+  // Ben shares again, now with everything chosen: his vault is on the contact already, so the
+  // share goes there, and what it adds is added next to what is there.
+  const newer = await shareLink(ben, SELF_CONTACT_ID)
+  assert.notEqual(newer, older)
+  const preview = unwrap<{
+    target: { kind: string; id?: string }
+    targetRevision?: string
+    items: Array<{ item: { type: string }; state: string; choices: string[] }>
+  }>(
+    'contacts_share_preview',
+    await mara.invoke('contacts_share_preview', { args: { text: newer } }),
   )
-  assert.equal(preview.existingContact?.id, header!.id, 'the same contact')
-  const updated = unwrap<{ card: { issuedAt: string } }>(
-    'contacts_card_accept',
-    await mara.invoke('contacts_card_accept', {
-      args: { text: newer, into: { kind: 'contact', contactId: header!.id } },
+  assert.equal(preview.target.id, header!.id, 'the same contact')
+  const addresses = preview.items.find(
+    (item) => item.item.type === 'holziAddresses',
+  )
+  assert.ok(addresses, 'the share carries addresses')
+  assert.ok(
+    addresses.state === 'same' || addresses.choices.includes('add'),
+    'the addresses are asked about only when they add something',
+  )
+  const updated = unwrap<{
+    card: { nostrRelays: string[]; devices: unknown[] }
+    values: Array<{ value: string }>
+  }>(
+    'contacts_share_accept',
+    await mara.invoke('contacts_share_accept', {
+      args: {
+        text: newer,
+        target: { kind: 'contact', id: header!.id },
+        decisions: [],
+        previewRevision: preview.targetRevision,
+      },
     }),
   )
-  assert.ok(updated.card.issuedAt > accepted.card!.issuedAt)
+  assert.ok(
+    updated.card.nostrRelays.length >= accepted.card!.nostrRelays.length,
+    'no address went missing',
+  )
+  assert.ok(
+    updated.values.some((value) => value.value === 'ben@example.org'),
+    'nothing the contact had went missing',
+  )
   assert.equal(
-    await refusal(mara, 'contacts_card_accept', {
-      text: olderCard,
-      into: { kind: 'contact', contactId: header!.id },
+    await refusal(mara, 'contacts_share_accept', {
+      text: newer,
+      target: { kind: 'new' },
+      decisions: [],
     }),
-    'CardOlder',
+    'ShareInvalid',
   )
-  ctx.step('a newer card replaces the addresses, an older one is refused')
+  ctx.step(
+    'a second share adds and loses nothing, and one vault stays on one contact',
+  )
 
   const typed = await createContact(mara, {
     head: { givenName: 'Carla' },

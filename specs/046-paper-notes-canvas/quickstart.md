@@ -44,7 +44,7 @@ Erwartet:
 5. Eine Zelle der Tabelle ändern, eine Zeile einfügen, die Zeichnung verschieben und vergrößern, einen Text ändern und
    den Handschriftstil wechseln.
 6. Den Anhang „Original“ öffnen: Er erscheint neben der Seite, mit Zoom, und bleibt Byte für Byte gleich; die Seite bleibt
-   bearbeitbar. Im Vollbild öffnen: Es ist nur der Anhang zu sehen, weder die Seite noch das Original. Sichern ergibt die unveränderte Datei, Entfernen ist nicht möglich. Eine zweite Datei anhängen,
+   bearbeitbar. Im Vollbild öffnen: Es ist nur der Anhang zu sehen, weder die Seite noch das Original. Sichern ergibt die unveränderte Datei, Entfernen fragt zuerst nach; danach ist die Seite eine gewöhnliche Seite, Rückgängig stellt den Anhang her. Eine zweite Datei anhängen,
    speichern, neu öffnen, wieder entfernen. Die Seitenliste hat keinen zweiten Eintrag.
    6a. Ein Rechteck über eine schlecht gelesene Stelle ziehen und ein Nahfoto davon lesen lassen: Die erzeugten Elemente
    im Rechteck sind ersetzt, eigene Striche und der Anhang „Original“ sind unverändert; Rückgängig stellt den alten Stand her.

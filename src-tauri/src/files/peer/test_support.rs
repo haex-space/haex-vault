@@ -13,7 +13,7 @@ use haex_crdt::rusqlite::params;
 use iroh::RelayMode;
 
 use crate::contacts::card::own_card;
-use crate::contacts::service::{Caller as ContactsCaller, CardInto, ContactsService};
+use crate::contacts::service::ContactsService;
 use crate::files::local::{OwnPlaces, Place};
 use crate::files::peer::client::{PeerLink, PeerLinks};
 use crate::files::peer::handshake::DialError;
@@ -216,7 +216,7 @@ pub(crate) async fn store_card(of: &Device, on: &Device) {
         .expect("read the card")
         .expect("a main device has a card");
     ContactsService::new(on.db.clone())
-        .card_accept(&ContactsCaller::User, text, CardInto::New)
+        .accept_defaults(text, None)
         .await
         .expect("accept the card");
 }

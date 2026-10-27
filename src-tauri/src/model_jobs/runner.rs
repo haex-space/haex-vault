@@ -226,6 +226,7 @@ async fn answer(
         Miss::Unavailable(start_failure(&error))
     })?;
     let mut text = String::new();
+    let mut cut = false;
     while let Some(chunk) = stream.next().await {
         match chunk {
             Ok(StreamChunk::Delta { content, .. }) => {
@@ -237,12 +238,27 @@ async fn answer(
             // The request offered no tool; a model that calls one anyway gave no answer.
             Ok(StreamChunk::ToolCalls(_)) => return Err(Miss::Unusable("tool call".into())),
             Ok(StreamChunk::AgentActivity { .. }) => {}
-            Ok(StreamChunk::Done { .. }) => break,
+            Ok(StreamChunk::Done {
+                finish_reason,
+                completion_tokens,
+                ..
+            }) => {
+                trace::ended(
+                    &candidate.model,
+                    finish_reason.as_deref(),
+                    completion_tokens,
+                );
+                cut = trace::cut_off(finish_reason.as_deref());
+                break;
+            }
             Err(error) => {
                 trace::failed(&candidate.model, "stream", stream_failure(&error));
                 return Err(Miss::Unavailable(stream_failure(&error).into()));
             }
         }
+    }
+    if cut {
+        return Err(Miss::Unusable("cut off at the output limit".into()));
     }
     Ok(text)
 }

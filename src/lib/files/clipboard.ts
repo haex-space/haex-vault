@@ -52,6 +52,77 @@ export function clickEntry(
   }
 }
 
+/** A rectangle dragged with the mouse, in the scrolled content's pixels. */
+export type Band = { left: number; top: number; right: number; bottom: number }
+
+/** How the entries lie in the content: `columns` per row, every cell `cellWidth` x `cellHeight`
+ * (the list is one column as wide as it gets). */
+export type CellGrid = {
+  columns: number
+  cellWidth: number
+  cellHeight: number
+}
+
+/** The band between two points, whichever corner it was dragged from. */
+export function bandBetween(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Band {
+  return {
+    left: Math.min(from.x, to.x),
+    top: Math.min(from.y, to.y),
+    right: Math.max(from.x, to.x),
+    bottom: Math.max(from.y, to.y),
+  }
+}
+
+/**
+ * The indexes (in folder order) of the entries a band touches. A band over the empty area right of
+ * the last column, or below the last row, touches nothing there.
+ */
+export function indexesInBand(
+  band: Band,
+  grid: CellGrid,
+  count: number,
+): number[] {
+  if (count <= 0 || band.bottom < 0 || band.right < 0) return []
+  if (band.left >= grid.columns * grid.cellWidth) return []
+  const firstColumn = Math.max(0, Math.floor(band.left / grid.cellWidth))
+  const lastColumn = Math.min(
+    grid.columns - 1,
+    Math.floor(band.right / grid.cellWidth),
+  )
+  const firstRow = Math.max(0, Math.floor(band.top / grid.cellHeight))
+  const lastRow = Math.floor(band.bottom / grid.cellHeight)
+  const out: number[] = []
+  for (let row = firstRow; row <= lastRow; row++) {
+    for (let column = firstColumn; column <= lastColumn; column++) {
+      const index = row * grid.columns + column
+      if (index >= count) return out
+      out.push(index)
+    }
+  }
+  return out
+}
+
+/**
+ * The selection while a band is dragged: what it touches. With Ctrl, Cmd or Shift it adds to what
+ * was selected when the band started (`base`), else it replaces it.
+ */
+export function bandSelection(
+  base: Selection,
+  touched: readonly string[],
+  additive: boolean,
+): Selection {
+  const paths = additive
+    ? [...new Set([...base.paths, ...touched])]
+    : [...touched]
+  const anchor = additive
+    ? (base.anchor ?? paths[0] ?? null)
+    : (paths[0] ?? null)
+  return { paths, anchor }
+}
+
 /** The selection a context menu on `path` acts on: the selection when it holds the entry, else the
  * entry alone. */
 export function menuSelection(selection: Selection, path: string): Selection {

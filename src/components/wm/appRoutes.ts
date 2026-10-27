@@ -204,8 +204,8 @@ const CONTACTS_VIEWS: Partial<Record<string, Component>> = {
   edit: defineAsyncComponent(
     () => import('~/components/contacts/EntryEditor.vue'),
   ),
-  cardImport: defineAsyncComponent(
-    () => import('~/components/contacts/CardImport.vue'),
+  import: defineAsyncComponent(
+    () => import('~/components/contacts/ShareImport.vue'),
   ),
 }
 
