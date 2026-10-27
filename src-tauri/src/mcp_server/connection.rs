@@ -101,6 +101,7 @@ async fn run_session(
     let peer = running.peer().clone();
     // Declining ends the session; its own token, so the server's token stays for the others.
     let declined = CancellationToken::new();
+    let ended = core.token.child_token();
     let registration = ticket.map(|ticket| {
         tokio::spawn(register(
             Arc::clone(&core),
@@ -109,6 +110,7 @@ async fn run_session(
             controls.clone(),
             ticket,
             greeting.slug.clone(),
+            ended.clone(),
             declined.clone(),
         ))
     });
@@ -126,8 +128,14 @@ async fn run_session(
         let _ = controls.send(Control::Closing(reason));
     }
     watcher.abort();
+    ended.cancel();
     if let Some(registration) = registration {
-        registration.abort();
+        if tokio::time::timeout(FLUSH_DEADLINE, registration)
+            .await
+            .is_err()
+        {
+            log::warn!("mcp server: registration did not end in time");
+        }
     }
     drop(controls);
     let _ = tokio::time::timeout(FLUSH_DEADLINE, pump).await;
@@ -210,6 +218,7 @@ async fn register(
     controls: mpsc::UnboundedSender<Control>,
     ticket: GateTicket,
     slug: String,
+    ended: CancellationToken,
     declined: CancellationToken,
 ) {
     let _ticket = ticket;
@@ -244,7 +253,7 @@ async fn register(
     let mut request_id = String::new();
     let answer = core
         .prompts
-        .ask(&question, &core.token, |id| request_id = id.to_owned())
+        .ask(&question, &ended, |id| request_id = id.to_owned())
         .await;
     let reason = match &answer {
         Ok(_) => PromptClosedReason::Answered,

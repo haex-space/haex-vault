@@ -353,5 +353,8 @@ pub fn run_process(args: impl Iterator<Item = String>) -> i32 {
             return exit::IO;
         }
     };
-    runtime.block_on(run(args, env, tokio::io::stdin(), tokio::io::stdout()))
+    let code = runtime.block_on(run(args, env, tokio::io::stdin(), tokio::io::stdout()));
+    // stdin uses an uncancellable blocking read; do not wait for it while dropping the runtime.
+    runtime.shutdown_background();
+    code
 }

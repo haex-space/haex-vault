@@ -114,11 +114,12 @@ pub async fn mcp_configure<R: Runtime>(
     }
     let device = open_device(&app, &state).await?;
     let enabled = args.enabled;
+    let _configuration = server.configuration.lock().await;
     state
         .database()?
         .write(move |tx| settings::write_enabled(tx, device, enabled))
         .await?;
-    server.apply(&state, &chat, device, enabled).await;
+    server.apply_locked(&state, &chat, device, enabled).await;
     status(&app, &state, &server).await
 }
 

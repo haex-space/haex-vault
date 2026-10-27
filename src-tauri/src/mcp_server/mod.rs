@@ -69,6 +69,7 @@ struct Slot {
 pub struct McpServer {
     prompts: RegistrationPrompts,
     notify: Mutex<Option<Notifier>>,
+    configuration: tokio::sync::Mutex<()>,
     slot: tokio::sync::Mutex<Slot>,
 }
 
@@ -77,6 +78,7 @@ impl Default for McpServer {
         Self {
             prompts: new_registration_prompts(),
             notify: Mutex::new(None),
+            configuration: tokio::sync::Mutex::new(()),
             slot: tokio::sync::Mutex::new(Slot::default()),
         }
     }
@@ -123,6 +125,11 @@ impl McpServer {
 
     /// Stops a running server and starts it again when `enabled`.
     pub async fn apply(&self, state: &AppState, chat: &ChatState, device: Uuid, enabled: bool) {
+        let _configuration = self.configuration.lock().await;
+        self.apply_locked(state, chat, device, enabled).await;
+    }
+
+    async fn apply_locked(&self, state: &AppState, chat: &ChatState, device: Uuid, enabled: bool) {
         let mut slot = self.slot.lock().await;
         if let Some(running) = slot.running.take() {
             running.stop(CloseReason::Disabled).await;

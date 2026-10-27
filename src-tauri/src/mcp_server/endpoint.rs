@@ -167,7 +167,14 @@ mod windows {
     /// system and administrators.
     pub async fn bind(_dir: &Path, device: Uuid) -> io::Result<Listener> {
         let name = pipe_name(&endpoint_name(device));
-        let next = server(&name, true)?;
+        let next = server(&name, true).map_err(|error| {
+            // ERROR_ACCESS_DENIED: another process owns the first instance of this name.
+            if error.raw_os_error() == Some(5) {
+                io::Error::new(io::ErrorKind::AddrInUse, "another holzi serves this vault")
+            } else {
+                error
+            }
+        })?;
         Ok(Listener { name, next })
     }
 

@@ -23,10 +23,11 @@ fn columns(db: &Database, table: &str) -> Vec<String> {
     .expect("read")
 }
 
-fn device_foreign_key(db: &Database, table: &str) -> Vec<(String, String)> {
+fn foreign_keys(db: &Database, table: &str) -> Vec<(String, String)> {
     db.with_connection(|conn| {
-        let mut stmt =
-            conn.prepare("SELECT \"from\", \"table\" FROM pragma_foreign_key_list(?1)")?;
+        let mut stmt = conn.prepare(
+            "SELECT \"from\", \"table\" FROM pragma_foreign_key_list(?1) ORDER BY \"from\"",
+        )?;
         let rows = stmt.query_map(params![table], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -44,11 +45,15 @@ fn assert_schema(db: &Database) {
             0,
             "{table}: a UNIQUE constraint would halt the sync"
         );
-        assert_eq!(
-            device_foreign_key(db, table),
-            [("vault_device_uuid".to_owned(), "known_devices".to_owned())],
-            "{table}: a row belongs to one device (ADR-0001)"
-        );
+        let expected = if table == "haex_mcp_agent_grants" {
+            vec![
+                ("agent_id".to_owned(), "haex_mcp_agents".to_owned()),
+                ("vault_device_uuid".to_owned(), "known_devices".to_owned()),
+            ]
+        } else {
+            vec![("vault_device_uuid".to_owned(), "known_devices".to_owned())]
+        };
+        assert_eq!(foreign_keys(db, table), expected, "{table}: foreign keys");
     }
     assert!(table_exists(db, LOG_TABLE), "the log exists");
     assert!(

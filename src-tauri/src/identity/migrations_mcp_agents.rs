@@ -29,7 +29,7 @@ pub const MCP_AGENTS_0045: &str = r#"CREATE TABLE haex_mcp_agents (
 CREATE TABLE haex_mcp_agent_grants (
   id TEXT PRIMARY KEY NOT NULL,
   vault_device_uuid TEXT NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE,
-  agent_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL REFERENCES haex_mcp_agents(id) ON DELETE CASCADE,
   grant_group TEXT NOT NULL,
   grant_key TEXT NOT NULL DEFAULT '',
   level TEXT NOT NULL,

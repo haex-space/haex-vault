@@ -81,7 +81,7 @@ async function answerAsync(register: boolean) {
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
-      remember: !register && remember.value,
+      remember: register ? false : remember.value,
       rights: register ? rights() : { operate: {} },
       mode: mode.value,
     })
