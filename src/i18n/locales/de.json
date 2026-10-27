@@ -2627,7 +2627,8 @@
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
       "contacts": "Von Kontakten",
-      "myShares": "Meine Dateifreigaben"
+      "myShares": "Meine Dateifreigaben",
+      "syncRules": "Sync-Regeln"
     },
     "peer": {
       "unnamed": "Gerät ohne Namen",
@@ -2789,6 +2790,67 @@
           "deny": "Ablehnen",
           "thisDevice": "diesem Gerät"
         }
+      }
+    },
+    "syncRules": {
+      "title": "Sync-Regeln",
+      "empty": "Noch keine Sync-Regel auf diesem Gerät.",
+      "failed": "Die Sync-Regeln konnten nicht geladen oder geändert werden.",
+      "placeA": "Ort A",
+      "placeB": "Ort B",
+      "name": "Name",
+      "interval": "Abgleich entfernter Orte alle … Minuten",
+      "cloudHint": "Ort B ist ein Speicher ohne Verschlüsselung. Wähle einen verschlüsselten Ordner, wenn der Anbieter den Inhalt nicht sehen soll.",
+      "decryptConsent": "Die Dateien liegen an Ort B entschlüsselt. Ich stimme zu, dass die Regel sie dort im Klartext ablegt.",
+      "unknownSource": "Unbekannte Quelle",
+      "lastRun": "Zuletzt abgeglichen {at}",
+      "neverRun": "Noch nicht abgeglichen",
+      "runNow": "Jetzt abgleichen",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "delete": "Regel löschen",
+      "deleteTitle": "Sync-Regel löschen",
+      "deleteText": "„{name}“ wird gelöscht. Die Dateien an beiden Orten bleiben, wie sie sind.",
+      "deviations": "{count} Abweichungen am Zielort, die nicht überschrieben werden.",
+      "create": {
+        "open": "Neue Regel",
+        "title": "Neue Sync-Regel",
+        "save": "Regel anlegen"
+      },
+      "direction": {
+        "label": "Richtung",
+        "aToB": "A → B",
+        "bToA": "B → A",
+        "both": "Beidseitig"
+      },
+      "deleteMode": {
+        "label": "Löschen",
+        "keep": "Behalten",
+        "mirror": "Spiegeln (in den Papierkorb)",
+        "ask": "Nachfragen"
+      },
+      "state": {
+        "active": "aktiv",
+        "running": "läuft",
+        "waiting": "wartet",
+        "error": "Fehler",
+        "paused": "pausiert",
+        "inactive": "holzi nicht aktiv"
+      },
+      "picker": {
+        "root": "Ort wählen",
+        "up": "Eine Ebene höher",
+        "empty": "Keine Unterordner"
+      },
+      "error": {
+        "overlap": "Ein Ort überschneidet sich mit einer anderen Regel oder mit dem anderen Ort.",
+        "invalidPlace": "Dieser Ort kann keine Sync-Regel haben.",
+        "invalidInterval": "Das Intervall liegt zwischen 1 Minute und 1 Tag.",
+        "invalidName": "Der Name hat 1 bis 80 Zeichen.",
+        "notFound": "Diese Regel gibt es nicht mehr.",
+        "readOnly": "An diesen Ort kann holzi nicht schreiben.",
+        "unsupported": "Beidseitige Regeln kommen mit einer späteren Version.",
+        "unavailable": "Die Vault ist gerade nicht verfügbar."
       }
     }
   },

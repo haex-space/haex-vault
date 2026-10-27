@@ -2627,7 +2627,8 @@
       "addStorage": "Add cloud storage",
       "devices": "My devices",
       "contacts": "From contacts",
-      "myShares": "My file shares"
+      "myShares": "My file shares",
+      "syncRules": "Sync rules"
     },
     "peer": {
       "unnamed": "Unnamed device",
@@ -2789,6 +2790,67 @@
           "deny": "Decline",
           "thisDevice": "this device"
         }
+      }
+    },
+    "syncRules": {
+      "title": "Sync rules",
+      "empty": "No sync rule on this device yet.",
+      "failed": "The sync rules could not be loaded or changed.",
+      "placeA": "Place A",
+      "placeB": "Place B",
+      "name": "Name",
+      "interval": "Sync remote places every … minutes",
+      "cloudHint": "Place B is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
+      "decryptConsent": "The files are stored decrypted at place B. I agree that the rule stores them there as plain text.",
+      "unknownSource": "Unknown source",
+      "lastRun": "Last synced {at}",
+      "neverRun": "Not synced yet",
+      "runNow": "Sync now",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete rule",
+      "deleteTitle": "Delete sync rule",
+      "deleteText": "“{name}” will be deleted. The files at both places stay as they are.",
+      "deviations": "{count} differences at the target that are not overwritten.",
+      "create": {
+        "open": "New rule",
+        "title": "New sync rule",
+        "save": "Create rule"
+      },
+      "direction": {
+        "label": "Direction",
+        "aToB": "A → B",
+        "bToA": "B → A",
+        "both": "Both ways"
+      },
+      "deleteMode": {
+        "label": "Deletions",
+        "keep": "Keep",
+        "mirror": "Mirror (to the trash)",
+        "ask": "Ask"
+      },
+      "state": {
+        "active": "active",
+        "running": "running",
+        "waiting": "waiting",
+        "error": "error",
+        "paused": "paused",
+        "inactive": "holzi not active"
+      },
+      "picker": {
+        "root": "Choose a place",
+        "up": "One level up",
+        "empty": "No subfolders"
+      },
+      "error": {
+        "overlap": "A place overlaps with another rule or with the other place.",
+        "invalidPlace": "This place cannot have a sync rule.",
+        "invalidInterval": "The interval lies between 1 minute and 1 day.",
+        "invalidName": "The name has 1 to 80 characters.",
+        "notFound": "This rule no longer exists.",
+        "readOnly": "holzi cannot write to this place.",
+        "unsupported": "Two-way rules come with a later version.",
+        "unavailable": "The vault is not available right now."
       }
     }
   },
