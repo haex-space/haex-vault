@@ -16,6 +16,7 @@ import {
   parseDragPayload,
   pasteRefusal,
   pruneSelection,
+  sameSource,
   type Selection,
 } from '../src/lib/files/clipboard.ts'
 import { entriesMenu, folderMenu } from '../src/lib/files/menus.ts'
@@ -398,5 +399,27 @@ test('the two commands name F5 and F6 and follow the write rules', () => {
       id.includes('ToOther'),
     ),
     ['copyToOther-', 'moveToOther-'],
+  )
+})
+
+test('two source references are the same source when they name the same place', () => {
+  assert.equal(sameSource({ kind: 'device' }, { kind: 'device' }), true)
+  assert.equal(
+    sameSource(
+      { kind: 'storage', storageId: 'abc' },
+      { kind: 'storage', storageId: 'abc' },
+    ),
+    true,
+  )
+  assert.equal(
+    sameSource(
+      { kind: 'storage', storageId: 'abc' },
+      { kind: 'storage', storageId: 'abd' },
+    ),
+    false,
+  )
+  assert.equal(
+    sameSource({ kind: 'device' }, { kind: 'storage', storageId: 'abc' }),
+    false,
   )
 })

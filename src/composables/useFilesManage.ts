@@ -14,6 +14,7 @@ import {
   pasteRefusal,
   pruneSelection,
   type Selection,
+  sameSource,
 } from '~/lib/files/clipboard'
 import { asksBeforeDelete, canCreateEncrypted } from '~/lib/files/encrypted'
 import { isRemoteStorage } from '~/lib/files/registry'
@@ -48,6 +49,12 @@ export function useFilesManage(options: {
   /** Opens the share dialog for an entry of this device or of a storage of the vault (spec 056 US2,
    * T081). */
   share?: (entry: Entry) => void
+  /** The tab shows two panels: the menu offers copying and moving into the other one (spec 062). */
+  split?: Ref<boolean>
+  /** The other panel's folder, `null` without one; what it takes in (spec 062). */
+  otherTarget?: () => { readOnly: boolean } | null
+  /** Copies or moves entries into the other panel's folder (`useFilesOtherPanel`). */
+  toOther?: (op: FilesClipboard['op'], entries: Entry[]) => void
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
@@ -155,10 +162,16 @@ export function useFilesManage(options: {
         !!options.share &&
         !entries.some((entry) => entry.holziOwned) &&
         shareableSource(source.value, folderEncrypted.value),
+      split: options.split?.value ?? false,
+      readOnlyTarget: otherReadOnly.value,
     })
   }
 
   const menuEntries = computed(() => menuFor(menuTargets.value))
+  /** The other panel's folder takes no changes (the action bar disables its buttons). */
+  const otherReadOnly = computed(
+    () => options.otherTarget?.()?.readOnly ?? false,
+  )
 
   const dimmed = computed(() =>
     transfers.clipboard?.op === 'cut'
@@ -178,13 +191,14 @@ export function useFilesManage(options: {
     paths: string[],
     to: string | null,
     onDone?: () => void,
+    targetSource: SourceRef = source.value,
   ): Promise<boolean> {
     try {
       await transfers.startAsync(
         op,
         from,
         paths,
-        to === null ? null : { source: source.value, path: to },
+        to === null ? null : { source: targetSource, path: to },
         tabId,
         // A storage is not watched: its folder loads again once the transfer is through.
         () => {
@@ -200,18 +214,24 @@ export function useFilesManage(options: {
   }
 
   /**
-   * Copies or moves `clip` into the folder `target` (paste, or a drop inside holzi). Whether the
-   * transfer started.
+   * Copies or moves `clip` into the folder `target` of `targetSource` (paste, a drop inside holzi,
+   * or the other panel's folder, spec 062). Whether the transfer started; `onDone` runs when it is
+   * through.
    */
   async function placeAsync(
     clip: FilesClipboard,
     target: string,
     targetOwned: boolean,
+    targetSource: SourceRef = source.value,
+    onDone?: () => void,
   ): Promise<boolean> {
-    const refusal = pasteRefusal(clip.op, clip.folder, clip.items, {
-      path: target,
-      holziOwned: targetOwned,
-    })
+    const refusal = pasteRefusal(
+      clip.op,
+      clip.folder,
+      clip.items,
+      { path: target, holziOwned: targetOwned },
+      sameSource(clip.source, targetSource),
+    )
     if (refusal === 'nothing') return false
     if (refusal) {
       toast.error(t(`files.error.${refusal}`))
@@ -222,6 +242,8 @@ export function useFilesManage(options: {
       clip.source as SourceRef,
       clip.items.map((item) => item.path),
       target,
+      onDone,
+      targetSource,
     )
   }
 
@@ -323,6 +345,10 @@ export function useFilesManage(options: {
       case 'cut':
         remember(command, entries)
         break
+      case 'copyToOther':
+      case 'moveToOther':
+        options.toOther?.(command === 'copyToOther' ? 'copy' : 'cut', entries)
+        break
       case 'paste': {
         const clip = transfers.clipboard
         if (!clip || !path.value) break
@@ -404,9 +430,7 @@ export function useFilesManage(options: {
   ) {
     // Dropped onto itself.
     if (payload.items.some((item) => item.path === target)) return
-    const sameSource =
-      JSON.stringify(payload.source) === JSON.stringify(source.value)
-    const op = dropOp(sameSource, {
+    const op = dropOp(sameSource(payload.source, source.value), {
       ...keys,
       mac: /Mac/.test(navigator.userAgent),
     })
@@ -447,6 +471,8 @@ export function useFilesManage(options: {
     menuEntries,
     dimmed,
     errorText,
+    placeAsync,
+    otherReadOnly,
     onPress,
     onBand,
     onContext,

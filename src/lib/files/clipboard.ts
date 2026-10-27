@@ -158,6 +158,11 @@ export type FilesClipboard = {
   items: ClipboardItem[]
 }
 
+/** Whether two source references name the same source. */
+export function sameSource(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 /** Whether `inner` is `outer` or lies below it. */
 export function isWithin(inner: string, outer: string): boolean {
   if (inner === outer) return true

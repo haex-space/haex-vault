@@ -8,10 +8,16 @@ import { SORT_KEYS, type SortKey } from '~/lib/files/state'
 
 const props = defineProps<{
   sidebarVisible: boolean
+  /** The switch for two panels exists (not on a phone, spec 062 FR-021). */
+  splitAvailable: boolean
+  splitOn: boolean
+  /** The window is too narrow to turn two panels on (FR-022). */
+  splitDisabled: boolean
 }>()
 
 const emit = defineEmits<{
   toggleSidebar: []
+  toggleSplit: []
 }>()
 
 const { t } = useI18n()
@@ -71,6 +77,22 @@ function pickSort(key: SortKey) {
       <Icon name="lucide:arrow-right" class="size-4" />
     </UiButton>
     <slot />
+    <UiButton
+      v-if="splitAvailable"
+      variant="ghost"
+      size="icon"
+      class="shrink-0"
+      :aria-label="t('files.split.toggle')"
+      :tooltip="
+        splitDisabled ? t('files.split.tooNarrow') : t('files.split.toggle')
+      "
+      :aria-pressed="splitOn"
+      :disabled="splitDisabled"
+      data-testid="files-split-toggle"
+      @click="emit('toggleSplit')"
+    >
+      <Icon name="lucide:columns-2" class="size-4" />
+    </UiButton>
     <UiButton
       variant="ghost"
       size="icon"

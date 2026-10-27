@@ -1,5 +1,6 @@
 <script lang="ts">
 import { isPeerStorage } from '~/lib/files/registry'
+import { splitAvailable } from '~/lib/files/split'
 
 /** How many file browser frames are open, across all windows of the process. */
 let openFrames = 0
@@ -25,16 +26,46 @@ const { queryContactAsync } = useFilesContactQuery(sources)
 
 const root = useTemplateRef<HTMLElement>('root')
 const sidebar = useTemplateRef<HTMLElement>('sidebar')
+const area = useTemplateRef<HTMLElement>('area')
 const pathHost = useTemplateRef<HTMLElement>('pathHost')
 const viewerHost = useTemplateRef<HTMLElement>('viewerHost')
 
-const { place, go, tabId, tabActive, openStorageSettings, onKeydown } =
-  useFilesSplit({
-    sources: sources.state,
-    reloadSources: () => void sources.execute(),
-    pathHost,
-    viewerHost,
-  })
+// Two panels: not on a phone (FR-021; until the platform is known, and in a browser preview, yes), and
+// only while the panel area is wide enough (FR-022).
+const { capabilities } = useDeviceCapabilities()
+const available = computed(() => splitAvailable(capabilities.value?.platform))
+const fits = useSplitFit(area)
+
+const {
+  place,
+  go,
+  tabId,
+  tabActive,
+  openStorageSettings,
+  onKeydown,
+  toggle: toggleSplit,
+  on: splitOn,
+  shown: split,
+  activeSide,
+  hasOther,
+} = useFilesSplit({
+  sources: sources.state,
+  reloadSources: () => void sources.execute(),
+  pathHost,
+  viewerHost,
+  available,
+  fits,
+})
+
+/** The panels that are mounted: the active one, and the other once it has a place (it stays mounted
+ * and hidden while the split is off, so its folder and selection stay). */
+const panels = computed(() =>
+  (['left', 'right'] as const).filter(
+    (side) => side === activeSide.value || hasOther.value,
+  ),
+)
+const visiblePanel = (side: 'left' | 'right') =>
+  split.value || side === activeSide.value
 
 onMounted(() => {
   openFrames += 1
@@ -96,7 +127,11 @@ watch(tabActive, (active) => {
     <FilesToolbar
       class="h-13 shrink-0 px-2"
       :sidebar-visible="visible"
+      :split-available="available"
+      :split-on="splitOn"
+      :split-disabled="!fits && !splitOn"
       @toggle-sidebar="toggle"
+      @toggle-split="toggleSplit"
     >
       <!-- Where the panel puts its path bar. -->
       <div ref="pathHost" class="contents" />
@@ -119,8 +154,19 @@ watch(tabActive, (active) => {
           @query-contact="queryContactAsync"
         />
       </nav>
-      <div class="relative flex min-h-0 min-w-0 flex-1">
-        <FilesPanel side="left" />
+      <div
+        ref="area"
+        :class="[
+          'relative flex min-h-0 min-w-0 flex-1',
+          split && 'gap-1.5 p-1.5',
+        ]"
+      >
+        <FilesPanel
+          v-for="side in panels"
+          v-show="visiblePanel(side)"
+          :key="side"
+          :side="side"
+        />
         <!-- The viewer of a panel covers the whole panel area. -->
         <div ref="viewerHost" class="contents" />
       </div>

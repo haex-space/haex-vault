@@ -6,6 +6,7 @@
  * never writes the location itself. Managing files (US3) lives in `composables/useFilesManage.ts`.
  */
 import type { Entry } from '@bindings/Entry'
+import type { SourceRef } from '@bindings/SourceRef'
 import type { FolderKeys } from '~/composables/useFilesKeyboard'
 import { useFilesPanel } from '~/composables/useFilesSplit'
 import {
@@ -16,6 +17,7 @@ import {
   parseFilter,
 } from '~/lib/files/filters'
 import { shownNameKey } from '~/lib/files/encrypted'
+import { sameSource } from '~/lib/files/clipboard'
 import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
 import type { SplitSide } from '~/lib/files/split'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
@@ -24,11 +26,20 @@ const props = defineProps<{ side: SplitSide }>()
 
 const { t } = useI18n()
 const context = useFilesPanel(props.side)
+const regionLabel = computed(() =>
+  t(props.side === 'left' ? 'files.split.panelLeft' : 'files.split.panelRight'),
+)
 const prefs = useFilesPrefs()
 const { peerRootsAsync } = useFiles()
 
 const place = context.place
-const source = computed(() => place.value.source)
+// The same source stays the same object: a new place (a query changed, or the panel became the
+// active one) must not load the folder and start its watch again.
+const source = computed((previous?: SourceRef): SourceRef =>
+  previous && sameSource(previous, place.value.source)
+    ? previous
+    : place.value.source,
+)
 const path = computed(() => place.value.path)
 
 // The start (no path yet) opens the home folder, or the first drive where there is none.
@@ -172,6 +183,8 @@ const {
   openNoticing,
   openSystemAsync,
   confirmOpenAsync,
+  placeAsync,
+  otherReadOnly,
 } = useFilesManage({
   source,
   path,
@@ -181,6 +194,19 @@ const {
   activate,
   readOnlySource,
   share,
+  split: context.split,
+  otherTarget: () => context.other()?.target() ?? null,
+  toOther: (op, entries) => void toOtherAsync(op, entries),
+})
+
+// --- The other panel (spec 062) ---
+
+const toOtherAsync = useFilesOtherPanel({
+  source,
+  path,
+  other: context.other,
+  placeAsync,
+  clearSelection: () => clearSelection(),
 })
 
 function activate(entry: Entry) {
@@ -231,6 +257,8 @@ const { onKeydown } = useFilesKeyboard({
   },
   runKey,
   clearSelection,
+  split: context.split,
+  switchPanel: context.switchPanel,
   up: goUp,
   reload: () => void folder.reload(),
   toggleHidden: () => prefs.setShowHidden(!prefs.showHidden.value),
@@ -292,12 +320,43 @@ watch(context.tabActive, (active) => {
 <template>
   <div
     ref="root"
-    class="flex min-h-0 min-w-0 flex-1 flex-col"
+    :class="[
+      'flex min-h-0 min-w-0 flex-1 flex-col',
+      context.split.value && 'rounded-md ring-2 ring-inset',
+      context.split.value &&
+        (context.active.value ? 'ring-primary' : 'ring-transparent'),
+    ]"
+    :role="context.split.value ? 'region' : undefined"
+    :aria-label="context.split.value ? regionLabel : undefined"
     :data-files-panel="side"
     :data-active="context.active.value"
     @keydown="onKeydown"
+    @pointerdown.capture="context.activate()"
+    @focusin="context.activate()"
   >
-    <Teleport v-if="context.pathHost.value" defer :to="context.pathHost.value">
+    <!-- One panel: the path bar stands in the toolbar. Two: each has its own in its header, the
+         active one in the text colour. -->
+    <div
+      v-if="context.split.value"
+      :class="[
+        'flex h-11 shrink-0 items-center px-2',
+        !context.active.value && 'text-muted-foreground',
+      ]"
+    >
+      <FilesPathBar
+        :path="path"
+        :root-label="storageName"
+        :can-go-up="!!path && parentPath(path) !== null"
+        @go="go"
+        @up="goUp"
+        @reload="folder.reload()"
+      />
+    </div>
+    <Teleport
+      v-else-if="context.active.value && context.pathHost.value"
+      defer
+      :to="context.pathHost.value"
+    >
       <FilesPathBar
         :path="path"
         :root-label="storageName"
@@ -376,13 +435,15 @@ watch(context.tabActive, (active) => {
         :selected="selection.paths.length"
         :can-paste="canPaste"
         :read-only="readOnly"
+        :split="context.split.value"
+        :read-only-target="otherReadOnly"
         @run="runBar"
         @clear="clearSelection()"
       />
     </main>
     <!-- The viewer covers the panel area of the frame, not only this panel. -->
     <Teleport
-      v-if="openEntry && context.viewerHost.value"
+      v-if="openEntry && context.active.value && context.viewerHost.value"
       defer
       :to="context.viewerHost.value"
     >

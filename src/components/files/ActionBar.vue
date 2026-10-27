@@ -11,6 +11,10 @@ defineProps<{
   /** Something in the clipboard may go into the open folder. */
   canPaste: boolean
   readOnly: boolean
+  /** The tab shows two panels: buttons for copying and moving into the other one (spec 062). */
+  split?: boolean
+  /** The other panel's folder takes no changes. */
+  readOnlyTarget?: boolean
 }>()
 const emit = defineEmits<{ run: [command: FilesCommand]; clear: [] }>()
 
@@ -57,6 +61,30 @@ const { t } = useI18n()
       >
         <Icon name="lucide:scissors" class="size-4" />
       </UiButton>
+      <template v-if="split">
+        <UiButton
+          variant="ghost"
+          size="icon"
+          :disabled="readOnlyTarget"
+          :aria-label="t('files.actions.copyToOther')"
+          :tooltip="`${t('files.actions.copyToOther')} (F5)`"
+          data-testid="files-bar-copy-other"
+          @click="emit('run', 'copyToOther')"
+        >
+          <Icon name="lucide:files" class="size-4" />
+        </UiButton>
+        <UiButton
+          variant="ghost"
+          size="icon"
+          :disabled="readOnly || readOnlyTarget"
+          :aria-label="t('files.actions.moveToOther')"
+          :tooltip="`${t('files.actions.moveToOther')} (F6)`"
+          data-testid="files-bar-move-other"
+          @click="emit('run', 'moveToOther')"
+        >
+          <Icon name="lucide:folder-input" class="size-4" />
+        </UiButton>
+      </template>
       <UiButton
         variant="ghost"
         size="icon"

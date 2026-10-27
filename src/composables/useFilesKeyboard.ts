@@ -18,7 +18,14 @@ export type FolderKeys = {
 }
 
 /** The commands that act on entries: on the selection, or on the focused entry without one. */
-const ENTRY_COMMANDS = ['copy', 'cut', 'delete', 'rename'] as const
+const ENTRY_COMMANDS = [
+  'copy',
+  'cut',
+  'delete',
+  'rename',
+  'copyToOther',
+  'moveToOther',
+] as const
 
 const isEntryCommand = (
   command: FilesKeyCommand,
@@ -42,6 +49,9 @@ export function useFilesKeyboard(options: {
   /** Runs a command under the menu's rules (`useFilesManage().runKey`). */
   runKey: (command: FilesCommand, targets: Selection | null) => boolean
   clearSelection: () => void
+  /** The tab shows two panels: Tab, F5 and F6 change their meaning (spec 062). */
+  split: Ref<boolean>
+  switchPanel: () => void
   up: () => void
   reload: () => void
   toggleHidden: () => void
@@ -107,6 +117,9 @@ export function useFilesKeyboard(options: {
       case 'paste':
       case 'newFolder':
         return runKey(command, null)
+      case 'switchPanel':
+        options.switchPanel()
+        return true
       case 'up':
         options.up()
         return true
@@ -139,8 +152,7 @@ export function useFilesKeyboard(options: {
         target?.closest('[role="dialog"], [role="alertdialog"], [role="menu"]'),
       ),
       textSelected: (window.getSelection()?.toString() ?? '') !== '',
-      // The split view arrives with spec 062; until a panel passes it, there is one panel.
-      split: false,
+      split: options.split.value,
       grid: grid.value,
       typing: typing(),
     })

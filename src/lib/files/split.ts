@@ -5,7 +5,12 @@
 // it does not know, and writing leaves the plain keys alone.
 import type { SourceRef } from '../../types/bindings/SourceRef.ts'
 
-import type { TabLocation } from '../wm/navigation.ts'
+import {
+  createHistory,
+  replace,
+  type TabHistory,
+  type TabLocation,
+} from '../wm/navigation.ts'
 import {
   type FilesPlace,
   OPAQUE_ID,
@@ -165,4 +170,20 @@ export function swapActive(state: SplitState): SplitState {
     active: state.other,
     other: withoutOpen(state.active),
   }
+}
+
+/** The history a panel brings along when it becomes the active one: its lane with the current entry
+ * set to `location` (the place the frame knows, with the split keys of the swap), or a history of
+ * that one entry when the panel has none yet (research R2). */
+export function incomingHistory(
+  lane: TabHistory | null,
+  location: TabLocation,
+): TabHistory {
+  return lane ? replace(lane, location) : createHistory(location)
+}
+
+/** Whether this platform offers two panels at all: not on a phone (FR-021). Until the platform is
+ * known, and in a plain browser preview, it does. */
+export function splitAvailable(platform: string | undefined): boolean {
+  return platform !== 'android' && platform !== 'ios'
 }

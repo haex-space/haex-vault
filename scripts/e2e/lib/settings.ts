@@ -236,8 +236,10 @@ export const KEY = {
   home: '\uE011',
   end: '\uE010',
   delete: '\uE017',
+  tab: '\uE004',
   f2: '\uE032',
   f5: '\uE035',
+  f6: '\uE036',
   /** Held down for the rest of the text until `release` (WebDriver modifier keys). */
   control: '\uE009',
   shift: '\uE008',
