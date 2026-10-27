@@ -197,6 +197,7 @@ async function consumeDeepLink(): Promise<void> {
     <SyncCopyNotice />
     <FilesAgentPermissionDialog @ready="resolvePermissionDialogReady" />
     <FilesShareConfirmDialog />
+    <ContactsShareConfirmDialog />
     <WmDesktop class="min-h-0 flex-1" />
   </div>
 </template>

@@ -203,7 +203,7 @@ impl TurnRunner<'_> {
                 // fresh approval, including in Auto and Plan mode.
                 permission::Decision::Ask
             } else {
-                permission::decide(mode, tool.risk_class())
+                permission::decide_for_tool(mode, tool.risk_class(), tool.confirms_itself())
             };
             match decision {
                 permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),

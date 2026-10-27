@@ -58,6 +58,17 @@ pub enum Decision {
     Deny,
 }
 
+/// [`decide`] for a tool that may ask the user itself (spec 060 FR-029): its own dialog is the
+/// question, so Manual and Auto let it run and asking for an approval first would ask twice. "Plan"
+/// refuses it all the same.
+pub fn decide_for_tool(mode: PermissionMode, risk: RiskClass, confirms_itself: bool) -> Decision {
+    if confirms_itself && mode != PermissionMode::Plan {
+        Decision::Allow
+    } else {
+        decide(mode, risk)
+    }
+}
+
 /// The Manual/Auto/Plan × Safe/Change/Risky decision matrix (spec.md
 /// FR-003–FR-006; the `Change` stage is spec 032 FR-007, ADR-0006): Manual
 /// asks for everything, Auto lets reading and changing run and asks for

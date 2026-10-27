@@ -245,6 +245,23 @@ Visitenkarte.
 _Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
 sharing identities of haex-vault 2.x, which holzi does not have.
 
+**Ich-Kontakt / Weitergabe / Teilen-Dialog / Echtheitsnachweis der holzi-Adressen** (spec 060):
+The **Ich-Kontakt** is the one contact of the Adressbuch that is the person
+themselves: a fixed id, always there, never deleted, shown first as "Ich" whatever
+name its parts give, and never offered to the phone. A **Weitergabe** is the text
+`haex-vault://contact/…` of one contact: link, clipboard text and QR code are the
+same text, a photo never goes along, and the receiver reads it in with a preview
+and a choice per item that adds by default and never replaces a vault identity.
+The **Teilen-Dialog** is the same for every contact: one row per detail, all
+chosen when it opens, the choice never stored; an agent shares only through
+`contacts.share`, a destructive action that asks in this dialog on every call.
+The **Echtheitsnachweis der holzi-Adressen** is the signed card of a vault inside
+a Weitergabe (or an older `holzi:card:` text): it proves only that the addresses
+belong to that vault, not who the person is. The interface never shows the word
+"Karte".
+_Avoid_: "Visitenkarte" and "Karte" in what the user reads; "Export" or "vCard"
+for the Weitergabe.
+
 **Abgleich / Telefon-Adressbuch / Roh-Kontakt / Zuordnung** (spec 051 US2):
 The **Abgleich** keeps the Adressbuch and the **Telefon-Adressbuch** (Android's
 Contacts Provider) in step on a phone where the person switched it on, in both

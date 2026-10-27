@@ -137,12 +137,12 @@ test('every built-in-callable read action runs for a built-in agent naming its t
   }
 })
 
-/** The ids of the Rust executors of the file and share actions (`FILE_ACTION_IDS`,
- * `SHARE_ACTION_IDS`). */
+/** The ids of the Rust executors of the file, file share and contact share actions
+ * (`FILE_ACTION_IDS`, `SHARE_ACTION_IDS`). */
 function nativeExecutorIds(): string[] {
   const ids = (file: string, name: string) => {
     const source = readFileSync(
-      new URL(`../src-tauri/src/files/agent/${file}`, import.meta.url),
+      new URL(`../src-tauri/src/${file}`, import.meta.url),
       'utf8',
     )
     const list = new RegExp(`${name}: &\\[&str\\] = &\\[([^\\]]*)\\]`).exec(
@@ -152,8 +152,9 @@ function nativeExecutorIds(): string[] {
     return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? '')
   }
   return [
-    ...ids('exec.rs', 'FILE_ACTION_IDS'),
-    ...ids('shares.rs', 'SHARE_ACTION_IDS'),
+    ...ids('files/agent/exec.rs', 'FILE_ACTION_IDS'),
+    ...ids('files/agent/shares.rs', 'SHARE_ACTION_IDS'),
+    ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
   ]
 }
 
@@ -175,6 +176,29 @@ test('every native action has its Rust executor and every executor its action (A
     undefined,
     'a window action carries no runner',
   )
+})
+
+test('contacts.share is destructive, asks for itself and needs the permission to read contacts (spec 060 FR-029)', () => {
+  const share = ALL_ACTIONS.find((a) => a.id === 'contacts.share')
+  assert.ok(share)
+  assert.equal(share.effect, 'destructive')
+  assert.equal(share.scope, 'contacts.read')
+  assert.equal(share.runner, 'native')
+  assert.equal(share.confirmsItself, true)
+  assert.equal(toAgentActionDef(share, titleOf).confirmsItself, true)
+  // The action says that the user confirms every call, so a model does not ask for the link twice.
+  assert.match(share.description, /every call/)
+  // Only the actions with a dialog of their own skip the chat's approval.
+  assert.deepEqual(
+    ALL_ACTIONS.filter((a) => a.confirmsItself).map((a) => a.id),
+    ['contacts.share'],
+  )
+  for (const other of ALL_ACTIONS.filter((a) => a.id !== 'contacts.share'))
+    assert.equal(
+      toAgentActionDef(other, titleOf).confirmsItself,
+      undefined,
+      other.id,
+    )
 })
 
 test('wm.state.get tells the model which ids serve as action targets (FR-004)', () => {

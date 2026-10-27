@@ -45,6 +45,10 @@ export type ActionDefinition = {
   /** `native`: runs in Rust without a window (ADR 0011); the frontend registers no handler, the
    * runner of the window never calls it. Absent: a handler of the window runs it. */
   runner?: 'native'
+  /** The action asks the user itself, in a dialog of its own and every call (`contacts.share`, spec
+   * 060 FR-029): the chat's general approval is left out in Manual and Auto so the user is asked
+   * once. Plan mode still refuses it. */
+  confirmsItself?: boolean
   /** `global`: handler registered at startup; `tab`: registered by the mounted app instance
    * (research R19), and the runner opens `appId` first if needed. */
   binding: 'global' | 'tab'

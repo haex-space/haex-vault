@@ -20,6 +20,10 @@ impl NativeExecutor for Echo {
         &["files.list", "files.stat", "files.read", "files.copy"]
     }
 
+    fn confirming_action_ids(&self) -> &'static [&'static str] {
+        &["files.list"]
+    }
+
     async fn run(
         &self,
         action_id: &str,
@@ -127,4 +131,20 @@ async fn images_of_a_reply_reach_the_tool_result() {
     assert_eq!(result.content, r#"{"note":"an image"}"#);
     assert_eq!(result.images.len(), 1);
     assert_eq!(result.images[0].name, "a.jpg");
+}
+
+#[test]
+fn an_action_confirms_itself_only_when_definition_and_executor_agree() {
+    let mut definition = def("files.list", "destructive");
+    let tool = NativeActionTool::new(definition.clone(), Arc::new(Echo));
+    assert!(!tool.confirms_itself());
+    definition.confirms_itself = true;
+    let tool = NativeActionTool::new(definition, Arc::new(Echo));
+    assert!(tool.confirms_itself());
+    assert_eq!(tool.risk_class(), RiskClass::Risky);
+
+    let mut definition = def("files.stat", "destructive");
+    definition.confirms_itself = true;
+    let tool = NativeActionTool::new(definition, Arc::new(Echo));
+    assert!(!tool.confirms_itself());
 }

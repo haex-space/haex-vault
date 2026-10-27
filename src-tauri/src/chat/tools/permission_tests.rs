@@ -1,4 +1,4 @@
-use super::permission::{decide, Decision, PermissionMode};
+use super::permission::{decide, decide_for_tool, Decision, PermissionMode};
 use super::RiskClass;
 
 #[test]
@@ -58,4 +58,26 @@ fn permission_mode_parses_from_preference_string() {
 #[test]
 fn default_permission_mode_is_manual() {
     assert_eq!(PermissionMode::default(), PermissionMode::Manual);
+}
+
+/// Spec 060 FR-029: a tool with a dialog of its own is asked about once, there. Manual and Auto ask
+/// nothing more, Plan still refuses it, and an ordinary risky tool still asks.
+#[test]
+fn a_self_confirming_risky_tool_is_not_asked_twice_but_plan_still_refuses_it() {
+    for mode in [PermissionMode::Manual, PermissionMode::Auto] {
+        assert_eq!(
+            decide_for_tool(mode, RiskClass::Risky, true),
+            Decision::Allow,
+            "{mode:?}"
+        );
+        assert_eq!(
+            decide_for_tool(mode, RiskClass::Risky, false),
+            decide(mode, RiskClass::Risky),
+            "{mode:?}"
+        );
+    }
+    assert_eq!(
+        decide_for_tool(PermissionMode::Plan, RiskClass::Risky, true),
+        Decision::Deny
+    );
 }
