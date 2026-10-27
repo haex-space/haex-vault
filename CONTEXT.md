@@ -507,6 +507,41 @@ as in spec 057; no other address is used. A device without a grant for the askin
 the handshake.
 _Avoid_: Anklopfen, knock (dropped 2026-10-23), presence (presence is for own devices).
 
+### Sync-Regeln (spec 061)
+
+**Sync-Regel** (sync rule):
+Keeps two folders of the file browser equal, one-way (A→B) or both ways. It belongs to the device
+that created it, runs only there while holzi is active, and is not synced to other devices.
+_Avoid_: "Sync" alone (that is the vault's own sync between devices, spec 024), "Space".
+
+**Ort (einer Sync-Regel)** (rule place):
+A folder of a file browser source as a rule sees it: the source (`SourceRef`) and the window path,
+also into an encrypted folder or another own device. Fremde Dateifreigaben and holzi's own places
+are never one.
+_Avoid_: "Ort" without context where the wm **Ort** (tab location, spec 020) is meant.
+
+**Abgleich (einer Sync-Regel) / Stand / Plan** (rule run, state, plan):
+One run of a rule. It compares both places with the **Stand** (size and modification time of each
+file on each side after the last success) and builds a **Plan** of steps (copy, move, delete,
+conflict copy) before it changes anything. Times are only compared with the Stand of the same side.
+_Avoid_: mixing it up with the **Abgleich** of the address book (spec 051); say "Abgleich der Regel"
+where both could be meant.
+
+**Konfliktkopie / Löschmodus / Regel-Papierkorb** (conflict copy, delete mode, rule trash):
+A file changed on both sides keeps the newer version under its name; the older one lies beside it as
+`Name (Konflikt Gerätename Datum).Endung` on both sides. The **Löschmodus** (spiegeln, behalten,
+nachfragen) says what a deletion on one side does to the other; mirrored deletions go to the system
+trash or to the **Regel-Papierkorb** `.holzi-trash` in the place, never for good.
+
+**Ausnahmedatei** (exclusion file):
+`.haex-ignore` in the root of a place, with patterns as in `.gitignore`. A file is excluded when the
+patterns of either side match it; the rules UI edits the file, which is the only source of patterns.
+_Avoid_: ignore list, filter (as a stored rule setting).
+
+**Lauf-Protokoll / Protokolltiefe** (run log, log depth):
+The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (setting
+"Sync-Protokoll", default 10, 0 to 100) says how many runs per rule this device keeps.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and
