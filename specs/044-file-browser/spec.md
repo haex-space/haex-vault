@@ -424,6 +424,8 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   Window Managers belegen (Alt+← und Alt+→ bleiben Zurück und Vor). Was auf Einträge wirkt, verlangt
   den Fokus in der Liste; was das Menü sperrt (ein eigener Ort von holzi, Umbenennen mehrerer),
   sperrt auch die Tastatur. Nach dem Öffnen eines Ordners hat die Liste den Fokus.
+  _Geändert durch Spec 062: In der Split-Ansicht ist F5 „Kopieren ins andere Panel“ (F6 verschiebt, Tab
+  wechselt das Panel) und Neuladen nur noch Strg+R._
 - **FR-018**: Der Nutzer MUSS eine Auswahl kopieren und verschieben können, über Menü, eine
   Zwischenablage innerhalb von holzi und Ziehen innerhalb von holzi, auch zwischen Gerät und
   Speicher. Mit dem Start des Einfügens (Kopieren wie Verschieben) ist die Zwischenablage leer; ein

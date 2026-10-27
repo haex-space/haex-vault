@@ -20,6 +20,8 @@ import {
 import {
   currentLocation,
   createHistory,
+  MAX_HISTORY_ENTRIES,
+  push,
   type TabHistory,
 } from '../src/lib/wm/navigation.ts'
 import {
@@ -28,6 +30,7 @@ import {
   navigateTab,
   openAppAt,
   resolveSystemBack,
+  setTabHistory,
   skipTabEntry,
   syncHistories,
 } from '../src/lib/wm/tabNavigation.ts'
@@ -327,4 +330,73 @@ test('dropTab removes every handler of a closed tab', async () => {
   registry.registerTab('tab-1', 'chat.cancel', () => 'y')
   registry.dropTab('tab-1')
   assert.equal(await registry.awaitTab(['tab-1'], 'chat.cancel', 20), null)
+})
+
+// ---------------------------------------------------------------------------
+// setTabHistory (spec 062: the file browser swaps the history of its active panel)
+// ---------------------------------------------------------------------------
+
+function twoEntries(): TabHistory {
+  return push(createHistory('/device?p=%2Fa'), '/device?p=%2Fb', null)
+}
+
+test('setTabHistory replaces the history of a tab and nothing else', () => {
+  const { state, histories } = fresh()
+  const first = openAppAt(state, histories, ALPHA.id, null, APPS).tabId ?? ''
+  const second = openAppAt(state, histories, BETA.id, null, APPS).tabId ?? ''
+  const next = twoEntries()
+  assert.equal(setTabHistory(histories, first, next), true)
+  assert.equal(histories.get(first)?.entries.length, 2)
+  assert.equal(histories.get(first)?.index, 1)
+  assert.equal(pathOf(histories, first), '/device')
+  assert.equal(pathOf(histories, second), '/')
+})
+
+test('setTabHistory stores a copy: changing the argument afterwards changes nothing', () => {
+  const { state, histories } = fresh()
+  const tabId = openAppAt(state, histories, ALPHA.id, null, APPS).tabId ?? ''
+  const next = twoEntries()
+  setTabHistory(histories, tabId, next)
+  next.index = 0
+  next.entries[1]!.location.query.p = '/changed'
+  next.entries.pop()
+  const stored = histories.get(tabId)
+  assert.equal(stored?.index, 1)
+  assert.equal(stored?.entries.length, 2)
+  assert.equal(stored ? currentLocation(stored).query.p : null, '/b')
+})
+
+test('setTabHistory refuses a history that breaks the invariants and changes nothing', () => {
+  const { state, histories } = fresh()
+  const tabId =
+    openAppAt(state, histories, ALPHA.id, '/models', APPS).tabId ?? ''
+  const valid = twoEntries()
+  const tooMany: TabHistory = {
+    entries: Array.from({ length: MAX_HISTORY_ENTRIES + 1 }, () => ({
+      location: { path: '/x', query: {} },
+      title: null,
+    })),
+    index: 0,
+  }
+  const refused: TabHistory[] = [
+    { entries: [], index: 0 },
+    tooMany,
+    { ...valid, index: -1 },
+    { ...valid, index: valid.entries.length },
+    { ...valid, index: 0.5 },
+  ]
+  for (const history of refused) {
+    assert.equal(setTabHistory(histories, tabId, history), false)
+    assert.equal(pathOf(histories, tabId), '/models')
+    assert.equal(histories.get(tabId)?.entries.length, 1)
+  }
+  const full: TabHistory = { ...tooMany, entries: tooMany.entries.slice(1) }
+  assert.equal(setTabHistory(histories, tabId, full), true)
+  assert.equal(histories.get(tabId)?.entries.length, MAX_HISTORY_ENTRIES)
+})
+
+test('setTabHistory on an unknown tab returns false and adds no history', () => {
+  const histories: Histories = new Map()
+  assert.equal(setTabHistory(histories, 'gone', twoEntries()), false)
+  assert.equal(histories.size, 0)
 })

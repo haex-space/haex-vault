@@ -49,11 +49,11 @@ Der Tab-Router (`useTabRouter`) und der Store bekommen je eine Funktion (Spec 02
 setHistory(tabId: string, history: TabHistory): boolean   // ersetzt den Verlauf; speichert die Sitzung
 
 // useTabRouter()
-swapHistory(next: TabHistory): TabHistory                  // setzt `next`, gibt den bisherigen Verlauf zurück
+swapHistory(next: TabHistory): TabHistory | null           // setzt `next`, gibt den bisherigen Verlauf zurück; `null`, wenn abgelehnt
 ```
 
 Regeln: `history` MUSS die Invarianten von `TabHistory` erfüllen (1 ≤ Einträge ≤ 50, Index in
 Grenzen), sonst gibt `setHistory` `false` zurück und ändert nichts; sie setzt den „letzten
 Laufweg“ (`lastDirection`) und den Titel-Überschreiber des Tabs zurück; sie ändert keine andere
 Tab-Verwaltung (Fenster, Arbeitsbereiche). Außerhalb eines Tabs (Test-Harness, `INERT_ROUTER`)
-tut `swapHistory` nichts und gibt einen leeren Standard-Verlauf zurück.
+tut `swapHistory` nichts und gibt `null` zurück; `null` heißt immer „nichts getauscht“.
