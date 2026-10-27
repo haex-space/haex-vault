@@ -157,6 +157,8 @@ pub async fn create_instance(
     crate::file_sync::service::start_for_active_instance(&app, &state);
     // Spec 049: the External Bridge, when this device turned it on.
     crate::browser_bridge::start_for_active_instance(&app, &state);
+    // Spec 021: the MCP access for external agents, when this device turned it on.
+    crate::mcp_server::start_for_active_instance(&app, &state);
 
     *chat.session.lock().unwrap_or_else(|e| e.into_inner()) = None;
     voice.invalidate_whisper_cache().await;

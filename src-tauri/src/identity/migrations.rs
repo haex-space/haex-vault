@@ -47,6 +47,7 @@ use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
 use super::migrations_file_shares::FILE_SHARES_0039;
 use super::migrations_icon_sets::FILE_ICON_SETS_0036;
+use super::migrations_mcp_agents::MCP_AGENTS_0045;
 use super::migrations_model_access::MODEL_ACCESS_0037;
 use super::migrations_passwords::PASSWORDS_0022;
 use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
@@ -54,7 +55,7 @@ use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
 use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
-use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0045;
+use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -112,7 +113,9 @@ use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0045;
 ///   `haex_file_share_grants` and `haex_file_shares_received`.
 /// - 28: `0043_contacts_cards_hash` (spec 060) rebuilt the CRDT-tracked `haex_contacts_cards`
 ///   with the hash of the signed card as its primary key.
-pub const HOLZI_TRIGGER_VERSION: i32 = 28;
+/// - 29: `0045_mcp_agents` (spec 021) added the CRDT-tracked `haex_mcp_agents` and
+///   `haex_mcp_agent_grants`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 29;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -716,9 +719,15 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
         MigrationName::from("0044_sync_rules"),
         SYNC_RULES_0044.to_owned(),
     );
+    // Spec 021: external agents registered on this device, their rights and their call log.
     m.insert(
-        MigrationName::from("0045_sync_rules_decrypt"),
-        SYNC_RULES_DECRYPT_0045.to_owned(),
+        MigrationName::from("0045_mcp_agents"),
+        MCP_AGENTS_0045.to_owned(),
+    );
+    // Spec 061: consent for storing files of encrypted places decrypted at the other place.
+    m.insert(
+        MigrationName::from("0046_sync_rules_decrypt"),
+        SYNC_RULES_DECRYPT_0046.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

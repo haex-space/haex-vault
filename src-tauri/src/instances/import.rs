@@ -214,6 +214,8 @@ pub async fn import_instance(
     crate::file_sync::service::start_for_active_instance(&app, &state);
     // Spec 049: the External Bridge, when this device turned it on.
     crate::browser_bridge::start_for_active_instance(&app, &state);
+    // Spec 021: the MCP access for external agents, when this device turned it on.
+    crate::mcp_server::start_for_active_instance(&app, &state);
     // Spec 055 FR-037: the models of every provider are read again.
     crate::providers::refresh_all::start_after_open(&state);
     crate::passwords::maintenance::start_after_open(&state);
@@ -222,6 +224,8 @@ pub async fn import_instance(
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
     crate::contacts::phone::trigger::watch(&app);
+    // Spec 060 (research R9): links other holzi processes got for this vault.
+    crate::deep_link::start_for_active_instance(&app);
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();

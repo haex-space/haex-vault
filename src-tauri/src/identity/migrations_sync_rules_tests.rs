@@ -167,14 +167,14 @@ async fn deleting_the_device_takes_its_rules_along() {
 }
 
 #[tokio::test]
-async fn migration_0045_adds_the_decrypt_switch_off_for_existing_rules() {
+async fn migration_0046_adds_the_decrypt_switch_off_for_existing_rules() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let old = open(
             dir.path(),
             "sync-rules-decrypt",
             true,
-            migration_source_before("0045_sync_rules_decrypt"),
+            migration_source_before("0046_sync_rules_decrypt"),
         );
         let device = device_of(&old, dir.path()).to_string();
         fill(&old, &device);

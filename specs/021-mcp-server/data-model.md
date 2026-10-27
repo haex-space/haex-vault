@@ -45,19 +45,21 @@ Vorläufige Ablehnungen (ohne „merken“) liegen nur im Speicher bis zum Schli
 
 | Spalte              | Typ     | Regel                                                                                     |
 | ------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `id`                | TEXT PK | Abgeleitet aus `agent_id`, `group`, `key`                                                 |
+| `id`                | TEXT PK | Abgeleitet aus `agent_id`, `grant_group`, `grant_key`                                     |
 | `vault_device_uuid` | TEXT FK | wie Agent                                                                                 |
 | `agent_id`          | TEXT    | → `haex_mcp_agents.id` (Löschen des Agenten löscht seine Rechte im Dienst)                |
-| `group`             | TEXT    | `operate`, `extension`, `passwords`, `commands`                                           |
-| `key`               | TEXT    | `operate`: Bereichs-Id (`wm.read`, …); `extension`: Erweiterungs-Id; sonst leer           |
+| `grant_group`       | TEXT    | `operate`, `extension`, `passwords`, `commands`                                           |
+| `grant_key`         | TEXT    | `operate`: Bereichs-Id (`wm.read`, …); `extension`: Erweiterungs-Id; sonst leer           |
 | `level`             | TEXT    | `operate`: `read`/`write`; `extension`/`commands`: `on`; `passwords`: `read`/`read_write` |
 | `scope_tags`        | TEXT    | Nur `passwords`: JSON-Liste der Tags, `NULL` = alle Einträge                              |
+
+Die Spalten heißen `grant_group` und `grant_key`, weil `group` und `key` SQL-Schlüsselwörter sind.
 
 Regeln:
 
 - `guardrails` ist als `key` nie zulässig; der Dienst weist es beim Schreiben ab.
 - Ein fehlender Eintrag heißt „keine“/„aus“.
-- Neue Gruppen späterer Specs (Browser) bekommen einen neuen `group`-Wert; fehlende Zeilen = aus
+- Neue Gruppen späterer Specs (Browser) bekommen einen neuen `grant_group`-Wert; fehlende Zeilen = aus
   (FR-008).
 - Ab Werk beim Registrieren: `operate`/`read` für alle Bereiche der Gruppe „holzi bedienen“
   (research R3), sonst nichts (FR-009).

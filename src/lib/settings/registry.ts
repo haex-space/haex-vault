@@ -225,6 +225,12 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'agents',
     overviewRow: true,
   }),
+  // Spec 021: external agents (Claude Code, Codex, other MCP clients) and how to connect them.
+  subView('ai.agents', 'ai/agents', 'ai', {
+    icon: 'lucide:bot',
+    group: 'agents',
+    overviewRow: true,
+  }),
   // Spec 038: storage connections (S3) and the storages on them. The forms and the removal are
   // reached from the list, never searched for.
   categoryLocation('storage'),

@@ -45,6 +45,7 @@ fn android_has_none_of_the_desktop_facilities() {
             model_presets: ModelPresets::Phone,
             phone_contacts: true,
             browser_bridge: false,
+            mcp_helper: false,
         }
     );
 }

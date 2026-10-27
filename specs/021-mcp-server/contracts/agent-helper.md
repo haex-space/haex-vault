@@ -5,7 +5,7 @@
 ## Aufruf
 
 ```text
-<holzi> --mcp-agent <slug> [--vault <vault-id>] [--delegate-token <nachweis>]
+<holzi> --mcp-agent <slug> [--vault <vault-device-uuid>] [--delegate-token <nachweis>]
 ```
 
 - `<holzi>`: Pfad der ausführbaren Datei, den die Anleitung in holzi einsetzt (`current_exe`;
@@ -21,9 +21,12 @@ Das Hilfsprogramm startet keine Tauri-Laufzeit, kein Fenster und keine Vault.
 
 ## Ablauf
 
-1. Endpunkt suchen (Unix-Socket `mcp-<vault-id>.sock` im Laufzeitverzeichnis, Windows
-   `\\.\pipe\holzi-mcp-<vault-id>`). Keiner da → auf das erste `initialize` von stdin mit einem
-   JSON-RPC-Fehler `-32000` „holzi ist nicht offen“ antworten, Exit-Code 2 (FR-002).
+1. Endpunkt suchen. Sein Name ist `mcp-` und die ersten zwölf Hex-Ziffern der
+   `vault_device_uuid` (Pfadgrenze von macOS): Unix-Socket `mcp-<12 hex>.sock` im Laufzeitverzeichnis
+   des Benutzers (Verzeichnis `holzi-mcp`, Rechte `0700`), Windows `\\.\pipe\holzi-mcp-<12 hex>`.
+   Keiner da → auf das erste `initialize` von stdin mit einem JSON-RPC-Fehler `-32000` und der
+   englischen Meldung `holzi is not open` antworten (Rust hält keine lokalisierten Texte),
+   Exit-Code 2 (FR-002).
 2. Begrüßung senden (eine Zeile JSON):
 
    ```json
@@ -52,12 +55,12 @@ Das Hilfsprogramm startet keine Tauri-Laufzeit, kein Fenster und keine Vault.
      schreibt ihn in die Nachweis-Datei (Rechte `0600`). Direkt danach folgt
      `notifications/tools/list_changed`.
    - `{"holzi_control": {"closing": "<grund>"}}`: vor dem Schließen durch die App
-     (`revoked`, `expired`, `vault_closed`, `disabled`); bei `revoked` löscht das Hilfsprogramm
+     (`denied`, `revoked`, `expired`, `vault_closed`, `disabled`); bei `revoked` löscht das Hilfsprogramm
      die Nachweis-Datei.
 
 ## Nachweis-Datei
 
-`<Konfigurationsverzeichnis von holzi>/mcp-agents/<vault-id>/<slug>.token`; eine Zeile, Base64url.
+`<Konfigurationsverzeichnis von holzi>/mcp-agents/mcp-<12 hex>/<slug>.token`; eine Zeile, Base64url.
 Fehlt sie oder ist der Nachweis ungültig, gilt der Agent als unbekannt (neuer Dialog, bei `expired`
 mit vorausgefüllten Rechten).
 

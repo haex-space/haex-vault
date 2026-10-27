@@ -111,7 +111,7 @@ rules list in the file browser can create, run and delete a rule.
 
 ### Added during PR B (2026-10-27)
 
-- [x] T074 [US1] Decrypt consent (FR-030a): migration `0045_sync_rules_decrypt` (`allow_decrypted`), `SyncRuleDraft.allowDecrypted`, `OneTransfer.decrypts` (the plan's `leaving` is confirmed only with it; moves within a place never decrypt), the consent checkbox in `SyncRuleDialog.vue` when A is encrypted and B is not.
+- [x] T074 [US1] Decrypt consent (FR-030a): migration `0046_sync_rules_decrypt` (`allow_decrypted`), `SyncRuleDraft.allowDecrypted`, `OneTransfer.decrypts` (the plan's `leaving` is confirmed only with it; moves within a place never decrypt), the consent checkbox in `SyncRuleDialog.vue` when A is encrypted and B is not.
 
 ---
 
