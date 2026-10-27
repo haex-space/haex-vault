@@ -2,6 +2,7 @@
 //! on the device that created them. A run lists both places, compares them with the state of the
 //! last success and builds a plan before it changes anything (research R3).
 
+pub mod conflict;
 pub mod ignore;
 pub mod model;
 pub mod place;
