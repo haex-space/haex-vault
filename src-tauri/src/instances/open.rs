@@ -165,6 +165,8 @@ pub async fn open_instance(
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
     crate::contacts::phone::trigger::watch(&app);
+    // Spec 060 (research R9): links other holzi processes got for this vault.
+    crate::deep_link::start_for_active_instance(&app);
     // Spec 017: files of removed extensions are freed after their grace period.
     crate::extensions::registry::blobs::start_after_open(&state);
 

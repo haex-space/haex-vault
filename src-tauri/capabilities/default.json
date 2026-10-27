@@ -8,6 +8,7 @@
     "core:window:allow-unminimize",
     "core:window:allow-show",
     "core:window:allow-set-focus",
+    "deep-link:default",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-text-file",
