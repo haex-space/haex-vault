@@ -32,9 +32,9 @@ Technischer Ansatz ([research.md](./research.md)):
 (Anbieter), `tokio`, `tokio-util`, `model_jobs` (055), `cli_delegate` (007/009). **Keine neue Crate,
 keine neue Frontend-Abhängigkeit.**
 
-**Storage**: eine Migration (nächste freie Nummer): `chat_tasks`, `chat_task_questions`; ggf.
-`chat_threads.origin`, falls 066 noch nicht gemergt ist; Spalten für Token-Summen an `chat_messages`
-(`turn_tokens_in`, `turn_tokens_out`); `HOLZI_TRIGGER_VERSION` +1. Geräteeinstellungen
+**Storage**: PR B ergänzt `turn_tokens_in` und `turn_tokens_out` an `chat_messages` mit eigener
+Migration. PR C ergänzt `chat_tasks` und `chat_task_questions` sowie ggf. `chat_threads.origin`, falls
+066 noch nicht gemergt ist; jede Migration erhöht `HOLZI_TRIGGER_VERSION`. Geräteeinstellungen
 `orchestration.*` ([data-model.md](./data-model.md)).
 
 **Testing**:
@@ -45,8 +45,8 @@ targets,stages}` je mit `*_tests.rs`.
   Abbruch und Freigaben pro Antwort), `tests/orchestrator_tasks.rs` (Skript-Orchestrator und
   Skript-Ausführer: Übergabe, Rückfrage aus Auftrag, Freigabe über Nutzer, Bericht, drei parallele
   Aufgaben, Abbruch einer, Vault-Schließen, Geheimnis im Auftrag abgelehnt).
-- **Messung (Release, `--ignored`)**: `tests/orchestrator_routing_eval.rs` (40 Aufgaben, SC-002,
-  SC-003) auf Basis des Tool-Eval aus 032.
+- **Messung (Release, `--ignored`)**: `tests/orchestrator_routing_eval.rs` (40 aufgabenbezogene
+  Fälle für SC-003 und 20 einfache Fragen für SC-002) auf den Tool-Eval-Fixtures aus 032.
 - **Prüfskripte**: `scripts/check-orchestration-settings.ts` (Einstellungen in `guardrails`, nur
   Modelle mit Werkzeugen), `scripts/check-chat-state.ts` erweitert um mehrere Ströme.
 - **End-to-End**: Szenario `orchestrator` mit zwei Skript-Modellen über einen lokalen

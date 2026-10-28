@@ -87,9 +87,11 @@ und dem Auftrag als Nutzernachricht in einer **eigenen, verborgenen Unterhaltung
 Ereignisse an die Aufgabe weiter:
 
 - `tool-permission-request` → Rückfrage Art „Freigabe“: Der Orchestrator formuliert sie (Aufgabe
-  benannt, Wirkung, Ziel) und stellt sie in der Gesprächs-Unterhaltung; die Antwort geht über
-  `respond_tool_permission` (gleiche Request-Id). Entschieden wird wie bisher von
-  `permission::decide` und dem Nutzer; der Orchestrator hat dafür kein Werkzeug (FR-014).
+  benannt, Wirkung, Ziel) und stellt sie in der Gesprächs-Unterhaltung; daneben stehen
+  Werkzeugname und Eingabe des ursprünglichen Aufrufs unverändert, damit der Nutzer das tatsächlich
+  angefragte Werkzeug prüfen kann. Die Antwort geht über `respond_tool_permission` (gleiche
+  Request-Id). Entschieden wird wie bisher von `permission::decide` und dem Nutzer; der Orchestrator
+  hat dafür kein Werkzeug (FR-014).
 - `chat-choice-request` (`ask_user` des Ausführers) → Rückfrage Art „Auskunft“: Der Orchestrator
   bekommt sie als Ereignis in seiner nächsten Antwort und beantwortet sie mit `task_answer`, wenn der
   Auftrag die Antwort enthält, sonst mit `ask_user` an den Nutzer (FR-015).
@@ -119,16 +121,20 @@ nur, wenn ein Anbieter sie meldet (heute keiner); eine eigene Preistabelle ist n
 
 ## R7 — Stufenwahl messen
 
-**Entscheidung**: 40 Aufgaben mit menschlicher Zuordnung (davon 10 Programmierung, 10 einfache
-Fragen ohne Aufgabe) als Fixture des Tool-Eval aus 032; gemessen mit lokalem Orchestrator (Qwen3-4B)
-und Haiku (SC-002, SC-003). Ergebnis in dieser Datei.
+**Entscheidung**: Ein Fixture mit 40 Aufgaben, für die ein Mensch die passende Stufe festlegt (10
+Programmierung, 30 weitere bzw. gemischte Aufgaben), und getrennt davon 20 einfache Fragen, die
+keine Aufgabe erzeugen dürfen. Beide Fixtures gehören zum Tool-Eval aus 032. Gemessen werden
+Routinggenauigkeit mit lokalem Orchestrator (Qwen3-4B) und Haiku (SC-003) sowie Antwortzeit und
+Aufgabenfreiheit der einfachen Fragen (SC-002). Ergebnis in dieser Datei.
 
 ## R8 — Gleiches Ziel
 
-**Entscheidung**: `task_dispatch` trägt `targets` (Dateipfade, Ids aus Werkzeug-Ergebnissen, Namen),
-vom Orchestrator gefüllt. Überschneidet sich eine neue Aufgabe mit einer laufenden, liefert
-`task_dispatch` statt des Starts „Konflikt mit Aufgabe X“; der Orchestrator fragt den Nutzer (FR-021).
-Eine Heuristik, kein Beweis; vermerkt als `ponytail:`-Kommentar.
+**Entscheidung**: `task_dispatch` trägt `targets` (Dateipfade, IDs aus Werkzeug-Ergebnissen, Namen),
+vom Orchestrator gefüllt. Überschneidet sich eine neue Aufgabe mit einer laufenden, startet nichts;
+das Werkzeug liefert die kollidierende Aufgabe und Ziele zurück. Der Orchestrator zeigt den
+ursprünglichen Auftrag und fragt, ob die neue Aufgabe warten oder die laufende beendet werden soll.
+Warten reiht die neue Aufgabe bis zur Freigabe der Ziele ein; Beenden bricht die alte Aufgabe ab,
+bevor die neue startet (FR-021). Eine Heuristik, kein Beweis.
 
 ## R9 — Router: RouteLLM und Jev geprüft, nicht übernommen
 

@@ -7,7 +7,8 @@
 - Lokales Modell mit Werkzeugen (Qwen3-4B), Anthropic-Schlüssel (Haiku, Sonnet), Claude Code als
   Delegate, ein Projektordner mit Git-Repo.
 - Einstellungen KI → Orchestrierung: an; Orchestrator lokal; Stufen lokal = Qwen3-4B, klein = Haiku,
-  groß = Sonnet, Delegate = Claude Code. Freigabestufe „Manuell“.
+  groß = Sonnet, Delegate = Claude Code. Freigabestufe „Manuell“. Vor M8 zusätzlich Opus als
+  verfügbares Modell einrichten und die Stufe „groß“ auf Opus stellen.
 
 ## Automatisch
 
@@ -15,7 +16,9 @@
 nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 \
   --manifest-path src-tauri/Cargo.toml chat::
 nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 \
-  --manifest-path src-tauri/Cargo.toml --test chat_parallel_turns --test orchestrator_tasks
+  --manifest-path src-tauri/Cargo.toml --test chat_parallel_turns
+nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 \
+  --manifest-path src-tauri/Cargo.toml --test orchestrator_tasks
 nix develop --command node --test scripts/check-orchestration-*.ts
 ```
 
@@ -32,7 +35,7 @@ HOLZI_TEST_GGUF=<qwen3-4b.gguf> nix develop --command scripts/with-nix-host-brid
 | #   | Schritt                                                                         | Erwartet                                                                           | Spec        |
 | --- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------- |
 | M1  | „Wie spät ist es?“                                                              | Antwort ohne Aufgabe                                                               | US3         |
-| M2  | „Fasse die drei neuesten Mails von Jonas zusammen“                              | Quittung < 2 s; Karte „klein“ mit Begründung; Bericht in eigenen Worten            | US1         |
+| M2  | „Fasse die drei neuesten Mails von Jonas zusammen“                              | Quittung ≤ 2 s; Karte „klein“ mit Begründung; Bericht in eigenen Worten            | US1         |
 | M3  | „Bau im Projekt X einen CSV-Export ein“                                         | Frage nach Projektordner; Delegate im Ordner; Freigaben über den Orchestrator      | US1, FR-026 |
 | M4  | „Schick die Präsentation an das Team“                                           | Rückfrage vor der Übergabe; Freigabe vor dem Senden, benannt mit der Aufgabe       | US2         |
 | M5  | Drei Aufgaben nacheinander; „Wie weit ist der Bericht?“; „Brich den Bericht ab“ | Alle laufen; Status ohne Unterbrechung; nur der Bericht endet                      | US4         |

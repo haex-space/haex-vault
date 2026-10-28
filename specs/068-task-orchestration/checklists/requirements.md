@@ -31,6 +31,6 @@
 
 ## Notes
 
-- No open markers. The operator's "jev" (named as a possible router next to RouteLLM) is unknown and
-  recorded under Assumptions; it is checked before planning.
+- No open markers. Jev and RouteLLM were evaluated and not adopted; the reasons and possible future
+  evaluation boundary are recorded in research.md R9.
 - Model names (Haiku, Sonnet, Opus, Qwen3) appear only as examples of a stage, not as requirements.

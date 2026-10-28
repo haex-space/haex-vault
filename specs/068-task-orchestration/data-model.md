@@ -25,7 +25,11 @@ wählbar (012). Fehlt eine Belegung, ist die Stufe „nicht verfügbar“ (FR-01
   über `chat_tasks.executor_thread_id` erreichbar. (Spalte `origin` kommt aus 066; liegt 068 vorher
   auf `main`, bringt 068 sie mit.)
 
-## Neue CRDT-Tabellen (eine Migration, nächste freie Nummer, `HOLZI_TRIGGER_VERSION` +1)
+PR B ergänzt `turn_tokens_in` und `turn_tokens_out` in einer eigenen Migration an `chat_messages`,
+damit die Tokenzählung vor den Aufgaben der Orchestrierung funktioniert. PR C ergänzt die folgenden
+CRDT-Tabellen in einer eigenen Migration; jede Migration erhöht `HOLZI_TRIGGER_VERSION`.
+
+## Neue CRDT-Tabellen (PR C)
 
 ```sql
 CREATE TABLE chat_tasks (

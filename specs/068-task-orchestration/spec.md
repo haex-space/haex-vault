@@ -135,7 +135,8 @@ zurück, und die Aktion läuft genau dann, wenn die feste Freigabe-Regel und der
 1. **Given** eine Anweisung mit fehlenden oder mehrdeutigen Angaben, **When** der Orchestrator sie
    nicht eindeutig zuordnen kann, **Then** fragt er nach, bevor er übergibt.
 2. **Given** ein Ausführer braucht eine Freigabe, **When** sie ansteht, **Then** stellt der
-   Orchestrator sie dem Nutzer mit Wirkung und Ziel und gibt die Antwort zurück.
+   Orchestrator sie dem Nutzer mit seiner Erklärung sowie Werkzeugname und Eingabe des
+   ursprünglichen Aufrufs und gibt die Antwort zurück.
 3. **Given** eine Freigabe, **When** sie entschieden wird, **Then** entscheidet allein die feste
    Freigabe-Regel zusammen mit der Antwort des Nutzers; der Orchestrator kann nie selbst freigeben.
 4. **Given** ein Ausführer braucht eine inhaltliche Auskunft („Welcher Ordner?“), **When** er sie
@@ -154,8 +155,8 @@ einen Ausführer zu starten.
 **Why this priority**: Jeder zusätzliche Modellaufruf kostet Zeit und Geld; Smalltalk und einfache
 Auskünfte müssen so schnell sein wie heute (066 SC-002).
 
-**Independent Test**: Zehn einfache Fragen und Bemerkungen; keine startet eine Aufgabe, alle werden
-direkt beantwortet.
+**Independent Test**: Zwanzig einfache Fragen und Bemerkungen; keine startet eine Aufgabe, alle
+werden direkt beantwortet.
 
 **Acceptance Scenarios**:
 
@@ -190,7 +191,8 @@ Rückfrage ist ihrer Aufgabe eindeutig zugeordnet, das Abbrechen einer beendet n
 3. **Given** mehrere Aufgaben, **When** der Nutzer eine benennt und abbricht, **Then** endet nur diese,
    samt Werkzeugaufrufen.
 4. **Given** eine neue Aufgabe betrifft dasselbe Ziel wie eine laufende (dieselbe Datei, dieselbe
-   Mail), **When** der Orchestrator das erkennt, **Then** fragt er, ob sie warten soll.
+   Mail), **When** der Orchestrator das erkennt, **Then** zeigt er die kollidierende Aufgabe und
+   fragt, ob die neue warten oder die laufende beendet werden soll; vor der Antwort startet keine.
 5. **Given** mehrere offene Rückfragen, **When** der Nutzer antwortet, **Then** stellt der
    Orchestrator sie nacheinander, älteste zuerst, und ordnet jede Antwort ihrer Aufgabe zu.
 6. **Given** die Grenze gleichzeitiger Aufgaben ist erreicht, **When** eine weitere kommt, **Then**
@@ -224,6 +226,9 @@ Neustart. Orchestrator auf ein Cloud-Modell stellen; die Kennzeichnung erscheint
    sagt, **Then** übernimmt das lokale Modell und haex sagt das einmal.
 5. **Given** die Orchestrierung ist ausgeschaltet, **When** der Nutzer chattet, **Then** arbeitet
    haex wie heute mit dem gewählten Chat-Modell direkt.
+6. **Given** der lokale Orchestrator und die lokale Aufgabenstufe sind auf verschiedene lokale
+   Modelle eingestellt, **When** der Nutzer die Einstellungen öffnet, **Then** sieht er den Hinweis,
+   dass lokale Aufgaben warten, während der Orchestrator spricht (FR-027).
 
 ---
 
@@ -334,7 +339,8 @@ sie zu korrigieren.
   melden können und bis zur Antwort warten.
 - **FR-014**: Freigaben MUST weiterhin allein von der festen Freigabe-Regel und der Antwort des
   Nutzers entschieden werden; der Orchestrator MUST sie nur stellen und die Antwort weitergeben und
-  MUST NOT selbst zustimmen.
+  MUST NOT selbst zustimmen. Die Rückfrage MUST neben der Erklärung des Orchestrators den
+  ursprünglichen Werkzeugnamen und dessen Eingabe unverändert zeigen.
 - **FR-015**: Kennt der Orchestrator die Antwort auf eine Rückfrage schon aus dem Auftrag, MUST er sie
   ohne den Nutzer geben; sonst MUST er den Nutzer fragen. Unbeantwortete Rückfragen MUST offen bleiben,
   ohne dass etwas ausgeführt wird.
@@ -354,7 +360,11 @@ sie zu korrigieren.
   Aufgabe samt Werkzeugaufrufen beenden. Aktives Beenden eines Sprachgesprächs (066 FR-039) MUST alle
   Aufgaben dieses Gesprächs beenden.
 - **FR-021**: Erkennt der Orchestrator, dass eine neue Aufgabe dasselbe Ziel wie eine laufende
-  betrifft, MUST er fragen, ob sie warten soll.
+  betrifft, MUST er den Konflikt samt kollidierendem Ziel zeigen und fragen, ob die neue Aufgabe
+  warten oder die laufende beendet werden soll. Bei Warten MUST die neue Aufgabe bis zum Ende der
+  kollidierenden Aufgabe eingereiht bleiben; bei Beenden MUST die laufende Aufgabe vor dem Start der
+  neuen abgebrochen werden. Solange der Nutzer nicht entschieden hat, MUST keine der kollidierenden
+  Aufgaben neu gestartet werden.
 
 #### Nachvollziehen und Einstellungen
 
@@ -394,7 +404,8 @@ sie zu korrigieren.
   Sekunden quittiert, mit Cloud-Orchestrator innerhalb von 1 Sekunde.
 - **SC-002**: Einfache Fragen ohne Werkzeug beantwortet der Orchestrator selbst so schnell wie in 066
   SC-002 (3 s Cloud, 6 s lokal); in einem Testsatz von 20 solchen Fragen startet keine eine Aufgabe.
-- **SC-003**: In einem Testsatz von 40 Aufgaben ordnet der Orchestrator mindestens 85 % der Stufe zu,
+- **SC-003**: In einem Testsatz von 40 Aufgaben mit menschlichem Stufenlabel ordnet der Orchestrator
+  mindestens 85 % der Stufe zu,
   die ein Mensch gewählt hätte; keine Programmieraufgabe landet bei „lokal“ oder „klein“, wenn
   „Delegate“ belegt ist.
 - **SC-004**: In keinem Test wird eine Aktion ausgeführt, die nicht die feste Freigabe-Regel und —
