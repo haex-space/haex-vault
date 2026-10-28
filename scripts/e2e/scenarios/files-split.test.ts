@@ -224,12 +224,17 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await shows('right', 'neu.txt', 'the new file in the right panel')
     ctx.step('the same folder is refused for a move and shown in both panels')
 
-    // Dragging between the panels. The right panel goes to split-b (eins.txt, zwei.txt), the left
+    // Dragging between the panels. The right panel is typed to split-b (eins.txt, zwei.txt), the left
     // one stays in split-a (eins.txt, neu.txt, unter).
-    await instance.click(inPanel('right', 'files-up'))
-    await instance.waitForDisplayed(entryIn('right', 'split-b'))
-    await doubleClick(instance, entryIn('right', 'split-b'))
+    // The path is typed: the pencil turns the crumbs into a field, Enter goes there.
+    await instance.click(inPanel('right', 'files-path-edit'))
+    await instance.type(
+      inPanel('right', 'files-path-input'),
+      files.path('split-b'),
+    )
+    await press(KEY.enter)
     await shows('right', 'zwei.txt', 'the right panel in split-b')
+    ctx.step('a typed path opens that folder')
     const rightList = '[data-files-panel="right"] [data-files-list]'
 
     // Onto the other panel's empty area: the entry moves into its open folder (same source).

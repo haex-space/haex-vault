@@ -2510,6 +2510,10 @@
     "up": "Up one folder",
     "reload": "Reload",
     "pathBar": "Path",
+    "path": {
+      "edit": "Edit the path",
+      "copy": "Copy the path"
+    },
     "menu": "Sort and show",
     "empty": "This folder is empty.",
     "loading": "Loading folder …",
