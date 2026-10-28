@@ -32,6 +32,9 @@ dem nutzer davon und wartet auf neue instruktionen“ (Betreiber, 2026-10-28)
   Ein gelernter Router ist nicht Teil dieser Spec.
 - Q: Dürfen mehrere Aufgaben gleichzeitig laufen? → A: Ja. Jede läuft für sich; der Orchestrator
   meldet jede Fertigstellung und jede Rückfrage einzeln.
+- Planung (2026-10-28): Delegates arbeiten heute immer in einem Wegwerf-Ordner; für Programmierarbeit
+  braucht eine Aufgabe einen Projektordner (FR-026). Es ist höchstens ein lokales Modell geladen
+  (FR-027). Jev und RouteLLM wurden geprüft und nicht übernommen (research.md R9).
 
 ## Begriffe
 
@@ -364,6 +367,12 @@ sie zu korrigieren.
   Aufgaben MUST in der Settings-Kategorie „KI“ liegen, bei Auswahl gespeichert werden und ohne
   Neustart wirken. Die Belegung gilt pro Gerät.
 - **FR-025**: Die Einstellungen der Orchestrierung MUST für Agenten gesperrt sein (Leitplanken).
+- **FR-026**: Aufgaben der Stufe „Delegate“ MUST in einem Projektordner laufen, den der Nutzer nennt
+  oder bestätigt (der Orchestrator fragt, wenn er nicht klar ist); haex MUST sich bekannte
+  Projektordner pro Gerät merken. Ohne Ordner MUST der Delegate wie bisher in einem leeren
+  Arbeitsordner arbeiten.
+- **FR-027**: Sind Orchestrator und Stufe „lokal“ verschiedene lokale Modelle, MUST die Einstellung
+  darauf hinweisen, dass lokale Aufgaben dann warten, während der Orchestrator spricht.
 
 ### Key Entities
 
@@ -401,7 +410,7 @@ sie zu korrigieren.
 
 - **Kein gelernter Router**: Die Stufenwahl trifft der Orchestrator. Ein gelernter Router (etwa
   RouteLLM) ist eine spätere Option, falls Messungen (SC-003) zeigen, dass die Wahl des Orchestrators
-  nicht reicht. Der vom Betreiber genannte „jev“ wird vor der Planung geprüft.
+  nicht reicht. Jev (gehostete API) wurde geprüft und nicht übernommen (research.md R9).
 - **Kein eigener Programmier-Agent**: Programmierarbeit geht an Delegates; haex baut die Fähigkeiten
   externer Coding-Agenten nicht nach.
 - **Ausführer sind keine neuen Agenten**: Der eingebaute Agent (003/032) mit wechselndem Modell und die
