@@ -1,7 +1,8 @@
 //! Runs of a one-way rule between two real folders (spec 061 Story 1, SC-002, SC-004, SC-005):
 //! first and second run, the target's measured time in the state, an abort mid-run, a failing
 //! file, links, the delete modes, changes at the target, a known place that lists empty, first
-//! meetings and the rule trash.
+//! meetings and the rule trash; and runs of a two-way rule (Story 2): both directions, conflict
+//! copies on both sides, deleted against changed, moves, and merged exclusion files.
 
 // These tests insert devices directly, which the CRDT write path does not expose.
 #![allow(clippy::disallowed_methods)]
@@ -13,7 +14,9 @@ use async_trait::async_trait;
 use haex_crdt::rusqlite::params;
 
 use super::*;
-use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDraft, SyncRulePlace};
+use crate::file_sync::model::{
+    SyncRuleDeleteMode, SyncRuleDirection, SyncRuleDraft, SyncRulePlace,
+};
 use crate::file_sync::place::{Facts, Listing, Trashed};
 use crate::file_sync::place_device::DevicePlace;
 use crate::file_sync::test_support::MemPlace;
@@ -442,10 +445,137 @@ async fn an_unreachable_place_waits() {
     assert_eq!(report.outcome, SyncRuleOutcome::Waiting);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn a_two_way_rule_is_refused_for_now() {
-    let mut w = world(SyncRuleDeleteMode::Keep);
+fn both(mode: SyncRuleDeleteMode) -> World {
+    let mut w = world(mode);
     w.rule.direction = SyncRuleDirection::Both;
+    w
+}
+
+/// Writes `content` with a modification time `secs` after 1970.
+fn write_at(path: &Path, content: &str, secs: i64) {
+    write(path, content);
+    filetime::set_file_mtime(path, filetime::FileTime::from_unix_time(secs, 0)).unwrap();
+}
+
+fn read(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_new_and_changed_files_reach_both_sides() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "x");
+    write(&w.b.join("Fotos/y.txt"), "y");
+    let first = w.run().await;
+    assert_eq!(first.outcome, SyncRuleOutcome::Done, "{first:?}");
+    assert_eq!(names(&w.a), ["Fotos/y.txt", "x.txt"]);
+    assert_eq!(names(&w.b), ["Fotos/y.txt", "x.txt"]);
+    write(&w.b.join("Fotos/y.txt"), "geändert");
+    let second = w.run().await;
+    assert_eq!(second.counts.copied, 1, "{second:?}");
+    assert_eq!(read(&w.a.join("Fotos/y.txt")), "geändert");
+    assert_eq!(w.run().await.counts.copied, 0, "and then nothing");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_both_changed_the_newer_keeps_the_name_and_both_sides_get_both() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "1");
+    w.run().await;
+    write_at(&w.a.join("x.txt"), "älter", 1_700_000_000);
+    write_at(&w.b.join("x.txt"), "neuer!", 1_700_000_100);
     let report = w.run().await;
-    assert_eq!(report.outcome, SyncRuleOutcome::Error);
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    assert_eq!(report.counts.conflicts, 1);
+    let aside = "x (Konflikt Laptop 2026-10-27).txt";
+    for side in [&w.a, &w.b] {
+        assert_eq!(names(side), [aside, "x.txt"]);
+        assert_eq!(read(&side.join("x.txt")), "neuer!");
+        assert_eq!(read(&side.join(aside)), "älter");
+    }
+    let again = w.run().await;
+    assert_eq!(again.counts.copied + again.counts.conflicts, 0, "{again:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_a_deleted_file_changed_on_the_other_side_comes_back() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "1");
+    // A place that lists empty would make the rule wait (FR-022).
+    write(&w.a.join("bleibt.txt"), "1");
+    w.run().await;
+    std::fs::remove_file(w.a.join("x.txt")).unwrap();
+    write(&w.b.join("x.txt"), "geändert");
+    let report = w.run().await;
+    assert_eq!(report.counts.deleted, 0, "{report:?}");
+    assert_eq!(read(&w.a.join("x.txt")), "geändert", "FR-013");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_a_deletion_is_mirrored_into_the_trash_of_the_other_side() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "1");
+    write(&w.a.join("bleibt.txt"), "1");
+    w.run().await;
+    std::fs::remove_file(w.b.join("x.txt")).unwrap();
+    let report = w.run().await;
+    assert_eq!(report.counts.deleted, 1, "{report:?}");
+    assert!(w.a.join(".holzi-trash/run1/x.txt").is_file());
+    assert_eq!(names(&w.b), ["bleibt.txt"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_a_file_moved_on_the_other_side_moves_here() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("alt/x.txt"), "inhalt");
+    w.run().await;
+    std::fs::create_dir_all(w.b.join("neu")).unwrap();
+    std::fs::rename(w.b.join("alt/x.txt"), w.b.join("neu/x.txt")).unwrap();
+    let report = w.run().await;
+    assert_eq!(report.counts.moved, 1, "{report:?}");
+    assert_eq!(report.counts.copied, 0);
+    assert_eq!(names(&w.a), ["neu/x.txt"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_a_first_run_adopts_equal_files_and_keeps_both_of_different_ones() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("same.txt"), "gleich");
+    write(&w.b.join("same.txt"), "gleich");
+    write_at(&w.a.join("other.txt"), "AAAA", 1_700_000_000);
+    write_at(&w.b.join("other.txt"), "BBBB", 1_700_000_100);
+    let report = w.run().await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    assert_eq!(report.counts.adopted, 1);
+    assert_eq!(report.counts.conflicts, 1);
+    for side in [&w.a, &w.b] {
+        assert_eq!(read(&side.join("other.txt")), "BBBB");
+        assert_eq!(
+            read(&side.join("other (Konflikt Laptop 2026-10-27).txt")),
+            "AAAA"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_way_differing_exclusion_files_keep_both_and_become_their_union() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join(".haex-ignore"), "*.tmp\n");
+    write(&w.b.join(".haex-ignore"), "*.log\n");
+    write(&w.a.join("x.tmp"), "a");
+    write(&w.b.join("y.log"), "b");
+    let report = w.run().await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    let (aside_a, aside_b) = (
+        ".haex-ignore (Konflikt Laptop 2026-10-27)",
+        ".haex-ignore (Konflikt Laptop 2026-10-27 2)",
+    );
+    for side in [&w.a, &w.b] {
+        assert_eq!(read(&side.join(".haex-ignore")), "*.tmp\n*.log\n");
+        assert_eq!(read(&side.join(aside_a)), "*.tmp\n");
+        assert_eq!(read(&side.join(aside_b)), "*.log\n");
+    }
+    assert!(!w.b.join("x.tmp").exists() && !w.a.join("y.log").exists());
+    let again = w.run().await;
+    assert_eq!(again.counts.copied + again.counts.conflicts, 0, "{again:?}");
 }

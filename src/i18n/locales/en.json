@@ -2888,7 +2888,6 @@
         "invalidName": "The name has 1 to 80 characters.",
         "notFound": "This rule no longer exists.",
         "readOnly": "holzi cannot write to this place.",
-        "unsupported": "Two-way rules come with a later version.",
         "unavailable": "The vault is not available right now."
       }
     },

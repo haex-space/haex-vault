@@ -2888,7 +2888,6 @@
         "invalidName": "Der Name hat 1 bis 80 Zeichen.",
         "notFound": "Diese Regel gibt es nicht mehr.",
         "readOnly": "An diesen Ort kann holzi nicht schreiben.",
-        "unsupported": "Beidseitige Regeln kommen mit einer späteren Version.",
         "unavailable": "Die Vault ist gerade nicht verfügbar."
       }
     },

@@ -1,4 +1,4 @@
-//! The logic behind the commands: create checks the rule, two-way rules wait for a later version,
+//! The logic behind the commands: create checks the rule and stores a two-way rule as it is,
 //! update and pause change the row, delete leaves files alone, the list carries the status.
 
 // These tests insert devices directly, which the CRDT write path does not expose.
@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use haex_crdt::rusqlite::params;
 
 use super::*;
-use crate::file_sync::model::{SyncRuleDeleteMode, SyncRulePlace};
+use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection, SyncRulePlace};
 use crate::file_sync::status::SyncRuleState;
 use crate::files::SourceRef;
 use crate::remote_storage::test_support::vault;
@@ -65,12 +65,16 @@ async fn create_checks_and_stores_a_rule() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn two_way_rules_wait_for_a_later_version() {
+async fn a_two_way_rule_is_stored_as_it_is() {
     let (_dir, db) = setup();
     let mut both = draft("/home/a", "/home/b");
     both.direction = SyncRuleDirection::Both;
-    let error = create(&db, DEVICE, &own(), both).await.unwrap_err();
-    assert_eq!(error.code, SyncRuleErrorCode::Unsupported);
+    let rule = create(&db, DEVICE, &own(), both).await.unwrap();
+    assert_eq!(rule.direction, SyncRuleDirection::Both);
+    assert_eq!(
+        rule.place_a.path, "/home/a",
+        "the places stay in their order"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

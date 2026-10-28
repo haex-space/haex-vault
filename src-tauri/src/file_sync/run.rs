@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use super::conflict::conflict_path;
 use super::execute::{execute, Counts, Target, TrashedFile};
 use super::ignore::LineError;
-use super::model::{SyncRule, SyncRuleDirection, SyncRuleOutcome, SyncRuleSide};
+use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
 use super::plan::{build, Hashes, Inputs, Plan};
 use super::scan::{scan, ScanError, Scanned};
@@ -89,12 +89,6 @@ async fn run_inner(
     a: &dyn Place,
     b: &dyn Place,
 ) -> RunReport {
-    if rule.direction != SyncRuleDirection::AToB {
-        return RunReport::stopped(
-            SyncRuleOutcome::Error,
-            "two-way rules come with a later version",
-        );
-    }
     let scanned = match scan(a, b, ctx.cancel).await {
         Ok(scanned) => scanned,
         Err(error) => {
@@ -209,13 +203,12 @@ fn plan_for(
     state: &[StateRow],
     hashes: &Hashes,
 ) -> Plan {
-    let conflict_name = |side: SyncRuleSide, path: &str| {
-        let listing = match side {
-            SyncRuleSide::A => &scanned.a,
-            SyncRuleSide::B => &scanned.b,
-        };
+    // A conflict copy may land on either side, so its name is free on both.
+    let conflict_name = |path: &str, taken: &[String]| {
         conflict_path(path, ctx.device_name, ctx.today, &|candidate| {
-            listing.files.contains_key(candidate)
+            scanned.a.files.contains_key(candidate)
+                || scanned.b.files.contains_key(candidate)
+                || taken.iter().any(|name| name == candidate)
         })
     };
     build(&Inputs {

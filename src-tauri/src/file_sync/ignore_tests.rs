@@ -81,3 +81,13 @@ fn files_over_the_limits_stop_the_run() {
     assert!(!fits(&big));
     assert!(fits("*.tmp\n"));
 }
+
+#[test]
+fn the_union_keeps_the_lines_of_a_then_the_new_ones_of_b() {
+    assert_eq!(
+        union_text("*.tmp\n# A\nbuild/\n", "build/\n*.log\n"),
+        "*.tmp\n# A\nbuild/\n*.log\n"
+    );
+    let union = union_text("*.tmp\n", "!keep.tmp\n");
+    assert_eq!(union, "*.tmp\n!keep.tmp\n");
+}
