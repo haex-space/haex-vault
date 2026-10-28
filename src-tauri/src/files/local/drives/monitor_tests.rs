@@ -57,6 +57,21 @@ fn a_new_listener_gets_the_list_at_once() {
 }
 
 #[test]
+fn a_new_listener_does_not_hide_changes_from_existing_listeners() {
+    let backend = Arc::new(FakeBackend::with(vec![stick("a", 50)]));
+    let monitor = DriveMonitor::new(backend.clone(), TICK);
+    let (first, first_sink) = recorder();
+    monitor.subscribe(first_sink);
+    backend.drives.lock().unwrap().push(stick("b", 10));
+    let (second, second_sink) = recorder();
+    monitor.subscribe(second_sink);
+    wait_until(|| first.lock().unwrap().len() >= 2);
+    assert_eq!(first.lock().unwrap()[1].drives.len(), 2);
+    assert_eq!(second.lock().unwrap()[0].drives.len(), 2);
+    monitor.unsubscribe_all();
+}
+
+#[test]
 fn a_change_is_sent_once() {
     let backend = Arc::new(FakeBackend::with(vec![stick("a", 50)]));
     let monitor = DriveMonitor::new(backend.clone(), TICK);

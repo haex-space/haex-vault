@@ -38,9 +38,12 @@ impl UdisksBackend {
             .and_then(|builder| builder.path(ROOT))
             .and_then(|builder| builder.build())
             .map_err(from_zbus)?;
-        let managed = manager
-            .get_managed_objects()
-            .map_err(|error| DriveError::Failed(error.to_string()))?;
+        let managed = manager.get_managed_objects().map_err(|error| match error {
+            zbus::fdo::Error::ServiceUnknown(_) | zbus::fdo::Error::NameHasNoOwner(_) => {
+                DriveError::Unsupported
+            }
+            other => DriveError::Failed(other.to_string()),
+        })?;
         Ok(to_objects(managed))
     }
 

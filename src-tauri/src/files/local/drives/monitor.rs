@@ -78,7 +78,9 @@ impl DriveMonitor {
     pub fn subscribe(&self, sink: DriveSink) -> u64 {
         let drives = current(&*self.inner.backend);
         let mut state = self.inner.lock();
-        state.last = drives.clone();
+        if state.sinks.is_empty() {
+            state.last = drives.clone();
+        }
         let id = state.next_id;
         state.next_id += 1;
         if sink(&DrivesChanged { drives }) {

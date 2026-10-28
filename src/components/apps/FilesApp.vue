@@ -27,7 +27,7 @@ const sources = useAsyncState(() => sourcesAsync(), null)
 // drives stand in.
 const liveDrives = useFilesDrives()
 const drives = computed(() =>
-  liveDrives.drives.value.length > 0
+  liveDrives.received.value
     ? liveDrives.drives.value
     : (sources.state.value?.drives ?? []),
 )

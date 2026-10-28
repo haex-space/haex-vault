@@ -7,6 +7,7 @@
 import type { Drive } from '@bindings/Drive'
 
 const drives = ref<Drive[]>([])
+const received = ref(false)
 /** Drives with an action running (mounting), so the sidebar shows a spinner and takes no click. */
 const busy = ref(new Set<string>())
 let subscription: Promise<number | null> | null = null
@@ -18,6 +19,7 @@ export function useFilesDrives() {
   function start() {
     subscription ??= drivesWatchAsync((change) => {
       drives.value = change.drives
+      received.value = true
     }).catch(() => null)
   }
 
@@ -25,6 +27,8 @@ export function useFilesDrives() {
   function stop() {
     const pending = subscription
     subscription = null
+    received.value = false
+    drives.value = []
     void pending
       ?.then((id) => (id === null ? undefined : drivesUnwatchAsync(id)))
       .catch(() => {})
@@ -39,6 +43,7 @@ export function useFilesDrives() {
 
   return {
     drives: readonly(drives),
+    received: readonly(received),
     busy: readonly(busy),
     start,
     stop,

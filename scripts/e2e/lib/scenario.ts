@@ -86,6 +86,8 @@ function skipReasonFor(
     return 'no container runtime (docker) answers here'
   if (options.needs?.udisks && !udisksAvailable())
     return 'no udisks2 answers here'
+  if (options.needs?.udisks && env.android !== undefined)
+    return 'the host-drive scenario runs only against the Linux app'
   const needed = options.needs?.closeBehavior
   if (needed === undefined || needed === env.closeBehavior) return undefined
   return needed === 'relaunch'

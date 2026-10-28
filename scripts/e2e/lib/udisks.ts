@@ -13,6 +13,12 @@ let available: boolean | undefined
 export function udisksAvailable(): boolean {
   available ??=
     spawnSync('udisksctl', ['status'], { stdio: 'ignore', timeout: 20_000 })
+      .status === 0 &&
+    spawnSync('mkfs.vfat', ['--help'], { stdio: 'ignore', timeout: 5_000 })
+      .status === 0 &&
+    spawnSync('findmnt', ['--version'], { stdio: 'ignore', timeout: 5_000 })
+      .status === 0 &&
+    spawnSync('truncate', ['--version'], { stdio: 'ignore', timeout: 5_000 })
       .status === 0
   return available
 }

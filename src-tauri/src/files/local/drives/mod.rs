@@ -150,7 +150,12 @@ pub fn current(backend: &dyn backend::DriveBackend) -> Vec<Drive> {
     let mut drives = match backend.list() {
         Ok(drives) => drives,
         Err(error) => {
-            log::warn!("files: listing drives failed, showing the mounted ones only: {error:?}");
+            static LIST_FAILURE: std::sync::Once = std::sync::Once::new();
+            LIST_FAILURE.call_once(|| {
+                log::warn!(
+                    "files: listing drives failed, showing the mounted ones only: {error:?}"
+                );
+            });
             fallback::mounted_drives()
         }
     };
