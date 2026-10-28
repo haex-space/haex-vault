@@ -228,9 +228,13 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     // one stays in split-a (eins.txt, neu.txt, unter).
     // The path is typed: the pencil turns the crumbs into a field, Enter goes there.
     await instance.click(inPanel('right', 'files-path-edit'))
-    await instance.type(
-      inPanel('right', 'files-path-input'),
-      files.path('split-b'),
+    await instance.exec(
+      `const input = document.querySelector(arguments[0])
+       input.value = arguments[1]
+       input.dispatchEvent(new Event('input', { bubbles: true }))
+       input.focus()
+       return true`,
+      [inPanel('right', 'files-path-input'), files.path('split-b')],
     )
     await press(KEY.enter)
     await shows('right', 'zwei.txt', 'the right panel in split-b')
