@@ -35,15 +35,6 @@ export function shownState(state: SyncState, serviceRuns: boolean): SyncState {
   return serviceRuns || state === 'paused' ? state : 'inactive'
 }
 
-export const STATE_ICONS: Record<SyncState, string> = {
-  active: 'lucide:check',
-  running: 'lucide:loader',
-  waiting: 'lucide:clock',
-  error: 'lucide:triangle-alert',
-  paused: 'lucide:pause',
-  inactive: 'lucide:moon',
-}
-
 /**
  * How far a running rule is, from 0 to 1, or `null` while it cannot tell (listing the places, or
  * nothing to copy): the bar then only shows that something runs.

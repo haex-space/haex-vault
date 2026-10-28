@@ -9,7 +9,7 @@ import type { SyncRulePlace } from '@bindings/SyncRulePlace'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import { formatFileSize } from '~/lib/passwords/format'
-import { progressShare, STATE_ICONS } from '~/lib/files/syncRules'
+import { progressShare } from '~/lib/files/syncRules'
 import { useSyncRulesStore } from '~/stores/syncRules'
 
 const props = defineProps<{
@@ -130,11 +130,6 @@ async function confirmDeleteAsync() {
             :data-testid="`files-sync-rule-${view.rule.name}`"
           >
             <div class="flex items-start gap-2">
-              <Icon
-                :name="STATE_ICONS[view.status.state]"
-                class="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                :class="{ 'animate-spin': view.status.state === 'running' }"
-              />
               <div class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate font-medium">{{ view.rule.name }}</span>
                 <span class="truncate text-xs text-muted-foreground">
