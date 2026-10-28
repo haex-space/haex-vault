@@ -3341,8 +3341,7 @@
     "settings": {
       "enabled": "Access for external agents",
       "enabledHint": "Agents on this device may connect and ask to be registered",
-      "state": "State",
-      "soon": "The access can be turned on once holzi can ask before every call of an agent. That comes with one of the next versions."
+      "state": "State"
     },
     "state": {
       "off": "Off",
@@ -3365,6 +3364,28 @@
     "notification": {
       "title": "An agent wants to use holzi",
       "body": "Open holzi to register or decline it."
+    },
+    "call": {
+      "title": "Allow an agent call",
+      "agent": "Agent",
+      "action": "Action",
+      "effect": "Effect",
+      "target": "Target",
+      "input": "Inputs",
+      "noInput": "None",
+      "secret": "If you allow it, a secret goes to the agent and to the provider of its model.",
+      "more": "More prompts wait after this one: {count}",
+      "allow": "Allow",
+      "deny": "Deny"
+    },
+    "effect": {
+      "read": "Read",
+      "write": "Change",
+      "destructive": "Destructive, cannot be undone"
+    },
+    "callNotification": {
+      "title": "An agent waits for your approval",
+      "body": "Open holzi to allow or deny the call."
     }
   }
 }

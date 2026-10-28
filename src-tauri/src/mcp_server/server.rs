@@ -13,23 +13,20 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::connection;
+use super::dispatch::CallSlots;
 use super::endpoint;
 use super::hello::CloseReason;
-use super::prompts::{PromptClosed, RegistrationGate, RegistrationPrompts};
+use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::ActionCatalog;
 use crate::vault_gate::VaultDb;
-
-/// Whether agents may get changing actions. `false` until the call prompts exist (tasks.md
-/// shipping note, T050): until then an agent only reads.
-pub const CHANGES_ALLOWED: bool = false;
 
 /// What the server tells the window.
 #[derive(Debug, Clone)]
 pub enum Notice {
     /// Agents or their state changed; the settings reload.
     Changed,
-    /// A registration dialog ended without the window answering it.
+    /// A registration dialog or call prompt ended without the window answering it.
     PromptClosed(PromptClosed),
 }
 
@@ -44,6 +41,10 @@ pub struct Limits {
     pub max_message_bytes: usize,
     /// How long a pending agent may take to send `initialize` before the dialog is skipped.
     pub initialize_deadline: Duration,
+    /// How many calls of one agent run at once, prompts included (FR-029, research R11).
+    pub max_calls: usize,
+    /// How long a further call waits for a free slot before `too_many_calls`.
+    pub call_wait: Duration,
 }
 
 impl Default for Limits {
@@ -52,6 +53,8 @@ impl Default for Limits {
             greeting_deadline: Duration::from_secs(5),
             max_message_bytes: 1024 * 1024,
             initialize_deadline: Duration::from_secs(30),
+            max_calls: 4,
+            call_wait: Duration::from_secs(30),
         }
     }
 }
@@ -76,6 +79,7 @@ pub struct StartArgs {
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
     pub prompts: RegistrationPrompts,
+    pub calls: CallPrompts,
     pub notify: Notifier,
     pub limits: Limits,
 }
@@ -87,6 +91,8 @@ pub struct Core {
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
     pub prompts: RegistrationPrompts,
+    pub calls: CallPrompts,
+    pub slots: CallSlots,
     pub gate: RegistrationGate,
     pub notify: Notifier,
     pub limits: Limits,
@@ -133,10 +139,12 @@ impl Running {
         &self.core
     }
 
-    /// Ends every connection with `reason` and the open dialogs, and removes the endpoint.
+    /// Ends every connection with `reason` and the open dialogs and prompts, and removes the
+    /// endpoint.
     pub async fn stop(self, reason: CloseReason) {
         self.core.close(reason);
         self.core.prompts.cancel_all();
+        self.core.calls.cancel_all();
         let _ = self.accept.await;
     }
 }
@@ -155,6 +163,8 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         catalog: args.catalog,
         bridge: args.bridge,
         prompts: args.prompts,
+        calls: args.calls,
+        slots: CallSlots::default(),
         gate: RegistrationGate::default(),
         notify: args.notify,
         limits: args.limits,

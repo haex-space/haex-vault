@@ -16,7 +16,8 @@ use uuid::Uuid;
 
 use super::dispatch;
 use super::grants::{self, Rights};
-use super::server::{Core, CHANGES_ALLOWED};
+use super::registry::AgentMode;
+use super::server::Core;
 
 /// What a registered agent reads in `initialize` (contracts/mcp-surface.md, "Server").
 pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this device. Name targets \
@@ -32,6 +33,9 @@ pub const INSTRUCTIONS_WAITING: &str =
 pub struct SessionAgent {
     pub id: Uuid,
     pub rights: Rights,
+    pub mode: AgentMode,
+    /// The agent's own claim, shown in call prompts.
+    pub client_name: String,
 }
 
 /// The server handler of one connection. Cheap to clone; the clones share the state.
@@ -74,7 +78,7 @@ impl Session {
             return Vec::new();
         };
         let catalog = self.core.catalog.snapshot();
-        grants::offers(&agent.rights, &catalog, CHANGES_ALLOWED)
+        grants::offers(&agent.rights, &catalog)
             .into_iter()
             .map(dispatch::tool_of)
             .collect()
@@ -124,7 +128,6 @@ impl ServerHandler for Session {
         let Some(agent) = self.agent() else {
             return Ok(dispatch::not_allowed().into());
         };
-        let catalog = self.core.catalog.snapshot();
         // A call ends when the agent cancels it or the server stops.
         let cancel = self.core.token.child_token();
         let agent_cancel = context.ct.clone();
@@ -133,15 +136,9 @@ impl ServerHandler for Session {
             agent_cancel.cancelled().await;
             guard.cancel();
         });
-        let caller = dispatch::Caller {
-            agent: agent.id,
-            rights: &agent.rights,
-            changes_allowed: CHANGES_ALLOWED,
-        };
         let result = dispatch::call(
-            &self.core.bridge,
-            &catalog,
-            caller,
+            &self.core,
+            &agent,
             request.name.as_ref(),
             request.arguments,
             &cancel,

@@ -49,12 +49,12 @@ fn each_scope_and_level_offers_exactly_its_effects() {
     let catalog = catalog();
     for scope in OPERATE_SCOPES {
         assert_eq!(
-            names(offers(&only(scope, OperateLevel::Read), &catalog, true)),
+            names(offers(&only(scope, OperateLevel::Read), &catalog)),
             [format!("{scope}.read")],
             "{scope}: reading offers only reading"
         );
         assert_eq!(
-            names(offers(&only(scope, OperateLevel::Write), &catalog, true)),
+            names(offers(&only(scope, OperateLevel::Write), &catalog)),
             [
                 format!("{scope}.read"),
                 format!("{scope}.write"),
@@ -64,21 +64,19 @@ fn each_scope_and_level_offers_exactly_its_effects() {
         );
     }
     assert!(
-        offers(&Rights::default(), &catalog, true).is_empty(),
+        offers(&Rights::default(), &catalog).is_empty(),
         "no rights, no tools"
     );
 }
 
 #[test]
-fn without_prompts_only_reading_is_offered() {
+fn a_write_level_offers_changing_and_destroying() {
     let catalog = catalog();
     let rights = only("settings.device", OperateLevel::Write);
-    assert_eq!(
-        names(offers(&rights, &catalog, false)),
-        ["settings.device.read"]
-    );
-    assert!(check(&rights, &catalog, "settings_device_write", false).is_none());
-    assert!(check(&rights, &catalog, "settings_device_write", true).is_some());
+    assert!(check(&rights, &catalog, "settings_device_write").is_some());
+    assert!(check(&rights, &catalog, "settings_device_destroy").is_some());
+    let reading = only("settings.device", OperateLevel::Read);
+    assert!(check(&reading, &catalog, "settings_device_write").is_none());
 }
 
 #[test]
@@ -94,10 +92,8 @@ fn guardrails_are_never_offered_and_never_granted() {
     rights
         .operate
         .insert("guardrails".to_owned(), OperateLevel::Write);
-    assert!(check(&rights, &catalog, "settings_agents_mcp_enable", true).is_none());
-    assert!(
-        !names(offers(&rights, &catalog, true)).contains(&"settings.agents.mcp.enable".to_owned())
-    );
+    assert!(check(&rights, &catalog, "settings_agents_mcp_enable").is_none());
+    assert!(!names(offers(&rights, &catalog)).contains(&"settings.agents.mcp.enable".to_owned()));
     assert_eq!(
         validate(&rights),
         Err(InvalidRights::Scope("guardrails".to_owned()))
@@ -113,10 +109,7 @@ fn guardrails_are_never_offered_and_never_granted() {
 fn actions_only_for_external_agents_are_offered() {
     let catalog = vec![action("chat.message.send", "chat.write", "write", false)];
     let rights = only("chat.write", OperateLevel::Write);
-    assert_eq!(
-        names(offers(&rights, &catalog, true)),
-        ["chat.message.send"]
-    );
+    assert_eq!(names(offers(&rights, &catalog)), ["chat.message.send"]);
 }
 
 #[test]
@@ -133,5 +126,5 @@ fn a_new_agent_may_read_everything_it_can_reach_and_nothing_more() {
 #[test]
 fn an_unknown_tool_is_refused_like_a_forbidden_one() {
     let catalog = catalog();
-    assert!(check(&default_rights(), &catalog, "no_such_tool", true).is_none());
+    assert!(check(&default_rights(), &catalog, "no_such_tool").is_none());
 }

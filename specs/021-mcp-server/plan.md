@@ -182,7 +182,8 @@ src-tauri/src/
 │   ├── dispatch.rs       # Aufruf an ActionBridge / native / Erweiterung / run_command
 │   ├── registry.rs       # haex_mcp_agents, Nachweis, Ablauf (R9)
 │   ├── prompts.rs        # Registrierung und Rückfrage über PromptPark
-│   ├── log.rs            # haex_mcp_agent_log_no_sync, Schwärzung (R10)
+│   ├── agent_log.rs      # haex_mcp_agent_log_no_sync (R10)
+│   ├── redact.rs         # Schwärzung von Eingaben für Rückfrage und Protokoll (R10)
 │   ├── commands.rs       # Tauri-Commands
 │   ├── http.rs           # PR G: Streamable HTTP, Host/Origin
 │   └── oauth.rs          # PR G: Autorisierung, Token

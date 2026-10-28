@@ -544,6 +544,8 @@ pub fn run() {
             mcp_server::commands::mcp_status,
             mcp_server::commands::mcp_configure,
             mcp_server::commands::mcp_registration_answer,
+            mcp_server::commands::mcp_call_answer,
+            mcp_server::commands::mcp_agent_log,
             mcp_server::commands::mcp_setup_snippet,
             files::agent::commands::files_agent_permissions,
             files::agent::commands::files_agent_permission_set,
