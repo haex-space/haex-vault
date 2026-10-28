@@ -63,7 +63,12 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
     'the saved session to hold the split',
     async () => {
       const text = JSON.stringify(await page.invoke('wm_session_load'))
-      return text.includes('o.src') && text.includes('"side":"r"')
+      // The step into `b` is saved too, not only the start of the split.
+      return (
+        text.includes('o.src') &&
+        text.includes('"side":"r"') &&
+        text.includes(JSON.stringify(files.path('b')).slice(1, -1))
+      )
     },
     { fixed: true, timeoutMs: 15_000 },
   )
