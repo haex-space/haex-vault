@@ -29,6 +29,15 @@ angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f57
   gestufte PRs. Der Katalog ist eine eigene App im Window Manager (wm), die Verwaltung der Marketplaces
   sitzt unter Einstellungen → Erweiterungen.
 
+### Session 2026-10-28 (Plan)
+
+- Q: Liefert der Marketplace Prüfsumme und Größe verlässlich? → A: Ja. Der Dienst
+  `marketplace.haex.space` liefert zu jeder Fassung `bundleHash` (SHA-256, hex) und `bundleSize` und
+  zu jedem Download eine kurzlebige signierte Adresse auf einem anderen Host. Die Prüfsumme wird
+  deshalb zur Pflicht (FR-013); fehlt sie, wird nicht installiert.
+- Q: Gibt es eine Größengrenze für `.xt`? → A: Ja, 64 MiB (Spec 017, `limits::ARCHIVE_BYTES`). Der
+  Download hält dieselbe Grenze ein (FR-014).
+
 ## Begriffe
 
 - **Marketplace**: ein Katalogdienst, der Erweiterungen (Spec 017) mit Beschreibung, Herausgeber,
@@ -101,15 +110,15 @@ bestätigen; die Erweiterung läuft als App, die Kachel zeigt „Installiert“.
 
 ### User Story 2 - Sicher: nur geprüfte Bytes werden installiert (Priority: P1)
 
-Der Marketplace ist ein Dritter. Was er liefert, darf HaexVault nicht blind installieren. Liefert der
-Marketplace zu einer Fassung eine Prüfsumme, vergleicht HaexVault sie mit der geladenen Datei; stimmt sie
-nicht, wird abgebrochen. Unabhängig davon prüft die Installations-Vorschau wie immer die Signatur im
+Der Marketplace ist ein Dritter. Was er liefert, darf HaexVault nicht blind installieren. HaexVault
+vergleicht die Prüfsumme, die der Marketplace zu einer Fassung angibt, mit der geladenen Datei; stimmt
+sie nicht, oder fehlt sie, wird abgebrochen. Unabhängig davon prüft die Installations-Vorschau wie immer die Signatur im
 Bundle. Behauptet der Marketplace einen Herausgeber „geprüft“, ist das nur eine Anzeige.
 
 **Why this priority**: Der Marketplace-Betreiber (oder ein Angreifer im Netz) darf nie ohne Wissen des
 Nutzers Code in seinen Vault bringen.
 
-**Independent Test**: Test-Marketplace mit (a) falscher Prüfsumme, (b) unsigniertem Bundle, (c) Bundle
+**Independent Test**: Test-Marketplace mit (a) falscher oder fehlender Prüfsumme, (b) unsigniertem Bundle, (c) Bundle
 mit anderem Herausgeber als angezeigt, (d) viel zu großer Datei: In allen Fällen wird nichts installiert und
 der Nutzer sieht den Grund.
 
@@ -117,14 +126,14 @@ der Nutzer sieht den Grund.
 
 1. **Given** die Prüfsumme des Marketplace stimmt nicht mit der geladenen Datei überein, **When** der
    Download endet, **Then** bricht HaexVault ab, installiert nichts und meldet „Die geladene Datei
-   stimmt nicht mit der Angabe des Marketplace überein“.
+   stimmt nicht mit der Angabe des Marketplace überein“; fehlt die Prüfsumme, meldet es „Der Marketplace liefert keine Prüfsumme“.
 2. **Given** das Bundle ist ungültig oder unsigniert, **When** die Installations-Vorschau es prüft,
    **Then** zeigt sie denselben Fehler wie beim Installieren aus einer Datei (Spec 017) und erlaubt keine
    Installation.
 3. **Given** der Herausgeberschlüssel im Bundle weicht vom Herausgeber im Katalog ab, **When** die Vorschau
    erscheint, **Then** zeigt sie den Schlüssel aus dem Bundle als Herausgeber und weist auf die Abweichung zum
    Katalog hin.
-4. **Given** der Marketplace liefert eine Datei, die größer ist als die Obergrenze für eine Installationsdatei (FR-014),
+4. **Given** der Marketplace liefert eine Datei, die größer ist als 64 MiB (FR-014) oder mehr Bytes liefert als angegeben,
    **When** der Download läuft, **Then** bricht er ab, sobald die Grenze überschritten ist.
 5. **Given** der Marketplace antwortet mit einer Weiterleitung auf einen anderen Host, **When** HaexVault
    der Weiterleitung folgt, **Then** sendet es dorthin keine Zugangsdaten des Marketplace.
@@ -292,17 +301,24 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   zeigen. Es wird nie ohne Bestätigung des Nutzers installiert.
 - **FR-012**: Bei doppelten Katalogeinträgen (gleiche Erweiterungs-Kennung in mehreren Quellen) MUSS der
   Eintrag der Quelle mit der kleinsten Rangnummer gelten.
-- **FR-013**: Liefert der Marketplace eine Prüfsumme, MUSS HaexVault sie vor der Vorschau prüfen und bei
-  Abweichung abbrechen. Liefert er keine, verlässt sich HaexVault auf die Signatur im Bundle (Spec 017);
-  die Vorschau zeigt in diesem Fall keine Prüfsummen-Angabe.
-- **FR-014**: Der Download MUSS eine feste Obergrenze für die Größe einer Installationsdatei einhalten
-  (Spec 017 kennt keine; der Plan legt den Wert fest) und beim Überschreiten abbrechen, ohne die ganze Datei zu laden; es bleibt nichts auf der Platte, wenn nicht installiert wird.
+- **FR-013**: HaexVault MUSS die Prüfsumme (SHA-256), die der Marketplace zur Fassung angibt, vor der
+  Vorschau gegen die geladenen Bytes prüfen und bei Abweichung abbrechen. Liefert der Marketplace keine
+  Prüfsumme, MUSS die Installation abgelehnt werden. Zusätzlich MUSS die geladene Größe der
+  angegebenen Größe entsprechen. Die Signatur im Bundle prüft die Vorschau unabhängig davon (Spec 017).
+- **FR-014**: Der Download MUSS die Grenze von 64 MiB für eine Installationsdatei (Spec 017) einhalten
+  und abbrechen, sobald sie überschritten ist, ohne die ganze Datei zu laden. Es bleibt nichts auf der
+  Platte, wenn nicht installiert wird.
 - **FR-015**: Der Download MUSS dem Nutzer Fortschritt zeigen und abbrechbar sein.
 - **FR-016**: „Entfernen“ im Katalog MUSS die bestehende Entfernung aus Spec 017 nutzen (einschließlich
   der Frage nach den Daten).
 - **FR-017**: Der Katalog MUSS beim Öffnen und auf Wunsch („Aktualisieren“-Knopf) nach Updates suchen;
   es gibt keine Abfragen im Hintergrund oder beim Start. Die Liste der installierten Erweiterungen
   (Einstellungen) MUSS einen bekannten Update-Hinweis zeigen, ohne selbst zu fragen.
+
+- **FR-018**: Gibt eine Fassung eine Mindest- oder Höchstfassung von HaexVault an, MUSS der Katalog
+  eine nicht passende Fassung als „Benötigt HaexVault ab/bis x“ kennzeichnen und die Installation
+  dieser Fassung sperren; eine passende ältere Fassung bleibt wählbar. Die Anfragen nennen die
+  Plattform und die Fassung von HaexVault, sonst nichts über Nutzer oder Gerät (FR-007).
 
 **Marketplaces verwalten**
 
@@ -354,7 +370,7 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   Zugangsdaten-Eintrag (kein Geheimnis). Vault-Daten, synchronisiert.
 - **Katalogeintrag**: flüchtig, nicht gespeichert; Angaben des Marketplace plus Quelle und lokaler
   Installationszustand.
-- **Fassung**: eine Version einer Erweiterung im Katalog mit Download-Adresse und optionaler Prüfsumme.
+- **Fassung**: eine Version einer Erweiterung im Katalog mit Download-Adresse, Prüfsumme und Größe.
 - **Zugangsdaten-Eintrag**: Eintrag im Passwortmanager (Spec 034); der Marketplace verweist darauf.
 
 ## Success Criteria _(mandatory)_
@@ -382,14 +398,14 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 ## Assumptions
 
 - Der Standard-Marketplace `marketplace.haex.space` (Projekt haex-space) bietet die Schnittstelle, die
-  haex-vault 2.x benutzt: Liste mit Suche, Kategorie, Seite und Sortierung, Kategorien mit Anzahl,
-  Details und Download-Adresse zu einer Fassung. Diese Spec ändert den Marketplace-Dienst nicht; fehlende
-  Felder (Prüfsumme, Herausgeberschlüssel, Erweiterungs-Kennung) werden als „nicht geliefert“ behandelt.
+  haex-vault 2.x und das `@haex-space/marketplace-sdk` 0.1.6 benutzen: Liste mit Suche, Kategorie, Seite
+  und Sortierung, Kategorien mit Anzahl, Details und Download-Adresse zu einer Fassung. Diese Spec ändert
+  den Marketplace-Dienst nicht. Nicht geliefert werden im Listenaufruf der Herausgeberschlüssel (er steht
+  nur in den Details); fehlende Felder werden als „nicht geliefert“ behandelt, mit Ausnahme der
+  Prüfsumme (FR-013).
 - Die Antwortformate werden in einem Vertrag (Plan, `contracts/`) festgehalten und im Host gegen
   Testdaten geprüft; ob das bestehende `@haex-space/marketplace-sdk` nur als Typquelle dient oder in
   Rust nachgebaut wird, entscheidet der Plan.
-- Die Obergrenze für die Größe einer Installationsdatei gilt nur für den Marketplace-Download; das
-  Installieren aus einer Datei bleibt unverändert.
 - Die feste Frist pro Quelle liegt in der Größenordnung von zehn Sekunden; der Plan legt den Wert fest.
 - Es gibt keinen Offline-Katalog und keinen Zwischenspeicher über das Schließen der App hinaus;
   Bewertungen und Rezensionen werden angezeigt, aber nicht abgegeben.

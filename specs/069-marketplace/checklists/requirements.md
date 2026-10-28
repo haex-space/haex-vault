@@ -32,7 +32,7 @@
 
 ## Notes
 
-- Offene Punkte für den Plan: Schnittstellenvertrag des Marketplace-Dienstes (Felder Prüfsumme,
-  Herausgeberschlüssel, Erweiterungs-Kennung), Obergrenze der Dateigröße, Frist pro Quelle, ob das
-  marketplace-sdk Typquelle bleibt oder in Rust nachgebaut wird.
-- Spec 017 kennt keine Größengrenze für Bundles; FR-014 führt sie nur für den Download ein.
+- Die offenen Punkte der Spec sind im Plan entschieden (`research.md` R1, R2, R5, R9): Schnittstelle am
+  Live-Dienst bestätigt, Typen in Rust, Frist 8 s je Quelle.
+- Der Plan hat Prüfsumme und Größe am Live-Dienst bestätigt; FR-013 macht die Prüfsumme zur Pflicht,
+  FR-014 übernimmt die 64-MiB-Grenze aus Spec 017.
