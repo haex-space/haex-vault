@@ -11,8 +11,8 @@ import {
 const REPO = '/ai/download/repo/Qwen/Qwen2.5-0.5B-Instruct-GGUF'
 
 // Spec 023-settings-app, quickstart S4–S7 and S22 (FR-008–FR-010): the arrow in the title row goes to
-// the previous place when that is in the same category, otherwise to the parent; the tab's own back and
-// forward walk the same places; choosing a category in the sidebar starts at its overview; reopened
+// the previous place when that is in the same category, otherwise to the parent; the tab's back and
+// forward actions walk the same places; choosing a category in the sidebar starts at its overview; reopened
 // settings start at the first category. The repo is reached the way a search result does it (a push
 // onto the tab), so no network is needed.
 scenario('settings-header-back', {}, async (ctx) => {
@@ -61,16 +61,16 @@ scenario('settings-header-back', {}, async (ctx) => {
   await waitForLocation(instance, 'ai.download.search')
   await instance.click('settings-back')
   await waitForLocation(instance, 'ai.download')
-  await instance.click('nav-forward')
+  await runAction(instance, 'wm.tab.forward', { tabId: tab.tabId })
   await waitForLocation(instance, 'ai.download.search')
-  await instance.click('nav-forward')
+  await runAction(instance, 'wm.tab.forward', { tabId: tab.tabId })
   await waitForLocation(instance, 'ai.download.repo')
   ctx.step('S4 arrow and forward')
 
   // S5: the tab's back walks the same places.
-  await instance.click('nav-back')
+  await runAction(instance, 'wm.tab.back', { tabId: tab.tabId })
   await waitForLocation(instance, 'ai.download.search')
-  await instance.click('nav-back')
+  await runAction(instance, 'wm.tab.back', { tabId: tab.tabId })
   await waitForLocation(instance, 'ai.download')
   ctx.step('S5 tab back')
 

@@ -195,10 +195,6 @@
       "listMenu": "All tabs"
     },
     "nav": {
-      "back": "Back",
-      "forward": "Forward",
-      "backList": "Earlier views",
-      "forwardList": "Later views",
       "unknownLocation": "That view no longer exists. The app opened at its start."
     },
     "chat": {
