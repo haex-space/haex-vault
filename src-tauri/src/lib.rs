@@ -386,8 +386,8 @@ pub fn run() {
                             files.unwatch_all();
                         }
                         // Spec 064: nor its subscriptions to the drive list.
-                        if let Some(monitor) = window
-                            .try_state::<files::local::drives::monitor::DriveMonitor>()
+                        if let Some(monitor) =
+                            window.try_state::<files::local::drives::monitor::DriveMonitor>()
                         {
                             monitor.unsubscribe_all();
                         }

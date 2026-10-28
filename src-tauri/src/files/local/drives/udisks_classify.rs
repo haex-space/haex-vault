@@ -54,8 +54,10 @@ pub struct UdisksObject {
 
 /// The drives among `objects`, unsorted; space stays unknown (the caller asks the file system).
 pub fn classify(objects: &[UdisksObject]) -> Vec<Drive> {
-    let by_path: HashMap<&str, &UdisksObject> =
-        objects.iter().map(|object| (object.path.as_str(), object)).collect();
+    let by_path: HashMap<&str, &UdisksObject> = objects
+        .iter()
+        .map(|object| (object.path.as_str(), object))
+        .collect();
     objects
         .iter()
         .filter_map(|object| classify_one(object, &by_path))

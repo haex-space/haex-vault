@@ -193,7 +193,9 @@ pub(crate) fn invariants_hold(drive: &Drive) -> bool {
     mounted == drive.path.is_some()
         && (drive.kind != DriveKind::System || drive.release == DriveRelease::None)
         && (mounted
-            || (drive.release == DriveRelease::None && drive.total.is_none() && drive.free.is_none()))
+            || (drive.release == DriveRelease::None
+                && drive.total.is_none()
+                && drive.free.is_none()))
         && (drive.state != DriveState::Locked || drive.encrypted)
 }
 

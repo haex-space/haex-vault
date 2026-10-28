@@ -49,7 +49,11 @@ mod platform {
             drives.extend(cards.into_iter().map(|(name, path)| Drive {
                 key: Some(name.to_lowercase()),
                 label: Some(name),
-                ..Drive::mounted(path.to_string_lossy().into_owned(), &path, DriveKind::Removable)
+                ..Drive::mounted(
+                    path.to_string_lossy().into_owned(),
+                    &path,
+                    DriveKind::Removable,
+                )
             }));
             Ok(drives)
         }

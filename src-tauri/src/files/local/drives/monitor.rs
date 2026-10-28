@@ -27,10 +27,15 @@ pub type DriveSink = Box<dyn Fn(&DrivesChanged) -> bool + Send>;
 /// write and alone is no reason to send.
 pub fn changed(prev: &[Drive], next: &[Drive]) -> bool {
     prev.len() != next.len()
-        || prev
-            .iter()
-            .zip(next)
-            .any(|(a, b)| Drive { free: None, ..a.clone() } != Drive { free: None, ..b.clone() })
+        || prev.iter().zip(next).any(|(a, b)| {
+            Drive {
+                free: None,
+                ..a.clone()
+            } != Drive {
+                free: None,
+                ..b.clone()
+            }
+        })
 }
 
 #[derive(Clone)]
@@ -116,7 +121,9 @@ impl DriveMonitor {
 
 impl Inner {
     fn lock(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     fn stop_if_idle(&self, state: &mut State) {
@@ -133,7 +140,9 @@ impl Inner {
                 let state = self.lock();
                 let (state, _) = self
                     .wake
-                    .wait_timeout_while(state, self.interval, |state| state.generation == generation)
+                    .wait_timeout_while(state, self.interval, |state| {
+                        state.generation == generation
+                    })
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 if state.generation != generation {
                     return;

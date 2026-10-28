@@ -53,21 +53,30 @@ fn an_unmounted_drive_is_mounted_first() {
 #[test]
 fn an_unknown_drive_is_gone() {
     let backend = FakeBackend::with(vec![stick("a", DriveState::Mounted)]);
-    assert_eq!(open(&backend, "x").unwrap_err().code, FilesErrorCode::DriveGone);
+    assert_eq!(
+        open(&backend, "x").unwrap_err().code,
+        FilesErrorCode::DriveGone
+    );
 }
 
 #[test]
 fn a_drive_pulled_while_mounting_is_gone() {
     let backend = FakeBackend::with(vec![stick("b", DriveState::Unmounted)]);
     *backend.mount_result.lock().unwrap() = Some(Err(DriveError::Gone));
-    assert_eq!(open(&backend, "b").unwrap_err().code, FilesErrorCode::DriveGone);
+    assert_eq!(
+        open(&backend, "b").unwrap_err().code,
+        FilesErrorCode::DriveGone
+    );
 }
 
 #[test]
 fn a_cancelled_system_prompt_is_reported_as_such() {
     let backend = FakeBackend::with(vec![stick("b", DriveState::Unmounted)]);
     *backend.mount_result.lock().unwrap() = Some(Err(DriveError::Cancelled));
-    assert_eq!(open(&backend, "b").unwrap_err().code, FilesErrorCode::DriveCancelled);
+    assert_eq!(
+        open(&backend, "b").unwrap_err().code,
+        FilesErrorCode::DriveCancelled
+    );
 }
 
 #[test]

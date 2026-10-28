@@ -73,10 +73,19 @@ fn machine() -> Vec<UdisksObject> {
         drive("usb_backup", true),
         drive("sata", false),
         // NVMe: ESP and recovery are mounted at system places.
-        with_fs(block("nvme0n1p1", on("nvme", props("", "AAAA-BBBB"))), Some("/boot/efi")),
-        with_fs(block("nvme0n1p2", on("nvme", props("", "1111"))), Some("/recovery")),
+        with_fs(
+            block("nvme0n1p1", on("nvme", props("", "AAAA-BBBB"))),
+            Some("/boot/efi"),
+        ),
+        with_fs(
+            block("nvme0n1p2", on("nvme", props("", "1111"))),
+            Some("/recovery"),
+        ),
         // LUKS with LVM inside: the content block holds no file system.
-        unlocked_as(block("nvme0n1p3", on("nvme", props("", "LUKS-ROOT"))), "dm_2d0"),
+        unlocked_as(
+            block("nvme0n1p3", on("nvme", props("", "LUKS-ROOT"))),
+            "dm_2d0",
+        ),
         block(
             "dm_2d0",
             BlockProps {
@@ -91,16 +100,34 @@ fn machine() -> Vec<UdisksObject> {
         block("dm_2d2", props("", "")),
         // The Mint stick: iso9660 and a writable partition, not mounted.
         with_fs(
-            block("sdc1", on("usb_mint", removable("Linux Mint 22.3 Cinnamon 64-bit", "2026-01-01"))),
+            block(
+                "sdc1",
+                on(
+                    "usb_mint",
+                    removable("Linux Mint 22.3 Cinnamon 64-bit", "2026-01-01"),
+                ),
+            ),
             None,
         ),
-        with_fs(block("sdc3", on("usb_mint", removable("writable", "W-UUID"))), None),
+        with_fs(
+            block("sdc3", on("usb_mint", removable("writable", "W-UUID"))),
+            None,
+        ),
         // An unmounted vfat stick.
-        with_fs(block("sdd1", on("usb_fotos", removable("FOTOS", "C0DE-F00D"))), None),
+        with_fs(
+            block("sdd1", on("usb_fotos", removable("FOTOS", "C0DE-F00D"))),
+            None,
+        ),
         // A locked LUKS stick.
-        locked(block("sde1", on("usb_backup", removable("", "LUKS-BACKUP")))),
+        locked(block(
+            "sde1",
+            on("usb_backup", removable("", "LUKS-BACKUP")),
+        )),
         // An internal NTFS partition, not mounted, HintSystem as on every internal disk.
-        with_fs(block("sda2", on("sata", props("Windows", "NTFS-UUID"))), None),
+        with_fs(
+            block("sda2", on("sata", props("Windows", "NTFS-UUID"))),
+            None,
+        ),
         // Ignored by a udev rule.
         with_fs(
             block(
@@ -189,8 +216,14 @@ fn a_locked_stick_is_locked_and_keyed_by_its_container() {
 #[test]
 fn an_unlocked_stick_keeps_the_container_key_and_shows_its_label() {
     let mut objects = machine();
-    let at = objects.iter().position(|o| o.path.ends_with("/sde1")).unwrap();
-    objects[at] = unlocked_as(block("sde1", on("usb_backup", removable("", "LUKS-BACKUP"))), "dm_2d5");
+    let at = objects
+        .iter()
+        .position(|o| o.path.ends_with("/sde1"))
+        .unwrap();
+    objects[at] = unlocked_as(
+        block("sde1", on("usb_backup", removable("", "LUKS-BACKUP"))),
+        "dm_2d5",
+    );
     objects.push(with_fs(
         block(
             "dm_2d5",
@@ -215,7 +248,10 @@ fn an_unlocked_stick_keeps_the_container_key_and_shows_its_label() {
 fn a_mounted_internal_partition_can_be_unmounted() {
     let objects = vec![
         drive("sata", false),
-        with_fs(block("sdb1", on("sata", props("data", "D1"))), Some("/mnt/data")),
+        with_fs(
+            block("sdb1", on("sata", props("data", "D1"))),
+            Some("/mnt/data"),
+        ),
     ];
     let drives = listed(&objects);
     assert_eq!(drives[0].release, DriveRelease::Unmount);
@@ -224,7 +260,10 @@ fn a_mounted_internal_partition_can_be_unmounted() {
 
 #[test]
 fn a_loop_image_without_a_drive_is_removable() {
-    let objects = vec![with_fs(block("loop0", removable("E2EFOTOS", "ABCD-0001")), Some("/media/x"))];
+    let objects = vec![with_fs(
+        block("loop0", removable("E2EFOTOS", "ABCD-0001")),
+        Some("/media/x"),
+    )];
     let drives = listed(&objects);
     assert_eq!(drives[0].kind, DriveKind::Removable);
     assert_eq!(drives[0].release, DriveRelease::Eject);
