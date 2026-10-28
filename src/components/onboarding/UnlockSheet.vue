@@ -133,6 +133,7 @@ async function onSubmit() {
             v-model="passphrase"
             :labels="passwordLabels"
             autofocus
+            data-testid="unlock-passphrase"
           />
         </div>
         <p v-if="error" class="text-sm text-destructive" role="alert">
@@ -147,6 +148,7 @@ async function onSubmit() {
         :disabled="!canSubmit"
         :loading="submitting"
         class="w-full"
+        data-testid="unlock-submit"
       >
         {{ t('onboarding.unlock.submit') }}
       </UiButton>
