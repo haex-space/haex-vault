@@ -36,6 +36,7 @@ Ablage und Vorrang: Nummerierte `specs/`-Artefakte einschließlich ihrer Verträ
 | 053: Austauschbare Icon-Sets für den Dateibrowser (`specs/053-file-icon-sets/`) | P2 | L | Spezifiziert, geplant und umgesetzt 2026-10-15 (PR A–D); offen nur die Handprüfung T065 | 044, 023 und 024 im Einsatz |
 | 021: holzi als MCP-Server für externe Agenten (`specs/021-mcp-server/`) | P1 | L | Spezifiziert, geklärt und geplant 2026-10-26 (Lieferungen PR A–G); Grundlage für Browser-Werkzeuge | 020, 023, 032, 018, 034 und 044 im Einsatz |
 | 066: Sprachassistent mit Wake Word (`specs/066-voice-assistant/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–J); Standard-Wake-Word wird im externen Repo `haex-space/haex-wakeword` trainiert | 032, 008 US1 und 010 im Einsatz; PR F nach ADR-0020 |
+| 067: Meeting-Mitschrift mit Sprecherzuordnung (`specs/067-meeting-transcription/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–G) | 066 PR B–D umgesetzt; PR E nach 066 PR G |
 
 Legende: Priorität `P1` (höchste) – `P3` (nachrangig); Aufwand `S` (klein), `M` (mittel), `L` (groß).
 

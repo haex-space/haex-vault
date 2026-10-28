@@ -43,6 +43,17 @@ Auswahl hinter dem Mail-Knopf und im System, indem holzi sich als Programm für 
   Extensions nicht von Kontakten aus; diese Spec gibt einer Extension weder Zugriff auf Kontakte noch
   auf andere Daten, nur auf den einen Link.
 
+## Clarifications
+
+### Session 2026-10-28
+
+- Q: Wie vermeidet holzi die Schleife, wenn es selbst das mailto-Programm des Systems ist (FR-018)? → A:
+  Bei einem Link von außen gibt es „Mit dem System öffnen“ nie; die Auswahl hat nur die Öffner und
+  „Link kopieren“. Keine Erkennung des Standard-Programms pro Plattform.
+- Q: Was geschieht, wenn mehrere Links von außen kurz nacheinander kommen? → A: Es wird nur der neueste
+  gehalten und ersetzt den wartenden (auch den, dessen Auswahl offen ist); ein ersetzter Link geht
+  verloren. Keine Warteschlange.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Eine Mail an einen Kontakt mit haex-mail schreiben (Priority: P1)
@@ -83,8 +94,8 @@ wie bisher.
 
 Ich tippe in einer anderen App, im Browser oder in einem Dokument auf einen E-Mail-Link. Hat der Nutzer
 holzi beim System als Programm für E-Mail-Links eingestellt (oder wählt er es im System-Dialog „Öffnen
-mit“), geht holzi auf und zeigt die Öffnen-Auswahl für genau diesen Link: die Öffner und, wenn das keine
-Schleife ergibt, „Mit dem System öffnen“. Meine Wahl öffnet den Link in der Extension. Ist die Vault
+mit“), geht holzi auf und zeigt die Öffnen-Auswahl für genau diesen Link: die Öffner und „Link
+kopieren“, aber nie „Mit dem System öffnen“, weil das holzi erneut öffnen könnte. Meine Wahl öffnet den Link in der Extension. Ist die Vault
 gesperrt, kommt die Öffnen-Auswahl nach dem Entsperren.
 
 **Why this priority**: Ergänzt den Kern um den Weg von außen; braucht die Registrierung beim System und
@@ -103,11 +114,11 @@ Text des Links.
 3. **Given** die Vault ist gesperrt, **When** ein E-Mail-Link von außen kommt, **Then** merkt sich holzi
    den Link, bis ich entsperrt habe, und zeigt dann die Auswahl; der Link bleibt nicht auf Dauer
    gespeichert.
-4. **Given** holzi ist selbst das Programm des Systems für E-Mail-Links, **When** der Link von außen
-   kommt, **Then** bietet die Auswahl „Mit dem System öffnen“ nicht an, weil es holzi erneut öffnen
-   würde.
+4. **Given** ein E-Mail-Link kommt von außen, **When** die Auswahl erscheint, **Then** bietet sie
+   „Mit dem System öffnen“ nie an (es würde holzi erneut öffnen, wenn holzi das Programm des Systems
+   ist), sondern die Öffner und „Link kopieren“.
 5. **Given** es gibt keinen Öffner, **When** ein E-Mail-Link von außen kommt, **Then** sagt holzi das
-   (kein Öffner installiert) und der Link geht nicht verloren: Der Nutzer kann ihn kopieren.
+   (kein Öffner installiert) und der Link bleibt kopierbar.
 6. **Given** der Link enthält ungültige oder zu große Angaben, **When** er ankommt, **Then** zeigt holzi
    die Auswahl nicht und sagt, dass der Link nicht gelesen werden kann.
 
@@ -164,8 +175,9 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
   Auswahl wie auf dem Desktop.
 - **Sperrbildschirm und Berechtigung**: Eine Extension bekommt den Link nur nach der Wahl des Nutzers in
   der Auswahl, nie von selbst, auch nicht, wenn sie sich angemeldet hat.
-- **Mehrere Links kurz nacheinander**: Kommen mehrere Links von außen, bevor der Nutzer gewählt hat,
-  zeigt holzi sie nacheinander; kein Link geht verloren und keiner wird ohne Wahl geöffnet.
+- **Mehrere Links kurz nacheinander**: Kommt ein Link von außen, bevor der Nutzer für den vorigen
+  gewählt hat, ersetzt der neue den wartenden; holzi zeigt immer nur die Auswahl für den neuesten Link,
+  und ein ersetzter Link ist weg. Kein Link wird ohne Wahl geöffnet.
 
 ## Requirements _(mandatory)_
 
@@ -223,13 +235,15 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
   nicht selbst zum Standard machen oder eine Systemeinstellung ändern; die Wahl bleibt beim Nutzer.
 - **FR-017**: Kommt ein E-Mail-Link von außen, MUSS holzi die Öffnen-Auswahl für genau diesen Link
   zeigen (FR-002 bis FR-005). Ist die Vault gesperrt, MUSS holzi den Link bis nach dem Entsperren
-  vormerken und danach die Auswahl zeigen. Der Link DARF nicht auf Dauer gespeichert werden.
-- **FR-018**: Bei einem Link von außen DARF die Auswahl „Mit dem System öffnen“ nicht anbieten, wenn
-  holzi selbst das Programm des Systems für E-Mail-Links ist, weil das holzi erneut öffnen würde. Ob
-  holzi das weiß, MUSS die Spec für jede Plattform festlegen; wo es das nicht erkennen kann, MUSS holzi
-  das Weiterreichen an das System so absichern, dass keine Schleife entsteht.
-- **FR-019**: Gibt es für einen Link von außen keinen Öffner, MUSS holzi das sagen und dem Nutzer den
-  Link zum Kopieren lassen.
+  vormerken und danach die Auswahl zeigen. holzi hält dabei höchstens einen Link: Ein neuer ersetzt den
+  wartenden. Der Link DARF nicht auf Dauer gespeichert werden.
+- **FR-018**: Bei einem Link von außen DARF die Auswahl „Mit dem System öffnen“ nie anbieten, auf keiner
+  Plattform, weil es holzi erneut öffnen könnte, wenn holzi das Programm des Systems für E-Mail-Links
+  ist. holzi erkennt das Standard-Programm nicht. Die Auswahl hat bei einem Link von außen nur die
+  Öffner und „Link kopieren“ (FR-019); „Mit dem System öffnen“ gibt es nur beim Mail-Knopf im
+  Adressbuch (FR-002, FR-003).
+- **FR-019**: Die Auswahl bei einem Link von außen MUSS „Link kopieren“ anbieten. Gibt es keinen Öffner,
+  MUSS holzi das sagen und nur das Kopieren lassen.
 - **FR-020**: Der Eingang eines Links von außen DARF nie selbst eine Mail öffnen, senden oder eine
   Extension starten; er zeigt nur die Auswahl.
 

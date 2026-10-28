@@ -2655,6 +2655,8 @@
       "places": "Orte",
       "drives": "Laufwerke",
       "free": "{size} frei",
+      "used": "{size} belegt",
+      "freeOf": "{free} frei von {total}",
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
@@ -2873,7 +2875,11 @@
         "inactive": "holzi nicht aktiv"
       },
       "picker": {
-        "root": "Ort wählen",
+        "origin": "Gerät oder Speicher wählen",
+        "chooseFolder": "Ordner wählen",
+        "choose": "Diesen Ordner wählen",
+        "change": "Ändern",
+        "thisDevice": "Dieses Gerät",
         "up": "Eine Ebene höher",
         "empty": "Keine Unterordner"
       },

@@ -29,6 +29,11 @@ pub(super) struct Entry {
     pub modified: Option<String>,
     /// `getetag` without quotes and without a weak mark.
     pub etag: Option<String>,
+    /// `quota-used-bytes` (RFC 4331), when sent.
+    pub quota_used: Option<u64>,
+    /// `quota-available-bytes` (RFC 4331) as sent: negative where a server means "unlimited" or
+    /// "unknown" (Nextcloud sends -3).
+    pub quota_available: Option<i64>,
 }
 
 /// The DAV element a text belongs to.
@@ -39,6 +44,8 @@ enum Field {
     Length,
     Modified,
     Etag,
+    QuotaUsed,
+    QuotaAvailable,
 }
 
 /// What one `response` collected so far.
@@ -49,6 +56,8 @@ struct Response {
     size: Option<u64>,
     modified: Option<String>,
     etag: Option<String>,
+    quota_used: Option<u64>,
+    quota_available: Option<i64>,
 }
 
 /// The properties of one `propstat`, kept only when its status is 200.
@@ -59,6 +68,8 @@ struct PropStat {
     size: Option<u64>,
     modified: Option<String>,
     etag: Option<String>,
+    quota_used: Option<u64>,
+    quota_available: Option<i64>,
 }
 
 /// The decoded path of `href` (a path or a full address).
@@ -124,6 +135,8 @@ pub(super) fn parse(xml: &str, requested: &str) -> Result<Vec<Entry>, StorageErr
                         b"getcontentlength" => Some(Field::Length),
                         b"getlastmodified" => Some(Field::Modified),
                         b"getetag" => Some(Field::Etag),
+                        b"quota-used-bytes" => Some(Field::QuotaUsed),
+                        b"quota-available-bytes" => Some(Field::QuotaAvailable),
                         _ => None,
                     };
                     text.clear();
@@ -153,6 +166,8 @@ pub(super) fn parse(xml: &str, requested: &str) -> Result<Vec<Entry>, StorageErr
                             resp.size = resp.size.or(stat.size);
                             resp.modified = resp.modified.take().or(stat.modified);
                             resp.etag = resp.etag.take().or(stat.etag);
+                            resp.quota_used = resp.quota_used.or(stat.quota_used);
+                            resp.quota_available = resp.quota_available.or(stat.quota_available);
                         }
                     }
                 }
@@ -173,6 +188,12 @@ pub(super) fn parse(xml: &str, requested: &str) -> Result<Vec<Entry>, StorageErr
                             stat.modified = Some(value.trim().to_owned());
                         }
                         (Some(Field::Etag), Some(stat), _) => stat.etag = Some(bare_etag(&value)),
+                        (Some(Field::QuotaUsed), Some(stat), _) => {
+                            stat.quota_used = value.trim().parse().ok();
+                        }
+                        (Some(Field::QuotaAvailable), Some(stat), _) => {
+                            stat.quota_available = value.trim().parse().ok();
+                        }
                         _ => {}
                     }
                 }
@@ -206,6 +227,8 @@ pub(super) fn parse(xml: &str, requested: &str) -> Result<Vec<Entry>, StorageErr
             size: resp.size.unwrap_or(0),
             modified: resp.modified,
             etag: resp.etag,
+            quota_used: resp.quota_used,
+            quota_available: resp.quota_available,
         });
     }
     Ok(entries)

@@ -6,9 +6,11 @@ use reqwest::{Method, StatusCode};
 use tokio::time::Instant;
 
 use super::super::tree::{ancestors, DirEntry};
-use super::super::{Access, StorageError};
+use super::super::{Access, StorageError, StorageSpace};
 use super::multistatus::{self, Entry};
-use super::request::{decoded_path, method, send, send_raw, status_error, url_of, PROPFIND_BODY};
+use super::request::{
+    decoded_path, method, send, send_raw, status_error, url_of, PROPFIND_BODY, QUOTA_BODY,
+};
 use super::WebDavStore;
 use crate::files::storage_time::parse_http_date_ms;
 use crate::passwords::clock::format_millis;
@@ -45,6 +47,44 @@ impl WebDavStore {
         depth: u8,
         deadline: Instant,
     ) -> Result<Vec<Entry>, StorageError> {
+        self.propfind_with(access, key, depth, PROPFIND_BODY, deadline)
+            .await
+    }
+
+    /// What the server says about the quota of the folder of the storage (RFC 4331): used bytes,
+    /// and with the bytes still available the total. A server that sends nothing, or a negative
+    /// number for "unlimited" or "unknown", gives no total; one that sends nothing at all gives
+    /// `None`.
+    pub(super) async fn quota(
+        &self,
+        access: &Access,
+        deadline: Instant,
+    ) -> Result<Option<StorageSpace>, StorageError> {
+        let entries = self
+            .propfind_with(access, "", 0, QUOTA_BODY, deadline)
+            .await?;
+        let Some(entry) = entries.into_iter().find(|entry| entry.name.is_empty()) else {
+            return Ok(None);
+        };
+        let Some(used) = entry.quota_used else {
+            return Ok(None);
+        };
+        let total = entry
+            .quota_available
+            .and_then(|available| u64::try_from(available).ok())
+            .and_then(|available| used.checked_add(available));
+        Ok(Some(StorageSpace { used, total }))
+    }
+
+    /// `PROPFIND` of `key` with the request `body`.
+    async fn propfind_with(
+        &self,
+        access: &Access,
+        key: &str,
+        depth: u8,
+        body: &'static str,
+        deadline: Instant,
+    ) -> Result<Vec<Entry>, StorageError> {
         let _permit = self.permit(access, deadline).await?;
         let url = url_of(&access.location, key)?;
         let requested = decoded_path(&url);
@@ -57,7 +97,7 @@ impl WebDavStore {
                 ("depth", depth.to_string()),
                 ("content-type", "application/xml; charset=utf-8".to_owned()),
             ],
-            Some(PROPFIND_BODY.into()),
+            Some(body.into()),
             deadline,
         )
         .await?;
