@@ -156,7 +156,7 @@ Agenten-Browser (FR-002: ohne Erweiterungen); eigenes Fenster von holzi über de
 
 **Entscheidung**: Das Werkzeug `browser.credentials.fill` bekommt nur die Nummer des Formulars oder
 nichts. holzi sucht die passenden Einträge über einen Dienst im Passwortmanager
-(`passwords::site::entries_for_origin`), der den heutigen Filter aus
+(`PasswordsService::headers_for_page`), der den heutigen Filter aus
 `browser_bridge/methods/items.rs` übernimmt (eine Regel, zwei Nutzer; der ponytail-Vermerk dort
 nennt genau diesen Schritt). Die Werte schreibt holzi in der eigenen Welt direkt in die Felder
 (Wertzuweisung plus `input`/`change`-Ereignisse) und merkt sich die Felder als „gefüllt“.
