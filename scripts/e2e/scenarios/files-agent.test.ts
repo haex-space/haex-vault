@@ -129,6 +129,15 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
 
     // Spec 062 T063: files.show opens a fresh file-browser tab and leaves an existing split alone.
     if (process.env.E2E_PLATFORM !== 'android') {
+      const before = await wmSnapshot(instance)
+      const existing = before.windows
+        .flatMap((window) => window.tabs)
+        .find((tab) => tab.appId === 'system.files')
+      assert.ok(existing, 'the initial file-browser tab exists')
+      const activatedBefore = await runAction(instance, 'wm.tab.activate', {
+        tabId: existing.id,
+      })
+      assert.ok(activatedBefore.ok, JSON.stringify(activatedBefore))
       await instance.click('files-sidebar-toggle')
       await instance.click('files-split-toggle')
       await ctx.waitFor(
@@ -136,11 +145,6 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
         async () => (await visiblePanels(instance)) === 2,
         { fixed: true, timeoutMs: 15_000 },
       )
-      const before = await wmSnapshot(instance)
-      const existing = before.windows
-        .flatMap((window) => window.tabs)
-        .find((tab) => tab.appId === 'system.files')
-      assert.ok(existing, 'the initial file-browser tab exists')
 
       const shown = await runAction(instance, 'files.show', {
         source: 'device',
