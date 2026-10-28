@@ -32,12 +32,12 @@
 
 ## Ereignisse
 
-| Ereignis                  | Nutzlast                                  | Spec          |
-| ------------------------- | ----------------------------------------- | ------------- |
-| `meeting-state`           | `MeetingWire`                             | FR-005        |
-| `meeting-entry`           | `TranscriptEntryWire` (neu oder geändert) | US1, FR-011   |
-| `meeting-assignment-done` | `{id, changedEntries}`                    | US1 Szen. 9   |
-| `meeting-warning`         | `{kind: "storage"                         | "longRunning" | "deviceAudioDenied" | "backlog", ...}` | FR-016, Edge |
+| Ereignis                  | Nutzlast                                                                                | Spec               |
+| ------------------------- | --------------------------------------------------------------------------------------- | ------------------ |
+| `meeting-state`           | `MeetingWire`                                                                           | FR-005             |
+| `meeting-entry`           | `TranscriptEntryWire` (neu oder geändert)                                               | US1, FR-011        |
+| `meeting-assignment-done` | `{id, changedEntries}`                                                                  | US1 Szen. 9        |
+| `meeting-warning`         | `{kind, ...}` mit `kind` = `storage`, `longRunning`, `deviceAudioDenied` oder `backlog` | FR-016, Edge Cases |
 
 ## Katalogaktionen (Spec 020)
 
