@@ -103,6 +103,37 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await active('left', 'the left panel to be the active one')
     ctx.step('the switch shows two panels, the second at the first one’s place')
 
+    // The bar belongs to the panels: the toolbar keeps the sidebar and the switch, each panel has
+    // its own back, forward, view and sort, and the view of one does not change the other's.
+    assert.equal(
+      await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-files-app] > :first-child [data-testid="files-view-toggle"]'))`,
+      ),
+      false,
+      'no view switch in the toolbar',
+    )
+    const viewLabel = (side: PanelSide) =>
+      instance.exec<string | null>(
+        `const el = document.querySelector(arguments[0])
+         return el ? el.getAttribute('aria-label') : null`,
+        [inPanel(side, 'files-view-toggle')],
+      )
+    const viewBefore = await viewLabel('left')
+    assert.ok(viewBefore && viewBefore === (await viewLabel('right')))
+    await instance.click(inPanel('left', 'files-view-toggle'))
+    await ctx.waitFor(
+      'the left view to change alone',
+      async () =>
+        (await viewLabel('left')) !== viewBefore &&
+        (await viewLabel('right')) === viewBefore,
+    )
+    await instance.click(inPanel('left', 'files-view-toggle'))
+    await ctx.waitFor(
+      'the left view back to the list',
+      async () => (await viewLabel('left')) === viewBefore,
+    )
+    ctx.step('view and sort are per panel')
+
     // Each panel navigates on its own: the right one up and into split-b (it becomes the active
     // one), then the left one into unter.
     await instance.click(inPanel('right', 'files-up'))

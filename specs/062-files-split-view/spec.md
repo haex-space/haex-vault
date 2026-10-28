@@ -295,8 +295,13 @@ prüfen.
   beginnt neu. Beim Ausschalten des Splits bleibt der Verlauf des Panels, das übrig bleibt.
 - **FR-016**: Suche und Filter (Spec 044 US4) MÜSSEN je Panel laufen; Strg+F fokussiert die Suche des
   aktiven Panels. Eine laufende Suche in einem Panel DARF das andere nicht beeinträchtigen.
-- **FR-017**: Ansicht (Liste oder Raster), Sortierung und versteckte Dateien (Spec 044 FR-003) MÜSSEN
-  für beide Panels gemeinsam gelten, weil sie je Gerät gespeichert werden.
+- **FR-017**: Ansicht (Liste oder Raster) und Sortierung (Spec 044 FR-003) MÜSSEN je Panel gelten
+  (Entscheidung 2026-10-28, ersetzt „gemeinsam“). Das Gerät liefert den Anfangswert; wer im Split
+  ändert, ändert nur sein Panel, und der Wert steht im Ort des Tabs (`vw`, `so`), kommt also mit der
+  Sitzung zurück. Ohne Split ändert die Wahl wie bisher die Geräteeinstellung. Versteckte Dateien
+  bleiben je Gerät gemeinsam. Zurück, Vor, Ansicht und Sortierung stehen im Kopf jedes Panels, nicht
+  mehr in der Werkzeugleiste; oben bleiben Seitenleiste und Split-Schalter (rechts). Mit einem Panel
+  steht die Leiste des Panels in der Werkzeugleiste.
 - **FR-018**: Beide Panels MÜSSEN Änderungen auf dem Gerät (Spec 044 FR-006) ohne Neuladen zeigen,
   auch wenn beide denselben Ordner zeigen. Nach einem Transfer MÜSSEN beide den neuen Stand zeigen.
 - **FR-019**: Der Viewer MUSS wie bisher über der gesamten Ansicht öffnen; „voriges/nächstes“ MUSS im
