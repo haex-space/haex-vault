@@ -4,7 +4,7 @@
     "note": "Desktop defaults to Qwen3 4B; Qwen3.5 4B and Gemma 4 E4B are available as optional downloads for evaluation. Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
     "source": "Hugging Face model repositories listed per entry (community-quantized GGUFs)",
     "profiles": {
-      "desktop": "qwen3-4b-instruct-q4_k_m",
+      "desktop": "gemma-4-e4b-instruct-q4_k_m",
       "mobile": "qwen3-1.7b-instruct-q4_k_m",
       "mobile_low_memory": "qwen3-0.6b-instruct-q4_k_m"
     }
