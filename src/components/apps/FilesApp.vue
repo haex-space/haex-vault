@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Drive } from '@bindings/Drive'
 import { isPeerStorage } from '~/lib/files/registry'
 import { splitAvailable } from '~/lib/files/split'
 
@@ -22,6 +23,15 @@ const prefs = useFilesPrefs()
 const { sourcesAsync, releaseTabAsync } = useFiles()
 
 const sources = useAsyncState(() => sourcesAsync(), null)
+// Spec 064: the drive list stays live while a frame is open; until its first message the sources'
+// drives stand in.
+const liveDrives = useFilesDrives()
+const drives = computed(() =>
+  liveDrives.drives.value.length > 0
+    ? liveDrives.drives.value
+    : (sources.state.value?.drives ?? []),
+)
+const { openDriveAsync } = useFilesDriveActions()
 const { queryContactAsync } = useFilesContactQuery(sources)
 
 const root = useTemplateRef<HTMLElement>('root')
@@ -69,6 +79,7 @@ const visiblePanel = (side: 'left' | 'right') =>
 
 onMounted(() => {
   openFrames += 1
+  if (openFrames === 1) liveDrives.start()
   void prefs.ensureLoaded()
 })
 
@@ -77,6 +88,7 @@ onBeforeUnmount(() => {
   void releaseTabAsync(tabId).catch(() => {})
   openFrames -= 1
   if (openFrames > 0) return
+  liveDrives.stop()
   clearFilesThumbnails()
   clearFileIcons()
 })
@@ -96,6 +108,12 @@ const sidebarClass = computed(() => [
 function onSidebarPick(target: string) {
   close()
   go({ source: { kind: 'device' }, path: target })
+}
+
+/** A drive opens once it is mounted (spec 064 FR-006); a failure leaves the tab where it is. */
+async function onPickDrive(drive: Drive) {
+  const path = await openDriveAsync(drive)
+  if (path !== null) onSidebarPick(path)
 }
 
 function onPickStorage(storageId: string) {
@@ -146,9 +164,12 @@ watch(tabActive, (active) => {
       >
         <FilesSidebar
           :sources="sources.state.value"
+          :drives="drives"
+          :busy="liveDrives.busy.value"
           :current="storageId === null ? place.path : null"
           :current-storage="storageId"
           @pick="onSidebarPick"
+          @pick-drive="onPickDrive"
           @pick-storage="onPickStorage"
           @add-storage="openStorageSettings"
           @query-contact="queryContactAsync"

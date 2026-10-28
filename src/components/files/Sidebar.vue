@@ -1,17 +1,24 @@
 <script setup lang="ts">
 /**
  * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
- * with free space where known, the other devices of the vault (spec 056 US1), the shares contacts
+ * with their state and free space where known (spec 064: live, unmounted and locked ones too), the
+ * other devices of the vault (spec 056 US1), the shares contacts
  * gave this vault (US2: expanding a contact asks its devices, FR-028), the overview of the vault's
  * own shares (US4, FR-020), the sync rules of this device (spec 061), and the cloud storages of spec 038 (US5) with a button that leads to
  * adding one in the settings.
  */
+import type { Drive } from '@bindings/Drive'
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
+import { isCurrentDrive } from '~/lib/files/drives'
 import { formatFileSize } from '~/lib/passwords/format'
 
-defineProps<{
+const props = defineProps<{
   sources: Sources | null
+  /** The drives with their state (spec 064), kept live by the frame. */
+  drives: readonly Drive[]
+  /** Drives with an action running. */
+  busy: ReadonlySet<string>
   /** The open folder of the device, `null` while a storage is open. */
   current: string | null
   /** The open storage. */
@@ -20,12 +27,24 @@ defineProps<{
 
 const emit = defineEmits<{
   pick: [path: string]
+  pickDrive: [drive: Drive]
   pickStorage: [id: string]
   addStorage: []
   queryContact: [contactId: string]
 }>()
 
 const { t } = useI18n()
+const { nameOf } = useFilesDriveActions()
+
+function driveIcon(drive: Drive): string {
+  if (props.busy.has(drive.id)) return 'lucide:loader-circle'
+  if (drive.state === 'locked') return 'lucide:lock'
+  return drive.kind === 'removable' ? 'lucide:usb' : 'lucide:hard-drive'
+}
+
+function isCurrent(drive: Drive): boolean {
+  return isCurrentDrive(drive, props.current, [...props.drives])
+}
 
 /** "Meine Dateifreigaben" is open. */
 const overviewOpen = ref(false)
@@ -87,23 +106,34 @@ const PLACE_ICONS: Record<string, string> = {
         </li>
       </ul>
     </section>
-    <section v-if="sources?.drives.length">
+    <section v-if="drives.length">
       <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
         {{ t('files.sidebar.drives') }}
       </h2>
       <ul>
-        <li v-for="drive in sources.drives" :key="drive.path">
+        <li v-for="drive in drives" :key="drive.id">
           <button
             type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-            :class="current === drive.path ? 'bg-accent font-medium' : ''"
-            :data-testid="`files-drive-${drive.path}`"
-            @click="emit('pick', drive.path)"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-wait"
+            :class="[
+              isCurrent(drive) ? 'bg-accent font-medium' : '',
+              drive.state === 'mounted' ? '' : 'text-muted-foreground',
+            ]"
+            :disabled="busy.has(drive.id)"
+            :aria-busy="busy.has(drive.id)"
+            :data-testid="`files-drive-${drive.id}-${drive.label ?? drive.id}`"
+            @click="emit('pickDrive', drive)"
           >
-            <Icon name="lucide:hard-drive" class="size-4 shrink-0" />
-            <span class="min-w-0 flex-1 truncate">{{ drive.name }}</span>
+            <Icon
+              :name="driveIcon(drive)"
+              :class="[
+                'size-4 shrink-0',
+                busy.has(drive.id) && 'animate-spin motion-reduce:animate-none',
+              ]"
+            />
+            <span class="min-w-0 flex-1 truncate">{{ nameOf(drive) }}</span>
             <span
-              v-if="drive.free !== null"
+              v-if="drive.state === 'mounted' && drive.free !== null"
               class="shrink-0 text-xs text-muted-foreground"
             >
               {{

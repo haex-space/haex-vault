@@ -2648,6 +2648,14 @@
       "show": "Versteckte Dateien zeigen",
       "hide": "Versteckte Dateien ausblenden"
     },
+    "drives": {
+      "unnamed": "Datenträger ({size})",
+      "cancelled": "Einhängen abgebrochen",
+      "gone": "{name} ist nicht mehr da",
+      "unsupported": "{name} lässt sich hier noch nicht öffnen",
+      "failed": "{name}: {message}",
+      "goneJump": "{folder} gibt es nicht mehr – zeige {target}"
+    },
     "sidebar": {
       "label": "Orte und Laufwerke",
       "show": "Seitenleiste zeigen",
