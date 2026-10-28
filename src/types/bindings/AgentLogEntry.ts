@@ -8,7 +8,7 @@ export type AgentLogEntry = { id: string,
 /**
  * Unix milliseconds.
  */
-createdAt: bigint, tool: string,
+createdAt: number, tool: string,
 /**
  * `read`, `write`, `destructive`, or empty for a tool holzi does not know.
  */

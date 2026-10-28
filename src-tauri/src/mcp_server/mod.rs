@@ -11,8 +11,12 @@ pub mod endpoint;
 pub mod grants;
 pub mod hello;
 pub mod helper;
+pub mod live;
+pub mod manage;
+pub mod manage_commands;
 pub mod prompts;
 pub mod redact;
+mod registration;
 pub mod registry;
 pub mod server;
 pub mod session;
@@ -28,6 +32,8 @@ mod grants_tests;
 mod hello_tests;
 #[cfg(test)]
 mod helper_tests;
+#[cfg(test)]
+mod manage_tests;
 #[cfg(test)]
 mod prompts_tests;
 #[cfg(test)]
@@ -133,7 +139,7 @@ impl McpServer {
         &self.calls
     }
 
-    fn notifier(&self) -> Notifier {
+    pub(super) fn notifier(&self) -> Notifier {
         self.notify
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -179,6 +185,15 @@ impl McpServer {
         }
         drop(slot);
         self.notifier()(Notice::Changed);
+    }
+
+    /// The running server's shared state, to reach its connections.
+    pub async fn core(&self) -> Option<Arc<server::Core>> {
+        let slot = self.slot.lock().await;
+        slot.running
+            .as_ref()
+            .map(|running| Arc::clone(running.core()))
+            .filter(|core| !core.token.is_cancelled())
     }
 
     /// The state for the settings.

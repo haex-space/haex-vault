@@ -9,14 +9,16 @@
 | `mcp_status`              | –                                                                                   | an/aus, Wege, Endpunkt, HTTP-Port, verbundene Agenten                          |
 | `mcp_agents_list`         | –                                                                                   | Agenten mit Zustand, letzter Verbindung, Freigabestufe, Rechte-Zusammenfassung |
 | `mcp_agent_get`           | `agentId`                                                                           | Agent mit allen Rechten                                                        |
-| `mcp_agent_log`           | `agentId`, `before?`, `limit` (≤ 200)                                               | Protokolleinträge, neueste zuerst                                              |
+| `mcp_agent_log`           | `agentId`, `before?`, `beforeId?`, `limit` (≤ 200)                                  | Protokolleinträge, neueste zuerst; `beforeId` bricht Zeitstempel-Gleichstände  |
 | `mcp_configure`           | `enabled`                                                                           | schaltet den Zugang dieses Geräts; nur über `settings.agents.mcp.enable`       |
 | `mcp_registration_answer` | `requestId`, `decision` (`register`/`deny`), `remember`, `grants`, `permissionMode` | beendet den Registrierungsdialog                                               |
 | `mcp_call_answer`         | `requestId`, `decision` (`allow`/`deny`)                                            | beendet eine Rückfrage                                                         |
 | `mcp_setup_snippet`       | `client` (`claude-code`, `codex`, `other`), `transport`                             | Text der Anleitung ohne Nachweis (FR-005)                                      |
 
-Änderungen an Einstellungen und Rechten laufen nicht über eigene Commands, sondern über die
-Katalogaktionen unten (ein Weg für Oberfläche und Tests).
+Änderungen an Einstellungen und Rechten laufen über die Katalogaktionen unten (ein Weg für
+Oberfläche und Tests). Deren Handler rufen `mcp_agent_rights_set`, `mcp_agent_mode_set`,
+`mcp_agent_revoke`, `mcp_agent_unblock` und `mcp_agent_log_clear` (je `agentId`, dazu `rights`
+bzw. `mode`); kein Agent erreicht sie.
 
 ## Ereignisse (Rust → Fenster)
 

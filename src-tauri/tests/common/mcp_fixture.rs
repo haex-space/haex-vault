@@ -298,6 +298,20 @@ impl Fixture {
         assert!(self.calls.answer(id, decision), "the prompt waits");
     }
 
+    /// The id of the agent registered as `slug`.
+    pub async fn agent_id(&self, slug: &str) -> Uuid {
+        let device = self.device;
+        let slug = slug.to_owned();
+        self.db
+            .read(move |q| registry::list(q, device))
+            .await
+            .expect("the agents")
+            .into_iter()
+            .find(|agent| agent.slug == slug)
+            .expect("registered")
+            .id
+    }
+
     /// The log of the agent registered as `slug`, newest first.
     pub async fn log_of(&self, slug: &str) -> Vec<AgentLogEntry> {
         let device = self.device;
@@ -308,7 +322,7 @@ impl Fixture {
                     .into_iter()
                     .find(|agent| agent.slug == slug)
                     .expect("registered");
-                agent_log::read(tx, device, agent.id, None, 200, now_millis())
+                agent_log::read(tx, device, agent.id, None, None, 200, now_millis())
             })
             .await
             .expect("the log")

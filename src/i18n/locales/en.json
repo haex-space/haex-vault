@@ -618,7 +618,13 @@
         "agents": {
           "title": "External agents",
           "description": "Connect Claude Code, Codex and other agents over MCP",
-          "keywords": "MCP agent agents Claude Code Codex connect register rights external"
+          "keywords": "MCP agent agents Claude Code Codex connect register rights external",
+          "agent": {
+            "title": "Agent"
+          },
+          "log": {
+            "title": "Log"
+          }
         }
       },
       "federation": {
@@ -1641,7 +1647,18 @@
           "set": "Set an agent's file permission"
         },
         "mcp": {
-          "enable": "Turn the MCP access for external agents on or off"
+          "enable": "Turn the MCP access for external agents on or off",
+          "grants": {
+            "set": "Set the rights of an external agent"
+          },
+          "mode": {
+            "set": "Set the approval mode of an external agent"
+          },
+          "revoke": "Revoke an external agent",
+          "unblock": "Lift the block of an external agent",
+          "log": {
+            "clear": "Empty the log of an external agent"
+          }
         }
       },
       "general": {
@@ -3391,6 +3408,50 @@
     "callNotification": {
       "title": "An agent waits for your approval",
       "body": "Open holzi to allow or deny the call."
+    },
+    "agents": {
+      "title": "Registered agents",
+      "blockedTitle": "Blocked agents",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "state": "State",
+      "expired": "Expired, asks again on the next connection",
+      "blocked": "Blocked",
+      "noRights": "May do nothing",
+      "rights": "Reads {read} scopes, changes {write}",
+      "registered": "Registered {when}",
+      "lastSeen": "last connected {when}",
+      "unblock": "Lift block",
+      "revoke": "Revoke",
+      "revokeConfirm": "End the connection and forget the rights?",
+      "cancel": "Cancel",
+      "gone": "This agent no longer exists."
+    },
+    "time": {
+      "justNow": "just now",
+      "minutes": "{n} min ago",
+      "hours": "{n} h ago",
+      "days": "{n} days ago"
+    },
+    "log": {
+      "title": "Log",
+      "hint": "What the agent called, without secrets",
+      "empty": "No calls yet.",
+      "target": "target {target}",
+      "asked": "Asked",
+      "more": "Load older",
+      "clear": "Empty log",
+      "clearConfirm": "Delete all entries of this agent?"
+    },
+    "outcome": {
+      "ok": "Ran",
+      "denied_rights": "No rights",
+      "denied_user": "Declined",
+      "denied_plan": "Plan: not run",
+      "no_answer": "No answer",
+      "error": "Error",
+      "unavailable": "Unavailable",
+      "too_many": "Too many calls"
     }
   }
 }

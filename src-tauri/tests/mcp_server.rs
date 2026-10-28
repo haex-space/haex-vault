@@ -47,7 +47,7 @@ async fn an_unknown_agent_waits_without_tools_and_gets_them_after_the_registrati
     fx.register(&id, default_rights());
     wait_for_tools(&agent).await;
 
-    // Reading only: the changing actions wait for the prompts of PR C.
+    // The preset reads everywhere, so only the reading actions show.
     assert_eq!(tool_names(&agent).await, ["settings_get", "wm_state_get"]);
     let kept = std::fs::read_to_string(fx.credential_file("claude-code")).expect("credential");
     assert_eq!(kept.trim().len(), 43);

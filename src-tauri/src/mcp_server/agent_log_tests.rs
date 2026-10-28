@@ -67,13 +67,14 @@ async fn read_at(
     vault: &Vault,
     agent: Uuid,
     before: Option<i64>,
+    before_id: Option<String>,
     limit: u32,
     at: i64,
 ) -> Vec<String> {
     let device = vault.device;
     vault
         .db
-        .write(move |tx| read(tx, device, agent, before, limit, at))
+        .write(move |tx| read(tx, device, agent, before, before_id.as_deref(), limit, at))
         .await
         .expect("read")
         .into_iter()
@@ -204,7 +205,7 @@ async fn an_entry_keeps_what_the_call_did_newest_first() {
     let device = vault.device;
     let entries = vault
         .db
-        .write(move |tx| read(tx, device, agent, None, 10, NOW))
+        .write(move |tx| read(tx, device, agent, None, None, 10, NOW))
         .await
         .expect("read");
     assert_eq!(entries.len(), 2, "only this agent");
@@ -217,10 +218,37 @@ async fn an_entry_keeps_what_the_call_did_newest_first() {
     assert!(!entries[1].asked);
 
     assert_eq!(
-        read_at(&vault, agent, Some(NOW - 1), 10, NOW).await,
+        read_at(&vault, agent, Some(NOW - 1), None, 10, NOW).await,
         ["first"]
     );
-    assert_eq!(read_at(&vault, agent, None, 1, NOW).await, ["second"]);
+    assert_eq!(read_at(&vault, agent, None, None, 1, NOW).await, ["second"]);
+}
+
+#[tokio::test]
+async fn pages_do_not_skip_entries_with_the_same_timestamp() {
+    let vault = vault();
+    let agent = Uuid::new_v4();
+    write_at(&vault, agent, entry("same-a", Outcome::Ok, false), NOW).await;
+    write_at(&vault, agent, entry("same-b", Outcome::Ok, false), NOW).await;
+    write_at(&vault, agent, entry("same-c", Outcome::Ok, false), NOW).await;
+    let device = vault.device;
+    let first = vault
+        .db
+        .write(move |tx| read(tx, device, agent, None, None, 2, NOW))
+        .await
+        .expect("first page");
+    assert_eq!(first.len(), 2);
+    let cursor = first.last().expect("cursor");
+    let before = cursor.created_at;
+    let before_id = cursor.id.clone();
+    let device = vault.device;
+    let second = vault
+        .db
+        .write(move |tx| read(tx, device, agent, Some(before), Some(&before_id), 2, NOW))
+        .await
+        .expect("second page");
+    assert_eq!(second.len(), 1);
+    assert!(!first.iter().any(|entry| entry.id == second[0].id));
 }
 
 #[tokio::test]
@@ -249,7 +277,7 @@ async fn every_outcome_is_stored_and_read_back() {
     let device = vault.device;
     let read_back: Vec<Outcome> = vault
         .db
-        .write(move |tx| read(tx, device, agent, None, MAX_PAGE, NOW + 10))
+        .write(move |tx| read(tx, device, agent, None, None, MAX_PAGE, NOW + 10))
         .await
         .expect("read")
         .into_iter()
@@ -266,9 +294,12 @@ async fn entries_older_than_thirty_days_go_on_read_too() {
     write_at(&vault, agent, entry("old", Outcome::Ok, false), NOW).await;
     write_at(&vault, agent, entry("new", Outcome::Ok, false), NOW + 1000).await;
     let later = NOW + MAX_AGE_MILLIS + 1;
-    assert_eq!(read_at(&vault, agent, None, 10, later).await, ["new"]);
+    assert_eq!(read_at(&vault, agent, None, None, 10, later).await, ["new"]);
     // Gone from the table, not only from the page.
-    assert_eq!(read_at(&vault, agent, None, 10, NOW + 2000).await, ["new"]);
+    assert_eq!(
+        read_at(&vault, agent, None, None, 10, NOW + 2000).await,
+        ["new"]
+    );
 }
 
 #[tokio::test]
@@ -323,7 +354,7 @@ async fn the_log_keeps_ten_thousand_entries_per_agent() {
     assert_eq!(count(agent).await, MAX_ENTRIES);
     assert_eq!(count(other).await, 1, "another agent keeps its own");
     assert_eq!(
-        read_at(&vault, agent, None, 1, NOW + MAX_ENTRIES + 20).await,
+        read_at(&vault, agent, None, None, 1, NOW + MAX_ENTRIES + 20).await,
         ["newest"]
     );
 }
@@ -335,6 +366,6 @@ async fn a_page_holds_at_most_two_hundred_entries() {
     for at in 0..(i64::from(MAX_PAGE) + 5) {
         write_at(&vault, agent, entry("call", Outcome::Ok, false), NOW + at).await;
     }
-    let page = read_at(&vault, agent, None, 10_000, NOW + 1000).await;
+    let page = read_at(&vault, agent, None, None, 10_000, NOW + 1000).await;
     assert_eq!(page.len(), MAX_PAGE as usize);
 }
