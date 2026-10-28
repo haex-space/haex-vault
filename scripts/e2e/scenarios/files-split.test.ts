@@ -204,7 +204,7 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     // Onto the other panel's empty area: the entry moves into its open folder (same source).
     assert.equal(
       await dragBetween(instance, entryIn('left', 'neu.txt'), rightList),
-      'move',
+      'accepted',
     )
     await shows('right', 'neu.txt', 'neu.txt moved into the right panel')
     await gone('left', 'neu.txt', 'neu.txt to leave the left panel')
@@ -213,7 +213,7 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     // With Ctrl it copies, and the folder keeps its entries.
     assert.equal(
       await dragBetween(instance, entryIn('left', 'unter'), rightList, true),
-      'copy',
+      'accepted',
     )
     await shows('right', 'unter', 'unter copied into the right panel')
     assert.ok(await panelShows(instance, 'left', 'unter'), 'the original stays')

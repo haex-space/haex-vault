@@ -61,8 +61,7 @@ export function useFilesDrag(options: {
     if (entry && entry.kind !== 'dir') return
     event.stopPropagation()
     if (!options.droppable()) {
-      // Cancelled with `none`: the cursor shows the refusal and no drop follows.
-      event.preventDefault()
+      // Not cancelled: the cursor shows the refusal and no drop follows.
       event.dataTransfer.dropEffect = 'none'
       dropOver.value = null
       return

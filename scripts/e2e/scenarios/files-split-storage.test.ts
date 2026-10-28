@@ -7,6 +7,7 @@ import {
   namesIn,
   panelShows,
   selectIn,
+  toastTexts,
   visiblePanels,
 } from '../lib/files-split.ts'
 import { createAndUnlock } from '../lib/flows.ts'
@@ -65,7 +66,14 @@ scenario(
     // A file and a folder go up.
     await selectIn(ctx, instance, 'left', 'hoch.txt')
     await press(KEY.f5)
-    await instance.waitForDisplayed(entryIn('right', 'hoch.txt'))
+    await ctx
+      .waitFor('hoch.txt in the right panel', () =>
+        panelShows(instance, 'right', 'hoch.txt'),
+      )
+      .catch(async (error: Error) => {
+        error.message += `; toasts: ${JSON.stringify(await toastTexts(instance))}, bucket: ${JSON.stringify(await listKeys(rustfs, BUCKET))}`
+        throw error
+      })
     assert.ok((await listKeys(rustfs, BUCKET)).includes('hoch.txt'))
     await selectIn(ctx, instance, 'left', 'ordner')
     await press(KEY.f5)

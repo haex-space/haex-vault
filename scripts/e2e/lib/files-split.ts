@@ -88,7 +88,9 @@ export const toastShows = (instance: Instance, pattern: string) =>
  * Drags the element found by the selector `from` onto the one found by `to` with the events of HTML
  * drag and drop and one shared `DataTransfer` (the rig has no pointer actions; `dragTo` of
  * `passwords.ts` takes test ids only, and two panels repeat them). `ctrl` holds Ctrl down on the
- * drop. Resolves with the `dropEffect` the target left at the hover: `none` when it refused.
+ * drop. Resolves with `accepted` when the target cancelled the hover (took the drag), else
+ * `refused`. (A script-made `DataTransfer` keeps `dropEffect` at `none` in WebKit, so the effect
+ * cannot be read.)
  */
 export const dragBetween = (
   instance: Instance,
@@ -104,11 +106,10 @@ export const dragBetween = (
      const fire = (el, type, init = {}) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data, ...init }))
      fire(source, 'dragstart')
      fire(target, 'dragenter')
-     fire(target, 'dragover', { ctrlKey: arguments[2] })
-     const effect = data.dropEffect
+     const accepted = !fire(target, 'dragover', { ctrlKey: arguments[2] })
      fire(target, 'drop', { ctrlKey: arguments[2] })
      fire(source, 'dragend')
-     return effect`,
+     return accepted ? 'accepted' : 'refused'`,
     [from, to, ctrl],
   )
 
@@ -130,3 +131,9 @@ export async function selectIn(
   )
   await focusList(instance, side)
 }
+
+/** The texts of the toasts on screen, for a failure message. */
+export const toastTexts = (instance: Instance) =>
+  instance.exec<string[]>(
+    `return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.textContent || '')`,
+  )
