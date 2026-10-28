@@ -10,18 +10,17 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use super::endpoint::BoxStream;
-use super::grants::{self, default_rights};
 use super::hello::{
-    control_line, json_line, parse_greeting, CloseReason, Control, Greeting, HelloReply,
-    RejectReason, MAX_GREETING_BYTES,
+    control_line, json_line, parse_greeting, Control, Greeting, HelloReply, RejectReason,
+    MAX_GREETING_BYTES,
 };
-use super::prompts::{
-    GateTicket, PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
-};
-use super::registry::{self, AgentKind, AgentMode, AgentStatus, Credential, NewAgent, Transport};
+use super::live::Link;
+use super::manage;
+use super::prompts::GateTicket;
+use super::registration::{self, Previous, RegistrationContext};
+use super::registry::{self, AgentStatus};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
-use crate::prompt_park::PromptEnd;
 use rmcp::service::{Peer, RoleServer};
 use rmcp::ServiceExt;
 use tokio::io::{
@@ -29,7 +28,6 @@ use tokio::io::{
     ReadHalf, WriteHalf,
 };
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
 /// How long the pump may take to write the last lines after the session ended.
 const FLUSH_DEADLINE: Duration = Duration::from_secs(1);
@@ -37,7 +35,8 @@ const FLUSH_DEADLINE: Duration = Duration::from_secs(1);
 /// How a greeting is admitted.
 enum Admission {
     Known(SessionAgent),
-    Pending(GateTicket),
+    /// Waits for the registration dialog; an expired agent brings its previous registration.
+    Pending(GateTicket, Option<Previous>),
     Rejected(RejectReason),
 }
 
@@ -58,7 +57,7 @@ pub async fn serve(core: Arc<Core>, stream: BoxStream) {
     let admission = admit(&core, &greeting).await;
     let reply = match &admission {
         Admission::Known(_) => HelloReply::Accepted,
-        Admission::Pending(_) => HelloReply::Pending,
+        Admission::Pending(..) => HelloReply::Pending,
         Admission::Rejected(reason) => HelloReply::Rejected { reason: *reason },
     };
     if write_half
@@ -68,26 +67,27 @@ pub async fn serve(core: Arc<Core>, stream: BoxStream) {
     {
         return;
     }
-    let (agent, ticket) = match admission {
+    let (agent, waiting) = match admission {
         Admission::Known(agent) => (Some(agent), None),
-        Admission::Pending(ticket) => (None, Some(ticket)),
+        Admission::Pending(ticket, previous) => (None, Some((ticket, previous))),
         Admission::Rejected(_) => return,
     };
-    run_session(core, greeting, agent, ticket, reader, write_half).await;
+    run_session(core, greeting, agent, waiting, reader, write_half).await;
 }
 
 async fn run_session(
     core: Arc<Core>,
     greeting: Greeting,
     agent: Option<SessionAgent>,
-    ticket: Option<GateTicket>,
+    waiting: Option<(GateTicket, Option<Previous>)>,
     reader: BufReader<ReadHalf<BoxStream>>,
     write_half: WriteHalf<BoxStream>,
 ) {
     let (controls, control_rx) = mpsc::unbounded_channel();
     let (rmcp_side, pump_side) = tokio::io::duplex(64 * 1024);
     let pump = tokio::spawn(pump(pump_side, write_half, control_rx));
-    let session = Session::new(Arc::clone(&core), agent);
+    let link = Arc::new(Link::new(core.token.child_token()));
+    let session = Session::new(Arc::clone(&core), agent, Arc::clone(&link));
     let reader = LineLimit::new(reader, core.limits.max_message_bytes);
     let running = match session.clone().serve((reader, rmcp_side)).await {
         Ok(running) => running,
@@ -99,19 +99,20 @@ async fn run_session(
         }
     };
     let peer = running.peer().clone();
-    // Declining ends the session; its own token, so the server's token stays for the others.
-    let declined = CancellationToken::new();
-    let ended = core.token.child_token();
-    let registration = ticket.map(|ticket| {
-        tokio::spawn(register(RegistrationContext {
+    // The window reaches the connection through `live` once the session knows its agent.
+    let _live = core.live.add(session.clone(), peer.clone());
+    let ended = link.close.child_token();
+    let registration = waiting.map(|(ticket, previous)| {
+        tokio::spawn(registration::register(RegistrationContext {
             core: Arc::clone(&core),
             session: session.clone(),
             peer: peer.clone(),
             controls: controls.clone(),
             ticket,
+            previous,
             slug: greeting.slug.clone(),
             ended: ended.clone(),
-            declined: declined.clone(),
+            link: Arc::clone(&link),
         }))
     });
     let watcher = tokio::spawn(tell_catalog_changes(
@@ -119,10 +120,11 @@ async fn run_session(
         session.clone(),
         peer,
     ));
+    // The link's token is a child of the server's: it fires for a revocation, a denial, the
+    // vault closing and the access turned off.
     let closing = tokio::select! {
         _ = running.waiting() => None,
-        _ = core.token.cancelled() => Some(core.closing_reason()),
-        _ = declined.cancelled() => Some(CloseReason::Denied),
+        _ = link.close.cancelled() => Some(link.reason().unwrap_or_else(|| core.closing_reason())),
     };
     if let Some(reason) = closing {
         let _ = controls.send(Control::Closing(reason));
@@ -168,11 +170,36 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
             .db
             .read(move |q| registry::find_by_credential(q, device, &credential))
             .await;
+        let now = now_millis();
+        let mut previous = None;
         match found {
+            Ok(Some(agent)) if manage::is_expired(&agent, now) => {
+                let id = agent.id;
+                let loaded = core
+                    .db
+                    .write(move |tx| {
+                        manage::expire(tx, device, id)?;
+                        registry::load_rights(tx, device, id)
+                    })
+                    .await;
+                match loaded {
+                    Ok(rights) => {
+                        (core.notify)(Notice::Changed);
+                        previous = Some(Previous {
+                            id,
+                            rights,
+                            mode: agent.mode,
+                        });
+                    }
+                    Err(error) => {
+                        log::warn!("mcp server: could not expire an agent: {error}");
+                        return Admission::Rejected(RejectReason::Disabled);
+                    }
+                }
+            }
             Ok(Some(agent)) if agent.status == AgentStatus::Registered => {
                 let id = agent.id;
                 let (mode, client_name) = (agent.mode, agent.client_name);
-                let now = now_millis();
                 let rights = core
                     .db
                     .write(move |tx| {
@@ -199,7 +226,16 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
                 return Admission::Rejected(RejectReason::Disabled);
             }
         }
+        if previous.is_some() {
+            return pending(core, greeting, previous).await;
+        }
     }
+    pending(core, greeting, None).await
+}
+
+/// The way of an agent holzi does not know (any more): blocked, busy, or a dialog.
+async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previous>) -> Admission {
+    let device = core.device;
     let slug = greeting.slug.clone();
     let blocked = core.declined(&slug)
         || core
@@ -211,146 +247,9 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
         return Admission::Rejected(RejectReason::Blocked);
     }
     match core.gate.try_open(&greeting.slug) {
-        Some(ticket) => Admission::Pending(ticket),
+        Some(ticket) => Admission::Pending(ticket, previous),
         None => Admission::Rejected(RejectReason::RegistrationBusy),
     }
-}
-
-/// Inputs shared by the registration task.
-struct RegistrationContext {
-    core: Arc<Core>,
-    session: Session,
-    peer: Peer<RoleServer>,
-    controls: mpsc::UnboundedSender<Control>,
-    ticket: GateTicket,
-    slug: String,
-    ended: CancellationToken,
-    declined: CancellationToken,
-}
-
-/// Asks the window once the agent introduced itself, and acts on the answer.
-async fn register(context: RegistrationContext) {
-    let RegistrationContext {
-        core,
-        session,
-        peer,
-        controls,
-        ticket,
-        slug,
-        ended,
-        declined,
-    } = context;
-    let _ticket = ticket;
-    let mut initialized = session.initialized();
-    // The guard `wait_for` returns must not live across the awaits below.
-    let introduced = matches!(
-        tokio::time::timeout(
-            core.limits.initialize_deadline,
-            initialized.wait_for(|done| *done),
-        )
-        .await,
-        Ok(Ok(_))
-    );
-    if !introduced {
-        return;
-    }
-    let (client_name, client_version) = match peer.peer_info() {
-        Some(info) => (
-            registry::kept_name(&info.client_info.name),
-            Some(registry::kept_name(&info.client_info.version)),
-        ),
-        None => (slug.clone(), None),
-    };
-    let question = RegistrationQuestion {
-        slug: slug.clone(),
-        client_name: client_name.clone(),
-        client_version: client_version.clone(),
-        transport: Transport::Ipc,
-        rights: default_rights(),
-        mode: AgentMode::default(),
-    };
-    let mut request_id = String::new();
-    let answer = core
-        .prompts
-        .ask(&question, &ended, |id| request_id = id.to_owned())
-        .await;
-    let reason = match &answer {
-        Ok(_) => PromptClosedReason::Answered,
-        Err(PromptEnd::Expired) => PromptClosedReason::Timeout,
-        Err(_) => PromptClosedReason::Cancelled,
-    };
-    (core.notify)(Notice::PromptClosed(PromptClosed { request_id, reason }));
-    let answer = match answer {
-        Ok(answer) => answer,
-        // No window, no answer in time: as if declined once (US1 scenario 4).
-        Err(PromptEnd::Expired | PromptEnd::NoWindow) => {
-            core.decline(&slug);
-            declined.cancel();
-            return;
-        }
-        Err(PromptEnd::Cancelled) => return,
-    };
-    let device = core.device;
-    if answer.decision == RegistrationDecision::Deny || grants::validate(&answer.rights).is_err() {
-        let remember = answer.decision == RegistrationDecision::Deny && answer.remember;
-        if remember {
-            let now = now_millis();
-            let blocked_slug = slug.clone();
-            let blocked_name = client_name.clone();
-            if let Err(error) = core
-                .db
-                .write(move |tx| registry::block(tx, device, &blocked_slug, &blocked_name, now))
-                .await
-            {
-                log::warn!("mcp server: could not remember a block: {error}");
-            }
-        }
-        core.decline(&slug);
-        (core.notify)(Notice::Changed);
-        declined.cancel();
-        return;
-    }
-    let credential = match Credential::generate() {
-        Ok(credential) => credential,
-        Err(error) => {
-            log::warn!("mcp server: no random source for a credential: {error}");
-            declined.cancel();
-            return;
-        }
-    };
-    let digest = registry::hash(credential.as_str());
-    let new = NewAgent {
-        kind: AgentKind::External,
-        slug,
-        client_name,
-        client_version,
-        transport: Transport::Ipc,
-        mode: answer.mode,
-    };
-    let rights = answer.rights.clone();
-    let now = now_millis();
-    let stored = core
-        .db
-        .write(move |tx| registry::register(tx, device, &new, &digest, &rights, now))
-        .await;
-    let agent = match stored {
-        Ok(agent) => agent,
-        Err(error) => {
-            log::warn!("mcp server: could not store a registration: {error}");
-            declined.cancel();
-            return;
-        }
-    };
-    session.set_agent(SessionAgent {
-        id: agent.id,
-        rights: answer.rights,
-        mode: agent.mode,
-        client_name: agent.client_name,
-    });
-    // The credential before the new tool list, so the helper has saved it when the agent asks.
-    let _ = controls.send(Control::Token(credential.into_string()));
-    let _ = peer.notify_tool_list_changed().await;
-    (core.notify)(Notice::Changed);
 }
 
 /// Tells a registered agent when the window pushed a new action list (FR-017).

@@ -80,7 +80,7 @@ pub struct McpSnippetArgs {
 }
 
 /// This device in the open vault.
-pub(super) async fn open_device<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<Uuid> {
+pub(crate) async fn open_device<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<Uuid> {
     let db = state.database()?;
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || current_device_uuid(&app, &db))

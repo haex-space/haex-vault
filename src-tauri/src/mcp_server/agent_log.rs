@@ -95,6 +95,7 @@ pub struct NewEntry {
 pub struct AgentLogEntry {
     pub id: String,
     /// Unix milliseconds.
+    #[ts(type = "number")]
     pub created_at: i64,
     pub tool: String,
     /// `read`, `write`, `destructive`, or empty for a tool holzi does not know.
@@ -193,4 +194,13 @@ pub fn read(
         },
     )?;
     Ok(rows.into_iter().flatten().collect())
+}
+
+/// Empties the log of `agent` (FR-028, "Protokoll leeren").
+pub fn clear(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid) -> Result<()> {
+    tx.execute(
+        "DELETE FROM haex_mcp_agent_log_no_sync WHERE vault_device_uuid = ?1 AND agent_id = ?2",
+        params![device.to_string(), agent.to_string()],
+    )?;
+    Ok(())
 }

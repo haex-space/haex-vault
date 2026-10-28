@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use super::dispatch;
 use super::grants::{self, Rights};
+use super::live::Link;
 use super::registry::AgentMode;
 use super::server::Core;
 
@@ -44,15 +45,34 @@ pub struct Session {
     core: Arc<Core>,
     agent: Arc<RwLock<Option<SessionAgent>>>,
     initialized: Arc<watch::Sender<bool>>,
+    link: Arc<Link>,
 }
 
 impl Session {
-    pub fn new(core: Arc<Core>, agent: Option<SessionAgent>) -> Self {
+    pub fn new(core: Arc<Core>, agent: Option<SessionAgent>, link: Arc<Link>) -> Self {
         let (initialized, _) = watch::channel(false);
         Self {
             core,
             agent: Arc::new(RwLock::new(agent)),
             initialized: Arc::new(initialized),
+            link,
+        }
+    }
+
+    /// How this connection ends from holzi's side.
+    pub fn link(&self) -> &Arc<Link> {
+        &self.link
+    }
+
+    /// Changes the registered agent in place (US7: rights or mode changed while connected).
+    pub fn update_agent(&self, change: impl FnOnce(&mut SessionAgent)) {
+        if let Some(agent) = self
+            .agent
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
+            change(agent);
         }
     }
 
@@ -128,8 +148,8 @@ impl ServerHandler for Session {
         let Some(agent) = self.agent() else {
             return Ok(dispatch::not_allowed().into());
         };
-        // A call ends when the agent cancels it or the server stops.
-        let cancel = self.core.token.child_token();
+        // A call ends when the agent cancels it, holzi ends the connection or the server stops.
+        let cancel = self.link.close.child_token();
         let agent_cancel = context.ct.clone();
         let guard = cancel.clone();
         let watcher = tokio::spawn(async move {
@@ -139,6 +159,7 @@ impl ServerHandler for Session {
         let result = dispatch::call(
             &self.core,
             &agent,
+            &self.link,
             request.name.as_ref(),
             request.arguments,
             &cancel,

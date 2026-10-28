@@ -123,7 +123,7 @@ pub enum AgentMode {
 }
 
 impl AgentMode {
-    fn as_str(self) -> &'static str {
+    pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::Manual => "manual",
             Self::Auto => "auto",
@@ -261,6 +261,16 @@ pub fn is_blocked(q: &mut impl Query, device: Uuid, slug: &str) -> Result<bool> 
     )?
     .unwrap_or(0)
         > 0)
+}
+
+/// The agent `id` of `device`, in any state.
+pub fn get(q: &mut impl Query, device: Uuid, id: Uuid) -> Result<Option<Agent>> {
+    let sql =
+        format!("SELECT {COLUMNS} FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND id = ?2");
+    Ok(
+        q.query_row(&sql, params![device.to_string(), id.to_string()], from_row)?
+            .flatten(),
+    )
 }
 
 /// Every agent of `device`, newest first.

@@ -16,6 +16,7 @@ use super::connection;
 use super::dispatch::CallSlots;
 use super::endpoint;
 use super::hello::CloseReason;
+use super::live::Live;
 use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::ActionCatalog;
@@ -93,6 +94,7 @@ pub struct Core {
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
     pub slots: CallSlots,
+    pub live: Live,
     pub gate: RegistrationGate,
     pub notify: Notifier,
     pub limits: Limits,
@@ -165,6 +167,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         prompts: args.prompts,
         calls: args.calls,
         slots: CallSlots::default(),
+        live: Live::default(),
         gate: RegistrationGate::default(),
         notify: args.notify,
         limits: args.limits,

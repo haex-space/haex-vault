@@ -17,6 +17,8 @@ use uuid::Uuid;
 use super::agent_log::{self, NewEntry, Outcome};
 use super::connection::now_millis;
 use super::grants;
+use super::hello::CloseReason;
+use super::live::Link;
 use super::prompts::{call_gate, CallDecision, CallQuestion, PromptClosed, PromptClosedReason};
 use super::redact::{redact, target_of};
 use super::server::{Core, Notice};
@@ -92,6 +94,7 @@ impl CallSlots {
 pub async fn call(
     core: &Core,
     agent: &SessionAgent,
+    link: &Link,
     tool_name: &str,
     arguments: Option<Map<String, Value>>,
     cancel: &CancellationToken,
@@ -160,6 +163,11 @@ pub async fn call(
                     entry.asked = true;
                     entry.outcome = Outcome::NoAnswer;
                     error_result("no_answer", "The user did not answer in time.", None)
+                }
+                // A revocation ends the prompt with a refusal (FR-027).
+                Err(PromptEnd::Cancelled) if link.reason() == Some(CloseReason::Revoked) => {
+                    entry.outcome = Outcome::DeniedRights;
+                    not_allowed()
                 }
                 Err(PromptEnd::Cancelled | PromptEnd::NoWindow) => {
                     entry.outcome = Outcome::Unavailable;
