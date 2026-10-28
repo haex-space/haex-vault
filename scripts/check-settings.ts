@@ -52,6 +52,8 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.licenses': '/general/licenses',
   ai: '/ai',
   'ai.agents': '/ai/agents',
+  'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
+  'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
   'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
   'ai.servers': '/ai/servers',

@@ -6,39 +6,18 @@
  * plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
  * without remembering. Rust checks the rights again; rights it refuses count as declining.
  */
+import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
-import type { OperateLevel } from '~/types/bindings/OperateLevel'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
-import type { Rights } from '~/types/bindings/Rights'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
 
-/** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
-const OPERATE_SCOPES = [
-  'wm.read',
-  'wm.navigation',
-  'wm.layout',
-  'chat.read',
-  'chat.write',
-  'settings.read',
-  'settings.device',
-  'settings.models',
-] as const
-
-type Level = OperateLevel | 'none'
-type Scope = (typeof OPERATE_SCOPES)[number]
-
 const question = computed<RegistrationQuestion | null>(
   () => store.shown?.question ?? null,
 )
-const levels = ref<Record<Scope, Level>>(
-  Object.fromEntries(OPERATE_SCOPES.map((scope) => [scope, 'none'])) as Record<
-    Scope,
-    Level
-  >,
-)
+const levels = ref<Levels>(levelsOf(null))
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -50,30 +29,11 @@ watch(
     failure.value = null
     remember.value = false
     if (!asked) return
-    levels.value = Object.fromEntries(
-      OPERATE_SCOPES.map((scope) => [
-        scope,
-        asked.rights.operate[scope] ?? 'none',
-      ]),
-    ) as Record<Scope, Level>
+    levels.value = levelsOf(asked.rights)
     mode.value = asked.mode
   },
   { immediate: true },
 )
-
-const levelOptions = computed(() =>
-  (['none', 'read', 'write'] as const).map((value) => ({
-    value,
-    label: t(`mcpAgents.level.${value}`),
-  })),
-)
-
-function rights(): Rights {
-  const operate: Record<string, OperateLevel> = {}
-  for (const [scope, level] of Object.entries(levels.value))
-    if (level !== 'none') operate[scope] = level
-  return { operate }
-}
 
 async function answerAsync(register: boolean) {
   const shown = store.shown
@@ -82,7 +42,7 @@ async function answerAsync(register: boolean) {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
-      rights: register ? rights() : { operate: {} },
+      rights: register ? rightsOf(levels.value) : { operate: {} },
       mode: mode.value,
     })
   } catch (error) {
@@ -128,22 +88,7 @@ function onUpdateOpen(open: boolean) {
           </dd>
         </dl>
 
-        <SettingsGroup :label="t('mcpAgents.registration.rights')">
-          <SettingsRow
-            v-for="scope in OPERATE_SCOPES"
-            :key="scope"
-            :title="t(`actions.scopes.${scope}`)"
-            :label-for="`mcp-right-${scope}`"
-          >
-            <SettingsSelect
-              :id="`mcp-right-${scope}`"
-              v-model="levels[scope]"
-              class="w-44"
-              :options="levelOptions"
-              :data-testid="`mcp-right-${scope}`"
-            />
-          </SettingsRow>
-        </SettingsGroup>
+        <AgentsRightsFields v-model="levels" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.rightsHint') }}
         </p>

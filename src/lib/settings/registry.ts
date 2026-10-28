@@ -231,6 +231,8 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'agents',
     overviewRow: true,
   }),
+  subView('ai.agents.agent', 'ai/agents/:agentId', 'ai.agents'),
+  subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
   // Spec 038: storage connections (S3) and the storages on them. The forms and the removal are
   // reached from the list, never searched for.
   categoryLocation('storage'),

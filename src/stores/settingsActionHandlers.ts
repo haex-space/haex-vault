@@ -175,6 +175,28 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { enabled: input.enabled === true },
     }),
   )
+  const agent = (input: Record<string, unknown>) => ({
+    agentId: String(input.agentId),
+  })
+  on('settings.agents.mcp.grants.set', async ({ input }) =>
+    invoke('mcp_agent_rights_set', {
+      args: { ...agent(input), rights: input.rights },
+    }),
+  )
+  on('settings.agents.mcp.mode.set', async ({ input }) =>
+    invoke('mcp_agent_mode_set', {
+      args: { ...agent(input), mode: String(input.mode) },
+    }),
+  )
+  on('settings.agents.mcp.revoke', async ({ input }) =>
+    invoke('mcp_agent_revoke', { args: agent(input) }),
+  )
+  on('settings.agents.mcp.unblock', async ({ input }) =>
+    invoke('mcp_agent_unblock', { args: agent(input) }),
+  )
+  on('settings.agents.mcp.log.clear', async ({ input }) =>
+    invoke('mcp_agent_log_clear', { args: agent(input) }),
+  )
   on('settings.browserBridge.client.unblock', async ({ input }) =>
     invoke<BridgeOverview>('browser_bridge_client_unblock', {
       args: { clientId: String(input.clientId) },

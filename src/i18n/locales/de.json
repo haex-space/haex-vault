@@ -618,7 +618,13 @@
         "agents": {
           "title": "Externe Agenten",
           "description": "Claude Code, Codex und andere Agenten über MCP verbinden",
-          "keywords": "MCP Agent Agenten Claude Code Codex verbinden registrieren Rechte extern"
+          "keywords": "MCP Agent Agenten Claude Code Codex verbinden registrieren Rechte extern",
+          "agent": {
+            "title": "Agent"
+          },
+          "log": {
+            "title": "Protokoll"
+          }
         }
       },
       "federation": {
@@ -1641,7 +1647,18 @@
           "set": "Dateirechte eines Agents setzen"
         },
         "mcp": {
-          "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten"
+          "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
+          "grants": {
+            "set": "Rechte eines externen Agenten festlegen"
+          },
+          "mode": {
+            "set": "Freigabestufe eines externen Agenten festlegen"
+          },
+          "revoke": "Externen Agenten widerrufen",
+          "unblock": "Sperre eines externen Agenten aufheben",
+          "log": {
+            "clear": "Protokoll eines externen Agenten leeren"
+          }
         }
       },
       "general": {
@@ -3386,6 +3403,50 @@
     "callNotification": {
       "title": "Ein Agent wartet auf deine Freigabe",
       "body": "Öffne holzi, um den Aufruf zu erlauben oder abzulehnen."
+    },
+    "agents": {
+      "title": "Registrierte Agenten",
+      "blockedTitle": "Gesperrte Agenten",
+      "connected": "Verbunden",
+      "notConnected": "Nicht verbunden",
+      "state": "Zustand",
+      "expired": "Abgelaufen, fragt beim nächsten Verbinden neu",
+      "blocked": "Gesperrt",
+      "noRights": "Darf nichts",
+      "rights": "Liest {read} Bereiche, ändert {write}",
+      "registered": "Registriert {when}",
+      "lastSeen": "zuletzt verbunden {when}",
+      "unblock": "Sperre aufheben",
+      "revoke": "Widerrufen",
+      "revokeConfirm": "Verbindung beenden und Rechte vergessen?",
+      "cancel": "Abbrechen",
+      "gone": "Diesen Agenten gibt es nicht mehr."
+    },
+    "time": {
+      "justNow": "gerade eben",
+      "minutes": "vor {n} Min.",
+      "hours": "vor {n} Std.",
+      "days": "vor {n} Tagen"
+    },
+    "log": {
+      "title": "Protokoll",
+      "hint": "Was der Agent aufgerufen hat, ohne Geheimnisse",
+      "empty": "Noch keine Aufrufe.",
+      "target": "Ziel {target}",
+      "asked": "Rückfrage",
+      "more": "Ältere laden",
+      "clear": "Protokoll leeren",
+      "clearConfirm": "Alle Einträge dieses Agenten löschen?"
+    },
+    "outcome": {
+      "ok": "Ausgeführt",
+      "denied_rights": "Keine Rechte",
+      "denied_user": "Abgelehnt",
+      "denied_plan": "Plan: nicht ausgeführt",
+      "no_answer": "Keine Antwort",
+      "error": "Fehler",
+      "unavailable": "Nicht verfügbar",
+      "too_many": "Zu viele Aufrufe"
     }
   }
 }
