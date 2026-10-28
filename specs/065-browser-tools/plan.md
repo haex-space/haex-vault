@@ -32,7 +32,9 @@ Entscheidung über Steuerung, Isolation und Profil in
 - **Anmeldedaten** (R7): Dienst `passwords::site::entries_for_origin` (aus der Bridge gezogen),
   Werte direkt ins Feld, Rückfluss gefiltert, Bildschirmfotos bis zum Sitzungsende gesperrt.
 - **Rechte und Rückfragen** (R8, R9): Rechtegruppe `browser` in 021, Werkzeuge als native
-  Katalogaktionen mit `confirmsItself`, Website-Prüfung vor dem Laden.
+  Katalogaktionen mit `confirmsItself`, Website-Prüfung vor dem Laden jedes Haupt- oder
+  Frame-Dokuments. Unbekannte Frame-Herkünfte werden vor dem Laden angehalten; erst nach
+  Zustimmung wird der Inhalt geladen und damit für Lesen oder Bildschirmfotos sichtbar.
 - **Prompt Injection** (R10): Seiteninhalt immer gekennzeichnet; was er bewirken kann, ist durch
   die Regeln begrenzt und mit einem festen Testkorpus geprüft.
 
