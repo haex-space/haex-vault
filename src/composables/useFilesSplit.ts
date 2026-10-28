@@ -22,6 +22,7 @@ import {
   swapActive,
   withSplit,
 } from '~/lib/files/split'
+import type { PlaceLock } from '~/lib/files/clipboard'
 import { locationsEqual, type TabHistory } from '~/lib/wm/navigation'
 
 /**
@@ -40,8 +41,10 @@ import { locationsEqual, type TabHistory } from '~/lib/wm/navigation'
 export type PanelHandle = {
   side: SplitSide
   /** Where this panel takes transfers in; `null` while it has no folder yet. */
-  target(): { source: SourceRef; path: string | null; readOnly: boolean } | null
+  target(): { source: SourceRef; path: string | null; lock: PlaceLock } | null
   reload(): unknown
+  /** Ends the selection (the entries a drag took out of this panel are gone). */
+  clearSelection(): void
   /** Focuses the last focused entry, else the first. */
   focus(): void
   /** A key event of the frame outside both panels (toolbar, sidebar): the active panel acts on it. */

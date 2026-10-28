@@ -16,8 +16,8 @@ import {
   isFiltering,
   parseFilter,
 } from '~/lib/files/filters'
-import { shownNameKey } from '~/lib/files/encrypted'
 import { sameSource } from '~/lib/files/clipboard'
+import { shownNameKey } from '~/lib/files/encrypted'
 import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
 import type { SplitSide } from '~/lib/files/split'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
@@ -158,6 +158,7 @@ const {
   selection,
   selecting,
   clearSelection,
+  folderLock,
   readOnly,
   folderForeign,
   canPaste,
@@ -197,11 +198,12 @@ const {
   split: context.split,
   otherTarget: () => context.other()?.target() ?? null,
   toOther: (op, entries) => void toOtherAsync(op, entries),
+  dropped: (payload, op) => droppedFromOther(payload, op),
 })
 
 // --- The other panel (spec 062) ---
 
-const toOtherAsync = useFilesOtherPanel({
+const { toOtherAsync, droppedFromOther } = useFilesOtherPanel({
   source,
   path,
   other: context.other,
@@ -281,9 +283,10 @@ const unregister = context.register({
   target: () => ({
     source: source.value,
     path: path.value,
-    readOnly: readOnly.value,
+    lock: folderLock.value,
   }),
   reload: () => folder.reload(),
+  clearSelection: () => clearSelection(),
   focus,
   keydown: onKeydown,
 })
@@ -424,6 +427,7 @@ watch(context.tabActive, (active) => {
             :dimmed="dimmed"
             :settings-link="settingsLink"
             :takes-focus="context.active.value"
+            :droppable="!readOnly"
             @press="onPress"
             @band="onBand"
             @open="activate"

@@ -2708,6 +2708,7 @@
       "tooLarge": "Too large to show here.",
       "broken": "This image cannot be shown.",
       "holziOwned": "holzi's own data cannot be changed.",
+      "readOnly": "This place is read only.",
       "blocked": "Not available.",
       "notGranted": "Not granted.",
       "unsupported": "Not available here yet.",

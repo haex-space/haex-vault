@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  isLocked,
   bandBetween,
   bandSelection,
   clickEntry,
@@ -125,6 +126,20 @@ test('paste rules across sources: the paths of two sources are not compared', ()
     pasteRefusal('cut', '/x', [{ path: '/x/f', kind: 'file' }], into('/x')),
     'nothing',
   )
+})
+
+test("a read only target (a share) refuses with its own reason, holzi's own place first", () => {
+  const file = [{ path: '/x/f', kind: 'file' as const }]
+  const into = { path: '/share', holziOwned: false, readOnly: true }
+  assert.equal(pasteRefusal('copy', '/x', file, into, false), 'readOnly')
+  assert.equal(
+    pasteRefusal('copy', '/x', file, { ...into, holziOwned: true }, false),
+    'holziOwned',
+  )
+  assert.ok(isLocked({ holziOwned: false, readOnly: true }))
+  assert.ok(isLocked({ holziOwned: true, readOnly: false }))
+  assert.ok(!isLocked({ holziOwned: false, readOnly: false }))
+  assert.ok(!isLocked(null))
 })
 
 test('paste rules: own places, into itself, cut into the same folder', () => {

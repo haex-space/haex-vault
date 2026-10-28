@@ -5,6 +5,7 @@ import {
   activePanel,
   entryIn,
   describeFocus,
+  dragBetween,
   focusedPanel,
   focusList,
   inPanel,
@@ -191,6 +192,41 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await shows('left', 'neu.txt', 'the new file in the left panel')
     await shows('right', 'neu.txt', 'the new file in the right panel')
     ctx.step('the same folder is refused for a move and shown in both panels')
+
+    // Dragging between the panels. The right panel goes to split-b (eins.txt, zwei.txt), the left
+    // one stays in split-a (eins.txt, neu.txt, unter).
+    await instance.click(inPanel('right', 'files-up'))
+    await instance.waitForDisplayed(entryIn('right', 'split-b'))
+    await doubleClick(instance, entryIn('right', 'split-b'))
+    await shows('right', 'zwei.txt', 'the right panel in split-b')
+    const rightList = '[data-files-panel="right"] [data-files-list]'
+
+    // Onto the other panel's empty area: the entry moves into its open folder (same source).
+    assert.notEqual(
+      await dragBetween(instance, entryIn('left', 'neu.txt'), rightList),
+      'none',
+    )
+    await shows('right', 'neu.txt', 'neu.txt moved into the right panel')
+    await gone('left', 'neu.txt', 'neu.txt to leave the left panel')
+    assert.ok(onDisk('split-b', 'neu.txt') && !onDisk('split-a', 'neu.txt'))
+
+    // With Ctrl it copies, and the folder keeps its entries.
+    await dragBetween(instance, entryIn('left', 'unter'), rightList, true)
+    await shows('right', 'unter', 'unter copied into the right panel')
+    assert.ok(await panelShows(instance, 'left', 'unter'), 'the original stays')
+    assert.ok(onDisk('split-b/unter', 'tief.txt'))
+
+    // Onto a folder row of the other panel: into that folder.
+    await dragBetween(
+      instance,
+      entryIn('right', 'zwei.txt'),
+      entryIn('left', 'unter'),
+    )
+    await gone('right', 'zwei.txt', 'zwei.txt to leave the right panel')
+    assert.ok(
+      onDisk('split-a/unter', 'zwei.txt') && !onDisk('split-b', 'zwei.txt'),
+    )
+    ctx.step('dragging moves into the other panel, with Ctrl it copies')
   } finally {
     files.remove()
   }

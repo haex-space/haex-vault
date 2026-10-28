@@ -171,9 +171,15 @@ export function isWithin(inner: string, outer: string): boolean {
   return inner.startsWith(prefix)
 }
 
+/** Why a folder takes no changes: it is one of holzi's own places (`holziOwned`), or a share read only. */
+export type PlaceLock = { holziOwned: boolean; readOnly: boolean }
+
+export const isLocked = (lock: PlaceLock | null | undefined): boolean =>
+  !!lock && (lock.holziOwned || lock.readOnly)
+
 /** Why entries cannot go into a folder, or `null` when they can. `nothing`: cut and pasted into the
  * folder they are in, so there is nothing to do. */
-export type PasteRefusal = 'intoItself' | 'holziOwned' | 'nothing'
+export type PasteRefusal = 'intoItself' | 'holziOwned' | 'readOnly' | 'nothing'
 
 /**
  * Whether `items` from `folder` may be copied (`copy`) or moved (`cut`) into `target`. The paths of
@@ -185,10 +191,11 @@ export function pasteRefusal(
   op: FilesClipboard['op'],
   folder: string,
   items: readonly ClipboardItem[],
-  target: { path: string; holziOwned: boolean },
+  target: { path: string; holziOwned: boolean; readOnly?: boolean },
   sameSource = true,
 ): PasteRefusal | null {
   if (target.holziOwned) return 'holziOwned'
+  if (target.readOnly) return 'readOnly'
   if (!sameSource) return null
   if (
     items.some(

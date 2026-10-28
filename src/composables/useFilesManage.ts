@@ -8,6 +8,8 @@ import {
   type ClickKeys,
   type DragPayload,
   dropOp,
+  isLocked,
+  type PlaceLock,
   EMPTY_SELECTION,
   type FilesClipboard,
   menuSelection,
@@ -52,7 +54,9 @@ export function useFilesManage(options: {
   /** The tab shows two panels: the menu offers copying and moving into the other one (spec 062). */
   split?: Ref<boolean>
   /** The other panel's folder, `null` without one; what it takes in (spec 062). */
-  otherTarget?: () => { readOnly: boolean } | null
+  otherTarget?: () => { lock: PlaceLock } | null
+  /** A drop's transfer is through (a drag from the other panel changes its folder, spec 062 FR-014). */
+  dropped?: (payload: DragPayload, op: FilesClipboard['op']) => void
   /** Copies or moves entries into the other panel's folder (`useFilesOtherPanel`). */
   toOther?: (op: FilesClipboard['op'], entries: Entry[]) => void
 }) {
@@ -77,32 +81,16 @@ export function useFilesManage(options: {
     )
   })
 
-  /** The open folder is one of holzi's own places (FR-037): nothing changes in it. */
-  const folderOwned = ref(false)
+  const { folderOwned, folderEncrypted, folderForeign } = useFilesFolderFacts(
+    source,
+    path,
+  )
   /** Nothing changes in the open folder: holzi's own place, or a share read only. */
-  const readOnly = computed(
-    () => folderOwned.value || (options.readOnlySource?.value ?? false),
-  )
-  /** The open folder is, or lies in, an encrypted folder (spec 048). */
-  const folderEncrypted = ref(false)
-  /** Foreign files in the open encrypted folder (spec 048 FR-048); 0 below its top. */
-  const folderForeign = ref(0)
-  watch(
-    [source, path],
-    async ([current, folderPath]) => {
-      folderOwned.value = false
-      folderEncrypted.value = false
-      folderForeign.value = 0
-      if (folderPath === null) return
-      const entry = await statAsync(current, folderPath).catch(() => null)
-      if (path.value === folderPath) {
-        folderOwned.value = entry?.holziOwned ?? false
-        folderEncrypted.value = !!entry?.encrypted
-        folderForeign.value = entry?.encrypted?.foreign ?? 0
-      }
-    },
-    { immediate: true },
-  )
+  const folderLock = computed((): PlaceLock => ({
+    holziOwned: folderOwned.value,
+    readOnly: options.readOnlySource?.value ?? false,
+  }))
+  const readOnly = computed(() => isLocked(folderLock.value))
 
   const entryAt = (target: string) =>
     shown.value.find((entry) => entry.path === target)
@@ -169,9 +157,7 @@ export function useFilesManage(options: {
 
   const menuEntries = computed(() => menuFor(menuTargets.value))
   /** The other panel's folder takes no changes (the action bar disables its buttons). */
-  const otherReadOnly = computed(
-    () => options.otherTarget?.()?.readOnly ?? false,
-  )
+  const otherReadOnly = computed(() => isLocked(options.otherTarget?.()?.lock))
 
   const dimmed = computed(() =>
     transfers.clipboard?.op === 'cut'
@@ -221,7 +207,7 @@ export function useFilesManage(options: {
   async function placeAsync(
     clip: FilesClipboard,
     target: string,
-    targetOwned: boolean,
+    targetLock: PlaceLock,
     targetSource: SourceRef = source.value,
     onDone?: () => void,
   ): Promise<boolean> {
@@ -229,7 +215,7 @@ export function useFilesManage(options: {
       clip.op,
       clip.folder,
       clip.items,
-      { path: target, holziOwned: targetOwned },
+      { path: target, ...targetLock },
       sameSource(clip.source, targetSource),
     )
     if (refusal === 'nothing') return false
@@ -353,7 +339,7 @@ export function useFilesManage(options: {
         const clip = transfers.clipboard
         if (!clip || !path.value) break
         // A refused paste stays on the clipboard, so it can go elsewhere.
-        const started = await placeAsync(clip, path.value, readOnly.value)
+        const started = await placeAsync(clip, path.value, folderLock.value)
         if (started && transfers.clipboard === clip) transfers.clipboard = null
         break
       }
@@ -434,13 +420,17 @@ export function useFilesManage(options: {
       ...keys,
       mac: /Mac/.test(navigator.userAgent),
     })
-    const owned =
-      (options.readOnlySource?.value ?? false) ||
-      (target === path.value
-        ? folderOwned.value
-        : (entryAt(target)?.holziOwned ?? false))
+    const lock: PlaceLock = {
+      holziOwned:
+        target === path.value
+          ? folderOwned.value
+          : (entryAt(target)?.holziOwned ?? false),
+      readOnly: options.readOnlySource?.value ?? false,
+    }
     selection.value = EMPTY_SELECTION
-    void placeAsync({ ...payload, op }, target, owned)
+    void placeAsync({ ...payload, op }, target, lock, undefined, () =>
+      options.dropped?.(payload, op),
+    )
   }
 
   async function importDropped(paths: string[]) {
@@ -465,6 +455,7 @@ export function useFilesManage(options: {
     selecting,
     clearSelection,
     folderOwned,
+    folderLock,
     readOnly,
     folderForeign,
     canPaste,
