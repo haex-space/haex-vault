@@ -369,8 +369,8 @@ Eine Probephase zeigt, ob das Wort erkannt wird. Die Rohaufnahmen sind nach dem 
 4. **Given** ein eigenes Wort ist übernommen, **When** der Modus läuft, **Then** löst nur dieses Wort
    aus; der Nutzer kann jederzeit zum Standardwort zurück.
 5. **Given** das Einlernen ist abgeschlossen oder abgebrochen, **When** man den Speicher prüft,
-   **Then** sind die Rohaufnahmen gelöscht; nur das erlernte Muster bleibt, und zwar nur auf diesem
-   Gerät.
+   **Then** sind die Rohaufnahmen gelöscht; nur das erlernte Muster bleibt und gilt nur auf
+   diesem Gerät.
 6. **Given** zu viele Fehlauslösungen, **When** der Nutzer die Empfindlichkeit senkt, **Then** löst
    das Wort seltener aus, auch fälschlich.
 
@@ -489,8 +489,7 @@ Modus aus.
   diesem Gerät ein- und ausschaltet und seinen Zustand zeigt. Er MUST sich wie andere Einträge ins
   Dock heften lassen (045).
 - **FR-002**: Der Modus MUST pro Gerät gelten und MUST nach einem Neustart und Entsperren auf diesem
-  Gerät wieder so stehen, wie der Nutzer ihn verlassen hat. Er MUST NOT auf andere Geräte
-  synchronisiert werden.
+  Gerät wieder so stehen, wie der Nutzer ihn verlassen hat. Andere Geräte MUST NOT ihn übernehmen.
 - **FR-003**: Solange der Modus an ist, MUST eine Assistent-Anzeige sichtbar sein, die den Zustand
   zeigt (bereit, hört zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich
@@ -509,13 +508,14 @@ Modus aus.
   funktioniert: „Haex“ und „Hey Haex“ lösen beide aus. Für beide Formen gelten SC-003 und SC-004.
 - **FR-008**: Der Nutzer MUST ein eigenes Wake Word durch mehrere Aufnahmen auf dem Gerät einlernen
   können, mit Prüfung auf Eignung (Länge, Gleichmäßigkeit, Verwechslungsgefahr) und einer Probephase.
-  Die Rohaufnahmen MUST nach Abschluss oder Abbruch gelöscht werden; nur das erlernte Muster bleibt,
-  und zwar nur auf diesem Gerät.
+  Die Rohaufnahmen MUST nach Abschluss oder Abbruch gelöscht werden; nur das erlernte Muster bleibt
+  und gilt nur auf diesem Gerät.
 - **FR-009**: Der Nutzer MUST die Empfindlichkeit des Wake Words in mehreren Stufen einstellen
   können.
 - **FR-010**: Die eigene Sprachausgabe von haex MUST NOT das Wake Word auslösen.
 - **FR-011**: Ein Gespräch MUST auch ohne Wake Word beginnen können: per „Sprechen“ in der Anzeige
-  und per Tastenkürzel, das sich wie die anderen Kürzel umbelegen lässt.
+  und per Tastenkürzel im haex-Fenster. Das Kürzel hat eine Standardbelegung im Aktionskatalog und
+  wird umbelegbar, sobald die spätere Kürzel-Spec das für alle Kürzel einführt.
 
 #### Gesprächsführung
 
@@ -666,9 +666,9 @@ Modus aus.
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
   Empfindlichkeit, Lautstärke und An/Aus der Töne, Pausenlänge, Nachhörzeit, Fortsetzungszeit,
   Modell für Gespräche, Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
-  Anzeige. Bleibt auf dem Gerät.
+  Anzeige. Gilt nur auf diesem Gerät.
 - **Eigenes Wake Word**: das erlernte Muster eines vom Nutzer eingesprochenen Worts, mit Bezeichnung.
-  Ohne Rohaufnahmen, nur auf dem Gerät.
+  Ohne Rohaufnahmen; gilt nur auf diesem Gerät.
 - **Stimme**: eine lokale Stimme (Sprache, Größe, Eignung, installiert ja/nein) oder ein externer
   Sprachdienst mit Zugangsdaten.
 - **Sprachgespräch**: eine Chat-Unterhaltung (006) mit der Kennzeichnung „Sprachgespräch“, Zeitpunkt
