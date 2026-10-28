@@ -254,7 +254,7 @@ watch(
       <button
         type="button"
         data-testid="wm-new-tab"
-        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-primary/20 hover:text-primary"
         :aria-label="t('wm.tabs.newTab')"
         @pointerdown.stop
       >
