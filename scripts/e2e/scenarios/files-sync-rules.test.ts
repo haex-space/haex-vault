@@ -95,11 +95,17 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       side.files().some((name) => name.startsWith('x (Konflikt ')) &&
       side.read('x.txt') === 'rechts geändert!'
     await instance.click('files-sync-rule-run-Abgleich')
-    await ctx.waitFor(
-      'the conflict copy on both sides',
-      () => settled(left) && settled(right),
-      { timeoutMs: 30_000 },
-    )
+    await ctx
+      .waitFor(
+        'the conflict copy on both sides',
+        () => settled(left) && settled(right),
+        { timeoutMs: 30_000 },
+      )
+      .catch(async (error: Error) => {
+        const result = await instance.invoke('sync_rules_list')
+        error.message += `; left: ${JSON.stringify(left.files().map((name) => [name, left.read(name)]))}, right: ${JSON.stringify(right.files().map((name) => [name, right.read(name)]))}, rules: ${JSON.stringify(result)}`
+        throw error
+      })
     const aside = left.files().find((name) => name.startsWith('x (Konflikt '))
     if (!aside || left.read(aside) !== 'links geändert') {
       throw new Error('the older version is not the conflict copy')
