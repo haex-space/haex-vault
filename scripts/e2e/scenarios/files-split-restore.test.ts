@@ -62,7 +62,9 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
   await ctx.waitFor(
     'the saved session to hold the split',
     async () => {
-      const loaded = (await page.invoke('wm_session_load')) as {
+      const response = await page.invoke('wm_session_load')
+      assert.ok(response.ok, JSON.stringify(response))
+      const loaded = response.data as {
         session?: {
           windows?: Array<{
             tabs?: Array<{
