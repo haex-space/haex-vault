@@ -34,7 +34,10 @@ use tokio::time::Instant;
 
 use super::address::{Resolver, SystemResolver};
 use super::tree::{self, parent_of, part_name};
-use super::{Access, Credentials, DirListing, ObjectHead, ObjectInfo, ObjectStore, StorageError};
+use super::{
+    Access, Credentials, DirListing, ObjectHead, ObjectInfo, ObjectStore, StorageError,
+    StorageSpace,
+};
 use request::{method, send, url_of};
 use upload::Sessions;
 
@@ -246,6 +249,14 @@ impl ObjectStore for WebDavStore {
             last_modified: entry.modified,
             etag: entry.etag,
         })
+    }
+
+    async fn space(
+        &self,
+        access: &Access,
+        deadline: Instant,
+    ) -> Result<Option<StorageSpace>, StorageError> {
+        self.quota(access, deadline).await
     }
 
     async fn get_range(

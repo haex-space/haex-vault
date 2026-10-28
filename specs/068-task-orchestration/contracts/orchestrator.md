@@ -28,8 +28,9 @@ Regeln:
 - Vor Speicherung prüft `label`, `goal`, `context`, jedes Element aus `answers`, `reason` und
   `workdir` auf Zugangsdaten, private Schlüssel, Sitzungstoken und andere Geheimnisse. Der eigene
   fail-closed Detektor erkennt bekannte Schlüssel- und Tokenformate, Zugangsdaten in URLs,
-  credential-artige Bezeichner mit zugehörigem Wert (etwa `password=...` oder `Bearer ...`) sowie
-  hochentropische geheime Zeichenfolgen. `mcp_server::redact` schwärzt nur bekannte strukturierte
+  credential-artige Bezeichner mit zugehörigem Wert (etwa `password=...`, `password: ...`,
+  `the password is ...`, `token: ...` oder `Bearer ...`) sowie hochentropische geheime
+  Zeichenfolgen. `mcp_server::redact` schwärzt nur bekannte strukturierte
   Felder und gilt nicht als Detektor. Bei Treffer oder uneindeutigem Ergebnis wird der Auftrag
   abgelehnt, ohne den erkannten Wert zu loggen.
 - Freigaben haben kein Werkzeug: `task_answer` lehnt Fragen der Art `approval` ab (FR-014).

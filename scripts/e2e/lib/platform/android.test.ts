@@ -12,6 +12,7 @@ import {
   frontPackage,
   notificationTitles,
   PACKAGE,
+  phoneControls,
   createAndroidHost,
   mapAndroidUrl,
   prepareDevice,
@@ -510,5 +511,23 @@ describe('the crash log of the app', () => {
     ])
     assert.deepEqual(crashLines('--------- beginning of crash\n'), [])
     assert.deepEqual(crashLines(''), [])
+  })
+})
+
+describe('opening a link as another app does (spec 060)', () => {
+  it('sends a VIEW intent for the link to the app, quoted for the shell', () => {
+    const fake = fakeAdb()
+    phoneControls(createAdb('emu', fake.run)).openLink(
+      'haex-vault://contact/AbC_-123',
+    )
+    assert.deepEqual(fake.calls, [
+      `-s emu shell am start -a android.intent.action.VIEW -d 'haex-vault://contact/AbC_-123' -p ${PACKAGE}`,
+    ])
+  })
+
+  it('keeps a quote in the link away from the shell', () => {
+    const fake = fakeAdb()
+    phoneControls(createAdb('emu', fake.run)).openLink("haex-vault://c/a'b")
+    assert.match(fake.calls[0]!, / -d 'haex-vault:\/\/c\/a'\\''b' /)
   })
 })

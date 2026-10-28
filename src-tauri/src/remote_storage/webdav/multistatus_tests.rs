@@ -71,6 +71,8 @@ fn a_nextcloud_answer_reads_as_entries_of_the_folder() {
                 size: 0,
                 modified: Some("Mon, 12 Oct 2026 10:00:00 GMT".to_owned()),
                 etag: Some("6721a".to_owned()),
+                quota_used: None,
+                quota_available: None,
             },
             Entry {
                 name: "a b.jpg".to_owned(),
@@ -78,6 +80,8 @@ fn a_nextcloud_answer_reads_as_entries_of_the_folder() {
                 size: 12,
                 modified: Some("Mon, 12 Oct 2026 10:01:00 GMT".to_owned()),
                 etag: Some("abc123".to_owned()),
+                quota_used: None,
+                quota_available: None,
             },
             Entry {
                 name: "Urlaub & Meer".to_owned(),
@@ -85,6 +89,8 @@ fn a_nextcloud_answer_reads_as_entries_of_the_folder() {
                 size: 0,
                 modified: None,
                 etag: None,
+                quota_used: None,
+                quota_available: None,
             },
         ]
     );
@@ -116,4 +122,27 @@ fn an_answer_that_does_not_parse_is_a_protocol_error() {
         parse("<d:multistatus xmlns:d=\"DAV:\"></d:wrong>", "/").err(),
         Some(StorageError::Protocol)
     );
+}
+
+#[test]
+fn the_quota_of_a_folder_reads_as_used_and_available() {
+    let xml = r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:"><d:response><d:href>/remote.php/dav/files/anna/</d:href>
+<d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype>
+<d:quota-used-bytes>1230</d:quota-used-bytes><d:quota-available-bytes>8770</d:quota-available-bytes>
+</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>"#;
+    let entries = parse(xml, "/remote.php/dav/files/anna/").expect("parse");
+    assert_eq!(entries[0].quota_used, Some(1230));
+    assert_eq!(entries[0].quota_available, Some(8770));
+}
+
+#[test]
+fn an_unlimited_quota_keeps_its_negative_mark() {
+    let xml = r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/</d:href>
+<d:propstat><d:prop><d:quota-used-bytes>5</d:quota-used-bytes>
+<d:quota-available-bytes>-3</d:quota-available-bytes></d:prop>
+<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>"#;
+    let entries = parse(xml, "/dav/").expect("parse");
+    assert_eq!(entries[0].quota_available, Some(-3));
 }
