@@ -36,6 +36,7 @@ use std::sync::Arc;
 
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
+use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
@@ -728,6 +729,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0046_sync_rules_decrypt"),
         SYNC_RULES_DECRYPT_0046.to_owned(),
+    );
+    // Spec 065: the key of the agent browser's profile archive, kept on this device.
+    m.insert(
+        MigrationName::from("0047_agent_browser"),
+        AGENT_BROWSER_0047.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

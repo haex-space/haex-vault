@@ -6,6 +6,8 @@
 
 use std::net::IpAddr;
 
+use url::Url;
+
 /// Whether a domain is itself a public suffix (`com`, `co.uk`), which belongs to nobody.
 pub fn is_public_suffix(domain: &str) -> bool {
     !matches!(psl::suffix_str(domain), Some(suffix) if suffix != domain)
@@ -29,4 +31,23 @@ pub fn site_of(host: &str) -> Option<String> {
         return None;
     }
     Some(psl::domain_str(&host).unwrap_or(&host).to_owned())
+}
+
+/// An address as an entry or a browser extension writes it; without a scheme `https://` is assumed,
+/// as in haex-vault 2.x.
+pub fn parse_address(address: &str) -> Option<Url> {
+    let address = address.trim();
+    if address.is_empty() {
+        return None;
+    }
+    if address.contains("://") {
+        Url::parse(address).ok()
+    } else {
+        Url::parse(&format!("https://{address}")).ok()
+    }
+}
+
+/// The site of an address; `None` when it has no host or the host is a public suffix.
+pub fn site_of_address(address: &str) -> Option<String> {
+    site_of(parse_address(address)?.host_str()?)
 }

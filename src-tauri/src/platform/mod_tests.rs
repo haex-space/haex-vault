@@ -46,6 +46,7 @@ fn android_has_none_of_the_desktop_facilities() {
             phone_contacts: true,
             browser_bridge: false,
             mcp_helper: false,
+            agent_browser: false,
         }
     );
 }
@@ -83,4 +84,22 @@ fn the_table_reaches_the_interface_in_camel_case() {
     assert_eq!(json["screenCapture"], true);
     assert_eq!(json["relaunchOnClose"], false);
     assert_eq!(json["phoneContacts"], true);
+}
+
+#[test]
+fn only_desktop_systems_have_an_agent_browser() {
+    // Spec 065 research R13.
+    let desktops = [
+        PlatformName::Linux,
+        PlatformName::Macos,
+        PlatformName::Windows,
+    ];
+    assert_eq!(
+        desktops.map(|platform| desktop(platform, true).agent_browser),
+        [true, true, true]
+    );
+    assert_eq!(
+        [ANDROID, IOS].map(|table| table.agent_browser),
+        [false, false]
+    );
 }

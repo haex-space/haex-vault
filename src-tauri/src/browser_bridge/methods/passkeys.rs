@@ -10,7 +10,7 @@ use base64::Engine;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use super::items::{input, site_of_address, UNTITLED};
+use super::items::{input, UNTITLED};
 use super::presence::{self, Ceremony};
 use super::{service_of, to_code, BoxedOutcome, Call, Outcome};
 use crate::browser_bridge::prompts::{PresenceCeremony, PresenceChoice};
@@ -21,6 +21,7 @@ use crate::passwords::model_passkeys::{
 };
 use crate::passwords::service::Headers;
 use crate::passwords::site::site_of;
+use crate::passwords::site::site_of_address;
 use crate::passwords::webauthn;
 
 /// For the contract test: where these handlers live (FR-041).

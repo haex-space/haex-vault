@@ -20,6 +20,7 @@ use super::access::{self, Caller};
 use super::usage::UsageRegistry;
 
 mod attachments;
+mod by_site;
 mod copy;
 mod history;
 pub mod import;

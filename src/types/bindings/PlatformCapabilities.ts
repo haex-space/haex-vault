@@ -62,4 +62,9 @@ browserBridge: boolean,
  * External agents reach holzi through the `--mcp-agent` helper (spec 021 research R1, R12).
  * Phones need the HTTP way of spec 021 PR G instead.
  */
-mcpHelper: boolean, };
+mcpHelper: boolean,
+/**
+ * A browser holzi starts and steers for agents (spec 065 research R13); a phone has no browser
+ * that holzi can steer over a pipe.
+ */
+agentBrowser: boolean, };
