@@ -35,17 +35,19 @@ const { overview } = useStorageOverview()
  * again whenever the sidebar's sources are (a tab coming to the front). A storage that does not
  * answer shows nothing. */
 const spaces = ref<Record<string, StorageSpace | null>>({})
+let spacesRequest = 0
 
 watch(
   () => props.sources?.storages,
   async (storages) => {
+    const request = ++spacesRequest
     const next: Record<string, StorageSpace | null> = {}
     await Promise.all(
       (storages ?? []).map(async (storage) => {
         next[storage.id] = await storageSpaceAsync(storage.id).catch(() => null)
       }),
     )
-    spaces.value = next
+    if (request === spacesRequest) spaces.value = next
   },
   { immediate: true },
 )
