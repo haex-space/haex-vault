@@ -81,6 +81,8 @@ function skipReasonFor(
 ): string | undefined {
   if (options.needs?.phone && env.android === undefined)
     return 'runs only on a phone (spec 043)'
+  if (options.needs?.desktop && env.android !== undefined)
+    return 'runs only on a desktop build (spec 062)'
   if (options.needs?.container && !containerRuntimeAvailable())
     return 'no container runtime (docker) answers here'
   const needed = options.needs?.closeBehavior
