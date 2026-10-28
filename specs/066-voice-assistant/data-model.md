@@ -130,6 +130,8 @@ CREATE TABLE haex_tts_models_no_sync (    -- nur dieses Gerät (FR-051)
 - `src-tauri/src/tts/tts_catalog.json`: Sprachmodelle, Format wie `stt_catalog.json` plus
   `language` (`"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"pt"`), `engine` (`"pocket"` …), `variant`
   (`"standard"` oder `"24l"`), `sample_rate`. Gepinnte Revision, Größe, Lizenz, Namensnennung.
+- `src-tauri/src/assistant/lexicon.json`: die Wortliste (R22), `languages` plus `entries` mit `id`,
+  optional `match` und einer Zelle pro Sprache; Pflege nur im Repo, nie zur Laufzeit geändert.
 - `src-tauri/src/tts/voices/voices.json` mit den Referenzaufnahmen daneben (`include_bytes!`): je
   Sprache 2–3 mitgelieferte Stimmen mit `id`, `name`, `language`, `default`, Quelle, Lizenz,
   Namensnennung (R8).

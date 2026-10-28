@@ -67,9 +67,9 @@ Priorities: P1 US1, US2, US3; P2 US4, US5, US6, US9; P3 US7, US8.
 - **Test code**: lives in separate files.
 - **Rust**:
   - No `unwrap`/`expect` on input.
-  - No localized text in Rust; spoken phrases come from a phrase table per language in
-    `assistant/phrases.rs` (six languages, research R22), which is the one exception because it is spoken, not shown, and
-    is tested like data.
+  - No localized text in Rust; everything haex says or recognizes comes from the one word list
+    `assistant/lexicon.json` (one row per meaning, one column per language, research R22), never
+    from string literals in code.
   - No audio, transcript of pre-wake-word audio, secret or credential in a log line, error string,
     event or `Debug` output.
   - Audio callbacks neither lock nor allocate; heavy work runs on dedicated threads or
@@ -98,7 +98,7 @@ R8). Record every result in research.md.
 - [ ] T006 Spike VAD: run Silero VAD through sherpa on `src-tauri/src/stt/fixtures/de_sample.wav` in a throwaway test; record CPU per second of audio on the reference desktop and the reference phone in research.md R6
 - [ ] T007 Spike ONNX sharing: load a small ONNX model through `ort` with `load-dynamic` pointed at the shipped `libonnxruntime` while sherpa runs in the same process (no duplicate symbols, same version); decide whether `ort` is needed for R4 and record it in research.md R3/R4
 - [ ] T008 Spike voice: synthesize five sentences per language (de, en, fr, es, it, pt; standard and `24l` variant) with Kyutai Pocket TTS through sherpa, each with a native-speaker reference recording, on the reference desktop and phone; record time to first audio, real-time factor, model size, a listening verdict incl. accent, and which languages k2-fsa ships as sherpa exports, in research.md R8; if German fails, evaluate the Piper `de_DE-thorsten` fallback with a free G2P and record the licence check
-- [ ] T130 Spike STT (research R7): run the existing candle Whisper (tiny, base, small) and Parakeet TDT 0.6B v3 (sherpa `OfflineRecognizer`, `nemo_transducer`, int8) on `src-tauri/src/stt/fixtures/de_sample.wav`, `jfk.wav` and 20 own utterances of 2–15 s in each of de, en, fr, es, it, pt; record word error rate, real-time factor, time from end of speech to text and memory on the reference desktop and phone in research.md R7; propose the default for new installs (Whisper stays selectable)
+- [ ] T130 Spike STT (research R7): run the existing candle Whisper (tiny, base, small) and Parakeet TDT 0.6B v3 (sherpa `OfflineRecognizer`, `nemo_transducer`, int8) on `src-tauri/src/stt/fixtures/de_sample.wav`, `jfk.wav` and 20 own utterances of 2–15 s in each of de, en, fr, es, it, pt; record word error rate, real-time factor, time from end of speech to text and memory on the reference desktop and phone in research.md R7; also record whether Parakeet through sherpa reports the spoken language and how often Whisper picks the right one of the six candidates on short utterances (research R22); propose the default for new installs (Whisper stays selectable)
 - [ ] T009 Spike background: with the window minimized (Linux WebKitGTK, Windows WebView2, macOS WKWebView) and the Android app in the background, confirm that `action-call-request` events still reach `useAgentActions` and are answered within 1 s; record the result in research.md R1
 
 **Checkpoint**: The stack builds everywhere and its numbers are in research.md; if a spike fails,
@@ -178,7 +178,8 @@ conversation marked as voice.
 ### Tests first
 
 - [ ] T033 [P] [US2] State machine tests in src-tauri/src/assistant/conversation_tests.rs with an injected clock: every transition of the diagram in data-model.md; follow-up window (`assistant.followUpSecs` "int 3–30", default 8) runs only when no turn runs and no question is open; continuation (`assistant.continueMins` "int 0–60", default 5) reuses the thread
-- [ ] T034 [P] [US2] Phrase tests in src-tauri/src/assistant/phrases_tests.rs: end phrases (de, en, fr, es, it, pt; every table has all six) are recognized only as whole utterances or with small additions ("danke, das war's erstmal"), never inside a longer request; stop words delegate to `stt::interrupt::match_interrupt`
+- [ ] T153 [P] [US2] Word list tests in src-tauri/src/assistant/lexicon_tests.rs: every entry has a non-empty cell for every language in `languages`; `hear.*` cells are lists and have `match` in `"whole"|"start"|"contains"`; `say.*` cells use the same `{placeholders}` in every column; `hear.yes` and `hear.no` do not share a word within a language; ids are unique
+- [ ] T034 [P] [US2] Phrase tests in src-tauri/src/assistant/phrases_tests.rs: end phrases (rows `hear.end` of the word list, all six languages) are recognized only as whole utterances or with small additions ("danke, das war's erstmal"), never inside a longer request; stop words delegate to `stt::interrupt::match_interrupt`
 - [ ] T035 [P] [US2] Sentence splitting tests in src-tauri/src/assistant/sentences_tests.rs: token deltas are cut at sentence ends (., !, ?, :, line break) but not inside numbers ("3.5"), abbreviations ("z. B.", "e.g.") or URLs
 - [ ] T036 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs: WAV source + fake STT + scripted model + recording sink; two turns with context; "Stopp" during speech aborts the turn within the budget of SC-006 and keeps the conversation open; an empty utterance gives a request to repeat and no model call (FR-019); a conversation without understandable utterance leaves no thread
 - [ ] T037 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs: a chat turn already running in a window → the assistant says it is busy, waits up to 10 s, then gives up (research R12)
@@ -193,7 +194,8 @@ conversation marked as voice.
 - [ ] T127 [US2] Transcript view in the chat window for voice conversations (toggle "Mitschrift", time stamps, speaker, kind as small label, interrupted answers greyed after `spoken_until`) in a new src/components/chat/VoiceTranscript.vue; search over transcripts with the command `assistant_transcript_search {query, cursor?}` in a new src-tauri/src/storage/voice_transcript_search.rs using `passwords::ids::fold_for_search` (no FTS exists; 006 excludes it), with tests in voice_transcript_search_tests.rs
 - [ ] T040 [US2] Implement `assistant::conversation` (state machine, timers, `AssistantState` of data-model.md) in src-tauri/src/assistant/conversation.rs and src-tauri/src/assistant/mod.rs
 - [ ] T041 [US2] Implement `assistant::turn` in src-tauri/src/assistant/turn.rs: start turns through `start_turn` with `origin = 'voice'` and an `emit` closure that forwards every event to the window and feeds `chat-token` deltas through `sentences` into the voice; model from `assistant.modelId` (null = default chat model); delegate notice once per conversation (spec Edge Cases)
-- [ ] T042 [US2] Implement `assistant::phrases` (end phrases, request to repeat, busy, goodbye; de, en, fr, es, it, pt; research R22) in src-tauri/src/assistant/phrases.rs and stop words via `stt::interrupt` (finishes spec 008 US2 for the assistant; FR-017)
+- [ ] T154 [US2] Create src-tauri/src/assistant/lexicon.json (rows of research R22 for all six languages) and src-tauri/src/assistant/lexicon.rs (load once via `include_str!`, `hears(id, lang, text)`, `say(id, lang, args)`, `languages()`); switch `stt::interrupt::match_interrupt` in src-tauri/src/stt/interrupt.rs to the row `hear.stop` (wire values of `InterruptCommand` unchanged, all 008 interrupt tests stay green) and `SUPPORTED_LANGUAGES` in src-tauri/src/stt/local.rs to `lexicon::languages()`
+- [ ] T042 [US2] Implement `assistant::phrases` (end phrases, request to repeat, busy, goodbye; all text from the word list, T154) in src-tauri/src/assistant/phrases.rs and stop words via `stt::interrupt` (finishes spec 008 US2 for the assistant; FR-017)
 - [ ] T043 [US2] Use the shared warm STT adapter of `VoiceState` (Whisper or Parakeet, whichever is selected, T134) for utterances in src-tauri/src/assistant/listen.rs (no second model in memory)
 - [ ] T044 [US2] Commands `assistant_get_state`, `assistant_talk`, `assistant_end_conversation`, `assistant_set_muted` and events `assistant-state`, `assistant-transcript` in src-tauri/src/assistant/commands.rs per contracts/tauri-commands.md
 - [ ] T045 [US2] Device setting `assistant.preview` (default off) in KI → Sprache that enables talk shortcut and indicator until PR D, in src/components/settings/assistant/AssistantSetting.vue
@@ -219,7 +221,7 @@ spoken text has no markup and points to the transcript.
 
 - [ ] T053 [P] [US5] Tests in src-tauri/src/assistant/speakable_tests.rs: headings, emphasis, list markers, inline code removed; tables, fenced code and bare URLs replaced by the pointer phrase; ISO date/time ("2026-10-29T10:00") spoken as "morgen um zehn Uhr" relative to an injected "now" (de) and "tomorrow at ten" (en); long answers (> 4 sentences) cut to a summary plus "Soll ich mehr vorlesen?"
 - [ ] T054 [US5] Implement `assistant::speakable` in src-tauri/src/assistant/speakable.rs and apply it in `assistant::turn` before synthesis; the transcript keeps the full text
-- [ ] T055 [US5] Voice instruction (FR-021) as a section appended in src-tauri/src/chat/tools/prompt.rs only when `origin = 'voice'` (in the conversation language, one of de, en, fr, es, it, pt), text per contracts/agent-and-actions.md
+- [ ] T055 [US5] Voice instruction (FR-021) as a section appended in src-tauri/src/chat/tools/prompt.rs only when `origin = 'voice'` (in the conversation language), text from the word list row `prompt.voice` per contracts/agent-and-actions.md
 - [ ] T056 [US5] Measure the instruction with the tool eval of spec 032 (release build, Qwen3-4B) and a set of 10 spoken-style requests added to the eval fixtures; record the score in research.md R10
 - [ ] T057 [US5] "Mehr vorlesen": an affirmative follow-up after the summary reads the rest of the stored answer in src-tauri/src/assistant/turn.rs
 
@@ -278,7 +280,7 @@ cancels.
 
 ### Tests first
 
-- [ ] T076 [P] [US3] Answer classification tests in src-tauri/src/assistant/approval_tests.rs: yes/no lists for all six languages incl. "ja, mach", "okay", "nein, lass", "nicht"; anything else is unclear; unclear twice → declined; silence → stays open; the model is never asked
+- [ ] T076 [P] [US3] Answer classification tests in src-tauri/src/assistant/approval_tests.rs: rows `hear.yes`/`hear.no` of the word list in all six languages incl. "ja, mach", "okay", "nein, lass", "nicht"; anything else is unclear; unclear twice → declined; silence → stays open; the model is never asked
 - [ ] T077 [P] [US3] Announcement tests in src-tauri/src/assistant/approval_tests.rs: effect and target from action description, `riskClass` and redacted inputs (`mcp_server::redact`); destructive adds the "cannot be undone" phrase (FR-024)
 - [ ] T078 [P] [US3] Integration tests in src-tauri/tests/assistant_conversation.rs: two approvals yes/no; silence → open question, next trigger asks it first (FR-040); background completion plays `attention` and speaks, then follow-up window; active end cancels the turn and reports progress (FR-039); muted → completion only visible; a guardrail request is refused with the spoken hint (FR-028)
 - [ ] T079 [P] [US3] Integration test: an approval answered in an open chat window closes the spoken question, and vice versa
@@ -307,7 +309,7 @@ or attribute are mapped locally; suggestions do nothing without consent.
 **Independent Test**: Ambiguous request → spoken question with ≤ 3 options; "die zweite" picks the
 second; a declined suggestion causes no action.
 
-- [ ] T088 [P] [US4] Choice mapping tests in src-tauri/src/assistant/choice_tests.rs: ordinals in all six languages ("die zweite", "the second one", "letzte"), option names, attribute match ("die von Montag" when an option contains "Montag"); no match → free text to the agent
+- [ ] T088 [P] [US4] Choice mapping tests in src-tauri/src/assistant/choice_tests.rs: ordinals from the `ordinal.*` rows in all six languages ("die zweite", "the second one", "letzte"), option names, attribute match ("die von Montag" when an option contains "Montag"); no match → free text to the agent
 - [ ] T089 [US4] Implement `assistant::choice` in src-tauri/src/assistant/choice.rs: react to `chat-choice-request`, read ≤ 3 options (more → say the count and ask for a narrowing attribute), answer through the existing choice path
 - [ ] T090 [US4] Integration test in src-tauri/tests/assistant_conversation.rs: scripted model calls `ask_user` with two options, answer "die zweite" selects option 2; a scripted suggestion answered "nein, danke" leads to no tool call
 - [ ] T091 [US4] Extend the tool-eval fixtures with three ambiguous spoken requests and check that the model asks instead of guessing; record the score in research.md R10
@@ -324,7 +326,7 @@ transcript, log or an external service (ADR-0020).
 **Independent Test**: Ask for the guest Wi-Fi password, confirm, hear it spelled; "nochmal
 langsamer" repeats; no outward path carries it.
 
-- [ ] T092 [P] [US6] Spelling tests in src-tauri/src/assistant/spell_tests.rs: upper/lower case, digits, every printable ASCII symbol and umlauts have a name in each of the six languages; groups of 4 with pauses; slow mode
+- [ ] T092 [P] [US6] Spelling tests in src-tauri/src/assistant/spell_tests.rs: upper/lower case, digits, every printable ASCII symbol and umlauts have a `spell.*` row in the word list; groups of 4 with pauses; slow mode
 - [ ] T093 [P] [US6] Contract test src-tauri/tests/assistant_secret_contract.rs: with a known secret, capture every emitted event, every log line (test logger), the model request, stored `chat_messages` and requests of an external voice mock; none contains the secret; the model result is exactly `{"spoken": true}` (contracts/agent-and-actions.md)
 - [ ] T094 [P] [US6] Access tests in src-tauri/src/passwords/service/speech_tests.rs: `reveal_for_speech` refuses without `SpokenConsent`; `SpokenConsent` has no public constructor outside `assistant::approval` (compile-fail doc test); `Caller::BuiltinAgent` still cannot reach any secret
 - [ ] T095 [US6] Implement `reveal_for_speech(item, field, consent)` in src-tauri/src/passwords/service/speech.rs (caller user, same checks as `passwords/reveal.rs`), and `SpokenConsent` in src-tauri/src/assistant/approval.rs
@@ -446,7 +448,7 @@ it. A folder with a `.so` file is refused.
 - [ ] T120 [P] Update plans/README.md row 066 after each merged PR
 - [ ] T121 [P] Listening test with 5 people for SC-014 (core tones); adjust tones.rs if fewer than 4 of 5 are recognized
 - [ ] T122 Battery measurement on the reference phone (1 h "bereit", SC-010) and CPU on the reference desktop; record in research.md
-- [ ] T151 [P] Native speakers review the phrase, approval, choice, spelling and date tables for fr, es, it and pt and judge the default voices (SC-017); record results in research.md R22
+- [ ] T151 [P] Native speakers review the columns fr, es, it and pt of src-tauri/src/assistant/lexicon.json and the date and number rules in speakable.rs and judge the default voices (SC-017); record results in research.md R22
 - [ ] T152 [P] Clone test with 5 people for SC-016 (time to a saved voice, recognized in the sample)
 - [ ] T123 Manual quickstart M1–M16 (specs/066-voice-assistant/quickstart.md); record results in the last PR description
 

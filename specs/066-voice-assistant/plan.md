@@ -41,7 +41,8 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
   Sprache aus dem Katalog, mitgelieferte Stimmen als Referenzaufnahmen im Binary.
 - **Eigene Stimmen** (R20, R21): Stimmen aus Aufnahme oder Datei nachbilden (Einwilligung,
   synchronisiert im Vault); Modelle importieren (nur Gerät, kein ausführbarer Code).
-- **Sprachen** (R22): Sätze und lokale Auswertung in sechs Sprachen.
+- **Sprachen** (R22): eine Wortliste `assistant/lexicon.json` mit einer Spalte pro Sprache für alles,
+  was haex sagt oder lokal versteht; auch die Stopp-Wörter aus 008 und die Whisper-Sprachliste lesen sie.
 - **Echo** (R9): AEC3 in der App (`sonora`, Ersatz `webrtc-audio-processing`), Messung je
   Plattform, sonst nur Wake Word und Stopp-Wort.
 - **Freigaben, Rückfragen, Aufgaben** (R11, R12): lokal ausgewertete Antworten, Zustandsautomat
@@ -223,6 +224,7 @@ src-tauri/src/
 │   ├── listen.rs         # VAD, Äußerungen, Vorlauf, Höchstdauer
 │   ├── conversation.rs   # Zustandsautomat, Zeitgeber, offene Fragen
 │   ├── turn.rs           # start_turn + emit-Brücke, Satzschnitt, Fortschrittsansage
+│   ├── lexicon.json, lexicon.rs  # eine Wortliste: Zeile pro Bedeutung, Spalte pro Sprache (R22)
 │   ├── sentences.rs, speakable.rs, phrases.rs, spell.rs
 │   ├── approval.rs       # mündliche Freigaben, SpokenConsent
 │   ├── choice.rs         # ask_user per Sprache

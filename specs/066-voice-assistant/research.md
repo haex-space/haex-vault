@@ -399,18 +399,55 @@ Dateien werden vor dem ersten Laden nicht ausgeführt, nur von der ONNX-Runtime 
 Erkennung über Dateinamen deckt die sherpa-Archive ab. Import über den externen Dienst (R19) bleibt
 der Weg für Engines, die sherpa nicht kann (z. B. XTTS auf einem eigenen Server).
 
-## R22 — Sechs Sprachen
+## R22 — Sechs Sprachen, eine Wortliste
 
-**Entscheidung**: Alles, was haex selbst sagt oder lokal versteht, gibt es in sechs Sprachen
-(FR-052): Schlusswendungen, Stopp-Wörter, Bitte um Wiederholung, Zustimmung und Ablehnung (R11),
-Ordinalzahlen für Rückfragen, gesprochene Daten und Uhrzeiten (R10), Buchstabiernamen (FR-026) und
-die Gesprächsanweisung an das Modell (FR-021). Jede Tabelle ist nach Sprache geschlüsselt; ein
-Prüfskript verlangt alle sechs Einträge. Die Gesprächssprache folgt der erkannten Sprache der
-Äußerung (Parakeet und Whisper liefern sie), sonst der Oberfläche. Die Tabellen für fr/es/it/pt
-prüft vor der Freigabe je ein Muttersprachler.
+**Entscheidung**: Alles, was haex selbst sagt oder lokal versteht, steht in **einer** Wortliste
+`src-tauri/src/assistant/lexicon.json` (im Binary über `include_str!`): eine Zeile pro Bedeutung,
+eine Spalte pro Sprache. Eine neue Sprache ist eine neue Spalte; eine fehlende Übersetzung ist eine
+leere Zelle, die der Test sofort findet; Muttersprachler prüfen eine Datei statt verstreuter
+Tabellen.
 
-**Alternativen**: Übersetzung der Sätze zur Laufzeit durch das Modell — langsamer, und Zustimmung
-oder Ablehnung darf nie das Modell auswerten (SC-009).
+```text
+{ "languages": ["de", "en", "fr", "es", "it", "pt"],
+  "entries": [
+    { "id": "hear.yes",  "match": "start",  "de": ["ja", "mach", "okay"], "en": ["yes", "go ahead"], … },
+    { "id": "hear.stop", "match": "whole",  "de": ["stop", "stopp", "halt", "abbrechen"], "en": ["stop"], … },
+    { "id": "say.notUnderstood", "de": "Das habe ich nicht verstanden.", "en": "…", … },
+    { "id": "spell.#",   "de": "Raute", "en": "hash", … } ] }
+```
+
+- **Zeilenarten** am Präfix der Id: `hear.*` (Wörter, die haex lokal erkennt; Zelle ist eine Liste,
+  `match` gilt für alle Sprachen: `whole` = ganze Äußerung, `start` = am Anfang, `contains`),
+  `say.*` (Sätze, die haex spricht, mit Platzhaltern wie `{label}`), `spell.*` (Buchstabiernamen),
+  `ordinal.*` (erste, zweite, letzte), `prompt.voice` (Gesprächsanweisung an das Modell, FR-021) und
+  `detect` (häufige kurze Wörter je Sprache, siehe unten).
+- **Inhalt**: Schlusswendungen, Stopp-Wörter, Bitte um Wiederholung, Zustimmung und Ablehnung
+  (R11), Ordinalzahlen für Rückfragen, Buchstabiernamen (FR-026), alle gesprochenen Meldungen und die
+  Gesprächsanweisung.
+- **Nicht in der Liste**: gesprochene Daten, Uhrzeiten und Zahlen (R10). Das sind Regeln mit
+  Grammatik (Kasus, Zahlwortbildung), keine Wörter; sie bleiben Code in `speakable.rs` mit einem
+  Zweig pro Sprache.
+- **Eine Quelle für die Sprachliste**: `languages` ist die Liste der Sprechsprachen. Die
+  Stopp-Wörter aus 008 (`stt::interrupt::match_interrupt`, heute fest „stop“, „halt“,
+  „abbrechen“) lesen künftig die Zeile `hear.stop`; das Wire-Format von `InterruptCommand` bleibt.
+  Whisper beschränkt die Spracherkennung heute auf `SUPPORTED_LANGUAGES = ["de", "en"]`
+  (`stt/local.rs`, an die Oberflächensprachen gekoppelt) und nimmt künftig `languages` aus der
+  Liste. Mehr Kandidaten können whisper-tiny bei kurzen Äußerungen öfter danebenliegen lassen; T130
+  misst das.
+
+**Gesprächssprache**: folgt der erkannten Sprache der Äußerung, sonst der Oberfläche. Whisper
+liefert sie; ob Parakeet über sherpa sie meldet, klärt T130. Wenn nicht, bestimmt haex sie aus dem
+Text über die Zeile `detect` (meiste Treffer gewinnt, bei Gleichstand die vorige Gesprächssprache).
+
+**Prüfung**: Ein Rust-Test verlangt für jede Zeile alle Sprachen aus `languages`, gleiche
+Platzhalter in allen Spalten und keine Überschneidung von `hear.yes` und `hear.no` innerhalb einer
+Sprache. Die Spalten fr, es, it, pt prüft vor der Freigabe je ein Muttersprachler (T151).
+
+**Alternativen**: Eine Tabelle pro Sprache oder pro Modul — eine fehlende Übersetzung fällt erst zur
+Laufzeit auf, neue Sprachen berühren viele Dateien (Vorschlag des Betreibers, 2026-10-28). Die
+vue-i18n-Dateien der Oberfläche — die sind Frontend, nur de/en, und Rust darf sie nicht lesen.
+Übersetzung zur Laufzeit durch das Modell — langsamer, und Zustimmung oder Ablehnung darf nie das
+Modell auswerten (SC-009).
 
 ## Spec-Korrekturen aus der Planung
 
