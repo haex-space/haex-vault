@@ -183,6 +183,8 @@ src-tauri/src/
 │   ├── registry.rs       # haex_mcp_agents, Nachweis, Ablauf (R9)
 │   ├── prompts.rs        # Registrierung und Rückfrage über PromptPark
 │   ├── agent_log.rs      # haex_mcp_agent_log_no_sync (R10)
+│   ├── live.rs           # offene Verbindungen: Rechte, Stufe, Widerruf sofort (US7)
+│   ├── manage.rs         # Rechte, Stufe, Widerruf, Sperre, Ablauf nach 90 Tagen (US7)
 │   ├── redact.rs         # Schwärzung von Eingaben für Rückfrage und Protokoll (R10)
 │   ├── commands.rs       # Tauri-Commands
 │   ├── http.rs           # PR G: Streamable HTTP, Host/Origin

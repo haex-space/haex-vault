@@ -15,8 +15,10 @@
 | `mcp_call_answer`         | `requestId`, `decision` (`allow`/`deny`)                                            | beendet eine Rückfrage                                                         |
 | `mcp_setup_snippet`       | `client` (`claude-code`, `codex`, `other`), `transport`                             | Text der Anleitung ohne Nachweis (FR-005)                                      |
 
-Änderungen an Einstellungen und Rechten laufen nicht über eigene Commands, sondern über die
-Katalogaktionen unten (ein Weg für Oberfläche und Tests).
+Änderungen an Einstellungen und Rechten laufen über die Katalogaktionen unten (ein Weg für
+Oberfläche und Tests). Deren Handler rufen `mcp_agent_rights_set`, `mcp_agent_mode_set`,
+`mcp_agent_revoke`, `mcp_agent_unblock` und `mcp_agent_log_clear` (je `agentId`, dazu `rights`
+bzw. `mode`); kein Agent erreicht sie.
 
 ## Ereignisse (Rust → Fenster)
 
