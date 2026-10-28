@@ -32,6 +32,14 @@ export const MINIMUM_COVERAGE = 0.8
 
 export const EXCLUSIONS: PlatformExclusion[] = [
   {
+    scenario: 'files-split',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the two-panel file browser is not offered on a phone (FR-016, spec 062 FR-021)',
+    counterCase: 'files-basic',
+  },
+  {
     scenario: 'browser-bridge',
     platform: 'android',
     kind: 'excluded',
