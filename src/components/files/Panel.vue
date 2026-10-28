@@ -293,12 +293,7 @@ watch(context.tabActive, (active) => {
 <template>
   <div
     ref="root"
-    :class="[
-      'flex min-h-0 min-w-0 flex-1 flex-col',
-      context.split.value && 'rounded-md ring-2 ring-inset',
-      context.split.value &&
-        (context.active.value ? 'ring-primary' : 'ring-transparent'),
-    ]"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
     :role="context.split.value ? 'region' : undefined"
     :aria-label="context.split.value ? regionLabel : undefined"
     :data-files-panel="side"
@@ -307,6 +302,17 @@ watch(context.tabActive, (active) => {
     @pointerdown.capture="context.activate()"
     @focusin="context.activate()"
   >
+    <!-- The frame of the active panel lies over the content: as the root's own ring it would be
+         covered by the selected rows and the action bar. -->
+    <div
+      v-if="context.split.value"
+      :class="[
+        'pointer-events-none absolute inset-0 z-10 rounded-md ring-2 ring-inset',
+        context.active.value ? 'ring-primary' : 'ring-transparent',
+      ]"
+      data-testid="files-panel-frame"
+      aria-hidden="true"
+    />
     <!-- One panel: the path bar stands in the toolbar. Two: each has its own in its header, the
          active one in the text colour. -->
     <div
