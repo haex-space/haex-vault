@@ -32,15 +32,15 @@ kein Agent aufrufen kann.
 
 ## `haex_agent_browser_no_sync` (neu, geräteeigen, ohne Sync)
 
-| Spalte              | Typ     | Regel                                               |
-| ------------------- | ------- | --------------------------------------------------- |
-| `vault_device_uuid` | TEXT PK | Gerät                                               |
-| `profile_key`       | BLOB    | 32 zufällige Byte, Schlüssel des Profilarchivs (R3) |
-| `browser_path`      | TEXT    | gewählter Browser (leer = suchen)                   |
-| `created_at`        | INTEGER | Unix-ms                                             |
+| Spalte              | Typ     | Regel                             |
+| ------------------- | ------- | --------------------------------- |
+| `vault_device_uuid` | TEXT PK | Gerät                             |
+| `browser_path`      | TEXT    | gewählter Browser (leer = suchen) |
+| `created_at`        | INTEGER | Unix-ms                           |
 
-Migration mit der nächsten freien Nummer. `_no_sync`, damit der Schlüssel nie auf andere Geräte
-geht (ADR-0001 nennt `_no_sync` für Daten, die nicht wandern sollen).
+Migration mit der nächsten freien Nummer. Der Profilschlüssel liegt ausschließlich im geschützten
+Zugangsspeicher des Betriebssystems unter einer installationsgebundenen Kennung. Das Archiv darf
+mit einer kopierten Vault-Datei nicht entschlüsselbar sein.
 
 ## Profilarchiv (Datei)
 
@@ -63,8 +63,9 @@ mit leerem Profil, holzi meldet es in „KI → Browser“.
   (`agent` | `user`), Agenten-Tabs (≤ 5), Zustand `running` | `paused { by: user | request }` |
   `ended { reason }`, letzte Handlung (Werkzeug, Website, Beschriftung, Zeit).
 - **Agenten-Tab**: CDP-Ziel bzw. Tab-Kennung der Erweiterung, Website, Elementnummern →
-  `backendNodeId` (bis zur nächsten Änderung des Dokuments), gefüllte Felder (R7),
-  „Bildschirmfoto gesperrt bis Seitenwechsel“.
+  `backendNodeId` (bis zur nächsten Änderung des Dokuments), gefüllte Felder (R7).
+- **Agenten-Sitzung**: `screenshotsBlocked` wird nach dem ersten Credential-Fill bis zum Ende der
+  Sitzung gesetzt und kann nicht durch eine Dokument-Navigation zurückgesetzt werden.
 - **Einmal erlaubte Websites**: je Sitzung, verfallen mit ihr (FR-007).
 - **Browser-Rückfrage**: Art (`site`, `submit`, `fill`, `takeover`, `download`, `newTab`),
   Agent, Website, Inhalt je Art (data-model der Ereignisse in

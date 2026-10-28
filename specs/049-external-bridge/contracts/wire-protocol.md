@@ -39,7 +39,7 @@ Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
     "clientName": "haex-pass Browser Extension",
     "publicKey": "<Standard-Base64, 32 Byte X25519>",
     "requestedExtensions": [
-      { "name": "core", "extensionPublicKey": "__core__" }
+      { "name": "core", "extensionPublicKey": "__core__", "capabilities": [] }
     ],
     "permissions": {
       "core": { "passwords": [{ "target": "*", "operation": "readWrite" }] }
@@ -71,6 +71,10 @@ holzi prüft der Reihe nach:
 
 Weitere Erklärungen als `passwords` (etwa `database`, `bookmarks`) speichert holzi in der
 Erklärung, gewährt sie aber nie (R5). `requestedExtensions[].actions` werden übergangen.
+`requestedExtensions[].capabilities` enthält eine eindeutige Liste deklarierter Erweiterungs-
+Fähigkeiten. Unbekannte Einträge werden gespeichert, aber nie freigegeben. `agentTabs` darf nur
+für eine zugelassene Erweiterung gewährt werden, wenn die Erweiterung die Fähigkeit deklariert und
+der Nutzer ihr in der Extension-Zulassung das Recht `user-browser` erteilt hat.
 
 Ein wiederholter Handshake auf derselben Verbindung mit derselben `clientId` bekommt den
 aktuellen Zustand nach Schritt 5 bis 7, ohne neuen Nachweis und ohne zweiten Dialog. Eine andere

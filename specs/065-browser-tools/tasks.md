@@ -110,11 +110,11 @@ link and takes a screenshot; the log shows the calls (spec US1).
 - [ ] T019 [P] [US1] Unit tests in src-tauri/src/agent_browser/locate_tests.rs: the search order of contracts/agent-browser.md per OS (with a fake file system root), a chosen path wins, a version below 120 counts as not found
 - [ ] T020 [P] [US1] Unit tests in src-tauri/src/agent_browser/cdp/mod_tests.rs over an in-memory pipe: NUL framing, replies matched by `id`, events routed by `sessionId`, a reply after cancel is dropped, a closed pipe ends every waiting call with `browser_unavailable`
 - [ ] T021 [P] [US1] Unit tests in src-tauri/src/agent_browser/profile_crypto_tests.rs: HXBP round trip for 0 bytes, one block and several blocks; a flipped byte, a cut tail, a reordered block and a wrong `key_id` are refused; the archive never contains plaintext of a cookie fixture
-- [ ] T022 [P] [US1] Unit tests in src-tauri/src/agent_browser/profile_tests.rs: only the lasting parts of contracts/agent-browser.md go into the archive; leftovers of a crashed run are removed before a new start; the working directory is created with owner-only access; replacement of the archive is atomic
+- [ ] T022 [P] [US1] Tests in src-tauri/src/agent_browser/profile_tests.rs: only lasting profile parts enter the archive; a per-run encrypted ephemeral container is inaccessible after process/system crash on Linux, macOS and Windows; unsupported secure storage disables browser startup; archive replacement is atomic
 - [ ] T023 [P] [US1] Unit tests in src-tauri/src/agent_browser/read_tests.rs: the page result has the shape of contracts/browser-tools.md with `untrusted_page_content` and the note; text over 16 000 characters and more than 300 elements are cut with `truncated: true`; `from` and `section` return the right slice
-- [ ] T024 [P] [US1] Unit tests in src-tauri/src/agent_browser/sites_tests.rs: navigation checks for an allowed website, a website outside the rights (asks, or refuses in Plan), blocked schemes and internal pages, user info in the address, a redirect to another website
+- [ ] T024 [P] [US1] Unit tests in src-tauri/src/agent_browser/sites_tests.rs: top-level, redirect and embedded-frame navigation checks for allowed and unapproved websites (asks, or refuses in Plan), blocked schemes and internal pages, user info in the address
 - [ ] T025 [US1] Integration test in src-tauri/tests/agent_browser_read.rs against a real Chromium and the fixture site: start over the pipe (no listening port: check that the process has no TCP listener), `browser.open`, `browser.page.read`, follow a link, `browser.scroll`, `browser.page.screenshot` (image of the tab only), `browser.tabs.list`, page permissions (camera, location) denied
-- [ ] T026 [US1] Integration test in src-tauri/tests/agent_browser_profile.rs: a cookie set by the fixture site survives stopping and restarting the browser; after stopping, the working directory is gone and only `profile.hxbp` remains; a vault on another device (other `vault_device_uuid`) starts without the cookie
+- [ ] T026 [US1] Integration test in src-tauri/tests/agent_browser_profile.rs: a cookie set by the fixture site survives stopping and restarting the browser; after stopping, the working container is gone and only `profile.hxbp` remains; a copied vault on another device cannot unlock the local archive
 - [ ] T027 [P] [US1] Fixture site in src-tauri/tests/fixtures/agent_browser/site/ (news page, links, a partner page on a second host, a page that sets a cookie, a slow page) and a small HTTPS server for the tests in src-tauri/tests/common/agent_browser_fixture.rs with a certificate made at test time
 
 ### Implementation
@@ -123,7 +123,7 @@ link and takes a screenshot; the log shows the calls (spec US1).
 - [ ] T029 [US1] Start over the pipe on Linux and macOS in src-tauri/src/agent_browser/process.rs (descriptors 3 and 4 set before `exec`, start flags of contracts/agent-browser.md, 15 s for `Browser.getVersion`)
 - [ ] T030 [US1] Start over the pipe on Windows in src-tauri/src/agent_browser/process_windows.rs (`CreateProcessW` with `STARTUPINFOW.lpReserved2`), with a test in src-tauri/src/agent_browser/process_windows_tests.rs that runs in the Windows CI job
 - [ ] T031 [US1] CDP connection in src-tauri/src/agent_browser/cdp/mod.rs and the domains `target.rs`, `page.rs`, `runtime.rs`, `browser.rs`, `fetch.rs`, `dom.rs` (only the methods named in research R1–R11)
-- [ ] T032 [US1] Profile key, working directory, packing and unpacking in src-tauri/src/agent_browser/profile.rs and src-tauri/src/agent_browser/profile_crypto.rs (R3), packing in `spawn_blocking`
+- [ ] T032 [US1] Profile key in the OS protected credential store, encrypted ephemeral working container, packing and unpacking in src-tauri/src/agent_browser/profile.rs and src-tauri/src/agent_browser/profile_crypto.rs (R3), packing in `spawn_blocking`
 - [ ] T033 [US1] `AgentBrowser` managed state in src-tauri/src/agent_browser/mod.rs: start on the first call (FR-003), end after 15 minutes without a session, on vault close and on the user closing the window; registered in src-tauri/src/lib.rs and ended with the vault session
 - [ ] T034 [US1] Agent tab in src-tauri/src/agent_browser/tab.rs: create target, isolated world `holzi`, script on new documents, element numbers mapped to `backendNodeId`, tab ids `t1`… per session (contracts/agent-browser.md "Je Agenten-Tab")
 - [ ] T035 [US1] Reading script in src-tauri/src/agent_browser/page_script.js (main text first, numbered elements with kind, name, value except secret fields, state, visibility) and the reader in src-tauri/src/agent_browser/read.rs (R4, R10, R12)
@@ -151,21 +151,21 @@ submitting is refused; a read-only website refuses typing (spec US2).
 
 - [ ] T044 [P] [US2] Unit tests in src-tauri/src/agent_browser/submit_tests.rs: step 1 of R5 marks submit buttons, default buttons in forms, image inputs, Enter in a form field and the word list (de, en) as submitting, and a plain link or a disclosure button as not
 - [ ] T045 [P] [US2] Unit tests in src-tauri/src/agent_browser/prompts_tests.rs: the decision table of contracts/browser-tools.md "Freigabe" for every row and mode; one prompt per action at most
-- [ ] T046 [US2] Integration test in src-tauri/tests/agent_browser_act.rs with fixture pages for 20 forms and buy or delete buttons (SC-003): every submit asks in Manuell and Auto; the fixture server receives nothing after "Ablehnen"; a script that posts after an unnamed button (step 2 of R5) is held and asked; changing requests outside the window after an action pass
-- [ ] T047 [US2] Integration test in src-tauri/tests/agent_browser_injection.rs with the corpus in src-tauri/tests/fixtures/agent_browser/injection/ (20 pages, SC-002): no call skips a prompt, opens another website without a prompt, changes a right or calls holzi's binding; every page result carries `untrusted_page_content`
+- [ ] T046 [US2] Integration test in src-tauri/tests/agent_browser_act.rs with fixture pages for 20 forms and buy or delete buttons (SC-003): every submit asks in Manuell and Auto; the fixture server receives nothing after "Ablehnen"; immediate and delayed mutating requests are held and asked; no time-window expiry releases a request
+- [ ] T047 [US2] Integration test in src-tauri/tests/agent_browser_injection.rs with the corpus in src-tauri/tests/fixtures/agent_browser/injection/ (20 pages, SC-002): no call skips a prompt, opens a top-level page or embedded frame outside the rights without a prompt, changes a right or calls holzi's binding; every page result carries `untrusted_page_content`
 
 ### Implementation
 
 - [ ] T048 [US2] Input domain in src-tauri/src/agent_browser/cdp/input.rs and the actions in src-tauri/src/agent_browser/act.rs (`browser.click`, `.type`, `.select`, `.tabs.close` with real input events, R4)
-- [ ] T049 [US2] Submit detection in src-tauri/src/agent_browser/submit.rs: step 1 from the reading script, step 2 by holding changing requests through `Fetch` for 3 s after a changing agent action (R5), with a `ponytail:` comment on the word list
+- [ ] T049 [US2] Submit detection in src-tauri/src/agent_browser/submit.rs: step 1 from the reading script; hold each mutating request through `Fetch` until its request-scoped decision (R5), with a `ponytail:` comment on the word list
 - [ ] T050 [US2] Prompts for actions and submitting in src-tauri/src/agent_browser/prompts.rs per contracts/browser-tools.md "Freigabe", including the fields that would be sent with secrets as `•••` (`mcp_server::redact`)
-- [ ] T051 [US2] Read-only websites refuse typing, choosing and clicking that is not following a link or opening a disclosure (`read_only_site`, FR-008) in src-tauri/src/agent_browser/act.rs
+- [ ] T051 [US2] Read-only websites refuse navigation, typing, choosing and clicking (`read_only_site`, FR-008) in src-tauri/src/agent_browser/act.rs
 - [ ] T052 [P] [US2] Catalog entries for the changing tools with `confirmsItself` in src/lib/actions/browserActions.ts
 - [ ] T053 [P] [US2] Prompt kinds `submit` and `newTab` in src/components/agentBrowser/PromptDialog.vue with texts in src/i18n/locales/de.json and src/i18n/locales/en.json
 
 ---
 
-## Phase 5: User Story 3 - Der Nutzer sieht zu, greift ein oder stoppt (Priority: P1) (PR D)
+## Phase 5: User Story 3 - Der Nutzer sieht zu, greift ein oder stoppt (Priority: P1) (PR C)
 
 **Goal**: A visible marker in each agent tab, sessions shown in holzi, take over and stop.
 
@@ -174,16 +174,16 @@ agent until "Zurückgeben"; user input in a steered tab pauses it (spec US3).
 
 ### Tests first
 
-- [ ] T054 [P] [US3] Unit tests in src-tauri/src/agent_browser/session_tests.rs: stop ends the running call and the session, takeover answers `paused` until return, user input pauses, closing the window ends the session, revoking an agent (021) ends its sessions
+- [ ] T054 [P] [US3] Unit tests in src-tauri/src/agent_browser/session_tests.rs: stop ends the running call and session within 1 s; closing the window ends the session; revoking an agent (021) ends its sessions
 - [ ] T055 [US3] Integration test in src-tauri/tests/agent_browser_act.rs: stop within 1 s (SC-004) while a page is slow; the marker exists in each document of an agent tab and its buttons react only to trusted events (a synthetic `click()` from the page does nothing); `browser.takeover.request` waits until return
 
 ### Implementation
 
 - [ ] T056 [US3] Marker in a closed shadow root from the isolated world, binding `__holzi` in that world only, title prefix of the tab (R6) in src-tauri/src/agent_browser/page_script.js and src-tauri/src/agent_browser/tab.rs
-- [ ] T057 [US3] Stop, takeover, return, the tool `browser.takeover.request` (FR-018, catalog entry in src/lib/actions/browserActions.ts) and detection of user input in src-tauri/src/agent_browser/session.rs; command `agent_browser_control` and `agent_browser_sessions` in src-tauri/src/agent_browser/commands.rs; event `agent-browser-sessions-changed`
+- [ ] T057 [US3] Stop and session visibility in src-tauri/src/agent_browser/session.rs; command `agent_browser_control` and `agent_browser_sessions` in src-tauri/src/agent_browser/commands.rs; event `agent-browser-sessions-changed`; takeover, return and trusted user-input pause follow in PR D
 - [ ] T058 [US3] End all sessions of an agent on revocation (021 `live.rs`) and on vault close in src-tauri/src/agent_browser/session.rs
 - [ ] T059 [P] [US3] Sessions bar in src/components/agentBrowser/SessionsBar.vue (agent, tab, website, last action, "Eingreifen", "Stoppen"), mounted in the desktop (src/components/wm/Desktop.vue) while a session runs, and the prompt kind `takeover` in src/components/agentBrowser/PromptDialog.vue
-- [ ] T060 [US3] e2e scenario scripts/e2e/scenarios/agent-browser.test.ts: the stand-in agent of 021 (`scripts/e2e/lib/mcp-agent.ts`) with the group `browser` reads a fixture page, fills a form in Auto, is asked before submitting and declined, and is stopped from the sessions bar
+- [ ] T060 [US3] e2e scenario scripts/e2e/scenarios/agent-browser.test.ts: the stand-in agent of 021 (`scripts/e2e/lib/mcp-agent.ts`) with the group `browser` reads a fixture page and is stopped from the sessions bar
 
 **Checkpoint (end of PR D)**: quickstart M1–M5 pass.
 
@@ -198,13 +198,13 @@ contains it (SC-005); the first fill per agent and website asks, a remembered on
 
 ### Tests first
 
-- [ ] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots are refused while filled fields exist and allowed after a new document; `http` and a non-matching website fill nothing
-- [ ] T062 [US4] Integration test in src-tauri/tests/agent_browser_act.rs with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries ask every time; the agent needs the password group (021) for the entry
+- [ ] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots stay refused for the entire session after any credential is filled; `http` and a non-matching website fill nothing
+- [ ] T062 [US4] Integration test in src-tauri/tests/agent_browser_act.rs with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries expose only request-scoped opaque `entryId`s and ask every time; the agent needs the password group (021) for the selected entry
 
 ### Implementation
 
 - [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `passwords::site::entries_for_origin`, a `Grant` of the agent's password group, writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
-- [ ] T064 [US4] Prompt kind `fill` with the entries' titles for the user only and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
+- [ ] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
 - [ ] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
 
 ---
@@ -239,13 +239,13 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 
 ### Tests first
 
-- [ ] T070 [P] [US6] Protocol tests in src-tauri/src/browser_bridge/protocol_tests.rs for the messages of contracts/extension-tabs.md: only clients that declared `agentTabs` get them; a message for a tab that was not handed over is answered `notHandedOver`
+- [ ] T070 [P] [US6] Protocol tests in src-tauri/src/browser_bridge/protocol_tests.rs for contracts/extension-tabs.md: only an approved extension that declares `agentTabs` and has the user's `user-browser` grant gets these messages; unapproved declarations get `NOT_SUPPORTED`, and a message for a tab not handed over gets `notHandedOver`
 - [ ] T071 [US6] Integration test in src-tauri/tests/browser_bridge_agent_tabs.rs with the bridge test client (`e2e_bridge_client`) acting as the extension: hand over, read, click with submit prompt in Auto, a new tab from the page asks, take back ends the session, the right `user-browser` is required
 
 ### Implementation
 
 - [ ] T072 [US6] Bridge side of the messages in src-tauri/src/browser_bridge/methods/agent_tabs.rs and a browser backend for handed-over tabs in src-tauri/src/agent_browser/user_browser.rs that the executor uses instead of CDP (FR-035: missing capabilities are left out)
-- [ ] T073 [US6] Extension side in haextension `apps/haex-pass-browser` (separate PR there): hand over and take back in the popup, `chrome.debugger` only for handed-over tabs, content script in an isolated world for reading and the marker; pin the released version in this repo
+- [ ] T073 [US6] Extension side in haextension `apps/haex-pass-browser` (separate PR there): hand over and take back in the popup, declare and implement `agentTabs`, `chrome.debugger` only for handed-over tabs, content script in an isolated world for reading and the marker; pin the released compatible revision in this repo before enabling US6
 - [ ] T074 [P] [US6] Rights field "Browser des Nutzers" in src/components/agents/BrowserRightsFields.vue and the browser shown per session in src/components/agentBrowser/SessionsBar.vue
 
 **Checkpoint (end of PR F)**: quickstart M9 passes.

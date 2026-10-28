@@ -22,15 +22,15 @@ Entscheidung über Steuerung, Isolation und Profil in
 
 - **Steuerung** (R1, R2): eigener schmaler CDP-Client über `--remote-debugging-pipe`, kein Port;
   Modul `src-tauri/src/agent_browser/`.
-- **Profil** (R3): Arbeitsverzeichnis `0700` während des Laufs, sonst verschlüsseltes Archiv
-  (XChaCha20-Poly1305 STREAM) mit einem zufälligen Schlüssel in einer `_no_sync`-Tabelle.
+- **Profil** (R3): verschlüsselter flüchtiger Arbeitscontainer während des Laufs, sonst Archiv
+  (XChaCha20-Poly1305 STREAM) mit zufälligem Schlüssel im geschützten OS-Zugangsspeicher.
 - **Lesen und Bedienen** (R4): Skript in einer eigenen Welt, nummerierte Elemente, echte
   Eingaben.
 - **Absenden** (R5): Einordnung vor dem Klick plus Anhalten ändernder Anfragen danach.
-- **Sichtbarkeit** (R6): Markierung im Tab mit Bindung nur der eigenen Welt, verbindliche Anzeige
-  und „Stoppen“ in holzi.
+- **Sichtbarkeit** (R6): Markierung, Sitzungsanzeige und „Stoppen“ gehören ab Lieferung C zum ersten
+  nutzbaren Browser; Eingreifen und Zurückgeben folgen in Lieferung D.
 - **Anmeldedaten** (R7): Dienst `passwords::site::entries_for_origin` (aus der Bridge gezogen),
-  Werte direkt ins Feld, Rückfluss gefiltert, Bildschirmfotos bis zum Seitenwechsel gesperrt.
+  Werte direkt ins Feld, Rückfluss gefiltert, Bildschirmfotos bis zum Sitzungsende gesperrt.
 - **Rechte und Rückfragen** (R8, R9): Rechtegruppe `browser` in 021, Werkzeuge als native
   Katalogaktionen mit `confirmsItself`, Website-Prüfung vor dem Laden.
 - **Prompt Injection** (R10): Seiteninhalt immer gekennzeichnet; was er bewirken kann, ist durch
@@ -187,8 +187,8 @@ scripts/e2e/scenarios/agent-browser.test.ts
 ## Lieferungen
 
 Siehe research.md R15: A (dieser PR, Dokumente), B (Grundlage in 021 und Passwörtern), C
-(Agenten-Browser und Lesen, US1), D (Bedienen, Absenden, Markierung, Eingreifen, Stoppen, US2,
-US3), E (Anmelden, Downloads, US4, US5), F (Browser des Nutzers, US6, mit Erweiterung).
+(Agenten-Browser, Lesen, sichtbare Sitzung und Stoppen, US1/US3), D (Bedienen, Absenden und
+Eingreifen, US2/US3), E (Anmelden, Downloads, US4/US5), F (Browser des Nutzers, US6, mit Erweiterung).
 
 ## Complexity Tracking
 

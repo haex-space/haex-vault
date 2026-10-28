@@ -29,10 +29,12 @@ document loads; what counts as submitting is decided before the click and, as a 
 holding the page's changing requests right after an agent action. A page cannot skip a prompt,
 allow a website or change a right.
 
-**The profile is an encrypted archive between runs.** While the browser runs, its profile is a
-plain directory with owner-only access (tmpfs on Linux). When it ends, holzi packs the lasting parts
-into an XChaCha20-Poly1305 STREAM archive under a random key kept in a `_no_sync` table of the
-vault, and deletes the directory.
+**The profile is encrypted during and between runs.** While the browser runs, its profile is in a
+per-run encrypted ephemeral container whose key exists only in process memory. When it ends, holzi
+packs the lasting parts into an XChaCha20-Poly1305 STREAM archive under a random key stored in the
+operating system's protected credential store, bound to this app installation and never copied with
+the vault. holzi uses the archive key only while the vault is unlocked, then destroys the working
+container.
 
 **Browser tools are native catalog actions (ADR 0011) with `confirmsItself`.** One definition serves
 the built-in agent and the MCP access; the browser service asks the user itself, once per action.
@@ -40,8 +42,8 @@ the built-in agent and the MCP access; the browser service asks the user itself,
 ## Consequences
 
 - No other program on the device can attach to the agent browser.
-- While it runs, and after a crash until the next start, the profile lies unencrypted in a
-  directory only the user can read. This is the price of using a stock browser.
+- If the operating system cannot provide an encrypted ephemeral profile container, holzi disables
+  the agent browser on that device rather than leave profile data readable after a crash.
 - holzi maintains a small CDP client (about 35 methods); Chromium changes CDP rarely for these, and
   a minimum version (120) is checked at start.
 - Flatpak or Snap browsers whose sandbox breaks the pipe are not supported.
