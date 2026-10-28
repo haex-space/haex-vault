@@ -63,5 +63,5 @@ result: { entries: [{ id, at, speaker: label, text }], more: bool }
 ## Auswertung
 
 `meeting_evaluate` startet eine Aufgabe (068) bzw. einen Turn des eingebauten Agenten mit festem
-Schema `Evaluation` ([data-model.md](./data-model.md)); das Ergebnis wird geprüft (Verweise) und als neue
+Schema `Evaluation` ([data-model.md](../data-model.md)); das Ergebnis wird geprüft (Verweise) und als neue
 Version gespeichert.

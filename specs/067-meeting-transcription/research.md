@@ -2,8 +2,8 @@
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Stand**: 2026-10-28
 
-Baut auf [066 research.md](../066-voice-assistant/research.md) auf (Audio-Strom, sherpa-onnx 2.x,
-Pausenerkennung, Echo-Unterdrückung). Hier stehen nur die Entscheidungen, die 067 dazu braucht.
+Baut auf den Entscheidungen aus Spec 066 (Audio-Strom, sherpa-onnx 2.x, Pausenerkennung,
+Echo-Unterdrückung) auf. Hier stehen nur die Entscheidungen, die 067 dazu braucht.
 
 ## Ausgangslage im Code
 
