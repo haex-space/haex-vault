@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use tokio::time::Instant;
 
-use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, StorageError};
+use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, StorageError, StorageSpace};
 
 /// The provider behind a storage. Keys are relative to the bucket or folder of `access`; a key
 /// ending in `/` names a folder.
@@ -87,6 +87,16 @@ pub trait ObjectStore: Send + Sync {
         to: &str,
         deadline: Instant,
     ) -> Result<(), StorageError>;
+
+    /// What the storage holds and may hold, when the provider says (WebDAV: RFC 4331 quota; SFTP:
+    /// the file system of the folder). `None` where it has no way to tell (S3).
+    async fn space(
+        &self,
+        _access: &Access,
+        _deadline: Instant,
+    ) -> Result<Option<StorageSpace>, StorageError> {
+        Ok(None)
+    }
 
     /// Whether [`ObjectStore::copy`] copies on the provider (spec 050 research R8); otherwise a
     /// copy streams through holzi.

@@ -7,7 +7,7 @@ use russh_sftp::protocol::FileAttributes;
 use tokio::io::AsyncWriteExt;
 
 use super::super::tree::{ancestors, parent_of, part_name, DirEntry};
-use super::super::{Location, StorageError};
+use super::super::{Location, StorageError, StorageSpace};
 use super::connect::{sftp_error, Session};
 use super::rename::rename_over;
 use crate::passwords::clock::format_millis;
@@ -31,6 +31,19 @@ pub(super) fn path_of(location: &Location, key: &str) -> Result<String, StorageE
         ".".to_owned()
     } else {
         parts.join("/")
+    })
+}
+
+/// The space of a file system from its `statvfs` numbers (`blocks` of `fragment_size` bytes, of
+/// which `blocks_avail` are free for this login); `None` for a file system that reports no size.
+pub(super) fn space_of(fragment_size: u64, blocks: u64, blocks_avail: u64) -> Option<StorageSpace> {
+    let total = blocks
+        .checked_mul(fragment_size)
+        .filter(|total| *total > 0)?;
+    let free = blocks_avail.checked_mul(fragment_size)?.min(total);
+    Some(StorageSpace {
+        used: total - free,
+        total: Some(total),
     })
 }
 

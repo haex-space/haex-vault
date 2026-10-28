@@ -32,9 +32,11 @@ use tokio::time::Instant;
 
 use super::address::{Resolver, SystemResolver};
 use super::tree::{self, parent_of, part_name};
-use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, ObjectStore, StorageError};
+use super::{
+    Access, DirListing, Location, ObjectHead, ObjectInfo, ObjectStore, StorageError, StorageSpace,
+};
 use connect::{sftp_error, Session};
-use ops::{path_of, read_dir, stamp};
+use ops::{path_of, read_dir, space_of, stamp};
 use pool::Pool;
 use upload::Uploads;
 
@@ -264,6 +266,22 @@ impl ObjectStore for SftpStore {
                 last_modified: attrs.mtime.map(http_date),
                 etag: Some(etag),
             })
+        })
+        .await
+    }
+
+    async fn space(
+        &self,
+        access: &Access,
+        deadline: Instant,
+    ) -> Result<Option<StorageSpace>, StorageError> {
+        let path = path_of(&access.location, "")?;
+        self.within(access, deadline, |session| async move {
+            // A server without `statvfs@openssh.com` answers `None`: it cannot tell.
+            let Some(info) = session.sftp.fs_info(path).await.map_err(sftp_error)? else {
+                return Ok(None);
+            };
+            Ok(space_of(info.fragment_size, info.blocks, info.blocks_avail))
         })
         .await
     }

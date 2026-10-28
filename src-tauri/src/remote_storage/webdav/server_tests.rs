@@ -190,3 +190,10 @@ async fn listings_show_times_like_s3_and_a_missing_file_is_not_found() {
         Some(StorageError::NotFound)
     );
 }
+
+#[tokio::test]
+async fn a_server_without_quota_gives_no_space() {
+    let access = test_server::start("Ablage").await;
+    let space = store().space(&access, soon()).await.expect("space");
+    assert_eq!(space, None, "the in-memory server reports no quota");
+}

@@ -2663,6 +2663,8 @@
       "places": "Places",
       "drives": "Drives",
       "free": "{size} free",
+      "used": "{size} used",
+      "freeOf": "{free} free of {total}",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",

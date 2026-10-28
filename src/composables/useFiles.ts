@@ -13,6 +13,7 @@ import type { FolderChanged } from '@bindings/FolderChanged'
 import type { Opened } from '@bindings/Opened'
 import type { SearchFilters } from '@bindings/SearchFilters'
 import type { SourceRef } from '@bindings/SourceRef'
+import type { StorageSpace } from '@bindings/StorageSpace'
 import type { Sources } from '@bindings/Sources'
 import type { TextContent } from '@bindings/TextContent'
 import type { TransferAnswer } from '@bindings/TransferAnswer'
@@ -36,6 +37,13 @@ export function asFilesError(error: unknown): FilesError | undefined {
 export function useFiles() {
   async function sourcesAsync(): Promise<Sources> {
     return await invoke<Sources>('files_sources')
+  }
+
+  /** What the storage holds and may hold, `null` where its provider cannot tell (S3). */
+  async function storageSpaceAsync(
+    storageId: string,
+  ): Promise<StorageSpace | null> {
+    return await invoke<StorageSpace | null>('storage_space', { storageId })
   }
 
   /** Whether the files of this device are reachable (FR-039: on Android "Zugriff auf alle Dateien"). */
@@ -283,6 +291,7 @@ export function useFiles() {
 
   return {
     sourcesAsync,
+    storageSpaceAsync,
     allAccessAsync,
     requestAllAccessAsync,
     listAsync,

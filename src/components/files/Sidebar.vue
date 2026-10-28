@@ -11,6 +11,8 @@ import type { Drive } from '@bindings/Drive'
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
 import { isCurrentDrive } from '~/lib/files/drives'
+import type { StorageSpace } from '@bindings/StorageSpace'
+import { formatSpace } from '~/lib/files/space'
 import { formatFileSize } from '~/lib/passwords/format'
 
 const props = defineProps<{
@@ -33,8 +35,37 @@ const emit = defineEmits<{
   queryContact: [contactId: string]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { nameOf } = useFilesDriveActions()
+const { storageSpaceAsync } = useFiles()
+const { overview } = useStorageOverview()
+
+/** What each cloud storage holds and may hold, where its provider tells (WebDAV, SFTP; not S3): read
+ * again whenever the sidebar's sources are (a tab coming to the front). A storage that does not
+ * answer shows nothing. */
+const spaces = ref<Record<string, StorageSpace | null>>({})
+let spacesRequest = 0
+
+watch(
+  () => props.sources?.storages,
+  async (storages) => {
+    const request = ++spacesRequest
+    const next: Record<string, StorageSpace | null> = {}
+    await Promise.all(
+      (storages ?? []).map(async (storage) => {
+        next[storage.id] = await storageSpaceAsync(storage.id).catch(() => null)
+      }),
+    )
+    if (request === spacesRequest) spaces.value = next
+  },
+  { immediate: true },
+)
+
+/** `12,3/100 GB` of a storage, or `undefined` while nothing is known. */
+function storageSpaceText(id: string): string | undefined {
+  const space = spaces.value[id]
+  return space ? formatSpace(space.used, space.total, locale.value) : undefined
+}
 
 function driveIcon(drive: Drive): string {
   if (props.busy.has(drive.id)) return 'lucide:loader-circle'
@@ -44,6 +75,16 @@ function driveIcon(drive: Drive): string {
 
 function isCurrent(drive: Drive): boolean {
   return isCurrentDrive(drive, props.current, [...props.drives])
+}
+
+/** The protocol of a storage's connection (S3, WebDAV, SFTP), once the overview is read. */
+function protocolOf(storageId: string): string | undefined {
+  const storage = overview.value?.storages.find(
+    (entry) => entry.id === storageId,
+  )
+  return overview.value?.connections.find(
+    (connection) => connection.id === storage?.connectionId,
+  )?.protocol
 }
 
 /** "Meine Dateifreigaben" is open. */
@@ -133,7 +174,24 @@ const PLACE_ICONS: Record<string, string> = {
             />
             <span class="min-w-0 flex-1 truncate">{{ nameOf(drive) }}</span>
             <span
-              v-if="drive.state === 'mounted' && drive.free !== null"
+              v-if="
+                drive.state === 'mounted' &&
+                drive.total !== null &&
+                drive.free !== null
+              "
+              class="shrink-0 text-xs text-muted-foreground"
+              :title="
+                t('files.sidebar.freeOf', {
+                  free: formatSpace(drive.free, null, locale),
+                  total: formatSpace(drive.total, null, locale),
+                })
+              "
+              :data-testid="`files-drive-space-${drive.id}`"
+            >
+              {{ formatSpace(drive.total - drive.free, drive.total, locale) }}
+            </span>
+            <span
+              v-else-if="drive.state === 'mounted' && drive.free !== null"
               class="shrink-0 text-xs text-muted-foreground"
             >
               {{
@@ -289,7 +347,23 @@ const PLACE_ICONS: Record<string, string> = {
             @click="emit('pickStorage', storage.id)"
           >
             <Icon name="lucide:cloud" class="size-4 shrink-0" />
-            <span class="truncate">{{ storage.name }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate">{{ storage.name }}</span>
+              <span
+                v-if="storageSpaceText(storage.id)"
+                class="block truncate text-xs text-muted-foreground"
+                :data-testid="`files-storage-space-${storage.name}`"
+              >
+                {{ storageSpaceText(storage.id) }}
+              </span>
+            </span>
+            <span
+              v-if="protocolOf(storage.id)"
+              class="shrink-0 rounded border px-1 text-[10px] leading-4 font-medium text-muted-foreground"
+              :data-testid="`files-storage-protocol-${storage.name}`"
+            >
+              {{ t(`settings.storage.protocols.${protocolOf(storage.id)}`) }}
+            </span>
           </button>
         </li>
       </ul>
