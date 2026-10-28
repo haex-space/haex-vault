@@ -49,7 +49,7 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
         draft: draft('Sicherung', source.folder, target.folder, 'aToB'),
       }),
     )
-    unwrap(
+    const twoWay = unwrap<{ rule: { id: string } }>(
       'sync_rules_create',
       await instance.invoke('sync_rules_create', {
         draft: draft('Abgleich', left.folder, right.folder, 'both'),
@@ -87,6 +87,16 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     )
 
     // Changed on both sides: the newer keeps the name, the older is a conflict copy on both.
+    // Pause the watched rule while staging both edits. adb writes and permission updates on
+    // Android can take longer than the watcher's quiet window, which would otherwise sync the
+    // first edit before the second side has changed.
+    unwrap(
+      'sync_rules_set_enabled',
+      await instance.invoke('sync_rules_set_enabled', {
+        id: twoWay.rule.id,
+        enabled: false,
+      }),
+    )
     left.write('x.txt', 'links geändert')
     await sleep(1500)
     right.write('x.txt', 'rechts geändert!')
@@ -94,7 +104,13 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       side.files().length === 4 &&
       side.files().some((name) => name.startsWith('x (Konflikt ')) &&
       side.read('x.txt') === 'rechts geändert!'
-    await instance.click('files-sync-rule-run-Abgleich')
+    unwrap(
+      'sync_rules_set_enabled',
+      await instance.invoke('sync_rules_set_enabled', {
+        id: twoWay.rule.id,
+        enabled: true,
+      }),
+    )
     await ctx
       .waitFor(
         'the conflict copy on both sides',

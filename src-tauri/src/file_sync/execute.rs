@@ -340,8 +340,10 @@ async fn merge_ignore(target: &Target<'_>, aside_a: &str, aside_b: &str) -> Resu
         return Err(changed_meanwhile().into());
     };
     let union = union_text(&text_a, &text_b);
-    let set_a = put_aside(target, SyncRuleSide::A, IGNORE_FILE, aside_a).await?;
-    let set_b = put_aside(target, SyncRuleSide::B, IGNORE_FILE, aside_b).await?;
+    // Keep both originals live until their conflict copies exist on both places. If writing either
+    // union fails, the next run can still read both exclusion sets from the original files.
+    let set_a = preserve_ignore(target, SyncRuleSide::A, &text_a, aside_a).await?;
+    let set_b = preserve_ignore(target, SyncRuleSide::B, &text_b, aside_b).await?;
     copy(target, SyncRuleSide::A, aside_a, &set_a, false).await?;
     copy(target, SyncRuleSide::B, aside_b, &set_b, false).await?;
     a.write_text(IGNORE_FILE, &union).await?;
@@ -358,6 +360,20 @@ async fn merge_ignore(target: &Target<'_>, aside_a: &str, aside_b: &str) -> Resu
     })
     .await?;
     Ok(())
+}
+
+async fn preserve_ignore(
+    target: &Target<'_>,
+    side: SyncRuleSide,
+    text: &str,
+    aside: &str,
+) -> Result<Facts, FilesError> {
+    let place = target.place(side);
+    if place.stat(aside).await?.is_some() {
+        return Err(changed_meanwhile());
+    }
+    place.write_text(aside, text).await?;
+    place.stat(aside).await?.ok_or_else(changed_meanwhile)
 }
 
 /// Copies `path` from `from` to the other side, checks that the source did not change since it

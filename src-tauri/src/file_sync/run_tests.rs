@@ -328,6 +328,7 @@ struct Tripwire {
     cancel: CancellationToken,
     stats: AtomicUsize,
     after: usize,
+    fail_ignore_write: bool,
 }
 
 #[async_trait]
@@ -360,6 +361,12 @@ impl Place for Tripwire {
         self.inner.read_text(path, max).await
     }
     async fn write_text(&self, path: &str, text: &str) -> Result<(), FilesError> {
+        if self.fail_ignore_write && path == ".haex-ignore" {
+            return Err(FilesError {
+                code: crate::files::FilesErrorCode::NoAccess,
+                message: "test write failure".to_owned(),
+            });
+        }
         self.inner.write_text(path, text).await
     }
     fn side(&self) -> Side {
@@ -382,6 +389,7 @@ async fn an_abort_keeps_the_state_of_finished_files_and_leaves_no_half_file() {
         cancel: cancel.clone(),
         stats: AtomicUsize::new(0),
         after: 3,
+        fail_ignore_write: false,
     };
     let report = w
         .run_with(&source, &DevicePlace::with_rule_trash(&w.b), &cancel)
@@ -578,4 +586,30 @@ async fn two_way_differing_exclusion_files_keep_both_and_become_their_union() {
     assert!(!w.b.join("x.tmp").exists() && !w.a.join("y.log").exists());
     let again = w.run().await;
     assert_eq!(again.counts.copied + again.counts.conflicts, 0, "{again:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_exclusion_union_write_keeps_both_original_files() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join(".haex-ignore"), "*.tmp\n");
+    write(&w.b.join(".haex-ignore"), "*.log\n");
+    let source = Tripwire {
+        inner: DevicePlace::with_rule_trash(&w.a),
+        cancel: CancellationToken::new(),
+        stats: AtomicUsize::new(0),
+        after: usize::MAX,
+        fail_ignore_write: true,
+    };
+
+    let report = w
+        .run_with(
+            &source,
+            &DevicePlace::with_rule_trash(&w.b),
+            &CancellationToken::new(),
+        )
+        .await;
+
+    assert_eq!(report.outcome, SyncRuleOutcome::Partial, "{report:?}");
+    assert_eq!(read(&w.a.join(".haex-ignore")), "*.tmp\n");
+    assert_eq!(read(&w.b.join(".haex-ignore")), "*.log\n");
 }
