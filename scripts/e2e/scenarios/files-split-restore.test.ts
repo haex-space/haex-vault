@@ -68,7 +68,9 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
             tabs?: Array<{
               appId?: string
               history?: {
-                entries?: Array<{ location?: { query?: Record<string, string> } }>
+                entries?: Array<{
+                  location?: { query?: Record<string, string> }
+                }>
                 index?: number
               }
             }>
