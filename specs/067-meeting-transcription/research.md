@@ -42,21 +42,24 @@ Meeting-Chat und Assistent-Fragen im Meeting sind ohnehin Chat-Unterhaltungen.
 **Alternative**: eigene Tabelle `meeting_entries` — verworfen, wäre eine zweite Mitschrift mit
 denselben Feldern.
 
-## R2 — Erkennung: Whisper, mit Parakeet als Kandidat
+## R2 — Erkennung: Parakeet und Whisper aus 066
 
-**Entscheidung**: Erkannt wird pro Äußerung, die die Pausenerkennung schneidet (066 R6, R7). Für
-Meetings misst der Spike (T005) zusätzlich NVIDIA Parakeet TDT 0.6B v3 über sherpa (`nemo_transducer`,
-int8, CC-BY-4.0, 25 europäische Sprachen inkl. de/en, mit Satzzeichen und Wortzeiten) gegen das
-vorhandene Whisper. Gewählt wird, was SC-005 (≤ 15 % Wortfehler) erfüllt und 4 Stunden ohne
-Rückstand schafft (SC-002). Gewinnt Parakeet, kommt es als weitere Stufe in den STT-Katalog von 010;
-066 kann es dann ebenso nutzen.
+**Entscheidung**: Erkannt wird pro Äußerung, die die Pausenerkennung schneidet (066 R6, R7). Beide
+Modelle kommen aus 066: das vorhandene candle-Whisper und NVIDIA Parakeet TDT 0.6B v3 über sherpa
+(int8, CC-BY-4.0, 25 europäische Sprachen inkl. de/en, mit Satzzeichen und Wortzeiten). 067 bringt
+kein eigenes Modell mit. Der Spike (T005) wiederholt den Vergleich aus 066 (`stt_compare_eval`) mit
+den Meeting-Fixtures und 4 Stunden am Stück. Für Meetings gilt das Modell, das SC-005 (≤ 15 %
+Wortfehler) erfüllt und 4 Stunden ohne Rückstand schafft (SC-002); erwartet wird Parakeet, weil die
+Wortzeiten die Sprecherzuordnung (R3) genauer machen. Whisper bleibt wählbar, bis der Betreiber es
+nach eigenen Tests entfernt (066 R7).
 
 **Begründung**: Whisper base ist im Deutschen schwach, Whisper small auf Laptops und Telefonen
 grenzwertig für 4 Stunden; Parakeet ist laut Berichten deutlich schneller als Whisper small auf der
 CPU (nicht gemessen).
 
-**Alternativen**: Canary-180m-flash (CC-BY-4.0, de/en) als zweiter Kandidat. Kroko (CC-BY-SA bzw.
-Lizenzserver) und ältere Moonshine-Modelle (nicht kommerziell) — verworfen.
+**Alternativen**: Canary-180m-flash (CC-BY-4.0, de/en) als Ersatz, falls Parakeet 4 Stunden auf dem
+Telefon nicht schafft. Kroko (CC-BY-SA bzw. Lizenzserver) und ältere Moonshine-Modelle (nicht
+kommerziell) — verworfen.
 
 **Rückstand**: Die Erkennung läuft in einer Warteschlange; sie verwirft nie Äußerungen. Liegt sie
 mehr als 30 s zurück, zeigt die Anzeige „holt auf“.
