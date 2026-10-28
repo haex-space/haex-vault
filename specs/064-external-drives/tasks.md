@@ -75,8 +75,8 @@ Each PR is reviewed and merged before the next starts on `main`. E and F only ne
 ## Phase 1: Setup (PR A, docs)
 
 - [x] T001 Commit design, spec, plan, research, data model, contracts, quickstart, checklist and this file in `specs/064-external-drives/` and `.specify/feature.json` (`"feature_directory": "specs/064-external-drives"`)
-- [ ] T002 [P] Add a row to the table in `plans/README.md` after the 056–058 rows: "064: Externe Laufwerke im Dateibrowser (`specs/064-external-drives/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-27; Lieferungen PR A–F", gate "044 im Einsatz; Linux mit udisks2, macOS über diskutil, Windows ohne BitLocker-Passwort (FR-019)"
-- [ ] T003 [P] In `specs/044-file-browser/spec.md`:
+- [x] T002 [P] Add a row to the table in `plans/README.md` after the 056–058 rows: "064: Externe Laufwerke im Dateibrowser (`specs/064-external-drives/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-27; Lieferungen PR A–F", gate "044 im Einsatz; Linux mit udisks2, macOS über diskutil, Windows ohne BitLocker-Passwort (FR-019)"
+- [x] T003 [P] In `specs/044-file-browser/spec.md`:
   - under FR-002 add the note "Erweitert durch Spec 064: Laufwerke mit Zustand (eingehängt, nicht eingehängt, gesperrt), Einhängen, Entsperren, Auswerfen."
   - at the edge case "Der offene Ordner verschwindet" add "Umgesetzt mit Spec 064 (research R10)."
 
