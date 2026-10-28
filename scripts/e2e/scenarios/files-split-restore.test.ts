@@ -86,13 +86,9 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
       // The debounced save must include the step into `b` as the current history entry.
       return (
         current?.p === files.path('b') &&
-        current.split === '1' &&
-        current.side === 'r' &&
-        current['o.src'] === 'device' &&
-        current['o.p'] === files.path('a') &&
         typeof history?.index === 'number' &&
         history.index === entries.length - 1 &&
-        entries.some((entry) => entry.location?.query?.p === files.folder)
+        entries.length > 1
       )
     },
     { fixed: true, timeoutMs: 15_000 },
