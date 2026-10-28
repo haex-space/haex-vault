@@ -16,7 +16,9 @@ use tokio_util::sync::CancellationToken;
 use super::reach::{files_error, parse};
 use super::share_confirm::{FileShareConfirmGrant, FileShareConfirmRequest, ShareConfirm};
 use crate::caller::Caller;
-use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
+use crate::chat::tools::native_action::{
+    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
+};
 use crate::contacts::agent::grants_from;
 use crate::contacts::service::{ContactsService, VaultCard};
 use crate::files::access::{check, Target, Verdict, Want};
@@ -123,8 +125,10 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
         &self,
         action_id: &str,
         input: Value,
+        call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
+        builtin_only(call)?;
         let (db, device) = self.env.vault().await.map_err(files_error)?;
         let agent = self.agent_id.clone();
         let grants = db

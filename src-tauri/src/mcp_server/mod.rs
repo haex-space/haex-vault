@@ -169,6 +169,7 @@ impl McpServer {
                         parent: state.gate().token(),
                         catalog: chat.action_catalog.clone(),
                         bridge: chat.action_bridge.clone(),
+                        native: chat.native_actions.clone(),
                         prompts: self.prompts.clone(),
                         calls: self.calls.clone(),
                         notify: self.notifier(),

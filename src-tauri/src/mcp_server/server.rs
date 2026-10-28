@@ -20,6 +20,7 @@ use super::live::Live;
 use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::ActionCatalog;
+use crate::chat::tools::native_action::NativeExecutors;
 use crate::vault_gate::VaultDb;
 
 /// What the server tells the window.
@@ -79,6 +80,8 @@ pub struct StartArgs {
     pub parent: CancellationToken,
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
+    /// The Rust executors of native catalog actions (ADR 0011).
+    pub native: NativeExecutors,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
     pub notify: Notifier,
@@ -91,6 +94,7 @@ pub struct Core {
     pub device: Uuid,
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
+    pub native: NativeExecutors,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
     pub slots: CallSlots,
@@ -172,6 +176,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         device: args.device,
         catalog: args.catalog,
         bridge: args.bridge,
+        native: args.native,
         prompts: args.prompts,
         calls: args.calls,
         slots: CallSlots::default(),

@@ -72,7 +72,7 @@ fn the_approval_mode_decides_whether_a_call_asks() {
     ];
     for (mode, effect, decision) in expected {
         assert_eq!(
-            call_gate(mode, &action(effect, "settings.device")),
+            call_gate(mode, &action(effect, "settings.device"), false),
             decision,
             "{mode:?} {effect}"
         );
@@ -83,9 +83,29 @@ fn the_approval_mode_decides_whether_a_call_asks() {
 fn a_secret_asks_in_every_mode() {
     for mode in [AgentMode::Manual, AgentMode::Auto, AgentMode::Plan] {
         assert_eq!(
-            call_gate(mode, &action("read", SECRET_SCOPE)),
+            call_gate(mode, &action("read", SECRET_SCOPE), false),
             Decision::Ask,
             "{mode:?}"
+        );
+    }
+}
+
+/// Spec 065 T006: an action that asks the user itself skips the call prompt in Manuell and Auto;
+/// Plan refuses it unless it only reads.
+#[test]
+fn an_action_that_confirms_itself_is_not_asked_twice() {
+    use AgentMode::{Auto, Manual, Plan};
+    use Decision::{Allow, Deny};
+    for (mode, effect, decision) in [
+        (Manual, "write", Allow),
+        (Auto, "destructive", Allow),
+        (Plan, "read", Allow),
+        (Plan, "write", Deny),
+    ] {
+        assert_eq!(
+            call_gate(mode, &action(effect, "browser"), true),
+            decision,
+            "{mode:?} {effect}"
         );
     }
 }

@@ -356,7 +356,7 @@ impl Scene {
     /// The whole answer, with the images it shows the model.
     pub async fn reply(&self, action: &str, input: Value) -> Result<NativeReply, NativeError> {
         self.agent
-            .run(action, input, &CancellationToken::new())
+            .run(action, input, &builtin_call(), &CancellationToken::new())
             .await
     }
 
@@ -375,4 +375,10 @@ pub fn names(result: &Value, key: &str) -> Vec<String> {
         .collect();
     names.sort();
     names
+}
+
+fn builtin_call() -> crate::chat::tools::native_action::NativeCall {
+    crate::chat::tools::native_action::NativeCall::builtin(
+        crate::chat::tools::permission::PermissionMode::Manual,
+    )
 }

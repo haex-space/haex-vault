@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 use super::register_agent_actions;
 use crate::chat::session::ChatState;
 use crate::chat::tools::action_tool::AgentActionDef;
-use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 
 struct Files;
 
@@ -21,6 +21,7 @@ impl NativeExecutor for Files {
         &self,
         _action_id: &str,
         _input: Value,
+        _call: &NativeCall,
         _cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
         Ok(json!({ "native": true }).into())

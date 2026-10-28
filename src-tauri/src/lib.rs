@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod agent_browser;
 #[cfg(feature = "voice")]
 pub mod audio;
 pub mod browser_bridge;
@@ -425,6 +426,19 @@ pub fn run() {
             let mcp = mcp_server::McpServer::default();
             mcp.attach(app.handle());
             app.manage(mcp);
+            // Spec 065 research R8: native actions of the built-in agent run in the chat's mode.
+            let mode_handle = app.handle().clone();
+            app.state::<ChatState>()
+                .native_actions
+                .set_mode_source(std::sync::Arc::new(move || {
+                    let handle = mode_handle.clone();
+                    Box::pin(async move {
+                        match handle.state::<AppState>().database() {
+                            Ok(db) => chat::tools::permission::read_from_vault(&db).await,
+                            Err(_) => chat::tools::permission::PermissionMode::Manual,
+                        }
+                    })
+                }));
             let prompt = files::agent::prompt::PermissionPrompt::default();
             app.manage(prompt.clone());
             let files_agent: files::agent::commands::BuiltinFilesAgent =

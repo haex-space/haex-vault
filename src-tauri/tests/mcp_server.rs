@@ -115,6 +115,7 @@ async fn a_call_outside_the_rights_is_refused_and_never_runs() {
         operate: [("wm.read".to_owned(), OperateLevel::Read)]
             .into_iter()
             .collect(),
+        browser: None,
     };
     let (agent, _helper) = fx.registered("claude-code", rights).await;
     assert_eq!(tool_names(&agent).await, ["wm_state_get"]);

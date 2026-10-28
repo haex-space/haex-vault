@@ -19,7 +19,9 @@ use super::share::build;
 use super::share::model::{
     ContactShareHolzi, ContactShareHolziChoice, ContactShareOptions, ContactShareSelection,
 };
-use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
+use crate::chat::tools::native_action::{
+    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
+};
 use crate::error::HolziError;
 use crate::files::agent::prompt::PermissionPrompt;
 use crate::files::permissions::BUILTIN_AGENT;
@@ -195,8 +197,10 @@ impl<E: ContactsShareEnv + 'static> NativeExecutor for ContactsShareAgent<E> {
         &self,
         action_id: &str,
         input: Value,
+        call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
+        builtin_only(call)?;
         if action_id != "contacts.share" {
             return Err(NativeError::new(
                 "unknown_action",
