@@ -57,7 +57,7 @@
       "parameters": "4B",
       "quantization": "Q4_K_M",
       "hf_repo": "bartowski/Qwen_Qwen3.5-4B-GGUF",
-      "hf_filename": "Qwen3.5-4B-Q4_K_M.gguf",
+      "hf_filename": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
       "tokenizer_repo": "Qwen/Qwen3.5-4B",
       "approx_size_bytes": 3010000000,
       "context_window": 32768,
