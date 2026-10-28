@@ -63,7 +63,8 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
     'the saved session to hold the split',
     async () => {
       const response = await page.invoke('wm_session_load')
-      assert.ok(response.ok, JSON.stringify(response))
+      if (!('ok' in response) || !response.ok)
+        throw new Error(`wm_session_load failed: ${JSON.stringify(response)}`)
       const loaded = response.data as {
         session?: {
           windows?: Array<{
