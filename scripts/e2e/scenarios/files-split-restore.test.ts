@@ -62,12 +62,35 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
   await ctx.waitFor(
     'the saved session to hold the split',
     async () => {
-      const text = JSON.stringify(await page.invoke('wm_session_load'))
-      // The step into `b` is saved too, not only the start of the split.
+      const loaded = (await page.invoke('wm_session_load')) as {
+        session?: {
+          windows?: Array<{
+            tabs?: Array<{
+              appId?: string
+              history?: {
+                entries?: Array<{ location?: { query?: Record<string, string> } }>
+                index?: number
+              }
+            }>
+          }>
+        }
+      }
+      const tab = loaded.session?.windows
+        ?.flatMap((window) => window.tabs ?? [])
+        .find((candidate) => candidate.appId === 'system.files')
+      const history = tab?.history
+      const entries = history?.entries ?? []
+      const current = entries[history?.index ?? -1]?.location?.query
+      // The debounced save must include the step into `b` as the current history entry.
       return (
-        text.includes('o.src') &&
-        text.includes('"side":"r"') &&
-        text.includes(JSON.stringify(files.path('b')).slice(1, -1))
+        current?.p === files.path('b') &&
+        current.split === '1' &&
+        current.side === 'r' &&
+        current['o.src'] === 'device' &&
+        current['o.p'] === files.path('a') &&
+        typeof history?.index === 'number' &&
+        history.index === entries.length - 1 &&
+        entries.some((entry) => entry.location?.query?.p === files.folder)
       )
     },
     { fixed: true, timeoutMs: 15_000 },
