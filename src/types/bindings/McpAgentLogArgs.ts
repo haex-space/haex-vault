@@ -2,7 +2,7 @@
 
 export type McpAgentLogArgs = { agentId: string,
 /**
- * Entries before this Unix millisecond; the newest when absent.
+ * Entries before this Unix millisecond; paired with `before_id` to break ties.
  */
 before: number | null,
 /**
