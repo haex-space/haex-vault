@@ -15,6 +15,9 @@ use uuid::Uuid;
 /// The prefix of every endpoint name; the helper looks for it.
 pub const ENDPOINT_PREFIX: &str = "mcp-";
 
+#[cfg(unix)]
+pub(crate) const MAX_SOCKET_PATH_BYTES: usize = 104;
+
 /// A connection to the endpoint, from either side.
 pub trait Duplex: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Duplex for T {}
@@ -40,7 +43,24 @@ pub fn default_socket_dir() -> PathBuf {
         .or_else(|| cfg!(target_os = "macos").then(std::env::temp_dir))
         .or_else(dirs::cache_dir)
         .unwrap_or_else(std::env::temp_dir);
-    base.join("holzi-mcp")
+    preferred_socket_dir(&base)
+}
+
+pub(crate) fn preferred_socket_dir(base: &Path) -> PathBuf {
+    let preferred = base.join("holzi-mcp");
+    #[cfg(unix)]
+    if socket_path(&preferred, &endpoint_name(Uuid::nil()))
+        .as_os_str()
+        .len()
+        > MAX_SOCKET_PATH_BYTES
+    {
+        // Unix socket addresses have a small platform-defined path limit. E2E runs deliberately
+        // put XDG_RUNTIME_DIR below a deeply nested, isolated root, so keep the isolation identity
+        // while moving the actual socket directory to the short system temp prefix.
+        let namespace = Uuid::new_v5(&Uuid::NAMESPACE_OID, base.to_string_lossy().as_bytes());
+        return PathBuf::from("/tmp").join(format!("holzi-mcp-{}", namespace.simple()));
+    }
+    preferred
 }
 
 #[cfg(unix)]

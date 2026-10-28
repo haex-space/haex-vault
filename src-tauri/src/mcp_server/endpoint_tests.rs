@@ -21,7 +21,9 @@ mod unix {
     use std::os::unix::fs::PermissionsExt;
 
     use super::*;
-    use crate::mcp_server::endpoint::{bind, connect, discover, socket_path};
+    use crate::mcp_server::endpoint::{
+        bind, connect, discover, preferred_socket_dir, socket_path, MAX_SOCKET_PATH_BYTES,
+    };
 
     #[tokio::test]
     async fn the_socket_lives_in_a_private_directory_and_is_found() {
@@ -77,6 +79,17 @@ mod unix {
         let text = path.to_string_lossy();
         assert!(text.ends_with(".sock"));
         assert!(!text.contains(':'), "no host:port");
+    }
+
+    #[test]
+    fn a_deep_runtime_directory_uses_a_short_isolated_fallback() {
+        let base = std::path::Path::new(
+            "/home/runner/work/haex-vault/haex-vault/src-tauri/target/e2e/20261027-235315-1172d4/instance-00000000000000000000000000000000/run",
+        );
+        let dir = preferred_socket_dir(base);
+        let path = socket_path(&dir, "mcp-0123456789ab");
+        assert_eq!(dir.parent(), Some(std::path::Path::new("/tmp")));
+        assert!(path.as_os_str().len() <= MAX_SOCKET_PATH_BYTES);
     }
 }
 
