@@ -53,6 +53,16 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Betreiber-Ergänzung: Alle Gespräche werden vollständig transkribiert und in der Vault-Datenbank
   gespeichert, damit man später alles nachlesen und nachvollziehen kann (FR-047, FR-048). Die
   Meeting-Mitschrift mit Sprecherzuordnung ist eine eigene Spec (067).
+- Betreiber-Ergänzung: haex liefert einige Stimmen mit; Nutzer können weitere Stimmen selbst
+  einrichten (FR-049 bis FR-053).
+- Q: Wie richten Nutzer weitere Stimmen ein? → A: Auf drei Wegen: eine Stimme aus einer eigenen
+  Aufnahme oder Audiodatei nachbilden (mit bestätigter Einwilligung der sprechenden Person),
+  Sprachmodell-Dateien importieren, oder einen externen Sprachdienst bzw. eigenen Server anbinden.
+- Q: In welchen Sprachen spricht haex? → A: In sechs Sprachen: Deutsch, Englisch, Französisch,
+  Spanisch, Italienisch und Portugiesisch, mit mitgelieferten Stimmen für jede.
+- Q: Gelten selbst angelegte Stimmen auf allen Geräten? → A: Ja. Nachgebildete Stimmen werden
+  verschlüsselt über den Vault synchronisiert; importierte Modelldateien bleiben wegen ihrer Größe auf
+  dem Gerät.
 
 ## Begriffe
 
@@ -385,18 +395,21 @@ Eine Probephase zeigt, ob das Wort erkannt wird. Die Rohaufnahmen sind nach dem 
 
 ---
 
-### User Story 8 - Stimme wählen (Priority: P3)
+### User Story 8 - Stimme wählen und eigene Stimmen einrichten (Priority: P3)
 
 Anna wählt in den Einstellungen eine andere lokale Stimme, hört eine Probe und stellt das Tempo etwas
-schneller. Später richtet sie einen externen Sprachdienst ein, weil der natürlicher klingt; die
-Assistent-Anzeige zeigt seitdem, dass Antworten das Gerät verlassen.
+schneller. Dann spricht sie 20 Sekunden ein, bestätigt, dass es ihre eigene Stimme ist, und haex
+antwortet ab sofort mit ihrer Stimme, auch auf ihrem Laptop. Ihr Kollege importiert ein
+Community-Modell für Polnisch. Später richtet Anna einen externen Sprachdienst ein, weil der
+natürlicher klingt; die Assistent-Anzeige zeigt seitdem, dass Antworten das Gerät verlassen.
 
 **Why this priority**: Eine lokale Standardstimme genügt für US1 bis US7. Wahl und externer Dienst
 verbessern das Erlebnis, sind aber nicht nötig.
 
 **Independent Test**: Eine andere lokale Stimme wählen und eine Probe hören; die nächste Antwort nutzt
-sie ohne Neustart. Einen externen Dienst einrichten; die Anzeige kennzeichnet das, bis er wieder
-abgeschaltet ist.
+sie ohne Neustart. Eine Stimme aus einer Aufnahme anlegen; sie erscheint auf einem zweiten Gerät
+desselben Vaults. Ein Modell importieren und wählen. Einen externen Dienst einrichten; die Anzeige
+kennzeichnet das, bis er wieder abgeschaltet ist.
 
 **Acceptance Scenarios**:
 
@@ -411,6 +424,19 @@ abgeschaltet ist.
    kennzeichnet die Assistent-Anzeige dauerhaft, dass Antworttext an diesen Dienst geht.
 5. **Given** der externe Dienst ist nicht erreichbar, **When** haex antworten will, **Then** spricht
    es mit der lokalen Stimme und sagt einmal pro Gespräch, dass der Dienst nicht erreichbar war.
+6. **Given** der Nutzer wählt „Eigene Stimme anlegen“, **When** er 10–30 Sekunden einspricht oder
+   eine Audiodatei wählt, Sprache und Namen angibt und die Einwilligung bestätigt, **Then** hört er
+   eine Probe, bevor er speichert; ohne bestätigte Einwilligung lässt sich nicht speichern.
+7. **Given** eine Aufnahme ist zu kurz, zu leise, übersteuert oder verrauscht, **When** der Nutzer
+   sie prüfen lässt, **Then** nennt haex den Grund und bittet um eine neue Aufnahme.
+8. **Given** eine angelegte Stimme, **When** der Nutzer ein zweites Gerät mit demselben Vault öffnet,
+   **Then** steht sie dort zur Wahl; fehlt das Sprachmodell dafür, lädt haex es bei der Wahl.
+   Löscht er sie auf einem Gerät, verschwindet sie überall, und Geräte, die sie nutzten, fallen auf
+   die Standardstimme der Sprache zurück.
+9. **Given** der Nutzer wählt „Modell importieren“ mit einem Ordner oder Repository, **When** haex
+   die Dateien als unterstütztes Modell erkennt, **Then** gibt der Nutzer Namen, Sprachen und Lizenz
+   an, bestätigt sein Nutzungsrecht und kann das Modell danach wie jede lokale Stimme wählen; nicht
+   erkannte Dateien lehnt haex mit Grund ab.
 
 ---
 
@@ -590,9 +616,10 @@ Modus aus.
 
 #### Stimme
 
-- **FR-029**: haex MUST eine lokale Standardstimme pro unterstützter Sprache anbieten und eine kleine,
-  kuratierte Auswahl weiterer lokaler Stimmen mit Größe und Eignung für das Gerät, wie die Modellwahl
-  in 010. Die Speicherung MUST NOT an eine bestimmte Sprachausgabe-Technik gebunden sein.
+- **FR-029**: haex MUST für jede der sechs Sprachen (FR-052) zwei bis drei mitgelieferte lokale
+  Stimmen anbieten, eine davon als Standard, mit Größe und Eignung für das Gerät wie die Modellwahl
+  in 010. Mitgelieferte Stimmen MUST in ihrer Sprache ohne fremden Akzent klingen (SC-017). Die
+  Speicherung der Wahl MUST NOT an eine bestimmte Sprachausgabe-Technik gebunden sein.
 - **FR-030**: Der Nutzer MUST eine Probe jeder Stimme hören und das Sprechtempo einstellen können.
   Änderungen MUST ab der nächsten Ausgabe ohne Neustart gelten.
 - **FR-031**: Der Nutzer MUST einen externen Sprachdienst einrichten können. Seine Zugangsdaten MUST
@@ -685,6 +712,30 @@ Modus aus.
   eigene Ansicht mit Zeitstempeln lesbar sein; sie MUST erhalten bleiben, bis der Nutzer das Gespräch
   löscht, und MUST mit ihm gelöscht werden.
 
+#### Eigene Stimmen und Sprachen
+
+- **FR-049**: Der Nutzer MUST eine Stimme aus einer Aufnahme in haex oder einer Audiodatei
+  (10–30 Sekunden) nachbilden können, mit Name und Sprache. haex MUST die Aufnahme vor dem Speichern
+  prüfen (Länge, Lautstärke, Übersteuerung, Rauschen) und eine Probe abspielen. Die Nachbildung MUST
+  ganz auf dem Gerät geschehen.
+- **FR-050**: Vor dem Speichern MUST der Nutzer bestätigen, dass es seine eigene Stimme ist oder die
+  sprechende Person eingewilligt hat; der Zeitpunkt der Bestätigung MUST gespeichert werden.
+  Nachgebildete Stimmen MUST verschlüsselt im Vault liegen, mit ihm synchronisiert werden und sich
+  löschen lassen; das Löschen MUST auf allen Geräten wirken, die dann auf die Standardstimme der
+  Sprache zurückfallen.
+- **FR-051**: Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
+  Modell-Repository importieren können. haex MUST die Modellart an den Dateien erkennen und nicht
+  unterstützte Dateien mit Grund ablehnen. Name, Sprachen und Lizenzangabe MUST angegeben und das
+  Nutzungsrecht bestätigt werden. Importierte Modelle MUST nur auf diesem Gerät liegen, MUST keinen
+  ausführbaren Code mitbringen oder laden und MUST bei Modellen mit mehreren Sprechern die Wahl des
+  Sprechers erlauben.
+- **FR-052**: haex MUST in Deutsch, Englisch, Französisch, Spanisch, Italienisch und Portugiesisch
+  sprechen und verstehen: Schlusswendungen, Stopp-Wörter, Antworten auf Freigaben und Rückfragen,
+  Bitten um Wiederholung und Buchstabieren MUST in allen sechs Sprachen funktionieren. Die Oberfläche
+  bleibt Deutsch und Englisch.
+- **FR-053**: Nachgebildete und importierte Stimmen MUST als lokale Stimmen gelten (auch für
+  FR-027). Ein externer Sprachdienst MUST als extern gelten, auch wenn er im eigenen Netz läuft.
+
 ### Key Entities
 
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
@@ -693,8 +744,12 @@ Modus aus.
   Anzeige. Gilt nur auf diesem Gerät.
 - **Eigenes Wake Word**: das erlernte Muster eines vom Nutzer eingesprochenen Worts, mit Bezeichnung.
   Ohne Rohaufnahmen; gilt nur auf diesem Gerät.
-- **Stimme**: eine lokale Stimme (Sprache, Größe, Eignung, installiert ja/nein) oder ein externer
-  Sprachdienst mit Zugangsdaten.
+- **Stimme**: eine mitgelieferte lokale Stimme (Sprache, Größe, Eignung, installiert ja/nein), eine
+  nachgebildete Stimme, ein importiertes Modell oder ein externer Sprachdienst mit Zugangsdaten.
+- **Nachgebildete Stimme**: Name, Sprache, die Referenzaufnahme und der Zeitpunkt der bestätigten
+  Einwilligung; verschlüsselt im Vault, auf allen Geräten.
+- **Importiertes Modell**: Name, Modellart, Sprachen, Sprecher, Lizenzangabe, Herkunft; nur auf diesem
+  Gerät.
 - **Sprachgespräch**: eine Chat-Unterhaltung (006) mit der Kennzeichnung „Sprachgespräch“, Zeitpunkt
   des Endes (für die Fortsetzungszeit) und den Runden als Mitschrift.
 - **Klangset**: die mitgelieferten Hinweistöne, je einer pro Anlass aus FR-043, als zusammengehörige
@@ -747,6 +802,10 @@ Modus aus.
 - **SC-015**: In einem Testgespräch mit Freigabe, Rückfrage, Stopp und Dazwischenreden erscheint
   jede Äußerung und jede Ausgabe in der Mitschrift, in richtiger Reihenfolge, mit Zeitstempel und
   Art; das Geheimnis eines vorgelesenen Eintrags erscheint nicht.
+- **SC-016**: Eine eigene Stimme lässt sich in unter 2 Minuten anlegen und anhören; 3 von 5
+  Testpersonen erkennen in der Probe die nachgebildete Person.
+- **SC-017**: Für jede der sechs Sprachen beurteilen mindestens 4 von 5 Muttersprachlern die
+  Standardstimme als ohne fremden Akzent und gut verständlich.
 
 ## Assumptions
 
@@ -766,8 +825,10 @@ Modus aus.
   mehrere Antworten. Eine Abstimmung darüber, welches Gerät antwortet, ist eine Folge-Spec.
 - **Externe Agenten (021) und Erweiterungen** sprechen nicht über den Assistent-Modus; er gehört dem
   eingebauten Agenten.
-- **Sprachen**: Deutsch und Englisch wie die Oberfläche. Weitere Sprachen ergeben sich aus den
-  verfügbaren Erkennungsmodellen und Stimmen.
+- **Sprachen**: haex spricht und versteht sechs Sprachen (FR-052); die Oberfläche bleibt Deutsch und
+  Englisch. Weitere Sprachen ergeben sich später aus Erkennungsmodellen und importierten Stimmen.
+- **Nachbilden fremder Stimmen**: haex kann nicht prüfen, ob die Einwilligung wirklich vorliegt; die
+  Verantwortung liegt beim Nutzer, der sie bestätigt (FR-050).
 - **Referenzgeräte** für SC-002 und SC-010 werden im Plan festgelegt (ein Mittelklasse-Desktop ohne
   dedizierte Grafikkarte und ein Mittelklasse-Android-Telefon).
 - **Musik und andere Audioausgaben** werden während der Sprachausgabe nicht leiser gestellt; das ist

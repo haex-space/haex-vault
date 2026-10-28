@@ -6,26 +6,35 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 
 ## Commands
 
-| Command                       | Eingabe            | Ergebnis                        | Spec           |
-| ----------------------------- | ------------------ | ------------------------------- | -------------- |
-| `assistant_get_state`         | –                  | `AssistantStateWire`            | FR-003         |
-| `assistant_readiness`         | –                  | `{missing: Missing[]}`          | FR-005         |
-| `assistant_set_enabled`       | `{enabled: bool}`  | `AssistantStateWire`            | FR-001, FR-005 |
-| `assistant_set_muted`         | `{muted: bool}`    | `AssistantStateWire`            | US9            |
-| `assistant_talk`              | –                  | –                               | FR-011         |
-| `assistant_end_conversation`  | –                  | –                               | FR-014, FR-039 |
-| `assistant_enroll_start`      | `{label: string}`  | `{sessionId}`                   | FR-008         |
-| `assistant_enroll_record`     | `{sessionId}`      | `EnrollStep`                    | FR-008         |
-| `assistant_enroll_finish`     | `{sessionId}`      | `EnrollResult`                  | FR-008         |
-| `assistant_enroll_cancel`     | `{sessionId}`      | –                               | FR-008         |
-| `assistant_wakeword_probe`    | `{active: bool}`   | –                               | US7            |
-| `assistant_tts_preview`       | `{voiceId, rate}`  | –                               | FR-030         |
-| `list_tts_catalog`            | –                  | `TtsCatalogEntry[]` mit Eignung | FR-029         |
-| `list_installed_tts_voices`   | –                  | `string[]`                      | FR-029         |
-| `download_tts_voice`          | `{voiceId}`        | – (Fortschritt als Ereignis)    | FR-005, FR-029 |
-| `assistant_transcript_list`   | `{threadId}`       | `TranscriptEntryWire[]`         | FR-048         |
-| `assistant_transcript_search` | `{query, cursor?}` | `{threadId, seq, snippet}[]`    | FR-048         |
-| `download_assistant_assets`   | –                  | – (Fortschritt als Ereignis)    | FR-005         |
+| Command                       | Eingabe                                                         | Ergebnis                        | Spec           |
+| ----------------------------- | --------------------------------------------------------------- | ------------------------------- | -------------- |
+| `assistant_get_state`         | –                                                               | `AssistantStateWire`            | FR-003         |
+| `assistant_readiness`         | –                                                               | `{missing: Missing[]}`          | FR-005         |
+| `assistant_set_enabled`       | `{enabled: bool}`                                               | `AssistantStateWire`            | FR-001, FR-005 |
+| `assistant_set_muted`         | `{muted: bool}`                                                 | `AssistantStateWire`            | US9            |
+| `assistant_talk`              | –                                                               | –                               | FR-011         |
+| `assistant_end_conversation`  | –                                                               | –                               | FR-014, FR-039 |
+| `assistant_enroll_start`      | `{label: string}`                                               | `{sessionId}`                   | FR-008         |
+| `assistant_enroll_record`     | `{sessionId}`                                                   | `EnrollStep`                    | FR-008         |
+| `assistant_enroll_finish`     | `{sessionId}`                                                   | `EnrollResult`                  | FR-008         |
+| `assistant_enroll_cancel`     | `{sessionId}`                                                   | –                               | FR-008         |
+| `assistant_wakeword_probe`    | `{active: bool}`                                                | –                               | US7            |
+| `assistant_tts_preview`       | `{voice: VoiceRef, rate}`                                       | –                               | FR-030         |
+| `tts_voices_list`             | –                                                               | `VoiceOption[]`                 | FR-029, FR-053 |
+| `list_tts_catalog`            | –                                                               | `TtsCatalogEntry[]` mit Eignung | FR-029         |
+| `list_installed_tts_voices`   | –                                                               | `string[]`                      | FR-029         |
+| `download_tts_voice`          | `{voiceId}`                                                     | – (Fortschritt als Ereignis)    | FR-005, FR-029 |
+| `tts_clone_record_start`      | –                                                               | `{sessionId}`                   | FR-049         |
+| `tts_clone_record_stop`       | `{sessionId}`                                                   | `CloneCheck`                    | FR-049         |
+| `tts_clone_from_file`         | `{path}`                                                        | `CloneCheck`                    | FR-049         |
+| `tts_clone_preview`           | `{sessionId, language}`                                         | –                               | FR-049         |
+| `tts_clone_save`              | `{sessionId, name, language, consent: true}`                    | `VoiceOption`                   | FR-050         |
+| `tts_voice_delete`            | `{voice: VoiceRef}`                                             | –                               | FR-050, FR-051 |
+| `tts_model_inspect`           | `{source: ModelSource}`                                         | `ModelInspection`               | FR-051         |
+| `tts_model_import`            | `{source, name, languages, licenseNote, rightsConfirmed: true}` | `VoiceOption[]`                 | FR-051         |
+| `assistant_transcript_list`   | `{threadId}`                                                    | `TranscriptEntryWire[]`         | FR-048         |
+| `assistant_transcript_search` | `{query, cursor?}`                                              | `{threadId, seq, snippet}[]`    | FR-048         |
+| `download_assistant_assets`   | –                                                               | – (Fortschritt als Ereignis)    | FR-005         |
 
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
 `PrefScope::Device`; der Assistent beobachtet die Schlüssel und übernimmt Änderungen ohne Neustart
@@ -43,9 +52,22 @@ AssistantStateWire {
   openQuestion: { kind: "approval"|"choice"|"screen", text: string } | null
 }
 Missing = "sttModel"|"vadModel"|"wakeWordModel"|"voice"|"chatModel"|"microphone"
+VoiceRef = "builtin:<id>" | "clone:<id>" | "model:<id>" | "model:<id>#<sprecher>"   # data-model.md
+VoiceOption = { ref: VoiceRef, kind: "builtin"|"clone"|"model", name, language,
+                installed: bool, sizeBytes, fit, isDefault: bool }
+CloneCheck = { sessionId, speechSecs, ok: bool,
+               problems: ("tooShort"|"tooLong"|"tooQuiet"|"clipped"|"noisy")[] }
+ModelSource = { kind: "folder", path } | { kind: "archive", path } | { kind: "hf", repo, revision? }
+ModelInspection = { ok: true, engine, languages: string[], speakers: {id, label}[], sizeBytes }
+                | { ok: false, reason: "unknownLayout"|"unsupportedEngine"|"forbiddenFile"|"tooLarge"|"unreachable" }
 EnrollStep = { recorded: 1..4, ok: bool, problem: "tooShort"|"noisy"|null }
 EnrollResult = { ok: true } | { ok: false, problem: "inconsistent"|"tooShort"|"confusable", similar?: string }
 ```
+
+Stimmen nachbilden und Modelle importieren gibt es nur über die Oberfläche: Die Commands sind
+keine Aktionen und für Agenten (eingebaut, 021, Erweiterungen) nicht aufrufbar, weil sie eine
+Einwilligung bzw. ein Nutzungsrecht bestätigen (FR-050, FR-051). Die Aufnahme läuft über den
+Duplex-Strom und nur, solange der Dialog offen ist.
 
 ## Ereignisse (Rust → Frontend)
 
@@ -57,6 +79,8 @@ EnrollResult = { ok: true } | { ok: false, problem: "inconsistent"|"tooShort"|"c
 | `assistant-error`             | `{kind, message}`                         | Edge Cases     |
 | `assistant-download-progress` | `{id, received, total}`                   | FR-005         |
 | `assistant-wakeword-probe`    | `{detected: bool, score}`                 | US7            |
+| `tts-clone-level`             | `{sessionId, level, speechSecs}`          | FR-049         |
+| `tts-voices-changed`          | –                                         | FR-050         |
 
 `ToneId` = `listening`, `understood`, `working`, `question`, `done`, `error`, `aborted`,
 `notUnderstood`, `conversationEnd`, `attention`, `secret`, `modeOn`, `modeOff`, `muted`, `unmuted`.

@@ -37,7 +37,11 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
 - **Erkennung** (R7): candle-Whisper bleibt; Parakeet TDT 0.6B v3 über sherpa als zweite Wahl im
   STT-Katalog, Vergleich in PR B. Whisper fällt erst nach ausgiebigen Tests des Betreibers, in einem
   eigenen PR.
-- **Sprachausgabe** (R8): Kyutai Pocket TTS (de/en) über sherpa, satzweise; Katalog wie STT.
+- **Sprachausgabe** (R8): Kyutai Pocket TTS für sechs Sprachen über sherpa, satzweise; Modell pro
+  Sprache aus dem Katalog, mitgelieferte Stimmen als Referenzaufnahmen im Binary.
+- **Eigene Stimmen** (R20, R21): Stimmen aus Aufnahme oder Datei nachbilden (Einwilligung,
+  synchronisiert im Vault); Modelle importieren (nur Gerät, kein ausführbarer Code).
+- **Sprachen** (R22): Sätze und lokale Auswertung in sechs Sprachen.
 - **Echo** (R9): AEC3 in der App (`sonora`, Ersatz `webrtc-audio-processing`), Messung je
   Plattform, sonst nur Wake Word und Stopp-Wort.
 - **Freigaben, Rückfragen, Aufgaben** (R11, R12): lokal ausgewertete Antworten, Zustandsautomat
@@ -67,14 +71,16 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
 
 **Storage**: Migration mit der nächsten freien Nummer: `chat_threads.origin` und die Tabelle
 `voice_transcript_entries` (vollständige Mitschrift, CRDT);
-`HOLZI_TRIGGER_VERSION` 29 → 30. Geräteeinstellungen `assistant.*` ([data-model.md](./data-model.md)).
+`HOLZI_TRIGGER_VERSION` 29 → 30. Eine zweite Migration in PR K: `haex_tts_voices`,
+`haex_tts_voices_binaries` (CRDT) und `haex_tts_models_no_sync`, Trigger-Version +1.
+Geräteeinstellungen `assistant.*` ([data-model.md](./data-model.md)).
 Modelle unter `<AppLocalData>/models/<id>/`.
 
 **Testing**:
 
 - **Rust, Einheit** (`*_tests.rs`): `audio/{ring,resample,mixer}`, `assistant/{conversation,
 speakable,spell,sentences,phrases,approval,choice,tones,wakeword/templates,enroll}`,
-  `tts/catalog`.
+  `tts/{catalog,voices,clone,import}`.
 - **Rust, Integration**: `tests/assistant_conversation.rs` (WAV-Quelle, falsche Erkennung, falsche
   Stimme, Modell-Skript, injizierte Uhr: Runden, Nachhörzeit, Fortsetzung, Stopp, Freigaben, offene
   Fragen, aktives Ende), `tests/assistant_secret_contract.rs` (ADR-0020).
@@ -207,6 +213,9 @@ src-tauri/src/
 ├── tts/
 │   ├── mod.rs, catalog.rs, tts_catalog.json, commands.rs
 │   ├── local.rs          # sherpa OfflineTts, satzweise
+│   ├── voices.rs, voices/  # mitgelieferte Referenzaufnahmen, VoiceRef auflösen
+│   ├── clone.rs          # PR K: Aufnahme, Prüfung, Speichern (haex_tts_voices)
+│   ├── import.rs         # PR K: Modellart erkennen, Datei-Regeln, Kopieren
 │   └── external.rs       # PR J: OpenAI-kompatibler Endpunkt
 ├── assistant/
 │   ├── mod.rs            # AssistantState, Start/Stopp, Schließen
@@ -262,9 +271,11 @@ hier landet nur das fertige Modell über den Katalog.
 | G   | Echo-Unterdrückung, freies Dazwischenreden, Kopfhörer, Messung je Plattform, `docs/voice-assistant-platforms.md`                                                                                                                                                          | US2 (FR-016) | `assistant/echo.rs`, `audio/mixer.rs`                           |
 | H   | Android-Vordergrund-Dienst, Benachrichtigung, Audio-Fokus; iOS nur Vordergrund; Android-e2e                                                                                                                                                                               | US9          | Plugin `holzi-android`, `assistant/mod.rs`                      |
 | I   | Eigenes Wake Word: Einsprechen, Prüfung, Probephase; Spike Vorlagen gegen offene Erkennung                                                                                                                                                                                | US7          | `assistant/wakeword/{templates,enroll}`, Einstellungen          |
+| K   | Eigene Stimmen: nachbilden mit Einwilligung, Sync, Modelle importieren; Spike Modellarten ohne espeak-ng                                                                                                                                                                  | US8 (eigene) | `tts/{clone,import}.rs`, Einstellungen                          |
 | J   | Externer Sprachdienst mit Anzeige und Rückfall                                                                                                                                                                                                                            | US8 (extern) | `tts/external.rs`, Anbieter-Einstellungen                       |
 
 **Abhängigkeiten**: B → C → D. E, F, G, H, I, J bauen auf D auf und sind untereinander unabhängig;
+K baut nur auf B auf (Stimmwahl und Sprachausgabe) und kann parallel zu C laufen;
 F braucht die Freigabe-Ansage aus E. Außerhalb dieses Repos und vor D: Training und Veröffentlichung
 des Standardmodells in `haex-space/haex-wakeword` (Betreiber, GPU). Die Eichhörnchen-Sprites
 entstehen mit dem Bildmodell-Ablauf; bis dahin zeigt die Anzeige Symbole.

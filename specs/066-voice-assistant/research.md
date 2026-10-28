@@ -176,23 +176,48 @@ erfindet bei Stille kaum Text (nicht gemessen). sherpa ist durch R3 ohnehin im B
 **Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
 Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.
 Whisper zusätzlich über sherpa — vorerst nicht nötig, weil 25 Sprachen reichen. Canary-180m-flash
-(CC-BY-4.0, nur de/en/es/fr) — als Ersatz, falls Parakeet auf dem Telefon zu langsam ist.
+(CC-BY-4.0, nur de/en/es/fr, also ohne Italienisch und Portugiesisch) — als Ersatz, falls Parakeet
+auf dem Telefon zu langsam ist.
 
-## R8 — Lokale Sprachausgabe: Kyutai Pocket TTS über sherpa
+## R8 — Lokale Sprachausgabe: Kyutai Pocket TTS über sherpa, Stimmen als Referenzaufnahmen
 
-**Entscheidung**: Standardstimmen Deutsch und Englisch aus Kyutai Pocket TTS (≈100 M Parameter,
-Code MIT, Gewichte CC-BY-4.0, Streaming, erste Ausgabe ≈200 ms auf 2 Kernen eines M4). Ein neuer
-Katalog `tts/tts_catalog.json` im Format von `stt_catalog.json` (Revision, Größe, Lizenz, Sprache,
-Eignung). Ausgabe satzweise: Der Assistent schneidet die Antwort an Satzgrenzen und gibt jeden Satz
-einzeln an die Sprachausgabe (FR-022). Die Namensnennung für CC-BY steht in den Lizenzangaben der
-App.
+**Entscheidung**: Kyutai Pocket TTS (≈100 M Parameter, Code MIT, Gewichte CC-BY-4.0, erste Ausgabe
+≈200 ms auf 2 Kernen eines M4) für sechs Sprachen: Deutsch, Englisch, Französisch, Spanisch,
+Italienisch, Portugiesisch. Ein Modell pro Sprache im neuen Katalog `tts/tts_catalog.json`
+(Revision, Größe, Lizenz, Eignung), geladen erst, wenn eine Stimme der Sprache gewählt wird. Für die
+fünf Sprachen außer Englisch gibt es zusätzlich die größere Variante mit 24 Schichten als
+„höhere Qualität“.
 
-**Spike**: deutsche Qualität und Echtzeitfaktor auf Referenz-Desktop und -Telefon (T008). Reicht es
-nicht, ist der Ersatz Piper `de_DE-thorsten` mit eigener freier Aussprache-Tabelle (gruut, MIT);
-die Herkunft der Stimme wird vorher rechtlich geprüft.
+Pocket TTS hat in sherpa-onnx keine eingebauten Stimmen: Jeder Aufruf bekommt eine kurze
+Referenzaufnahme (`GenerationConfig.reference_audio`), aus der das Modell die Stimme nachbildet; die
+daraus berechnete Einbettung hält sherpa im Zwischenspeicher (`voice_embedding_cache_capacity`). Eine
+mitgelieferte Stimme ist darum nur eine Referenzaufnahme von einigen hundert KB, die im Binary liegt
+(`tts/voices/`, `include_bytes!`). Pro Sprache zwei bis drei Stimmen.
+
+**Herkunft der Stimmen**: Die vorgefertigten Kyutai-Stimmen stammen fast alle aus englischen
+Aufnahmen und tragen deren Akzent in andere Sprachen (kyutai-labs/pocket-tts#166). Deshalb nur
+Aufnahmen von Muttersprachlern, und nur mit freier Lizenz: CC0 (Common Voice, Kyutai
+`voice-donations`) oder CC-BY (VCTK für Englisch, CML-TTS für Französisch), sonst eigene Aufnahmen von
+Freiwilligen mit schriftlicher Einwilligung als CC0. Expresso und EARS sind nur nicht-kommerziell
+nutzbar und scheiden aus. Herkunft, Lizenz und Namensnennung je Stimme stehen in
+`tts/voices/voices.json` und in den Lizenzangaben der App.
+
+**Bezug der Modelle**: Das Kyutai-Repository auf Hugging Face ist zugangsbeschränkt (Anmeldung und
+Zustimmung). Geladen wird darum der sherpa-Export (k2-fsa, CC-BY-4.0 erlaubt Weitergabe) mit
+festgelegter Revision; ob sherpa 2.0 für alle sechs Sprachen fertige Exporte anbietet (laut
+Release-Notes „PocketTTS (multilingual)“), klärt der Spike T008. Fehlt eine Sprache, exportiert der
+Betreiber sie selbst und hängt sie an ein eigenes Release.
+
+**Ausgabe**: satzweise. Der Assistent schneidet die Antwort an Satzgrenzen und gibt jeden Satz
+einzeln an die Sprachausgabe (FR-022).
+
+**Spike** (T008): Qualität, Akzent und Echtzeitfaktor je Sprache auf Referenz-Desktop und -Telefon,
+normal und mit 24 Schichten. Reicht Deutsch nicht, ist der Ersatz Piper `de_DE-thorsten` mit eigener
+freier Aussprache-Tabelle (gruut, MIT); die Herkunft der Stimme wird vorher rechtlich geprüft.
 
 **Alternativen**: Piper-Engine — seit 1.3.0 GPL-3.0 (espeak-ng). Kokoro-82M — kein Deutsch.
-Supertonic 3 — Repo archiviert, OpenRAIL-M.
+Supertonic 3 — Repo archiviert, OpenRAIL-M. Die vorgefertigten Kyutai-Stimmen — englischer Akzent und
+teils nicht-kommerzielle Quellen.
 
 ## R9 — Echo-Unterdrückung und Dazwischenreden
 
@@ -217,7 +242,7 @@ nicht reicht.
 
 **Entscheidung**: Ein eigenes kleines Modul `assistant/speakable.rs` wandelt Markdown in Sprechtext:
 Formatierung weg, Tabellen, Links und Codeblöcke durch kurze Beschreibung ersetzt („Ich habe dir
-eine Tabelle im Chat gezeigt“), ISO-Daten und Uhrzeiten in gesprochene Form (de/en). Dazu die
+eine Tabelle im Chat gezeigt“), ISO-Daten und Uhrzeiten in gesprochene Form (sechs Sprachen, R22). Dazu die
 Anweisung an das Modell (FR-021) als zusätzlicher Teil von `chat/tools/prompt.rs`, nur in
 Sprachgesprächen.
 
@@ -229,7 +254,7 @@ verhindert.
 
 **Entscheidung**: Der Assistent sieht `tool-permission-request` in seiner `emit`-Closure, spricht
 Wirkung und Ziel (aus Aktionsbeschreibung, `riskClass` und Eingaben, Geheimnisse geschwärzt wie in
-021 `redact.rs`) und wertet die Antwort lokal aus: feste Listen für Zustimmung und Ablehnung (de/en),
+021 `redact.rs`) und wertet die Antwort lokal aus: feste Listen für Zustimmung und Ablehnung (sechs Sprachen, R22),
 sonst „unklar“. Die Entscheidung geht über dieselbe Funktion wie `respond_tool_permission`.
 `chat-choice-request` (`ask_user`) liest höchstens drei Möglichkeiten vor und ordnet Ordinalzahl,
 Name oder Merkmal lokal zu; was nicht passt, geht als freie Antwort an den Agenten.
@@ -325,6 +350,67 @@ Integrationstest mit festem Modell-Skript, falscher Erkennung und falscher Sprac
 **Entscheidung**: Ein Anbieter-Typ „Sprachausgabe“ mit OpenAI-kompatiblem Endpunkt `/audio/speech`
 (deckt OpenAI und lokale Server ab). Zugangsdaten wie bei den Chat-Anbietern. Fällt er aus, spricht
 die lokale Stimme (FR-031). Geheimnisse nie über ihn (FR-027).
+
+## R20 — Stimmen nachbilden
+
+**Entscheidung**: Eine nachgebildete Stimme ist eine Referenzaufnahme wie die mitgelieferten (R8).
+Aufnahme über den Duplex-Strom (R2) oder eine importierte Audiodatei (WAV, FLAC, Ogg, MP3 über die
+vorhandene Dekodierung), umgerechnet auf die Abtastrate des Modells, beschnitten auf 10–30 s
+Sprache (Pausenerkennung R6 entfernt Stille am Rand). Prüfung vor dem Speichern: Sprachanteil
+≥ 10 s, Pegel, Übersteuerung (Anteil Samples nahe Vollausschlag), Rauschabstand grob aus den Pausen.
+Danach eine Probe mit einem festen Satz der Sprache.
+
+Gespeichert in der CRDT-Tabelle `haex_tts_voices`, die Aufnahme in `haex_tts_voices_binaries`
+(Muster `haex_passwords_binaries`, unter 25 MiB: 30 s 16 bit Mono 24 kHz ≈ 1,4 MB) und dem Zeitpunkt der bestätigten
+Einwilligung. Synchronisiert wie alle Vault-Daten; die Einbettung wird auf jedem Gerät neu berechnet
+und nur im Speicher gehalten.
+
+**Einwilligung**: Kyutai verbietet das Nachbilden ohne ausdrückliche und rechtmäßige Einwilligung.
+haex kann sie nicht prüfen; der Nutzer bestätigt sie mit einem Kontrollkästchen, der Zeitpunkt wird
+gespeichert (FR-050). Die Stimme verlässt das Gerät nur verschlüsselt im Vault; haex gibt
+gesprochenes Audio nirgends als Datei aus.
+
+**Alternativen**: Nur die Einbettung speichern statt der Aufnahme — kleiner, hängt aber an der
+Modellversion; ein Modellwechsel würde alle Stimmen ungültig machen. Nur auf dem Gerät — verworfen
+(Betreiber: über den Vault synchronisieren).
+
+## R21 — Modelle importieren
+
+**Entscheidung**: Import aus einem lokalen Ordner (oder Archiv `.tar.bz2` wie in den sherpa-Releases)
+oder aus einem Hugging-Face-Repository mit Revision (beim Import festgehalten). haex erkennt die
+Modellart an den Pflichtdateien der sherpa-Konfigurationen, die 2.x anbietet: Pocket TTS (z. B.
+Community-Modelle für Polnisch oder Tschechisch, dann mit Referenzaufnahme wie R8), Kokoro,
+Supertonic, Matcha, Kitten, VITS. Welche davon ohne espeak-ng (seit 2.0 entfernt) wirklich sprechen,
+klärt der Spike T137; nicht unterstützte Arten lehnt der Import mit Grund ab. Mehrsprecher-Modelle
+zeigen ihre Sprecher-Ids zur Wahl.
+
+Kopiert nach `<AppLocalData>/models/user-tts-<id>/` und wie Katalog-Downloads in
+`device_downloaded_models_no_sync` eingetragen (Pfad, Größe, SHA-256); Name, Art, Sprachen und
+Sprecher in der gerätebezogenen Tabelle `haex_tts_models_no_sync` (nicht synchronisiert, wegen der
+Größe). Name, Sprachen und Lizenzangabe
+gibt der Nutzer an.
+
+**Sicherheit**: Es werden nur Modell-, Token- und Lexikon-Dateien übernommen; Bibliotheken
+(`.so`, `.dll`, `.dylib`), Skripte und ONNX-Modelle mit benutzerdefinierten Operator-Domänen
+lehnt der Import ab, damit keine fremde native Bibliothek geladen wird. Größe höchstens 2 GB.
+Dateien werden vor dem ersten Laden nicht ausgeführt, nur von der ONNX-Runtime gelesen.
+
+**Alternativen**: Freie Zuordnung von Dateien zu Feldern durch den Nutzer — fehleranfällig;
+Erkennung über Dateinamen deckt die sherpa-Archive ab. Import über den externen Dienst (R19) bleibt
+der Weg für Engines, die sherpa nicht kann (z. B. XTTS auf einem eigenen Server).
+
+## R22 — Sechs Sprachen
+
+**Entscheidung**: Alles, was haex selbst sagt oder lokal versteht, gibt es in sechs Sprachen
+(FR-052): Schlusswendungen, Stopp-Wörter, Bitte um Wiederholung, Zustimmung und Ablehnung (R11),
+Ordinalzahlen für Rückfragen, gesprochene Daten und Uhrzeiten (R10), Buchstabiernamen (FR-026) und
+die Gesprächsanweisung an das Modell (FR-021). Jede Tabelle ist nach Sprache geschlüsselt; ein
+Prüfskript verlangt alle sechs Einträge. Die Gesprächssprache folgt der erkannten Sprache der
+Äußerung (Parakeet und Whisper liefern sie), sonst der Oberfläche. Die Tabellen für fr/es/it/pt
+prüft vor der Freigabe je ein Muttersprachler.
+
+**Alternativen**: Übersetzung der Sätze zur Laufzeit durch das Modell — langsamer, und Zustimmung
+oder Ablehnung darf nie das Modell auswerten (SC-009).
 
 ## Spec-Korrekturen aus der Planung
 
