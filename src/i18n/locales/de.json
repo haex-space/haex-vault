@@ -2878,7 +2878,6 @@
       },
       "progress": {
         "label": "Fortschritt",
-        "paused": "Pausiert",
         "scanning": "Orte werden verglichen …",
         "files": "{done} von {total} Dateien · {size}"
       },

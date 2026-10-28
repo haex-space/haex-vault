@@ -10,8 +10,7 @@ const SYNC_RULE_PROGRESS = 'sync-rule-progress'
  * The sync rules of this device (spec 061 US1, FR-025, FR-032): the list with each rule's status.
  * One listener for `sync-rules-changed` reloads it, so a run starting or ending shows without
  * reloading; events during a load fold into one more load. `sync-rule-progress` keeps the latest
- * progress of each running rule; it is dropped when the run is over, but kept while the rule is paused, so a paused run still
- * shows how far it got.
+ * progress of each running rule; it is dropped with the run, whatever the last report was.
  *
  * Pinia keeps this store for the session. `rules` and `loading` are the backend's state and survive
  * a remount on purpose; `error` belongs to the open overview and is reset by `initialize`.
@@ -37,16 +36,13 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
   }
 
   function dropFinishedProgress(): void {
-    const kept = new Set(
+    const running = new Set(
       rules.value
-        .filter(
-          (view) =>
-            view.status.state === 'running' || view.status.state === 'paused',
-        )
+        .filter((view) => view.status.state === 'running')
         .map((view) => view.rule.id),
     )
     progress.value = Object.fromEntries(
-      Object.entries(progress.value).filter(([id]) => kept.has(id)),
+      Object.entries(progress.value).filter(([id]) => running.has(id)),
     )
   }
 
