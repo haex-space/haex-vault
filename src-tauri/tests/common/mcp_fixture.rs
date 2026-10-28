@@ -322,7 +322,7 @@ impl Fixture {
                     .into_iter()
                     .find(|agent| agent.slug == slug)
                     .expect("registered");
-                agent_log::read(tx, device, agent.id, None, 200, now_millis())
+                agent_log::read(tx, device, agent.id, None, None, 200, now_millis())
             })
             .await
             .expect("the log")

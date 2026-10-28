@@ -119,6 +119,14 @@ impl Core {
             .insert(slug.to_owned());
     }
 
+    /// Allows an agent the user unblocked to ask again during this vault session.
+    pub fn undecline(&self, slug: &str) {
+        self.declined
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(slug);
+    }
+
     /// Why the connections end once [`Self::token`] fired.
     pub fn closing_reason(&self) -> CloseReason {
         *self.closing.lock().unwrap_or_else(PoisonError::into_inner)

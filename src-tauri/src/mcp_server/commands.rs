@@ -55,9 +55,11 @@ pub struct McpCallAnswerArgs {
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct McpAgentLogArgs {
     pub agent_id: Uuid,
-    /// Entries before this Unix millisecond; the newest when absent.
+    /// Entries before this Unix millisecond; paired with `before_id` to break ties.
     #[ts(type = "number | null")]
     pub before: Option<i64>,
+    /// The last entry's id when loading the next page.
+    pub before_id: Option<String>,
     /// At most 200.
     pub limit: u32,
 }
@@ -176,7 +178,17 @@ pub async fn mcp_agent_log<R: Runtime>(
     let now = now_millis();
     state
         .database()?
-        .write(move |tx| agent_log::read(tx, device, args.agent_id, args.before, args.limit, now))
+        .write(move |tx| {
+            agent_log::read(
+                tx,
+                device,
+                args.agent_id,
+                args.before,
+                args.before_id.as_deref(),
+                args.limit,
+                now,
+            )
+        })
         .await
 }
 

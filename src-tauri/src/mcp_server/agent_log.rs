@@ -153,13 +153,15 @@ pub fn prune(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid, now: i64) 
     Ok(())
 }
 
-/// The entries of `agent` before `before` (all when `None`), newest first, at most `limit` (capped
-/// at [`MAX_PAGE`]). Cuts the log first, so an old entry is gone even without a new call.
+/// The entries of `agent` before `(created_at, id)` (all when `before` is `None`), newest first,
+/// at most `limit` (capped at [`MAX_PAGE`]). The id breaks ties when calls share a millisecond.
+/// Cuts the log first, so an old entry is gone even without a new call.
 pub fn read(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     agent: Uuid,
     before: Option<i64>,
+    before_id: Option<&str>,
     limit: u32,
     now: i64,
 ) -> Result<Vec<AgentLogEntry>> {
@@ -167,12 +169,14 @@ pub fn read(
     let rows = tx.query_map(
         "SELECT id, created_at, tool, effect, target, input, outcome, asked \
          FROM haex_mcp_agent_log_no_sync \
-         WHERE vault_device_uuid = ?1 AND agent_id = ?2 AND created_at < ?3 \
-         ORDER BY created_at DESC, rowid DESC LIMIT ?4",
+         WHERE vault_device_uuid = ?1 AND agent_id = ?2 \
+           AND (created_at < ?3 OR (created_at = ?3 AND ?4 IS NOT NULL AND id < ?4)) \
+         ORDER BY created_at DESC, id DESC LIMIT ?5",
         params![
             device.to_string(),
             agent.to_string(),
             before.unwrap_or(i64::MAX),
+            before_id,
             limit.min(MAX_PAGE),
         ],
         |row| {

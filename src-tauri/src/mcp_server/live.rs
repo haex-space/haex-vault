@@ -3,9 +3,11 @@
 //! next call and send `notifications/tools/list_changed`; a revocation ends the connection after the
 //! control line `closing: revoked`, and its waiting prompts and calls with it.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use rmcp::service::{Peer, RoleServer};
+use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -55,6 +57,7 @@ struct Entry {
 pub struct Live {
     next: Mutex<u64>,
     entries: Arc<Mutex<Vec<Entry>>>,
+    agent_locks: Mutex<HashMap<Uuid, Weak<AsyncMutex<()>>>>,
 }
 
 /// Removes its connection from [`Live`] when dropped.
@@ -73,6 +76,25 @@ impl Drop for LiveGuard {
 }
 
 impl Live {
+    /// Serializes a connection's database refresh with settings changes to the same agent.
+    pub async fn synchronize(&self, agent: Uuid) -> OwnedMutexGuard<()> {
+        let lock = {
+            let mut locks = self
+                .agent_locks
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            locks.retain(|_, lock| lock.strong_count() > 0);
+            if let Some(lock) = locks.get(&agent).and_then(Weak::upgrade) {
+                lock
+            } else {
+                let lock = Arc::new(AsyncMutex::new(()));
+                locks.insert(agent, Arc::downgrade(&lock));
+                lock
+            }
+        };
+        lock.lock_owned().await
+    }
+
     /// Adds a connection; it counts for an agent once its session knows the agent.
     pub fn add(&self, session: Session, peer: Peer<RoleServer>) -> LiveGuard {
         let id = {

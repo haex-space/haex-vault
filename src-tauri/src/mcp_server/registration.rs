@@ -141,8 +141,10 @@ pub(super) async fn register(context: RegistrationContext) {
     let digest = registry::hash(credential.as_str());
     let rights = answer.rights.clone();
     let now = now_millis();
+    let mut agent_guard = None;
     let stored = match previous {
         Some(previous) => {
+            agent_guard = Some(core.live.synchronize(previous.id).await);
             let renewal = Renewal {
                 client_name,
                 client_version,
@@ -188,6 +190,7 @@ pub(super) async fn register(context: RegistrationContext) {
         mode: agent.mode,
         client_name: agent.client_name,
     });
+    drop(agent_guard);
     // The credential before the new tool list, so the helper has saved it when the agent asks.
     let _ = controls.send(Control::Token(credential.into_string()));
     let _ = peer.notify_tool_list_changed().await;

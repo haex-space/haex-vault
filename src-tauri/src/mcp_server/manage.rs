@@ -106,10 +106,10 @@ pub fn renew(
 ) -> Result<Option<Agent>> {
     let name = registry::kept_name(&renewal.client_name);
     let version = renewal.client_version.as_deref().map(registry::kept_name);
-    tx.execute(
+    let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', token_hash = ?3, \
          permission_mode = ?4, client_name = ?5, client_version = ?6, last_seen_at = ?7 \
-         WHERE id = ?1 AND vault_device_uuid = ?2",
+         WHERE id = ?1 AND vault_device_uuid = ?2 AND status = 'expired'",
         params![
             id.to_string(),
             device.to_string(),
@@ -120,6 +120,9 @@ pub fn renew(
             now,
         ],
     )?;
+    if renewed == 0 {
+        return Ok(None);
+    }
     registry::save_rights(tx, device, id, rights)?;
     registry::get(tx, device, id)
 }
@@ -175,15 +178,24 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
     Ok(removed > 0)
 }
 
-/// Lifts a block: the row goes, and the agent may ask again. `false` when no blocked agent has the
-/// id.
-pub fn unblock(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
-    let removed = tx.execute(
+/// Lifts a block and returns the slug to clear from the server's session-local declines; `None`
+/// when no blocked agent has the id.
+pub fn unblock(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<Option<String>> {
+    let slug = tx.query_row(
+        "SELECT slug FROM haex_mcp_agents \
+         WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
+        params![device.to_string(), id.to_string()],
+        |row| row.get::<_, String>(0),
+    )?;
+    let Some(slug) = slug else {
+        return Ok(None);
+    };
+    tx.execute(
         "DELETE FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
         params![device.to_string(), id.to_string()],
     )?;
-    Ok(removed > 0)
+    Ok(Some(slug))
 }
 
 /// Every agent of `device` with its rights, newest first.

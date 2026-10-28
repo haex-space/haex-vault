@@ -141,6 +141,11 @@ pub async fn set_rights(
     id: Uuid,
     rights: Rights,
 ) -> Result<()> {
+    let _agent_guard = if let Some(core) = core {
+        Some(core.live.synchronize(id).await)
+    } else {
+        None
+    };
     grants::validate(&rights).map_err(|error| HolziError::InvalidInput {
         reason: error.to_string(),
     })?;
@@ -187,6 +192,11 @@ pub async fn set_mode(
     id: Uuid,
     mode: AgentMode,
 ) -> Result<()> {
+    let _agent_guard = if let Some(core) = core {
+        Some(core.live.synchronize(id).await)
+    } else {
+        None
+    };
     let stored = db
         .write(move |tx| manage::set_mode(tx, device, id, mode))
         .await?;
@@ -217,6 +227,11 @@ pub async fn mcp_agent_revoke<R: Runtime>(
 
 /// Forgets the agent and ends its connections; their waiting prompts and calls end refused.
 pub async fn revoke(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) -> Result<()> {
+    let _agent_guard = if let Some(core) = core {
+        Some(core.live.synchronize(id).await)
+    } else {
+        None
+    };
     let removed = db.write(move |tx| manage::revoke(tx, device, id)).await?;
     if let Some(core) = core {
         core.live.close(id, CloseReason::Revoked);
@@ -237,15 +252,21 @@ pub async fn mcp_agent_unblock<R: Runtime>(
     args: McpAgentArgs,
 ) -> Result<()> {
     let device = open_device(&app, &state).await?;
-    let id = args.agent_id;
-    let removed = state
-        .database()?
-        .write(move |tx| manage::unblock(tx, device, id))
-        .await?;
-    if !removed {
-        return Err(unknown_agent());
-    }
+    let core = server.core().await;
+    unblock(&state.database()?, device, core.as_deref(), args.agent_id).await?;
     changed(&server).await;
+    Ok(())
+}
+
+/// Lifts a persisted and session-local block, so the agent can ask for registration again.
+pub async fn unblock(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) -> Result<()> {
+    let slug = db
+        .write(move |tx| manage::unblock(tx, device, id))
+        .await?
+        .ok_or_else(unknown_agent)?;
+    if let Some(core) = core {
+        core.undecline(&slug);
+    }
     Ok(())
 }
 

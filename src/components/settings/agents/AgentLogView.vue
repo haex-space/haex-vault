@@ -22,9 +22,12 @@ const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmClear = ref(false)
 
-async function pageAsync(before: number | null): Promise<AgentLogEntry[]> {
+async function pageAsync(
+  before: number | null,
+  beforeId: string | null = null,
+): Promise<AgentLogEntry[]> {
   return invoke<AgentLogEntry[]>('mcp_agent_log', {
-    args: { agentId: agentId.value, before, limit: PAGE },
+    args: { agentId: agentId.value, before, beforeId, limit: PAGE },
   })
 }
 
@@ -45,7 +48,7 @@ async function loadMoreAsync() {
   const last = entries.value.at(-1)
   if (!last) return
   try {
-    const page = await pageAsync(last.createdAt)
+    const page = await pageAsync(last.createdAt, last.id)
     entries.value = [...entries.value, ...page]
     more.value = page.length === PAGE
   } catch (error) {

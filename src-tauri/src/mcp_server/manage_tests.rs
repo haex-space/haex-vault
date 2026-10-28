@@ -118,6 +118,34 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
 }
 
 #[tokio::test]
+async fn a_revoked_expired_registration_cannot_be_renewed() {
+    let v = vault();
+    let id = registered(&v, NOW).await;
+    let device = v.device;
+    let renewed =
+        v.db.write(move |tx| {
+            expire(tx, device, id)?;
+            revoke(tx, device, id)?;
+            renew(
+                tx,
+                device,
+                id,
+                &Renewal {
+                    client_name: "codex".to_owned(),
+                    client_version: None,
+                    mode: AgentMode::Manual,
+                },
+                "new-hash",
+                &default_rights(),
+                NOW + 1,
+            )
+        })
+        .await
+        .expect("revoked registrations do not renew as a storage error");
+    assert_eq!(renewed, None);
+}
+
+#[tokio::test]
 async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
     let v = vault();
     let id = registered(&v, NOW).await;
@@ -207,12 +235,14 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
         .db
         .write(move |tx| unblock(tx, device, registered))
         .await
-        .expect("not blocked"));
+        .expect("not blocked")
+        .is_some());
     assert!(v
         .db
         .write(move |tx| unblock(tx, device, blocked))
         .await
-        .expect("unblock"));
+        .expect("unblock")
+        .is_some());
     let left: Vec<Uuid> =
         v.db.read(move |q| list_with_rights(q, device))
             .await

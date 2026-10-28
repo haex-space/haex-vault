@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use super::endpoint::BoxStream;
 use super::hello::{
-    control_line, json_line, parse_greeting, Control, Greeting, HelloReply, RejectReason,
-    MAX_GREETING_BYTES,
+    control_line, json_line, parse_greeting, CloseReason, Control, Greeting, HelloReply,
+    RejectReason, MAX_GREETING_BYTES,
 };
 use super::live::Link;
 use super::manage;
@@ -86,8 +86,11 @@ async fn run_session(
     let (controls, control_rx) = mpsc::unbounded_channel();
     let (rmcp_side, pump_side) = tokio::io::duplex(64 * 1024);
     let pump = tokio::spawn(pump(pump_side, write_half, control_rx));
+    let known_id = agent.as_ref().map(|agent| agent.id);
     let link = Arc::new(Link::new(core.token.child_token()));
-    let session = Session::new(Arc::clone(&core), agent, Arc::clone(&link));
+    // A known agent is installed only after the synchronized database refresh below; using the
+    // admission snapshot here could let an early tool call observe stale rights.
+    let session = Session::new(Arc::clone(&core), None, Arc::clone(&link));
     let reader = LineLimit::new(reader, core.limits.max_message_bytes);
     let running = match session.clone().serve((reader, rmcp_side)).await {
         Ok(running) => running,
@@ -99,8 +102,46 @@ async fn run_session(
         }
     };
     let peer = running.peer().clone();
-    // The window reaches the connection through `live` once the session knows its agent.
+    // Serialize the refresh with rights, mode and revocation changes. Otherwise a management
+    // update can commit before this connection is added to `live`, miss it, and leave stale rights.
+    let _agent_guard = if let Some(id) = known_id {
+        Some(core.live.synchronize(id).await)
+    } else {
+        None
+    };
     let _live = core.live.add(session.clone(), peer.clone());
+    if let Some(id) = known_id {
+        let device = core.device;
+        match core
+            .db
+            .read(move |q| {
+                let Some(agent) = registry::get(q, device, id)? else {
+                    return Ok(None);
+                };
+                if agent.status != AgentStatus::Registered {
+                    return Ok(None);
+                }
+                let rights = registry::load_rights(q, device, id)?;
+                Ok(Some(SessionAgent {
+                    id,
+                    rights,
+                    mode: agent.mode,
+                    client_name: agent.client_name,
+                }))
+            })
+            .await
+        {
+            Ok(Some(agent)) => {
+                session.set_agent(agent);
+                let _ = peer.notify_tool_list_changed().await;
+            }
+            Ok(None) => link.end(CloseReason::Revoked),
+            Err(error) => {
+                log::warn!("mcp server: could not refresh an agent's rights: {error}");
+                link.end(CloseReason::Disabled);
+            }
+        }
+    }
     let ended = link.close.child_token();
     let registration = waiting.map(|(ticket, previous)| {
         tokio::spawn(registration::register(RegistrationContext {

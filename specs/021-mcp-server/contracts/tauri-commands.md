@@ -9,7 +9,7 @@
 | `mcp_status`              | –                                                                                   | an/aus, Wege, Endpunkt, HTTP-Port, verbundene Agenten                          |
 | `mcp_agents_list`         | –                                                                                   | Agenten mit Zustand, letzter Verbindung, Freigabestufe, Rechte-Zusammenfassung |
 | `mcp_agent_get`           | `agentId`                                                                           | Agent mit allen Rechten                                                        |
-| `mcp_agent_log`           | `agentId`, `before?`, `limit` (≤ 200)                                               | Protokolleinträge, neueste zuerst                                              |
+| `mcp_agent_log`           | `agentId`, `before?`, `beforeId?`, `limit` (≤ 200)                                  | Protokolleinträge, neueste zuerst; `beforeId` bricht Zeitstempel-Gleichstände  |
 | `mcp_configure`           | `enabled`                                                                           | schaltet den Zugang dieses Geräts; nur über `settings.agents.mcp.enable`       |
 | `mcp_registration_answer` | `requestId`, `decision` (`register`/`deny`), `remember`, `grants`, `permissionMode` | beendet den Registrierungsdialog                                               |
 | `mcp_call_answer`         | `requestId`, `decision` (`allow`/`deny`)                                            | beendet eine Rückfrage                                                         |

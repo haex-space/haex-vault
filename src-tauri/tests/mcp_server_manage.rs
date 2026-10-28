@@ -16,7 +16,7 @@ use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage::EXPIRES_AFTER_MILLIS;
-use holzi_lib::mcp_server::manage_commands::{revoke, set_mode, set_rights};
+use holzi_lib::mcp_server::manage_commands::{revoke, set_mode, set_rights, unblock};
 use holzi_lib::mcp_server::registry::{self, AgentMode, AgentStatus};
 
 fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
@@ -172,4 +172,30 @@ async fn changed_rights_apply_to_a_connected_agent() {
             .is_err()
     );
     server.stop(CloseReason::Disabled).await;
+}
+
+/// FR-026: lifting a remembered block in the current vault session permits registration again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unblocking_clears_the_session_decline_and_allows_registration_again() {
+    let mut fx = fixture();
+    let server = fx.server().await;
+    let (first, helper) = fx.agent("blocked").await.expect("pending agent");
+    let (request, _) = fx.next_question().await;
+    fx.deny(&request, true);
+    assert_eq!(helper.await.expect("helper"), exit::CLOSED);
+    drop(first);
+
+    let id = fx.agent_id("blocked").await;
+    let core = server.core();
+    assert!(core.declined("blocked"));
+    unblock(&fx.db, fx.device, Some(core), id)
+        .await
+        .expect("unblock");
+    assert!(!core.declined("blocked"));
+
+    let (_again, helper) = fx.agent("blocked").await.expect("connected again");
+    let (request, _) = fx.next_question().await;
+    fx.register(&request, Rights::default());
+    server.stop(CloseReason::Disabled).await;
+    let _ = tokio::time::timeout(WAIT, helper).await;
 }
