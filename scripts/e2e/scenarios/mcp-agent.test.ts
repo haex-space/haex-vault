@@ -3,14 +3,21 @@ import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import { startMcpAgent } from '../lib/mcp-agent.ts'
-import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
+import {
+  choose,
+  openSettings,
+  runAction,
+  waitForLocation,
+} from '../lib/settings.ts'
 
-// Spec 021, US1 and US3 (T055, quickstart M1–M4 without Claude Code): the access for external agents
+// Spec 021, US1, US3 and US7 (T055, T063, T064, quickstart M1–M4 and M8 without Claude Code): the access for external agents
 // is off until it is turned on in Einstellungen → KI → Agenten. A stand-in agent starts holzi's own
 // `--mcp-agent` helper, holzi asks with the name the agent reports, and the user grants changing in
 // "Fenster und Arbeitsbereiche" with the approval mode Auto. Then the agent reads the window state
 // and creates a workspace without a prompt, and asks to delete it: holzi shows the call prompt as
-// destructive, the user declines, the agent hears `user_declined` and the workspace stays.
+// destructive, the user declines, the agent hears `user_declined` and the workspace stays. The
+// settings list the agent as connected, its log shows the declined call, and revoking it ends the
+// agent's connection at once.
 scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-mcp-agent' })
@@ -92,4 +99,43 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
     'the workspace stays',
   )
   ctx.step('the destructive call asked, was declined and did not run')
+
+  // US7 (T063, T064): the agent in the list, its log and its revocation. Creating the workspace
+  // moved the view away from the settings, so they open again at the agents.
+  const opened = await runAction(instance, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/ai/agents',
+  })
+  assert.ok(opened.ok, JSON.stringify(opened))
+  await waitForLocation(instance, 'ai.agents')
+  const row = '[data-testid="mcp-agent"][data-slug="e2e-agent"]'
+  await instance.waitForDisplayed(`${row}[data-connected]`)
+  ctx.step('listed as connected')
+
+  await instance.click(row)
+  await waitForLocation(instance, 'ai.agents.agent')
+  await instance.click('mcp-agent-log')
+  await waitForLocation(instance, 'ai.agents.log')
+  await instance.waitForDisplayed(
+    '[data-testid="mcp-log-entry"][data-outcome="denied_user"]',
+  )
+  const logged = await instance.exec<number>(
+    `return document.querySelectorAll('[data-testid="mcp-log-entry"]').length`,
+  )
+  assert.ok(logged >= 4, `${logged} entries`)
+  ctx.step('the log lists the calls, the declined one included')
+
+  const back = await runAction(instance, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/ai/agents',
+  })
+  assert.ok(back.ok, JSON.stringify(back))
+  await waitForLocation(instance, 'ai.agents')
+  await instance.click(row)
+  await waitForLocation(instance, 'ai.agents.agent')
+  await instance.click('mcp-agent-revoke')
+  await instance.click('mcp-agent-revoke-confirm')
+  await waitForLocation(instance, 'ai.agents')
+  await ctx.waitFor('the agent to be cut off', () => agent.exited())
+  ctx.step('revoked: the connection ends at once')
 })
