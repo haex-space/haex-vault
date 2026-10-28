@@ -17,7 +17,8 @@ Technischer Ansatz ([research.md](./research.md)):
 - **Datenmodell** (R1): Meeting = Unterhaltung mit `origin = 'meeting'`; Mitschrift in
   `voice_transcript_entries` aus 066, erweitert um Kanal, Ende, Zuordnungsart, Original; eigene
   Tabellen für Meeting, Teilnehmer, Audio-Stücke, Auswertung, Stimmprofil.
-- **Erkennung** (R2): pro Äußerung; Spike Whisper gegen Parakeet TDT 0.6B v3 (sherpa).
+- **Erkennung** (R2): pro Äußerung; Parakeet TDT 0.6B v3 und Whisper aus 066; Spike misst beide über
+  4 Stunden.
 - **Sprecher** (R3, R4): WeSpeaker-Einbettung über sherpa; live schrittweises Clustering, am Ende neu,
   Nutzerkorrekturen als feste Vorgaben; Stimmprofil nur für den Nutzer.
 - **Geräteton** (R5, R6): `cpal`-Loopback (Windows, macOS ≥ 14.6, Linux PipeWire/Pulse); Geräteton als
@@ -41,7 +42,7 @@ Technischer Ansatz ([research.md](./research.md)):
   Pausenerkennung, schwebende Anzeige, Tray, Android-Dienst.
 - **Neu**: Sprecher-Einbettung WeSpeaker ResNet34-LM und optional pyannote segmentation-3.0 (Modelle
   über den Katalog aus 066 `assistant/assets.json`); `opus` (libopus, BSD-3) und `ogg` (BSD-3);
-  ggf. Parakeet TDT 0.6B v3 als STT-Katalogstufe (CC-BY-4.0); unter Linux ggf. `pipewire` (MIT).
+  unter Linux ggf. `pipewire` (MIT). Parakeet kommt schon mit 066 in den STT-Katalog.
 - **macOS**: `NSAudioCaptureUsageDescription` in `Info.plist`.
 - **Keine neue Frontend-Abhängigkeit.**
 
