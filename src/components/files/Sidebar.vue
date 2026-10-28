@@ -8,7 +8,6 @@
  */
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
-import { storageIcon } from '~/lib/files/storageIcons'
 import { formatFileSize } from '~/lib/passwords/format'
 
 defineProps<{
@@ -270,17 +269,15 @@ const PLACE_ICONS: Record<string, string> = {
             :data-testid="`files-storage-${storage.name}`"
             @click="emit('pickStorage', storage.id)"
           >
-            <Icon
-              :name="storageIcon(protocolOf(storage.id))"
-              class="size-4 shrink-0"
-              :title="
-                protocolOf(storage.id)
-                  ? t(`settings.storage.protocols.${protocolOf(storage.id)}`)
-                  : undefined
-              "
-              :data-protocol="protocolOf(storage.id)"
-            />
-            <span class="truncate">{{ storage.name }}</span>
+            <Icon name="lucide:cloud" class="size-4 shrink-0" />
+            <span class="min-w-0 flex-1 truncate">{{ storage.name }}</span>
+            <span
+              v-if="protocolOf(storage.id)"
+              class="shrink-0 rounded border px-1 text-[10px] leading-4 font-medium text-muted-foreground"
+              :data-testid="`files-storage-protocol-${storage.name}`"
+            >
+              {{ t(`settings.storage.protocols.${protocolOf(storage.id)}`) }}
+            </span>
           </button>
         </li>
       </ul>
