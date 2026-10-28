@@ -401,6 +401,18 @@ pub struct ObjectInfo {
     pub etag: String,
 }
 
+/// How much a storage holds and how much it may hold (the sidebar of the file browser): `total` is
+/// `None` where the provider reports only what is used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct StorageSpace {
+    #[ts(type = "number")]
+    pub used: u64,
+    #[ts(type = "number | null")]
+    pub total: Option<u64>,
+}
+
 /// What a `HEAD` tells about an object (spec 044 FR-034).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectHead {

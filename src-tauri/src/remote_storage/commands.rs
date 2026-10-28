@@ -55,6 +55,16 @@ pub async fn storage_list(state: State<'_, AppState>) -> Result<StorageOverview>
     service(&state)?.overview().await
 }
 
+/// How much a storage holds and may hold, `null` where the provider cannot tell (the sidebar of
+/// the file browser, spec 062 follow-up).
+#[tauri::command]
+pub async fn storage_space(
+    state: State<'_, AppState>,
+    storage_id: String,
+) -> Result<Option<super::StorageSpace>> {
+    service(&state)?.space(&storage_id).await
+}
+
 /// Creates or updates a connection, testing new credentials or changed address data first.
 #[tauri::command]
 pub async fn storage_connection_save(

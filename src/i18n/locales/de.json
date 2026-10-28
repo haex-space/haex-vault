@@ -2659,6 +2659,8 @@
       "places": "Orte",
       "drives": "Laufwerke",
       "free": "{size} frei",
+      "used": "{size} belegt",
+      "freeOf": "{free} frei von {total}",
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
