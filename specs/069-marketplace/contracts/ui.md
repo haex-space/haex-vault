@@ -12,9 +12,10 @@ Stil nach Spec 035/036 und 023: Werkzeugleiste, große Überschrift, Gruppen und
   `src/lib/marketplace/registry.ts` und `appRoutes.ts`.
 - Routen (Tab-Navigation, Spec 020): `/` Katalog, `/:slug` Details (mit `?source=<id>`).
 - **Katalog**: Werkzeugleiste mit Suchfeld, Kategorie-Auswahl und „Aktualisieren“ (FR-017). Darunter ein
-  Raster (einspaltig unter `@lg`) aus Kacheln. Zustände: lädt, Leerzustand „Keine Erweiterungen“, „Keine
+  Raster (einspaltig unter `@lg`) aus Kacheln. Zustände: lädt, Leerzustand „Keine Erweiterungen“, „Kein Marketplace eingerichtet“ mit „Öffentlichen Marketplace hinzufügen“ und „Eigenen Marketplace hinzufügen“ (US4-9), „Keine
   Verbindung“ (alle Quellen ausgefallen), „Alle Marketplaces sind ausgeschaltet“ mit Sprung zu den
-  Einstellungen. Fehlerzeile je Quelle mit „Erneut versuchen“, über dem Raster (FR-031). Blättern unten.
+  Einstellungen. Fehlerzeile je Quelle mit „Erneut versuchen“, über dem Raster (FR-031). „Quelle“-Auswahl (Alle / ein Marketplace)
+  neben der Kategorie (FR-012); jede Kachel nennt ihre Quelle. Blättern unten.
 - **Kachel**: Symbol, Name, Kurzbeschreibung, Herausgeber (mit „geprüft“ als bloßer Anzeige), Bewertung,
   Zahl der Downloads, Zustandsmarke „Installiert (x)“ / „Update verfügbar (x → y)“, Schaltfläche
   „Installieren“ / „Aktualisieren“, gesperrt mit Hinweis „Benötigt HaexVault ab x“ (FR-018).
@@ -24,10 +25,14 @@ Stil nach Spec 035/036 und 023: Werkzeugleiste, große Überschrift, Gruppen und
 - **Installieren**: Fortschrittsanzeige mit „Abbrechen“ (FR-015), danach `InstallDialog` mit
   `source = { kind: 'marketplace', id }`; er nennt die Quelle zusätzlich (FR-011). Schließen ohne
   Installieren ruft `marketplace_download_discard`.
-- Test-IDs: `marketplace-app`, `marketplace-search`, `marketplace-category`, `marketplace-refresh`,
+- Test-IDs: `marketplace-app`, `marketplace-search`, `marketplace-category`, `marketplace-source-filter`, `marketplace-empty-add-preset`, `marketplace-empty-add-own`, `marketplace-refresh`,
   `marketplace-tile-<slug>`, `marketplace-install-<slug>`, `marketplace-update-<slug>`,
   `marketplace-source-error-<sourceId>`, `marketplace-source-retry-<sourceId>`, `marketplace-empty`,
   `marketplace-offline`, `marketplace-page-next`, `marketplace-progress`, `marketplace-progress-cancel`.
+
+- **Aktualisierung nach Änderungen**: Nach Installieren, Aktualisieren und Entfernen (auch aus den
+  Einstellungen oder von einem anderen Gerät) laden die Kachelzustände neu (`vault-data-changed`), ohne dass
+  der Nutzer den Katalog neu öffnet. Das Legacy musste das nachträglich beheben.
 
 ## Einstellungen → Erweiterungen → Marketplaces
 
@@ -36,7 +41,7 @@ Stil nach Spec 035/036 und 023: Werkzeugleiste, große Überschrift, Gruppen und
   (`new` für Anlegen).
 - **Liste**: je Marketplace Name, Adresse, Schalter Ein/Aus (gilt sofort), Auf/Ab zum Umsortieren
   (Tastatur und Zeiger), Zustand der Zugangsdaten („Zugangsdaten fehlen“ / „wird synchronisiert“) und
-  „Bearbeiten“. Der Standard trägt die Marke „Eingebaut“ und kein „Löschen“.
+  „Bearbeiten“. Alle Zeilen sind gleich (auch die Voreinstellung): Bearbeiten, Ein/Aus, Umsortieren, Löschen.
 - **Formular** (bewusst bestätigt, FR-021): Name, Adresse (mit Hinweis bei `http://`), Auth-Art
   (Keine/Bearer/Basic), Zugangsdaten-Eintrag (`CredentialsEntryPicker` mit `source = marketplace_*`,
   neue Werte werden als sichtbarer Eintrag abgelegt, Spec 052), „Testen und speichern“ zeigt das Ergebnis

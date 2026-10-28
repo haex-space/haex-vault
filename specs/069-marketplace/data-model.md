@@ -7,9 +7,9 @@ und kein Fremdschlüssel auf Zugangsdaten (siehe R11, R14).
 
 | Spalte                | Typ                          | Bedeutung                                                                                                |
 | --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `id`                  | TEXT PK                      | zufällige UUID; die feste Kennung `default` für die Überschreibung des Standards (R10)                   |
-| `name`                | TEXT                         | Anzeigename; bei `default` leer (der Name kommt aus dem Code)                                            |
-| `base_url`            | TEXT                         | Adresse ohne abschließenden `/`; bei `default` leer                                                      |
+| `id`                  | TEXT PK                      | zufällige UUID; nur die Voreinstellung trägt die feste Kennung `preset-public` (R10)                     |
+| `name`                | TEXT NOT NULL                | Anzeigename                                                                                              |
+| `base_url`            | TEXT NOT NULL                | Adresse ohne abschließenden `/`, mit beliebigem Pfadanteil                                               |
 | `enabled`             | INTEGER NOT NULL DEFAULT 1   | Ein/Aus                                                                                                  |
 | `sort_order`          | INTEGER NOT NULL             | Rang, kleiner = früher; bei Gleichstand `(sort_order, name, id)`                                         |
 | `auth_type`           | TEXT NOT NULL DEFAULT `none` | `none`, `bearer` oder `basic`                                                                            |
@@ -19,24 +19,26 @@ und kein Fremdschlüssel auf Zugangsdaten (siehe R11, R14).
 
 **Regeln**
 
-- `base_url` MUSS mit `http://` oder `https://` beginnen und einen Host haben (FR-024); sie wird
-  normalisiert (ohne abschließenden `/`, ohne Fragment und Query).
+- `base_url` MUSS mit `http://` oder `https://` beginnen und einen Host haben; ein Pfadanteil ist erlaubt
+  (`https://example.org/market`, FR-024). Sie wird normalisiert (ohne abschließenden `/`, ohne Fragment
+  und Query); Pfade des Protokolls werden **hinter** den Pfadanteil gehängt.
 - `auth_type` ≠ `none` verlangt `credentials_item_id` und eine `https://`-Adresse (FR-027); die Prüfung
   sitzt im Host-Command beim Speichern **und** im Client beim Senden.
-- Die Zeile `default` darf nur `enabled` und `sort_order` ändern; `name`, `base_url`, `auth_type` bleiben
-  leer/`none`. Löschen der Zeile `default` setzt den Standard zurück (eingeschaltet, Rang 1); das Löschen
-  des Standards selbst ist nicht möglich (FR-022).
+- Eine neue Zeile bekommt `sort_order` = größter vorhandener Wert + 1 (ans Ende); der Nutzer schiebt sie
+  mit Auf/Ab, die Oberfläche schreibt dabei die volle Reihenfolge neu (`marketplace_reorder`).
+- Alle Zeilen sind gleichrangig: jede lässt sich ändern, ausschalten und löschen. Es gibt kein
+  Standard-Kennzeichen und keine Zeile, die nicht gelöscht werden dürfte.
 - Eine Zeile ohne gültige Adresse (aus einer künftigen Fassung) wird beim Lesen ausgelassen und
   protokolliert, nicht abgelehnt.
 
 ## Abgeleitete Ansicht `MarketplaceView` (keine Tabelle)
 
-Aus Konstante `default` plus Zeilen, sortiert nach `(sort_order, name, id)`: `id`, `name`, `baseUrl`,
-`enabled`, `isDefault`, `rank`, `authType`, `credentials: none | present | missing | syncing` (R11).
+Aus den Zeilen, sortiert nach `(sort_order, name, id)`: `id`, `name`, `baseUrl`,
+`enabled`, `rank`, `authType`, `credentials: none | present | missing | syncing` (R11).
 
 ## Flüchtige Typen (nicht gespeichert)
 
-- **CatalogEntry**: `source: { id, name }`, `extensionId`, `name`, `slug`, `shortDescription`, `iconUrl`,
+- **CatalogEntry** (bestimmt durch `(source.id, slug)`, nie quellenübergreifend zusammengelegt): `source: { id, name }`, `extensionId`, `name`, `slug`, `shortDescription`, `iconUrl`,
   `verified`, `totalDownloads`, `averageRating`, `reviewCount`, `tags`, `publisher`, `category`,
   `versions[]` (je `version`, `bundleSize`, `compatible`, `incompatibleReason?`), dazu
   `installed: { version, enabled } | null`, `updateTo: string | null`, `latestCompatible: string | null`.

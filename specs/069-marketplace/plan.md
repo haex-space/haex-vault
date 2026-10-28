@@ -11,7 +11,7 @@ einem neuen Modul `src-tauri/src/marketplace/`; das Frontend zeigt nur an und ru
 
 - **Katalog**: Der Host fragt alle eingeschalteten Marketplaces parallel (`GET /extensions`,
   `/categories`, `/extensions/{slug}`), mit fester Frist je Quelle, und führt die Antworten zusammen
-  (Dopplungen nach `extensionId`, kleinste Rangnummer gewinnt, Fehler je Quelle). Den Installationsstand
+  (gleichzeitig, jede Kachel mit ihrer Quelle, **keine** Zusammenlegung über Quellen, Fehler je Quelle). Den Installationsstand
   rechnet der Host aus der Erweiterungs-Registry (Spec 017) dazu, damit es eine Stelle gibt.
 - **Download**: `marketplace_download` holt die signierte Download-Adresse, lädt die `.xt` gestreamt
   (≤ 64 MiB, genau `bundleSize` Bytes), prüft SHA-256 gegen `bundleHash` und legt die Bytes in **einen
@@ -20,9 +20,14 @@ einem neuen Modul `src-tauri/src/marketplace/`; das Frontend zeigt nur an und ru
   eine `BundleSource` (`file` oder `marketplace`). Der Marketplace-Fall liest die Bytes aus dem
   Speicherplatz und ruft denselben `install_preview` und `install` wie die Datei. `InstallDialog.vue`
   bekommt eine `source`-Eigenschaft; es gibt keine zweite Vorschau.
-- **Marketplace-Liste**: neue CRDT-Tabelle `haex_marketplaces`. Der **Standard-Marketplace steht nicht in
-  der Tabelle**, sondern im Code; die Tabelle hält nur Überschreibungen (Ein/Aus, Rang) unter der festen
-  Kennung `default`. Damit gibt es kein „Standard anlegen beim Öffnen“ (Sync-Wettlauf) und kein Löschen.
+- **Marketplace-Liste (generisch)**: neue CRDT-Tabelle `haex_marketplaces`; jede Zeile ist gleichrangig
+  (Name, Adresse mit beliebigem Pfadanteil, Ein/Aus, Rang, Auth-Art, Zugangsdaten-Verweis). Es gibt **keinen
+  Sonderfall im Code**: der öffentliche Marketplace des Projekts ist nur die **Voreinstellung**, eine
+  gewöhnliche Zeile mit fester Kennung `preset-public`, die ein neuer Vault mitbringt und die der Nutzer
+  ändern oder löschen kann. Ein Vault ohne Marketplace bietet sie im Leerzustand per Tipp an.
+- **Offenes Protokoll**: `contracts/marketplace-api.md` ist der normative Vertrag „Marketplace-Protokoll
+  v1“ für jeden, der einen Marketplace betreiben will; der Host setzt über einen Marketplace nichts
+  voraus außer diesem Vertrag (FR-034).
 - **Zugangsdaten**: Verweis `credentials_item_id` auf einen Passwort-Eintrag (Spec 034/052), Tag
   `haex-marketplace`; ein eigenes Modul `marketplace/credentials.rs` liest ihn (Bearer: Passwortfeld ist
   das Token; Basic: Benutzername und Passwort) und meldet `present`/`missing`/`syncing`. Die Auswahl
@@ -62,8 +67,8 @@ Keine neue Abhängigkeit: `reqwest`, `sha2`, `semver`, `url`, `futures`, `tokio-
   WebDAV-Tests) liefert Katalog, Download und Fehlerfälle: Prüfsumme falsch/fehlt, Größe falsch, zu
   groß, Weiterleitung auf anderen Host, `http` mit Zugangsdaten, Frist, kaputte Antworten, 401.
 - **Reine Teile ohne Netz**: Zusammenführen und Blättern, Fassungsvergleich (`semver`), Kompatibilität
-  (`minAppVersion`/`maxAppVersion`), Überschreibungen des Standards.
-- **Vault-Test**: Tabelle, Standard-Überschreibung, Zugangsdaten-Zustand gegen einen Test-Vault.
+  (`minAppVersion`/`maxAppVersion`), Voreinstellung als gewöhnliche Zeile.
+- **Vault-Test**: Tabelle, Voreinstellung (anlegen, löschen, nicht wieder anlegen), Zugangsdaten-Zustand gegen einen Test-Vault.
 - **Frontend**: keine eigene Logik, die Einheitstests brauchte (sie liegt im Host); Typprüfung, Lint,
   `check:templates` und e2e.
 - **E2E** (tauri-driver-Rig, Spec 016): ein lokaler Test-Marketplace (Node, im Rig) mit zwei Erweiterungen,
@@ -142,7 +147,7 @@ specs/069-marketplace/
 src-tauri/src/marketplace/
 ├── mod.rs              # Zustand (AppState-Teil), Frist- und Größenkonstanten
 ├── model.rs            # Katalog- und Listentypen (ts-rs), Eingaben
-├── store.rs            # Tabelle haex_marketplaces, Standard + Überschreibungen
+├── store.rs            # Tabelle haex_marketplaces, Voreinstellung (preset-public), Lesen und Schreiben
 ├── client.rs           # reqwest: Anfragen, Kopfzeilen, Weiterleitungsregel, Fehlerarten
 ├── catalog.rs          # parallele Abfrage, Zusammenführen, Blättern, Installationsstand, Kompatibilität
 ├── download.rs         # Stream, Prüfsumme, Größe, Speicherplatz, Fortschritt, Abbruch
@@ -171,7 +176,7 @@ Muster der bestehenden Apps (`lib/<app>/registry.ts`, `components/apps/<App>.vue
 
 ### Stufen (PR-Zuschnitt)
 
-1. **A – Kern**: Migration, `store`, `client`, `catalog`, Typen, Commands `marketplace_catalog`,
+1. **A – Kern**: Migration, `store` samt Voreinstellung, `client`, `catalog`, Typen, Commands `marketplace_catalog`,
    `marketplace_categories`, `marketplace_details`; Rust-Tests mit Testserver. Keine Oberfläche.
 2. **B – Download und Installation**: `download`, Speicherplatz, `BundleSource`, `InstallDialog`-
    Anschluss, Fortschritt, Abbruch. Rust-Tests; Vorschau-Fall für Quelle.

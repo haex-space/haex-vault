@@ -29,6 +29,20 @@ angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f57
   gestufte PRs. Der Katalog ist eine eigene App im Window Manager (wm), die Verwaltung der Marketplaces
   sitzt unter Einstellungen → Erweiterungen.
 
+### Session 2026-10-28 (Betreiber, nach dem Plan)
+
+- Q: Wie fest ist der Standard-Marketplace? → A: Gar nicht. Die Konfiguration ist **generisch**: Jeder
+  Marketplace ist eine gleichrangige Zeile aus Name, Adresse und optionalen Zugangsdaten; HaexVault
+  behandelt keine Adresse und keinen Betreiber besonders. Der Betreiber stellt einen öffentlichen
+  Marketplace bereit; der Eintrag dafür ist nur eine **Voreinstellung** (eine gewöhnliche, änderbare und
+  löschbare Zeile, die ein neuer Vault mitbringt).
+- Q: Mehrere Marketplaces? → A: Beliebig viele, **gleichzeitig** genutzt. Nutzer dürfen auch selbst einen
+  Marketplace hosten. Deshalb ist das Marketplace-Protokoll ein dokumentierter, offener Vertrag dieses
+  Repositories (FR-034), nicht mehr nur „die Schnittstelle von haex-space“.
+- Q: Was passiert, wenn zwei Marketplaces dieselbe Erweiterung führen? → A: Beide Einträge erscheinen,
+  mit Quelle; es wird nichts zusammengelegt, damit ein selbst gehosteter Marketplace den Eintrag eines
+  anderen nicht verdecken kann.
+
 ### Session 2026-10-28 (Plan)
 
 - Q: Liefert der Marketplace Prüfsumme und Größe verlässlich? → A: Ja. Der Dienst
@@ -40,11 +54,14 @@ angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f57
 
 ## Begriffe
 
-- **Marketplace**: ein Katalogdienst, der Erweiterungen (Spec 017) mit Beschreibung, Herausgeber,
-  Kategorie, Fassungen und einer Download-Adresse anbietet. Der eingebaute **Standard-Marketplace** ist
-  `https://marketplace.haex.space`; der Nutzer kann **eigene Marketplaces** hinzufügen (etwa einen
-  firmeneigenen).
-- **Katalog**: die zusammengeführte Liste der Erweiterungen aller eingeschalteten Marketplaces.
+- **Marketplace**: ein Katalogdienst, der das **Marketplace-Protokoll** spricht
+  ([contracts/marketplace-api.md](contracts/marketplace-api.md)) und Erweiterungen (Spec 017) mit
+  Beschreibung, Herausgeber, Kategorie, Fassungen und einer Download-Adresse anbietet. Ein Marketplace ist
+  für HaexVault nur eine Zeile aus Name, Adresse und optionalen Zugangsdaten; alle sind gleichrangig.
+  Betreiben kann ihn jeder: das Projekt (öffentlich), eine Firma oder der Nutzer selbst.
+- **Voreinstellung**: der Eintrag für den öffentlichen Marketplace des Projekts, den ein neuer Vault
+  mitbringt. Er ist eine gewöhnliche Zeile und lässt sich ändern, ausschalten und löschen.
+- **Katalog**: die gemeinsame Liste der Erweiterungen aller eingeschalteten Marketplaces, gleichzeitig.
 - **Katalogeintrag**: eine Erweiterung im Katalog mit den Angaben des Marketplace (Name, Kurzbeschreibung,
   Symbol, Herausgeber, Kategorie, Bewertung, Zahl der Downloads, verfügbare Fassungen).
 - **Quelle**: der Marketplace, aus dem ein Katalogeintrag stammt.
@@ -74,8 +91,8 @@ angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f57
 
 ### User Story 1 - Erweiterung im Katalog finden und installieren (Priority: P1)
 
-Anna öffnet in HaexVault die App „Erweiterungen entdecken“. Sie sieht den Katalog des
-Standard-Marketplace als Kacheln mit Symbol, Name, Kurzbeschreibung, Herausgeber und Bewertung. Sie
+Anna öffnet in HaexVault die App „Erweiterungen entdecken“. Sie sieht den gemeinsamen Katalog
+ihrer Marketplaces als Kacheln mit Symbol, Name, Kurzbeschreibung, Herausgeber und Bewertung. Sie
 filtert nach der Kategorie „Produktivität“, sucht nach „Kalender“, öffnet die Details einer Erweiterung
 und tippt „Installieren“. HaexVault lädt die Installationsdatei und zeigt dieselbe Installations-Vorschau
 wie beim Installieren aus einer Datei: Herausgeber, Berechtigungen, Bestätigung. Nach „Installieren“
@@ -90,8 +107,8 @@ bestätigen; die Erweiterung läuft als App, die Kachel zeigt „Installiert“.
 
 **Acceptance Scenarios**:
 
-1. **Given** der Standard-Marketplace ist erreichbar, **When** Anna die App öffnet, **Then** sieht sie
-   die erste Seite des Katalogs, sortiert nach Beliebtheit (Downloads), mit Kategorien zum Filtern.
+1. **Given** mindestens ein eingeschalteter Marketplace ist erreichbar, **When** Anna die App öffnet,
+   **Then** sieht sie die erste Seite des gemeinsamen Katalogs, sortiert nach Beliebtheit (Downloads), mit Kategorien zum Filtern.
 2. **Given** der Katalog ist offen, **When** Anna in das Suchfeld tippt, **Then** aktualisiert sich die
    Liste nach einer kurzen Pause (nicht nach jedem Buchstaben) und die Seite springt auf Seite 1.
 3. **Given** Anna wählt eine Kategorie, **When** sie zusätzlich sucht, **Then** gelten beide Filter
@@ -105,6 +122,12 @@ bestätigen; die Erweiterung läuft als App, die Kachel zeigt „Installiert“.
    nichts installiert und nichts auf der Platte geblieben.
 7. **Given** die Installation war erfolgreich, **When** Anna zur Kachel zurückkehrt, **Then** zeigt sie
    „Installiert“ mit der installierten Fassung.
+8. **Given** Anna hat zwei eingeschaltete Marketplaces, **When** sie den Katalog öffnet, **Then** sieht sie
+   die Einträge beider gleichzeitig, jede Kachel nennt ihren Marketplace, und ein Filter „Quelle“ schränkt
+   auf einen ein.
+9. **Given** beide Marketplaces führen eine Erweiterung gleichen Namens, **When** Anna den Katalog
+   ansieht, **Then** erscheinen beide Kacheln mit ihrer Quelle, und Anna wählt, aus welcher sie
+   installiert.
 
 ---
 
@@ -174,12 +197,13 @@ Kachel zeigt „Update verfügbar“, Update läuft über die Vorschau, danach �
 
 ### User Story 4 - Marketplaces verwalten (Priority: P2)
 
-Unter Einstellungen → Erweiterungen → Marketplaces sieht Anna eine Liste: oben „Haex Marketplace“
-(Standard), darunter weitere. Sie schaltet einen Marketplace ein oder aus (gilt sofort), ändert die
-Reihenfolge, legt einen neuen mit Name und Adresse an, bearbeitet und löscht eigene. Der Standard
-lässt sich ausschalten, aber nicht löschen.
+Unter Einstellungen → Erweiterungen → Marketplaces sieht Anna eine Liste ihrer Marketplaces, bei einem
+neuen Vault mit der Voreinstellung. Alle Zeilen sind gleich: Sie schaltet jede ein oder aus (gilt sofort),
+ändert die Reihenfolge, legt einen neuen mit Name und Adresse an, bearbeitet und löscht jeden. Wer einen
+eigenen Marketplace hostet (Firma, Verein, Heimserver), trägt dessen Adresse ein, und er arbeitet neben
+den anderen, ohne dass HaexVault etwas darüber wissen muss.
 
-**Why this priority**: Wichtig für Firmen und Selbst-Hoster, aber der Standard-Marketplace reicht für
+**Why this priority**: Wichtig für Firmen und Selbst-Hoster, aber die Voreinstellung reicht für
 den ersten Nutzen (US1).
 
 **Independent Test**: Zweiten Marketplace anlegen, ausschalten, einschalten, nach oben sortieren,
@@ -187,21 +211,28 @@ löschen; Katalog und Reihenfolge der Quellen folgen jeweils sofort.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein neuer Vault, **When** Anna die Liste öffnet, **Then** steht dort genau der
-   Standard-Marketplace, eingeschaltet, ohne dass sie etwas einrichten musste.
+1. **Given** ein neuer Vault, **When** Anna die Liste öffnet, **Then** steht dort die Voreinstellung als
+   gewöhnliche Zeile, eingeschaltet, ohne dass sie etwas einrichten musste.
 2. **Given** Anna legt einen Marketplace mit Name und Adresse an, **When** sie bestätigt, **Then**
    prüft HaexVault die Erreichbarkeit der Adresse und zeigt das Ergebnis („erreichbar, N Erweiterungen“
    oder die Fehlerursache); sie kann trotzdem speichern.
 3. **Given** ein Marketplace ist ausgeschaltet, **When** Anna den Katalog öffnet, **Then** kommen von
    ihm weder Einträge noch Kategorien noch Fehler.
-4. **Given** zwei Marketplaces, **When** Anna einen nach oben schiebt, **Then** ändert sich die
-   Rangfolge bei doppelten Einträgen (FR-012) sofort.
-5. **Given** der Standard-Marketplace, **When** Anna ihn ansieht, **Then** gibt es kein „Löschen“; „Aus“
-   und „Reihenfolge“ gehen.
-6. **Given** Anna löscht einen eigenen Marketplace, **When** sie bestätigt, **Then** verschwindet er
+4. **Given** zwei Marketplaces, **When** Anna einen nach oben schiebt, **Then** ändert sich ihre
+   Anordnung im Katalog sofort.
+5. **Given** die Voreinstellung, **When** Anna sie bearbeitet, ausschaltet oder löscht, **Then** geht das wie
+   bei jedem anderen Marketplace; HaexVault legt sie nie von allein wieder an oder schaltet sie wieder ein.
+6. **Given** Anna löscht einen Marketplace, **When** sie bestätigt, **Then** verschwindet er
    aus der Liste und aus dem Katalog; bereits installierte Erweiterungen bleiben unberührt.
 7. **Given** Anna hat auf Gerät A einen Marketplace angelegt, **When** Gerät B synchronisiert hat,
    **Then** steht er dort ebenfalls in der Liste (Zugangsdaten über den Eintrag im Passwortmanager).
+8. **Given** Ben betreibt einen eigenen Marketplace nach dem Marketplace-Protokoll auf einer beliebigen
+   Adresse (auch mit Pfadanteil, auch `http://` im lokalen Netz), **When** Anna die Adresse einträgt,
+   **Then** erscheinen seine Erweiterungen im Katalog neben denen der anderen, ohne Änderung an
+   HaexVault.
+9. **Given** Anna hat keinen Marketplace (Vault vor dieser Funktion angelegt oder alle gelöscht), **When**
+   sie den Katalog öffnet, **Then** erklärt der Leerzustand das und bietet „Öffentlichen Marketplace
+   hinzufügen“ (die Voreinstellung) und „Eigenen Marketplace hinzufügen“ an.
 
 ---
 
@@ -212,7 +243,7 @@ Passwort). Beim Anlegen wählt Ben statt eines Tokens im Formular einen Eintrag 
 (oder legt dort einen neuen ab). Der Marketplace verweist auf diesen Eintrag; in der Liste und in den
 Vault-Daten steht kein Geheimnis.
 
-**Why this priority**: Nur für eigene Marketplaces nötig; der öffentliche Standard braucht keine
+**Why this priority**: Nur für geschlossene Marketplaces nötig; ein öffentlicher Marketplace braucht keine
 Anmeldung.
 
 **Independent Test**: Test-Marketplace, der ohne gültigen Authorization-Header 401 liefert: ohne
@@ -244,14 +275,17 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   Ursache und „Erneut versuchen“; andere Quellen laden. Sind alle Quellen ausgefallen, steht ein
   Leerzustand mit „Keine Verbindung“, nicht „Keine Erweiterungen“.
 - **Alle Marketplaces ausgeschaltet**: Leerzustand mit Verweis auf die Einstellungen.
-- **Dieselbe Erweiterung in zwei Marketplaces**: Es zählt ein Eintrag; die Quelle mit der kleineren
-  Rangnummer gewinnt. Die Details nennen die Quelle.
+- **Kein Marketplace eingerichtet**: Leerzustand mit „Öffentlichen Marketplace hinzufügen“ und „Eigenen
+  Marketplace hinzufügen“ (US4-9).
+- **Dieselbe Erweiterung in zwei Marketplaces**: Beide Einträge erscheinen mit ihrer Quelle, nichts wird
+  zusammengelegt (FR-012). Die Vorschau zeigt den Herausgeberschlüssel aus dem Bundle, sodass ein
+  untergeschobener Eintrag erkennbar ist.
 - **Marketplace liefert Müll** (kein gültiges Format, fehlende Felder): Die Quelle zeigt „Antwort nicht
   verständlich“; ein Eintrag mit fehlenden Pflichtfeldern wird ausgelassen, nicht der ganze Katalog.
 - **Langsame Quelle**: Eine Quelle, die nicht innerhalb einer festen Frist antwortet, gilt als
   ausgefallen und hält die anderen nicht auf.
-- **Seite und Gesamtzahl bei mehreren Quellen**: Die Gesamtzahl ist die Summe der Quellen; Doppelte sind
-  möglich, die Blätterung bleibt trotzdem stabil (kein Eintrag verschwindet beim Blättern).
+- **Seite und Gesamtzahl bei mehreren Quellen**: Die Gesamtzahl ist die Summe der Quellen; die Blätterung
+  bleibt stabil (kein Eintrag verschwindet beim Blättern).
 - **Katalogeintrag bereits installiert, aber anderer Herausgeber**: Die Installations-Vorschau weist wie in
   Spec 017 auf „gleicher Name, anderer Herausgeber“ hin.
 - **Kein Platz / Schreibfehler beim Download**: Abbruch ohne Rest; Fehlermeldung mit Ursache.
@@ -299,8 +333,11 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-011**: Die Installations-Vorschau MUSS bei Marketplace-Herkunft zusätzlich die Quelle nennen, sonst
   aber unverändert Herausgeber, Berechtigungen, Update/Downgrade und die Bestätigungen aus Spec 017
   zeigen. Es wird nie ohne Bestätigung des Nutzers installiert.
-- **FR-012**: Bei doppelten Katalogeinträgen (gleiche Erweiterungs-Kennung in mehreren Quellen) MUSS der
-  Eintrag der Quelle mit der kleinsten Rangnummer gelten.
+- **FR-012**: Der Katalog MUSS die Einträge aller eingeschalteten Marketplaces gleichzeitig zeigen. Jeder
+  Eintrag nennt seine Quelle. Einträge verschiedener Quellen werden **nie** zusammengelegt, auch nicht bei
+  gleicher Erweiterungs-Kennung oder gleichem Namen (eine Quelle darf den Eintrag einer anderen nicht
+  verdecken). Ein Filter „Quelle“ schränkt auf einen Marketplace ein; die Reihenfolge der Marketplaces
+  bestimmt die Anordnung.
 - **FR-013**: HaexVault MUSS die Prüfsumme (SHA-256), die der Marketplace zur Fassung angibt, vor der
   Vorschau gegen die geladenen Bytes prüfen und bei Abweichung abbrechen. Liefert der Marketplace keine
   Prüfsumme, MUSS die Installation abgelehnt werden. Zusätzlich MUSS die geladene Größe der
@@ -327,13 +364,15 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-021**: Das Formular eines Marketplace (Name, Adresse, Auth-Art, Zugangsdaten-Eintrag) MUSS die
   Verbindung beim Bestätigen testen (Erreichbarkeit, Anmeldung) und das Ergebnis zeigen, bevor es speichert;
   der Nutzer kann auch bei einem Fehlschlag bewusst speichern.
-- **FR-022**: Es MUSS genau einen Standard-Marketplace geben, der bei jedem Vault vorhanden ist, auch bei
-  Vaults, die vor dieser Funktion angelegt wurden. Er kann ausgeschaltet und umsortiert, aber nicht
-  gelöscht werden; ist er einmal ausgeschaltet, schaltet ihn nichts von allein wieder ein.
-- **FR-023**: Eigene Marketplaces MÜSSEN angelegt, bearbeitet, ein-/ausgeschaltet, umsortiert und
-  gelöscht werden können. Das Löschen entfernt keine installierte Erweiterung.
-- **FR-024**: Adressen MÜSSEN `https://` oder `http://` sein; `http://` ist erlaubt (selbst gehostete
-  Marketplaces im lokalen Netz), das Formular weist darauf hin.
+- **FR-022**: Ein neuer Vault MUSS die Voreinstellung (öffentlicher Marketplace des Projekts) als
+  gewöhnliche Zeile enthalten. Hat ein Vault keinen Marketplace, MUSS der Katalog „Öffentlichen
+  Marketplace hinzufügen“ anbieten. HaexVault legt nie ohne Handlung des Nutzers eine Zeile an und
+  schaltet nie eine wieder ein.
+- **FR-023**: Jeder Marketplace MUSS angelegt, bearbeitet, ein-/ausgeschaltet, umsortiert und gelöscht
+  werden können, auch die Voreinstellung. Das Löschen entfernt keine installierte Erweiterung.
+- **FR-024**: Adressen MÜSSEN `https://` oder `http://` sein und dürfen einen Pfadanteil haben
+  (`https://example.org/market`); `http://` ist erlaubt (selbst gehostete Marketplaces im lokalen Netz),
+  das Formular weist darauf hin.
 - **FR-025**: Die Marketplace-Liste MUSS Vault-Daten sein und über Spec 024 auf alle eigenen Geräte
   kommen (auch der Zustand Ein/Aus und die Reihenfolge).
 
@@ -351,6 +390,16 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-029**: Beim Löschen eines Passwort-Eintrags, den ein Marketplace nutzt, MUSS der Passwortmanager
   warnen und den Marketplace nennen (Spec 034 FR-034).
 
+**Offenes Protokoll**
+
+- **FR-034**: Das Marketplace-Protokoll MUSS als Vertrag in diesem Repository stehen
+  ([contracts/marketplace-api.md](contracts/marketplace-api.md)), so dass jeder einen kompatiblen
+  Marketplace betreiben kann. HaexVault DARF über einen Marketplace nichts voraussetzen außer diesem
+  Protokoll: keine feste Adresse, keine Sonderbehandlung nach Name oder Adresse (außer der
+  Voreinstellung als Eintrag), keine Felder, die nur ein Betreiber liefert.
+- **FR-035**: Ein Marketplace, der weitere Felder liefert, DARF HaexVault nicht stören (unbekannte Felder
+  werden ignoriert); ein Marketplace ohne optionale Felder MUSS nutzbar bleiben.
+
 **Abgrenzung und Fehler**
 
 - **FR-030**: Weder Erweiterungen noch Agenten (Spec 021, 018, 047) DÜRFEN den Katalog abfragen,
@@ -366,7 +415,7 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 
 ### Key Entities
 
-- **Marketplace**: Name, Adresse, Ein/Aus, Rangfolge, Standard-Kennzeichen, Auth-Art und Verweis auf einen
+- **Marketplace**: Name, Adresse, Ein/Aus, Rangfolge, Auth-Art und Verweis auf einen
   Zugangsdaten-Eintrag (kein Geheimnis). Vault-Daten, synchronisiert.
 - **Katalogeintrag**: flüchtig, nicht gespeichert; Angaben des Marketplace plus Quelle und lokaler
   Installationszustand.
@@ -377,7 +426,7 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 
 ### Measurable Outcomes
 
-- **SC-001**: Ein Nutzer findet und installiert eine Erweiterung aus dem Standard-Marketplace in unter
+- **SC-001**: Ein Nutzer findet und installiert eine Erweiterung aus einem Marketplace in unter
   einer Minute vom Öffnen der App bis zur laufenden Erweiterung (ohne Dateien zu suchen).
 - **SC-002**: In keinem Fall wird eine Erweiterung ohne die Bestätigung in der Installations-Vorschau
   installiert; Dateien mit falscher Prüfsumme, ungültiger Signatur oder über der Größengrenze werden zu
@@ -389,20 +438,26 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   ein Token oder Passwort eines Marketplace (automatisierter Test).
 - **SC-005**: Zugangsdaten verlassen das Gerät nie an einen anderen Host als den des Marketplace und nie
   über `http://` (automatisierter Test mit Weiterleitung und `http`-Adresse).
-- **SC-006**: Ein neuer Vault zeigt den Standard-Marketplace ohne Einrichtung; ein bestehender Vault
-  bekommt ihn beim ersten Start mit dieser Funktion, ohne dass Einträge doppelt entstehen.
+- **SC-006**: Ein neuer Vault enthält die Voreinstellung ohne Einrichtung; sie lässt sich löschen und kommt
+  nicht von allein wieder; ein Vault ohne Marketplace bietet sie mit einem Tipp an, ohne dass Einträge
+  doppelt entstehen.
 - **SC-007**: Ein Marketplace, der auf Gerät A angelegt wurde, erscheint nach der Synchronisation auf
   Gerät B (E2E mit zwei Geräten).
+- **SC-009**: Zwei Test-Marketplaces auf verschiedenen Adressen (einer mit Pfadanteil, einer mit
+  Anmeldung) liefern gleichzeitig Einträge in einen Katalog; ohne eine Zeile Code, die eine der Adressen
+  kennt (e2e, Rust-Test).
 - **SC-008**: Der Ablauf Katalog → Installieren läuft im E2E auf Desktop und im Android-Emulator durch.
 
 ## Assumptions
 
-- Der Standard-Marketplace `marketplace.haex.space` (Projekt haex-space) bietet die Schnittstelle, die
+- Der **öffentliche Marketplace des Projekts** stellt der Betreiber bereit; seine Adresse steht an einer
+  einzigen Stelle im Code (die Voreinstellung) und wird vor der Veröffentlichung festgelegt. Bis dahin ist
+  `https://marketplace.haex.space` (Projekt haex-space) der Platzhalter. Das Protokoll ist das, das
   haex-vault 2.x und das `@haex-space/marketplace-sdk` 0.1.6 benutzen: Liste mit Suche, Kategorie, Seite
-  und Sortierung, Kategorien mit Anzahl, Details und Download-Adresse zu einer Fassung. Diese Spec ändert
-  den Marketplace-Dienst nicht. Nicht geliefert werden im Listenaufruf der Herausgeberschlüssel (er steht
-  nur in den Details); fehlende Felder werden als „nicht geliefert“ behandelt, mit Ausnahme der
-  Prüfsumme (FR-013).
+  und Sortierung, Kategorien mit Anzahl, Details und Download-Adresse zu einer Fassung. Ab dieser Spec ist
+  es ein Vertrag dieses Repositories (FR-034); der Betreiber-Dienst richtet sich danach. Im Listenaufruf
+  fehlt der Herausgeberschlüssel (er steht nur in den Details); fehlende optionale Felder werden als „nicht
+  geliefert“ behandelt, mit Ausnahme der Prüfsumme (FR-013).
 - Die Antwortformate werden in einem Vertrag (Plan, `contracts/`) festgehalten und im Host gegen
   Testdaten geprüft; ob das bestehende `@haex-space/marketplace-sdk` nur als Typquelle dient oder in
   Rust nachgebaut wird, entscheidet der Plan.

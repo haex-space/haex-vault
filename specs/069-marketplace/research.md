@@ -27,6 +27,13 @@ JSON in `camelCase`. Die Felder, die HaexVault braucht, stehen in
   neueste Fassung wird deshalb mit `semver` bestimmt, nicht über die Reihenfolge (Legacy nahm `versions[0]`).
 - Die Größe eines Bundles liegt in der Praxis zwischen 1,7 MiB und 24 MiB; die Grenze von 64 MiB passt.
 
+**Das Protokoll gehört diesem Repository** (Entscheidung des Betreibers, 2026-10-28): Der Betreiber stellt
+einen öffentlichen Marketplace bereit, und Nutzer dürfen selbst einen hosten. Darum ist
+[contracts/marketplace-api.md](contracts/marketplace-api.md) ab 069 der **normative Vertrag** („Marketplace-
+Protokoll v1“) und nicht mehr eine Beschreibung des haex-space-Dienstes; Pflicht- und optionale Felder,
+Fehlerverhalten und Anforderungen an Betreiber (TLS, Pfadanteil, Anmeldung) stehen dort. Der Host kennt
+keine Adresse und keinen Betreiber außer als Zeile in der Liste.
+
 **Alternativen**: das SDK im Frontend nutzen (verworfen: zweiter HTTP-Pfad, Entscheidung des Betreibers);
 eine andere Schnittstelle erfinden (verworfen: Dienst und Legacy sprechen diese).
 
@@ -112,17 +119,23 @@ einen Typ, der „vom Nutzer gewählte Datei“ heißt).
 (SSRF). Die Antwort wird nur gehasht und als Bundle geprüft, sie erreicht den Nutzer nicht; es werden keine
 Zugangsdaten gesendet. Akzeptiert und im Vertrag vermerkt.
 
-## R7 – Zusammenführen und Blättern
+## R7 – Mehrere Marketplaces gleichzeitig: Anordnung und Blättern
 
-**Entscheidung**: Seite N ist die Seite N **jeder** eingeschalteten Quelle, hintereinander in Rangfolge,
-doppelte `extensionId` auf derselben Seite werden zur Quelle mit der kleineren Rangnummer zusammengelegt.
-`totalPages` ist das Maximum der Quellen, `total` die Summe (FR-002, Edge „Seite und Gesamtzahl“). Das ist
-**stabil** (kein Eintrag verschwindet beim Blättern), lässt aber zu, dass dieselbe Erweiterung auf zwei
-verschiedenen Seiten erscheint, wenn zwei Quellen sie auf verschiedenen Seiten führen. Bekannte Grenze;
-mit einer Quelle (der Normalfall) tritt sie nicht auf.
+**Entscheidung**: Alle eingeschalteten Quellen werden gleichzeitig befragt. Seite N ist die Seite N
+**jeder** Quelle, hintereinander in Rangfolge. Einträge verschiedener Quellen werden **nie** zusammengelegt
+(FR-012): Ein Eintrag ist durch `(sourceId, slug)` bestimmt, die Kachel nennt die Quelle, ein Filter
+„Quelle“ (`sourceId` im Aufruf) beschränkt auf eine. `totalPages` ist das Maximum der Quellen, `total` die
+Summe. Das ist stabil (kein Eintrag verschwindet beim Blättern).
 
-**Alternativen**: alles laden und im Host blättern (verworfen: viele Anfragen); Legacy-Verhalten (gleich,
-nur ohne Dokumentation).
+**Begründung**: Der Legacy-Weg (Dopplung nach `extensionId`, kleinste Rangnummer gewinnt) lässt eine
+beliebige, selbst gehostete Quelle den Eintrag einer anderen verdecken, denn `extensionId` ist eine
+Behauptung des Marketplace und nicht überprüfbar. Ohne Zusammenlegen entfällt auch die Sonderregel;
+welche Erweiterung wirklich installiert wird, entscheidet der Nutzer in der Vorschau am Herausgeberschlüssel
+aus dem signierten Bundle (Spec 017).
+
+**Alternativen**: Dopplung nach `extensionId` (Legacy, verworfen: Verdeckung); Zusammenlegen nur bei
+gleichem `publicKey` (verworfen: der Schlüssel steht nur in den Details, ein Detailaufruf je Eintrag wäre
+teuer, der Gewinn klein).
 
 ## R8 – Wann ist etwas „installiert“ und was ist ein Update
 
@@ -149,22 +162,27 @@ installierbar (FR-018). Die Anfragen tragen `X-Platform` (`linux`, `windows`, `m
 **Alternativen**: keine Prüfung wie im Legacy (verworfen: die Felder liefert der Dienst, Spec 017 kennt
 Manifeste mit Anforderungen).
 
-## R10 – Standard-Marketplace ohne Zeile
+## R10 – Voreinstellung statt Standard-Sonderfall
 
-**Entscheidung**: Der Standard (`Haex Marketplace`, `https://marketplace.haex.space`, Rang 1) steht als
-Konstante im Code. In `haex_marketplaces` gibt es nur dann eine Zeile mit der festen Kennung `default`, wenn
-der Nutzer Ein/Aus oder die Reihenfolge ändert; `list` mischt Konstante und Überschreibung. Eigene Zeilen
-tragen eine zufällige UUID.
+**Entscheidung**: Es gibt keinen eingebauten Marketplace. Die **Voreinstellung** (Name und Adresse des
+öffentlichen Marketplace, an einer einzigen Stelle in `marketplace/store.rs`, vom Betreiber festzulegen) ist
+eine gewöhnliche Zeile mit fester Kennung `preset-public`:
 
-**Begründung**: „Standard beim Öffnen anlegen“ (Legacy, `ensureDefaultMarketplaceAsync`) hat im
-Mehrgeräte-Fall einen Wettlauf: Gerät B legt die Zeile (eingeschaltet, spätere Uhr) an, bevor Gerät As
-Ausschalten angekommen ist, und schaltet den Standard still wieder ein. Ohne Zeile gibt es keinen solchen
-Fall, bestehende Vaults brauchen nichts (SC-006), und Löschen ist nicht möglich (FR-022). Die
-Überschreibung ist eine Nutzeraktion mit fester Primärschlüssel-Kennung, Last-Writer-Wins je Spalte ist
-dort gewollt.
+- **Neuer Vault**: Die Zeile wird einmal angelegt, wenn der Vault seine Anfangsdaten bekommt (Genesis,
+  `sync::genesis`; der genaue Ort ist Aufgabe T003). Nicht bei jedem Öffnen.
+- **Vault ohne Marketplace** (vor dieser Funktion angelegt oder alles gelöscht): der Leerzustand des Katalogs
+  bietet „Öffentlichen Marketplace hinzufügen“ an; das schreibt dieselbe Zeile mit derselben Kennung.
+- Löschen, Ausschalten, Umbenennen, Adresse ändern: wie bei jeder Zeile. Nichts legt sie wieder an.
 
-**Alternativen**: Zeile beim Öffnen (Legacy; Wettlauf); Zeile in der Migration (Migrationen laufen je Gerät,
-gleicher Wettlauf).
+**Begründung**: Die feste Kennung lässt zwei Geräte, die beide anlegen, auf **eine** Zeile zusammenlaufen
+(kein Duplikat, SC-006). Weil nichts beim Öffnen anlegt, kann ein spät eintreffender Sync den Marketplace
+nicht still wieder einschalten (der Legacy-Fall `ensureDefaultMarketplaceAsync`). Die Adresse im Code ist
+keine Sonderbehandlung: der Rest des Codes kennt sie nicht (FR-034), ein Test sucht die Adresse im Quelltext
+außerhalb von `store.rs`.
+
+**Alternativen**: Standard als Konstante im Code mit Überschreibungszeile (früherer Stand dieses Plans,
+verworfen: ein Sonderfall, der nicht löschbar wäre und die Adresse in die Logik zieht); Zeile in der Migration
+(verworfen: läuft je Gerät, gleicher Wettlauf).
 
 ## R11 – Zugangsdaten-Eintrag
 
@@ -213,10 +231,44 @@ Tabellen); Sortierlücken und gleiche Ränge werden beim Lesen mit `(rank, name,
 
 **Entscheidung**: Der Rig (Spec 016) bekommt einen kleinen Node-Server, der Katalog, Kategorien, Details und
 Download für zwei Erweiterungen liefert, eine davon mit dem bestehenden signierten Test-Bundle
-(`haextension-test-bundles`, Wegwerf-Schlüssel). Die Adresse des Standard-Marketplace lässt sich im
+(`haextension-test-bundles`, Wegwerf-Schlüssel). Die Adresse der Voreinstellung lässt sich im
 e2e-Build überschreiben (`HOLZI_E2E_MARKETPLACE_URL`, nur in e2e-Builds, wie die anderen Schalter des
 Rigs; die genaue Stelle klärt Aufgabe T001 in `tasks.md`). Im Release-Build gibt es keinen
 Umgebungsschalter.
+
+## R17 – Abgleich mit haex-vault 2.x (Legacy)
+
+Gelesen in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog.ts`,
+`useExtensionUpdate.ts`, `system/marketplace*.vue`, `settings/extensions/marketplaces.vue`,
+`MarketplaceEditDialog.vue`, Migration `0000_jazzy_chat.sql` (Tabelle) und `useMarketplaces.test.ts`.
+
+**Übernommen**
+
+- Mehrere Quellen parallel mit Fehler je Quelle (`Promise.allSettled`, `sourceErrors`); Katalog, Suche,
+  Kategorie, Seite, Sortierung nach Downloads, Seitengröße 20.
+- Der Download geht über die Quelle, die den Eintrag lieferte (`sourceMarketplaceId`), nie über „irgendeine“.
+- Einstellungen: Liste mit Schalter Ein/Aus je Zeile, Menü Bearbeiten/Löschen, Formular zum Anlegen,
+  Auth-Arten keine, Bearer, Basic; Rang als Priorität (kleiner = früher).
+- Nach Installieren, Aktualisieren und Entfernen aktualisiert sich der Katalog (Legacy-Fehlerkorrektur
+  „refresh catalog after extension update“): Kachelzustände folgen `vault-data-changed` (ui.md).
+- Version wählen in den Details; Update bewahrt die Daten, Neuinstallation ist eine eigene Bestätigung
+  (in holzi bereits Teil der Vorschau, Spec 017).
+
+**Bewusst anders**
+
+| Legacy                                                              | holzi                                                                                      | Grund                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Dopplung nach `extensionId`, erste Quelle gewinnt (Test `dedupes…`) | Keine Zusammenlegung, jede Kachel mit Quelle (R7)                                          | eine Quelle darf eine andere nicht verdecken (selbst gehostet)   |
+| Token/Passwort als Spalten der Tabelle                              | Verweis auf einen Passwort-Eintrag (R11)                                                   | keine Geheimnisse in Vault-Tabellen, Sync und Protokollen        |
+| `is_default`-Spalte, Standard nicht löschbar, Zeile beim Öffnen     | gewöhnliche Zeile `preset-public` (R10)                                                    | generische Konfiguration, kein Sync-Wettlauf                     |
+| Netzwerk im Webview über `plugin-http` und SDK                      | Host (Rust, `reqwest`)                                                                     | ein HTTP-Pfad, Weiterleitungs- und Anmelderegeln an einer Stelle |
+| `bundleHash` wird übergeben, Prüfung ist ein `TODO`                 | Prüfsumme und Größe sind Pflicht (FR-013)                                                  | ein Dritter liefert die Datei                                    |
+| Bytes als `Array.from(Uint8Array)` durch die IPC und zurück         | Bytes bleiben im Host (R3)                                                                 | 24-MiB-Bundles, keine Verdopplung, nichts im Webview             |
+| Update: Suche nach Name (`limit: 10`) in allen Quellen              | der Host kennt die neueste kompatible Fassung je Eintrag aus dem Katalogabruf (R8, FR-017) | genau, ohne zusätzliche Suchanfrage je Update                    |
+| neueste Fassung = `versions[0]`                                     | `semver` (R1)                                                                              | die Reihenfolge ist nicht zugesichert                            |
+| „installiert“ nur nach Name, im Frontend                            | Host, Name plus Herausgeberschlüssel in Details und Vorschau (R8)                          | eine Stelle für die Regel                                        |
+| DID-Anmeldung                                                       | später                                                                                     | Entscheidung des Betreibers, 2026-10-28                          |
+| Formular mit „Erstellen/Speichern“ ohne Test                        | „Testen und speichern“ (FR-021)                                                            | Fehler früh zeigen; Muster aus Spec 038                          |
 
 ## R16 – Offene Punkte außerhalb der Spec
 

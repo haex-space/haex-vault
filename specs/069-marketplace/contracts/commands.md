@@ -6,27 +6,29 @@ Oberfläche übersetzt sie.
 
 ## Liste und Verwaltung (Einstellungen, FR-020 bis FR-029)
 
-| Command                              | Argumente                                                               | Ergebnis                            | Hinweis                                                                     |
-| ------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------- |
-| `marketplace_list`                   | –                                                                       | `MarketplaceView[]`                 | Standard + Zeilen, nach Rang                                                |
-| `marketplace_save`                   | `MarketplaceInput { id?, name, baseUrl, authType, credentialsItemId? }` | `MarketplaceView`                   | legt an oder ändert; prüft Adresse, `https` bei Anmeldung (FR-024, FR-027)  |
-| `marketplace_set_enabled`            | `id`, `enabled`                                                         | –                                   | gilt sofort, auch für `default` (legt die Überschreibung an)                |
-| `marketplace_reorder`                | `ids: string[]` (vollständige Reihenfolge)                              | –                                   | schreibt `sort_order` neu, auch `default`                                   |
-| `marketplace_delete`                 | `id`                                                                    | –                                   | `default` → Fehler `marketplace_default_protected`; eigene Zeile weg        |
-| `marketplace_test`                   | `MarketplaceInput`                                                      | `TestResult { ok, count?, error? }` | `GET /health` und erste Seite; sendet Zugangsdaten nur bei `https` (FR-021) |
-| `marketplace_credentials_candidates` | `authType`                                                              | `CredentialsCandidate[]`            | passende Einträge, getaggte zuerst (R11)                                    |
+| Command                              | Argumente                                                               | Ergebnis                            | Hinweis                                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `marketplace_list`                   | –                                                                       | `MarketplaceView[]`                 | alle Zeilen, nach Rang (gleichrangig, keine Sonderzeile)                                                          |
+| `marketplace_save`                   | `MarketplaceInput { id?, name, baseUrl, authType, credentialsItemId? }` | `MarketplaceView`                   | legt an oder ändert; prüft Adresse, `https` bei Anmeldung (FR-024, FR-027)                                        |
+| `marketplace_set_enabled`            | `id`, `enabled`                                                         | –                                   | gilt sofort                                                                                                       |
+| `marketplace_reorder`                | `ids: string[]` (vollständige Reihenfolge)                              | –                                   | schreibt `sort_order` neu                                                                                         |
+| `marketplace_delete`                 | `id`                                                                    | –                                   | jede Zeile ist löschbar, auch die Voreinstellung; nichts legt sie wieder an                                       |
+| `marketplace_add_preset`             | –                                                                       | `MarketplaceView`                   | legt die Voreinstellung (`preset-public`) an, falls sie fehlt; sonst schaltet sie nichts um (Leerzustand, FR-022) |
+| `marketplace_test`                   | `MarketplaceInput`                                                      | `TestResult { ok, count?, error? }` | `GET /health` und erste Seite; sendet Zugangsdaten nur bei `https` (FR-021)                                       |
+| `marketplace_credentials_candidates` | `authType`                                                              | `CredentialsCandidate[]`            | passende Einträge, getaggte zuerst (R11)                                                                          |
 
 ## Katalog (FR-001 bis FR-005, FR-017, FR-018, FR-031)
 
-| Command                     | Argumente                                                                  | Ergebnis                                                                                       |
-| --------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `marketplace_catalog`       | `CatalogQuery { page, search?, category? }` (`limit` 20, `sort` downloads) | `CatalogPage`                                                                                  |
-| `marketplace_categories`    | –                                                                          | `{ categories, sourceErrors }`                                                                 |
-| `marketplace_details`       | `sourceId`, `slug`                                                         | `CatalogDetail` (Eintrag + Beschreibung, Schlüssel-Fingerabdruck, `publisherMatchesInstalled`) |
-| `marketplace_icon`          | `sourceId`, `url`                                                          | `string` (`data:`-URL) oder Fehler `marketplace_icon_unavailable`                              |
-| `marketplace_known_updates` | –                                                                          | `KnownUpdate[]` (nur was der Katalog zuletzt sah, FR-017)                                      |
+| Command                     | Argumente                                                                             | Ergebnis                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `marketplace_catalog`       | `CatalogQuery { page, search?, category?, sourceId? }` (`limit` 20, `sort` downloads) | `CatalogPage`                                                                                  |
+| `marketplace_categories`    | –                                                                                     | `{ categories, sourceErrors }`                                                                 |
+| `marketplace_details`       | `sourceId`, `slug`                                                                    | `CatalogDetail` (Eintrag + Beschreibung, Schlüssel-Fingerabdruck, `publisherMatchesInstalled`) |
+| `marketplace_icon`          | `sourceId`, `url`                                                                     | `string` (`data:`-URL) oder Fehler `marketplace_icon_unavailable`                              |
+| `marketplace_known_updates` | –                                                                                     | `KnownUpdate[]` (nur was der Katalog zuletzt sah, FR-017)                                      |
 
-Jeder Katalogabruf ersetzt die bekannten Updates der abgefragten Quellen. Ein neuer Aufruf von
+Ohne `sourceId` werden alle eingeschalteten Marketplaces gleichzeitig befragt und ihre Einträge hintereinander
+in Rangfolge geliefert, jeder mit seiner Quelle, **ohne Zusammenlegung** (FR-012). Jeder Katalogabruf ersetzt die bekannten Updates der abgefragten Quellen. Ein neuer Aufruf von
 `marketplace_catalog` bricht einen noch laufenden ab.
 
 ## Download und Installation (FR-010 bis FR-016)
@@ -56,7 +58,7 @@ type BundleSource =
 
 ## Fehlerarten (`HolziError::Marketplace { kind }`)
 
-`marketplace_default_protected`, `marketplace_invalid_url`, `marketplace_credentials_required`,
+`marketplace_invalid_url`, `marketplace_credentials_required`,
 `marketplace_insecure_credentials`, `marketplace_not_found`, `marketplace_no_hash`,
 `marketplace_hash_mismatch`, `marketplace_size_mismatch`, `marketplace_too_large`,
 `marketplace_incompatible_version`, `marketplace_download_cancelled`, `marketplace_source_*`
