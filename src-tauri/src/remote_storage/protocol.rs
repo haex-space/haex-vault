@@ -11,6 +11,7 @@ use tokio::time::Instant;
 use super::local::LocalStore;
 use super::{
     Access, DirListing, Location, ObjectHead, ObjectInfo, ObjectStore, Protocol, StorageError,
+    StorageSpace,
 };
 
 /// The stores of the protocols, chosen per call by `access.location.protocol`.
@@ -140,6 +141,14 @@ impl ObjectStore for ProtocolStore {
         deadline: Instant,
     ) -> Result<(), StorageError> {
         self.of(access)?.copy(access, from, to, deadline).await
+    }
+
+    async fn space(
+        &self,
+        access: &Access,
+        deadline: Instant,
+    ) -> Result<Option<StorageSpace>, StorageError> {
+        self.of(access)?.space(access, deadline).await
     }
 
     fn copies_on_provider(&self, access: &Access) -> bool {

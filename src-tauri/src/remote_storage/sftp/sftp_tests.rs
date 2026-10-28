@@ -260,3 +260,22 @@ async fn an_unknown_host_key_is_remembered_for_the_settings() {
     );
     assert!(!store.copies_on_provider(&access));
 }
+
+#[test]
+fn the_space_of_a_file_system_is_used_and_total_in_bytes() {
+    use super::ops::space_of;
+    use crate::remote_storage::StorageSpace;
+    // 1000 blocks of 4096 bytes, 250 of them free for this login.
+    assert_eq!(
+        space_of(4096, 1000, 250),
+        Some(StorageSpace {
+            used: 750 * 4096,
+            total: Some(1000 * 4096),
+        })
+    );
+    // More free than the whole (a quirk of some servers) never goes below zero used.
+    assert_eq!(space_of(1, 10, 99).map(|space| space.used), Some(0));
+    // A file system without a size tells nothing.
+    assert_eq!(space_of(4096, 0, 0), None);
+    assert_eq!(space_of(0, 1000, 10), None);
+}
