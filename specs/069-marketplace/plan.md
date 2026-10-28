@@ -176,16 +176,21 @@ Muster der bestehenden Apps (`lib/<app>/registry.ts`, `components/apps/<App>.vue
 
 ### Stufen (PR-Zuschnitt)
 
-1. **A – Kern**: Migration, `store` samt Voreinstellung, `client`, `catalog`, Typen, Commands `marketplace_catalog`,
-   `marketplace_categories`, `marketplace_details`; Rust-Tests mit Testserver. Keine Oberfläche.
-2. **B – Download und Installation**: `download`, Speicherplatz, `BundleSource`, `InstallDialog`-
-   Anschluss, Fortschritt, Abbruch. Rust-Tests; Vorschau-Fall für Quelle.
-3. **C – Katalog-App**: `MarketplaceApp`, Kacheln, Details, Suche, Kategorien, Blättern, Symbole,
-   Installieren/Aktualisieren/Entfernen. e2e Desktop.
-4. **D – Verwaltung und Zugangsdaten**: Einstellungsansicht, Formular mit Test, Reihenfolge, Ein/Aus,
-   Picker-Erweiterung, Löschwarnung. Rust- und e2e-Tests (401, fehlende Zugangsdaten, `http`).
-5. **E – Updates, Sync, Android**: Update-Hinweis in der Liste, Kompatibilitäts-Sperre, Zwei-Geräte-e2e,
-   Android-e2e, Handbuch-Prüfung (Quickstart).
+Die Zuordnung der Aufgaben steht in `tasks.md` (Shipping-Tabelle):
+
+1. **A – Kern** (T004–T024): Migration, `store` samt Voreinstellung und Anlegen bei einem neuen Vault,
+   `client`, `catalog`, Typen, Commands `marketplace_list`, `marketplace_catalog`, `marketplace_categories`,
+   `marketplace_details`, `marketplace_icon`; Rust-Tests mit Testserver. Keine Oberfläche.
+2. **B – Download und Installation** (T032–T039): `download`, Speicherplatz, `BundleSource`, alle Aufrufer,
+   `InstallDialog`-Quelle, Fortschritt, Abbruch. Rust-Tests.
+3. **C – Katalog-App** (T025–T031, T040–T041): `MarketplaceApp`, Kacheln, Details, Suche, Kategorien,
+   Quelle, Blättern, Symbole, Installationsablauf. e2e Desktop.
+4. **D – Updates** (T042–T046): bekannte Updates je Eintrag, Update-Prüfung für alle Installierten,
+   Kompatibilitätssperre, Entfernen, Hinweis in der Liste der Installierten.
+5. **E – Verwaltung** (T047–T055): Einstellungsansicht, Formular mit Test, Reihenfolge, Ein/Aus, mehrere
+   Quellen gleichzeitig, Leerzustand mit Voreinstellung.
+6. **F – Private Marketplaces** (T056–T063): Zugangsdaten-Eintrag, Picker-Erweiterung, Löschwarnung.
+7. **G – Abschluss** (T064–T067): Zwei-Geräte-e2e, Android, Glossar, Handprüfung (Quickstart).
 
 ## Complexity Tracking
 

@@ -192,6 +192,9 @@ Kachel zeigt „Update verfügbar“, Update läuft über die Vorschau, danach �
 6. **Given** der Nutzer öffnet die Liste der installierten Erweiterungen (Einstellungen), **When** der
    Katalog zuvor eine neuere Fassung gemeldet hat, **Then** zeigt die Zeile „Update verfügbar“; ein Tipp
    öffnet den Katalogeintrag.
+7. **Given** Anna hat eine Erweiterung installiert, die auf der gerade angezeigten Katalogseite (etwa wegen
+   einer Suche) nicht steht, **When** sie die App öffnet oder „Aktualisieren“ tippt, **Then** ist das
+   Update trotzdem bekannt, und die Liste der installierten Erweiterungen zeigt es.
 
 ---
 
@@ -311,12 +314,12 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   Bewertung, Zahl der Downloads).
 - **FR-002**: Der Katalog MUSS nach Freitext suchen, nach Kategorie filtern und seitenweise blättern
   können; Filter wirken gemeinsam, eine Änderung des Filters springt auf Seite 1, Eingaben im Suchfeld
-  werden kurz gebündelt.
+  werden 300 ms gebündelt.
 - **FR-003**: Der Katalog MUSS standardmäßig nach Downloads absteigend sortieren.
 - **FR-004**: Eine Kachel MUSS den Zustand „Nicht installiert“, „Installiert (Fassung)“ oder „Update
-  verfügbar“ zeigen. Der Abgleich mit installierten Erweiterungen nutzt die Erweiterungs-Kennung des
-  Marketplace, soweit er sie liefert, sonst den Namen; endgültig entscheidet die Installations-Vorschau
-  anhand von Herausgeberschlüssel und Name aus dem Bundle (Spec 017).
+  verfügbar“ zeigen. Der Abgleich mit installierten Erweiterungen nutzt den Namen der Erweiterung (die
+  Details zusätzlich den Herausgeberschlüssel); endgültig entscheidet die Installations-Vorschau anhand
+  von Herausgeberschlüssel und Name aus dem Bundle (Spec 017).
 - **FR-005**: Die Details einer Erweiterung MÜSSEN Beschreibung, Herausgeber (mit der Angabe „geprüft“
   des Marketplace als Anzeige), Bewertung, Fassungen, Kategorie, Tags und Quelle zeigen und von dort
   „Installieren“, „Aktualisieren“ und „Entfernen“ anbieten.
@@ -348,9 +351,11 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-015**: Der Download MUSS dem Nutzer Fortschritt zeigen und abbrechbar sein.
 - **FR-016**: „Entfernen“ im Katalog MUSS die bestehende Entfernung aus Spec 017 nutzen (einschließlich
   der Frage nach den Daten).
-- **FR-017**: Der Katalog MUSS beim Öffnen und auf Wunsch („Aktualisieren“-Knopf) nach Updates suchen;
-  es gibt keine Abfragen im Hintergrund oder beim Start. Die Liste der installierten Erweiterungen
-  (Einstellungen) MUSS einen bekannten Update-Hinweis zeigen, ohne selbst zu fragen.
+- **FR-017**: Der Katalog MUSS beim Öffnen und auf Wunsch („Aktualisieren“-Knopf) für **alle
+  installierten Erweiterungen** nach Updates suchen, auch für solche, die auf der angezeigten Seite nicht
+  vorkommen; es gibt keine Abfragen im Hintergrund oder beim Start. Eine Quelle, die ausfällt, löscht keine
+  bereits bekannten Updates. Die Liste der installierten Erweiterungen (Einstellungen) MUSS einen
+  bekannten Update-Hinweis zeigen, ohne selbst zu fragen.
 
 - **FR-018**: Gibt eine Fassung eine Mindest- oder Höchstfassung von HaexVault an, MUSS der Katalog
   eine nicht passende Fassung als „Benötigt HaexVault ab/bis x“ kennzeichnen und die Installation

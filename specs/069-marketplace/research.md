@@ -151,6 +151,14 @@ Installierten. Legacy glich nur den Namen im Frontend ab.
 **Bekannte Grenze**: Zwei Herausgeber mit gleichem Namen zeigen beide „installiert“, bis die Details
 (`publicKey`) oder die Vorschau es klären; die Details zeigen den Schlüssel und markieren die Abweichung.
 
+**Update-Prüfung** (FR-017): Ein Katalogabruf sieht nur eine gefilterte Seite. Darum gibt es eine eigene
+Operation `marketplace_check_updates`: Für **jeden installierten Namen** wird jede eingeschaltete Quelle
+mit `GET /extensions?search=<Name>&limit=5` gefragt (höchstens 4 Anfragen gleichzeitig), nur genaue
+Namenstreffer zählen. Die Ergebnisse werden **je Eintrag** in die bekannte Update-Map zusammengeführt;
+eine ausgefallene Quelle oder ein Eintrag außerhalb der Antwort ändert nichts. Gestartet wird sie beim
+Öffnen der App und bei „Aktualisieren“, nie im Hintergrund. (Das Legacy suchte beim Update ebenfalls nach
+dem Namen, mit `limit: 10`, aber erst auf Wunsch je Erweiterung.)
+
 ## R9 – Kompatibilität mit der HaexVault-Fassung
 
 **Entscheidung**: Die Fassung von HaexVault ist die aus `tauri.conf.json`/`Cargo.toml`
@@ -169,7 +177,7 @@ Manifeste mit Anforderungen).
 eine gewöhnliche Zeile mit fester Kennung `preset-public`:
 
 - **Neuer Vault**: Die Zeile wird einmal angelegt, wenn der Vault seine Anfangsdaten bekommt (Genesis,
-  `sync::genesis`; der genaue Ort ist Aufgabe T003). Nicht bei jedem Öffnen.
+  `sync::genesis`; der genaue Ort ist Aufgabe T017). Nicht bei jedem Öffnen.
 - **Vault ohne Marketplace** (vor dieser Funktion angelegt oder alles gelöscht): der Leerzustand des Katalogs
   bietet „Öffentlichen Marketplace hinzufügen“ an; das schreibt dieselbe Zeile mit derselben Kennung.
 - Löschen, Ausschalten, Umbenennen, Adresse ändern: wie bei jeder Zeile. Nichts legt sie wieder an.
@@ -233,7 +241,7 @@ Tabellen); Sortierlücken und gleiche Ränge werden beim Lesen mit `(rank, name,
 Download für zwei Erweiterungen liefert, eine davon mit dem bestehenden signierten Test-Bundle
 (`haextension-test-bundles`, Wegwerf-Schlüssel). Die Adresse der Voreinstellung lässt sich im
 e2e-Build überschreiben (`HOLZI_E2E_MARKETPLACE_URL`, nur in e2e-Builds, wie die anderen Schalter des
-Rigs; die genaue Stelle klärt Aufgabe T001 in `tasks.md`). Im Release-Build gibt es keinen
+Rigs; die genaue Stelle klärt Aufgabe T003 in `tasks.md`). Im Release-Build gibt es keinen
 Umgebungsschalter.
 
 ## R17 – Abgleich mit haex-vault 2.x (Legacy)
