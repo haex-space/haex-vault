@@ -73,11 +73,11 @@ dem nutzer davon und wartet auf neue instruktionen“ (Betreiber, 2026-10-28)
   berücksichtigt das bei der Wahl.
 - [`012-unified-model-capabilities`](../012-unified-model-capabilities/spec.md): Als Orchestrator und
   für Stufen mit Werkzeugen kommen nur Modelle mit der Fähigkeit „Werkzeuge“ in Frage.
-- [`066-voice-assistant`](../066-voice-assistant/spec.md): Der Sprachassistent spricht mit dem
-  Orchestrator. Quittung, Fortschrittsansage, Meldungen aus dem Hintergrund, offene Fragen und
+- Spec 066 (Voice Assistant): Der Sprachassistent spricht mit dem Orchestrator. Quittung,
+  Fortschrittsansage, Meldungen aus dem Hintergrund, offene Fragen und
   aktives Beenden (066 FR-023, FR-039, FR-040) gelten pro Aufgabe.
-- [`067-meeting-transcription`](../067-meeting-transcription/spec.md): Die Auswertung eines Meetings
-  ist eine Aufgabe, die der Orchestrator einer Stufe zuordnet.
+- Spec 067 (Meeting Transcription): Die Auswertung eines Meetings ist eine Aufgabe, die der
+  Orchestrator einer Stufe zuordnet.
 - [`006-chat-history-management`](../006-chat-history-management/spec.md): Gespräche mit dem
   Orchestrator sind Chat-Unterhaltungen; Aufgaben erscheinen darin.
 
