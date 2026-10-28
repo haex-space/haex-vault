@@ -13,6 +13,7 @@ import {
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 import { ACTION_SCOPE_IDS } from '../src/lib/actions/scopes.ts'
+import { levelsOf, rightsOf, siteOf } from '../src/lib/agents/rights.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
 
@@ -65,4 +66,38 @@ test('the actions of the MCP access are guardrails no agent can call (FR-016)', 
 
 test('the scope for one secret of a password entry exists (research R13)', () => {
   assert.ok(ACTION_SCOPE_IDS.includes('passwords.secret'))
+})
+
+test('a website is written as Rust writes it, and no website is refused (spec 065)', () => {
+  const cases: Array<[string, string | null]> = [
+    ['https://Shop.Example.de/kasse?x=1', 'https://shop.example.de'],
+    ['shop.example.de', 'https://shop.example.de'],
+    ['https://shop.example.de:443', 'https://shop.example.de'],
+    ['https://shop.example.de:8443/a', 'https://shop.example.de:8443'],
+    ['http://intranet.example:80', 'http://intranet.example'],
+    ['https://bücher.example', 'https://xn--bcher-kva.example'],
+    ['file:///etc/passwd', null],
+    ['javascript:alert(1)', null],
+    ['https://user:pw@example.com', null],
+    ['   ', null],
+  ]
+  for (const [typed, site] of cases) assert.equal(siteOf(typed), site, typed)
+})
+
+test('changing a scope keeps the browser rights, and an off group is left out (spec 065)', () => {
+  const browser = {
+    userBrowser: false,
+    sites: {
+      'https://shop.example.de': {
+        level: 'operate' as const,
+        fillRemembered: false,
+      },
+    },
+  }
+  const levels = levelsOf({ operate: { 'wm.read': 'read' } })
+  assert.deepEqual(rightsOf(levels, browser), {
+    operate: { 'wm.read': 'read' },
+    browser,
+  })
+  assert.deepEqual(rightsOf(levels), { operate: { 'wm.read': 'read' } })
 })

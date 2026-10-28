@@ -3,11 +3,12 @@
  * May an external agent use holzi, and with which rights? (spec 021, US1, FR-006, FR-009,
  * contracts/tauri-commands.md). Shows what the agent reports about itself, marked as its own claim,
  * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
- * plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
+ * the websites of the rights group "Browser" (spec 065), plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
  * without remembering. Rust checks the rights again; rights it refuses count as declining.
  */
 import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
+import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
 
 const { t } = useI18n()
@@ -18,6 +19,7 @@ const question = computed<RegistrationQuestion | null>(
   () => store.shown?.question ?? null,
 )
 const levels = ref<Levels>(levelsOf(null))
+const browser = ref<BrowserRights | null>(null)
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -30,6 +32,7 @@ watch(
     remember.value = false
     if (!asked) return
     levels.value = levelsOf(asked.rights)
+    browser.value = asked.rights.browser ?? null
     mode.value = asked.mode
   },
   { immediate: true },
@@ -42,7 +45,9 @@ async function answerAsync(register: boolean) {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
-      rights: register ? rightsOf(levels.value) : { operate: {} },
+      rights: register
+        ? rightsOf(levels.value, browser.value)
+        : { operate: {} },
       mode: mode.value,
     })
   } catch (error) {
@@ -89,6 +94,7 @@ function onUpdateOpen(open: boolean) {
         </dl>
 
         <AgentsRightsFields v-model="levels" />
+        <AgentsBrowserRightsFields v-model="browser" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.rightsHint') }}
         </p>

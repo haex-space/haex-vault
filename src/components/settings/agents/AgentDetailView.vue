@@ -8,6 +8,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
+import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { AgentView } from '~/types/bindings/AgentView'
 
 const { t } = useI18n()
@@ -21,6 +22,7 @@ const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
 const levels = ref<Levels>(levelsOf(null))
+const browser = ref<BrowserRights | null>(null)
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
@@ -31,6 +33,7 @@ async function reloadAsync() {
       args: { agentId: agentId.value },
     })
     levels.value = levelsOf(agent.value.rights)
+    browser.value = agent.value.rights.browser ?? null
   } catch (error) {
     agent.value = null
     failure.value = errString(error)
@@ -49,11 +52,20 @@ async function runAsync(action: () => Promise<unknown>) {
   await reloadAsync()
 }
 
+function saveRights() {
+  const rights = rightsOf(levels.value, browser.value)
+  void runAsync(() => setRights({ agentId: agentId.value, rights }))
+}
+
 function onLevels(next: Levels) {
   levels.value = next
-  void runAsync(() =>
-    setRights({ agentId: agentId.value, rights: rightsOf(next) }),
-  )
+  saveRights()
+}
+
+/** Spec 065: the websites of the rights group "Browser", saved with the other rights. */
+function onBrowser(next: BrowserRights | null) {
+  browser.value = next
+  saveRights()
 }
 
 function onMode(mode: AgentMode) {
@@ -112,6 +124,11 @@ watch(() => store.changes, reloadAsync)
       <AgentsRightsFields
         :model-value="levels"
         @update:model-value="onLevels"
+      />
+
+      <AgentsBrowserRightsFields
+        :model-value="browser"
+        @update:model-value="onBrowser"
       />
       <p class="px-1 text-xs text-muted-foreground">
         {{ t('mcpAgents.registration.rightsHint') }}
