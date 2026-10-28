@@ -2876,6 +2876,11 @@
         "paused": "pausiert",
         "inactive": "holzi nicht aktiv"
       },
+      "progress": {
+        "label": "Fortschritt",
+        "scanning": "Orte werden verglichen …",
+        "files": "{done} von {total} Dateien · {size}"
+      },
       "picker": {
         "root": "Ort wählen",
         "up": "Eine Ebene höher",

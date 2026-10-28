@@ -37,11 +37,32 @@ export function shownState(state: SyncState, serviceRuns: boolean): SyncState {
 
 export const STATE_ICONS: Record<SyncState, string> = {
   active: 'lucide:check',
-  running: 'lucide:refresh-cw',
+  running: 'lucide:loader',
   waiting: 'lucide:clock',
   error: 'lucide:triangle-alert',
   paused: 'lucide:pause',
   inactive: 'lucide:moon',
+}
+
+/**
+ * How far a running rule is, from 0 to 1, or `null` while it cannot tell (listing the places, or
+ * nothing to copy): the bar then only shows that something runs.
+ */
+export function progressShare(progress: {
+  phase: 'scanning' | 'copying'
+  filesDone: number
+  filesTotal: number
+  bytesDone: number
+  bytesTotal: number
+}): number | null {
+  if (progress.phase !== 'copying') return null
+  const share =
+    progress.bytesTotal > 0
+      ? progress.bytesDone / progress.bytesTotal
+      : progress.filesTotal > 0
+        ? progress.filesDone / progress.filesTotal
+        : null
+  return share === null ? null : Math.min(1, Math.max(0, share))
 }
 
 /** The dialog asks for consent when files leave an encrypted folder for a plain one (FR-030a). */

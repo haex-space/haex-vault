@@ -1,13 +1,16 @@
 import { defineStore } from 'pinia'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { SyncRuleProgress } from '@bindings/SyncRuleProgress'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
 
 const SYNC_RULES_CHANGED = 'sync-rules-changed'
+const SYNC_RULE_PROGRESS = 'sync-rule-progress'
 
 /**
  * The sync rules of this device (spec 061 US1, FR-025, FR-032): the list with each rule's status.
  * One listener for `sync-rules-changed` reloads it, so a run starting or ending shows without
- * reloading; events during a load fold into one more load.
+ * reloading; events during a load fold into one more load. `sync-rule-progress` keeps the latest
+ * progress of each running rule; it is dropped with the run, whatever the last report was.
  *
  * Pinia keeps this store for the session. `rules` and `loading` are the backend's state and survive
  * a remount on purpose; `error` belongs to the open overview and is reset by `initialize`.
@@ -19,6 +22,8 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
   const rules = ref<SyncRuleView[]>([])
   const loading = ref(true)
   const error = ref<string | null>(null)
+  /** The latest progress of each running rule, by rule id. */
+  const progress = ref<Record<string, SyncRuleProgress>>({})
 
   let unlisten: UnlistenFn | null = null
   let pendingListen: Promise<void> | null = null
@@ -28,6 +33,17 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
 
   function initialize(): void {
     error.value = null
+  }
+
+  function dropFinishedProgress(): void {
+    const running = new Set(
+      rules.value
+        .filter((view) => view.status.state === 'running')
+        .map((view) => view.rule.id),
+    )
+    progress.value = Object.fromEntries(
+      Object.entries(progress.value).filter(([id]) => running.has(id)),
+    )
   }
 
   /** Loads the list; a call during a load asks for one more. */
@@ -42,6 +58,7 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
         again = false
         try {
           rules.value = await listAsync()
+          dropFinishedProgress()
           error.value = null
         } catch (e) {
           error.value = errString(e)
@@ -58,9 +75,21 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
     if (pendingListen) return await pendingListen
 
     const generation = ++listenGeneration
-    const registration = listen(SYNC_RULES_CHANGED, () => {
-      void loadAsync()
-    }).then((cleanup) => {
+    const registration = Promise.all([
+      listen(SYNC_RULES_CHANGED, () => {
+        void loadAsync()
+      }),
+      listen<SyncRuleProgress>(SYNC_RULE_PROGRESS, (event) => {
+        progress.value = {
+          ...progress.value,
+          [event.payload.ruleId]: event.payload,
+        }
+      }),
+    ]).then(([stopChanged, stopProgress]) => {
+      const cleanup = () => {
+        stopChanged()
+        stopProgress()
+      }
       if (
         generation !== listenGeneration ||
         pendingListen !== registration ||
@@ -90,6 +119,7 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
     rules,
     loading,
     error,
+    progress,
     initialize,
     loadAsync,
     startListening,
