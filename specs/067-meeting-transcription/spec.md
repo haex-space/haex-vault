@@ -67,6 +67,9 @@ FR-047/FR-048; diese Spec deckt den Meeting-Teil ab.
 - [`003-agent-tool-loop`](../003-agent-tool-loop/spec.md) und
   [`032-model-operates-holzi`](../032-model-operates-holzi/spec.md): Auswertung und Fragen laufen über
   den eingebauten Agenten mit seinen Werkzeugen und Freigaben.
+- [`068-task-orchestration`](../068-task-orchestration/spec.md): Auswertung, Fragen im Meeting-Chat
+  und übergebene Aufgaben laufen über den Orchestrator, sobald es ihn gibt; die Auswertung eines
+  langen Meetings ist dann eine Aufgabe, die er einer Stufe zuordnet.
 - [`006-chat-history-management`](../006-chat-history-management/spec.md): Fragen zu einem Meeting
   sind eine Chat-Unterhaltung, die zum Meeting gehört.
 - [`024-own-device-sync`](../024-own-device-sync/spec.md): Meetings, Mitschrift, Teilnehmer und
