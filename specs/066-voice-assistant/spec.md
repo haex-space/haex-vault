@@ -68,6 +68,8 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
   Launcher ein- und ausgeschaltet.
+- **Kurze Ansage**: höchstens ein Satz mit höchstens 12 gesprochenen Wörtern und höchstens
+  4 Sekunden Dauer. Muss eine Meldung mehr Inhalt tragen, verweist haex auf die Mitschrift.
 - **Wake Word**: Das Wort oder die kurze Wendung, die ein Gespräch beginnt. Erkannt wird es nur auf
   dem Gerät.
 - **Gespräch**: Eine Folge von Runden zwischen Nutzer und eingebautem Agenten. Es beginnt mit dem
@@ -237,8 +239,9 @@ meldet am Ende das Ergebnis gesprochen.
 
 1. **Given** eine Anweisung, die Werkzeuge braucht, **When** der Agent sie bearbeitet, **Then**
    gelten dieselben Werkzeuge, Freigabestufen und Grenzen wie im Chat.
-2. **Given** eine Runde dauert länger als einige Sekunden, **When** der Agent noch arbeitet, **Then**
-   sagt haex kurz, woran es gerade arbeitet, statt zu schweigen.
+2. **Given** eine Runde dauert länger als 4 Sekunden ohne gesprochene Antwort, **When** der Agent
+   noch arbeitet, **Then** sagt haex in einer kurzen Ansage (höchstens 12 Wörter und 4 Sekunden),
+   woran es gerade arbeitet, statt zu schweigen.
 3. **Given** eine Aktion braucht nach der Freigabestufe eine Freigabe, **When** sie ansteht, **Then**
    sagt haex in einem Satz, was genau passiert (Wirkung und Ziel), und wartet auf eine mündliche
    Bestätigung.
@@ -281,7 +284,7 @@ gesprochene Sätze öfter mehrdeutig sind als getippte. Vorschläge sind der Meh
 gegenüber einer Sprachsteuerung. Beides baut auf US1 bis US3 auf.
 
 **Independent Test**: Eine mehrdeutige Anweisung geben. haex stellt eine Rückfrage mit höchstens
-wenigen Wahlmöglichkeiten, die Antwort per Ordinalzahl („die zweite“) wird richtig zugeordnet, und
+drei Wahlmöglichkeiten, die Antwort per Ordinalzahl („die zweite“) wird richtig zugeordnet, und
 ein abgelehnter Vorschlag führt zu keiner Aktion.
 
 **Acceptance Scenarios**:
@@ -289,7 +292,7 @@ ein abgelehnter Vorschlag führt zu keiner Aktion.
 1. **Given** eine Anweisung mit mehreren plausiblen Zielen, **When** der Agent sie nicht eindeutig
    zuordnen kann, **Then** fragt haex gezielt nach, statt zu raten.
 2. **Given** haex bietet Wahlmöglichkeiten an, **When** es sie vorliest, **Then** sind es höchstens
-   drei, jeweils kurz benannt; bei mehr nennt haex die Anzahl und fragt nach einem Merkmal zum
+   drei, jeweils mit höchstens 12 Wörtern benannt; bei mehr nennt haex die Anzahl und fragt nach einem Merkmal zum
    Eingrenzen.
 3. **Given** haex hat Wahlmöglichkeiten genannt, **When** der Nutzer mit Ordinalzahl, Name oder
    einem Merkmal antwortet, **Then** wird die richtige Möglichkeit gewählt.
@@ -415,9 +418,9 @@ kennzeichnet das, bis er wieder abgeschaltet ist.
 
 **Acceptance Scenarios**:
 
-1. **Given** die Stimm-Einstellungen, **When** der Nutzer sie öffnet, **Then** sieht er eine kleine,
-   kuratierte Auswahl lokaler Stimmen pro Sprache, mit Größe und Eignung für sein Gerät, wie bei der
-   Modellwahl in 010.
+1. **Given** die Stimm-Einstellungen, **When** der Nutzer sie öffnet, **Then** sieht er höchstens
+   drei kuratierte lokale Stimmen pro Sprache mit Größe und Eignung für sein Gerät; weitere
+   installierbare Stimmen lassen sich über die Suche finden (wie bei der Modellwahl in 010).
 2. **Given** eine Stimme in der Auswahl, **When** der Nutzer „Probe“ wählt, **Then** spricht sie einen
    Beispielsatz; eine nicht installierte Stimme wird dafür erst geladen.
 3. **Given** der Nutzer wählt eine Stimme oder ändert das Tempo, **When** die nächste Antwort kommt,
@@ -429,8 +432,10 @@ kennzeichnet das, bis er wieder abgeschaltet ist.
 6. **Given** der Nutzer wählt „Eigene Stimme anlegen“, **When** er 10–30 Sekunden einspricht oder
    eine Audiodatei wählt, Sprache und Namen angibt und die Einwilligung bestätigt, **Then** hört er
    eine Probe, bevor er speichert; ohne bestätigte Einwilligung lässt sich nicht speichern.
-7. **Given** eine Aufnahme ist zu kurz, zu leise, übersteuert oder verrauscht, **When** der Nutzer
-   sie prüfen lässt, **Then** nennt haex den Grund und bittet um eine neue Aufnahme.
+7. **Given** eine Aufnahme dauert weniger als 10 oder mehr als 30 Sekunden, hat in den 20-ms-
+   Sprachrahmen einen medianen RMS-Pegel unter −32 dBFS, erreicht in mehr als 1 % der Samples
+   mindestens −1 dBFS oder hat weniger als 10 dB Signal-Rausch-Abstand, **When** der Nutzer sie
+   prüfen lässt, **Then** nennt haex den gemessenen Grund und bittet um eine neue Aufnahme.
 8. **Given** eine angelegte Stimme, **When** der Nutzer ein zweites Gerät mit demselben Vault öffnet,
    **Then** steht sie dort zur Wahl; fehlt das Sprachmodell dafür, lädt haex es bei der Wahl.
    Löscht er sie auf einem Gerät, verschwindet sie überall, und Geräte, die sie nutzten, fallen auf
@@ -601,8 +606,8 @@ Modus aus.
 - **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen. Formatierungszeichen MUST NOT
   gesprochen werden; Tabellen, Links und Code MUST durch eine kurze Beschreibung mit Verweis auf die
   Mitschrift ersetzt werden; Zahlen, Daten und Uhrzeiten MUST natürlich gesprochen werden.
-- **FR-023**: Dauert eine Runde länger als einige Sekunden ohne gesprochene Antwort, MUST haex kurz
-  sagen, woran der Agent gerade arbeitet.
+- **FR-023**: Dauert eine Runde länger als 4 Sekunden ohne gesprochene Antwort, MUST haex eine kurze
+  Ansage im Sinne des Begriffs „Kurze Ansage“ sagen, woran der Agent gerade arbeitet.
 
 #### Freigaben und Geheimnisse
 

@@ -18,9 +18,10 @@
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
 - [x] All acceptance scenarios are defined
-- [x] FR-038 has acceptance coverage for Settings placement, per-device scope and saving on selection
-- [x] FR-041 has acceptance coverage for the floating indicator, position persistence and accessible state text
-- [x] FR-046 has acceptance coverage for distributable tone licensing and repository provenance
+- [x] FR-038 has acceptance coverage in US9 scenario 7 for Settings placement, per-device scope, immediate save and persistence after restart
+- [x] FR-041 has acceptance coverage in US9 scenario 8 for the floating indicator, position persistence and screen-reader text
+- [x] FR-046 has acceptance coverage in US9 scenario 9 for distributable tone licensing and repository provenance
+- [x] Ambiguous quantitative terms are bounded: choice count, short notices and voice-recording quality thresholds
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified

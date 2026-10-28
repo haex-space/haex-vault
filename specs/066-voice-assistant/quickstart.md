@@ -28,7 +28,7 @@ Wake-Word-Messung (SC-003, SC-004) und Echo-Messung (SC-005) laufen nur im Relea
 ```sh
 nix develop --command scripts/with-nix-host-bridge.sh cargo test --release -j 4 \
   --manifest-path src-tauri/Cargo.toml --test assistant_wakeword_eval -- --ignored --nocapture
-nix develop --command scripts/with-nix-host-bridge.sh cargo test --release -j 4 \\
+nix develop --command scripts/with-nix-host-bridge.sh cargo test --release -j 4 \
   --manifest-path src-tauri/Cargo.toml --test assistant_echo_eval -- --ignored --nocapture
 ```
 
