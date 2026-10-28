@@ -202,16 +202,19 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     const rightList = '[data-files-panel="right"] [data-files-list]'
 
     // Onto the other panel's empty area: the entry moves into its open folder (same source).
-    assert.notEqual(
+    assert.equal(
       await dragBetween(instance, entryIn('left', 'neu.txt'), rightList),
-      'none',
+      'move',
     )
     await shows('right', 'neu.txt', 'neu.txt moved into the right panel')
     await gone('left', 'neu.txt', 'neu.txt to leave the left panel')
     assert.ok(onDisk('split-b', 'neu.txt') && !onDisk('split-a', 'neu.txt'))
 
     // With Ctrl it copies, and the folder keeps its entries.
-    await dragBetween(instance, entryIn('left', 'unter'), rightList, true)
+    assert.equal(
+      await dragBetween(instance, entryIn('left', 'unter'), rightList, true),
+      'copy',
+    )
     await shows('right', 'unter', 'unter copied into the right panel')
     assert.ok(await panelShows(instance, 'left', 'unter'), 'the original stays')
     assert.ok(onDisk('split-b/unter', 'tief.txt'))

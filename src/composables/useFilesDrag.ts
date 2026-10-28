@@ -5,6 +5,8 @@ import {
   dragPayload,
   ENTRIES_MIME,
   parseDragPayload,
+  dropOp,
+  sameSource,
 } from '~/lib/files/clipboard'
 
 /**
@@ -30,6 +32,12 @@ export function useFilesDrag(options: {
 }) {
   /** The folder a drag hovers over (a folder row, or the open folder). */
   const dropOver = ref<string | null>(null)
+  const endDrag = () => {
+    dragging = null
+    dropOver.value = null
+  }
+  onMounted(() => window.addEventListener('dragend', endDrag))
+  onBeforeUnmount(() => window.removeEventListener('dragend', endDrag))
 
   function onDragStart(entry: Entry, event: DragEvent) {
     const selected = options.selected()
@@ -38,14 +46,8 @@ export function useFilesDrag(options: {
       .entries()
       .filter((candidate) => paths.includes(candidate.path))
       .map((candidate) => ({ path: candidate.path, kind: candidate.kind }))
-    event.dataTransfer?.setData(
-      ENTRIES_MIME,
-      dragPayload({
-        source: options.source(),
-        folder: options.folder(),
-        items,
-      }),
-    )
+    dragging = { source: options.source(), folder: options.folder(), items }
+    event.dataTransfer?.setData(ENTRIES_MIME, dragPayload(dragging))
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copyMove'
   }
 
@@ -62,6 +64,15 @@ export function useFilesDrag(options: {
       return
     }
     event.preventDefault()
+    const payload = parseDragPayload(event.dataTransfer.getData(ENTRIES_MIME))
+    if (payload) {
+      const op = dropOp(sameSource(payload.source, options.source()), {
+        ctrl: event.ctrlKey,
+        alt: event.altKey,
+        mac: /Mac/.test(navigator.userAgent),
+      })
+      event.dataTransfer.dropEffect = op === 'copy' ? 'copy' : 'move'
+    }
     dropOver.value = entry?.path ?? options.folder()
   }
 
@@ -70,6 +81,7 @@ export function useFilesDrag(options: {
     if (entry && entry.kind !== 'dir') return
     if (!options.droppable()) return
     const payload = parseDragPayload(event.dataTransfer?.getData(ENTRIES_MIME))
+    dragging = null
     if (!payload) return
     event.preventDefault()
     event.stopPropagation()
