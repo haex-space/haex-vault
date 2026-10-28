@@ -92,6 +92,7 @@ async fn exec(
             listing_b: &lb,
             state,
             cancel,
+            progress: &Reporter::silent(),
         },
         steps,
     )

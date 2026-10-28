@@ -11,6 +11,7 @@ pub mod place;
 pub mod place_device;
 pub mod place_storage;
 pub mod plan;
+pub mod progress;
 pub mod rules;
 pub mod run;
 pub mod scan;

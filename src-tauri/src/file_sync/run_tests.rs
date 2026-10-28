@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use haex_crdt::rusqlite::params;
@@ -16,6 +17,7 @@ use super::*;
 use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDraft, SyncRulePlace};
 use crate::file_sync::place::{Facts, Listing, Trashed};
 use crate::file_sync::place_device::DevicePlace;
+use crate::file_sync::progress::SyncRulePhase;
 use crate::file_sync::test_support::MemPlace;
 use crate::files::transfer::remote::Side;
 use crate::files::{FilesError, SourceRef};
@@ -88,6 +90,16 @@ impl World {
         b: &dyn Place,
         cancel: &CancellationToken,
     ) -> RunReport {
+        self.run_reporting(a, b, cancel, &Reporter::silent()).await
+    }
+
+    async fn run_reporting(
+        &self,
+        a: &dyn Place,
+        b: &dyn Place,
+        cancel: &CancellationToken,
+        progress: &Reporter,
+    ) -> RunReport {
         let now = || "2026-10-27T12:00:00Z".to_owned();
         run(
             &RunContext {
@@ -98,6 +110,7 @@ impl World {
                 now: &now,
                 run_id: "run1",
                 cancel,
+                progress,
             },
             &self.rule,
             a,
@@ -168,6 +181,40 @@ async fn the_first_run_copies_everything_and_the_second_nothing() {
             .unwrap()
             .unwrap();
     assert_eq!(rule.last_outcome, Some(SyncRuleOutcome::Done));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_reports_its_phases_and_the_copied_files() {
+    let w = world(SyncRuleDeleteMode::Keep);
+    write(&w.a.join("x.txt"), "abc");
+    write(&w.a.join("Fotos/y.jpg"), "de");
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&seen);
+    let reporter = Reporter::new("r1", move |progress| {
+        sink.lock().unwrap().push(progress.clone());
+    });
+    let report = w
+        .run_reporting(
+            &DevicePlace::with_rule_trash(&w.a),
+            &DevicePlace::with_rule_trash(&w.b),
+            &CancellationToken::new(),
+            &reporter,
+        )
+        .await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen[0].phase, SyncRulePhase::Scanning);
+    let planned = seen
+        .iter()
+        .find(|progress| progress.phase == SyncRulePhase::Copying)
+        .unwrap();
+    assert_eq!((planned.files_total, planned.bytes_total), (2, 5));
+    let last = seen.last().unwrap();
+    assert_eq!(
+        (last.files_done, last.bytes_done),
+        (2, 5),
+        "the last report is the finished copy"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

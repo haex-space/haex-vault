@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use super::model::{SyncRule, SyncRuleSide};
 use super::place::{split, Facts, Listing, Place, Trashed};
 use super::plan::{Deviation, Step};
+use super::progress::Reporter;
 use super::store::{self, PendingRow, Seen, StateRow};
 use crate::files::transfer::local::Outcome;
 use crate::files::transfer::remote::Side;
@@ -64,6 +65,7 @@ pub struct Target<'a> {
     pub listing_b: &'a Listing,
     pub state: &'a [StateRow],
     pub cancel: &'a CancellationToken,
+    pub progress: &'a Reporter,
 }
 
 impl Target<'_> {
@@ -102,6 +104,8 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
         .map(|row| (row.path.as_str(), row))
         .collect();
     let mut done = Executed::default();
+    let (files, bytes) = copy_totals(target, steps);
+    target.progress.planned(files, bytes);
     for step in steps {
         if target.cancel.is_cancelled() {
             done.cancelled = true;
@@ -121,6 +125,23 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
         }
     }
     done
+}
+
+/// How many files the copy steps move, and how many bytes they hold.
+fn copy_totals(target: &Target<'_>, steps: &[Step]) -> (u32, u64) {
+    steps
+        .iter()
+        .fold((0, 0), |(files, bytes), step| match step {
+            Step::Copy { from, path, .. } => {
+                let size = target
+                    .listing(*from)
+                    .files
+                    .get(path.as_str())
+                    .map_or(0, |facts| facts.size);
+                (files + 1, bytes + size)
+            }
+            _ => (files, bytes),
+        })
 }
 
 fn path_of(step: &Step) -> &str {
@@ -315,9 +336,12 @@ async fn copy(
         decrypts: target.rule.allow_decrypted,
     };
     let cancel = target.cancel.clone();
+    let progress = target.progress.clone();
     let outcome = tokio::task::spawn_blocking(move || {
         let handle = tokio::runtime::Handle::current();
-        transfer_one(&one.borrowed(), &handle, &cancel, &mut |_| {})
+        transfer_one(&one.borrowed(), &handle, &cancel, &mut |done| {
+            progress.bytes(done.bytes_done);
+        })
     })
     .await
     .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "the copy stopped"))?;
@@ -359,6 +383,7 @@ async fn copy(
         store::put_state(tx, device, rule, &row)
     })
     .await?;
+    target.progress.file_done(planned.size);
     Ok(())
 }
 
