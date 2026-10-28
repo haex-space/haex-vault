@@ -20,8 +20,8 @@ const DENIED = 1002
 // `extension-encrypted-device`): what a phone does not have is not offered and says so. The
 // capability table names it; an extension that reads a free path, picks a folder or watches one
 // hears "not available", and an encrypted folder on the device stays closed to it; developer mode
-// (a project folder) is left out of the extension settings, and the delegate settings say "not
-// available on this device".
+// (a project folder) is left out of the extension settings, and the delegate settings and the
+// access for external agents (`mcp-agent`) say "not available on this device".
 scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'phone-vault' })
@@ -145,4 +145,15 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   await waitForLocation(instance, 'ai.providers')
   await instance.waitForDisplayed('settings-not-on-this-device')
   ctx.step('the delegate settings say they are not available here')
+
+  // The counter case of `mcp-agent` (spec 021 research R12): a phone has no `--mcp-agent` helper.
+  assert.equal(table.mcpHelper, false)
+  const mcp = await runAction(instance, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/ai/agents',
+  })
+  assert.ok(mcp.ok, JSON.stringify(mcp))
+  await waitForLocation(instance, 'ai.agents')
+  await instance.waitForDisplayed('settings-not-on-this-device')
+  ctx.step('the agent access says it is not available here')
 })

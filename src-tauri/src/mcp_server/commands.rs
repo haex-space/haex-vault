@@ -1,13 +1,16 @@
 //! Commands of the window (spec 021, contracts/tauri-commands.md): the state of the MCP access, the
-//! switch behind the guardrail action `settings.agents.mcp.enable`, the answer to a registration
-//! dialog and the setup snippets. Only the window calls them; no agent reaches a command.
+//! switch behind the guardrail action `settings.agents.mcp.enable`, the answers to a registration
+//! dialog and a call prompt, the agent log and the setup snippets. Only the window calls them; no
+//! agent reaches a command.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::prompts::RegistrationAnswer;
+use super::agent_log::{self, AgentLogEntry};
+use super::connection::now_millis;
+use super::prompts::{CallDecision, RegistrationAnswer};
 use super::settings;
 use super::{McpRunState, McpServer};
 use crate::chat::session::ChatState;
@@ -37,6 +40,26 @@ pub struct McpConfigureArgs {
 pub struct McpRegistrationAnswerArgs {
     pub request_id: String,
     pub answer: RegistrationAnswer,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct McpCallAnswerArgs {
+    pub request_id: String,
+    pub decision: CallDecision,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct McpAgentLogArgs {
+    pub agent_id: Uuid,
+    /// Entries before this Unix millisecond; the newest when absent.
+    #[ts(type = "number | null")]
+    pub before: Option<i64>,
+    /// At most 200.
+    pub limit: u32,
 }
 
 /// The agents the setup snippets are written for (FR-005).
@@ -131,6 +154,30 @@ pub async fn mcp_registration_answer(
     args: McpRegistrationAnswerArgs,
 ) -> Result<bool> {
     Ok(server.prompts().answer(&args.request_id, args.answer))
+}
+
+/// The window's answer to a call prompt (FR-022). An unknown id is no error, as above.
+#[tauri::command]
+pub async fn mcp_call_answer(
+    server: State<'_, McpServer>,
+    args: McpCallAnswerArgs,
+) -> Result<bool> {
+    Ok(server.calls().answer(&args.request_id, args.decision))
+}
+
+/// The log of one agent on this device, newest first (FR-028).
+#[tauri::command]
+pub async fn mcp_agent_log<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    args: McpAgentLogArgs,
+) -> Result<Vec<AgentLogEntry>> {
+    let device = open_device(&app, &state).await?;
+    let now = now_millis();
+    state
+        .database()?
+        .write(move |tx| agent_log::read(tx, device, args.agent_id, args.before, args.limit, now))
+        .await
 }
 
 /// The text to paste into the agent (FR-005). Never carries a credential; the `--vault` value only

@@ -20,12 +20,12 @@ Katalogaktionen unten (ein Weg für Oberfläche und Tests).
 
 ## Ereignisse (Rust → Fenster)
 
-| Ereignis                   | Inhalt                                                                                                                                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp-registration-request` | `requestId`, Slug, angegebener Name, Transport, vorausgefüllte Rechte, Frist                                                                                                                |
-| `mcp-call-request`         | `requestId`, Agent-Id, angegebener Name, Werkzeug (lokalisiert), Wirkung, Ziel, Eingaben ohne Geheimnisse, Hinweis „Geheimnis geht an Agent und Anbieter“ bei `passwords.secret.get`, Frist |
-| `mcp-prompt-closed`        | `requestId`, Grund (`answered`, `timeout`, `cancelled`)                                                                                                                                     |
-| `mcp-agents-changed`       | –                                                                                                                                                                                           |
+| Ereignis                   | Inhalt                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp-registration-request` | `requestId`, Slug, angegebener Name, Transport, vorausgefüllte Rechte, Frist                                                                                                                    |
+| `mcp-call-request`         | `requestId`, Agent-Id, angegebener Name, Aktion mit Titeln (de, en), Wirkung, Ziel, Eingaben ohne Geheimnisse, Hinweis „Geheimnis geht an Agent und Anbieter“ bei `passwords.secret.get`, Frist |
+| `mcp-prompt-closed`        | `requestId`, Grund (`answered`, `timeout`, `cancelled`)                                                                                                                                         |
+| `mcp-agents-changed`       | –                                                                                                                                                                                               |
 
 Delegates: `mcp-call-request` mit `delegateTurnId` wird vom Chat als Freigabe-Zeile gezeigt statt
 als Dialog (R6).

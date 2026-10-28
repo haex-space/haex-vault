@@ -71,6 +71,8 @@ Prüfung beim Speichern (FR-008): `holzi_vault` muss ein gültiger npub sein, `h
 
 ## haex_contacts_cards
 
+> Spec 060: der Schlüssel ist der Hash der unterschriebenen Nutzlast, eine Vault kann mehrere Karten haben (siehe `specs/060-contact-sharing/data-model.md` §1).
+
 Bestätigte holzi-Adressen aus einer Visitenkarte (FR-008 bis FR-013).
 
 | Spalte         | Typ     | Regeln                                                    |

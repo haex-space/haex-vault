@@ -31,6 +31,8 @@ export type AgentActionDef = {
   titles: Record<ActionLocale, string>
   /** `native`: Rust runs it itself (ADR 0011). */
   runner?: 'native'
+  /** The action's own dialog is the question; the chat does not ask again (spec 060 FR-029). */
+  confirmsItself?: boolean
 }
 
 export type TitleOf = (titleKey: string, locale: ActionLocale) => string
@@ -92,6 +94,7 @@ export function toAgentActionDef(
       en: titleOf(def.titleKey, 'en'),
     },
     ...(def.runner ? { runner: def.runner } : {}),
+    ...(def.confirmsItself ? { confirmsItself: true } : {}),
   }
 }
 

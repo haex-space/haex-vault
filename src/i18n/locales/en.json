@@ -1755,7 +1755,8 @@
     "contacts": {
       "search": "Search contacts",
       "get": "Read a contact",
-      "update": "Change a contact"
+      "update": "Change a contact",
+      "share": "Share a contact as a link"
     }
   },
   "passwords": {
@@ -3167,7 +3168,13 @@
       "copy": "Copy link",
       "copied": "Link copied",
       "size": "{size} characters",
-      "action": "Share"
+      "action": "Share",
+      "confirm": {
+        "title": "Share this contact?",
+        "intro": "The assistant wants to hand out “{name}” as a link. Check what goes along; you can change the choice. Without your approval it gets none of it.",
+        "allow": "Approve",
+        "deny": "Decline"
+      }
     },
     "fileShares": {
       "title": "File shares",
@@ -3334,8 +3341,7 @@
     "settings": {
       "enabled": "Access for external agents",
       "enabledHint": "Agents on this device may connect and ask to be registered",
-      "state": "State",
-      "soon": "The access can be turned on once holzi can ask before every call of an agent. That comes with one of the next versions."
+      "state": "State"
     },
     "state": {
       "off": "Off",
@@ -3358,6 +3364,28 @@
     "notification": {
       "title": "An agent wants to use holzi",
       "body": "Open holzi to register or decline it."
+    },
+    "call": {
+      "title": "Allow an agent call",
+      "agent": "Agent",
+      "action": "Action",
+      "effect": "Effect",
+      "target": "Target",
+      "input": "Inputs",
+      "noInput": "None",
+      "secret": "If you allow it, a secret goes to the agent and to the provider of its model.",
+      "more": "More prompts wait after this one: {count}",
+      "allow": "Allow",
+      "deny": "Deny"
+    },
+    "effect": {
+      "read": "Read",
+      "write": "Change",
+      "destructive": "Destructive, cannot be undone"
+    },
+    "callNotification": {
+      "title": "An agent waits for your approval",
+      "body": "Open holzi to allow or deny the call."
     }
   }
 }

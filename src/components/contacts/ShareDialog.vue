@@ -4,9 +4,15 @@
  * every other: every row chosen when it opens and nothing remembered (FR-010), the text of the
  * share rebuilt with every change of the choice. The text is link, clipboard text and QR code at
  * once; the QR code only shows for a text that fits one.
+ *
+ * In `confirm` mode (spec 060 FR-029 to FR-032) an agent wants to share the contact: the dialog opens
+ * with the agent's proposal chosen and the options it was given, shows no text, and answers with the
+ * choice the person left standing ("Freigeben") or none ("Ablehnen"). The owner of the request
+ * closes the dialog by dropping the request; closing it any other way is its to treat as a "no".
  */
 import { toast } from 'vue-sonner'
 import type { ContactShareOptions } from '@bindings/ContactShareOptions'
+import type { ContactShareSelection } from '@bindings/ContactShareSelection'
 import type { ContactShareOutput } from '@bindings/ContactShareOutput'
 import type { VaultDevice } from '@bindings/VaultDevice'
 import {
@@ -17,11 +23,26 @@ import {
   type ShareSelection,
 } from '~/lib/contacts/share'
 
-const props = defineProps<{
-  contactId: string
+const props = withDefaults(
+  defineProps<{
+    contactId: string
+    mode?: 'share' | 'confirm'
+    /** `confirm`: what the agent was offered, and what it proposes inside it. */
+    offered?: ContactShareOptions
+    proposed?: ContactShareSelection
+    /** `confirm`: the name of the contact in the intro. */
+    contactName?: string
+  }>(),
+  { mode: 'share', offered: undefined, proposed: undefined, contactName: '' },
+)
+
+const emit = defineEmits<{
+  confirm: [selection: ShareSelection]
+  decline: []
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
+const confirming = computed(() => props.mode === 'confirm')
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -44,27 +65,40 @@ function deviceName(uuid: string): string {
   return device?.alias ?? t('contacts.origin.otherDevice')
 }
 
-watch(open, async (isOpen) => {
-  generation += 1
-  options.value = null
-  selection.value = null
-  output.value = null
-  error.value = null
-  if (!isOpen) return
-  const mine = generation
-  try {
-    const [loaded, known] = await Promise.all([
-      shareOptionsAsync(props.contactId),
-      listVaultDevicesAsync().catch(() => [] as VaultDevice[]),
-    ])
-    if (mine !== generation) return
-    devices.value = known
-    options.value = loaded
-    selection.value = selectAll(loaded)
-  } catch (cause) {
-    if (mine === generation) error.value = errString(cause)
-  }
-})
+watch(
+  open,
+  async (isOpen) => {
+    generation += 1
+    options.value = null
+    selection.value = null
+    output.value = null
+    error.value = null
+    if (!isOpen) return
+    const mine = generation
+    try {
+      const [loaded, known] = await Promise.all([
+        confirming.value && props.offered
+          ? Promise.resolve(props.offered)
+          : shareOptionsAsync(props.contactId),
+        listVaultDevicesAsync().catch(() => [] as VaultDevice[]),
+      ])
+      if (mine !== generation) return
+      devices.value = known
+      options.value = loaded
+      selection.value =
+        confirming.value && props.proposed
+          ? toArgs(props.proposed)
+          : selectAll(loaded)
+    } catch (cause) {
+      if (mine === generation) error.value = errString(cause)
+    }
+  },
+  { immediate: true },
+)
+
+function allow() {
+  if (selection.value) emit('confirm', toArgs(selection.value))
+}
 
 const buildable = computed(
   () =>
@@ -77,7 +111,7 @@ const buildable = computed(
 watch(
   [selection, buildable],
   async () => {
-    if (!selection.value || !options.value) return
+    if (confirming.value || !selection.value || !options.value) return
     generation += 1
     const mine = generation
     output.value = null
@@ -114,11 +148,23 @@ async function copyAsync() {
 </script>
 
 <template>
-  <UiDrawerModal v-model:open="open" :title="t('contacts.share.title')">
+  <UiDrawerModal
+    v-model:open="open"
+    :title="
+      confirming ? t('contacts.share.confirm.title') : t('contacts.share.title')
+    "
+  >
     <template #content>
       <div class="flex flex-col gap-4" data-testid="contacts-share">
         <template v-if="options && selection">
-          <p class="text-sm text-muted-foreground">
+          <p
+            v-if="confirming"
+            class="text-sm"
+            data-testid="contacts-share-confirm-intro"
+          >
+            {{ t('contacts.share.confirm.intro', { name: contactName }) }}
+          </p>
+          <p v-else class="text-sm text-muted-foreground">
             {{ t('contacts.share.intro') }}
           </p>
           <p class="text-sm" data-testid="contacts-share-name">
@@ -209,6 +255,28 @@ async function copyAsync() {
             {{ t('contacts.share.size', { size: output.size }) }}
           </p>
         </div>
+      </div>
+    </template>
+    <template v-if="confirming" #footer>
+      <div class="flex justify-end gap-2">
+        <UiButton
+          type="button"
+          size="sm"
+          variant="outline"
+          data-testid="contacts-share-confirm-deny"
+          @click="emit('decline')"
+        >
+          {{ t('contacts.share.confirm.deny') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          size="sm"
+          :disabled="!buildable"
+          data-testid="contacts-share-confirm-allow"
+          @click="allow"
+        >
+          {{ t('contacts.share.confirm.allow') }}
+        </UiButton>
       </div>
     </template>
   </UiDrawerModal>

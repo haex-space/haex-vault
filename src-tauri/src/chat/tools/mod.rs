@@ -193,6 +193,12 @@ pub trait Tool: Send + Sync {
     fn always_ask(&self) -> bool {
         false
     }
+    /// The tool asks the user itself, with a dialog of its own and every time (an action with
+    /// `confirmsItself`, spec 060 FR-029): the general approval of Manual and Auto is left out so
+    /// the user is not asked twice. "Plan" mode refuses it nevertheless.
+    fn confirms_itself(&self) -> bool {
+        false
+    }
     /// What the matched offer compares with a message (spec 018); only an extension's tool has it.
     fn match_entry(&self) -> Option<extension_offer::MatchEntry> {
         None

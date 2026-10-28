@@ -66,6 +66,8 @@ Art). Die Einstellungen bieten als Zielkonto nur beschreibbare Konten an.
 
 ## Visitenkarten
 
+> Spec 060: `contacts_own_card*`, `contacts_card_preview` und `contacts_card_accept` sind durch `contacts_share_*` ersetzt (siehe `specs/060-contact-sharing/contracts/tauri-commands.md`).
+
 | Command                               | Eingabe                                                             | Ausgabe                                                                                                                |
 | ------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `contacts_own_card`                   | –                                                                   | `{ text, qr_svg, issued_at, can_sign, omitted[], own_contact, value_ids }` (ein Hauptgerät erstellt die erste)         |

@@ -1755,7 +1755,8 @@
     "contacts": {
       "search": "Kontakte suchen",
       "get": "Kontakt lesen",
-      "update": "Kontakt ändern"
+      "update": "Kontakt ändern",
+      "share": "Kontakt als Link weitergeben"
     }
   },
   "passwords": {
@@ -3167,7 +3168,13 @@
       "copy": "Link kopieren",
       "copied": "Link kopiert",
       "size": "{size} Zeichen",
-      "action": "Teilen"
+      "action": "Teilen",
+      "confirm": {
+        "title": "Kontakt weitergeben?",
+        "intro": "Der Assistent möchte „{name}“ als Link weitergeben. Prüfe, was mitgehen soll; du kannst die Auswahl ändern. Ohne Freigabe bekommt er nichts davon.",
+        "allow": "Freigeben",
+        "deny": "Ablehnen"
+      }
     },
     "fileShares": {
       "title": "Dateifreigaben",
@@ -3334,8 +3341,7 @@
     "settings": {
       "enabled": "Zugang für externe Agenten",
       "enabledHint": "Agenten auf diesem Gerät dürfen sich verbinden und um Registrierung bitten",
-      "state": "Zustand",
-      "soon": "Der Zugang lässt sich einschalten, sobald holzi vor jedem Aufruf eines Agenten nachfragen kann. Das kommt mit einer der nächsten Versionen."
+      "state": "Zustand"
     },
     "state": {
       "off": "Aus",
@@ -3358,6 +3364,28 @@
     "notification": {
       "title": "Ein Agent möchte holzi nutzen",
       "body": "Öffne holzi, um ihn zu registrieren oder abzulehnen."
+    },
+    "call": {
+      "title": "Aufruf eines Agenten freigeben",
+      "agent": "Agent",
+      "action": "Aktion",
+      "effect": "Wirkung",
+      "target": "Ziel",
+      "input": "Eingaben",
+      "noInput": "Keine",
+      "secret": "Wenn du erlaubst, geht ein Geheimnis an den Agenten und an den Anbieter seines Modells.",
+      "more": "Danach warten weitere Rückfragen: {count}",
+      "allow": "Erlauben",
+      "deny": "Ablehnen"
+    },
+    "effect": {
+      "read": "Lesen",
+      "write": "Ändern",
+      "destructive": "Zerstörend, lässt sich nicht rückgängig machen"
+    },
+    "callNotification": {
+      "title": "Ein Agent wartet auf deine Freigabe",
+      "body": "Öffne holzi, um den Aufruf zu erlauben oder abzulehnen."
     }
   }
 }

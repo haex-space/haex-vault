@@ -171,6 +171,7 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
         match found {
             Ok(Some(agent)) if agent.status == AgentStatus::Registered => {
                 let id = agent.id;
+                let (mode, client_name) = (agent.mode, agent.client_name);
                 let now = now_millis();
                 let rights = core
                     .db
@@ -180,7 +181,12 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
                     })
                     .await;
                 return match rights {
-                    Ok(rights) => Admission::Known(SessionAgent { id, rights }),
+                    Ok(rights) => Admission::Known(SessionAgent {
+                        id,
+                        rights,
+                        mode,
+                        client_name,
+                    }),
                     Err(error) => {
                         log::warn!("mcp server: could not read an agent's rights: {error}");
                         Admission::Rejected(RejectReason::Disabled)
@@ -338,6 +344,8 @@ async fn register(context: RegistrationContext) {
     session.set_agent(SessionAgent {
         id: agent.id,
         rights: answer.rights,
+        mode: agent.mode,
+        client_name: agent.client_name,
     });
     // The credential before the new tool list, so the helper has saved it when the agent asks.
     let _ = controls.send(Control::Token(credential.into_string()));

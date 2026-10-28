@@ -4,6 +4,8 @@
 
 pub mod access;
 pub mod agent;
+pub mod agent_share;
+pub mod agent_share_confirm;
 pub mod card;
 pub mod commands;
 pub mod ids;

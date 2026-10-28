@@ -65,6 +65,11 @@ pub trait NativeExecutor: Send + Sync {
     /// The action ids it runs.
     fn action_ids(&self) -> &'static [&'static str];
 
+    /// The action ids for which the executor performs confirmation itself on every call.
+    fn confirming_action_ids(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     async fn run(
         &self,
         action_id: &str,
@@ -142,6 +147,14 @@ impl Tool for NativeActionTool {
 
     fn action_definition(&self) -> Option<&AgentActionDef> {
         Some(&self.def)
+    }
+
+    fn confirms_itself(&self) -> bool {
+        self.def.confirms_itself
+            && self
+                .executor
+                .confirming_action_ids()
+                .contains(&self.def.action_id.as_str())
     }
 
     async fn execute(&self, input: Value, cancel: CancellationToken) -> ToolResult {

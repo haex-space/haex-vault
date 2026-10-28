@@ -32,6 +32,14 @@ export const MINIMUM_COVERAGE = 0.8
 
 export const EXCLUSIONS: PlatformExclusion[] = [
   {
+    scenario: 'mcp-agent',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'external agents reach holzi through the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); the HTTP way comes with spec 021 PR G',
+    counterCase: 'android-not-available',
+  },
+  {
     scenario: 'files-split',
     platform: 'android',
     kind: 'excluded',

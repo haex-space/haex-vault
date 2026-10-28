@@ -24,8 +24,17 @@ async fn group_operate_lists_exactly_the_covered_actions() {
     let mut fx = fixture();
     let server = fx.server().await;
     let (agent, _helper) = fx.registered("contract", everything()).await;
-    // Until the call prompts exist an agent only reads, whatever its level (shipping note).
-    assert_eq!(tool_names(&agent).await, ["settings_get", "wm_state_get"]);
+    // Reading, changing and destroying in every covered scope; the guardrail never.
+    assert_eq!(
+        tool_names(&agent).await,
+        [
+            "chat_message_send",
+            "chat_thread_delete",
+            "settings_appearance_setColorScheme",
+            "settings_get",
+            "wm_state_get"
+        ]
+    );
     server.stop(CloseReason::Disabled).await;
 }
 

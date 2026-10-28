@@ -84,7 +84,7 @@ pub struct ContactShareOptions {
 }
 
 /// What the person chose about the holzi addresses.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(
     tag = "kind",
@@ -102,8 +102,8 @@ pub enum ContactShareHolziChoice {
     },
 }
 
-/// What the person chose in the dialog.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+/// What the person chose in the dialog (and what an agent proposes, spec 060 FR-030).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct ContactShareSelection {

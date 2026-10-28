@@ -3,6 +3,7 @@
 //! window, and then call the actions their rights cover. Off by default, per device, and only while
 //! a vault is open (FR-001, FR-002).
 
+pub mod agent_log;
 pub mod commands;
 pub mod connection;
 pub mod dispatch;
@@ -11,11 +12,14 @@ pub mod grants;
 pub mod hello;
 pub mod helper;
 pub mod prompts;
+pub mod redact;
 pub mod registry;
 pub mod server;
 pub mod session;
 pub mod settings;
 
+#[cfg(test)]
+mod agent_log_tests;
 #[cfg(test)]
 mod endpoint_tests;
 #[cfg(test)]
@@ -39,8 +43,9 @@ use uuid::Uuid;
 use self::connection::now_millis;
 use self::hello::CloseReason;
 use self::prompts::{
-    new_registration_prompts, RegistrationPromptEvent, RegistrationPrompts, EVENT_AGENTS_CHANGED,
-    EVENT_PROMPT_CLOSED, EVENT_REGISTRATION_REQUEST, REGISTRATION_TIMEOUT,
+    new_call_prompts, new_registration_prompts, CallPromptEvent, CallPrompts,
+    RegistrationPromptEvent, RegistrationPrompts, CALL_TIMEOUT, EVENT_AGENTS_CHANGED,
+    EVENT_CALL_REQUEST, EVENT_PROMPT_CLOSED, EVENT_REGISTRATION_REQUEST, REGISTRATION_TIMEOUT,
 };
 use self::server::{Limits, Notice, Notifier, Running, StartArgs, StartError};
 use crate::chat::session::ChatState;
@@ -68,6 +73,7 @@ struct Slot {
 /// The MCP access of this process; a Tauri managed state.
 pub struct McpServer {
     prompts: RegistrationPrompts,
+    calls: CallPrompts,
     notify: Mutex<Option<Notifier>>,
     configuration: tokio::sync::Mutex<()>,
     slot: tokio::sync::Mutex<Slot>,
@@ -77,6 +83,7 @@ impl Default for McpServer {
     fn default() -> Self {
         Self {
             prompts: new_registration_prompts(),
+            calls: new_call_prompts(),
             notify: Mutex::new(None),
             configuration: tokio::sync::Mutex::new(()),
             slot: tokio::sync::Mutex::new(Slot::default()),
@@ -89,14 +96,21 @@ impl McpServer {
     pub fn attach<R: Runtime>(&self, app: &AppHandle<R>) {
         let handle = app.clone();
         self.prompts.set_emitter(Arc::new(move |id, question| {
-            let expires_at =
-                now_millis() + i64::try_from(REGISTRATION_TIMEOUT.as_millis()).unwrap_or(i64::MAX);
             let event = RegistrationPromptEvent {
                 request_id: id.to_owned(),
-                expires_at,
+                expires_at: expires_at(REGISTRATION_TIMEOUT),
                 question: question.clone(),
             };
             handle.emit(EVENT_REGISTRATION_REQUEST, event).is_ok()
+        }));
+        let handle = app.clone();
+        self.calls.set_emitter(Arc::new(move |id, question| {
+            let event = CallPromptEvent {
+                request_id: id.to_owned(),
+                expires_at: expires_at(CALL_TIMEOUT),
+                question: question.clone(),
+            };
+            handle.emit(EVENT_CALL_REQUEST, event).is_ok()
         }));
         let handle = app.clone();
         *self.notify.lock().unwrap_or_else(PoisonError::into_inner) =
@@ -113,6 +127,10 @@ impl McpServer {
 
     pub fn prompts(&self) -> &RegistrationPrompts {
         &self.prompts
+    }
+
+    pub fn calls(&self) -> &CallPrompts {
+        &self.calls
     }
 
     fn notifier(&self) -> Notifier {
@@ -146,6 +164,7 @@ impl McpServer {
                         catalog: chat.action_catalog.clone(),
                         bridge: chat.action_bridge.clone(),
                         prompts: self.prompts.clone(),
+                        calls: self.calls.clone(),
                         notify: self.notifier(),
                         limits: Limits::default(),
                     };
@@ -177,6 +196,11 @@ impl McpServer {
             _ => McpRunState::Off,
         }
     }
+}
+
+/// When a prompt that waits `timeout` from now ends, in Unix milliseconds.
+fn expires_at(timeout: std::time::Duration) -> i64 {
+    now_millis().saturating_add(i64::try_from(timeout.as_millis()).unwrap_or(i64::MAX))
 }
 
 /// Starts the access for the vault that just opened, when this device turned it on (FR-001).
