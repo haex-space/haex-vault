@@ -12,6 +12,7 @@ import {
   parseSort,
   visibleEntries,
 } from '../src/lib/files/state.ts'
+import { storageIcon } from '../src/lib/files/storageIcons.ts'
 
 type Entry = SortableEntry & { path: string }
 
@@ -110,4 +111,12 @@ test('parent and child paths keep their style', () => {
   assert.equal(childPath('/home', 'anna'), '/home/anna')
   assert.equal(childPath('/', 'tmp'), '/tmp')
   assert.equal(childPath('C:\\', 'Users'), 'C:\\Users')
+})
+
+test('a storage gets the icon of its protocol, the cloud while it is unknown', () => {
+  assert.equal(storageIcon('s3'), 'lucide:database')
+  assert.equal(storageIcon('webdav'), 'lucide:globe')
+  assert.equal(storageIcon('sftp'), 'lucide:terminal')
+  assert.equal(storageIcon(undefined), 'lucide:cloud')
+  assert.equal(storageIcon('ftp'), 'lucide:cloud')
 })

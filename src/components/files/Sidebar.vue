@@ -8,6 +8,7 @@
  */
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
+import { storageIcon } from '~/lib/files/storageIcons'
 import { formatFileSize } from '~/lib/passwords/format'
 
 defineProps<{
@@ -26,6 +27,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { overview } = useStorageOverview()
+
+/** The protocol of a storage's connection (S3, WebDAV, SFTP), once the overview is read. */
+function protocolOf(storageId: string): string | undefined {
+  const storage = overview.value?.storages.find(
+    (entry) => entry.id === storageId,
+  )
+  return overview.value?.connections.find(
+    (connection) => connection.id === storage?.connectionId,
+  )?.protocol
+}
 
 /** "Meine Dateifreigaben" is open. */
 const overviewOpen = ref(false)
@@ -258,7 +270,16 @@ const PLACE_ICONS: Record<string, string> = {
             :data-testid="`files-storage-${storage.name}`"
             @click="emit('pickStorage', storage.id)"
           >
-            <Icon name="lucide:cloud" class="size-4 shrink-0" />
+            <Icon
+              :name="storageIcon(protocolOf(storage.id))"
+              class="size-4 shrink-0"
+              :title="
+                protocolOf(storage.id)
+                  ? t(`settings.storage.protocols.${protocolOf(storage.id)}`)
+                  : undefined
+              "
+              :data-protocol="protocolOf(storage.id)"
+            />
             <span class="truncate">{{ storage.name }}</span>
           </button>
         </li>
