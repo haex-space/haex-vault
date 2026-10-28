@@ -5,6 +5,12 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  createHistory,
+  currentLocation,
+  MAX_HISTORY_ENTRIES,
+  push,
+} from '../src/lib/wm/navigation.ts'
+import {
   type FilesPlace,
   filesLocation,
   parseFilesPlace,
@@ -13,10 +19,12 @@ import {
   disableSplit,
   enableSplit,
   fitsSplit,
+  incomingHistory,
   readSplit,
   sourceFromToken,
   sourceToken,
   SPLIT_PANEL_MIN_WIDTH,
+  splitAvailable,
   type SplitState,
   splitQuery,
   stripSplit,
@@ -268,4 +276,40 @@ test('two panels need 720 px, one panel at least 360', () => {
   assert.equal(fitsSplit(719), false)
   assert.equal(fitsSplit(720), true)
   assert.equal(fitsSplit(0), false)
+})
+
+test('a panel without a lane comes with a history of one entry at its place', () => {
+  const location = filesLocation(device('/b'))
+  const history = incomingHistory(null, location)
+  assert.equal(history.entries.length, 1)
+  assert.equal(history.index, 0)
+  assert.deepEqual(currentLocation(history), location)
+})
+
+test('a lane keeps its entries and only its current entry takes the new place', () => {
+  const first = filesLocation(device('/x'))
+  let lane = createHistory(first)
+  lane = push(lane, filesLocation(device('/x/y')))
+  lane = push(lane, filesLocation(device('/x/y/z')))
+  const location = filesLocation(device('/x/y/z', { q: 'neu' }))
+  const history = incomingHistory(lane, location)
+  assert.equal(history.entries.length, 3)
+  assert.equal(history.index, 2)
+  assert.deepEqual(history.entries[0]?.location, first)
+  assert.deepEqual(currentLocation(history), location)
+  assert.ok(history.entries.length <= MAX_HISTORY_ENTRIES)
+  assert.equal(
+    currentLocation(lane).query.q,
+    undefined,
+    'the lane itself is not changed',
+  )
+})
+
+test('phones do not offer two panels, everything else does', () => {
+  assert.equal(splitAvailable('android'), false)
+  assert.equal(splitAvailable('ios'), false)
+  assert.equal(splitAvailable('linux'), true)
+  assert.equal(splitAvailable('windows'), true)
+  assert.equal(splitAvailable('macos'), true)
+  assert.equal(splitAvailable(undefined), true)
 })

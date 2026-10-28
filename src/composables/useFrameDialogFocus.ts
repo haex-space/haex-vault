@@ -4,8 +4,8 @@ import { onMounted, type Ref } from 'vue'
  * The keyboard of a dialog drawn over an extension's frame (`FrameDialog.vue`, `StorageDialog.vue`).
  * It takes the focus when it opens: `autofocus` only works while a document loads, and the keyboard
  * would otherwise stay in the frame below, where Enter asks the same question again. It keeps the
- * keyboard while it is open, since Escape and Enter answer it only from inside: focus that falls to
- * nothing or to the inert frame comes back, focus moved to another part of holzi stays there.
+ * keyboard while it is open, since Escape and Enter answer it only from inside: focus that falls
+ * outside the dialog comes back to its confirm button.
  *
  * Returns the handler for the dialog's `focusout`.
  */
@@ -19,17 +19,12 @@ export function useFrameDialogFocus(
       ?.focus()
   }
 
-  /** Takes the keyboard back after the next render if it fell out of the dialog to nowhere. */
+  /** Takes the keyboard back after the next render if it fell out of the dialog. */
   function reclaimFocus(): void {
     requestAnimationFrame(() => {
       const active = document.activeElement
       if (!root.value || root.value.contains(active)) return
-      if (
-        active === null ||
-        active === document.body ||
-        active.closest('[inert]')
-      )
-        focusConfirm()
+      focusConfirm()
     })
   }
 

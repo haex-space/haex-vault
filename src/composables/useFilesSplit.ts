@@ -1,4 +1,10 @@
-import { inject, provide, type InjectionKey } from 'vue'
+import {
+  inject,
+  nextTick,
+  provide,
+  shallowReactive,
+  type InjectionKey,
+} from 'vue'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import {
@@ -6,14 +12,28 @@ import {
   filesLocation,
   parseFilesPlace,
 } from '~/lib/files/registry'
-import { readSplit, type SplitSide, withSplit } from '~/lib/files/split'
+import {
+  disableSplit,
+  enableSplit,
+  incomingHistory,
+  readSplit,
+  type SplitSide,
+  type SplitState,
+  swapActive,
+  withSplit,
+} from '~/lib/files/split'
+import { locationsEqual, type TabHistory } from '~/lib/wm/navigation'
 
 /**
  * The frame of the file browser (spec 062, `contracts/panel-context.md`): it owns where the tab
  * stands and hands every panel a context to read its place and to write it back. Every write to the
  * tab location goes through here, so the keys of the split (`split`, `side`, `o.*`) are never lost;
- * a panel never calls `useTabRouter()`. Until the split arrives there is one panel, always the
- * active one.
+ * a panel never calls `useTabRouter()`.
+ *
+ * The plain keys of the location (and its history) belong to the *active* panel; the other panel's
+ * place is the frame's state, mirrored into the current entry. Each panel has its own history: the
+ * tab's history is the active panel's, the other one's waits in memory (`lane`) and is swapped in
+ * when that panel becomes the active one (`data-model.md`, research R2).
  */
 
 /** What a panel offers the frame and the other panel (data-model.md "PanelHandle"). */
@@ -35,13 +55,14 @@ export type FilesQueryPatch = Partial<
 
 export type FilesPanelContext = {
   side: SplitSide
-  /** The place of this panel, read from the tab location. */
+  /** The place of this panel. */
   place: ComputedRef<FilesPlace>
   /** This panel is the active one. */
   active: ComputedRef<boolean>
   /** Two panels show. */
   split: ComputedRef<boolean>
-  /** Navigates this panel to `place` (a new history entry unless `replace`). */
+  /** Navigates this panel to `place` (a new history entry unless `replace`); a panel that is not the
+   * active one becomes it first. */
   go(place: FilesPlace, options?: { replace?: boolean }): void
   /** Sets the starting place of this panel (replaces the entry, activates nothing). */
   initialize(place: FilesPlace): void
@@ -77,64 +98,139 @@ export function useFilesPanel(side: SplitSide): FilesPanelContext {
   return panel(side)
 }
 
+const DEVICE_START: FilesPlace = { source: { kind: 'device' }, path: null }
+
+const opposite = (side: SplitSide): SplitSide =>
+  side === 'left' ? 'right' : 'left'
+
 export function useFilesSplit(options: {
   sources: Ref<Sources | null>
   reloadSources: () => void
   pathHost: Readonly<Ref<HTMLElement | null>>
   viewerHost: Readonly<Ref<HTMLElement | null>>
+  /** The platform offers two panels (not on a phone, FR-021). */
+  available: Readonly<Ref<boolean>>
+  /** The panel area is wide enough for two panels (FR-022). */
+  fits: Readonly<Ref<boolean>>
 }) {
   const router = useTabRouter()
   const wm = useWindowManagerStore()
   const { tabId, windowId, openApp } = useWmTab()
 
-  const place = computed(
-    (): FilesPlace =>
-      parseFilesPlace(router.route) ?? {
-        source: { kind: 'device' },
-        path: null,
-      },
+  // What the frame knows beyond the plain keys; read from the location once (start, session).
+  const first = readSplit(router.route)
+  const start = first.on ? enableSplit(first) : first
+  const stored = ref({ on: start.on, side: start.side, other: start.other })
+  /** The history of the panel that is not the active one (kept in memory only). */
+  let lane: TabHistory | null = null
+
+  const active = computed(() => parseFilesPlace(router.route) ?? DEVICE_START)
+  const state = computed((): SplitState => ({
+    ...stored.value,
+    active: active.value,
+  }))
+  const shown = computed(
+    () => stored.value.on && options.available.value && options.fits.value,
   )
+  const activeSide = computed(() => stored.value.side)
+
   const tabActive = computed(
     () =>
       wm.windows.find((window) => window.id === windowId)?.activeTabId ===
       tabId,
   )
 
+  function keep(next: SplitState) {
+    stored.value = { on: next.on, side: next.side, other: next.other }
+  }
+
+  /** Writes the split keys of the state into the current entry, when they differ (contract rule 2). */
+  function mirror() {
+    const wanted = withSplit(router.route, state.value)
+    if (!locationsEqual(router.route, wanted)) router.replace(wanted)
+  }
+  // After a jump in the history (back, forward, session) or a push from outside, the entry may not
+  // carry the keys of the split.
+  watch(() => JSON.stringify([router.route.path, router.route.query]), mirror, {
+    flush: 'post',
+  })
+
   function write(to: FilesPlace, replace: boolean) {
-    const location = withSplit(filesLocation(to), readSplit(router.route))
+    const location = withSplit(filesLocation(to), state.value)
     if (replace) router.replace(location)
     else router.push(location)
   }
-  const go = (to: FilesPlace, goOptions: { replace?: boolean } = {}) =>
-    write(to, goOptions.replace === true)
 
+  /** Makes `side` the active panel: its history comes in, the other's waits as the lane. Whether it
+   * is the active one now. */
+  function activate(side: SplitSide): boolean {
+    const current = state.value
+    if (side === current.side) return true
+    if (!current.other) return false
+    const next = swapActive(current)
+    const previous = router.swapHistory(
+      incomingHistory(lane, withSplit(filesLocation(next.active), next)),
+    )
+    if (!previous) return false
+    lane = previous
+    keep(next)
+    return true
+  }
+
+  function toggle() {
+    keep(stored.value.on ? disableSplit(state.value) : enableSplit(state.value))
+    lane = null
+    mirror()
+  }
+
+  const handles = shallowReactive(new Map<SplitSide, PanelHandle>())
   const openStorageSettings = () => openApp('system.settings', '/storage')
-  const handles = new Map<SplitSide, PanelHandle>()
 
   /** Keys outside both panels act on the active panel (FR-016); the panels handle their own. */
   function onKeydown(event: KeyboardEvent) {
     const target = event.target instanceof Element ? event.target : null
     if (target?.closest('[data-files-panel]')) return
-    handles.get('left')?.keydown(event)
+    handles.get(stored.value.side)?.keydown(event)
+  }
+
+  function switchFrom(side: SplitSide) {
+    const to = opposite(side)
+    if (!shown.value || !activate(to)) return
+    void nextTick(() => handles.get(to)?.focus())
   }
 
   const panel = (side: SplitSide): FilesPanelContext => ({
     side,
-    place,
-    active: computed(() => true),
-    split: computed(() => false),
-    go,
-    initialize: (to) => write(to, true),
-    setQuery: (patch, queryOptions) => router.setQuery(patch, queryOptions),
+    place: computed(() =>
+      side === stored.value.side
+        ? active.value
+        : (stored.value.other ?? DEVICE_START),
+    ),
+    active: computed(() => side === stored.value.side),
+    split: shown,
+    go(to, goOptions = {}) {
+      if (activate(side)) write(to, goOptions.replace === true)
+    },
+    initialize(to) {
+      if (side === stored.value.side) {
+        write(to, true)
+        return
+      }
+      stored.value = { ...stored.value, other: to }
+      mirror()
+    },
+    setQuery(patch, queryOptions) {
+      if (activate(side)) router.setQuery(patch, queryOptions)
+    },
     register(handle) {
       handles.set(side, handle)
       return () => {
         if (handles.get(side) === handle) handles.delete(side)
       }
     },
-    other: () => null,
-    activate() {},
-    switchPanel() {},
+    other: () => (shown.value ? (handles.get(opposite(side)) ?? null) : null),
+    activate: () => void activate(side),
+    switchPanel: () => switchFrom(side),
     sources: options.sources,
     reloadSources: options.reloadSources,
     tabId,
@@ -146,11 +242,19 @@ export function useFilesSplit(options: {
   provide(FILES_PANEL_KEY, panel)
 
   return {
-    place,
-    go,
+    /** The place of the active panel. */
+    place: active,
+    go: (to: FilesPlace, goOptions: { replace?: boolean } = {}) =>
+      write(to, goOptions.replace === true),
     tabId,
     tabActive,
     openStorageSettings,
     onKeydown,
+    toggle,
+    on: computed(() => stored.value.on),
+    shown,
+    activeSide,
+    /** The other panel has a place, so it is mounted (hidden while the split is off). */
+    hasOther: computed(() => stored.value.other !== null),
   }
 }

@@ -70,6 +70,15 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
 
     await instance.waitForDisplayed('files-entry-notiz.txt')
     assert.deepEqual(await entryNames(instance), ['foto.png', 'notiz.txt'])
+    if (process.env.E2E_PLATFORM === 'android') {
+      assert.equal(
+        await instance.exec<boolean>(
+          `return Boolean(document.querySelector('[data-testid="files-split-toggle"]'))`,
+        ),
+        false,
+        'the split toggle is unavailable on Android',
+      )
+    }
 
     // A text opens in the viewer.
     await doubleClick(instance, 'files-entry-notiz.txt')

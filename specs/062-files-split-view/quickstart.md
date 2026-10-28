@@ -48,6 +48,6 @@ Es gibt keinen Rust-Code in dieser Spec; `cargo`-Läufe sind nur nötig, wenn ei
 
 ## Von Hand (Android, wenn ein Gerät oder Emulator da ist)
 
-| #   | Schritt              | Erwartet                                                                             |
-| --- | -------------------- | ------------------------------------------------------------------------------------ |
-| A1  | Dateibrowser öffnen. | Kein Split-Schalter. Eine Sitzung mit `split=1` aus dem Desktop zeigt nur ein Panel. |
+| #   | Schritt              | Erwartet                                                                                                                                                                                         |
+| --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | Dateibrowser öffnen. | Kein Split-Schalter. Eine Sitzung mit `split=1` aus dem Desktop zeigt nur ein Panel. Das E2E-Szenario `files-split` läuft deshalb nur auf dem Desktop; `files-basic` prüft die Android-Variante. |

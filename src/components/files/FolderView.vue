@@ -172,6 +172,11 @@ function takeFocus() {
   const lost = !active || active === document.body
   if (!lost && (!frame?.contains(active) || isEditableTarget(active))) return
   if (container.value?.contains(active)) return
+  focus()
+}
+
+/** Gives the empty list the focus too, so switching to an empty panel still has a keyboard target. */
+function focus() {
   container.value?.focus({ preventScroll: true })
 }
 
@@ -211,7 +216,7 @@ async function focusEntry(path: string) {
   }
 }
 
-defineExpose({ focusEntry, rowLength })
+defineExpose({ focusEntry, focus, rowLength })
 
 // One format for every row: vue-i18n's `d()` with options builds a new `Intl.DateTimeFormat` on
 // each call, and a scroll through a large folder mounts dozens of rows per frame (FR-008).
