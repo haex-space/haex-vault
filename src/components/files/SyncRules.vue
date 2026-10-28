@@ -53,21 +53,38 @@ function lastRun(view: SyncRuleView): string {
     : t('files.syncRules.neverRun')
 }
 
-/** The bar and text of a running rule; none while another state shows. */
-function running(view: SyncRuleView) {
-  if (view.status.state !== 'running') return null
+/**
+ * The bar and text of a rule that runs, or that was paused in the middle of a run; none while
+ * another state shows. A paused rule keeps the last progress of this session.
+ */
+function activityOf(view: SyncRuleView) {
+  const running = view.status.state === 'running'
+  const paused =
+    view.status.state === 'paused' && view.rule.lastOutcome === 'cancelled'
+  if (!running && !paused) return null
   const progress = store.progress[view.rule.id]
   const share = progress ? progressShare(progress) : null
-  const text =
+  const counted =
     progress?.phase === 'copying' && progress.filesTotal > 0
       ? t('files.syncRules.progress.files', {
           done: progress.filesDone,
           total: progress.filesTotal,
           size: `${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`,
         })
-      : t('files.syncRules.progress.scanning')
-  return { share, text }
+      : null
+  const text = paused
+    ? counted
+      ? `${t('files.syncRules.progress.paused')} · ${counted}`
+      : t('files.syncRules.progress.paused')
+    : (counted ?? t('files.syncRules.progress.scanning'))
+  return { share, text, paused }
 }
+
+const activity = computed(() =>
+  Object.fromEntries(
+    store.rules.map((view) => [view.rule.id, activityOf(view)]),
+  ),
+)
 
 async function act(view: SyncRuleView, work: () => Promise<unknown>) {
   if (busy.value) return
@@ -169,6 +186,7 @@ async function confirmDeleteAsync() {
                 <Icon name="lucide:refresh-cw" class="size-4" />
               </UiButton>
               <UiButton
+                v-if="!activity[view.rule.id]"
                 type="button"
                 variant="ghost"
                 size="icon-sm"
@@ -209,33 +227,74 @@ async function confirmDeleteAsync() {
               </UiButton>
             </div>
             <div
-              v-if="running(view)"
+              v-if="activity[view.rule.id]"
               class="flex flex-col gap-1"
               :data-testid="`files-sync-rule-progress-${view.rule.name}`"
             >
-              <div
-                class="h-1 overflow-hidden rounded bg-muted"
-                role="progressbar"
-                :aria-label="t('files.syncRules.progress.label')"
-                :aria-valuemin="0"
-                :aria-valuemax="100"
-                :aria-valuenow="
-                  running(view)?.share == null
-                    ? undefined
-                    : Math.round((running(view)?.share ?? 0) * 100)
-                "
-              >
+              <div class="flex items-center gap-2">
                 <div
-                  v-if="running(view)?.share != null"
-                  class="h-full bg-primary transition-[width]"
-                  :style="{
-                    width: `${Math.round((running(view)?.share ?? 0) * 100)}%`,
-                  }"
-                />
-                <div v-else class="h-full w-1/3 animate-pulse bg-primary" />
+                  class="h-1 min-w-0 flex-1 overflow-hidden rounded bg-muted"
+                  role="progressbar"
+                  :aria-label="t('files.syncRules.progress.label')"
+                  :aria-valuemin="0"
+                  :aria-valuemax="100"
+                  :aria-valuenow="
+                    activity[view.rule.id]?.share == null
+                      ? undefined
+                      : Math.round((activity[view.rule.id]?.share ?? 0) * 100)
+                  "
+                >
+                  <div
+                    v-if="activity[view.rule.id]?.share != null"
+                    class="h-full transition-[width]"
+                    :class="
+                      activity[view.rule.id]?.paused
+                        ? 'bg-muted-foreground'
+                        : 'bg-primary'
+                    "
+                    :style="{
+                      width: `${Math.round((activity[view.rule.id]?.share ?? 0) * 100)}%`,
+                    }"
+                  />
+                  <div
+                    v-else-if="!activity[view.rule.id]?.paused"
+                    class="h-full w-1/3 animate-pulse bg-primary"
+                  />
+                </div>
+                <UiButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  :disabled="busy !== null"
+                  :aria-label="
+                    activity[view.rule.id]?.paused
+                      ? t('files.syncRules.resume')
+                      : t('files.syncRules.pause')
+                  "
+                  :tooltip="
+                    activity[view.rule.id]?.paused
+                      ? t('files.syncRules.resume')
+                      : t('files.syncRules.pause')
+                  "
+                  :data-testid="`files-sync-rule-progress-toggle-${view.rule.name}`"
+                  @click="
+                    act(view, () =>
+                      setEnabledAsync(view.rule.id, !view.rule.enabled),
+                    )
+                  "
+                >
+                  <Icon
+                    :name="
+                      activity[view.rule.id]?.paused
+                        ? 'lucide:play'
+                        : 'lucide:pause'
+                    "
+                    class="size-4"
+                  />
+                </UiButton>
               </div>
               <span class="text-xs text-muted-foreground">{{
-                running(view)?.text
+                activity[view.rule.id]?.text
               }}</span>
             </div>
             <p

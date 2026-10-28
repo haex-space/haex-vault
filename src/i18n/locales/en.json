@@ -2878,6 +2878,7 @@
       },
       "progress": {
         "label": "Progress",
+        "paused": "Paused",
         "scanning": "Comparing the places …",
         "files": "{done} of {total} files · {size}"
       },
