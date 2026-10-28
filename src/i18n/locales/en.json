@@ -2873,7 +2873,11 @@
         "inactive": "holzi not active"
       },
       "picker": {
-        "root": "Choose a place",
+        "origin": "Choose a device or storage",
+        "chooseFolder": "Choose a folder",
+        "choose": "Choose this folder",
+        "change": "Change",
+        "thisDevice": "This device",
         "up": "One level up",
         "empty": "No subfolders"
       },
