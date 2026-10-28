@@ -67,7 +67,10 @@ export function useFilesDrag(options: {
       return
     }
     event.preventDefault()
-    const payload = parseDragPayload(event.dataTransfer.getData(ENTRIES_MIME))
+    // Browsers hide drag data while hovering. The in-app payload remains available so the cursor
+    // can still reflect whether the target will move or copy these entries.
+    const payload =
+      parseDragPayload(event.dataTransfer.getData(ENTRIES_MIME)) ?? dragging
     if (payload) {
       const op = dropOp(sameSource(payload.source, options.source()), {
         ctrl: event.ctrlKey,
