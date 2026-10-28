@@ -3,7 +3,7 @@
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Stand**: 2026-10-28
 
 Jede Entscheidung mit Begründung und verworfenen Alternativen. Versionen und Lizenzen sind auf dem
-Stand vom 2026-10-28 und werden im Spike (PR B, T005–T009) auf allen Zielen bestätigt, bevor
+Stand vom 2026-10-28 und werden im Spike (PR B, T005–T009, T130) auf allen Zielen bestätigt, bevor
 Code darauf baut.
 
 ## Ausgangslage im Code
@@ -75,11 +75,11 @@ Mischer ist klein.
 ## R3 — Sprach-Laufzeit: sherpa-onnx 2.x
 
 **Entscheidung**: Die Crate `sherpa-onnx` (offiziell, Apache-2.0) für Pausenerkennung (Silero VAD),
-offene Schlüsselwort-Erkennung (R5) und Sprachausgabe (R8), mit `default-features = false` und
+offene Schlüsselwort-Erkennung (R5), Sprachausgabe (R8) und die zweite Spracherkennung (R7), mit `default-features = false` und
 `shared`. Wo ein eigenes ONNX-Modell läuft (Standard-Wake-Word, R4), nutzt `ort` mit
 `load-dynamic` dieselbe `libonnxruntime`. Die Version wird exakt gepinnt.
 
-**Begründung**: Eine Abhängigkeit für drei Aufgaben auf Linux, macOS, Windows, Android und iOS.
+**Begründung**: Eine Abhängigkeit für vier Aufgaben auf Linux, macOS, Windows, Android und iOS.
 Seit 2.0.0 (2026-10-23) ohne espeak-ng und piper-phonemize, also frei von GPL-Code.
 
 **Risiken**: 2.0.x ist bei Planung wenige Tage alt; Rust-Crate 2.0.1 vom 2026-10-27. Zwei statisch
@@ -145,14 +145,38 @@ viele …“ in einem Atemzug ganz ankommt. Höchstdauer einer Runde 60 s wie in
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.
 
-## R7 — Erkennung pro Äußerung mit dem vorhandenen Whisper
+## R7 — Erkennung pro Äußerung: Whisper und Parakeet nebeneinander
 
-**Entscheidung**: Nach dem Ende einer Äußerung geht ihr Puffer an den vorhandenen
-`SttAdapter`. Kein Streaming-STT. Stopp-Wörter (`stt::interrupt::match_interrupt`) prüft der
-Assistent zuerst und bricht ohne Modell ab (FR-017).
+**Entscheidung**: Nach dem Ende einer Äußerung geht ihr Puffer an den gewählten `SttAdapter`. Kein
+Streaming-STT. Stopp-Wörter (`stt::interrupt::match_interrupt`) prüft der Assistent zuerst und bricht
+ohne Modell ab (FR-017).
 
-**Begründung**: Kurze Äußerungen brauchen auf der CPU mit whisper-base unter einer Sekunde; das
-reicht für SC-001 (Quittung kommt vorher) und SC-002.
+Neben dem vorhandenen candle-Whisper kommt NVIDIA Parakeet TDT 0.6B v3 über sherpa
+(`OfflineRecognizer`, `nemo_transducer`, int8, CC-BY-4.0) als zweite Wahl in den STT-Katalog. Beide
+laufen ganz lokal hinter `SttAdapter`; `VoiceState` hält den gewählten Adapter warm, Push-to-Talk
+(008) und Assistent teilen ihn. Parakeet kann 25 europäische Sprachen, darunter Deutsch und Englisch;
+das reicht für den Anfang (Entscheidung des Betreibers, 2026-10-28). Eine Whisper-Variante über
+sherpa ist nicht geplant.
+
+**Whisper bleibt**: Der Betreiber testet beide Modelle ausgiebig, bevor Whisper entfernt wird. Das
+Entfernen von `stt::local` und `candle-transformers` ist nicht Teil von 066, sondern ein eigener PR
+nach seiner Freigabe. Bis dahin entscheidet die Messung (T130) nur den Standard für neue
+Installationen; bereits gewählte Modelle bleiben.
+
+**Messung** (T130, später `tests/stt_compare_eval.rs`): Wortfehlerrate und Echtzeitfaktor beider
+Modelle auf deutschen und englischen Äußerungen (Fixtures und eigene Aufnahmen, 2–15 s) auf
+Referenz-Desktop und -Telefon, dazu Zeit vom Sprechende bis zum Text und Speicherbedarf. Ziel:
+Text ≤ 1 s nach Sprechende auf dem Referenz-Desktop, damit SC-001 und SC-002 halten.
+
+**Begründung**: Whisper base ist im Deutschen schwach, Whisper small auf der CPU langsam (008:
+whisper-small braucht in `tauri dev` für 11 s Audio spürbar lange). Parakeet ist laut Berichten
+deutlich schneller als Whisper small, liefert Satzzeichen und Wortzeiten (die 067 braucht) und
+erfindet bei Stille kaum Text (nicht gemessen). sherpa ist durch R3 ohnehin im Build.
+
+**Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
+Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.
+Whisper zusätzlich über sherpa — vorerst nicht nötig, weil 25 Sprachen reichen. Canary-180m-flash
+(CC-BY-4.0, nur de/en/es/fr) — als Ersatz, falls Parakeet auf dem Telefon zu langsam ist.
 
 ## R8 — Lokale Sprachausgabe: Kyutai Pocket TTS über sherpa
 

@@ -85,6 +85,10 @@ Gesucht wird in Rust mit der gemeinsamen Faltung (`passwords::ids::fold_for_sear
 
 ### Kataloge (im Binary, `include_str!`)
 
+- `src-tauri/src/stt/stt_catalog.json` (vorhanden, 008/010): neues Feld `engine`
+  (`"candle-whisper"` für die vorhandenen Einträge, `"sherpa-parakeet"`) und `languages`
+  (Parakeet: die 25 Sprachen des Modells). Parakeet als Eintrag `parakeet-tdt-0.6b-v3` (int8,
+  CC-BY-4.0, Namensnennung). Die Whisper-Einträge bleiben unverändert (R7).
 - `src-tauri/src/tts/tts_catalog.json`: Stimmen, Format wie `stt_catalog.json` plus `language`
   (`"de"`/`"en"`), `engine` (`"pocket"` …), `sample_rate`. Gepinnte HF-Revision, Größe, Lizenz,
   Namensnennung.

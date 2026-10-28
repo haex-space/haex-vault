@@ -98,6 +98,7 @@ R8). Record every result in research.md.
 - [ ] T006 Spike VAD: run Silero VAD through sherpa on `src-tauri/src/stt/fixtures/de_sample.wav` in a throwaway test; record CPU per second of audio on the reference desktop and the reference phone in research.md R6
 - [ ] T007 Spike ONNX sharing: load a small ONNX model through `ort` with `load-dynamic` pointed at the shipped `libonnxruntime` while sherpa runs in the same process (no duplicate symbols, same version); decide whether `ort` is needed for R4 and record it in research.md R3/R4
 - [ ] T008 Spike voice: synthesize five German and five English sentences with Kyutai Pocket TTS through sherpa on the reference desktop and phone; record time to first audio, real-time factor and a listening verdict in research.md R8; if German fails, evaluate the Piper `de_DE-thorsten` fallback with a free G2P and record the licence check
+- [ ] T130 Spike STT (research R7): run the existing candle Whisper (tiny, base, small) and Parakeet TDT 0.6B v3 (sherpa `OfflineRecognizer`, `nemo_transducer`, int8) on `src-tauri/src/stt/fixtures/de_sample.wav`, `jfk.wav` and 20 own German and English utterances of 2–15 s; record word error rate, real-time factor, time from end of speech to text and memory on the reference desktop and phone in research.md R7; propose the default for new installs (Whisper stays selectable)
 - [ ] T009 Spike background: with the window minimized (Linux WebKitGTK, Windows WebView2, macOS WKWebView) and the Android app in the background, confirm that `action-call-request` events still reach `useAgentActions` and are answered within 1 s; record the result in research.md R1
 
 **Checkpoint**: The stack builds everywhere and its numbers are in research.md; if a spike fails,
@@ -117,6 +118,8 @@ update the plan before continuing.
 - [ ] T013 [P] Source/Sink tests in src-tauri/src/audio/source_tests.rs: a WAV script (files with pauses in between) yields the same samples as the files; the recording sink stores what the mixer outputs
 - [ ] T014 [P] Utterance tests in src-tauri/src/assistant/listen_tests.rs with the WAV source: end of utterance after `assistant.pauseMs` ("int 500–2000", default 800); utterances shorter than 250 ms are dropped; maximum 60 s cuts and delivers; pre-roll included when listening starts on a trigger
 - [ ] T015 [P] Voice catalog tests in src-tauri/src/tts/catalog_tests.rs: `tts_catalog.json` parses, every entry has a pinned 40-hex `hf_revision`, `language` in `"de"|"en"`, a licence and attribution; one default per language; hardware fit like `stt/catalog.rs`
+- [ ] T131 [P] STT catalog tests in src-tauri/src/stt/catalog_tests.rs: every entry has `engine` in `"candle-whisper"|"sherpa-parakeet"`; the existing Whisper entries are unchanged; the Parakeet entry has a pinned 40-hex `hf_revision`, all its files with sizes, `languages` including `de` and `en`, licence `CC-BY-4.0` and attribution
+- [ ] T132 [P] Parakeet adapter tests in src-tauri/src/stt/sherpa_tests.rs: `de_sample.wav` and `jfk.wav` give the expected words (tolerant comparison like local_tests.rs); silence gives an empty text; a missing model file gives `SttError` without panic
 - [ ] T016 [P] Assets tests in src-tauri/src/assistant/assets_tests.rs: `assets.json` lists the VAD and wake word models with pinned revisions; `assistant_readiness` reports exactly the missing items of `Missing` in contracts/tauri-commands.md
 - [ ] T017 [P] Tone tests in src-tauri/src/assistant/tones_tests.rs: every `ToneId` of contracts/tauri-commands.md renders, all except `working` are shorter than 400 ms, all share one base pitch family, peak level below clipping; `working` repeats every 2 s
 
@@ -131,6 +134,10 @@ update the plan before continuing.
 - [ ] T024 [P] Implement `assistant::tones` in src-tauri/src/assistant/tones.rs (synthesized at runtime, research R16) and the event `assistant-tone`
 - [ ] T025 Implement `assistant::assets` in src-tauri/src/assistant/{assets.rs,assets.json} with `download_assistant_assets` and `assistant_readiness`
 - [ ] T026 Wire shutdown: stop the stream, listener and synthesis in `begin_close`/`finish_close` next to `voice.cancel_for_close()`/`reset_for_close()` in src-tauri/src/instances/close.rs
+
+- [ ] T133 Add `engine` and `languages` to src-tauri/src/stt/catalog.rs and stt_catalog.json, the Parakeet entry with its files, and download through `models::download`
+- [ ] T134 Implement the Parakeet adapter in src-tauri/src/stt/sherpa.rs (`SttAdapter` over sherpa `OfflineRecognizer`, `spawn_blocking`); `VoiceState` in src-tauri/src/voice.rs keeps the adapter of the selected entry warm (`Arc<dyn SttAdapter>` instead of the Whisper-only cache), so push-to-talk (008) and the assistant share it; switching the model drops the old one
+- [ ] T135 Release measurement `src-tauri/tests/stt_compare_eval.rs` (`--ignored`): both engines on the fixtures and a folder from `HOLZI_STT_EVAL_DIR` (WAV + reference text), prints word error rate, real-time factor and time to text per model, so the operator can repeat the comparison on own recordings
 
 **Checkpoint**: haex can listen continuously, cut utterances and speak sentences and tones;
 nothing is user-visible yet except the settings of Phase 3.
@@ -147,6 +154,7 @@ without restart. Play every tone.
 - [ ] T027 [P] [US8] Check rules in scripts/check-assistant-ui.ts: every setting key of data-model.md has a de and en label; the voice and tone pages exist under the route `ai/speech`
 - [ ] T028 [US8] Command `assistant_tts_preview {voiceId, rate}` in src-tauri/src/tts/commands.rs; downloads a missing voice first
 - [ ] T029 [US8] Settings page src/components/settings/assistant/VoiceSetting.vue under KI → Sprache: voices per language with size and fit (OptionRow, pattern of SttModelSetting.vue), "Probe", rate slider; saved on selection as device preferences `assistant.voice.de`/`.en` and `assistant.speechRate`
+- [ ] T136 [US8] STT model list in src/components/settings/SttModelSetting.vue shows the engine and, for Parakeet, "25 europäische Sprachen"; texts in de.json and en.json; selection saved as today
 - [ ] T030 [US8] Settings page src/components/settings/assistant/TonesSetting.vue: list of tones with "Anhören", on/off `assistant.tones.enabled`, volume `assistant.tones.volume`; note that "Hört zu" and "Geheimnis" always play (FR-045)
 - [ ] T031 [P] [US8] Register both pages in src/lib/settings/registry.ts and src/components/wm/appRoutes.ts below `ai.speech`; texts in src/i18n/locales/de.json and en.json under `assistant.*`
 - [ ] T032 [P] [US8] Credits for CC-BY voice weights in the app's licence view (where third-party licences are listed) from the `attribution` field of `tts_catalog.json`
@@ -183,7 +191,7 @@ conversation marked as voice.
 - [ ] T040 [US2] Implement `assistant::conversation` (state machine, timers, `AssistantState` of data-model.md) in src-tauri/src/assistant/conversation.rs and src-tauri/src/assistant/mod.rs
 - [ ] T041 [US2] Implement `assistant::turn` in src-tauri/src/assistant/turn.rs: start turns through `start_turn` with `origin = 'voice'` and an `emit` closure that forwards every event to the window and feeds `chat-token` deltas through `sentences` into the voice; model from `assistant.modelId` (null = default chat model); delegate notice once per conversation (spec Edge Cases)
 - [ ] T042 [US2] Implement `assistant::phrases` (end phrases, request to repeat, busy, goodbye; de/en) in src-tauri/src/assistant/phrases.rs and stop words via `stt::interrupt` (finishes spec 008 US2 for the assistant; FR-017)
-- [ ] T043 [US2] Use the shared warm Whisper adapter of `VoiceState` for utterances in src-tauri/src/assistant/listen.rs (no second model in memory)
+- [ ] T043 [US2] Use the shared warm STT adapter of `VoiceState` (Whisper or Parakeet, whichever is selected, T134) for utterances in src-tauri/src/assistant/listen.rs (no second model in memory)
 - [ ] T044 [US2] Commands `assistant_get_state`, `assistant_talk`, `assistant_end_conversation`, `assistant_set_muted` and events `assistant-state`, `assistant-transcript` in src-tauri/src/assistant/commands.rs per contracts/tauri-commands.md
 - [ ] T045 [US2] Device setting `assistant.preview` (default off) in KI → Sprache that enables talk shortcut and indicator until PR D, in src/components/settings/assistant/AssistantSetting.vue
 - [ ] T046 [P] [US2] Store src/stores/assistant.ts: state from `assistant-state`, transcript from `assistant-transcript`, commands
@@ -431,7 +439,7 @@ the local voice speaks and says so once.
 
 ### Parallel Opportunities
 
-- Phase 1: T003 and T004 parallel to T001–T002; spikes T006–T009 in parallel after T005.
+- Phase 1: T003 and T004 parallel to T001–T002; spikes T006–T009 and T130 in parallel after T005.
 - Phase 2: all tests T010–T017 in parallel; T024 parallel to T021–T023.
 - US2: T033–T037 in parallel; T046 and T050 parallel to the Rust work.
 - US1: T062–T065 in parallel; T070 parallel to T069.

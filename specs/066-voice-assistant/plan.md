@@ -30,10 +30,13 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
   den Assistenten.
 - **Audio** (R2): dauerhafter Duplex-Strom mit `cpal` 0.18.2; Ringpuffer, Mischer, Referenzsignal.
 - **Sprach-Laufzeit** (R3): `sherpa-onnx` 2.x (`shared`) für Pausenerkennung, offene
-  Schlüsselwort-Erkennung und Sprachausgabe; `ort` (`load-dynamic`) auf derselben ONNX-Runtime für
+  Schlüsselwort-Erkennung, Sprachausgabe und Spracherkennung mit Parakeet; `ort` (`load-dynamic`) auf derselben ONNX-Runtime für
   das eigene Wake-Word-Modell. Spike auf allen Zielen zuerst.
 - **Wake Word** (R4, R5): eigenes Modell nach openWakeWord-Architektur, trainiert im Repo
   `haex-space/haex-wakeword`; eigenes Wort über Vorlagen aus vier Aufnahmen.
+- **Erkennung** (R7): candle-Whisper bleibt; Parakeet TDT 0.6B v3 über sherpa als zweite Wahl im
+  STT-Katalog, Vergleich in PR B. Whisper fällt erst nach ausgiebigen Tests des Betreibers, in einem
+  eigenen PR.
 - **Sprachausgabe** (R8): Kyutai Pocket TTS (de/en) über sherpa, satzweise; Katalog wie STT.
 - **Echo** (R9): AEC3 in der App (`sonora`, Ersatz `webrtc-audio-processing`), Messung je
   Plattform, sonst nur Wake Word und Stopp-Wort.
@@ -75,8 +78,8 @@ speakable,spell,sentences,phrases,approval,choice,tones,wakeword/templates,enrol
 - **Rust, Integration**: `tests/assistant_conversation.rs` (WAV-Quelle, falsche Erkennung, falsche
   Stimme, Modell-Skript, injizierte Uhr: Runden, Nachhörzeit, Fortsetzung, Stopp, Freigaben, offene
   Fragen, aktives Ende), `tests/assistant_secret_contract.rs` (ADR-0020).
-- **Rust, Messung (Release, `--ignored`)**: `tests/assistant_wakeword_eval.rs` (SC-003/SC-004 auf
-  Testsatz), `tests/assistant_echo_eval.rs` (SC-005 je Plattform), Tool-Eval aus 032 mit der
+- **Rust, Messung (Release, `--ignored`)**: `tests/stt_compare_eval.rs` (Whisper gegen Parakeet,
+  R7), `tests/assistant_wakeword_eval.rs` (SC-003/SC-004 auf Testsatz), `tests/assistant_echo_eval.rs` (SC-005 je Plattform), Tool-Eval aus 032 mit der
   Gesprächsanweisung.
 - **Prüfskripte**: `scripts/check-assistant-actions.ts` (alle `assistant.*` in `guardrails`,
   Kürzel), `scripts/check-assistant-ui.ts` (Anzeige-Zustände → Darstellung, Texte in de/en).
@@ -150,20 +153,20 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 
 ### Kandidaten (Erweitern statt neu bauen)
 
-| #   | Neues Artefakt                  | Vorhandener Kandidat                                                 | Entscheidung                                                                           |
-| --- | ------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| K1  | Dauerhafte Aufnahme             | `audio::Capture` (Push-to-Talk, ganzer Puffer)                       | Erweitern: Strom mit Ringpuffer; Push-to-Talk aus 008 liest künftig daraus             |
-| K2  | Erkennung pro Äußerung          | `stt::SttAdapter`, `VoiceState.whisper`                              | Wiederverwenden; `VoiceState` und Assistent teilen den warmen Adapter                  |
-| K3  | Stopp-Wörter                    | `stt::interrupt::match_interrupt`                                    | Wiederverwenden; 008 US2 wird damit fertig                                             |
-| K4  | Runde starten                   | `chat::commands::send_message`                                       | Rumpf nach `chat::send::start_turn`; Command und Assistent rufen dieselbe Funktion     |
-| K5  | Freigabe beantworten            | `respond_tool_permission`, `pending_tool_approvals`                  | Gemeinsame Funktion `chat::approvals::resolve`; Command und Assistent nutzen sie       |
-| K6  | Rückfrage mit Wahlmöglichkeiten | `ask_user`, `chat-choice-request`                                    | Wiederverwenden; der Assistent beantwortet über denselben Weg                          |
-| K7  | Modell-Katalog                  | `stt/stt_catalog.json`, `stt/catalog.rs`, `models::download`         | Gleiches Format und Download für `tts_catalog.json` und `assistant/assets.json`        |
-| K8  | Geheimnis lesen                 | `passwords/reveal.rs` (Nutzer)                                       | Neuer Eingang `reveal_for_speech` neben `reveal`, gleiche Prüfung plus `SpokenConsent` |
-| K9  | Schwärzung                      | `mcp_server/redact.rs`                                               | Wiederverwenden für die Ansage von Freigaben                                           |
-| K10 | Kachel ohne App                 | Sperr-Kachel in `Launcher.vue`, `DockControlId`                      | Gleiches Muster: Kachel „Sprachassistent“, `DockControlId` `"assistant"`               |
-| K11 | Ladeanimation                   | `files/Loader.vue` (Sprite-Daumenkino)                               | Gleiche Technik für die Zustände der Anzeige                                           |
-| K12 | Schließen                       | `voice.cancel_for_close` / `reset_for_close` in `instances/close.rs` | Assistent hängt sich an dieselben zwei Stellen                                         |
+| #   | Neues Artefakt                  | Vorhandener Kandidat                                                 | Entscheidung                                                                                                      |
+| --- | ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| K1  | Dauerhafte Aufnahme             | `audio::Capture` (Push-to-Talk, ganzer Puffer)                       | Erweitern: Strom mit Ringpuffer; Push-to-Talk aus 008 liest künftig daraus                                        |
+| K2  | Erkennung pro Äußerung          | `stt::SttAdapter`, `VoiceState.whisper`                              | Wiederverwenden; Parakeet als zweite Implementierung; `VoiceState` hält den gewählten Adapter warm                |
+| K3  | Stopp-Wörter                    | `stt::interrupt::match_interrupt`                                    | Wiederverwenden; 008 US2 wird damit fertig                                                                        |
+| K4  | Runde starten                   | `chat::commands::send_message`                                       | Rumpf nach `chat::send::start_turn`; Command und Assistent rufen dieselbe Funktion                                |
+| K5  | Freigabe beantworten            | `respond_tool_permission`, `pending_tool_approvals`                  | Gemeinsame Funktion `chat::approvals::resolve`; Command und Assistent nutzen sie                                  |
+| K6  | Rückfrage mit Wahlmöglichkeiten | `ask_user`, `chat-choice-request`                                    | Wiederverwenden; der Assistent beantwortet über denselben Weg                                                     |
+| K7  | Modell-Katalog                  | `stt/stt_catalog.json`, `stt/catalog.rs`, `models::download`         | Erweitern um `engine` (Parakeet); gleiches Format und Download für `tts_catalog.json` und `assistant/assets.json` |
+| K8  | Geheimnis lesen                 | `passwords/reveal.rs` (Nutzer)                                       | Neuer Eingang `reveal_for_speech` neben `reveal`, gleiche Prüfung plus `SpokenConsent`                            |
+| K9  | Schwärzung                      | `mcp_server/redact.rs`                                               | Wiederverwenden für die Ansage von Freigaben                                                                      |
+| K10 | Kachel ohne App                 | Sperr-Kachel in `Launcher.vue`, `DockControlId`                      | Gleiches Muster: Kachel „Sprachassistent“, `DockControlId` `"assistant"`                                          |
+| K11 | Ladeanimation                   | `files/Loader.vue` (Sprite-Daumenkino)                               | Gleiche Technik für die Zustände der Anzeige                                                                      |
+| K12 | Schließen                       | `voice.cancel_for_close` / `reset_for_close` in `instances/close.rs` | Assistent hängt sich an dieselben zwei Stellen                                                                    |
 
 **Ergebnis nach Phase 1**: keine Verletzung.
 
@@ -198,6 +201,9 @@ src-tauri/src/
 │   ├── resample.rs       # blockweise Umrechnung mit Zustand
 │   ├── mixer.rs          # Sprachausgabe + Töne, Referenzsignal
 │   └── source.rs         # Source/Sink-Traits, WAV-Quelle und Senke für Tests (e2e-audio)
+├── stt/
+│   ├── sherpa.rs         # Parakeet über sherpa OfflineRecognizer (zweiter SttAdapter)
+│   └── stt_catalog.json  # zusätzlich `engine`, Parakeet-Eintrag
 ├── tts/
 │   ├── mod.rs, catalog.rs, tts_catalog.json, commands.rs
 │   ├── local.rs          # sherpa OfflineTts, satzweise
@@ -245,18 +251,18 @@ hier landet nur das fertige Modell über den Katalog.
 
 ## Lieferung (jede ein PR, jede auslieferbar)
 
-| PR  | Inhalt                                                                                                                                                                                                                         | Stories      | Berührt                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | --------------------------------------------------------------- |
-| A   | Spec, Klärungen, Plan, Research, Datenmodell, Verträge, Quickstart, ADR-0020 (proposed), Tasks                                                                                                                                 | –            | `specs/066-voice-assistant/`, `docs/adr/`, `plans/README.md`    |
-| B   | Spike auf allen Zielen (sherpa, ONNX-Runtime, Größe, Echtzeitfaktor), Duplex-Strom, Ringpuffer, Mischer, Source/Sink, Pausenerkennung, lokale Sprachausgabe mit Katalog und Download, Klangset, Einstellungen Stimme und Töne  | US8 (lokal)  | `audio/`, `tts/`, `assistant/{assets,tones}`, Einstellungen     |
-| C   | Gesprächskern ohne Wake Word: `start_turn`, Zustandsautomat, Gespräch per Kürzel und Anzeige, Nachhörzeit, Fortsetzung, Stopp-Wörter, Schlusswendungen, Sprechtext, Gesprächsanweisung, Migration `origin`, schwebende Anzeige | US2, US5     | `assistant/`, `chat/send.rs`, Frontend Anzeige                  |
-| D   | Standard-Wake-Word (Modell aus `haex-wakeword`), Empfindlichkeit, Schutz vor Selbstauslösung, Kachel im Launcher, Dock-Eintrag, Tray, Modus sichtbar; Messung SC-003/004/010                                                   | US1          | `assistant/wakeword/`, `tray.rs`, Launcher, Dock                |
-| E   | Mündliche Freigaben, Rückfragen und Vorschläge, Fortschrittsansage, Aufgaben im Hintergrund, offene Fragen, aktives Ende                                                                                                       | US3, US4     | `assistant/{approval,choice,conversation}`, `chat/approvals.rs` |
-| F   | Geheimnisse vorlesen: Werkzeug, `SpokenConsent`, `reveal_for_speech`, Buchstabieren, Vertragstest; ADR-0020 accepted                                                                                                           | US6          | `assistant/{secret,spell}`, `passwords/service/speech.rs`       |
-| G   | Echo-Unterdrückung, freies Dazwischenreden, Kopfhörer, Messung je Plattform, `docs/voice-assistant-platforms.md`                                                                                                               | US2 (FR-016) | `assistant/echo.rs`, `audio/mixer.rs`                           |
-| H   | Android-Vordergrund-Dienst, Benachrichtigung, Audio-Fokus; iOS nur Vordergrund; Android-e2e                                                                                                                                    | US9          | Plugin `holzi-android`, `assistant/mod.rs`                      |
-| I   | Eigenes Wake Word: Einsprechen, Prüfung, Probephase; Spike Vorlagen gegen offene Erkennung                                                                                                                                     | US7          | `assistant/wakeword/{templates,enroll}`, Einstellungen          |
-| J   | Externer Sprachdienst mit Anzeige und Rückfall                                                                                                                                                                                 | US8 (extern) | `tts/external.rs`, Anbieter-Einstellungen                       |
+| PR  | Inhalt                                                                                                                                                                                                                                                                    | Stories      | Berührt                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------- |
+| A   | Spec, Klärungen, Plan, Research, Datenmodell, Verträge, Quickstart, ADR-0020 (proposed), Tasks                                                                                                                                                                            | –            | `specs/066-voice-assistant/`, `docs/adr/`, `plans/README.md`    |
+| B   | Spike auf allen Zielen (sherpa, ONNX-Runtime, Größe, Echtzeitfaktor), Parakeet als zweite STT-Wahl mit Vergleich, Duplex-Strom, Ringpuffer, Mischer, Source/Sink, Pausenerkennung, lokale Sprachausgabe mit Katalog und Download, Klangset, Einstellungen Stimme und Töne | US8 (lokal)  | `audio/`, `tts/`, `assistant/{assets,tones}`, Einstellungen     |
+| C   | Gesprächskern ohne Wake Word: `start_turn`, Zustandsautomat, Gespräch per Kürzel und Anzeige, Nachhörzeit, Fortsetzung, Stopp-Wörter, Schlusswendungen, Sprechtext, Gesprächsanweisung, Migration `origin`, schwebende Anzeige                                            | US2, US5     | `assistant/`, `chat/send.rs`, Frontend Anzeige                  |
+| D   | Standard-Wake-Word (Modell aus `haex-wakeword`), Empfindlichkeit, Schutz vor Selbstauslösung, Kachel im Launcher, Dock-Eintrag, Tray, Modus sichtbar; Messung SC-003/004/010                                                                                              | US1          | `assistant/wakeword/`, `tray.rs`, Launcher, Dock                |
+| E   | Mündliche Freigaben, Rückfragen und Vorschläge, Fortschrittsansage, Aufgaben im Hintergrund, offene Fragen, aktives Ende                                                                                                                                                  | US3, US4     | `assistant/{approval,choice,conversation}`, `chat/approvals.rs` |
+| F   | Geheimnisse vorlesen: Werkzeug, `SpokenConsent`, `reveal_for_speech`, Buchstabieren, Vertragstest; ADR-0020 accepted                                                                                                                                                      | US6          | `assistant/{secret,spell}`, `passwords/service/speech.rs`       |
+| G   | Echo-Unterdrückung, freies Dazwischenreden, Kopfhörer, Messung je Plattform, `docs/voice-assistant-platforms.md`                                                                                                                                                          | US2 (FR-016) | `assistant/echo.rs`, `audio/mixer.rs`                           |
+| H   | Android-Vordergrund-Dienst, Benachrichtigung, Audio-Fokus; iOS nur Vordergrund; Android-e2e                                                                                                                                                                               | US9          | Plugin `holzi-android`, `assistant/mod.rs`                      |
+| I   | Eigenes Wake Word: Einsprechen, Prüfung, Probephase; Spike Vorlagen gegen offene Erkennung                                                                                                                                                                                | US7          | `assistant/wakeword/{templates,enroll}`, Einstellungen          |
+| J   | Externer Sprachdienst mit Anzeige und Rückfall                                                                                                                                                                                                                            | US8 (extern) | `tts/external.rs`, Anbieter-Einstellungen                       |
 
 **Abhängigkeiten**: B → C → D. E, F, G, H, I, J bauen auf D auf und sind untereinander unabhängig;
 F braucht die Freigabe-Ansage aus E. Außerhalb dieses Repos und vor D: Training und Veröffentlichung
