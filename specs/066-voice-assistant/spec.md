@@ -91,6 +91,10 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   unverändert. Es entsteht kein neuer Agent und keine eigene Planungs- oder Autonomie-Logik. Neu sind
   nur Hören, Sprechen, die Gesprächsführung und eine Anweisung an das Modell für gesprochene
   Gespräche.
+- [`068-task-orchestration`](../068-task-orchestration/spec.md): Sobald 068 umgesetzt ist, spricht
+  der Assistent mit dem Orchestrator statt direkt mit dem eingebauten Agenten. Aufgaben im Hintergrund,
+  offene Fragen und aktives Beenden (FR-039, FR-040) gelten dann pro Aufgabe aus 068; Quittung und
+  Fortschrittsansage kommen vom Orchestrator. Bis dahin gilt FR-020 wie beschrieben.
 - [`008-voice-control-stt`](../008-voice-control-stt/spec.md) und
   [`010-stt-model-choice`](../010-stt-model-choice/spec.md): liefern die Spracherkennung und ihre
   Modellwahl. Diese Spec hebt für den Assistent-Modus die Annahmen „kein Wake Word, kein
@@ -746,7 +750,8 @@ Modus aus.
 
 ## Assumptions
 
-- **Kein neuer Agent**: Der Assistent ist eine Sprachschicht über dem eingebauten Agenten (003/032).
+- **Kein neuer Agent**: Der Assistent ist eine Sprachschicht über dem eingebauten Agenten (003/032)
+  bzw. über dem Orchestrator aus 068, sobald es ihn gibt.
   Wie gut Aufgaben gelingen, hängt vom gewählten Modell ab, wie im Chat. Planungs- oder
   Autonomie-Fähigkeiten über 003/032 hinaus gehören nicht in diese Spec.
 - **Phasenfolge**: Die Spec wird vorab geschrieben. Umgesetzt wird sie erst, wenn ihre
