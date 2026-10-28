@@ -76,6 +76,35 @@ test('a valid session survives a JSON round trip through parseWmSession', () => 
   assert.deepEqual(parseWmSession(JSON.parse(JSON.stringify(session))), session)
 })
 
+test('the split keys of a file browser entry survive the session unchanged (spec 062 FR-007)', () => {
+  const good = savedSession()
+  const query = {
+    p: '/home/anna',
+    split: '1',
+    side: 'r',
+    'o.src': 'storage:abc',
+    'o.p': '/y',
+    'o.vw': 'grid',
+    'o.so': 'size:desc',
+  }
+  const history: TabHistory = {
+    entries: [{ location: { path: '/device', query }, title: null }],
+    index: 0,
+  }
+  const session: WmSession = {
+    ...good,
+    windows: [
+      {
+        ...good.windows[0],
+        tabs: [{ id: 't1', appId: ALPHA.id, history }],
+        activeTabId: 't1',
+      },
+    ],
+  }
+  const parsed = parseWmSession(JSON.parse(JSON.stringify(session)))
+  assert.deepEqual(parsed?.windows[0]?.tabs[0]?.history, history)
+})
+
 test('parseWmSession rejects a wrong version, a missing field or a mistyped window', () => {
   const good = savedSession()
   assert.equal(parseWmSession({ ...good, version: 2 }), null)
