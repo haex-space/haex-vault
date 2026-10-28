@@ -77,8 +77,6 @@ export interface ScenarioOptions {
     container?: boolean
     /** Runs only on a phone (spec 043, the Android scenarios). */
     phone?: boolean
-    /** Runs only on a desktop build, not on a phone (spec 062: no split view there). */
-    desktop?: boolean
   }
   timeoutMs?: number
 }
