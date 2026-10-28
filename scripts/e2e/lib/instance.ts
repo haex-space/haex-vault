@@ -262,6 +262,11 @@ export interface PhoneControls extends ContactControls {
   frontPackage(): string | undefined
   /** The line of the system's activity dump that names the resumed activity, for a failure message. */
   frontDetail(): string
+  /**
+   * Opens a link the way another app does (`am start -a VIEW -d <url>`); the system hands it to the
+   * app that registered for its scheme (spec 060 FR-018a), which may be running or not.
+   */
+  openLink(url: string): void
   /** The app's task to the front again, as the person does by tapping it among the recent apps. */
   bringToFront(): void
   /** The titles of the app's notifications the system shows now. */
