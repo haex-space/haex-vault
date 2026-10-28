@@ -152,11 +152,7 @@ watch(
       @pointerdown.stop
       @click.stop="scrollBy(-120)"
     >
-      <Icon
-        name="lucide:chevron-left"
-        class="h-5 w-5"
-        :aria-hidden="true"
-      />
+      <Icon name="lucide:chevron-left" class="h-5 w-5" :aria-hidden="true" />
     </button>
 
     <div
@@ -243,11 +239,7 @@ watch(
       @pointerdown.stop
       @click.stop="scrollBy(120)"
     >
-      <Icon
-        name="lucide:chevron-right"
-        class="h-5 w-5"
-        :aria-hidden="true"
-      />
+      <Icon name="lucide:chevron-right" class="h-5 w-5" :aria-hidden="true" />
     </button>
 
     <WmNewTabMenu :window-id="windowId">

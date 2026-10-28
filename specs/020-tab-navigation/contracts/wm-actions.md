@@ -137,17 +137,14 @@ shell.runAction(id: string, input?: Record<string, unknown>, caller?: ActionCall
   Seite ab und ignoriert sie (`onBeforeRouteLeave`), ohne sie zu deuten.
 - `wm.system.back`:
   1. Offenes Shell-Overlay (Launcher, Fensterübersicht,
-     Arbeitsbereichs-Übersicht, „+“-Liste, Chevron, Verlaufsliste) → schließen.
+     Arbeitsbereichs-Übersicht, „+“-Liste oder Chevron) → schließen.
   2. Sonst aktiver Tab des obersten sichtbaren Fensters → `back()`.
   3. Kein Zurück-Eintrag: Kompaktdarstellung → Fensterübersicht öffnen; sonst
      nichts. Die App wird nie verlassen.
 
-## 6. Schaltflächen und Verlaufsliste
+## 6. Zugriff auf die Tab-Historie
 
-- `wm/NavButtons.vue` links vor `WmTabBar`; zwei Icon-Schaltflächen mit
-  `aria-label` (`wm.nav.back`, `wm.nav.forward`), `disabled`, wenn keine
-  Einträge in der Richtung existieren; Tooltip mit Tastenkürzel.
-- Langer Druck (≥ 500 ms) oder `contextmenu` öffnet die Verlaufsliste
-  (höchstens 15 Einträge, nächster zuerst, Titel je Eintrag). Auswahl →
-  `runAction('wm.tab.go', { tabId, steps })`.
-- `pointerdown` auf den Schaltflächen startet keinen Fenster-Drag.
+- In der Titelleiste gibt es keine Zurück/Vor-Schaltflächen und keine
+  Verlaufsliste. Tastenkürzel und Maustasten bleiben gemäß FR-017–018 verfügbar.
+- `wm.tab.history` liefert die Historie; `wm.tab.go` springt zu einem Eintrag.
+- Titelleisten- und Tab-Bedienelemente starten keinen Fenster-Drag.
