@@ -52,10 +52,36 @@ Migration mit der nächsten freien Nummer (bei Planung nach `0046_sync_rules_dec
 ALTER TABLE chat_threads ADD COLUMN origin TEXT;  -- NULL = getippt, 'voice' = Sprachgespräch
 ```
 
-CRDT-Trigger kennen die neue Spalte; `HOLZI_TRIGGER_VERSION` 29 → 30. Die Mitschrift sind die
-normalen `chat_messages`. Ein Vorlese-Hinweis (FR-025) ist eine Assistenten-Nachricht mit dem Text
-„Passwort von ‚<Titel>‘ vorgelesen“ (Feldname statt „Passwort“, je nach Feld); das Werkzeug-Ergebnis
-im Verlauf ist `{"spoken": true}`.
+CRDT-Trigger kennen die neue Spalte; `HOLZI_TRIGGER_VERSION` 29 → 30. `chat_messages` bleibt der
+Verlauf, den das Modell sieht (Fragen und Antworten); das Werkzeug-Ergebnis eines Vorlesens ist dort
+`{"spoken": true}`.
+
+### Vollständige Mitschrift (FR-047, FR-048)
+
+Neue CRDT-Tabelle in derselben Migration, synchronisiert wie der Chat (Vault-Daten):
+
+```sql
+CREATE TABLE voice_transcript_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,            -- Reihenfolge im Gespräch, lückenlos ab 1
+  spoken_at INTEGER NOT NULL,      -- Unix-ms, Beginn der Äußerung bzw. Ausgabe
+  speaker TEXT NOT NULL,           -- 'user' | 'haex'; 067 ergänzt Teilnehmer-Ids
+  kind TEXT NOT NULL,              -- siehe unten
+  text TEXT NOT NULL,              -- vollständiger Text; nie ein Geheimnis
+  spoken_until INTEGER,            -- Zeichen-Offset, bis zu dem gesprochen wurde (unterbrochen)
+  outcome TEXT,                    -- Freigaben: 'approved'|'declined'|'open'|'cancelled'
+  ref_id TEXT,                     -- requestId der Freigabe/Rückfrage oder chat_messages.id
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX voice_transcript_entries_thread ON voice_transcript_entries (thread_id, seq);
+```
+
+`kind`: `utterance`, `answer`, `announcement`, `progress`, `report`, `approvalQuestion`,
+`approvalAnswer`, `choiceQuestion`, `choiceAnswer`, `stop`, `closing`, `notUnderstood`,
+`secretNote`. Ein Vorlese-Hinweis ist `kind = 'secretNote'` mit „Passwort von ‚<Titel>‘ vorgelesen“
+(Feldname je nach Feld). Ein `outcome = 'open'` wird beim Beantworten auf das Ergebnis aktualisiert.
+Die Suche nutzt dieselbe Volltextsuche wie der Chatverlauf (006).
 
 ### Kataloge (im Binary, `include_str!`)
 

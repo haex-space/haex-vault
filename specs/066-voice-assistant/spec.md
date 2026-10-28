@@ -50,6 +50,9 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   Referenz-Desktop innerhalb von 6 Sekunden; bis dahin überbrückt die sofortige Quittung.
 - Betreiber-Ergänzung: haex braucht passende Töne, mindestens für das erkannte Wake Word und für eine
   entgegengenommene und bearbeitete Aufgabe oder Frage; die übrigen Anlässe ergänzt die Spec (FR-043).
+- Betreiber-Ergänzung: Alle Gespräche werden vollständig transkribiert und in der Vault-Datenbank
+  gespeichert, damit man später alles nachlesen und nachvollziehen kann (FR-047, FR-048). Die
+  Meeting-Mitschrift mit Sprecherzuordnung ist eine eigene Spec (067).
 
 ## Begriffe
 
@@ -193,7 +196,9 @@ Gespräch mit einer Schlusswendung beenden.
    Nutzer erneut das Wake Word sagt, **Then** setzt haex dasselbe Gespräch fort; nach Ablauf dieser
    Zeit beginnt ein neues.
 8. **Given** ein Gespräch steht im Chatverlauf, **When** der Nutzer es im Chatfenster öffnet,
-   **Then** sieht er die Mitschrift aller Runden und kann schriftlich weitermachen.
+   **Then** sieht er die vollständige Mitschrift mit Zeitstempeln: alles, was er nach dem Wake Word
+   gesagt hat, und alles, was haex gesagt hat, einschließlich Freigaben, Ansagen, Stopp-Wörtern und
+   unterbrochener Antworten bis zur Stelle des Abbruchs; er kann schriftlich weitermachen.
 9. **Given** haex hat die Äußerung nicht verstanden (leer, unverständlich), **When** die Runde endet,
    **Then** bittet haex kurz um Wiederholung, statt zu raten.
 
@@ -661,6 +666,21 @@ Modus aus.
 - **FR-046**: Die Töne MUST unter einer Lizenz stehen, die die Weitergabe mit haex erlaubt, und ihre
   Herkunft MUST im Repository dokumentiert sein.
 
+#### Mitschrift
+
+- **FR-047**: Jedes Gespräch MUST vollständig in der Vault-Datenbank mitgeschrieben werden, jeder
+  Eintrag mit Zeitpunkt, Sprecher und Art (Mitschrift-Eintrag): jede Äußerung des Nutzers nach dem
+  Wake Word, auch Antworten auf Freigaben und Rückfragen, Stopp-Wörter, Schlusswendungen und nicht
+  Verstandenes (als „nicht verstanden“ mit dem erkannten Rest), und jede Ausgabe von haex, auch
+  Ansagen, Freigabe-Fragen, Fortschrittsansagen und Meldungen aus dem Hintergrund. Bei Freigaben MUST
+  das Ergebnis (bestätigt, abgelehnt, offen, abgebrochen) dabeistehen, bei unterbrochener Ausgabe die
+  Stelle, bis zu der haex gesprochen hat, und der vollständige Text. Geheimnisse MUST nur als
+  Vorlese-Hinweis erscheinen (FR-025). Audio vor dem Wake Word MUST NOT mitgeschrieben werden
+  (FR-006).
+- **FR-048**: Die Mitschrift MUST mit dem Gespräch synchronisiert, durchsuchbar und im Chatfenster als
+  eigene Ansicht mit Zeitstempeln lesbar sein; sie MUST erhalten bleiben, bis der Nutzer das Gespräch
+  löscht, und MUST mit ihm gelöscht werden.
+
 ### Key Entities
 
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
@@ -675,6 +695,10 @@ Modus aus.
   des Endes (für die Fortsetzungszeit) und den Runden als Mitschrift.
 - **Klangset**: die mitgelieferten Hinweistöne, je einer pro Anlass aus FR-043, als zusammengehörige
   Familie gestaltet. Lautstärke und An/Aus sind Teil der Assistent-Einstellungen.
+- **Mitschrift-Eintrag**: eine Zeile der vollständigen Mitschrift eines Gesprächs: Zeitpunkt,
+  Sprecher (Nutzer oder haex), Art (Äußerung, Antwort, Ansage, Freigabe-Frage, Freigabe-Antwort,
+  Antwort auf eine Rückfrage, Stopp, Schlusswendung, nicht verstanden, Vorlese-Hinweis) und Text; bei
+  unterbrochener Ausgabe die Stelle des Abbruchs, bei Freigaben das Ergebnis.
 - **Vorlese-Hinweis**: ein Eintrag in der Mitschrift statt eines Geheimnisses: welcher
   Passwort-Eintrag, welches Feld, wann.
 
@@ -716,6 +740,9 @@ Modus aus.
   sagt; aktives Beenden bricht sie in allen Tests ab.
 - **SC-014**: Testpersonen ordnen nach einmaligem Anhören mindestens 4 von 5 Kerntönen („Hört zu“,
   „Verstanden“, „Frage“, „Fertig“, „Fehler“) richtig zu.
+- **SC-015**: In einem Testgespräch mit Freigabe, Rückfrage, Stopp und Dazwischenreden erscheint
+  jede Äußerung und jede Ausgabe in der Mitschrift, in richtiger Reihenfolge, mit Zeitstempel und
+  Art; das Geheimnis eines vorgelesenen Eintrags erscheint nicht.
 
 ## Assumptions
 

@@ -62,7 +62,8 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
   wird neben dem Binary ausgeliefert (alle Ziele, Android im `jniLibs`).
 - **Keine neue Frontend-Abhängigkeit.**
 
-**Storage**: Migration mit der nächsten freien Nummer: `chat_threads.origin`;
+**Storage**: Migration mit der nächsten freien Nummer: `chat_threads.origin` und die Tabelle
+`voice_transcript_entries` (vollständige Mitschrift, CRDT);
 `HOLZI_TRIGGER_VERSION` 29 → 30. Geräteeinstellungen `assistant.*` ([data-model.md](./data-model.md)).
 Modelle unter `<AppLocalData>/models/<id>/`.
 

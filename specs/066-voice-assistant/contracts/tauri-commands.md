@@ -23,6 +23,7 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `list_tts_catalog`           | –                 | `TtsCatalogEntry[]` mit Eignung | FR-029         |
 | `list_installed_tts_voices`  | –                 | `string[]`                      | FR-029         |
 | `download_tts_voice`         | `{voiceId}`       | – (Fortschritt als Ereignis)    | FR-005, FR-029 |
+| `assistant_transcript_list`  | `{threadId}`      | `TranscriptEntryWire[]`         | FR-048         |
 | `download_assistant_assets`  | –                 | – (Fortschritt als Ereignis)    | FR-005         |
 
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
@@ -47,17 +48,21 @@ EnrollResult = { ok: true } | { ok: false, problem: "inconsistent"|"tooShort"|"c
 
 ## Ereignisse (Rust → Frontend)
 
-| Ereignis                      | Nutzlast                                  | Spec                       |
-| ----------------------------- | ----------------------------------------- | -------------------------- |
-| `assistant-state`             | `AssistantStateWire`                      | FR-003, FR-041             |
-| `assistant-transcript`        | `{threadId, role: "user"                  | "assistant", text, final}` | FR-042 |
-| `assistant-tone`              | `{tone: ToneId}` (sichtbare Entsprechung) | FR-044                     |
-| `assistant-error`             | `{kind, message}`                         | Edge Cases                 |
-| `assistant-download-progress` | `{id, received, total}`                   | FR-005                     |
-| `assistant-wakeword-probe`    | `{detected: bool, score}`                 | US7                        |
+| Ereignis                      | Nutzlast                                  | Spec           |
+| ----------------------------- | ----------------------------------------- | -------------- |
+| `assistant-state`             | `AssistantStateWire`                      | FR-003, FR-041 |
+| `assistant-transcript`        | `TranscriptEntryWire` (unten)             | FR-042, FR-047 |
+| `assistant-tone`              | `{tone: ToneId}` (sichtbare Entsprechung) | FR-044         |
+| `assistant-error`             | `{kind, message}`                         | Edge Cases     |
+| `assistant-download-progress` | `{id, received, total}`                   | FR-005         |
+| `assistant-wakeword-probe`    | `{detected: bool, score}`                 | US7            |
 
 `ToneId` = `listening`, `understood`, `working`, `question`, `done`, `error`, `aborted`,
 `notUnderstood`, `conversationEnd`, `attention`, `secret`, `modeOn`, `modeOff`, `muted`, `unmuted`.
+
+`TranscriptEntryWire` = `{threadId, seq, spokenAt, speaker ("user" oder "haex"), kind, text,
+spokenUntil?, outcome?, final}`; `final: false` für Text, der noch entsteht. Die gespeicherte
+Mitschrift liest `assistant_transcript_list {threadId}`.
 
 Die vorhandenen Chat-Ereignisse (`chat-token`, `chat-tool-call`, `tool-permission-request`,
 `chat-choice-request`, `chat-turn-complete` …) gehen bei Sprachgesprächen unverändert an die

@@ -176,6 +176,10 @@ conversation marked as voice.
 
 - [ ] T038 [US2] Extract the body of `send_message` into `chat::send::start_turn(ctx, StartTurn { thread_id, content, origin, emit })` in src-tauri/src/chat/send.rs; `send_message` in src-tauri/src/chat/commands.rs calls it; all chat turn tests stay green
 - [ ] T039 [US2] Migration with the next free number: `ALTER TABLE chat_threads ADD COLUMN origin TEXT` ("NULL = getippt, 'voice' = Sprachgespräch") in a new src-tauri/src/identity/migrations_chat_origin.rs, registered in src-tauri/src/identity/migrations.rs; `HOLZI_TRIGGER_VERSION` 29 → 30; read/write `origin` in src-tauri/src/storage/chat_threads.rs; migration test in migrations_chat_origin_tests.rs
+- [ ] T124 [US2] Same migration as T039: table `voice_transcript_entries` exactly as in data-model.md ("seq … lückenlos ab 1", `speaker` "'user' | 'haex'", `kind` list, `outcome` "'approved'|'declined'|'open'|'cancelled'", FK `thread_id → chat_threads ON DELETE CASCADE`), CRDT-tracked; storage functions `append`, `set_outcome`, `list_for_thread` in a new src-tauri/src/storage/voice_transcript.rs with tests in voice_transcript_tests.rs
+- [ ] T125 [US2] Write every utterance and every output to the transcript (FR-047) from src-tauri/src/assistant/conversation.rs and turn.rs: `utterance`, `answer` (full text, `spoken_until` on barge-in or stop), `announcement`, `stop`, `closing`, `notUnderstood`; never pre-wake-word audio
+- [ ] T126 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs for SC-015: a scripted conversation with stop and closing yields transcript entries in order with timestamps and kinds; deleting the thread deletes them
+- [ ] T127 [US2] Transcript view in the chat window for voice conversations (toggle "Mitschrift", time stamps, speaker, kind as small label, interrupted answers greyed after `spoken_until`) in a new src/components/chat/VoiceTranscript.vue; include the entries in the chat history search (006)
 - [ ] T040 [US2] Implement `assistant::conversation` (state machine, timers, `AssistantState` of data-model.md) in src-tauri/src/assistant/conversation.rs and src-tauri/src/assistant/mod.rs
 - [ ] T041 [US2] Implement `assistant::turn` in src-tauri/src/assistant/turn.rs: start turns through `start_turn` with `origin = 'voice'` and an `emit` closure that forwards every event to the window and feeds `chat-token` deltas through `sentences` into the voice; model from `assistant.modelId` (null = default chat model); delegate notice once per conversation (spec Edge Cases)
 - [ ] T042 [US2] Implement `assistant::phrases` (end phrases, request to repeat, busy, goodbye; de/en) in src-tauri/src/assistant/phrases.rs and stop words via `stt::interrupt` (finishes spec 008 US2 for the assistant; FR-017)
@@ -277,6 +281,7 @@ cancels.
 - [ ] T084 [US3] Background reporting (FR-040) in src-tauri/src/assistant/conversation.rs: turn completion or a new question while no turn is being spoken → `attention` tone and speech (only visible when muted); summary of done/not done (US3 scenario 8)
 - [ ] T085 [US3] Active end (FR-039): `assistant_end_conversation`, end phrase, mode off → `abort_turn` and a short spoken status in src-tauri/src/assistant/conversation.rs
 - [ ] T086 [US3] Screen-needed steps (spec Edge Cases): when a tool needs the window, raise it (`raiseWindowAsync` pattern), say so and keep the step as open question kind `"screen"`
+- [ ] T128 [US3] Transcript entries for approvals and questions (FR-047): `approvalQuestion`/`approvalAnswer` with `outcome` updated from `open` when answered, `choiceQuestion`/`choiceAnswer`, `progress`, `report`, in src-tauri/src/assistant/approval.rs, choice.rs and conversation.rs; cover in T078
 - [ ] T087 [P] [US3] Show the open question highlighted in src/components/assistant/CompactTranscript.vue and the phase `awaitingAnswer` in the indicator and tray
 
 **Checkpoint**: Spoken workflows with approvals work.
@@ -313,6 +318,7 @@ langsamer" repeats; no outward path carries it.
 - [ ] T094 [P] [US6] Access tests in src-tauri/src/passwords/service/speech_tests.rs: `reveal_for_speech` refuses without `SpokenConsent`; `SpokenConsent` has no public constructor outside `assistant::approval` (compile-fail doc test); `Caller::BuiltinAgent` still cannot reach any secret
 - [ ] T095 [US6] Implement `reveal_for_speech(item, field, consent)` in src-tauri/src/passwords/service/speech.rs (caller user, same checks as `passwords/reveal.rs`), and `SpokenConsent` in src-tauri/src/assistant/approval.rs
 - [ ] T096 [US6] Implement the native tool `assistant.secret.speak` in src-tauri/src/assistant/secret.rs per contracts/agent-and-actions.md: offered only in voice turns, always asks (any approval level), plays `secret` before speaking, local voice only, `noLocalVoice` → masked field with "Anzeigen" in the compact transcript, transcript note "Passwort von ‚<Titel>‘ vorgelesen"
+- [ ] T129 [US6] Write the read-aloud note as transcript entry `kind = 'secretNote'` (never the secret) in src-tauri/src/assistant/secret.rs; T093 also scans `voice_transcript_entries`
 - [ ] T097 [US6] Repeat within the same follow-up window from a `Zeroizing<String>` that is overwritten when the window ends (FR-026) in src-tauri/src/assistant/secret.rs
 - [ ] T098 [US6] Set ADR-0020 to "accepted" in docs/adr/0020-spoken-secrets-bypass-the-model.md
 
