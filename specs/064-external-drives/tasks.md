@@ -87,58 +87,60 @@ Each PR is reviewed and merged before the next starts on `main`. E and F only ne
 **Purpose**: The new `Drive` model, the backend seam and the split of `volumes()`/`drives()`, with no
 visible change yet. Agents and peers keep seeing only mounted drives.
 
-- [ ] T004 Add platform dependencies in `src-tauri/Cargo.toml` (research R1, R5, R6) and commit `Cargo.lock`. Each version must match what `Cargo.lock` already holds, so no second copy appears:
+- [x] T004 Add platform dependencies in `src-tauri/Cargo.toml` (research R1, R5, R6) and commit `Cargo.lock`. Each version must match what `Cargo.lock` already holds, so no second copy appears:
   - `zbus = "5"` under `[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]`. The default features include `async-io` and `blocking-api`, which the blocking proxies need. Compare `cargo tree -e features -i zbus --target x86_64-unknown-linux-gnu` before and after: the feature set must not change (no `tokio`), so nothing changes for `notify-rust`. If the existing build lacks `blocking-api`, adding it is fine; adding `tokio` is not.
   - `plist = "1"` under `cfg(target_os = "macos")`.
   - `windows-sys` under `cfg(windows)` with the features of research R6, at the newest version already in the lock.
   - Add a comment above each block naming spec 064 and the research id, like the other target blocks.
-- [ ] T005 Turn `src-tauri/src/files/local/drives.rs` into the module directory `src-tauri/src/files/local/drives/`:
+  - Done in PR A: only `zbus = "5"` (feature set unchanged, checked with `cargo tree`); `plist` and `windows-sys` come with PR E and PR F, where they are used.
+- [x] T005 Turn `src-tauri/src/files/local/drives.rs` into the module directory `src-tauri/src/files/local/drives/`:
   - `mod.rs` keeps `space()` and the public API.
   - Move `parse_mountinfo`, `unescape`, `is_user_drive`, `VIRTUAL_TYPES` and `Mount` unchanged to `mountinfo.rs`.
   - Move `is_volume_id` and the Android path listing to `android.rs`.
   - Move the existing tests from `drives_tests.rs` to `mountinfo_tests.rs` and `android_tests.rs`, with `#[path]` attributes.
   - No behaviour change: `cargo test -j 4 --lib files::local::drives` is green.
-- [ ] T006 In `src-tauri/src/files/local/drives/mod.rs` replace `Drive` with the model of `data-model.md`:
+- [x] T006 In `src-tauri/src/files/local/drives/mod.rs` replace `Drive` with the model of `data-model.md`:
   - `id`, `key`, `label`, `path`, `kind`, `state`, `release`, `encrypted`, `size`, `total`, `free`
   - new enums `DriveKind`, `DriveState`, `DriveRelease`, all `#[derive(Serialize, TS)]`, camelCase, exported to `src/types/bindings/`
   - the pure functions `sort_drives(&mut [Drive])` (system, internal, removable; then label case-insensitive with missing labels last; then id) and `display_name(&Drive) -> String` (label, else the last path segment, else id)
   - a `debug_assert`-free invariant checker `fn invariants_hold(&Drive) -> bool` used by tests (data-model.md "Invarianten")
-- [ ] T007 [P] Tests in `src-tauri/src/files/local/drives/mod_tests.rs`:
+- [x] T007 [P] Tests in `src-tauri/src/files/local/drives/mod_tests.rs`:
   - sort order across kinds and labels
   - `display_name` fallbacks
   - `invariants_hold` accepts each valid combination and rejects each broken rule of data-model.md
-- [ ] T008 Create `src-tauri/src/files/local/drives/backend.rs`:
+- [x] T008 Create `src-tauri/src/files/local/drives/backend.rs`:
   - `trait DriveBackend: Send + Sync { fn list(&self) -> Result<Vec<Drive>, DriveError>; fn mount(&self, id: &str) -> Result<String, DriveError>; fn unlock(&self, id: &str, secret: &DriveSecret) -> Result<String /* mounted path */, DriveError>; fn release(&self, id: &str) -> Result<bool /* ejected */, DriveError>; fn unlock_mode(&self) -> UnlockMode /* Passphrase | SystemDialog | None */; fn open_system_unlock(&self, id: &str) -> Result<(), DriveError>; }`
   - `DriveError` maps onto the new `FilesErrorCode`s of `contracts/commands.md`.
   - `DriveSecret` is a newtype around `String` without `Debug`/`Display`/`Serialize`.
   - `fn backend() -> Arc<dyn DriveBackend>` selects per platform: Linux udisks (falls back to mountinfo when udisks2 is unreachable), macOS, Windows, Android, else a mountinfo-free `/` backend as today.
   - A `#[cfg(test)] pub struct FakeBackend` with a scripted list and recorded calls.
-- [ ] T009 [P] Create `src-tauri/src/files/local/drives/fallback.rs`, a `DriveBackend` for "no udisks2", over `mountinfo` (FR-024):
+- [x] T009 [P] Create `src-tauri/src/files/local/drives/fallback.rs`, a `DriveBackend` for "no udisks2", over `mountinfo` (FR-024):
   - every mount that passes `is_user_drive` becomes `state: mounted`
   - `kind: system` for `/`, else `internal`
   - `release: none`, `key: None`
   - `mount`/`unlock`/`release` return `driveUnsupported`
   - Tests in `fallback_tests.rs` use the `MOUNTINFO` fixture moved in T005.
-- [ ] T010 In `src-tauri/src/files/local/drives/mod.rs` add `pub fn volumes() -> Vec<Drive>` (backend list, sorted; a failing list logs once at `warn` and returns the fallback list) and redefine `pub fn drives() -> Vec<Drive>` as `volumes()` filtered to `state == mounted` (research R11)
-- [ ] T011 Update the consumers of the old `Drive` fields:
+- [x] T010 In `src-tauri/src/files/local/drives/mod.rs` add `pub fn volumes() -> Vec<Drive>` (backend list, sorted; a failing list logs once at `warn` and returns the fallback list) and redefine `pub fn drives() -> Vec<Drive>` as `volumes()` filtered to `state == mounted` (research R11)
+- [x] T011 Update the consumers of the old `Drive` fields:
   - `src-tauri/src/files/agent/exec.rs` (`files.sources`, around line 170): `name` becomes `display_name(drive)`.
   - `src-tauri/src/files/peer/serve/ops.rs` (`roots` and `drive_entries`): `WireRoot.name` becomes `display_name`, `path` the unwrapped `path` of the mounted drive.
   - `src-tauri/src/files/browser_commands/navigate.rs` `files_sources`: uses `volumes()`.
   - Leave the callers of `space()` (`transfer/sync_copy.rs`, `browser_commands/change.rs`, `agent/exec_write.rs`) untouched. Only their import path may change to `drives::space`.
-- [ ] T012 [P] Add tests next to the touched modules:
+- [x] T012 [P] Add tests next to the touched modules:
   - In `src-tauri/src/files/agent/exec_tests.rs` (read it first), with a `FakeBackend` (inject through a `#[cfg(test)]` seam in `drives::backend`), `files.sources` lists only mounted drives.
   - In the peer `ops` tests, `roots` contains no unmounted or locked drive.
-- [ ] T013 Add the new codes to `FilesErrorCode` in `src-tauri/src/files/mod.rs`, each with a doc comment as in the table of `contracts/commands.md`: `DriveCancelled`, `DriveBusy`, `DriveGone`, `DriveFailed`, `UnlockFailed`, `DriveNoFilesystem`, `DriveUnsupported`, `NoVault`, `UrlTaken`. Then map `DriveError` into `FilesError`.
-- [ ] T014 Frontend consumers of `Drive`:
+  - Done as a pure test instead: `mounted_only` in `mod_tests.rs`. Injecting a fake backend into `drives()` is not thread-safe, because the callers run it in `spawn_blocking`. `files.sources`, `roots` and `drive_entries` all call `drives()`, which is `mounted_only(volumes())`.
+- [x] T013 Add the new codes to `FilesErrorCode` in `src-tauri/src/files/mod.rs`, each with a doc comment as in the table of `contracts/commands.md`: `DriveCancelled`, `DriveBusy`, `DriveGone`, `DriveFailed`, `UnlockFailed`, `DriveNoFilesystem`, `DriveUnsupported`, `NoVault`, `UrlTaken`. Then map `DriveError` into `FilesError`.
+- [x] T014 Frontend consumers of `Drive`:
   - `src/components/files/Sidebar.vue`: `:key="drive.id"`, `data-testid` per `contracts/ui.md`, label via the helper of T015.
   - `src/components/apps/FilesApp.vue:62`: the start folder is the first drive with `state === 'mounted'`.
   - `pnpm typecheck` is clean. No visual change besides the order of the list.
-- [ ] T015 [P] Create `src/lib/files/drives.ts`, pure with relative imports only:
+- [x] T015 [P] Create `src/lib/files/drives.ts`, pure with relative imports only:
   - `driveLabel(drive, t)`: the label, else `t('files.drives.unnamed', { size })` with `formatFileSize`
   - `driveOf(path, drives)`: the mounted drive with the longest `path` prefix on a separator boundary, Windows drive letters case-insensitive
   - `remap(p, droot, root)`: `root + p.slice(droot.length)`, `null` when `p` does not start with `droot`
   - `isCurrentDrive(drive, current, drives)`
-- [ ] T016 [P] Create `scripts/check-files-drives.ts` with `node --test` cases for T015:
+- [x] T016 [P] Create `scripts/check-files-drives.ts` with `node --test` cases for T015:
   - `driveOf`: prefix on a boundary (`/mnt/a` is not the drive of `/mnt/ab`), the longest prefix wins, root `/`, Windows `e:\` vs `E:\x`
   - `remap`: same root, new root, not a prefix → `null`
   - `driveLabel`: fallback
@@ -159,7 +161,7 @@ to FR-007, FR-023, FR-024).
 
 ### Linux backend (udisks2)
 
-- [ ] T017 [US1] Create `src-tauri/src/files/local/drives/udisks_classify.rs`, pure (research R2, R3):
+- [x] T017 [US1] Create `src-tauri/src/files/local/drives/udisks_classify.rs`, pure (research R2, R3):
   - Input: `struct UdisksObject { path, block: Option<BlockProps>, filesystem: Option<FsProps>, encrypted: Option<EncProps>, drive: Option<DriveProps> }` with exactly the properties of research R1/R2 (`IdLabel`, `IdUUID`, `IdUsage`, `HintIgnore`, `HintSystem`, `CryptoBackingDevice`, `Size`, `Drive`, `MountPoints` as byte strings, `CleartextDevice`, `Removable`, `Ejectable`, `CanPowerOff`).
   - `fn classify(objects: &[UdisksObject]) -> Vec<Drive>` applies rules 1–6 of R2:
     - `kind`: `system` for the block mounted at `/`, `removable` when its drive is `Removable`, else `internal`.
@@ -172,7 +174,7 @@ to FR-007, FR-023, FR-024).
     - `encrypted`: whether a crypto backing block exists.
     - `state`: `locked` for a crypto block with `CleartextDevice == "/"`.
     - Mount points: decode the first one as a NUL-terminated byte string.
-- [ ] T018 [P] [US1] Tests in `src-tauri/src/files/local/drives/udisks_classify_tests.rs`, built from a hand-written fixture that mirrors this machine (`lsblk` in the session of 2026-10-27):
+- [x] T018 [P] [US1] Tests in `src-tauri/src/files/local/drives/udisks_classify_tests.rs`, built from a hand-written fixture that mirrors this machine (`lsblk` in the session of 2026-10-27):
   - NVMe with ESP `/boot/efi`, `/recovery`, LUKS `cryptdata` with LVM inside and root `/`, and plain dm-crypt swap
   - a USB stick with two partitions (label "Linux Mint …" iso9660, "writable" ext4)
   - an unmounted removable vfat `FOTOS`
@@ -182,7 +184,7 @@ to FR-007, FR-023, FR-024).
     - kinds, states, `release`, `key` (crypto UUID for both locked and unlocked `BACKUP`), labels
     - the order after `sort_drives`
     - that every result passes `invariants_hold`
-- [ ] T019 [US1] Create `src-tauri/src/files/local/drives/udisks.rs` (Linux only):
+- [x] T019 [US1] Create `src-tauri/src/files/local/drives/udisks.rs` (Linux only):
   - zbus 5 blocking proxies, hand-written with `#[zbus::proxy]` and `blocking_name`, for `org.freedesktop.DBus.ObjectManager` (`GetManagedObjects`) and `org.freedesktop.UDisks2.{Block,Filesystem,Encrypted,Drive}`, with the methods of research R1.
   - `UdisksBackend::connect()` opens the system bus once; `list()` converts `GetManagedObjects` into `UdisksObject`s and calls `classify`.
   - `mount(id)` calls `Filesystem.Mount({})` and returns the path.
@@ -190,10 +192,11 @@ to FR-007, FR-023, FR-024).
   - `unlock_mode()` = `Passphrase`.
   - `unlock`/`release` stay `driveUnsupported` until US3/US2.
   - Keep the file under 500 lines by putting the proxies in `udisks_proxy.rs`.
-- [ ] T020 [P] [US1] Tests in `src-tauri/src/files/local/drives/udisks_tests.rs`:
+  - Done with zbus's generic `blocking::Proxy::call` and `blocking::fdo::ObjectManagerProxy`. No hand-written proxies, so no `udisks_proxy.rs`.
+- [x] T020 [P] [US1] Tests in `src-tauri/src/files/local/drives/udisks_tests.rs`:
   - the error-name mapping as a pure function `map_error(name: &str, message: &str) -> DriveError`
   - the variant → `UdisksObject` conversion from a `HashMap<OwnedObjectPath, HashMap<String, HashMap<String, OwnedValue>>>` built in the test (no bus)
-- [ ] T021 [P] [US1] Android backend in `src-tauri/src/files/local/drives/android.rs`:
+- [x] T021 [P] [US1] Android backend in `src-tauri/src/files/local/drives/android.rs`:
   - today's `/storage/emulated/0` + `is_volume_id` listing as a `DriveBackend`
   - `kind: removable` for card/USB ids, `internal` for `emulated/0`
   - `state: mounted`, `release: none`, `key: Some(id lowercase)`
@@ -202,52 +205,53 @@ to FR-007, FR-023, FR-024).
 
 ### Monitor and commands
 
-- [ ] T022 [US1] Create `src-tauri/src/files/local/drives/monitor.rs` (research R4, R8):
+- [x] T022 [US1] Create `src-tauri/src/files/local/drives/monitor.rs` (research R4, R8):
   - `DriveMonitor` holds `Mutex<HashMap<u64, Channel<DrivesChanged>>>`, the last list and a stop flag.
   - `subscribe(channel) -> u64` sends the current list at once and starts the thread on the first subscriber. The thread is a `std::thread` named `haex-drives`, calls `backend.list()` every 2 s, and sends `DrivesChanged { drives }` when `changed(prev, next)` says so.
   - `unsubscribe(id)` stops the thread after the last one; `unsubscribe_all()`.
   - A failed send (closed channel) drops that subscriber.
   - `pub fn changed(prev: &[Drive], next: &[Drive]) -> bool` ignores `free` only (data-model.md "DriveDiff").
   - Make the interval a constructor argument so tests can use a short one.
-- [ ] T023 [P] [US1] Tests in `src-tauri/src/files/local/drives/monitor_tests.rs` with `FakeBackend` and a test channel:
+- [x] T023 [P] [US1] Tests in `src-tauri/src/files/local/drives/monitor_tests.rs` with `FakeBackend` and a test channel:
   - first message at subscribe
   - a change → one message
   - a change of `free` only → no message
   - last unsubscribe stops polling (the fake's call count stops growing)
   - a dropped subscriber is removed
-- [ ] T024 [US1] Create `src-tauri/src/files/browser_commands/drives.rs`:
+- [x] T024 [US1] Create `src-tauri/src/files/browser_commands/drives.rs`:
   - `files_drives_watch(channel) -> u64`, `files_drives_unwatch(id)`
   - `files_drive_open(id) -> DriveOpened`. For now only `opened`: when mounted return `path`, when unmounted `mount` in `spawn_blocking`; `driveGone` when the id is not in the backend's current list.
   - The types `DriveOpened` (all variants of `contracts/commands.md`, unused ones included so the binding is final) and `DrivesChanged` as `#[ts(export)]`.
   - Manage `DriveMonitor` as Tauri state (where `FilesState` is created).
   - Register the commands in `src-tauri/src/lib.rs` next to `files_sources`, and call `drive_monitor.unsubscribe_all()` in `on_page_load` `Started` next to `files.unwatch_all()`.
-- [ ] T025 [P] [US1] Tests in `src-tauri/src/files/browser_commands/drives_tests.rs`: `files_drive_open` on mounted / unmounted (fake records `mount`) / unknown id (`driveGone`), and a fake whose `mount` fails with `driveGone` (stick pulled while mounting, spec edge case), through the inner function that takes the backend (the command is a thin wrapper)
+- [x] T025 [P] [US1] Tests in `src-tauri/src/files/browser_commands/drives_tests.rs`: `files_drive_open` on mounted / unmounted (fake records `mount`) / unknown id (`driveGone`), and a fake whose `mount` fails with `driveGone` (stick pulled while mounting, spec edge case), through the inner function that takes the backend (the command is a thin wrapper)
 
 ### Frontend
 
-- [ ] T026 [US1] Add to `src/composables/useFiles.ts`: `drivesWatchAsync(onChange)` (a `Channel<DrivesChanged>`, like `watchAsync`), `drivesUnwatchAsync(id)`, `driveOpenAsync(id)`.
-- [ ] T027 [US1] Create `src/composables/useFilesDrives.ts`, a module-level singleton:
+- [x] T026 [US1] Add to `src/composables/useFiles.ts`: `drivesWatchAsync(onChange)` (a `Channel<DrivesChanged>`, like `watchAsync`), `drivesUnwatchAsync(id)`, `driveOpenAsync(id)`.
+- [x] T027 [US1] Create `src/composables/useFilesDrives.ts`, a module-level singleton:
   - `drives: Ref<Drive[]>`, `start()` (subscribes once), `stop()` (unsubscribes), `busy: Ref<Set<string>>`
   - Seed `drives` from `files_sources` when the first message has not arrived yet.
   - It must not touch DOM globals, so the Node sandbox checks keep working.
-- [ ] T028 [US1] Wire `src/components/apps/FilesApp.vue`:
+- [x] T028 [US1] Wire `src/components/apps/FilesApp.vue`:
   - `useFilesDrives().start()` where `openFrames` goes from 0 to 1 (`onMounted`, around line 136), `stop()` where it returns to 0 (`onBeforeUnmount`, around line 144)
   - pass `drives` to the sidebar instead of `sources.drives`
   - Keep the change small (research R14, spec 062 will move the panel part).
-- [ ] T029 [US1] Create `src/composables/useFilesDriveActions.ts` with `openDrive(drive)`:
+- [x] T029 [US1] Create `src/composables/useFilesDriveActions.ts` with `openDrive(drive)`:
   - marks `busy`, calls `driveOpenAsync`, on `opened` emits the path to navigate
   - errors → toasts of `contracts/ui.md` (`driveCancelled`, `driveFailed`, `driveGone`)
   - `needsPassword`/`systemDialog` are left for US3.
-- [ ] T030 [US1] `src/components/files/Sidebar.vue` per `contracts/ui.md`:
+- [x] T030 [US1] `src/components/files/Sidebar.vue` per `contracts/ui.md`:
   - icon by kind and state (`lucide:usb` for removable, `lucide:hard-drive` otherwise, `lucide:lock` for locked); unmounted rows dimmed
   - spinner while `busy`; free space only when mounted
   - highlight via `isCurrentDrive`
   - a click on a mounted drive emits `pick(path)` as today, on others it calls `openDrive` and then `pick`
   - Keep `data-testid="files-drive-…"`.
-- [ ] T031 [US1] Nearest existing folder (research R10, spec 044 edge case, US1 scenario 7):
+- [x] T031 [US1] Nearest existing folder (research R10, spec 044 edge case, US1 scenario 7):
   - In `src/composables/useFilesFolder.ts`, when `files_list` fails with `notFound` for a `device` source, walk up with `parentPath` (from `src/lib/files/state.ts`) using `statAsync` until a folder exists, replace the location with it (no new history entry), and show the toast "{folder} gibt es nicht mehr – zeige {target}". When nothing exists up to the root, use the start folder.
   - Put the walk as a pure async function `nearestExisting(path, exists)` in `src/lib/files/drives.ts` and test it in `scripts/check-files-drives.ts`.
-- [ ] T032 [P] [US1] Texts in `src/i18n/locales/de.json` and `en.json` under `files.drives`: `unnamed`, `mount`, `mounting`, `cancelled`, `failed`, `gone`, `gone_jump`. Check that `files.drives` does not collide with `files.sidebar.drives` (a string): it is a new object at `files.drives`, which is free.
+  - Done in its own composable `useFilesNearestFolder.ts`, wired into `Panel.vue` (spec 062 moved the folder into the panel). `useFilesFolder.ts` is unchanged.
+- [x] T032 [P] [US1] Texts in `src/i18n/locales/de.json` and `en.json` under `files.drives`: `unnamed`, `mount`, `mounting`, `cancelled`, `failed`, `gone`, `gone_jump`. Check that `files.drives` does not collide with `files.sidebar.drives` (a string): it is a new object at `files.drives`, which is free.
 
 ### E2E (Linux)
 
@@ -257,14 +261,14 @@ to FR-007, FR-023, FR-024).
   - restart `polkit` and `udisks2`
   - run `udisksctl status` as a smoke check
   - Push the spike alone first and check the job log. If udisks2 or dm-crypt does not work on the runner, record that in `research.md` R12, drop T034–T035 and the E2E tasks of later phases, and rely on quickstart.
-- [ ] T034 [US1] Create `scripts/e2e/lib/udisks.ts`:
+- [x] T034 [US1] Create `scripts/e2e/lib/udisks.ts`:
   - `udisksAvailable()`: `udisksctl status` succeeds
   - `makeVfatImage(label)`: `truncate` in `$RUNNER_TEMP` or `os.tmpdir()`, `mkfs.vfat -n` via `sudo`
   - `makeLuksImage(label, password)`: `cryptsetup luksFormat --type luks2 -q` with the password on stdin, then open, `mkfs.ext4 -L`, close
   - `attach(img) → /dev/loopN` (`udisksctl loop-setup -f … --no-user-interaction`), `detach(dev)`
   - cleanup in `after()`
   - Pattern of the docker skip in `scripts/e2e/lib/rustfs.ts`: scenarios skip when `udisksAvailable()` is false.
-- [ ] T035 [US1] Create `scripts/e2e/scenarios/files-drives.test.ts` (style of `files-basic.test.ts`; read it first). US1 part:
+- [x] T035 [US1] Create `scripts/e2e/scenarios/files-drives.test.ts` (style of `files-basic.test.ts`; read it first). US1 part:
   - open the file browser, attach a vfat image labelled `E2EFOTOS`: within the SC-001 limit (3 s plus the runner tolerance constant the other timed scenarios use; T074 adds the exact measurement) the sidebar shows `files-drive-<drive-id>-E2EFOTOS` with the USB/removable icon
   - click it: it mounts and the folder view shows the image's test file
   - detach it while a tab shows it: the entry disappears and the tab jumps to an existing parent folder with the toast

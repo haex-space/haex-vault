@@ -3,4 +3,7 @@ import type { DriveEntry } from "./DriveEntry";
 import type { DriveNeedsPassword } from "./DriveNeedsPassword";
 import type { DriveRememberFailed } from "./DriveRememberFailed";
 
+/**
+ * What opening a drive led to.
+ */
 export type DriveOpened = { "kind": "opened", path: string, rememberFailed: DriveRememberFailed | null, } | { "kind": "needsPassword", reason: DriveNeedsPassword, message: string | null, candidates: Array<DriveEntry>, } | { "kind": "systemDialog" };

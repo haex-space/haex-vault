@@ -3,4 +3,24 @@ import type { DriveKind } from "./DriveKind";
 import type { DriveRelease } from "./DriveRelease";
 import type { DriveState } from "./DriveState";
 
-export type Drive = { id: string, key: string | null, label: string | null, path: string | null, kind: DriveKind, state: DriveState, release: DriveRelease, encrypted: boolean, size: number | null, total: number | null, free: number | null, };
+/**
+ * A drive in the sidebar (spec 064 data-model.md).
+ */
+export type Drive = {
+/**
+ * The backend's handle for commands in this session; never stored.
+ */
+id: string,
+/**
+ * What stays the same across sessions and devices: the UUID of the encrypted container, else of
+ * the file system, lowercase (research R3).
+ */
+key: string | null, label: string | null,
+/**
+ * The mount path; set exactly when mounted.
+ */
+path: string | null, kind: DriveKind, state: DriveState, release: DriveRelease,
+/**
+ * An encrypted container lies below, locked or not.
+ */
+encrypted: boolean, size: number | null, total: number | null, free: number | null, };
