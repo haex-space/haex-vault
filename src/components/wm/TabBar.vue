@@ -143,7 +143,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-1 items-center">
+  <div class="flex min-w-0 flex-1 items-center self-stretch">
     <button
       v-if="!collapsedTab && overflowing"
       type="button"
@@ -152,21 +152,17 @@ watch(
       @pointerdown.stop
       @click.stop="scrollBy(-120)"
     >
-      <Icon
-        name="lucide:chevron-left"
-        class="h-3.5 w-3.5"
-        :aria-hidden="true"
-      />
+      <Icon name="lucide:chevron-left" class="h-5 w-5" :aria-hidden="true" />
     </button>
 
     <div
       v-if="collapsedTab"
-      class="flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm font-medium"
+      class="flex min-w-0 items-center gap-2 px-1.5 py-1.5 text-base font-medium"
     >
       <WmTabIcon
         :icon="collapsedTab.info.icon"
         :icon-url="collapsedTab.info.iconUrl"
-        class="h-3.5 w-3.5 shrink-0"
+        class="h-5 w-5 shrink-0"
       />
       <span class="min-w-0 truncate">{{ titleFrom(collapsedTab.info) }}</span>
       <WmDevBadge v-if="collapsedTab.info.dev" />
@@ -184,7 +180,7 @@ watch(
         @pointerdown.stop
         @click.stop="emit('closeTab', collapsedTab.tab.id)"
       >
-        <Icon name="lucide:x" class="h-3.5 w-3.5" :aria-hidden="true" />
+        <Icon name="lucide:x" class="h-4 w-4" :aria-hidden="true" />
       </button>
     </div>
 
@@ -192,7 +188,7 @@ watch(
       v-else
       ref="barRef"
       role="tablist"
-      class="flex min-w-0 items-center gap-0.5 overflow-x-auto"
+      class="flex min-w-0 items-stretch gap-0.5 self-stretch overflow-x-auto"
       :aria-label="t('wm.tabs.tablist')"
     >
       <div
@@ -202,10 +198,10 @@ watch(
         role="tab"
         :aria-selected="row.tab.id === activeTabId"
         :tabindex="row.tab.id === activeTabId ? 0 : -1"
-        class="flex min-w-24 basis-56 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 border-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        class="flex min-w-48 basis-56 cursor-pointer items-center gap-2 rounded-t-md border-b-[3px] border-transparent px-2.5 py-1.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         :class="
           row.tab.id === activeTabId
-            ? 'border-primary bg-card font-semibold text-foreground shadow-sm dark:bg-secondary'
+            ? 'border-primary bg-background font-semibold text-foreground shadow-sm'
             : 'text-muted-foreground hover:bg-accent'
         "
         @pointerdown.stop
@@ -215,7 +211,7 @@ watch(
         <WmTabIcon
           :icon="row.info.icon"
           :icon-url="row.info.iconUrl"
-          class="h-3.5 w-3.5 shrink-0"
+          class="h-5 w-5 shrink-0"
         />
         <span class="min-w-0 flex-1 truncate">{{ titleFrom(row.info) }}</span>
         <WmDevBadge v-if="row.info.dev" />
@@ -230,7 +226,7 @@ watch(
           :aria-label="t('wm.tabs.close')"
           @click.stop="emit('closeTab', row.tab.id)"
         >
-          <Icon name="lucide:x" class="h-3 w-3" :aria-hidden="true" />
+          <Icon name="lucide:x" class="h-4 w-4" :aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -243,22 +239,18 @@ watch(
       @pointerdown.stop
       @click.stop="scrollBy(120)"
     >
-      <Icon
-        name="lucide:chevron-right"
-        class="h-3.5 w-3.5"
-        :aria-hidden="true"
-      />
+      <Icon name="lucide:chevron-right" class="h-5 w-5" :aria-hidden="true" />
     </button>
 
     <WmNewTabMenu :window-id="windowId">
       <button
         type="button"
         data-testid="wm-new-tab"
-        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-primary/20 hover:text-primary"
         :aria-label="t('wm.tabs.newTab')"
         @pointerdown.stop
       >
-        <Icon name="lucide:plus" class="h-3.5 w-3.5" :aria-hidden="true" />
+        <Icon name="lucide:plus" class="h-5 w-5" :aria-hidden="true" />
       </button>
     </WmNewTabMenu>
   </div>

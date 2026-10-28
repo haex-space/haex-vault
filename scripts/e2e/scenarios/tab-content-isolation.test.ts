@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat } from '../lib/flows.ts'
+import { WM } from '../lib/settings.ts'
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 500))
 
 // Spec 020-tab-navigation, quickstart M13/M21 (FR-020, FR-034, FR-035, SC-009): neither the webview's own
 // history nor an embedded document's history changes holzi's navigation. The top document stays on the
-// workspace page, the chat stays open, and the chat tab's back button stays disabled.
+// workspace page, the chat stays open, and the chat tab's history keeps no back entry.
 scenario('tab-content-isolation', {}, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-isolation' })
@@ -47,7 +48,7 @@ scenario('tab-content-isolation', {}, async (ctx) => {
   )
   await instance.waitForDisplayed('chat-sidebar-toggle')
   const backDisabled = await instance.exec<boolean>(
-    'return [...document.querySelectorAll(\'[data-testid="nav-back"]\')].every((b) => b.disabled)',
+    `const wm = ${WM}; return wm.windows.every((w) => wm.historyOf(w.activeTabId).index === 0)`,
   )
   assert.ok(
     backDisabled,

@@ -30,12 +30,6 @@ const { t } = useI18n()
 const runBack = useAction('wm.tab.back')
 const runForward = useAction('wm.tab.forward')
 
-const activeAppId = computed(
-  () =>
-    props.window.tabs.find((tab) => tab.id === props.window.activeTabId)
-      ?.appId ?? '',
-)
-
 /** Mouse side buttons (DOM `button` 3 = back, 4 = forward) act on this window's active tab without
  * focusing it (spec 020 FR-018); their default webview navigation is suppressed. Whether a
  * platform delivers them to the DOM at all is research R6's spike. */
@@ -174,16 +168,11 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @mouseup="onSideButton"
   >
     <div
-      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 py-1"
+      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 pt-1"
       :style="interactive ? { touchAction: 'none' } : undefined"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
     >
-      <WmNavButtons
-        :tab-id="window.activeTabId"
-        :app-id="activeAppId"
-        :compact="wm.compact"
-      />
       <WmTabBar
         :window-id="window.id"
         :tabs="window.tabs"
