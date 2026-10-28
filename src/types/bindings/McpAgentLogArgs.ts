@@ -5,6 +5,9 @@ export type McpAgentLogArgs = { agentId: string,
  * Entries before this Unix millisecond; the newest when absent.
  */
 before: number | null,
+/**
+ * The last entry's id when loading the next page.
+ */
 beforeId: string | null,
 /**
  * At most 200.
