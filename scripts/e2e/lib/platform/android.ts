@@ -130,6 +130,18 @@ export function phoneControls(adb: Adb): PhoneControls {
         .filter((line) => /ResumedActivity/.test(line))
         .map((line) => line.trim())
         .join(' | '),
+    // The link goes to the app's intent filter, as from another app; the quotes keep the shell off it.
+    openLink: (url) =>
+      void adb.shell(
+        'am',
+        'start',
+        '-a',
+        'android.intent.action.VIEW',
+        '-d',
+        `'${url.replaceAll("'", "'\\''")}'`,
+        '-p',
+        PACKAGE,
+      ),
     // The task exists: the single-task activity comes to the front without a new process.
     bringToFront: () => void adb.shell('am', 'start', '-n', ACTIVITY),
     // Not granted until now, so marking it decided does not end the app.
