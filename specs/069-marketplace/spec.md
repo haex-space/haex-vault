@@ -450,9 +450,8 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 
 ## Assumptions
 
-- Der **öffentliche Marketplace des Projekts** stellt der Betreiber bereit; seine Adresse steht an einer
-  einzigen Stelle im Code (die Voreinstellung) und wird vor der Veröffentlichung festgelegt. Bis dahin ist
-  `https://marketplace.haex.space` (Projekt haex-space) der Platzhalter. Das Protokoll ist das, das
+- Der **öffentliche Marketplace des Projekts** liegt unter `https://marketplace.haex.space` (Betreiber,
+  2026-10-29); diese Adresse ist die Voreinstellung und steht an einer einzigen Stelle im Code. Das Protokoll ist das, das
   haex-vault 2.x und das `@haex-space/marketplace-sdk` 0.1.6 benutzen: Liste mit Suche, Kategorie, Seite
   und Sortierung, Kategorien mit Anzahl, Details und Download-Adresse zu einer Fassung. Ab dieser Spec ist
   es ein Vertrag dieses Repositories (FR-034); der Betreiber-Dienst richtet sich danach. Im Listenaufruf
