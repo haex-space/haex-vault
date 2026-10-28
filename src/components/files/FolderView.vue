@@ -20,10 +20,7 @@ import {
   type CellGrid,
   type ClickKeys,
   type DragPayload,
-  dragPayload,
-  ENTRIES_MIME,
   indexesInBand,
-  parseDragPayload,
   type Selection,
 } from '~/lib/files/clipboard'
 import { shownNameKey } from '~/lib/files/encrypted'
@@ -50,8 +47,11 @@ const props = withDefaults(
     /** The list may take the focus by itself after a folder opened: not in the panel that is not the
      * active one (spec 062 R4). */
     takesFocus?: boolean
+    /** The folder takes in what is dragged onto it: not holzi's own place nor a share read only
+     * (spec 062 FR-016). */
+    droppable?: boolean
   }>(),
-  { takesFocus: true },
+  { takesFocus: true, droppable: true },
 )
 
 const emit = defineEmits<{
@@ -419,44 +419,14 @@ function rowClass(entry: Entry): string[] {
   ]
 }
 
-/** The folder a drag hovers over (a folder row, or the open folder). */
-const dropOver = ref<string | null>(null)
-
-function onDragStart(entry: Entry, event: DragEvent) {
-  const paths = props.selected.includes(entry.path)
-    ? props.selected
-    : [entry.path]
-  const items = props.entries
-    .filter((candidate) => paths.includes(candidate.path))
-    .map((candidate) => ({ path: candidate.path, kind: candidate.kind }))
-  event.dataTransfer?.setData(
-    ENTRIES_MIME,
-    dragPayload({ source: props.source, folder: props.folder, items }),
-  )
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copyMove'
-}
-
-/** Accepts a drag of holzi's entries over a folder row (`entry`) or the open folder (`null`). */
-function onDragOver(entry: Entry | null, event: DragEvent) {
-  if (!event.dataTransfer?.types.includes(ENTRIES_MIME)) return
-  if (entry && entry.kind !== 'dir') return
-  event.preventDefault()
-  event.stopPropagation()
-  dropOver.value = entry?.path ?? props.folder
-}
-
-function onDrop(entry: Entry | null, event: DragEvent) {
-  dropOver.value = null
-  if (entry && entry.kind !== 'dir') return
-  const payload = parseDragPayload(event.dataTransfer?.getData(ENTRIES_MIME))
-  if (!payload) return
-  event.preventDefault()
-  event.stopPropagation()
-  emit('drop', payload, entry?.path ?? props.folder, {
-    ctrl: event.ctrlKey,
-    alt: event.altKey,
-  })
-}
+const { dropOver, onDragStart, onDragOver, onDrop } = useFilesDrag({
+  source: () => props.source,
+  folder: () => props.folder,
+  entries: () => props.entries,
+  selected: () => props.selected,
+  droppable: () => props.droppable,
+  drop: (payload, target, keys) => emit('drop', payload, target, keys),
+})
 
 const errorText = computed(() => {
   if (!props.error) return ''

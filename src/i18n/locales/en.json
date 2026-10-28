@@ -2510,6 +2510,10 @@
     "up": "Up one folder",
     "reload": "Reload",
     "pathBar": "Path",
+    "path": {
+      "edit": "Edit the path",
+      "copy": "Copy the path"
+    },
     "menu": "Sort and show",
     "empty": "This folder is empty.",
     "loading": "Loading folder …",
@@ -2708,6 +2712,7 @@
       "tooLarge": "Too large to show here.",
       "broken": "This image cannot be shown.",
       "holziOwned": "holzi's own data cannot be changed.",
+      "readOnly": "This place is read only.",
       "blocked": "Not available.",
       "notGranted": "Not granted.",
       "unsupported": "Not available here yet.",

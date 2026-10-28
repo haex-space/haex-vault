@@ -2510,6 +2510,10 @@
     "up": "Übergeordneter Ordner",
     "reload": "Neu laden",
     "pathBar": "Pfad",
+    "path": {
+      "edit": "Pfad bearbeiten",
+      "copy": "Pfad kopieren"
+    },
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",
     "loading": "Ordner wird geladen …",
@@ -2708,6 +2712,7 @@
       "tooLarge": "Zu groß, um sie hier zu zeigen.",
       "broken": "Dieses Bild lässt sich nicht zeigen.",
       "holziOwned": "Eigene Daten von holzi lassen sich nicht ändern.",
+      "readOnly": "Dieser Ort ist nur lesbar.",
       "blocked": "Nicht verfügbar.",
       "notGranted": "Nicht freigegeben.",
       "unsupported": "Hier noch nicht verfügbar.",

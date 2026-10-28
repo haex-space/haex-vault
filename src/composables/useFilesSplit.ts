@@ -22,7 +22,13 @@ import {
   swapActive,
   withSplit,
 } from '~/lib/files/split'
-import { locationsEqual, type TabHistory } from '~/lib/wm/navigation'
+import type { PlaceLock } from '~/lib/files/clipboard'
+import {
+  canGoBack,
+  canGoForward,
+  locationsEqual,
+  type TabHistory,
+} from '~/lib/wm/navigation'
 
 /**
  * The frame of the file browser (spec 062, `contracts/panel-context.md`): it owns where the tab
@@ -40,8 +46,10 @@ import { locationsEqual, type TabHistory } from '~/lib/wm/navigation'
 export type PanelHandle = {
   side: SplitSide
   /** Where this panel takes transfers in; `null` while it has no folder yet. */
-  target(): { source: SourceRef; path: string | null; readOnly: boolean } | null
+  target(): { source: SourceRef; path: string | null; lock: PlaceLock } | null
   reload(): unknown
+  /** Ends the selection (the entries a drag took out of this panel are gone). */
+  clearSelection(): void
   /** Focuses the last focused entry, else the first. */
   focus(): void
   /** A key event of the frame outside both panels (toolbar, sidebar): the active panel acts on it. */
@@ -50,7 +58,7 @@ export type PanelHandle = {
 
 /** Query parts a panel changes without moving; `null` removes one. */
 export type FilesQueryPatch = Partial<
-  Record<'open' | 'q' | 't' | 's' | 'd', string | null>
+  Record<'open' | 'q' | 't' | 's' | 'd' | 'vw' | 'so', string | null>
 >
 
 export type FilesPanelContext = {
@@ -67,6 +75,12 @@ export type FilesPanelContext = {
   /** Sets the starting place of this panel (replaces the entry, activates nothing). */
   initialize(place: FilesPlace): void
   setQuery(patch: FilesQueryPatch, options?: { push?: boolean }): void
+  /** This panel's own history (spec 062: back and forward are per panel); going makes it the active
+   * one first. */
+  canGoBack: ComputedRef<boolean>
+  canGoForward: ComputedRef<boolean>
+  back(): void
+  forward(): void
   register(handle: PanelHandle): () => void
   /** The other panel, `null` without a split. */
   other(): PanelHandle | null
@@ -122,7 +136,7 @@ export function useFilesSplit(options: {
   const start = first.on ? enableSplit(first) : first
   const stored = ref({ on: start.on, side: start.side, other: start.other })
   /** The history of the panel that is not the active one (kept in memory only). */
-  let lane: TabHistory | null = null
+  const lane = shallowRef<TabHistory | null>(null)
 
   const active = computed(() => parseFilesPlace(router.route) ?? DEVICE_START)
   const state = computed((): SplitState => ({
@@ -169,17 +183,17 @@ export function useFilesSplit(options: {
     if (!current.other) return false
     const next = swapActive(current)
     const previous = router.swapHistory(
-      incomingHistory(lane, withSplit(filesLocation(next.active), next)),
+      incomingHistory(lane.value, withSplit(filesLocation(next.active), next)),
     )
     if (!previous) return false
-    lane = previous
+    lane.value = previous
     keep(next)
     return true
   }
 
   function toggle() {
     keep(stored.value.on ? disableSplit(state.value) : enableSplit(state.value))
-    lane = null
+    lane.value = null
     mirror()
   }
 
@@ -219,6 +233,22 @@ export function useFilesSplit(options: {
       stored.value = { ...stored.value, other: to }
       mirror()
     },
+    canGoBack: computed(() =>
+      side === stored.value.side
+        ? router.canGoBack
+        : lane.value !== null && canGoBack(lane.value),
+    ),
+    canGoForward: computed(() =>
+      side === stored.value.side
+        ? router.canGoForward
+        : lane.value !== null && canGoForward(lane.value),
+    ),
+    back() {
+      if (activate(side)) router.back()
+    },
+    forward() {
+      if (activate(side)) router.forward()
+    },
     setQuery(patch, queryOptions) {
       if (activate(side)) router.setQuery(patch, queryOptions)
     },
@@ -244,8 +274,12 @@ export function useFilesSplit(options: {
   return {
     /** The place of the active panel. */
     place: active,
+    /** The sidebar: it keeps the view and the sort of the active panel. */
     go: (to: FilesPlace, goOptions: { replace?: boolean } = {}) =>
-      write(to, goOptions.replace === true),
+      write(
+        { vw: active.value.vw, so: active.value.so, ...to },
+        goOptions.replace === true,
+      ),
     tabId,
     tabActive,
     openStorageSettings,

@@ -5,6 +5,7 @@ import {
   activePanel,
   entryIn,
   describeFocus,
+  dragBetween,
   focusedPanel,
   focusList,
   inPanel,
@@ -102,6 +103,37 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await active('left', 'the left panel to be the active one')
     ctx.step('the switch shows two panels, the second at the first one’s place')
 
+    // The bar belongs to the panels: the toolbar keeps the sidebar and the switch, each panel has
+    // its own back, forward, view and sort, and the view of one does not change the other's.
+    assert.equal(
+      await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-files-app] > :first-child [data-testid="files-view-toggle"]'))`,
+      ),
+      false,
+      'no view switch in the toolbar',
+    )
+    const viewLabel = (side: PanelSide) =>
+      instance.exec<string | null>(
+        `const el = document.querySelector(arguments[0])
+         return el ? el.getAttribute('aria-label') : null`,
+        [inPanel(side, 'files-view-toggle')],
+      )
+    const viewBefore = await viewLabel('left')
+    assert.ok(viewBefore && viewBefore === (await viewLabel('right')))
+    await instance.click(inPanel('left', 'files-view-toggle'))
+    await ctx.waitFor(
+      'the left view to change alone',
+      async () =>
+        (await viewLabel('left')) !== viewBefore &&
+        (await viewLabel('right')) === viewBefore,
+    )
+    await instance.click(inPanel('left', 'files-view-toggle'))
+    await ctx.waitFor(
+      'the left view back to the list',
+      async () => (await viewLabel('left')) === viewBefore,
+    )
+    ctx.step('view and sort are per panel')
+
     // Each panel navigates on its own: the right one up and into split-b (it becomes the active
     // one), then the left one into unter.
     await instance.click(inPanel('right', 'files-up'))
@@ -191,6 +223,53 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await shows('left', 'neu.txt', 'the new file in the left panel')
     await shows('right', 'neu.txt', 'the new file in the right panel')
     ctx.step('the same folder is refused for a move and shown in both panels')
+
+    // Dragging between the panels. The right panel is typed to split-b (eins.txt, zwei.txt), the left
+    // one stays in split-a (eins.txt, neu.txt, unter).
+    // The path is typed: the pencil turns the crumbs into a field, Enter goes there.
+    await instance.click(inPanel('right', 'files-path-edit'))
+    await instance.exec(
+      `const input = document.querySelector(arguments[0])
+       input.value = arguments[1]
+       input.dispatchEvent(new Event('input', { bubbles: true }))
+       input.focus()
+       return true`,
+      [inPanel('right', 'files-path-input'), files.path('split-b')],
+    )
+    await press(KEY.enter)
+    await shows('right', 'zwei.txt', 'the right panel in split-b')
+    ctx.step('a typed path opens that folder')
+    const rightList = '[data-files-panel="right"] [data-files-list]'
+
+    // Onto the other panel's empty area: the entry moves into its open folder (same source).
+    assert.equal(
+      await dragBetween(instance, entryIn('left', 'neu.txt'), rightList),
+      'accepted',
+    )
+    await shows('right', 'neu.txt', 'neu.txt moved into the right panel')
+    await gone('left', 'neu.txt', 'neu.txt to leave the left panel')
+    assert.ok(onDisk('split-b', 'neu.txt') && !onDisk('split-a', 'neu.txt'))
+
+    // With Ctrl it copies, and the folder keeps its entries.
+    assert.equal(
+      await dragBetween(instance, entryIn('left', 'unter'), rightList, true),
+      'accepted',
+    )
+    await shows('right', 'unter', 'unter copied into the right panel')
+    assert.ok(await panelShows(instance, 'left', 'unter'), 'the original stays')
+    assert.ok(onDisk('split-b/unter', 'tief.txt'))
+
+    // Onto a folder row of the other panel: into that folder.
+    await dragBetween(
+      instance,
+      entryIn('right', 'zwei.txt'),
+      entryIn('left', 'unter'),
+    )
+    await gone('right', 'zwei.txt', 'zwei.txt to leave the right panel')
+    assert.ok(
+      onDisk('split-a/unter', 'zwei.txt') && !onDisk('split-b', 'zwei.txt'),
+    )
+    ctx.step('dragging moves into the other panel, with Ctrl it copies')
   } finally {
     files.remove()
   }

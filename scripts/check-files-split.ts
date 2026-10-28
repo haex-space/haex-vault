@@ -247,6 +247,29 @@ test('swapActive carries the search and the filter of the inactive panel along',
   )
 })
 
+test('each panel keeps its own view and sort across a swap and a round trip', () => {
+  const state: SplitState = {
+    on: true,
+    side: 'left',
+    active: device('/a', { vw: 'grid', so: 'size:desc' }),
+    other: device('/b', { vw: 'list', so: 'name:asc' }),
+  }
+  assert.deepEqual(
+    readSplit(withSplit(filesLocation(state.active), state)),
+    state,
+  )
+  const swapped = swapActive(state)
+  assert.deepEqual(
+    [
+      swapped.active.vw,
+      swapped.active.so,
+      swapped.other?.vw,
+      swapped.other?.so,
+    ],
+    ['list', 'name:asc', 'grid', 'size:desc'],
+  )
+})
+
 test('swapActive without another place changes nothing', () => {
   const state: SplitState = {
     on: true,

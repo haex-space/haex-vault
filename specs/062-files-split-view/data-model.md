@@ -43,13 +43,14 @@ Regeln:
 
 ## PanelHandle (Laufzeit, je Panel beim Rahmen angemeldet)
 
-| Feld             | Typ                                                                      | Bedeutung                                                                                   |
-| ---------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `side`           | `'left' \| 'right'`                                                      | Seite auf der Oberfläche (fest je Panel-Instanz).                                           |
-| `target()`       | `{ source: SourceRef; path: string \| null; readOnly: boolean } \| null` | Wohin dieses Panel Transfers aufnimmt (Ordner, Quelle, Schreibschutz aus `useFilesManage`). |
-| `reload()`       | `() => unknown`                                                          | Lädt den Ordner nach (nach einem Transfer in dieses Panel).                                 |
-| `focus()`        | `() => void`                                                             | Fokussiert den zuletzt fokussierten Eintrag, sonst den ersten.                              |
-| `keydown(event)` | `(event: KeyboardEvent) => void`                                         | Tasten der Werkzeugleiste und der Seitenleiste, die der Rahmen an das aktive Panel gibt.    |
+| Feld               | Typ                                                                    | Bedeutung                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `side`             | `'left' \| 'right'`                                                    | Seite auf der Oberfläche (fest je Panel-Instanz).                                                                              |
+| `target()`         | `{ source: SourceRef; path: string \| null; lock: PlaceLock } \| null` | Wohin dieses Panel Transfers aufnimmt (Ordner, Quelle, Sperre aus `useFilesManage`: `PlaceLock` = `{ holziOwned, readOnly }`). |
+| `reload()`         | `() => unknown`                                                        | Lädt den Ordner nach (nach einem Transfer in dieses Panel).                                                                    |
+| `clearSelection()` | `() => void`                                                           | Beendet die Auswahl (nach einem Verschieben per Ziehen sind die Einträge fort).                                                |
+| `focus()`          | `() => void`                                                           | Fokussiert den zuletzt fokussierten Eintrag, sonst den ersten.                                                                 |
+| `keydown(event)`   | `(event: KeyboardEvent) => void`                                       | Tasten der Werkzeugleiste und der Seitenleiste, die der Rahmen an das aktive Panel gibt.                                       |
 
 ## Übernommen unverändert (Spec 044)
 

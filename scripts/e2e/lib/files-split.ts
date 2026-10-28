@@ -83,3 +83,57 @@ export const toastShows = (instance: Instance, pattern: string) =>
        pattern.test(toast.textContent || ''))`,
     [pattern],
   )
+
+/**
+ * Drags the element found by the selector `from` onto the one found by `to` with the events of HTML
+ * drag and drop and one shared `DataTransfer` (the rig has no pointer actions; `dragTo` of
+ * `passwords.ts` takes test ids only, and two panels repeat them). `ctrl` holds Ctrl down on the
+ * drop. Resolves with `accepted` when the target cancelled the hover (took the drag), else
+ * `refused`. (A script-made `DataTransfer` keeps `dropEffect` at `none` in WebKit, so the effect
+ * cannot be read.)
+ */
+export const dragBetween = (
+  instance: Instance,
+  from: string,
+  to: string,
+  ctrl = false,
+) =>
+  instance.exec<string>(
+    `const source = document.querySelector(arguments[0])
+     const target = document.querySelector(arguments[1])
+     if (!source || !target) return 'missing'
+     const data = new DataTransfer()
+     const fire = (el, type, init = {}) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data, ...init }))
+     fire(source, 'dragstart')
+     fire(target, 'dragenter')
+     const accepted = !fire(target, 'dragover', { ctrlKey: arguments[2] })
+     fire(target, 'drop', { ctrlKey: arguments[2] })
+     fire(source, 'dragend')
+     return accepted ? 'accepted' : 'refused'`,
+    [from, to, ctrl],
+  )
+
+/** Selects `name` in the panel on `side` with a click and puts the focus in its list, so the keys
+ * (F5, F6) act there. */
+export async function selectIn(
+  ctx: ScenarioContext,
+  instance: Instance,
+  side: PanelSide,
+  name: string,
+) {
+  await instance.click(entryIn(side, name))
+  await ctx.waitFor(`${name} to be selected`, () =>
+    instance.exec<boolean>(
+      `const row = document.querySelector(arguments[0])
+       return Boolean(row && row.getAttribute('aria-selected') === 'true')`,
+      [entryIn(side, name)],
+    ),
+  )
+  await focusList(instance, side)
+}
+
+/** The texts of the toasts on screen, for a failure message. */
+export const toastTexts = (instance: Instance) =>
+  instance.exec<string[]>(
+    `return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.textContent || '')`,
+  )

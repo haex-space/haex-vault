@@ -20,6 +20,10 @@ export type FilesPlace = {
   t?: string
   s?: string
   d?: string
+  /** This panel's view, `list` or `grid` (spec 062: it overrides the device's). */
+  vw?: string
+  /** This panel's sort (`lib/files/state.ts` `formatSort`); overrides the device's. */
+  so?: string
 }
 
 /** Route patterns below `/`: the start, the device, a storage and another own device (spec 056).
@@ -34,10 +38,10 @@ export const FILES_ROUTE_CHILDREN = [
 ] as const
 
 /** The query keys a place may carry; anything else is dropped. */
-const KEYS = ['p', 'open', 'q', 't', 's', 'd'] as const
+const KEYS = ['p', 'open', 'q', 't', 's', 'd', 'vw', 'so'] as const
 
 /** The keys a place keeps as they are. */
-const PASSED = ['q', 't', 's', 'd'] as const
+const PASSED = ['q', 't', 's', 'd', 'vw', 'so'] as const
 
 /** What the id of a storage, an own device or a share may look like in a tab location. */
 export const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/

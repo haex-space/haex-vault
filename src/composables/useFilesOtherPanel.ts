@@ -3,7 +3,9 @@ import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { PanelHandle } from '~/composables/useFilesSplit'
 import {
+  type DragPayload,
   type FilesClipboard,
+  type PlaceLock,
   sameSource as isSameSource,
 } from '~/lib/files/clipboard'
 
@@ -20,7 +22,7 @@ export function useFilesOtherPanel(options: {
   placeAsync: (
     clip: FilesClipboard,
     target: string,
-    targetOwned: boolean,
+    targetLock: PlaceLock,
     targetSource: SourceRef,
     onDone: () => void,
   ) => Promise<boolean>
@@ -28,10 +30,22 @@ export function useFilesOtherPanel(options: {
 }) {
   const { t } = useI18n()
 
-  return async function toOtherAsync(
-    op: FilesClipboard['op'],
-    entries: Entry[],
-  ) {
+  /** A drag that came from the other panel is through: that panel loads its folder again, and a move
+   * leaves nothing selected there (FR-014). */
+  function droppedFromOther(payload: DragPayload, op: FilesClipboard['op']) {
+    const other = options.other()
+    const target = other?.target()
+    if (
+      !other ||
+      target?.path !== payload.folder ||
+      !isSameSource(target.source, payload.source)
+    )
+      return
+    void other.reload()
+    if (op === 'cut') other.clearSelection()
+  }
+
+  async function toOtherAsync(op: FilesClipboard['op'], entries: Entry[]) {
     const other = options.other()
     const target = other?.target()
     if (!other || !target?.path) {
@@ -58,10 +72,11 @@ export function useFilesOtherPanel(options: {
         items: entries.map((entry) => ({ path: entry.path, kind: entry.kind })),
       },
       target.path,
-      target.readOnly,
+      target.lock,
       target.source,
       () => void other.reload(),
     )
     if (started && op === 'cut') options.clearSelection()
   }
+  return { toOtherAsync, droppedFromOther }
 }

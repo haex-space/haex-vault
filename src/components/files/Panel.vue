@@ -16,9 +16,9 @@ import {
   isFiltering,
   parseFilter,
 } from '~/lib/files/filters'
-import { shownNameKey } from '~/lib/files/encrypted'
 import { sameSource } from '~/lib/files/clipboard'
-import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
+import { shownNameKey } from '~/lib/files/encrypted'
+import { isRemoteStorage } from '~/lib/files/registry'
 import type { SplitSide } from '~/lib/files/split'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
 
@@ -30,7 +30,7 @@ const regionLabel = computed(() =>
   t(props.side === 'left' ? 'files.split.panelLeft' : 'files.split.panelRight'),
 )
 const prefs = useFilesPrefs()
-const { peerRootsAsync } = useFiles()
+const panelView = useFilesPanelView(context)
 
 const place = context.place
 // The same source stays the same object: a new place (a query changed, or the panel became the
@@ -42,45 +42,7 @@ const source = computed((previous?: SourceRef): SourceRef =>
 )
 const path = computed(() => place.value.path)
 
-// The start (no path yet) opens the home folder, or the first drive where there is none.
-watchEffect(() => {
-  if (path.value !== null) return
-  if (source.value.kind === 'storage') {
-    // Another own device starts at its home folder, as this one does (spec 056).
-    if (isPeerStorage(source.value.storageId)) {
-      void openPeerStartAsync(source.value.storageId)
-      return
-    }
-    // A storage starts at its root.
-    context.initialize({ source: source.value, path: '/' })
-    return
-  }
-  const data = context.sources.value
-  if (!data) return
-  const home = data.known.find((known) => known.name === 'home')?.path
-  const start = home ?? data.drives[0]?.path
-  if (start) context.initialize({ source: source.value, path: start })
-})
-
-async function openPeerStartAsync(storageId: string) {
-  let start = '/'
-  try {
-    const roots = await peerRootsAsync(storageId)
-    start =
-      roots.known.find((known) => known.name === 'home')?.path ??
-      roots.drives[0]?.path ??
-      '/'
-  } catch {
-    // Not reachable now: the root shows why when it fails to list.
-  }
-  const now = source.value
-  if (
-    path.value === null &&
-    now.kind === 'storage' &&
-    now.storageId === storageId
-  )
-    context.initialize({ source: now, path: start })
-}
+useFilesPanelStart(context, source, path)
 
 const folder = useFilesFolder(source, path)
 // Shares (spec 056 US2).
@@ -116,7 +78,7 @@ function onFilter(next: FilesFilter) {
 const shown = computed(() => {
   const visible = visibleEntries(
     folder.entries.value,
-    prefs.sort.value,
+    panelView.sort.value,
     prefs.showHidden.value,
   )
   if (!isFiltering(filter.value)) return visible
@@ -126,7 +88,7 @@ const shown = computed(() => {
 
 /** Opens a folder, with the filter kept and the search ended. */
 function go(target: string, open?: string) {
-  const { t: types, s: size, d: date } = place.value
+  const { t: types, s: size, d: date, vw, so } = place.value
   context.go({
     source: source.value,
     path: target,
@@ -134,6 +96,8 @@ function go(target: string, open?: string) {
     t: types,
     s: size,
     d: date,
+    vw,
+    so,
   })
 }
 
@@ -158,6 +122,7 @@ const {
   selection,
   selecting,
   clearSelection,
+  folderLock,
   readOnly,
   folderForeign,
   canPaste,
@@ -197,11 +162,12 @@ const {
   split: context.split,
   otherTarget: () => context.other()?.target() ?? null,
   toOther: (op, entries) => void toOtherAsync(op, entries),
+  dropped: (payload, op) => droppedFromOther(payload, op),
 })
 
 // --- The other panel (spec 062) ---
 
-const toOtherAsync = useFilesOtherPanel({
+const { toOtherAsync, droppedFromOther } = useFilesOtherPanel({
   source,
   path,
   other: context.other,
@@ -250,7 +216,7 @@ const { onKeydown } = useFilesKeyboard({
   folderView,
   shown,
   selection,
-  grid: computed(() => prefs.view.value === 'grid'),
+  grid: computed(() => panelView.view.value === 'grid'),
   nameOf: (entry) => {
     const key = shownNameKey(entry)
     return key ? t(key) : entry.name
@@ -281,9 +247,10 @@ const unregister = context.register({
   target: () => ({
     source: source.value,
     path: path.value,
-    readOnly: readOnly.value,
+    lock: folderLock.value,
   }),
   reload: () => folder.reload(),
+  clearSelection: () => clearSelection(),
   focus,
   keydown: onKeydown,
 })
@@ -326,12 +293,7 @@ watch(context.tabActive, (active) => {
 <template>
   <div
     ref="root"
-    :class="[
-      'flex min-h-0 min-w-0 flex-1 flex-col',
-      context.split.value && 'rounded-md ring-2 ring-inset',
-      context.split.value &&
-        (context.active.value ? 'ring-primary' : 'ring-transparent'),
-    ]"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
     :role="context.split.value ? 'region' : undefined"
     :aria-label="context.split.value ? regionLabel : undefined"
     :data-files-panel="side"
@@ -340,6 +302,17 @@ watch(context.tabActive, (active) => {
     @pointerdown.capture="context.activate()"
     @focusin="context.activate()"
   >
+    <!-- The frame of the active panel lies over the content: as the root's own ring it would be
+         covered by the selected rows and the action bar. -->
+    <div
+      v-if="context.split.value"
+      :class="[
+        'pointer-events-none absolute inset-0 z-10 rounded-md ring-2 ring-inset',
+        context.active.value ? 'ring-primary' : 'ring-transparent',
+      ]"
+      data-testid="files-panel-frame"
+      aria-hidden="true"
+    />
     <!-- One panel: the path bar stands in the toolbar. Two: each has its own in its header, the
          active one in the text colour. -->
     <div
@@ -349,13 +322,23 @@ watch(context.tabActive, (active) => {
         !context.active.value && 'text-muted-foreground',
       ]"
     >
-      <FilesPathBar
+      <FilesPanelBar
         :path="path"
         :root-label="storageName"
         :can-go-up="!!path && parentPath(path) !== null"
+        :can-go-back="context.canGoBack.value"
+        :can-go-forward="context.canGoForward.value"
+        :view="panelView.view.value"
+        :sort="panelView.sort.value"
+        :show-hidden="prefs.showHidden.value"
         @go="go"
         @up="goUp"
         @reload="folder.reload()"
+        @back="context.back()"
+        @forward="context.forward()"
+        @view="panelView.setView"
+        @sort="panelView.setSort"
+        @hidden="prefs.setShowHidden"
       />
     </div>
     <Teleport
@@ -363,13 +346,23 @@ watch(context.tabActive, (active) => {
       defer
       :to="context.pathHost.value"
     >
-      <FilesPathBar
+      <FilesPanelBar
         :path="path"
         :root-label="storageName"
         :can-go-up="!!path && parentPath(path) !== null"
+        :can-go-back="context.canGoBack.value"
+        :can-go-forward="context.canGoForward.value"
+        :view="panelView.view.value"
+        :sort="panelView.sort.value"
+        :show-hidden="prefs.showHidden.value"
         @go="go"
         @up="goUp"
         @reload="folder.reload()"
+        @back="context.back()"
+        @forward="context.forward()"
+        @view="panelView.setView"
+        @sort="panelView.setSort"
+        @hidden="prefs.setShowHidden"
       />
     </Teleport>
     <FilesSearchBar
@@ -417,13 +410,14 @@ watch(context.tabActive, (active) => {
             :entries="shown"
             :loading="folder.loading.value"
             :error="folder.error.value"
-            :view="prefs.view.value"
+            :view="panelView.view.value"
             :folder="path ?? ''"
             :selected="selection.paths"
             :selection-anchor="selection.anchor"
             :dimmed="dimmed"
             :settings-link="settingsLink"
             :takes-focus="context.active.value"
+            :droppable="!readOnly"
             @press="onPress"
             @band="onBand"
             @open="activate"
