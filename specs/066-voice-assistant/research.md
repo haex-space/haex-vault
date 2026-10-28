@@ -3,7 +3,7 @@
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Stand**: 2026-10-28
 
 Jede Entscheidung mit Begründung und verworfenen Alternativen. Versionen und Lizenzen sind auf dem
-Stand vom 2026-10-28 und werden im Spike (PR B, T005–T010) auf allen Zielen bestätigt, bevor
+Stand vom 2026-10-28 und werden im Spike (PR B, T005–T009) auf allen Zielen bestätigt, bevor
 Code darauf baut.
 
 ## Ausgangslage im Code
@@ -109,7 +109,7 @@ Zustand „bereit“ im einstelligen Prozentbereich eines Kerns (SC-010).
 
 **Lizenz**: Die vortrainierten openWakeWord-Modelle (CC BY-NC-SA) und die üblichen Negativdaten
 (ACAV100M, CC BY-NC-SA) sind nicht verwendbar. Die Lizenz des gemeinsamen Einbettungsmodells wird
-vor dem Training geprüft (T011); ist sie nicht frei, wird es mit trainiert.
+vor dem Training geprüft (T058); ist sie nicht frei, wird es mit trainiert.
 
 **Alternativen**: microWakeWord — gutes Modell, aber TFLite ohne Rust-Laufzeit. Porcupine — braucht
 API-Schlüssel und Online-Aktivierung, eigene Wörter kostenpflichtig. Offene Erkennung von sherpa für
