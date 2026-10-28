@@ -6,25 +6,26 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 
 ## Commands
 
-| Command                      | Eingabe           | Ergebnis                        | Spec           |
-| ---------------------------- | ----------------- | ------------------------------- | -------------- |
-| `assistant_get_state`        | –                 | `AssistantStateWire`            | FR-003         |
-| `assistant_readiness`        | –                 | `{missing: Missing[]}`          | FR-005         |
-| `assistant_set_enabled`      | `{enabled: bool}` | `AssistantStateWire`            | FR-001, FR-005 |
-| `assistant_set_muted`        | `{muted: bool}`   | `AssistantStateWire`            | US9            |
-| `assistant_talk`             | –                 | –                               | FR-011         |
-| `assistant_end_conversation` | –                 | –                               | FR-014, FR-039 |
-| `assistant_enroll_start`     | `{label: string}` | `{sessionId}`                   | FR-008         |
-| `assistant_enroll_record`    | `{sessionId}`     | `EnrollStep`                    | FR-008         |
-| `assistant_enroll_finish`    | `{sessionId}`     | `EnrollResult`                  | FR-008         |
-| `assistant_enroll_cancel`    | `{sessionId}`     | –                               | FR-008         |
-| `assistant_wakeword_probe`   | `{active: bool}`  | –                               | US7            |
-| `assistant_tts_preview`      | `{voiceId, rate}` | –                               | FR-030         |
-| `list_tts_catalog`           | –                 | `TtsCatalogEntry[]` mit Eignung | FR-029         |
-| `list_installed_tts_voices`  | –                 | `string[]`                      | FR-029         |
-| `download_tts_voice`         | `{voiceId}`       | – (Fortschritt als Ereignis)    | FR-005, FR-029 |
-| `assistant_transcript_list`  | `{threadId}`      | `TranscriptEntryWire[]`         | FR-048         |
-| `download_assistant_assets`  | –                 | – (Fortschritt als Ereignis)    | FR-005         |
+| Command                       | Eingabe            | Ergebnis                        | Spec           |
+| ----------------------------- | ------------------ | ------------------------------- | -------------- |
+| `assistant_get_state`         | –                  | `AssistantStateWire`            | FR-003         |
+| `assistant_readiness`         | –                  | `{missing: Missing[]}`          | FR-005         |
+| `assistant_set_enabled`       | `{enabled: bool}`  | `AssistantStateWire`            | FR-001, FR-005 |
+| `assistant_set_muted`         | `{muted: bool}`    | `AssistantStateWire`            | US9            |
+| `assistant_talk`              | –                  | –                               | FR-011         |
+| `assistant_end_conversation`  | –                  | –                               | FR-014, FR-039 |
+| `assistant_enroll_start`      | `{label: string}`  | `{sessionId}`                   | FR-008         |
+| `assistant_enroll_record`     | `{sessionId}`      | `EnrollStep`                    | FR-008         |
+| `assistant_enroll_finish`     | `{sessionId}`      | `EnrollResult`                  | FR-008         |
+| `assistant_enroll_cancel`     | `{sessionId}`      | –                               | FR-008         |
+| `assistant_wakeword_probe`    | `{active: bool}`   | –                               | US7            |
+| `assistant_tts_preview`       | `{voiceId, rate}`  | –                               | FR-030         |
+| `list_tts_catalog`            | –                  | `TtsCatalogEntry[]` mit Eignung | FR-029         |
+| `list_installed_tts_voices`   | –                  | `string[]`                      | FR-029         |
+| `download_tts_voice`          | `{voiceId}`        | – (Fortschritt als Ereignis)    | FR-005, FR-029 |
+| `assistant_transcript_list`   | `{threadId}`       | `TranscriptEntryWire[]`         | FR-048         |
+| `assistant_transcript_search` | `{query, cursor?}` | `{threadId, seq, snippet}[]`    | FR-048         |
+| `download_assistant_assets`   | –                  | – (Fortschritt als Ereignis)    | FR-005         |
 
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
 `PrefScope::Device`; der Assistent beobachtet die Schlüssel und übernimmt Änderungen ohne Neustart

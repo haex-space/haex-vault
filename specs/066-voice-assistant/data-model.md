@@ -81,7 +81,7 @@ CREATE INDEX voice_transcript_entries_thread ON voice_transcript_entries (thread
 `approvalAnswer`, `choiceQuestion`, `choiceAnswer`, `stop`, `closing`, `notUnderstood`,
 `secretNote`. Ein Vorlese-Hinweis ist `kind = 'secretNote'` mit „Passwort von ‚<Titel>‘ vorgelesen“
 (Feldname je nach Feld). Ein `outcome = 'open'` wird beim Beantworten auf das Ergebnis aktualisiert.
-Die Suche nutzt dieselbe Volltextsuche wie der Chatverlauf (006).
+Gesucht wird in Rust mit der gemeinsamen Faltung (`passwords::ids::fold_for_search`) und Teilstring-Vergleich; einen Volltextindex gibt es im Projekt nicht (006 schließt ihn aus).
 
 ### Kataloge (im Binary, `include_str!`)
 
