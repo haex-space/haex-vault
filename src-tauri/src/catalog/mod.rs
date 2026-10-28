@@ -38,7 +38,7 @@ pub struct CatalogEntry {
     pub hf_repo: String,
     pub hf_filename: String,
     pub tokenizer_repo: String,
-    /// Approximate file size from bartowski's repo page. Rounded — the
+    /// Approximate file size from the Hugging Face repo page. Rounded — the
     /// actual `Content-Length` from the HuggingFace CDN is authoritative
     /// and is captured on download into
     /// `device_downloaded_models_no_sync.size_bytes`.
