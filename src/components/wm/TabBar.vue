@@ -202,7 +202,7 @@ watch(
         role="tab"
         :aria-selected="row.tab.id === activeTabId"
         :tabindex="row.tab.id === activeTabId ? 0 : -1"
-        class="flex min-w-24 basis-56 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 border-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        class="flex min-w-48 basis-56 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 border-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         :class="
           row.tab.id === activeTabId
             ? 'border-primary bg-card font-semibold text-foreground shadow-sm dark:bg-secondary'
