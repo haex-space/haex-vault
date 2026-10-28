@@ -9,6 +9,10 @@ import {
   sameSource,
 } from '~/lib/files/clipboard'
 
+/** The drag under way inside holzi: the browser hides its data while it hovers, and the cursor
+ * should say move or copy by then. Shared by all panels, as the drag crosses them. */
+let dragging: DragPayload | null = null
+
 /**
  * Dragging entries inside holzi (spec 044 US3, spec 062 US2): a row starts the drag with the
  * selection (or itself), a folder row or the open folder takes it in. The payload carries the
