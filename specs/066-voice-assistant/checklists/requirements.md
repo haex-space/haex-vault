@@ -18,6 +18,9 @@
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
 - [x] All acceptance scenarios are defined
+- [x] FR-038 has acceptance coverage for Settings placement, per-device scope and saving on selection
+- [x] FR-041 has acceptance coverage for the floating indicator, position persistence and accessible state text
+- [x] FR-046 has acceptance coverage for distributable tone licensing and repository provenance
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
@@ -33,6 +36,5 @@
 
 - "Vordergrund-Dienst" (Android) and the iOS background limit are platform constraints the operator
   decided in the clarifications, not implementation choices.
-- The default wake word ("Hey Holzi") is a placeholder pending the 054 rename; recorded under
-  Assumptions instead of a clarification marker.
+- The default wake word is "Haex" or "Hey Haex", as defined in spec.md.
 - Reference devices for SC-002 and SC-010 are fixed in the plan.

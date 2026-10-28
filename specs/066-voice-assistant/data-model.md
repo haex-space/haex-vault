@@ -67,8 +67,8 @@ Neue CRDT-Tabelle in derselben Migration, synchronisiert wie der Chat (Vault-Dat
 ```sql
 CREATE TABLE voice_transcript_entries (
   id TEXT PRIMARY KEY NOT NULL,
-  thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
-  seq INTEGER NOT NULL,            -- Reihenfolge im Gespräch, lückenlos ab 1
+  thread_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,            -- lokal fortlaufend je Gespräch, ab 1
   spoken_at INTEGER NOT NULL,      -- Unix-ms, Beginn der Äußerung bzw. Ausgabe
   speaker TEXT NOT NULL,           -- 'user' | 'haex'; 067 ergänzt Teilnehmer-Ids
   kind TEXT NOT NULL,              -- siehe unten
@@ -78,8 +78,16 @@ CREATE TABLE voice_transcript_entries (
   ref_id TEXT,                     -- requestId der Freigabe/Rückfrage oder chat_messages.id
   created_at INTEGER NOT NULL
 );
-CREATE INDEX voice_transcript_entries_thread ON voice_transcript_entries (thread_id, seq);
+CREATE INDEX voice_transcript_entries_thread ON voice_transcript_entries (thread_id, seq, id);
 ```
+
+Jeder lokale Schreibvorgang vergibt innerhalb derselben Datenbanktransaktion `MAX(seq) + 1` für
+den Thread. Gleichzeitige Schreibvorgänge auf getrennten Geräten dürfen dieselbe `seq` erzeugen;
+die replizierte Tabelle erzwingt deshalb keine Eindeutigkeit für `(thread_id, seq)`. Leser ordnen
+stabil nach `(thread_id, seq, id)`, sodass gleiche Sequenzwerte deterministisch zusammenlaufen und
+keinen Remote-Apply blockieren. Beim Löschen eines Threads löscht derselbe CRDT-
+`Database::write`-Vorgang zuerst alle zugehörigen `voice_transcript_entries`-Zeilen explizit und
+danach den Thread, damit jeder Eintrag einen eigenen CRDT-Löschmarker erhält.
 
 `kind`: `utterance`, `answer`, `announcement`, `progress`, `report`, `approvalQuestion`,
 `approvalAnswer`, `choiceQuestion`, `choiceAnswer`, `stop`, `closing`, `notUnderstood`,

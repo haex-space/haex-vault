@@ -17,13 +17,17 @@ Ablauf:
 1. haex sucht Titel und Feld der Zeile (Kopfdaten, kein Geheimnis).
 2. Ton „Frage“, Ansage „Ich lese <Feld> von ‚<Titel>‘ laut vor. Soll ich?“ — immer, unabhängig von
    der Freigabestufe (FR-025).
-3. Nur eindeutige Zustimmung → `SpokenConsent` (nur in `assistant::approval` konstruierbar) →
+3. Nur eindeutige Zustimmung → `SpokenConsent` (nur in `assistant::approval` konstruierbar),
+   gebunden an `itemId`, `field`, Unterhaltung und Ablaufzeit der aktuellen Nachhörzeit →
    `PasswordsService::reveal_for_speech(item, field, consent)` → Ton „Geheimnis“ → buchstabierte
    Ausgabe über eine lokale Stimme (FR-026, FR-027).
 4. Ergebnis an das Modell nur `{spoken: true}`; Vorlese-Hinweis in die Mitschrift.
 
 `noLocalVoice`: Das Geheimnis erscheint stattdessen in der kompakten Mitschrift als maskiertes Feld
-mit „Anzeigen“ (Aufrufer Nutzer, wie im Passwortmanager), haex sagt das.
+mit „Anzeigen“ (Aufrufer Nutzer, wie im Passwortmanager), haex sagt das. Wiederholtes Vorlesen ist
+nur für dasselbe `itemId` und `field` innerhalb derselben Nachhörzeit erlaubt; ein anderes Ziel,
+ein anderes Feld oder ein abgelaufenes Fenster erfordert eine neue mündliche Bestätigung. Ein
+zwischengespeicherter Wert wird beim Ende des Fensters verworfen.
 
 Invarianten (Vertragstest `assistant_secret_contract.rs`): Das Geheimnis erscheint in keinem
 `emit`-Ereignis, keinem Log-Eintrag, keiner Modell-Eingabe, keinem `chat_messages`-Inhalt und keiner

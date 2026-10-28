@@ -101,8 +101,8 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   unverändert. Es entsteht kein neuer Agent und keine eigene Planungs- oder Autonomie-Logik. Neu sind
   nur Hören, Sprechen, die Gesprächsführung und eine Anweisung an das Modell für gesprochene
   Gespräche.
-- [`068-task-orchestration`](../068-task-orchestration/spec.md): Sobald 068 umgesetzt ist, spricht
-  der Assistent mit dem Orchestrator statt direkt mit dem eingebauten Agenten. Aufgaben im Hintergrund,
+- Spec 068 (Task Orchestration): Sobald sie umgesetzt ist, spricht der Assistent mit dem
+  Orchestrator statt direkt mit dem eingebauten Agenten. Aufgaben im Hintergrund,
   offene Fragen und aktives Beenden (FR-039, FR-040) gelten dann pro Aufgabe aus 068; Quittung und
   Fortschrittsansage kommen vom Orchestrator. Bis dahin gilt FR-020 wie beschrieben.
 - [`008-voice-control-stt`](../008-voice-control-stt/spec.md) und
@@ -258,8 +258,10 @@ meldet am Ende das Ergebnis gesprochen.
 9. **Given** der Nutzer sagt „Erledige das und gib mir Bescheid“ und schweigt dann, **When** der
    Agent noch arbeitet, **Then** endet das Gespräch nicht; ist die Aufgabe fertig, meldet haex das
    von selbst gesprochen und hört danach für die Nachhörzeit zu.
-10. **Given** eine Aufgabe läuft im Hintergrund, **When** der Agent eine Rückfrage oder Freigabe
-    braucht, **Then** meldet sich haex von selbst mit einem kurzen Hinweiston und stellt die Frage.
+10. **Given** eine Aufgabe läuft im Hintergrund und haex ist nicht stumm, **When** der Agent eine
+    Rückfrage oder Freigabe braucht, **Then** meldet sich haex von selbst mit einem kurzen Hinweiston
+    und stellt die Frage. Ist haex stumm, erscheint die Frage nur sichtbar und startet keine
+    Nachhörzeit.
 11. **Given** eine Aufgabe läuft, **When** der Nutzer das Gespräch aktiv beendet, **Then** bricht haex
     die Aufgabe samt Werkzeugaufrufen ab und sagt kurz, was bis dahin erledigt war.
 12. **Given** eine offene Frage, auf die niemand geantwortet hat, **When** der Nutzer das nächste Mal
@@ -472,6 +474,13 @@ Modus aus.
 6. **Given** der Nutzer will kurz Ruhe, **When** er „stumm“ wählt, **Then** hört und spricht haex
    nicht, bis er die Stummschaltung aufhebt; der Modus bleibt an. Eine laufende Aufgabe läuft weiter;
    ihr Ergebnis und offene Fragen zeigt haex nur sichtbar an.
+7. **Given** der Nutzer ändert eine Assistent-Einstellung unter „KI“, **When** er eine Auswahl trifft,
+   **Then** wird sie sofort auf diesem Gerät gespeichert und bleibt nach Neustart erhalten.
+8. **Given** die Assistent-Anzeige ist sichtbar, **When** der Nutzer sie verschiebt, **Then** bleibt
+   die Position auf diesem Gerät erhalten und Zustand sowie Bedienelemente sind für Screenreader
+   zugänglich.
+9. **Given** das Klangset wird ausgeliefert, **When** die Release-Prüfung erfolgt, **Then** ist die
+   Lizenz für die Weitergabe mit haex dokumentiert und die Herkunft im Repository festgehalten.
 
 ---
 
@@ -625,7 +634,8 @@ Modus aus.
 - **FR-031**: Der Nutzer MUST einen externen Sprachdienst einrichten können. Seine Zugangsdaten MUST
   so behandelt werden wie die anderer externer Dienste. Solange er aktiv ist, MUST die
   Assistent-Anzeige das dauerhaft kennzeichnen. Ist er nicht erreichbar, MUST haex mit der lokalen
-  Stimme sprechen und das einmal pro Gespräch sagen.
+  Stimme sprechen und das einmal pro Gespräch sagen. Ist auch keine lokale Stimme verfügbar, MUST
+  haex die Antwort sichtbar anzeigen und darauf hinweisen, dass Sprachausgabe nicht verfügbar ist.
 - **FR-032**: Nutzt die Spracherkennung einen externen Dienst (008 US3), MUST die Anzeige auch das
   dauerhaft kennzeichnen.
 
@@ -652,7 +662,9 @@ Modus aus.
   samt Werkzeugaufrufen abbrechen und kurz sagen, was bis dahin erledigt war.
 - **FR-040**: Läuft eine Aufgabe des Gesprächs weiter, MUST haex sich von selbst melden, wenn sie
   fertig ist oder der Agent eine Rückfrage oder Freigabe braucht: mit Hinweiston und kurzer Ansage,
-  bei Stummschaltung nur sichtbar. Danach MUST haex für die Nachhörzeit zuhören. Bleibt eine Frage
+  bei Stummschaltung nur sichtbar. Solange haex stumm ist, MUST es weder zuhören noch eine
+  Nachhörzeit starten oder verlängern. Erst nach dem Aufheben der Stummschaltung MUST haex für die
+  Nachhörzeit zuhören. Bleibt eine Frage
   unbeantwortet, MUST sie offen bleiben, die Anzeige MUST „wartet auf Antwort“ zeigen, und beim
   nächsten Wake Word MUST haex sie zuerst stellen. Von selbst wiederholen MUST haex sie nicht.
 

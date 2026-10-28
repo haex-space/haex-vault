@@ -322,7 +322,9 @@ stoppt der Assistent, im Vordergrund läuft er wieder.
 
 ## R16 — Töne zur Laufzeit erzeugt
 
-**Entscheidung**: `assistant/tones.rs` erzeugt die 13 Töne aus FR-043 als kurze Sinus-/FM-Klänge mit
+**Entscheidung**: `assistant/tones.rs` erzeugt alle 15 `ToneId`-Werte aus
+`contracts/tauri-commands.md`: die 10 Anlässe aus FR-043 plus fünf weitere (`secret`, `modeOn`,
+`modeOff`, `muted`, `unmuted`), deren Quelle in FR-043 nicht festgelegt ist, als kurze Sinus-/FM-Klänge mit
 Hüllkurve in einer gemeinsamen Tonart (Familie), direkt in den Mischer. Eigener Code, keine
 Fremd-Lizenz (FR-046: Herkunft = dieses Repo, dokumentiert in `docs/voice-assistant-platforms.md`).
 „Arbeitet“ wiederholt sich alle 2 s leise, solange FR-023 gilt.
