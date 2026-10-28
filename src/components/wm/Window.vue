@@ -174,7 +174,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @mouseup="onSideButton"
   >
     <div
-      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 py-1"
+      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 pt-1"
       :style="interactive ? { touchAction: 'none' } : undefined"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
