@@ -92,6 +92,7 @@ async fn start_remote(
         sources,
         to,
         target: targets.pop().unwrap_or_default(),
+        known_free: false,
     };
     let (job, plan) = blocking(move || {
         let handle = tokio::runtime::Handle::current();

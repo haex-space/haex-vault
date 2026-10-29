@@ -34,7 +34,7 @@ pub fn context_get(ctx: &CallContext, _params: &Value) -> Result<Value, BridgeEr
 
 /// The manifest the calling frame runs: of its bundle, or for a development version the one in its
 /// project folder now, as long as it still names the registered prefix (the SQL policy's).
-fn manifest_of(ctx: &CallContext) -> Result<Manifest, BridgeError> {
+pub(super) fn manifest_of(ctx: &CallContext) -> Result<Manifest, BridgeError> {
     let unavailable = || BridgeError::new(ExtensionErrorCode::Database, "database unavailable");
     let unreadable = || BridgeError::new(ExtensionErrorCode::Manifest, "manifest unreadable");
     let Some(bundle_id) = ctx.session.source.bundle() else {

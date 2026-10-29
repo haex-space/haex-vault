@@ -108,29 +108,29 @@ deaktiviert nicht mehr.
 **Unabhängiger Test**: Testextension installieren, Mail-Knopf, Öffner wählen: `take` liefert die Felder; ohne Öffner öffnet
 der Knopf beim System.
 
-- [ ] T012 [P] [US1] `src-tauri/src/openers/requests.rs` (neu) und `requests_tests.rs`: `OpenRequests` nach
+- [x] T012 [P] [US1] `src-tauri/src/openers/requests.rs` (neu) und `requests_tests.rs`: `OpenRequests` nach
       `data-model.md` §3 (`park`, `take`, `TAKE_TIMEOUT` 15 s, in Tests abgekürzt), eine Anfrage je Extension, eine neue
       ersetzt die alte; Tests: parken und abholen genau einmal, ersetzen, andere Extension holt nichts, Verfall sendet
       `opener-request-expired`, nach dem Verfall `None`.
-- [ ] T013 [US1] `src-tauri/src/extensions/bridge/openers.rs` (neu) und Eintrag in `bridge/allowlist.rs`:
+- [x] T013 [US1] `src-tauri/src/extensions/bridge/openers.rs` (neu) und Eintrag in `bridge/allowlist.rs`:
       `extension_opener_take` nach `contracts/bridge.md` (nur die Anfrage der aufrufenden Extension, nur wenn
       installiert, aktiviert und angemeldet, sonst `null`; Felder als Text, kein roher Link); `emit_to_frames` mit
       `opener-request` beim Parken; Tests in `bridge/dispatch_tests.rs`-Art: holt die eigene Anfrage, `null` ohne
       Anmeldung, eine andere Extension bekommt die Anfrage nicht, zweites `take` gibt `null`, ohne Berechtigung
       aufrufbar (FR-010).
-- [ ] T014 [US1] `src-tauri/src/openers/commands.rs` (neu): `opener_mail_check` (liest den Link, gibt `MailRequestView`
+- [x] T014 [US1] `src-tauri/src/openers/commands.rs` (neu): `opener_mail_check` (liest den Link, gibt `MailRequestView`
       oder den Fehler) und `opener_mail_open` (liest neu, prüft Installation, Aktivierung und Anmeldung, parkt;
       `OpenerNotAvailable` sonst); `OpenRequests` als Zustand und beide Befehle in `lib.rs` anmelden; die Frist ruft
       `opener-request-expired` über den vorhandenen Emitter. Tests: abgelehnter Link parkt nichts, nicht angemeldete
       Extension → `OpenerNotAvailable`, Link wird in `open` neu gelesen (nicht dem Fenster geglaubt).
-- [ ] T015 [P] [US1] `src/lib/mail/openers.ts` (neu, rein, relative Importe): `openerRows(extensions)` (aktiviert, mit
+- [x] T015 [P] [US1] `src/lib/mail/openers.ts` (neu, rein, relative Importe): `openerRows(extensions)` (aktiviert, mit
       `mail.compose`, nach Name sortiert), `mailTargetBehavior(rows)` (`'system'` ohne Öffner, `'menu'` sonst) und
-      `systemAllowed(source: 'button' | 'external')` (nie für `external`, FR-018); `scripts/check-openers-menu.ts`
+      `systemAllowed(source: 'button' | 'external')` (nie für `external`, FR-018); `scripts/check-extensions-openers-menu.ts`
       (neu): ohne Öffner `'system'` (FR-001), zwei Öffner zwei Zeilen mit Namen, deaktivierte nicht, `external` nie mit
       System, Reihenfolge stabil.
-- [ ] T016 [US1] `src/composables/useMailOpeners.ts` (neu: `openers` aus dem Speicher der Extensions,
-      `openWithAsync(extensionId, link)` ruft `opener_mail_open` und `openExtension`, hört auf
-      `opener-request-expired` und sagt es mit einer Meldung), `src/components/contacts/MailOpenMenu.vue` (neu,
+- [x] T016 [US1] `src/composables/useMailOpeners.ts` (neu: `openers` aus dem Speicher der Extensions,
+      `openWithAsync(extensionId, link)` ruft `opener_mail_open` und `showExtension`; den
+      Hörer auf `opener-request-expired` gibt es einmal in `useExtensionHost.ts`, er sagt es mit einer Meldung), `src/components/contacts/MailOpenMenu.vue` (neu,
       Dropdown wie das „+“-Menü; Zeile „Mit dem System öffnen“ und je Öffner eine Zeile; Testids
       `contacts-open-mail`, `contacts-open-system`, `contacts-open-with-<extensionId>`), und
       `src/components/contacts/ValueActions.vue`: der Mail-Knopf wird `MailOpenMenu` nur bei `'menu'`, sonst bleibt der
@@ -141,11 +141,13 @@ der Knopf beim System.
       `client.openers.onRequest` die Anfrage holen und `ComposeDialog` (`app/components/ComposeDialog.vue`) mit
       Empfänger, Kopie, Blindkopie, Betreff und Text öffnen, ohne zu senden (FR-015); Test des Plugins mit einer
       gefälschten Anfrage; haex-mail hebt dafür die SDK-Version (nach T008).
-- [ ] T018 [US1] E2E `scripts/e2e/scenarios/contacts-mail-openers.test.ts` (neu): ohne Extension öffnet der Mail-Knopf beim
+- [x] T018 [US1] E2E `scripts/e2e/scenarios/contacts-mail-openers.test.ts` (neu): ohne Extension öffnet der Mail-Knopf beim
       System (nicht auswählbar, Aufruf des Systems geprüft über die gefälschte Oberfläche des Hosts, wie die Szenarien
       der Dateifreigaben); mit `mail-opener.xt` zeigt er das Menü mit zwei Zeilen; Öffner wählen → Fenster der
       Extension, die Seite zeigt die Felder des Links; „Schließen ohne Wahl“ öffnet nichts; Extension deaktivieren → der
       Knopf öffnet ohne Menü; die Wahl geht nur nach dem Tipp (nichts erreicht die Extension vorher, SC-003).
+      Abweichung: Der Aufruf des Systems wird nicht geprüft (die E2E-Umgebung hat keine gefälschte Oberfläche des Hosts für
+      `openUrl`); das Szenario prüft, dass der Knopf ohne Öffner keine Auswahl öffnet, und tippt ihn nicht an.
 
 **Checkpoint**: Geschichte 1 funktioniert allein, ohne Registrierung beim System.
 
@@ -162,7 +164,7 @@ der Knopf beim System.
       erzeugten Block neu erzeugen und einchecken; bei Befund aus T001 zusätzlich ein eigener Filter für
       `ACTION_SENDTO` und die Weitergabe in `src-tauri/plugins/holzi-android`);
       `src-tauri/src/deep_link/mod.rs`: `register_for_development` registriert nur `haex-vault`
-      (`register("haex-vault")` statt `register_all()`, FR-016); `scripts/check-openers-registration.ts` (neu): liest
+      (`register("haex-vault")` statt `register_all()`, FR-016); `scripts/check-extensions-openers-registration.ts` (neu): liest
       `tauri.conf.json` und prüft beide Schemata, und dass der Quelltext von `register_for_development` `register_all`
       nicht enthält; bei Befund (b) aus T001 `mailto` nicht für Windows eintragen und die Spec anpassen.
 - [ ] T020 [US2] `src-tauri/src/deep_link/mod.rs`: `contact_link` wird `known_link`, lässt `haex-vault://contact/…` und
@@ -175,7 +177,7 @@ der Knopf beim System.
       `null`) und `acceptMailLink(url, pending)` (der neueste ersetzt den wartenden, ein gleicher Link innerhalb von 3 s
       zählt einmal); `src/stores/mailInbox.ts` (neu, Pinia: `link`, `park`, `take`);
       `src/composables/useDeepLink.ts`: `handle` unterscheidet nach Schema (Kontakt-Link wie bisher an `shareInbox`,
-      `mailto:` an `mailInbox`); `scripts/check-openers-link.ts` (neu): fremdes Schema, zu lang, ein zweiter Link ersetzt
+      `mailto:` an `mailInbox`); `scripts/check-extensions-openers-link.ts` (neu): fremdes Schema, zu lang, ein zweiter Link ersetzt
       den ersten, derselbe zweimal einmal, `haex-vault`-Links gehen weiter an `shareInbox`.
 - [ ] T022 [US2] `src/components/mail/MailLinkDialog.vue` (neu, `UiDrawerModal`): nimmt den Link aus `mailInbox`, ruft
       `opener_mail_check`; bei Fehler „Der Link kann nicht gelesen werden“ ohne Zeilen; sonst eine Zeile je Öffner
@@ -183,7 +185,7 @@ der Knopf beim System.
       `openUrl`/„Mit dem System öffnen“ (FR-018); öffnet nie selbst etwas (FR-020); Testids `mail-link-dialog`,
       `mail-link-open-<extensionId>`, `mail-link-copy`, `mail-link-error`, `mail-link-none`; in
       `src/pages/workspace/[instance].vue` nach `sessionRestored` einhängen; ein neuer Link ersetzt den Inhalt eines
-      offenen Dialogs; `scripts/check-openers-menu.ts` ergänzen: `MailLinkDialog.vue` importiert `openUrl` nicht.
+      offenen Dialogs; `scripts/check-extensions-openers-menu.ts` ergänzen: `MailLinkDialog.vue` importiert `openUrl` nicht.
 - [ ] T023 [US2] E2E `scripts/e2e/scenarios/android-mail-link.test.ts` (neu, Telefon): `phone.openLink('mailto:ben@example.org?subject=Hallo')`
       bei geöffneter Vault zeigt den Dialog ohne „Mit dem System öffnen“ und mit der Zeile des Testöffners
       (`mail-opener.xt`); Öffnen zeigt die Felder; bei gesperrter Vault wartet der Link und der Dialog erscheint nach

@@ -3028,6 +3028,7 @@
       },
       "progress": {
         "label": "Fortschritt",
+        "running": "Läuft …",
         "scanning": "Orte werden verglichen …",
         "executing": "Änderungen werden ausgeführt …",
         "files": "{done} von {total} Dateien · {size}"
@@ -3384,6 +3385,12 @@
       "revoke": "Zugriff auf „{name}“ entziehen",
       "affected": "Der Kontakt verliert den Zugriff auf die Dateifreigabe {names}. | Der Kontakt verliert den Zugriff auf die Dateifreigaben {names}.",
       "lookupFailed": "Die Dateifreigaben konnten nicht geprüft werden. Das Löschen bleibt gesperrt."
+    }
+  },
+  "mail": {
+    "openers": {
+      "system": "Mit dem System öffnen",
+      "notTaken": "{name} hat die E-Mail nicht übernommen. Versuche es noch einmal."
     }
   },
   "browserBridge": {

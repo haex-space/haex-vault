@@ -3028,6 +3028,7 @@
       },
       "progress": {
         "label": "Progress",
+        "running": "Running …",
         "scanning": "Comparing the places …",
         "executing": "Applying changes …",
         "files": "{done} of {total} files · {size}"
@@ -3384,6 +3385,12 @@
       "revoke": "Revoke access to “{name}”",
       "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}.",
       "lookupFailed": "The file shares could not be checked. Deletion remains disabled."
+    }
+  },
+  "mail": {
+    "openers": {
+      "system": "Open with the system",
+      "notTaken": "{name} did not take the e-mail. Try again."
     }
   },
   "browserBridge": {

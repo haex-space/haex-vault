@@ -188,7 +188,12 @@ scenario(
     assert.equal(mountPointOf(device), mounted, 'a no keeps it mounted')
     ctx.step('running transfers: asked, no keeps it')
 
-    // A yes cancels the pending transfer before releasing the drive (FR-010).
+    // A yes cancels the pending transfer before releasing the drive (FR-010). The copy comes from
+    // the home folder again: copied on the stick itself it would land as "notiz (2).txt".
+    await instance.click('files-back')
+    await ctx.waitFor('the home folder again', () =>
+      gone(instance, 'files-entry-lies.txt'),
+    )
     await contextMenu(instance, 'files-entry-notiz.txt')
     await instance.click('files-menu-copy')
     await instance.click(row)

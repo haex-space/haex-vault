@@ -86,6 +86,7 @@ pub(super) fn job(
         sources: sources.iter().map(|s| (*s).to_owned()).collect(),
         to,
         target: target.to_owned(),
+        known_free: false,
     }
 }
 
