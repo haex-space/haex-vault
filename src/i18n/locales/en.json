@@ -626,6 +626,11 @@
           "log": {
             "title": "Log"
           }
+        },
+        "browser": {
+          "title": "Agent browser",
+          "description": "Which browser agents steer and what the built-in agent may do on the web",
+          "keywords": "browser agent Chromium Chrome websites profile browser-use"
         }
       },
       "federation": {
@@ -1721,6 +1726,11 @@
         "deviceAccess": {
           "set": "Turn file access from devices on or off"
         }
+      },
+      "agentBrowser": {
+        "builtinSet": "Set the browser rights of the built-in agent",
+        "pathSet": "Choose the browser of the agent browser",
+        "profileClear": "Remove the profile of the agent browser"
       }
     },
     "scopes": {
@@ -1787,6 +1797,17 @@
       "get": "Read a contact",
       "update": "Change a contact",
       "share": "Share a contact as a link"
+    },
+    "browser": {
+      "open": "Open a page in the agent browser",
+      "tabsOpen": "Open a new agent tab",
+      "pageRead": "Read the page",
+      "pageScreenshot": "Screenshot of the page",
+      "navigate": "Navigate in an agent tab",
+      "followLink": "Follow a link",
+      "scroll": "Scroll the page",
+      "tabsList": "List the agent tabs",
+      "wait": "Wait for the page"
     }
   },
   "passwords": {
@@ -3624,6 +3645,52 @@
       "removeShort": "Remove",
       "invalid": "This is not an https or http website.",
       "hint": "A website over unencrypted http can only be read. Other websites ask before they open."
+    }
+  },
+  "agentBrowser": {
+    "notification": {
+      "title": "The agent browser asks",
+      "body": "An agent wants to do something in the browser. Open holzi to answer."
+    },
+    "prompt": {
+      "builtinAgent": "Built-in agent",
+      "agent": "Agent",
+      "site": {
+        "title": "Open this website?",
+        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent."
+      },
+      "action": {
+        "title": "Allow this browser action?",
+        "hint": "The agent works in the approval mode Manual and asks before every navigation."
+      },
+      "address": "Address",
+      "more": "{count} more questions wait after this one.",
+      "deny": "Decline",
+      "allow": "Allow",
+      "allowOnce": "Only this time",
+      "rememberRead": "Remember: read",
+      "rememberOperate": "Remember: operate",
+      "siteLabel": "Website",
+      "actionLabel": "Action"
+    },
+    "settings": {
+      "browser": "Browser",
+      "state": "State",
+      "running": "Running ({product})",
+      "notRunning": "Not running; starts with the first browser tool",
+      "found": "Browser found",
+      "noneFound": "None found. Install Chromium, Chrome, Edge or Brave.",
+      "path": "Own browser",
+      "pathPlaceholder": "Path to the program, empty = search",
+      "pathHint": "Used at the next start. Browsers from Flatpak or Snap cannot be steered.",
+      "pathReset": "Search again",
+      "profileProblem": "The saved profile could not be read; the browser started without logins.",
+      "builtin": "Built-in agent",
+      "profile": "Profile",
+      "profileHint": "Logins on websites are stored encrypted on this device.",
+      "clear": "Remove profile",
+      "cancel": "Cancel",
+      "cleared": "Profile removed. The next start begins without logins."
     }
   }
 }

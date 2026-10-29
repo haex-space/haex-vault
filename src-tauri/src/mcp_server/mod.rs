@@ -215,7 +215,7 @@ impl McpServer {
 }
 
 /// When a prompt that waits `timeout` from now ends, in Unix milliseconds.
-fn expires_at(timeout: std::time::Duration) -> i64 {
+pub(crate) fn expires_at(timeout: std::time::Duration) -> i64 {
     now_millis().saturating_add(i64::try_from(timeout.as_millis()).unwrap_or(i64::MAX))
 }
 

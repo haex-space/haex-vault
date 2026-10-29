@@ -34,7 +34,7 @@ use crate::mcp_server::grants::{BrowserRights, SiteLevel};
 use crate::prompt_park::PromptEnd;
 
 /// The tools that only read.
-pub const READING: [&str; 5] = [
+pub const READING: &[&str] = &[
     "browser.page.read",
     "browser.page.screenshot",
     "browser.scroll",
@@ -44,14 +44,14 @@ pub const READING: [&str; 5] = [
 
 /// The tools that change something (every navigation counts, contracts/browser-tools.md); they ask
 /// the user themselves.
-pub const CHANGING: [&str; 4] = [
+pub const CHANGING: &[&str] = &[
     "browser.open",
     "browser.tabs.open",
     "browser.navigate",
     "browser.follow_link",
 ];
 
-const ALL: [&str; 9] = [
+pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.page.read",
     "browser.page.screenshot",
     "browser.scroll",
@@ -76,7 +76,7 @@ pub trait BrowserEnv: Send + Sync + 'static {
     /// The name the dialogs show for `caller`.
     async fn agent_name(&self, caller: &Caller) -> String;
     /// How to start the browser now.
-    fn start_config(&self) -> Result<StartConfig, BrowserError>;
+    async fn start_config(&self) -> Result<StartConfig, BrowserError>;
 }
 
 /// The executor of `browser.*`.
@@ -173,9 +173,9 @@ impl BrowserTools {
     }
 
     async fn connection(&self) -> Result<Arc<Connection>, NativeError> {
-        let env = Arc::clone(&self.env);
+        let config = self.env.start_config().await;
         self.browser
-            .ensure(move || env.start_config())
+            .ensure(move || config)
             .await
             .map_err(browser_error)
     }
@@ -283,11 +283,11 @@ fn site_of(url: &str) -> String {
 #[async_trait]
 impl NativeExecutor for BrowserTools {
     fn action_ids(&self) -> &'static [&'static str] {
-        &ALL
+        BROWSER_ACTION_IDS
     }
 
     fn confirming_action_ids(&self) -> &'static [&'static str] {
-        &CHANGING
+        CHANGING
     }
 
     async fn run(

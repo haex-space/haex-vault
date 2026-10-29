@@ -29,7 +29,8 @@ fn a_page_has_the_shape_of_the_contract() {
     assert_eq!(content["truncated"], false);
     assert_eq!(content["elements"].as_array().unwrap().len(), 2);
     assert!(content.get("next_from").is_none());
-    let keys: Vec<&String> = page.as_object().unwrap().keys().collect();
+    let mut keys: Vec<&String> = page.as_object().unwrap().keys().collect();
+    keys.sort();
     assert_eq!(
         keys,
         ["note", "tab", "untrusted_page_content"],

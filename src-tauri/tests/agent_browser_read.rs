@@ -84,7 +84,7 @@ impl BrowserEnv for Env {
         "Testagent".to_owned()
     }
 
-    fn start_config(&self) -> Result<StartConfig, BrowserError> {
+    async fn start_config(&self) -> Result<StartConfig, BrowserError> {
         let db = self.db.clone();
         Ok(StartConfig {
             os: self.os,

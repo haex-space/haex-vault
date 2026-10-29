@@ -7,6 +7,7 @@ import {
   type ActionLocale,
 } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
+import { forDevice } from '~/lib/actions/browserActions'
 import type { ActionCaller, ActionOutcome } from '~/lib/actions/types'
 
 /**
@@ -43,6 +44,7 @@ let localeWatchStarted = false
  */
 export function useAgentActions() {
   const wm = useWindowManagerStore()
+  const { readyAsync } = useDeviceCapabilities()
   const { t, locale, loadLocaleMessages } = useI18n()
 
   /** Translates an action title in the requested catalog language. */
@@ -53,8 +55,11 @@ export function useAgentActions() {
   async function pushDefinitionsAsync(): Promise<void> {
     // Only the active language is loaded lazily; the titles need every catalog language.
     await Promise.all(ACTION_LOCALES.map((code) => loadLocaleMessages(code)))
+    // Spec 065 research R13: a device without an agent browser has no executor for its tools.
+    const table = await readyAsync()
+    const catalog = forDevice(ALL_ACTIONS, table?.agentBrowser === true)
     await invoke('set_agent_actions', {
-      args: { actions: listPushedActions(ALL_ACTIONS, titleOf) },
+      args: { actions: listPushedActions(catalog, titleOf) },
     })
   }
 

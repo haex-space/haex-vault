@@ -441,8 +441,43 @@ pub fn run() {
             let mcp = mcp_server::McpServer::default();
             mcp.attach(app.handle());
             app.manage(mcp);
-            // Spec 065: the agent browser starts on the first browser tool and ends with the vault.
-            app.manage(agent_browser::AgentBrowser::default());
+            // Spec 065: the agent browser starts on the first browser tool and ends with the vault;
+            // its questions go to the window. Only where a device has one (research R13), so the
+            // catalog of Android and iOS has no browser tools and no executor for them.
+            let agent_browser = agent_browser::AgentBrowser::default();
+            app.manage(agent_browser.clone());
+            let browser_prompts = agent_browser::prompts::new_browser_prompts();
+            app.manage(browser_prompts.clone());
+            if platform::capabilities().agent_browser {
+                let handle = app.handle().clone();
+                browser_prompts.set_emitter(std::sync::Arc::new(move |id, question| {
+                    let event = agent_browser::prompts::BrowserPromptEvent {
+                        request_id: id.to_owned(),
+                        expires_at: mcp_server::expires_at(agent_browser::prompts::PROMPT_TIMEOUT),
+                        question: question.clone(),
+                    };
+                    handle
+                        .emit(agent_browser::prompts::EVENT_PROMPT, event)
+                        .is_ok()
+                }));
+                let handle = app.handle().clone();
+                let closed: agent_browser::prompts::ClosedNotice =
+                    std::sync::Arc::new(move |closed| {
+                        let _ = handle.emit(agent_browser::prompts::EVENT_PROMPT_CLOSED, closed);
+                    });
+                app.state::<ChatState>()
+                    .native_actions
+                    .add(std::sync::Arc::new(
+                        agent_browser::executor::BrowserTools::new(
+                            std::sync::Arc::new(agent_browser::env::TauriBrowserEnv::new(
+                                app.handle().clone(),
+                            )),
+                            agent_browser,
+                            browser_prompts,
+                            closed,
+                        ),
+                    ));
+            }
             // Spec 065 research R8: native actions of the built-in agent run in the chat's mode.
             let mode_handle = app.handle().clone();
             app.state::<ChatState>()
@@ -589,6 +624,11 @@ pub fn run() {
             mcp_server::commands::mcp_configure,
             mcp_server::commands::mcp_registration_answer,
             mcp_server::commands::mcp_call_answer,
+            agent_browser::commands::agent_browser_prompt_answer,
+            agent_browser::commands::agent_browser_status,
+            agent_browser::commands::agent_browser_builtin_set,
+            agent_browser::commands::agent_browser_path_set,
+            agent_browser::commands::agent_browser_profile_clear,
             mcp_server::commands::mcp_agent_log,
             mcp_server::manage_commands::mcp_agents_list,
             mcp_server::manage_commands::mcp_agent_get,

@@ -626,6 +626,11 @@
           "log": {
             "title": "Protokoll"
           }
+        },
+        "browser": {
+          "title": "Agenten-Browser",
+          "description": "Welchen Browser Agenten steuern und was der eingebaute Agent im Web darf",
+          "keywords": "Browser Agent Chromium Chrome Websites Profil browser-use"
         }
       },
       "federation": {
@@ -1721,6 +1726,11 @@
         "deviceAccess": {
           "set": "Geräte-Dateizugriff ein- oder ausschalten"
         }
+      },
+      "agentBrowser": {
+        "builtinSet": "Browser-Rechte des eingebauten Agenten setzen",
+        "pathSet": "Browser des Agenten-Browsers wählen",
+        "profileClear": "Profil des Agenten-Browsers löschen"
       }
     },
     "scopes": {
@@ -1787,6 +1797,17 @@
       "get": "Kontakt lesen",
       "update": "Kontakt ändern",
       "share": "Kontakt als Link weitergeben"
+    },
+    "browser": {
+      "open": "Seite im Agenten-Browser öffnen",
+      "tabsOpen": "Neuen Agenten-Tab öffnen",
+      "pageRead": "Seite lesen",
+      "pageScreenshot": "Bildschirmfoto der Seite",
+      "navigate": "Im Agenten-Tab navigieren",
+      "followLink": "Link folgen",
+      "scroll": "Seite scrollen",
+      "tabsList": "Agenten-Tabs auflisten",
+      "wait": "Auf die Seite warten"
     }
   },
   "passwords": {
@@ -3624,6 +3645,52 @@
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
       "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
+    }
+  },
+  "agentBrowser": {
+    "notification": {
+      "title": "Der Agenten-Browser fragt",
+      "body": "Ein Agent möchte im Browser etwas tun. Öffne holzi, um zu antworten."
+    },
+    "prompt": {
+      "builtinAgent": "Eingebauter Agent",
+      "agent": "Agent",
+      "site": {
+        "title": "Website öffnen?",
+        "hint": "Diese Website ist für den Agenten nicht erlaubt. Ohne deine Zustimmung lädt der Browser nichts von ihr. Inhalte von Webseiten können versuchen, den Agenten zu lenken."
+      },
+      "action": {
+        "title": "Handlung im Browser erlauben?",
+        "hint": "Der Agent arbeitet in der Freigabestufe Manuell und fragt vor jeder Navigation."
+      },
+      "address": "Adresse",
+      "more": "Danach warten noch {count} Fragen.",
+      "deny": "Ablehnen",
+      "allow": "Erlauben",
+      "allowOnce": "Nur diesmal",
+      "rememberRead": "Merken: lesen",
+      "rememberOperate": "Merken: bedienen",
+      "siteLabel": "Website",
+      "actionLabel": "Handlung"
+    },
+    "settings": {
+      "browser": "Browser",
+      "state": "Zustand",
+      "running": "Läuft ({product})",
+      "notRunning": "Läuft nicht; startet beim ersten Browser-Werkzeug",
+      "found": "Gefundener Browser",
+      "noneFound": "Keiner gefunden. Installiere Chromium, Chrome, Edge oder Brave.",
+      "path": "Eigener Browser",
+      "pathPlaceholder": "Pfad zum Programm, leer = suchen",
+      "pathHint": "Wird beim nächsten Start verwendet. Browser aus Flatpak oder Snap lassen sich nicht steuern.",
+      "pathReset": "Wieder suchen",
+      "profileProblem": "Das gespeicherte Profil ließ sich nicht lesen; der Browser startete ohne Anmeldungen.",
+      "builtin": "Eingebauter Agent",
+      "profile": "Profil",
+      "profileHint": "Anmeldungen auf Websites liegen verschlüsselt auf diesem Gerät.",
+      "clear": "Profil löschen",
+      "cancel": "Abbrechen",
+      "cleared": "Profil gelöscht. Der nächste Start beginnt ohne Anmeldungen."
     }
   }
 }

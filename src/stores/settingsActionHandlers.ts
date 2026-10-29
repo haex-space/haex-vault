@@ -197,6 +197,20 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   on('settings.agents.mcp.log.clear', async ({ input }) =>
     invoke('mcp_agent_log_clear', { args: agent(input) }),
   )
+  // Spec 065: the agent browser.
+  on('settings.agentBrowser.builtin.set', async ({ input }) =>
+    invoke('agent_browser_builtin_set', {
+      args: { rights: (input as { rights: unknown }).rights ?? null },
+    }),
+  )
+  on('settings.agentBrowser.path.set', async ({ input }) =>
+    invoke('agent_browser_path_set', {
+      args: { path: (input as { path: string | null }).path ?? null },
+    }),
+  )
+  on('settings.agentBrowser.profile.clear', async () =>
+    invoke('agent_browser_profile_clear'),
+  )
   on('settings.browserBridge.client.unblock', async ({ input }) =>
     invoke<BridgeOverview>('browser_bridge_client_unblock', {
       args: { clientId: String(input.clientId) },

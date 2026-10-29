@@ -3,4 +3,4 @@
 /**
  * How a call ended.
  */
-export type Outcome = "ok" | "denied_rights" | "denied_user" | "denied_plan" | "no_answer" | "error" | "unavailable" | "too_many";
+export type Outcome = "ok" | "denied_rights" | "denied_user" | "denied_plan" | "no_answer" | "error" | "unavailable" | "too_many" | "denied_site" | "paused";

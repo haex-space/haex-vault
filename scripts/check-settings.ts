@@ -55,6 +55,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.agents': '/ai/agents',
   'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
   'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
+  'ai.browser': '/ai/browser',
   'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
   'ai.servers': '/ai/servers',
@@ -171,6 +172,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.denyRules',
     'ai.files',
     'ai.agents',
+    'ai.browser',
   ])
   assert.deepEqual(rows('general'), [
     'general.basic',
@@ -189,7 +191,10 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['chat', ['ai.default', 'ai.providers', 'ai.servers']],
       ['local', ['ai.installed', 'ai.download']],
       ['speech', ['ai.speech']],
-      ['agents', ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents']],
+      [
+        'agents',
+        ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],
+      ],
     ],
   )
   // Rows without a group stay one list each, in order.

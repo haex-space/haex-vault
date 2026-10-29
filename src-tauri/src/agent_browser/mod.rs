@@ -7,6 +7,8 @@
 //! [`IDLE_LIMIT`] without a lease, when the vault closes, or when the user closes its window.
 
 pub mod cdp;
+pub mod commands;
+pub mod env;
 pub mod error;
 pub mod executor;
 pub mod locate;

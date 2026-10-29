@@ -239,6 +239,12 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   }),
   subView('ai.agents.agent', 'ai/agents/:agentId', 'ai.agents'),
   subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
+  // Spec 065: the agent browser, its browser and the browser rights of the built-in agent.
+  subView('ai.browser', 'ai/browser', 'ai', {
+    icon: 'lucide:globe',
+    group: 'agents',
+    overviewRow: true,
+  }),
   // Spec 038: storage connections (S3) and the storages on them. The forms and the removal are
   // reached from the list, never searched for.
   categoryLocation('storage'),
