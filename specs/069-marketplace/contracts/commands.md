@@ -44,19 +44,25 @@ by downloads applies within each source.
 
 ## Download and installation (FR-010 to FR-016)
 
-| Command                        | Arguments                                                              | Result                                                           |
-| ------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `marketplace_download`         | `sourceId`, `slug`, `version`, `onProgress: Channel<DownloadProgress>` | `PendingBundleRef { id }`                                        |
-| `marketplace_download_cancel`  | `id`                                                                   | –                                                                |
-| `marketplace_download_discard` | `id`                                                                   | – (closing the preview)                                          |
-| `extension_install_preview`    | `source: BundleSource`                                                 | `InstallPreview` (+ `origin?: { sourceName }` for a marketplace) |
-| `extension_install`            | `ExtensionInstallArgs { source: BundleSource, accepted, confirmed }`   | `ExtensionSummary`                                               |
+| Command                        | Arguments                                                                    | Result                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `marketplace_download`         | `sourceId`, `slug`, `version`, `id`, `onProgress: Channel<DownloadProgress>` | `PendingBundleRef { id }`                                        |
+| `marketplace_download_cancel`  | `id`                                                                         | –                                                                |
+| `marketplace_download_discard` | `id`                                                                         | – (closing the preview)                                          |
+| `extension_install_preview`    | `source: BundleSource`                                                       | `InstallPreview` (+ `origin?: { sourceName }` for a marketplace) |
+| `extension_install`            | `ExtensionInstallArgs { source: BundleSource, accepted, confirmed }`         | `ExtensionSummary`                                               |
 
 ```ts
 type BundleSource =
   | { kind: 'file'; file: PickedFile } // as before
   | { kind: 'marketplace'; id: string } // PendingBundleRef.id
 ```
+
+`id` is a UUID chosen by the caller: the download can then be cancelled by `marketplace_download_cancel`
+before it has ended, and the same `id` names the pending bundle afterwards (`PendingBundleRef.id`). An
+`id` that is already running is refused. `marketplace_download_discard` also ends a download that
+is still running. A closing vault ends running downloads and drops the pending bundle (the app process
+ends with the vault, spec 013); the pending bundle also expires 10 minutes after its last use.
 
 `extension_install` with `marketplace` consumes the pending slot on success. Removal
 (`extension_remove`, spec 017) stays unchanged and is called from the catalog (FR-016).

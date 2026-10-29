@@ -113,7 +113,7 @@ pub fn redirect_allowed(previous: &[Url], next: &Url, carries_login: bool) -> bo
     true
 }
 
-fn policy(carries_login: bool) -> Policy {
+pub(super) fn policy(carries_login: bool) -> Policy {
     Policy::custom(move |attempt: Attempt<'_>| {
         if redirect_allowed(attempt.previous(), attempt.url(), carries_login) {
             attempt.follow()
@@ -151,7 +151,7 @@ fn shared(carries_login: bool) -> &'static reqwest::Client {
 }
 
 /// Maps a failed send to a kind and a detail of the fixed vocabulary.
-fn send_failure(error: &reqwest::Error) -> SourceFailure {
+pub(super) fn send_failure(error: &reqwest::Error) -> SourceFailure {
     if error.is_timeout() {
         SourceFailure::new(SourceErrorKind::Timeout, "timeout")
     } else if error.is_connect() {
@@ -164,7 +164,7 @@ fn send_failure(error: &reqwest::Error) -> SourceFailure {
 }
 
 /// Maps a status that is not a success.
-fn status_failure(status: reqwest::StatusCode) -> SourceFailure {
+pub(super) fn status_failure(status: reqwest::StatusCode) -> SourceFailure {
     let kind = if matches!(status.as_u16(), 401 | 403) {
         SourceErrorKind::AuthRejected
     } else {

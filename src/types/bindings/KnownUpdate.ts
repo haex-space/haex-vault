@@ -3,7 +3,7 @@
 /**
  * A newer version known for an installed extension (FR-017).
  */
-export type KnownUpdate = {
+export type KnownUpdate = { 
 /**
  * The installed extension's name.
  */

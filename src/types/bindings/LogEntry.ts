@@ -3,15 +3,15 @@
 /**
  * One entry as the settings and the extension read it.
  */
-export type LogEntry = { id: number,
+export type LogEntry = { id: number, 
 /**
  * `debug`, `info`, `warn` or `error`.
  */
-level: string, message: string,
+level: string, message: string, 
 /**
  * The JSON the extension gave, as text.
  */
-metadata?: string,
+metadata?: string, 
 /**
  * Milliseconds.
  */

@@ -5,6 +5,7 @@ pub mod blobs;
 mod declared_view;
 pub mod effective;
 pub mod install;
+pub mod install_source;
 pub mod lifecycle;
 pub mod limits;
 pub mod list;

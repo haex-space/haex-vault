@@ -3,7 +3,7 @@
 /**
  * Developer mode on this device and whether holzi's window can show development servers yet.
  */
-export type DevModeState = { enabled: boolean,
+export type DevModeState = { enabled: boolean, 
 /**
  * The document holzi's window shows was served with the development origins; when `enabled`
  * differs, the window reloads to take the new policy.

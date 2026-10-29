@@ -3,58 +3,58 @@
 /**
  * One permission as the settings show it.
  */
-export type PermissionView = {
+export type PermissionView = { 
 /**
  * Row id; `None` for a decision held in memory.
  */
-id?: string, kind: string, action: string, target: string,
+id?: string, kind: string, action: string, target: string, 
 /**
  * `granted`, `denied` or `ask`.
  */
-status: string, declared: boolean,
+status: string, declared: boolean, 
 /**
  * Holds on every own device.
  */
-allDevices: boolean,
+allDevices: boolean, 
 /**
  * The device a device-scoped row holds on.
  */
-deviceName?: string,
+deviceName?: string, 
 /**
  * Held only until holzi is closed.
  */
-temporary: boolean,
+temporary: boolean, 
 /**
  * holzi cannot read the row (FR-022); it counts as absent.
  */
-unreadable: boolean,
+unreadable: boolean, 
 /**
  * For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
  * last read it (spec 048 FR-038); absent when this device does not know them.
  */
-folder?: { storageName: string, folderName: string,
+folder?: { storageName: string, folderName: string, 
 /**
  * The folder lies on this device, not in a cloud storage (spec 048 US7).
  */
-onDevice: boolean, },
+onDevice: boolean, }, 
 /**
  * For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
  * from the manifest of the effective bundle.
  */
-titleDe?: string, titleEn?: string, supported?: boolean,
+titleDe?: string, titleEn?: string, supported?: boolean, 
 /**
  * For `modelDestination` (spec 055): the provider the consent sends to, with its host and
  * place; absent when the provider is gone.
  */
-destination?: {
+destination?: { 
 /**
  * The display name of the provider.
  */
-provider: string,
+provider: string, 
 /**
  * The host of its address with the port, if it names one.
  */
-host?: string,
+host?: string, 
 /**
  * `this_device`, `network` or `cloud`.
  */

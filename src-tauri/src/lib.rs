@@ -124,8 +124,8 @@ use instances::{
     ProcessPresence,
 };
 use marketplace::commands::{
-    marketplace_catalog, marketplace_categories, marketplace_details, marketplace_icon,
-    marketplace_list,
+    marketplace_catalog, marketplace_categories, marketplace_details, marketplace_download,
+    marketplace_download_cancel, marketplace_download_discard, marketplace_icon, marketplace_list,
 };
 use models::commands::{
     check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
@@ -808,6 +808,9 @@ pub fn run() {
             marketplace_categories,
             marketplace_details,
             marketplace_icon,
+            marketplace_download,
+            marketplace_download_cancel,
+            marketplace_download_discard,
             extension_install,
             extension_list,
             extension_remove,

@@ -16,6 +16,10 @@
  *
  * With `dev` the same dialog loads a project folder in developer mode (US12, FR-064): unsigned,
  * from its development server, every permission for this device only.
+ *
+ * With `source` of the kind `marketplace` the bundle is not chosen in a dialog: the host has
+ * already downloaded and checked it (spec 069) and keeps it under `source.id`. The preview names
+ * the marketplace; closing without installing drops the downloaded bundle.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { open as openFile } from '@tauri-apps/plugin-dialog'
@@ -29,8 +33,17 @@ import {
 } from '~/lib/extensions/agentTools'
 import { groupPermissions } from '~/lib/extensions/permissionGroups'
 
+/** A bundle the host downloaded from a marketplace (`marketplace_download`). */
+interface MarketplaceSource {
+  kind: 'marketplace'
+  /** `PendingBundleRef.id`. */
+  id: string
+  /** The publisher key the marketplace lists for the entry, to compare with the bundle's own. */
+  publisherFingerprint?: string
+}
+
 const open = defineModel<boolean>('open', { required: true })
-const props = defineProps<{ dev?: boolean }>()
+const props = defineProps<{ dev?: boolean; source?: MarketplaceSource }>()
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { pickOneAsync } = usePickedFile()
@@ -58,6 +71,13 @@ const kindGroups = computed(() => groupPermissions(groups.value.others))
 const usable = computed(
   () => preview.value !== null && (props.dev || preview.value.signatureValid),
 )
+/** The bundle is signed with another key than the marketplace lists for the entry (US2-3). */
+const publisherDiffers = computed(
+  () =>
+    props.source?.publisherFingerprint !== undefined &&
+    preview.value?.publisherFingerprint !== undefined &&
+    props.source.publisherFingerprint !== preview.value.publisherFingerprint,
+)
 /** A downgrade or the replacement of another bundle of the same version: the user confirms. */
 const needsConfirmation = computed(
   () =>
@@ -77,15 +97,24 @@ function reset() {
   failure.value = null
 }
 
+/** The source the host reads the bytes from: the chosen file or the downloaded bundle. */
+function bundleSource(selected: string) {
+  return props.source
+    ? { kind: 'marketplace', id: props.source.id }
+    : { kind: 'file', file: selected }
+}
+
 async function chooseAsync() {
   reset()
-  // A project folder (development mode, desktop only) or a bundle file chosen in the dialog
-  // (spec 043: a path or an address, passed on unchanged).
-  const selected = props.dev
-    ? await openFile({ multiple: false, directory: true })
-    : await pickOneAsync([
-        { name: t('extensions.install.fileType'), extensions: ['xt'] },
-      ])
+  // A project folder (development mode, desktop only), a bundle file chosen in the dialog
+  // (spec 043: a path or an address, passed on unchanged), or the bundle the host holds.
+  const selected = props.source
+    ? props.source.id
+    : props.dev
+      ? await openFile({ multiple: false, directory: true })
+      : await pickOneAsync([
+          { name: t('extensions.install.fileType'), extensions: ['xt'] },
+        ])
   if (typeof selected !== 'string') {
     open.value = false
     return
@@ -98,7 +127,7 @@ async function chooseAsync() {
           projectPath: selected,
         })
       : await invoke<InstallPreview>('extension_install_preview', {
-          file: selected,
+          source: bundleSource(selected),
         })
     for (const permission of shown.value)
       choices.value[key(permission)] = { granted: true }
@@ -128,7 +157,7 @@ async function installAsync() {
     else
       await invoke('extension_install', {
         args: {
-          file: path.value,
+          source: bundleSource(path.value),
           accepted,
           confirmed: confirmed.value,
         },
@@ -141,9 +170,22 @@ async function installAsync() {
   }
 }
 
+/** Closing without installing drops the downloaded bundle; after an install it is gone already. */
+async function discardDownloadAsync() {
+  if (!props.source) return
+  try {
+    await invoke('marketplace_download_discard', { id: props.source.id })
+  } catch {
+    // Nothing to drop: the host forgot it already.
+  }
+}
+
 watch(open, (isOpen) => {
   if (isOpen) void chooseAsync()
-  else reset()
+  else {
+    void discardDownloadAsync()
+    reset()
+  }
 })
 </script>
 
@@ -192,10 +234,34 @@ watch(open, (isOpen) => {
                 })
               }}
             </p>
+            <p
+              v-if="preview.origin"
+              class="text-xs text-muted-foreground"
+              data-testid="extensions-install-origin"
+            >
+              {{
+                t('extensions.install.fromMarketplace', {
+                  name: preview.origin.sourceName,
+                })
+              }}
+            </p>
             <p v-if="!dev" class="text-xs text-muted-foreground">
               {{ t('extensions.install.vaultWide') }}
             </p>
           </div>
+
+          <p
+            v-if="publisherDiffers"
+            class="rounded-xl bg-warning/15 px-4 py-3 text-sm"
+            data-testid="extensions-install-publisher-differs"
+          >
+            {{
+              t('extensions.install.publisherDiffers', {
+                bundle: preview.publisherFingerprint,
+                listed: source?.publisherFingerprint,
+              })
+            }}
+          </p>
 
           <p
             v-if="preview.sameNameOtherPublisher"

@@ -3,27 +3,27 @@
 /**
  * The state of an extension on one own device (US4, T080).
  */
-export type DeviceState = {
+export type DeviceState = { 
 /**
  * The device's `vault_device_uuid`.
  */
-deviceId: string,
+deviceId: string, 
 /**
  * The device's name; empty when it has none.
  */
-deviceName: string, thisDevice: boolean,
+deviceName: string, thisDevice: boolean, 
 /**
  * `transferring`, `ready`, `signature_failed`, `migration_failed` or `disabled`.
  */
-status: string,
+status: string, 
 /**
  * The error kind (`migration_changed`, …), never data of the extension.
  */
-error?: string,
+error?: string, 
 /**
  * Version of the bundle the device runs or is getting; none while disabled there.
  */
-version?: string,
+version?: string, 
 /**
  * Another device with an older version than this one: what it still writes in the older
  * form arrives here only once it updated (research R10).

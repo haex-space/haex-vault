@@ -2352,6 +2352,8 @@
       "fileType": "Erweiterung",
       "checking": "Datei wird geprüft …",
       "publisher": "Herausgeber: {author} · Schlüssel {fingerprint}",
+      "fromMarketplace": "Aus dem Marketplace „{name}“.",
+      "publisherDiffers": "Der Schlüssel dieses Pakets ({bundle}) ist nicht der Herausgeberschlüssel, den der Marketplace nennt ({listed}). Installiere es nur, wenn du den Grund kennst.",
       "sameNameOtherPublisher": "Eine andere Erweiterung mit demselben Namen ist schon installiert. Diese hier stammt von einem anderen Herausgeber und bekommt eigene Daten.",
       "update": "Aktualisierung von {from} auf {to}",
       "confirmDowngrade": "Ältere Fassung trotzdem installieren",

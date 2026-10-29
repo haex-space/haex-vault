@@ -15,6 +15,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 pub use super::declared_view::DeclaredPermissionView;
+use super::install_source::InstallOrigin;
 use super::effective::{effective_bundle, live_bundles, retire, same_version_others};
 use crate::error::{HolziError, Result};
 use crate::extensions::bundle::store::{store_blobs, write_registry_rows, BundleIds};
@@ -86,6 +87,10 @@ pub struct InstallPreview {
     /// The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
     /// dialog only says it.
     pub openers: Vec<String>,
+    /// The marketplace the bundle came from; absent for a file (spec 069 FR-011).
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<InstallOrigin>,
 }
 
 impl InstallPreview {
@@ -106,6 +111,7 @@ impl InstallPreview {
             replaces_same_version: false,
             same_name_other_publisher: false,
             openers: Vec::new(),
+            origin: None,
         }
     }
 }
@@ -253,6 +259,7 @@ pub fn preview_of(
         .is_empty(),
         same_name_other_publisher,
         openers: manifest.known_openers(),
+        origin: None,
     })
 }
 

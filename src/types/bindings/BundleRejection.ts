@@ -5,7 +5,7 @@
  * contracts/bundle-format.md) and, for entry-level errors and `file_mismatch`, the path inside the
  * bundle. holzi adds [`BundleRejection::FORBIDDEN_PERMISSION`] with the manifest's category.
  */
-export type BundleRejection = { kind: string, path?: string,
+export type BundleRejection = { kind: string, path?: string, 
 /**
  * For [`BundleRejection::FORBIDDEN_PERMISSION`]: the category as the manifest names it.
  */
