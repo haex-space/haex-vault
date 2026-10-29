@@ -40,6 +40,22 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-not-available',
   },
   {
+    scenario: 'files-split-restore',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the two-panel file browser is not offered on a phone (FR-016, spec 062 FR-021)',
+    counterCase: 'files-restore',
+  },
+  {
+    scenario: 'files-split-large',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the two-panel file browser is not offered on a phone (FR-016, spec 062 FR-021)',
+    counterCase: 'files-large-folder',
+  },
+  {
     scenario: 'files-split-storage',
     platform: 'android',
     kind: 'excluded',

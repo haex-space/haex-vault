@@ -17,6 +17,7 @@ import {
 } from '../lib/files-split.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { doubleClick } from '../lib/passwords.ts'
+import { solidPng } from '../lib/png.ts'
 import { scenario } from '../lib/scenario.ts'
 import { KEY, runAction } from '../lib/settings.ts'
 
@@ -270,6 +271,50 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
       onDisk('split-a/unter', 'zwei.txt') && !onDisk('split-b', 'zwei.txt'),
     )
     ctx.step('dragging moves into the other panel, with Ctrl it copies')
+
+    // The clipboard is shared: Ctrl+C in one panel, Tab, Ctrl+V pastes into the other's folder.
+    await select('right', 'neu.txt')
+    await press(chord(KEY.control, 'c'))
+    await press(KEY.tab)
+    await active('left', 'Tab to make the left panel the active one')
+    await ctx.waitFor(
+      'the focus in the left list',
+      async () => (await focusedPanel(instance)) === 'left',
+    )
+    await press(chord(KEY.control, 'v'))
+    await shows('left', 'neu.txt', 'neu.txt pasted into the left panel')
+    assert.ok(onDisk('split-a', 'neu.txt') && onDisk('split-b', 'neu.txt'))
+    ctx.step('copy in one panel, paste into the other')
+
+    // Ctrl+F searches in the panel with the focus.
+    await press(chord(KEY.control, 'f'))
+    await ctx.waitFor('the focus in the left search', () =>
+      instance.exec<boolean>(
+        `const el = document.activeElement
+         const panel = el && el.closest('[data-files-panel]')
+         return Boolean(panel && panel.getAttribute('data-files-panel') === 'left' &&
+           el.closest('[data-testid="files-search"]'))`,
+      ),
+    )
+    await press(KEY.escape)
+    ctx.step('Ctrl+F focuses the search of the panel with the focus')
+
+    // The viewer covers both panels.
+    files.write('split-a/bild.png', solidPng(32, 24, [40, 120, 220]))
+    await shows('left', 'bild.png', 'the image in the left panel')
+    await doubleClick(instance, entryIn('left', 'bild.png'))
+    await instance.waitForDisplayed('files-viewer-image')
+    assert.ok(
+      await instance.exec<boolean>(
+        `const viewer = document.querySelector('[data-testid="files-viewer"]').getBoundingClientRect()
+         const left = document.querySelector('[data-files-panel="left"]').getBoundingClientRect()
+         const right = document.querySelector('[data-files-panel="right"]').getBoundingClientRect()
+         return viewer.left <= left.left + 2 && viewer.right >= right.right - 2`,
+      ),
+      'the viewer spans both panels',
+    )
+    await instance.click('files-viewer-close')
+    ctx.step('the viewer covers both panels')
   } finally {
     files.remove()
   }

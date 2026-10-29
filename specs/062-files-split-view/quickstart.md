@@ -17,11 +17,15 @@
 nix develop --command pnpm check:files           # inkl. check-files-split, -shortcuts, -registry
 nix develop --command pnpm typecheck
 nix develop --command pnpm lint
-nix develop --command pnpm test:e2e --grep files-split
+nix develop --command pnpm test:e2e --grep files-split   # files-split, -storage, -restore, -large
 nix develop --command pnpm test:e2e --grep files-keyboard
 ```
 
 Erwartet: alles grün. `files-keyboard` prüft zusätzlich, dass F5 außerhalb des Splits weiter neu lädt.
+Die Szenarien `files-split*` laufen nur auf Linux (Desktop); `files-split-storage` braucht Docker.
+`check:files`, `typecheck` und `lint` laufen in CI einmal auf Linux (Job „Documentation consistency“,
+`ci.yml`); die geprüften Module sind reines TypeScript ohne Betriebssystemzugriff, Pfade anderer
+Systeme prüfen sie als Zeichenketten. M13 und A1 bleiben von Hand.
 Es gibt keinen Rust-Code in dieser Spec; `cargo`-Läufe sind nur nötig, wenn ein anderer Branch sie verlangt.
 
 ## Von Hand (Desktop)

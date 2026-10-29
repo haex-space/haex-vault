@@ -5,6 +5,7 @@
 //! [`search`]; this module keeps what they share.
 
 pub mod change;
+pub mod drives;
 pub mod encrypted;
 pub mod navigate;
 pub mod peers;

@@ -338,7 +338,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - **Kein Zugriff durch das System** (Ordner eines anderen Nutzers): Der Eintrag erscheint mit
   Schloss-Symbol; Öffnen zeigt „Kein Zugriff“. Die Suche überspringt ihn ohne Fehlermeldungsflut.
 - **Der offene Ordner verschwindet**: holzi springt zum nächsten vorhandenen übergeordneten Ordner und
-  zeigt einen Hinweis.
+  zeigt einen Hinweis. Umgesetzt mit Spec 064 (research R10).
 - **Ein Laufwerk wird entfernt**: Es verschwindet aus der Seitenleiste; Transfers dorthin brechen mit
   Grund ab.
 - **Symbolische Links**: Sie sind markiert; Öffnen folgt ihnen, die Suche nicht. Zeigt ein Link in die
@@ -371,6 +371,8 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   in Tabs geöffnet wird.
 - **FR-002**: Der Dateibrowser MUSS als Quellen das ganze Dateisystem des Geräts (Laufwerke und
   bekannte Orte) und jeden Speicher aus Spec 038 anbieten.
+  Erweitert durch Spec 064: Laufwerke mit Zustand (eingehängt, nicht eingehängt, gesperrt),
+  Einhängen, Entsperren, Auswerfen.
 - **FR-003**: Für jeden Eintrag MUSS holzi Name, Typ, Größe und Änderungszeit zeigen, in Liste oder
   Raster, sortierbar nach jeder Angabe. Versteckte Dateien MÜSSEN sich ein- und ausblenden lassen
   (Vorgabe: aus). Ansicht, Sortierung und diese Wahl MÜSSEN je Gerät gespeichert werden.

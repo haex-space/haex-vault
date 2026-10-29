@@ -21,6 +21,7 @@ import { startIrohRelay } from './iroh-relay.ts'
 import type { IrohRelay } from './iroh-relay.ts'
 import type { Tools } from './preflight.ts'
 import { containerRuntimeAvailable } from './rustfs.ts'
+import { udisksAvailable } from './udisks.ts'
 import { keepFirstMaterial, retriesUsed, withRetry } from './scenario-retry.ts'
 import type {
   E2EEnv,
@@ -83,6 +84,10 @@ function skipReasonFor(
     return 'runs only on a phone (spec 043)'
   if (options.needs?.container && !containerRuntimeAvailable())
     return 'no container runtime (docker) answers here'
+  if (options.needs?.udisks && !udisksAvailable())
+    return 'no udisks2 answers here'
+  if (options.needs?.udisks && env.android !== undefined)
+    return 'the host-drive scenario runs only against the Linux app'
   const needed = options.needs?.closeBehavior
   if (needed === undefined || needed === env.closeBehavior) return undefined
   return needed === 'relaunch'
