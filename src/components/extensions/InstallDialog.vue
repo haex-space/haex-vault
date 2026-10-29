@@ -307,7 +307,7 @@ watch(open, (isOpen) => {
                     />
                     <span class="flex flex-col">
                       <span class="text-sm">
-                        {{ toolTitle(tool, locale) }} ({{ tool.target }})
+                        {{ toolTitle(tool, locale) }}
                       </span>
                       <span
                         v-if="tool.supported === false"

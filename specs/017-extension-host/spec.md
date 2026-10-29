@@ -938,7 +938,7 @@ erscheint), Entwicklermodus ausschalten (Erweiterung verschwindet).
   sind. Enthält eine Gruppe eine weitreichende Berechtigung (ein Ziel `*`, außer bei
   `notifications` und `peers`, oder die Web-Aktion `*`), MUSS ihre Kopfzeile ein Warndreieck tragen, auch
   zugeklappt; das Warndreieck steht nur für Platzhalter, nicht für ändernde oder löschende Werkzeuge. Die
-  Vorgabe (alles angehakt), die Abwahl einzelner Berechtigungen und das Ergebnis der Installation bleiben
+  Werkzeuge stehen mit ihrem Titel da, nie mit dem technischen Namen der Funktion. Die Vorgabe (alles angehakt), die Abwahl einzelner Berechtigungen und das Ergebnis der Installation bleiben
   unverändert.
 
 **Entwicklermodus**
