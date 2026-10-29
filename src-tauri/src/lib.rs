@@ -441,6 +441,8 @@ pub fn run() {
             let mcp = mcp_server::McpServer::default();
             mcp.attach(app.handle());
             app.manage(mcp);
+            // Spec 065: the agent browser starts on the first browser tool and ends with the vault.
+            app.manage(agent_browser::AgentBrowser::default());
             // Spec 065 research R8: native actions of the built-in agent run in the chat's mode.
             let mode_handle = app.handle().clone();
             app.state::<ChatState>()

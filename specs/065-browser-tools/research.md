@@ -59,7 +59,7 @@ Archivformat und keinen eigenen Schlüssel mit.
 - **Zwischen zwei Läufen**: Beim Ende des Agenten-Browsers (spätestens beim Schließen der Vault)
   packt holzi die bleibenden Teile des Profils (Cookies, Local Storage, IndexedDB, Session
   Storage, `Preferences`, `Local State`) als ZIP und schreibt es als Datei `profile.zip` in den
-  verschlüsselten Ordner „Profil“ unter `<Datenverzeichnis der Instanz>/agent-browser/` (ein
+  verschlüsselten Ordner „Profil“ unter `<AppLocalData>/agent-browser/<Instanz>/` (ein
   Geräteordner, 048 US7). Caches (`Cache`, `Code Cache`, `GPUCache`,
   `Service Worker/CacheStorage`) kommen nicht hinein. Das Datenverzeichnis gehört zu dieser
   Installation; die Datei wandert nicht mit der Vault.

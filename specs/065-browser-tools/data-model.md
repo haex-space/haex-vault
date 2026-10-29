@@ -43,7 +43,7 @@ verschlüsselten Ordner aus Spec 048 (R3).
 
 ## Profil zwischen zwei Läufen
 
-`<Datenverzeichnis der Instanz>/agent-browser/` ist ein gewöhnlicher Geräteordner; darin liegt der
+`<AppLocalData>/agent-browser/<Instanz>/` ist ein gewöhnlicher Geräteordner; darin liegt der
 verschlüsselte Ordner „Profil“ (048 US7, Schlüssel aus dem Inhaltsschlüssel der Vault) mit der
 Datei `profile.zip`: ZIP (Deflate) der bleibenden Profilteile (R3). Jedes Ende schreibt eine neue
 Version der Datei; die vorige entfällt wie beim Überschreiben im Dateibrowser. Lässt sich die

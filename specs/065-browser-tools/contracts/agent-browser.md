@@ -63,8 +63,9 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   Version von `profile.zip` in den verschlüsselten Ordner schreiben, Arbeitsverzeichnis löschen.
 - In `Default/Preferences` setzt holzi vor jedem Start `credentials_enable_service: false` und
   `autofill.profile_enabled: false` (FR-002).
-- Bleibende Teile: `Default/Cookies`, `Default/Local Storage/`, `Default/IndexedDB/`,
-  `Default/Session Storage/`, `Default/Preferences`, `Local State`. Alles andere entfällt.
+- Bleibende Teile: `Local State`, `Default/Preferences`, `Default/Network/Cookies` (vor Chromium 96
+  `Default/Cookies`), `Default/Local Storage/`, `Default/IndexedDB/`, `Default/Session Storage/`,
+  `Default/Network/TransportSecurity` (HSTS), je mit SQLite-Journal. Alles andere entfällt.
 
 ## Ende
 

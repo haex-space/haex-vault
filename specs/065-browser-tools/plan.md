@@ -50,8 +50,8 @@ Abhängigkeit nur für Windows (steht schon im Lockfile über Tauri), Funktion `
 `STARTUPINFOW.lpReserved2`. Keine neue Crate.
 
 **Storage**: `haex_mcp_agent_grants` (021, neue Gruppe `browser`), Geräteeinstellung
-`agent_browser.builtin`, neue Tabelle `haex_agent_browser_no_sync`, Profilarchiv im
-Datenverzeichnis der Instanz (data-model.md).
+`agent_browser.builtin`, neue Tabelle `haex_agent_browser_no_sync`, Profil als `profile.zip` im
+verschlüsselten Ordner unter `<AppLocalData>/agent-browser/<Instanz>/` (data-model.md).
 
 **Testing**: `cargo test` (Einheiten in `*_tests.rs`), Integrationstests in `src-tauri/tests/`
 gegen einen echten Chromium mit einem lokalen Testserver (`agent_browser_*.rs`, nur wo ein Browser
