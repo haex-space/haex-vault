@@ -341,6 +341,36 @@ async function confirmDeleteAsync() {
               · {{ t('files.syncRules.deleteMode.label') }}:
               {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
             </span>
+            <FilesSyncRulePending
+              v-if="view.status.pendingDeletes > 0"
+              :view="view"
+              :labels="{
+                a: placeLabel(view.rule.placeA),
+                b: placeLabel(view.rule.placeB),
+              }"
+              @changed="store.loadAsync()"
+            />
+            <div
+              v-if="view.status.conflictCopies.length"
+              class="flex flex-col gap-1"
+              :data-testid="`files-sync-rule-conflicts-${view.rule.name}`"
+            >
+              <span class="text-xs text-muted-foreground">{{
+                t(
+                  'files.syncRules.conflicts',
+                  view.status.conflictCopies.length,
+                )
+              }}</span>
+              <ul class="flex flex-col gap-1">
+                <li
+                  v-for="copy in view.status.conflictCopies"
+                  :key="copy"
+                  class="truncate text-xs"
+                >
+                  {{ copy }}
+                </li>
+              </ul>
+            </div>
             <span
               v-if="
                 view.status.reason &&

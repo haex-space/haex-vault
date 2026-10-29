@@ -2857,6 +2857,21 @@
       "deleteTitle": "Sync-Regel löschen",
       "deleteText": "„{name}“ wird gelöscht. Die Dateien an beiden Orten bleiben, wie sie sind.",
       "deviations": "{count} Abweichungen am Zielort, die nicht überschrieben werden.",
+      "conflicts": "Konfliktkopie des letzten Abgleichs: | Konfliktkopien des letzten Abgleichs ({count}):",
+      "pending": {
+        "count": "Eine Löschung wartet auf dich | {count} Löschungen warten auf dich",
+        "at": "wird an {place} gelöscht",
+        "one": {
+          "delete": "Löschen",
+          "keep": "Behalten, nicht mehr fragen",
+          "restore": "Zurückkopieren"
+        },
+        "all": {
+          "delete": "Alle löschen",
+          "keep": "Alle behalten",
+          "restore": "Alle zurückkopieren"
+        }
+      },
       "create": {
         "open": "Neue Regel",
         "title": "Neue Sync-Regel",
@@ -2911,6 +2926,7 @@
         "invalidName": "Der Name hat 1 bis 80 Zeichen.",
         "notFound": "Diese Regel gibt es nicht mehr.",
         "readOnly": "An diesen Ort kann holzi nicht schreiben.",
+        "unreachable": "Ein Ort der Regel ist gerade nicht erreichbar.",
         "unavailable": "Die Vault ist gerade nicht verfügbar."
       }
     },

@@ -2857,6 +2857,21 @@
       "deleteTitle": "Delete sync rule",
       "deleteText": "“{name}” will be deleted. The files at both places stay as they are.",
       "deviations": "{count} differences at the target that are not overwritten.",
+      "conflicts": "Conflict copy of the last sync: | Conflict copies of the last sync ({count}):",
+      "pending": {
+        "count": "One deletion waits for you | {count} deletions wait for you",
+        "at": "will be deleted at {place}",
+        "one": {
+          "delete": "Delete",
+          "keep": "Keep, stop asking",
+          "restore": "Copy back"
+        },
+        "all": {
+          "delete": "Delete all",
+          "keep": "Keep all",
+          "restore": "Copy all back"
+        }
+      },
       "create": {
         "open": "New rule",
         "title": "New sync rule",
@@ -2911,6 +2926,7 @@
         "invalidName": "The name has 1 to 80 characters.",
         "notFound": "This rule no longer exists.",
         "readOnly": "holzi cannot write to this place.",
+        "unreachable": "A place of the rule cannot be reached right now.",
         "unavailable": "The vault is not available right now."
       }
     },
