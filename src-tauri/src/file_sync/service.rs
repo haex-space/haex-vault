@@ -14,6 +14,7 @@ use super::model::{SyncRule, SyncRuleDirection, SyncRulePlace};
 use super::place::Place;
 use super::place_device::DevicePlace;
 use super::place_storage::StoragePlace;
+use super::progress::{Reporter, SYNC_RULE_PROGRESS};
 use super::run::{run, RunContext, RunReport};
 use super::schedule::{control, Command, Runner, Shared};
 use super::store;
@@ -214,6 +215,12 @@ impl Runner for TauriRunner {
         let name = self.device_name().await;
         let today: String = clock::now().chars().take(10).collect();
         let now = clock::now;
+        let app = self.app.clone();
+        let progress = Reporter::new(&rule.id, move |progress| {
+            if let Err(error) = app.emit(SYNC_RULE_PROGRESS, progress) {
+                log::warn!("file_sync: emit {SYNC_RULE_PROGRESS} failed: {error}");
+            }
+        });
         let ctx = RunContext {
             db: &self.db,
             device: &self.device,
@@ -222,6 +229,7 @@ impl Runner for TauriRunner {
             now: &now,
             run_id: &run_id,
             cancel: &cancel,
+            progress: &progress,
         };
         let (a, b) = match (
             open_place(&self.app, &rule.place_a).await,

@@ -2882,6 +2882,12 @@
         "paused": "paused",
         "inactive": "holzi not active"
       },
+      "progress": {
+        "label": "Progress",
+        "scanning": "Comparing the places …",
+        "executing": "Applying changes …",
+        "files": "{done} of {total} files · {size}"
+      },
       "picker": {
         "origin": "Choose a device or storage",
         "chooseFolder": "Choose a folder",

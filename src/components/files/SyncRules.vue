@@ -8,7 +8,8 @@ import type { Sources } from '@bindings/Sources'
 import type { SyncRulePlace } from '@bindings/SyncRulePlace'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
 import { asSyncRuleError } from '~/composables/useSyncRules'
-import { STATE_ICONS } from '~/lib/files/syncRules'
+import { formatFileSize } from '~/lib/passwords/format'
+import { progressShare } from '~/lib/files/syncRules'
 import { useSyncRulesStore } from '~/stores/syncRules'
 
 const props = defineProps<{
@@ -50,6 +51,24 @@ function lastRun(view: SyncRuleView): string {
         at: d(new Date(at), { dateStyle: 'short', timeStyle: 'short' }),
       })
     : t('files.syncRules.neverRun')
+}
+
+/** The bar and text of a running rule; none while another state shows. */
+function running(view: SyncRuleView) {
+  if (view.status.state !== 'running') return null
+  const progress = store.progress[view.rule.id]
+  const share = progress ? progressShare(progress) : null
+  const text =
+    progress?.phase === 'copying' && progress.filesTotal > 0
+      ? t('files.syncRules.progress.files', {
+          done: progress.filesDone,
+          total: progress.filesTotal,
+          size: `${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`,
+        })
+      : progress?.phase === 'copying'
+        ? t('files.syncRules.progress.executing')
+        : t('files.syncRules.progress.scanning')
+  return { share, text }
 }
 
 async function act(view: SyncRuleView, work: () => Promise<unknown>) {
@@ -113,10 +132,6 @@ async function confirmDeleteAsync() {
             :data-testid="`files-sync-rule-${view.rule.name}`"
           >
             <div class="flex items-start gap-2">
-              <Icon
-                :name="STATE_ICONS[view.status.state]"
-                class="mt-0.5 size-4 shrink-0 text-muted-foreground"
-              />
               <div class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate font-medium">{{ view.rule.name }}</span>
                 <span class="truncate text-xs text-muted-foreground">
@@ -195,6 +210,36 @@ async function confirmDeleteAsync() {
               >
                 <Icon name="lucide:trash-2" class="size-4" />
               </UiButton>
+            </div>
+            <div
+              v-if="running(view)"
+              class="flex flex-col gap-1"
+              :data-testid="`files-sync-rule-progress-${view.rule.name}`"
+            >
+              <div
+                class="h-1 overflow-hidden rounded bg-muted"
+                role="progressbar"
+                :aria-label="t('files.syncRules.progress.label')"
+                :aria-valuemin="0"
+                :aria-valuemax="100"
+                :aria-valuenow="
+                  running(view)?.share == null
+                    ? undefined
+                    : Math.round((running(view)?.share ?? 0) * 100)
+                "
+              >
+                <div
+                  v-if="running(view)?.share != null"
+                  class="h-full bg-primary transition-[width]"
+                  :style="{
+                    width: `${Math.round((running(view)?.share ?? 0) * 100)}%`,
+                  }"
+                />
+                <div v-else class="h-full w-1/3 animate-pulse bg-primary" />
+              </div>
+              <span class="text-xs text-muted-foreground">{{
+                running(view)?.text
+              }}</span>
             </div>
             <p
               v-if="view.status.deviations > 0"
