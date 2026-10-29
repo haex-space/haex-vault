@@ -26,7 +26,8 @@ Stil nach Spec 035/036 und 023: Werkzeugleiste, große Überschrift, Gruppen und
   `source = { kind: 'marketplace', id }`; er nennt die Quelle zusätzlich (FR-011). Schließen ohne
   Installieren ruft `marketplace_download_discard`.
 - Test-IDs: `marketplace-app`, `marketplace-search`, `marketplace-category`, `marketplace-source-filter`, `marketplace-empty-add-preset`, `marketplace-empty-add-own`, `marketplace-refresh`,
-  `marketplace-tile-<slug>`, `marketplace-install-<slug>`, `marketplace-update-<slug>`,
+  `marketplace-tile-<sourceId>-<slug>`, `marketplace-install-<sourceId>-<slug>`,
+  `marketplace-update-<sourceId>-<slug>`,
   `marketplace-source-error-<sourceId>`, `marketplace-source-retry-<sourceId>`, `marketplace-empty`,
   `marketplace-offline`, `marketplace-page-next`, `marketplace-progress`, `marketplace-progress-cancel`.
 
