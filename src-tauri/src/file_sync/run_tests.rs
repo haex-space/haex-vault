@@ -15,6 +15,7 @@ use async_trait::async_trait;
 use haex_crdt::rusqlite::params;
 
 use super::*;
+use crate::file_sync::execute::FAILURES_IN_A_ROW;
 use crate::file_sync::model::{
     SyncRuleDeleteMode, SyncRuleDirection, SyncRuleDraft, SyncRulePlace,
 };
@@ -23,7 +24,7 @@ use crate::file_sync::place_device::DevicePlace;
 use crate::file_sync::progress::SyncRulePhase;
 use crate::file_sync::test_support::MemPlace;
 use crate::files::transfer::remote::Side;
-use crate::files::{FilesError, SourceRef};
+use crate::files::{FilesError, FilesErrorCode, SourceRef};
 use crate::remote_storage::test_support::vault;
 
 const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
@@ -422,6 +423,96 @@ impl Place for Tripwire {
     fn full_path(&self, path: &str) -> String {
         self.inner.full_path(path)
     }
+}
+
+/// A device place whose files cannot be checked after a copy: the place answers every file the same
+/// way, as a storage does that limits or refuses an account.
+struct Refusing {
+    inner: DevicePlace,
+    code: FilesErrorCode,
+    asked: AtomicUsize,
+}
+
+#[async_trait]
+impl Place for Refusing {
+    async fn list_tree(&self, cancel: &CancellationToken) -> Result<Listing, FilesError> {
+        self.inner.list_tree(cancel).await
+    }
+    async fn stat(&self, _path: &str) -> Result<Option<Facts>, FilesError> {
+        self.asked.fetch_add(1, Ordering::SeqCst);
+        Err(FilesError::new(self.code, "the place refuses"))
+    }
+    async fn hash(&self, path: &str, cancel: &CancellationToken) -> Result<String, FilesError> {
+        self.inner.hash(path, cancel).await
+    }
+    async fn create_folder(&self, path: &str) -> Result<(), FilesError> {
+        self.inner.create_folder(path).await
+    }
+    async fn rename(&self, from: &str, to: &str) -> Result<(), FilesError> {
+        self.inner.rename(from, to).await
+    }
+    async fn delete(&self, path: &str) -> Result<(), FilesError> {
+        self.inner.delete(path).await
+    }
+    async fn trash(&self, path: &str, run: &str) -> Result<Trashed, FilesError> {
+        self.inner.trash(path, run).await
+    }
+    async fn read_text(&self, path: &str, max: usize) -> Result<Option<String>, FilesError> {
+        self.inner.read_text(path, max).await
+    }
+    async fn write_text(&self, path: &str, text: &str) -> Result<(), FilesError> {
+        self.inner.write_text(path, text).await
+    }
+    fn side(&self) -> Side {
+        self.inner.side()
+    }
+    fn full_path(&self, path: &str) -> String {
+        self.inner.full_path(path)
+    }
+}
+
+async fn run_against_refusing(code: FilesErrorCode, files: usize) -> (RunReport, usize) {
+    let w = world(SyncRuleDeleteMode::Keep);
+    for n in 0..files {
+        write(&w.a.join(format!("f{n:03}.txt")), "x");
+    }
+    let target = Refusing {
+        inner: DevicePlace::with_rule_trash(&w.b),
+        code,
+        asked: AtomicUsize::new(0),
+    };
+    let report = w
+        .run_with(
+            &DevicePlace::with_rule_trash(&w.a),
+            &target,
+            &CancellationToken::new(),
+        )
+        .await;
+    (report, target.asked.load(Ordering::SeqCst))
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_place_that_refuses_the_credentials_stops_the_run_at_the_first_file() {
+    let (report, asked) = run_against_refusing(FilesErrorCode::Credentials, 30).await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Error, "{report:?}");
+    assert_eq!(report.counts.errors, 1);
+    assert_eq!(asked, 1, "the other files are not asked");
+    assert!(report.error.unwrap().contains("stopped after 1"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_place_that_does_not_answer_makes_the_rule_wait() {
+    let (report, asked) = run_against_refusing(FilesErrorCode::Unreachable, 30).await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Waiting, "{report:?}");
+    assert_eq!(asked, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn files_that_fail_ten_times_in_a_row_stop_the_run() {
+    let (report, asked) = run_against_refusing(FilesErrorCode::NoAccess, 30).await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Error, "{report:?}");
+    assert_eq!(asked, FAILURES_IN_A_ROW as usize);
+    assert_eq!(report.counts.errors, u64::from(FAILURES_IN_A_ROW));
 }
 
 #[tokio::test(flavor = "multi_thread")]

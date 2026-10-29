@@ -5,10 +5,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use mistralrs::core::GGUFArchitecture;
 #[cfg(feature = "llm-cuda")]
 use mistralrs::PagedAttentionMetaBuilder;
 use mistralrs::{GgufModelBuilder, Model};
 use thiserror::Error;
+
+use super::gguf_header::read_architecture;
 
 /// Loaded GGUF model, kept alive by the [`Arc`] so multiple in-flight
 /// generations share the same weights and KV pools.
@@ -30,6 +33,12 @@ pub enum LocalModelError {
     MissingParent(PathBuf),
     #[error("gguf filename is not valid utf-8: {0}")]
     NonUtf8Filename(PathBuf),
+    #[error("gguf header unreadable: {0}")]
+    Header(String),
+    #[error(
+        "the model architecture `{0}` is not supported by the built-in inference engine (mistralrs 0.8.1)"
+    )]
+    UnsupportedArchitecture(String),
     #[error("mistralrs build error: {0}")]
     Build(String),
     #[cfg(feature = "llm-cuda")]
@@ -66,6 +75,14 @@ impl LocalModel {
         let dir_str = dir
             .to_str()
             .ok_or_else(|| LocalModelError::NonUtf8Filename(dir.to_path_buf()))?;
+
+        // mistralrs panics (and the load never returns) on an architecture it does not know.
+        let architecture = std::fs::File::open(file_path)
+            .and_then(|file| read_architecture(&mut std::io::BufReader::new(file)))
+            .map_err(|e| LocalModelError::Header(e.to_string()))?;
+        if GGUFArchitecture::from_value(&architecture).is_err() {
+            return Err(LocalModelError::UnsupportedArchitecture(architecture));
+        }
 
         let mut builder = GgufModelBuilder::new(dir_str, vec![filename.to_string()]);
         if let Some(tok) = tokenizer_repo {

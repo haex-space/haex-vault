@@ -151,6 +151,7 @@ pub mod fake {
         pub drives: Mutex<Vec<Drive>>,
         pub calls: Mutex<Vec<String>>,
         pub mount_result: Mutex<Option<Result<String, DriveError>>>,
+        pub release_result: Mutex<Option<Result<bool, DriveError>>>,
         pub list_count: Mutex<usize>,
     }
 
@@ -180,6 +181,15 @@ pub mod fake {
                 .unwrap()
                 .clone()
                 .unwrap_or_else(|| Ok(format!("/run/media/test/{id}")))
+        }
+
+        fn release(&self, id: &str) -> Result<bool, DriveError> {
+            self.calls.lock().unwrap().push(format!("release {id}"));
+            self.release_result
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or(Ok(true))
         }
     }
 }

@@ -10,6 +10,7 @@
 //! [`CHUNK`] bytes, whatever the size of the file.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -26,6 +27,8 @@ pub const CHUNK: usize = 256 * 1024;
 
 struct Grant {
     tab: String,
+    /// The file on this device, for a local source; `None` otherwise.
+    root: Option<PathBuf>,
     source: Arc<dyn StreamingSource>,
 }
 
@@ -79,11 +82,27 @@ impl MediaServer {
 
     /// Serves `source` for `tab` under a new token; returns its URL.
     pub fn register(&self, tab: &str, source: Arc<dyn StreamingSource>) -> String {
+        self.grant(tab, None, source)
+    }
+
+    /// Like [`Self::register`] for a source that reads the file `root` of this device, so
+    /// [`Self::release_under`] finds it.
+    pub fn register_file(
+        &self,
+        tab: &str,
+        root: PathBuf,
+        source: Arc<dyn StreamingSource>,
+    ) -> String {
+        self.grant(tab, Some(root), source)
+    }
+
+    fn grant(&self, tab: &str, root: Option<PathBuf>, source: Arc<dyn StreamingSource>) -> String {
         let token = Uuid::new_v4().to_string();
         self.grants().insert(
             token.clone(),
             Grant {
                 tab: tab.to_owned(),
+                root,
                 source,
             },
         );
@@ -99,6 +118,20 @@ impl MediaServer {
     /// Ends every token of `tab`.
     pub fn release_tab(&self, tab: &str) {
         self.grants().retain(|_, grant| grant.tab != tab);
+    }
+
+    /// Ends the tokens of files at or below `prefix`, before a drive is released (spec 064
+    /// research R9); returns how many ended.
+    pub fn release_under(&self, prefix: &Path) -> usize {
+        let mut grants = self.grants();
+        let before = grants.len();
+        grants.retain(|_, grant| {
+            !grant
+                .root
+                .as_ref()
+                .is_some_and(|root| root.starts_with(prefix))
+        });
+        before - grants.len()
     }
 }
 

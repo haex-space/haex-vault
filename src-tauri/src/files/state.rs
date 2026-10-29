@@ -4,7 +4,7 @@
 //! for system apps; all of it goes when the vault closes.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -19,10 +19,23 @@ use crate::files::thumbnails::CACHE_FOLDER;
 enum Watching {
     #[cfg(not(target_os = "ios"))]
     Local {
+        /// The watched folder, resolved.
+        root: PathBuf,
         _watch: crate::files::local::watch::FolderWatch,
     },
     /// The task that reads another device's watch (spec 056 research R16).
     Peer { _task: AbortOnDrop },
+}
+
+impl Watching {
+    /// Whether it watches a folder at or below `prefix` (spec 064 research R9).
+    fn is_under(&self, prefix: &Path) -> bool {
+        match self {
+            #[cfg(not(target_os = "ios"))]
+            Self::Local { root, .. } => root.starts_with(prefix),
+            Self::Peer { .. } => false,
+        }
+    }
 }
 
 struct AbortOnDrop(tauri::async_runtime::JoinHandle<()>);
@@ -120,10 +133,13 @@ impl FilesState {
         id
     }
 
-    /// Keeps `watch` until [`FilesState::unwatch`]; returns its id.
+    /// Keeps `watch` of the folder `root` until [`FilesState::unwatch`]; returns its id.
     #[cfg(not(target_os = "ios"))]
-    pub fn keep_watch(&self, watch: crate::files::local::watch::FolderWatch) -> u64 {
-        self.keep(Watching::Local { _watch: watch })
+    pub fn keep_watch(&self, root: PathBuf, watch: crate::files::local::watch::FolderWatch) -> u64 {
+        self.keep(Watching::Local {
+            root,
+            _watch: watch,
+        })
     }
 
     /// Keeps the task reading another device's watch until [`FilesState::unwatch`], which ends it;
@@ -137,6 +153,15 @@ impl FilesState {
     /// Ends the watch `id`; true when there was one.
     pub fn unwatch(&self, id: u64) -> bool {
         self.watches().remove(&id).is_some()
+    }
+
+    /// Ends the watches of folders at or below `prefix`, before a drive is released (spec 064
+    /// research R9); returns how many ended.
+    pub fn unwatch_under(&self, prefix: &Path) -> usize {
+        let mut watches = self.watches();
+        let before = watches.len();
+        watches.retain(|_, watching| !watching.is_under(prefix));
+        before - watches.len()
     }
 
     /// Ends every watch: the page that asked for them is gone (reloaded), and its channels lead

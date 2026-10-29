@@ -35,7 +35,11 @@ async fn server_with_file(content: &[u8]) -> (MediaServer, String, tempfile::Tem
     let path = dir.path().join("film.mp4");
     std::fs::write(&path, content).unwrap();
     let server = MediaServer::start(CancellationToken::new()).await.unwrap();
-    let url = server.register("tab-1", Arc::new(LocalFileSource::new(path, "video/mp4")));
+    let url = server.register_file(
+        "tab-1",
+        path.clone(),
+        Arc::new(LocalFileSource::new(path, "video/mp4")),
+    );
     let token = url.rsplit('/').next().unwrap().to_owned();
     (server, token, dir)
 }
@@ -133,6 +137,36 @@ async fn releasing_a_tab_drops_only_its_tokens() {
     let other_token = other.rsplit('/').next().unwrap();
     let (kept, _) = request(server.port(), &get(other_token, None)).await;
     assert!(kept.starts_with("HTTP/1.1 200"), "{kept}");
+}
+
+#[tokio::test]
+async fn releasing_a_drive_drops_only_the_tokens_of_its_files() {
+    let (server, token, dir) = server_with_file(b"x").await;
+    let beside = dir.path().with_extension("neben");
+    let kept = server.register_file(
+        "tab-1",
+        beside.join("film.mp4"),
+        Arc::new(LocalFileSource::new(
+            dir.path().join("film.mp4"),
+            "video/mp4",
+        )),
+    );
+    let storage = server.register(
+        "tab-1",
+        Arc::new(LocalFileSource::new(
+            dir.path().join("film.mp4"),
+            "video/mp4",
+        )),
+    );
+
+    assert_eq!(server.release_under(dir.path()), 1);
+
+    let (gone, _) = request(server.port(), &get(&token, None)).await;
+    assert!(gone.starts_with("HTTP/1.1 404"), "{gone}");
+    for url in [kept, storage] {
+        let (head, _) = request(server.port(), &get(url.rsplit('/').next().unwrap(), None)).await;
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    }
 }
 
 #[tokio::test]

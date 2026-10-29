@@ -85,7 +85,11 @@ fn managed_objects_become_udisks_objects() {
         OwnedObjectPath::try_from("/org/freedesktop/UDisks2/drives/stick").unwrap(),
         [interface(
             DRIVE,
-            vec![("Removable", owned(Value::from(true)))],
+            vec![
+                ("Removable", owned(Value::from(true))),
+                ("CanPowerOff", owned(Value::from(true))),
+                ("Ejectable", owned(Value::from(false))),
+            ],
         )]
         .into_iter()
         .collect(),
@@ -107,7 +111,8 @@ fn managed_objects_become_udisks_objects() {
         ["/run/media/anna/FOTOS"]
     );
     let drive = objects.iter().find(|o| o.path.ends_with("/stick")).unwrap();
-    assert!(drive.drive.as_ref().unwrap().removable);
+    let props = drive.drive.as_ref().unwrap();
+    assert!(props.removable && props.can_power_off && !props.ejectable);
 }
 
 #[test]

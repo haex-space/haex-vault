@@ -40,6 +40,8 @@ pub struct EncProps {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DriveProps {
     pub removable: bool,
+    pub can_power_off: bool,
+    pub ejectable: bool,
 }
 
 /// One object of `GetManagedObjects` with the interfaces the list reads.
@@ -128,6 +130,88 @@ fn classify_one(object: &UdisksObject, by_path: &HashMap<&str, &UdisksObject>) -
         size: Some(block.size),
         total: None,
         free: None,
+    })
+}
+
+/// How the drive is switched off after the unmount.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Power {
+    /// `Drive.PowerOff` on this drive object.
+    Off(String),
+    /// `Drive.Eject` on this drive object.
+    Eject(String),
+}
+
+/// What releasing a mounted drive calls, in the order of contracts/commands.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseSteps {
+    /// The block whose file system is unmounted.
+    pub unmount: String,
+    /// The encrypted block that is locked after it (FR-011).
+    pub lock: Option<String>,
+    /// For a removable drive whose other file systems are not mounted.
+    pub power: Option<Power>,
+}
+
+/// The steps that release `drive`, one of `classify(objects)`; `None` when it is gone.
+pub fn release_steps(objects: &[UdisksObject], drive: &Drive) -> Option<ReleaseSteps> {
+    let by_path: HashMap<&str, &UdisksObject> = objects
+        .iter()
+        .map(|object| (object.path.as_str(), object))
+        .collect();
+    let block = by_path.get(drive.id.as_str())?.block.as_ref()?;
+    let lock = block.crypto_backing.clone().filter(|_| drive.encrypted);
+    let power = drive_of(block, &by_path)
+        .filter(|_| drive.release == DriveRelease::Eject)
+        .filter(|(path, _)| !others_mounted(objects, &by_path, path, &drive.id))
+        .and_then(|(path, props)| {
+            if props.can_power_off {
+                Some(Power::Off(path.to_owned()))
+            } else {
+                props.ejectable.then(|| Power::Eject(path.to_owned()))
+            }
+        });
+    Some(ReleaseSteps {
+        unmount: drive.id.clone(),
+        lock,
+        power,
+    })
+}
+
+/// The drive object of `block`, through its encrypted block for an unlocked one.
+fn drive_of<'a>(
+    block: &BlockProps,
+    by_path: &HashMap<&str, &'a UdisksObject>,
+) -> Option<(&'a str, &'a DriveProps)> {
+    let outer = block
+        .crypto_backing
+        .as_deref()
+        .and_then(|path| by_path.get(path))
+        .and_then(|backing| backing.block.as_ref())
+        .unwrap_or(block);
+    let object = by_path.get(outer.drive.as_deref()?)?;
+    Some((object.path.as_str(), object.drive.as_ref()?))
+}
+
+/// Whether another file system of the drive object `drive` is mounted: switching it off would
+/// pull that one too.
+fn others_mounted(
+    objects: &[UdisksObject],
+    by_path: &HashMap<&str, &UdisksObject>,
+    drive: &str,
+    except: &str,
+) -> bool {
+    objects.iter().any(|object| {
+        object.path != except
+            && object
+                .filesystem
+                .as_ref()
+                .is_some_and(|fs| !fs.mount_points.is_empty())
+            && object
+                .block
+                .as_ref()
+                .and_then(|block| drive_of(block, by_path))
+                .is_some_and(|(path, _)| path == drive)
     })
 }
 

@@ -128,7 +128,11 @@ pub async fn files_open(
             .mime
             .clone()
             .unwrap_or_else(|| "application/octet-stream".to_owned());
-        media.register(&tab_id, Arc::new(LocalFileSource::new(real, mime)))
+        media.register_file(
+            &tab_id,
+            real.clone(),
+            Arc::new(LocalFileSource::new(real, mime)),
+        )
     });
     Ok(Opened { kind, url, entry })
 }

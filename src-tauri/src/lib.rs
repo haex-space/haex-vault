@@ -496,6 +496,7 @@ pub fn run() {
             files::browser_commands::drives::files_drives_watch,
             files::browser_commands::drives::files_drives_unwatch,
             files::browser_commands::drives::files_drive_open,
+            files::browser_commands::drives::files_drive_release,
             files::browser_commands::navigate::files_all_access,
             files::browser_commands::navigate::files_request_all_access,
             files::browser_commands::navigate::files_list,

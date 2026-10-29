@@ -192,6 +192,27 @@ async fn a_local_rule_waits_for_the_safety_interval_or_a_quiet_change() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn changes_reach_a_rule_with_a_remote_place_no_faster_than_its_interval() {
+    let l = start(vec![rule("watched", true, true)]);
+    settle(TICK).await;
+    assert_eq!(runs(&l).len(), 1);
+    let notify = l.fake.notify.lock().unwrap().clone().unwrap();
+    notify();
+    settle(QUIET + TICK).await;
+    assert_eq!(runs(&l).len(), 1, "quiet, but the interval has not passed");
+    // The run at the interval takes the change with it; a change after it waits again.
+    settle(Duration::from_secs(60)).await;
+    assert_eq!(runs(&l).len(), 2);
+    notify();
+    settle(QUIET + TICK).await;
+    assert_eq!(runs(&l).len(), 2);
+    settle(Duration::from_secs(60)).await;
+    assert_eq!(runs(&l).len(), 3);
+    l.token.cancel();
+    l.task.await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
 async fn run_now_runs_and_a_rule_runs_once_at_a_time() {
     let l = start(vec![rule("a", true, true)]);
     let gate = Arc::new(Notify::new());
