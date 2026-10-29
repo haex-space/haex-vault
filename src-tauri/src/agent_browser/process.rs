@@ -58,6 +58,12 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
     }
     if headless {
         args.push("--headless=new".into());
+        // Headless Linux integration tests run under CI's AppArmor profile, which blocks
+        // unprivileged user namespaces. Production launches are not headless and keep Chromium's
+        // sandbox enabled.
+        if matches!(os, Os::Linux) {
+            args.push("--no-sandbox".into());
+        }
     }
     args.push("about:blank".into());
     args
@@ -165,12 +171,7 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
         .args(args(os, &launch.workdir, launch.headless))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        // CI can opt in when diagnosing a browser that exits before answering CDP.
-        .stderr(if std::env::var_os("HOLZI_AGENT_BROWSER_STDERR").is_some() {
-            Stdio::inherit()
-        } else {
-            Stdio::null()
-        })
+        .stderr(Stdio::null())
         .process_group(0);
     // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `fcntl` and
     // `dup2`, which are async-signal-safe. Both descriptors are first moved above 9, so placing

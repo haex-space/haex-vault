@@ -352,8 +352,6 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         id: tests
         shell: bash
-        env:
-          HOLZI_AGENT_BROWSER_STDERR: '1'
         run: |
           set -euo pipefail
           mkdir -p /tmp/cores
