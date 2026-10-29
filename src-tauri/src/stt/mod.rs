@@ -15,6 +15,12 @@ mod catalog_tests;
 pub mod commands;
 #[cfg(test)]
 mod commands_tests;
+// Used by the Whisper tests (`llm-cpu`), the pause detection tests and the probe (`voice`).
+#[cfg(any(
+    all(test, any(feature = "llm-cpu", feature = "voice")),
+    all(feature = "platform-probe", feature = "voice")
+))]
+pub(crate) mod fixture_wav;
 pub mod interrupt;
 #[cfg(test)]
 mod interrupt_tests;

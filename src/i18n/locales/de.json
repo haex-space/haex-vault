@@ -2342,6 +2342,8 @@
       "replaceSameVersion": "Die Fassung {version} ist schon mit anderem Inhalt in der Vault. Welche läuft, wäre dann zufällig; installieren ersetzt sie auf allen Geräten.",
       "confirmReplace": "Vorhandene Fassung ersetzen",
       "permissions": "Berechtigungen",
+      "groupWide": "Weitreichend: enthält eine Berechtigung für alles dieser Art",
+      "groupCount": "{granted} von {total} angehakt",
       "agentTools": {
         "title": "Werkzeuge für den Agenten",
         "unavailable": "Wird von holzi nicht unterstützt",
