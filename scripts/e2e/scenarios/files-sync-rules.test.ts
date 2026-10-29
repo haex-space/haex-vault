@@ -1,16 +1,18 @@
 import { deviceFiles } from '../lib/extension-files.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
-import { runAction } from '../lib/settings.ts'
+import { KEY, runAction } from '../lib/settings.ts'
 
-// Spec 061, US1 to US3, quickstart §1 to §3 (T034, T043, T051): a one-way, a two-way and an asking
-// rule between folders of the device. The rules are created through the command, since the roots of the folder
+// Spec 061, US1 to US4, quickstart §1 to §4 (T034, T043, T051, T060): a one-way, a two-way and an
+// asking rule between folders of the device. The rules are created through the command, since the roots of the folder
 // picker differ per platform. The overview shows them; "Jetzt abgleichen" copies the files and
 // leaves a file of the target alone; the two-way rule brings the new files of each side to the
 // other, and a file changed on both sides ends with the newer version under its name and the older
 // one as a conflict copy on both sides. A deletion of the asking rule waits in the overview until it
-// is confirmed; a place that is gone makes its rule wait and deletes nothing. The create dialog
-// offers both folder pickers. Moves and the other rows of the plan are covered by the Rust runs
+// is confirmed; a place that is gone makes its rule wait and deletes nothing. An exclusion written
+// in the editor keeps a file out, the preview counts it, the log lists the runs and opens one, and
+// the log depth set in the settings drops the older runs. The create dialog offers both folder
+// pickers. Moves and the other rows of the plan are covered by the Rust runs
 // against real folders (`file_sync::run`).
 
 const sleep = (ms: number) =>
@@ -153,6 +155,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       { timeoutMs: 30_000 },
     )
     askFrom.delete('weg.txt')
+    // The waiting deletions are in the details of the rule's row.
+    await instance.click('files-sync-rule-open-Nachfrage')
     await instance.click('files-sync-rule-run-Nachfrage')
     await instance.waitForDisplayed('files-sync-rule-pending-Nachfrage', 30_000)
     if (!askTo.files().includes('weg.txt')) {
@@ -191,10 +195,101 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       throw new Error('a place that is gone made the rule delete')
     }
 
+    // Manage: an exclusion through the editor, the preview, the log and its depth.
+    const closeModal = () =>
+      instance.exec(
+        `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))`,
+      )
+    await instance.click('files-sync-rule-more-Sicherung')
+    await instance.click('files-sync-rule-ignore-Sicherung')
+    await instance.type('files-sync-rule-ignore-text', '*.tmp')
+    await instance.click('files-sync-rule-ignore-save')
+    await instance.waitForDisplayed('files-sync-rule-ignore-saved', 15_000)
+    if (source.read('.haex-ignore') !== '*.tmp') {
+      throw new Error('the editor did not write .haex-ignore in place A')
+    }
+    await closeModal()
+    source.write('neu.txt', 'N')
+    source.write('cache.tmp', 'T')
+    await instance.click('files-sync-rule-more-Sicherung')
+    await instance.click('files-sync-rule-preview-Sicherung')
+    await instance.waitForDisplayed('files-sync-rule-plan-ignored', 15_000)
+    await closeModal()
+    await instance.click('files-sync-rule-run-Sicherung')
+    await ctx.waitFor(
+      'the new file at the target, the excluded one not',
+      () => target.files().includes('neu.txt'),
+      { timeoutMs: 30_000 },
+    )
+    if (target.files().includes('cache.tmp')) {
+      throw new Error('an excluded file was copied')
+    }
+    const ruleId = (
+      unwrap<{ rule: { id: string; name: string } }[]>(
+        'sync_rules_list',
+        await instance.invoke('sync_rules_list'),
+      ).find((view) => view.rule.name === 'Sicherung') ??
+      (() => {
+        throw new Error('no rule Sicherung')
+      })()
+    ).rule.id
+    const logged = async () =>
+      unwrap<{ id: string }[]>(
+        'sync_rules_runs',
+        await instance.invoke('sync_rules_runs', { id: ruleId }),
+      )
+    await instance.click('files-sync-rule-more-Sicherung')
+    await instance.click('files-sync-rule-log-Sicherung')
+    await instance.click('files-sync-rule-log-open-0', 15_000)
+    await closeModal()
+    const copiedNew = await ctx.waitFor(
+      'a logged run that copied neu.txt',
+      async () => {
+        for (const run of await logged()) {
+          const items = unwrap<{ path: string; action: string }[]>(
+            'sync_rules_run_items',
+            await instance.invoke('sync_rules_run_items', {
+              runId: run.id,
+              offset: 0,
+              limit: 100,
+            }),
+          )
+          if (
+            items.some(
+              (item) => item.path === 'neu.txt' && item.action === 'copy',
+            )
+          )
+            return true
+        }
+        return false
+      },
+      { timeoutMs: 15_000 },
+    )
+    if (!copiedNew) throw new Error('the log misses the copy')
+    const runsBefore = (await logged()).length
+    if (runsBefore < 3) throw new Error(`only ${runsBefore} runs logged`)
     // The dialog offers both pickers.
     await instance.click('files-sync-rules-new')
     await instance.waitForDisplayed('files-picker-a-root')
     await instance.waitForDisplayed('files-picker-b-root')
+    await closeModal()
+
+    // The log depth from the settings: the older runs go at once.
+    await runAction(instance, 'wm.app.open', {
+      appId: 'system.settings',
+      at: '/general/sync-log',
+    })
+    await instance.type(
+      'settings-sync-log-depth',
+      // The field holds the default 10: clear it, type 2, save.
+      `${KEY.backspace.repeat(3)}2${KEY.enter}`,
+      15_000,
+    )
+    await ctx.waitFor(
+      'the log kept to two runs',
+      async () => (await logged()).length === 2,
+      { timeoutMs: 15_000 },
+    )
   } finally {
     source.remove()
     target.remove()
