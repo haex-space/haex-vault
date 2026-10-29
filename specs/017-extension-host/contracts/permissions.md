@@ -42,6 +42,9 @@ Feste Regeln vor der Auswertung (keine Berechtigung ändert sie): Kerntabellen (
   `notifications`, deren einziges Ziel es ist) und die Web-Aktion `*` stehen ausgeschrieben und als Warnung
   hervorgehoben da („Alle Dateien und Ordner“, „alle Anfragen“), ebenso in der Anfrage zur Laufzeit und in den
   Einstellungen.
+- Der Dialog gruppiert nach Art (FR-067), die Agent-Werkzeuge als eigene Gruppe; jede Gruppe ist eine
+  Ziehharmonika, zu Beginn zugeklappt, mit Zähler „angehakt von gesamt“. Eine Gruppe mit einem Ziel `*` (nach
+  den Regeln oben) oder der Web-Aktion `*` trägt in der Kopfzeile ein Warndreieck.
 - Angehakt → `granted`, abgehakt → `ask`; beides mit `declared = 1`.
 - `shell` bekommt die Kennung dieses Geräts, jede andere Art die vault-weite (`PermissionKind::scope_on`). Der
   Dialog bietet keine Wahl; er sagt, dass die Erweiterung in der ganzen Vault installiert wird, und bei `shell`,

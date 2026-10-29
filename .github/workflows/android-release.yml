@@ -120,6 +120,12 @@ jobs:
           toolchain: 1.98.1
           targets: aarch64-linux-android, x86_64-linux-android
 
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts --target aarch64-linux-android --target x86_64-linux-android
+
       # No cargo cache: releases are rare, and a release build's cache would push the CI's
       # Android and e2e caches out of the repository's 10 GB.
       - name: Set up Gradle

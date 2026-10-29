@@ -116,3 +116,14 @@ test('the split keys of spec 062 are not part of a place', () => {
   const built = filesLocation({ ...place!, q: 'x' })
   assert.deepEqual(built.query, { p: '/home/anna', q: 'x' })
 })
+
+test('a panel that shows the sync rules keeps that in its tab location (spec 061)', () => {
+  const place: FilesPlace = {
+    source: { kind: 'device' },
+    path: '/home/anna',
+    sr: '1',
+  }
+  const location = filesLocation(place)
+  assert.deepEqual(location.query, { p: '/home/anna', sr: '1' })
+  assert.deepEqual(parseFilesPlace(location), place)
+})

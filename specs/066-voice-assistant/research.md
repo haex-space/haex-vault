@@ -88,6 +88,28 @@ Crate vorgebaute Bibliotheken für Android und iOS mitbringt, ist offen. Der Spi
 auf allen Zielen und misst die Größe; scheitert er, fällt die Pausenerkennung auf Silero über `ort`
 zurück und die Sprachausgabe wird neu bewertet.
 
+**Stand nach T001 (2026-10-29)**:
+
+- **Linken**: Ohne Features linkt `sherpa-onnx-sys` 2.0.1 auf dem Desktop statisch, die
+  ONNX-Runtime steckt mit drin; neben dem Binary muss nichts ausgeliefert werden. Android und iOS
+  gibt es nur als geteilte Bibliothek; für Android kopiert das Build-Skript die `.so`-Dateien
+  selbst nach `jniLibs`, für iOS das xcframework. Damit entfällt `shared` auf dem Desktop. Braucht
+  das Wake-Word-Modell `ort` (T007), kollidieren zwei statische Runtimes; dann wird neu entschieden.
+- **Herkunft der Bibliotheken**: Das Build-Skript lädt die Archive ohne Prüfsumme von GitHub. haex
+  übergibt sie über `SHERPA_ONNX_ARCHIVE_DIR` (`.cargo/config.toml`), nachdem
+  `scripts/fetch-sherpa-onnx.ts` jede gegen die SHA-256 aus den GitHub-Release-Angaben geprüft hat
+  (`scripts/lib/sherpaOnnxArchives.ts`). `pnpm install` lädt sie im `postinstall`, die CI vor jedem
+  Build mit `voice`. Archivgrößen: Linux x64 22,7 MB, macOS 20–21 MB, Windows x64 123 MB, Android
+  (alle ABIs) 45 MB.
+- **Neue Build-Abhängigkeiten** (`bzip2`, `tar`, `zip`, `zstd` …): MIT, Apache-2.0, BSD-3, CC0,
+  bzip2-1.0.6; keine GPL.
+- **Fehlerverhalten**: Ein kaputtes Modell liefert einen Fehler (NULL), der Prozess läuft weiter;
+  sherpa schreibt dabei eine Zeile mit dem Modellpfad nach stderr.
+- **Linux**: Pausenerkennung (`assistant::vad`) mit Silero VAD int8 auf `de_sample.wav` grün.
+  Windows, macOS und Android prüft die Plattform-Probe (Schritt `speech-detection`).
+- **iOS**: Das Repository hat noch kein iOS-Projekt (`src-tauri/gen/` enthält nur `android`). Der
+  iOS-Teil von T005 wartet, bis es eines gibt.
+
 **Alternativen**: `sherpa-rs` — veraltet zugunsten der offiziellen Crate. Alles einzeln über `ort` —
 Sprachausgabe müsste selbst nachgebaut werden. sherpa-onnx 1.x — bindet espeak-ng (GPL) statisch.
 

@@ -281,6 +281,11 @@ password, url: "haex:drive:<key>", tags: ["haex-drive"] })`. Ein normaler Eintra
   keine aktive logind-Sitzung, deshalb gilt `allow_active` nicht. Ob udisks2 vorinstalliert ist und
   dm-crypt im Azure-Kernel geht: UNVERIFIED. Scheitert der Spike, bleibt US1–US4 auf Linux manuell
   (quickstart) und die Rust-Tests decken die Logik über ein Fake-Backend.
+- **Result** (CI-Lauf von #622, 2026-10-29): Der Spike `scripts/e2e/udisks-ci-smoke.sh` geht auf
+  `ubuntu-latest` durch. Mit der polkit-Regel hängt der Nutzer `runner` ein vfat-Image ein und aus,
+  und er entsperrt, hängt ein und sperrt ein LUKS2-Image. dm-crypt geht also im Kernel des Runners.
+  Das Szenario `files-drives` läuft wirklich (8,3 s) und wird nicht übersprungen. Die E2E-Aufgaben
+  der späteren Phasen bleiben.
 
 ## R13 – Android
 

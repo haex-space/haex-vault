@@ -116,6 +116,12 @@ async function onPickDrive(drive: Drive) {
   if (path !== null) onSidebarPick(path)
 }
 
+/** The sync rules take the panel; going back returns to the folder it showed (spec 061). */
+function onPickSyncRules() {
+  close()
+  go({ source: place.value.source, path: place.value.path, sr: '1' })
+}
+
 function onPickStorage(storageId: string) {
   close()
   go({
@@ -166,9 +172,11 @@ watch(tabActive, (active) => {
           :sources="sources.state.value"
           :drives="drives"
           :busy="liveDrives.busy.value"
-          :current="storageId === null ? place.path : null"
-          :current-storage="storageId"
+          :current="storageId === null && !place.sr ? place.path : null"
+          :current-storage="place.sr ? null : storageId"
+          :sync-rules-current="!!place.sr"
           @pick="onSidebarPick"
+          @pick-sync-rules="onPickSyncRules"
           @pick-drive="onPickDrive"
           @pick-storage="onPickStorage"
           @add-storage="openStorageSettings"

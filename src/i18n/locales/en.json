@@ -2336,6 +2336,8 @@
       "replaceSameVersion": "Version {version} is already in the vault with other content. Which one runs would then be chance; installing replaces it on all devices.",
       "confirmReplace": "Replace the existing version",
       "permissions": "Permissions",
+      "groupWide": "Far-reaching: contains a permission for everything of its kind",
+      "groupCount": "{granted} of {total} ticked",
       "agentTools": {
         "title": "Tools for the agent",
         "unavailable": "Not supported by holzi",
@@ -2889,6 +2891,13 @@
         "error": "error",
         "paused": "paused",
         "inactive": "holzi not active"
+      },
+      "filter": "Search rules",
+      "noMatch": "No rule matches the search.",
+      "columns": {
+        "name": "Name",
+        "status": "State",
+        "lastRun": "Last sync"
       },
       "progress": {
         "label": "Progress",
