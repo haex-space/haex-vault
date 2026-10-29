@@ -90,7 +90,7 @@ Priorities: P1 US1, US2, US3; P2 US4, US5, US6, US9; P3 US7, US8.
 **Purpose**: Prove the native stack on every target before any code depends on it (research R3,
 R8). Record every result in research.md.
 
-- [ ] T001 Add `sherpa-onnx` (exact pin of the newest 2.0.x, `default-features = false`, features `["shared"]`) as an optional dependency behind the `voice` feature in src-tauri/Cargo.toml; confirm with `cargo tree -i sherpa-onnx` that no GPL crate and no second onnxruntime enters the lockfile
+- [x] T001 Add `sherpa-onnx` (exact pin of the newest 2.0.x, `default-features = false`; no `shared` on desktop, see research R3 "Stand nach T001") as an optional dependency behind the `voice` feature in src-tauri/Cargo.toml; confirm with `cargo tree -i sherpa-onnx` that no GPL crate and no second onnxruntime enters the lockfile
 - [ ] T002 Ship the shared `libonnxruntime` next to the binary: bundle resources in src-tauri/tauri.conf.json for Linux, macOS and Windows and `jniLibs` for Android in src-tauri/gen/android/app/build.gradle.kts; add what the Nix devshell needs in flake.nix
 - [ ] T003 [P] Create empty modules `src-tauri/src/assistant/mod.rs` and `src-tauri/src/tts/mod.rs` behind `#[cfg(feature = "voice")]` with stub commands for `--no-default-features` (pattern of src-tauri/src/voice.rs), and register them in src-tauri/src/lib.rs
 - [ ] T004 [P] Create `scripts/check-assistant-actions.ts` and `scripts/check-assistant-ui.ts` (empty rule sets) and the script `check:assistant` in package.json; wire it into the CI job of `check:agent-actions` in .github/workflows/

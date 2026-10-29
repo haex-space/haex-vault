@@ -66,6 +66,65 @@ export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
   return direction === 'bToA' ? ['a'] : ['b']
 }
 
+/** The columns of the rules list the user sorts by. */
+export const RULE_SORT_KEYS = ['name', 'status', 'lastRun'] as const
+export type RuleSortKey = (typeof RULE_SORT_KEYS)[number]
+export type RuleSort = { key: RuleSortKey; ascending: boolean }
+
+/** What the list needs of a rule to sort and filter it. */
+export type RuleRow = {
+  name: string
+  state: SyncState
+  /** ISO 8601, `null` before the first run. */
+  lastRunAt: string | null
+  /** Both places as the list shows them, for the filter. */
+  places: string
+}
+
+/** Running and failing rules first when sorted by state, the idle ones last. */
+const STATE_ORDER: Record<SyncState, number> = {
+  running: 0,
+  error: 1,
+  waiting: 2,
+  inactive: 3,
+  active: 4,
+  paused: 5,
+}
+
+/** The rows in the order of `sort`; ties keep the order by name. */
+export function sortRules<T extends RuleRow>(
+  rows: readonly T[],
+  sort: RuleSort,
+): T[] {
+  const byName = (a: T, b: T) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true })
+  const compare = (a: T, b: T): number => {
+    if (sort.key === 'status')
+      return STATE_ORDER[a.state] - STATE_ORDER[b.state]
+    if (sort.key === 'lastRun') {
+      // A rule that never ran counts as the oldest.
+      const time = (row: T) => (row.lastRunAt ? Date.parse(row.lastRunAt) : 0)
+      return time(a) - time(b)
+    }
+    return byName(a, b)
+  }
+  const sign = sort.ascending ? 1 : -1
+  return [...rows].sort((a, b) => sign * compare(a, b) || byName(a, b))
+}
+
+/** The rows whose name or places contain every word of `text`, ignoring case. */
+export function filterRules<T extends RuleRow>(
+  rows: readonly T[],
+  text: string,
+): T[] {
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return [...rows]
+  return rows.filter((row) => {
+    const haystack = `${row.name} ${row.places}`.toLowerCase()
+    return words.every((word) => haystack.includes(word))
+  })
+}
+
 /** The dialog asks for consent when files leave an encrypted folder for a plain one (FR-030a). */
 export function needsDecryptConsent(
   aEncrypted: boolean,

@@ -41,6 +41,11 @@ const source = computed((previous?: SourceRef): SourceRef =>
     : place.value.source,
 )
 const path = computed(() => place.value.path)
+/** The panel shows the sync rules of this device instead of the folder (spec 061). */
+const syncRules = computed(() => !!place.value.sr)
+const title = computed(() =>
+  syncRules.value ? t('files.sidebar.syncRules') : undefined,
+)
 
 useFilesPanelStart(context, source, path)
 
@@ -326,6 +331,7 @@ watch(context.tabActive, (active) => {
     >
       <FilesPanelBar
         :path="path"
+        :title="title"
         :root-label="storageName"
         :can-go-up="!!path && parentPath(path) !== null"
         :can-go-back="context.canGoBack.value"
@@ -350,6 +356,7 @@ watch(context.tabActive, (active) => {
     >
       <FilesPanelBar
         :path="path"
+        :title="title"
         :root-label="storageName"
         :can-go-up="!!path && parentPath(path) !== null"
         :can-go-back="context.canGoBack.value"
@@ -368,6 +375,7 @@ watch(context.tabActive, (active) => {
       />
     </Teleport>
     <FilesSearchBar
+      v-if="!syncRules"
       :query="searchQuery"
       :filter="filter"
       @search="onSearch"
@@ -378,11 +386,18 @@ watch(context.tabActive, (active) => {
       data-testid="files-main"
     >
       <FilesForeignHint
-        v-if="folderForeign > 0 && !searchQuery"
+        v-if="folderForeign > 0 && !searchQuery && !syncRules"
         :count="folderForeign"
       />
+      <FilesSyncRulesList
+        v-if="syncRules"
+        class="flex-1"
+        :sources="context.sources.value"
+      />
       <FilesAllFilesAccess
-        v-if="source.kind === 'device' && allAccess.granted.value === false"
+        v-else-if="
+          source.kind === 'device' && allAccess.granted.value === false
+        "
         class="flex-1"
         @request="allAccess.requestAsync()"
       />

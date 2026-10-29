@@ -21,7 +21,9 @@ mod imp {
 
     use serde::Serialize;
     use tauri::{AppHandle, Emitter, Manager, State};
-    use tokio::sync::{watch, Mutex as AsyncMutex};
+    use tokio::sync::watch;
+    #[cfg(feature = "llm-cpu")]
+    use tokio::sync::Mutex as AsyncMutex;
 
     use crate::error::{HolziError, Result};
     use crate::stt::interrupt::{match_interrupt, InterruptCommand};

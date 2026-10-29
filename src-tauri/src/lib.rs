@@ -1,5 +1,7 @@
 pub mod adapters;
 #[cfg(feature = "voice")]
+pub mod assistant;
+#[cfg(feature = "voice")]
 pub mod audio;
 pub mod browser_bridge;
 pub mod caller;

@@ -5,10 +5,10 @@
 //! 2026-09-17 decision to fetch the bundled model on first use rather than
 //! bundle it in the installer (see the module doc on `local.rs`).
 
-use std::io::Read;
 use std::path::Path;
 
 use super::catalog::SttCatalogEntry;
+use super::fixture_wav::read_fixture_wav;
 use super::local::{ensure_model_files, LocalWhisperAdapter};
 use super::{CanonicalPcm, SttAdapter};
 
@@ -39,43 +39,6 @@ fn whisper_tiny_entry() -> SttCatalogEntry {
         .clone()
 }
 
-/// Minimal RIFF/WAVE chunk walker for the checked-in fixture only — reads
-/// 16-bit PCM straight into normalized `f32`. Not a general decoder: the
-/// fixture is already 16 kHz mono (`stt::SAMPLE_RATE_HZ`), so this
-/// deliberately does not exercise resampling/downmixing (that is
-/// `audio::`'s job, tested there against synthetic buffers instead, T006).
-fn read_wav_as_canonical_pcm(path: &Path) -> CanonicalPcm {
-    let mut bytes = Vec::new();
-    std::fs::File::open(path)
-        .unwrap()
-        .read_to_end(&mut bytes)
-        .unwrap();
-    assert_eq!(&bytes[0..4], b"RIFF");
-    assert_eq!(&bytes[8..12], b"WAVE");
-
-    let mut pos = 12;
-    let mut data: Option<&[u8]> = None;
-    while pos + 8 <= bytes.len() {
-        let chunk_id = &bytes[pos..pos + 4];
-        let chunk_size = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()) as usize;
-        let body_start = pos + 8;
-        if chunk_id == b"data" {
-            data = Some(&bytes[body_start..body_start + chunk_size]);
-            break;
-        }
-        // Chunks are padded to an even number of bytes.
-        pos = body_start + chunk_size + (chunk_size % 2);
-    }
-    let data = data.expect("fixture wav has no data chunk");
-    let samples = data
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|b| i16::from_le_bytes(*b) as f32 / i16::MAX as f32)
-        .collect();
-    CanonicalPcm { samples }
-}
-
 #[tokio::test]
 #[ignore = "downloads the real whisper-tiny model from Hugging Face on first \
             run (~75MB) and runs real CPU inference — a direct consequence \
@@ -84,7 +47,9 @@ fn read_wav_as_canonical_pcm(path: &Path) -> CanonicalPcm {
             `cargo test --features llm-cpu -- --ignored transcribes_known_fixture`."]
 async fn transcribes_known_fixture() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/stt/fixtures/jfk.wav");
-    let pcm = read_wav_as_canonical_pcm(&fixture);
+    let pcm = CanonicalPcm {
+        samples: read_fixture_wav(&fixture),
+    };
 
     let model_dir = std::env::temp_dir().join("holzi-whisper-tiny-test-cache");
     std::fs::create_dir_all(&model_dir).unwrap();
@@ -126,7 +91,9 @@ async fn transcribes_german_fixture() {
     // Whisper's full 99-language set (see `SUPPORTED_LANGUAGES` in
     // `local.rs`).
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/stt/fixtures/de_sample.wav");
-    let pcm = read_wav_as_canonical_pcm(&fixture);
+    let pcm = CanonicalPcm {
+        samples: read_fixture_wav(&fixture),
+    };
 
     let model_dir = std::env::temp_dir().join("holzi-whisper-tiny-test-cache");
     std::fs::create_dir_all(&model_dir).unwrap();

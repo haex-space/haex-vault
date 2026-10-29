@@ -191,3 +191,11 @@ fn all_files_passes_without_the_permission_and_with_a_working_listing() {
     assert!(!refused.ok);
     assert!(!all_files(Err("no plugin".to_owned()), || Ok(0)).ok);
 }
+
+#[cfg(feature = "voice")]
+#[test]
+fn speech_detection_finds_the_sample() {
+    let step = speech_detection();
+    assert_eq!(step.name, SPEECH_DETECTION_STEP);
+    assert!(step.ok, "{:?}", step.detail);
+}
