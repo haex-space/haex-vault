@@ -71,6 +71,8 @@ pub enum Installability {
 /// A slug the host puts into a path: letters, digits, `-`, `_` and `.`, at most 100 characters.
 pub fn valid_slug(slug: &str) -> bool {
     !slug.is_empty()
+        && slug != "."
+        && slug != ".."
         && slug.len() <= 100
         && slug
             .bytes()
@@ -303,7 +305,7 @@ pub async fn fetch_catalog(
         match answer {
             Ok(page) => {
                 total_pages = total_pages.max(page.pagination.total_pages);
-                total += page.pagination.total;
+                total = total.saturating_add(page.pagination.total);
                 let from = source.catalog_source();
                 entries.extend(
                     page.extensions

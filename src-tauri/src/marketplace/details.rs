@@ -40,7 +40,7 @@ pub async fn fetch_categories(
                         .iter_mut()
                         .find(|known| known.slug == category.slug)
                     {
-                        Some(known) => known.count += category.count,
+                        Some(known) => known.count = known.count.saturating_add(category.count),
                         None => categories.push(CatalogCategoryCount {
                             name: category.name,
                             slug: category.slug,
