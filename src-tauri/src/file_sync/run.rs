@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use tokio_util::sync::CancellationToken;
 
 use super::conflict::conflict_path;
-use super::execute::{execute, Counts, Target, TrashedFile};
+use super::execute::{execute, stops_the_run, Counts, Stopped, Target, TrashedFile, MAX_FAILURES};
 use super::ignore::LineError;
 use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
@@ -16,6 +16,7 @@ use super::progress::Reporter;
 use super::run_log::{self, Finished, RunItem, SyncRuleRunAction, SyncRuleRunCause};
 use super::scan::{scan, ScanError, Scanned};
 use super::store::{self, PendingRow, StateRow};
+use crate::files::FilesErrorCode;
 use crate::vault_gate::VaultDb;
 
 /// Who runs a rule, and when.
@@ -188,7 +189,10 @@ async fn run_inner(
     let mut plan = plan_for(ctx.device_name, ctx.today, rule, &scanned, &state, &hashes);
     let mut failures = Vec::new();
     let mut items = Vec::new();
+    let mut hash_errors = 0u64;
     if !plan.hash_reads.is_empty() {
+        let mut stopped = None;
+        let mut failures_in_a_row = 0u32;
         for (side, path) in &plan.hash_reads {
             let place = match side {
                 SyncRuleSide::A => a,
@@ -197,18 +201,45 @@ async fn run_inner(
             match place.hash(path, ctx.cancel).await {
                 Ok(hash) => {
                     hashes.insert((*side, path.clone()), hash);
+                    failures_in_a_row = 0;
                 }
                 Err(error) => {
+                    hash_errors += 1;
+                    failures_in_a_row += 1;
+                    if stops_the_run(error.code)
+                        || failures_in_a_row >= super::execute::FAILURES_IN_A_ROW
+                    {
+                        stopped = Some(Stopped {
+                            code: error.code,
+                            reason: error.message.clone(),
+                        });
+                    }
                     items.push(
                         RunItem::new(SyncRuleRunAction::Error, *side, path.clone())
                             .detail(error.message.clone()),
                     );
-                    failures.push((path.clone(), error.message));
+                    if failures.len() < MAX_FAILURES {
+                        failures.push((path.clone(), error.message));
+                    }
+                    if stopped.is_some() {
+                        break;
+                    }
                 }
             }
         }
         if ctx.cancel.is_cancelled() {
             return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
+        }
+        // Reading the hashes of a place that refuses is not asked again for every file.
+        if let Some(stopped) = stopped {
+            let mut report = RunReport::stopped(
+                stopped_outcome(&stopped),
+                format!("stopped while reading files: {}", stopped.reason),
+            );
+            report.counts.errors = hash_errors;
+            report.failures = failures;
+            report.items = items;
+            return report;
         }
         plan = plan_for(ctx.device_name, ctx.today, rule, &scanned, &state, &hashes);
     }
@@ -229,19 +260,23 @@ async fn run_inner(
         &plan.steps,
     )
     .await;
+    let unhashed = hash_errors;
     failures.extend(executed.failures);
+    failures.truncate(MAX_FAILURES);
+    let mut counts = executed.counts;
+    counts.errors += unhashed;
     if !executed.cancelled {
         drop_stale_pending(ctx, rule, &plan, &pending).await;
     }
     let outcome = if executed.cancelled {
         SyncRuleOutcome::Cancelled
-    } else if failures.is_empty() {
+    } else if let Some(stopped) = &executed.stopped {
+        stopped_outcome(stopped)
+    } else if counts.errors == 0 {
         SyncRuleOutcome::Done
     } else {
         SyncRuleOutcome::Partial
     };
-    let mut counts = executed.counts;
-    counts.errors = failures.len() as u64;
     let mut skipped = scanned.a.skipped.clone();
     skipped.extend(scanned.b.skipped.iter().cloned());
     items.extend(executed.items);
@@ -255,8 +290,14 @@ async fn run_inner(
     }
     RunReport {
         outcome,
-        error: (outcome == SyncRuleOutcome::Partial)
-            .then(|| format!("{} files failed", failures.len())),
+        error: match &executed.stopped {
+            Some(stopped) => Some(format!(
+                "stopped after {} failed files: {}",
+                counts.errors, stopped.reason
+            )),
+            None => (outcome == SyncRuleOutcome::Partial)
+                .then(|| format!("{} files failed", counts.errors)),
+        },
         counts,
         failures,
         skipped,
@@ -265,6 +306,15 @@ async fn run_inner(
         trashed: executed.trashed,
         conflict_copies: executed.conflict_copies,
         items,
+    }
+}
+
+/// A place that does not answer waits and is tried again later; one that refuses is an error the
+/// user has to look at.
+fn stopped_outcome(stopped: &Stopped) -> SyncRuleOutcome {
+    match stopped.code {
+        FilesErrorCode::Unreachable => SyncRuleOutcome::Waiting,
+        _ => SyncRuleOutcome::Error,
     }
 }
 

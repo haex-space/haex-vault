@@ -1,10 +1,10 @@
 {
   "_meta": {
     "version": 2,
-    "note": "Desktop defaults to Qwen3 4B; Qwen3.5 4B and Gemma 4 E4B are available as optional downloads for evaluation. Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
+    "note": "Desktop defaults to Qwen3 4B; Qwen3.5 and Gemma 4 are left out until the inference engine loads their GGUF architectures (`qwen35`, `gemma4`). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
     "source": "Hugging Face model repositories listed per entry (community-quantized GGUFs)",
     "profiles": {
-      "desktop": "gemma-4-e4b-instruct-q4_k_m",
+      "desktop": "qwen3-4b-instruct-q4_k_m",
       "mobile": "qwen3-1.7b-instruct-q4_k_m",
       "mobile_low_memory": "qwen3-0.6b-instruct-q4_k_m"
     }
@@ -49,32 +49,6 @@
       "context_window": 32768,
       "license": "Apache-2.0",
       "tool_use": "supported"
-    },
-    {
-      "id": "qwen3.5-4b-instruct-q4_k_m",
-      "name": "Qwen3.5 4B Instruct (Q4_K_M)",
-      "family": "Qwen 3.5",
-      "parameters": "4B",
-      "quantization": "Q4_K_M",
-      "hf_repo": "bartowski/Qwen_Qwen3.5-4B-GGUF",
-      "hf_filename": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
-      "tokenizer_repo": "Qwen/Qwen3.5-4B",
-      "approx_size_bytes": 3010000000,
-      "context_window": 32768,
-      "license": "Apache-2.0"
-    },
-    {
-      "id": "gemma-4-e4b-instruct-q4_k_m",
-      "name": "Gemma 4 E4B Instruct (Q4_K_M)",
-      "family": "Gemma 4",
-      "parameters": "4B effektiv",
-      "quantization": "Q4_K_M",
-      "hf_repo": "lmstudio-community/gemma-4-E4B-it-GGUF",
-      "hf_filename": "gemma-4-E4B-it-Q4_K_M.gguf",
-      "tokenizer_repo": "google/gemma-4-E4B-it",
-      "approx_size_bytes": 5340000000,
-      "context_window": 32768,
-      "license": "Apache-2.0"
     }
   ]
 }

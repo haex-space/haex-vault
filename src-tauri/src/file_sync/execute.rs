@@ -45,12 +45,41 @@ pub struct TrashedFile {
     pub to: Trashed,
 }
 
+/// The most failed files a run keeps by name; [`Counts::errors`] counts all of them.
+pub const MAX_FAILURES: usize = 200;
+
+/// Failed files in a row after which a run stops: a storage that refuses every file would be asked
+/// thousands of times, for every run again, and answers with a limit or a ban.
+pub const FAILURES_IN_A_ROW: u32 = 10;
+
+/// Why a run stopped before its plan was done.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stopped {
+    pub code: FilesErrorCode,
+    pub reason: String,
+}
+
+/// Whether `code` will fail every other file the same way: the place does not answer, refuses the
+/// credentials or its host key, or is full.
+pub(super) fn stops_the_run(code: FilesErrorCode) -> bool {
+    matches!(
+        code,
+        FilesErrorCode::Unreachable
+            | FilesErrorCode::Credentials
+            | FilesErrorCode::HostKey
+            | FilesErrorCode::NoSpace
+    )
+}
+
 /// What [`execute`] reports.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Executed {
     pub counts: Counts,
-    /// Files whose step failed, with the reason; the next run tries them again.
+    /// Files whose step failed, with the reason; the next run tries them again. Only the first
+    /// [`MAX_FAILURES`] are named.
     pub failures: Vec<(String, String)>,
+    /// Set when the run gave up before the end of its plan.
+    pub stopped: Option<Stopped>,
     pub trashed: Vec<TrashedFile>,
     /// The conflict copies the run made (FR-012).
     pub conflict_copies: Vec<String>,
@@ -112,13 +141,14 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
     let mut done = Executed::default();
     let (files, bytes) = copy_totals(target, steps);
     target.progress.planned(files, bytes);
+    let mut in_a_row = 0u32;
     for step in steps {
         if target.cancel.is_cancelled() {
             done.cancelled = true;
             break;
         }
         match run_step(target, &state, step, &mut done).await {
-            Ok(()) => {}
+            Ok(()) => in_a_row = 0,
             Err(StepError::Cancelled) => {
                 done.cancelled = true;
                 break;
@@ -129,8 +159,24 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
                     RunItem::new(SyncRuleRunAction::Error, side_of(step), path_of(step))
                         .detail(error.message.clone()),
                 );
-                done.failures
-                    .push((path_of(step).to_owned(), error.message));
+                in_a_row += 1;
+                let stop = stops_the_run(error.code) || in_a_row >= FAILURES_IN_A_ROW;
+                if done.failures.len() < MAX_FAILURES {
+                    done.failures
+                        .push((path_of(step).to_owned(), error.message.clone()));
+                }
+                if stop {
+                    log::warn!(
+                        "file_sync: a run stops after {} failed files: {}",
+                        done.counts.errors,
+                        error.message
+                    );
+                    done.stopped = Some(Stopped {
+                        code: error.code,
+                        reason: error.message,
+                    });
+                    break;
+                }
             }
         }
     }
