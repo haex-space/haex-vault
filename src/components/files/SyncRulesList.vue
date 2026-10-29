@@ -2,8 +2,9 @@
 /**
  * "Sync-Regeln" (spec 061 US4, FR-025, FR-032, FR-040): the rules of this device as a list in the
  * panel of the file browser, laid out like a folder: a header to sort by, one row per rule with its
- * places, state, progress or last run, and the actions; a click opens the details of a row. A
- * filter narrows many rules down. Deleting a rule leaves the files of both places alone (FR-006).
+ * places, state, progress or last run, and the actions; a menu opens the preview, the exclusions,
+ * the log and the dialog to change the rule; a click opens the details of a row. A filter narrows
+ * many rules down. Deleting a rule leaves the files of both places alone (FR-006).
  */
 import type { Sources } from '@bindings/Sources'
 import type { SyncRulePlace } from '@bindings/SyncRulePlace'
@@ -32,6 +33,13 @@ const { setEnabledAsync, deleteAsync, runNowAsync } = useSyncRules()
 const creating = ref(false)
 const busy = ref<string | null>(null)
 const deleting = ref<SyncRuleView | null>(null)
+/** The rule the dialog changes; `null` for a new one. */
+const editing = ref<SyncRuleView | null>(null)
+/** The rule whose preview, exclusions or log is open. */
+const shown = ref<SyncRuleView | null>(null)
+const previewing = ref(false)
+const ignoring = ref(false)
+const logging = ref(false)
 const expanded = ref(new Set<string>())
 const filter = ref('')
 const sort = ref<RuleSort>({ key: 'name', ascending: true })
@@ -51,6 +59,29 @@ function placeLabel(place: SyncRulePlace): string {
     props.sources?.devices.find((device) => device.id === id)?.name ??
     t('files.syncRules.unknownSource')
   return place.path === '/' ? named : `${named} ${place.path}`
+}
+
+function labelsOf(view: SyncRuleView | null) {
+  return view
+    ? { a: placeLabel(view.rule.placeA), b: placeLabel(view.rule.placeB) }
+    : { a: '', b: '' }
+}
+
+function openNew() {
+  editing.value = null
+  creating.value = true
+}
+
+function openEdit(view: SyncRuleView) {
+  editing.value = view
+  creating.value = true
+}
+
+function openShown(view: SyncRuleView, which: 'preview' | 'ignore' | 'log') {
+  shown.value = view
+  previewing.value = which === 'preview'
+  ignoring.value = which === 'ignore'
+  logging.value = which === 'log'
 }
 
 const ARROWS = { aToB: '→', bToA: '←', both: '↔' } as const
@@ -161,7 +192,7 @@ async function confirmDeleteAsync() {
         size="sm"
         class="shrink-0"
         data-testid="files-sync-rules-new"
-        @click="creating = true"
+        @click="openNew"
       >
         <Icon name="lucide:plus" class="size-4" />
         {{ t('files.syncRules.create.open') }}
@@ -212,7 +243,7 @@ async function confirmDeleteAsync() {
             class="size-3"
           />
         </button>
-        <span class="w-28 shrink-0" aria-hidden="true" />
+        <span class="w-36 shrink-0" aria-hidden="true" />
       </div>
       <ul class="min-h-0 flex-1 overflow-y-auto" role="list">
         <li
@@ -275,7 +306,7 @@ async function confirmDeleteAsync() {
               </template>
               <span v-else class="truncate">{{ lastRun(view) }}</span>
             </div>
-            <div class="flex w-28 shrink-0 justify-end">
+            <div class="flex w-36 shrink-0 justify-end">
               <UiButton
                 type="button"
                 variant="ghost"
@@ -315,6 +346,54 @@ async function confirmDeleteAsync() {
                   class="size-4"
                 />
               </UiButton>
+              <ShadcnDropdownMenu>
+                <ShadcnDropdownMenuTrigger as-child>
+                  <UiButton
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    :aria-label="t('files.syncRules.more')"
+                    :tooltip="t('files.syncRules.more')"
+                    :data-testid="`files-sync-rule-more-${view.rule.name}`"
+                  >
+                    <Icon name="lucide:ellipsis-vertical" class="size-4" />
+                  </UiButton>
+                </ShadcnDropdownMenuTrigger>
+                <ShadcnDropdownMenuContent align="end">
+                  <ShadcnDropdownMenuItem
+                    class="gap-2"
+                    :data-testid="`files-sync-rule-preview-${view.rule.name}`"
+                    @select="openShown(view, 'preview')"
+                  >
+                    <Icon name="lucide:list-checks" class="size-4" />
+                    {{ t('files.syncRules.plan.open') }}
+                  </ShadcnDropdownMenuItem>
+                  <ShadcnDropdownMenuItem
+                    class="gap-2"
+                    :data-testid="`files-sync-rule-ignore-${view.rule.name}`"
+                    @select="openShown(view, 'ignore')"
+                  >
+                    <Icon name="lucide:filter-x" class="size-4" />
+                    {{ t('files.syncRules.ignore.open') }}
+                  </ShadcnDropdownMenuItem>
+                  <ShadcnDropdownMenuItem
+                    class="gap-2"
+                    :data-testid="`files-sync-rule-log-${view.rule.name}`"
+                    @select="openShown(view, 'log')"
+                  >
+                    <Icon name="lucide:history" class="size-4" />
+                    {{ t('files.syncRules.log.open') }}
+                  </ShadcnDropdownMenuItem>
+                  <ShadcnDropdownMenuItem
+                    class="gap-2"
+                    :data-testid="`files-sync-rule-edit-${view.rule.name}`"
+                    @select="openEdit(view)"
+                  >
+                    <Icon name="lucide:pencil" class="size-4" />
+                    {{ t('files.syncRules.edit.open') }}
+                  </ShadcnDropdownMenuItem>
+                </ShadcnDropdownMenuContent>
+              </ShadcnDropdownMenu>
               <UiButton
                 type="button"
                 variant="ghost"
@@ -341,6 +420,33 @@ async function confirmDeleteAsync() {
               · {{ t('files.syncRules.deleteMode.label') }}:
               {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
             </span>
+            <FilesSyncRulePending
+              v-if="view.status.pendingDeletes > 0"
+              :view="view"
+              :labels="labelsOf(view)"
+              @changed="store.loadAsync()"
+            />
+            <div
+              v-if="view.status.conflictCopies.length"
+              class="flex flex-col gap-1"
+              :data-testid="`files-sync-rule-conflicts-${view.rule.name}`"
+            >
+              <span class="text-xs text-muted-foreground">{{
+                t(
+                  'files.syncRules.conflicts',
+                  view.status.conflictCopies.length,
+                )
+              }}</span>
+              <ul class="flex flex-col gap-1">
+                <li
+                  v-for="copy in view.status.conflictCopies"
+                  :key="copy"
+                  class="truncate text-xs"
+                >
+                  {{ copy }}
+                </li>
+              </ul>
+            </div>
             <span
               v-if="
                 view.status.reason &&
@@ -371,7 +477,20 @@ async function confirmDeleteAsync() {
     <FilesSyncRuleDialog
       v-model:open="creating"
       :sources="sources"
+      :rule="editing?.rule ?? null"
+      :labels="labelsOf(editing)"
       @saved="store.loadAsync()"
+    />
+    <FilesSyncRulePlan
+      v-model:open="previewing"
+      :target="shown ? { id: shown.rule.id } : null"
+      :labels="labelsOf(shown)"
+    />
+    <FilesSyncRuleIgnoreEditor v-model:open="ignoring" :view="shown" />
+    <FilesSyncRuleLog
+      v-model:open="logging"
+      :view="shown"
+      :labels="labelsOf(shown)"
     />
     <ShadcnAlertDialog
       :open="deleting !== null"

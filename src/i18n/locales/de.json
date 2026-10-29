@@ -548,6 +548,11 @@
           "description": "Position, Stil und Einträge des Docks.",
           "keywords": "Dock Leiste Taskleiste Rad anheften Position Kante Ecke automatisch ausblenden"
         },
+        "syncLog": {
+          "title": "Sync-Protokoll",
+          "description": "Wie viele Läufe der Sync-Regeln gespeichert bleiben.",
+          "keywords": "Sync Regeln Protokoll Log Läufe Tiefe Verlauf Abgleich"
+        },
         "licenses": {
           "title": "Lizenzen",
           "description": "Die Lizenzen der mitgelieferten Icon-Sets.",
@@ -1300,6 +1305,12 @@
       "removeConfirm": "Server und seine Modelle entfernen?",
       "cancel": "Abbrechen",
       "remove": "Entfernen"
+    },
+    "syncLog": {
+      "title": "Sync-Protokoll",
+      "depth": "Läufe je Regel",
+      "hint": "Wie viele Läufe das Protokoll jeder Sync-Regel auf diesem Gerät behält, 0 bis 100. Bei 0 gibt es kein Protokoll.",
+      "invalid": "Eine ganze Zahl von 0 bis 100."
     }
   },
   "models": {
@@ -2866,9 +2877,106 @@
       "pause": "Pausieren",
       "resume": "Fortsetzen",
       "delete": "Regel löschen",
+      "more": "Mehr",
       "deleteTitle": "Sync-Regel löschen",
       "deleteText": "„{name}“ wird gelöscht. Die Dateien an beiden Orten bleiben, wie sie sind.",
       "deviations": "{count} Abweichungen am Zielort, die nicht überschrieben werden.",
+      "conflicts": "Konfliktkopie des letzten Abgleichs: | Konfliktkopien des letzten Abgleichs ({count}):",
+      "pending": {
+        "count": "Eine Löschung wartet auf dich | {count} Löschungen warten auf dich",
+        "at": "wird an {place} gelöscht",
+        "one": {
+          "delete": "Löschen",
+          "keep": "Behalten, nicht mehr fragen",
+          "restore": "Zurückkopieren"
+        },
+        "all": {
+          "delete": "Alle löschen",
+          "keep": "Alle behalten",
+          "restore": "Alle zurückkopieren"
+        }
+      },
+      "plan": {
+        "open": "Vorschau",
+        "title": "Vorschau des Abgleichs",
+        "loading": "Orte werden verglichen …",
+        "nothing": "Für diese Vorschau wurden keine Schritte ermittelt.",
+        "action": {
+          "folder": "Ordner anlegen ({count}) | Ordner anlegen ({count})",
+          "move": "Verschieben ({count}) | Verschieben ({count})",
+          "conflictCopy": "Konfliktkopie ({count}) | Konfliktkopien ({count})",
+          "copy": "Kopieren ({count}) | Kopieren ({count})",
+          "adopt": "Gleich, wird übernommen ({count}) | Gleich, werden übernommen ({count})",
+          "delete": "In den Papierkorb ({count}) | In den Papierkorb ({count})",
+          "pending": "Löschung zum Nachfragen ({count}) | Löschungen zum Nachfragen ({count})",
+          "keep": "Bleibt bewusst ({count}) | Bleiben bewusst ({count})",
+          "deviation": "Abweichung am Zielort ({count}) | Abweichungen am Zielort ({count})"
+        },
+        "deviation": {
+          "changed": "dort geändert",
+          "deleted": "dort gelöscht",
+          "added": "nur dort"
+        },
+        "hashReads": "Eine Datei wird beim Abgleich am Inhalt verglichen. | {count} Dateien werden beim Abgleich am Inhalt verglichen.",
+        "ignored": "Die Ausnahmen lassen eine Datei oder einen Ordner aus. | Die Ausnahmen lassen {count} Dateien und Ordner aus."
+      },
+      "ignore": {
+        "open": "Ausnahmen",
+        "title": "Ausnahmen von „{name}“",
+        "loading": "Wird geladen …",
+        "hint": "Muster wie in .gitignore, eins pro Zeile. Die Datei .haex-ignore liegt in Ort A und wird mit abgeglichen.",
+        "label": ".haex-ignore",
+        "readOnly": "Ort A ist nicht beschreibbar, die Muster sind nur zu sehen: {reason}",
+        "lineError": "Zeile {line} wird übersprungen: {text}",
+        "ignoredNow": "Die Ausnahmen lassen gerade nichts aus. | Die Ausnahmen lassen gerade eine Datei oder einen Ordner aus. | Die Ausnahmen lassen gerade {count} Dateien und Ordner aus.",
+        "fixed": "Feste Ausnahmen",
+        "saved": "Gespeichert. Die Regel gleicht gleich damit ab.",
+        "save": "Speichern"
+      },
+      "log": {
+        "open": "Protokoll",
+        "title": "Protokoll von „{name}“",
+        "loading": "Wird geladen …",
+        "empty": "Noch kein Lauf im Protokoll.",
+        "noFiles": "Keine Dateien in diesem Lauf.",
+        "more": "Weitere laden",
+        "systemTrash": "Papierkorb des Systems",
+        "duration": "{seconds} s",
+        "counts": "{copied} kopiert, {moved} verschoben, {deleted} gelöscht, {conflicts} Konflikte, {errors} Fehler, {skipped} übersprungen",
+        "outcome": {
+          "done": "fertig",
+          "partial": "teilweise",
+          "waiting": "wartet",
+          "error": "Fehler",
+          "cancelled": "abgebrochen"
+        },
+        "cause": {
+          "interval": "Intervall",
+          "watch": "Änderung",
+          "manual": "von Hand",
+          "startup": "beim Öffnen"
+        },
+        "action": {
+          "copy": "kopiert",
+          "move": "verschoben",
+          "delete": "gelöscht",
+          "conflictCopy": "Konfliktkopie",
+          "adopt": "übernommen",
+          "skip": "übersprungen",
+          "error": "Fehler"
+        },
+        "skip": {
+          "link": "Verknüpfung",
+          "noAccess": "kein Zugriff",
+          "badName": "ungültiger Name"
+        }
+      },
+      "edit": {
+        "open": "Bearbeiten",
+        "title": "Sync-Regel ändern",
+        "save": "Speichern",
+        "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+      },
       "create": {
         "open": "Neue Regel",
         "title": "Neue Sync-Regel",
@@ -2923,7 +3031,11 @@
         "invalidName": "Der Name hat 1 bis 80 Zeichen.",
         "notFound": "Diese Regel gibt es nicht mehr.",
         "readOnly": "An diesen Ort kann holzi nicht schreiben.",
-        "unavailable": "Die Vault ist gerade nicht verfügbar."
+        "unreachable": "Ein Ort der Regel ist gerade nicht erreichbar.",
+        "unavailable": "Die Vault ist gerade nicht verfügbar.",
+        "invalidDepth": "Die Protokolltiefe liegt zwischen 0 und 100.",
+        "placeError": "Ein Ort der Regel kann nicht gelesen werden.",
+        "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen)."
       }
     },
     "split": {

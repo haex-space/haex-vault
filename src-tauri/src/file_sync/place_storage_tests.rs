@@ -1,6 +1,7 @@
 //! A storage folder as a place: the tree from its listings, a missing folder unreachable, another
-//! own device that is off or refuses unreachable too, the rule trash, hashes read in parts and text
-//! written through the transfers.
+//! own device that is off or refuses unreachable too, the rule trash (copy then delete without a
+//! rename, the original kept when the copy fails), hashes read in parts and text written through the
+//! transfers.
 
 use std::sync::Arc;
 
@@ -106,6 +107,35 @@ async fn trash_moves_into_the_rule_trash() {
         Some(&b"bbb"[..])
     );
     assert_eq!(fake.object(BUCKET, "Fotos/2026/b.jpg"), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn trash_without_rename_copies_then_deletes() {
+    let fake = filled();
+    let p = place(&fake, "/Fotos");
+    p.trash("a.jpg", "run1").await.unwrap();
+    let ops: Vec<Op> = fake.calls().into_iter().map(|(op, _)| op).collect();
+    let copy = ops.iter().position(|op| *op == Op::Copy);
+    let delete = ops.iter().position(|op| *op == Op::Delete);
+    assert!(
+        matches!((copy, delete), (Some(c), Some(d)) if c < d),
+        "{ops:?}"
+    );
+    assert!(fake
+        .object(BUCKET, "Fotos/.holzi-trash/run1/a.jpg")
+        .is_some());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_move_into_the_trash_leaves_the_original() {
+    let fake = filled();
+    fake.fail(Op::Copy, StorageError::Network);
+    let p = place(&fake, "/Fotos");
+    assert!(p.trash("a.jpg", "run1").await.is_err());
+    assert_eq!(
+        fake.object(BUCKET, "Fotos/a.jpg").as_deref(),
+        Some(&b"aa"[..])
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

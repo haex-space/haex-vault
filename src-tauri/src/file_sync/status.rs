@@ -50,6 +50,8 @@ pub struct SyncRuleStatus {
     pub reason: Option<String>,
     pub pending_deletes: u32,
     pub conflicts: u32,
+    /// The conflict copies of the last run, to find them (Story 3, scenario 4).
+    pub conflict_copies: Vec<String>,
     pub errors: Vec<SyncRuleFileError>,
     pub ignored: u32,
     pub ignore_errors: Vec<SyncRuleIgnoreLine>,
@@ -90,6 +92,9 @@ pub fn status_of(
         reason: rule.last_error.clone(),
         pending_deletes: pending,
         conflicts: last.map_or(0, |report| count(report.counts.conflicts)),
+        conflict_copies: last
+            .map(|report| report.conflict_copies.clone())
+            .unwrap_or_default(),
         errors: last
             .map(|report| {
                 report

@@ -1,8 +1,8 @@
 //! One run of a rule (research R3): scan both places, guard against a known place that lists empty
 //! (FR-022), plan, read the hashes the plan asks for and plan again, execute, and note the result
-//! on the rule.
+//! on the rule and in the run log (FR-043).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tokio_util::sync::CancellationToken;
 
@@ -11,10 +11,11 @@ use super::execute::{execute, stops_the_run, Counts, Stopped, Target, TrashedFil
 use super::ignore::LineError;
 use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
-use super::plan::{build, Hashes, Inputs, Plan};
+use super::plan::{build, Hashes, Inputs, Plan, Step};
 use super::progress::Reporter;
+use super::run_log::{self, Finished, RunItem, SyncRuleRunAction, SyncRuleRunCause};
 use super::scan::{scan, ScanError, Scanned};
-use super::store::{self, StateRow};
+use super::store::{self, PendingRow, StateRow};
 use crate::files::FilesErrorCode;
 use crate::vault_gate::VaultDb;
 
@@ -30,6 +31,7 @@ pub struct RunContext<'a> {
     /// The time the run ends with, ISO 8601.
     pub now: &'a (dyn Fn() -> String + Sync),
     pub run_id: &'a str,
+    pub cause: SyncRuleRunCause,
     pub cancel: &'a CancellationToken,
     pub progress: &'a Reporter,
 }
@@ -46,6 +48,9 @@ pub struct RunReport {
     pub ignore_errors: Vec<LineError>,
     pub ignored: usize,
     pub trashed: Vec<TrashedFile>,
+    pub conflict_copies: Vec<String>,
+    /// Every file action, for the log.
+    pub items: Vec<RunItem>,
 }
 
 impl RunReport {
@@ -59,13 +64,50 @@ impl RunReport {
             ignore_errors: Vec::new(),
             ignored: 0,
             trashed: Vec::new(),
+            conflict_copies: Vec::new(),
+            items: Vec::new(),
         }
     }
 }
 
-/// Runs `rule` between `a` and `b` and notes the result on the rule.
-pub async fn run(ctx: &RunContext<'_>, rule: &SyncRule, a: &dyn Place, b: &dyn Place) -> RunReport {
+/// When a run started.
+#[derive(Debug, Clone, Copy)]
+pub struct Started {
+    ms: i64,
+    at: std::time::Instant,
+}
+
+impl Started {
+    pub fn now() -> Self {
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| {
+                i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+            });
+        Self {
+            ms,
+            at: std::time::Instant::now(),
+        }
+    }
+}
+
+/// Runs `rule` between `a` and `b` and notes the result on the rule and in the log.
+pub async fn run(
+    ctx: &RunContext<'_>,
+    rule: &SyncRule,
+    a: &dyn Place,
+    b: &dyn Place,
+    started: Started,
+) -> RunReport {
     let report = run_inner(ctx, rule, a, b).await;
+    note(ctx, rule, &report, started).await;
+    report
+}
+
+/// Notes how a run that started at `started` ended: on the rule, and in the log.
+pub async fn note(ctx: &RunContext<'_>, rule: &SyncRule, report: &RunReport, started: Started) {
+    let duration = i64::try_from(started.at.elapsed().as_millis()).unwrap_or(i64::MAX);
+    let finished = Finished::of(ctx.cause, started.ms, duration, report);
     let (device, id, at, outcome, error) = (
         ctx.device.to_owned(),
         rule.id.clone(),
@@ -77,13 +119,13 @@ pub async fn run(ctx: &RunContext<'_>, rule: &SyncRule, a: &dyn Place, b: &dyn P
         .db
         .write(move |tx| {
             store::set_result(tx, &device, &id, &at, outcome, error.as_deref())?;
+            run_log::record(tx, &device, &id, &finished)?;
             Ok(())
         })
         .await;
     if let Err(error) = written {
         log::warn!("file_sync: the result of a run could not be written: {error}");
     }
-    report
 }
 
 async fn run_inner(
@@ -116,13 +158,18 @@ async fn run_inner(
         }
     };
     let (device, id) = (ctx.device.to_owned(), rule.id.clone());
-    let state = match ctx
+    let (state, pending) = match ctx
         .db
-        .read(move |r| Ok(store::state(r, &device, &id)))
+        .read(move |r| {
+            Ok((
+                store::state(r, &device, &id)?,
+                store::pending(r, &device, &id)?,
+            ))
+        })
         .await
     {
-        Ok(Ok(state)) => state,
-        Ok(Err(error)) | Err(error) => {
+        Ok(read) => read,
+        Err(error) => {
             return RunReport::stopped(SyncRuleOutcome::Error, format!("state: {error}"));
         }
     };
@@ -139,8 +186,10 @@ async fn run_inner(
         return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
     }
     let mut hashes = Hashes::new();
-    let mut plan = plan_for(ctx, rule, &scanned, &state, &hashes);
+    let mut plan = plan_for(ctx.device_name, ctx.today, rule, &scanned, &state, &hashes);
     let mut failures = Vec::new();
+    let mut items = Vec::new();
+    let mut hash_errors = 0u64;
     if !plan.hash_reads.is_empty() {
         let mut stopped = None;
         let mut failures_in_a_row = 0u32;
@@ -155,6 +204,7 @@ async fn run_inner(
                     failures_in_a_row = 0;
                 }
                 Err(error) => {
+                    hash_errors += 1;
                     failures_in_a_row += 1;
                     if stops_the_run(error.code)
                         || failures_in_a_row >= super::execute::FAILURES_IN_A_ROW
@@ -164,7 +214,13 @@ async fn run_inner(
                             reason: error.message.clone(),
                         });
                     }
-                    failures.push((path.clone(), error.message));
+                    items.push(
+                        RunItem::new(SyncRuleRunAction::Error, *side, path.clone())
+                            .detail(error.message.clone()),
+                    );
+                    if failures.len() < MAX_FAILURES {
+                        failures.push((path.clone(), error.message));
+                    }
                     if stopped.is_some() {
                         break;
                     }
@@ -180,12 +236,12 @@ async fn run_inner(
                 stopped_outcome(&stopped),
                 format!("stopped while reading files: {}", stopped.reason),
             );
-            report.counts.errors = failures.len() as u64;
-            failures.truncate(MAX_FAILURES);
+            report.counts.errors = hash_errors;
             report.failures = failures;
+            report.items = items;
             return report;
         }
-        plan = plan_for(ctx, rule, &scanned, &state, &hashes);
+        plan = plan_for(ctx.device_name, ctx.today, rule, &scanned, &state, &hashes);
     }
     let executed = execute(
         &Target {
@@ -204,11 +260,14 @@ async fn run_inner(
         &plan.steps,
     )
     .await;
-    let unhashed = failures.len() as u64;
+    let unhashed = hash_errors;
     failures.extend(executed.failures);
     failures.truncate(MAX_FAILURES);
     let mut counts = executed.counts;
     counts.errors += unhashed;
+    if !executed.cancelled {
+        drop_stale_pending(ctx, rule, &plan, &pending).await;
+    }
     let outcome = if executed.cancelled {
         SyncRuleOutcome::Cancelled
     } else if let Some(stopped) = &executed.stopped {
@@ -220,6 +279,15 @@ async fn run_inner(
     };
     let mut skipped = scanned.a.skipped.clone();
     skipped.extend(scanned.b.skipped.iter().cloned());
+    items.extend(executed.items);
+    for (side, listing) in [(SyncRuleSide::A, &scanned.a), (SyncRuleSide::B, &scanned.b)] {
+        for (path, reason) in &listing.skipped {
+            items.push(
+                RunItem::new(SyncRuleRunAction::Skip, side, path.clone())
+                    .detail(skip_reason(*reason)),
+            );
+        }
+    }
     RunReport {
         outcome,
         error: match &executed.stopped {
@@ -236,6 +304,8 @@ async fn run_inner(
         ignore_errors: scanned.exclusions.errors.clone(),
         ignored: plan.ignored,
         trashed: executed.trashed,
+        conflict_copies: executed.conflict_copies,
+        items,
     }
 }
 
@@ -248,8 +318,11 @@ fn stopped_outcome(stopped: &Stopped) -> SyncRuleOutcome {
     }
 }
 
-fn plan_for(
-    ctx: &RunContext<'_>,
+/// The plan of `rule` for what `scanned` shows; conflict copies are named after `device_name` and
+/// `today`.
+pub(super) fn plan_for(
+    device_name: &str,
+    today: &str,
     rule: &SyncRule,
     scanned: &Scanned,
     state: &[StateRow],
@@ -257,7 +330,7 @@ fn plan_for(
 ) -> Plan {
     // A conflict copy may land on either side, so its name is free on both.
     let conflict_name = |path: &str, taken: &[String]| {
-        conflict_path(path, ctx.device_name, ctx.today, &|candidate| {
+        conflict_path(path, device_name, today, &|candidate| {
             scanned.a.files.contains_key(candidate)
                 || scanned.b.files.contains_key(candidate)
                 || taken.iter().any(|name| name == candidate)
@@ -272,6 +345,45 @@ fn plan_for(
         hashes,
         conflict_name: &conflict_name,
     })
+}
+
+/// Drops the waiting deletions this run no longer plans: the file came back, changed, or the delete
+/// mode is another now (data-model.md).
+async fn drop_stale_pending(
+    ctx: &RunContext<'_>,
+    rule: &SyncRule,
+    plan: &Plan,
+    pending: &[PendingRow],
+) {
+    let planned: BTreeSet<&str> = plan
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            Step::Pending { path, .. } => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    let stale: Vec<String> = pending
+        .iter()
+        .filter(|row| !planned.contains(row.path.as_str()))
+        .map(|row| row.path.clone())
+        .collect();
+    if stale.is_empty() {
+        return;
+    }
+    let (device, id) = (ctx.device.to_owned(), rule.id.clone());
+    let written = ctx
+        .db
+        .write(move |tx| {
+            for path in &stale {
+                store::remove_pending(tx, &device, &id, path)?;
+            }
+            Ok(())
+        })
+        .await;
+    if let Err(error) = written {
+        log::warn!("file_sync: stale waiting deletions could not be dropped: {error}");
+    }
 }
 
 /// The side that lists no files although the state knows files there (FR-022). An empty target
@@ -290,6 +402,15 @@ fn emptied(scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
         .into_iter()
         .find(|(side, listing)| known.contains_key(side) && listing.files.is_empty())
         .map(|(side, _)| side)
+}
+
+/// The detail of a skipped file in the log; the window translates it.
+fn skip_reason(reason: SkipReason) -> &'static str {
+    match reason {
+        SkipReason::Link => "link",
+        SkipReason::NoAccess => "noAccess",
+        SkipReason::BadName => "badName",
+    }
 }
 
 fn name(side: SyncRuleSide) -> &'static str {

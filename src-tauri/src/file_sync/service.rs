@@ -15,7 +15,8 @@ use super::place::Place;
 use super::place_device::DevicePlace;
 use super::place_storage::StoragePlace;
 use super::progress::{Reporter, SYNC_RULE_PROGRESS};
-use super::run::{run, RunContext, RunReport};
+use super::run::{note, run, RunContext, RunReport, Started};
+use super::run_log::SyncRuleRunCause;
 use super::schedule::{control, Command, Runner, Shared};
 use super::store;
 use super::watch::watch_place;
@@ -176,25 +177,23 @@ struct TauriRunner {
     device: String,
 }
 
-impl TauriRunner {
-    async fn device_name(&self) -> String {
-        let device = self.device.clone();
-        self.db
-            .read(move |r| {
-                Ok(crate::storage::query::Query::query_row(
-                    r,
-                    "SELECT alias FROM known_devices WHERE vault_device_uuid = ?1",
-                    &[&device],
-                    |row| row.get::<_, Option<String>>(0),
-                )?
-                .flatten())
-            })
-            .await
-            .ok()
-            .flatten()
-            .filter(|name| !name.trim().is_empty())
-            .unwrap_or_else(|| "holzi".to_owned())
-    }
+/// The name of `device` in conflict copies: its alias, or "holzi".
+pub(super) async fn device_name(db: &VaultDb, device: &str) -> String {
+    let device = device.to_owned();
+    db.read(move |r| {
+        Ok(crate::storage::query::Query::query_row(
+            r,
+            "SELECT alias FROM known_devices WHERE vault_device_uuid = ?1",
+            &[&device],
+            |row| row.get::<_, Option<String>>(0),
+        )?
+        .flatten())
+    })
+    .await
+    .ok()
+    .flatten()
+    .filter(|name| !name.trim().is_empty())
+    .unwrap_or_else(|| "holzi".to_owned())
 }
 
 #[async_trait]
@@ -210,9 +209,15 @@ impl Runner for TauriRunner {
         }
     }
 
-    async fn run(&self, rule: SyncRule, cancel: CancellationToken) -> RunReport {
+    async fn run(
+        &self,
+        rule: SyncRule,
+        cause: SyncRuleRunCause,
+        cancel: CancellationToken,
+    ) -> RunReport {
+        let started = Started::now();
         let run_id = uuid::Uuid::new_v4().to_string();
-        let name = self.device_name().await;
+        let name = device_name(&self.db, &self.device).await;
         let today: String = clock::now().chars().take(10).collect();
         let now = clock::now;
         let app = self.app.clone();
@@ -228,6 +233,7 @@ impl Runner for TauriRunner {
             today: &today,
             now: &now,
             run_id: &run_id,
+            cause,
             cancel: &cancel,
             progress: &progress,
         };
@@ -237,10 +243,10 @@ impl Runner for TauriRunner {
         ) {
             (Ok(a), Ok(b)) => (a, b),
             (Err(error), _) | (_, Err(error)) => {
-                return failed_open(&ctx, &rule, error).await;
+                return failed_open(&ctx, &rule, error, started).await;
             }
         };
-        run(&ctx, &rule, a.as_ref(), b.as_ref()).await
+        run(&ctx, &rule, a.as_ref(), b.as_ref(), started).await
     }
 
     fn changed(&self, rule_id: Option<String>) {
@@ -265,12 +271,24 @@ impl Runner for TauriRunner {
     }
 }
 
-/// A place of a rule as the window opens it.
-async fn open_place(app: &AppHandle, place: &SyncRulePlace) -> Result<Box<dyn Place>, FilesError> {
+/// A place of a rule as the window opens it, to write.
+pub(super) async fn open_place(
+    app: &AppHandle,
+    place: &SyncRulePlace,
+) -> Result<Box<dyn Place>, FilesError> {
+    open_place_for(app, place, Want::Write).await
+}
+
+/// A place of a rule as the window opens it for `want`.
+pub(super) async fn open_place_for(
+    app: &AppHandle,
+    place: &SyncRulePlace,
+    want: Want,
+) -> Result<Box<dyn Place>, FilesError> {
     let (state, files) = (app.state::<AppState>(), app.state::<FilesState>());
     match &place.source {
         SourceRef::Device => {
-            match place_of(app, &state, &files, &place.source, &place.path, Want::Write).await? {
+            match place_of(app, &state, &files, &place.source, &place.path, want).await? {
                 WindowPlace::Device => Ok(Box::new(DevicePlace::new(&place.path))),
                 WindowPlace::Storage { files, path, .. } => {
                     Ok(Box::new(StoragePlace::new(Arc::new(files), path)))
@@ -287,36 +305,18 @@ async fn open_place(app: &AppHandle, place: &SyncRulePlace) -> Result<Box<dyn Pl
     }
 }
 
-/// The report of a run whose place could not be opened, noted on the rule like a run.
-async fn failed_open(ctx: &RunContext<'_>, rule: &SyncRule, error: FilesError) -> RunReport {
+/// The report of a run whose place could not be opened, noted like a run.
+async fn failed_open(
+    ctx: &RunContext<'_>,
+    rule: &SyncRule,
+    error: FilesError,
+    started: Started,
+) -> RunReport {
     let outcome = match error.code {
         crate::files::FilesErrorCode::Unreachable => SyncRuleOutcome::Waiting,
         _ => SyncRuleOutcome::Error,
     };
-    let (device, id, at, reason) = (
-        ctx.device.to_owned(),
-        rule.id.clone(),
-        (ctx.now)(),
-        error.message.clone(),
-    );
-    if let Err(error) = ctx
-        .db
-        .write(move |tx| {
-            store::set_result(tx, &device, &id, &at, outcome, Some(&reason))?;
-            Ok(())
-        })
-        .await
-    {
-        log::warn!("file_sync: the result of a run could not be written: {error}");
-    }
-    RunReport {
-        outcome,
-        error: Some(error.message),
-        counts: Default::default(),
-        failures: Vec::new(),
-        skipped: Vec::new(),
-        ignore_errors: Vec::new(),
-        ignored: 0,
-        trashed: Vec::new(),
-    }
+    let report = RunReport::stopped(outcome, error.message);
+    note(ctx, rule, &report, started).await;
+    report
 }

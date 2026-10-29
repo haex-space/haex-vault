@@ -78,6 +78,8 @@ fn the_last_run_fills_errors_and_counters() {
         }],
         ignored: 7,
         trashed: Vec::new(),
+        conflict_copies: vec!["x (Konflikt Laptop 2026-10-29).txt".to_owned()],
+        items: Vec::new(),
     };
     let status = status_of(
         &rule(true, Some(SyncRuleOutcome::Partial)),
@@ -87,6 +89,10 @@ fn the_last_run_fills_errors_and_counters() {
     );
     assert_eq!(status.pending_deletes, 4);
     assert_eq!(status.conflicts, 2);
+    assert_eq!(
+        status.conflict_copies,
+        ["x (Konflikt Laptop 2026-10-29).txt"]
+    );
     assert_eq!(status.deviations, 1);
     assert_eq!(status.ignored, 7);
     assert_eq!(status.errors[0].path, "x.txt");

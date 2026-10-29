@@ -6,4 +6,8 @@ import type { SyncRuleState } from "./SyncRuleState";
 /**
  * The status of a rule (contracts/tauri-commands.md).
  */
-export type SyncRuleStatus = { state: SyncRuleState, reason: string | null, pendingDeletes: number, conflicts: number, errors: Array<SyncRuleFileError>, ignored: number, ignoreErrors: Array<SyncRuleIgnoreLine>, deviations: number, };
+export type SyncRuleStatus = { state: SyncRuleState, reason: string | null, pendingDeletes: number, conflicts: number,
+/**
+ * The conflict copies of the last run, to find them (Story 3, scenario 4).
+ */
+conflictCopies: Array<string>, errors: Array<SyncRuleFileError>, ignored: number, ignoreErrors: Array<SyncRuleIgnoreLine>, deviations: number, };

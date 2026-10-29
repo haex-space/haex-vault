@@ -25,6 +25,8 @@ export interface DeviceFiles {
   write: (name: string, content: string | Uint8Array) => void
   read: (name: string) => string
   readBytes: (name: string) => Buffer
+  /** Deletes the file `name`; a missing one is fine. */
+  delete: (name: string) => void
   /** Empty files `sub/d<i>/f<i>-<j>.txt` for `i < folders`, `j < files`: a large tree in one go
    * (on the phone one shell loop, not a push per file). */
   tree: (sub: string, folders: number, files: number) => void
@@ -75,6 +77,7 @@ export function deviceFiles(
       },
       read: (name) => readFileSync(path(name), 'utf8'),
       readBytes: (name) => readFileSync(path(name)),
+      delete: (name) => rmSync(path(name), { force: true }),
       tree: (sub, folders, files) => {
         for (let i = 0; i < folders; i++) {
           const dir = join(folder, sub, `d${i}`)
@@ -141,6 +144,7 @@ export function deviceFiles(
     },
     read: (name) => pull(name).toString(),
     readBytes: pull,
+    delete: (name) => void adb.shell('rm', '-f', quote(path(name))),
     // One shell loop for the whole tree (a push per file would take minutes), opened up for the
     // app as `write` does.
     tree: (sub, folders, files) =>

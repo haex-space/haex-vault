@@ -396,6 +396,25 @@ fn excluded_paths_are_counted_and_left_out() {
 }
 
 #[test]
+fn a_file_excluded_after_the_first_run_is_left_alone_and_forgotten() {
+    let mut case = Case::new(
+        listing(&[("a.tmp", 1, 1)]),
+        listing(&[]),
+        vec![row("a.tmp", seen(1, 1), seen(1, 2))],
+    )
+    .mode(SyncRuleDeleteMode::Mirror);
+    case.ignore = Some("*.tmp\n");
+    let plan = case.plan();
+    assert_eq!(
+        plan.steps,
+        [Step::Forget {
+            path: "a.tmp".to_owned()
+        }],
+        "no copy, no deletion (FR-040, SC-009)"
+    );
+}
+
+#[test]
 fn folders_come_first_and_deletions_last() {
     let mut a = listing(&[("d/x", 1, 1)]);
     a.folders.insert("d".to_owned());

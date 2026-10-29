@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::model::{SyncRule, SyncRuleOutcome};
 use super::run::RunReport;
+use super::run_log::SyncRuleRunCause;
 use crate::files::SourceRef;
 
 /// Runs of different rules at once.
@@ -48,8 +49,13 @@ pub enum Command {
 pub trait Runner: Send + Sync + 'static {
     /// The rules of this device.
     async fn rules(&self) -> Vec<SyncRule>;
-    /// One run of `rule`.
-    async fn run(&self, rule: SyncRule, cancel: CancellationToken) -> RunReport;
+    /// One run of `rule`, started for `cause`.
+    async fn run(
+        &self,
+        rule: SyncRule,
+        cause: SyncRuleRunCause,
+        cancel: CancellationToken,
+    ) -> RunReport;
     /// Tells the window that a rule (or, with `None`, the list) changed.
     fn changed(&self, rule_id: Option<String>);
     /// Watches the local places of `rule` that its runs copy from; `notify` hears each change.
@@ -94,11 +100,12 @@ pub async fn control<R: Runner>(
     let (changes_tx, mut changes) = unbounded_channel::<String>();
     let mut rules = runner.rules().await;
     let mut watches = watch_all(&*runner, &rules, &changes_tx);
-    let mut due: Vec<String> = rules
-        .iter()
-        .filter(|rule| rule.enabled)
-        .map(|rule| rule.id.clone())
-        .collect();
+    let mut due: Vec<String> = Vec::new();
+    // Why each due rule runs; the first reason wins.
+    let mut causes: HashMap<String, SyncRuleRunCause> = HashMap::new();
+    for rule in rules.iter().filter(|rule| rule.enabled) {
+        queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Startup);
+    }
     let mut last_start: HashMap<String, Instant> = HashMap::new();
     let mut changed_at: BTreeMap<String, Instant> = BTreeMap::new();
     let mut cancels: HashMap<String, CancellationToken> = HashMap::new();
@@ -109,11 +116,7 @@ pub async fn control<R: Runner>(
         tokio::select! {
             () = token.cancelled() => break,
             Some(command) = commands.recv() => match command {
-                Command::Run(id) => {
-                    if !due.contains(&id) {
-                        due.push(id);
-                    }
-                }
+                Command::Run(id) => queue(&mut due, &mut causes, &id, SyncRuleRunCause::Manual),
                 Command::Reload => {
                     let previous = rules;
                     rules = runner.rules().await;
@@ -123,11 +126,8 @@ pub async fn control<R: Runner>(
                     // interval would leave the new rule without its first meeting.
                     for rule in rules.iter().filter(|rule| rule.enabled) {
                         let before = previous.iter().find(|old| old.id == rule.id);
-                        if (starts_after_reload(before, rule)
-                            || !last_start.contains_key(&rule.id))
-                            && !due.contains(&rule.id)
-                        {
-                            due.push(rule.id.clone());
+                        if starts_after_reload(before, rule) || !last_start.contains_key(&rule.id) {
+                            queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Manual);
                         }
                     }
                     runner.changed(None);
@@ -137,6 +137,7 @@ pub async fn control<R: Runner>(
                         cancel.cancel();
                     }
                     due.retain(|other| other != &id);
+                    causes.remove(&id);
                     shared
                         .lock()
                         .unwrap_or_else(|e| e.into_inner())
@@ -152,9 +153,7 @@ pub async fn control<R: Runner>(
                     for rule in rules.iter().filter(|rule| {
                         rule.enabled && rule.last_outcome == Some(SyncRuleOutcome::Waiting)
                     }) {
-                        if !due.contains(&rule.id) {
-                            due.push(rule.id.clone());
-                        }
+                        queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Interval);
                     }
                 }
             },
@@ -196,16 +195,14 @@ pub async fn control<R: Runner>(
                 continue;
             }
             changed_at.remove(&id);
-            if !due.contains(&id) {
-                due.push(id);
-            }
+            queue(&mut due, &mut causes, &id, SyncRuleRunCause::Watch);
         }
         for rule in rules.iter().filter(|rule| rule.enabled) {
             let late = last_start
                 .get(&rule.id)
                 .is_some_and(|at| now.duration_since(*at) >= interval_of(rule));
-            if late && !due.contains(&rule.id) && !cancels.contains_key(&rule.id) {
-                due.push(rule.id.clone());
+            if late && !cancels.contains_key(&rule.id) {
+                queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Interval);
             }
         }
         let mut waiting = Vec::new();
@@ -216,15 +213,18 @@ pub async fn control<R: Runner>(
                 .cancel_requested
                 .contains(&id)
             {
+                causes.remove(&id);
                 continue;
             }
             let Some(rule) = rules.iter().find(|rule| rule.id == id && rule.enabled) else {
+                causes.remove(&id);
                 continue;
             };
             if cancels.contains_key(&id) || runs.len() >= MAX_RUNS {
                 waiting.push(id);
                 continue;
             }
+            let cause = causes.remove(&id).unwrap_or(SyncRuleRunCause::Interval);
             let cancel = token.child_token();
             cancels.insert(id.clone(), cancel.clone());
             last_start.insert(id.clone(), now);
@@ -239,7 +239,7 @@ pub async fn control<R: Runner>(
             let (runner, rule) = (Arc::clone(&runner), rule.clone());
             runs.spawn(async move {
                 let id = rule.id.clone();
-                let report = std::panic::AssertUnwindSafe(runner.run(rule, cancel))
+                let report = std::panic::AssertUnwindSafe(runner.run(rule, cause, cancel))
                     .catch_unwind()
                     .await
                     .unwrap_or_else(|_| {
@@ -271,6 +271,19 @@ pub async fn control<R: Runner>(
         .unwrap_or_else(|e| e.into_inner())
         .cancel_processed
         .clear();
+}
+
+/// Makes `id` due for `cause`, unless it is due already.
+fn queue(
+    due: &mut Vec<String>,
+    causes: &mut HashMap<String, SyncRuleRunCause>,
+    id: &str,
+    cause: SyncRuleRunCause,
+) {
+    if !due.iter().any(|other| other == id) {
+        due.push(id.to_owned());
+    }
+    causes.entry(id.to_owned()).or_insert(cause);
 }
 
 fn starts_after_reload(before: Option<&SyncRule>, rule: &SyncRule) -> bool {
