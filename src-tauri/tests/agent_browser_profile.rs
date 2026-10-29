@@ -85,10 +85,9 @@ impl Scene {
             )
             .expect("store"),
             gate: None,
-            // CI runners for Linux have no display; macOS and Windows runners have a desktop.
-            headless: cfg!(target_os = "linux")
-                && std::env::var_os("DISPLAY").is_none()
-                && std::env::var_os("WAYLAND_DISPLAY").is_none(),
+            // Keep Linux deterministic even if the runner exports a stale DISPLAY value; the
+            // integration scenario exercises pipe control and profile persistence, not windows.
+            headless: cfg!(target_os = "linux"),
         }
     }
 }
