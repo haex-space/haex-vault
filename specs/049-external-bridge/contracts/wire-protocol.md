@@ -39,7 +39,12 @@ Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
     "clientName": "haex-pass Browser Extension",
     "publicKey": "<Standard-Base64, 32 Byte X25519>",
     "requestedExtensions": [
-      { "name": "core", "extensionPublicKey": "__core__" }
+      { "name": "core", "extensionPublicKey": "__core__", "capabilities": [] },
+      {
+        "name": "haex-pass-browser",
+        "extensionPublicKey": "<Schlüssel der Erweiterung>",
+        "capabilities": ["agentTabs"]
+      }
     ],
     "permissions": {
       "core": { "passwords": [{ "target": "*", "operation": "readWrite" }] }
@@ -71,6 +76,15 @@ holzi prüft der Reihe nach:
 
 Weitere Erklärungen als `passwords` (etwa `database`, `bookmarks`) speichert holzi in der
 Erklärung, gewährt sie aber nie (R5). `requestedExtensions[].actions` werden übergangen.
+`requestedExtensions[].capabilities` enthält eine eindeutige Liste deklarierter Erweiterungs-
+Fähigkeiten. Unbekannte Einträge werden gespeichert, aber nie freigegeben. `agentTabs`-Nachrichten
+darf holzi nur an eine zugelassene Erweiterung routen, wenn der passende Eintrag
+`requestedExtensions` die Fähigkeit `agentTabs` deklariert und der Nutzer dieser Erweiterung in
+der Extension-Zulassung das Recht `user-browser` erteilt hat. Die Freigabe bindet an
+Erweiterungsschlüssel und Revision; eine spätere Revision muss erneut zugelassen werden. Fehlt
+eine der Bedingungen, antwortet holzi mit `NOT_SUPPORTED`. Die derzeit oben gepinnte Revision
+implementiert `agentTabs` noch nicht; die Funktion bleibt deaktiviert, bis eine kompatible
+Erweiterungsrevision veröffentlicht, hier gepinnt und mit T070–T073 umgesetzt ist.
 
 Ein wiederholter Handshake auf derselben Verbindung mit derselben `clientId` bekommt den
 aktuellen Zustand nach Schritt 5 bis 7, ohne neuen Nachweis und ohne zweiten Dialog. Eine andere

@@ -10,6 +10,7 @@ import {
   intervalSecs,
   lastName,
   needsDecryptConsent,
+  progressShare,
   parentPath,
   shownState,
   showsCloudHint,
@@ -73,4 +74,39 @@ test('the dialog saves only a complete rule', () => {
   assert.equal(canSave({ ...full, hasB: false }), false)
   assert.equal(canSave({ ...full, needsConsent: true }), false)
   assert.equal(canSave({ ...full, needsConsent: true, consent: true }), true)
+})
+
+test('the progress of a run is the share of bytes, else of files, and unknown while scanning', () => {
+  const copying = { phase: 'copying' as const, filesDone: 1, filesTotal: 4 }
+  assert.equal(
+    progressShare({ ...copying, bytesDone: 50, bytesTotal: 200 }),
+    0.25,
+  )
+  assert.equal(progressShare({ ...copying, bytesDone: 0, bytesTotal: 0 }), 0.25)
+  assert.equal(
+    progressShare({ ...copying, filesTotal: 0, bytesDone: 0, bytesTotal: 0 }),
+    null,
+  )
+  assert.equal(
+    progressShare({
+      ...copying,
+      phase: 'scanning',
+      bytesDone: 0,
+      bytesTotal: 0,
+    }),
+    null,
+  )
+  assert.equal(
+    progressShare({ ...copying, bytesDone: 300, bytesTotal: 200 }),
+    0.99,
+  )
+  assert.equal(
+    progressShare({
+      ...copying,
+      filesDone: 4,
+      bytesDone: 300,
+      bytesTotal: 200,
+    }),
+    1,
+  )
 })
