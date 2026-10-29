@@ -3,24 +3,31 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
-// Spec 061, US1 and US2, quickstart §1 and §2 (T034, T043): a one-way and a two-way rule between
-// folders of the device. The rules are created through the command, since the roots of the folder
+// Spec 061, US1 to US3, quickstart §1 to §3 (T034, T043, T051): a one-way, a two-way and an asking
+// rule between folders of the device. The rules are created through the command, since the roots of the folder
 // picker differ per platform. The overview shows them; "Jetzt abgleichen" copies the files and
 // leaves a file of the target alone; the two-way rule brings the new files of each side to the
 // other, and a file changed on both sides ends with the newer version under its name and the older
-// one as a conflict copy on both sides. The create dialog offers both folder pickers. Deletions,
-// moves and the other rows of the plan are covered by the Rust runs against real folders
-// (`file_sync::run`).
+// one as a conflict copy on both sides. A deletion of the asking rule waits in the overview until it
+// is confirmed; a place that is gone makes its rule wait and deletes nothing. The create dialog
+// offers both folder pickers. Moves and the other rows of the plan are covered by the Rust runs
+// against real folders (`file_sync::run`).
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
 
-const draft = (name: string, a: string, b: string, direction: string) => ({
+const draft = (
+  name: string,
+  a: string,
+  b: string,
+  direction: string,
+  deleteMode = direction === 'both' ? 'mirror' : 'keep',
+) => ({
   name,
   placeA: { source: { kind: 'device' }, path: a },
   placeB: { source: { kind: 'device' }, path: b },
   direction,
-  deleteMode: direction === 'both' ? 'mirror' : 'keep',
+  deleteMode,
   intervalSecs: 900,
   enabled: true,
   allowDecrypted: false,
@@ -31,6 +38,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
   const target = deviceFiles('holzi-sync-b-')
   const left = deviceFiles('holzi-sync-left-')
   const right = deviceFiles('holzi-sync-right-')
+  const askFrom = deviceFiles('holzi-sync-ask-a-')
+  const askTo = deviceFiles('holzi-sync-ask-b-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-sync-rules' })
@@ -42,6 +51,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     left.write('links.txt', 'L')
     left.write('x.txt', 'eins')
     right.write('Ordner/rechts.txt', 'R')
+    askFrom.write('weg.txt', 'W')
+    askFrom.write('bleibt.txt', 'B')
 
     unwrap(
       'sync_rules_create',
@@ -53,6 +64,13 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       'sync_rules_create',
       await instance.invoke('sync_rules_create', {
         draft: draft('Abgleich', left.folder, right.folder, 'both'),
+      }),
+    )
+
+    unwrap(
+      'sync_rules_create',
+      await instance.invoke('sync_rules_create', {
+        draft: draft('Nachfrage', askFrom.folder, askTo.folder, 'aToB', 'ask'),
       }),
     )
 
@@ -127,6 +145,52 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
       throw new Error('the older version is not the conflict copy')
     }
 
+    // Delete mode "ask": the deletion waits in the overview and happens once it is confirmed.
+    await instance.click('files-sync-rule-run-Nachfrage')
+    await ctx.waitFor(
+      'the files of the asking rule at its target',
+      () => askTo.files().sort().join(',') === 'bleibt.txt,weg.txt',
+      { timeoutMs: 30_000 },
+    )
+    askFrom.delete('weg.txt')
+    await instance.click('files-sync-rule-run-Nachfrage')
+    await instance.waitForDisplayed('files-sync-rule-pending-Nachfrage', 30_000)
+    if (!askTo.files().includes('weg.txt')) {
+      throw new Error('the asking rule deleted before it was confirmed')
+    }
+    await instance.click('files-sync-rule-pending-Nachfrage')
+    await instance.click('files-sync-rule-pending-delete-weg.txt')
+    // Into the trash: the system's, or the rule trash below the place.
+    await ctx.waitFor(
+      'the confirmed deletion done',
+      () => !askTo.files().includes('weg.txt'),
+      { timeoutMs: 30_000 },
+    )
+    if (!askTo.files().includes('bleibt.txt')) {
+      throw new Error('the confirmation deleted another file')
+    }
+
+    // A place that is gone (FR-022): the mirroring rule waits and deletes nothing on the other side.
+    const before = right.files().join(',')
+    left.remove()
+    await instance.click('files-sync-rule-run-Abgleich')
+    await ctx.waitFor(
+      'the two-way rule waiting for its place',
+      async () => {
+        const views = unwrap<
+          { rule: { name: string }; status: { state: string } }[]
+        >('sync_rules_list', await instance.invoke('sync_rules_list'))
+        return views.some(
+          (view) =>
+            view.rule.name === 'Abgleich' && view.status.state === 'waiting',
+        )
+      },
+      { timeoutMs: 30_000 },
+    )
+    if (right.files().join(',') !== before) {
+      throw new Error('a place that is gone made the rule delete')
+    }
+
     // The dialog offers both pickers.
     await instance.click('files-sync-rules-new')
     await instance.waitForDisplayed('files-picker-a-root')
@@ -136,5 +200,7 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     target.remove()
     left.remove()
     right.remove()
+    askFrom.remove()
+    askTo.remove()
   }
 })

@@ -20,6 +20,9 @@ describe('deviceFiles on Linux', () => {
         'sub/d0/f0-0.txt',
       ])
       assert.deepEqual(files.containing('', ['Tresor']), [])
+      files.delete('a.txt')
+      files.delete('a.txt')
+      assert.equal(files.files().includes('a.txt'), false)
     } finally {
       files.remove()
     }
