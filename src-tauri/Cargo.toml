@@ -335,6 +335,11 @@ tauri-plugin-deep-link = "2.4.9"
 # only ever signals the one PID it holds (chat/tools/cli.rs, T032).
 libc = "0.2"
 
+# Spec 065 (research R2): the agent browser reads its pipe ends as descriptors 3 and 4, which
+# Windows passes through `STARTUPINFOW.lpReserved2` of `CreateProcessW`.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
+
 # Spec 017, US9 (research R19): extensions watch folders on desktops only; Android and iOS answer
 # "not available" (FR-066), so the watcher is not built there.
 # Spec 043 (research R2): rustls-platform-verifier needs the VM and the application context on
