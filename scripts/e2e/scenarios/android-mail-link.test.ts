@@ -8,7 +8,7 @@ import {
   install,
   type InstalledExtension,
 } from '../lib/extensions.ts'
-import type { Instance } from '../lib/instance.ts'
+import type { Page } from '../lib/page.ts'
 
 // Spec 063 US2 (FR-017 to FR-020): a `mailto:` link opened outside holzi, as another app does,
 // shows the choice, with a row for the extension that writes mail and never one for the system's
@@ -21,20 +21,20 @@ const BEN = 'mailto:ben@example.org?subject=Hallo&body=Zeile%201%0D%0AZeile%202'
 const ADA = 'mailto:ada@example.org?subject=Zweite'
 const BROKEN = 'mailto:ben@example.org?subject=a%0d%0aBcc:x@example.org'
 
-const text = (page: Instance, testid: string) =>
+const text = (page: Page, testid: string) =>
   page.exec<string>(
     `return document.querySelector('[data-testid="' + arguments[0] + '"]')?.textContent ?? ''`,
     [testid],
   )
 
-const shown = (page: Instance, testid: string) =>
+const shown = (page: Page, testid: string) =>
   page.exec<number>(
     `return document.querySelectorAll('[data-testid="' + arguments[0] + '"]').length`,
     [testid],
   )
 
 async function pageRequest(
-  page: Instance,
+  page: Page,
   opener: InstalledExtension,
 ): Promise<{ mail: Record<string, unknown> } | null> {
   const raw = await inFrame<string>(
