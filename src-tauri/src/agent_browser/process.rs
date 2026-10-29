@@ -137,9 +137,19 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
                 locate::MIN_MAJOR
             )));
         }
-        target::auto_attach(&connection, None).await?;
-        browser::deny_permissions(&connection).await?;
-        browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
+        let configure = async {
+            target::auto_attach(&connection, None).await?;
+            browser::deny_permissions(&connection).await?;
+            browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
+            Ok::<(), BrowserError>(())
+        };
+        tokio::time::timeout(START_TIMEOUT, configure)
+            .await
+            .map_err(|_| {
+                BrowserError::Unavailable(
+                    "browser setup did not finish within 15 seconds".to_owned(),
+                )
+            })??;
         Ok(product)
     }
     .await;
