@@ -212,23 +212,16 @@ scenario(
     )
     ctx.step('running transfers: yes cancels them and releases the drive')
 
-    // A file of it open in the viewer does not hold it: haex lets go first (FR-009).
-    device = attach(stick.file)
-    const remountedRow = await ctx.waitFor('the stick mounted again', () =>
-      driveRow(instance, 'E2EAUSWURF'),
-    )
-    assert.ok(remountedRow)
-    await instance.click(remountedRow)
+    // A file of it open in the viewer does not hold it: haex lets go first (FR-009). A loop image
+    // has no drive to power off, so the release left it attached and only unmounted: the same row
+    // mounts it again. A second loop-setup would show the stick twice and leave one behind.
+    await instance.click(row)
     await ctx.waitFor('the remounted stick', () =>
       device ? mountPointOf(device) : null,
     )
     await doubleClick(instance, 'files-entry-lies.txt')
     await instance.waitForDisplayed('files-viewer-text')
-    const remountedEject = remountedRow.replace(
-      'files-drive-',
-      'files-drive-eject-',
-    )
-    await instance.click(remountedEject, 15_000)
+    await instance.click(eject, 15_000)
     await ctx.waitFor('the stick unmounted', () =>
       device ? mountPointOf(device) === null : false,
     )
