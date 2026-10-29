@@ -217,11 +217,17 @@ wird erst gezogen, wenn ein dritter dazukommt.
 
 **Entscheidung**: Das Frontend fragt `marketplace_icon(source_id, url)`; der Host lädt (ohne
 Zugangsdaten, ≤ 256 KiB, nur `image/png|jpeg|webp`, **kein SVG**) und gibt eine `data:`-URL zurück,
-zwischengespeichert im Arbeitsspeicher (höchstens 200 Einträge). Höchstens 4 Symbole gleichzeitig. Fehlt
-ein Symbol oder ist es ungültig, zeigt die Kachel ein Standardsymbol.
+zwischengespeichert im Arbeitsspeicher (höchstens 200 Einträge). Höchstens 4 Symbole gleichzeitig. URLs
+auf dem konfigurierten Marketplace-Origin sind erlaubt. Externe URLs müssen `https` und öffentlich
+routbar sein; private, reservierte, Loopback-, Link-Local-, Multicast- und nicht spezifizierte Adressen
+werden abgelehnt. Jede Weiterleitung wird erneut geprüft, `https` → `http` ist verboten. Die Verbindung
+verwendet eine geprüfte, festgehaltene DNS-Adresse (kein DNS-Rebinding). Fehlt ein Symbol oder ist es
+ungültig, zeigt die Kachel ein Standardsymbol.
 
 **Begründung**: FR-006 (das Webview ruft keine Adresse eines Marketplace auf; die CSP bleibt zu). SVG wird
 ausgelassen, damit kein aktiver Inhalt in `<img>` landet (auch wenn `<img>` Skripte nicht ausführt).
+Die Origin- und Adressprüfung begrenzt SSRF auf die vom Nutzer eingetragene Quelle bzw. öffentliche
+HTTPS-Bildserver.
 
 ## R13 – Agenten und Erweiterungen sehen den Katalog nicht
 

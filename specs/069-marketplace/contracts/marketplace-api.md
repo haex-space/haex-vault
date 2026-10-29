@@ -44,21 +44,51 @@ Marketplace-Adresse (FR-027).
 
 `sort` ∈ `downloads` (Vorgabe von HaexVault), `rating`, `newest`, `updated`. `limit` = 20.
 
+Die Antwortformen und Feldtypen sind verbindlich:
+
+```ts
+type HealthResponse = { status: 'ok' }
+type CategoryWithCount = { name: string; slug: string; count: number }
+type CategoriesResponse = { categories: CategoryWithCount[] }
+type Pagination = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+type ListResponse = { extensions: ListItem[]; pagination: Pagination }
+type DownloadResponse = {
+  downloadUrl: string
+  version: string
+  bundleSize: number
+  bundleHash: string
+}
+```
+
+`page` ist 1-basiert. `total` zählt alle Treffer nach Filtern; `totalPages` ist `ceil(total / limit)` und
+bei null Treffern `0`. `bundleSize` ist eine nichtnegative ganze Bytezahl; `bundleHash` ist ein
+64-stelliger SHA-256-Hexwert. Ein nicht vorhandenes optionales Feld wird ausgelassen oder als `null`
+geliefert. Unbekannte Felder sind zulässig.
+
 ## Felder, die HaexVault liest
 
-**ListItem**: `id`, `extensionId` (`<Herausgeber-Slug>/<Name>`), `name`, `slug`, `shortDescription`,
-`iconUrl?`, `verified`, `totalDownloads`, `averageRating?`, `reviewCount`, `tags?`, `publishedAt?`,
-`publisher? { displayName, slug, verified }`, `category? { name, slug }`, `versions[]`.
+**ListItem**: `id: string`, `extensionId: string` (`<Herausgeber-Slug>/<Name>`), `name: string`,
+`slug: string`, `shortDescription: string`, `iconUrl?: string`, `verified: boolean`,
+`totalDownloads: number`, `averageRating?: number`, `reviewCount: number`, `tags?: string[]`,
+`publishedAt?: string`, `publisher?: { displayName: string; slug: string; verified: boolean }`,
+`category?: { name: string; slug: string }`, `versions: Version[]`.
 
-**Version**: `version` (semver), `changelog?`, `bundleSize`, `bundleHash` (SHA-256, 64 Hex-Zeichen),
-`permissions?` (Zeichenfolgen, nur Anzeige: **maßgeblich sind die erklärten Berechtigungen im Bundle**,
-Spec 017), `minAppVersion?`, `maxAppVersion?`, `publishedAt?`.
+**Version**: `version: string` (semver), `changelog?: string`, `bundleSize?: number` (Byte),
+`bundleHash?: string` (SHA-256, 64 Hex-Zeichen), `permissions?: string[]` (nur Anzeige:
+**maßgeblich sind die erklärten Berechtigungen im Bundle**, Spec 017), `minAppVersion?: string`,
+`maxAppVersion?: string`, `publishedAt?: string`.
 
-**ExtensionDetail**: ListItem plus `publicKey` (Herausgeberschlüssel), `description`, `author?`,
-`latestVersion?`.
+**ExtensionDetail**: `ListItem` plus `publicKey: string` (Herausgeberschlüssel), `description: string`,
+`author?: string`, `latestVersion?: string`.
 
 **Pflichtfelder je Eintrag**: `extensionId`, `name`, `slug`, `shortDescription`, `versions` (darf leer sein;
-dann ist nichts installierbar). Für die Installation einer Fassung: `bundleHash` und `bundleSize`.
+dann ist nichts installierbar). Für die Installation einer Fassung müssen `bundleHash` und `bundleSize`
+vorliegen; fehlt eines, bleibt die Fassung sichtbar, aber nicht installierbar.
 
 ## Download
 
@@ -74,10 +104,16 @@ dann ist nichts installierbar). Für die Installation einer Fassung: `bundleHash
 
 Jeder Status ≥ 400 ist ein Fehler der Quelle: `401/403` → `auth_rejected`; Zeitüberschreitung →
 `timeout`; Verbindungsfehler, TLS, DNS → `unreachable`; kein gültiges JSON oder fehlende Pflichtfelder der
-Antwort → `bad_response`. Der Text `error` des Dienstes wird, auf 200 Zeichen gekürzt, nur als `detail`
-im Protokoll- und Fehlerfeld gezeigt, nie als HTML.
+Antwort → `bad_response`. Der Client verwirft den Antworttext des Dienstes vollständig: er kann ein
+Echo von Zugangsdaten enthalten. Fehlerdetails enthalten nur lokal erzeugte, bereinigte Angaben wie
+Statuscode oder Fehlerart; niemals Antworttext, vollständige URL, Anfragekopfzeilen oder Zugangsdaten.
 
 ## Bilder
 
 `iconUrl` lädt der Host (R12): ohne Zugangsdaten, `image/png|jpeg|webp`, ≤ 256 KiB
-(Symbole) bzw. ≤ 1 MiB (Screenshots), **kein SVG**.
+(Symbole) bzw. ≤ 1 MiB (Screenshots), **kein SVG**. Eine URL auf dem konfigurierten Marketplace-Origin
+ist erlaubt. Eine URL auf einem anderen Origin muss `https` und öffentlich routbar sein; private,
+reservierte, Loopback-, Link-Local-, Multicast- und nicht spezifizierte IP-Adressen sind gesperrt.
+Weiterleitungen werden einzeln nach denselben Regeln geprüft und dürfen nicht von `https` auf `http`
+wechseln. DNS-Adressen werden für die Verbindung validiert und festgehalten, damit die Prüfung nicht
+durch DNS-Rebinding umgangen wird.

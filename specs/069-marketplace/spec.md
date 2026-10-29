@@ -108,7 +108,8 @@ bestätigen; die Erweiterung läuft als App, die Kachel zeigt „Installiert“.
 **Acceptance Scenarios**:
 
 1. **Given** mindestens ein eingeschalteter Marketplace ist erreichbar, **When** Anna die App öffnet,
-   **Then** sieht sie die erste Seite des gemeinsamen Katalogs, sortiert nach Beliebtheit (Downloads), mit Kategorien zum Filtern.
+   **Then** sieht sie die erste Seite des gemeinsamen Katalogs: Quellen in ihrer Rangfolge, Einträge je
+   Quelle nach Downloads absteigend, mit Kategorien zum Filtern.
 2. **Given** der Katalog ist offen, **When** Anna in das Suchfeld tippt, **Then** aktualisiert sich die
    Liste nach einer kurzen Pause (nicht nach jedem Buchstaben) und die Seite springt auf Seite 1.
 3. **Given** Anna wählt eine Kategorie, **When** sie zusätzlich sucht, **Then** gelten beide Filter
@@ -327,8 +328,10 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   des Marketplace als Anzeige), Bewertung, Fassungen, Kategorie, Tags und Quelle zeigen und von dort
   „Installieren“, „Aktualisieren“ und „Entfernen“ anbieten.
 - **FR-006**: Texte und Symbole aus dem Marketplace MÜSSEN als reiner Text bzw. als Bild dargestellt
-  werden, nie als aktiver Inhalt (kein HTML, keine Skripte). Symbole werden vom Host geladen und
-  eingebettet, das Webview ruft keine Adresse eines Marketplace selbst auf.
+  werden, nie als aktiver Inhalt (kein HTML, keine Skripte). Symbole werden vom Host ohne Zugangsdaten
+  geladen und eingebettet. URLs auf dem konfigurierten Marketplace-Origin sind erlaubt; externe URLs
+  müssen `https` und öffentlich routbar sein. Private oder reservierte IP-Adressen und Weiterleitungen
+  dorthin sind gesperrt; das Webview ruft keine Adresse eines Marketplace selbst auf.
 - **FR-007**: Der Marketplace-Katalog MUSS auch ohne gewählte Installation nutzbar sein (nur ansehen);
   eine Anfrage an einen Marketplace sendet weder Vault- noch Geräte-Kennungen noch den Namen des Nutzers.
 
