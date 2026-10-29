@@ -6,6 +6,9 @@
 //! happens at compile time via feature flags — the runtime cannot
 //! upgrade CPU to CUDA without a rebuild (Etappe 0 finding #3).
 
+mod gguf_header;
+#[cfg(test)]
+mod gguf_header_tests;
 mod loader;
 #[cfg(test)]
 mod loader_tests;
