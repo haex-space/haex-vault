@@ -78,7 +78,7 @@ the app.
 ## Phase 1: Setup (docs PR)
 
 - [x] T001 Commit spec, plan, research, data model, contracts, quickstart, checklist and this file in `specs/069-marketplace/` and `.specify/feature.json` (`"feature_directory": "specs/069-marketplace"`)
-- [ ] T002 [P] Add a row to the table in `plans/README.md`: "069: Marketplace für Erweiterungen (`specs/069-marketplace/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-29; Lieferungen PR A–G", gate "017 und 034 im Einsatz; öffentlicher Marketplace unter `https://marketplace.haex.space`"
+- [x] T002 [P] Add a row to the table in `plans/README.md`: "069: Marketplace für Erweiterungen (`specs/069-marketplace/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-29; Lieferungen PR A–G", gate "017 und 034 im Einsatz; öffentlicher Marketplace unter `https://marketplace.haex.space`"
 - [ ] T003 [P] Settle how the E2E build points the preset at a local test marketplace (research R15). Read how `HOLZI_E2E_SYNC_LOOPBACK` is gated in `src-tauri/src/sync/endpoint.rs`, pick the same kind of gate for `HOLZI_E2E_MARKETPLACE_URL` (never active in a release build), and write the exact place and gate into research R15; T016 implements it
 
 ---
