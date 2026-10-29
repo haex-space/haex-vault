@@ -522,6 +522,13 @@ löschen.
   Gerät) nicht öfter starten als ihr Intervall; jeder Lauf listet den ganzen Ort, und ein Ordner, der sich
   dauernd ändert, würde den Anbieter sonst bis zur Sperre des Kontos beschäftigen. Regeln zwischen zwei
   Orten dieses Geräts laufen weiter nach der Ruhezeit.
+- **FR-051**: Ein Lauf gegen einen Objektspeicher (S3) MUSS mit wenigen Anfragen auskommen: den Ort in einer
+  flachen Liste lesen (eine Anfrage je Seite von rund 1000 Schlüsseln statt eine je Ordner; mit
+  verschlüsselten Ordnern oder mehr als 200 000 Schlüsseln geht holzi Ordner für Ordner), eine Datei, die
+  der Plan am Ziel nicht erwartet, ohne vorherige Namensprüfung senden (eine erwartete wird geprüft) und
+  keinen Ordner anlegen, in den eine Datei dieses Laufs kommt, weil ein Ordner dort nur der Präfix seiner
+  Objekte ist; leere Ordner bekommen weiter ihre Markierung. Dafür gilt: Eine Datei, die zwischen dem
+  Lesen des Ziels und dem Senden dort neu entsteht, wird überschrieben; der nächste Lauf meldet sie nicht.
 
 ### Key Entities
 

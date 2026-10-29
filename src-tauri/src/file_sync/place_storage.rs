@@ -3,6 +3,7 @@
 //! mirrored deletions go to the rule trash; moves across folders go through the transfers.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,13 +32,20 @@ const READ: Duration = Duration::from_secs(60 * 60);
 pub struct StoragePlace {
     files: Arc<StorageFiles>,
     root: String,
+    /// The last listing was a flat one of a plain S3 place: its folders are only the prefixes of
+    /// its files, so a folder needs no marker object of its own while a file goes in it.
+    prefixes: Arc<AtomicBool>,
 }
 
 impl StoragePlace {
     pub fn new(files: Arc<StorageFiles>, root: impl Into<String>) -> Self {
         let root = root.into();
         let root = format!("/{}", root.trim_matches('/'));
-        Self { files, root }
+        Self {
+            files,
+            root,
+            prefixes: Arc::new(AtomicBool::new(false)),
+        }
     }
 
     fn at(&self, path: &str) -> String {
@@ -65,6 +73,7 @@ impl StoragePlace {
                 to: &side,
                 folder: &folder,
                 replaces: false,
+                known_free: false,
                 // A move within the place never takes a file out of an encrypted folder (into the
                 // rule trash, say); that fails instead.
                 decrypts: false,
@@ -101,6 +110,27 @@ impl Place for StoragePlace {
             }
         }
         let mut listing = Listing::default();
+        // One request per page of keys instead of one per folder.
+        match self.files.list_flat(&self.root).await {
+            Ok(Some(tree)) => {
+                listing.folders = tree.folders;
+                for (path, (size, mtime_ms)) in tree.files {
+                    listing.files.insert(
+                        path,
+                        Facts {
+                            size,
+                            mtime_ms,
+                            hash: None,
+                        },
+                    );
+                }
+                self.prefixes.store(true, Ordering::Relaxed);
+                return Ok(listing);
+            }
+            Ok(None) => self.prefixes.store(false, Ordering::Relaxed),
+            Err(error) if error.code == FilesErrorCode::Credentials => return Err(error),
+            Err(_) => return Err(unreachable("the place's folder cannot be read")),
+        }
         let mut folders = VecDeque::from([String::new()]);
         while let Some(folder) = folders.pop_front() {
             if cancel.is_cancelled() {
@@ -297,6 +327,7 @@ impl Place for StoragePlace {
                 to: &side,
                 folder: &folder,
                 replaces,
+                known_free: false,
                 decrypts: false,
             };
             let outcome = transfer_one(&one, &handle, &CancellationToken::new(), &mut |_| {});
@@ -311,6 +342,10 @@ impl Place for StoragePlace {
         })
         .await
         .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "the work stopped"))?
+    }
+
+    fn implies_folders(&self) -> bool {
+        self.prefixes.load(Ordering::Relaxed)
     }
 
     fn side(&self) -> Side {

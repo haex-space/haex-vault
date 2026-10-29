@@ -2,7 +2,7 @@
 //! after its step succeeded (FR-015), a failing file noted and the rest going on (FR-023), and the
 //! cancel token checked between steps and handed to every copy (FR-026).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tokio_util::sync::CancellationToken;
 
@@ -142,10 +142,16 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
     let (files, bytes) = copy_totals(target, steps);
     target.progress.planned(files, bytes);
     let mut in_a_row = 0u32;
+    let implied = implied_folders(target, steps);
     for step in steps {
         if target.cancel.is_cancelled() {
             done.cancelled = true;
             break;
+        }
+        if let Step::Folder { side, path } = step {
+            if implied.contains(&(*side, path.clone())) {
+                continue;
+            }
         }
         match run_step(target, &state, step, &mut done).await {
             Ok(()) => in_a_row = 0,
@@ -181,6 +187,30 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
         }
     }
     done
+}
+
+/// The folders a file of the plan goes into, on a place where that makes the folder: their steps
+/// need no request (a folder of an object storage is the prefix of its objects).
+fn implied_folders(target: &Target<'_>, steps: &[Step]) -> BTreeSet<(SyncRuleSide, String)> {
+    let mut implied = BTreeSet::new();
+    let mut add = |side: SyncRuleSide, path: &str| {
+        if !target.place(side).implies_folders() {
+            return;
+        }
+        let mut folder = split(path).0;
+        while !folder.is_empty() {
+            implied.insert((side, folder.to_owned()));
+            folder = split(folder).0;
+        }
+    };
+    for step in steps {
+        match step {
+            Step::Copy { from, path, .. } => add(from.other(), path),
+            Step::Move { side, to, .. } => add(*side, to),
+            _ => {}
+        }
+    }
+    implied
 }
 
 /// How many files the copy steps move, and how many bytes they hold.
@@ -562,6 +592,9 @@ async fn copy_inner(
         to: sink.side(),
         folder: sink.full_path(folder),
         replaces,
+        // The plan listed the target for this run: a file it does not expect there is sent
+        // without looking for it in a storage first; one it expects (`replaces`) is checked.
+        known_free: !replaces,
         decrypts: target.rule.allow_decrypted,
     };
     let cancel = target.cancel.clone();
@@ -623,6 +656,7 @@ struct Owned {
     to: Side,
     folder: String,
     replaces: bool,
+    known_free: bool,
     decrypts: bool,
 }
 
@@ -635,6 +669,7 @@ impl Owned {
             to: &self.to,
             folder: &self.folder,
             replaces: self.replaces,
+            known_free: self.known_free,
             decrypts: self.decrypts,
         }
     }

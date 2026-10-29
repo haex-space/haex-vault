@@ -24,6 +24,7 @@ fn remote(from: Side, sources: &[&str], to: Side, target: &str) -> RemoteJob {
         sources: sources.iter().map(|path| (*path).to_owned()).collect(),
         to,
         target: target.to_owned(),
+        known_free: false,
     }
 }
 

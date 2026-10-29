@@ -226,6 +226,7 @@ rules list in the file browser can create, run and delete a rule.
 - [x] T074 [US4] The rules as a list in the file browser panel: `sr` in the tab location (`lib/files/registry.ts`, `split.ts`), `components/files/SyncRulesList.vue` replaces the dialog overview, the sidebar entry opens it in the active panel; sort and filter in `lib/files/syncRules.ts`, checked in `scripts/check-files-sync-rules.ts` and `check-files-registry.ts`.
 - [x] T075 [US4] Progress of a running rule: `file_sync/progress.rs` with `progress_tests.rs` and `run_tests.rs`, bar in the list row.
 - [x] T076 [US1] A run gives up when a place refuses (FR-049): `execute.rs` (`stops_the_run`, ten in a row, 200 named), `run.rs` (outcome waiting or error), tests in `run_tests.rs`; changes reach a rule with a network place only once per interval (FR-050), test in `schedule_tests.rs`.
+- [x] T077 [US1] Fewer requests against an object storage (FR-051): flat listing `StorageFiles::list_flat` used by `StoragePlace::list_tree`, `known_free` on `OneTransfer` and `RemoteJob` (no name check before a planned new file), `Place::implies_folders` and the skipped folder steps in `execute.rs`; tests in `storage_source_tests.rs`, `place_storage_tests.rs`, `sync_copy_tests.rs` and `run_tests.rs` (request trace of a run).
 
 ---
 
