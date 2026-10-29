@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use super::conflict::conflict_path;
 use super::execute::{execute, Counts, Target, TrashedFile};
 use super::ignore::LineError;
-use super::model::{SyncRule, SyncRuleDirection, SyncRuleOutcome, SyncRuleSide};
+use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
 use super::plan::{build, Hashes, Inputs, Plan};
 use super::progress::Reporter;
@@ -91,12 +91,6 @@ async fn run_inner(
     a: &dyn Place,
     b: &dyn Place,
 ) -> RunReport {
-    if rule.direction != SyncRuleDirection::AToB {
-        return RunReport::stopped(
-            SyncRuleOutcome::Error,
-            "two-way rules come with a later version",
-        );
-    }
     ctx.progress.scanning();
     let scanned = match scan(a, b, ctx.cancel).await {
         Ok(scanned) => scanned,
