@@ -396,7 +396,17 @@ fn slugs_are_checked_before_they_go_into_a_path() {
     for good in ["haex-tetris", "a", "x_y.z-1"] {
         assert!(valid_slug(good), "{good}");
     }
-    for bad in ["", ".", "..", "../x", "a/b", "a b", "a?b", "ä", &"x".repeat(101)] {
+    for bad in [
+        "",
+        ".",
+        "..",
+        "../x",
+        "a/b",
+        "a b",
+        "a?b",
+        "ä",
+        &"x".repeat(101),
+    ] {
         assert!(!valid_slug(bad), "{bad}");
     }
 }
