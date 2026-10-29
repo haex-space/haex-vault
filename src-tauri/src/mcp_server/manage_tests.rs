@@ -94,6 +94,7 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
         operate: [("wm.read".to_owned(), OperateLevel::Write)]
             .into_iter()
             .collect(),
+        browser: None,
     };
     let renewal = Renewal {
         client_name: "codex".to_owned(),

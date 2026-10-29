@@ -14,7 +14,7 @@ use ts_rs::TS;
 use super::grants::Rights;
 use super::registry::{AgentMode, Transport};
 use crate::chat::tools::action_tool::{ActionEffect, ActionTitles, AgentActionDef};
-use crate::chat::tools::permission::{decide, Decision};
+use crate::chat::tools::permission::{decide_for_tool, Decision};
 use crate::prompt_park::PromptPark;
 
 /// How long a registration dialog waits (data-model.md, "Registrierungsdialog").
@@ -112,11 +112,17 @@ pub const SECRET_SCOPE: &str = "passwords.secret";
 
 /// Whether a call runs, asks first, or is refused (FR-021): the approval mode of the agent decides
 /// as for the built-in agent (ADR-0006), and a secret always asks.
-pub fn call_gate(mode: AgentMode, def: &AgentActionDef) -> Decision {
+pub fn call_gate(mode: AgentMode, def: &AgentActionDef, confirms_itself: bool) -> Decision {
     if def.scope == SECRET_SCOPE {
         return Decision::Ask;
     }
-    decide(mode.permission_mode(), def.effect.risk_class())
+    // An action that asks the user itself (`confirmsItself`) is not asked about twice; Plan still
+    // refuses it unless it only reads (spec 065 research R8).
+    decide_for_tool(
+        mode.permission_mode(),
+        def.effect.risk_class(),
+        confirms_itself,
+    )
 }
 
 /// The localized names of an action, for the prompt.

@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::action_tool::AgentActionDef;
 use super::native_action::{
-    NativeActionTool, NativeError, NativeExecutor, NativeExecutors, NativeReply,
+    NativeActionTool, NativeCall, NativeError, NativeExecutor, NativeExecutors, NativeReply,
 };
 use super::{RiskClass, Tool, ToolImage};
 
@@ -28,6 +28,7 @@ impl NativeExecutor for Echo {
         &self,
         action_id: &str,
         input: Value,
+        _call: &NativeCall,
         _cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
         match action_id {
@@ -65,7 +66,11 @@ fn source_risk_and_definition_are_those_of_an_action() {
         ("write", RiskClass::Change),
         ("destructive", RiskClass::Risky),
     ] {
-        let tool = NativeActionTool::new(def("files.list", effect), Arc::new(Echo));
+        let tool = NativeActionTool::new(
+            def("files.list", effect),
+            Arc::new(Echo),
+            NativeExecutors::default(),
+        );
         assert_eq!(tool.risk_class(), risk, "{effect}");
         assert_eq!(tool.source(), "action");
         assert_eq!(tool.name(), "files_list");
@@ -78,7 +83,11 @@ fn source_risk_and_definition_are_those_of_an_action() {
 
 #[tokio::test]
 async fn a_result_goes_to_the_model_as_json() {
-    let tool = NativeActionTool::new(def("files.list", "read"), Arc::new(Echo));
+    let tool = NativeActionTool::new(
+        def("files.list", "read"),
+        Arc::new(Echo),
+        NativeExecutors::default(),
+    );
     let result = tool
         .execute(json!({ "path": "/a" }), CancellationToken::new())
         .await;
@@ -91,7 +100,11 @@ async fn a_result_goes_to_the_model_as_json() {
 
 #[tokio::test]
 async fn an_error_carries_code_field_and_message() {
-    let tool = NativeActionTool::new(def("files.stat", "read"), Arc::new(Echo));
+    let tool = NativeActionTool::new(
+        def("files.stat", "read"),
+        Arc::new(Echo),
+        NativeExecutors::default(),
+    );
     let result = tool.execute(json!({}), CancellationToken::new()).await;
     assert!(result.is_error);
     assert_eq!(
@@ -102,7 +115,11 @@ async fn an_error_carries_code_field_and_message() {
 
 #[tokio::test]
 async fn a_cancelled_turn_ends_the_call() {
-    let tool = NativeActionTool::new(def("files.read", "read"), Arc::new(Echo));
+    let tool = NativeActionTool::new(
+        def("files.read", "read"),
+        Arc::new(Echo),
+        NativeExecutors::default(),
+    );
     let cancel = CancellationToken::new();
     cancel.cancel();
     let result = tool.execute(json!({}), cancel).await;
@@ -126,7 +143,11 @@ fn executors_are_found_by_each_of_their_ids() {
 
 #[tokio::test]
 async fn images_of_a_reply_reach_the_tool_result() {
-    let tool = NativeActionTool::new(def("files.copy", "write"), Arc::new(Echo));
+    let tool = NativeActionTool::new(
+        def("files.copy", "write"),
+        Arc::new(Echo),
+        NativeExecutors::default(),
+    );
     let result = tool.execute(json!({}), CancellationToken::new()).await;
     assert_eq!(result.content, r#"{"note":"an image"}"#);
     assert_eq!(result.images.len(), 1);
@@ -136,15 +157,75 @@ async fn images_of_a_reply_reach_the_tool_result() {
 #[test]
 fn an_action_confirms_itself_only_when_definition_and_executor_agree() {
     let mut definition = def("files.list", "destructive");
-    let tool = NativeActionTool::new(definition.clone(), Arc::new(Echo));
+    let tool = NativeActionTool::new(
+        definition.clone(),
+        Arc::new(Echo),
+        NativeExecutors::default(),
+    );
     assert!(!tool.confirms_itself());
     definition.confirms_itself = true;
-    let tool = NativeActionTool::new(definition, Arc::new(Echo));
+    let tool = NativeActionTool::new(definition, Arc::new(Echo), NativeExecutors::default());
     assert!(tool.confirms_itself());
     assert_eq!(tool.risk_class(), RiskClass::Risky);
 
     let mut definition = def("files.stat", "destructive");
     definition.confirms_itself = true;
-    let tool = NativeActionTool::new(definition, Arc::new(Echo));
+    let tool = NativeActionTool::new(definition, Arc::new(Echo), NativeExecutors::default());
     assert!(!tool.confirms_itself());
+}
+
+/// Keeps the call it got.
+#[derive(Default)]
+struct Recorder {
+    seen: std::sync::Mutex<Option<NativeCall>>,
+}
+
+#[async_trait]
+impl NativeExecutor for Recorder {
+    fn action_ids(&self) -> &'static [&'static str] {
+        &["files.list"]
+    }
+
+    async fn run(
+        &self,
+        _action_id: &str,
+        _input: Value,
+        call: &NativeCall,
+        _cancel: &CancellationToken,
+    ) -> Result<NativeReply, NativeError> {
+        *self.seen.lock().expect("seen") = Some(call.clone());
+        Ok(json!({}).into())
+    }
+}
+
+/// Spec 065 T005: the chat calls as the built-in agent in the chat's approval mode, never with a
+/// caller from the input.
+#[tokio::test]
+async fn the_chat_calls_as_the_builtin_agent_in_its_mode() {
+    use crate::caller::Caller;
+    use crate::chat::tools::permission::PermissionMode;
+
+    let recorder = Arc::new(Recorder::default());
+    let executors = NativeExecutors::default();
+    let tool = NativeActionTool::new(
+        def("files.list", "read"),
+        recorder.clone(),
+        executors.clone(),
+    );
+    tool.execute(
+        json!({ "caller": "externalAgent" }),
+        CancellationToken::new(),
+    )
+    .await;
+    assert_eq!(
+        recorder.seen.lock().expect("seen").clone(),
+        Some(NativeCall::builtin(PermissionMode::Manual)),
+        "Manuell when no mode source is set"
+    );
+
+    executors.set_mode_source(Arc::new(|| Box::pin(async { PermissionMode::Auto })));
+    tool.execute(json!({}), CancellationToken::new()).await;
+    let seen = recorder.seen.lock().expect("seen").clone().expect("called");
+    assert_eq!(seen.caller, Caller::BuiltinAgent);
+    assert_eq!(seen.mode, PermissionMode::Auto);
 }

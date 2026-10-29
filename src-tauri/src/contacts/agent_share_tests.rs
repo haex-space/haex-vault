@@ -102,7 +102,7 @@ async fn call(
     cancel: &CancellationToken,
 ) -> Result<Value, NativeError> {
     agent
-        .run("contacts.share", input, cancel)
+        .run("contacts.share", input, &builtin_call(), cancel)
         .await
         .map(|reply| reply.result)
 }
@@ -413,7 +413,12 @@ async fn bad_input_and_other_actions_are_refused() {
         .expect_err("invalid");
     assert_eq!(error.code, "invalid_input");
     let error = agent
-        .run("contacts.get", json!({}), &CancellationToken::new())
+        .run(
+            "contacts.get",
+            json!({}),
+            &builtin_call(),
+            &CancellationToken::new(),
+        )
         .await
         .expect_err("not ours");
     assert_eq!(error.code, "unknown_action");
@@ -441,4 +446,10 @@ fn a_selection_is_cut_to_the_offer_and_never_widened() {
     assert!(cut.values.is_empty());
     assert!(!cut.display_name && !cut.nickname && !cut.organization && !cut.job_title && !cut.note);
     assert_eq!(cut.holzi, ContactShareHolziChoice::None);
+}
+
+fn builtin_call() -> crate::chat::tools::native_action::NativeCall {
+    crate::chat::tools::native_action::NativeCall::builtin(
+        crate::chat::tools::permission::PermissionMode::Manual,
+    )
 }

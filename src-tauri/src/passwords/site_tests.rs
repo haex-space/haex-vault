@@ -35,3 +35,18 @@ fn ip_addresses_and_localhost_are_their_own_site() {
     assert_ne!(site_of("127.0.0.1"), site_of("127.0.0.2"));
     assert_eq!(site_of(""), None);
 }
+
+#[test]
+fn an_address_without_a_scheme_means_https() {
+    use super::site::{parse_address, site_of_address};
+    assert_eq!(
+        parse_address("shop.example.de/login").map(|url| url.to_string()),
+        Some("https://shop.example.de/login".to_owned())
+    );
+    assert_eq!(parse_address("  "), None);
+    assert_eq!(
+        site_of_address("https://login.example.de/x").as_deref(),
+        Some("example.de")
+    );
+    assert_eq!(site_of_address("co.uk"), None);
+}

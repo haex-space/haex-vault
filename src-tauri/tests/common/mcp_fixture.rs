@@ -21,6 +21,7 @@ use uuid::Uuid;
 use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
 use holzi_lib::chat::tools::action_catalog::ActionCatalog;
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
+use holzi_lib::chat::tools::native_action::NativeExecutors;
 use holzi_lib::identity::{
     holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
     HOLZI_TRIGGER_VERSION,
@@ -86,6 +87,8 @@ pub struct Fixture {
     pub limits: Limits,
     pub catalog: ActionCatalog,
     pub bridge: ActionBridge,
+    /// Native executors a test adds (ADR 0011).
+    pub native: NativeExecutors,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -169,6 +172,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         limits: Limits::default(),
         catalog,
         bridge,
+        native: NativeExecutors::default(),
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -187,6 +191,7 @@ impl Fixture {
             parent: self.session.clone(),
             catalog: self.catalog.clone(),
             bridge: self.bridge.clone(),
+            native: self.native.clone(),
             prompts: self.prompts.clone(),
             calls: self.calls.clone(),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),

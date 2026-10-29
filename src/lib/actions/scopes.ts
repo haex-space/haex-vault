@@ -18,6 +18,7 @@ export const ACTION_SCOPE_IDS = [
   'files.shares',
   'contacts.read',
   'contacts.write',
+  'browser',
   'guardrails',
 ] as const
 
@@ -43,6 +44,8 @@ const DESCRIPTIONS: Record<ActionScopeId, string> = {
   'settings.models': 'Choose, download and delete models.',
   'passwords.read':
     'Search the titles, tags and folders of the password manager. Never usernames, addresses or secrets.',
+  browser:
+    'Open, read and operate web pages in the agent browser, only on the websites the user allowed (spec 065).',
   'passwords.secret':
     'Read one secret of an entry after the user confirms each time. Never the built-in agent (spec 021).',
   'files.read':

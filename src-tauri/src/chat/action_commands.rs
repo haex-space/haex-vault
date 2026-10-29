@@ -117,9 +117,9 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
     let search_defs = builtin.clone();
     for def in builtin {
         let tool: Arc<dyn Tool> = match chat.native_actions.get(&def.action_id) {
-            Some(executor) if def.runner == Some(ActionRunner::Native) => {
-                Arc::new(NativeActionTool::new(def, executor))
-            }
+            Some(executor) if def.runner == Some(ActionRunner::Native) => Arc::new(
+                NativeActionTool::new(def, executor, chat.native_actions.clone()),
+            ),
             _ => Arc::new(ActionTool::new(def, chat.action_bridge.clone())),
         };
         registry.register(tool);

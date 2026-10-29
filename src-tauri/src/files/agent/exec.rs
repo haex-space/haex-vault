@@ -16,7 +16,9 @@ use tokio_util::sync::CancellationToken;
 use super::env::AgentEnv;
 use super::folders::TaskMemory;
 use super::reach::{blocking, cancelled, entry_json, files_error, parse, PathInput, Place};
-use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
+use crate::chat::tools::native_action::{
+    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
+};
 use crate::files::access::is_device_storage;
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
 use crate::files::kind::FileCategory;
@@ -85,8 +87,10 @@ impl<E: AgentEnv + 'static> NativeExecutor for FilesAgent<E> {
         &self,
         action_id: &str,
         input: Value,
+        call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
+        builtin_only(call)?;
         if action_id == "files.read" {
             return self.read(parse(input)?, cancel).await;
         }

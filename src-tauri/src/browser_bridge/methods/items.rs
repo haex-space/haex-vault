@@ -5,13 +5,11 @@
 
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
-use url::Url;
 
 use super::{service_of, to_code, BoxedOutcome, Call, Outcome};
 use crate::browser_bridge::protocol::ErrorCode;
 use crate::passwords::model::{ItemInput, Preset, SecretItem};
-use crate::passwords::service::Headers;
-use crate::passwords::site::site_of;
+use crate::passwords::site::parse_address;
 
 /// For the contract test: where these handlers live (FR-041).
 pub const MODULE: &str = module_path!();
@@ -55,34 +53,13 @@ fn non_empty(text: Option<String>) -> Option<String> {
     text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty())
 }
 
-/// An address as the extension sends it; without a scheme `https://` is assumed, as in
-/// haex-vault 2.x.
-fn parse_address(address: &str) -> Option<Url> {
-    let address = address.trim();
-    if address.is_empty() {
-        return None;
-    }
-    if address.contains("://") {
-        Url::parse(address).ok()
-    } else {
-        Url::parse(&format!("https://{address}")).ok()
-    }
-}
-
-/// The site of an address as the extension sends it.
-pub(super) fn site_of_address(address: &str) -> Option<String> {
-    site_of(parse_address(address)?.host_str()?)
-}
-
 pub fn get_items(call: Call<'_>) -> BoxedOutcome<'_> {
     Box::pin(get_items_async(call))
 }
 
-/// Entries for one address (FR-019 to FR-021): the headers of the scope filtered to the same site,
-/// each hit read on its own, so references resolve for this caller.
-// ponytail: the site filter runs in the bridge over all headers of the scope. Ceiling: one header
-// list per request (SC-002 asks for under 500 ms at 5 000 entries). Upgrade path: a service method
-// that filters by site, once a second caller needs it.
+/// Entries for one address (FR-019 to FR-021): the headers of the scope with the same site
+/// (`PasswordsService::headers_for_page`), each hit read on its own, so references resolve for this
+/// caller.
 async fn get_items_async(call: Call<'_>) -> Outcome {
     let request: GetItems = input(call.payload)?;
     let page = request
@@ -90,29 +67,15 @@ async fn get_items_async(call: Call<'_>) -> Outcome {
         .as_deref()
         .and_then(parse_address)
         .ok_or(ErrorCode::InvalidRequest)?;
-    let Some(site) = page.host_str().and_then(site_of) else {
-        return Ok(json!({ "entries": [] }));
-    };
     let grants = call.approval.grants();
     let service = service_of(call.core);
-    let Headers::Items(headers) = service
-        .list_headers(&call.caller, &grants)
+    let headers = service
+        .headers_for_page(&call.caller, &grants, &page)
         .await
-        .map_err(to_code)?
-    else {
-        return Ok(json!({ "entries": [] }));
-    };
+        .map_err(to_code)?;
     let wanted: Vec<String> = request.fields.unwrap_or_default();
     let mut entries = Vec::new();
     for header in headers {
-        let same_site = header
-            .url
-            .as_deref()
-            .and_then(site_of_address)
-            .is_some_and(|candidate| candidate == site);
-        if !same_site {
-            continue;
-        }
         let item = match service
             .read_secret_item(&call.caller, &grants, header.id.clone())
             .await

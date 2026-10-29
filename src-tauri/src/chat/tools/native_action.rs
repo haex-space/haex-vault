@@ -2,14 +2,20 @@
 //! the frontend like every other action (`runner: 'native'`); the call goes to an executor
 //! registered at startup instead of through the [`super::action_bridge::ActionBridge`], so it works
 //! without a window (FR-034). Source and risk class are those of an
-//! [`super::action_tool::ActionTool`].
+//! [`super::action_tool::ActionTool`]. Each call carries who calls and in which approval mode
+//! ([`NativeCall`], spec 065 research R8): the chat passes the built-in agent and the chat's mode,
+//! the MCP access an external agent and its own mode.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
+
+use super::permission::PermissionMode;
+use crate::caller::Caller;
 
 use super::action_tool::{error_content, AgentActionDef, ACTION_SOURCE};
 use super::{RiskClass, Tool, ToolImage, ToolResult};
@@ -58,8 +64,42 @@ impl From<Value> for NativeReply {
     }
 }
 
-/// Runs the native actions of one area (`files.*`). The executor fixes the caller itself, never
-/// from the input (ADR 0007).
+/// Who calls a native action, and in which approval mode. Set by the entrance (the chat or the MCP
+/// access), never taken from the input (ADR 0007).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCall {
+    pub caller: Caller,
+    pub mode: PermissionMode,
+}
+
+impl NativeCall {
+    /// A call of the built-in agent in `mode`.
+    pub fn builtin(mode: PermissionMode) -> Self {
+        Self {
+            caller: Caller::BuiltinAgent,
+            mode,
+        }
+    }
+}
+
+/// Refuses a call that is not the built-in agent's, for executors that serve only it so far (the
+/// file and share actions until spec 021 PR E gives external agents their own).
+pub fn builtin_only(call: &NativeCall) -> Result<(), NativeError> {
+    if call.caller == Caller::BuiltinAgent {
+        Ok(())
+    } else {
+        Err(NativeError::new(
+            "forbidden_for_agents",
+            "This action is not available to this agent.",
+        ))
+    }
+}
+
+/// Reads the chat's approval mode when a call of the built-in agent starts.
+pub type ModeSource = Arc<dyn Fn() -> BoxFuture<'static, PermissionMode> + Send + Sync>;
+
+/// Runs the native actions of one area (`files.*`). The caller comes with each call
+/// ([`NativeCall`]), never from the input (ADR 0007).
 #[async_trait]
 pub trait NativeExecutor: Send + Sync {
     /// The action ids it runs.
@@ -74,6 +114,7 @@ pub trait NativeExecutor: Send + Sync {
         &self,
         action_id: &str,
         input: Value,
+        call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError>;
 }
@@ -82,9 +123,28 @@ pub trait NativeExecutor: Send + Sync {
 #[derive(Clone, Default)]
 pub struct NativeExecutors {
     by_id: Arc<Mutex<HashMap<&'static str, Arc<dyn NativeExecutor>>>>,
+    mode: Arc<Mutex<Option<ModeSource>>>,
 }
 
 impl NativeExecutors {
+    /// Where calls of the built-in agent read the chat's approval mode; set in `setup()`.
+    pub fn set_mode_source(&self, source: ModeSource) {
+        *self.mode.lock().unwrap_or_else(PoisonError::into_inner) = Some(source);
+    }
+
+    /// The chat's approval mode now; Manuell, the safest, when no source is set.
+    pub async fn builtin_mode(&self) -> PermissionMode {
+        let source = self
+            .mode
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        match source {
+            Some(source) => source().await,
+            None => PermissionMode::Manual,
+        }
+    }
+
     /// Adds `executor` under each of its ids; a later one wins an id.
     pub fn add(&self, executor: Arc<dyn NativeExecutor>) {
         let mut by_id = self.by_id.lock().unwrap_or_else(PoisonError::into_inner);
@@ -115,11 +175,20 @@ impl NativeExecutors {
 pub struct NativeActionTool {
     def: AgentActionDef,
     executor: Arc<dyn NativeExecutor>,
+    executors: NativeExecutors,
 }
 
 impl NativeActionTool {
-    pub fn new(def: AgentActionDef, executor: Arc<dyn NativeExecutor>) -> Self {
-        Self { def, executor }
+    pub fn new(
+        def: AgentActionDef,
+        executor: Arc<dyn NativeExecutor>,
+        executors: NativeExecutors,
+    ) -> Self {
+        Self {
+            def,
+            executor,
+            executors,
+        }
     }
 }
 
@@ -158,7 +227,10 @@ impl Tool for NativeActionTool {
     }
 
     async fn execute(&self, input: Value, cancel: CancellationToken) -> ToolResult {
-        let run = self.executor.run(&self.def.action_id, input, &cancel);
+        let call = NativeCall::builtin(self.executors.builtin_mode().await);
+        let run = self
+            .executor
+            .run(&self.def.action_id, input, &call, &cancel);
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return ToolResult::error("tool_call_cancelled"),

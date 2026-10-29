@@ -1,15 +1,16 @@
 //! What a registered agent may do (spec 021 research R3, FR-008, FR-012 to FR-016). One function
 //! decides the tool list and every call, so a tool an agent does not see is also a tool it cannot
-//! call. This delivery has the rights group "holzi bedienen" (`operate`): per scope of the action
-//! catalog nothing, reading, or reading and changing. The scope `guardrails` is never a right.
-//! Later groups (extensions, files, passwords, commands, the browser) add fields that are off when
-//! missing (FR-008).
+//! call. The rights group "holzi bedienen" (`operate`) has per scope of the action catalog nothing,
+//! reading, or reading and changing; the group `browser` (spec 065) opens the browser tools and
+//! names the websites an agent may read or operate. The scope `guardrails` is never a right. Later
+//! groups (extensions, files, passwords, commands) add fields that are off when missing (FR-008).
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::agent_browser::sites::Site;
 use crate::chat::action_commands::GUARDRAILS_SCOPE;
 use crate::chat::tools::action_tool::{ActionEffect, AgentActionDef};
 
@@ -54,12 +55,71 @@ impl OperateLevel {
     }
 }
 
-/// The rights of one agent. A scope that is missing is "nothing".
+/// The scope of the browser tools (spec 065); it belongs to the group `browser`, not to
+/// "holzi bedienen".
+pub const BROWSER_SCOPE: &str = "browser";
+
+/// How far an agent may act on one website (spec 065 FR-005, FR-008).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum SiteLevel {
+    /// Open, read, follow links, scroll, screenshots.
+    Read,
+    /// Also type, choose, click; submitting still asks.
+    Operate,
+}
+
+impl SiteLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Operate => "operate",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "read" => Some(Self::Read),
+            "operate" => Some(Self::Operate),
+            _ => None,
+        }
+    }
+}
+
+/// One allowed website.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct SiteGrant {
+    pub level: SiteLevel,
+    /// "Für diese Website merken": filling credentials asks no more (spec 065 FR-021).
+    #[serde(default)]
+    pub fill_remembered: bool,
+}
+
+/// The rights group `browser` (spec 065 data-model.md). Present means on.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct BrowserRights {
+    /// Handed-over tabs in the user's own browser (US6).
+    #[serde(default)]
+    pub user_browser: bool,
+    #[serde(default)]
+    #[ts(as = "BTreeMap<String, SiteGrant>")]
+    pub sites: BTreeMap<Site, SiteGrant>,
+}
+
+/// The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct Rights {
     pub operate: BTreeMap<String, OperateLevel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub browser: Option<BrowserRights>,
 }
 
 /// What a new agent may do until the user changes it (FR-009): read in every scope of
@@ -70,6 +130,7 @@ pub fn default_rights() -> Rights {
             .iter()
             .map(|scope| ((*scope).to_owned(), OperateLevel::Read))
             .collect(),
+        browser: None,
     }
 }
 
@@ -79,18 +140,27 @@ pub enum InvalidRights {
     /// `guardrails` or a scope outside "holzi bedienen" (FR-016).
     #[error("the scope {0} cannot be granted")]
     Scope(String),
+    /// A website over plain http can only be read (spec 065 research R9).
+    #[error("{0} is not encrypted and can only be read")]
+    PlainSite(String),
 }
 
 /// Refuses a scope no agent may get, the guardrails above all (FR-016).
 pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
-    match rights
+    if let Some(scope) = rights
         .operate
         .keys()
         .find(|scope| !OPERATE_SCOPES.contains(&scope.as_str()))
     {
-        Some(scope) => Err(InvalidRights::Scope(scope.clone())),
-        None => Ok(()),
+        return Err(InvalidRights::Scope(scope.clone()));
     }
+    let sites = rights.browser.iter().flat_map(|browser| &browser.sites);
+    for (site, grant) in sites {
+        if site.is_plain_http() && grant.level == SiteLevel::Operate {
+            return Err(InvalidRights::PlainSite(site.to_string()));
+        }
+    }
+    Ok(())
 }
 
 /// Whether `rights` cover `def`. Whether a covered call asks first is the approval mode's matter
@@ -98,6 +168,10 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
 fn covers(rights: &Rights, def: &AgentActionDef) -> bool {
     if def.scope == GUARDRAILS_SCOPE {
         return false;
+    }
+    // The browser tools check the website of each call themselves (spec 065 research R8).
+    if def.scope == BROWSER_SCOPE {
+        return rights.browser.is_some();
     }
     match rights.operate.get(&def.scope) {
         None => false,
@@ -122,4 +196,59 @@ pub fn check<'a>(
         .iter()
         .find(|def| def.tool_name == tool_name)
         .filter(|def| covers(rights, def))
+}
+
+/// One row of `haex_mcp_agent_grants` in the group `browser` (spec 065 data-model.md): key, level
+/// and scope tags.
+pub type BrowserRow = (String, String, Option<String>);
+
+/// The key of the row that turns the group on.
+const BROWSER_ON: &str = "";
+/// The key of the row that allows the user's own browser.
+const USER_BROWSER: &str = "user-browser";
+/// The level of the two switch rows.
+const ON: &str = "on";
+/// The scope tags of a website whose credential fill is remembered.
+const FILL_TAGS: &str = r#"["fill"]"#;
+
+/// The rows the group `browser` is stored as.
+pub fn browser_rows(browser: &BrowserRights) -> Vec<BrowserRow> {
+    let mut rows = vec![(BROWSER_ON.to_owned(), ON.to_owned(), None)];
+    if browser.user_browser {
+        rows.push((USER_BROWSER.to_owned(), ON.to_owned(), None));
+    }
+    rows.extend(browser.sites.iter().map(|(site, grant)| {
+        let tags = grant.fill_remembered.then(|| FILL_TAGS.to_owned());
+        (site.to_string(), grant.level.as_str().to_owned(), tags)
+    }));
+    rows
+}
+
+/// The group from its rows; `None` without the row that turns it on (021 FR-008). A row this build
+/// cannot read counts as no right.
+pub fn browser_from_rows(rows: &[BrowserRow]) -> Option<BrowserRights> {
+    rows.iter()
+        .find(|(key, level, _)| key == BROWSER_ON && level == ON)?;
+    let mut browser = BrowserRights::default();
+    for (key, level, tags) in rows {
+        if key == BROWSER_ON {
+            continue;
+        }
+        if key == USER_BROWSER {
+            browser.user_browser = level == ON;
+            continue;
+        }
+        let (Ok(site), Some(level)) = (Site::parse(key), SiteLevel::parse(level)) else {
+            continue;
+        };
+        let fill_remembered = level == SiteLevel::Operate && tags.as_deref() == Some(FILL_TAGS);
+        browser.sites.insert(
+            site,
+            SiteGrant {
+                level,
+                fill_remembered,
+            },
+        );
+    }
+    Some(browser)
 }

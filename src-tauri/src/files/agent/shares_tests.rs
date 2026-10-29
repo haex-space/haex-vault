@@ -106,7 +106,7 @@ impl Scene {
 
     async fn run(&self, action: &str, input: Value) -> Result<Value, NativeError> {
         self.agent
-            .run(action, input, &CancellationToken::new())
+            .run(action, input, &builtin_call(), &CancellationToken::new())
             .await
             .map(|reply| reply.result)
     }
@@ -249,4 +249,10 @@ async fn a_contact_the_agent_may_not_read_is_never_offered() {
         .expect_err("no contacts permission");
     assert_eq!(refused.code, "files_not_granted");
     assert!(scene.asked().is_empty(), "refused before asking");
+}
+
+fn builtin_call() -> crate::chat::tools::native_action::NativeCall {
+    crate::chat::tools::native_action::NativeCall::builtin(
+        crate::chat::tools::permission::PermissionMode::Manual,
+    )
 }

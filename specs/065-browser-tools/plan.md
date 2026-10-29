@@ -29,7 +29,7 @@ Entscheidung über Steuerung, Isolation und Profil in
 - **Absenden** (R5): Einordnung vor dem Klick plus Anhalten ändernder Anfragen danach.
 - **Sichtbarkeit** (R6): Markierung, Sitzungsanzeige und „Stoppen“ gehören ab Lieferung C zum ersten
   nutzbaren Browser; Eingreifen und Zurückgeben folgen in Lieferung D.
-- **Anmeldedaten** (R7): Dienst `passwords::site::entries_for_origin` (aus der Bridge gezogen),
+- **Anmeldedaten** (R7): Dienst `PasswordsService::headers_for_page` (aus der Bridge gezogen),
   Werte direkt ins Feld, Rückfluss gefiltert, Bildschirmfotos bis zum Sitzungsende gesperrt.
 - **Rechte und Rückfragen** (R8, R9): Rechtegruppe `browser` in 021, Werkzeuge als native
   Katalogaktionen mit `confirmsItself`, Website-Prüfung vor dem Laden jedes Haupt- oder
@@ -168,8 +168,8 @@ src-tauri/src/
 ├── chat/tools/native_action.rs   # NativeCall { caller, mode } (Lieferung B)
 ├── mcp_server/grants.rs          # Gruppe browser (Lieferung B)
 ├── mcp_server/dispatch.rs        # native Aktionen direkt, confirmsItself (Lieferung B)
-├── passwords/site.rs             # entries_for_origin (Lieferung B)
-└── identity/migrations_agent_browser.rs  # haex_agent_browser_no_sync
+├── passwords/service/by_site.rs  # headers_for_page (Lieferung B)
+└── identity/migrations_agent_browser.rs  # 0047, haex_agent_browser_no_sync
 src-tauri/tests/
 ├── agent_browser_read.rs  agent_browser_act.rs  agent_browser_profile.rs  agent_browser_injection.rs
 └── fixtures/agent_browser/{site,injection}/

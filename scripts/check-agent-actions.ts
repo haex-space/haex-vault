@@ -549,3 +549,21 @@ test('agents manage file shares in Rust, under a permission of their own (spec 0
     assert.equal(action.runner, 'native', action.id)
   }
 })
+
+test('every browser tool runs in Rust and asks itself when it changes a page (spec 065 R8)', () => {
+  for (const action of ALL_ACTIONS.filter((a) => a.scope === 'browser')) {
+    assert.equal(action.runner, 'native', action.id)
+    assert.ok(action.agentCallable, action.id)
+    if (action.effect !== 'read')
+      assert.equal(action.confirmsItself, true, action.id)
+  }
+})
+
+test('the settings of the agent browser are guardrails (spec 065)', () => {
+  for (const action of ALL_ACTIONS.filter((a) =>
+    a.id.startsWith('settings.agentBrowser.'),
+  )) {
+    assert.equal(action.scope, 'guardrails', action.id)
+    assert.equal(action.agentCallable, false, action.id)
+  }
+})

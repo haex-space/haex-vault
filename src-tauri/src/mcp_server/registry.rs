@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grants::{OperateLevel, Rights};
+use super::grants::{browser_from_rows, browser_rows, OperateLevel, Rights};
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
@@ -24,6 +24,8 @@ const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_
 
 /// The rights group of [`Rights::operate`] in `grant_group`.
 const GROUP_OPERATE: &str = "operate";
+/// The rights group of [`Rights::browser`] (spec 065).
+const GROUP_BROWSER: &str = "browser";
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -385,7 +387,7 @@ fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
 /// The rights of `agent`. A row this build cannot read counts as no right.
 pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
     let rows = q.query_map(
-        "SELECT grant_group, grant_key, level FROM haex_mcp_agent_grants \
+        "SELECT grant_group, grant_key, level, scope_tags FROM haex_mcp_agent_grants \
          WHERE vault_device_uuid = ?1 AND agent_id = ?2",
         params![device.to_string(), agent.to_string()],
         |row| {
@@ -393,18 +395,24 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
             ))
         },
     )?;
     let mut rights = Rights::default();
-    for (group, key, level) in rows {
-        if group != GROUP_OPERATE {
-            continue;
-        }
-        if let Some(level) = OperateLevel::parse(&level) {
-            rights.operate.insert(key, level);
+    let mut browser = Vec::new();
+    for (group, key, level, tags) in rows {
+        match group.as_str() {
+            GROUP_OPERATE => {
+                if let Some(level) = OperateLevel::parse(&level) {
+                    rights.operate.insert(key, level);
+                }
+            }
+            GROUP_BROWSER => browser.push((key, level, tags)),
+            _ => {}
         }
     }
+    rights.browser = browser_from_rows(&browser);
     Ok(rights)
 }
 
@@ -419,17 +427,31 @@ pub fn save_rights(
         "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
         params![device.to_string(), agent.to_string()],
     )?;
-    for (scope, level) in &rights.operate {
+    let operate = rights.operate.iter().map(|(scope, level)| {
+        (
+            GROUP_OPERATE,
+            scope.clone(),
+            level.as_str().to_owned(),
+            None,
+        )
+    });
+    let browser = rights
+        .browser
+        .iter()
+        .flat_map(browser_rows)
+        .map(|(key, level, tags)| (GROUP_BROWSER, key, level, tags));
+    for (group, key, level, tags) in operate.chain(browser) {
         tx.execute(
             "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
-             grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)",
+             grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
-                grant_id(device, agent, GROUP_OPERATE, scope),
+                grant_id(device, agent, group, &key),
                 device.to_string(),
                 agent.to_string(),
-                GROUP_OPERATE,
-                scope,
-                level.as_str(),
+                group,
+                key,
+                level,
+                tags,
             ],
         )?;
     }

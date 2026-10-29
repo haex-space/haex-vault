@@ -16,6 +16,7 @@ fn everything() -> Rights {
             .iter()
             .map(|scope| ((*scope).to_owned(), OperateLevel::Write))
             .collect(),
+        browser: None,
     }
 }
 

@@ -1735,7 +1735,8 @@
       "contacts": {
         "read": "Kontakte lesen",
         "write": "Kontakte ändern"
-      }
+      },
+      "browser": "Webseiten im Agenten-Browser lesen und bedienen"
     },
     "passwords": {
       "items": {
@@ -3485,6 +3486,22 @@
       "error": "Fehler",
       "unavailable": "Nicht verfügbar",
       "too_many": "Zu viele Aufrufe"
+    },
+    "browser": {
+      "title": "Browser",
+      "enabled": "Browser-Werkzeuge",
+      "enabledHint": "Webseiten im Agenten-Browser öffnen, lesen und bedienen, nur auf den Websites unten",
+      "level": {
+        "read": "Lesen",
+        "operate": "Bedienen"
+      },
+      "none": "Noch keine Website erlaubt",
+      "add": "Website erlauben",
+      "addShort": "Hinzufügen",
+      "remove": "{site} entfernen",
+      "removeShort": "Entfernen",
+      "invalid": "Das ist keine Website mit https oder http.",
+      "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
     }
   }
 }

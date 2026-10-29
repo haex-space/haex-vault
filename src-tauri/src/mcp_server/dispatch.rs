@@ -23,8 +23,10 @@ use super::prompts::{call_gate, CallDecision, CallQuestion, PromptClosed, Prompt
 use super::redact::{redact, target_of};
 use super::server::{Core, Notice};
 use super::session::SessionAgent;
+use crate::caller::Caller;
 use crate::chat::tools::action_bridge::{ActionCaller, ActionReply};
-use crate::chat::tools::action_tool::{ActionEffect, AgentActionDef};
+use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::Decision;
 use crate::prompt_park::PromptEnd;
 
@@ -128,7 +130,14 @@ pub async fn call(
             None,
         );
     };
-    let result = match call_gate(agent.mode, def) {
+    let native = native_executor(core, def);
+    let confirms_itself = native.as_ref().is_some_and(|executor| {
+        def.confirms_itself
+            && executor
+                .confirming_action_ids()
+                .contains(&def.action_id.as_str())
+    });
+    let result = match call_gate(agent.mode, def, confirms_itself) {
         Decision::Deny => {
             entry.outcome = Outcome::DeniedPlan;
             error_result(
@@ -208,6 +217,21 @@ async fn run(
     cancel: &CancellationToken,
     entry: &mut NewEntry,
 ) -> CallToolResult {
+    if let Some(executor) = native_executor(core, def) {
+        let call = NativeCall {
+            caller: Caller::ExternalAgent {
+                id: agent.id.to_string(),
+            },
+            mode: agent.mode.permission_mode(),
+        };
+        let (result, outcome) = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => (unavailable(), Outcome::Unavailable),
+            reply = executor.run(&def.action_id, input, &call, cancel) => native_result(reply),
+        };
+        entry.outcome = outcome;
+        return result;
+    }
     let caller = ActionCaller::ExternalAgent {
         agent_id: agent.id.to_string(),
     };
@@ -218,6 +242,32 @@ async fn run(
     let (result, outcome) = into_result(reply);
     entry.outcome = outcome;
     result
+}
+
+/// The Rust executor of a native action (ADR 0011); it runs without the window.
+fn native_executor(core: &Core, def: &AgentActionDef) -> Option<Arc<dyn NativeExecutor>> {
+    (def.runner == Some(ActionRunner::Native))
+        .then(|| core.native.get(&def.action_id))
+        .flatten()
+}
+
+/// A native executor's answer as the agent sees it; a refusal of the caller reads as missing
+/// rights.
+fn native_result(reply: Result<NativeReply, NativeError>) -> (CallToolResult, Outcome) {
+    match reply {
+        Ok(reply) => (CallToolResult::structured(reply.result), Outcome::Ok),
+        Err(error) if error.code == "forbidden_for_agents" => {
+            (not_allowed(), Outcome::DeniedRights)
+        }
+        Err(error) => (
+            error_result(
+                &error.code,
+                &error.message,
+                error.field.map(|f| ("field", Value::String(f))),
+            ),
+            Outcome::Error,
+        ),
+    }
 }
 
 /// Writes one log entry; a failed write only warns, the call has happened.

@@ -142,10 +142,24 @@ async fn rights_round_trip_and_are_replaced() {
             .expect("read"),
         default_rights()
     );
+    // Spec 065 T008: the group `browser` is stored next to `operate` and reads back the same.
+    let site = crate::agent_browser::sites::Site::parse("https://shop.example.de").expect("site");
     let narrow = Rights {
         operate: [("settings.device".to_owned(), OperateLevel::Write)]
             .into_iter()
             .collect(),
+        browser: Some(super::grants::BrowserRights {
+            user_browser: true,
+            sites: [(
+                site,
+                super::grants::SiteGrant {
+                    level: super::grants::SiteLevel::Operate,
+                    fill_remembered: true,
+                },
+            )]
+            .into_iter()
+            .collect(),
+        }),
     };
     let saved = narrow.clone();
     v.db.write(move |tx| save_rights(tx, device, id, &saved))

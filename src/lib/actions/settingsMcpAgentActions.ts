@@ -58,7 +58,7 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.mcp.grants.set',
     titleKey: 'actions.settings.agents.mcp.grants.set',
     description:
-      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change. A scope left out is nothing. User only.',
+      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change, and the websites of the rights group "browser" (spec 065). A scope left out is nothing; without "browser" the group is off. User only.',
     input: {
       type: 'object',
       properties: {
@@ -70,6 +70,12 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
               type: 'object',
               description:
                 'Per scope of "holzi bedienen" (wm.read, wm.navigation, wm.layout, chat.read, chat.write, settings.read, settings.device, settings.models): "read" or "write".',
+            },
+            browser: {
+              type: 'object',
+              nullable: true,
+              description:
+                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } } }.',
             },
           },
           required: ['operate'],

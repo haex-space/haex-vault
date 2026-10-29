@@ -1,8 +1,10 @@
 use serde_json::json;
 
 use super::grants::{
-    check, default_rights, offers, validate, InvalidRights, OperateLevel, Rights, OPERATE_SCOPES,
+    browser_from_rows, browser_rows, check, default_rights, offers, validate, BrowserRights,
+    InvalidRights, OperateLevel, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
 };
+use crate::agent_browser::sites::Site;
 use crate::chat::tools::action_tool::AgentActionDef;
 
 fn action(id: &str, scope: &str, effect: &str, builtin: bool) -> AgentActionDef {
@@ -41,6 +43,7 @@ fn names(offered: Vec<&AgentActionDef>) -> Vec<String> {
 fn only(scope: &str, level: OperateLevel) -> Rights {
     Rights {
         operate: [(scope.to_owned(), level)].into_iter().collect(),
+        browser: None,
     }
 }
 
@@ -127,4 +130,104 @@ fn a_new_agent_may_read_everything_it_can_reach_and_nothing_more() {
 fn an_unknown_tool_is_refused_like_a_forbidden_one() {
     let catalog = catalog();
     assert!(check(&default_rights(), &catalog, "no_such_tool").is_none());
+}
+
+// ---------------------------------------------------------------------------
+// The group `browser` (spec 065 T007)
+// ---------------------------------------------------------------------------
+
+fn browser(sites: &[(&str, SiteLevel)]) -> BrowserRights {
+    BrowserRights {
+        user_browser: false,
+        sites: sites
+            .iter()
+            .map(|(site, level)| {
+                (
+                    Site::parse(site).expect("site"),
+                    SiteGrant {
+                        level: *level,
+                        fill_remembered: false,
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn the_browser_tools_need_the_group_switched_on() {
+    let catalog = vec![
+        action("browser.page.read", "browser", "read", true),
+        action("settings.get", "settings.read", "read", true),
+    ];
+    let off = default_rights();
+    assert!(!names(offers(&off, &catalog)).contains(&"browser.page.read".to_owned()));
+    assert!(check(&off, &catalog, "browser_page_read").is_none());
+
+    let on = Rights {
+        browser: Some(BrowserRights::default()),
+        ..default_rights()
+    };
+    assert!(names(offers(&on, &catalog)).contains(&"browser.page.read".to_owned()));
+    assert!(check(&on, &catalog, "browser_page_read").is_some());
+}
+
+#[test]
+fn a_plain_http_website_can_only_be_read() {
+    let reading = Rights {
+        browser: Some(browser(&[("http://intranet.example", SiteLevel::Read)])),
+        ..default_rights()
+    };
+    assert_eq!(validate(&reading), Ok(()));
+    let operating = Rights {
+        browser: Some(browser(&[("http://intranet.example", SiteLevel::Operate)])),
+        ..default_rights()
+    };
+    assert_eq!(
+        validate(&operating),
+        Err(InvalidRights::PlainSite(
+            "http://intranet.example".to_owned()
+        ))
+    );
+}
+
+#[test]
+fn the_window_cannot_send_a_website_that_is_none() {
+    for bad in ["file:///etc", "javascript:x", "https://u:p@example.com"] {
+        let sent = json!({ "operate": {}, "browser": { "sites": { bad: { "level": "read" } } } });
+        assert!(
+            serde_json::from_value::<Rights>(sent).is_err(),
+            "{bad} must not reach the rights"
+        );
+    }
+    let sent = json!({ "operate": {}, "browser": { "sites": { "https://EXAMPLE.com/x": { "level": "operate" } } } });
+    let rights: Rights = serde_json::from_value(sent).expect("rights");
+    let sites = rights.browser.expect("on").sites;
+    assert!(sites.contains_key(&Site::parse("https://example.com").expect("site")));
+}
+
+#[test]
+fn the_browser_group_round_trips_through_its_rows() {
+    let mut rights = browser(&[
+        ("https://shop.example.de", SiteLevel::Operate),
+        ("http://intranet.example", SiteLevel::Read),
+    ]);
+    rights.user_browser = true;
+    rights
+        .sites
+        .get_mut(&Site::parse("https://shop.example.de").expect("site"))
+        .expect("grant")
+        .fill_remembered = true;
+    let rows = browser_rows(&rights);
+    assert!(rows.contains(&(String::new(), "on".to_owned(), None)));
+    assert_eq!(browser_from_rows(&rows), Some(rights));
+    let without_switch: Vec<_> = rows
+        .into_iter()
+        .filter(|(key, _, _)| !key.is_empty())
+        .collect();
+    assert_eq!(
+        browser_from_rows(&without_switch),
+        None,
+        "off without its switch"
+    );
 }

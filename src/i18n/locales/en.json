@@ -1735,7 +1735,8 @@
       "contacts": {
         "read": "Read contacts",
         "write": "Change contacts"
-      }
+      },
+      "browser": "Read and operate web pages in the agent browser"
     },
     "passwords": {
       "items": {
@@ -3485,6 +3486,22 @@
       "error": "Error",
       "unavailable": "Unavailable",
       "too_many": "Too many calls"
+    },
+    "browser": {
+      "title": "Browser",
+      "enabled": "Browser tools",
+      "enabledHint": "Open, read and operate web pages in the agent browser, only on the websites below",
+      "level": {
+        "read": "Read",
+        "operate": "Operate"
+      },
+      "none": "No website allowed yet",
+      "add": "Allow a website",
+      "addShort": "Add",
+      "remove": "Remove {site}",
+      "removeShort": "Remove",
+      "invalid": "This is not an https or http website.",
+      "hint": "A website over unencrypted http can only be read. Other websites ask before they open."
     }
   }
 }
