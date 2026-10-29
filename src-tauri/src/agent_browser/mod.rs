@@ -125,6 +125,25 @@ impl AgentBrowser {
                 return Ok(Arc::clone(&run.connection));
             }
         }
+        // A dead pipe does not prove the browser process ended. Retire an unusable run before
+        // reusing its profile directory, or the old browser can outlive its state and race the new
+        // run's cleanup. The watcher uses this same lock before saving or removing the directory.
+        if let Some(run) = running.take() {
+            run.ending.store(true, Ordering::SeqCst);
+            let ended_cleanly = run.process.ended() == Some(true);
+            if !ended_cleanly {
+                run.process.kill();
+                let _ = tokio::time::timeout(CLOSE_GRACE, run.process.wait()).await;
+            }
+            run.connection.close();
+            if ended_cleanly {
+                if let Err(error) = save(&run.workdir, &run.store).await {
+                    log::warn!("agent browser: saving the profile before restart: {error}");
+                }
+            }
+            let workdir = run.workdir.clone();
+            let _ = tokio::task::spawn_blocking(move || workdir.remove()).await;
+        }
         let run = self.start(config()?).await?;
         let connection = Arc::clone(&run.connection);
         *running = Some(run);
@@ -229,6 +248,16 @@ impl AgentBrowser {
             if ending.load(Ordering::SeqCst) {
                 return;
             }
+            // Serialize profile persistence and cleanup with `ensure`: after an unexpected exit it
+            // may be starting a replacement that uses the same working directory.
+            let mut running = browser.shared.running.lock().await;
+            if !running
+                .as_ref()
+                .is_some_and(|run| Arc::ptr_eq(&run.process, &process))
+                || ending.load(Ordering::SeqCst)
+            {
+                return;
+            }
             if success {
                 if let Err(error) = save(&workdir, &store).await {
                     log::warn!("agent browser: saving the profile: {error}");
@@ -236,14 +265,8 @@ impl AgentBrowser {
             } else {
                 log::warn!("agent browser: the browser ended unexpectedly");
             }
-            let _ = workdir.remove();
-            let mut running = browser.shared.running.lock().await;
-            if running
-                .as_ref()
-                .is_some_and(|run| Arc::ptr_eq(&run.process, &process))
-            {
-                *running = None;
-            }
+            let _ = tokio::task::spawn_blocking(move || workdir.remove()).await;
+            *running = None;
         });
     }
 
