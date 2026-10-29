@@ -713,6 +713,13 @@ async fn a_failed_exclusion_union_write_keeps_both_original_files() {
         .await;
 
     assert_eq!(report.outcome, SyncRuleOutcome::Partial, "{report:?}");
+    assert_eq!(
+        report.conflict_copies,
+        [
+            ".haex-ignore (Konflikt Laptop 2026-10-27)",
+            ".haex-ignore (Konflikt Laptop 2026-10-27 2)"
+        ]
+    );
     assert_eq!(read(&w.a.join(".haex-ignore")), "*.tmp\n");
     assert_eq!(read(&w.b.join(".haex-ignore")), "*.log\n");
 }

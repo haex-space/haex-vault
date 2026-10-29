@@ -187,6 +187,35 @@ async fn a_failing_step_is_noted_and_the_rest_runs() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_conflict_copy_is_reported_when_a_later_copy_fails() {
+    let (_dir, db, rule) = setup();
+    let (a, b) = (MemPlace::new(), MemPlace::new());
+    a.put("x.txt", b"new", 2);
+    b.put("x.txt", b"old", 1);
+    a.fail("x.txt");
+    let aside = "x (Konflikt Laptop 2026-10-29).txt";
+
+    let done = exec(
+        &db,
+        &rule,
+        &a,
+        &b,
+        &[],
+        &[Step::Conflict {
+            path: "x.txt".to_owned(),
+            keep: SyncRuleSide::A,
+            aside: aside.to_owned(),
+        }],
+        &CancellationToken::new(),
+    )
+    .await;
+
+    assert_eq!(done.counts.errors, 1);
+    assert_eq!(done.conflict_copies, [aside]);
+    assert_eq!(b.paths(), [aside]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_cancelled_run_stops_before_the_next_step() {
     let (_dir, db, rule) = setup();
     let (a, b) = (MemPlace::new(), MemPlace::new());
