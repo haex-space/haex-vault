@@ -90,6 +90,14 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             reason: format!("{key} must be one of 0, 15, 30, 60, 120"),
         });
     }
+    // Spec 061: runs kept per sync rule, 0 to 100.
+    if key == crate::file_sync::run_log::LOG_DEPTH_KEY
+        && !crate::file_sync::run_log::is_valid_depth(value)
+    {
+        return Err(HolziError::InvalidInput {
+            reason: format!("{key} must be a whole number from 0 to 100"),
+        });
+    }
     if !is_valid_files_value(key, value) {
         return Err(HolziError::InvalidInput {
             reason: format!("{key} has no such value"),

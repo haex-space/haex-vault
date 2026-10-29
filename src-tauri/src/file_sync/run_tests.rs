@@ -113,6 +113,7 @@ impl World {
                 today: "2026-10-27",
                 now: &now,
                 run_id: "run1",
+                cause: run_log::SyncRuleRunCause::Manual,
                 cancel,
                 progress,
             },
@@ -522,6 +523,88 @@ async fn a_missing_or_unreadable_root_stops_before_any_change() {
             assert_eq!(names(&w.b), ["x.txt"]);
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_is_logged_with_its_files_and_a_waiting_run_with_its_reason() {
+    use crate::file_sync::run_log::{SyncRuleRunAction, SyncRuleTrashKind};
+    let w = world(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "x");
+    write(&w.a.join("bleibt.txt"), "b");
+    w.run().await;
+    std::fs::remove_file(w.a.join("x.txt")).unwrap();
+    w.run().await;
+    let moved = w.a.with_file_name("a-weg");
+    std::fs::rename(&w.a, &moved).unwrap();
+    w.run().await;
+    let runs =
+        w.db.read_blocking(|r| Ok(run_log::runs(r, DEVICE, "r1")))
+            .unwrap()
+            .unwrap();
+    assert_eq!(runs.len(), 3);
+    assert_eq!(
+        runs[0].outcome,
+        SyncRuleOutcome::Waiting,
+        "the latest first"
+    );
+    assert!(runs[0].error.is_some(), "with its reason (FR-043)");
+    assert_eq!(runs[2].copied, 2);
+    let items = |run: &str| {
+        let run = run.to_owned();
+        w.db.read_blocking(move |r| Ok(run_log::items(r, DEVICE, &run, 0, 100)))
+            .unwrap()
+            .unwrap()
+    };
+    let first = items(&runs[2].id);
+    assert_eq!(
+        first
+            .iter()
+            .map(|item| (item.action, item.path.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (SyncRuleRunAction::Copy, "bleibt.txt"),
+            (SyncRuleRunAction::Copy, "x.txt")
+        ]
+    );
+    let deleted = items(&runs[1].id);
+    assert_eq!(deleted[0].action, SyncRuleRunAction::Delete);
+    assert_eq!(deleted[0].trash_kind, Some(SyncRuleTrashKind::Rule));
+    assert_eq!(
+        deleted[0].trash_path.as_deref(),
+        Some(".holzi-trash/run1/x.txt")
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_exclusion_added_later_leaves_the_file_alone_until_it_goes() {
+    let w = both(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.tmp"), "eins");
+    write(&w.a.join("bleibt.txt"), "b");
+    w.run().await;
+    write(&w.a.join(".haex-ignore"), "*.tmp\n[z-a\n");
+    std::fs::remove_file(w.b.join("x.tmp")).unwrap();
+    let report = w.run().await;
+    assert_eq!(
+        report.outcome,
+        SyncRuleOutcome::Done,
+        "a bad line does not stop it"
+    );
+    assert_eq!(report.ignore_errors.len(), 1, "and is named (FR-038)");
+    assert!(w.a.join("x.tmp").is_file(), "not mirrored (SC-009)");
+    assert!(!w.b.join("x.tmp").exists(), "not copied back");
+    assert!(
+        w.state().iter().all(|row| row.path != "x.tmp"),
+        "out of the state (FR-040)"
+    );
+    // The emptied file reaches B first; the union holds until then.
+    write(&w.a.join(".haex-ignore"), "");
+    w.run().await;
+    w.run().await;
+    assert_eq!(
+        read(&w.b.join("x.tmp")),
+        "eins",
+        "new again once the exclusion goes"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

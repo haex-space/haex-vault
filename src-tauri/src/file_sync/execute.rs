@@ -11,6 +11,7 @@ use super::model::{SyncRule, SyncRuleSide};
 use super::place::{split, Facts, Listing, Place, Trashed};
 use super::plan::{Deviation, Step};
 use super::progress::Reporter;
+use super::run_log::{RunItem, SyncRuleRunAction};
 use super::store::{self, PendingRow, Seen, StateRow};
 use crate::files::transfer::local::Outcome;
 use crate::files::transfer::remote::Side;
@@ -53,6 +54,8 @@ pub struct Executed {
     pub trashed: Vec<TrashedFile>,
     /// The conflict copies the run made (FR-012).
     pub conflict_copies: Vec<String>,
+    /// Every file action, for the log (FR-043).
+    pub items: Vec<RunItem>,
     pub cancelled: bool,
 }
 
@@ -122,6 +125,10 @@ pub async fn execute(target: &Target<'_>, steps: &[Step]) -> Executed {
             }
             Err(StepError::Failed(error)) => {
                 done.counts.errors += 1;
+                done.items.push(
+                    RunItem::new(SyncRuleRunAction::Error, side_of(step), path_of(step))
+                        .detail(error.message.clone()),
+                );
                 done.failures
                     .push((path_of(step).to_owned(), error.message));
             }
@@ -164,6 +171,24 @@ fn path_of(step: &Step) -> &str {
     }
 }
 
+/// The side a step works on.
+fn side_of(step: &Step) -> SyncRuleSide {
+    match step {
+        Step::Folder { side, .. }
+        | Step::Move { side, .. }
+        | Step::Aside { side, .. }
+        | Step::Delete { side, .. }
+        | Step::Pending { side, .. } => *side,
+        Step::Copy { from, .. } => from.other(),
+        Step::Conflict { keep, .. } => keep.other(),
+        Step::Adopt { .. }
+        | Step::Keep { .. }
+        | Step::Report { .. }
+        | Step::Forget { .. }
+        | Step::MergeIgnore { .. } => SyncRuleSide::B,
+    }
+}
+
 fn seen(facts: &Facts) -> Seen {
     Seen {
         size: facts.size,
@@ -200,15 +225,22 @@ async fn run_step(
                 store::put_state(tx, device, rule, &row)
             })
             .await?;
-            let from = from.clone();
+            let gone = from.clone();
             write(target, move |tx, device, rule| {
-                store::remove_state(tx, device, rule, &from)
+                store::remove_state(tx, device, rule, &gone)
             })
             .await?;
+            done.items.push(
+                RunItem::new(SyncRuleRunAction::Move, *side, from.clone()).detail(to.clone()),
+            );
             done.counts.moved += 1;
         }
         Step::Aside { side, path, to } => {
             target.place(*side).rename(path, to).await?;
+            done.items.push(
+                RunItem::new(SyncRuleRunAction::ConflictCopy, *side, path.clone())
+                    .detail(to.clone()),
+            );
             done.conflict_copies.push(to.clone());
             done.counts.conflicts += 1;
         }
@@ -219,6 +251,11 @@ async fn run_step(
         } => {
             let planned = planned(target, *from, path)?;
             copy(target, *from, path, &planned, *replaces).await?;
+            done.items.push(RunItem::new(
+                SyncRuleRunAction::Copy,
+                from.other(),
+                path.clone(),
+            ));
             done.counts.copied += 1;
         }
         Step::Conflict { path, keep, aside } => {
@@ -227,12 +264,25 @@ async fn run_step(
             let set_aside = put_aside(target, older, path, aside).await?;
             copy(target, *keep, path, &planned, false).await?;
             copy(target, older, aside, &set_aside, false).await?;
+            done.items.extend([
+                RunItem::new(SyncRuleRunAction::ConflictCopy, older, path.clone())
+                    .detail(aside.clone()),
+                RunItem::new(SyncRuleRunAction::Copy, older, path.clone()),
+                RunItem::new(SyncRuleRunAction::Copy, *keep, aside.clone()),
+            ]);
             done.conflict_copies.push(aside.clone());
             done.counts.conflicts += 1;
             done.counts.copied += 2;
         }
         Step::MergeIgnore { aside_a, aside_b } => {
             merge_ignore(target, aside_a, aside_b).await?;
+            for (side, aside) in [(SyncRuleSide::A, aside_a), (SyncRuleSide::B, aside_b)] {
+                done.items.extend([
+                    RunItem::new(SyncRuleRunAction::ConflictCopy, side, IGNORE_FILE)
+                        .detail(aside.clone()),
+                    RunItem::new(SyncRuleRunAction::Copy, side.other(), aside.clone()),
+                ]);
+            }
             done.conflict_copies
                 .extend([aside_a.clone(), aside_b.clone()]);
             done.counts.conflicts += 1;
@@ -254,6 +304,11 @@ async fn run_step(
                 store::put_state(tx, device, rule, &row)
             })
             .await?;
+            done.items.push(RunItem::new(
+                SyncRuleRunAction::Adopt,
+                SyncRuleSide::A,
+                path.clone(),
+            ));
             done.counts.adopted += 1;
         }
         Step::Delete { side, path } => {
@@ -263,6 +318,9 @@ async fn run_step(
                 store::remove_state(tx, device, rule, &gone)
             })
             .await?;
+            let mut item = RunItem::new(SyncRuleRunAction::Delete, *side, path.clone());
+            item.trash = Some(to.clone());
+            done.items.push(item);
             done.trashed.push(TrashedFile {
                 side: *side,
                 path: path.clone(),

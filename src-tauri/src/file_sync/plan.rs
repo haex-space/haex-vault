@@ -127,7 +127,12 @@ pub fn build(inputs: &Inputs<'_>) -> Plan {
 }
 
 fn ignored(inputs: &Inputs<'_>) -> usize {
-    [inputs.a, inputs.b]
+    excluded_count(inputs.exclusions, inputs.a, inputs.b)
+}
+
+/// How many files and folders of both listings `exclusions` leave out (FR-042).
+pub fn excluded_count(exclusions: &Exclusions, a: &Listing, b: &Listing) -> usize {
+    [a, b]
         .iter()
         .flat_map(|listing| {
             listing
@@ -136,7 +141,7 @@ fn ignored(inputs: &Inputs<'_>) -> usize {
                 .map(|path| (path, false))
                 .chain(listing.folders.iter().map(|path| (path, true)))
         })
-        .filter(|(path, is_dir)| inputs.exclusions.excludes(path, *is_dir))
+        .filter(|(path, is_dir)| exclusions.excludes(path, *is_dir))
         .count()
 }
 
@@ -230,6 +235,7 @@ impl<'i, 'p> Planner<'i, 'p> {
     }
 
     fn one_way(&mut self) {
+        self.forget_excluded();
         self.folders();
         self.moves(SyncRuleSide::A);
         for path in self.paths() {
@@ -240,6 +246,7 @@ impl<'i, 'p> Planner<'i, 'p> {
     }
 
     fn two_way(&mut self) {
+        self.forget_excluded();
         self.moves(SyncRuleSide::A);
         self.moves(SyncRuleSide::B);
         for path in self.paths() {
@@ -248,6 +255,20 @@ impl<'i, 'p> Planner<'i, 'p> {
             }
         }
         self.parent_folders();
+    }
+
+    /// A file excluded since the last success stays as it is on both sides and drops from the state,
+    /// so it is new to the rule once the exclusion goes (FR-040).
+    fn forget_excluded(&mut self) {
+        let excluded: Vec<String> = self
+            .state
+            .keys()
+            .filter(|path| self.excluded(path))
+            .map(|path| (*path).to_owned())
+            .collect();
+        for path in excluded {
+            self.push(Step::Forget { path });
+        }
     }
 
     /// Folders of A that B lacks, also empty ones (research R3).
