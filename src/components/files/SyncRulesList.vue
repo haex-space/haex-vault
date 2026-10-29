@@ -12,6 +12,7 @@ import type { SyncRuleView } from '@bindings/SyncRuleView'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import {
   filterRules,
+  placeLabel as labelOf,
   progressShare,
   RULE_SORT_KEYS,
   type RuleRow,
@@ -52,13 +53,7 @@ onMounted(() => {
 
 /** The name a place shows: a storage or device by its name, the device by its path. */
 function placeLabel(place: SyncRulePlace): string {
-  if (place.source.kind === 'device') return place.path
-  const id = place.source.storageId
-  const named =
-    props.sources?.storages.find((storage) => storage.id === id)?.name ??
-    props.sources?.devices.find((device) => device.id === id)?.name ??
-    t('files.syncRules.unknownSource')
-  return place.path === '/' ? named : `${named} ${place.path}`
+  return labelOf(place, props.sources, t('files.syncRules.unknownSource'))
 }
 
 function labelsOf(view: SyncRuleView | null) {
@@ -84,7 +79,7 @@ function openShown(view: SyncRuleView, which: 'preview' | 'ignore' | 'log') {
   logging.value = which === 'log'
 }
 
-const ARROWS = { aToB: '→', bToA: '←', both: '↔' } as const
+const ARROWS = { aToB: '→', both: '↔' } as const
 
 function placesOf(view: SyncRuleView): string {
   return `${placeLabel(view.rule.placeA)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.placeB)}`

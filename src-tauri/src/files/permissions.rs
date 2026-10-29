@@ -37,6 +37,8 @@ pub enum AgentFileKind {
     Contacts,
     /// Managing file shares (spec 056 FR-045, research R17), `target` empty; only the user sets it.
     FileShares,
+    /// Managing sync rules (spec 061 FR-035, research R11), `target` empty; only the user sets it.
+    SyncRules,
 }
 
 impl AgentFileKind {
@@ -47,6 +49,7 @@ impl AgentFileKind {
             Self::EncryptedFolder => "encryptedFolder",
             Self::Contacts => "contacts",
             Self::FileShares => "fileShares",
+            Self::SyncRules => "syncRules",
         }
     }
 
@@ -57,13 +60,14 @@ impl AgentFileKind {
             "encryptedFolder" => Some(Self::EncryptedFolder),
             "contacts" => Some(Self::Contacts),
             "fileShares" => Some(Self::FileShares),
+            "syncRules" => Some(Self::SyncRules),
             _ => None,
         }
     }
 }
 
-/// The decision; `granted` for the device and for managing file shares, `read` and `readWrite` for
-/// a storage, a folder and the contacts.
+/// The decision; `granted` for the device and for managing file shares and sync rules, `read` and
+/// `readWrite` for a storage, a folder and the contacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -97,7 +101,7 @@ impl AgentFileStatus {
     /// Whether this status belongs to `kind`.
     fn fits(self, kind: AgentFileKind) -> bool {
         match kind {
-            AgentFileKind::Device | AgentFileKind::FileShares => {
+            AgentFileKind::Device | AgentFileKind::FileShares | AgentFileKind::SyncRules => {
                 matches!(self, Self::Granted | Self::Denied)
             }
             AgentFileKind::Storage | AgentFileKind::EncryptedFolder | AgentFileKind::Contacts => {
@@ -264,6 +268,9 @@ pub fn grants_of(q: &mut impl Query, agent_id: &str) -> Result<AgentGrants> {
             (AgentFileKind::FileShares, status) => {
                 grants.file_shares = status == AgentFileStatus::Granted;
             }
+            (AgentFileKind::SyncRules, status) => {
+                grants.sync_rules = status == AgentFileStatus::Granted;
+            }
             (AgentFileKind::EncryptedFolder, status) => {
                 let reach = match row.reach {
                     Some(AgentFileReach::Cloud) => Locality::Cloud,
@@ -286,7 +293,7 @@ pub fn grants_of(q: &mut impl Query, agent_id: &str) -> Result<AgentGrants> {
 /// Writes `row` under its derived id: a new one is inserted, a known one updated.
 pub fn set(tx: &mut CrdtTransaction<'_>, row: &AgentFilePermission) -> Result<()> {
     let target_ok = match row.kind {
-        AgentFileKind::Device | AgentFileKind::FileShares => {
+        AgentFileKind::Device | AgentFileKind::FileShares | AgentFileKind::SyncRules => {
             row.target.is_empty() && row.reach.is_none()
         }
         AgentFileKind::Storage => !row.target.is_empty() && row.reach.is_none(),

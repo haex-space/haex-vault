@@ -16,6 +16,7 @@ export const ACTION_SCOPE_IDS = [
   'files.read',
   'files.write',
   'files.shares',
+  'files.syncRules',
   'contacts.read',
   'contacts.write',
   'browser',
@@ -54,6 +55,8 @@ const DESCRIPTIONS: Record<ActionScopeId, string> = {
     'Create folders, copy, rename, move and delete files of this device and of the storages granted for writing.',
   'files.shares':
     'List, create and change file shares to contacts and take access away. Agents need a permission of their own (spec 056 US6).',
+  'files.syncRules':
+    'List sync rules with their status; create, change and delete them after the user confirms each time. Agents need a permission of their own (spec 061 US5).',
   'contacts.read':
     'Search and read contacts of the address book, as far as the user allowed.',
   'contacts.write':

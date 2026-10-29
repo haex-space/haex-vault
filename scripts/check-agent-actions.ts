@@ -155,6 +155,7 @@ function nativeExecutorIds(): string[] {
     ...ids('files/agent/exec.rs', 'FILE_ACTION_IDS'),
     ...ids('files/agent/shares.rs', 'SHARE_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
+    ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
   ]
 }
 
@@ -189,11 +190,19 @@ test('contacts.share is destructive, asks for itself and needs the permission to
   // The action says that the user confirms every call, so a model does not ask for the link twice.
   assert.match(share.description, /every call/)
   // Only the actions with a dialog of their own skip the chat's approval.
+  const confirming = [
+    'contacts.share',
+    'syncRules.create',
+    'syncRules.update',
+    'syncRules.delete',
+  ]
   assert.deepEqual(
-    ALL_ACTIONS.filter((a) => a.confirmsItself).map((a) => a.id),
-    ['contacts.share'],
+    ALL_ACTIONS.filter((a) => a.confirmsItself)
+      .map((a) => a.id)
+      .sort(),
+    [...confirming].sort(),
   )
-  for (const other of ALL_ACTIONS.filter((a) => a.id !== 'contacts.share'))
+  for (const other of ALL_ACTIONS.filter((a) => !confirming.includes(a.id)))
     assert.equal(
       toAgentActionDef(other, titleOf).confirmsItself,
       undefined,
@@ -547,6 +556,37 @@ test('agents manage file shares in Rust, under a permission of their own (spec 0
     assert.equal(action.scope, 'files.shares', action.id)
     assert.equal(action.agentCallable, true, action.id)
     assert.equal(action.runner, 'native', action.id)
+  }
+})
+
+test('agents manage sync rules in Rust under a permission of their own, and confirm every change (spec 061 FR-035)', () => {
+  const rules = ALL_ACTIONS.filter((a) => a.id.startsWith('syncRules.'))
+  assert.deepEqual(rules.map((a) => a.id).sort(), [
+    'syncRules.create',
+    'syncRules.delete',
+    'syncRules.list',
+    'syncRules.status',
+    'syncRules.update',
+  ])
+  const source = readFileSync(
+    new URL('../src-tauri/src/file_sync/agent.rs', import.meta.url),
+    'utf8',
+  )
+  const asking = /CONFIRMING_ACTION_IDS: &\[&str\] =\s*&\[([^\]]*)\]/.exec(
+    source,
+  )?.[1]
+  assert.ok(asking, 'CONFIRMING_ACTION_IDS not found')
+  const askingIds = [...asking.matchAll(/"([^"]+)"/g)].map((m) => m[1])
+  for (const action of rules) {
+    assert.equal(action.scope, 'files.syncRules', action.id)
+    assert.equal(action.agentCallable, true, action.id)
+    assert.equal(action.runner, 'native', action.id)
+    const changes = action.effect !== 'read'
+    assert.equal(action.effect, changes ? 'destructive' : 'read', action.id)
+    // The dialog of its own and the executor agree, so the user is asked once, every call.
+    assert.equal(action.confirmsItself === true, changes, action.id)
+    assert.equal(askingIds.includes(action.id), changes, action.id)
+    if (changes) assert.match(action.description, /every call/, action.id)
   }
 })
 

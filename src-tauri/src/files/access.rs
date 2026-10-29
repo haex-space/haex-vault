@@ -79,6 +79,8 @@ pub struct AgentGrants {
     pub folders: HashMap<String, FolderGrant>,
     /// "Dateifreigaben verwalten" (spec 056 FR-045); off without a row.
     pub file_shares: bool,
+    /// "Sync-Regeln verwalten" (spec 061 FR-035); off without a row.
+    pub sync_rules: bool,
 }
 
 impl AgentGrants {

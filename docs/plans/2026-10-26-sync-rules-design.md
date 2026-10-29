@@ -28,8 +28,8 @@ cloud backup are the same mechanism.
 
 ## Model
 
-**Rule** (device-local): name, active or paused, place A and place B (each storage plus folder path),
-direction (A→B, B→A, both), deletion mode, interval. Two rules may not overlap; creating one checks
+**Rule** (device-local): name, active or paused, source and target place (each storage plus folder path),
+direction (source → target, or both), deletion mode, interval. Two rules may not overlap; creating one checks
 that.
 
 **State** per rule and file: relative path, size and modification time on side A and on side B at the

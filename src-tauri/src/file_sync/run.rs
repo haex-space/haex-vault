@@ -415,8 +415,8 @@ fn skip_reason(reason: SkipReason) -> &'static str {
 
 fn name(side: SyncRuleSide) -> &'static str {
     match side {
-        SyncRuleSide::A => "place A",
-        SyncRuleSide::B => "place B",
+        SyncRuleSide::A => "source",
+        SyncRuleSide::B => "target",
     }
 }
 
