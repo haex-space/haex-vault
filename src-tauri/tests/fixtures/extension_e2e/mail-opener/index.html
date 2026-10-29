@@ -25,7 +25,13 @@
       window.addEventListener('message', (event) => {
         if (event.source !== window.parent) return
         const data = event.data
-        if (!data || data.type !== 'haexspace:port:init' || !event.ports[0] || port) return
+        if (
+          !data ||
+          data.type !== 'haexspace:port:init' ||
+          !event.ports[0] ||
+          port
+        )
+          return
         port = event.ports[0]
         port.onmessage = (message) => {
           const answer = message.data
@@ -35,7 +41,8 @@
             const result = answer.result === undefined ? answer : answer.result
             // A later `null` must not wipe a request that was shown.
             if (result !== null) {
-              document.getElementById('request').textContent = JSON.stringify(result)
+              document.getElementById('request').textContent =
+                JSON.stringify(result)
             }
           } else if (answer && answer.type === 'opener-request') {
             take()
