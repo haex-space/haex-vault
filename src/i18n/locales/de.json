@@ -2882,6 +2882,13 @@
         "paused": "pausiert",
         "inactive": "holzi nicht aktiv"
       },
+      "filter": "Regeln durchsuchen",
+      "noMatch": "Keine Regel passt zur Suche.",
+      "columns": {
+        "name": "Name",
+        "status": "Status",
+        "lastRun": "Letzter Abgleich"
+      },
       "progress": {
         "label": "Fortschritt",
         "scanning": "Orte werden verglichen …",

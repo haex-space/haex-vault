@@ -2882,6 +2882,13 @@
         "paused": "paused",
         "inactive": "holzi not active"
       },
+      "filter": "Search rules",
+      "noMatch": "No rule matches the search.",
+      "columns": {
+        "name": "Name",
+        "status": "State",
+        "lastRun": "Last sync"
+      },
       "progress": {
         "label": "Progress",
         "scanning": "Comparing the places …",

@@ -5,12 +5,15 @@ import { test } from 'node:test'
 
 import {
   canSave,
+  filterRules,
   childPath,
   defaultDeleteMode,
   intervalSecs,
   lastName,
   needsDecryptConsent,
   progressShare,
+  sortRules,
+  type RuleRow,
   parentPath,
   shownState,
   showsCloudHint,
@@ -116,4 +119,56 @@ test('the progress of a run is the share of bytes, else of files, and unknown wh
     }),
     1,
   )
+})
+
+const rows: RuleRow[] = [
+  {
+    name: 'Fotos 10',
+    state: 'active',
+    lastRunAt: '2026-10-27T10:00:00Z',
+    places: '/home/anna/Bilder → Cloud /Fotos',
+  },
+  {
+    name: 'Fotos 2',
+    state: 'running',
+    lastRunAt: null,
+    places: '/home/anna/Kamera → Cloud /Kamera',
+  },
+  {
+    name: 'Dokumente',
+    state: 'error',
+    lastRunAt: '2026-10-28T08:00:00Z',
+    places: '/home/anna/Dokumente → NAS /Dokumente',
+  },
+]
+
+test('rules sort by name with numbers in order, by state with the busy first, and by last run', () => {
+  const names = (sorted: RuleRow[]) => sorted.map((row) => row.name)
+  assert.deepEqual(names(sortRules(rows, { key: 'name', ascending: true })), [
+    'Dokumente',
+    'Fotos 2',
+    'Fotos 10',
+  ])
+  assert.deepEqual(names(sortRules(rows, { key: 'status', ascending: true })), [
+    'Fotos 2',
+    'Dokumente',
+    'Fotos 10',
+  ])
+  assert.deepEqual(
+    names(sortRules(rows, { key: 'lastRun', ascending: false })),
+    ['Dokumente', 'Fotos 10', 'Fotos 2'],
+  )
+})
+
+test('the filter needs every word in the name or the places', () => {
+  assert.equal(filterRules(rows, '').length, 3)
+  assert.deepEqual(
+    filterRules(rows, 'fotos cloud').map((row) => row.name),
+    ['Fotos 10', 'Fotos 2'],
+  )
+  assert.deepEqual(
+    filterRules(rows, 'NAS').map((row) => row.name),
+    ['Dokumente'],
+  )
+  assert.equal(filterRules(rows, 'nichts').length, 0)
 })
