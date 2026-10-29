@@ -47,7 +47,7 @@ Rust (`crates/haex-bundle`) und TypeScript; in `haextension` Nuxt (haex-mail).
 Speicher (FR-017: nie auf Dauer).
 
 **Testing**: `cargo test` (`openers/*_tests.rs`, Manifest-, Bridge- und Inbox-Tests), Node-Checks
-(`scripts/check-openers-*.ts`), E2E-Szenarien `contacts-mail-openers` (Desktop) und
+(`scripts/check-extensions-openers-*.ts`), E2E-Szenarien `contacts-mail-openers` (Desktop) und
 `android-mail-link` (Android); im `vault-sdk` Tests der Prüfung und der Testvektoren.
 
 **Target Platform**: Linux, macOS, Windows, Android (Registrierung für `mailto` je Plattform, R5).
@@ -129,7 +129,7 @@ src/
 ├── pages/workspace/[instance].vue        # Dialog einhängen
 └── i18n/locales/{de,en}.json             # mail.openers.*
 
-scripts/check-openers-*.ts, scripts/e2e/scenarios/{contacts-mail-openers,android-mail-link}.test.ts
+scripts/check-extensions-openers-*.ts, scripts/e2e/scenarios/{contacts-mail-openers,android-mail-link}.test.ts
 
 # andere Repos
 vault-sdk:   crates/haex-bundle/src/{openers.rs,format.rs}, src/types.ts, src/client.ts (openers.take)

@@ -2,7 +2,7 @@
 /**
  * What a value of a contact offers (spec 051, FR-006): copy it everywhere; on a phone call, write
  * a message or open the map with the apps of the system; e-mail addresses and web pages open on
- * every device.
+ * every device. With an extension that writes mail the mail button asks first (spec 063).
  */
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { toast } from 'vue-sonner'
@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 const { isAndroid } = useDeviceCapabilities()
+const { behavior: mailBehavior } = useMailOpeners()
 
 const ICONS = {
   call: 'lucide:phone',
@@ -56,18 +57,23 @@ async function openAsync(url: string) {
 
 <template>
   <div class="flex shrink-0 items-center gap-1">
-    <UiButton
-      v-for="target in targets"
-      :key="target.action"
-      variant="ghost"
-      size="icon"
-      :aria-label="t(`contacts.open.${target.action}`, { what: label })"
-      :tooltip="t(`contacts.open.${target.action}`, { what: label })"
-      :data-testid="`contacts-open-${target.action}`"
-      @click="openAsync(target.url)"
-    >
-      <Icon :name="ICONS[target.action]" class="size-4" />
-    </UiButton>
+    <template v-for="target in targets" :key="target.action">
+      <ContactsMailOpenMenu
+        v-if="target.action === 'mail' && mailBehavior === 'menu'"
+        :url="target.url"
+      />
+      <UiButton
+        v-else
+        variant="ghost"
+        size="icon"
+        :aria-label="t(`contacts.open.${target.action}`, { what: label })"
+        :tooltip="t(`contacts.open.${target.action}`, { what: label })"
+        :data-testid="`contacts-open-${target.action}`"
+        @click="openAsync(target.url)"
+      >
+        <Icon :name="ICONS[target.action]" class="size-4" />
+      </UiButton>
+    </template>
     <UiButton
       variant="ghost"
       size="icon"

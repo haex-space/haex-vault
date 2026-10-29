@@ -81,6 +81,8 @@ pub struct ExtensionHost {
     pub encrypted: super::encrypted_folder_choose::EncryptedFolderState,
     /// Channels to the same extension on devices of other vaults (spec 057).
     pub peers: super::peers::PeerState,
+    /// The links people handed to extensions, until the extension takes them (spec 063).
+    pub openers: crate::openers::requests::OpenRequests,
     /// Entry and Content-Security-Policy per bundle started in this process.
     started: Mutex<HashMap<Uuid, Arc<Started>>>,
     /// The bundle each extension last started with on this device, to see an update.

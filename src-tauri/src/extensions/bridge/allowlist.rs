@@ -2,7 +2,7 @@
 //! can call, with its handler. [`super::dispatch::call`] runs nothing else.
 
 use super::dispatch::Method;
-use super::{database, methods, model_jobs, permissions};
+use super::{database, methods, model_jobs, openers, permissions};
 use crate::extensions::{
     contacts, encrypted_folder, fs, kv, logs, mail, notifications, passwords, peers,
     remote_storage, remote_storage_manage, remote_storage_propose, shell, web,
@@ -44,6 +44,11 @@ pub static METHODS: &[Method] = &[
         name: "extension_get_info",
         handler: methods::get_info,
         module: methods::MODULE,
+    },
+    Method {
+        name: "extension_opener_take",
+        handler: openers::take,
+        module: openers::MODULE,
     },
     Method {
         name: "extension_tab_attention",

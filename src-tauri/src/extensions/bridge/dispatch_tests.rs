@@ -55,6 +55,11 @@ pub(in crate::extensions::bridge) struct Setup {
 }
 
 pub(in crate::extensions::bridge) fn setup() -> Setup {
+    setup_with("extension_bundles/good-notes-like.xt")
+}
+
+/// A frame of the extension installed from `bundle`, a path below `tests/fixtures/`.
+pub(in crate::extensions::bridge) fn setup_with(bundle: &str) -> Setup {
     let (dir, db) = open_test_vault();
     let vault = VaultGate::new().vault_db(Arc::new(db.clone())).unwrap();
     let device = vault
@@ -63,7 +68,8 @@ pub(in crate::extensions::bridge) fn setup() -> Setup {
         .vault_device_uuid;
     let bytes = std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/extension_bundles/good-notes-like.xt"),
+            .join("tests/fixtures")
+            .join(bundle),
     )
     .unwrap();
     let extension = install(&vault, &bytes, vec![], false, device, 1)

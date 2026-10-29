@@ -3361,6 +3361,12 @@
       "lookupFailed": "The file shares could not be checked. Deletion remains disabled."
     }
   },
+  "mail": {
+    "openers": {
+      "system": "Open with the system",
+      "notTaken": "{name} did not take the e-mail. Try again."
+    }
+  },
   "browserBridge": {
     "approval": {
       "title": "Allow a browser extension?",

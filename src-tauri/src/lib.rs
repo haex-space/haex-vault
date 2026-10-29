@@ -130,6 +130,7 @@ use models::commands::{
 };
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
+use openers::commands::{opener_mail_check, opener_mail_open};
 use passwords::commands::agent::passwords_agent_search;
 use passwords::commands::attachments::{
     passwords_attachment_add, passwords_attachment_open, passwords_attachment_open_system,
@@ -804,6 +805,8 @@ pub fn run() {
             extension_agent_frame_ready,
             extension_agent_tools_set,
             extension_host_context_set,
+            opener_mail_check,
+            opener_mail_open,
             extension_dialog_resolve,
             extension_encrypted_folder_choose_resolve,
             extension_peer_invitation_answer,

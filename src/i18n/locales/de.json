@@ -3361,6 +3361,12 @@
       "lookupFailed": "Die Dateifreigaben konnten nicht geprüft werden. Das Löschen bleibt gesperrt."
     }
   },
+  "mail": {
+    "openers": {
+      "system": "Mit dem System öffnen",
+      "notTaken": "{name} hat die E-Mail nicht übernommen. Versuche es noch einmal."
+    }
+  },
   "browserBridge": {
     "approval": {
       "title": "Browser-Erweiterung zulassen?",

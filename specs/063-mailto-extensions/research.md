@@ -132,7 +132,7 @@ von `vault-sdk`.
 
 - **Entscheidung** (Klärung 2026-10-28): Bei einem Link von außen bietet der Dialog „Mit dem System öffnen“
   nie an; nur beim Mail-Knopf im Adressbuch ruft holzi `openUrl('mailto:…')` auf. Der Aufruf des Systems
-  steht nur in `MailOpenMenu.vue`/`ValueActions.vue`; ein Check (`check-openers-*.ts`) stellt sicher, dass
+  steht nur in `MailOpenMenu.vue`/`ValueActions.vue`; ein Check (`check-extensions-openers-*.ts`) stellt sicher, dass
   `MailLinkDialog.vue` `openUrl` nicht importiert.
 - **Verworfen**: Erkennung des Standardprogramms je Plattform und eine Markierung beim Weiterreichen (siehe
   Klärung).

@@ -154,6 +154,18 @@ export function useExtensionHost() {
     'notifications shown in holzi',
   )
 
+  // An extension did not take the mail a person gave it in time (spec 063): the person hears it
+  // instead of an empty tab waiting for them.
+  keep(
+    listen<{ extensionId: string }>('opener-request-expired', (event) => {
+      const title =
+        extensions.list.find((e) => e.id === event.payload.extensionId)
+          ?.title ?? ''
+      toast.error(t('mail.openers.notTaken', { name: title }))
+    }),
+    'mail requests that no extension took',
+  )
+
   // An invitation of a contact to an extension (spec 057 US1): holzi's own prompt asks the user,
   // and the window comes forward when the user clicked the notification that told of it. The
   // prompt goes when the invitation does (withdrawn, expired, taken by another device).
