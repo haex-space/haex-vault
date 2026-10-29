@@ -109,11 +109,43 @@ von `vault-sdk`.
   draußen, und die Spec bekommt eine Ausnahme für Windows.
 - **macOS**: `CFBundleURLSchemes` macht holzi wählbar, nicht zum Standard.
 
+### Ergebnis des Spikes (T001, 2026-10-29)
+
+Gelesen in den Quellen, nicht auf Geräten ausprobiert: `tauri-plugin-deep-link` 2.6.2
+(`android/src/main/java/DeepLinkPlugin.kt`, `build.rs`, `src/lib.rs`), `tauri-utils` 2.10.1
+(`src/config/parse.rs`) und `crates/tauri-bundler` von `tauri-apps/tauri` (`bundle/windows/nsis/installer.nsi`,
+`bundle/windows/msi/main.wxs`, `bundle/linux/freedesktop/mod.rs`); das CLI hier ist 2.6.2.
+
+- **Android**: Das Plugin gibt nur Intents der Aktion `ACTION_VIEW` (und der ARC-Variante) an `onOpenUrl`
+  (`isViewIntent`), in `load` und in `onNewIntent`. Ein Link der Aktion `ACTION_SENDTO` kommt nicht an. Der
+  erzeugte Filter hört nur auf `VIEW`. Ein `mailto:` ohne Host und ohne Pfadregeln besteht die Prüfung
+  `isDeepLink`, wenn `mobile` `{ "scheme": ["mailto"] }` enthält. Darum: (1) ein eigener Filter für
+  `ACTION_SENDTO` mit `mailto` in `AndroidManifest.xml` außerhalb des erzeugten Blocks; (2) `MainActivity`
+  schreibt einen `SENDTO`-Intent mit `mailto:`-Daten vor `super.onCreate` und vor `super.onNewIntent` auf
+  `ACTION_VIEW` um. So braucht es keinen Weg über `tauri-plugin-holzi-android`; der Rest läuft wie bei Links
+  von Spec 060. Offen bleibt nur der Versuch auf einem Gerät (T023 prüft `VIEW`; `SENDTO` bleibt ein
+  Handversuch im Quickstart).
+- **Windows**: Beides, NSIS (`WriteRegStr SHCTX "Software\Classes\<scheme>" …`, samt `shell\open\command`) und
+  WiX (`HKLM … Software\Classes\<scheme>`), schreibt den Klassenschlüssel des Schemas. Für `mailto` würde das
+  die Klasse des vorhandenen Mail-Programms ersetzen, holzi zum Standard machen (FR-016 verletzt), und der
+  Deinstaller löscht den Schlüssel wieder. `mailto` kommt deshalb **nicht** in das Windows-Paket. Das CLI liest
+  `plugins.deep-link.desktop` aus der Konfiguration des Ziels, und `tauri.windows.conf.json` wird über die
+  Basis gelegt (`tauri-utils` `parse.rs`): Die Basis führt `["haex-vault", "mailto"]`, die Datei für Windows
+  überschreibt `desktop.schemes` mit `["haex-vault"]`. Folge: Auf Windows gibt es keinen Link von außen für
+  `mailto`; der Mail-Knopf und die Auswahl im Adressbuch gehen weiter (Ausnahme in FR-016 und SC-005).
+- **Linux**: Das Paket trägt `x-scheme-handler/mailto` in `MimeType` der `.desktop`-Datei ein
+  (`freedesktop/mod.rs`) und ruft `xdg-mime default` nicht auf. holzi ist damit wählbar. Hat ein Rechner gar
+  kein Programm für `mailto`, kann `xdg-open` holzi nehmen; das ist keine Systemänderung durch holzi. Anders
+  die Entwicklung: `register_all()` des Plugins ruft `xdg-mime default` und macht holzi zum Standard, darum
+  `register("haex-vault")`.
+- **macOS**: unverändert (`CFBundleURLSchemes`).
+
 ## R6 Eingang von außen und gesperrte Vault
 
 - **Entscheidung**: `useDeepLink.handle` unterscheidet nach Schema: `haex-vault://contact/…` geht wie bisher
   an `shareInbox`, `mailto:` an den neuen Speicher `mailInbox`. Rust passt `contact_link` zu
-  `known_link` an, das beide Schemata durchlässt (gleiche Grenze von 32 KiB); der Posteingang zwischen
+  `known_link` an, das beide Schemata durchlässt (jedes mit seiner Grenze: Kontakt-Link 16 KiB wie bisher,
+  `mailto:` 32 KiB); der Posteingang zwischen
   Prozessen bleibt derselbe (R9 von Spec 060).
 - `mailInbox` hält höchstens einen Link: ein neuer ersetzt den wartenden, auch wenn dessen Dialog offen ist
   (Klärung 2026-10-28). Er lebt nur im Speicher des Prozesses, überlebt den Weg von `/` nach

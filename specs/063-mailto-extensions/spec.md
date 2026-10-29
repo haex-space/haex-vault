@@ -233,6 +233,8 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 - **FR-016**: holzi MUSS sich beim Betriebssystem als Programm für E-Mail-Links eintragen können, auf
   dem Desktop und auf Android, so dass der Nutzer es im System als Öffner wählen kann. holzi DARF sich
   nicht selbst zum Standard machen oder eine Systemeinstellung ändern; die Wahl bleibt beim Nutzer.
+  Ausnahme Windows: Der Installer dort schreibt für ein Schema den Klassenschlüssel des Systems und würde
+  holzi zum Standard machen; darum trägt sich holzi dort nicht für E-Mail-Links ein (research R5).
 - **FR-017**: Kommt ein E-Mail-Link von außen, MUSS holzi die Öffnen-Auswahl für genau diesen Link
   zeigen (FR-002 bis FR-005). Ist die Vault gesperrt, MUSS holzi den Link bis nach dem Entsperren
   vormerken und danach die Auswahl zeigen. holzi hält dabei höchstens einen Link: Ein neuer ersetzt den
@@ -277,8 +279,8 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 - **SC-004**: 100 % der gültigen E-Mail-Links nach RFC 6068 aus einer Testsammlung (mehrere Empfänger,
   Kodierung, nicht-ASCII, ohne Empfänger) kommen mit den richtigen Feldern an; 100 % der Links mit
   Zeilenumbrüchen in Empfänger oder Betreff, ungültiger Form oder über den Grenzen werden abgelehnt.
-- **SC-005**: Ein Link von außen führt auf Desktop und Android von der Auswahl zum Schreib-Dialog mit
-  allen Feldern des Links, auch wenn die Vault zuerst entsperrt werden muss.
+- **SC-005**: Ein Link von außen führt auf Linux, macOS und Android von der Auswahl zum Schreib-Dialog mit
+  allen Feldern des Links, auch wenn die Vault zuerst entsperrt werden muss (nicht auf Windows, FR-016).
 - **SC-006**: Eine angemeldete Extension erscheint innerhalb von 2 Sekunden nach dem Aktivieren in der
   Auswahl und nach dem Deaktivieren nicht mehr.
 

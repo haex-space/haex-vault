@@ -199,6 +199,7 @@ async function consumeDeepLink(): Promise<void> {
     <FilesShareConfirmDialog />
     <FilesSyncRuleConfirmDialog />
     <ContactsShareConfirmDialog />
+    <MailLinkDialog :ready="sessionRestored" />
     <WmDesktop class="min-h-0 flex-1" />
   </div>
 </template>

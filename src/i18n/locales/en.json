@@ -3388,6 +3388,17 @@
     }
   },
   "mail": {
+    "link": {
+      "title": "Open e-mail link",
+      "unreadable": "The link cannot be read.",
+      "to": "To",
+      "subject": "Subject",
+      "openWith": "What should open the link?",
+      "none": "No opener installed. You can copy the link.",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "copyFailed": "Copying failed."
+    },
     "openers": {
       "system": "Open with the system",
       "notTaken": "{name} did not take the e-mail. Try again."

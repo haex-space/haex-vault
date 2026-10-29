@@ -3388,6 +3388,17 @@
     }
   },
   "mail": {
+    "link": {
+      "title": "E-Mail-Link öffnen",
+      "unreadable": "Der Link kann nicht gelesen werden.",
+      "to": "An",
+      "subject": "Betreff",
+      "openWith": "Womit soll der Link geöffnet werden?",
+      "none": "Kein Öffner installiert. Du kannst den Link kopieren.",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
+      "copyFailed": "Kopieren ist fehlgeschlagen."
+    },
     "openers": {
       "system": "Mit dem System öffnen",
       "notTaken": "{name} hat die E-Mail nicht übernommen. Versuche es noch einmal."

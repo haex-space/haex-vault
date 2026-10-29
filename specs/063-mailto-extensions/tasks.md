@@ -25,7 +25,7 @@ gibt; Geschichte 2 baut auf dem Deep-Link-Weg aus Spec 060 auf (gemergt).
 
 **Zweck**: die zwei Annahmen prüfen, die den Umfang der Registrierung ändern (research R5).
 
-- [ ] T001 Spike zur Registrierung von `mailto`: (a) Android: nimmt das Plugin einen Link der Aktion `ACTION_SENDTO` an
+- [x] T001 Spike zur Registrierung von `mailto`: (a) Android: nimmt das Plugin einen Link der Aktion `ACTION_SENDTO` an
       `onOpenUrl`, mit `adb shell am start -a android.intent.action.SENDTO -d mailto:a@example.org`? Wenn nicht, ist ein
       eigener Filter und die Weitergabe in `src-tauri/plugins/holzi-android` nötig (T019). (b) Windows: schreibt der
       Installer (NSIS/WiX) für `mailto` Einträge unter `Software\Classes\mailto` (macht holzi zum Standard, FR-016
@@ -159,34 +159,38 @@ der Knopf beim System.
 
 **Unabhängiger Test**: Android: `phone.openLink('mailto:…')` zeigt den Dialog, auch nach dem Entsperren.
 
-- [ ] T019 [US2] Registrierung: `src-tauri/tauri.conf.json` (`plugins.deep-link.desktop.schemes` um `mailto`,
+- [x] T019 [US2] Registrierung: `src-tauri/tauri.conf.json` (`plugins.deep-link.desktop.schemes` um `mailto`,
       `mobile` um `{ "scheme": ["mailto"] }`), `src-tauri/gen/android/app/src/main/AndroidManifest.xml` (den vom Plugin
-      erzeugten Block neu erzeugen und einchecken; bei Befund aus T001 zusätzlich ein eigener Filter für
-      `ACTION_SENDTO` und die Weitergabe in `src-tauri/plugins/holzi-android`);
+      erzeugten Block neu erzeugen und einchecken; nach dem Spike (research R5) zusätzlich ein eigener Filter für
+      `ACTION_SENDTO` mit `mailto` außerhalb des erzeugten Blocks, und `gen/android/.../MainActivity.kt` schreibt einen
+      `SENDTO`-Intent mit `mailto:`-Daten in `onCreate` (vor `super.onCreate`) und `onNewIntent` (vor `super`) auf
+      `ACTION_VIEW` um; keine Weitergabe über `src-tauri/plugins/holzi-android`); `src-tauri/tauri.windows.conf.json` (neu)
+      setzt `plugins.deep-link.desktop.schemes` auf `["haex-vault"]`, weil der Windows-Installer den Klassenschlüssel von
+      `mailto` schreiben würde;
       `src-tauri/src/deep_link/mod.rs`: `register_for_development` registriert nur `haex-vault`
       (`register("haex-vault")` statt `register_all()`, FR-016); `scripts/check-extensions-openers-registration.ts` (neu): liest
-      `tauri.conf.json` und prüft beide Schemata, und dass der Quelltext von `register_for_development` `register_all`
-      nicht enthält; bei Befund (b) aus T001 `mailto` nicht für Windows eintragen und die Spec anpassen.
-- [ ] T020 [US2] `src-tauri/src/deep_link/mod.rs`: `contact_link` wird `known_link`, lässt `haex-vault://contact/…` und
-      `mailto:…` durch (gleiche Grenze 32 KiB; `first_contact_link` → `first_known_link`, alle Aufrufer anpassen);
+      `tauri.conf.json` und prüft beide Schemata, dass `tauri.windows.conf.json` nur `haex-vault` führt, und dass der
+      Quelltext von `register_for_development` `register_all` nicht enthält.
+- [x] T020 [US2] `src-tauri/src/deep_link/mod.rs`: `contact_link` wird `known_link`, lässt `haex-vault://contact/…` und
+      `mailto:…` durch (jedes Schema behält seine Grenze: Kontakt-Link 16 KiB, `mailto:` 32 KiB; `first_contact_link` → `first_known_link`, alle Aufrufer anpassen);
       `src-tauri/src/deep_link/inbox.rs`: `claim_next(dir, focused)`, ein Prozess ohne fokussiertes Fenster holt eine
       Datei erst, wenn sie älter als 1 s ist (`research.md` R6); `watch` fragt `window.is_focused()`; Tests in
       `mod_tests.rs` (`mailto:` wird durchgelassen, fremde Schemata nicht) und `inbox_tests.rs` (fokussiert holt
       sofort, nicht fokussiert nach 1 s, zwei Abholer genau einer).
-- [ ] T021 [P] [US2] `src/lib/mail/link.ts` (neu, rein): `mailLinkText(url)` (nur `mailto:`, höchstens 32 KiB, sonst
+- [x] T021 [P] [US2] `src/lib/mail/link.ts` (neu, rein): `mailLinkText(url)` (nur `mailto:`, höchstens 32 KiB, sonst
       `null`) und `acceptMailLink(url, pending)` (der neueste ersetzt den wartenden, ein gleicher Link innerhalb von 3 s
       zählt einmal); `src/stores/mailInbox.ts` (neu, Pinia: `link`, `park`, `take`);
       `src/composables/useDeepLink.ts`: `handle` unterscheidet nach Schema (Kontakt-Link wie bisher an `shareInbox`,
       `mailto:` an `mailInbox`); `scripts/check-extensions-openers-link.ts` (neu): fremdes Schema, zu lang, ein zweiter Link ersetzt
       den ersten, derselbe zweimal einmal, `haex-vault`-Links gehen weiter an `shareInbox`.
-- [ ] T022 [US2] `src/components/mail/MailLinkDialog.vue` (neu, `UiDrawerModal`): nimmt den Link aus `mailInbox`, ruft
+- [x] T022 [US2] `src/components/mail/LinkDialog.vue` (neu, Nuxt nennt sie `MailLinkDialog`; `UiDrawerModal`): nimmt den Link aus `mailInbox`, ruft
       `opener_mail_check`; bei Fehler „Der Link kann nicht gelesen werden“ ohne Zeilen; sonst eine Zeile je Öffner
       (`openWithAsync`) und „Link kopieren“, ohne Öffner der Satz „Kein Öffner installiert“; **kein**
       `openUrl`/„Mit dem System öffnen“ (FR-018); öffnet nie selbst etwas (FR-020); Testids `mail-link-dialog`,
       `mail-link-open-<extensionId>`, `mail-link-copy`, `mail-link-error`, `mail-link-none`; in
       `src/pages/workspace/[instance].vue` nach `sessionRestored` einhängen; ein neuer Link ersetzt den Inhalt eines
-      offenen Dialogs; `scripts/check-extensions-openers-menu.ts` ergänzen: `MailLinkDialog.vue` importiert `openUrl` nicht.
-- [ ] T023 [US2] E2E `scripts/e2e/scenarios/android-mail-link.test.ts` (neu, Telefon): `phone.openLink('mailto:ben@example.org?subject=Hallo')`
+      offenen Dialogs; `scripts/check-extensions-openers-menu.ts` ergänzen: `LinkDialog.vue` importiert `openUrl` nicht.
+- [x] T023 [US2] E2E `scripts/e2e/scenarios/android-mail-link.test.ts` (neu, Telefon): `phone.openLink('mailto:ben@example.org?subject=Hallo')`
       bei geöffneter Vault zeigt den Dialog ohne „Mit dem System öffnen“ und mit der Zeile des Testöffners
       (`mail-opener.xt`); Öffnen zeigt die Felder; bei gesperrter Vault wartet der Link und der Dialog erscheint nach
       dem Entsperren (Muster von `android-contacts-deeplink`); zwei Links nacheinander: der Dialog zeigt den zweiten;

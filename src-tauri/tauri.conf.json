@@ -51,8 +51,11 @@
   },
   "plugins": {
     "deep-link": {
-      "desktop": { "schemes": ["haex-vault"] },
-      "mobile": [{ "scheme": ["haex-vault"], "host": "contact" }]
+      "desktop": { "schemes": ["haex-vault", "mailto"] },
+      "mobile": [
+        { "scheme": ["haex-vault"], "host": "contact" },
+        { "scheme": ["mailto"] }
+      ]
     }
   },
   "bundle": {
