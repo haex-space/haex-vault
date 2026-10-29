@@ -135,7 +135,8 @@ async function confirmDeleteAsync() {
               <div class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate font-medium">{{ view.rule.name }}</span>
                 <span class="truncate text-xs text-muted-foreground">
-                  {{ placeLabel(view.rule.placeA) }} →
+                  {{ placeLabel(view.rule.placeA) }}
+                  {{ view.rule.direction === 'both' ? '↔' : '→' }}
                   {{ placeLabel(view.rule.placeB) }}
                 </span>
                 <span class="text-xs text-muted-foreground">

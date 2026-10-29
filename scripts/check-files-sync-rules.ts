@@ -14,6 +14,7 @@ import {
   parentPath,
   shownState,
   showsCloudHint,
+  targetSides,
 } from '../src/lib/files/syncRules.ts'
 
 test('a new rule mirrors both ways and keeps one way (FR-005)', () => {
@@ -43,6 +44,12 @@ test('the dialog asks for consent and points to encrypted folders', () => {
   assert.equal(showsCloudHint(true, false), true)
   assert.equal(showsCloudHint(true, true), false)
   assert.equal(showsCloudHint(false, false), false)
+})
+
+test('a two-way rule copies into both places (FR-011)', () => {
+  assert.deepEqual(targetSides('aToB'), ['b'])
+  assert.deepEqual(targetSides('bToA'), ['a'])
+  assert.deepEqual(targetSides('both'), ['a', 'b'])
 })
 
 test('paths of the picker go up and down on every platform', () => {

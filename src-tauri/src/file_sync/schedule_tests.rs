@@ -1,6 +1,6 @@
 //! The control loop with a fake runner and a paused clock (no sleep): catch-up after the open, the
-//! interval, a quiet watched place, "Jetzt abgleichen", one run per rule, at most two at once, and
-//! the end of the session.
+//! interval, a quiet watched place, "Jetzt abgleichen", one run per rule, at most two at once, a
+//! waiting rule woken by the devices, and the end of the session.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -258,6 +258,22 @@ async fn a_reload_runs_a_rule_that_was_enabled_or_reconfigured() {
     settle(TICK).await;
     assert_eq!(runs(&l), ["a", "a"]);
 
+    l.token.cancel();
+    l.task.await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_change_of_the_devices_wakes_only_waiting_rules() {
+    let mut waiting = rule("waiting", true, true);
+    waiting.last_outcome = Some(SyncRuleOutcome::Waiting);
+    let l = start(vec![waiting, rule("done", true, true)]);
+    settle(TICK).await;
+    assert_eq!(runs(&l).len(), 2, "both catch up");
+    // The fake's rows keep saying "waiting" for the first rule.
+    l.commands.send(Command::Wake).unwrap();
+    settle(TICK).await;
+    let count = |id: &str| runs(&l).iter().filter(|run| *run == id).count();
+    assert_eq!((count("waiting"), count("done")), (2, 1));
     l.token.cancel();
     l.task.await.unwrap();
 }

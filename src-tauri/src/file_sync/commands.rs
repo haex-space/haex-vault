@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager};
 
-use super::model::{SyncRule, SyncRuleDirection, SyncRuleDraft};
+use super::model::{SyncRule, SyncRuleDraft};
 use super::rules::{validate, SyncRuleError, SyncRuleErrorCode};
 use super::schedule::{Command, Shared};
 use super::service::FileSyncState;
@@ -95,20 +95,6 @@ async fn others(
     Ok(rules)
 }
 
-fn checked(
-    draft: SyncRuleDraft,
-    others: &[SyncRule],
-    own: &OwnPlaces,
-) -> Result<SyncRuleDraft, SyncRuleError> {
-    if draft.direction == SyncRuleDirection::Both {
-        return Err(SyncRuleError::new(
-            SyncRuleErrorCode::Unsupported,
-            "two-way rules come with a later version",
-        ));
-    }
-    validate(draft, others, own)
-}
-
 /// Creates a rule of `device`.
 pub async fn create(
     db: &VaultDb,
@@ -116,7 +102,7 @@ pub async fn create(
     own: &OwnPlaces,
     draft: SyncRuleDraft,
 ) -> Result<SyncRule, SyncRuleError> {
-    let draft = checked(draft, &others(db, device, None).await?, own)?;
+    let draft = validate(draft, &others(db, device, None).await?, own)?;
     let id = uuid::Uuid::new_v4().to_string();
     let (owned, rule_id, now) = (device.to_owned(), id.clone(), clock::now());
     db.write(move |tx| {
@@ -137,7 +123,7 @@ pub async fn update(
     draft: SyncRuleDraft,
 ) -> Result<SyncRule, SyncRuleError> {
     rule_of(db, device, id).await?;
-    let draft = checked(draft, &others(db, device, Some(id)).await?, own)?;
+    let draft = validate(draft, &others(db, device, Some(id)).await?, own)?;
     let (owned, rule_id, now) = (device.to_owned(), id.to_owned(), clock::now());
     let found = db
         .write(move |tx| Ok(store::update_rule(tx, &owned, &rule_id, &draft, &now)?))

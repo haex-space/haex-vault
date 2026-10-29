@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use tokio_util::sync::CancellationToken;
 
+use super::ignore::{union_text, IGNORE_FILE, MAX_BYTES};
 use super::model::{SyncRule, SyncRuleSide};
 use super::place::{split, Facts, Listing, Place, Trashed};
 use super::plan::{Deviation, Step};
@@ -149,6 +150,7 @@ fn path_of(step: &Step) -> &str {
         Step::Folder { path, .. }
         | Step::Aside { path, .. }
         | Step::Copy { path, .. }
+        | Step::Conflict { path, .. }
         | Step::Adopt { path, .. }
         | Step::Delete { path, .. }
         | Step::Pending { path, .. }
@@ -156,6 +158,7 @@ fn path_of(step: &Step) -> &str {
         | Step::Report { path, .. }
         | Step::Forget { path } => path,
         Step::Move { from, .. } => from,
+        Step::MergeIgnore { .. } => IGNORE_FILE,
     }
 }
 
@@ -211,8 +214,23 @@ async fn run_step(
             path,
             replaces,
         } => {
-            copy(target, *from, path, *replaces).await?;
+            let planned = planned(target, *from, path)?;
+            copy(target, *from, path, &planned, *replaces).await?;
             done.counts.copied += 1;
+        }
+        Step::Conflict { path, keep, aside } => {
+            let planned = planned(target, *keep, path)?;
+            let older = keep.other();
+            let set_aside = put_aside(target, older, path, aside).await?;
+            copy(target, *keep, path, &planned, false).await?;
+            copy(target, older, aside, &set_aside, false).await?;
+            done.counts.conflicts += 1;
+            done.counts.copied += 2;
+        }
+        Step::MergeIgnore { aside_a, aside_b } => {
+            merge_ignore(target, aside_a, aside_b).await?;
+            done.counts.conflicts += 1;
+            done.counts.copied += 2;
         }
         Step::Adopt { path, hash } => {
             let (a, b) = (
@@ -311,15 +329,84 @@ fn changed_meanwhile() -> FilesError {
     )
 }
 
-/// Copies `path` from `from` to the other side, checks that the source did not change meanwhile,
-/// and notes both sides as they are now (FR-014 to FR-016).
+/// The facts the plan saw of `path` on `side`.
+fn planned(target: &Target<'_>, side: SyncRuleSide, path: &str) -> Result<Facts, FilesError> {
+    target
+        .listing(side)
+        .files
+        .get(path)
+        .cloned()
+        .ok_or_else(changed_meanwhile)
+}
+
+/// Moves the version of `path` on `side` to `aside` and returns its facts there.
+async fn put_aside(
+    target: &Target<'_>,
+    side: SyncRuleSide,
+    path: &str,
+    aside: &str,
+) -> Result<Facts, FilesError> {
+    let place = target.place(side);
+    place.rename(path, aside).await?;
+    place.stat(aside).await?.ok_or_else(changed_meanwhile)
+}
+
+/// Both exclusion files go aside and to the other side; the union of their patterns becomes the
+/// exclusion file of both places (FR-039).
+async fn merge_ignore(target: &Target<'_>, aside_a: &str, aside_b: &str) -> Result<(), StepError> {
+    let (a, b) = (target.place(SyncRuleSide::A), target.place(SyncRuleSide::B));
+    let text_a = a.read_text(IGNORE_FILE, MAX_BYTES).await?;
+    let text_b = b.read_text(IGNORE_FILE, MAX_BYTES).await?;
+    let (Some(text_a), Some(text_b)) = (text_a, text_b) else {
+        return Err(changed_meanwhile().into());
+    };
+    let union = union_text(&text_a, &text_b);
+    // Keep both originals live until their conflict copies exist on both places. If writing either
+    // union fails, the next run can still read both exclusion sets from the original files.
+    let set_a = preserve_ignore(target, SyncRuleSide::A, &text_a, aside_a).await?;
+    let set_b = preserve_ignore(target, SyncRuleSide::B, &text_b, aside_b).await?;
+    copy(target, SyncRuleSide::A, aside_a, &set_a, false).await?;
+    copy(target, SyncRuleSide::B, aside_b, &set_b, false).await?;
+    a.write_text(IGNORE_FILE, &union).await?;
+    b.write_text(IGNORE_FILE, &union).await?;
+    let row = StateRow {
+        path: IGNORE_FILE.to_owned(),
+        a: a.stat(IGNORE_FILE).await?.as_ref().map(seen),
+        b: b.stat(IGNORE_FILE).await?.as_ref().map(seen),
+        kept: false,
+        hash: None,
+    };
+    write(target, move |tx, device, rule| {
+        store::put_state(tx, device, rule, &row)
+    })
+    .await?;
+    Ok(())
+}
+
+async fn preserve_ignore(
+    target: &Target<'_>,
+    side: SyncRuleSide,
+    text: &str,
+    aside: &str,
+) -> Result<Facts, FilesError> {
+    let place = target.place(side);
+    if place.stat(aside).await?.is_some() {
+        return Err(changed_meanwhile());
+    }
+    place.write_text(aside, text).await?;
+    place.stat(aside).await?.ok_or_else(changed_meanwhile)
+}
+
+/// Copies `path` from `from` to the other side, checks that the source did not change since it
+/// was `planned`, and notes both sides as they are now (FR-014 to FR-016).
 async fn copy(
     target: &Target<'_>,
     from: SyncRuleSide,
     path: &str,
+    planned: &Facts,
     replaces: bool,
 ) -> Result<(), StepError> {
-    let result = copy_inner(target, from, path, replaces).await;
+    let result = copy_inner(target, from, path, planned, replaces).await;
     if result.is_err() {
         target.progress.copy_failed();
     }
@@ -330,15 +417,10 @@ async fn copy_inner(
     target: &Target<'_>,
     from: SyncRuleSide,
     path: &str,
+    planned: &Facts,
     replaces: bool,
 ) -> Result<(), StepError> {
     let (source, sink) = (target.place(from), target.place(from.other()));
-    let planned = target
-        .listing(from)
-        .files
-        .get(path)
-        .cloned()
-        .ok_or_else(changed_meanwhile)?;
     let (folder, _) = split(path);
     let one = Owned {
         from: source.side(),
@@ -365,7 +447,7 @@ async fn copy_inner(
     }
     // A source that changed while it was copied is copied again by the next run.
     let now = source.stat(path).await?;
-    if now.as_ref().map(seen) != Some(seen(&planned)) {
+    if now.as_ref().map(seen) != Some(seen(planned)) {
         return Err(changed_meanwhile().into());
     }
     let copied = sink.stat(path).await?.ok_or_else(changed_meanwhile)?;
@@ -390,7 +472,7 @@ async fn copy_inner(
         kept: false,
         hash,
     };
-    set_side(&mut row, from, Some(seen(&planned)));
+    set_side(&mut row, from, Some(seen(planned)));
     set_side(&mut row, from.other(), Some(seen(&copied)));
     write(target, move |tx, device, rule| {
         store::put_state(tx, device, rule, &row)

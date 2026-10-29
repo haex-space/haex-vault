@@ -28,8 +28,6 @@ pub enum SyncRuleErrorCode {
     InvalidName,
     NotFound,
     ReadOnly,
-    /// Not in this version yet (two-way rules).
-    Unsupported,
     /// The vault cannot be read or written now.
     Unavailable,
 }

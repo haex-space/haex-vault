@@ -60,6 +60,12 @@ export function progressShare(progress: {
     : clamped
 }
 
+/** The places a rule copies into: its target, or both places of a two-way rule (FR-011). */
+export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
+  if (direction === 'both') return ['a', 'b']
+  return direction === 'bToA' ? ['a'] : ['b']
+}
+
 /** The dialog asks for consent when files leave an encrypted folder for a plain one (FR-030a). */
 export function needsDecryptConsent(
   aEncrypted: boolean,

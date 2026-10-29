@@ -124,6 +124,20 @@ fn check(text: &str) -> Result<(), ()> {
     Ok(())
 }
 
+/// The exclusion file both places get when theirs differed (FR-039): the lines of A, then the
+/// lines of B that A does not have.
+pub fn union_text(a: &str, b: &str) -> String {
+    let mut lines: Vec<&str> = a.lines().collect();
+    for line in b.lines() {
+        if line.trim().is_empty() || !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    let mut text = lines.join("\n");
+    text.push('\n');
+    text
+}
+
 #[cfg(test)]
 #[path = "ignore_tests.rs"]
 mod tests;
