@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mail-Öffner</title>
+    <script>
+      // A minimal client of the vault-sdk protocol (as in `probe.html`) that opens like a mail
+      // extension (spec 063): it asks for the request the user gave it when its frame starts and
+      // whenever `opener-request` arrives, and writes what `extension_opener_take` returned into
+      // `#request` as JSON (`null` when nothing waited). `#taken` counts the calls.
+      let port = null
+      let seq = 0
+      let taken = 0
+
+      function take() {
+        const id = 'm' + ++seq
+        port.postMessage({
+          id,
+          method: 'extension_opener_take',
+          params: {},
+          timestamp: Date.now(),
+        })
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== window.parent) return
+        const data = event.data
+        if (!data || data.type !== 'haexspace:port:init' || !event.ports[0] || port) return
+        port = event.ports[0]
+        port.onmessage = (message) => {
+          const answer = message.data
+          if (answer && answer.id && String(answer.id).startsWith('m')) {
+            taken += 1
+            document.getElementById('taken').textContent = String(taken)
+            const result = answer.result === undefined ? answer : answer.result
+            // A later `null` must not wipe a request that was shown.
+            if (result !== null) {
+              document.getElementById('request').textContent = JSON.stringify(result)
+            }
+          } else if (answer && answer.type === 'opener-request') {
+            take()
+          }
+        }
+        port.postMessage({ type: 'haexspace:port:ready' })
+        take()
+      })
+    </script>
+  </head>
+  <body>
+    <h1>Mail-Öffner</h1>
+    <p>Anfragen abgeholt: <span id="taken">0</span></p>
+    <pre id="request"></pre>
+  </body>
+</html>

@@ -37,6 +37,25 @@ pub struct Manifest {
     pub permissions: DeclaredPermissions,
     /// Tools the extension offers to the agent (spec 018), in manifest order.
     pub tools: Vec<ManifestTool>,
+    /// Kinds of link the extension opens (spec 063), as the manifest writes them. A kind holzi
+    /// does not know stays here; [`Manifest::opens`] only answers for the known ones.
+    pub openers: Vec<String>,
+}
+
+/// A kind of link holzi can hand to an extension (spec 063 `contracts/manifest-openers.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenerKind {
+    /// Write an e-mail: `mailto:` links and the mail button.
+    MailCompose,
+}
+
+impl OpenerKind {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "mail.compose" => Some(Self::MailCompose),
+            _ => None,
+        }
+    }
 }
 
 /// What a tool does (spec 018, Clarification 2026-10-10); it sets how the agent's calls are
@@ -105,6 +124,20 @@ fn tools(manifest: &BTreeMap<String, JsonValue>) -> Option<Vec<ManifestTool>> {
             })
             .collect(),
     )
+}
+
+/// The `openers` block: only an array of strings counts, anything else is read as none.
+fn openers(manifest: &BTreeMap<String, JsonValue>) -> Vec<String> {
+    let Some(serde_json::Value::Array(entries)) =
+        manifest.get("openers").map(serde_json::Value::from)
+    else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .map(|entry| entry.as_str().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
 }
 
 fn text(manifest: &BTreeMap<String, JsonValue>, key: &str) -> Option<String> {
@@ -225,7 +258,24 @@ impl Manifest {
                 .map(serde_json::Value::from),
             permissions,
             tools,
+            openers: openers(manifest),
         })
+    }
+
+    /// The kinds in [`Manifest::openers`] that holzi knows, in manifest order (FR-013).
+    pub fn known_openers(&self) -> Vec<String> {
+        self.openers
+            .iter()
+            .filter(|name| OpenerKind::from_name(name).is_some())
+            .cloned()
+            .collect()
+    }
+
+    /// Whether the extension registered for `kind` of link (FR-011).
+    pub fn opens(&self, kind: OpenerKind) -> bool {
+        self.openers
+            .iter()
+            .any(|name| OpenerKind::from_name(name) == Some(kind))
     }
 
     /// The name to show: `displayName`, else `name`.

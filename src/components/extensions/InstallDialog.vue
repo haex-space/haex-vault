@@ -305,6 +305,14 @@ watch(open, (isOpen) => {
           </div>
 
           <p
+            v-if="preview.openers.includes('mail.compose')"
+            class="text-xs text-muted-foreground"
+            data-testid="extensions-install-opens-mail"
+          >
+            {{ t('extensions.install.openers.mailCompose') }}
+          </p>
+
+          <p
             v-if="preview.unsupportedCategories.length > 0"
             class="text-xs text-muted-foreground"
           >

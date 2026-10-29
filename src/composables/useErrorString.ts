@@ -110,6 +110,10 @@ export function useErrorString() {
       if (kind === 'ContactsSelf') return t('contacts.error.self')
       if (kind === 'ShareInvalid') return t('contacts.error.shareInvalid')
       if (kind === 'ShareTooLarge') return t('contacts.error.shareTooLarge')
+      // Spec 063: links that extensions open.
+      if (kind === 'OpenerLinkInvalid') return t('errors.openers.linkInvalid')
+      if (kind === 'OpenerLinkTooLarge') return t('errors.openers.linkTooLarge')
+      if (kind === 'OpenerNotAvailable') return t('errors.openers.notAvailable')
       // Spec 017: the extension host's kinds name a reason or a state, never data of an extension.
       if (kind === 'ExtensionInstall') {
         const key = `extensions.install.errors.${String(reason)}`

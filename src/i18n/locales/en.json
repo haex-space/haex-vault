@@ -1512,6 +1512,11 @@
       "referenceCycleNamed": "This reference would lead back to itself through “{title}”.",
       "intoTrash": "Nothing can be copied into the trash."
     },
+    "openers": {
+      "linkInvalid": "This link cannot be read.",
+      "linkTooLarge": "The link is too large.",
+      "notAvailable": "This extension cannot open the link."
+    },
     "extensions": {
       "install": "The extension could not be installed.",
       "notFound": "The extension does not exist (anymore).",
@@ -2339,6 +2344,9 @@
       "vaultWide": "The extension is installed in the whole vault and also appears on your linked devices. Its permissions hold there as well, except those for the shell.",
       "deviceOnly": "Holds on this device only: holzi asks again on your other devices.",
       "unsupported": "Not supported by holzi: {categories}",
+      "openers": {
+        "mailCompose": "Can open e-mail links, for example from the address book. It needs no permission for that."
+      },
       "cancel": "Cancel",
       "install": "Install"
     },

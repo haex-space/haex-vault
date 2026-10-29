@@ -325,6 +325,7 @@ pub fn preview(q: &mut impl Query, project: &DevProject, device: Uuid) -> Result
         existing: None,
         replaces_same_version: false,
         same_name_other_publisher: false,
+        openers: manifest.known_openers(),
     })
 }
 

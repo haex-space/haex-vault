@@ -67,4 +67,9 @@ behind: boolean, }>,
 /**
  * A development version on this device (US12): enabled only while developer mode is on.
  */
-dev: boolean, };
+dev: boolean,
+/**
+ * The kinds of link it opens that holzi knows (spec 063, `mail.compose`); empty unless the
+ * extension is installed and enabled (FR-012).
+ */
+openers: Array<string>, };

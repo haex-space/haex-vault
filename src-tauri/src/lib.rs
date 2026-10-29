@@ -20,6 +20,7 @@ pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
 pub mod models;
+pub mod openers;
 pub mod passwords;
 pub mod patch;
 pub mod platform;

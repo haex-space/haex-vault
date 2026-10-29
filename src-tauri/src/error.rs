@@ -271,6 +271,20 @@ pub enum HolziError {
     #[error("The phone's address book failed: {reason}")]
     PhoneContactsFailed { reason: String },
 
+    // --- Extensions as openers for links (spec 063, contracts/tauri-commands.md) ---
+    /// A link that is no readable `mailto:`: broken escapes, a line break in a header, a limit
+    /// broken; `reason` names the problem for the window, never the link's content.
+    #[error("Invalid link: {reason}")]
+    OpenerLinkInvalid { reason: String },
+
+    /// The link is larger than the limit for a mail link (FR-008).
+    #[error("The link is too large")]
+    OpenerLinkTooLarge,
+
+    /// The extension is not installed, not enabled or has not registered for this kind of link.
+    #[error("The extension cannot open this link")]
+    OpenerNotAvailable,
+
     // --- Password manager (spec 034, contracts/tauri-commands.md §Fehlerarten) ---
     // None of these carries the value of a secret in a field.
     /// The entry, attachment or passkey does not exist, or the caller may not know that it does

@@ -27,4 +27,9 @@ replacesSameVersion: boolean,
 /**
  * Another installed extension has the same name but another publisher (US7-2).
  */
-sameNameOtherPublisher: boolean, };
+sameNameOtherPublisher: boolean,
+/**
+ * The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
+ * dialog only says it.
+ */
+openers: Array<string>, };
