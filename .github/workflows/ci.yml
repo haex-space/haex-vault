@@ -250,7 +250,6 @@ jobs:
     name: Rust checks (${{ matrix.features }})
     runs-on: ubuntu-24.04
     needs: changes
-    if: needs.changes.outputs.non_docs == 'true'
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -269,12 +268,14 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - name: Check out repository
+        if: needs.changes.outputs.non_docs == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Install Linux build dependencies
+        if: needs.changes.outputs.non_docs == 'true'
         run: |
           # The hosted runner's Azure mirror occasionally stalls for minutes. Use
           # Ubuntu's public mirror so transient regional mirror outages do not
@@ -303,11 +304,13 @@ jobs:
             libclang-dev
 
       - name: Set up Rust toolchain
+        if: needs.changes.outputs.non_docs == 'true'
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
 
       - name: Cache cargo build
+        if: needs.changes.outputs.non_docs == 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
@@ -316,7 +319,7 @@ jobs:
           shared-key: ${{ matrix.features }}
 
       - name: Set up Node.js
-        if: matrix.features == 'default'
+        if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.19.0
@@ -325,12 +328,12 @@ jobs:
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
       # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
       - name: Fetch sherpa-onnx
-        if: matrix.features == 'default'
+        if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
         run: node scripts/fetch-sherpa-onnx.ts
 
       # Formatting does not depend on features, so it runs on one leg only.
       - name: Check formatting
-        if: matrix.features == 'default'
+        if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
         shell: bash
         run: |
           set -euo pipefail
@@ -346,6 +349,7 @@ jobs:
       # A test binary that crashes (a signal, not a failed test) leaves a core
       # file; the step after this one prints its backtrace.
       - name: Run tests
+        if: needs.changes.outputs.non_docs == 'true'
         id: tests
         shell: bash
         run: |
@@ -356,7 +360,7 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }}
 
       - name: Backtrace of a crashed test binary
-        if: failure() && steps.tests.outcome == 'failure'
+        if: needs.changes.outputs.non_docs == 'true' && failure() && steps.tests.outcome == 'failure'
         shell: bash
         run: |
           shopt -s nullglob
@@ -380,6 +384,7 @@ jobs:
       # known trailing whitespace and fail when the checked-in TypeScript
       # contract differs from a fresh Rust export (spec 001, types.md §CI).
       - name: Check generated TypeScript bindings
+        if: needs.changes.outputs.non_docs == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -392,6 +397,7 @@ jobs:
           git diff --exit-code -- src/types/bindings
 
       - name: Run Clippy
+        if: needs.changes.outputs.non_docs == 'true'
         run: cargo clippy --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }} --all-targets -- -D warnings
 
   # Full E2E and cross-platform checks run after merges to main or by manual

@@ -2,6 +2,8 @@
 //! search of the device goes on into the encrypted folders it passed, by their decrypted names
 //! (spec 048 FR-049).
 
+use std::path::{Path, PathBuf};
+
 use tokio_util::sync::CancellationToken;
 
 use super::encrypted::device::DeviceRoot;
@@ -9,21 +11,29 @@ use super::search::{search_passing, search_storage, FilesSearchEvent, SearchEnd,
 use super::search_device::search_passed;
 use super::storage_source::StorageFiles;
 
+/// A running search: the device folder it walks (`None` for a storage) and its token.
+type Running = (Option<PathBuf>, CancellationToken);
+
 /// The running searches of this session; a Tauri managed state. Each has its own token below the
 /// gate's, so closing the vault ends it; a new search of a tab cancels the old one from the window
 /// (FR-028).
 #[derive(Clone, Default)]
 pub struct SearchManager {
-    running: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, CancellationToken>>>,
+    running: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Running>>>,
 }
 
 impl SearchManager {
-    fn running(
-        &self,
-    ) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, CancellationToken>> {
+    fn running(&self) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, Running>> {
         self.running
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Keeps a new search of `root` with its token; returns its id.
+    fn track(&self, root: Option<PathBuf>, cancel: CancellationToken) -> String {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.running().insert(id.clone(), (root, cancel));
+        id
     }
 
     /// Starts a search of the device on the blocking pool; returns its id. With `encrypted` (the
@@ -37,9 +47,8 @@ impl SearchManager {
         channel: tauri::ipc::Channel<FilesSearchEvent>,
         encrypted: Option<(StorageFiles, DeviceRoot)>,
     ) -> Result<String, crate::files::FilesError> {
-        let id = uuid::Uuid::new_v4().to_string();
         let cancel = gate.token().child_token();
-        self.running().insert(id.clone(), cancel.clone());
+        let id = self.track(Some(root.clone()), cancel.clone());
         let manager = self.clone();
         let owned_id = id.clone();
         let spawned = gate.spawn_blocking(move || {
@@ -95,9 +104,8 @@ impl SearchManager {
         channel: tauri::ipc::Channel<FilesSearchEvent>,
         device: Option<DeviceRoot>,
     ) -> Result<String, crate::files::FilesError> {
-        let id = uuid::Uuid::new_v4().to_string();
         let cancel = gate.token().child_token();
-        self.running().insert(id.clone(), cancel.clone());
+        let id = self.track(None, cancel.clone());
         let manager = self.clone();
         let owned_id = id.clone();
         let spawned = gate.spawn(async move {
@@ -143,8 +151,27 @@ impl SearchManager {
     }
 
     pub fn cancel(&self, id: &str) {
-        if let Some(cancel) = self.running().remove(id) {
+        if let Some((_, cancel)) = self.running().remove(id) {
             cancel.cancel();
         }
     }
+
+    /// Cancels the searches of device folders at or below `prefix`, before a drive is released
+    /// (spec 064 research R9); returns how many.
+    pub fn cancel_under(&self, prefix: &Path) -> usize {
+        let mut running = self.running();
+        let before = running.len();
+        running.retain(|_, (root, cancel)| {
+            let under = root.as_ref().is_some_and(|root| root.starts_with(prefix));
+            if under {
+                cancel.cancel();
+            }
+            !under
+        });
+        before - running.len()
+    }
 }
+
+#[cfg(test)]
+#[path = "search_manager_tests.rs"]
+mod tests;

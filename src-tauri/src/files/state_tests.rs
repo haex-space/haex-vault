@@ -23,12 +23,13 @@ fn a_reload_ends_every_watch() {
     let real = std::fs::canonicalize(dir.path()).unwrap();
     let (sender, receiver) = mpsc::channel();
     let first = files.keep_watch(
+        real.clone(),
         watch_folder(&real, false, move |changes| {
             let _ = sender.send(changes);
         })
         .unwrap(),
     );
-    let second = files.keep_watch(watch_folder(&real, false, |_| {}).unwrap());
+    let second = files.keep_watch(real.clone(), watch_folder(&real, false, |_| {}).unwrap());
 
     files.unwatch_all();
 
@@ -36,6 +37,35 @@ fn a_reload_ends_every_watch() {
     assert!(receiver.recv_timeout(WAIT).is_err());
     assert!(!files.unwatch(first));
     assert!(!files.unwatch(second));
+}
+
+#[test]
+fn releasing_a_drive_ends_only_the_watches_below_it() {
+    let (dir, files) = state();
+    let real = std::fs::canonicalize(dir.path()).unwrap();
+    let (stick, stick_sub, near) = (
+        real.join("stick"),
+        real.join("stick/fotos"),
+        real.join("sticker"),
+    );
+    for folder in [&stick_sub, &near] {
+        std::fs::create_dir_all(folder).unwrap();
+    }
+    let watch = |root: &std::path::Path| {
+        files.keep_watch(
+            root.to_path_buf(),
+            watch_folder(root, false, |_| {}).unwrap(),
+        )
+    };
+    let (on_stick, below, beside, above) =
+        (watch(&stick), watch(&stick_sub), watch(&near), watch(&real));
+
+    assert_eq!(files.unwatch_under(&stick), 2);
+
+    assert!(!files.unwatch(on_stick));
+    assert!(!files.unwatch(below));
+    assert!(files.unwatch(beside), "a path component boundary");
+    assert!(files.unwatch(above));
 }
 
 #[tokio::test(flavor = "multi_thread")]

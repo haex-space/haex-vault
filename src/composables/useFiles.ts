@@ -4,6 +4,7 @@
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type { DriveOpened } from '@bindings/DriveOpened'
+import type { DriveReleased } from '@bindings/DriveReleased'
 import type { DrivesChanged } from '@bindings/DrivesChanged'
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -130,6 +131,17 @@ export function useFiles() {
   /** Opens a drive: mounts it when needed (spec 064 FR-006). */
   async function driveOpenAsync(id: string): Promise<DriveOpened> {
     return await invoke<DriveOpened>('files_drive_open', { id })
+  }
+
+  /** Unmounts and ejects a drive; running transfers on it end only with `cancelTransfers` (spec 064 FR-008 to FR-012). */
+  async function driveReleaseAsync(
+    id: string,
+    cancelTransfers: boolean,
+  ): Promise<DriveReleased> {
+    return await invoke<DriveReleased>('files_drive_release', {
+      id,
+      cancelTransfers,
+    })
   }
 
   /** The drives and known places of the other own device `storageId` (spec 056). */
@@ -306,6 +318,7 @@ export function useFiles() {
     drivesWatchAsync,
     drivesUnwatchAsync,
     driveOpenAsync,
+    driveReleaseAsync,
     peerRootsAsync,
     peerTrashAsync,
     openSystemAsync,

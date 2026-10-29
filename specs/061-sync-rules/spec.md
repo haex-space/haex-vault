@@ -513,6 +513,15 @@ löschen.
   Panels); „Neue Regel“ öffnet weiter den Dialog.
 - **FR-048**: Eine laufende Regel MUSS ihren Fortschritt zeigen: die Phase (Orte vergleichen, kopieren), die
   Dateien und die Bytes des Laufs als Balken mit Zahlen.
+- **FR-049**: Ein Lauf MUSS aufgeben, statt jede Datei einzeln gegen einen Ort zu versuchen, der sie
+  verweigert: sofort, wenn ein Ort nicht antwortet, seine Zugangsdaten oder seinen Host-Schlüssel ablehnt
+  oder voll ist, und nach zehn fehlgeschlagenen Dateien hintereinander. Der Lauf endet dann als „wartet“
+  (Ort antwortet nicht) oder „Fehler“ mit dem Grund; der nächste Versuch kommt erst nach dem Intervall.
+  Namentlich genannt werden höchstens 200 fehlgeschlagene Dateien, gezählt werden alle.
+- **FR-050**: Änderungen an einem überwachten Ort DÜRFEN eine Regel mit einem Ort im Netz (Speicher, anderes
+  Gerät) nicht öfter starten als ihr Intervall; jeder Lauf listet den ganzen Ort, und ein Ordner, der sich
+  dauernd ändert, würde den Anbieter sonst bis zur Sperre des Kontos beschäftigen. Regeln zwischen zwei
+  Orten dieses Geräts laufen weiter nach der Ruhezeit.
 
 ### Key Entities
 
