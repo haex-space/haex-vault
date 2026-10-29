@@ -56,6 +56,17 @@ fn bytes_never_exceed_the_total() {
 }
 
 #[test]
+fn a_failed_copy_discards_its_partial_bytes() {
+    let (reporter, seen) = collecting();
+    reporter.planned(2, 300);
+    reporter.file_done(100);
+    reporter.bytes(50);
+    reporter.copy_failed();
+    let last = seen.lock().unwrap().last().unwrap().clone();
+    assert_eq!((last.files_done, last.bytes_done), (1, 100));
+}
+
+#[test]
 fn a_silent_reporter_takes_reports() {
     let reporter = Reporter::silent();
     reporter.scanning();

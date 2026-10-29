@@ -2879,6 +2879,7 @@
       "progress": {
         "label": "Fortschritt",
         "scanning": "Orte werden verglichen …",
+        "executing": "Änderungen werden ausgeführt …",
         "files": "{done} von {total} Dateien · {size}"
       },
       "picker": {

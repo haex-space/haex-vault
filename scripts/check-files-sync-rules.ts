@@ -98,6 +98,15 @@ test('the progress of a run is the share of bytes, else of files, and unknown wh
   )
   assert.equal(
     progressShare({ ...copying, bytesDone: 300, bytesTotal: 200 }),
+    0.99,
+  )
+  assert.equal(
+    progressShare({
+      ...copying,
+      filesDone: 4,
+      bytesDone: 300,
+      bytesTotal: 200,
+    }),
     1,
   )
 })

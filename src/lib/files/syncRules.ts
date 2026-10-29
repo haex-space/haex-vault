@@ -53,7 +53,11 @@ export function progressShare(progress: {
       : progress.filesTotal > 0
         ? progress.filesDone / progress.filesTotal
         : null
-  return share === null ? null : Math.min(1, Math.max(0, share))
+  if (share === null) return null
+  const clamped = Math.min(1, Math.max(0, share))
+  return progress.filesDone < progress.filesTotal
+    ? Math.min(0.99, clamped)
+    : clamped
 }
 
 /** The dialog asks for consent when files leave an encrypted folder for a plain one (FR-030a). */

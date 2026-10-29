@@ -319,6 +319,19 @@ async fn copy(
     path: &str,
     replaces: bool,
 ) -> Result<(), StepError> {
+    let result = copy_inner(target, from, path, replaces).await;
+    if result.is_err() {
+        target.progress.copy_failed();
+    }
+    result
+}
+
+async fn copy_inner(
+    target: &Target<'_>,
+    from: SyncRuleSide,
+    path: &str,
+    replaces: bool,
+) -> Result<(), StepError> {
     let (source, sink) = (target.place(from), target.place(from.other()));
     let planned = target
         .listing(from)

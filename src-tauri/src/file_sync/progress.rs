@@ -145,6 +145,14 @@ impl Reporter {
         inner.last_bytes_report = None;
         self.report(&inner);
     }
+
+    /// The current copy failed; discard its partial byte count and report the correction.
+    pub fn copy_failed(&self) {
+        let mut inner = self.inner();
+        inner.bytes_current = 0;
+        inner.last_bytes_report = None;
+        self.report(&inner);
+    }
 }
 
 #[cfg(test)]

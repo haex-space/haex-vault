@@ -75,17 +75,28 @@ export const useSyncRulesStore = defineStore('syncRules', () => {
     if (pendingListen) return await pendingListen
 
     const generation = ++listenGeneration
-    const registration = Promise.all([
-      listen(SYNC_RULES_CHANGED, () => {
-        void loadAsync()
-      }),
-      listen<SyncRuleProgress>(SYNC_RULE_PROGRESS, (event) => {
-        progress.value = {
-          ...progress.value,
-          [event.payload.ruleId]: event.payload,
-        }
-      }),
-    ]).then(([stopChanged, stopProgress]) => {
+    const registration = Promise.resolve().then(async () => {
+      const [changedResult, progressResult] = await Promise.allSettled([
+        listen(SYNC_RULES_CHANGED, () => {
+          void loadAsync()
+        }),
+        listen<SyncRuleProgress>(SYNC_RULE_PROGRESS, (event) => {
+          progress.value = {
+            ...progress.value,
+            [event.payload.ruleId]: event.payload,
+          }
+        }),
+      ])
+      if (changedResult.status === 'rejected') {
+        if (progressResult.status === 'fulfilled') progressResult.value()
+        throw changedResult.reason
+      }
+      if (progressResult.status === 'rejected') {
+        changedResult.value()
+        throw progressResult.reason
+      }
+      const stopChanged = changedResult.value
+      const stopProgress = progressResult.value
       const cleanup = () => {
         stopChanged()
         stopProgress()

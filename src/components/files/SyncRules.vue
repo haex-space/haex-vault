@@ -65,7 +65,9 @@ function running(view: SyncRuleView) {
           total: progress.filesTotal,
           size: `${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`,
         })
-      : t('files.syncRules.progress.scanning')
+      : progress?.phase === 'copying'
+        ? t('files.syncRules.progress.executing')
+        : t('files.syncRules.progress.scanning')
   return { share, text }
 }
 
