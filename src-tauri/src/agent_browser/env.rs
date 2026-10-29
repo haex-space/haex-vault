@@ -260,7 +260,7 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         Ok(StartConfig {
             os,
             executable,
-            workdir: Workdir::of(&profile::root(os), &instance),
+            workdir: Workdir::of(&profile::root(os)?, &instance),
             store,
             gate: Some(state.gate().clone()),
             headless: false,

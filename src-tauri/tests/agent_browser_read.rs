@@ -96,9 +96,8 @@ impl BrowserEnv for Env {
             )
             .expect("store"),
             gate: None,
-            headless: cfg!(target_os = "linux")
-                && std::env::var_os("DISPLAY").is_none()
-                && std::env::var_os("WAYLAND_DISPLAY").is_none(),
+            // As in agent_browser_profile.rs: headless on Linux, whatever DISPLAY the runner exports.
+            headless: cfg!(target_os = "linux"),
         })
     }
 }
