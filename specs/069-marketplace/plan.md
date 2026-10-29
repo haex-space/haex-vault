@@ -1,4 +1,4 @@
-# Implementation Plan: Marketplace für Erweiterungen
+# Implementation Plan: Marketplace for Extensions
 
 **Branch**: `069-marketplace` | **Date**: 2026-10-28 | **Spec**: [spec.md](spec.md)
 
@@ -6,38 +6,39 @@
 
 ## Summary
 
-HaexVault bekommt einen Katalog für Erweiterungen. Die ganze Netzwerk- und Prüflogik sitzt im Host, in
-einem neuen Modul `src-tauri/src/marketplace/`; das Frontend zeigt nur an und ruft Tauri-Commands.
+HaexVault gets a catalog for extensions. All network and verification logic sits in the host, in a new
+module `src-tauri/src/marketplace/`; the frontend only displays and calls Tauri commands.
 
-- **Katalog**: Der Host fragt alle eingeschalteten Marketplaces parallel (`GET /extensions`,
-  `/categories`, `/extensions/{slug}`), mit fester Frist je Quelle, und führt die Antworten zusammen
-  (gleichzeitig, jede Kachel mit ihrer Quelle, **keine** Zusammenlegung über Quellen, Fehler je Quelle). Den Installationsstand
-  rechnet der Host aus der Erweiterungs-Registry (Spec 017) dazu, damit es eine Stelle gibt.
-- **Download**: `marketplace_download` holt die signierte Download-Adresse, lädt die `.xt` gestreamt
-  (≤ 64 MiB, genau `bundleSize` Bytes), prüft SHA-256 gegen `bundleHash` und legt die Bytes in **einen
-  Speicherplatz im Host** (nichts auf der Platte, nichts im Webview).
-- **Installieren**: `extension_install_preview` und `extension_install` nehmen statt `file: PickedFile`
-  eine `BundleSource` (`file` oder `marketplace`). Der Marketplace-Fall liest die Bytes aus dem
-  Speicherplatz und ruft denselben `install_preview` und `install` wie die Datei. `InstallDialog.vue`
-  bekommt eine `source`-Eigenschaft; es gibt keine zweite Vorschau.
-- **Marketplace-Liste (generisch)**: neue CRDT-Tabelle `haex_marketplaces`; jede Zeile ist gleichrangig
-  (Name, Adresse mit beliebigem Pfadanteil, Ein/Aus, Rang, Auth-Art, Zugangsdaten-Verweis). Es gibt **keinen
-  Sonderfall im Code**: der öffentliche Marketplace des Projekts ist nur die **Voreinstellung**, eine
-  gewöhnliche Zeile mit fester Kennung `preset-public`, die ein neuer Vault mitbringt und die der Nutzer
-  ändern oder löschen kann. Ein Vault ohne Marketplace bietet sie im Leerzustand per Tipp an.
-- **Offenes Protokoll**: `contracts/marketplace-api.md` ist der normative Vertrag „Marketplace-Protokoll
-  v1“ für jeden, der einen Marketplace betreiben will; der Host setzt über einen Marketplace nichts
-  voraus außer diesem Vertrag (FR-034).
-- **Zugangsdaten**: Verweis `credentials_item_id` auf einen Passwort-Eintrag (Spec 034/052), Tag
-  `haex-marketplace`; ein eigenes Modul `marketplace/credentials.rs` liest ihn (Bearer: Passwortfeld ist
-  das Token; Basic: Benutzername und Passwort) und meldet `present`/`missing`/`syncing`. Die Auswahl
-  nutzt `CredentialsEntryPicker.vue`, das dafür eine Quelle als Eigenschaft bekommt statt `protocol`.
-- **Oberfläche**: neue wm-App `system.marketplace` („Erweiterungen entdecken“), neue Unteransicht
-  `extensions/marketplaces` in den Einstellungen mit Formular `extensions/marketplaces/:id`, ein
-  Update-Hinweis in der Liste der installierten Erweiterungen.
+- **Catalog**: The host queries all enabled marketplaces in parallel (`GET /extensions`,
+  `/categories`, `/extensions/{slug}`), with a fixed deadline per source, and combines the answers
+  (simultaneously, every tile with its source, **no** merging across sources, errors per source). The host
+  adds the install state from the extension registry (spec 017), so there is one place for it.
+- **Download**: `marketplace_download` fetches the signed download address, streams the `.xt`
+  (≤ 64 MiB, exactly `bundleSize` bytes), checks SHA-256 against `bundleHash` and puts the bytes into **one
+  memory slot in the host** (nothing on disk, nothing in the webview).
+- **Install**: `extension_install_preview` and `extension_install` take a `BundleSource` (`file` or
+  `marketplace`) instead of `file: PickedFile`. The marketplace case reads the bytes from the memory slot
+  and calls the same `install_preview` and `install` as a file does. `InstallDialog.vue` gets a `source`
+  property; there is no second preview.
+- **Marketplace list (generic)**: new CRDT table `haex_marketplaces`; every row is equal (name, address
+  with any path part, on/off, rank, auth type, credentials reference). There is **no special case in the
+  code**: the project's public marketplace is only the **preset**, an ordinary row with the fixed id
+  `preset-public`, which a new vault brings along and which the user can change or delete. A vault without
+  a marketplace offers it in the empty state with one tap.
+- **Open protocol**: `contracts/marketplace-api.md` is the normative contract "Marketplace protocol v1"
+  for anyone who wants to run a marketplace; the host assumes nothing about a marketplace beyond this
+  contract (FR-034).
+- **Credentials**: reference `credentials_item_id` to a password entry (spec 034/052), tag
+  `haex-marketplace`; a module of its own, `marketplace/credentials.rs`, reads it (Bearer: the password
+  field is the token; Basic: user name and password) and reports `present`/`missing`/`syncing`. The
+  selection uses `CredentialsEntryPicker.vue`, which gets a source as a property instead of `protocol`
+  for this.
+- **UI**: new wm app `system.marketplace` ("Erweiterungen entdecken"), new sub-view
+  `extensions/marketplaces` in the settings with form `extensions/marketplaces/:id`, an update hint in the
+  list of installed extensions.
 
-Keine neue Abhängigkeit: `reqwest`, `sha2`, `semver`, `url`, `futures`, `tokio-util` sind da; Testserver
-über `hyper` (Dev-Abhängigkeit, schon vorhanden).
+No new dependency: `reqwest`, `sha2`, `semver`, `url`, `futures`, `tokio-util` are there; test server
+through `hyper` (dev dependency, already present).
 
 ## Technical Context
 
@@ -45,90 +46,89 @@ Keine neue Abhängigkeit: `reqwest`, `sha2`, `semver`, `url`, `futures`, `tokio-
 
 **Primary Dependencies**:
 
-- **Vorhanden**:
+- **Existing**:
   - `reqwest` 0.13 (rustls, stream, json, query), `sha2` 0.11, `semver` 1, `url`, `futures`, `tokio-util`
-  - `PasswordsService`, `passwords::usage::EntryUsage` (Löschwarnung, Spec 034 FR-034)
+  - `PasswordsService`, `passwords::usage::EntryUsage` (delete warning, spec 034 FR-034)
   - `extensions::registry::{install_preview, install, list}`, `limits::ARCHIVE_BYTES` (64 MiB)
-  - `tauri::ipc::Channel` für den Fortschritt (wie `files_watch`, `TransferManager`)
-  - Muster: `extensions/web.rs` (reqwest-Client, Weiterleitungen), `remote_storage/credentials.rs`
-    (Zugangsdaten-Eintrag), `vault-data-changed` und `onVaultTablesChanged` (Spec 028-Live-Daten)
-- **Neu**: keine.
+  - `tauri::ipc::Channel` for the progress (like `files_watch`, `TransferManager`)
+  - Patterns: `extensions/web.rs` (reqwest client, redirects), `remote_storage/credentials.rs`
+    (credentials entry), `vault-data-changed` and `onVaultTablesChanged` (spec 028 live data)
+- **New**: none.
 
 **Storage**:
 
-- Neue CRDT-Tabelle `haex_marketplaces` (Migration `0047_marketplaces`, nächste freie Nummer beim Bauen;
-  `HOLZI_TRIGGER_VERSION` + 1). Kein Geheimnis in der Tabelle.
-- Der Speicherplatz für den geladenen Bundle ist nur Arbeitsspeicher im `AppState`, höchstens ein Bundle.
-- Bilder-Zwischenspeicher (Symbole) nur im Arbeitsspeicher, je Sitzung.
+- New CRDT table `haex_marketplaces` (migration `0047_marketplaces`, next free number at build time;
+  `HOLZI_TRIGGER_VERSION` + 1). No secret in the table.
+- The memory slot for the downloaded bundle is only memory in the `AppState`, at most one bundle.
+- Image cache (icons) only in memory, per session.
 
 **Testing**:
 
-- **Rust**: `*_tests.rs` neben jedem Modul, nie inline. Ein Test-Marketplace aus `hyper` (wie bei den
-  WebDAV-Tests) liefert Katalog, Download und Fehlerfälle: Prüfsumme falsch/fehlt, Größe falsch, zu
-  groß, Weiterleitung auf anderen Host, `http` mit Zugangsdaten, Frist, kaputte Antworten, 401.
-- **Reine Teile ohne Netz**: Zusammenführen und Blättern, Fassungsvergleich (`semver`), Kompatibilität
-  (`minAppVersion`/`maxAppVersion`), Voreinstellung als gewöhnliche Zeile.
-- **Vault-Test**: Tabelle, Voreinstellung (anlegen, löschen, nicht wieder anlegen), Zugangsdaten-Zustand gegen einen Test-Vault.
-- **Frontend**: keine eigene Logik, die Einheitstests brauchte (sie liegt im Host); Typprüfung, Lint,
-  `check:templates` und e2e.
-- **E2E** (tauri-driver-Rig, Spec 016): ein lokaler Test-Marketplace (Node, im Rig) mit zwei Erweiterungen,
-  eine davon signiert und installierbar; Desktop und Android-Emulator (SC-008); Zwei-Geräte-Fall für
-  SC-007 (`marketplace-two-devices.test.ts`, Muster `contacts-two-devices.test.ts`).
+- **Rust**: `*_tests.rs` next to every module, never inline. A test marketplace built on `hyper` (as in the
+  WebDAV tests) serves catalog, download and error cases: checksum wrong/missing, size wrong, too large,
+  redirect to another host, `http` with credentials, deadline, broken answers, 401.
+- **Pure parts without network**: merging and paging, version comparison (`semver`), compatibility
+  (`minAppVersion`/`maxAppVersion`), preset as an ordinary row.
+- **Vault test**: table, preset (create, delete, do not re-create), credentials state against a test vault.
+- **Frontend**: no logic of its own that would need unit tests (it sits in the host); type check, lint,
+  `check:templates` and e2e.
+- **E2E** (tauri-driver rig, spec 016): a local test marketplace (Node, in the rig) with two extensions,
+  one of them signed and installable; desktop and Android emulator (SC-008); two-device case for
+  SC-007 (`marketplace-two-devices.test.ts`, pattern `contacts-two-devices.test.ts`).
 
-**Externe Release-Voraussetzung**: Der öffentliche Eintrag `haex-tetris` 0.1.3 enthält derzeit keine von
-Spec 017 verlangte `haextension/signature.json` und ist deshalb über die Installations-Vorschau nicht
-installierbar. Vor der Marketplace-Veröffentlichung muss der Herausgeber eine Spec-017-kompatible,
-signierte Fassung veröffentlichen und den Download durch die Installations-Vorschau prüfen. Das liegt
-außerhalb dieses Repositorys und ist kein Ersatz für den signierten Test-Marketplace in den E2E-Tests.
+**External release prerequisite**: The public entry `haex-tetris` 0.1.3 currently contains no
+`haextension/signature.json`, which spec 017 requires, and therefore cannot be installed through the
+install preview. Before the marketplace is released, the publisher must publish a spec-017-compatible,
+signed version and check the download through the install preview. That lies outside this repository and
+is no substitute for the signed test marketplace in the E2E tests.
 
-**Target Platform**: Linux, Windows, macOS, Android, iOS (kein plattformabhängiger Code außer dem
-Fassungs-Kopf `X-Platform`)
+**Target Platform**: Linux, Windows, macOS, Android, iOS (no platform-dependent code except the version
+header `X-Platform`)
 
-**Project Type**: Desktop- und Mobil-App (Tauri 2 mit Nuxt-Frontend)
+**Project Type**: Desktop and mobile app (Tauri 2 with Nuxt frontend)
 
-**Performance Goals**: erste Katalogseite sichtbar in < 3 s bei erreichbarem Marketplace; ein
-ausgefallener Marketplace verlängert das nicht über die Frist (R5); Symbole laden nachgelagert.
+**Performance Goals**: first catalog page visible in < 3 s with a reachable marketplace; a failed
+marketplace does not extend that beyond the deadline (R5); icons load afterwards.
 
 **Constraints**:
 
-- Keine Zugangsdaten über `http://` oder an einen anderen Host (FR-027).
-- Prüfsumme Pflicht, 64 MiB, genau `bundleSize` (FR-013, FR-014).
-- Kein Agent, keine Erweiterung erreicht den Katalog (FR-030).
-- Dateien ≤ 500 Zeilen, Tests getrennt, Clippy nach Repo-Konfiguration.
+- No credentials over `http://` or to another host (FR-027).
+- Checksum mandatory, 64 MiB, exactly `bundleSize` (FR-013, FR-014).
+- No agent and no extension reaches the catalog (FR-030).
+- Files ≤ 500 lines, tests separate, Clippy per repo configuration.
 
-**Scale/Scope**: eine bis wenige Quellen, einige Hundert Erweiterungen je Quelle, bis zu 20 Einträge je
-Quelle und Seite (eine gemeinsame Seite enthält entsprechend der Quellenzahl mehr Einträge).
+**Scale/Scope**: one to a few sources, a few hundred extensions per source, up to 20 entries per source
+and page (a shared page accordingly contains more entries with more sources).
 
 ## Constitution Check
 
-_GATE: vor Phase 0 geprüft, nach Phase 1 erneut._
+_GATE: checked before phase 0, re-checked after phase 1._
 
-| Prinzip                                  | Stand                                                                                                                                                                                                                        |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I. Keine Geheimnisse in Git              | Erfüllt. Spec, Plan und Testserver enthalten nur Platzhalter; Test-Token sind Zufallswerte zur Laufzeit. Die Beispiel-Adressen in den Verträgen sind öffentlich und tragen kein Token (die signierte Adresse ist abgekürzt). |
-| II. Keine lokalen absoluten Pfade        | Erfüllt. Verweise sind repo-relativ.                                                                                                                                                                                         |
-| III. Projekt-Identität gerätelos         | Nicht berührt.                                                                                                                                                                                                               |
-| IV. Cross-Repo-Referenzen mit festem SHA | Erfüllt. haex-vault 2.x ist mit `8dce379d…` angegeben, das `marketplace-sdk` mit Fassung 0.1.6; der Dienst selbst ist ein Live-Endpunkt (siehe R1, Risiko).                                                                  |
-| V. Externe Quellen nur per Allowlist     | Nicht berührt (keine neue Harness-Quelle).                                                                                                                                                                                   |
-| VI. Selbständernde Anweisungen           | Nicht berührt.                                                                                                                                                                                                               |
-| VII. Relay-Ausfall blockiert nichts      | Entsprechend: Marketplace-Ausfall blockiert nichts Lokales; Installation aus Datei bleibt (FR-031, Edge Cases).                                                                                                              |
-| VIII. Keine Verschleierung               | Nicht berührt.                                                                                                                                                                                                               |
+| Principle                                   | Status                                                                                                                                                                                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. No secrets in Git                        | Met. Spec, plan and test server contain only placeholders; test tokens are random values at run time. The example addresses in the contracts are public and carry no token (the signed address is abbreviated). |
+| II. No local absolute paths                 | Met. References are repo-relative.                                                                                                                                                                              |
+| III. Project identity is device-independent | Not affected.                                                                                                                                                                                                   |
+| IV. Cross-repo references pin a fixed SHA   | Met. haex-vault 2.x is given as `8dce379d…`, the `marketplace-sdk` with version 0.1.6; the service itself is a live endpoint (see R1, risk).                                                                    |
+| V. External sources only by allowlist       | Not affected (no new harness source).                                                                                                                                                                           |
+| VI. Self-modifying instructions             | Not affected.                                                                                                                                                                                                   |
+| VII. Relay outage blocks nothing            | Correspondingly: a marketplace outage blocks nothing local; installing from a file remains (FR-031, edge cases).                                                                                                |
+| VIII. No concealment                        | Not affected.                                                                                                                                                                                                   |
 
-Weitere MUSS-Regeln der spaex-Constitution, die hier greifen:
+Further MUST rules of the spaex constitution that apply here:
 
-- **Worktree und PR**: Arbeit liegt in `.worktrees/069-marketplace`; Docs-PR, danach gestufte PRs, kein
-  Squash-Merge, Conventional Commits.
-- **Graphify zuerst**: vor jedem neuen Namen eine `graphify query`. Geprüft für den Plan: Zugangsdaten
-  (`remote_storage/credentials.rs`, `CredentialsEntryPicker.vue`) werden **erweitert**, nicht kopiert;
-  die Weiterleitungsregeln aus `extensions/web.rs` sind an Berechtigungen gebunden und werden nicht
-  wiederverwendet (R6).
-- **Eine Implementierung pro Regel**: Installations-Vorschau und -Installation bleiben eine
-  Implementierung (`BundleSource`); Fassungsvergleich nutzt `semver` wie die Registry.
-- **Tests getrennt, deterministisch, ohne Netz**: Testserver lokal, Uhr und Frist einspeisbar.
-- **Nicht über 500 Zeilen**: das Modul ist vorab in sieben Dateien geschnitten (siehe Struktur).
-- **ADR**: nicht nötig, keine Kernprinzip-Entscheidung. Die Entscheidungen stehen in `research.md`.
+- **Worktree and PR**: Work lives in `.worktrees/069-marketplace`; docs PR, then staged PRs, no
+  squash merge, Conventional Commits.
+- **Graphify first**: a `graphify query` before every new name. Checked for the plan: credentials
+  (`remote_storage/credentials.rs`, `CredentialsEntryPicker.vue`) are **extended**, not copied;
+  the redirect rules from `extensions/web.rs` are tied to permissions and are not reused (R6).
+- **One implementation per rule**: install preview and installation remain one implementation
+  (`BundleSource`); version comparison uses `semver` like the registry.
+- **Tests separate, deterministic, without network**: test server local, clock and deadline injectable.
+- **Not over 500 lines**: the module is cut into seven files in advance (see structure).
+- **ADR**: not needed, no core-principle decision. The decisions are in `research.md`.
 
-Nach Phase 1: erneut geprüft, keine Verletzung; Complexity Tracking bleibt leer.
+After phase 1: re-checked, no violation; Complexity Tracking stays empty.
 
 ## Project Structure
 
@@ -141,9 +141,9 @@ specs/069-marketplace/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── marketplace-api.md   # Was HaexVault vom Dienst erwartet (Vertrag nach außen)
-│   ├── commands.md          # Tauri-Commands, Typen, Fortschritt
-│   └── ui.md                # App, Einstellungen, Test-IDs
+│   ├── marketplace-api.md   # What HaexVault expects from the service (contract to the outside)
+│   ├── commands.md          # Tauri commands, types, progress
+│   └── ui.md                # App, settings, test ids
 ├── checklists/requirements.md
 └── tasks.md                 # /speckit-tasks
 ```
@@ -152,53 +152,53 @@ specs/069-marketplace/
 
 ```text
 src-tauri/src/marketplace/
-├── mod.rs              # Zustand (AppState-Teil), Frist- und Größenkonstanten
-├── model.rs            # Katalog- und Listentypen (ts-rs), Eingaben
-├── store.rs            # Tabelle haex_marketplaces, Voreinstellung (preset-public), Lesen und Schreiben
-├── client.rs           # reqwest: Anfragen, Kopfzeilen, Weiterleitungsregel, Fehlerarten
-├── catalog.rs          # parallele Abfrage, Zusammenführen, Blättern, Installationsstand, Kompatibilität
-├── download.rs         # Stream, Prüfsumme, Größe, Speicherplatz, Fortschritt, Abbruch
-├── credentials.rs      # Zugangsdaten-Eintrag (Zustand, Lesen, Tag), Auth-Kopfzeile
-├── updates.rs          # bekannte Updates im Arbeitsspeicher für die Liste der Installierten
-├── commands.rs         # Tauri-Commands
-└── *_tests.rs          # je Datei
+├── mod.rs              # State (AppState part), deadline and size constants
+├── model.rs            # Catalog and list types (ts-rs), inputs
+├── store.rs            # Table haex_marketplaces, preset (preset-public), reading and writing
+├── client.rs           # reqwest: requests, headers, redirect rule, error kinds
+├── catalog.rs          # parallel query, merging, paging, install state, compatibility
+├── download.rs         # Stream, checksum, size, memory slot, progress, cancel
+├── credentials.rs      # Credentials entry (state, reading, tag), auth header
+├── updates.rs          # known updates in memory for the list of installed extensions
+├── commands.rs         # Tauri commands
+└── *_tests.rs          # one per file
 src-tauri/src/identity/migrations_marketplaces.rs   # Migration 0047
-src-tauri/src/extensions/commands/install.rs        # BundleSource (ein Ort)
-src-tauri/src/extensions/registry/install.rs        # read_bundle: Datei oder Speicherplatz
+src-tauri/src/extensions/commands/install.rs        # BundleSource (one place)
+src-tauri/src/extensions/registry/install.rs        # read_bundle: file or memory slot
 
-src/lib/marketplace/        # registry.ts (Routen), compat/Anzeige-Helfer
+src/lib/marketplace/        # registry.ts (routes), compat/display helpers
 src/composables/useMarketplaceCatalog.ts, useMarketplaces.ts, useMarketplaceInstall.ts
-src/components/marketplace/ # Katalog, Kachel, Details, Filter, Quellen-Fehler
+src/components/marketplace/ # Catalog, tile, details, filter, source errors
 src/components/apps/MarketplaceApp.vue
-src/components/settings/extensions/ (Marketplaces-Liste, Formular)
-src/components/extensions/InstallDialog.vue         # source-Eigenschaft
-src/lib/wm/apps.ts, src/components/wm/appRoutes.ts  # App registrieren
-src/i18n/locales/{de,en}                            # Texte
-scripts/e2e/                                        # Test-Marketplace und Szenarien
+src/components/settings/extensions/ (marketplaces list, form)
+src/components/extensions/InstallDialog.vue         # source property
+src/lib/wm/apps.ts, src/components/wm/appRoutes.ts  # register the app
+src/i18n/locales/{de,en}                            # texts
+scripts/e2e/                                        # test marketplace and scenarios
 ```
 
-**Structure Decision**: ein Rust-Modul je Verantwortung (Netz, Zusammenführen, Download,
-Zugangsdaten, Speicher), gemeinsame Installationsroutine bleibt in `extensions/`, Frontend folgt dem
-Muster der bestehenden Apps (`lib/<app>/registry.ts`, `components/apps/<App>.vue`).
+**Structure Decision**: one Rust module per responsibility (network, merging, download,
+credentials, storage), the shared install routine stays in `extensions/`, the frontend follows the
+pattern of the existing apps (`lib/<app>/registry.ts`, `components/apps/<App>.vue`).
 
-### Stufen (PR-Zuschnitt)
+### Stages (PR cut)
 
-Die Zuordnung der Aufgaben steht in `tasks.md` (Shipping-Tabelle):
+The assignment of the tasks is in `tasks.md` (shipping table):
 
-1. **A – Kern** (T004–T024): Migration, `store` samt Voreinstellung und Anlegen bei einem neuen Vault,
-   `client`, `catalog`, Typen, Commands `marketplace_list`, `marketplace_catalog`, `marketplace_categories`,
-   `marketplace_details`, `marketplace_icon`; Rust-Tests mit Testserver. Keine Oberfläche.
-2. **B – Download und Installation** (T032–T039): `download`, Speicherplatz, `BundleSource`, alle Aufrufer,
-   `InstallDialog`-Quelle, Fortschritt, Abbruch. Rust-Tests.
-3. **C – Katalog-App** (T025–T031, T040–T041): `MarketplaceApp`, Kacheln, Details, Suche, Kategorien,
-   Quelle, Blättern, Symbole, Installationsablauf. e2e Desktop.
-4. **D – Updates** (T042–T046): bekannte Updates je Eintrag, Update-Prüfung für alle Installierten,
-   Kompatibilitätssperre, Entfernen, Hinweis in der Liste der Installierten.
-5. **E – Verwaltung** (T047–T055): Einstellungsansicht, Formular mit Test, Reihenfolge, Ein/Aus, mehrere
-   Quellen gleichzeitig, Leerzustand mit Voreinstellung.
-6. **F – Private Marketplaces** (T056–T063): Zugangsdaten-Eintrag, Picker-Erweiterung, Löschwarnung.
-7. **G – Abschluss** (T064–T067): Zwei-Geräte-e2e, Android, Glossar, Handprüfung (Quickstart).
+1. **A – Core** (T004–T024): migration, `store` including the preset and creating it for a new vault,
+   `client`, `catalog`, types, commands `marketplace_list`, `marketplace_catalog`, `marketplace_categories`,
+   `marketplace_details`, `marketplace_icon`; Rust tests with a test server. No UI.
+2. **B – Download and install** (T032–T039): `download`, memory slot, `BundleSource`, all callers,
+   `InstallDialog` source, progress, cancel. Rust tests.
+3. **C – Catalog app** (T025–T031, T040–T041): `MarketplaceApp`, tiles, details, search, categories,
+   source, paging, icons, install flow. e2e desktop.
+4. **D – Updates** (T042–T046): known updates per entry, update check for all installed extensions,
+   compatibility lock, remove, hint in the list of installed extensions.
+5. **E – Management** (T047–T055): settings view, form with test, order, on/off, several
+   sources at once, empty state with the preset.
+6. **F – Private marketplaces** (T056–T063): credentials entry, picker extension, delete warning.
+7. **G – Wrap-up** (T064–T067): two-device e2e, Android, glossary, manual check (quickstart).
 
 ## Complexity Tracking
 
-Keine Verletzungen; nichts zu begründen.
+No violations; nothing to justify.

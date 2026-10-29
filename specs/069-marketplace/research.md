@@ -1,299 +1,296 @@
-# Research: Marketplace für Erweiterungen
+# Research: Marketplace for extensions
 
-Alle Punkte der Technical Context sind entschieden; es bleibt kein `NEEDS CLARIFICATION`. Quellen:
-`@haex-space/marketplace-sdk` 0.1.6 (Typen und Pfade, aus dem npm-Paket gelesen), der Live-Dienst
-`https://marketplace.haex.space` (nur lesende Aufrufe am 2026-10-28), haex-vault 2.x @ `8dce379d` und der
-holzi-Code (Verweise je Punkt).
+All items of the Technical Context are decided; no `NEEDS CLARIFICATION` remains. Sources:
+`@haex-space/marketplace-sdk` 0.1.6 (types and paths, read from the npm package), the live service
+`https://marketplace.haex.space` (read-only calls on 2026-10-28), haex-vault 2.x @ `8dce379d` and the
+holzi code (references per item).
 
-## R1 – Die Schnittstelle des Dienstes
+## R1 – The interface of the service
 
-**Entscheidung**: HaexVault spricht dieselbe Schnittstelle wie das SDK 0.1.6, direkt unter der
-Marketplace-Adresse (kein `/v1`): `GET /health`, `/categories`, `/extensions?page&limit&category&search&sort`,
-`/extensions/{slug}`, `/extensions/{slug}/download[?version]`, `/extensions/{slug}/versions`. Antworten sind
-JSON in `camelCase`. Die Felder, die HaexVault braucht, stehen in
+**Decision**: HaexVault speaks the same interface as the SDK 0.1.6, directly under the marketplace
+address (no `/v1`): `GET /health`, `/categories`, `/extensions?page&limit&category&search&sort`,
+`/extensions/{slug}`, `/extensions/{slug}/download[?version]`, `/extensions/{slug}/versions`. Answers are
+JSON in `camelCase`. The fields HaexVault needs are listed in
 [contracts/marketplace-api.md](contracts/marketplace-api.md).
 
-**Am Live-Dienst bestätigt** (2026-10-28):
+**Confirmed against the live service** (2026-10-28):
 
-- `bundleHash` ist SHA-256 in Hex (64 Zeichen) und stimmte für `haex-tetris 0.1.3` mit der geladenen
-  Datei überein; `bundleSize` stimmte auf das Byte.
-- `downloadUrl` ist eine **signierte, kurzlebige Adresse auf einem anderen Host**
-  (`api.marketplace.haex.space/storage/v1/object/sign/…`, Gültigkeit 300 s laut Token). Sie wird sofort
-  nach dem Abruf geladen und nie zwischengespeichert; es wird kein `Authorization` an diesen Host gesendet.
-- `iconUrl` liegt ebenfalls auf einem anderen Host (öffentlicher Speicher).
-- `extensionId` hat die Form `<Herausgeber-Slug>/<Name>` (`haex/haex-tetris`), ist **nicht** der
-  Herausgeberschlüssel. Der Schlüssel (`publicKey`) steht nur in den Details.
-- `versions` im Listenaufruf kommen neueste zuerst, `publishedAt` der Erweiterung ist oft `null`. Die
-  neueste Fassung wird deshalb mit `semver` bestimmt, nicht über die Reihenfolge (Legacy nahm `versions[0]`).
-- Die Größe eines Bundles liegt in der Praxis zwischen 1,7 MiB und 24 MiB; die Grenze von 64 MiB passt.
+- `bundleHash` is SHA-256 in hex (64 characters) and matched the downloaded file for `haex-tetris 0.1.3`;
+  `bundleSize` matched to the byte.
+- `downloadUrl` is a **signed, short-lived address on another host**
+  (`api.marketplace.haex.space/storage/v1/object/sign/…`, valid 300 s according to the token). It is
+  loaded immediately after it is fetched and never cached; no `Authorization` is sent to this host.
+- `iconUrl` also lives on another host (public storage).
+- `extensionId` has the form `<publisher slug>/<name>` (`haex/haex-tetris`) and is **not** the publisher
+  key. The key (`publicKey`) appears only in the details.
+- `versions` in the list call arrive newest first, and the extension's `publishedAt` is often `null`.
+  The newest version is therefore determined with `semver`, not by order (the legacy took `versions[0]`).
+- In practice a bundle is between 1.7 MiB and 24 MiB; the limit of 64 MiB fits.
 
-**Das Protokoll gehört diesem Repository** (Entscheidung des Betreibers, 2026-10-28): Der Betreiber stellt
-einen öffentlichen Marketplace bereit, und Nutzer dürfen selbst einen hosten. Darum ist
-[contracts/marketplace-api.md](contracts/marketplace-api.md) ab 069 der **normative Vertrag** („Marketplace-
-Protokoll v1“) und nicht mehr eine Beschreibung des haex-space-Dienstes; Pflicht- und optionale Felder,
-Fehlerverhalten und Anforderungen an Betreiber (TLS, Pfadanteil, Anmeldung) stehen dort. Der Host kennt
-keine Adresse und keinen Betreiber außer als Zeile in der Liste.
+**The protocol belongs to this repository** (operator decision, 2026-10-28): The operator provides a
+public marketplace, and users may host their own. Therefore
+[contracts/marketplace-api.md](contracts/marketplace-api.md) is, from 069 on, the **normative contract**
+("Marketplace Protocol v1") and no longer a description of the haex-space service; required and optional
+fields, error behaviour and requirements for operators (TLS, path prefix, authentication) are stated
+there. The host knows no address and no operator except as a row in the list.
 
-**Alternativen**: das SDK im Frontend nutzen (verworfen: zweiter HTTP-Pfad, Entscheidung des Betreibers);
-eine andere Schnittstelle erfinden (verworfen: Dienst und Legacy sprechen diese).
+**Alternatives**: use the SDK in the frontend (rejected: second HTTP path, operator decision); invent a
+different interface (rejected: the service and the legacy speak this one).
 
-**Risiko**: Der Dienst ist ein Live-Endpunkt, kein fester Stand (Constitution IV gilt für Harness-Inhalt,
-nicht dafür). Gegenmaßnahme: Der Host liest tolerant (unbekannte Felder ignorieren, Pflichtfelder je Eintrag
-prüfen) und der Vertrag steht im Repo, mit Testdaten aus der Live-Antwort (Zufallswerte ersetzt).
+**Risk**: The service is a live endpoint, not a fixed revision (Constitution IV applies to harness
+content, not to this). Mitigation: the host reads tolerantly (ignore unknown fields, check required
+fields per entry) and the contract lives in the repo, with test data from the live answer (random values
+substituted).
 
-## R2 – Wo die Typen herkommen
+## R2 – Where the types come from
 
-**Entscheidung**: Die Typen werden **in Rust** nachgebaut (`marketplace/model.rs`, `serde`, nur die
-benötigten Felder) und per `ts-rs` ins Frontend gebracht (wie alle Bindings, `src/types/bindings/`). Das
-`marketplace-sdk` wird **nicht** als Abhängigkeit aufgenommen.
+**Decision**: The types are rebuilt **in Rust** (`marketplace/model.rs`, `serde`, only the needed fields)
+and brought into the frontend via `ts-rs` (like all bindings, `src/types/bindings/`). The
+`marketplace-sdk` is **not** taken as a dependency.
 
-**Begründung**: Der Client im SDK besteht aus einer Datei und einer `fetch`-Schleife; die Typen sind
-klein. Eine eigene Umsetzung in Rust vermeidet ein zweites Typmodell und die Abhängigkeit vom Paket.
+**Rationale**: The client in the SDK consists of one file and a `fetch` loop; the types are small. An own
+implementation in Rust avoids a second type model and the dependency on the package.
 
-**Alternativen**: SDK nur für Typen (verworfen: bindet das Frontend an eine Fassung, die der Host gar nicht
-benutzt).
+**Alternatives**: SDK for types only (rejected: ties the frontend to a version the host does not use at
+all).
 
-## R3 – Wo der geladene Bundle liegt
+## R3 – Where the downloaded bundle lives
 
-**Entscheidung**: Im Arbeitsspeicher des Hosts, in genau einem Platz (`PendingBundle { id, bytes, source,
-name, version }`, ≤ 64 MiB). Frei wird er bei: Abbrechen/Schließen der Vorschau, erfolgreicher Installation,
-neuem Download, Schließen des Vaults, nach 10 Minuten ohne Zugriff. Der Webview bekommt nur die `id`.
+**Decision**: In the host's memory, in exactly one slot (`PendingBundle { id, bytes, source, name,
+version }`, ≤ 64 MiB). It is freed on: cancelling/closing the preview, successful installation, a new
+download, closing the vault, after 10 minutes without access. The webview receives only the `id`.
 
-**Begründung**: „Nichts bleibt auf der Platte“ (Spec US1-6) ohne Aufräumlogik für Temp-Dateien, auch nicht
-nach einem Absturz; die Bytes erreichen das Webview nie (Legacy kopierte sie als `Array.from(Uint8Array)`
-durch die IPC, bei 24 MiB eine Verdopplung und eine Falle). 64 MiB sind auf Android tragbar.
+**Rationale**: "Nothing stays on disk" (spec US1-6) without cleanup logic for temp files, even after a
+crash; the bytes never reach the webview (the legacy copied them as `Array.from(Uint8Array)` through the
+IPC, which for 24 MiB is a doubling and a trap). 64 MiB is bearable on Android.
 
-**Alternativen**: Temp-Datei in `app_cache_dir` (verworfen: Rest nach Absturz, Pfad-Behandlung auf
-Android); Bytes ins Webview und zurück (verworfen, s. o.).
+**Alternatives**: temp file in `app_cache_dir` (rejected: leftovers after a crash, path handling on
+Android); bytes into the webview and back (rejected, see above).
 
-## R4 – Wie die Installation die Quelle bekommt
+## R4 – How the installation gets the source
 
-**Entscheidung**: `extension_install_preview` und `extension_install` ersetzen `file: PickedFile` durch
-`source: BundleSource` (`{ kind: "file", file }` oder `{ kind: "marketplace", id }`). Eine Funktion
-`read_bundle(source)` in `extensions/registry/install.rs` liefert die Bytes (Datei wie bisher über
-`read_bundle_file`, sonst aus dem Speicherplatz); danach läuft derselbe `install_preview` und `install`.
-`InstallDialog.vue` bekommt `source` und ruft damit dieselben zwei Commands.
+**Decision**: `extension_install_preview` and `extension_install` replace `file: PickedFile` with
+`source: BundleSource` (`{ kind: "file", file }` or `{ kind: "marketplace", id }`). A function
+`read_bundle(source)` in `extensions/registry/install.rs` returns the bytes (file as before via
+`read_bundle_file`, otherwise from the slot); after that the same `install_preview` and `install` run.
+`InstallDialog.vue` gets `source` and calls the same two commands with it.
 
-**Begründung**: Eine Implementierung pro Regel; es gibt keine zweite Installationsroutine und keinen
-zweiten Dialog. Alle Aufrufer werden gesucht und geändert (siehe Aufgabe „jede Stelle“, Memory
-`holzi-every-call-site`): `InstallDialog.vue`, Dev-Laden (`extension_dev_load` bleibt Datei), e2e-Skripte
-und alle Stellen mit `extension_install`.
+**Rationale**: One implementation per rule; there is no second installation routine and no second
+dialog. All callers are searched for and changed (see task "every call site", memory
+`holzi-every-call-site`): `InstallDialog.vue`, dev loading (`extension_dev_load` stays a file), e2e
+scripts and every place with `extension_install`.
 
-**Alternativen**: zwei neue Commands `marketplace_install_*` (verworfen: dupliziert die Argumente und die
-Bestätigungslogik); ein künstlicher `PickedFile` wie `pending:<id>` (verworfen: schmuggelt eine Quelle in
-einen Typ, der „vom Nutzer gewählte Datei“ heißt).
+**Alternatives**: two new commands `marketplace_install_*` (rejected: duplicates the arguments and the
+confirmation logic); an artificial `PickedFile` such as `pending:<id>` (rejected: smuggles a source into
+a type that means "file chosen by the user").
 
-## R5 – Frist, Parallelität, Fortschritt
+## R5 – Timeout, parallelism, progress
 
-**Entscheidung**:
+**Decision**:
 
-- Katalog: alle Quellen parallel (`futures::future::join_all`), je Quelle Gesamtfrist **8 s** (Verbindung
-  und Antwort). Eine Quelle, die nicht fertig wird, zählt als „Zeitüberschreitung“, die anderen warten
-  nicht länger. `marketplace_catalog` ist abbrechbar durch ein neueres Aufrufen (Suche tippen).
-- Download: Verbindungsfrist 10 s, **Leerlauffrist 20 s** zwischen zwei Datenstücken, keine feste
-  Gesamtfrist (große Dateien, langsame Netze); Fortschritt über einen `Channel<DownloadProgress>`
-  (Bytes geladen, Gesamtgröße) höchstens alle 100 ms. Abbruch über `marketplace_download_cancel(id)`.
-- Frist und Leerlauffrist werden in `mod.rs` als Konstanten geführt und in Tests über eine Uhr bzw. einen
-  einstellbaren Wert verkürzt (kein Warten in Tests).
+- Catalog: all sources in parallel (`futures::future::join_all`), an overall timeout of **8 s** per
+  source (connection and answer). A source that does not finish counts as "timeout", the others do not
+  wait any longer. `marketplace_catalog` can be aborted by a newer call (typing a search).
+- Download: connection timeout 10 s, **idle timeout 20 s** between two chunks, no fixed overall timeout
+  (large files, slow networks); progress through a `Channel<DownloadProgress>` (bytes loaded, total size)
+  at most every 100 ms. Abort through `marketplace_download_cancel(id)`.
+- Timeout and idle timeout are kept as constants in `mod.rs` and shortened in tests through a clock or an
+  adjustable value (no waiting in tests).
 
-**Alternativen**: Gesamtfrist für den Download (verworfen: bricht legitime langsame Downloads ab).
+**Alternatives**: overall timeout for the download (rejected: aborts legitimate slow downloads).
 
-## R6 – Anmeldung, Weiterleitungen, `http`
+## R6 – Authentication, redirects, `http`
 
-**Entscheidung** (FR-027):
+**Decision** (FR-027):
 
-- Ein `reqwest::Client` je Marketplace-Aufruf-Art, `redirect::Policy::custom`: Weiterleitungen werden
-  **nur gefolgt, wenn Schema-Herabstufung (`https`→`http`) ausgeschlossen ist** und, sobald Zugangsdaten
-  im Spiel sind, nur innerhalb desselben Hosts und Ports. Bis zu 5 Weiterleitungen. `reqwest` entfernt
-  `Authorization` bei Hostwechsel ohnehin; der Test prüft es trotzdem (kein Vertrauen auf Standardwerte).
-- Zugangsdaten werden nur an `https://` gesendet; das Formular lehnt „Bearer/Basic mit `http://`“ ab
-  (FR-027, US5-6) und der Client sendet sie auch dann nicht, wenn die Zeile es erlaubt (zweite Schranke).
-- Die signierte Download-Adresse und Symbole werden **ohne** Zugangsdaten geladen. Eine
-  `http://`-Download-Adresse ist nur erlaubt, wenn die Adresse des Marketplace selbst `http://` ist
-  (selbst gehostet im lokalen Netz); sonst wird abgelehnt.
-- Die Weiterleitungslogik aus `extensions/web.rs` wird **nicht** wiederverwendet: sie ist an die
-  Berechtigungsprüfung für Erweiterungen gebunden (Frage vor jeder Weiterleitung). Ein gemeinsamer Kern
-  wäre eine Abstraktion ohne zweiten echten Nutzer (Rust-Regel der Constitution).
+- One `reqwest::Client` per kind of marketplace call, `redirect::Policy::custom`: redirects are
+  **followed only if a scheme downgrade (`https`→`http`) is ruled out** and, as soon as credentials are
+  involved, only within the same host and port. Up to 5 redirects. `reqwest` drops `Authorization` on a
+  host change anyway; the test checks it nevertheless (no trust in defaults).
+- Credentials are sent only to `https://`; the form rejects "Bearer/Basic with `http://`" (FR-027, US5-6)
+  and the client does not send them even if the row allows it (second barrier).
+- The signed download address and icons are loaded **without** credentials. An `http://` download address
+  is allowed only if the marketplace's own address is `http://` (self-hosted on the local network);
+  otherwise it is rejected.
+- The redirect logic from `extensions/web.rs` is **not** reused: it is tied to the permission check for
+  extensions (a question before every redirect). A shared core would be an abstraction without a second
+  real user (Rust rule of the constitution).
 
-**Rest-Risiko**: Ein bösartiger Marketplace könnte eine Download-Adresse in ein internes Netz setzen
-(SSRF). Die Antwort wird nur gehasht und als Bundle geprüft, sie erreicht den Nutzer nicht; es werden keine
-Zugangsdaten gesendet. Akzeptiert und im Vertrag vermerkt.
+**Residual risk**: A malicious marketplace could point a download address into an internal network
+(SSRF). The answer is only hashed and checked as a bundle, it does not reach the user; no credentials
+are sent. Accepted and noted in the contract.
 
-## R7 – Mehrere Marketplaces gleichzeitig: Anordnung und Blättern
+## R7 – Several marketplaces at once: ordering and paging
 
-**Entscheidung**: Alle eingeschalteten Quellen werden gleichzeitig befragt. Seite N ist die Seite N
-**jeder** Quelle (mit bis zu 20 Einträgen je Quelle), hintereinander in Rangfolge. Die gemeinsame Liste
-wird ausdrücklich **nicht** noch einmal quellenübergreifend nach Downloads sortiert: Das würde die
-Rangfolge aufheben und bei Änderungen an den Downloadzahlen Einträge zwischen Quellen und Seiten
-verschieben. Innerhalb jeder Quelle gilt die Sortierung nach Downloads absteigend. Einträge verschiedener
-Quellen werden **nie** zusammengelegt (FR-012): Ein Eintrag ist durch `(sourceId, slug)` bestimmt, die
-Kachel nennt die Quelle, ein Filter „Quelle“ (`sourceId` im Aufruf) beschränkt auf eine. `totalPages` ist
-das Maximum der Quellen, `total` die Summe. Das ist stabil (kein Eintrag verschwindet beim Blättern).
+**Decision**: All enabled sources are asked at the same time. Page N is page N of **every** source (with
+up to 20 entries per source), one after the other in rank order. The combined list is explicitly **not**
+sorted by downloads again across sources: that would cancel the rank order and, when download counts
+change, move entries between sources and pages. Within each source the sort by downloads, descending,
+applies. Entries of different sources are **never** merged (FR-012): an entry is identified by
+`(sourceId, slug)`, the tile names the source, a "source" filter (`sourceId` in the call) restricts to
+one. `totalPages` is the maximum over the sources, `total` the sum. This is stable (no entry disappears
+while paging).
 
-**Begründung**: Der Legacy-Weg (Dopplung nach `extensionId`, kleinste Rangnummer gewinnt) lässt eine
-beliebige, selbst gehostete Quelle den Eintrag einer anderen verdecken, denn `extensionId` ist eine
-Behauptung des Marketplace und nicht überprüfbar. Ohne Zusammenlegen entfällt auch die Sonderregel;
-welche Erweiterung wirklich installiert wird, entscheidet der Nutzer in der Vorschau am Herausgeberschlüssel
-aus dem signierten Bundle (Spec 017).
+**Rationale**: The legacy way (dedupe by `extensionId`, lowest rank wins) lets any self-hosted source
+hide the entry of another, because `extensionId` is a claim of the marketplace and cannot be verified.
+Without merging, the special rule also disappears; which extension is really installed is decided by the
+user in the preview from the publisher key in the signed bundle (Spec 017).
 
-**Alternativen**: Dopplung nach `extensionId` (Legacy, verworfen: Verdeckung); Zusammenlegen nur bei
-gleichem `publicKey` (verworfen: der Schlüssel steht nur in den Details, ein Detailaufruf je Eintrag wäre
-teuer, der Gewinn klein).
+**Alternatives**: dedupe by `extensionId` (legacy, rejected: hiding); merge only for an identical
+`publicKey` (rejected: the key appears only in the details, a detail call per entry would be expensive,
+the gain small).
 
-## R8 – Wann ist etwas „installiert“ und was ist ein Update
+## R8 – When is something "installed" and what is an update
 
-**Entscheidung**: Der Host vergleicht mit `extensions::registry::list` (Name und, wo bekannt, den
-Herausgeberschlüssel): Listeneinträge haben nur den Namen, Details zusätzlich `publicKey`. Eine Kachel ist
-„installiert“, wenn ein installierter Name gleich dem Namen des Eintrags ist; die Vorschau entscheidet
-endgültig (Herausgeberschlüssel plus Name, „gleicher Name, anderer Herausgeber“, Spec 017). „Update
-verfügbar“, wenn die **neueste kompatible** Fassung (`semver`, R9) höher ist als die installierte.
+**Decision**: The host compares with `extensions::registry::list` (name and, where known, the publisher
+key): list entries carry only the name, details additionally `publicKey`. A tile is "installed" if an
+installed name equals the entry's name; the preview decides in the end (publisher key plus name, "same
+name, other publisher", Spec 017). "Update available" if the **newest compatible** version (`semver`, R9)
+is higher than the installed one.
 
-**Begründung**: eine Stelle für die Regel (Host), nicht in Vue und nicht noch einmal für die Liste der
-Installierten. Legacy glich nur den Namen im Frontend ab.
+**Rationale**: one place for the rule (host), not in Vue and not once more for the list of installed
+extensions. The legacy compared only the name, in the frontend.
 
-**Bekannte Grenze**: Zwei Herausgeber mit gleichem Namen zeigen beide „installiert“, bis die Details
-(`publicKey`) oder die Vorschau es klären; die Details zeigen den Schlüssel und markieren die Abweichung.
+**Known limit**: Two publishers with the same name both show "installed" until the details (`publicKey`)
+or the preview clarify it; the details show the key and mark the difference.
 
-**Update-Prüfung** (FR-017): Ein Katalogabruf sieht nur eine gefilterte Seite. Darum gibt es eine eigene
-Operation `marketplace_check_updates`: Für **jeden installierten Namen** wird jede eingeschaltete Quelle
-mit `GET /extensions?search=<Name>&limit=5` gefragt (höchstens 4 Anfragen gleichzeitig), nur genaue
-Namenstreffer zählen. Kandidaten werden je `(installedName, sourceId, slug)` geführt. Eine Quelle
-aktualisiert oder entfernt nur ihre eigenen Kandidaten; bei einem Fehler bleiben diese erhalten. Ein
-Katalogabruf ändert nur die Kandidaten der Quelle für Einträge, die auf der Seite vorkommen. Für die
-Installationsliste wird die höchste bekannte kompatible Fassung gewählt, bei Gleichstand die Quelle mit
-dem besseren Rang. Gestartet wird die Prüfung beim Öffnen der App und bei „Aktualisieren“, nie im
-Hintergrund. (Das Legacy suchte beim Update ebenfalls nach dem Namen, mit `limit: 10`, aber erst auf Wunsch
-je Erweiterung.)
+**Update check** (FR-017): A catalog call sees only a filtered page. Therefore there is an operation of
+its own, `marketplace_check_updates`: for **every installed name**, every enabled source is asked with
+`GET /extensions?search=<name>&limit=20` (at most 4 requests at a time), and only exact name matches
+count. Candidates are kept per `(installedName, sourceId, slug)`. A source updates or removes only its
+own candidates; on an error they are kept. A catalog call changes only the source's candidates for
+entries that occur on the page. For the installation list the highest known compatible version is chosen,
+and on a tie the source with the better rank. The check is started when the app opens and on "Aktualisieren",
+never in the background. (The legacy also searched by name for the update, with `limit: 10`, but only on
+request per extension.)
 
-## R9 – Kompatibilität mit der HaexVault-Fassung
+## R9 – Compatibility with the HaexVault version
 
-**Entscheidung**: Die Fassung von HaexVault ist die aus `tauri.conf.json`/`Cargo.toml`
-(`env!("CARGO_PKG_VERSION")`), als `semver`. `minAppVersion` und `maxAppVersion` einer Fassung begrenzen sie
-(fehlt eine, gilt sie nicht). Nicht passende Fassungen sind im Katalog gekennzeichnet und nicht
-installierbar (FR-018). Die Anfragen tragen `X-Platform` (`linux`, `windows`, `macos`, `android`, `ios`) und
-`X-App-Version`, wie das SDK es vorsieht; sonst kein Merkmal des Nutzers oder Geräts (FR-007).
+**Decision**: The HaexVault version is the one from `tauri.conf.json`/`Cargo.toml`
+(`env!("CARGO_PKG_VERSION")`), as `semver`. `minAppVersion` and `maxAppVersion` of a version bound it (if
+one is missing, it does not apply). Versions that do not fit are marked in the catalog and cannot be
+installed (FR-018). Requests carry `X-Platform` (`linux`, `windows`, `macos`, `android`, `ios`) and
+`X-App-Version`, as the SDK provides; otherwise no trait of the user or device (FR-007).
 
-**Alternativen**: keine Prüfung wie im Legacy (verworfen: die Felder liefert der Dienst, Spec 017 kennt
-Manifeste mit Anforderungen).
+**Alternatives**: no check, as in the legacy (rejected: the service supplies the fields, Spec 017 knows
+manifests with requirements).
 
-## R10 – Voreinstellung statt Standard-Sonderfall
+## R10 – Preset instead of a special default
 
-**Entscheidung**: Es gibt keinen eingebauten Marketplace. Die **Voreinstellung** (Name und Adresse des
-öffentlichen Marketplace, an einer einzigen Stelle in `marketplace/store.rs`, vom Betreiber festzulegen) ist
-eine gewöhnliche Zeile mit fester Kennung `preset-public`:
+**Decision**: There is no built-in marketplace. The **preset** (name and address of the public
+marketplace, in a single place in `marketplace/store.rs`, to be set by the operator) is an ordinary row
+with the fixed id `preset-public`:
 
-- **Neuer Vault**: Die Zeile wird einmal angelegt, wenn der Vault seine Anfangsdaten bekommt (Genesis,
-  `sync::genesis`; der genaue Ort ist Aufgabe T017). Nicht bei jedem Öffnen.
-- **Vault ohne Marketplace** (vor dieser Funktion angelegt oder alles gelöscht): der Leerzustand des Katalogs
-  bietet „Öffentlichen Marketplace hinzufügen“ an; das schreibt dieselbe Zeile mit derselben Kennung.
-- Löschen, Ausschalten, Umbenennen, Adresse ändern: wie bei jeder Zeile. Nichts legt sie wieder an.
+- **New vault**: The row is created once, when the vault gets its initial data (genesis,
+  `sync::genesis`; the exact place is task T017). Not on every open.
+- **Vault without a marketplace** (created before this feature or everything deleted): the empty state
+  of the catalog offers "Öffentlichen Marketplace hinzufügen"; this writes the same row with the same id.
+- Delete, switch off, rename, change the address: like any row. Nothing creates it again.
 
-**Begründung**: Die feste Kennung lässt zwei Geräte, die beide anlegen, auf **eine** Zeile zusammenlaufen
-(kein Duplikat, SC-006). Weil nichts beim Öffnen anlegt, kann ein spät eintreffender Sync den Marketplace
-nicht still wieder einschalten (der Legacy-Fall `ensureDefaultMarketplaceAsync`). Die Adresse im Code ist
-keine Sonderbehandlung: der Rest des Codes kennt sie nicht (FR-034), ein Test sucht die Adresse im Quelltext
-außerhalb von `store.rs`.
+**Rationale**: The fixed id lets two devices that both create it converge on **one** row (no duplicate,
+SC-006). Because nothing creates it on open, a late-arriving sync cannot silently switch the marketplace
+back on (the legacy case `ensureDefaultMarketplaceAsync`). The address in the code is no special
+treatment: the rest of the code does not know it (FR-034), a test searches the source for the address
+outside `store.rs`.
 
-**Alternativen**: Standard als Konstante im Code mit Überschreibungszeile (früherer Stand dieses Plans,
-verworfen: ein Sonderfall, der nicht löschbar wäre und die Adresse in die Logik zieht); Zeile in der Migration
-(verworfen: läuft je Gerät, gleicher Wettlauf).
+**Alternatives**: default as a constant in the code with an override row (earlier state of this plan,
+rejected: a special case that could not be deleted and pulls the address into the logic); row in the
+migration (rejected: runs per device, same race).
 
-## R11 – Zugangsdaten-Eintrag
+## R11 – Credentials entry
 
-**Entscheidung**: Der Marketplace hat `credentials_item_id` (Passwort-Eintrag, kein Fremdschlüssel, da der
-Eintrag per Sync später eintreffen kann, wie in 038/052). `marketplace/credentials.rs` (neu) liest den
-Eintrag als `Caller::Internal { feature: "marketplace" }` mit einer festen Berechtigung, liefert
-`present`/`missing`/`syncing` mit denselben Regeln wie `remote_storage::credentials::state_in` und baut die
-Kopfzeile (Bearer: Passwortfeld ist das Token; Basic: Benutzername und Passwort, `Zeroizing`). Tag
-`haex-marketplace` (für neu angelegte Einträge und beim Wählen, wie 052 FR-006). Der Eintrag wird in
-`passwords::usage::EntryUsage` als genutzt gemeldet (Löschwarnung, FR-029).
+**Decision**: The marketplace has `credentials_item_id` (password entry, no foreign key, because the
+entry may arrive later via sync, as in 038/052). `marketplace/credentials.rs` (new) reads the entry as
+`Caller::Internal { feature: "marketplace" }` with a fixed grant, returns `present`/`missing`/`syncing`
+with the same rules as `remote_storage::credentials::state_in` and builds the header (Bearer: the
+password field is the token; Basic: user name and password, `Zeroizing`). Tag `haex-marketplace` (for
+newly created entries and when choosing, like 052 FR-006). The entry is reported as in use in
+`passwords::usage::EntryUsage` (delete warning, FR-029).
 
-**Wiederverwendung**: `CredentialsEntryPicker.vue` bekommt statt `protocol` eine Eigenschaft
-`source: { command, args }` (Aufrufer: Speicherverbindungen wie bisher, Marketplace neu); es wird **kein**
-zweiter Picker gebaut. Die Rust-Seite teilt die Hilfen (`from_item`-ähnliche Feldzuordnung) nur dort, wo
-der Code gleich ist; ein gemeinsames Modul für „Zugangsdaten eines Dienstes“ wäre eine Abstraktion über
-zwei Fälle mit verschiedenen Eigentümern und Feldern (Speicher: Protokolle, Marketplace: Bearer/Basic) und
-wird erst gezogen, wenn ein dritter dazukommt.
+**Reuse**: `CredentialsEntryPicker.vue` gets a property `source: { command, args }` instead of
+`protocol` (callers: storage connections as before, marketplace new); **no** second picker is built. The
+Rust side shares the helpers (`from_item`-like field mapping) only where the code is the same; a shared
+module for "credentials of a service" would be an abstraction over two cases with different owners and
+fields (storage: protocols, marketplace: Bearer/Basic) and is drawn only when a third one comes.
 
-## R12 – Symbole
+## R12 – Icons
 
-**Entscheidung**: Das Frontend fragt `marketplace_icon(source_id, url)`; der Host lädt (ohne
-Zugangsdaten, ≤ 256 KiB, nur `image/png|jpeg|webp`, **kein SVG**) und gibt eine `data:`-URL zurück,
-zwischengespeichert im Arbeitsspeicher (höchstens 200 Einträge). Höchstens 4 Symbole gleichzeitig.
-Jedes Ziel muss öffentlich routbar sein, auch wenn es auf dem konfigurierten Marketplace-Origin liegt;
-dadurch bleiben interne Marketplace-Adressen für Katalogaufrufe nutzbar, aber deren Symbole werden
-nicht über diesen Abruf geladen. Externe URLs müssen `https` sein. Der öffentliche Speicher
-`api.marketplace.haex.space` bleibt zulässig. Private, reservierte, Loopback-, Link-Local-, Multicast-
-und nicht spezifizierte Adressen werden abgelehnt. Jede Weiterleitung wird erneut geprüft,
-`https` → `http` ist verboten. Die Verbindung verwendet eine geprüfte, festgehaltene DNS-Adresse
-(kein DNS-Rebinding). Fehlt ein Symbol oder ist es ungültig, zeigt die Kachel ein Standardsymbol.
+**Decision**: The frontend asks `marketplace_icon(source_id, url)`; the host loads (without credentials,
+≤ 256 KiB, only `image/png|jpeg|webp`, **no SVG**) and returns a `data:` URL, cached in memory (at most
+200 entries). At most 4 icons at the same time. Every destination must be publicly routable, even if it
+lies on the configured marketplace origin; this keeps internal marketplace addresses usable for catalog
+calls, but their icons are not loaded through this fetch. External URLs must be `https`. The public
+storage `api.marketplace.haex.space` remains permitted. Private, reserved, loopback, link-local,
+multicast and unspecified addresses are rejected. Every redirect is checked again, `https` → `http` is
+forbidden. The connection uses a checked, pinned DNS address (no DNS rebinding). If an icon is missing or
+invalid, the tile shows a default icon.
 
-**Begründung**: FR-006 (das Webview ruft keine Adresse eines Marketplace auf; die CSP bleibt zu). SVG wird
-ausgelassen, damit kein aktiver Inhalt in `<img>` landet (auch wenn `<img>` Skripte nicht ausführt).
-Die öffentliche Adressprüfung begrenzt SSRF auf öffentliche Bildserver.
+**Rationale**: FR-006 (the webview calls no marketplace address; the CSP stays closed). SVG is left out
+so that no active content lands in `<img>` (even though `<img>` does not run scripts). The public-address
+check limits SSRF to public image servers.
 
-## R13 – Agenten und Erweiterungen sehen den Katalog nicht
+## R13 – Agents and extensions do not see the catalog
 
-**Entscheidung**: Die Commands stehen nur im Tauri-Handler des Hauptfensters. Sie werden **nicht** in der
-Registry der Agenten-Aktionen (`*ActionHandlers`, Spec 020/021), nicht im MCP-Server und nicht in der
-Prüfstelle der Erweiterungen (`extensions/bridge/dispatch.rs`) eingetragen. Ein Test zählt: Keine Aktion,
-kein MCP-Werkzeug und keine Host-Methode trägt den Namen `marketplace*` (FR-030); er schlägt fehl, wenn
-jemand eine einträgt, und zwingt zu einer bewussten Entscheidung.
+**Decision**: The commands live only in the Tauri handler of the main window. They are **not** entered in
+the registry of the agent actions (`*ActionHandlers`, Spec 020/021), not in the MCP server and not in the
+checkpoint of the extensions (`extensions/bridge/dispatch.rs`). A test counts: no action, no MCP tool and
+no host method carries the name `marketplace*` (FR-030); it fails when someone adds one and forces a
+deliberate decision.
 
-## R14 – Live-Daten und Sync
+## R14 – Live data and sync
 
-**Entscheidung**: `haex_marketplaces` ist eine gewöhnliche CRDT-Tabelle (`HOLZI_TRIGGER_VERSION` + 1,
-Eintrag in der Liste der synchronisierten Tabellen). Die Einstellungsansicht abonniert Änderungen über das
-bestehende `vault-data-changed`/`onVaultTablesChanged` (Spec 028-Live-Daten); Ein/Aus und Rang schreiben
-beim Tippen sofort (Spec 023). Kein UNIQUE (ein Konflikt würde den Sync anhalten, Muster der anderen
-Tabellen); Sortierlücken und gleiche Ränge werden beim Lesen mit `(rank, name, id)` stabil aufgelöst.
+**Decision**: `haex_marketplaces` is an ordinary CRDT table (`HOLZI_TRIGGER_VERSION` + 1, entry in the
+list of synced tables). The settings view subscribes to changes through the existing
+`vault-data-changed`/`onVaultTablesChanged` (Spec 028 live data); on/off and rank write immediately on
+tap (Spec 023). No UNIQUE (a conflict would halt the sync, pattern of the other tables); sort gaps and
+equal ranks are resolved stably on read with `(rank, name, id)`.
 
-## R15 – e2e und Testmarketplace
+## R15 – e2e and test marketplace
 
-**Entscheidung**: Der Rig (Spec 016) bekommt einen kleinen Node-Server, der Katalog, Kategorien, Details und
-Download für zwei Erweiterungen liefert, eine davon mit dem bestehenden signierten Test-Bundle
-(`haextension-test-bundles`, Wegwerf-Schlüssel). Die Adresse der Voreinstellung lässt sich im
-e2e-Build überschreiben (`HOLZI_E2E_MARKETPLACE_URL`, nur in e2e-Builds, wie die anderen Schalter des
-Rigs; die genaue Stelle klärt Aufgabe T003 in `tasks.md`). Im Release-Build gibt es keinen
-Umgebungsschalter.
+**Decision**: The rig (Spec 016) gets a small Node server that serves catalog, categories, details and
+download for two extensions, one of them with the existing signed test bundle (`haextension-test-bundles`,
+throw-away key). The address of the preset can be overridden in the e2e build
+(`HOLZI_E2E_MARKETPLACE_URL`, only in e2e builds, like the other switches of the rig; the exact place is
+settled by task T003 in `tasks.md`). In the release build there is no environment switch.
 
-## R17 – Abgleich mit haex-vault 2.x (Legacy)
+## R17 – Comparison with haex-vault 2.x (legacy)
 
-Gelesen in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog.ts`,
+Read in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog.ts`,
 `useExtensionUpdate.ts`, `system/marketplace*.vue`, `settings/extensions/marketplaces.vue`,
-`MarketplaceEditDialog.vue`, Migration `0000_jazzy_chat.sql` (Tabelle) und `useMarketplaces.test.ts`.
+`MarketplaceEditDialog.vue`, migration `0000_jazzy_chat.sql` (table) and `useMarketplaces.test.ts`.
 
-**Übernommen**
+**Adopted**
 
-- Mehrere Quellen parallel mit Fehler je Quelle (`Promise.allSettled`, `sourceErrors`); Katalog, Suche,
-  Kategorie, Seite, Sortierung nach Downloads, Seitengröße 20.
-- Der Download geht über die Quelle, die den Eintrag lieferte (`sourceMarketplaceId`), nie über „irgendeine“.
-- Einstellungen: Liste mit Schalter Ein/Aus je Zeile, Menü Bearbeiten/Löschen, Formular zum Anlegen,
-  Auth-Arten keine, Bearer, Basic; Rang als Priorität (kleiner = früher).
-- Nach Installieren, Aktualisieren und Entfernen aktualisiert sich der Katalog (Legacy-Fehlerkorrektur
-  „refresh catalog after extension update“): Kachelzustände folgen `vault-data-changed` (ui.md).
-- Version wählen in den Details; Update bewahrt die Daten, Neuinstallation ist eine eigene Bestätigung
-  (in holzi bereits Teil der Vorschau, Spec 017).
+- Several sources in parallel with an error per source (`Promise.allSettled`, `sourceErrors`); catalog,
+  search, category, page, sort by downloads, page size 20.
+- The download goes through the source that supplied the entry (`sourceMarketplaceId`), never through
+  "any".
+- Settings: list with an on/off switch per row, menu edit/delete, form for creating, auth types none,
+  Bearer, Basic; rank as priority (smaller = earlier).
+- After install, update and remove the catalog refreshes (legacy fix "refresh catalog after extension
+  update"): tile states follow `vault-data-changed` (ui.md).
+- Choose a version in the details; an update keeps the data, a reinstall is a confirmation of its own
+  (in holzi already part of the preview, Spec 017).
 
-**Bewusst anders**
+**Deliberately different**
 
-| Legacy                                                              | holzi                                                                                               | Grund                                                            |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Dopplung nach `extensionId`, erste Quelle gewinnt (Test `dedupes…`) | Keine Zusammenlegung, jede Kachel mit Quelle (R7)                                                   | eine Quelle darf eine andere nicht verdecken (selbst gehostet)   |
-| Token/Passwort als Spalten der Tabelle                              | Verweis auf einen Passwort-Eintrag (R11)                                                            | keine Geheimnisse in Vault-Tabellen, Sync und Protokollen        |
-| `is_default`-Spalte, Standard nicht löschbar, Zeile beim Öffnen     | gewöhnliche Zeile `preset-public` (R10)                                                             | generische Konfiguration, kein Sync-Wettlauf                     |
-| Netzwerk im Webview über `plugin-http` und SDK                      | Host (Rust, `reqwest`)                                                                              | ein HTTP-Pfad, Weiterleitungs- und Anmelderegeln an einer Stelle |
-| `bundleHash` wird übergeben, Prüfung ist ein `TODO`                 | Prüfsumme und Größe sind Pflicht (FR-013)                                                           | ein Dritter liefert die Datei                                    |
-| Bytes als `Array.from(Uint8Array)` durch die IPC und zurück         | Bytes bleiben im Host (R3)                                                                          | 24-MiB-Bundles, keine Verdopplung, nichts im Webview             |
-| Update: Suche nach Name (`limit: 10`) auf Wunsch je Erweiterung     | Prüfung aller installierten Namen bei App-Öffnung und auf Wunsch, Kandidaten je Quelle (R8, FR-017) | bekannte Updates auch außerhalb der aktuellen Katalogseite       |
-| neueste Fassung = `versions[0]`                                     | `semver` (R1)                                                                                       | die Reihenfolge ist nicht zugesichert                            |
-| „installiert“ nur nach Name, im Frontend                            | Host, Name plus Herausgeberschlüssel in Details und Vorschau (R8)                                   | eine Stelle für die Regel                                        |
-| DID-Anmeldung                                                       | später                                                                                              | Entscheidung des Betreibers, 2026-10-28                          |
-| Formular mit „Erstellen/Speichern“ ohne Test                        | „Testen und speichern“ (FR-021)                                                                     | Fehler früh zeigen; Muster aus Spec 038                          |
+| Legacy                                                        | holzi                                                                                       | Reason                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Dedupe by `extensionId`, first source wins (test `dedupes…`)  | No merging, every tile with its source (R7)                                                 | a source must not hide another (self-hosted)        |
+| Token/password as columns of the table                        | Reference to a password entry (R11)                                                         | no secrets in vault tables, sync and logs           |
+| `is_default` column, default not deletable, row on open       | ordinary row `preset-public` (R10)                                                          | generic configuration, no sync race                 |
+| Network in the webview via `plugin-http` and SDK              | Host (Rust, `reqwest`)                                                                      | one HTTP path, redirect and auth rules in one place |
+| `bundleHash` is passed, the check is a `TODO`                 | Checksum and size are mandatory (FR-013)                                                    | a third party supplies the file                     |
+| Bytes as `Array.from(Uint8Array)` through the IPC and back    | Bytes stay in the host (R3)                                                                 | 24 MiB bundles, no doubling, nothing in the webview |
+| Update: search by name (`limit: 10`) on request per extension | Check of all installed names on app open and on request, candidates per source (R8, FR-017) | known updates also outside the current catalog page |
+| newest version = `versions[0]`                                | `semver` (R1)                                                                               | the order is not guaranteed                         |
+| "installed" by name only, in the frontend                     | Host, name plus publisher key in details and preview (R8)                                   | one place for the rule                              |
+| DID authentication                                            | later                                                                                       | operator decision, 2026-10-28                       |
+| Form with "Erstellen/Speichern" without a test                | "Testen und speichern" (FR-021)                                                             | show errors early; pattern from Spec 038            |
 
-## R16 – Offene Punkte außerhalb der Spec
+## R16 – Open points outside the spec
 
-- DID-Anmeldung (Legacy) und Rezensionen/Bewertungen schreiben: später, nicht Teil von 069.
-- Automatische Updates und Hintergrundabfragen: bewusst nicht (FR-017).
-- Eine ADR ist nicht nötig; sollte sich in der Umsetzung ergeben, dass ein Kernprinzip berührt wird, wird
-  sie nachgereicht.
+- DID authentication (legacy) and writing reviews/ratings: later, not part of 069.
+- Automatic updates and background queries: deliberately not (FR-017).
+- An ADR is not necessary; should it turn out during implementation that a core principle is touched, it
+  will be submitted afterwards.

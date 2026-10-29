@@ -1,4 +1,4 @@
-# Feature Specification: Marketplace für Erweiterungen
+# Feature Specification: Marketplace for extensions
 
 **Feature Branch**: `069-marketplace`
 
@@ -6,10 +6,10 @@
 
 **Status**: Draft
 
-**Input**: „ich möchte gerne noch den marketplace in haex-vault einbinden, so wie wir das in
-haex-vault-legacy auch gemacht haben“ (Betreiber, 2026-10-28). HaexVault soll Erweiterungen aus einem
-Marketplace durchsuchen und installieren können, wie haex-vault 2.x (Legacy) es tut, aber auf holzi
-angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
+**Input**: "I would like to add the marketplace to haex-vault, the way we did it in haex-vault-legacy"
+(operator, 2026-10-28, translated from German). HaexVault is to let users browse and install
+extensions from a marketplace, the way haex-vault 2.x (legacy) does, but adapted to holzi. References:
+haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 (`src/composables/useMarketplaces.ts`, `src/composables/useMarketplaceCatalog.ts`,
 `src/components/haex/system/marketplace*.vue`, `src/components/haex/system/settings/extensions/marketplaces.vue`,
 `src/stores/extensions/index.ts` `downloadAndPreviewAsync`).
@@ -18,469 +18,447 @@ angepasst. Referenzen: haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f57
 
 ### Session 2026-10-28
 
-- Q: Wo läuft der Netzwerkverkehr zum Marketplace? → A: Im Host (Rust), nicht im Webview: Katalog,
-  Kategorien, Download-Adresse und das Laden der Installationsdatei samt Prüfsumme. Die geladenen Bytes
-  gehen direkt in die bestehende Installations-Vorschau (Spec 017), nicht über das Webview. Es gibt keinen
-  zweiten HTTP-Pfad im Frontend (eine Implementierung pro Regel).
-- Q: Wo liegen die Zugangsdaten eines eigenen (privaten) Marketplace? → A: Im Passwortmanager. Der
-  Marketplace verweist auf einen Eintrag (Muster aus Spec 052); in der Marketplace-Liste steht kein
-  Geheimnis. Auth-Arten in dieser Spec: keine, Bearer-Token, Basic. DID-Anmeldung wie im Legacy kommt später.
-- Q: Wie wird vorgegangen und wo sitzt die Oberfläche? → A: Spec zuerst als reiner Docs-PR, danach
-  gestufte PRs. Der Katalog ist eine eigene App im Window Manager (wm), die Verwaltung der Marketplaces
-  sitzt unter Einstellungen → Erweiterungen.
+- Q: Where does the network traffic to the marketplace run? → A: In the host (Rust), not in the webview:
+  catalog, categories, download address and loading the install file including its checksum. The loaded
+  bytes go straight into the existing install preview (spec 017), not through the webview. There is no
+  second HTTP path in the frontend (one implementation per rule).
+- Q: Where do the credentials of an own (private) marketplace live? → A: In the password manager. The
+  marketplace points to an entry (pattern from spec 052); the marketplace list holds no secret. Auth types
+  in this spec: none, bearer token, basic. DID sign-in as in the legacy app comes later.
+- Q: How do we proceed and where does the UI live? → A: The spec first as a docs-only PR, then staged PRs.
+  The catalog is an app of its own in the Window Manager (wm); managing the marketplaces lives under
+  Settings → Extensions.
 
-### Session 2026-10-28 (Betreiber, nach dem Plan)
+### Session 2026-10-28 (operator, after the plan)
 
-- Q: Wie fest ist der Standard-Marketplace? → A: Gar nicht. Die Konfiguration ist **generisch**: Jeder
-  Marketplace ist eine gleichrangige Zeile aus Name, Adresse und optionalen Zugangsdaten; HaexVault
-  behandelt keine Adresse und keinen Betreiber besonders. Der Betreiber stellt einen öffentlichen
-  Marketplace bereit; der Eintrag dafür ist nur eine **Voreinstellung** (eine gewöhnliche, änderbare und
-  löschbare Zeile, die ein neuer Vault mitbringt).
-- Q: Mehrere Marketplaces? → A: Beliebig viele, **gleichzeitig** genutzt. Nutzer dürfen auch selbst einen
-  Marketplace hosten. Deshalb ist das Marketplace-Protokoll ein dokumentierter, offener Vertrag dieses
-  Repositories (FR-034), nicht mehr nur „die Schnittstelle von haex-space“.
-- Q: Was passiert, wenn zwei Marketplaces dieselbe Erweiterung führen? → A: Beide Einträge erscheinen,
-  mit Quelle; es wird nichts zusammengelegt, damit ein selbst gehosteter Marketplace den Eintrag eines
-  anderen nicht verdecken kann.
+- Q: How fixed is the default marketplace? → A: Not at all. The configuration is **generic**: every
+  marketplace is an equal row of name, address and optional credentials; HaexVault treats no address and no
+  operator specially. The operator provides a public marketplace; the entry for it is only a **preset** (an
+  ordinary row that can be changed and deleted, which a new vault brings along).
+- Q: Several marketplaces? → A: As many as you like, used **at the same time**. Users may also host a
+  marketplace themselves. The marketplace protocol is therefore a documented, open contract of this
+  repository (FR-034), no longer just "the haex-space interface".
+- Q: What happens when two marketplaces list the same extension? → A: Both entries appear, with their
+  source; nothing is merged, so a self-hosted marketplace cannot cover the entry of another one.
 
-### Session 2026-10-28 (Plan)
+### Session 2026-10-28 (plan)
 
-- Q: Liefert der Marketplace Prüfsumme und Größe verlässlich? → A: Ja. Der Dienst
-  `marketplace.haex.space` liefert zu jeder Fassung `bundleHash` (SHA-256, hex) und `bundleSize` und
-  zu jedem Download eine kurzlebige signierte Adresse auf einem anderen Host. Die Prüfsumme wird
-  deshalb zur Pflicht (FR-013); fehlt sie, wird nicht installiert.
-- Q: Gibt es eine Größengrenze für `.xt`? → A: Ja, 64 MiB (Spec 017, `limits::ARCHIVE_BYTES`). Der
-  Download hält dieselbe Grenze ein (FR-014).
+- Q: Does the marketplace reliably deliver checksum and size? → A: Yes. The service
+  `marketplace.haex.space` delivers `bundleHash` (SHA-256, hex) and `bundleSize` for every version and a
+  short-lived signed address on another host for every download. The checksum therefore becomes mandatory
+  (FR-013); without it nothing is installed.
+- Q: Is there a size limit for `.xt`? → A: Yes, 64 MiB (spec 017, `limits::ARCHIVE_BYTES`). The download
+  keeps the same limit (FR-014).
 
-## Begriffe
+## Terms
 
-- **Marketplace**: ein Katalogdienst, der das **Marketplace-Protokoll** spricht
-  ([contracts/marketplace-api.md](contracts/marketplace-api.md)) und Erweiterungen (Spec 017) mit
-  Beschreibung, Herausgeber, Kategorie, Fassungen und einer Download-Adresse anbietet. Ein Marketplace ist
-  für HaexVault nur eine Zeile aus Name, Adresse und optionalen Zugangsdaten; alle sind gleichrangig.
-  Betreiben kann ihn jeder: das Projekt (öffentlich), eine Firma oder der Nutzer selbst.
-- **Voreinstellung**: der Eintrag für den öffentlichen Marketplace des Projekts, den ein neuer Vault
-  mitbringt. Er ist eine gewöhnliche Zeile und lässt sich ändern, ausschalten und löschen.
-- **Katalog**: die gemeinsame Liste der Erweiterungen aller eingeschalteten Marketplaces, gleichzeitig.
-- **Katalogeintrag**: eine Erweiterung im Katalog mit den Angaben des Marketplace (Name, Kurzbeschreibung,
-  Symbol, Herausgeber, Kategorie, Bewertung, Zahl der Downloads, verfügbare Fassungen).
-- **Quelle**: der Marketplace, aus dem ein Katalogeintrag stammt.
-- **Zugangsdaten-Eintrag**: der Eintrag im Passwortmanager (Spec 034), auf den ein eigener Marketplace
-  verweist.
-- **Installations-Vorschau**: die bestehende Prüfung und Bestätigung beim Installieren einer
-  Erweiterung (Spec 017 US1, `InstallDialog`): Herausgeber, erklärte Berechtigungen, Update oder
-  Downgrade. Sie ist für Dateien und Marketplace dieselbe.
+- **Marketplace**: a catalog service that speaks the **marketplace protocol**
+  ([contracts/marketplace-api.md](contracts/marketplace-api.md)) and offers extensions (spec 017) with
+  description, publisher, category, versions and a download address. To HaexVault a marketplace is only a
+  row of name, address and optional credentials; all are equal. Anyone can run one: the project (public),
+  a company or the user themselves.
+- **Preset**: the entry for the project's public marketplace that a new vault brings along. It is an
+  ordinary row and can be changed, switched off and deleted.
+- **Catalog**: the shared list of the extensions of all enabled marketplaces, at the same time.
+- **Catalog entry**: an extension in the catalog with the marketplace's details (name, short description,
+  icon, publisher, category, rating, number of downloads, available versions).
+- **Source**: the marketplace a catalog entry comes from.
+- **Credentials entry**: the entry in the password manager (spec 034) that an own marketplace points to.
+- **Install preview**: the existing check and confirmation when installing an extension (spec 017 US1,
+  `InstallDialog`): publisher, declared permissions, update or downgrade. It is the same for files and for
+  the marketplace.
 
-## Beziehung zu bestehenden Specs
+## Relation to existing specs
 
-- **Spec 017** (Erweiterungs-Host): Diese Spec ändert nichts an Signatur, Berechtigungen und
-  Installations-Vorschau. Eine Erweiterung aus dem Marketplace ist ein gewöhnliches `.xt`-Bundle; ob sie
-  vertrauenswürdig ist, entscheidet die Signatur im Bundle und die Bestätigung des Nutzers, **nicht** die
-  Angabe „geprüft“ des Marketplace. Das Installieren aus einer Datei bleibt unverändert.
-- **Spec 034** (Passwortmanager) und **Spec 052** (Zugangsdaten wählen): Die Auswahl des
-  Zugangsdaten-Eintrags eines Marketplace benutzt dieselbe Auswahl wie die Speicherverbindungen; die
-  Regeln für Löschwarnung und Freigaben aus 034 und 052 gelten entsprechend.
-- **Spec 024** (Sync) und **Spec 023** (Einstellungen): Die Marketplace-Liste sind Vault-Daten und kommen
-  auf alle eigenen Geräte; in den Einstellungen gibt es keine Speichern-Schaltfläche, Änderungen gelten
-  sofort (Ausnahme: das Formular eines Marketplace, siehe FR-021).
-- **Spec 021** (MCP-Server) und **Spec 018/047** (Agenten-Werkzeuge): Agenten und Erweiterungen können
-  weder den Katalog abfragen noch installieren (siehe FR-030).
-- **ADR-0004**: Der Katalog ist eine holzi-eigene Funktion, keine Host-Funktion für Erweiterungen.
+- **Spec 017** (extension host): This spec changes nothing about signature, permissions and install
+  preview. An extension from the marketplace is an ordinary `.xt` bundle; whether it is trustworthy is
+  decided by the signature in the bundle and the user's confirmation, **not** by the marketplace's
+  "verified" claim. Installing from a file stays unchanged.
+- **Spec 034** (password manager) and **spec 052** (choosing credentials): Choosing the credentials entry
+  of a marketplace uses the same picker as the storage connections; the rules for the delete warning and
+  shares from 034 and 052 apply accordingly.
+- **Spec 024** (sync) and **spec 023** (settings): The marketplace list is vault data and reaches all own
+  devices; there is no save button in the settings, changes apply at once (exception: the form of a
+  marketplace, see FR-021).
+- **Spec 021** (MCP server) and **specs 018/047** (agent tools): Agents and extensions can neither query
+  the catalog nor install (see FR-030).
+- **ADR-0004**: The catalog is a holzi function of its own, not a host function for extensions.
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Erweiterung im Katalog finden und installieren (Priority: P1)
+### User Story 1 - Find an extension in the catalog and install it (Priority: P1)
 
-Anna öffnet in HaexVault die App „Erweiterungen entdecken“. Sie sieht den gemeinsamen Katalog
-ihrer Marketplaces als Kacheln mit Symbol, Name, Kurzbeschreibung, Herausgeber und Bewertung. Sie
-filtert nach der Kategorie „Produktivität“, sucht nach „Kalender“, öffnet die Details einer Erweiterung
-und tippt „Installieren“. HaexVault lädt die Installationsdatei und zeigt dieselbe Installations-Vorschau
-wie beim Installieren aus einer Datei: Herausgeber, Berechtigungen, Bestätigung. Nach „Installieren“
-erscheint die Erweiterung unter ihren Apps, und die Kachel zeigt „Installiert“.
+Anna opens the app "Erweiterungen entdecken" in HaexVault. She sees the shared catalog of her
+marketplaces as tiles with icon, name, short description, publisher and rating. She filters by the category
+"Produktivität", searches for "Kalender", opens the details of an extension and taps "Installieren".
+HaexVault loads the install file and shows the same install preview as when installing from a file:
+publisher, permissions, confirmation. After "Installieren" the extension appears among her apps, and the
+tile shows "Installiert".
 
-**Why this priority**: Das ist der Kern: ohne Katalog muss der Nutzer `.xt`-Dateien selbst finden,
-herunterladen und von Hand installieren.
+**Why this priority**: This is the core: without a catalog the user has to find `.xt` files themselves,
+download them and install them by hand.
 
-**Independent Test**: Mit einem Test-Marketplace (lokaler Server mit zwei Erweiterungen, einer
-signierten `.xt`) den Katalog öffnen, eine Erweiterung wählen, installieren, in der Installations-Vorschau
-bestätigen; die Erweiterung läuft als App, die Kachel zeigt „Installiert“.
+**Independent Test**: With a test marketplace (local server with two extensions, one signed `.xt`), open the
+catalog, choose an extension, install it, confirm in the install preview; the extension runs as an app and
+the tile shows "Installiert".
 
 **Acceptance Scenarios**:
 
-1. **Given** mindestens ein eingeschalteter Marketplace ist erreichbar, **When** Anna die App öffnet,
-   **Then** sieht sie die erste Seite des gemeinsamen Katalogs: Quellen in ihrer Rangfolge, Einträge je
-   Quelle nach Downloads absteigend, mit Kategorien zum Filtern.
-2. **Given** der Katalog ist offen, **When** Anna in das Suchfeld tippt, **Then** aktualisiert sich die
-   Liste nach einer kurzen Pause (nicht nach jedem Buchstaben) und die Seite springt auf Seite 1.
-3. **Given** Anna wählt eine Kategorie, **When** sie zusätzlich sucht, **Then** gelten beide Filter
-   zusammen; „Alle“ hebt den Kategoriefilter auf.
-4. **Given** der Katalog hat mehr Treffer als eine Seite, **When** Anna blättert, **Then** lädt die
-   nächste Seite, ohne dass der Rest der App blockiert.
-5. **Given** Anna tippt in den Details auf „Installieren“, **When** die Datei geladen ist, **Then**
-   erscheint die Installations-Vorschau mit Herausgeber, Berechtigungen und der Angabe, aus welchem
-   Marketplace die Datei kam; erst „Installieren“ dort installiert.
-6. **Given** Anna bricht die Installations-Vorschau ab, **When** sie den Dialog schließt, **Then** ist
-   nichts installiert und nichts auf der Platte geblieben.
-7. **Given** die Installation war erfolgreich, **When** Anna zur Kachel zurückkehrt, **Then** zeigt sie
-   „Installiert“ mit der installierten Fassung.
-8. **Given** Anna hat zwei eingeschaltete Marketplaces, **When** sie den Katalog öffnet, **Then** sieht sie
-   die Einträge beider gleichzeitig, jede Kachel nennt ihren Marketplace, und ein Filter „Quelle“ schränkt
-   auf einen ein.
-9. **Given** beide Marketplaces führen eine Erweiterung gleichen Namens, **When** Anna den Katalog
-   ansieht, **Then** erscheinen beide Kacheln mit ihrer Quelle, und Anna wählt, aus welcher sie
-   installiert.
+1. **Given** at least one enabled marketplace is reachable, **When** Anna opens the app, **Then** she sees
+   the first page of the shared catalog: sources in their rank order, entries within each source by
+   downloads descending, with categories to filter by.
+2. **Given** the catalog is open, **When** Anna types into the search field, **Then** the list updates
+   after a short pause (not after every letter) and the page jumps to page 1.
+3. **Given** Anna chooses a category, **When** she also searches, **Then** both filters apply together;
+   "Alle" lifts the category filter.
+4. **Given** the catalog has more hits than fit on one page, **When** Anna pages, **Then** the next page
+   loads without blocking the rest of the app.
+5. **Given** Anna taps "Installieren" in the details, **When** the file is loaded, **Then** the install
+   preview appears with publisher, permissions and the marketplace the file came from; only "Installieren"
+   there installs.
+6. **Given** Anna cancels the install preview, **When** she closes the dialog, **Then** nothing is
+   installed and nothing is left on disk.
+7. **Given** the installation succeeded, **When** Anna returns to the tile, **Then** it shows "Installiert"
+   with the installed version.
+8. **Given** Anna has two enabled marketplaces, **When** she opens the catalog, **Then** she sees the
+   entries of both at the same time, every tile names its marketplace, and a "Quelle" filter narrows it
+   down to one.
+9. **Given** both marketplaces list an extension of the same name, **When** Anna looks at the catalog,
+   **Then** both tiles appear with their source, and Anna chooses which one to install from.
 
 ---
 
-### User Story 2 - Sicher: nur geprüfte Bytes werden installiert (Priority: P1)
+### User Story 2 - Safe: only verified bytes are installed (Priority: P1)
 
-Der Marketplace ist ein Dritter. Was er liefert, darf HaexVault nicht blind installieren. HaexVault
-vergleicht die Prüfsumme, die der Marketplace zu einer Fassung angibt, mit der geladenen Datei; stimmt
-sie nicht, oder fehlt sie, wird abgebrochen. Unabhängig davon prüft die Installations-Vorschau wie immer die Signatur im
-Bundle. Behauptet der Marketplace einen Herausgeber „geprüft“, ist das nur eine Anzeige.
+The marketplace is a third party. HaexVault must not install blindly what it delivers. HaexVault compares
+the checksum the marketplace gives for a version with the loaded file; if it does not match, or is missing,
+it aborts. Independently of that, the install preview checks the signature in the bundle as always. If the
+marketplace claims a publisher is "verified", that is only a display.
 
-**Why this priority**: Der Marketplace-Betreiber (oder ein Angreifer im Netz) darf nie ohne Wissen des
-Nutzers Code in seinen Vault bringen.
+**Why this priority**: The marketplace operator (or an attacker on the network) must never bring code into
+the user's vault without their knowledge.
 
-**Independent Test**: Test-Marketplace mit (a) falscher oder fehlender Prüfsumme, (b) unsigniertem Bundle, (c) Bundle
-mit anderem Herausgeber als angezeigt, (d) viel zu großer Datei: In allen Fällen wird nichts installiert und
-der Nutzer sieht den Grund.
+**Independent Test**: Test marketplace with (a) a wrong or missing checksum, (b) an unsigned bundle,
+(c) a bundle with a different publisher than displayed, (d) a far too large file: in all cases nothing is
+installed and the user sees the reason.
 
 **Acceptance Scenarios**:
 
-1. **Given** die Prüfsumme des Marketplace stimmt nicht mit der geladenen Datei überein, **When** der
-   Download endet, **Then** bricht HaexVault ab, installiert nichts und meldet „Die geladene Datei
-   stimmt nicht mit der Angabe des Marketplace überein“; fehlt die Prüfsumme, meldet es „Der Marketplace liefert keine Prüfsumme“.
-2. **Given** das Bundle ist ungültig oder unsigniert, **When** die Installations-Vorschau es prüft,
-   **Then** zeigt sie denselben Fehler wie beim Installieren aus einer Datei (Spec 017) und erlaubt keine
-   Installation.
-3. **Given** der Herausgeberschlüssel im Bundle weicht vom Herausgeber im Katalog ab, **When** die Vorschau
-   erscheint, **Then** zeigt sie den Schlüssel aus dem Bundle als Herausgeber und weist auf die Abweichung zum
-   Katalog hin.
-4. **Given** der Marketplace liefert eine Datei, die größer ist als 64 MiB (FR-014) oder mehr Bytes liefert als angegeben,
-   **When** der Download läuft, **Then** bricht er ab, sobald die Grenze überschritten ist.
-5. **Given** der Marketplace antwortet mit einer Weiterleitung auf einen anderen Host, **When** HaexVault
-   der Weiterleitung folgt, **Then** sendet es dorthin keine Zugangsdaten des Marketplace.
+1. **Given** the marketplace's checksum does not match the loaded file, **When** the download ends,
+   **Then** HaexVault aborts, installs nothing and reports "Die geladene Datei stimmt nicht mit der Angabe
+   des Marketplace überein"; if the checksum is missing, it reports "Der Marketplace liefert keine
+   Prüfsumme".
+2. **Given** the bundle is invalid or unsigned, **When** the install preview checks it, **Then** it shows
+   the same error as when installing from a file (spec 017) and allows no installation.
+3. **Given** the publisher key in the bundle differs from the publisher in the catalog, **When** the
+   preview appears, **Then** it shows the key from the bundle as publisher and points out the difference
+   from the catalog.
+4. **Given** the marketplace delivers a file larger than 64 MiB (FR-014) or more bytes than stated,
+   **When** the download runs, **Then** it aborts as soon as the limit is exceeded.
+5. **Given** the marketplace answers with a redirect to another host, **When** HaexVault follows the
+   redirect, **Then** it sends no marketplace credentials there.
 
 ---
 
-### User Story 3 - Aktualisieren und Entfernen (Priority: P2)
+### User Story 3 - Update and remove (Priority: P2)
 
-Anna hat „Kalender“ in Fassung 1.2.0 installiert; der Katalog führt 1.3.0. Die Kachel zeigt „Update
-verfügbar“. Ein Tipp öffnet die Installations-Vorschau im Modus „Update“ (Daten bleiben erhalten, die
-Berechtigungsänderungen werden gezeigt). Über „Entfernen“ in den Details startet Anna die bestehende
-Entfernung (Spec 017) samt der Frage, ob die Daten der Erweiterung behalten werden.
+Anna has installed "Kalender" in version 1.2.0; the catalog lists 1.3.0. The tile shows "Update
+verfügbar". A tap opens the install preview in "Update" mode (data is kept, the permission changes are
+shown). Via "Entfernen" in the details Anna starts the existing removal (spec 017), including the question
+whether the extension's data is kept.
 
-**Why this priority**: Ohne Update-Hinweis bleibt der Nutzer auf alten Fassungen, aber die erste
-Installation (US1) trägt die Funktion bereits.
+**Why this priority**: Without an update hint the user stays on old versions, but the first installation
+(US1) already carries the feature.
 
-**Independent Test**: Test-Marketplace mit zwei Fassungen einer bereits installierten Erweiterung:
-Kachel zeigt „Update verfügbar“, Update läuft über die Vorschau, danach „Installiert“ mit neuer Fassung;
-„Entfernen“ entfernt die Erweiterung nach Bestätigung.
+**Independent Test**: Test marketplace with two versions of an already installed extension: the tile shows
+"Update verfügbar", the update runs through the preview, afterwards "Installiert" with the new version;
+"Entfernen" removes the extension after confirmation.
 
 **Acceptance Scenarios**:
 
-1. **Given** die installierte Fassung ist älter als die neueste Fassung im Katalog, **When** Anna den
-   Katalog öffnet, **Then** zeigt die Kachel „Update verfügbar“ mit beiden Fassungen.
-2. **Given** die installierte Fassung ist gleich oder neuer, **When** Anna die Kachel sieht, **Then**
-   erscheint kein Update-Hinweis.
-3. **Given** Anna tippt „Aktualisieren“, **When** die Datei geladen ist, **Then** zeigt die Vorschau
-   „Update von A auf B“ und welche Berechtigungen neu sind; die Daten der Erweiterung bleiben.
-4. **Given** der Katalog führt mehrere Fassungen, **When** Anna in den Details eine ältere wählt,
-   **Then** zeigt die Vorschau die Bestätigung für ein Downgrade wie in Spec 017.
-5. **Given** eine Erweiterung ist installiert, **When** Anna in den Details „Entfernen“ wählt, **Then**
-   läuft die bestehende Entfernung mit der Frage nach den Daten.
-6. **Given** der Nutzer öffnet die Liste der installierten Erweiterungen (Einstellungen), **When** der
-   Katalog zuvor eine neuere Fassung gemeldet hat, **Then** zeigt die Zeile „Update verfügbar“; ein Tipp
-   öffnet den Katalogeintrag.
-7. **Given** Anna hat eine Erweiterung installiert, die auf der gerade angezeigten Katalogseite (etwa wegen
-   einer Suche) nicht steht, **When** sie die App öffnet oder „Aktualisieren“ tippt, **Then** ist das
-   Update trotzdem bekannt, und die Liste der installierten Erweiterungen zeigt es.
+1. **Given** the installed version is older than the newest version in the catalog, **When** Anna opens
+   the catalog, **Then** the tile shows "Update verfügbar" with both versions.
+2. **Given** the installed version is equal or newer, **When** Anna looks at the tile, **Then** no update
+   hint appears.
+3. **Given** Anna taps "Aktualisieren", **When** the file is loaded, **Then** the preview shows "Update von
+   A auf B" and which permissions are new; the extension's data stays.
+4. **Given** the catalog lists several versions, **When** Anna chooses an older one in the details,
+   **Then** the preview shows the downgrade confirmation as in spec 017.
+5. **Given** an extension is installed, **When** Anna chooses "Entfernen" in the details, **Then** the
+   existing removal runs with the question about the data.
+6. **Given** the user opens the list of installed extensions (settings), **When** the catalog reported a
+   newer version earlier, **Then** the row shows "Update verfügbar"; a tap opens the catalog entry.
+7. **Given** Anna has installed an extension that is not on the catalog page currently shown (for example
+   because of a search), **When** she opens the app or taps "Aktualisieren", **Then** the update is known
+   anyway, and the list of installed extensions shows it.
 
 ---
 
-### User Story 4 - Marketplaces verwalten (Priority: P2)
+### User Story 4 - Manage marketplaces (Priority: P2)
 
-Unter Einstellungen → Erweiterungen → Marketplaces sieht Anna eine Liste ihrer Marketplaces, bei einem
-neuen Vault mit der Voreinstellung. Alle Zeilen sind gleich: Sie schaltet jede ein oder aus (gilt sofort),
-ändert die Reihenfolge, legt einen neuen mit Name und Adresse an, bearbeitet und löscht jeden. Wer einen
-eigenen Marketplace hostet (Firma, Verein, Heimserver), trägt dessen Adresse ein, und er arbeitet neben
-den anderen, ohne dass HaexVault etwas darüber wissen muss.
+Under Settings → Extensions → Marketplaces Anna sees a list of her marketplaces, in a new vault with the
+preset. All rows are equal: she switches each one on or off (applies at once), changes the order, adds a
+new one with name and address, edits and deletes any of them. Whoever hosts a marketplace of their own
+(company, club, home server) enters its address, and it works next to the others without HaexVault having
+to know anything about it.
 
-**Why this priority**: Wichtig für Firmen und Selbst-Hoster, aber die Voreinstellung reicht für
-den ersten Nutzen (US1).
+**Why this priority**: Important for companies and self-hosters, but the preset is enough for the first
+use (US1).
 
-**Independent Test**: Zweiten Marketplace anlegen, ausschalten, einschalten, nach oben sortieren,
-löschen; Katalog und Reihenfolge der Quellen folgen jeweils sofort.
+**Independent Test**: Add a second marketplace, switch it off, switch it on, move it up, delete it; the
+catalog and the order of the sources follow each time at once.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein neuer Vault, **When** Anna die Liste öffnet, **Then** steht dort die Voreinstellung als
-   gewöhnliche Zeile, eingeschaltet, ohne dass sie etwas einrichten musste.
-2. **Given** Anna legt einen Marketplace mit Name und Adresse an, **When** sie bestätigt, **Then**
-   prüft HaexVault die Erreichbarkeit der Adresse und zeigt das Ergebnis („erreichbar, N Erweiterungen“
-   oder die Fehlerursache); sie kann trotzdem speichern.
-3. **Given** ein Marketplace ist ausgeschaltet, **When** Anna den Katalog öffnet, **Then** kommen von
-   ihm weder Einträge noch Kategorien noch Fehler.
-4. **Given** zwei Marketplaces, **When** Anna einen nach oben schiebt, **Then** ändert sich ihre
-   Anordnung im Katalog sofort.
-5. **Given** die Voreinstellung, **When** Anna sie bearbeitet, ausschaltet oder löscht, **Then** geht das wie
-   bei jedem anderen Marketplace; HaexVault legt sie nie von allein wieder an oder schaltet sie wieder ein.
-6. **Given** Anna löscht einen Marketplace, **When** sie bestätigt, **Then** verschwindet er
-   aus der Liste und aus dem Katalog; bereits installierte Erweiterungen bleiben unberührt.
-7. **Given** Anna hat auf Gerät A einen Marketplace angelegt, **When** Gerät B synchronisiert hat,
-   **Then** steht er dort ebenfalls in der Liste (Zugangsdaten über den Eintrag im Passwortmanager).
-8. **Given** Ben betreibt einen eigenen Marketplace nach dem Marketplace-Protokoll auf einer beliebigen
-   Adresse (auch mit Pfadanteil, auch `http://` im lokalen Netz), **When** Anna die Adresse einträgt,
-   **Then** erscheinen seine Erweiterungen im Katalog neben denen der anderen, ohne Änderung an
-   HaexVault.
-9. **Given** Anna hat keinen Marketplace (Vault vor dieser Funktion angelegt oder alle gelöscht), **When**
-   sie den Katalog öffnet, **Then** erklärt der Leerzustand das und bietet „Öffentlichen Marketplace
-   hinzufügen“ (die Voreinstellung) und „Eigenen Marketplace hinzufügen“ an.
+1. **Given** a new vault, **When** Anna opens the list, **Then** the preset is there as an ordinary row,
+   enabled, without her having set anything up.
+2. **Given** Anna adds a marketplace with name and address, **When** she confirms, **Then** HaexVault
+   checks that the address is reachable and shows the result ("erreichbar, N Erweiterungen" or the cause
+   of the error); she can save anyway.
+3. **Given** a marketplace is switched off, **When** Anna opens the catalog, **Then** it contributes
+   neither entries nor categories nor errors.
+4. **Given** two marketplaces, **When** Anna moves one up, **Then** their arrangement in the catalog
+   changes at once.
+5. **Given** the preset, **When** Anna edits, switches off or deletes it, **Then** it works like with any
+   other marketplace; HaexVault never re-creates it on its own or switches it on again.
+6. **Given** Anna deletes a marketplace, **When** she confirms, **Then** it disappears from the list and
+   from the catalog; already installed extensions stay untouched.
+7. **Given** Anna added a marketplace on device A, **When** device B has synced, **Then** it is in the
+   list there as well (credentials via the entry in the password manager).
+8. **Given** Ben runs a marketplace of his own following the marketplace protocol at any address (also
+   with a path part, also `http://` on the local network), **When** Anna enters the address, **Then** his
+   extensions appear in the catalog next to those of the others, without any change to HaexVault.
+9. **Given** Anna has no marketplace (vault created before this feature or all deleted), **When** she
+   opens the catalog, **Then** the empty state explains this and offers "Öffentlichen Marketplace
+   hinzufügen" (the preset) and "Eigenen Marketplace hinzufügen".
 
 ---
 
-### User Story 5 - Privater Marketplace mit Zugangsdaten (Priority: P3)
+### User Story 5 - Private marketplace with credentials (Priority: P3)
 
-Ein Team betreibt einen eigenen Marketplace hinter einer Anmeldung (Bearer-Token oder Benutzername und
-Passwort). Beim Anlegen wählt Ben statt eines Tokens im Formular einen Eintrag aus dem Passwortmanager
-(oder legt dort einen neuen ab). Der Marketplace verweist auf diesen Eintrag; in der Liste und in den
-Vault-Daten steht kein Geheimnis.
+A team runs a marketplace of its own behind a sign-in (bearer token or user name and password). When
+adding it, Ben chooses an entry from the password manager in the form instead of a token (or creates a new
+one there). The marketplace points to this entry; the list and the vault data hold no secret.
 
-**Why this priority**: Nur für geschlossene Marketplaces nötig; ein öffentlicher Marketplace braucht keine
-Anmeldung.
+**Why this priority**: Only needed for closed marketplaces; a public marketplace needs no sign-in.
 
-**Independent Test**: Test-Marketplace, der ohne gültigen Authorization-Header 401 liefert: ohne
-Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gewähltem Eintrag lädt er.
+**Independent Test**: Test marketplace that answers 401 without a valid Authorization header: without
+credentials the catalog shows "Anmeldung nötig" for this source, with the chosen entry it loads.
 
 **Acceptance Scenarios**:
 
-1. **Given** Ben wählt als Auth-Art „Bearer“, **When** er das Formular öffnet, **Then** kann er einen
-   passenden Passwort-Eintrag wählen (Passwort-Feld ist das Token); bei „Basic“ ist es Benutzername und
-   Passwort.
-2. **Given** Ben bestätigt das Formular, **When** HaexVault die Verbindung prüft, **Then** sendet es die
-   Zugangsdaten und meldet Erfolg oder „Anmeldung abgelehnt“.
-3. **Given** der Zugangsdaten-Eintrag wurde im Passwortmanager gelöscht, **When** der Katalog lädt,
-   **Then** zeigt die Quelle „Zugangsdaten fehlen“ mit Sprung zum Formular; die anderen Quellen laden
-   weiter.
-4. **Given** der Zugangsdaten-Eintrag ist auf diesem Gerät noch nicht synchronisiert, **When** der Katalog
-   lädt, **Then** zeigt die Quelle „wird synchronisiert“ statt eines Fehlers (Spec 052 Randfall).
-5. **Given** Ben will einen Eintrag im Passwortmanager löschen, den ein Marketplace nutzt, **When** er
-   löscht, **Then** warnt HaexVault und nennt den Marketplace (Spec 034 FR-034).
-6. **Given** die Adresse beginnt mit `http://` und es sind Zugangsdaten gewählt, **When** Ben bestätigt,
-   **Then** verweigert HaexVault das Speichern mit dem Hinweis, dass Zugangsdaten nur über `https://`
-   gehen.
+1. **Given** Ben chooses "Bearer" as auth type, **When** he opens the form, **Then** he can choose a
+   fitting password entry (the password field is the token); for "Basic" it is user name and password.
+2. **Given** Ben confirms the form, **When** HaexVault checks the connection, **Then** it sends the
+   credentials and reports success or "Anmeldung abgelehnt".
+3. **Given** the credentials entry was deleted in the password manager, **When** the catalog loads,
+   **Then** the source shows "Zugangsdaten fehlen" with a jump to the form; the other sources keep loading.
+4. **Given** the credentials entry has not been synced to this device yet, **When** the catalog loads,
+   **Then** the source shows "wird synchronisiert" instead of an error (spec 052 edge case).
+5. **Given** Ben wants to delete an entry in the password manager that a marketplace uses, **When** he
+   deletes it, **Then** HaexVault warns and names the marketplace (spec 034 FR-034).
+6. **Given** the address starts with `http://` and credentials are chosen, **When** Ben confirms,
+   **Then** HaexVault refuses to save, pointing out that credentials only travel over `https://`.
 
 ---
 
 ### Edge Cases
 
-- **Offline oder Marketplace nicht erreichbar**: Der Katalog zeigt für die Quelle eine Fehlerzeile mit
-  Ursache und „Erneut versuchen“; andere Quellen laden. Sind alle Quellen ausgefallen, steht ein
-  Leerzustand mit „Keine Verbindung“, nicht „Keine Erweiterungen“.
-- **Alle Marketplaces ausgeschaltet**: Leerzustand mit Verweis auf die Einstellungen.
-- **Kein Marketplace eingerichtet**: Leerzustand mit „Öffentlichen Marketplace hinzufügen“ und „Eigenen
-  Marketplace hinzufügen“ (US4-9).
-- **Dieselbe Erweiterung in zwei Marketplaces**: Beide Einträge erscheinen mit ihrer Quelle, nichts wird
-  zusammengelegt (FR-012). Die Vorschau zeigt den Herausgeberschlüssel aus dem Bundle, sodass ein
-  untergeschobener Eintrag erkennbar ist.
-- **Marketplace liefert Müll** (kein gültiges Format, fehlende Felder): Die Quelle zeigt „Antwort nicht
-  verständlich“; ein Eintrag mit fehlenden Pflichtfeldern wird ausgelassen, nicht der ganze Katalog.
-- **Langsame Quelle**: Eine Quelle, die nicht innerhalb einer festen Frist antwortet, gilt als
-  ausgefallen und hält die anderen nicht auf.
-- **Seite und Gesamtzahl bei mehreren Quellen**: Jede Quelle liefert dieselbe Seitennummer mit bis zu 20
-  Einträgen. Die App hängt die Ergebnisse in Quellenrangfolge an; `totalPages` ist die größte Seitenzahl
-  der Quellen, `total` die Summe ihrer Treffer. Dadurch kann eine gemeinsame Seite mehr als 20 Einträge
-  enthalten. Die Blätterung bleibt stabil (kein Eintrag verschwindet beim Blättern).
-- **Katalogeintrag bereits installiert, aber anderer Herausgeber**: Die Installations-Vorschau weist wie in
-  Spec 017 auf „gleicher Name, anderer Herausgeber“ hin.
-- **Kein Platz / Schreibfehler beim Download**: Abbruch ohne Rest; Fehlermeldung mit Ursache.
-- **Download wird abgebrochen** (Nutzer schließt die App oder die Verbindung reißt): Nichts installiert,
-  kein halbes Bundle; erneutes Tippen startet neu.
-- **Marketplace ändert zwischen Details und Download die Fassung**: Die Vorschau zeigt die tatsächlich
-  geladene Fassung.
-- **Zwei Installationen gleichzeitig** (zwei Kacheln schnell nacheinander): Es läuft eine Vorschau; die
-  zweite wartet oder wird abgelehnt mit Hinweis, nie zwei Dialoge übereinander.
-- **Vault gesperrt oder geschlossen**: Während des Downloads gesperrt: Abbruch ohne Installation.
-- **Mobil (Android, iOS)**: Einspaltige Kacheln, Touch-Ziele; der Datei-Install bleibt daneben möglich.
-- **Windows**: Schlüssel- und Pfadbehandlung wie beim Datei-Install; der Download nutzt keinen
-  Dateipfad im Webview.
+- **Offline or marketplace not reachable**: The catalog shows an error line for the source with the cause
+  and "Erneut versuchen"; other sources load. If all sources failed, there is an empty state with "Keine
+  Verbindung", not "Keine Erweiterungen".
+- **All marketplaces switched off**: Empty state with a pointer to the settings.
+- **No marketplace set up**: Empty state with "Öffentlichen Marketplace hinzufügen" and "Eigenen
+  Marketplace hinzufügen" (US4-9).
+- **The same extension in two marketplaces**: Both entries appear with their source, nothing is merged
+  (FR-012). The preview shows the publisher key from the bundle, so a planted entry can be recognised.
+- **Marketplace delivers garbage** (no valid format, missing fields): The source shows "Antwort nicht
+  verständlich"; an entry with missing required fields is left out, not the whole catalog.
+- **Slow source**: A source that does not answer within a fixed deadline counts as failed and does not
+  hold up the others.
+- **Page and total with several sources**: Each source delivers the same page number with up to 20
+  entries. The app appends the results in source rank order; `totalPages` is the largest page count of the
+  sources, `total` the sum of their hits. A shared page can therefore contain more than 20 entries.
+  Paging stays stable (no entry disappears while paging).
+- **Catalog entry already installed, but another publisher**: As in spec 017, the install preview points
+  out "gleicher Name, anderer Herausgeber".
+- **No space / write error during download**: Abort without leftovers; error message with the cause.
+- **Download is cancelled** (user closes the app or the connection drops): Nothing installed, no half
+  bundle; tapping again starts over.
+- **Marketplace changes the version between details and download**: The preview shows the version that was
+  actually loaded.
+- **Two installations at once** (two tiles tapped in quick succession): One preview runs; the second
+  waits or is rejected with a hint, never two dialogs on top of each other.
+- **Vault locked or closed**: Locked during the download: abort without installation.
+- **Mobile (Android, iOS)**: Single-column tiles, touch targets; installing from a file stays possible
+  next to it.
+- **Windows**: Key and path handling as with installing from a file; the download uses no file path in the
+  webview.
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-**Katalog**
+**Catalog**
 
-- **FR-001**: HaexVault MUSS eine App „Erweiterungen entdecken“ im wm anbieten, die den Katalog aller
-  eingeschalteten Marketplaces zeigt (Kacheln mit Symbol, Name, Kurzbeschreibung, Herausgeber, Kategorie,
-  Bewertung, Zahl der Downloads).
-- **FR-002**: Der Katalog MUSS nach Freitext suchen, nach Kategorie filtern und seitenweise blättern
-  können; Filter wirken gemeinsam, eine Änderung des Filters springt auf Seite 1, Eingaben im Suchfeld
-  werden 300 ms gebündelt.
-- **FR-003**: Der Katalog MUSS die Quellen in ihrer eingestellten Rangfolge anordnen und die Einträge
-  innerhalb jeder Quelle standardmäßig nach Downloads absteigend sortieren.
-- **FR-004**: Eine Kachel MUSS den Zustand „Nicht installiert“, „Installiert (Fassung)“ oder „Update
-  verfügbar“ zeigen. Der Abgleich mit installierten Erweiterungen nutzt den Namen der Erweiterung (die
-  Details zusätzlich den Herausgeberschlüssel); endgültig entscheidet die Installations-Vorschau anhand
-  von Herausgeberschlüssel und Name aus dem Bundle (Spec 017).
-- **FR-005**: Die Details einer Erweiterung MÜSSEN Beschreibung, Herausgeber (mit der Angabe „geprüft“
-  des Marketplace als Anzeige), Bewertung, Fassungen, Kategorie, Tags und Quelle zeigen und von dort
-  „Installieren“, „Aktualisieren“ und „Entfernen“ anbieten.
-- **FR-006**: Texte und Symbole aus dem Marketplace MÜSSEN als reiner Text bzw. als Bild dargestellt
-  werden, nie als aktiver Inhalt (kein HTML, keine Skripte). Symbole werden vom Host ohne Zugangsdaten
-  geladen und eingebettet. URLs auf dem konfigurierten Marketplace-Origin sind erlaubt; externe URLs
-  müssen `https` und öffentlich routbar sein. Private oder reservierte IP-Adressen und Weiterleitungen
-  dorthin sind gesperrt; das Webview ruft keine Adresse eines Marketplace selbst auf.
-- **FR-007**: Der Marketplace-Katalog MUSS auch ohne gewählte Installation nutzbar sein (nur ansehen);
-  eine Anfrage an einen Marketplace sendet weder Vault- noch Geräte-Kennungen noch den Namen des Nutzers.
+- **FR-001**: HaexVault MUST offer an app "Erweiterungen entdecken" in the wm that shows the catalog of
+  all enabled marketplaces (tiles with icon, name, short description, publisher, category, rating, number
+  of downloads).
+- **FR-002**: The catalog MUST support free-text search, filtering by category and paging; filters apply
+  together, a filter change jumps to page 1, input in the search field is debounced by 300 ms.
+- **FR-003**: The catalog MUST arrange the sources in their configured rank order and, within each source,
+  sort the entries by downloads descending by default.
+- **FR-004**: A tile MUST show the state "Nicht installiert", "Installiert (Fassung)" or "Update
+  verfügbar". The comparison with installed extensions uses the name of the extension (the details
+  additionally use the publisher key); the install preview decides in the end, based on the publisher key
+  and name from the bundle (spec 017).
+- **FR-005**: The details of an extension MUST show description, publisher (with the marketplace's
+  "verified" claim as a display), rating, versions, category, tags and source, and offer "Installieren",
+  "Aktualisieren" and "Entfernen" from there.
+- **FR-006**: Texts and icons from the marketplace MUST be shown as plain text or as an image, never as
+  active content (no HTML, no scripts). Icons are loaded and embedded by the host without credentials. URLs
+  on the configured marketplace origin are allowed; external URLs must be `https` and publicly routable.
+  Private or reserved IP addresses and redirects to them are blocked; the webview itself never calls an
+  address of a marketplace.
+- **FR-007**: The marketplace catalog MUST be usable without any chosen installation (view only); a
+  request to a marketplace sends neither vault nor device identifiers nor the user's name.
 
-**Installieren, Aktualisieren, Entfernen**
+**Install, update, remove**
 
-- **FR-010**: „Installieren“ und „Aktualisieren“ MÜSSEN die Installationsdatei im Host laden und die Bytes
-  direkt an die Installations-Vorschau (Spec 017) übergeben; es gibt keine zweite Installationsroutine.
-- **FR-011**: Die Installations-Vorschau MUSS bei Marketplace-Herkunft zusätzlich die Quelle nennen, sonst
-  aber unverändert Herausgeber, Berechtigungen, Update/Downgrade und die Bestätigungen aus Spec 017
-  zeigen. Es wird nie ohne Bestätigung des Nutzers installiert.
-- **FR-012**: Der Katalog MUSS die Einträge aller eingeschalteten Marketplaces gleichzeitig zeigen. Jeder
-  Eintrag nennt seine Quelle. Einträge verschiedener Quellen werden **nie** zusammengelegt, auch nicht bei
-  gleicher Erweiterungs-Kennung oder gleichem Namen (eine Quelle darf den Eintrag einer anderen nicht
-  verdecken). Ein Filter „Quelle“ schränkt auf einen Marketplace ein; die Reihenfolge der Marketplaces
-  bestimmt die Anordnung.
-- **FR-013**: HaexVault MUSS die Prüfsumme (SHA-256), die der Marketplace zur Fassung angibt, vor der
-  Vorschau gegen die geladenen Bytes prüfen und bei Abweichung abbrechen. Liefert der Marketplace keine
-  Prüfsumme, MUSS die Installation abgelehnt werden. Zusätzlich MUSS die geladene Größe der
-  angegebenen Größe entsprechen. Die Signatur im Bundle prüft die Vorschau unabhängig davon (Spec 017).
-- **FR-014**: Der Download MUSS die Grenze von 64 MiB für eine Installationsdatei (Spec 017) einhalten
-  und abbrechen, sobald sie überschritten ist, ohne die ganze Datei zu laden. Es bleibt nichts auf der
-  Platte, wenn nicht installiert wird.
-- **FR-015**: Der Download MUSS dem Nutzer Fortschritt zeigen und abbrechbar sein.
-- **FR-016**: „Entfernen“ im Katalog MUSS die bestehende Entfernung aus Spec 017 nutzen (einschließlich
-  der Frage nach den Daten).
-- **FR-017**: Der Katalog MUSS beim Öffnen und auf Wunsch („Aktualisieren“-Knopf) für **alle
-  installierten Erweiterungen** bei allen eingeschalteten Quellen nach Updates suchen, auch für solche,
-  die auf der angezeigten Seite nicht vorkommen; es gibt keine Abfragen im Hintergrund oder beim Start.
-  Bekannte Update-Kandidaten werden je installierter Erweiterung und Quelle geführt. Eine ausgefallene
-  Quelle löscht ihre zuvor bekannten Kandidaten nicht; eine erfolgreiche Antwort aktualisiert oder löscht
-  nur die Kandidaten dieser Quelle. Die Liste der installierten Erweiterungen (Einstellungen) MUSS den
-  kompatiblen Kandidaten mit der höchsten Fassung zeigen; bei gleicher Fassung entscheidet die
-  Marketplace-Rangfolge. Ein Tipp öffnet genau diesen Katalogeintrag. Der Hinweis zeigt den zuletzt
-  bekannten Stand, ohne selbst eine Abfrage auszulösen.
+- **FR-010**: "Installieren" and "Aktualisieren" MUST load the install file in the host and hand the bytes
+  straight to the install preview (spec 017); there is no second installation routine.
+- **FR-011**: For a marketplace origin the install preview MUST additionally name the source, but
+  otherwise show publisher, permissions, update/downgrade and the confirmations from spec 017 unchanged.
+  Nothing is ever installed without the user's confirmation.
+- **FR-012**: The catalog MUST show the entries of all enabled marketplaces at the same time. Every entry
+  names its source. Entries of different sources are **never** merged, not even with the same extension
+  identifier or the same name (a source must not cover the entry of another). A "Quelle" filter narrows
+  down to one marketplace; the order of the marketplaces determines the arrangement.
+- **FR-013**: HaexVault MUST check the checksum (SHA-256) that the marketplace states for the version
+  against the loaded bytes before the preview and abort on mismatch. If the marketplace delivers no
+  checksum, the installation MUST be refused. In addition the loaded size MUST equal the stated size. The
+  signature in the bundle is checked by the preview independently of this (spec 017).
+- **FR-014**: The download MUST keep the 64 MiB limit for an install file (spec 017) and abort as soon as it
+  is exceeded, without loading the whole file. Nothing is left on disk when nothing is installed.
+- **FR-015**: The download MUST show the user progress and be cancellable.
+- **FR-016**: "Entfernen" in the catalog MUST use the existing removal from spec 017 (including the
+  question about the data).
+- **FR-017**: On opening and on request ("Aktualisieren" button) the catalog MUST look for updates for
+  **all installed extensions** at all enabled sources, also for those that do not appear on the page
+  shown; there are no queries in the background or at start-up. Known update candidates are kept per
+  installed extension and source. A source that fails does not delete its previously known candidates; a
+  successful answer updates or deletes only the candidates of that source. The list of installed
+  extensions (settings) MUST show the compatible candidate with the highest version; for equal versions
+  the marketplace rank decides. A tap opens exactly this catalog entry. The hint shows the last known
+  state without triggering a query itself.
 
-- **FR-018**: Gibt eine Fassung eine Mindest- oder Höchstfassung von HaexVault an, MUSS der Katalog
-  eine nicht passende Fassung als „Benötigt HaexVault ab/bis x“ kennzeichnen und die Installation
-  dieser Fassung sperren; eine passende ältere Fassung bleibt wählbar. Die Anfragen nennen die
-  Plattform und die Fassung von HaexVault, sonst nichts über Nutzer oder Gerät (FR-007).
+- **FR-018**: If a version states a minimum or maximum version of HaexVault, the catalog MUST mark a
+  non-matching version as "Benötigt HaexVault ab/bis x" and block installing that version; a matching
+  older version stays selectable. The requests name the platform and the version of HaexVault, nothing
+  else about the user or device (FR-007).
 
-**Marketplaces verwalten**
+**Managing marketplaces**
 
-- **FR-020**: Einstellungen → Erweiterungen MUSS die Marketplace-Liste mit Name, Adresse, Ein/Aus und
-  Rangfolge zeigen; Ein/Aus und Reihenfolge gelten sofort ohne Speichern-Schaltfläche (Spec 023).
-- **FR-021**: Das Formular eines Marketplace (Name, Adresse, Auth-Art, Zugangsdaten-Eintrag) MUSS die
-  Verbindung beim Bestätigen testen (Erreichbarkeit, Anmeldung) und das Ergebnis zeigen, bevor es speichert;
-  der Nutzer kann auch bei einem Fehlschlag bewusst speichern.
-- **FR-022**: Ein neuer Vault MUSS die Voreinstellung (öffentlicher Marketplace des Projekts) als
-  gewöhnliche Zeile enthalten. Hat ein Vault keinen Marketplace, MUSS der Katalog „Öffentlichen
-  Marketplace hinzufügen“ anbieten. Nach der Ersteinrichtung legt HaexVault keine Zeile ohne Handlung des
-  Nutzers an und schaltet keine wieder ein.
-- **FR-023**: Jeder Marketplace MUSS angelegt, bearbeitet, ein-/ausgeschaltet, umsortiert und gelöscht
-  werden können, auch die Voreinstellung. Das Löschen entfernt keine installierte Erweiterung.
-- **FR-024**: Adressen MÜSSEN `https://` oder `http://` sein und dürfen einen Pfadanteil haben
-  (`https://example.org/market`); `http://` ist erlaubt (selbst gehostete Marketplaces im lokalen Netz),
-  das Formular weist darauf hin.
-- **FR-025**: Die Marketplace-Liste MUSS Vault-Daten sein und über Spec 024 auf alle eigenen Geräte
-  kommen (auch der Zustand Ein/Aus und die Reihenfolge).
+- **FR-020**: Settings → Extensions MUST show the marketplace list with name, address, on/off and rank
+  order; on/off and order apply at once without a save button (spec 023).
+- **FR-021**: The form of a marketplace (name, address, auth type, credentials entry) MUST test the
+  connection on confirming (reachability, sign-in) and show the result before it saves; the user can also
+  save deliberately after a failure.
+- **FR-022**: A new vault MUST contain the preset (the project's public marketplace) as an ordinary row.
+  If a vault has no marketplace, the catalog MUST offer "Öffentlichen Marketplace hinzufügen". After the
+  initial setup HaexVault creates no row without the user's action and switches none back on.
+- **FR-023**: Every marketplace MUST be addable, editable, switchable on/off, reorderable and deletable,
+  the preset included. Deleting does not remove any installed extension.
+- **FR-024**: Addresses MUST be `https://` or `http://` and may have a path part
+  (`https://example.org/market`); `http://` is allowed (self-hosted marketplaces on the local network),
+  the form points this out.
+- **FR-025**: The marketplace list MUST be vault data and reach all own devices via spec 024 (including
+  the on/off state and the order).
 
-**Zugangsdaten**
+**Credentials**
 
-- **FR-026**: Auth-Arten sind „Keine“, „Bearer“ und „Basic“. Bei „Bearer“ und „Basic“ MUSS der
-  Marketplace auf einen Zugangsdaten-Eintrag im Passwortmanager verweisen (Auswahl wie in Spec 052; neu
-  eingegebene Werte werden als sichtbarer Eintrag dort abgelegt). Die Marketplace-Liste enthält nie
-  Token oder Passwort.
-- **FR-027**: Zugangsdaten DÜRFEN nur an `https://`-Adressen gesendet werden und nur an den Host des
-  Marketplace, nie an eine Weiterleitung auf einen anderen Host und nie an die Adresse, von der eine
-  Installationsdatei geladen wird, wenn sie auf einem anderen Host liegt.
-- **FR-028**: Fehlen die Zugangsdaten (Eintrag gelöscht, nicht synchronisiert, unvollständig), MUSS die
-  Quelle dies benennen, ohne andere Quellen zu stören.
-- **FR-029**: Beim Löschen eines Passwort-Eintrags, den ein Marketplace nutzt, MUSS der Passwortmanager
-  warnen und den Marketplace nennen (Spec 034 FR-034).
+- **FR-026**: Auth types are "Keine", "Bearer" and "Basic". For "Bearer" and "Basic" the marketplace MUST
+  point to a credentials entry in the password manager (choice as in spec 052; newly entered values are
+  stored as a visible entry there). The marketplace list never holds a token or password.
+- **FR-027**: Credentials MUST ONLY be sent to `https://` addresses and only to the marketplace's host,
+  never to a redirect to another host and never to the address an install file is loaded from if it lies
+  on another host.
+- **FR-028**: If the credentials are missing (entry deleted, not synced, incomplete), the source MUST say
+  so, without disturbing other sources.
+- **FR-029**: When an entry in the password manager that a marketplace uses is deleted, the password
+  manager MUST warn and name the marketplace (spec 034 FR-034).
 
-**Offenes Protokoll**
+**Open protocol**
 
-- **FR-034**: Das Marketplace-Protokoll MUSS als Vertrag in diesem Repository stehen
-  ([contracts/marketplace-api.md](contracts/marketplace-api.md)), so dass jeder einen kompatiblen
-  Marketplace betreiben kann. HaexVault DARF über einen Marketplace nichts voraussetzen außer diesem
-  Protokoll: keine feste Adresse, keine Sonderbehandlung nach Name oder Adresse (außer der
-  Voreinstellung als Eintrag), keine Felder, die nur ein Betreiber liefert.
-- **FR-035**: Ein Marketplace, der weitere Felder liefert, DARF HaexVault nicht stören (unbekannte Felder
-  werden ignoriert); ein Marketplace ohne optionale Felder MUSS nutzbar bleiben.
+- **FR-034**: The marketplace protocol MUST be in this repository as a contract
+  ([contracts/marketplace-api.md](contracts/marketplace-api.md)), so that anyone can run a compatible
+  marketplace. HaexVault MUST NOT assume anything about a marketplace beyond this protocol: no fixed
+  address, no special treatment by name or address (except the preset as an entry), no fields that only
+  one operator delivers.
+- **FR-035**: A marketplace that delivers additional fields MUST NOT disturb HaexVault (unknown fields are
+  ignored); a marketplace without optional fields MUST remain usable.
 
-**Abgrenzung und Fehler**
+**Boundaries and errors**
 
-- **FR-030**: Weder Erweiterungen noch Agenten (Spec 021, 018, 047) DÜRFEN den Katalog abfragen,
-  Marketplaces verwalten oder eine Installation anstoßen. Die Installation geschieht nur durch eine
-  bewusste Handlung des Nutzers in der Oberfläche.
-- **FR-031**: Jede Quelle MUSS einzeln ausfallen dürfen: Fehlerzeile mit Ursache (nicht erreichbar,
-  Zeitüberschreitung, Anmeldung abgelehnt, Antwort nicht verständlich, Zugangsdaten fehlen) und
-  „Erneut versuchen“, ohne den Katalog der anderen Quellen zu stören.
-- **FR-032**: Alle Texte MÜSSEN deutsch und englisch vorliegen, der Produktname ist „HaexVault“; die
-  Oberfläche folgt dem Stil aus Spec 035/036 (Werkzeugleiste, große Überschrift, Gruppen und Zeilen).
-- **FR-033**: Alle Funktionen MÜSSEN auf Linux, Windows, macOS, Android und iOS laufen; die Logik, die
-  plattformabhängig scheint (Download, Pfade), MUSS auf Linux testbar sein.
+- **FR-030**: Neither extensions nor agents (specs 021, 018, 047) MUST query the catalog, manage
+  marketplaces or trigger an installation. Installing happens only through a deliberate action of the
+  user in the UI.
+- **FR-031**: Every source MUST be allowed to fail on its own: an error line with the cause (not
+  reachable, timeout, sign-in rejected, answer not understandable, credentials missing) and "Erneut
+  versuchen", without disturbing the catalog of the other sources.
+- **FR-032**: All texts MUST exist in German and English, the product name is "HaexVault"; the UI follows
+  the style of specs 035/036 (toolbar, large heading, groups and rows).
+- **FR-033**: All functions MUST work on Linux, Windows, macOS, Android and iOS; logic that seems
+  platform-dependent (download, paths) MUST be testable on Linux.
 
 ### Key Entities
 
-- **Marketplace**: Name, Adresse, Ein/Aus, Rangfolge, Auth-Art und Verweis auf einen
-  Zugangsdaten-Eintrag (kein Geheimnis). Vault-Daten, synchronisiert.
-- **Katalogeintrag**: flüchtig, nicht gespeichert; Angaben des Marketplace plus Quelle und lokaler
-  Installationszustand.
-- **Fassung**: eine Version einer Erweiterung im Katalog mit Download-Adresse, Prüfsumme und Größe.
-- **Zugangsdaten-Eintrag**: Eintrag im Passwortmanager (Spec 034); der Marketplace verweist darauf.
+- **Marketplace**: name, address, on/off, rank order, auth type and a reference to a credentials entry
+  (no secret). Vault data, synced.
+- **Catalog entry**: transient, not stored; the marketplace's details plus source and local install state.
+- **Version**: a version of an extension in the catalog with download address, checksum and size.
+- **Credentials entry**: entry in the password manager (spec 034); the marketplace points to it.
 
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
-- **SC-001**: Ein Nutzer findet und installiert eine Erweiterung aus einem Marketplace in unter
-  einer Minute vom Öffnen der App bis zur laufenden Erweiterung (ohne Dateien zu suchen).
-- **SC-002**: In keinem Fall wird eine Erweiterung ohne die Bestätigung in der Installations-Vorschau
-  installiert; Dateien mit falscher Prüfsumme, ungültiger Signatur oder über der Größengrenze werden zu
-  100 % abgelehnt (automatisierter Test mit Test-Marketplace).
-- **SC-003**: Fällt eine von mehreren Quellen aus, zeigt der Katalog die übrigen innerhalb derselben
-  Zeit wie ohne den Ausfall plus höchstens der festen Frist für eine Quelle, und benennt die ausgefallene
-  Quelle.
-- **SC-004**: In der Vault-Datenbank, in Protokollen und in Synchronisationsdaten steht an keiner Stelle
-  ein Token oder Passwort eines Marketplace (automatisierter Test).
-- **SC-005**: Zugangsdaten verlassen das Gerät nie an einen anderen Host als den des Marketplace und nie
-  über `http://` (automatisierter Test mit Weiterleitung und `http`-Adresse).
-- **SC-006**: Ein neuer Vault enthält die Voreinstellung ohne Einrichtung; sie lässt sich löschen und kommt
-  nicht von allein wieder; ein Vault ohne Marketplace bietet sie mit einem Tipp an, ohne dass Einträge
-  doppelt entstehen.
-- **SC-007**: Ein Marketplace, der auf Gerät A angelegt wurde, erscheint nach der Synchronisation auf
-  Gerät B (E2E mit zwei Geräten).
-- **SC-009**: Zwei Test-Marketplaces auf verschiedenen Adressen (einer mit Pfadanteil, einer mit
-  Anmeldung) liefern gleichzeitig Einträge in einen Katalog; ohne eine Zeile Code, die eine der Adressen
-  kennt (e2e, Rust-Test).
-- **SC-008**: Der Ablauf Katalog → Installieren läuft im E2E auf Desktop und im Android-Emulator durch.
+- **SC-001**: A user finds and installs an extension from a marketplace in under a minute from opening the
+  app to the running extension (without looking for files).
+- **SC-002**: In no case is an extension installed without the confirmation in the install preview; files
+  with a wrong checksum, an invalid signature or over the size limit are rejected 100 % of the time
+  (automated test with a test marketplace).
+- **SC-003**: If one of several sources fails, the catalog shows the others within the same time as
+  without the failure plus at most the fixed deadline for one source, and names the failed source.
+- **SC-004**: Nowhere in the vault database, in logs or in sync data is there a token or password of a
+  marketplace (automated test).
+- **SC-005**: Credentials never leave the device to a host other than the marketplace's and never over
+  `http://` (automated test with a redirect and an `http` address).
+- **SC-006**: A new vault contains the preset without any setup; it can be deleted and does not come back
+  on its own; a vault without a marketplace offers it with one tap, without entries being created twice.
+- **SC-007**: A marketplace added on device A appears on device B after the sync (E2E with two devices).
+- **SC-009**: Two test marketplaces at different addresses (one with a path part, one with sign-in)
+  deliver entries into one catalog at the same time; without a line of code that knows either address
+  (e2e, Rust test).
+- **SC-008**: The flow catalog → install runs through in E2E on desktop and in the Android emulator.
 
 ## Assumptions
 
-- Der **öffentliche Marketplace des Projekts** liegt unter `https://marketplace.haex.space` (Betreiber,
-  2026-10-29); diese Adresse ist die Voreinstellung und steht an einer einzigen Stelle im Code. Das Protokoll ist das, das
-  haex-vault 2.x und das `@haex-space/marketplace-sdk` 0.1.6 benutzen: Liste mit Suche, Kategorie, Seite
-  und Sortierung, Kategorien mit Anzahl, Details und Download-Adresse zu einer Fassung. Ab dieser Spec ist
-  es ein Vertrag dieses Repositories (FR-034); der Betreiber-Dienst richtet sich danach. Im Listenaufruf
-  fehlt der Herausgeberschlüssel (er steht nur in den Details); fehlende optionale Felder werden als „nicht
-  geliefert“ behandelt, mit Ausnahme der Prüfsumme (FR-013).
-- Die Antwortformate werden in einem Vertrag (Plan, `contracts/`) festgehalten und im Host gegen
-  Testdaten geprüft; ob das bestehende `@haex-space/marketplace-sdk` nur als Typquelle dient oder in
-  Rust nachgebaut wird, entscheidet der Plan.
-- Die feste Frist pro Quelle liegt in der Größenordnung von zehn Sekunden; der Plan legt den Wert fest.
-- Es gibt keinen Offline-Katalog und keinen Zwischenspeicher über das Schließen der App hinaus;
-  Bewertungen und Rezensionen werden angezeigt, aber nicht abgegeben.
-- Es gibt keine automatischen Updates und keine Hintergrundabfragen (siehe FR-017); das kann eine
-  spätere Spec ergänzen, wenn der Nutzer es will.
-- Nicht in dieser Spec: Veröffentlichen von Erweiterungen, bezahlte Erweiterungen, DID-Anmeldung,
-  Rezensionen schreiben, Installation durch Agenten oder Erweiterungen.
-- Der Entwicklermodus (Spec 017) und das Installieren aus einer Datei bleiben unverändert daneben
-  bestehen.
+- The **project's public marketplace** is at `https://marketplace.haex.space` (operator, 2026-10-29);
+  this address is the preset and appears in one single place in the code. The protocol is the one that
+  haex-vault 2.x and `@haex-space/marketplace-sdk` 0.1.6 use: list with search, category, page and
+  sorting, categories with counts, details and a download address for a version. From this spec on it is a
+  contract of this repository (FR-034); the operator's service follows it. The list call lacks the
+  publisher key (it is only in the details); missing optional fields are treated as "not delivered", except
+  the checksum (FR-013).
+- The response formats are recorded in a contract (plan, `contracts/`) and checked in the host against test
+  data; whether the existing `@haex-space/marketplace-sdk` serves only as a type source or is rebuilt in
+  Rust is decided by the plan.
+- The fixed deadline per source is on the order of ten seconds; the plan fixes the value.
+- There is no offline catalog and no cache beyond closing the app; ratings and reviews are shown but not
+  submitted.
+- There are no automatic updates and no background queries (see FR-017); a later spec can add that if the
+  user wants it.
+- Not in this spec: publishing extensions, paid extensions, DID sign-in, writing reviews, installation by
+  agents or extensions.
+- Developer mode (spec 017) and installing from a file stay unchanged next to it.

@@ -2,7 +2,7 @@
 description: 'Task list for spec 069-marketplace'
 ---
 
-# Tasks: Marketplace für Erweiterungen
+# Tasks: Marketplace for Extensions
 
 **Input**: Design documents from `/specs/069-marketplace/`
 
@@ -26,7 +26,7 @@ US5 (P3). US1 and US2 are both P1 and meet in the install button: the catalog ap
 until the safe download (US2) exists, so the install flow tasks (T040, T041) sit in US2 and ship with
 the app.
 
-**Shipping note** (plan.md "Stufen"; each PR is reviewed and merged before the next starts on `main`):
+**Shipping note** (plan.md "Stages (PR cut)"; each PR is reviewed and merged before the next starts on `main`):
 
 | PR   | Tasks                | Content                                                      |
 | ---- | -------------------- | ------------------------------------------------------------ |
@@ -98,7 +98,7 @@ are in `src-tauri/Cargo.toml` already.
   - `SourceErrorKind` with exactly `unreachable`, `timeout`, `auth_rejected`, `credentials_missing`, `credentials_syncing`, `bad_response`, `insecure_credentials`; `SourceError { sourceId, name, kind, detail? }` where `detail` is a local, sanitized message of at most 200 characters and never remote response content
   - `CatalogQuery { page, search?, category?, sourceId? }`, `CatalogEntry`, `CatalogVersion { version, bundleSize?, bundleHash?, compatible, incompatibleReason? }`, `CatalogPage { entries, page, totalPages, total, sourceErrors }`, `CatalogDetail`, `MarketplaceTestResult { ok, count?, error? }`, `KnownUpdate`, `DownloadProgress { loaded, total }`, `PendingBundleRef { id }`
 - [ ] T009 [P] Create `src-tauri/src/marketplace/wire.rs`: the protocol structs of contracts/marketplace-api.md for `serde` only (`Deserialize`, camelCase), tolerant: `#[serde(default)]` on every optional field, no `deny_unknown_fields`, `Option` for `iconUrl`, `averageRating`, `tags`, `publishedAt`, `publisher`, `category`, `changelog`, `minAppVersion`, `maxAppVersion`, `publicKey`. Required per entry: `extensionId`, `name`, `slug`, `shortDescription`; `versions` may be empty. Required per version for an install: `version`, `bundleHash`, `bundleSize`. Test file `wire_tests.rs`: parses a real-shaped list response (fixture with random hashes), ignores unknown fields, skips an entry without `slug` and keeps the rest
-- [ ] T010 Add `HolziError::Marketplace { kind: String }` to `src-tauri/src/error.rs` (look at how `ExtensionInstall { reason }` and its kind reach the frontend and do the same), with the kinds of contracts/commands.md "Fehlerarten" as constants in `marketplace/mod.rs`. Add a test next to the existing error tests that the kind survives serialization
+- [ ] T010 Add `HolziError::Marketplace { kind: String }` to `src-tauri/src/error.rs` (look at how `ExtensionInstall { reason }` and its kind reach the frontend and do the same), with the kinds of contracts/commands.md "Error kinds" as constants in `marketplace/mod.rs`. Add a test next to the existing error tests that the kind survives serialization
 - [ ] T011 Create `src-tauri/src/marketplace/store.rs` over the `Query`/`CrdtTransaction` helpers (look at `browser_bridge/approvals.rs` and `remote_storage/store.rs` for the read/write pattern):
   - `list(q) -> Vec<MarketplaceRow>` ordered by `(sort_order, name, id)`; a row whose `base_url` fails validation is left out and logged, not an error (data-model.md)
   - `normalize_base_url(&str) -> Result<String>`: scheme `http` or `https`, host required, **path prefix kept**, trailing `/`, fragment and query removed
@@ -122,7 +122,7 @@ are in `src-tauri/Cargo.toml` already.
 
 ---
 
-## Phase 3: User Story 1 - Erweiterung im Katalog finden und installieren (Priority: P1)
+## Phase 3: User Story 1 - Find an extension in the catalog and install it (Priority: P1)
 
 **Goal**: The app "Erweiterungen entdecken" shows the common catalog of all enabled marketplaces, with
 search, category, source filter and pages, and opens details.
@@ -160,7 +160,7 @@ tile with its source, search, filter, page, open the details. (Installing needs 
 
 ---
 
-## Phase 4: User Story 2 - Sicher: nur geprüfte Bytes werden installiert (Priority: P1)
+## Phase 4: User Story 2 - Safe: only verified bytes are installed (Priority: P1)
 
 **Goal**: A download is checked (size, hash, limit), kept in the host, and goes through the one existing
 install preview and install of spec 017.
@@ -199,7 +199,7 @@ install preview and install of spec 017.
 
 ---
 
-## Phase 5: User Story 3 - Aktualisieren und Entfernen (Priority: P2)
+## Phase 5: User Story 3 - Update and remove (Priority: P2)
 
 **Goal**: A newer compatible version shows "Update verfügbar", updates go through the preview, remove uses
 the existing removal, the installed list shows what the catalog last saw.
@@ -217,7 +217,7 @@ the existing removal, the installed list shows what the catalog last saw.
 
 ---
 
-## Phase 6: User Story 4 - Marketplaces verwalten (Priority: P2)
+## Phase 6: User Story 4 - Manage marketplaces (Priority: P2)
 
 **Goal**: Settings → Erweiterungen → Marketplaces: every row is equal, several run at once, a self-hosted
 one works by entering its address; the preset is an ordinary row.
@@ -239,7 +239,7 @@ it, delete it; delete the preset and get it back only through the empty-state bu
 
 ---
 
-## Phase 7: User Story 5 - Privater Marketplace mit Zugangsdaten (Priority: P3)
+## Phase 7: User Story 5 - Private marketplace with credentials (Priority: P3)
 
 **Goal**: A closed marketplace works with Bearer or Basic through a password entry, no secret in the
 table, never sent to another host or over `http`.

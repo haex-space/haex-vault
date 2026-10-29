@@ -1,61 +1,61 @@
-# Datenmodell: Marketplace für Erweiterungen
+# Data model: Marketplace for extensions
 
-## Tabelle `haex_marketplaces` (Vault-Daten, CRDT-getrackt, synchronisiert)
+## Table `haex_marketplaces` (vault data, CRDT-tracked, synced)
 
-Migration `0047_marketplaces` (nächste freie Nummer beim Bauen), `HOLZI_TRIGGER_VERSION` + 1. Kein UNIQUE
-und kein Fremdschlüssel auf Zugangsdaten (siehe R11, R14).
+Migration `0047_marketplaces` (next free number at build time), `HOLZI_TRIGGER_VERSION` + 1. No UNIQUE
+and no foreign key to credentials (see R11, R14).
 
-| Spalte                | Typ                          | Bedeutung                                                                                                |
-| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `id`                  | TEXT PK                      | zufällige UUID; nur die Voreinstellung trägt die feste Kennung `preset-public` (R10)                     |
-| `name`                | TEXT NOT NULL                | Anzeigename                                                                                              |
-| `base_url`            | TEXT NOT NULL                | Adresse ohne abschließenden `/`, mit beliebigem Pfadanteil                                               |
-| `enabled`             | INTEGER NOT NULL DEFAULT 1   | Ein/Aus                                                                                                  |
-| `sort_order`          | INTEGER NOT NULL             | Rang, kleiner = früher; bei Gleichstand `(sort_order, name, id)`                                         |
-| `auth_type`           | TEXT NOT NULL DEFAULT `none` | `none`, `bearer` oder `basic`                                                                            |
-| `credentials_item_id` | TEXT                         | Passwort-Eintrag (Spec 034); Pflicht bei `bearer`/`basic`, sonst NULL; **kein** Geheimnis in der Tabelle |
-| `created_at`          | INTEGER NOT NULL             | Unix-Millisekunden                                                                                       |
-| `updated_at`          | INTEGER NOT NULL             | Unix-Millisekunden                                                                                       |
+| Column                | Type                         | Meaning                                                                                              |
+| --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `id`                  | TEXT PK                      | random UUID; only the preset carries the fixed id `preset-public` (R10)                              |
+| `name`                | TEXT NOT NULL                | display name                                                                                         |
+| `base_url`            | TEXT NOT NULL                | address without trailing `/`, with any path prefix                                                   |
+| `enabled`             | INTEGER NOT NULL DEFAULT 1   | on/off                                                                                               |
+| `sort_order`          | INTEGER NOT NULL             | rank, smaller = earlier; on a tie `(sort_order, name, id)`                                           |
+| `auth_type`           | TEXT NOT NULL DEFAULT `none` | `none`, `bearer` or `basic`                                                                          |
+| `credentials_item_id` | TEXT                         | password entry (Spec 034); required for `bearer`/`basic`, otherwise NULL; **no** secret in the table |
+| `created_at`          | INTEGER NOT NULL             | Unix milliseconds                                                                                    |
+| `updated_at`          | INTEGER NOT NULL             | Unix milliseconds                                                                                    |
 
-**Regeln**
+**Rules**
 
-- `base_url` MUSS mit `http://` oder `https://` beginnen und einen Host haben; ein Pfadanteil ist erlaubt
-  (`https://example.org/market`, FR-024). Sie wird normalisiert (ohne abschließenden `/`, ohne Fragment
-  und Query); Pfade des Protokolls werden **hinter** den Pfadanteil gehängt.
-- `auth_type` ≠ `none` verlangt `credentials_item_id` und eine `https://`-Adresse (FR-027); die Prüfung
-  sitzt im Host-Command beim Speichern **und** im Client beim Senden.
-- Eine neue Zeile bekommt `sort_order` = größter vorhandener Wert + 1 (ans Ende); der Nutzer schiebt sie
-  mit Auf/Ab, die Oberfläche schreibt dabei die volle Reihenfolge neu (`marketplace_reorder`).
-- Alle Zeilen sind gleichrangig: jede lässt sich ändern, ausschalten und löschen. Es gibt kein
-  Standard-Kennzeichen und keine Zeile, die nicht gelöscht werden dürfte.
-- Eine Zeile ohne gültige Adresse (aus einer künftigen Fassung) wird beim Lesen ausgelassen und
-  protokolliert, nicht abgelehnt.
+- `base_url` MUST start with `http://` or `https://` and have a host; a path prefix is allowed
+  (`https://example.org/market`, FR-024). It is normalized (without trailing `/`, without fragment and
+  query); paths of the protocol are appended **behind** the path prefix.
+- `auth_type` ≠ `none` requires `credentials_item_id` and an `https://` address (FR-027); the check sits
+  in the host command on save **and** in the client on send.
+- A new row gets `sort_order` = highest existing value + 1 (at the end); the user moves it with up/down,
+  and the UI then rewrites the full order (`marketplace_reorder`).
+- All rows are equal: each can be changed, switched off and deleted. There is no default marker and no
+  row that may not be deleted.
+- A row without a valid address (from a future version) is left out on read and logged, not rejected.
 
-## Abgeleitete Ansicht `MarketplaceView` (keine Tabelle)
+## Derived view `MarketplaceView` (no table)
 
-Aus den Zeilen, sortiert nach `(sort_order, name, id)`: `id`, `name`, `baseUrl`,
-`enabled`, `rank`, `authType`, `credentials: none | present | missing | syncing` (R11).
+From the rows, sorted by `(sort_order, name, id)`: `id`, `name`, `baseUrl`, `enabled`, `rank`,
+`authType`, `credentials: none | present | missing | syncing` (R11).
 
-## Flüchtige Typen (nicht gespeichert)
+## Transient types (not stored)
 
-- **CatalogEntry** (bestimmt durch `(source.id, slug)`, nie quellenübergreifend zusammengelegt): `source: { id, name }`, `extensionId`, `name`, `slug`, `shortDescription`, `iconUrl`,
-  `verified`, `totalDownloads`, `averageRating`, `reviewCount`, `tags`, `publisher`, `category`,
-  `versions[]` (je `version`, `bundleSize`, `compatible`, `incompatibleReason?`), dazu
-  `installed: { version, enabled } | null`, `updateTo: string | null`, `latestCompatible: string | null`.
+- **CatalogEntry** (determined by `(source.id, slug)`, never merged across sources): `source: { id, name }`,
+  `extensionId`, `name`, `slug`, `shortDescription`, `iconUrl`, `verified`, `totalDownloads`,
+  `averageRating`, `reviewCount`, `tags`, `publisher`, `category`, `versions[]` (each `version`,
+  `bundleSize`, `compatible`, `incompatibleReason?`), plus `installed: { version, enabled } | null`,
+  `updateTo: string | null`, `latestCompatible: string | null`.
 - **CatalogPage**: `entries[]`, `page`, `totalPages`, `total`, `sourceErrors[]`.
-- **SourceError**: `{ sourceId, name, kind, detail? }` mit `kind` ∈ `unreachable`, `timeout`,
+- **SourceError**: `{ sourceId, name, kind, detail? }` with `kind` ∈ `unreachable`, `timeout`,
   `auth_rejected`, `credentials_missing`, `credentials_syncing`, `bad_response`, `insecure_credentials`.
-- **PendingBundle** (nur Arbeitsspeicher im Host): `id`, `bytes`, `sourceId`, `slug`, `version`,
-  `fetchedAt`, `lastUsedAt`. Höchstens einer; Frei werden siehe R3.
-- **DownloadProgress** (Channel): `{ loaded, total }`.
-- **KnownUpdate** (Arbeitsspeicher): Kandidaten sind nach `(installedName, sourceId, slug)` getrennt und
-  enthalten `{ installed, latestCompatible, sourceId, slug }`. `marketplace_check_updates` und
-  Katalogabrufe aktualisieren nur die Kandidaten der antwortenden Quelle für die enthaltenen Einträge;
-  eine ausgefallene Quelle behält ihre bisherigen Kandidaten. Die Installationsliste wählt aus den
-  bekannten Kandidaten je Erweiterungsname die höchste kompatible Fassung, bei Gleichstand die Quelle
-  mit dem besseren Rang. Es gibt keine Abfrage von allein (FR-017).
+- **PendingBundle** (memory in the host only): `id`, `bytes`, `sourceId`, `slug`, `version`, `fetchedAt`,
+  `lastUsedAt`. At most one; for when it is freed see R3.
+- **DownloadProgress** (channel): `{ loaded, total }`.
+- **KnownUpdate** (memory): candidates are separated by `(installedName, sourceId, slug)` and contain
+  `{ installed, latestCompatible, sourceId, slug }`. `marketplace_check_updates` and catalog calls update
+  only the candidates of the answering source for the entries contained; a source that fails keeps its
+  earlier candidates. The installation list picks, per extension name, the highest compatible version
+  from the known candidates, and on a tie the source with the better rank. There is no query of its own
+  accord (FR-017).
 
-## Zustandsübergänge des Downloads
+## State transitions of the download
 
 ```text
 idle ──download──▶ fetching-url ──▶ streaming ──▶ verifying ──▶ ready(id)
@@ -64,5 +64,5 @@ idle ──download──▶ fetching-url ──▶ streaming ──▶ verifyin
 ready(id) ──preview──▶ ready(id) ──install ok──▶ idle      ready(id) ──discard──▶ idle
 ```
 
-`verifying` prüft Größe (genau `bundleSize`, höchstens 64 MiB) und SHA-256; schlägt es fehl, geht der
-Zustand zu `idle` und der Speicherplatz ist leer. Ein neuer Download ersetzt `ready` und verwirft den alten.
+`verifying` checks the size (exactly `bundleSize`, at most 64 MiB) and SHA-256; if it fails, the state
+goes to `idle` and the slot is empty. A new download replaces `ready` and discards the old one.
