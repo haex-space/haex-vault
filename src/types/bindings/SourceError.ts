@@ -4,7 +4,7 @@ import type { SourceErrorKind } from "./SourceErrorKind";
 /**
  * The error line of one source.
  */
-export type SourceError = { sourceId: string, name: string, kind: SourceErrorKind, 
+export type SourceError = { sourceId: string, name: string, kind: SourceErrorKind,
 /**
  * Locally generated and short (`HTTP 500`, the kind of a connection error), never text of
  * the marketplace, an address or a header (contract "Errors").
