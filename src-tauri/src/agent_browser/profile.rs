@@ -36,15 +36,74 @@ pub const LASTING: [&str; 8] = [
 const MAX_UNPACKED: u64 = 2 * 1024 * 1024 * 1024;
 
 /// The folder all working directories of the agent browser live in.
-pub fn root(os: Os) -> PathBuf {
-    let base = match os {
-        Os::Linux => std::env::var_os("XDG_RUNTIME_DIR")
-            .map(PathBuf::from)
-            .filter(|dir| dir.is_absolute())
-            .unwrap_or_else(std::env::temp_dir),
-        Os::Macos | Os::Windows => std::env::temp_dir(),
-    };
-    base.join("holzi-agent-browser")
+pub fn root(os: Os) -> Result<PathBuf> {
+    match os {
+        Os::Linux => linux_root(),
+        Os::Macos | Os::Windows => Ok(std::env::temp_dir().join("holzi-agent-browser")),
+    }
+}
+
+#[cfg(unix)]
+fn linux_root() -> Result<PathBuf> {
+    if let Some(runtime_dir) = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .filter(|dir| dir.is_absolute())
+    {
+        let root = runtime_dir.join("holzi-agent-browser");
+        if ensure_private_root(&root).is_ok() {
+            return Ok(root);
+        }
+    }
+
+    // `/tmp/holzi-agent-browser` would be shared by every local account. Use a per-user directory
+    // and refuse a pre-existing symlink, foreign owner, or loose mode.
+    let root = std::env::temp_dir().join(format!("holzi-agent-browser-{}", unsafe {
+        libc::geteuid()
+    }));
+    ensure_private_root(&root)?;
+    Ok(root)
+}
+
+#[cfg(not(unix))]
+fn linux_root() -> Result<PathBuf> {
+    Err(BrowserError::Unsupported)
+}
+
+#[cfg(unix)]
+fn ensure_private_root(dir: &Path) -> Result<()> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+
+    match std::fs::symlink_metadata(dir) {
+        Ok(metadata) => {
+            if !metadata.file_type().is_dir()
+                || metadata.uid() != unsafe { libc::geteuid() }
+                || metadata.mode() & 0o777 != 0o700
+            {
+                return Err(BrowserError::Profile(format!(
+                    "unsafe agent browser profile root: {}",
+                    dir.display()
+                )));
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(dir)
+                .map_err(profile_error)?;
+            let metadata = std::fs::symlink_metadata(dir).map_err(profile_error)?;
+            if !metadata.file_type().is_dir()
+                || metadata.uid() != unsafe { libc::geteuid() }
+                || metadata.mode() & 0o777 != 0o700
+            {
+                return Err(BrowserError::Profile(format!(
+                    "unsafe agent browser profile root: {}",
+                    dir.display()
+                )));
+            }
+        }
+        Err(error) => return Err(profile_error(error)),
+    }
+    Ok(())
 }
 
 /// The working directory of one vault instance for one run.

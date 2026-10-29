@@ -86,7 +86,13 @@ pub fn candidates(os: Os, probe: &dyn Probe) -> Vec<PathBuf> {
         Os::Linux => {
             let dirs: Vec<PathBuf> = probe
                 .var("PATH")
-                .map(|path| std::env::split_paths(&path).collect())
+                .map(|path| {
+                    std::env::split_paths(&path)
+                        .filter(|dir| {
+                            !dir.starts_with("/snap") && !dir.starts_with("/var/lib/snapd")
+                        })
+                        .collect()
+                })
                 .unwrap_or_default();
             LINUX_NAMES
                 .iter()

@@ -183,11 +183,21 @@ impl AgentBrowser {
                 None
             }
         };
+        let has_saved_profile = zip.is_some();
         let workdir = config.workdir.clone();
         let prepared = tokio::task::spawn_blocking(move || workdir.prepare(zip.as_deref()))
             .await
             .map_err(|e| BrowserError::Profile(e.to_string()))?;
-        prepared?;
+        if let Err(error) = prepared {
+            if !has_saved_profile {
+                return Err(error);
+            }
+            let workdir = config.workdir.clone();
+            tokio::task::spawn_blocking(move || workdir.prepare(None))
+                .await
+                .map_err(|e| BrowserError::Profile(e.to_string()))??;
+            self.set_profile_problem(Some(error.to_string()));
+        }
         let launch = Launch {
             executable: config.executable.clone(),
             workdir: config.workdir.profile(),
@@ -223,12 +233,23 @@ impl AgentBrowser {
         if let Some(gate) = config.gate {
             let browser = self.clone();
             let token = gate.token();
-            let _ = gate.spawn(async move {
-                token.cancelled().await;
-                if let Err(error) = browser.stop().await {
-                    log::warn!("agent browser: ending with the vault: {error}");
-                }
-            });
+            if gate
+                .spawn(async move {
+                    token.cancelled().await;
+                    if let Err(error) = browser.stop().await {
+                        log::warn!("agent browser: ending with the vault: {error}");
+                    }
+                })
+                .is_err()
+            {
+                run.ending.store(true, Ordering::SeqCst);
+                run.process.kill();
+                let _ = tokio::time::timeout(CLOSE_GRACE, run.process.wait()).await;
+                run.connection.close();
+                let workdir = run.workdir.clone();
+                let _ = tokio::task::spawn_blocking(move || workdir.remove()).await;
+                return Err(BrowserError::VaultClosed);
+            }
         }
         Ok(run)
     }
@@ -273,7 +294,8 @@ impl AgentBrowser {
     /// Ends the browser in order: `Browser.close`, after [`CLOSE_GRACE`] the process, then the
     /// profile is saved and the working directory removed. Nothing runs: nothing to do.
     pub async fn stop(&self) -> Result<()> {
-        let Some(run) = self.shared.running.lock().await.take() else {
+        let mut running = self.shared.running.lock().await;
+        let Some(run) = running.take() else {
             return Ok(());
         };
         run.ending.store(true, Ordering::SeqCst);

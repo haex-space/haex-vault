@@ -165,11 +165,16 @@ impl Connection {
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (reply, answer) = oneshot::channel();
-        self.shared
+        let mut pending = self
+            .shared
             .pending
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(id, reply);
+            .unwrap_or_else(PoisonError::into_inner);
+        if self.is_closed() {
+            return Err(BrowserError::Unavailable("the browser ended".to_owned()));
+        }
+        pending.insert(id, reply);
+        drop(pending);
         let _waiting = Waiting {
             shared: &self.shared,
             id,
@@ -199,11 +204,13 @@ impl Connection {
     /// connection.
     pub fn subscribe(&self, session: Option<&str>) -> mpsc::UnboundedReceiver<Event> {
         let (sender, receiver) = mpsc::unbounded_channel();
+        let mut events = self
+            .shared
+            .events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if !self.is_closed() {
-            self.shared
-                .events
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
+            events
                 .entry(session.unwrap_or_default().to_owned())
                 .or_default()
                 .push(sender);
