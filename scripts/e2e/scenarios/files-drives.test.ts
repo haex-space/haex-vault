@@ -174,7 +174,9 @@ scenario(
     await instance.waitForDisplayed('files-entry-lies.txt', 15_000)
     await instance.click('files-action-paste')
     await instance.waitForDisplayed('files-conflict')
+    // The button comes once the sidebar has heard of the mount, which can trail the folder view.
     const eject = row.replace('files-drive-', 'files-drive-eject-')
+    await instance.waitForDisplayed(eject, 15_000)
     assert.ok(await pageClick(instance, eject))
     await instance.waitForDisplayed('files-drive-release-confirm')
     assert.ok(await pageClick(instance, 'files-drive-release-cancel'))
@@ -226,7 +228,7 @@ scenario(
       'files-drive-',
       'files-drive-eject-',
     )
-    await instance.click(remountedEject)
+    await instance.click(remountedEject, 15_000)
     await ctx.waitFor('the stick unmounted', () =>
       device ? mountPointOf(device) === null : false,
     )
