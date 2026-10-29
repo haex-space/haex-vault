@@ -4,15 +4,15 @@ import type { CatalogEntry } from "./CatalogEntry";
 /**
  * The details of one entry (`marketplace_details`).
  */
-export type CatalogDetail = { entry: CatalogEntry, 
+export type CatalogDetail = { entry: CatalogEntry,
 /**
  * Plain text; never rendered as markup (FR-006).
  */
-description: string, author?: string, 
+description: string, author?: string,
 /**
  * Short form of the publisher key the details name (the first and last four groups).
  */
-publisherFingerprint?: string, 
+publisherFingerprint?: string,
 /**
  * An installed extension of this name has the same publisher key; absent when none is
  * installed or the marketplace names no key.

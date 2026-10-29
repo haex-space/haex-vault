@@ -3,11 +3,11 @@
 /**
  * What `marketplace_catalog` asks for.
  */
-export type CatalogQuery = { 
+export type CatalogQuery = {
 /**
  * 1-based.
  */
-page: number, search?: string, category?: string, 
+page: number, search?: string, category?: string,
 /**
  * Only this marketplace; absent: all enabled ones.
  */

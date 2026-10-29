@@ -5,7 +5,7 @@ import type { MarketplaceCredentialsState } from "./MarketplaceCredentialsState"
 /**
  * One marketplace of the list; all of them are equal (FR-023).
  */
-export type MarketplaceView = { id: string, name: string, baseUrl: string, enabled: boolean, 
+export type MarketplaceView = { id: string, name: string, baseUrl: string, enabled: boolean,
 /**
  * 1-based position in the list.
  */

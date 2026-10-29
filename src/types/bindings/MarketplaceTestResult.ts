@@ -4,7 +4,7 @@ import type { SourceErrorKind } from "./SourceErrorKind";
 /**
  * The result of the form's test (FR-021).
  */
-export type MarketplaceTestResult = { ok: boolean, 
+export type MarketplaceTestResult = { ok: boolean,
 /**
  * Entries the first page reported as a total.
  */

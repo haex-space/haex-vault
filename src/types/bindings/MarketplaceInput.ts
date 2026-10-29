@@ -4,7 +4,7 @@ import type { MarketplaceAuthType } from "./MarketplaceAuthType";
 /**
  * What the form of a marketplace sends (`marketplace_save`).
  */
-export type MarketplaceInput = { 
+export type MarketplaceInput = {
 /**
  * Absent for a new marketplace.
  */
