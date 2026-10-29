@@ -16,7 +16,9 @@ export async function readArchiveResponse(
       size += value.byteLength
       if (size > archive.size) {
         await reader.cancel()
-        throw new Error(`${archive.name}: response exceeds ${archive.size} bytes`)
+        throw new Error(
+          `${archive.name}: response exceeds ${archive.size} bytes`,
+        )
       }
       chunks.push(Buffer.from(value))
     }
@@ -24,7 +26,9 @@ export async function readArchiveResponse(
     reader.releaseLock()
   }
   if (size !== archive.size) {
-    throw new Error(`${archive.name}: expected ${archive.size} bytes, received ${size}`)
+    throw new Error(
+      `${archive.name}: expected ${archive.size} bytes, received ${size}`,
+    )
   }
   return Buffer.concat(chunks, size)
 }
