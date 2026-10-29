@@ -143,6 +143,7 @@ async fn run_inner(
     let mut failures = Vec::new();
     if !plan.hash_reads.is_empty() {
         let mut stopped = None;
+        let mut failures_in_a_row = 0u32;
         for (side, path) in &plan.hash_reads {
             let place = match side {
                 SyncRuleSide::A => a,
@@ -151,9 +152,13 @@ async fn run_inner(
             match place.hash(path, ctx.cancel).await {
                 Ok(hash) => {
                     hashes.insert((*side, path.clone()), hash);
+                    failures_in_a_row = 0;
                 }
                 Err(error) => {
-                    if stops_the_run(error.code) {
+                    failures_in_a_row += 1;
+                    if stops_the_run(error.code)
+                        || failures_in_a_row >= super::execute::FAILURES_IN_A_ROW
+                    {
                         stopped = Some(Stopped {
                             code: error.code,
                             reason: error.message.clone(),
@@ -201,6 +206,7 @@ async fn run_inner(
     .await;
     let unhashed = failures.len() as u64;
     failures.extend(executed.failures);
+    failures.truncate(MAX_FAILURES);
     let mut counts = executed.counts;
     counts.errors += unhashed;
     let outcome = if executed.cancelled {
