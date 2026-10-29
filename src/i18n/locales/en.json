@@ -2882,8 +2882,8 @@
       "title": "Sync rules",
       "empty": "No sync rule on this device yet.",
       "failed": "The sync rules could not be loaded or changed.",
-      "placeA": "Place A",
-      "placeB": "Place B",
+      "placeA": "Source",
+      "placeB": "Target",
       "name": "Name",
       "interval": "Sync remote places every … minutes",
       "cloudHint": "{place} is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
@@ -2942,9 +2942,9 @@
         "open": "Exclusions",
         "title": "Exclusions of “{name}”",
         "loading": "Loading …",
-        "hint": "Patterns as in .gitignore, one per line. The file .haex-ignore lies in place A and is synced too.",
+        "hint": "Patterns as in .gitignore, one per line. The file .haex-ignore lies in the source and is synced too.",
         "label": ".haex-ignore",
-        "readOnly": "Place A cannot be written, the patterns can only be viewed: {reason}",
+        "readOnly": "The source cannot be written, the patterns can only be viewed: {reason}",
         "lineError": "Line {line} is skipped: {text}",
         "ignoredNow": "The exclusions leave out nothing right now. | The exclusions leave out one file or folder right now. | The exclusions leave out {count} files and folders right now.",
         "fixed": "Fixed exclusions",
@@ -3002,8 +3002,7 @@
       },
       "direction": {
         "label": "Direction",
-        "aToB": "A → B",
-        "bToA": "B → A",
+        "aToB": "Source → target",
         "both": "Both ways"
       },
       "deleteMode": {
@@ -3068,7 +3067,7 @@
         },
         "interval": "Interval",
         "minutes": "every {n} minute | every {n} minutes",
-        "decrypted": "Files from an encrypted folder in place A are stored decrypted in place B.",
+        "decrypted": "Files from an encrypted folder in the source are stored decrypted in the target.",
         "allow": "Allow",
         "deny": "Deny"
       }

@@ -1,5 +1,5 @@
 //! The preview changes nothing and names hash reads and excluded files (FR-007, FR-012a, FR-042);
-//! the exclusion editor shows the file of place A, the fixed exclusions, the excluded count and bad
+//! the exclusion editor shows the file of the source, the fixed exclusions, the excluded count and bad
 //! lines, and writes only files within the limits (FR-041).
 
 use super::*;

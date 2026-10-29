@@ -1405,7 +1405,7 @@
         "name": { "type": "string", "description": "1 to 80 characters." },
         "placeA": {
           "type": "object",
-          "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+          "description": "The source. Its .haex-ignore file holds the exclusions of the rule.",
           "properties": {
             "source": {
               "type": "object",
@@ -1421,7 +1421,7 @@
         },
         "placeB": {
           "type": "object",
-          "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+          "description": "The target.",
           "properties": {
             "source": {
               "type": "object",
@@ -1437,8 +1437,8 @@
         },
         "direction": {
           "type": "string",
-          "enum": ["aToB", "bToA", "both"],
-          "description": "One way from A to B, from B to A, or both ways."
+          "enum": ["aToB", "both"],
+          "description": "aToB: one way from the source (placeA) to the target (placeB); both: both ways."
         },
         "deleteMode": {
           "type": "string",
@@ -1452,7 +1452,7 @@
         "enabled": { "type": "boolean" },
         "allowDecrypted": {
           "type": "boolean",
-          "description": "Files of an encrypted place A may be stored decrypted at B. The user sees it in the confirmation."
+          "description": "Files of an encrypted source may be stored decrypted in the target. The user sees it in the confirmation."
         }
       },
       "required": [
@@ -1486,7 +1486,7 @@
             "name": { "type": "string", "description": "1 to 80 characters." },
             "placeA": {
               "type": "object",
-              "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+              "description": "The source. Its .haex-ignore file holds the exclusions of the rule.",
               "properties": {
                 "source": {
                   "type": "object",
@@ -1502,7 +1502,7 @@
             },
             "placeB": {
               "type": "object",
-              "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+              "description": "The target.",
               "properties": {
                 "source": {
                   "type": "object",
@@ -1518,8 +1518,8 @@
             },
             "direction": {
               "type": "string",
-              "enum": ["aToB", "bToA", "both"],
-              "description": "One way from A to B, from B to A, or both ways."
+              "enum": ["aToB", "both"],
+              "description": "aToB: one way from the source (placeA) to the target (placeB); both: both ways."
             },
             "deleteMode": {
               "type": "string",
@@ -1533,7 +1533,7 @@
             "enabled": { "type": "boolean" },
             "allowDecrypted": {
               "type": "boolean",
-              "description": "Files of an encrypted place A may be stored decrypted at B. The user sees it in the confirmation."
+              "description": "Files of an encrypted source may be stored decrypted in the target. The user sees it in the confirmation."
             }
           },
           "required": [

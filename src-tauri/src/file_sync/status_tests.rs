@@ -24,7 +24,7 @@ fn rule(enabled: bool, outcome: Option<SyncRuleOutcome>) -> SyncRule {
         updated_at: String::new(),
         last_run_at: None,
         last_outcome: outcome,
-        last_error: Some("place B: gone".to_owned()),
+        last_error: Some("target: gone".to_owned()),
     }
 }
 
@@ -97,5 +97,5 @@ fn the_last_run_fills_errors_and_counters() {
     assert_eq!(status.ignored, 7);
     assert_eq!(status.errors[0].path, "x.txt");
     assert_eq!(status.ignore_errors[0].line, 3);
-    assert_eq!(status.reason.as_deref(), Some("place B: gone"));
+    assert_eq!(status.reason.as_deref(), Some("target: gone"));
 }

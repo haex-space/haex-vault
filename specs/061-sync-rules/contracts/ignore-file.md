@@ -39,7 +39,7 @@ Zeilen gelten (FR-038).
 
 ## Lesen und Schreiben durch die Oberfläche
 
-- Der Editor liest die Datei im Quellort (bei beidseitig Ort A); fehlt sie, ist der Inhalt leer.
+- Der Editor liest die Datei im Quellort, auch bei beidseitig; fehlt sie, ist der Inhalt leer.
 - Speichern schreibt die Datei über `Place::write_text` in dieselbe Quelle (temporäre Datei, dann Umbenennen).
 - Ist der Ort nicht beschreibbar (Speicher ohne Recht, schreibgeschützt), liefert `sync_rules_ignore_get`
   `writable: false` mit Grund; `sync_rules_ignore_set` lehnt mit `readOnly` ab.

@@ -2882,8 +2882,8 @@
       "title": "Sync-Regeln",
       "empty": "Noch keine Sync-Regel auf diesem Gerät.",
       "failed": "Die Sync-Regeln konnten nicht geladen oder geändert werden.",
-      "placeA": "Ort A",
-      "placeB": "Ort B",
+      "placeA": "Quelle",
+      "placeB": "Ziel",
       "name": "Name",
       "interval": "Abgleich entfernter Orte alle … Minuten",
       "cloudHint": "{place} ist ein Speicher ohne Verschlüsselung. Wähle einen verschlüsselten Ordner, wenn der Anbieter den Inhalt nicht sehen soll.",
@@ -2942,9 +2942,9 @@
         "open": "Ausnahmen",
         "title": "Ausnahmen von „{name}“",
         "loading": "Wird geladen …",
-        "hint": "Muster wie in .gitignore, eins pro Zeile. Die Datei .haex-ignore liegt in Ort A und wird mit abgeglichen.",
+        "hint": "Muster wie in .gitignore, eins pro Zeile. Die Datei .haex-ignore liegt in der Quelle und wird mit abgeglichen.",
         "label": ".haex-ignore",
-        "readOnly": "Ort A ist nicht beschreibbar, die Muster sind nur zu sehen: {reason}",
+        "readOnly": "Die Quelle ist nicht beschreibbar, die Muster sind nur zu sehen: {reason}",
         "lineError": "Zeile {line} wird übersprungen: {text}",
         "ignoredNow": "Die Ausnahmen lassen gerade nichts aus. | Die Ausnahmen lassen gerade eine Datei oder einen Ordner aus. | Die Ausnahmen lassen gerade {count} Dateien und Ordner aus.",
         "fixed": "Feste Ausnahmen",
@@ -3002,8 +3002,7 @@
       },
       "direction": {
         "label": "Richtung",
-        "aToB": "A → B",
-        "bToA": "B → A",
+        "aToB": "Quelle → Ziel",
         "both": "Beidseitig"
       },
       "deleteMode": {
@@ -3068,7 +3067,7 @@
         },
         "interval": "Intervall",
         "minutes": "alle {n} Minute | alle {n} Minuten",
-        "decrypted": "Dateien aus einem verschlüsselten Ordner an Ort A liegen an Ort B entschlüsselt.",
+        "decrypted": "Dateien aus einem verschlüsselten Ordner der Quelle liegen am Ziel entschlüsselt.",
         "allow": "Erlauben",
         "deny": "Ablehnen"
       }

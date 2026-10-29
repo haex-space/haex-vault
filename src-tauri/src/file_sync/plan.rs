@@ -109,7 +109,7 @@ pub struct Inputs<'a> {
     pub conflict_name: &'a dyn Fn(&str, &[String]) -> String,
 }
 
-/// The plan for a rule: A → B (`BToA` is stored as `AToB`) or both ways.
+/// The plan for a rule: from the source to the target, or both ways.
 pub fn build(inputs: &Inputs<'_>) -> Plan {
     let mut plan = Plan {
         ignored: ignored(inputs),
@@ -118,7 +118,7 @@ pub fn build(inputs: &Inputs<'_>) -> Plan {
     let mut planner = Planner::new(inputs, &mut plan);
     match inputs.rule.direction {
         SyncRuleDirection::Both => planner.two_way(),
-        SyncRuleDirection::AToB | SyncRuleDirection::BToA => planner.one_way(),
+        SyncRuleDirection::AToB => planner.one_way(),
     }
     plan.steps.sort_by_key(Step::rank);
     plan.hash_reads.sort();
@@ -163,7 +163,7 @@ enum Was {
     Never,
 }
 
-/// Plans a rule: A → B (FR-010, A is the source, B the target) or both ways (FR-011).
+/// Plans a rule: from the source A to the target B (FR-010) or both ways (FR-011).
 struct Planner<'i, 'p> {
     inputs: &'i Inputs<'i>,
     plan: &'p mut Plan,
