@@ -246,7 +246,7 @@ impl Runner for TauriRunner {
                 return failed_open(&ctx, &rule, error, started).await;
             }
         };
-        run(&ctx, &rule, a.as_ref(), b.as_ref()).await
+        run(&ctx, &rule, a.as_ref(), b.as_ref(), started).await
     }
 
     fn changed(&self, rule_id: Option<String>) {

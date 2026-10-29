@@ -91,8 +91,13 @@ impl Started {
 }
 
 /// Runs `rule` between `a` and `b` and notes the result on the rule and in the log.
-pub async fn run(ctx: &RunContext<'_>, rule: &SyncRule, a: &dyn Place, b: &dyn Place) -> RunReport {
-    let started = Started::now();
+pub async fn run(
+    ctx: &RunContext<'_>,
+    rule: &SyncRule,
+    a: &dyn Place,
+    b: &dyn Place,
+    started: Started,
+) -> RunReport {
     let report = run_inner(ctx, rule, a, b).await;
     note(ctx, rule, &report, started).await;
     report

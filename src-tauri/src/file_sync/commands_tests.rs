@@ -13,6 +13,7 @@ use super::*;
 use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection, SyncRulePlace};
 use crate::file_sync::status::SyncRuleState;
 use crate::files::SourceRef;
+use crate::files::{FilesError, FilesErrorCode};
 use crate::remote_storage::test_support::vault;
 
 const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
@@ -50,6 +51,15 @@ fn draft(a: &str, b: &str) -> SyncRuleDraft {
         enabled: true,
         allow_decrypted: false,
     }
+}
+
+#[test]
+fn no_access_on_a_read_is_not_reported_as_read_only() {
+    let read = place_error(FilesError::new(FilesErrorCode::NoAccess, "cannot read"));
+    assert_eq!(read.code, SyncRuleErrorCode::PlaceError);
+
+    let write = place_error(FilesError::new(FilesErrorCode::ReadOnly, "cannot write"));
+    assert_eq!(write.code, SyncRuleErrorCode::ReadOnly);
 }
 
 #[tokio::test(flavor = "multi_thread")]

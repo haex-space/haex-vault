@@ -2888,7 +2888,7 @@
         "open": "Vorschau",
         "title": "Vorschau des Abgleichs",
         "loading": "Orte werden verglichen …",
-        "nothing": "Nichts zu tun: beide Orte sind abgeglichen.",
+        "nothing": "Für diese Vorschau wurden keine Schritte ermittelt.",
         "action": {
           "folder": "Ordner anlegen ({count}) | Ordner anlegen ({count})",
           "move": "Verschieben ({count}) | Verschieben ({count})",

@@ -16,7 +16,7 @@ SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused'|'inact
                      conflicts, conflictCopies: string[], errors: { path, reason }[], ignored,
                      ignoreErrors: { line, text }[], deviations: number }
 SyncRulePlan       { steps: SyncRulePlanStep[], hashReads, ignored }
-SyncRulePlanStep   { action, path, side?, detail? }
+SyncRulePlanStep   { action, path, side?: SyncRuleSide | null, detail?: string | null }
 SyncRulePending    { path, side }
 SyncRuleRun        { id, startedMs, durationMs, cause, outcome, error?, copied, moved, deleted, conflicts,
                      errors, skipped }

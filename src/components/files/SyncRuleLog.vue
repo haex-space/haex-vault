@@ -58,6 +58,7 @@ async function loadItemsAsync(runId: string, offset: number) {
   try {
     const page = await runItemsAsync(runId, offset, PAGE)
     if (expanded.value !== runId) return
+    if (offset !== 0 && items.value.length !== offset) return
     items.value = offset === 0 ? page : [...items.value, ...page]
     more.value = page.length === PAGE
   } catch (cause) {

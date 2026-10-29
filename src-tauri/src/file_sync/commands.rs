@@ -239,9 +239,7 @@ fn place_error(error: FilesError) -> SyncRuleError {
         FilesErrorCode::Unreachable => {
             SyncRuleError::new(SyncRuleErrorCode::Unreachable, error.message)
         }
-        FilesErrorCode::ReadOnly | FilesErrorCode::NoAccess => {
-            SyncRuleError::new(SyncRuleErrorCode::ReadOnly, error.message)
-        }
+        FilesErrorCode::ReadOnly => SyncRuleError::new(SyncRuleErrorCode::ReadOnly, error.message),
         FilesErrorCode::TooLarge => {
             SyncRuleError::new(SyncRuleErrorCode::InvalidIgnore, error.message)
         }
@@ -592,7 +590,13 @@ pub async fn sync_rules_ignore_set(
     }
     manage::ignore_set(a.as_ref(), &content)
         .await
-        .map_err(place_error)?;
+        .map_err(|error| {
+            if error.code == FilesErrorCode::NoAccess {
+                SyncRuleError::new(SyncRuleErrorCode::ReadOnly, error.message)
+            } else {
+                place_error(error)
+            }
+        })?;
     app.state::<FileSyncState>().send(Command::Run(id));
     ignore_of(&app, &rule).await
 }

@@ -187,6 +187,67 @@ async fn a_failing_step_is_noted_and_the_rest_runs() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_conflict_copy_is_logged_when_a_later_copy_fails() {
+    let (_dir, db, rule) = setup();
+    let (a, b) = (MemPlace::new(), MemPlace::new());
+    a.put("x.txt", b"new", 2);
+    b.put("x.txt", b"old", 1);
+    let aside = "x (Konflikt holzi 2026-10-27).txt";
+    b.fail(aside);
+
+    let done = exec(
+        &db,
+        &rule,
+        &a,
+        &b,
+        &[],
+        &[Step::Conflict {
+            path: "x.txt".to_owned(),
+            keep: SyncRuleSide::A,
+            aside: aside.to_owned(),
+        }],
+        &CancellationToken::new(),
+    )
+    .await;
+
+    assert_eq!(done.conflict_copies, [aside]);
+    assert_eq!(done.items.len(), 1);
+    assert_eq!(done.items[0].action, SyncRuleRunAction::ConflictCopy);
+    assert_eq!(done.items[0].detail.as_deref(), Some(aside));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn merging_exclusions_logs_each_copy_and_both_active_files() {
+    let (_dir, db, rule) = setup();
+    let (a, b) = (MemPlace::new(), MemPlace::new());
+    a.put(".haex-ignore", b"*.tmp\n", 1);
+    b.put(".haex-ignore", b"*.bak\n", 1);
+    let (aside_a, aside_b) = (".haex-ignore.a", ".haex-ignore.b");
+
+    let done = exec(
+        &db,
+        &rule,
+        &a,
+        &b,
+        &[],
+        &[Step::MergeIgnore {
+            aside_a: aside_a.to_owned(),
+            aside_b: aside_b.to_owned(),
+        }],
+        &CancellationToken::new(),
+    )
+    .await;
+
+    assert_eq!(done.counts.errors, 0);
+    assert_eq!(done.conflict_copies, [aside_a, aside_b]);
+    assert_eq!(done.items.len(), 6);
+    assert_eq!(done.items[4].path, ".haex-ignore");
+    assert_eq!(done.items[4].side, SyncRuleSide::A);
+    assert_eq!(done.items[5].path, ".haex-ignore");
+    assert_eq!(done.items[5].side, SyncRuleSide::B);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_cancelled_run_stops_before_the_next_step() {
     let (_dir, db, rule) = setup();
     let (a, b) = (MemPlace::new(), MemPlace::new());

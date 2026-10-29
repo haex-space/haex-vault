@@ -25,20 +25,29 @@ const plan = ref<SyncRulePlan | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-watch(open, async (isOpen) => {
-  if (!isOpen || !props.target) return
+let requestId = 0
+
+watch([open, () => props.target], async ([isOpen, target]) => {
+  const currentRequest = ++requestId
+  if (!isOpen || !target) {
+    loading.value = false
+    return
+  }
   plan.value = null
   error.value = null
   loading.value = true
   try {
-    plan.value = await previewAsync(props.target)
+    const result = await previewAsync(target)
+    if (currentRequest !== requestId) return
+    plan.value = result
   } catch (cause) {
+    if (currentRequest !== requestId) return
     const code = asSyncRuleError(cause)?.code
     error.value = code
       ? t(`files.syncRules.error.${code}`)
       : t('files.syncRules.failed')
   } finally {
-    loading.value = false
+    if (currentRequest === requestId) loading.value = false
   }
 })
 

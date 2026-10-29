@@ -2888,7 +2888,7 @@
         "open": "Preview",
         "title": "Sync preview",
         "loading": "Comparing the places …",
-        "nothing": "Nothing to do: both places are in sync.",
+        "nothing": "No steps were determined for this preview.",
         "action": {
           "folder": "Create folder ({count}) | Create folders ({count})",
           "move": "Move ({count}) | Move ({count})",

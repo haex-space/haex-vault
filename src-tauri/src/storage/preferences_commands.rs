@@ -147,8 +147,16 @@ pub async fn set_pref(state: State<'_, AppState>, args: SetPrefArgs) -> Result<(
     let scope = PrefScope::try_from(args.scope)?;
     let SetPrefArgs { key, value, .. } = args;
     let db = active_database(&state)?;
-    db.write(move |tx| preferences::insert_or_update(tx, scope, &key, &value).map(|_| ()))
-        .await
+    db.write(move |tx| match scope {
+        PrefScope::Device(device) if key == crate::file_sync::run_log::LOG_DEPTH_KEY => {
+            let depth = value.parse().map_err(|_| HolziError::InvalidInput {
+                reason: format!("{} must be a whole number from 0 to 100", key),
+            })?;
+            crate::file_sync::run_log::set_depth(tx, &device.to_string(), depth)
+        }
+        scope => preferences::insert_or_update(tx, scope, &key, &value).map(|_| ()),
+    })
+    .await
 }
 
 #[derive(Debug, Deserialize)]

@@ -261,32 +261,18 @@ async fn run_step(
         Step::Conflict { path, keep, aside } => {
             let planned = planned(target, *keep, path)?;
             let older = keep.other();
-            let set_aside = put_aside(target, older, path, aside).await?;
+            let set_aside = put_aside(target, older, path, aside, done).await?;
             copy(target, *keep, path, &planned, false).await?;
+            done.items
+                .push(RunItem::new(SyncRuleRunAction::Copy, older, path.clone()));
+            done.counts.copied += 1;
             copy(target, older, aside, &set_aside, false).await?;
-            done.items.extend([
-                RunItem::new(SyncRuleRunAction::ConflictCopy, older, path.clone())
-                    .detail(aside.clone()),
-                RunItem::new(SyncRuleRunAction::Copy, older, path.clone()),
-                RunItem::new(SyncRuleRunAction::Copy, *keep, aside.clone()),
-            ]);
-            done.conflict_copies.push(aside.clone());
-            done.counts.conflicts += 1;
-            done.counts.copied += 2;
+            done.items
+                .push(RunItem::new(SyncRuleRunAction::Copy, *keep, aside.clone()));
+            done.counts.copied += 1;
         }
         Step::MergeIgnore { aside_a, aside_b } => {
-            merge_ignore(target, aside_a, aside_b).await?;
-            for (side, aside) in [(SyncRuleSide::A, aside_a), (SyncRuleSide::B, aside_b)] {
-                done.items.extend([
-                    RunItem::new(SyncRuleRunAction::ConflictCopy, side, IGNORE_FILE)
-                        .detail(aside.clone()),
-                    RunItem::new(SyncRuleRunAction::Copy, side.other(), aside.clone()),
-                ]);
-            }
-            done.conflict_copies
-                .extend([aside_a.clone(), aside_b.clone()]);
-            done.counts.conflicts += 1;
-            done.counts.copied += 2;
+            merge_ignore(target, aside_a, aside_b, done).await?;
         }
         Step::Adopt { path, hash } => {
             let (a, b) = (
@@ -409,15 +395,25 @@ async fn put_aside(
     side: SyncRuleSide,
     path: &str,
     aside: &str,
+    done: &mut Executed,
 ) -> Result<Facts, FilesError> {
     let place = target.place(side);
     place.rename(path, aside).await?;
+    done.conflict_copies.push(aside.to_owned());
+    done.items
+        .push(RunItem::new(SyncRuleRunAction::ConflictCopy, side, path).detail(aside.to_owned()));
+    done.counts.conflicts += 1;
     place.stat(aside).await?.ok_or_else(changed_meanwhile)
 }
 
 /// Both exclusion files go aside and to the other side; the union of their patterns becomes the
 /// exclusion file of both places (FR-039).
-async fn merge_ignore(target: &Target<'_>, aside_a: &str, aside_b: &str) -> Result<(), StepError> {
+async fn merge_ignore(
+    target: &Target<'_>,
+    aside_a: &str,
+    aside_b: &str,
+    done: &mut Executed,
+) -> Result<(), StepError> {
     let (a, b) = (target.place(SyncRuleSide::A), target.place(SyncRuleSide::B));
     let text_a = a.read_text(IGNORE_FILE, MAX_BYTES).await?;
     let text_b = b.read_text(IGNORE_FILE, MAX_BYTES).await?;
@@ -427,12 +423,35 @@ async fn merge_ignore(target: &Target<'_>, aside_a: &str, aside_b: &str) -> Resu
     let union = union_text(&text_a, &text_b);
     // Keep both originals live until their conflict copies exist on both places. If writing either
     // union fails, the next run can still read both exclusion sets from the original files.
-    let set_a = preserve_ignore(target, SyncRuleSide::A, &text_a, aside_a).await?;
-    let set_b = preserve_ignore(target, SyncRuleSide::B, &text_b, aside_b).await?;
+    let set_a = preserve_ignore(target, SyncRuleSide::A, &text_a, aside_a, done).await?;
+    done.counts.conflicts += 1;
+    let set_b = preserve_ignore(target, SyncRuleSide::B, &text_b, aside_b, done).await?;
     copy(target, SyncRuleSide::A, aside_a, &set_a, false).await?;
+    done.items.push(RunItem::new(
+        SyncRuleRunAction::Copy,
+        SyncRuleSide::B,
+        aside_a,
+    ));
+    done.counts.copied += 1;
     copy(target, SyncRuleSide::B, aside_b, &set_b, false).await?;
+    done.items.push(RunItem::new(
+        SyncRuleRunAction::Copy,
+        SyncRuleSide::A,
+        aside_b,
+    ));
+    done.counts.copied += 1;
     a.write_text(IGNORE_FILE, &union).await?;
+    done.items.push(RunItem::new(
+        SyncRuleRunAction::Copy,
+        SyncRuleSide::A,
+        IGNORE_FILE,
+    ));
     b.write_text(IGNORE_FILE, &union).await?;
+    done.items.push(RunItem::new(
+        SyncRuleRunAction::Copy,
+        SyncRuleSide::B,
+        IGNORE_FILE,
+    ));
     let row = StateRow {
         path: IGNORE_FILE.to_owned(),
         a: a.stat(IGNORE_FILE).await?.as_ref().map(seen),
@@ -452,12 +471,17 @@ async fn preserve_ignore(
     side: SyncRuleSide,
     text: &str,
     aside: &str,
+    done: &mut Executed,
 ) -> Result<Facts, FilesError> {
     let place = target.place(side);
     if place.stat(aside).await?.is_some() {
         return Err(changed_meanwhile());
     }
     place.write_text(aside, text).await?;
+    done.conflict_copies.push(aside.to_owned());
+    done.items.push(
+        RunItem::new(SyncRuleRunAction::ConflictCopy, side, IGNORE_FILE).detail(aside.to_owned()),
+    );
     place.stat(aside).await?.ok_or_else(changed_meanwhile)
 }
 
