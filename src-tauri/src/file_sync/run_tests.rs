@@ -120,6 +120,7 @@ impl World {
             &self.rule,
             a,
             b,
+            Started::now(),
         )
         .await
     }
@@ -753,16 +754,51 @@ async fn two_way_a_first_run_adopts_equal_files_and_keeps_both_of_different_ones
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_way_differing_exclusion_files_keep_both_and_become_their_union() {
+    use crate::file_sync::run_log::SyncRuleRunAction;
+
     let w = both(SyncRuleDeleteMode::Mirror);
     write(&w.a.join(".haex-ignore"), "*.tmp\n");
     write(&w.b.join(".haex-ignore"), "*.log\n");
     write(&w.a.join("x.tmp"), "a");
     write(&w.b.join("y.log"), "b");
-    let report = w.run().await;
-    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
     let (aside_a, aside_b) = (
         ".haex-ignore (Konflikt Laptop 2026-10-27)",
         ".haex-ignore (Konflikt Laptop 2026-10-27 2)",
+    );
+    let report = w.run().await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    let runs =
+        w.db.read_blocking(|r| Ok(run_log::runs(r, DEVICE, "r1")))
+            .unwrap()
+            .unwrap();
+    let items =
+        w.db.read_blocking({
+            let run_id = runs[0].id.clone();
+            move |r| Ok(run_log::items(r, DEVICE, &run_id, 0, 100))
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| (item.action, item.path.as_str(), item.side))
+            .collect::<Vec<_>>(),
+        [
+            (
+                SyncRuleRunAction::ConflictCopy,
+                ".haex-ignore",
+                SyncRuleSide::A
+            ),
+            (
+                SyncRuleRunAction::ConflictCopy,
+                ".haex-ignore",
+                SyncRuleSide::B
+            ),
+            (SyncRuleRunAction::Copy, aside_a, SyncRuleSide::B),
+            (SyncRuleRunAction::Copy, aside_b, SyncRuleSide::A),
+            (SyncRuleRunAction::Copy, ".haex-ignore", SyncRuleSide::A),
+            (SyncRuleRunAction::Copy, ".haex-ignore", SyncRuleSide::B),
+        ]
     );
     for side in [&w.a, &w.b] {
         assert_eq!(read(&side.join(".haex-ignore")), "*.tmp\n*.log\n");

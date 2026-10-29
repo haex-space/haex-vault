@@ -211,13 +211,14 @@ async fn a_conflict_copy_is_logged_when_a_later_copy_fails() {
     .await;
 
     assert_eq!(done.conflict_copies, [aside]);
-    assert_eq!(done.items.len(), 1);
+    assert_eq!(done.items.len(), 2);
     assert_eq!(done.items[0].action, SyncRuleRunAction::ConflictCopy);
     assert_eq!(done.items[0].detail.as_deref(), Some(aside));
+    assert_eq!(done.items[1].action, SyncRuleRunAction::Error);
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn merging_exclusions_logs_each_copy_and_both_active_files() {
+async fn merging_exclusions_records_copies_before_the_transfer_fails() {
     let (_dir, db, rule) = setup();
     let (a, b) = (MemPlace::new(), MemPlace::new());
     a.put(".haex-ignore", b"*.tmp\n", 1);
@@ -238,13 +239,12 @@ async fn merging_exclusions_logs_each_copy_and_both_active_files() {
     )
     .await;
 
-    assert_eq!(done.counts.errors, 0);
+    assert_eq!(done.counts.errors, 1);
     assert_eq!(done.conflict_copies, [aside_a, aside_b]);
-    assert_eq!(done.items.len(), 6);
-    assert_eq!(done.items[4].path, ".haex-ignore");
-    assert_eq!(done.items[4].side, SyncRuleSide::A);
-    assert_eq!(done.items[5].path, ".haex-ignore");
-    assert_eq!(done.items[5].side, SyncRuleSide::B);
+    assert_eq!(done.items.len(), 3);
+    assert_eq!(done.items[0].action, SyncRuleRunAction::ConflictCopy);
+    assert_eq!(done.items[1].action, SyncRuleRunAction::ConflictCopy);
+    assert_eq!(done.items[2].action, SyncRuleRunAction::Error);
 }
 
 #[tokio::test(flavor = "multi_thread")]

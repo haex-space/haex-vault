@@ -146,17 +146,29 @@ pub async fn set_pref(state: State<'_, AppState>, args: SetPrefArgs) -> Result<(
     validate_value(&args.key, &args.value)?;
     let scope = PrefScope::try_from(args.scope)?;
     let SetPrefArgs { key, value, .. } = args;
+    let depth = if matches!(scope, PrefScope::Device(_))
+        && key == crate::file_sync::run_log::LOG_DEPTH_KEY
+    {
+        Some(value.parse().map_err(|_| HolziError::InvalidInput {
+            reason: format!("{} must be a whole number from 0 to 100", key),
+        })?)
+    } else {
+        None
+    };
     let db = active_database(&state)?;
-    db.write(move |tx| match scope {
-        PrefScope::Device(device) if key == crate::file_sync::run_log::LOG_DEPTH_KEY => {
-            let depth = value.parse().map_err(|_| HolziError::InvalidInput {
-                reason: format!("{} must be a whole number from 0 to 100", key),
-            })?;
-            crate::file_sync::run_log::set_depth(tx, &device.to_string(), depth)
-        }
-        scope => preferences::insert_or_update(tx, scope, &key, &value).map(|_| ()),
+    db.write(move |tx| {
+        let result = match (scope, depth) {
+            (PrefScope::Device(device), Some(depth)) => {
+                crate::file_sync::run_log::set_depth(tx, &device.to_string(), depth)
+            }
+            (scope, _) => preferences::insert_or_update(tx, scope, &key, &value)
+                .map(|_| ())
+                .map_err(HolziError::from),
+        };
+        Ok(result)
     })
-    .await
+    .await??;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
