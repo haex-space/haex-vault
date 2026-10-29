@@ -125,6 +125,11 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   Ordner spiegeln? → A: Ja, wenn der Nutzer beim Anlegen zustimmt (FR-030a); etwa für einen verschlüsselten Ordner auf
   einem exponierten Gerät, dessen Inhalt auf ein anderes eigenes Gerät soll.
 
+### Session 2026-10-29
+
+- Q: Wo stehen die Regeln, wenn es viele sind? → A: Nicht in einem Dialog, sondern als Liste im Panel des
+  Dateibrowsers, aufgebaut wie eine Ordneransicht (FR-047). Der Dialog bleibt für „Neue Regel“.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Ordner einseitig sichern (Priority: P1)
@@ -500,6 +505,14 @@ löschen.
 - **FR-046**: Zu einer gespiegelten Löschung MUSS der Protokolleintrag nennen, wohin die Datei gegangen
   ist. Liegt sie im Regel-Papierkorb des Orts, MUSS er dorthin führen, solange die Datei dort liegt. Beim
   Papierkorb des Systems nennt er ihn nur, weil holzi ihn nicht öffnen kann.
+- **FR-047**: Der Bereich „Sync-Regeln“ (FR-032) MUSS im Panel des Dateibrowsers stehen, nicht in einem
+  Dialog, und wie eine Ordneransicht aufgebaut sein: eine Kopfzeile zum Sortieren (Name, Status, letzter
+  Abgleich), eine Zeile je Regel mit Orten, Richtung, Status, Fortschritt oder letztem Abgleich und den
+  Aktionen, dazu ein Filter über Name und Orte. Ein Klick auf eine Zeile zeigt Einzelheiten (Richtung,
+  Löschmodus, Abweichungen, Fehler). Der Bereich ist ein Ort des Panels (Verlauf, Wiederherstellung, zwei
+  Panels); „Neue Regel“ öffnet weiter den Dialog.
+- **FR-048**: Eine laufende Regel MUSS ihren Fortschritt zeigen: die Phase (Orte vergleichen, kopieren), die
+  Dateien und die Bytes des Laufs als Balken mit Zahlen.
 
 ### Key Entities
 

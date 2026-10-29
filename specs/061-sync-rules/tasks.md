@@ -221,6 +221,11 @@ rules list in the file browser can create, run and delete a rule.
 - [ ] T072 Hand check on two real devices (own-device place, Android local place), quickstart §1 to §5; write what was checked in the PR description. Everything else needs only the automatic checks above.
 - [ ] T073 Final pass before each PR: `pnpm typecheck && pnpm typecheck:scripts && pnpm lint && pnpm format:check && pnpm check:files && pnpm check:settings && pnpm check:agent-actions`; `cargo clippy -j 4 --lib -- -D warnings`; `cargo test -j 4 --lib file_sync::`; run `sed -i -E "s/[[:space:]]+$//" src/types/bindings/*.ts` after `cargo test` (ts-rs drift, memory) and check `git status` for stray binding changes.
 
+## Phase 9: Rules list in the panel (FR-047, FR-048)
+
+- [x] T074 [US4] The rules as a list in the file browser panel: `sr` in the tab location (`lib/files/registry.ts`, `split.ts`), `components/files/SyncRulesList.vue` replaces the dialog overview, the sidebar entry opens it in the active panel; sort and filter in `lib/files/syncRules.ts`, checked in `scripts/check-files-sync-rules.ts` and `check-files-registry.ts`.
+- [x] T075 [US4] Progress of a running rule: `file_sync/progress.rs` with `progress_tests.rs` and `run_tests.rs`, bar in the list row.
+
 ---
 
 ## Dependencies & Execution Order
