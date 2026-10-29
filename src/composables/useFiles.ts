@@ -3,6 +3,8 @@
  * user; paths are checked in Rust. Errors come back as `FilesError` (`{ code, message }`).
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
+import type { DriveOpened } from '@bindings/DriveOpened'
+import type { DrivesChanged } from '@bindings/DrivesChanged'
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
 import type { FilesPeerRoots } from '@bindings/FilesPeerRoots'
@@ -11,6 +13,7 @@ import type { FolderChanged } from '@bindings/FolderChanged'
 import type { Opened } from '@bindings/Opened'
 import type { SearchFilters } from '@bindings/SearchFilters'
 import type { SourceRef } from '@bindings/SourceRef'
+import type { StorageSpace } from '@bindings/StorageSpace'
 import type { Sources } from '@bindings/Sources'
 import type { TextContent } from '@bindings/TextContent'
 import type { TransferAnswer } from '@bindings/TransferAnswer'
@@ -34,6 +37,13 @@ export function asFilesError(error: unknown): FilesError | undefined {
 export function useFiles() {
   async function sourcesAsync(): Promise<Sources> {
     return await invoke<Sources>('files_sources')
+  }
+
+  /** What the storage holds and may hold, `null` where its provider cannot tell (S3). */
+  async function storageSpaceAsync(
+    storageId: string,
+  ): Promise<StorageSpace | null> {
+    return await invoke<StorageSpace | null>('storage_space', { storageId })
   }
 
   /** Whether the files of this device are reachable (FR-039: on Android "Zugriff auf alle Dateien"). */
@@ -102,6 +112,24 @@ export function useFiles() {
     const channel = new Channel<FolderChanged>()
     channel.onmessage = onChange
     return await invoke<number>('files_watch', { path, storage, channel })
+  }
+
+  /** Sends the drive list to `onChange` at once and after every change (spec 064 FR-004). */
+  async function drivesWatchAsync(
+    onChange: (change: DrivesChanged) => void,
+  ): Promise<number> {
+    const channel = new Channel<DrivesChanged>()
+    channel.onmessage = onChange
+    return await invoke<number>('files_drives_watch', { channel })
+  }
+
+  async function drivesUnwatchAsync(id: number): Promise<void> {
+    await invoke('files_drives_unwatch', { id })
+  }
+
+  /** Opens a drive: mounts it when needed (spec 064 FR-006). */
+  async function driveOpenAsync(id: string): Promise<DriveOpened> {
+    return await invoke<DriveOpened>('files_drive_open', { id })
   }
 
   /** The drives and known places of the other own device `storageId` (spec 056). */
@@ -263,6 +291,7 @@ export function useFiles() {
 
   return {
     sourcesAsync,
+    storageSpaceAsync,
     allAccessAsync,
     requestAllAccessAsync,
     listAsync,
@@ -274,6 +303,9 @@ export function useFiles() {
     thumbnailAsync,
     watchAsync,
     unwatchAsync,
+    drivesWatchAsync,
+    drivesUnwatchAsync,
+    driveOpenAsync,
     peerRootsAsync,
     peerTrashAsync,
     openSystemAsync,

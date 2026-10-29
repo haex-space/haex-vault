@@ -7,9 +7,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::ignore::Exclusions;
+use super::ignore::{Exclusions, IGNORE_FILE};
 use super::model::{SyncRule, SyncRuleDeleteMode, SyncRuleDirection, SyncRuleSide};
-use super::place::{Facts, Listing};
+use super::place::{split, Facts, Listing};
 use super::store::{Seen, StateRow};
 
 /// Hashes a run already knows, by side and path (research R5).
@@ -50,6 +50,16 @@ pub enum Step {
         path: String,
         replaces: bool,
     },
+    /// Changed on both sides of a two-way rule (FR-012): the version of `keep` keeps the name, the
+    /// other moves to `aside` on its side, and both sides get both files.
+    Conflict {
+        path: String,
+        keep: SyncRuleSide,
+        aside: String,
+    },
+    /// The exclusion files of a two-way rule differ (FR-039): both go aside as conflict copies on
+    /// both sides, and the union of their patterns becomes the exclusion file of both.
+    MergeIgnore { aside_a: String, aside_b: String },
     /// Equal on both sides; only the state is written (FR-012a).
     Adopt { path: String, hash: String },
     /// Deleted on the other side; mirrored into a trash (FR-019).
@@ -70,7 +80,7 @@ impl Step {
         match self {
             Self::Folder { .. } => 0,
             Self::Move { .. } | Self::Aside { .. } => 1,
-            Self::Copy { .. } => 2,
+            Self::Copy { .. } | Self::Conflict { .. } | Self::MergeIgnore { .. } => 2,
             _ => 3,
         }
     }
@@ -94,19 +104,21 @@ pub struct Inputs<'a> {
     pub state: &'a [StateRow],
     pub exclusions: &'a Exclusions,
     pub hashes: &'a Hashes,
-    /// The name a conflict copy of a path gets on a side (see [`super::conflict`]).
-    pub conflict_name: &'a dyn Fn(SyncRuleSide, &str) -> String,
+    /// The name a conflict copy of a path gets, free on both sides and not one of the names given
+    /// (see [`super::conflict`]).
+    pub conflict_name: &'a dyn Fn(&str, &[String]) -> String,
 }
 
-/// The plan for a rule. Only one-way rules (`AToB`) are planned so far; a rule `Both` plans
-/// nothing and the run refuses it before it gets here.
+/// The plan for a rule: A → B (`BToA` is stored as `AToB`) or both ways.
 pub fn build(inputs: &Inputs<'_>) -> Plan {
     let mut plan = Plan {
         ignored: ignored(inputs),
         ..Plan::default()
     };
-    if inputs.rule.direction == SyncRuleDirection::AToB {
-        OneWay::new(inputs, &mut plan).build();
+    let mut planner = Planner::new(inputs, &mut plan);
+    match inputs.rule.direction {
+        SyncRuleDirection::Both => planner.two_way(),
+        SyncRuleDirection::AToB | SyncRuleDirection::BToA => planner.one_way(),
     }
     plan.steps.sort_by_key(Step::rank);
     plan.hash_reads.sort();
@@ -132,8 +144,22 @@ fn same(facts: &Facts, seen: Seen) -> bool {
     facts.size == seen.size && facts.mtime_ms == seen.mtime_ms
 }
 
-/// The plan of a rule A → B (FR-010): A is the source, B the target.
-struct OneWay<'i, 'p> {
+/// What became of a file on one side since the last success (FR-008: only against the state of
+/// the same side).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Was {
+    Same,
+    Changed,
+    /// There, and the state does not know it on this side.
+    New,
+    /// Known on this side and gone.
+    Gone,
+    /// Neither there nor known.
+    Never,
+}
+
+/// Plans a rule: A → B (FR-010, A is the source, B the target) or both ways (FR-011).
+struct Planner<'i, 'p> {
     inputs: &'i Inputs<'i>,
     plan: &'p mut Plan,
     state: BTreeMap<&'i str, &'i StateRow>,
@@ -141,7 +167,7 @@ struct OneWay<'i, 'p> {
     done: BTreeSet<String>,
 }
 
-impl<'i, 'p> OneWay<'i, 'p> {
+impl<'i, 'p> Planner<'i, 'p> {
     fn new(inputs: &'i Inputs<'i>, plan: &'p mut Plan) -> Self {
         let state = inputs
             .state
@@ -160,17 +186,20 @@ impl<'i, 'p> OneWay<'i, 'p> {
         self.inputs.exclusions.excludes(path, false)
     }
 
-    /// The hash of `path` on `side` when known: read in this run, or given by the place.
-    fn hash(&self, side: SyncRuleSide, path: &str) -> Option<&str> {
-        let listing = match side {
+    fn listing(&self, side: SyncRuleSide) -> &'i Listing {
+        match side {
             SyncRuleSide::A => self.inputs.a,
             SyncRuleSide::B => self.inputs.b,
-        };
+        }
+    }
+
+    /// The hash of `path` on `side` when known: read in this run, or given by the place.
+    fn hash(&self, side: SyncRuleSide, path: &str) -> Option<&str> {
         self.inputs
             .hashes
             .get(&(side, path.to_owned()))
             .map(String::as_str)
-            .or_else(|| listing.files.get(path)?.hash.as_deref())
+            .or_else(|| self.listing(side).files.get(path)?.hash.as_deref())
     }
 
     /// The hash of `path` on `side`, or a note that the run has to read it.
@@ -186,24 +215,39 @@ impl<'i, 'p> OneWay<'i, 'p> {
         self.plan.steps.push(step);
     }
 
-    fn build(&mut self) {
-        self.folders();
-        self.moves();
+    /// Every path of both listings and the state that is not excluded.
+    fn paths(&self) -> BTreeSet<&'i str> {
         let inputs = self.inputs;
-        let paths: BTreeSet<&str> = inputs
+        inputs
             .a
             .files
             .keys()
             .chain(inputs.b.files.keys())
             .map(String::as_str)
             .chain(self.state.keys().copied())
-            .collect();
-        for path in paths {
-            if self.excluded(path) || self.done.contains(path) {
-                continue;
+            .filter(|path| !self.excluded(path))
+            .collect()
+    }
+
+    fn one_way(&mut self) {
+        self.folders();
+        self.moves(SyncRuleSide::A);
+        for path in self.paths() {
+            if !self.done.contains(path) {
+                self.file(path);
             }
-            self.file(path);
         }
+    }
+
+    fn two_way(&mut self) {
+        self.moves(SyncRuleSide::A);
+        self.moves(SyncRuleSide::B);
+        for path in self.paths() {
+            if !self.done.contains(path) {
+                self.both_ways(path);
+            }
+        }
+        self.parent_folders();
     }
 
     /// Folders of A that B lacks, also empty ones (research R3).
@@ -219,32 +263,32 @@ impl<'i, 'p> OneWay<'i, 'p> {
         }
     }
 
-    /// Files that moved on A (FR-009): gone from their known path, new at a path with the same size
-    /// and time, and the content confirmed by the hash the state holds. Without that hash, or with
-    /// more than one match, they are a new and a deleted file.
-    fn moves(&mut self) {
-        let inputs = self.inputs;
+    /// Files that moved on `side` (FR-009): gone from their known path, new at a path with the same
+    /// size and time, and the content confirmed by the hash the state holds. Without that hash, or
+    /// with more than one match, they are a new and a deleted file.
+    fn moves(&mut self, side: SyncRuleSide) {
+        let (here, there) = (self.listing(side), self.listing(side.other()));
         let vanished: Vec<&StateRow> = self
             .state
             .values()
             .copied()
-            .filter(|row| row.a.is_some() && !inputs.a.files.contains_key(&row.path))
-            .filter(|row| !self.excluded(&row.path))
+            .filter(|row| row.seen(side).is_some() && !here.files.contains_key(&row.path))
+            .filter(|row| !self.excluded(&row.path) && !self.done.contains(&row.path))
             .collect();
         for row in vanished {
-            let (Some(seen), Some(hash)) = (row.a, row.hash.as_deref()) else {
+            let (Some(seen), Some(hash)) = (row.seen(side), row.hash.as_deref()) else {
                 continue;
             };
-            // B must still hold the old file as the rule left it, and not the new path yet.
-            let target_kept = match (inputs.b.files.get(&row.path), row.b) {
-                (Some(facts), Some(seen_b)) => same(facts, seen_b),
+            // The other side must still hold the old file as the rule left it, and not the new
+            // path yet.
+            let other_kept = match (there.files.get(&row.path), row.seen(side.other())) {
+                (Some(facts), Some(seen_there)) => same(facts, seen_there),
                 _ => false,
             };
-            if !target_kept {
+            if !other_kept {
                 continue;
             }
-            let candidates: Vec<&String> = inputs
-                .a
+            let candidates: Vec<&String> = here
                 .files
                 .iter()
                 .filter(|(path, facts)| {
@@ -254,14 +298,14 @@ impl<'i, 'p> OneWay<'i, 'p> {
                         && self
                             .state
                             .get(path.as_str())
-                            .is_none_or(|known| known.a.is_none())
-                        && !inputs.b.files.contains_key(path.as_str())
+                            .is_none_or(|known| known.seen(side).is_none())
+                        && !there.files.contains_key(path.as_str())
                 })
                 .map(|(path, _)| path)
                 .collect();
             let mut confirmed = Vec::new();
             for path in candidates {
-                if let Some(found) = self.need_hash(SyncRuleSide::A, path) {
+                if let Some(found) = self.need_hash(side, path) {
                     if found == hash {
                         confirmed.push(path.clone());
                     }
@@ -271,7 +315,7 @@ impl<'i, 'p> OneWay<'i, 'p> {
                 self.done.insert(row.path.clone());
                 self.done.insert(to.clone());
                 self.push(Step::Move {
-                    side: SyncRuleSide::B,
+                    side: side.other(),
                     from: row.path.clone(),
                     to: to.clone(),
                 });
@@ -362,7 +406,7 @@ impl<'i, 'p> OneWay<'i, 'p> {
     }
 
     /// A file on both sides that the rule has not met before (FR-012a): equal content is adopted,
-    /// other content makes a conflict copy at the target.
+    /// other content makes a conflict copy.
     fn first_meeting(&mut self, path: &str) {
         let inputs = self.inputs;
         let (Some(source), Some(target)) = (inputs.a.files.get(path), inputs.b.files.get(path))
@@ -370,7 +414,7 @@ impl<'i, 'p> OneWay<'i, 'p> {
             return;
         };
         if source.size != target.size {
-            self.aside_and_copy(path);
+            self.conflict(path);
             return;
         }
         let a = self.need_hash(SyncRuleSide::A, path);
@@ -380,15 +424,25 @@ impl<'i, 'p> OneWay<'i, 'p> {
                 path: path.to_owned(),
                 hash: a,
             }),
-            (Some(_), Some(_)) => self.aside_and_copy(path),
+            (Some(_), Some(_)) => self.conflict(path),
             // The run reads the hashes and plans again.
             _ => {}
         }
     }
 
+    /// Different versions on both sides: one-way, the target's goes aside; two-way, see
+    /// [`Self::both_changed`].
+    fn conflict(&mut self, path: &str) {
+        if self.inputs.rule.direction == SyncRuleDirection::Both {
+            self.both_changed(path);
+        } else {
+            self.aside_and_copy(path);
+        }
+    }
+
     /// The target's version moves to a conflict name; then the source's version is copied.
     fn aside_and_copy(&mut self, path: &str) {
-        let aside = (self.inputs.conflict_name)(SyncRuleSide::B, path);
+        let aside = (self.inputs.conflict_name)(path, &[]);
         self.push(Step::Aside {
             side: SyncRuleSide::B,
             path: path.to_owned(),
@@ -402,18 +456,111 @@ impl<'i, 'p> OneWay<'i, 'p> {
     }
 
     fn deleted_at_source(&mut self, path: &str) {
+        self.deleted(SyncRuleSide::B, path);
+    }
+
+    /// Deleted on the other side of `side`, unchanged on `side`: the delete mode decides (FR-019 to
+    /// FR-021).
+    fn deleted(&mut self, side: SyncRuleSide, path: &str) {
         let path = path.to_owned();
         self.push(match self.inputs.rule.delete_mode {
-            SyncRuleDeleteMode::Mirror => Step::Delete {
-                side: SyncRuleSide::B,
-                path,
-            },
+            SyncRuleDeleteMode::Mirror => Step::Delete { side, path },
             SyncRuleDeleteMode::Keep => Step::Keep { path },
-            SyncRuleDeleteMode::Ask => Step::Pending {
-                side: SyncRuleSide::B,
-                path,
-            },
+            SyncRuleDeleteMode::Ask => Step::Pending { side, path },
         });
+    }
+
+    fn was(&self, side: SyncRuleSide, path: &str, row: Option<&StateRow>) -> Was {
+        let known = row.and_then(|row| row.seen(side));
+        match (self.listing(side).files.get(path), known) {
+            (Some(facts), Some(seen)) if same(facts, seen) => Was::Same,
+            (Some(_), Some(_)) => Was::Changed,
+            (Some(_), None) => Was::New,
+            (None, Some(_)) => Was::Gone,
+            (None, None) => Was::Never,
+        }
+    }
+
+    fn copy(&mut self, from: SyncRuleSide, path: &str, replaces: bool) {
+        self.push(Step::Copy {
+            from,
+            path: path.to_owned(),
+            replaces,
+        });
+    }
+
+    /// One path of a two-way rule (FR-011 to FR-013).
+    fn both_ways(&mut self, path: &str) {
+        use SyncRuleSide::{A, B};
+        use Was::{Changed, Gone, Never, New, Same};
+        let row = self.state.get(path).copied();
+        let (a, b) = (self.was(A, path, row), self.was(B, path, row));
+        // "Keep" left it on one side on purpose; it is not copied back (FR-020).
+        if row.is_some_and(|row| row.kept)
+            && matches!((a, b), (Gone, Same | Changed) | (Same | Changed, Gone))
+        {
+            return;
+        }
+        match (a, b) {
+            (Same, Same) => {}
+            (Changed, Same) => self.copy(A, path, true),
+            (Same, Changed) => self.copy(B, path, true),
+            (Changed, Changed) => self.both_changed(path),
+            // Only on one side, or deleted on one and changed on the other (FR-013).
+            (Same | Changed | New, Never) | (Changed | New, Gone) => self.copy(A, path, false),
+            (Never, Same | Changed | New) | (Gone, Changed | New) => self.copy(B, path, false),
+            (Same, Gone) => self.deleted(A, path),
+            (Gone, Same) => self.deleted(B, path),
+            (Gone | Never, Gone | Never) => self.push(Step::Forget {
+                path: path.to_owned(),
+            }),
+            // On both sides and new to the state on at least one.
+            (New, Same | Changed | New) | (Same | Changed, New) => self.first_meeting(path),
+        }
+    }
+
+    /// Changed on both sides of a two-way rule (FR-012): the newer version keeps the name; the only
+    /// comparison of times across sides. The exclusion file merges (FR-039).
+    fn both_changed(&mut self, path: &str) {
+        let conflict_name = self.inputs.conflict_name;
+        if path == IGNORE_FILE {
+            let aside_a = conflict_name(path, &[]);
+            let aside_b = conflict_name(path, std::slice::from_ref(&aside_a));
+            self.push(Step::MergeIgnore { aside_a, aside_b });
+            return;
+        }
+        let (Some(a), Some(b)) = (self.inputs.a.files.get(path), self.inputs.b.files.get(path))
+        else {
+            return;
+        };
+        let keep = if b.mtime_ms > a.mtime_ms {
+            SyncRuleSide::B
+        } else {
+            SyncRuleSide::A
+        };
+        self.push(Step::Conflict {
+            path: path.to_owned(),
+            keep,
+            aside: conflict_name(path, &[]),
+        });
+    }
+
+    /// The folders a two-way copy goes into, where its side lacks them. A folder is not part of the
+    /// state, so an empty one is not copied: a folder deleted on one side would come back.
+    fn parent_folders(&mut self) {
+        let mut wanted = BTreeSet::new();
+        for step in &self.plan.steps {
+            if let Step::Copy { from, path, .. } = step {
+                let (folder, _) = split(path);
+                let to = from.other();
+                if !folder.is_empty() && !self.listing(to).folders.contains(folder) {
+                    wanted.insert((to, folder.to_owned()));
+                }
+            }
+        }
+        for (side, path) in wanted {
+            self.push(Step::Folder { side, path });
+        }
     }
 }
 

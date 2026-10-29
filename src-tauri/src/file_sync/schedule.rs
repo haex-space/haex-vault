@@ -1,6 +1,7 @@
 //! The control loop of a vault session (research R8): which rule runs when. Every active rule runs
 //! once after the vault opened (catch up), then after its interval, after a change in a watched
-//! local place has been quiet for a moment, and when the user asks. At most one run per rule and
+//! local place has been quiet for a moment, when the user asks, and, for a rule that waits for a
+//! place, when the reachable devices change (FR-024). At most one run per rule and
 //! [`MAX_RUNS`] runs at once; the loop and its runs end with the session.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -38,6 +39,8 @@ pub enum Command {
     Cancel(String),
     /// Releases the guard installed while a cancellation is being coordinated.
     ReleaseCancel(String),
+    /// The reachable devices changed; rules that wait for a place try again.
+    Wake,
 }
 
 /// What the loop needs from the session.
@@ -49,8 +52,8 @@ pub trait Runner: Send + Sync + 'static {
     async fn run(&self, rule: SyncRule, cancel: CancellationToken) -> RunReport;
     /// Tells the window that a rule (or, with `None`, the list) changed.
     fn changed(&self, rule_id: Option<String>);
-    /// Watches the local source of `rule`; `notify` hears each change. `None` when there is
-    /// nothing local to watch. Dropping the handle stops it.
+    /// Watches the local places of `rule` that its runs copy from; `notify` hears each change.
+    /// `None` when there is nothing local to watch. Dropping the handle stops it.
     fn watch(&self, rule: &SyncRule, notify: Arc<dyn Fn() + Send + Sync>) -> Option<Box<dyn Send>>;
 }
 
@@ -139,6 +142,15 @@ pub async fn control<R: Runner>(
                     let mut shared = shared.lock().unwrap_or_else(|e| e.into_inner());
                     shared.cancel_requested.remove(&id);
                     shared.cancel_processed.remove(&id);
+                }
+                Command::Wake => {
+                    for rule in rules.iter().filter(|rule| {
+                        rule.enabled && rule.last_outcome == Some(SyncRuleOutcome::Waiting)
+                    }) {
+                        if !due.contains(&rule.id) {
+                            due.push(rule.id.clone());
+                        }
+                    }
                 }
             },
             Some(id) = changes.recv() => {

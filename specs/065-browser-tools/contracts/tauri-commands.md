@@ -4,12 +4,12 @@
 
 ## Commands (nur Fenster)
 
-| Command                       | Eingabe                                                                                     | Ergebnis / Wirkung                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `agent_browser_status`        | –                                                                                           | verfügbar, gewählter Browser und Version, läuft ja/nein, Profil vorhanden, Download angeboten          |
-| `agent_browser_sessions`      | –                                                                                           | laufende Sitzungen: Agent (angegebener Name), Browser, Tabs (Website, Titel), Zustand, letzte Handlung |
-| `agent_browser_prompt_answer` | `requestId`, `decision` (`allow`/`deny`), `remember?` (`site-read`, `site-operate`, `fill`) | beendet eine Browser-Rückfrage                                                                         |
-| `agent_browser_control`       | `sessionId`, `command` (`stop`, `takeover`, `return`)                                       | Stoppen, Eingreifen, Zurückgeben                                                                       |
+| Command                       | Eingabe                                                                                                                  | Ergebnis / Wirkung                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `agent_browser_status`        | –                                                                                                                        | verfügbar, gewählter Browser und Version, läuft ja/nein, Profil vorhanden, Download angeboten          |
+| `agent_browser_sessions`      | –                                                                                                                        | laufende Sitzungen: Agent (angegebener Name), Browser, Tabs (Website, Titel), Zustand, letzte Handlung |
+| `agent_browser_prompt_answer` | `requestId`, `decision` (`allow`/`deny`), `remember?` (`site-read`, `site-operate`, `fill`), `entryId?` (nur bei `fill`) | beendet eine Browser-Rückfrage                                                                         |
+| `agent_browser_control`       | `sessionId`, `command` (`stop`, `takeover`, `return`)                                                                    | Stoppen, Eingreifen, Zurückgeben                                                                       |
 
 Änderungen an Rechten und Einstellungen laufen über die Katalogaktionen unten.
 
@@ -23,6 +23,10 @@
 
 Die Rückfragen erscheinen als Dialog im Fenster (wie der Aufrufdialog aus 021 PR C), eine nach der
 anderen; holzi kommt nach vorn oder meldet sich per Systembenachrichtigung.
+
+Bei `kind = "fill"` enthält `entries` für den Dialog nur opaque `entryId`-Werte und Titel. Der
+Nutzer wählt eine ID; nur diese ID darf mit `agent_browser_prompt_answer` zurückkommen. Geheimnis,
+Benutzername und Feldwerte werden nie an das Frontend übergeben.
 
 ## Katalogaktionen (neu)
 

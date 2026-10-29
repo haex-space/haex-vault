@@ -2649,6 +2649,14 @@
       "show": "Show hidden files",
       "hide": "Hide hidden files"
     },
+    "drives": {
+      "unnamed": "Drive ({size})",
+      "cancelled": "Mounting cancelled",
+      "gone": "{name} is no longer there",
+      "unsupported": "{name} cannot be opened here yet",
+      "failed": "{name}: {message}",
+      "goneJump": "{folder} no longer exists – showing {target}"
+    },
     "sidebar": {
       "label": "Places and drives",
       "show": "Show sidebar",
@@ -2656,6 +2664,8 @@
       "places": "Places",
       "drives": "Drives",
       "free": "{size} free",
+      "used": "{size} used",
+      "freeOf": "{free} free of {total}",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",
@@ -2873,8 +2883,18 @@
         "paused": "paused",
         "inactive": "holzi not active"
       },
+      "progress": {
+        "label": "Progress",
+        "scanning": "Comparing the places …",
+        "executing": "Applying changes …",
+        "files": "{done} of {total} files · {size}"
+      },
       "picker": {
-        "root": "Choose a place",
+        "origin": "Choose a device or storage",
+        "chooseFolder": "Choose a folder",
+        "choose": "Choose this folder",
+        "change": "Change",
+        "thisDevice": "This device",
         "up": "One level up",
         "empty": "No subfolders"
       },
@@ -2885,7 +2905,6 @@
         "invalidName": "The name has 1 to 80 characters.",
         "notFound": "This rule no longer exists.",
         "readOnly": "holzi cannot write to this place.",
-        "unsupported": "Two-way rules come with a later version.",
         "unavailable": "The vault is not available right now."
       }
     },

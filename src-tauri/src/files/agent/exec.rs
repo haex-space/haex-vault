@@ -22,7 +22,7 @@ use crate::chat::tools::native_action::{
 use crate::files::access::is_device_storage;
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
 use crate::files::kind::FileCategory;
-use crate::files::local::drives::drives;
+use crate::files::local::drives::{display_name, drives};
 use crate::files::local::ops;
 use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::search::{
@@ -176,7 +176,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                 "source": "device",
                 "drives": drives
                     .iter()
-                    .map(|drive| json!({ "name": drive.name, "path": drive.path }))
+                    .map(|drive| json!({ "name": display_name(drive), "path": drive.path }))
                     .collect::<Vec<_>>(),
                 "places": self
                     .env

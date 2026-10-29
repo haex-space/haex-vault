@@ -1,5 +1,5 @@
 //! Migration tests for `0047_agent_browser` (spec 065, T010): a fresh vault and a vault from the
-//! schema before get the table of the profile key, and haex-crdt does not track it.
+//! schema before get the table of the agent browser, and haex-crdt does not track it.
 
 // These tests read `sqlite_master` and `pragma_*` directly, which the CRDT write path does not
 // expose.
@@ -24,20 +24,15 @@ fn columns(db: &Database) -> Vec<String> {
 
 fn assert_schema(db: &Database) {
     assert!(table_exists(db, TABLE), "the table exists");
-    assert!(!has_hlc_column(db, TABLE), "the key stays on the device");
+    assert!(!has_hlc_column(db, TABLE), "the table stays on the device");
     assert_eq!(
         columns(db),
-        [
-            "vault_device_uuid",
-            "profile_key",
-            "browser_path",
-            "created_at"
-        ]
+        ["vault_device_uuid", "browser_path", "created_at"]
     );
 }
 
 #[tokio::test]
-async fn migration_0047_gives_a_fresh_vault_the_profile_key_table() {
+async fn migration_0047_gives_a_fresh_vault_the_agent_browser_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = open(

@@ -52,30 +52,31 @@ schließt ihn aus; keine Trennung vom Fenster von holzi).
 
 ## R3 Browser-Profil verschlüsselt auf dem Gerät
 
-**Entscheidung**: Ein zufälliger Profilschlüssel (32 Byte) liegt in der Vault in einer
-geräteeigenen Tabelle ohne Sync (`haex_agent_browser_no_sync`). Das Profil liegt, solange der
-Agenten-Browser läuft, entschlüsselt in einem Arbeitsverzeichnis mit Rechten `0700`:
+**Entscheidung**: Ein zufälliger Profilschlüssel (32 Byte) liegt ausschließlich im geschützten
+Zugangsspeicher des Betriebssystems unter einer installationsgebundenen Kennung; die Vault enthält
+keinen Schlüssel. Das Profil liegt, solange der Agenten-Browser läuft, in einem verschlüsselten,
+flüchtigen Arbeitscontainer, dessen Schlüssel nur im Prozessspeicher liegt:
 
 - Linux: unter `$XDG_RUNTIME_DIR` (tmpfs, beim Abmelden leer),
-- macOS: unter dem nutzereigenen `$TMPDIR`,
-- Windows: unter `%LOCALAPPDATA%\Temp` mit den Rechten des Nutzers.
+- macOS: temporärer verschlüsselter Container im nutzereigenen temporären Verzeichnis,
+- Windows: temporärer verschlüsselter Container unter `%LOCALAPPDATA%\Temp`.
 
 Beim Beenden des Browsers (spätestens beim Schließen der Vault) packt holzi die bleibenden Teile
 (Cookies, Local Storage, IndexedDB, Session Storage, `Preferences`) in ein Archiv, verschlüsselt es
-mit XChaCha20-Poly1305 im STREAM-Verfahren (Blöcke zu 64 KiB) und legt es neben die Vault-Datei
-(`agent-browser/<vault>.profile`); dann löscht es das Arbeitsverzeichnis. Caches (`Cache`,
+mit XChaCha20-Poly1305 im STREAM-Verfahren (Blöcke zu 64 KiB) und legt es im
+Instanz-Datenverzeichnis unter `agent-browser/profile.hxbp` ab; dann löscht es den Arbeitscontainer. Caches (`Cache`,
 `Code Cache`, `GPUCache`, `Service Worker/CacheStorage`) kommen nicht ins Archiv. Beim nächsten
 Start entschlüsselt holzi das Archiv in ein frisches Arbeitsverzeichnis. Reste eines abgestürzten
 Laufs löscht holzi beim nächsten Start, bevor es etwas Neues anlegt.
 
-**Begründung**: Chromium schreibt sein Profil als normale Dateien; transparent verschlüsseln kann
-holzi es nicht. Das Archiv erfüllt FR-001: ohne entsperrte Vault unlesbar, über Neustarts
-erhalten, nie auf anderen Geräten (der Schlüssel steht in einer `_no_sync`-Tabelle, das Archiv
-liegt nur auf diesem Gerät). Die Konstruktion ist dieselbe wie bei den Gerätenamen
-(`sync/content_keys_names.rs`) und den verschlüsselten Ordnern.
+**Begründung**: Chromium schreibt sein Profil als normale Dateien. Ein verschlüsselter flüchtiger
+Container schützt sie während der Sitzung; ein Prozess- oder Systemabsturz verwirft dessen
+flüchtigen Schlüssel. Das Archiv erfüllt FR-001: ohne entsperrte Vault unlesbar, über Neustarts
+erhalten, nie auf anderen Geräten. Eine kopierte Vault-Datei enthält weder den Schlüssel noch den
+lokalen Betriebssystem-Zugang.
 
-**Grenze**: Während der Browser läuft, liegt das Profil entschlüsselt auf der Platte (unter Linux
-im Speicher). Ein Absturz kann es bis zum nächsten Start liegen lassen. Das steht in der ADR.
+**Grenze**: Unterstützt ein Betriebssystem keinen verschlüsselten flüchtigen Arbeitscontainer,
+startet holzi den Agenten-Browser auf diesem Gerät nicht und meldet die fehlende sichere Ablage.
 
 **Verworfen**: Profil im Klartext neben der Vault (FR-001); Schlüssel aus dem Inhaltsschlüssel der
 Vault abgeleitet (der wandert auf alle Geräte; ein gestohlenes Archiv wäre auf jedem Gerät der
@@ -114,18 +115,17 @@ Namen); Klick über `element.click()` (umgeht Prüfungen, kein echtes Nutzererei
    absenden, abschicken, löschen, entfernen, veröffentlichen, posten, buchen, bestätigen,
    kündigen, überweisen; buy, order, pay, checkout, send, submit, delete, remove, publish, post,
    book, confirm, cancel subscription, transfer), Enter in einem Formularfeld. Treffer = Absenden.
-2. **Danach** hält holzi über `Fetch.enable` jede ändernde Anfrage der Seite an (`POST`, `PUT`,
-   `PATCH`, `DELETE`, Formular-Navigation mit Body), die innerhalb von 3 Sekunden nach einer
-   ändernden Agenten-Handlung oder bis die Seite zur Ruhe kommt ausgelöst wird, und fragt sie als
-   Absenden nach (Website des Ziels, Art der Anfrage, Felder aus dem Formular, wenn bekannt).
-   Ändernde Anfragen außerhalb dieses Fensters und ohne Agenten-Handlung gehen durch (die Seite
-   lädt selbst nach). „Ablehnen“ bricht die Anfrage ab (`Fetch.failRequest`).
+2. **Für jede Seitenanfrage** hält holzi über `Fetch.enable` `POST`, `PUT`, `PATCH`, `DELETE` und
+   Formular-Navigationen mit Body an und fragt sie als Absenden nach (Website des Ziels, Art der
+   Anfrage, Felder aus dem Formular, wenn bekannt). Die Freigabe ist an die einzelne CDP-Anfrage
+   gebunden; es gibt kein zeitbasiertes Fenster, das eine verspätete Anfrage durchlassen könnte.
+   „Ablehnen“ bricht die Anfrage ab (`Fetch.failRequest`).
 
 **Begründung**: Stufe 1 trifft die üblichen Formulare mit klarer Rückfrage vor der Handlung.
-Stufe 2 erfüllt „im Zweifel Absenden“ (FR-011), ohne jeden Klick zu erfragen: Was die Seite
-tatsächlich wegschickt, wird geprüft, auch bei Schaltflächen ohne sprechenden Namen und bei Seiten,
-die mit eigenem Skript senden. Der Preis sind Rückfragen bei Seiten, die nach einem Klick
-Statistik senden; das misst SC-003 mit.
+Stufe 2 erfüllt „im Zweifel Absenden“ (FR-011), indem jede ändernde Anfrage geprüft wird, auch wenn
+ein Seitenskript sie verzögert oder unabhängig von einem sichtbaren Klick auslöst. Rückfragen für
+legitime schreibende Hintergrundanfragen sind der Preis dieser fail-closed-Regel und werden in
+SC-003 mitgemessen.
 
 **Verworfen**: Jeden Klick auf eine Schaltfläche als Absenden (in Auto unbrauchbar); nur die
 Wortliste (verfehlt Skript-Formulare); alle ändernden Anfragen immer anhalten (fragt beim Laden
@@ -166,8 +166,9 @@ Schutz vor Rückfluss (FR-019, FR-022):
 - Das Leseskript liefert für Passwortfelder und gefüllte Felder nie einen Wert.
 - holzi entfernt aus jedem Seitentext, jedem Elementnamen und jeder Eingabe-Rückmeldung
   vorkommende eingetragene Werte (genau und als URL-, Base64- und HTML-Entity-Kodierung).
-- Solange das Dokument gefüllte Felder enthält, verweigert holzi Bildschirmfotos dieses Tabs
-  („Bildschirmfoto nach dem Eintragen erst auf der nächsten Seite“); eine neue Seite hebt das auf.
+- Sobald Zugangsdaten in eine Sitzung eingetragen wurden, verweigert holzi Bildschirmfotos für den
+  Rest dieser Sitzung. Ein neues Dokument reicht nicht aus, um eine Seite zu beweisen, dass keine
+  Zugangsdaten übernommen wurden; ein neues, sauberes Browsersitzungsprofil hebt die Sperre auf.
 - Nur über `https` und nur, wenn die Website des Tabs zum Eintrag passt (FR-020); in einem
   eingebetteten Rahmen nur, wenn dessen Website passt.
 
@@ -211,15 +212,16 @@ Regel für eingebauten und externen Agenten; keine doppelten Rückfragen.
 
 **Entscheidung**: Website = Ursprung (Schema, Host, Port); in der Oberfläche als Host gezeigt, ohne
 Standardport. Jede Navigation eines Agenten-Tabs (auch Weiterleitung, Rahmen der obersten Ebene,
-`window.open`) läuft über `Fetch.requestPaused` für Dokument-Anfragen: holzi prüft die Website
-vor dem Laden gegen die Rechte und fragt nach FR-007 oder bricht ab. Eingebettete Rahmen fremder
-Websites dürfen laden (sonst bricht fast jede Seite), werden aber nur gelesen und bedient, wenn
-ihre Website erlaubt ist. Immer gesperrt: `file:`, `javascript:`, `data:` als Dokument,
+`window.open`) und jede Navigation in einem eingebetteten Rahmen laufen vor dem Laden durch
+`Fetch.requestPaused`: holzi prüft die Website gegen die Rechte und fragt nach FR-007 oder bricht
+ab. Nicht erlaubte Rahmen werden nicht geladen. Immer gesperrt: `file:`, `javascript:`, `data:` als Dokument,
 `chrome:`/`edge:`/`brave:`/`devtools:`, Adressen mit Zugangsdaten, und `http:` für Websites mit
 „bedienen“ (nur lesen über unverschlüsselte Verbindungen).
 
 **Begründung**: Die Prüfung vor dem Laden verhindert, dass eine fremde Website auch nur einmal
-Inhalte an das Modell gibt. Rahmen zu sperren würde Anmeldungen und Zahlungen fast aller Seiten
+Inhalte an das Modell gibt, solange der Nutzer sie nicht ausdrücklich erlaubt hat. Erlaubte
+Rahmen bleiben nutzbar; Rahmen mit nicht erlaubten Ursprüngen warten auf die Website-Freigabe.
+Rahmen pauschal zu sperren würde Anmeldungen und Zahlungen vieler Seiten
 brechen; Bedienen bleibt trotzdem an die Rechte gebunden.
 
 ## R10 Nicht vertrauenswürdige Inhalte (Prompt Injection)

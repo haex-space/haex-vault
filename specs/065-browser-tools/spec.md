@@ -138,11 +138,10 @@ dem Öffnen; in Plan wird das Abschicken ohne Rückfrage abgelehnt.
    will oder ein Link oder eine Weiterleitung dorthin führt, **Then** hält holzi vor dem Laden an
    und fragt: „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer erlauben (bedienen)“,
    „Ablehnen“.
-4. **Given** ein Agent in Plan, **When** er tippen, klicken oder absenden will, **Then** lehnt holzi
-   das ohne Rückfrage ab; Lesen, Scrollen, Navigieren auf erlaubten Websites und Bildschirmfotos
-   laufen.
-5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort tippen oder klicken will (außer
-   Links folgen und Bedienelemente zum Aufklappen), **Then** lehnt holzi mit „nicht erlaubt“ ab.
+4. **Given** ein Agent in Plan, **When** er navigieren, tippen, klicken oder absenden will, **Then**
+   lehnt holzi das ohne Rückfrage ab; Lesen, Scrollen und Bildschirmfotos laufen.
+5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort navigieren, tippen oder klicken
+   will, **Then** lehnt holzi mit „nicht erlaubt“ ab.
 6. **Given** holzi kann bei einem Klick nicht sicher erkennen, ob er etwas absendet, **When** der
    Agent ihn ausführen will, **Then** behandelt holzi ihn als Absenden.
 
@@ -311,9 +310,10 @@ Steuerung.
 
 - **FR-001**: holzi MUSS auf Linux, macOS und Windows einen Agenten-Browser bereitstellen, der in
   einem eigenen Fenster außerhalb von holzi läuft und ein eigenes Browser-Profil je Vault hat. Das
-  Profil MUSS mit einem Schlüssel der Vault verschlüsselt auf diesem Gerät liegen, über Neustarts
-  erhalten bleiben und DARF nicht auf andere Geräte wandern. Ohne entsperrte Vault MUSS es
-  unlesbar sein.
+  Profil MUSS mit einem zufälligen, installationsgebundenen Schlüssel verschlüsselt auf diesem
+  Gerät liegen, über Neustarts erhalten bleiben und DARF nicht auf andere Geräte wandern. Der
+  Schlüssel MUSS im betriebssystemeigenen geschützten Zugangsspeicher liegen, nie in der Vault-Datei;
+  holzi DARF ihn nur bei entsperrter Vault verwenden.
 - **FR-002**: Der Agenten-Browser DARF keine Daten mit dem Browser des Nutzers teilen und MUSS ohne
   Erweiterungen, ohne Synchronisierung mit einem Konto des Browserherstellers und ohne
   gespeicherte Passwörter des Browsers laufen.
@@ -332,21 +332,24 @@ Steuerung.
 - **FR-007**: Eine Website außerhalb der erlaubten MUSS vor dem Laden eine Rückfrage auslösen mit
   „Einmal erlauben“ (bis zum Ende der Browser-Sitzung), „Immer erlauben (lesen)“, „Immer erlauben
   (bedienen)“ und „Ablehnen“. In Plan MUSS holzi stattdessen ablehnen.
-- **FR-008**: „lesen“ MUSS öffnen, lesen, Bildschirmfotos, Links folgen, scrollen, zurück und vor
-  sowie das Aufklappen von Bedienelementen erlauben, aber kein Tippen, keine Auswahl und kein
-  Absenden.
+- **FR-008**: „lesen“ MUSS die aktuell geöffnete Seite lesen, Bildschirmfotos erstellen und scrollen
+  erlauben, aber keine Navigation, kein Tippen, keine Auswahl und kein Absenden. Navigation kann
+  auch per `GET` den Zustand einer Website ändern und erfordert daher „bedienen“ sowie die dafür
+  geltende Bestätigung.
 - **FR-009**: Interne Seiten des Browsers und Adressen mit den Schemata `file:`, `javascript:`,
   `data:` und Adressen mit eingebetteten Zugangsdaten MÜSSEN immer abgelehnt werden.
 
 **Wirkungsart und Freigabe**
 
-- **FR-010**: Jedes Browser-Werkzeug MUSS eine Wirkungsart nach 021/ADR-0006 haben: Lesen,
-  Navigieren, Scrollen und Bildschirmfotos sind lesend; Tippen, Auswählen, Klicken ohne Absenden
-  und Tabs öffnen oder schließen sind ändernd; Absenden ist zerstörend.
+- **FR-010**: Jedes Browser-Werkzeug MUSS eine Wirkungsart nach 021/ADR-0006 haben: Lesen, Scrollen
+  und Bildschirmfotos sind lesend; Navigation, Tippen, Auswählen, Klicken ohne Absenden und Tabs
+  öffnen oder schließen sind ändernd; Absenden ist zerstörend.
 - **FR-011**: holzi MUSS ein Absenden erkennen: Abschicken eines Formulars, Klick auf eine
   Schaltfläche, die ein Formular abschickt, Bestätigen eines Seitendialogs, der eines auslöst,
-  Hochladen einer Datei. Kann holzi nicht sicher ausschließen, dass ein Klick etwas absendet,
-  MUSS er als Absenden gelten.
+  Hochladen einer Datei. Jede `POST`, `PUT`, `PATCH` oder `DELETE`-Anfrage einer Seite MUSS bis zur
+  ausdrücklichen Freigabe angehalten werden, unabhängig davon, wie lange nach der auslösenden
+  Handlung sie erfolgt. Kann holzi nicht sicher ausschließen, dass ein Klick etwas absendet, MUSS
+  er als Absenden gelten.
 - **FR-012**: Die Rückfrage vor einem Absenden MUSS den angegebenen Namen des Agenten, die Website,
   die Beschriftung des Elements und die Felder zeigen, die abgeschickt würden, Geheimnisse und
   Passwortfelder als Platzhalter.

@@ -2649,6 +2649,14 @@
       "show": "Versteckte Dateien zeigen",
       "hide": "Versteckte Dateien ausblenden"
     },
+    "drives": {
+      "unnamed": "Datenträger ({size})",
+      "cancelled": "Einhängen abgebrochen",
+      "gone": "{name} ist nicht mehr da",
+      "unsupported": "{name} lässt sich hier noch nicht öffnen",
+      "failed": "{name}: {message}",
+      "goneJump": "{folder} gibt es nicht mehr – zeige {target}"
+    },
     "sidebar": {
       "label": "Orte und Laufwerke",
       "show": "Seitenleiste zeigen",
@@ -2656,6 +2664,8 @@
       "places": "Orte",
       "drives": "Laufwerke",
       "free": "{size} frei",
+      "used": "{size} belegt",
+      "freeOf": "{free} frei von {total}",
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
@@ -2873,8 +2883,18 @@
         "paused": "pausiert",
         "inactive": "holzi nicht aktiv"
       },
+      "progress": {
+        "label": "Fortschritt",
+        "scanning": "Orte werden verglichen …",
+        "executing": "Änderungen werden ausgeführt …",
+        "files": "{done} von {total} Dateien · {size}"
+      },
       "picker": {
-        "root": "Ort wählen",
+        "origin": "Gerät oder Speicher wählen",
+        "chooseFolder": "Ordner wählen",
+        "choose": "Diesen Ordner wählen",
+        "change": "Ändern",
+        "thisDevice": "Dieses Gerät",
         "up": "Eine Ebene höher",
         "empty": "Keine Unterordner"
       },
@@ -2885,7 +2905,6 @@
         "invalidName": "Der Name hat 1 bis 80 Zeichen.",
         "notFound": "Diese Regel gibt es nicht mehr.",
         "readOnly": "An diesen Ort kann holzi nicht schreiben.",
-        "unsupported": "Beidseitige Regeln kommen mit einer späteren Version.",
         "unavailable": "Die Vault ist gerade nicht verfügbar."
       }
     },

@@ -1,10 +1,12 @@
-//! A storage folder as a place: the tree from its listings, a missing folder unreachable, the rule
-//! trash, hashes read in parts and text written through the transfers.
+//! A storage folder as a place: the tree from its listings, a missing folder unreachable, another
+//! own device that is off or refuses unreachable too, the rule trash, hashes read in parts and text
+//! written through the transfers.
 
 use std::sync::Arc;
 
 use super::*;
-use crate::remote_storage::test_support::{access, FakeStore};
+use crate::remote_storage::test_support::{access, FakeStore, Op};
+use crate::remote_storage::StorageError;
 
 const BUCKET: &str = "b";
 
@@ -51,6 +53,29 @@ async fn a_missing_root_is_unreachable() {
         .await
         .unwrap_err();
     assert_eq!(error.code, FilesErrorCode::Unreachable);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_that_is_off_or_refuses_is_unreachable() {
+    // An own device that is off fails with `Network`, one whose file access is off with
+    // `MissingRight`; both make the rule wait (FR-024), never a run against an empty listing.
+    for error in [StorageError::Network, StorageError::MissingRight] {
+        for root in ["/", "/Fotos"] {
+            let fake = filled();
+            for op in [Op::List, Op::ListDir, Op::Head] {
+                fake.fail(op, error);
+            }
+            let failed = place(&fake, root)
+                .list_tree(&CancellationToken::new())
+                .await
+                .unwrap_err();
+            assert_eq!(
+                failed.code,
+                FilesErrorCode::Unreachable,
+                "{error:?} at {root}"
+            );
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

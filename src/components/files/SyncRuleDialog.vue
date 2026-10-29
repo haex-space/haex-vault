@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * Creates a sync rule (spec 061 US1, US4 scenario 1, FR-001, FR-005, FR-030a, FR-031): a name, two
- * places from the folder picker, the direction, the delete mode and the interval. The dialog asks
- * for consent when files would leave an encrypted folder for a plain one, and points to encrypted
- * folders when the target is a storage without one. Two-way rules come with a later version.
+ * Creates a sync rule (spec 061 US1, US2, US4 scenario 1, FR-001, FR-005, FR-030a, FR-031): a name,
+ * two places from the folder picker, the direction (one way or both ways), the delete mode and the
+ * interval. The dialog asks for consent when files would leave an encrypted folder for a plain one,
+ * and points to encrypted folders when a place copied into is a storage without one.
  */
 import type { Sources } from '@bindings/Sources'
 import type { SyncRuleDeleteMode } from '@bindings/SyncRuleDeleteMode'
@@ -17,6 +17,7 @@ import {
   lastName,
   needsDecryptConsent,
   showsCloudHint,
+  targetSides,
 } from '~/lib/files/syncRules'
 import type { PickedFolder } from './FolderPicker.vue'
 
@@ -73,46 +74,57 @@ watch(name, (next) => {
   if (next !== autoName.value) autoName.value = ''
 })
 
-/** The place copied from, and the one copied to. */
-const source = computed(() =>
-  direction.value === 'bToA' ? placeB.value : placeA.value,
+type Side = 'a' | 'b'
+
+function placeOf(side: Side): PickedFolder | null {
+  return side === 'a' ? placeA.value : placeB.value
+}
+
+function labelOf(side: Side): string {
+  return t(side === 'a' ? 'files.syncRules.placeA' : 'files.syncRules.placeB')
+}
+
+/** The place copied into that would get files of an encrypted folder decrypted. */
+const consentSide = computed(() =>
+  targetSides(direction.value).find((side) =>
+    needsDecryptConsent(
+      placeOf(side === 'a' ? 'b' : 'a')?.encrypted ?? false,
+      placeOf(side)?.encrypted ?? false,
+    ),
+  ),
 )
-const target = computed(() =>
-  direction.value === 'bToA' ? placeA.value : placeB.value,
+/** The place copied into that is a storage without encryption. */
+const cloudSide = computed(() =>
+  targetSides(direction.value).find((side) => {
+    const place = placeOf(side)
+    return (
+      !!place &&
+      showsCloudHint(place.source.kind === 'storage', place.encrypted)
+    )
+  }),
 )
 
-const needsConsent = computed(() =>
-  needsDecryptConsent(
-    source.value?.encrypted ?? false,
-    target.value?.encrypted ?? false,
-  ),
-)
-const cloudHint = computed(
-  () =>
-    !!target.value &&
-    showsCloudHint(
-      target.value.source.kind === 'storage',
-      target.value.encrypted,
-    ),
-)
-const targetLabel = computed(() =>
-  t(
-    direction.value === 'bToA'
-      ? 'files.syncRules.placeA'
-      : 'files.syncRules.placeB',
-  ),
-)
+const needsConsent = computed(() => consentSide.value !== undefined)
+const cloudHint = computed(() => cloudSide.value !== undefined)
 const cloudHintText = computed(() =>
-  t('files.syncRules.cloudHint', { place: targetLabel.value }),
+  cloudSide.value
+    ? t('files.syncRules.cloudHint', { place: labelOf(cloudSide.value) })
+    : '',
 )
 const decryptConsentText = computed(() =>
-  t('files.syncRules.decryptConsent', { place: targetLabel.value }),
+  consentSide.value
+    ? t('files.syncRules.decryptConsent', {
+        place: labelOf(consentSide.value),
+      })
+    : '',
 )
 
-const directionOptions = computed(() => [
-  { value: 'aToB', label: t('files.syncRules.direction.aToB') },
-  { value: 'bToA', label: t('files.syncRules.direction.bToA') },
-])
+const directionOptions = computed(() =>
+  (['aToB', 'bToA', 'both'] as const).map((value) => ({
+    value,
+    label: t(`files.syncRules.direction.${value}`),
+  })),
+)
 const deleteOptions = computed(() =>
   (['keep', 'mirror', 'ask'] as const).map((mode) => ({
     value: mode,

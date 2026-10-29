@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import { deviceFiles } from '../lib/extension-files.ts'
 import { fileFixture } from '../lib/file-fixtures.ts'
+import { visiblePanels } from '../lib/files-split.ts'
 import {
   connectProvider,
   createAndUnlock,
@@ -10,6 +11,7 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { scenario } from '../lib/scenario.ts'
+import { runAction, wmSnapshot, WM } from '../lib/settings.ts'
 
 // Spec 044 US6 (T084, quickstart §6 step 1): a scripted model reaches files through the catalog. It
 // finds the file actions with `find_actions` (they are not in the core offer), searches a folder of
@@ -124,6 +126,53 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
     assert.match(pdf, /Steuerbescheid 2025/)
     assert.match(pdf, /312 Euro/)
     ctx.step('files_read gives the text of a PDF')
+
+    // Spec 062 T063: files.show opens a fresh file-browser tab and leaves an existing split alone.
+    if (process.env.E2E_PLATFORM !== 'android') {
+      const before = await wmSnapshot(instance)
+      const existing = before.windows
+        .flatMap((window) => window.tabs)
+        .find((tab) => tab.appId === 'system.files')
+      assert.ok(existing, 'the initial file-browser tab exists')
+      const activatedBefore = await runAction(instance, 'wm.tab.activate', {
+        tabId: existing.id,
+      })
+      assert.ok(activatedBefore.ok, JSON.stringify(activatedBefore))
+      await instance.click('files-sidebar-toggle')
+      await instance.click('files-split-toggle')
+      await ctx.waitFor(
+        'the existing file-browser tab to show a split',
+        async () => (await visiblePanels(instance)) === 2,
+        { fixed: true, timeoutMs: 15_000 },
+      )
+
+      const shown = await runAction(instance, 'files.show', {
+        source: 'device',
+        path: `${files.folder}/notiz-agent.txt`,
+      })
+      assert.ok(shown.ok, JSON.stringify(shown))
+      await instance.waitForDisplayed('files-viewer-text')
+      const after = await wmSnapshot(instance)
+      const fileTabs = after.windows
+        .flatMap((window) => window.tabs)
+        .filter((tab) => tab.appId === 'system.files')
+      assert.equal(fileTabs.length, 2, 'files.show opens a second tab')
+      assert.ok(
+        fileTabs.some((tab) => tab.id === existing.id),
+        'the original split tab remains open',
+      )
+      const originalSplit = await instance.exec<boolean>(
+        `const history = ${WM}.historyOf(arguments[0])
+         return history?.entries[history.index]?.location.query.split === '1'`,
+        [existing.id],
+      )
+      assert.equal(
+        originalSplit,
+        true,
+        'the original tab keeps its split state',
+      )
+      ctx.step('files.show opens a new tab and keeps the split')
+    }
   } finally {
     files.remove()
   }

@@ -6,14 +6,15 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_util::sync::CancellationToken;
 
-use super::model::{SyncRule, SyncRulePlace};
+use super::model::{SyncRule, SyncRuleDirection, SyncRulePlace};
 use super::place::Place;
 use super::place_device::DevicePlace;
 use super::place_storage::StoragePlace;
+use super::progress::{Reporter, SYNC_RULE_PROGRESS};
 use super::run::{run, RunContext, RunReport};
 use super::schedule::{control, Command, Runner, Shared};
 use super::store;
@@ -25,6 +26,7 @@ use crate::files::state::FilesState;
 use crate::files::{FilesError, SourceRef};
 use crate::passwords::clock;
 use crate::state::AppState;
+use crate::sync::events::SYNC_DEVICES_CHANGED;
 use crate::vault_gate::VaultDb;
 
 /// The event the window hears when a rule or the list changed.
@@ -135,6 +137,11 @@ pub fn start_for_active_instance(app: &AppHandle, state: &AppState) {
         }
     };
     let (commands, received) = unbounded_channel();
+    // A rule that waits for another device tries again when the devices change (FR-024).
+    let wake = commands.clone();
+    let listener = app.listen(SYNC_DEVICES_CHANGED, move |_| {
+        let _ = wake.send(Command::Wake);
+    });
     let shared = Arc::new(Mutex::new(Shared::default()));
     let session = Arc::new(Session {
         device: device.clone(),
@@ -150,13 +157,15 @@ pub fn start_for_active_instance(app: &AppHandle, state: &AppState) {
     });
     let gate = state.gate();
     let token = gate.token();
-    let app = app.clone();
+    let ended = app.clone();
     let started = gate.spawn(async move {
         control(runner, received, shared, token).await;
-        app.state::<FileSyncState>().set(None);
+        ended.unlisten(listener);
+        ended.state::<FileSyncState>().set(None);
     });
     if let Err(error) = started {
         log::warn!("file_sync: the rules could not start: {error}");
+        app.unlisten(listener);
         sync.set(None);
     }
 }
@@ -206,6 +215,12 @@ impl Runner for TauriRunner {
         let name = self.device_name().await;
         let today: String = clock::now().chars().take(10).collect();
         let now = clock::now;
+        let app = self.app.clone();
+        let progress = Reporter::new(&rule.id, move |progress| {
+            if let Err(error) = app.emit(SYNC_RULE_PROGRESS, progress) {
+                log::warn!("file_sync: emit {SYNC_RULE_PROGRESS} failed: {error}");
+            }
+        });
         let ctx = RunContext {
             db: &self.db,
             device: &self.device,
@@ -214,6 +229,7 @@ impl Runner for TauriRunner {
             now: &now,
             run_id: &run_id,
             cancel: &cancel,
+            progress: &progress,
         };
         let (a, b) = match (
             open_place(&self.app, &rule.place_a).await,
@@ -237,8 +253,15 @@ impl Runner for TauriRunner {
     }
 
     fn watch(&self, rule: &SyncRule, notify: Arc<dyn Fn() + Send + Sync>) -> Option<Box<dyn Send>> {
-        // A one-way rule changes when its source does.
-        watch_place(&rule.place_a, notify)
+        // A one-way rule changes when its source does, a two-way rule when either place does.
+        let a = watch_place(&rule.place_a, Arc::clone(&notify));
+        if rule.direction != SyncRuleDirection::Both {
+            return a;
+        }
+        match (a, watch_place(&rule.place_b, notify)) {
+            (None, None) => None,
+            (a, b) => Some(Box::new((a, b))),
+        }
     }
 }
 

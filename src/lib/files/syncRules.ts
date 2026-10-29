@@ -35,13 +35,35 @@ export function shownState(state: SyncState, serviceRuns: boolean): SyncState {
   return serviceRuns || state === 'paused' ? state : 'inactive'
 }
 
-export const STATE_ICONS: Record<SyncState, string> = {
-  active: 'lucide:check',
-  running: 'lucide:refresh-cw',
-  waiting: 'lucide:clock',
-  error: 'lucide:triangle-alert',
-  paused: 'lucide:pause',
-  inactive: 'lucide:moon',
+/**
+ * How far a running rule is, from 0 to 1, or `null` while it cannot tell (listing the places, or
+ * nothing to copy): the bar then only shows that something runs.
+ */
+export function progressShare(progress: {
+  phase: 'scanning' | 'copying'
+  filesDone: number
+  filesTotal: number
+  bytesDone: number
+  bytesTotal: number
+}): number | null {
+  if (progress.phase !== 'copying') return null
+  const share =
+    progress.bytesTotal > 0
+      ? progress.bytesDone / progress.bytesTotal
+      : progress.filesTotal > 0
+        ? progress.filesDone / progress.filesTotal
+        : null
+  if (share === null) return null
+  const clamped = Math.min(1, Math.max(0, share))
+  return progress.filesDone < progress.filesTotal
+    ? Math.min(0.99, clamped)
+    : clamped
+}
+
+/** The places a rule copies into: its target, or both places of a two-way rule (FR-011). */
+export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
+  if (direction === 'both') return ['a', 'b']
+  return direction === 'bToA' ? ['a'] : ['b']
 }
 
 /** The dialog asks for consent when files leave an encrypted folder for a plain one (FR-030a). */

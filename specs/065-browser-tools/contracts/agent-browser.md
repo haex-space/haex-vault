@@ -36,9 +36,9 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   Ende. Windows über die CRT-Vererbung (`lpReserved2`), getestet im Windows-Lauf.
 - holzi wartet höchstens 15 s auf die Antwort von `Browser.getVersion`, sonst
   `browser_unavailable`.
-- Nach dem Start: `Target.setAutoAttach { flatten: true }`, `Browser.setPermission` für Kamera,
+- Nach dem Start: `Target.setAutoAttach { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }`, `Browser.setPermission` für Kamera,
   Mikrofon, Standort, Benachrichtigungen, Zwischenablage → `denied` (FR-026),
-  `Browser.setDownloadBehavior { behavior: "allowAndName" }` (R11).
+  `Browser.setDownloadBehavior { behavior: "allowAndName", downloadPath: <Arbeitsverzeichnis> }` (R11).
 
 ## Je Agenten-Tab
 
@@ -47,15 +47,16 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
    `Page.addScriptToEvaluateOnNewDocument { worldName: "holzi", source: <Leseskript + Markierung> }`.
 3. `Runtime.addBinding { name: "__holzi", executionContextName: "holzi" }` für die Knöpfe der
    Markierung; nur vertrauenswürdige Ereignisse zählen (R6).
-4. `Fetch.enable` mit Mustern `{ resourceType: Document }` (Website-Prüfung vor dem Laden, R9) und
-   für ändernde Anfragen im Zeitfenster aus R5.
+4. `Target.setAutoAttach` hängt auch verschachtelte frame targets an; auf jedem Target aktiviert
+   holzi `Fetch.enable` für Dokument-Navigationen (Website- und Wirkungsprüfung vor dem Laden, R9)
+   sowie für jede ändernde Anfrage (R5). Jede Freigabe ist an ihre CDP-Request-ID gebunden.
 
 ## Profil
 
 - Arbeitsverzeichnis: Linux `$XDG_RUNTIME_DIR/holzi-agent-browser/<instanz>`, macOS
   `$TMPDIR/holzi-agent-browser/<instanz>`, Windows `%LOCALAPPDATA%\Temp\holzi-agent-browser\<instanz>`;
   Verzeichnis `0700` bzw. nur der Nutzer.
-- Start: alte Reste dieser Instanz löschen, Archiv `profile.hxbp` (data-model.md) entschlüsseln
+- Start: alte Reste dieser Instanz löschen, Archiv `agent-browser/profile.hxbp` (data-model.md) entschlüsseln
   und auspacken.
 - Ende (Browser beendet, 15 Minuten ohne Sitzung, Vault schließt, holzi beendet sich geordnet):
   Browser beenden (`Browser.close`, nach 5 s Prozess beenden), bleibende Teile packen,

@@ -9,10 +9,12 @@ festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegrupp
 
 | Id                         | Wirkung     | Eingabe                                                         | Ergebnis                                           |
 | -------------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| `browser.open`             | read        | `url`, `newTab?` (bool)                                         | `tab`, Seite (wie `page.read`)                     |
+| `browser.open`             | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
+| `browser.tabs.open`        | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
 | `browser.page.read`        | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                              |
 | `browser.page.screenshot`  | read        | `tab`                                                           | Bild des sichtbaren Bereichs                       |
-| `browser.navigate`         | read        | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                              |
+| `browser.navigate`         | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                              |
+| `browser.follow_link`      | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                          |
 | `browser.scroll`           | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                     |
 | `browser.click`            | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                            |
 | `browser.type`             | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                              |
@@ -25,8 +27,11 @@ festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegrupp
 | `browser.upload`           | destructive | `tab`, `element`, `path`                                        | Seite                                              |
 | `browser.takeover.request` | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`           |
 
-`browser.open` mit `newTab: false` nutzt den zuletzt benutzten Agenten-Tab. `tab` ist eine von
-holzi vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des Browsers.
+`browser.open` nutzt den zuletzt benutzten Agenten-Tab; `browser.tabs.open` erstellt einen neuen
+Tab. Jede Navigation, einschließlich Linkfolgen und direktem Öffnen, gilt als ändernd, weil auch
+eine GET-Anfrage den Zustand der Website ändern kann.
+`tab` ist eine von holzi vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des
+Browsers.
 
 ## Seite
 

@@ -341,6 +341,12 @@ ndk-context = "0.1"
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-barcode-scanner = "2.5.3"
 
+# Spec 064 (research R1): the drives of a Linux desktop come from udisks2 over the system D-Bus.
+# zbus 5 is already in the build (notify-rust, the notification and opener plugins) with its
+# default features; the drives backend uses its blocking API, so no feature is added.
+[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
+zbus = "5"
+
 # Spec 044 (research R11): the file browser watches its open folder on Android too (inotify);
 # extensions keep answering "not available" there (spec 017).
 [target.'cfg(not(target_os = "ios"))'.dependencies]
