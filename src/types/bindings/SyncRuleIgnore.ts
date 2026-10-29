@@ -4,19 +4,19 @@ import type { SyncRuleIgnoreLine } from "./SyncRuleIgnoreLine";
 /**
  * The exclusion file of a rule as the editor shows it.
  */
-export type SyncRuleIgnore = {
+export type SyncRuleIgnore = { 
 /**
  * The file in place A; empty when there is none.
  */
-content: string, writable: boolean,
+content: string, writable: boolean, 
 /**
  * Why place A cannot be written.
  */
-reason: string | null, fixed: Array<string>,
+reason: string | null, fixed: Array<string>, 
 /**
  * Files and folders of both places the exclusions leave out now.
  */
-ignoredNow: number,
+ignoredNow: number, 
 /**
  * Lines of the file in place A that are left out.
  */

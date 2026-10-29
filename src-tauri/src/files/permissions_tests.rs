@@ -381,3 +381,57 @@ fn managing_file_shares_is_off_until_granted_and_takes_no_target() {
     .expect("denied");
     assert!(!grants(&db, BUILTIN_AGENT).file_shares);
 }
+
+#[test]
+fn managing_sync_rules_is_off_until_granted_and_takes_no_target() {
+    let (_dir, db) = vault();
+    assert!(!grants(&db, BUILTIN_AGENT).sync_rules, "off by default");
+    for bad in [
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::SyncRules,
+            "",
+            AgentFileStatus::ReadWrite,
+        ),
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::SyncRules,
+            "x",
+            AgentFileStatus::Granted,
+        ),
+    ] {
+        assert!(put(&db, bad.clone()).is_err(), "{bad:?}");
+    }
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::SyncRules,
+            "",
+            AgentFileStatus::Granted,
+        ),
+    )
+    .expect("granted");
+    let granted = grants(&db, BUILTIN_AGENT);
+    assert!(granted.sync_rules);
+    assert!(!granted.file_shares, "a permission of its own");
+    assert!(!grants(&db, "other").sync_rules, "per agent");
+    let stored: Vec<AgentFileKind> = db
+        .read_blocking(|q| Ok(list(q)?))
+        .expect("list")
+        .into_iter()
+        .map(|row| row.kind)
+        .collect();
+    assert_eq!(stored, [AgentFileKind::SyncRules], "read back as itself");
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::SyncRules,
+            "",
+            AgentFileStatus::Denied,
+        ),
+    )
+    .expect("denied");
+    assert!(!grants(&db, BUILTIN_AGENT).sync_rules);
+}

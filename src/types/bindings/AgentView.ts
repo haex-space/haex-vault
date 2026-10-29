@@ -8,11 +8,11 @@ import type { Transport } from "./Transport";
 /**
  * One agent as the settings show it.
  */
-export type AgentView = { id: string, kind: AgentKind, slug: string,
+export type AgentView = { id: string, kind: AgentKind, slug: string, 
 /**
  * The agent's own claim.
  */
-clientName: string, clientVersion: string | null, transport: Transport, status: AgentStatus, mode: AgentMode,
+clientName: string, clientVersion: string | null, transport: Transport, status: AgentStatus, mode: AgentMode, 
 /**
  * Unix milliseconds.
  */

@@ -2,6 +2,8 @@
 //! on the device that created them. A run lists both places, compares them with the state of the
 //! last success and builds a plan before it changes anything (research R3).
 
+pub mod agent;
+pub mod agent_confirm;
 pub mod commands;
 pub mod conflict;
 pub mod execute;

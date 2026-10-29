@@ -5,11 +5,11 @@ import type { SyncRuleSide } from "./SyncRuleSide";
 /**
  * A step of the preview.
  */
-export type SyncRulePlanStep = { action: SyncRulePlanAction, path: string,
+export type SyncRulePlanStep = { action: SyncRulePlanAction, path: string, 
 /**
  * Where it happens; none for a file kept on purpose.
  */
-side: SyncRuleSide | null,
+side: SyncRuleSide | null, 
 /**
  * The target of a move, the name of a conflict copy, what changed at a one-way target.
  */

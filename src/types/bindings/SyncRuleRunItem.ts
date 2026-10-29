@@ -6,7 +6,7 @@ import type { SyncRuleTrashKind } from "./SyncRuleTrashKind";
 /**
  * A file action of a run in the log.
  */
-export type SyncRuleRunItem = { seq: number, path: string, action: SyncRuleRunAction, side: SyncRuleSide, detail: string | null, trashKind: SyncRuleTrashKind | null,
+export type SyncRuleRunItem = { seq: number, path: string, action: SyncRuleRunAction, side: SyncRuleSide, detail: string | null, trashKind: SyncRuleTrashKind | null, 
 /**
  * The path in the rule trash of the place.
  */

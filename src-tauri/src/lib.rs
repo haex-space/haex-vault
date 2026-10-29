@@ -474,6 +474,19 @@ pub fn run() {
                         files::agent::env::TauriSharesEnv::new(app.handle().clone(), share_confirm),
                     ),
                 ));
+            // Spec 061 US5: the sync rule actions of the built-in agent, confirmed in the window.
+            let sync_rule_confirm = file_sync::agent_confirm::SyncRuleConfirm::default();
+            app.manage(sync_rule_confirm.clone());
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    file_sync::agent::SyncRulesAgent::builtin(
+                        file_sync::agent::TauriSyncRulesEnv::new(
+                            app.handle().clone(),
+                            sync_rule_confirm,
+                        ),
+                    ),
+                ));
             // Spec 060 US5: the share action for contacts, confirmed in the window every time.
             let contact_share_confirm =
                 contacts::agent_share_confirm::ContactShareConfirm::default();
@@ -569,6 +582,7 @@ pub fn run() {
             files::share::commands::files_device_access_get,
             files::share::commands::files_device_access_set,
             files::agent::share_confirm::file_share_confirm_answer,
+            file_sync::agent_confirm::sync_rule_confirm_answer,
             contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
