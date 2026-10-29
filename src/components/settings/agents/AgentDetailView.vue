@@ -26,6 +26,7 @@ const browser = ref<BrowserRights | null>(null)
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
+let rightsSaveQueue = Promise.resolve()
 
 async function reloadAsync() {
   try {
@@ -54,7 +55,10 @@ async function runAsync(action: () => Promise<unknown>) {
 
 function saveRights() {
   const rights = rightsOf(levels.value, browser.value)
-  void runAsync(() => setRights({ agentId: agentId.value, rights }))
+  const agentIdAtChange = agentId.value
+  rightsSaveQueue = rightsSaveQueue.then(() =>
+    runAsync(() => setRights({ agentId: agentIdAtChange, rights })),
+  )
 }
 
 function onLevels(next: Levels) {
