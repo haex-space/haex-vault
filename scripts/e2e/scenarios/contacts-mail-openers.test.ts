@@ -24,7 +24,8 @@ type Instance = Page & FlowInstance
  * without a mail button. */
 async function mailButton(page: Instance): Promise<'plain' | 'menu' | 'none'> {
   return page.exec<'plain' | 'menu' | 'none'>(
-    `const el = document.querySelector('[data-testid="contacts-open-mail"]')
+    `const el = [...document.querySelectorAll('[data-testid="contacts-open-mail"]')]
+       .find((candidate) => candidate.getClientRects().length > 0)
      if (!el) return 'none'
      return el.getAttribute('aria-haspopup') === 'menu' ? 'menu' : 'plain'`,
   )
@@ -119,6 +120,7 @@ scenario('contacts-mail-openers', { timeoutMs: 240_000 }, async (ctx) => {
   )
   // Its tab closes with it; the address book comes back to the front.
   await openContacts(page)
+  await page.click(`contacts-row-${anna}`)
   await ctx.waitFor(
     'the mail button to be plain again',
     async () => (await mailButton(page)) === 'plain',
