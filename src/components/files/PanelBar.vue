@@ -10,6 +10,8 @@ import { SORT_KEYS, type Sort, type SortKey } from '~/lib/files/state'
 
 const props = defineProps<{
   path: string | null
+  /** A name shown instead of the path bar, view and sort, for a panel that shows no folder. */
+  title?: string
   canGoUp: boolean
   /** The name the root shows in the path bar (a storage's name instead of `/`). */
   rootLabel?: string
@@ -71,7 +73,14 @@ function pickSort(key: SortKey) {
     >
       <Icon name="lucide:arrow-right" class="size-4" />
     </UiButton>
+    <span
+      v-if="title"
+      class="min-w-0 flex-1 truncate px-2 text-sm font-medium"
+      data-testid="files-panel-title"
+      >{{ title }}</span
+    >
     <FilesPathBar
+      v-else
       :path="path"
       :root-label="rootLabel"
       :can-go-up="canGoUp"
@@ -80,6 +89,7 @@ function pickSort(key: SortKey) {
       @reload="emit('reload')"
     />
     <UiButton
+      v-if="!title"
       variant="ghost"
       size="icon"
       class="shrink-0"
@@ -93,7 +103,7 @@ function pickSort(key: SortKey) {
         class="size-4"
       />
     </UiButton>
-    <ShadcnDropdownMenu>
+    <ShadcnDropdownMenu v-if="!title">
       <ShadcnDropdownMenuTrigger as-child>
         <UiButton
           variant="ghost"

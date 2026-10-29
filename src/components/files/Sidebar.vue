@@ -25,6 +25,8 @@ const props = defineProps<{
   current: string | null
   /** The open storage. */
   currentStorage: string | null
+  /** The panel shows the sync rules (spec 061). */
+  syncRulesCurrent?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   pickDrive: [drive: Drive]
   releaseDrive: [drive: Drive]
   pickStorage: [id: string]
+  pickSyncRules: []
   addStorage: []
   queryContact: [contactId: string]
 }>()
@@ -97,9 +100,6 @@ function protocolOf(storageId: string): string | undefined {
 
 /** "Meine Dateifreigaben" is open. */
 const overviewOpen = ref(false)
-
-/** "Sync-Regeln" is open (spec 061). */
-const syncRulesOpen = ref(false)
 
 /** The contacts expanded in this sidebar. */
 const expanded = ref(new Set<string>())
@@ -331,7 +331,8 @@ const PLACE_ICONS: Record<string, string> = {
         type="button"
         class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
         data-testid="files-sync-rules-open"
-        @click="syncRulesOpen = true"
+        :class="syncRulesCurrent ? 'bg-accent font-medium' : ''"
+        @click="emit('pickSyncRules')"
       >
         <Icon name="lucide:refresh-cw" class="size-4 shrink-0" />
         <span class="truncate">{{ t('files.sidebar.syncRules') }}</span>
@@ -391,6 +392,5 @@ const PLACE_ICONS: Record<string, string> = {
       v-model:open="overviewOpen"
       :contacts="sources?.contacts ?? []"
     />
-    <FilesSyncRules v-model:open="syncRulesOpen" :sources="sources" />
   </div>
 </template>

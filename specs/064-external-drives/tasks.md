@@ -255,12 +255,13 @@ to FR-007, FR-023, FR-024).
 
 ### E2E (Linux)
 
-- [ ] T033 [US1] CI spike (research R12) in `.github/workflows/ci.yml` job `e2e`:
+- [x] T033 [US1] CI spike (research R12) in `.github/workflows/ci.yml` job `e2e`:
   - add `udisks2 cryptsetup` to the `apt-get install` list
   - add a step that writes `/etc/polkit-1/rules.d/49-haex-e2e.rules` with sudo: a JavaScript rule returning `polkit.Result.YES` for `action.id.indexOf("org.freedesktop.udisks2.") == 0 && subject.user == "runner"`
   - restart `polkit` and `udisks2`
   - run `udisksctl status` as a smoke check
   - Push the spike alone first and check the job log. If udisks2 or dm-crypt does not work on the runner, record that in `research.md` R12, drop T034–T035 and the E2E tasks of later phases, and rely on quickstart.
+  - Done as `scripts/e2e/udisks-ci-smoke.sh`, which also mounts a vfat and a LUKS2 image. It passed in the CI run of #622; result in `research.md` R12.
 - [x] T034 [US1] Create `scripts/e2e/lib/udisks.ts`:
   - `udisksAvailable()`: `udisksctl status` succeeds
   - `makeVfatImage(label)`: `truncate` in `$RUNNER_TEMP` or `os.tmpdir()`, `mkfs.vfat -n` via `sudo`
@@ -273,6 +274,7 @@ to FR-007, FR-023, FR-024).
   - click it: it mounts and the folder view shows the image's test file
   - detach it while a tab shows it: the entry disappears and the tab jumps to an existing parent folder with the toast
 - [ ] T036 [US1] `cargo test -j 4 --lib files::`, `pnpm check:files`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm test:e2e --grep files-drives`, clippy for `x86_64-unknown-linux-gnu` and `aarch64-linux-android`, then quickstart Linux steps 1, 2, 8 by hand
+  - The checks and `files-drives` passed in the CI run of #622 (`files-drives` 8.3 s, not skipped). Open: quickstart Linux 1, 2, 8 by hand.
 
 **Checkpoint**: US1 works on Linux and Android (MVP, PR A).
 
