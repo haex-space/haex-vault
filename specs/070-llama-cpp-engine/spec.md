@@ -174,9 +174,10 @@ what the spike shows for tool calls, Qwen3-VL (spec 055) and speed. Until then: 
 
 ## Assumptions
 
-- `llama-cpp-2` (0.1.160, last updated 2026-10-15) supports `qwen35` and `gemma4`. This is not
-  verified; it is the first question of the spike.
-- The Nix devshell has cmake and libclang (`haex-crdt` needs libclang anyway).
+- `llama-cpp-2` (0.1.160, last updated 2026-10-15) loads `qwen35` (verified by the spike, see
+  `research.md`). `gemma4` is in its llama.cpp but not yet loaded with a real file.
+- The Nix devshell has libclang (`haex-crdt` needs it anyway) but **no cmake**; the spike had to bring
+  its own. The devshell needs cmake before this engine can build in CI or for other developers.
 - The phone profiles (Qwen3 1.7B and 0.6B) are the only models a phone can hold. Qwen3.5 4B (3 GB) and
   Gemma 4 (5.3 GB) are desktop models, so on phones the new engine at first loads the same models as
   today; its gain is on the desktop.
@@ -185,8 +186,11 @@ what the spike shows for tool calls, Qwen3-VL (spec 055) and speed. Until then: 
 
 ## Open Questions
 
-- [NEEDS CLARIFICATION: Chat template and tool-call parsing – build our own (Jinja via `minijinja`, one
-  parser per model family) or use llama.cpp's own function, if the Rust binding exposes it?]
+- [NEEDS CLARIFICATION: Chat template and tool-call parsing – the spike showed the binding offers no
+  Jinja and no tool-call parser (only the legacy `llama_chat_apply_template`, which fell back to plain
+  ChatML for Qwen3.5), and Qwen3.5's own template asks for XML-style calls. So: Jinja via `minijinja`
+  plus one parser per model family; is that acceptable, or do we patch the binding to expose
+  llama.cpp's `common_chat` functions?]
 - [NEEDS CLARIFICATION: After the spike, which goes into the catalog first: Qwen3.5, Gemma 4 or both?
   Gemma 4 also has open bugs through mistralrs and at 5.3 GB is much larger.]
 - [NEEDS CLARIFICATION: How does llama.cpp CUDA behave together with candle CUDA in the same process
