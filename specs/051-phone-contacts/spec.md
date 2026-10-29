@@ -449,6 +449,7 @@ Empfänger beim Senden offline war.
   Sync nicht mit großen Bildern belastet; der Plan legt die Grenze fest.
 - **FR-006**: Telefonnummern, E-Mail-Adressen und Anschriften MÜSSEN sich kopieren und auf dem Telefon
   mit der passenden App des Systems öffnen lassen.
+  (Ergänzt durch Spec 063: Gibt es eine Extension, die E-Mails schreibt, zeigt der Mail-Knopf eine Auswahl.)
 
 **Erweiterbare Angaben**
 
