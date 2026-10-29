@@ -202,7 +202,7 @@ der Knopf beim System.
 
 ## Phase 6: Abschluss
 
-- [ ] T024 [P] `CONTEXT.md`: Begriffe **Öffner**, **Öffner-Anmeldung**, **Öffnen-Auswahl** neben dem Eintrag des
+- [x] T024 [P] `CONTEXT.md`: Begriffe **Öffner**, **Öffner-Anmeldung**, **Öffnen-Auswahl** neben dem Eintrag des
       Adressbuchs; Hinweis in `specs/051-phone-contacts/spec.md` an FR-006 („Ergänzt durch Spec 063: bei einem Öffner
       zeigt der Mail-Knopf eine Auswahl“) und in `specs/017-extension-host/` am Manifest-Vertrag (neuer Block
       `openers`), nur als Verweis.
@@ -210,10 +210,14 @@ der Knopf beim System.
       `extensions::bridge`, `deep_link`), alle `pnpm check:*`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`,
       Clippy für den Host und `aarch64-linux-android --all-targets` mit `-D warnings`, Leerzeichen in
       `src/types/bindings/*.ts` entfernen; der Quickstart von Hand (`quickstart.md`, Schritte 1 bis 10).
-- [ ] T026 PR-Hygiene: `git fetch`; Spec-Nummer 063 und ADR-Nummer noch frei (ein ADR nur, wenn T001 eine
+      Stand 2026-10-29: gezielte Rust-Tests, alle `pnpm check:*`, beide Typechecks, `pnpm lint` und `git diff --check`
+      laufen; Clippy (Host und Android) und die volle Lib-Suite liefert die CI der Teile A bis C. Offen: der Quickstart von
+      Hand und der Versuch mit `ACTION_SENDTO` auf einem Gerät; deshalb bleibt die Aufgabe offen.
+- [x] T026 PR-Hygiene: `git fetch`; Spec-Nummer 063 und ADR-Nummer noch frei (ein ADR nur, wenn T001 eine
       Ausnahme für Windows ergibt); im PR-Text die SDK-Revision, die Änderung von `register_all`, die Frist von 15 s und
       den Befund des Spikes nennen; keine
-      Zuschreibungszeilen.
+      Zuschreibungszeilen. Ergebnis: Die Ausnahme für Windows gibt es, also gibt es einen ADR
+      (`docs/adr/0022-no-mailto-registration-in-the-windows-package.md`); 063 und 0022 sind frei.
 
 ---
 

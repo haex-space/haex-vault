@@ -61,6 +61,12 @@ Hier lesbar umbrochen; die Datei selbst ist kompakt (JCS, ohne Leerzeichen).
 - **Signierte Nachricht**: `"haextension-bundle/2\n"` gefolgt von der JCS-Form von `signature.json` ohne den
   Schlüssel `signature`. Ed25519 (rein), Prüfung mit `verify_strict` und S < L, schwache Schlüssel abgelehnt.
 
+## Block `openers` (Spec 063)
+
+Ein Manifest darf einen Block `openers` führen, ein Array von Arten von Links, die die Extension öffnet
+(heute `mail.compose`). Form, Grenzen und Prüfung stehen in
+`specs/063-mailto-extensions/contracts/manifest-openers.md`; die Anmeldung gibt keinen Zugriff.
+
 ## Prüfung in holzi
 
 Reihenfolge wie `haex verify` und die Testvektoren (`test-vectors/bundles/README.md`); die erste verletzte
