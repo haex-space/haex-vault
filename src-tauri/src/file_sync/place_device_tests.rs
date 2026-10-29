@@ -1,5 +1,5 @@
 //! A device folder as a place: links skipped, an unreadable folder fails the listing (FR-022), the
-//! rule trash, hashes and text written without a part file left.
+//! rule trash and a failed move into it, hashes and text written without a part file left.
 
 use std::path::PathBuf;
 
@@ -79,6 +79,17 @@ async fn the_rule_trash_keeps_the_path_and_rename_makes_folders() {
         .await
         .unwrap();
     assert!(root.join("b/c/x.txt").is_file());
+}
+
+#[tokio::test]
+async fn a_failed_move_into_the_trash_leaves_the_original() {
+    let (_dir, root) = folder();
+    std::fs::write(root.join("x.txt"), "x").unwrap();
+    // A file where the rule trash would be.
+    std::fs::write(root.join(".holzi-trash"), "im Weg").unwrap();
+    let place = DevicePlace::with_rule_trash(&root);
+    assert!(place.trash("x.txt", "run1").await.is_err());
+    assert!(root.join("x.txt").is_file());
 }
 
 #[tokio::test]

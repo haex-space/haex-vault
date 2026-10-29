@@ -52,6 +52,7 @@ fn report() -> RunReport {
         ignore_errors: Vec::new(),
         ignored: 0,
         trashed: Vec::new(),
+        conflict_copies: Vec::new(),
     }
 }
 

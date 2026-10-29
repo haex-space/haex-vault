@@ -1,8 +1,9 @@
 //! Runs of a one-way rule between two real folders (spec 061 Story 1, SC-002, SC-004, SC-005):
 //! first and second run, the target's measured time in the state, an abort mid-run, a failing
-//! file, links, the delete modes, changes at the target, a known place that lists empty, first
-//! meetings and the rule trash; and runs of a two-way rule (Story 2): both directions, conflict
-//! copies on both sides, deleted against changed, moves, and merged exclusion files.
+//! file, links, the delete modes, changes at the target, a known place that lists empty, a missing
+//! or unreadable root, first meetings and the rule trash; and runs of a two-way rule (Story 2): both directions, conflict
+//! copies on both sides, deleted against changed, moves, merged exclusion files, and a waiting
+//! deletion that goes when its file comes back.
 
 // These tests insert devices directly, which the CRDT write path does not expose.
 #![allow(clippy::disallowed_methods)]
@@ -492,6 +493,38 @@ async fn a_known_place_that_lists_empty_waits_and_changes_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_missing_or_unreadable_root_stops_before_any_change() {
+    let w = world(SyncRuleDeleteMode::Mirror);
+    write(&w.a.join("x.txt"), "x");
+    w.run().await;
+    let moved = w.a.with_file_name("a-weg");
+    std::fs::rename(&w.a, &moved).unwrap();
+    let report = w.run().await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Waiting, "{report:?}");
+    assert_eq!(names(&w.b), ["x.txt"], "nothing deleted (SC-004)");
+    std::fs::rename(&moved, &w.a).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&w.a, std::fs::Permissions::from_mode(0o000)).unwrap();
+        // Root ignores permissions; nothing to check then.
+        let readable = std::fs::read_dir(&w.a).is_ok();
+        let report = w.run().await;
+        std::fs::set_permissions(&w.a, std::fs::Permissions::from_mode(0o755)).unwrap();
+        if !readable {
+            assert!(
+                matches!(
+                    report.outcome,
+                    SyncRuleOutcome::Waiting | SyncRuleOutcome::Error
+                ),
+                "{report:?}"
+            );
+            assert_eq!(names(&w.b), ["x.txt"]);
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_unreachable_place_waits() {
     let w = world(SyncRuleDeleteMode::Keep);
     let (a, b) = (MemPlace::new(), MemPlace::new());
@@ -543,6 +576,7 @@ async fn two_way_both_changed_the_newer_keeps_the_name_and_both_sides_get_both()
     assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
     assert_eq!(report.counts.conflicts, 1);
     let aside = "x (Konflikt Laptop 2026-10-27).txt";
+    assert_eq!(report.conflict_copies, [aside]);
     for side in [&w.a, &w.b] {
         assert_eq!(names(side), [aside, "x.txt"]);
         assert_eq!(read(&side.join("x.txt")), "neuer!");
@@ -577,6 +611,28 @@ async fn two_way_a_deletion_is_mirrored_into_the_trash_of_the_other_side() {
     assert_eq!(report.counts.deleted, 1, "{report:?}");
     assert!(w.a.join(".holzi-trash/run1/x.txt").is_file());
     assert_eq!(names(&w.b), ["bleibt.txt"]);
+    let again = w.run().await;
+    assert_eq!(again.counts.copied, 0, "the rule trash is never synced");
+    assert_eq!(names(&w.b), ["bleibt.txt"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_waiting_deletion_goes_when_the_file_comes_back() {
+    let w = both(SyncRuleDeleteMode::Ask);
+    write(&w.a.join("x.txt"), "1");
+    write(&w.a.join("bleibt.txt"), "1");
+    w.run().await;
+    std::fs::remove_file(w.a.join("x.txt")).unwrap();
+    let report = w.run().await;
+    assert_eq!(report.counts.pending, 1, "{report:?}");
+    write_at(&w.a.join("x.txt"), "wieder da", 1_800_000_000);
+    w.run().await;
+    let pending =
+        w.db.read_blocking(|r| Ok(store::pending(r, DEVICE, "r1")))
+            .unwrap()
+            .unwrap();
+    assert!(pending.is_empty(), "{pending:?}");
+    assert_eq!(read(&w.b.join("x.txt")), "wieder da");
 }
 
 #[tokio::test(flavor = "multi_thread")]

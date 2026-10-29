@@ -534,6 +534,8 @@ pub fn run() {
             file_sync::commands::sync_rules_delete,
             file_sync::commands::sync_rules_run_now,
             file_sync::commands::sync_rules_cancel,
+            file_sync::commands::sync_rules_pending_list,
+            file_sync::commands::sync_rules_pending_resolve,
             files::share::commands::file_share_of,
             files::share::commands::file_share_save,
             files::share::commands::file_share_revoke,

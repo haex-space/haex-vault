@@ -51,6 +51,8 @@ pub struct Executed {
     /// Files whose step failed, with the reason; the next run tries them again.
     pub failures: Vec<(String, String)>,
     pub trashed: Vec<TrashedFile>,
+    /// The conflict copies the run made (FR-012).
+    pub conflict_copies: Vec<String>,
     pub cancelled: bool,
 }
 
@@ -207,6 +209,7 @@ async fn run_step(
         }
         Step::Aside { side, path, to } => {
             target.place(*side).rename(path, to).await?;
+            done.conflict_copies.push(to.clone());
             done.counts.conflicts += 1;
         }
         Step::Copy {
@@ -224,11 +227,14 @@ async fn run_step(
             let set_aside = put_aside(target, older, path, aside).await?;
             copy(target, *keep, path, &planned, false).await?;
             copy(target, older, aside, &set_aside, false).await?;
+            done.conflict_copies.push(aside.clone());
             done.counts.conflicts += 1;
             done.counts.copied += 2;
         }
         Step::MergeIgnore { aside_a, aside_b } => {
             merge_ignore(target, aside_a, aside_b).await?;
+            done.conflict_copies
+                .extend([aside_a.clone(), aside_b.clone()]);
             done.counts.conflicts += 1;
             done.counts.copied += 2;
         }

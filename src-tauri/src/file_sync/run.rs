@@ -2,7 +2,7 @@
 //! (FR-022), plan, read the hashes the plan asks for and plan again, execute, and note the result
 //! on the rule.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tokio_util::sync::CancellationToken;
 
@@ -11,10 +11,10 @@ use super::execute::{execute, Counts, Target, TrashedFile};
 use super::ignore::LineError;
 use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
-use super::plan::{build, Hashes, Inputs, Plan};
+use super::plan::{build, Hashes, Inputs, Plan, Step};
 use super::progress::Reporter;
 use super::scan::{scan, ScanError, Scanned};
-use super::store::{self, StateRow};
+use super::store::{self, PendingRow, StateRow};
 use crate::vault_gate::VaultDb;
 
 /// Who runs a rule, and when.
@@ -45,6 +45,7 @@ pub struct RunReport {
     pub ignore_errors: Vec<LineError>,
     pub ignored: usize,
     pub trashed: Vec<TrashedFile>,
+    pub conflict_copies: Vec<String>,
 }
 
 impl RunReport {
@@ -58,6 +59,7 @@ impl RunReport {
             ignore_errors: Vec::new(),
             ignored: 0,
             trashed: Vec::new(),
+            conflict_copies: Vec::new(),
         }
     }
 }
@@ -115,13 +117,18 @@ async fn run_inner(
         }
     };
     let (device, id) = (ctx.device.to_owned(), rule.id.clone());
-    let state = match ctx
+    let (state, pending) = match ctx
         .db
-        .read(move |r| Ok(store::state(r, &device, &id)))
+        .read(move |r| {
+            Ok((
+                store::state(r, &device, &id)?,
+                store::pending(r, &device, &id)?,
+            ))
+        })
         .await
     {
-        Ok(Ok(state)) => state,
-        Ok(Err(error)) | Err(error) => {
+        Ok(read) => read,
+        Err(error) => {
             return RunReport::stopped(SyncRuleOutcome::Error, format!("state: {error}"));
         }
     };
@@ -176,6 +183,9 @@ async fn run_inner(
     )
     .await;
     failures.extend(executed.failures);
+    if !executed.cancelled {
+        drop_stale_pending(ctx, rule, &plan, &pending).await;
+    }
     let outcome = if executed.cancelled {
         SyncRuleOutcome::Cancelled
     } else if failures.is_empty() {
@@ -197,6 +207,7 @@ async fn run_inner(
         ignore_errors: scanned.exclusions.errors.clone(),
         ignored: plan.ignored,
         trashed: executed.trashed,
+        conflict_copies: executed.conflict_copies,
     }
 }
 
@@ -224,6 +235,45 @@ fn plan_for(
         hashes,
         conflict_name: &conflict_name,
     })
+}
+
+/// Drops the waiting deletions this run no longer plans: the file came back, changed, or the delete
+/// mode is another now (data-model.md).
+async fn drop_stale_pending(
+    ctx: &RunContext<'_>,
+    rule: &SyncRule,
+    plan: &Plan,
+    pending: &[PendingRow],
+) {
+    let planned: BTreeSet<&str> = plan
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            Step::Pending { path, .. } => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    let stale: Vec<String> = pending
+        .iter()
+        .filter(|row| !planned.contains(row.path.as_str()))
+        .map(|row| row.path.clone())
+        .collect();
+    if stale.is_empty() {
+        return;
+    }
+    let (device, id) = (ctx.device.to_owned(), rule.id.clone());
+    let written = ctx
+        .db
+        .write(move |tx| {
+            for path in &stale {
+                store::remove_pending(tx, &device, &id, path)?;
+            }
+            Ok(())
+        })
+        .await;
+    if let Err(error) = written {
+        log::warn!("file_sync: stale waiting deletions could not be dropped: {error}");
+    }
 }
 
 /// The side that lists no files although the state knows files there (FR-022). An empty target

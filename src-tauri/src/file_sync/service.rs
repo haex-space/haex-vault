@@ -266,7 +266,10 @@ impl Runner for TauriRunner {
 }
 
 /// A place of a rule as the window opens it.
-async fn open_place(app: &AppHandle, place: &SyncRulePlace) -> Result<Box<dyn Place>, FilesError> {
+pub(super) async fn open_place(
+    app: &AppHandle,
+    place: &SyncRulePlace,
+) -> Result<Box<dyn Place>, FilesError> {
     let (state, files) = (app.state::<AppState>(), app.state::<FilesState>());
     match &place.source {
         SourceRef::Device => {
@@ -318,5 +321,6 @@ async fn failed_open(ctx: &RunContext<'_>, rule: &SyncRule, error: FilesError) -
         ignore_errors: Vec::new(),
         ignored: 0,
         trashed: Vec::new(),
+        conflict_copies: Vec::new(),
     }
 }

@@ -1,5 +1,6 @@
 //! The logic behind the commands: create checks the rule and stores a two-way rule as it is,
-//! update and pause change the row, delete leaves files alone, the list carries the status.
+//! update and pause change the row, delete leaves files alone, the list carries the status, and the
+//! waiting deletions belong to a known rule.
 
 // These tests insert devices directly, which the CRDT write path does not expose.
 #![allow(clippy::disallowed_methods)]
@@ -116,4 +117,18 @@ async fn an_update_does_not_count_the_rule_itself_as_overlap() {
     )
     .await
     .expect("its own old places do not overlap");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_waiting_deletions_of_an_unknown_rule_are_not_found() {
+    let (_dir, db) = setup();
+    let error = pending_list(&db, DEVICE, "nope").await.unwrap_err();
+    assert_eq!(error.code, SyncRuleErrorCode::NotFound);
+    let rule = create(&db, DEVICE, &own(), draft("/home/a", "/home/b"))
+        .await
+        .unwrap();
+    assert!(pending_list(&db, DEVICE, &rule.id)
+        .await
+        .unwrap()
+        .is_empty());
 }

@@ -7,6 +7,7 @@ pub mod conflict;
 pub mod execute;
 pub mod ignore;
 pub mod model;
+pub mod pending;
 pub mod place;
 pub mod place_device;
 pub mod place_storage;

@@ -1,19 +1,21 @@
 //! Tauri commands of sync rules (contracts/tauri-commands.md): list, create, change, pause,
-//! delete, run now and stop. The logic lives in the functions without Tauri below them; the
+//! delete, run now, stop, and the deletions waiting for the user. The logic lives in the functions without Tauri below them; the
 //! commands only find the vault, the device and the session.
 
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::model::{SyncRule, SyncRuleDraft};
+use super::pending::{self, SyncRulePending, SyncRulePendingChoice};
 use super::rules::{validate, SyncRuleError, SyncRuleErrorCode};
 use super::schedule::{Command, Shared};
-use super::service::FileSyncState;
-use super::status::{status_of, SyncRuleView};
+use super::service::{open_place, FileSyncState, SyncRulesChanged, SYNC_RULES_CHANGED};
+use super::status::{status_of, SyncRuleFileError, SyncRuleView};
 use super::store;
 use crate::files::local::OwnPlaces;
 use crate::files::state::FilesState;
+use crate::files::{FilesError, FilesErrorCode};
 use crate::passwords::clock;
 use crate::state::AppState;
 use crate::vault_gate::VaultDb;
@@ -167,6 +169,25 @@ pub async fn delete(db: &VaultDb, device: &str, id: &str) -> Result<(), SyncRule
     }
 }
 
+/// The deletions of the rule `id` of `device` waiting for the user.
+pub async fn pending_list(
+    db: &VaultDb,
+    device: &str,
+    id: &str,
+) -> Result<Vec<SyncRulePending>, SyncRuleError> {
+    rule_of(db, device, id).await?;
+    pending::list(db, device, id).await.map_err(unavailable)
+}
+
+fn place_error(error: FilesError) -> SyncRuleError {
+    match error.code {
+        FilesErrorCode::Unreachable => {
+            SyncRuleError::new(SyncRuleErrorCode::Unreachable, error.message)
+        }
+        _ => unavailable(error.message),
+    }
+}
+
 /// The open vault and this device.
 fn here(app: &AppHandle) -> Result<(VaultDb, String), SyncRuleError> {
     let state = app.state::<AppState>();
@@ -272,6 +293,68 @@ pub async fn sync_rules_cancel(app: AppHandle, id: String) -> Result<(), SyncRul
     sync.cancel_and_wait(id.clone()).await;
     sync.release_cancel(id);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_rules_pending_list(
+    app: AppHandle,
+    id: String,
+) -> Result<Vec<SyncRulePending>, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    pending_list(&db, &device, &id).await
+}
+
+/// Applies the user's choice at once; a run of the rule stops meanwhile and goes on after. Returns
+/// the files whose step failed; they stay in the list.
+#[tauri::command]
+pub async fn sync_rules_pending_resolve(
+    app: AppHandle,
+    id: String,
+    paths: Vec<String>,
+    choice: SyncRulePendingChoice,
+) -> Result<Vec<SyncRuleFileError>, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    let rule = rule_of(&db, &device, &id).await?;
+    let sync = app.state::<FileSyncState>();
+    let was_running = sync.session().is_some_and(|session| {
+        session
+            .shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .running
+            .contains(&id)
+    });
+    sync.cancel_and_wait(id.clone()).await;
+    let result = async {
+        let a = open_place(&app, &rule.place_a).await.map_err(place_error)?;
+        let b = open_place(&app, &rule.place_b).await.map_err(place_error)?;
+        let run_id = uuid::Uuid::new_v4().to_string();
+        pending::resolve(
+            &db,
+            &device,
+            &rule,
+            &run_id,
+            a.as_ref(),
+            b.as_ref(),
+            &paths,
+            choice,
+        )
+        .await
+        .map_err(place_error)
+    }
+    .await;
+    sync.release_cancel(id.clone());
+    if was_running {
+        sync.send(Command::Run(id.clone()));
+    }
+    if let Err(error) = app.emit(SYNC_RULES_CHANGED, SyncRulesChanged { rule_id: Some(id) }) {
+        log::warn!("file_sync: emit {SYNC_RULES_CHANGED} failed: {error}");
+    }
+    Ok(result?
+        .failures
+        .into_iter()
+        .map(|(path, reason)| SyncRuleFileError { path, reason })
+        .collect())
 }
 
 #[cfg(test)]
