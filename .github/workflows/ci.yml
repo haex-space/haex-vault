@@ -832,6 +832,11 @@ jobs:
           shared-key: default
           save-if: false
 
+      # Spec 066 (T001): the e2e suite builds holzi for the host side of the scenarios, with the
+      # `voice` feature, so it needs the checked sherpa-onnx archive like every other build.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts
+
       - name: Cache tauri-driver
         id: cache-tauri-driver
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
