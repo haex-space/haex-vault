@@ -83,6 +83,9 @@ pub struct ExtensionSummary {
     pub devices: Vec<DeviceState>,
     /// A development version on this device (US12): enabled only while developer mode is on.
     pub dev: bool,
+    /// The kinds of link it opens that holzi knows (spec 063, `mail.compose`); empty unless the
+    /// extension is installed and enabled (FR-012).
+    pub openers: Vec<String>,
 }
 
 struct Row {
@@ -199,6 +202,14 @@ pub fn list(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSummary>> {
                     .cmp(&b.device_name.to_lowercase())
             })
         });
+        let openers = if row.enabled && row.state == "installed" {
+            manifest
+                .as_ref()
+                .map(Manifest::known_openers)
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let mine = devices.iter().find(|d| d.this_device);
         let status_here = mine.map(|d| d.status.clone());
         let status_error_here = mine.and_then(|d| d.error.clone());
@@ -229,6 +240,7 @@ pub fn list(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSummary>> {
             status_error_here,
             devices,
             dev: false,
+            openers,
         });
     }
     // Also while developer mode is off, so the settings can still unload a development version
@@ -266,6 +278,7 @@ fn dev_summary(
         status_error_here: None,
         devices: Vec::new(),
         dev: true,
+        openers: Vec::new(),
     }
 }
 
@@ -291,6 +304,9 @@ pub fn with_dev_projects(
         summary.description = manifest.description.clone();
         summary.version = Some(manifest.version.to_string());
         summary.single_instance = manifest.single_instance;
+        if summary.enabled {
+            summary.openers = manifest.known_openers();
+        }
     }
     listed.sort_by_key(|e| e.title.to_lowercase());
     listed

@@ -83,6 +83,9 @@ pub struct InstallPreview {
     pub replaces_same_version: bool,
     /// Another installed extension has the same name but another publisher (US7-2).
     pub same_name_other_publisher: bool,
+    /// The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
+    /// dialog only says it.
+    pub openers: Vec<String>,
 }
 
 impl InstallPreview {
@@ -102,6 +105,7 @@ impl InstallPreview {
             existing: None,
             replaces_same_version: false,
             same_name_other_publisher: false,
+            openers: Vec::new(),
         }
     }
 }
@@ -248,6 +252,7 @@ pub fn preview_of(
         )?
         .is_empty(),
         same_name_other_publisher,
+        openers: manifest.known_openers(),
     })
 }
 

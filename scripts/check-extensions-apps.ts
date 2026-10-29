@@ -37,6 +37,7 @@ function summary(patch: Partial<ExtensionSummary>): ExtensionSummary {
     hasIcon: false,
     devices: [],
     dev: false,
+    openers: [],
     ...patch,
   }
 }

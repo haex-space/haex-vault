@@ -1,6 +1,7 @@
 // These tests read registry rows directly to check what the install wrote.
 #![allow(clippy::disallowed_methods)]
 
+use std::path::Path;
 use std::sync::Arc;
 
 use ed25519_dalek::SigningKey;
@@ -407,4 +408,24 @@ fn after_a_removal_the_same_version_is_a_fresh_install() {
     );
     let installed = v.install(&other, vec![], false).unwrap().ids;
     assert_eq!(effective_id(&v, first.extension_id), installed.bundle_id);
+}
+
+#[test]
+fn the_preview_names_the_kinds_of_link_the_extension_opens() {
+    let v = vault();
+    let mail = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/extension_e2e/mail-opener.xt"),
+    )
+    .unwrap();
+    let preview = v.preview(&mail);
+    assert_eq!(preview.openers, ["mail.compose"]);
+    assert!(
+        preview.declared.is_empty(),
+        "opening links is no permission (FR-010)"
+    );
+
+    assert!(v
+        .preview(&build("plain", "1.0.0", "Plain", "{}", 1))
+        .openers
+        .is_empty());
 }

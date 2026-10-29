@@ -38,27 +38,27 @@ gibt; Geschichte 2 baut auf dem Deep-Link-Weg aus Spec 060 auf (gemergt).
 
 ## Phase 2: Grundlagen (blockiert alle Geschichten)
 
-- [ ] T002 [P] `src-tauri/src/error.rs`: `HolziError::OpenerLinkInvalid { reason }`, `OpenerLinkTooLarge`,
+- [x] T002 [P] `src-tauri/src/error.rs`: `HolziError::OpenerLinkInvalid { reason }`, `OpenerLinkTooLarge`,
       `OpenerNotAvailable` mit stabilen Codes; in `src/composables/useErrorString.ts` abbilden und die Texte in
       `src/i18n/locales/{de,en}.json` unter `errors.openers.*` anlegen (Ton wie `errors.share.*`).
-- [ ] T003 [P] `src-tauri/src/openers/mod.rs` (neu, in `lib.rs` als `pub mod openers` deklarieren) und
+- [x] T003 [P] `src-tauri/src/openers/mod.rs` (neu, in `lib.rs` als `pub mod openers` deklarieren) und
       `src-tauri/src/openers/mail.rs` (neu): `MailRequest { to, cc, bcc, subject, body }` (ts-rs als
       `MailRequestView`, `#[ts(export, export_to = "../../src/types/bindings/")]`) und
       `parse(link: &str) -> Result<MailRequest>` nach `research.md` R2 (Schema ohne Rücksicht auf Schreibweise;
       `to`/`cc`/`bcc` hängen an, `subject` und `body` gelten zuerst, andere Namen ignoriert; UTF-8-Dekodierung mit
       `percent_encoding`; `\r`/`\n` in Empfänger, Kopie, Blindkopie und Betreff lehnen ab, im Text `\r\n` → `\n`;
       Adressprüfung; Grenzen 50 / 998 / 16 KiB / 32 KiB).
-- [ ] T004 [P] `src-tauri/src/openers/mail_tests.rs` (neu): Tabelle der Fälle (SC-004): ein Empfänger; mehrere mit
+- [x] T004 [P] `src-tauri/src/openers/mail_tests.rs` (neu): Tabelle der Fälle (SC-004): ein Empfänger; mehrere mit
       Komma und `to=`; `cc`/`bcc`; Betreff und Text prozent-kodiert; nicht-ASCII (`%C3%BC`, `%E2%82%AC`); ohne Empfänger
       (`mailto:?subject=x`); Großschreibung des Schemas; unbekannte Felder (`in-reply-to`) ignoriert; Ablehnung: `%0d`,
       `%0a` und `%0D%0A` im Betreff und in Empfängern, kaputtes `%zz`, ungültiges UTF-8, Adresse ohne `@`, mit
       Leerzeichen; Grenzen bei 50/51 Empfängern je Feld, 998/999 Zeichen, 16 KiB/+1 Byte, ganzer Link 32 KiB/+1;
       Zeilenumbrüche im Text bleiben als `\n`.
-- [ ] T005 `src-tauri/src/extensions/bundle/manifest.rs`: `Manifest.openers: Vec<String>` (aus `openers`, nur wenn ein
+- [x] T005 `src-tauri/src/extensions/bundle/manifest.rs`: `Manifest.openers: Vec<String>` (aus `openers`, nur wenn ein
       Array von Zeichenketten, sonst leer) und `OpenerKind::MailCompose` mit `from_str` für `mail.compose`;
       `Manifest::opens(kind)`; Tests in `manifest_tests.rs`: Block fehlt → leer, zwei Arten gelesen in Reihenfolge,
       unbekannte Art bleibt stehen, falscher Typ → leer.
-- [ ] T006 `src-tauri/src/extensions/registry/list.rs` (und den Typ von `ExtensionSummary`): `openers: Vec<String>` mit
+- [x] T006 `src-tauri/src/extensions/registry/list.rs` (und den Typ von `ExtensionSummary`): `openers: Vec<String>` mit
       den **bekannten** Arten, nur wenn die Extension installiert und aktiviert ist (FR-012); Tests in
       `list_tests.rs`: aktiviert → genannt, deaktiviert → leer, unbekannte Art → nicht genannt, nach `remove` weg.
       Bindings neu erzeugen und die Leerzeichen am Zeilenende entfernen
@@ -84,11 +84,11 @@ deaktiviert nicht mehr.
       `client.openers.take()` und `client.openers.onRequest(handler)` (ruft `extension_opener_take` und hört auf
       `opener-request`, `contracts/bridge.md`), Typ `OpenRequest`; Test mit einer Aufzeichnung wie
       `src/api/__tests__/transcripts/`; `manifest.ts` lässt den Block durch (`...parsed`).
-- [ ] T009 [US3] `src-tauri/src/extensions/registry/declared_view.rs` und die Installationsansicht: bei `mail.compose` die
+- [x] T009 [US3] `src-tauri/src/extensions/registry/declared_view.rs` und die Installationsansicht: bei `mail.compose` die
       Zeile „kann E-Mail-Links öffnen“ (FR-014), keine Berechtigungsabfrage; Texte unter
       `extensions.install.openers.mailCompose` in `src/i18n/locales/{de,en}.json`; Test in der vorhandenen
       Ansicht-Prüfung (`declared_view`-Tests), die Zeile erscheint nur mit der Anmeldung (Szenario 1 und 2).
-- [ ] T010 [P] [US3] Testbündel `src-tauri/tests/fixtures/extension_e2e/mail-opener.xt` (neu, Quelle `mail-opener/` daneben):
+- [x] T010 [P] [US3] Testbündel `src-tauri/tests/fixtures/extension_e2e/mail-opener.xt` (neu, Quelle `mail-opener/` daneben):
       Manifest mit `"openers": ["mail.compose"]`, eine Seite, die beim Start `extension_opener_take` aufruft und das
       Ergebnis in die Seite schreibt (für T016 und T017); gebaut wie `model-jobs.xt` (Testschlüssel, Bytes in
       `tests/extension_e2e_fixtures.rs` geprüft), mit dem Verfahren der Notiz zum Neubau über eine eigenständige Kiste.

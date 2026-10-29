@@ -1523,6 +1523,11 @@
       "referenceCycleNamed": "Dieser Verweis würde über „{title}“ zu sich selbst zurückführen.",
       "intoTrash": "In den Papierkorb lässt sich nichts kopieren."
     },
+    "openers": {
+      "linkInvalid": "Dieser Link lässt sich nicht lesen.",
+      "linkTooLarge": "Der Link ist zu groß.",
+      "notAvailable": "Diese Erweiterung kann den Link nicht öffnen."
+    },
     "extensions": {
       "install": "Die Erweiterung konnte nicht installiert werden.",
       "notFound": "Die Erweiterung gibt es nicht (mehr).",
@@ -2353,6 +2358,9 @@
       "vaultWide": "Die Erweiterung wird in der ganzen Vault installiert und erscheint auch auf deinen verknüpften Geräten. Ihre Berechtigungen gelten dort ebenso, außer denen für die Shell.",
       "deviceOnly": "Gilt nur auf diesem Gerät: Auf deinen anderen Geräten fragt holzi erneut.",
       "unsupported": "Wird von holzi nicht unterstützt: {categories}",
+      "openers": {
+        "mailCompose": "Kann E-Mail-Links öffnen, zum Beispiel aus dem Adressbuch. Dafür braucht sie keine Berechtigung."
+      },
       "cancel": "Abbrechen",
       "install": "Installieren"
     },

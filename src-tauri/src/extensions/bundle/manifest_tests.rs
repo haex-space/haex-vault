@@ -156,3 +156,55 @@ fn a_development_version_with_a_malformed_tools_block_is_refused() {
     let error = Manifest::from_dev_file(&dev_manifest(&format!("[{bad}]")), None).unwrap_err();
     assert_eq!(error.kind, "manifest_invalid");
 }
+
+fn with_openers(value: &str) -> Manifest {
+    let mut bundle = vector("good-minimal.xt");
+    bundle.manifest.insert(
+        "openers".into(),
+        haex_bundle::jcs::parse_restricted(value).unwrap(),
+    );
+    Manifest::from_verified(&bundle).unwrap()
+}
+
+#[test]
+fn a_manifest_without_openers_opens_nothing() {
+    let manifest = Manifest::from_verified(&vector("good-minimal.xt")).unwrap();
+    assert!(manifest.openers.is_empty());
+    assert!(!manifest.opens(OpenerKind::MailCompose));
+}
+
+#[test]
+fn openers_are_read_in_manifest_order() {
+    let manifest = with_openers(r#"["tel.dial","mail.compose"]"#);
+    assert_eq!(manifest.openers, ["tel.dial", "mail.compose"]);
+    assert!(manifest.opens(OpenerKind::MailCompose));
+}
+
+#[test]
+fn an_unknown_kind_stays_but_opens_nothing_known() {
+    let manifest = with_openers(r#"["tel.dial"]"#);
+    assert_eq!(manifest.openers, ["tel.dial"]);
+    assert!(!manifest.opens(OpenerKind::MailCompose));
+}
+
+#[test]
+fn openers_of_the_wrong_type_count_as_none() {
+    for value in [
+        r#""mail.compose""#,
+        r#"{"mail.compose":true}"#,
+        r#"[1]"#,
+        r#"["mail.compose",null]"#,
+        "null",
+    ] {
+        let manifest = with_openers(value);
+        assert!(manifest.openers.is_empty(), "{value}");
+        assert!(!manifest.opens(OpenerKind::MailCompose), "{value}");
+    }
+}
+
+#[test]
+fn a_development_version_reads_its_openers() {
+    let json = r#"{"name":"dev-mail","version":"0.1.0","publicKey":"3614253f84ba66a8faa168d317a6979992979a3e7ad15ae83ca2823f5ca97d34","permissions":{},"openers":["mail.compose"]}"#;
+    let manifest = Manifest::from_dev_file(json, None).unwrap();
+    assert!(manifest.opens(OpenerKind::MailCompose));
+}

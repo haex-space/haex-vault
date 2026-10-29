@@ -34,6 +34,7 @@ function summary(
     hasIcon: false,
     devices: [],
     dev: false,
+    openers: [],
     ...patch,
   }
 }

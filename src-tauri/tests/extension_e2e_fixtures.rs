@@ -1,4 +1,4 @@
-//! The extension bundles of the e2e scenes of specs 017, 018, 055 and 057 (`scripts/e2e/scenarios/extension-*.test.ts`),
+//! The extension bundles of the e2e scenes of specs 017, 018, 055, 057 and 063 (`scripts/e2e/scenarios/extension-*.test.ts`),
 //! built with the one implementation of the bundle format (`haex-bundle`) and a test key derived
 //! from a public seed: it signs these fixtures only and must never be trusted elsewhere.
 //!
@@ -143,6 +143,22 @@ fn peers() -> Vec<u8> {
     build_archive(files, manifest, &key).expect("peers bundle")
 }
 
+/// The test extension of spec 063 (T010): `manifest.json` and `index.html` in `mail-opener/`, a page
+/// that asks for the request it was given. It keeps no tables and has no build step.
+fn mail_opener() -> Vec<u8> {
+    let key = test_key();
+    let source = dir().join("mail-opener");
+    let read = |name: &str| std::fs::read(source.join(name)).expect("mail-opener source");
+    let manifest =
+        parse_restricted(&String::from_utf8(read("manifest.json")).expect("manifest text"))
+            .expect("manifest");
+    let files = vec![Entry {
+        path: "index.html".into(),
+        data: read("index.html"),
+    }];
+    build_archive(files, manifest, &key).expect("mail-opener bundle")
+}
+
 #[test]
 fn the_committed_e2e_bundles_are_what_this_builds() {
     let bundles = [
@@ -151,6 +167,7 @@ fn the_committed_e2e_bundles_are_what_this_builds() {
         ("agent-tools.xt", agent_tools()),
         ("model-jobs.xt", model_jobs()),
         ("peers.xt", peers()),
+        ("mail-opener.xt", mail_opener()),
     ];
     for (file, built) in bundles {
         let path = dir().join(file);
