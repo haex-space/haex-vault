@@ -48,9 +48,12 @@ Aus den Zeilen, sortiert nach `(sort_order, name, id)`: `id`, `name`, `baseUrl`,
 - **PendingBundle** (nur Arbeitsspeicher im Host): `id`, `bytes`, `sourceId`, `slug`, `version`,
   `fetchedAt`, `lastUsedAt`. Höchstens einer; Frei werden siehe R3.
 - **DownloadProgress** (Channel): `{ loaded, total }`.
-- **KnownUpdate** (Arbeitsspeicher): `name → { installed, latestCompatible, sourceId }`, je Eintrag zusammengeführt
-  (nie ganz ersetzt) von `marketplace_check_updates` und von jedem Katalogabruf für die darin enthaltenen
-  Einträge, nie von allein (FR-017). Eine ausgefallene Quelle behält ihre bisherigen Einträge.
+- **KnownUpdate** (Arbeitsspeicher): Kandidaten sind nach `(installedName, sourceId, slug)` getrennt und
+  enthalten `{ installed, latestCompatible, sourceId, slug }`. `marketplace_check_updates` und
+  Katalogabrufe aktualisieren nur die Kandidaten der antwortenden Quelle für die enthaltenen Einträge;
+  eine ausgefallene Quelle behält ihre bisherigen Kandidaten. Die Installationsliste wählt aus den
+  bekannten Kandidaten je Erweiterungsname die höchste kompatible Fassung, bei Gleichstand die Quelle
+  mit dem besseren Rang. Es gibt keine Abfrage von allein (FR-017).
 
 ## Zustandsübergänge des Downloads
 

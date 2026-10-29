@@ -55,7 +55,9 @@ Stil nach Spec 035/036 und 023: Werkzeugleiste, große Überschrift, Gruppen und
 ## Liste der installierten Erweiterungen
 
 - Eine Zeile mit bekanntem Update (aus `marketplace_known_updates`, ohne eigene Abfrage, FR-017) zeigt
-  „Update verfügbar (y)“ und springt in den Katalog zu dieser Erweiterung (`/:slug`).
+  „Update verfügbar (y)“ für den bekannten kompatiblen Kandidaten mit der höchsten Fassung und springt
+  in den Katalog zu genau diesem Eintrag (`/:slug?source=<id>`). Bei gleicher Fassung bestimmt die
+  Marketplace-Rangfolge den Eintrag.
 - Test-ID: `extension-update-hint-<id>`.
 
 ## Barrierefreiheit und Eingabe

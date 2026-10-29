@@ -122,7 +122,8 @@ Zugangsdaten gesendet. Akzeptiert und im Vertrag vermerkt.
 ## R7 – Mehrere Marketplaces gleichzeitig: Anordnung und Blättern
 
 **Entscheidung**: Alle eingeschalteten Quellen werden gleichzeitig befragt. Seite N ist die Seite N
-**jeder** Quelle, hintereinander in Rangfolge. Einträge verschiedener Quellen werden **nie** zusammengelegt
+**jeder** Quelle (mit bis zu 20 Einträgen je Quelle), hintereinander in Rangfolge. Innerhalb jeder Quelle
+gilt die Sortierung nach Downloads absteigend. Einträge verschiedener Quellen werden **nie** zusammengelegt
 (FR-012): Ein Eintrag ist durch `(sourceId, slug)` bestimmt, die Kachel nennt die Quelle, ein Filter
 „Quelle“ (`sourceId` im Aufruf) beschränkt auf eine. `totalPages` ist das Maximum der Quellen, `total` die
 Summe. Das ist stabil (kein Eintrag verschwindet beim Blättern).
@@ -154,10 +155,13 @@ Installierten. Legacy glich nur den Namen im Frontend ab.
 **Update-Prüfung** (FR-017): Ein Katalogabruf sieht nur eine gefilterte Seite. Darum gibt es eine eigene
 Operation `marketplace_check_updates`: Für **jeden installierten Namen** wird jede eingeschaltete Quelle
 mit `GET /extensions?search=<Name>&limit=5` gefragt (höchstens 4 Anfragen gleichzeitig), nur genaue
-Namenstreffer zählen. Die Ergebnisse werden **je Eintrag** in die bekannte Update-Map zusammengeführt;
-eine ausgefallene Quelle oder ein Eintrag außerhalb der Antwort ändert nichts. Gestartet wird sie beim
-Öffnen der App und bei „Aktualisieren“, nie im Hintergrund. (Das Legacy suchte beim Update ebenfalls nach
-dem Namen, mit `limit: 10`, aber erst auf Wunsch je Erweiterung.)
+Namenstreffer zählen. Kandidaten werden je `(installedName, sourceId, slug)` geführt. Eine Quelle
+aktualisiert oder entfernt nur ihre eigenen Kandidaten; bei einem Fehler bleiben diese erhalten. Ein
+Katalogabruf ändert nur die Kandidaten der Quelle für Einträge, die auf der Seite vorkommen. Für die
+Installationsliste wird die höchste bekannte kompatible Fassung gewählt, bei Gleichstand die Quelle mit
+dem besseren Rang. Gestartet wird die Prüfung beim Öffnen der App und bei „Aktualisieren“, nie im
+Hintergrund. (Das Legacy suchte beim Update ebenfalls nach dem Namen, mit `limit: 10`, aber erst auf Wunsch
+je Erweiterung.)
 
 ## R9 – Kompatibilität mit der HaexVault-Fassung
 
@@ -264,19 +268,19 @@ Gelesen in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog
 
 **Bewusst anders**
 
-| Legacy                                                              | holzi                                                                                      | Grund                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| Dopplung nach `extensionId`, erste Quelle gewinnt (Test `dedupes…`) | Keine Zusammenlegung, jede Kachel mit Quelle (R7)                                          | eine Quelle darf eine andere nicht verdecken (selbst gehostet)   |
-| Token/Passwort als Spalten der Tabelle                              | Verweis auf einen Passwort-Eintrag (R11)                                                   | keine Geheimnisse in Vault-Tabellen, Sync und Protokollen        |
-| `is_default`-Spalte, Standard nicht löschbar, Zeile beim Öffnen     | gewöhnliche Zeile `preset-public` (R10)                                                    | generische Konfiguration, kein Sync-Wettlauf                     |
-| Netzwerk im Webview über `plugin-http` und SDK                      | Host (Rust, `reqwest`)                                                                     | ein HTTP-Pfad, Weiterleitungs- und Anmelderegeln an einer Stelle |
-| `bundleHash` wird übergeben, Prüfung ist ein `TODO`                 | Prüfsumme und Größe sind Pflicht (FR-013)                                                  | ein Dritter liefert die Datei                                    |
-| Bytes als `Array.from(Uint8Array)` durch die IPC und zurück         | Bytes bleiben im Host (R3)                                                                 | 24-MiB-Bundles, keine Verdopplung, nichts im Webview             |
-| Update: Suche nach Name (`limit: 10`) in allen Quellen              | der Host kennt die neueste kompatible Fassung je Eintrag aus dem Katalogabruf (R8, FR-017) | genau, ohne zusätzliche Suchanfrage je Update                    |
-| neueste Fassung = `versions[0]`                                     | `semver` (R1)                                                                              | die Reihenfolge ist nicht zugesichert                            |
-| „installiert“ nur nach Name, im Frontend                            | Host, Name plus Herausgeberschlüssel in Details und Vorschau (R8)                          | eine Stelle für die Regel                                        |
-| DID-Anmeldung                                                       | später                                                                                     | Entscheidung des Betreibers, 2026-10-28                          |
-| Formular mit „Erstellen/Speichern“ ohne Test                        | „Testen und speichern“ (FR-021)                                                            | Fehler früh zeigen; Muster aus Spec 038                          |
+| Legacy                                                              | holzi                                                                                               | Grund                                                            |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Dopplung nach `extensionId`, erste Quelle gewinnt (Test `dedupes…`) | Keine Zusammenlegung, jede Kachel mit Quelle (R7)                                                   | eine Quelle darf eine andere nicht verdecken (selbst gehostet)   |
+| Token/Passwort als Spalten der Tabelle                              | Verweis auf einen Passwort-Eintrag (R11)                                                            | keine Geheimnisse in Vault-Tabellen, Sync und Protokollen        |
+| `is_default`-Spalte, Standard nicht löschbar, Zeile beim Öffnen     | gewöhnliche Zeile `preset-public` (R10)                                                             | generische Konfiguration, kein Sync-Wettlauf                     |
+| Netzwerk im Webview über `plugin-http` und SDK                      | Host (Rust, `reqwest`)                                                                              | ein HTTP-Pfad, Weiterleitungs- und Anmelderegeln an einer Stelle |
+| `bundleHash` wird übergeben, Prüfung ist ein `TODO`                 | Prüfsumme und Größe sind Pflicht (FR-013)                                                           | ein Dritter liefert die Datei                                    |
+| Bytes als `Array.from(Uint8Array)` durch die IPC und zurück         | Bytes bleiben im Host (R3)                                                                          | 24-MiB-Bundles, keine Verdopplung, nichts im Webview             |
+| Update: Suche nach Name (`limit: 10`) auf Wunsch je Erweiterung     | Prüfung aller installierten Namen bei App-Öffnung und auf Wunsch, Kandidaten je Quelle (R8, FR-017) | bekannte Updates auch außerhalb der aktuellen Katalogseite       |
+| neueste Fassung = `versions[0]`                                     | `semver` (R1)                                                                                       | die Reihenfolge ist nicht zugesichert                            |
+| „installiert“ nur nach Name, im Frontend                            | Host, Name plus Herausgeberschlüssel in Details und Vorschau (R8)                                   | eine Stelle für die Regel                                        |
+| DID-Anmeldung                                                       | später                                                                                              | Entscheidung des Betreibers, 2026-10-28                          |
+| Formular mit „Erstellen/Speichern“ ohne Test                        | „Testen und speichern“ (FR-021)                                                                     | Fehler früh zeigen; Muster aus Spec 038                          |
 
 ## R16 – Offene Punkte außerhalb der Spec
 

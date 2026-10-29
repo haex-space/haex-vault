@@ -25,11 +25,18 @@ Oberfläche übersetzt sie.
 | `marketplace_categories`    | `sourceId?`                                                                           | `{ categories, sourceErrors }`                                                                                                                                                                                                                   |
 | `marketplace_details`       | `sourceId`, `slug`                                                                    | `CatalogDetail` (Eintrag + Beschreibung, Schlüssel-Fingerabdruck, `publisherMatchesInstalled`)                                                                                                                                                   |
 | `marketplace_icon`          | `sourceId`, `url`                                                                     | `string` (`data:`-URL) oder Fehler `marketplace_icon_unavailable`                                                                                                                                                                                |
-| `marketplace_known_updates` | –                                                                                     | `KnownUpdate[]` (nur was der Katalog zuletzt sah, FR-017)                                                                                                                                                                                        |
+| `marketplace_known_updates` | –                                                                                     | `{ candidates: KnownUpdate[], selected: KnownUpdate[] }` (nur zuletzt bekannte Kandidaten, FR-017)                                                                                                                                               |
 | `marketplace_check_updates` | –                                                                                     | `{ updates: KnownUpdate[], sourceErrors }` (fragt für **jede installierte Erweiterung** jede eingeschaltete Quelle mit `search=<Name>`, nur genaue Namenstreffer; läuft beim Öffnen der App und bei „Aktualisieren“, nie im Hintergrund, FR-017) |
 
 Ohne `sourceId` werden alle eingeschalteten Marketplaces gleichzeitig befragt und ihre Einträge hintereinander
-in Rangfolge geliefert, jeder mit seiner Quelle, **ohne Zusammenlegung** (FR-012). Die bekannten Updates werden **je Eintrag** zusammengeführt: ein Katalogabruf oder eine Prüfung ändert nur die Einträge, über die eine Quelle geantwortet hat; eine ausgefallene Quelle löscht nichts. Ein neuer Aufruf von
+in Rangfolge geliefert, jeder mit seiner Quelle, **ohne Zusammenlegung** (FR-012). Jede Quelle liefert die
+angeforderte Seitennummer mit bis zu 20 Einträgen; `totalPages` ist das Maximum der Seitenzahlen, `total`
+die Summe der Treffer. Eine gemeinsame Seite kann daher mehr als 20 Einträge enthalten. Innerhalb jeder
+Quelle gilt die Sortierung nach Downloads absteigend (FR-003). Bekannte Updates werden je
+`(installedName, sourceId, slug)` geführt: eine Antwort ändert nur die Kandidaten ihrer Quelle und
+Einträge, über die sie geantwortet hat; eine ausgefallene Quelle löscht nichts. In der Installationsliste
+wird je Name die höchste bekannte kompatible Fassung gezeigt, bei Gleichstand entscheidet die
+Marketplace-Rangfolge. Ein neuer Aufruf von
 `marketplace_catalog` bricht einen noch laufenden ab.
 
 ## Download und Installation (FR-010 bis FR-016)

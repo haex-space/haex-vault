@@ -287,8 +287,10 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   verständlich“; ein Eintrag mit fehlenden Pflichtfeldern wird ausgelassen, nicht der ganze Katalog.
 - **Langsame Quelle**: Eine Quelle, die nicht innerhalb einer festen Frist antwortet, gilt als
   ausgefallen und hält die anderen nicht auf.
-- **Seite und Gesamtzahl bei mehreren Quellen**: Die Gesamtzahl ist die Summe der Quellen; die Blätterung
-  bleibt stabil (kein Eintrag verschwindet beim Blättern).
+- **Seite und Gesamtzahl bei mehreren Quellen**: Jede Quelle liefert dieselbe Seitennummer mit bis zu 20
+  Einträgen. Die App hängt die Ergebnisse in Quellenrangfolge an; `totalPages` ist die größte Seitenzahl
+  der Quellen, `total` die Summe ihrer Treffer. Dadurch kann eine gemeinsame Seite mehr als 20 Einträge
+  enthalten. Die Blätterung bleibt stabil (kein Eintrag verschwindet beim Blättern).
 - **Katalogeintrag bereits installiert, aber anderer Herausgeber**: Die Installations-Vorschau weist wie in
   Spec 017 auf „gleicher Name, anderer Herausgeber“ hin.
 - **Kein Platz / Schreibfehler beim Download**: Abbruch ohne Rest; Fehlermeldung mit Ursache.
@@ -315,7 +317,8 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-002**: Der Katalog MUSS nach Freitext suchen, nach Kategorie filtern und seitenweise blättern
   können; Filter wirken gemeinsam, eine Änderung des Filters springt auf Seite 1, Eingaben im Suchfeld
   werden 300 ms gebündelt.
-- **FR-003**: Der Katalog MUSS standardmäßig nach Downloads absteigend sortieren.
+- **FR-003**: Der Katalog MUSS die Quellen in ihrer eingestellten Rangfolge anordnen und die Einträge
+  innerhalb jeder Quelle standardmäßig nach Downloads absteigend sortieren.
 - **FR-004**: Eine Kachel MUSS den Zustand „Nicht installiert“, „Installiert (Fassung)“ oder „Update
   verfügbar“ zeigen. Der Abgleich mit installierten Erweiterungen nutzt den Namen der Erweiterung (die
   Details zusätzlich den Herausgeberschlüssel); endgültig entscheidet die Installations-Vorschau anhand
@@ -352,10 +355,14 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
 - **FR-016**: „Entfernen“ im Katalog MUSS die bestehende Entfernung aus Spec 017 nutzen (einschließlich
   der Frage nach den Daten).
 - **FR-017**: Der Katalog MUSS beim Öffnen und auf Wunsch („Aktualisieren“-Knopf) für **alle
-  installierten Erweiterungen** nach Updates suchen, auch für solche, die auf der angezeigten Seite nicht
-  vorkommen; es gibt keine Abfragen im Hintergrund oder beim Start. Eine Quelle, die ausfällt, löscht keine
-  bereits bekannten Updates. Die Liste der installierten Erweiterungen (Einstellungen) MUSS einen
-  bekannten Update-Hinweis zeigen, ohne selbst zu fragen.
+  installierten Erweiterungen** bei allen eingeschalteten Quellen nach Updates suchen, auch für solche,
+  die auf der angezeigten Seite nicht vorkommen; es gibt keine Abfragen im Hintergrund oder beim Start.
+  Bekannte Update-Kandidaten werden je installierter Erweiterung und Quelle geführt. Eine ausgefallene
+  Quelle löscht ihre zuvor bekannten Kandidaten nicht; eine erfolgreiche Antwort aktualisiert oder löscht
+  nur die Kandidaten dieser Quelle. Die Liste der installierten Erweiterungen (Einstellungen) MUSS den
+  kompatiblen Kandidaten mit der höchsten Fassung zeigen; bei gleicher Fassung entscheidet die
+  Marketplace-Rangfolge. Ein Tipp öffnet genau diesen Katalogeintrag. Der Hinweis zeigt den zuletzt
+  bekannten Stand, ohne selbst eine Abfrage auszulösen.
 
 - **FR-018**: Gibt eine Fassung eine Mindest- oder Höchstfassung von HaexVault an, MUSS der Katalog
   eine nicht passende Fassung als „Benötigt HaexVault ab/bis x“ kennzeichnen und die Installation
@@ -371,8 +378,8 @@ Zugangsdaten zeigt der Katalog „Anmeldung nötig“ für diese Quelle, mit gew
   der Nutzer kann auch bei einem Fehlschlag bewusst speichern.
 - **FR-022**: Ein neuer Vault MUSS die Voreinstellung (öffentlicher Marketplace des Projekts) als
   gewöhnliche Zeile enthalten. Hat ein Vault keinen Marketplace, MUSS der Katalog „Öffentlichen
-  Marketplace hinzufügen“ anbieten. HaexVault legt nie ohne Handlung des Nutzers eine Zeile an und
-  schaltet nie eine wieder ein.
+  Marketplace hinzufügen“ anbieten. Nach der Ersteinrichtung legt HaexVault keine Zeile ohne Handlung des
+  Nutzers an und schaltet keine wieder ein.
 - **FR-023**: Jeder Marketplace MUSS angelegt, bearbeitet, ein-/ausgeschaltet, umsortiert und gelöscht
   werden können, auch die Voreinstellung. Das Löschen entfernt keine installierte Erweiterung.
 - **FR-024**: Adressen MÜSSEN `https://` oder `http://` sein und dürfen einen Pfadanteil haben

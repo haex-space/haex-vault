@@ -90,7 +90,8 @@ ausgefallener Marketplace verlängert das nicht über die Frist (R5); Symbole la
 - Kein Agent, keine Erweiterung erreicht den Katalog (FR-030).
 - Dateien ≤ 500 Zeilen, Tests getrennt, Clippy nach Repo-Konfiguration.
 
-**Scale/Scope**: eine bis wenige Quellen, einige Hundert Erweiterungen je Quelle, Seiten à 20.
+**Scale/Scope**: eine bis wenige Quellen, einige Hundert Erweiterungen je Quelle, bis zu 20 Einträge je
+Quelle und Seite (eine gemeinsame Seite enthält entsprechend der Quellenzahl mehr Einträge).
 
 ## Constitution Check
 
