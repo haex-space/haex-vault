@@ -92,6 +92,25 @@ pub enum FilesErrorCode {
     /// Opening a file of an encrypted folder with the system's app needs the notice first
     /// (spec 048 FR-028); the window asks and calls again with `confirmed`.
     NeedsNotice,
+    /// The system's prompt to mount, unlock or eject a drive was cancelled or refused (spec 064
+    /// FR-007).
+    DriveCancelled,
+    /// Another program holds the drive (spec 064 FR-012).
+    DriveBusy,
+    /// The drive is not there any more.
+    DriveGone,
+    /// The system refused a drive action; the message is the system's.
+    DriveFailed,
+    /// Unlocking failed, mostly a wrong password; the message is the system's (FR-015).
+    UnlockFailed,
+    /// Unlocked, but no file system haex can open, such as LVM (FR-020).
+    DriveNoFilesystem,
+    /// This device cannot do that with its drives (no udisks2, Android).
+    DriveUnsupported,
+    /// The password manager needs an open vault (FR-018).
+    NoVault,
+    /// A password entry picked for a drive already has another address (FR-016).
+    UrlTaken,
 }
 
 impl FilesError {

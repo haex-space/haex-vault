@@ -342,7 +342,8 @@ jobs:
       # Same list the Rust job installs, plus the WebKit WebDriver and the
       # virtual screen the suite needs (preflight.ts's REQUIRED_TOOLS), and
       # the GStreamer plugins WebKitGTK plays MP4 (H.264/AAC) and MP3 with
-      # (spec 044 files-media).
+      # (spec 044 files-media), and udisks2 with the tools that build the loop
+      # images of the drives scenario (spec 064, research R12).
       - name: Install Linux build dependencies
         run: |
           # The hosted runner's Azure mirror occasionally stalls for minutes. Use
@@ -374,7 +375,33 @@ jobs:
             xvfb \
             gstreamer1.0-plugins-base \
             gstreamer1.0-plugins-good \
-            gstreamer1.0-libav
+            gstreamer1.0-libav \
+            udisks2 \
+            cryptsetup \
+            dosfstools \
+            e2fsprogs
+
+      # The runner user has no active logind session, so udisks2's polkit
+      # defaults (allow_active) never apply to it; allow it every udisks2 action
+      # for the drives scenario (spec 064, research R12).
+      - name: Allow udisks2 for the runner user
+        run: |
+          sudo tee /etc/polkit-1/rules.d/49-haex-e2e-udisks.rules > /dev/null <<RULES
+          polkit.addRule(function (action, subject) {
+            if (action.id.indexOf("org.freedesktop.udisks2.") === 0 && subject.user === "$USER") {
+              return polkit.Result.YES;
+            }
+          });
+          RULES
+          sudo systemctl restart polkit
+          sudo systemctl restart udisks2
+
+      # Spike (spec 064 T033): shows in the log whether loop images, mounting
+      # and LUKS unlocking work for the runner user. Replaced by the scenario
+      # `files-drives` (T035); until then it must not fail the job.
+      - name: udisks2 smoke check
+        continue-on-error: true
+        run: scripts/e2e/udisks-ci-smoke.sh
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
