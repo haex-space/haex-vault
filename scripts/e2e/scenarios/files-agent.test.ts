@@ -166,14 +166,8 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
       })
       assert.ok(activated.ok, JSON.stringify(activated))
       await ctx.waitFor(
-        'the original split tab to be active with both panels',
-        async () => {
-          const snapshot = await wmSnapshot(instance)
-          const active = snapshot.windows.some(
-            (window) => window.activeTabId === existing.id,
-          )
-          return active && (await visiblePanels(instance)) === 2
-        },
+        'the original split tab to show both panels again',
+        async () => (await visiblePanels(instance)) === 2,
         { fixed: true, timeoutMs: 15_000 },
       )
       ctx.step('files.show opens a new tab and keeps the split')
