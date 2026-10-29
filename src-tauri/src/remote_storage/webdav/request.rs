@@ -15,6 +15,11 @@ pub(super) const PROPFIND_BODY: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"
 <d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/><d:getcontentlength/>\
 <d:getlastmodified/><d:getetag/></d:prop></d:propfind>";
 
+/// The `PROPFIND` that asks for the quota of a folder (RFC 4331).
+pub(super) const QUOTA_BODY: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+<d:propfind xmlns:d=\"DAV:\"><d:prop><d:quota-used-bytes/><d:quota-available-bytes/>\
+</d:prop></d:propfind>";
+
 /// A WebDAV method by name.
 pub(super) fn method(name: &'static str) -> Method {
     Method::from_bytes(name.as_bytes()).expect("WebDAV method names are valid tokens")

@@ -2648,6 +2648,14 @@
       "show": "Show hidden files",
       "hide": "Hide hidden files"
     },
+    "drives": {
+      "unnamed": "Drive ({size})",
+      "cancelled": "Mounting cancelled",
+      "gone": "{name} is no longer there",
+      "unsupported": "{name} cannot be opened here yet",
+      "failed": "{name}: {message}",
+      "goneJump": "{folder} no longer exists – showing {target}"
+    },
     "sidebar": {
       "label": "Places and drives",
       "show": "Show sidebar",
@@ -2655,6 +2663,8 @@
       "places": "Places",
       "drives": "Drives",
       "free": "{size} free",
+      "used": "{size} used",
+      "freeOf": "{free} free of {total}",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",

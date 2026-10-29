@@ -78,13 +78,20 @@ const devicePlaces = computed<Row[]>(() => {
       encrypted: false,
       path: place.path,
     })),
-    ...sources.drives.map((drive) => ({
-      key: `drive:${drive.path}`,
-      name: drive.name,
-      label: drive.name,
-      encrypted: false,
-      path: drive.path,
-    })),
+    // Only mounted drives have a folder to pick (spec 064).
+    ...sources.drives.flatMap((drive) =>
+      drive.path === null
+        ? []
+        : [
+            {
+              key: `drive:${drive.id}`,
+              name: drive.label ?? drive.path,
+              label: drive.label ?? drive.path,
+              encrypted: false,
+              path: drive.path,
+            },
+          ],
+    ),
   ]
 })
 
