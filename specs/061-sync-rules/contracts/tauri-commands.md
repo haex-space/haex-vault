@@ -8,7 +8,7 @@ message }` für Regelfehler, `FilesError` für Fehler eines Orts.
 
 ```text
 SyncRulePlace      { source: SourceRef, path: string }          // SourceRef wie in files/mod.rs
-SyncRuleDirection  'aToB' | 'bToA' | 'both'
+SyncRuleDirection  'aToB' | 'both'                             // aToB: Quellort → Zielort
 SyncRuleDeleteMode 'mirror' | 'keep' | 'ask'
 SyncRuleDraft      { name, placeA, placeB, direction, deleteMode, intervalSecs, enabled }
 SyncRule           SyncRuleDraft + { id, createdAt, updatedAt, status, lastRunAt, lastError }
@@ -31,25 +31,25 @@ SyncRuleError      { code: 'overlap'|'invalidPlace'|'invalidInterval'|'invalidNa
 
 ## Befehle
 
-| Befehl                       | Eingabe                                              | Ausgabe              | Hinweis                                                                               |
-| ---------------------------- | ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `sync_rules_list`            | –                                                    | `SyncRule[]`         | Regeln dieses Geräts                                                                  |
-| `sync_rules_create`          | `draft: SyncRuleDraft`                               | `SyncRule`           | prüft Überlappung (FR-004)                                                            |
-| `sync_rules_update`          | `id`, `draft`                                        | `SyncRule`           | Orte oder Richtung geändert → Stand verworfen                                         |
-| `sync_rules_delete`          | `id`                                                 | –                    | Dateien beider Orte unberührt (FR-006)                                                |
-| `sync_rules_set_enabled`     | `id`, `enabled`                                      | `SyncRule`           | Pausieren und Fortsetzen                                                              |
-| `sync_rules_run_now`         | `id`                                                 | –                    | fällig machen; Ergebnis über Ereignis                                                 |
-| `sync_rules_preview`         | `id`, `draft` (je optional)                          | `SyncRulePlan`       | ändert nichts; `id` gespeichert, `draft` neu, beides eine Änderung                    |
-| `sync_rules_cancel`          | `id`                                                 | –                    | bricht den laufenden Lauf ab                                                          |
-| `sync_rules_pending_list`    | `id`                                                 | `SyncRulePending[]`  | Löschmodus „Nachfragen“                                                               |
-| `sync_rules_pending_resolve` | `id`, `paths`, `choice: 'delete'\|'keep'\|'restore'` | `{ path, reason }[]` | sofort; eine inzwischen geänderte Datei bleibt dem nächsten Lauf                      |
-| `sync_rules_runs`            | `id`                                                 | `SyncRuleRun[]`      | Lauf-Protokoll, jüngste zuerst                                                        |
-| `sync_rules_run_items`       | `runId`, `offset`, `limit`                           | `SyncRuleRunItem[]`  | Dateien eines Laufs                                                                   |
-| `sync_rules_ignore_get`      | `id`                                                 | `SyncRuleIgnore`     | Datei im Quellort, feste Ausnahmen, Zahl ausgenommener Dateien                        |
-| `sync_rules_ignore_set`      | `id`, `content`                                      | `SyncRuleIgnore`     | schreibt `.haex-ignore` in Ort A; `readOnly` bzw. `invalidIgnore`; Regel läuft danach |
-| `sync_rules_log_depth_get`   | –                                                    | `number`             | Vorgabe 10                                                                            |
-| `sync_rules_log_depth_set`   | `depth: number`                                      | –                    | 0 bis 100; kürzt sofort                                                               |
-| `sync_rule_confirm_answer`   | `requestId`, `confirmed: boolean`                    | –                    | Antwort auf `sync-rule-confirm-request`; späte oder unbekannte Id ist kein Fehler     |
+| Befehl                       | Eingabe                                              | Ausgabe              | Hinweis                                                                                      |
+| ---------------------------- | ---------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
+| `sync_rules_list`            | –                                                    | `SyncRule[]`         | Regeln dieses Geräts                                                                         |
+| `sync_rules_create`          | `draft: SyncRuleDraft`                               | `SyncRule`           | prüft Überlappung (FR-004)                                                                   |
+| `sync_rules_update`          | `id`, `draft`                                        | `SyncRule`           | Orte oder Richtung geändert → Stand verworfen                                                |
+| `sync_rules_delete`          | `id`                                                 | –                    | Dateien beider Orte unberührt (FR-006)                                                       |
+| `sync_rules_set_enabled`     | `id`, `enabled`                                      | `SyncRule`           | Pausieren und Fortsetzen                                                                     |
+| `sync_rules_run_now`         | `id`                                                 | –                    | fällig machen; Ergebnis über Ereignis                                                        |
+| `sync_rules_preview`         | `id`, `draft` (je optional)                          | `SyncRulePlan`       | ändert nichts; `id` gespeichert, `draft` neu, beides eine Änderung                           |
+| `sync_rules_cancel`          | `id`                                                 | –                    | bricht den laufenden Lauf ab                                                                 |
+| `sync_rules_pending_list`    | `id`                                                 | `SyncRulePending[]`  | Löschmodus „Nachfragen“                                                                      |
+| `sync_rules_pending_resolve` | `id`, `paths`, `choice: 'delete'\|'keep'\|'restore'` | `{ path, reason }[]` | sofort; eine inzwischen geänderte Datei bleibt dem nächsten Lauf                             |
+| `sync_rules_runs`            | `id`                                                 | `SyncRuleRun[]`      | Lauf-Protokoll, jüngste zuerst                                                               |
+| `sync_rules_run_items`       | `runId`, `offset`, `limit`                           | `SyncRuleRunItem[]`  | Dateien eines Laufs                                                                          |
+| `sync_rules_ignore_get`      | `id`                                                 | `SyncRuleIgnore`     | Datei im Quellort, feste Ausnahmen, Zahl ausgenommener Dateien                               |
+| `sync_rules_ignore_set`      | `id`, `content`                                      | `SyncRuleIgnore`     | schreibt `.haex-ignore` in den Quellort; `readOnly` bzw. `invalidIgnore`; Regel läuft danach |
+| `sync_rules_log_depth_get`   | –                                                    | `number`             | Vorgabe 10                                                                                   |
+| `sync_rules_log_depth_set`   | `depth: number`                                      | –                    | 0 bis 100; kürzt sofort                                                                      |
+| `sync_rule_confirm_answer`   | `requestId`, `confirmed: boolean`                    | –                    | Antwort auf `sync-rule-confirm-request`; späte oder unbekannte Id ist kein Fehler            |
 
 ## Ereignisse
 

@@ -18,7 +18,7 @@ Rust-Zweige mit `cfg` zusätzlich für `aarch64-linux-android` linten.
 
 ## 1. Einseitig sichern (Story 1)
 
-1. Dateibrowser → „Sync-Regeln“ → „Neue Regel“. Ort A `<Tmp>/a`, Ort B Ordner im Speicher, „A→B“, Löschmodus
+1. Dateibrowser → „Sync-Regeln“ → „Neue Regel“. Quelle `<Tmp>/a`, Ziel Ordner im Speicher, „Quelle → Ziel“, Löschmodus
    „Behalten“ (Vorgabe).
 2. Vorschau öffnen: zeigt alle Dateien als Kopien. Speichern, „Jetzt abgleichen“: alles liegt im Speicher (SC-002).
 3. In `a` eine Datei anlegen, eine ändern, eine umbenennen, eine löschen; abgleichen: neue und geänderte
@@ -42,13 +42,13 @@ Rust-Zweige mit `cfg` zusätzlich für `aarch64-linux-android` linten.
 ## 3. Schutz und Kontrolle (Story 3)
 
 1. Löschmodus „Nachfragen“, Datei links löschen: erscheint in der Liste, wird erst nach Bestätigung gelöscht.
-2. Ort A unterbrechen (Ordner umbenennen oder Laufwerk abziehen): Lauf bricht mit „Ort nicht erreichbar“ ab,
+2. Die Quelle unterbrechen (Ordner umbenennen oder Laufwerk abziehen): Lauf bricht mit „Ort nicht erreichbar“ ab,
    nichts wird gelöscht (FR-022, SC-004).
 
 ## 4. Ausnahmen und Protokoll (Story 4)
 
-1. Regel → „Ausnahmen“: `*.tmp` und `node_modules/` eintragen, speichern. Die Datei `.haex-ignore` liegt im
-   Ort A; die Vorschau nennt die Zahl ausgenommener Dateien (FR-042).
+1. Regel → „Ausnahmen“: `*.tmp` und `node_modules/` eintragen, speichern. Die Datei `.haex-ignore` liegt in
+   der Quelle; die Vorschau nennt die Zahl ausgenommener Dateien (FR-042).
 2. Eine `.tmp`-Datei in einem Ordner anlegen: sie wird nicht kopiert; liegt sie schon an beiden Orten,
    bleibt sie unberührt (SC-009).
 3. Regel → Protokoll: letzte Läufe mit Zählern; einen Lauf aufklappen: Pfad, Aktion, Seite. Einen

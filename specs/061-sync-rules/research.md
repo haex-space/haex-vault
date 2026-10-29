@@ -137,7 +137,7 @@ Vorschau nennt die Zahl der Dateien, die für FR-012a gelesen werden müssten (F
 **Befund.** Kein Crate für `.gitignore`-Muster in `Cargo.toml` (`globset`, `ignore`, `wax` fehlen).
 
 **Entscheidung.** `ignore::gitignore::GitignoreBuilder`, nur Auswertung von Zeilen (`add_line`), kein Dateisystem-
-Lauf des Crates. Zwei Matcher (Ort A, Ort B), ausgenommen ist, was einer von beiden trifft (FR-039); dazu die
+Lauf des Crates. Zwei Matcher (Quellort, Zielort), ausgenommen ist, was einer von beiden trifft (FR-039); dazu die
 festen Ausnahmen als dritte Liste. Unterordner-Dateien werden nicht gelesen. Ein Pfad ist ausgenommen, wenn er
 oder ein Elternordner trifft (`matched_path_or_any_parents`).
 

@@ -15,7 +15,7 @@ Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001,
 | `enabled`                          | INTEGER   | 1 aktiv, 0 pausiert                                                                                                                                                    |
 | `place_a_source`, `place_b_source` | TEXT      | `SourceRef` wie im Fenster: `device` oder Speicher-ID (`<id>`, `peer:<Gerät>`); nie `share:<id>`. Ein verschlüsselter Ordner ist Quelle plus Fensterpfad (research R1) |
 | `place_a_path`, `place_b_path`     | TEXT      | Ordnerpfad der Quelle (Gerät: absolut; Speicher: Fensterpfad wie `/Fotos`, Wurzel `/`)                                                                                 |
-| `direction`                        | TEXT      | `aToB`, `bToA`, `both`                                                                                                                                                 |
+| `direction`                        | TEXT      | `aToB`, `both`                                                                                                                                                         |
 | `delete_mode`                      | TEXT      | `mirror`, `keep`, `ask`                                                                                                                                                |
 | `interval_secs`                    | INTEGER   | 60 bis 86 400; Vorgabe 900                                                                                                                                             |
 | `created_at`, `updated_at`         | TEXT      | ISO 8601                                                                                                                                                               |
@@ -25,8 +25,8 @@ Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001,
 
 Validierung (`rules::validate`): Orte nicht gleich; keine Überlappung mit einer anderen Regel dieses Geräts (der
 Pfad eines Orts liegt nicht in dem eines anderen Orts derselben Quelle, auch nicht über Kreuz A/B); Quelle ist
-keine Freigabe (`share:`) und nicht der Datenbereich von holzi; Intervall im Bereich. Eine einseitige Regel hat
-immer A als Quellort; `bToA` ist beim Speichern auf `aToB` mit vertauschten Orten normiert.
+keine Freigabe (`share:`) und nicht der Datenbereich von holzi; Intervall im Bereich. `place_a` ist der Quellort,
+`place_b` der Zielort, auch bei `both`; eine einseitige Regel (`aToB`) kopiert immer vom Quellort zum Zielort.
 
 ## `haex_sync_rule_files_no_sync` — Stand
 

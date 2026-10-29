@@ -21,11 +21,13 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   eigenen Gerät (Spec 056), ein Ordner in einem S3-, WebDAV- oder SFTP-Speicher oder ein entsperrter
   verschlüsselter Ordner. Ein Ort einer fremden Vault (empfangene Dateifreigabe) ist kein Ort im Sinne
   dieser Spec.
-- **Sync-Regel**: die Zuordnung zweier Orte A und B mit **Richtung**, **Löschmodus** und **Intervall**.
+- **Sync-Regel**: die Zuordnung zweier Orte, **Quellort** und **Zielort**, mit **Richtung**, **Löschmodus**
+  und **Intervall**.
   Sie gehört dem Gerät, auf dem der Nutzer sie anlegt, und läuft nur dort. Sie wird nicht auf andere
   Geräte synchronisiert.
-- **Richtung**: **A→B**, **B→A** oder **beidseitig**. Bei einer einseitigen Regel heißt der Ort, aus
-  dem kopiert wird, **Quellort**, der andere **Zielort**.
+- **Richtung**: **einseitig** (vom Quellort zum Zielort) oder **beidseitig**. Auch bei einer beidseitigen
+  Regel heißen die Orte Quellort und Zielort; im Quellort liegt die Ausnahmedatei. Die Oberfläche nennt sie
+  kurz „Quelle“ und „Ziel“.
 - **Abgleich**: ein Durchlauf einer Regel. Er vergleicht beide Orte mit dem **Stand** und bringt sie
   gemäß Richtung in Übereinstimmung.
 - **Stand**: was holzi zu einer Regel vom letzten erfolgreichen Abgleich je Datei weiß (relativer Pfad,
@@ -129,14 +131,17 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
 
 - Q: Wo stehen die Regeln, wenn es viele sind? → A: Nicht in einem Dialog, sondern als Liste im Panel des
   Dateibrowsers, aufgebaut wie eine Ordneransicht (FR-047). Der Dialog bleibt für „Neue Regel“.
+- Q: Wie heißen die beiden Orte einer Regel? → A: Quelle und Ziel statt A und B, auch bei einer beidseitigen
+  Regel. Eine einseitige Regel kopiert immer von der Quelle zum Ziel; „B → A“ gibt es nicht mehr, auch nicht
+  für Agents.
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Ordner einseitig sichern (Priority: P1)
 
 Anna möchte, dass ihr Ordner `Fotos` auf dem Laptop laufend in ihren S3-Speicher gesichert wird. Im
-Dateibrowser wählt sie „Sync-Regeln“ und „Neue Regel“, wählt `Fotos` als Ort A und einen Ordner im
-Speicher als Ort B, die Richtung „A→B“ und lässt den Löschmodus auf der Vorgabe „Behalten“. Nach dem
+Dateibrowser wählt sie „Sync-Regeln“ und „Neue Regel“, wählt `Fotos` als Quelle und einen Ordner im
+Speicher als Ziel, die Richtung „Quelle → Ziel“ und lässt den Löschmodus auf der Vorgabe „Behalten“. Nach dem
 ersten Abgleich liegen alle Fotos im Speicher. Macht sie danach neue Fotos, erscheinen sie dort ohne
 weiteres Zutun, solange holzi läuft. Löscht sie ein Foto auf dem Laptop, bleibt es im Speicher.
 
@@ -348,7 +353,7 @@ löschen.
 
 **Regeln**
 
-- **FR-001**: Der Nutzer MUSS eine Sync-Regel mit zwei Orten, einer Richtung (A→B, B→A, beidseitig),
+- **FR-001**: Der Nutzer MUSS eine Sync-Regel mit zwei Orten, einer Richtung (einseitig vom Quellort zum Zielort oder beidseitig),
   einem Löschmodus und einem Intervall anlegen, ändern, pausieren, fortsetzen und löschen können.
 - **FR-002**: Als Ort MUSS jeder Ordner einer Quelle des Dateibrowsers zulässig sein: lokal, anderes
   eigenes Gerät (Spec 056), S3, WebDAV, SFTP und entsperrter verschlüsselter Ordner (Spec 048). Orte
@@ -441,10 +446,10 @@ löschen.
 - **FR-030**: Die Regel DARF keine eigene Verschlüsselung und keine eigenen Schlüssel haben. Der Nutzer
   verschlüsselt beim Anbieter, indem er einen verschlüsselten Ordner (Spec 048) als Ort wählt; die
   Regel MUSS mit einem solchen Ort wie mit jedem anderen arbeiten, solange er entsperrt ist.
-- **FR-030a**: Ist Ort A ein verschlüsselter Ordner und Ort B nicht, MUSS der Dialog beim Anlegen oder Ändern
-  darauf hinweisen, dass die Dateien an Ort B entschlüsselt liegen, und die Zustimmung des Nutzers einholen. Nur mit
+- **FR-030a**: Ist der Quellort ein verschlüsselter Ordner und der Zielort nicht, MUSS der Dialog beim Anlegen oder
+  Ändern darauf hinweisen, dass die Dateien am Zielort entschlüsselt liegen, und die Zustimmung des Nutzers einholen. Nur mit
   dieser Zustimmung DARF die Regel Dateien aus dem verschlüsselten Ordner entschlüsselt ablegen (Spec 048 FR-019);
-  ohne sie MUSS holzi jede solche Datei mit Grund unter den Fehlern nennen. Ist Ort B selbst ein verschlüsselter
+  ohne sie MUSS holzi jede solche Datei mit Grund unter den Fehlern nennen. Ist der Zielort selbst ein verschlüsselter
   Ordner, braucht es keine Zustimmung.
 - **FR-031**: Beim Wählen eines Speichers ohne Verschlüsselung als Zielort MUSS der Dialog auf den
   verschlüsselten Ordner hinweisen.
@@ -486,7 +491,7 @@ löschen.
   Dateien auf beiden Seiten).
 - **FR-041**: Die Oberfläche der Sync-Regeln MUSS die Ausnahmedatei in einem kleinen Editor zeigen und
   speichern können; die Datei ist die einzige Quelle der Muster, die Oberfläche hält keine eigene
-  Kopie. Er bearbeitet die Datei im Quellort (bei beidseitig im Ort A). Ist dieser Ort nicht
+  Kopie. Er bearbeitet die Datei im Quellort, auch bei einer beidseitigen Regel. Ist dieser Ort nicht
   beschreibbar, MUSS der Editor die Muster nur anzeigen und den Grund nennen.
 - **FR-042**: Der Editor und die Vorschau MÜSSEN nennen, wie viele Dateien die Ausnahmen gerade
   ausnehmen, und die festen Ausnahmen getrennt und nicht änderbar zeigen.
@@ -525,13 +530,13 @@ löschen.
 
 ### Key Entities
 
-- **Sync-Regel**: Name, Zustand (aktiv oder pausiert), Ort A, Ort B, Richtung, Löschmodus, Intervall.
+- **Sync-Regel**: Name, Zustand (aktiv oder pausiert), Quellort, Zielort, Richtung, Löschmodus, Intervall.
   Gehört dem ausführenden Gerät und wird nicht synchronisiert.
 - **Ort**: Quelle plus Ordnerpfad. Quellen sind lokal, eigenes Gerät, S3, WebDAV, SFTP, verschlüsselter
   Ordner.
 - **Ausnahmedatei**: `.haex-ignore` im Wurzelordner eines Orts mit Ausnahmemustern. Liegt im Ort, nicht
   in der Regel, und wird mit abgeglichen.
-- **Stand**: je Regel und Datei der relative Pfad sowie Größe und Änderungszeit auf Seite A und B beim
+- **Stand**: je Regel und Datei der relative Pfad sowie Größe und Änderungszeit an Quell- und Zielort beim
   letzten erfolgreichen Abgleich, dazu die Vermerke „bewusst behalten“.
 - **Plan**: die Schritte eines Abgleichs (kopieren, verschieben, löschen, Konfliktkopie).
 - **Lauf-Protokoll**: je Regel die letzten Läufe mit Zählern und Dateiliste; Tiefe nach Einstellung.
