@@ -154,6 +154,7 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     )
     askFrom.delete('weg.txt')
     await instance.click('files-sync-rule-run-Nachfrage')
+    await instance.click('files-sync-rule-open-Nachfrage')
     await instance.waitForDisplayed('files-sync-rule-pending-Nachfrage', 30_000)
     if (!askTo.files().includes('weg.txt')) {
       throw new Error('the asking rule deleted before it was confirmed')
