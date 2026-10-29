@@ -2654,7 +2654,16 @@
       "gone": "{name} ist nicht mehr da",
       "unsupported": "{name} lässt sich hier noch nicht öffnen",
       "failed": "{name}: {message}",
-      "goneJump": "{folder} gibt es nicht mehr – zeige {target}"
+      "goneJump": "{folder} gibt es nicht mehr – zeige {target}",
+      "eject": "Auswerfen",
+      "unmount": "Aushängen",
+      "ejected": "{name} kann abgezogen werden",
+      "unmounted": "{name} ausgehängt",
+      "busy": "{name} wird noch von einem anderen Programm benutzt",
+      "releaseCancelled": "Auswerfen abgebrochen",
+      "transfersRunning": "Eine Übertragung läuft noch. Abbrechen und {verb}? | {count} Übertragungen laufen noch. Abbrechen und {verb}?",
+      "ejectVerb": "auswerfen",
+      "unmountVerb": "aushängen"
     },
     "sidebar": {
       "label": "Orte und Laufwerke",

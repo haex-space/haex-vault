@@ -87,3 +87,102 @@ fn a_locked_drive_is_not_unlocked_yet() {
         FilesErrorCode::DriveUnsupported
     );
 }
+
+/// Holders that write what they are asked into the backend's record, so one list shows the order.
+struct FakeHolders<'a> {
+    calls: &'a std::sync::Mutex<Vec<String>>,
+    transfers: usize,
+}
+
+impl Holders for FakeHolders<'_> {
+    fn transfers(&self, _prefix: &Path) -> usize {
+        self.transfers
+    }
+
+    fn cancel_transfers(&self, prefix: &Path) {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("cancel transfers {}", prefix.display()));
+    }
+
+    fn release_under(&self, prefix: &Path) {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("release under {}", prefix.display()));
+    }
+}
+
+fn holders(backend: &FakeBackend, transfers: usize) -> FakeHolders<'_> {
+    FakeHolders {
+        calls: &backend.calls,
+        transfers,
+    }
+}
+
+#[test]
+fn a_release_frees_haex_s_own_handles_before_the_system_releases() {
+    let backend = FakeBackend::with(vec![stick("a", DriveState::Mounted)]);
+    assert_eq!(
+        release(&backend, &holders(&backend, 1), "a", true).unwrap(),
+        DriveReleased::Released { ejected: true }
+    );
+    assert_eq!(
+        backend.calls(),
+        [
+            "cancel transfers /run/media/anna/a",
+            "release under /run/media/anna/a",
+            "release a"
+        ]
+    );
+}
+
+#[test]
+fn running_transfers_are_reported_and_nothing_happens() {
+    let backend = FakeBackend::with(vec![stick("a", DriveState::Mounted)]);
+    assert_eq!(
+        release(&backend, &holders(&backend, 2), "a", false).unwrap(),
+        DriveReleased::TransfersRunning { count: 2 }
+    );
+    assert!(backend.calls().is_empty());
+}
+
+#[test]
+fn without_transfers_no_question_is_needed() {
+    let backend = FakeBackend::with(vec![stick("a", DriveState::Mounted)]);
+    *backend.release_result.lock().unwrap() = Some(Ok(false));
+    assert_eq!(
+        release(&backend, &holders(&backend, 0), "a", false).unwrap(),
+        DriveReleased::Released { ejected: false }
+    );
+    assert_eq!(
+        backend.calls().last().map(String::as_str),
+        Some("release a")
+    );
+}
+
+#[test]
+fn an_unknown_or_unmounted_drive_is_not_released() {
+    let backend = FakeBackend::with(vec![stick("b", DriveState::Unmounted)]);
+    let code = |id| {
+        release(&backend, &holders(&backend, 0), id, true)
+            .unwrap_err()
+            .code
+    };
+    assert_eq!(code("x"), FilesErrorCode::DriveGone);
+    assert_eq!(code("b"), FilesErrorCode::DriveUnsupported);
+    assert!(backend.calls().is_empty());
+}
+
+#[test]
+fn a_drive_another_program_holds_is_busy() {
+    let backend = FakeBackend::with(vec![stick("a", DriveState::Mounted)]);
+    *backend.release_result.lock().unwrap() = Some(Err(DriveError::Busy));
+    assert_eq!(
+        release(&backend, &holders(&backend, 0), "a", true)
+            .unwrap_err()
+            .code,
+        FilesErrorCode::DriveBusy
+    );
+}

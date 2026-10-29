@@ -31,7 +31,7 @@ const drives = computed(() =>
     ? liveDrives.drives.value
     : (sources.state.value?.drives ?? []),
 )
-const { openDriveAsync } = useFilesDriveActions()
+const { nameOf, openDriveAsync, releaseDriveAsync } = useFilesDriveActions()
 const { queryContactAsync } = useFilesContactQuery(sources)
 
 const root = useTemplateRef<HTMLElement>('root')
@@ -116,6 +116,26 @@ async function onPickDrive(drive: Drive) {
   if (path !== null) onSidebarPick(path)
 }
 
+/** A drive with transfers still running on it, waiting for the yes to cancel them (contracts/ui.md). */
+const releasing = ref<{ drive: Drive; count: number } | null>(null)
+const releaseOpen = computed({
+  get: () => releasing.value !== null,
+  set: (open: boolean) => {
+    if (!open) releasing.value = null
+  },
+})
+
+async function onReleaseDrive(drive: Drive) {
+  const count = await releaseDriveAsync(drive, false)
+  if (count !== null) releasing.value = { drive, count }
+}
+
+async function onReleaseConfirmed() {
+  const pending = releasing.value
+  releasing.value = null
+  if (pending) await releaseDriveAsync(pending.drive, true)
+}
+
 function onPickStorage(storageId: string) {
   close()
   go({
@@ -170,6 +190,7 @@ watch(tabActive, (active) => {
           :current-storage="storageId"
           @pick="onSidebarPick"
           @pick-drive="onPickDrive"
+          @release-drive="onReleaseDrive"
           @pick-storage="onPickStorage"
           @add-storage="openStorageSettings"
           @query-contact="queryContactAsync"
@@ -193,5 +214,12 @@ watch(tabActive, (active) => {
       </div>
     </div>
     <FilesTransferBar :tab-id="tabId" />
+    <FilesDriveReleaseDialog
+      v-model:open="releaseOpen"
+      :count="releasing?.count ?? 0"
+      :name="releasing ? nameOf(releasing.drive) : ''"
+      :eject="releasing?.drive.release !== 'unmount'"
+      @confirm="onReleaseConfirmed"
+    />
   </div>
 </template>

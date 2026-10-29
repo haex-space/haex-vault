@@ -34,7 +34,11 @@ fn unlocked_as(mut object: UdisksObject, cleartext: &str) -> UdisksObject {
 fn drive(name: &str, removable: bool) -> UdisksObject {
     UdisksObject {
         path: format!("{DRIVES}/{name}"),
-        drive: Some(DriveProps { removable }),
+        drive: Some(DriveProps {
+            removable,
+            can_power_off: removable,
+            ejectable: false,
+        }),
         ..UdisksObject::default()
     }
 }
@@ -276,4 +280,112 @@ fn home_itself_is_hidden() {
         with_fs(block("home", on("nvme", props("", "H"))), Some("/home")),
     ];
     assert!(listed(&objects).is_empty());
+}
+
+/// `machine()` with the file system of the block `name` mounted at `point`.
+fn mount(objects: &mut [UdisksObject], name: &str, point: &str) {
+    let object = objects
+        .iter_mut()
+        .find(|object| object.path == format!("{BLOCKS}/{name}"))
+        .unwrap();
+    object.filesystem = Some(FsProps {
+        mount_points: vec![point.to_owned()],
+    });
+}
+
+fn steps_of(objects: &[UdisksObject], name: &str) -> ReleaseSteps {
+    let drive = classify(objects)
+        .into_iter()
+        .find(|drive| drive.id == format!("{BLOCKS}/{name}"))
+        .unwrap();
+    release_steps(objects, &drive).unwrap()
+}
+
+#[test]
+fn a_mounted_stick_is_unmounted_and_switched_off() {
+    let mut objects = machine();
+    mount(&mut objects, "sdd1", "/media/u/FOTOS");
+    assert_eq!(
+        steps_of(&objects, "sdd1"),
+        ReleaseSteps {
+            unmount: format!("{BLOCKS}/sdd1"),
+            lock: None,
+            power: Some(Power::Off(format!("{DRIVES}/usb_fotos"))),
+        }
+    );
+}
+
+#[test]
+fn a_stick_with_another_mounted_partition_stays_on() {
+    let mut objects = machine();
+    mount(&mut objects, "sdc1", "/media/u/Mint");
+    mount(&mut objects, "sdc3", "/media/u/writable");
+    assert_eq!(steps_of(&objects, "sdc3").power, None);
+
+    let mut objects = machine();
+    mount(&mut objects, "sdc3", "/media/u/writable");
+    assert_eq!(
+        steps_of(&objects, "sdc3").power,
+        Some(Power::Off(format!("{DRIVES}/usb_mint")))
+    );
+}
+
+#[test]
+fn an_unlocked_stick_is_unmounted_locked_and_switched_off() {
+    let mut objects = machine();
+    let at = objects
+        .iter()
+        .position(|object| object.path.ends_with("/sde1"))
+        .unwrap();
+    objects[at] = unlocked_as(objects[at].clone(), "dm_2d3");
+    objects.push(with_fs(
+        block(
+            "dm_2d3",
+            BlockProps {
+                crypto_backing: Some(format!("{BLOCKS}/sde1")),
+                ..removable("BACKUP", "EXT4-UUID")
+            },
+        ),
+        Some("/media/u/BACKUP"),
+    ));
+    assert_eq!(
+        steps_of(&objects, "dm_2d3"),
+        ReleaseSteps {
+            unmount: format!("{BLOCKS}/dm_2d3"),
+            lock: Some(format!("{BLOCKS}/sde1")),
+            power: Some(Power::Off(format!("{DRIVES}/usb_backup"))),
+        }
+    );
+}
+
+#[test]
+fn an_internal_partition_and_a_loop_image_are_only_unmounted() {
+    let mut objects = machine();
+    mount(&mut objects, "sda2", "/mnt/windows");
+    objects.push(with_fs(
+        block("loop0", removable("E2EFOTOS", "1234-5678")),
+        Some("/media/u/E2EFOTOS"),
+    ));
+    assert_eq!(steps_of(&objects, "sda2").power, None);
+    assert_eq!(steps_of(&objects, "loop0").power, None);
+}
+
+#[test]
+fn a_drive_that_cannot_power_off_is_ejected() {
+    let mut objects = machine();
+    mount(&mut objects, "sdd1", "/media/u/FOTOS");
+    for object in &mut objects {
+        if let Some(drive) = object
+            .drive
+            .as_mut()
+            .filter(|_| object.path.ends_with("usb_fotos"))
+        {
+            drive.can_power_off = false;
+            drive.ejectable = true;
+        }
+    }
+    assert_eq!(
+        steps_of(&objects, "sdd1").power,
+        Some(Power::Eject(format!("{DRIVES}/usb_fotos")))
+    );
 }

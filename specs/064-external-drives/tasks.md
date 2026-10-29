@@ -285,38 +285,44 @@ the outcome (FR-008 to FR-012, US2 scenarios 1–6).
 
 **Independent Test**: quickstart Linux step 3, and the E2E "eject" case.
 
-- [ ] T037 [US2] `src-tauri/src/files/state.rs`: add `root: PathBuf` to `Watching::Local` (both branches of `files_watch` in `browser_commands/navigate.rs` know the resolved `real` path) and `pub fn unwatch_under(&self, prefix: &Path) -> usize` with `retain`. Test it in `state_tests.rs`.
-- [ ] T038 [P] [US2] `src-tauri/src/files/media/server.rs`: add `root: Option<PathBuf>` to `Grant` (set by `files_open` for local sources, `None` otherwise) and `pub fn release_under(&self, prefix: &Path) -> usize`. Test it in the server's `*_tests.rs` (read first): grants under the prefix are gone (404 afterwards), others stay.
-- [ ] T039 [P] [US2] `src-tauri/src/files/search_manager.rs`: keep `(root, token)` per search and `pub fn cancel_under(&self, prefix: &Path) -> usize`; test.
-- [ ] T040 [P] [US2] `src-tauri/src/files/transfer/mod.rs`:
+- [x] T037 [US2] `src-tauri/src/files/state.rs`: add `root: PathBuf` to `Watching::Local` (both branches of `files_watch` in `browser_commands/navigate.rs` know the resolved `real` path) and `pub fn unwatch_under(&self, prefix: &Path) -> usize` with `retain`. Test it in `state_tests.rs`.
+- [x] T038 [P] [US2] `src-tauri/src/files/media/server.rs`: add `root: Option<PathBuf>` to `Grant` (set by `files_open` for local sources, `None` otherwise) and `pub fn release_under(&self, prefix: &Path) -> usize`. Test it in the server's `*_tests.rs` (read first): grants under the prefix are gone (404 afterwards), others stay.
+  - Done as a new `register_file(tab, root, source)` next to an unchanged `register`: passwords and the platform probe register sources without a file of this device.
+- [x] T039 [P] [US2] `src-tauri/src/files/search_manager.rs`: keep `(root, token)` per search and `pub fn cancel_under(&self, prefix: &Path) -> usize`; test.
+- [x] T040 [P] [US2] `src-tauri/src/files/transfer/mod.rs`:
   - `pub fn touching(&self, prefix: &Path) -> Vec<String>` (ids of running transfers whose `Job.sources`/`target` or `RemoteJob` side `Side::Device` paths start with `prefix`)
   - `pub fn cancel_touching(&self, prefix: &Path) -> usize` while keeping every matching job
     trackable and awaiting its worker before `unwatch_under`, `release_under`, `cancel_under`,
     `end_under` and `backend.release`; `TransferManager::cancel` must not remove a job until its
     completion can be observed
   - Test it in `transfer` tests (local copy into the prefix, remote job from a device path, storage job ignored).
-- [ ] T041 [US2] Extension watches: in `src-tauri/src/extensions/fs/watch.rs`, call the existing `end_unless` with a predicate "root not under prefix" through a small `pub fn end_under(prefix)` wrapper; test in its `*_tests.rs`.
-- [ ] T042 [US2] `src-tauri/src/files/local/drives/udisks.rs` `release(id)`:
+  - A running job that the window cancels now stays known until its worker has ended (a watch channel per job), and a cancelled job that ends as failed is forgotten too.
+- [x] T041 [US2] Extension watches: in `src-tauri/src/extensions/fs/watch.rs`, call the existing `end_unless` with a predicate "root not under prefix" through a small `pub fn end_under(prefix)` wrapper; test in its `*_tests.rs`.
+  - `end_under` filters the watches itself instead of going through `end_unless`: `end_unless` keeps the watches of a dialog choice, which must end before a release as well.
+- [x] T042 [US2] `src-tauri/src/files/local/drives/udisks.rs` `release(id)`:
   - `Filesystem.Unmount({})`
   - when `encrypted`, `Encrypted.Lock({})` on the backing crypto block (FR-011)
   - for removable drives `Drive.PowerOff({})` when `CanPowerOff`, else `Drive.Eject({})` when `Ejectable`; returns whether one of them ran
   - `DeviceBusy` → `driveBusy`
   - Add the mapping cases to `udisks_tests.rs`.
-- [ ] T043 [US2] `files_drive_release(id, cancel_transfers) -> DriveReleased` in `src-tauri/src/files/browser_commands/drives.rs` (`contracts/commands.md` order):
+  - The steps are a pure `release_steps` in `udisks_classify.rs`, tested there. A stick with another mounted partition is only unmounted (switching it off would pull the other one). When switching off fails after the unmount, the result is `ejected: false` instead of an error.
+- [x] T043 [US2] `files_drive_release(id, cancel_transfers) -> DriveReleased` in `src-tauri/src/files/browser_commands/drives.rs` (`contracts/commands.md` order):
   - `driveGone` when the id is unknown
   - `driveUnsupported` when `release == none`
   - `transfersRunning { count }` when `touching` is non-empty and `cancel_transfers` is false
   - else `cancel_touching`, then `unwatch_under`, `release_under`, `cancel_under`, `end_under`, then `backend.release` in `spawn_blocking`
   - Register it in `lib.rs`. Tests in `drives_tests.rs` with fakes for the order and for each outcome.
-- [ ] T044 [US2] Frontend:
+  - The four releases sit behind a small `Holders` trait, so the tests check the order with fakes.
+- [x] T044 [US2] Frontend:
   - `useFiles.ts` `driveReleaseAsync(id, cancelTransfers)`
   - `useFilesDriveActions.ts` `releaseDrive(drive)`: on `transfersRunning` show the confirm dialog of `contracts/ui.md` and repeat with `true`; toasts for `released` (ejected or not), `driveBusy`, `driveCancelled`, `driveFailed`
   - `Sidebar.vue`: the button for `release != 'none'` (`lucide:arrow-up-from-line`, title "Auswerfen"/"Aushängen", `data-testid="files-drive-eject-…"`), not shown while busy
   - texts in `de.json`/`en.json`
-- [ ] T045 [US2] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US2 part:
+- [x] T045 [US2] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US2 part:
   - mount the vfat image, open a text file of it in the viewer, eject: success toast, the drive is no longer mounted (`udisksctl info` shows no mount point)
   - start a copy of a large file onto it and eject: the confirm dialog appears; cancel keeps it mounted
   - the root `/` has no eject button
+  - The running transfer is a copy that waits at a taken name, not a large file (a large copy onto a loop image ends before the click). The page clicks the button itself because the open conflict dialog keeps pointer clicks out. Its own scenario `files-drives-eject` in the same file.
 - [ ] T046 [US2] Checks as in T036 for the touched modules, then quickstart Linux step 3 by hand (including `less` holding the drive → "wird noch … benutzt")
 
 **Checkpoint**: US1 and US2 work (PR B).

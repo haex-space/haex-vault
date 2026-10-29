@@ -2654,7 +2654,16 @@
       "gone": "{name} is no longer there",
       "unsupported": "{name} cannot be opened here yet",
       "failed": "{name}: {message}",
-      "goneJump": "{folder} no longer exists – showing {target}"
+      "goneJump": "{folder} no longer exists – showing {target}",
+      "eject": "Eject",
+      "unmount": "Unmount",
+      "ejected": "{name} can be removed",
+      "unmounted": "{name} unmounted",
+      "busy": "{name} is still in use by another program",
+      "releaseCancelled": "Eject cancelled",
+      "transfersRunning": "A transfer is still running. Cancel it and {verb}? | {count} transfers are still running. Cancel them and {verb}?",
+      "ejectVerb": "eject",
+      "unmountVerb": "unmount"
     },
     "sidebar": {
       "label": "Places and drives",

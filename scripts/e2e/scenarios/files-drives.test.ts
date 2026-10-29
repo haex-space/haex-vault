@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 
-import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
+import { deviceFiles } from '../lib/extension-files.ts'
+import { createAndUnlock, unwrap, type FlowInstance } from '../lib/flows.ts'
+import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 import {
@@ -25,6 +27,21 @@ const driveRow = (instance: FlowInstance, label: string) =>
        .find((el) => el.getAttribute('data-testid').endsWith('-' + arguments[0]))
      return row ? row.getAttribute('data-testid') : null`,
     [label],
+  )
+
+const gone = (instance: FlowInstance, hook: string) =>
+  instance.exec<boolean>(
+    `return !document.querySelector('[data-testid="' + arguments[0] + '"]')`,
+    [hook],
+  )
+
+/** Clicks in the page itself: an open dialog of a waiting transfer keeps pointer clicks out. */
+const pageClick = (instance: FlowInstance, hook: string) =>
+  instance.exec<boolean>(
+    `const el = document.querySelector('[data-testid="' + arguments[0] + '"]')
+     if (el) el.click()
+     return Boolean(el)`,
+    [hook],
   )
 
 const toastText = (instance: FlowInstance) =>
@@ -91,5 +108,96 @@ scenario(
       ),
       false,
     )
+  },
+)
+
+// Spec 064 US2 (T045), quickstart Linux 3: the root has no button; with a copy onto the stick
+// waiting, the button asks first and a no keeps it mounted; with a file of it open in the viewer,
+// the button unmounts it and says so.
+scenario(
+  'files-drives-eject',
+  { needs: { udisks: true }, timeoutMs: 180_000 },
+  async (ctx) => {
+    const stick = makeStick('E2EAUSWURF')
+    const files = deviceFiles('haex-eject-')
+    let device: string | null = null
+    ctx.onTeardown(() => {
+      if (device) detach(device)
+      stick.remove()
+      files.remove()
+    })
+    files.write('notiz.txt', 'neu')
+
+    const instance = await ctx.startInstance()
+    await createAndUnlock(instance, { name: 'e2e-files-drives-eject' })
+    await runAction(instance, 'wm.app.open', {
+      appId: 'system.files',
+      at: `/device?p=${encodeURIComponent(files.folder)}`,
+    })
+    await instance.waitForDisplayed('files-entry-notiz.txt')
+
+    device = attach(stick.file)
+    const row = await ctx.waitFor('the stick in the sidebar', () =>
+      driveRow(instance, 'E2EAUSWURF'),
+    )
+    assert.ok(row)
+
+    // The root is the system's: no button (FR-008).
+    const sources = unwrap<{ drives: { id: string; path: string | null }[] }>(
+      'files_sources',
+      await instance.invoke('files_sources', {}),
+    )
+    const root = sources.drives.find((drive) => drive.path === '/')
+    if (root) {
+      assert.ok(
+        await instance.exec<boolean>(
+          `return !document.querySelector('[data-testid^="files-drive-eject-' + arguments[0] + '-"]')`,
+          [root.id],
+        ),
+        'no button for the root',
+      )
+    }
+    ctx.step('the root has no button')
+
+    // A copy onto the stick waits at a taken name: the button asks, and a no changes nothing.
+    await contextMenu(instance, 'files-entry-notiz.txt')
+    await instance.click('files-menu-copy')
+    await instance.click(row)
+    const mounted = await ctx.waitFor('the stick mounted', () =>
+      device ? mountPointOf(device) : null,
+    )
+    assert.ok(mounted)
+    writeOnDrive(mounted, 'notiz.txt', 'alt')
+    writeOnDrive(mounted, 'lies.txt', 'vom Stick')
+    await instance.waitForDisplayed('files-entry-lies.txt', 15_000)
+    await instance.click('files-action-paste')
+    await instance.waitForDisplayed('files-conflict')
+    const eject = row.replace('files-drive-', 'files-drive-eject-')
+    assert.ok(await pageClick(instance, eject))
+    await instance.waitForDisplayed('files-drive-release-confirm')
+    assert.ok(await pageClick(instance, 'files-drive-release-cancel'))
+    await ctx.waitFor('the question closed', () =>
+      gone(instance, 'files-drive-release-confirm'),
+    )
+    await instance.click('files-conflict-cancel')
+    await ctx.waitFor('the copy to end', () =>
+      gone(instance, 'files-transfers'),
+    )
+    assert.equal(mountPointOf(device), mounted, 'a no keeps it mounted')
+    ctx.step('running transfers: asked, no keeps it')
+
+    // A file of it open in the viewer does not hold it: haex lets go first (FR-009).
+    await doubleClick(instance, 'files-entry-lies.txt')
+    await instance.waitForDisplayed('files-viewer-text')
+    await instance.click(eject)
+    await ctx.waitFor('the stick unmounted', () =>
+      device ? mountPointOf(device) === null : false,
+    )
+    await ctx.waitFor('the notice', async () =>
+      /kann abgezogen werden|ausgehängt|can be removed|unmounted/.test(
+        await toastText(instance),
+      ),
+    )
+    ctx.step('ejected with a file open')
   },
 )
