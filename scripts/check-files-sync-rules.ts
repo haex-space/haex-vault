@@ -1,5 +1,6 @@
 // Part of `pnpm check:files` (spec 061, T033): defaults of a new sync rule, the interval, the shown
-// state, the hints of the dialog and the paths of the folder picker.
+// state, the hints of the dialog, the paths of the folder picker, the groups of a preview and the
+// log depth.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
@@ -11,6 +12,8 @@ import {
   intervalSecs,
   lastName,
   needsDecryptConsent,
+  parseLogDepth,
+  planGroups,
   progressShare,
   sortRules,
   type RuleRow,
@@ -171,4 +174,30 @@ test('the filter needs every word in the name or the places', () => {
     ['Dokumente'],
   )
   assert.equal(filterRules(rows, 'nichts').length, 0)
+})
+
+test('a preview lists its steps by action, in a fixed order, without empty groups', () => {
+  const groups = planGroups([
+    { action: 'copy', path: 'b' },
+    { action: 'delete', path: 'c' },
+    { action: 'copy', path: 'a' },
+    { action: 'move', path: 'd' },
+  ] as const)
+  assert.deepEqual(
+    groups.map((group) => [group.action, group.steps.map((s) => s.path)]),
+    [
+      ['move', ['d']],
+      ['copy', ['b', 'a']],
+      ['delete', ['c']],
+    ],
+  )
+})
+
+test('the log depth is a whole number from 0 to 100 (FR-044)', () => {
+  assert.equal(parseLogDepth('0'), 0)
+  assert.equal(parseLogDepth(' 25 '), 25)
+  assert.equal(parseLogDepth('100'), 100)
+  for (const bad of ['', '101', '-1', '2.5', 'zehn', '1000']) {
+    assert.equal(parseLogDepth(bad), null, bad)
+  }
 })

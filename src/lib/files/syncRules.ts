@@ -1,5 +1,6 @@
 // Sync rules in the window (spec 061): defaults of a new rule, the interval in minutes, the
-// state a rule shows, the hints of the dialog, and the paths of the folder picker. Pure, so
+// state a rule shows, the hints of the dialog, the paths of the folder picker, the groups of a
+// preview and the log depth. Pure, so
 // `scripts/check-files-sync-rules.ts` checks it; no bindings with nested imports (typecheck:scripts).
 
 export type SyncDirection = 'aToB' | 'bToA' | 'both'
@@ -191,4 +192,36 @@ export function canSave(input: {
     input.hasB &&
     (!input.needsConsent || input.consent)
   )
+}
+
+/** The actions of a preview in the order the window lists them. */
+export const PLAN_ACTIONS = [
+  'folder',
+  'move',
+  'conflictCopy',
+  'copy',
+  'adopt',
+  'delete',
+  'pending',
+  'keep',
+  'deviation',
+] as const
+export type PlanAction = (typeof PLAN_ACTIONS)[number]
+
+/** The steps of a preview grouped by action, in the order of `PLAN_ACTIONS`; empty groups left out. */
+export function planGroups<T extends { action: PlanAction }>(
+  steps: readonly T[],
+): { action: PlanAction; steps: T[] }[] {
+  return PLAN_ACTIONS.map((action) => ({
+    action,
+    steps: steps.filter((step) => step.action === action),
+  })).filter((group) => group.steps.length > 0)
+}
+
+/** The log depth of the setting (FR-044): a whole number from 0 to 100, or `null`. */
+export function parseLogDepth(text: string): number | null {
+  const trimmed = text.trim()
+  if (!/^\d{1,3}$/.test(trimmed)) return null
+  const depth = Number(trimmed)
+  return depth <= 100 ? depth : null
 }
