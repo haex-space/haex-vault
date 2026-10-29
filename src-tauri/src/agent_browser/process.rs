@@ -60,6 +60,12 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
     }
     if headless {
         args.push("--headless=new".into());
+        // Headless Linux integration tests run under CI's AppArmor profile, which blocks
+        // unprivileged user namespaces. Production launches are not headless and keep Chromium's
+        // sandbox enabled.
+        if matches!(os, Os::Linux) {
+            args.push("--no-sandbox".into());
+        }
     }
     args.push("about:blank".into());
     args

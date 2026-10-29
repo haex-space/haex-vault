@@ -34,6 +34,10 @@ eine GET-Anfrage den Zustand der Website ändern kann.
 `tab` ist eine von holzi vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des
 Browsers.
 
+`browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
+Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
+als auch das Wiederholungsfeld.
+
 ## Seite
 
 ```json
