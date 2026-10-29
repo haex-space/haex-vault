@@ -35,6 +35,7 @@ Ablage und Vorrang: Nummerierte `specs/`-Artefakte einschließlich ihrer Verträ
 | 052: Zugangsdaten der Cloud-Speicher aus dem Passwortmanager wählen (`specs/052-storage-credentials-picker/`) | P2 | M | Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-14; Lieferungen PR A–D | 034, 038 und 050 im Einsatz |
 | 053: Austauschbare Icon-Sets für den Dateibrowser (`specs/053-file-icon-sets/`) | P2 | L | Spezifiziert, geplant und umgesetzt 2026-10-15 (PR A–D); offen nur die Handprüfung T065 | 044, 023 und 024 im Einsatz |
 | 021: holzi als MCP-Server für externe Agenten (`specs/021-mcp-server/`) | P1 | L | Spezifiziert, geklärt und geplant 2026-10-26 (Lieferungen PR A–G); Grundlage für Browser-Werkzeuge | 020, 023, 032, 018, 034 und 044 im Einsatz |
+| 068: Orchestrator und Modell-Routing (`specs/068-task-orchestration/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–G); ADR-0021 | 032, 012, 007/009, 055 im Einsatz |
 | 067: Meeting-Mitschrift mit Sprecherzuordnung (`specs/067-meeting-transcription/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–G) | 066 PR B–D umgesetzt; PR E nach 066 PR G |
 
 Legende: Priorität `P1` (höchste) – `P3` (nachrangig); Aufwand `S` (klein), `M` (mittel), `L` (groß).
