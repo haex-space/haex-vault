@@ -6,7 +6,7 @@ import type { SyncRulePlace } from "./SyncRulePlace";
 /**
  * What the user sets on a rule.
  */
-export type SyncRuleDraft = { name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean, 
+export type SyncRuleDraft = { name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
 /**
  * The user agreed that files of an encrypted place A are stored decrypted at B (FR-030a).
  */

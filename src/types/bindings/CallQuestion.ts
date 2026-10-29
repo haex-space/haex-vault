@@ -5,15 +5,15 @@ import type { CallTitles } from "./CallTitles";
 /**
  * What a call prompt shows (FR-022).
  */
-export type CallQuestion = { agentId: string, 
+export type CallQuestion = { agentId: string,
 /**
  * The agent's own claim, never checked.
  */
-clientName: string, actionId: string, titles: CallTitles, effect: CallEffect, target: string | null, 
+clientName: string, actionId: string, titles: CallTitles, effect: CallEffect, target: string | null,
 /**
  * The inputs without secrets (`redact.rs`).
  */
-input: Record<string, unknown>, 
+input: Record<string, unknown>,
 /**
  * The answer hands a secret to the agent and its provider.
  */
