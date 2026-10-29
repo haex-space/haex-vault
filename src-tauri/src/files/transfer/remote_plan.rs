@@ -46,6 +46,9 @@ pub struct RemoteJob {
     pub to: Side,
     /// The folder they go into: a device path or a storage's window path.
     pub target: String,
+    /// The caller knows the names at the target are free (a sync run just listed it), so a file
+    /// sent to a storage is not looked for there first. A transfer the user started asks.
+    pub known_free: bool,
 }
 
 /// What goes where.

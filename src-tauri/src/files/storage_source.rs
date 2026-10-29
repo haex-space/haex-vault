@@ -170,6 +170,17 @@ fn folder_entry(prefix: &str) -> Entry {
     }
 }
 
+/// The most keys one flat listing holds; a storage with more is walked folder by folder.
+const MAX_FLAT: usize = 200_000;
+
+/// What a flat listing found below a folder, by path relative to it.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct FlatTree {
+    pub folders: std::collections::BTreeSet<String>,
+    /// Size and modified time (ms) of each file.
+    pub files: std::collections::BTreeMap<String, (u64, i64)>,
+}
+
 /// The files of one storage. With a [`Scope`] (the window) paths go through encrypted folders by
 /// their decrypted names (spec 048, [`route`]); without one such paths are refused. On a server
 /// with real folders (WebDAV, SFTP; spec 050) finding, renaming and deleting an entry go their own
@@ -237,6 +248,59 @@ impl StorageFiles {
             )
         });
         Ok(folders.chain(files).collect())
+    }
+
+    /// Everything below `path` in as few requests as the protocol allows: on S3 one request per
+    /// page of keys instead of one per folder. `None` when the shortcut does not apply (another
+    /// protocol, a path or a key through an encrypted folder, an odd key, more keys than
+    /// [`MAX_FLAT`]); the caller then walks the folders.
+    pub async fn list_flat(&self, path: &str) -> Result<Option<FlatTree>, FilesError> {
+        if self.access.location.is_tree() {
+            return Ok(None);
+        }
+        if let Route::Encrypted(_) = route(self, path).await? {
+            return Ok(None);
+        }
+        let prefix = folder_prefix(path)?;
+        let objects = match self
+            .store
+            .list(&self.access, &prefix, MAX_FLAT, soon())
+            .await
+        {
+            Ok(objects) => objects,
+            Err(StorageError::TooLarge) => return Ok(None),
+            Err(error) => return Err(storage_error(error)),
+        };
+        let mut tree = FlatTree::default();
+        for object in objects {
+            let Some(rel) = object.key.strip_prefix(prefix.as_str()) else {
+                continue;
+            };
+            if rel.is_empty() {
+                continue;
+            }
+            let marker = rel.ends_with('/');
+            let names: Vec<&str> = rel.trim_end_matches('/').split('/').collect();
+            if names.iter().any(|name| {
+                name.is_empty() || crate::files::encrypted::format::is_folder_prefix(name)
+            }) {
+                return Ok(None);
+            }
+            let folders = if marker { names.len() } else { names.len() - 1 };
+            for depth in 1..=folders {
+                tree.folders.insert(names[..depth].join("/"));
+            }
+            if !marker {
+                tree.files.insert(
+                    names.join("/"),
+                    (
+                        object.size,
+                        parse_iso_ms(&object.last_modified).unwrap_or(0),
+                    ),
+                );
+            }
+        }
+        Ok(Some(tree))
     }
 
     /// Whether anything lies under `prefix` (a folder exists as long as it has a marker or

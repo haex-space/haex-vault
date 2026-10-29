@@ -31,6 +31,7 @@ async fn run(one: OneTransferOwned) -> Outcome {
                 to: &one.to,
                 folder: &one.folder,
                 replaces: one.replaces,
+                known_free: one.known_free,
                 decrypts: false,
             },
             &handle,
@@ -49,6 +50,7 @@ struct OneTransferOwned {
     to: Side,
     folder: String,
     replaces: bool,
+    known_free: bool,
 }
 
 fn device_copy(from: &std::path::Path, to: &std::path::Path, replaces: bool) -> OneTransferOwned {
@@ -59,6 +61,7 @@ fn device_copy(from: &std::path::Path, to: &std::path::Path, replaces: bool) -> 
         to: Side::Device,
         folder: to.to_string_lossy().into_owned(),
         replaces,
+        known_free: false,
     }
 }
 
@@ -110,6 +113,7 @@ fn upload(source: &std::path::Path, fake: &Arc<FakeStore>, replaces: bool) -> On
         to: Side::Storage(Arc::new(StorageFiles::new(fake.clone(), access(BUCKET)))),
         folder: "/".to_owned(),
         replaces,
+        known_free: false,
     }
 }
 
@@ -140,4 +144,33 @@ async fn a_peer_version_conflict_after_a_planned_replace_is_reported() {
     };
     assert_eq!(error.code, FilesErrorCode::Conflict);
     assert_eq!(fake.object(BUCKET, "a.txt").as_deref(), Some(&b"alt"[..]));
+}
+
+fn heads(fake: &Arc<FakeStore>) -> usize {
+    fake.calls()
+        .iter()
+        .filter(|(op, _)| *op == Op::Head)
+        .count()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_upload_asks_the_storage_for_the_name_first() {
+    let (_dir, real) = folder();
+    std::fs::write(real.join("a.txt"), "neu").unwrap();
+    let fake = Arc::new(FakeStore::new());
+    let outcome = run(upload(&real.join("a.txt"), &fake, false)).await;
+    assert_eq!(outcome, Outcome::Done);
+    assert_eq!(heads(&fake), 1, "{:?}", fake.calls());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_upload_into_a_listed_target_does_not_ask_the_storage_first() {
+    let (_dir, real) = folder();
+    std::fs::write(real.join("a.txt"), "neu").unwrap();
+    let fake = Arc::new(FakeStore::new());
+    let mut one = upload(&real.join("a.txt"), &fake, false);
+    one.known_free = true;
+    assert_eq!(run(one).await, Outcome::Done);
+    assert_eq!(heads(&fake), 0, "{:?}", fake.calls());
+    assert_eq!(fake.object(BUCKET, "a.txt").as_deref(), Some(&b"neu"[..]));
 }

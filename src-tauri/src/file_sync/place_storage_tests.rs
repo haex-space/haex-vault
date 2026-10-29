@@ -185,3 +185,23 @@ async fn stat_and_delete() {
     assert_eq!(p.stat("a.jpg").await.unwrap(), None);
     assert_eq!(p.full_path("2026/b.jpg"), "/Fotos/2026/b.jpg");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tree_is_listed_in_one_request_and_its_folders_are_prefixes() {
+    let fake = filled();
+    let p = place(&fake, "/");
+    assert!(!p.implies_folders(), "before a listing nothing is known");
+    let listing = p.list_tree(&CancellationToken::new()).await.unwrap();
+    assert_eq!(
+        listing.folders.iter().collect::<Vec<_>>(),
+        ["Fotos", "Fotos/2026", "Musik"]
+    );
+    let ops: Vec<Op> = fake.calls().into_iter().map(|(op, _)| op).collect();
+    assert!(!ops.contains(&Op::ListDir), "{ops:?}");
+    assert_eq!(
+        ops.iter().filter(|op| **op == Op::List).count(),
+        1,
+        "{ops:?}"
+    );
+    assert!(p.implies_folders());
+}

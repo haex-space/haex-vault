@@ -69,6 +69,7 @@ async fn plan(scene: &Scene, sources: &[&str], to: Side, target: &str) -> Plan {
         sources: sources.iter().map(|s| (*s).to_owned()).collect(),
         to,
         target: target.to_owned(),
+        known_free: false,
     };
     tokio::task::spawn_blocking(move || {
         prepare_remote(&job, &tokio::runtime::Handle::current(), |_| None).unwrap()

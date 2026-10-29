@@ -312,6 +312,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             sources,
             to,
             target,
+            known_free: false,
         };
         let report = blocking(move || {
             let handle = tokio::runtime::Handle::current();

@@ -123,6 +123,7 @@ pub async fn transfer(
         sources: sources.to_vec(),
         to,
         target: target.to_owned(),
+        known_free: false,
     };
     tokio::task::spawn_blocking(move || {
         let handle = tokio::runtime::Handle::current();

@@ -30,6 +30,9 @@ pub struct OneTransfer<'a> {
     pub folder: &'a str,
     /// Whether the plan expects an entry of that name in `folder`.
     pub replaces: bool,
+    /// The caller listed `folder` for this run: a name the plan does not expect there is taken as
+    /// free, and a storage is not asked first. A caller that did not list it passes `false`.
+    pub known_free: bool,
     /// Whether the user agreed that files of an encrypted folder are stored decrypted at the
     /// target (spec 048 FR-019, spec 061 FR-030a).
     pub decrypts: bool,
@@ -51,6 +54,7 @@ pub fn transfer_one(
         to,
         folder,
         replaces,
+        known_free,
         decrypts,
     } = *one;
     let mut asked = 0u32;
@@ -89,6 +93,7 @@ pub fn transfer_one(
                 sources: vec![path.to_owned()],
                 to: to.clone(),
                 target: folder.to_owned(),
+                known_free,
             };
             match prepare_remote(&job, handle, free_space) {
                 Ok(plan) if plan.leaving() > 0 && !decrypts => Outcome::Failed(FilesError::new(
