@@ -139,6 +139,15 @@ mod desktop {
                 watch.frame.is_some() || allowed(*extension_id, &watch.root)
             });
         }
+
+        /// Ends every watch of a folder at or below `prefix`, also one a dialog choice allowed,
+        /// before a drive is released (spec 064 research R9); returns how many ended.
+        pub fn end_under(&self, prefix: &Path) -> usize {
+            let mut map = self.map();
+            let before = map.len();
+            map.retain(|_, watch| !watch.root.starts_with(prefix));
+            before - map.len()
+        }
     }
 
     /// `path` below `root` as the SDK reports it; a path outside the watched folder, or inside the
@@ -164,6 +173,9 @@ impl Watches {
     pub fn end_frame(&self, _frame: &str) {}
     pub fn end_all(&self, _extension_id: uuid::Uuid) {}
     pub fn end_unless(&self, _allowed: impl Fn(uuid::Uuid, &std::path::Path) -> bool) {}
+    pub fn end_under(&self, _prefix: &std::path::Path) -> usize {
+        0
+    }
 }
 
 /// `{ruleId, path}`: watches the folder and everything below it; a watch with the same `ruleId`

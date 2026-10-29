@@ -12,6 +12,7 @@ mod remote_plan_encrypted;
 pub mod sync_copy;
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -26,7 +27,7 @@ use crate::files::{FilesError, FilesErrorCode};
 use crate::vault_gate::VaultGate;
 use local::{Hooks, Job, Outcome, Removal, Totals};
 use pause::Pause;
-use remote::{Plan, RemoteJob};
+use remote::{Plan, RemoteJob, Side};
 
 /// What a transfer does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -154,6 +155,29 @@ impl Work {
             Self::Remote { job, .. } => job.op,
         }
     }
+
+    /// Whether it reads or writes this device at or below `prefix` (spec 064 FR-010).
+    fn touches(&self, prefix: &Path) -> bool {
+        match self {
+            Self::Local { job, .. } => local_touches(job, prefix),
+            Self::StorageDelete { .. } => false,
+            Self::Remote { job, .. } => remote_touches(job, prefix),
+        }
+    }
+}
+
+fn local_touches(job: &Job, prefix: &Path) -> bool {
+    job.sources
+        .iter()
+        .chain(&job.target)
+        .any(|path| path.starts_with(prefix))
+}
+
+/// Only the device ends count: a storage's window paths are not paths of this device.
+fn remote_touches(job: &RemoteJob, prefix: &Path) -> bool {
+    let under = |path: &str| Path::new(path).starts_with(prefix);
+    (matches!(job.from, Side::Device) && job.sources.iter().any(|path| under(path)))
+        || (matches!(job.to, Side::Device) && under(&job.target))
 }
 
 /// A transfer the manager knows: running, or failed and able to start again.
@@ -163,6 +187,8 @@ struct Known {
     cancel: CancellationToken,
     pause: Pause,
     answers: Sender<(TransferAnswer, bool)>,
+    /// Turns true when its worker has ended (also when it failed and waits for a retry).
+    done: tokio::sync::watch::Receiver<bool>,
 }
 
 /// The transfers of this session; a Tauri managed state.
@@ -239,6 +265,7 @@ impl TransferManager {
         let cancel = gate.token().child_token();
         let pause = Pause::default();
         let (answers, answered) = mpsc::channel();
+        let (ended, done) = tokio::sync::watch::channel(false);
         self.known().insert(
             id.to_owned(),
             Known {
@@ -247,6 +274,7 @@ impl TransferManager {
                 cancel: cancel.clone(),
                 pause: pause.clone(),
                 answers,
+                done,
             },
         );
         let manager = self.clone();
@@ -261,6 +289,7 @@ impl TransferManager {
                     let outcome =
                         work_local(&job, &totals, removal, &cancel, &pause, &channel, &answered);
                     manager.finish(&owned_id, outcome, &channel);
+                    ended.send_replace(true);
                 })
                 .map(drop),
             Work::Remote { job, plan } => gate
@@ -284,12 +313,14 @@ impl TransferManager {
                         Outcome::Cancelled
                     };
                     manager.finish(&owned_id, outcome, &channel);
+                    ended.send_replace(true);
                 })
                 .map(drop),
             Work::StorageDelete { files, paths } => gate
                 .spawn(async move {
                     let outcome = delete_on_storage(&files, &paths, &cancel, &channel).await;
                     manager.finish(&owned_id, outcome, &channel);
+                    ended.send_replace(true);
                 })
                 .map(drop),
         };
@@ -304,16 +335,20 @@ impl TransferManager {
         Ok(())
     }
 
-    /// Reports the end; a failed transfer stays known for [`Self::retry`].
+    /// Reports the end; a failed transfer stays known for [`Self::retry`] unless it was cancelled.
     fn finish(&self, id: &str, outcome: Outcome, channel: &Channel<TransferEvent>) {
         let event = match outcome {
             Outcome::Done => TransferEvent::Done,
             Outcome::Cancelled => TransferEvent::Cancelled,
             Outcome::Failed(error) => TransferEvent::Failed { error },
         };
-        if !matches!(event, TransferEvent::Failed { .. }) {
-            self.known().remove(id);
+        let mut known = self.known();
+        let keep = matches!(event, TransferEvent::Failed { .. })
+            && known.get(id).is_some_and(|job| !job.cancel.is_cancelled());
+        if !keep {
+            known.remove(id);
         }
+        drop(known);
         let _ = channel.send(event);
     }
 
@@ -324,11 +359,46 @@ impl TransferManager {
         }
     }
 
-    /// Cancels a running transfer, or forgets a failed one.
+    /// Cancels a running transfer, or forgets a failed one. A running one stays known until its
+    /// worker has ended, so [`Self::cancel_touching`] can wait for it.
     pub fn cancel(&self, id: &str) {
-        if let Some(known) = self.known().remove(id) {
-            known.cancel.cancel();
+        let mut known = self.known();
+        let Some(job) = known.get(id) else { return };
+        if *job.done.borrow() {
+            known.remove(id);
+        } else {
+            job.cancel.cancel();
         }
+    }
+
+    /// The running transfers that read or write this device at or below `prefix` (spec 064
+    /// FR-010).
+    pub fn touching(&self, prefix: &Path) -> Vec<String> {
+        self.known()
+            .iter()
+            .filter(|(_, job)| !*job.done.borrow() && job.work.touches(prefix))
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Cancels the running transfers at or below `prefix` and waits until their workers have
+    /// ended, so none holds a file of a drive that is released next; returns how many.
+    pub async fn cancel_touching(&self, prefix: &Path) -> usize {
+        let ending: Vec<_> = self
+            .known()
+            .values()
+            .filter(|job| !*job.done.borrow() && job.work.touches(prefix))
+            .map(|job| {
+                job.cancel.cancel();
+                job.done.clone()
+            })
+            .collect();
+        let count = ending.len();
+        for mut done in ending {
+            // An error means the worker is gone without a word (it panicked): ended as well.
+            let _ = done.wait_for(|ended| *ended).await;
+        }
+        count
     }
 
     /// Holds a running transfer between two chunks, or lets it go on; tells the window.
@@ -501,3 +571,7 @@ pub fn same_device(a: &std::path::Path, b: &std::path::Path) -> bool {
 #[cfg(test)]
 #[path = "pause_tests.rs"]
 mod pause_tests;
+
+#[cfg(test)]
+#[path = "release_tests.rs"]
+mod release_tests;

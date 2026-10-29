@@ -10,8 +10,10 @@ use zbus::fdo::ManagedObjects;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use super::backend::{DriveBackend, DriveError, UnlockMode};
-use super::udisks_classify::{classify, BlockProps, DriveProps, EncProps, FsProps, UdisksObject};
-use super::{space, Drive, DriveState};
+use super::udisks_classify::{
+    classify, release_steps, BlockProps, DriveProps, EncProps, FsProps, Power, UdisksObject,
+};
+use super::{space, Drive, DriveRelease, DriveState};
 
 const SERVICE: &str = "org.freedesktop.UDisks2";
 const ROOT: &str = "/org/freedesktop/UDisks2";
@@ -51,6 +53,18 @@ impl UdisksBackend {
         Proxy::new(&self.connection, SERVICE, path.to_owned(), interface).map_err(from_zbus)
     }
 
+    /// Calls a method of udisks2 that takes only options and answers nothing.
+    fn invoke(
+        &self,
+        path: &str,
+        interface: &'static str,
+        method: &'static str,
+    ) -> Result<(), DriveError> {
+        self.proxy(path, interface)?
+            .call(method, &(no_options(),))
+            .map_err(from_zbus)
+    }
+
     /// The listed drive with `id`, so a window can only act on what the list showed.
     fn listed(&self, id: &str) -> Result<Drive, DriveError> {
         self.list()?
@@ -82,6 +96,32 @@ impl DriveBackend for UdisksBackend {
                 .call("Mount", &(no_options(),))
                 .map_err(from_zbus),
         }
+    }
+
+    fn release(&self, id: &str) -> Result<bool, DriveError> {
+        let objects = self.objects()?;
+        let drive = classify(&objects)
+            .into_iter()
+            .find(|drive| drive.id == id)
+            .ok_or(DriveError::Gone)?;
+        if drive.release == DriveRelease::None {
+            return Err(DriveError::Unsupported);
+        }
+        let steps = release_steps(&objects, &drive).ok_or(DriveError::Gone)?;
+        self.invoke(&steps.unmount, FILESYSTEM, "Unmount")?;
+        if let Some(block) = &steps.lock {
+            self.invoke(block, ENCRYPTED, "Lock")?;
+        }
+        let switched = match &steps.power {
+            Some(Power::Off(path)) => self.invoke(path, DRIVE, "PowerOff"),
+            Some(Power::Eject(path)) => self.invoke(path, DRIVE, "Eject"),
+            None => return Ok(false),
+        };
+        // Unmounted and written out, the drive may be pulled even when switching it off failed;
+        // the window then says it is unmounted instead.
+        Ok(switched
+            .inspect_err(|error| log::warn!("files: switching off a drive failed: {error:?}"))
+            .is_ok())
     }
 
     fn unlock_mode(&self) -> UnlockMode {
@@ -153,6 +193,8 @@ pub fn to_objects(managed: ManagedObjects) -> Vec<UdisksObject> {
                 }),
                 drive: interfaces.get(DRIVE).map(|props| DriveProps {
                     removable: flag(props, "Removable"),
+                    can_power_off: flag(props, "CanPowerOff"),
+                    ejectable: flag(props, "Ejectable"),
                 }),
             }
         })

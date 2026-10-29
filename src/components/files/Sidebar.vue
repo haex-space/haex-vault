@@ -32,6 +32,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   pick: [path: string]
   pickDrive: [drive: Drive]
+  releaseDrive: [drive: Drive]
   pickStorage: [id: string]
   pickSyncRules: []
   addStorage: []
@@ -74,6 +75,13 @@ function driveIcon(drive: Drive): string {
   if (props.busy.has(drive.id)) return 'lucide:loader-circle'
   if (drive.state === 'locked') return 'lucide:lock'
   return drive.kind === 'removable' ? 'lucide:usb' : 'lucide:hard-drive'
+}
+
+/** "Auswerfen" for a removable drive, "Aushängen" for an internal one (contracts/ui.md). */
+function releaseTitle(drive: Drive): string {
+  return t(
+    drive.release === 'eject' ? 'files.drives.eject' : 'files.drives.unmount',
+  )
 }
 
 function isCurrent(drive: Drive): boolean {
@@ -152,10 +160,10 @@ const PLACE_ICONS: Record<string, string> = {
         {{ t('files.sidebar.drives') }}
       </h2>
       <ul>
-        <li v-for="drive in drives" :key="drive.id">
+        <li v-for="drive in drives" :key="drive.id" class="flex items-center">
           <button
             type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-wait"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-wait"
             :class="[
               isCurrent(drive) ? 'bg-accent font-medium' : '',
               drive.state === 'mounted' ? '' : 'text-muted-foreground',
@@ -198,6 +206,17 @@ const PLACE_ICONS: Record<string, string> = {
                 t('files.sidebar.free', { size: formatFileSize(drive.free) })
               }}
             </span>
+          </button>
+          <button
+            v-if="drive.release !== 'none' && !busy.has(drive.id)"
+            type="button"
+            class="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            :title="releaseTitle(drive)"
+            :aria-label="`${releaseTitle(drive)}: ${nameOf(drive)}`"
+            :data-testid="`files-drive-eject-${drive.id}-${drive.label ?? drive.id}`"
+            @click="emit('releaseDrive', drive)"
+          >
+            <Icon name="lucide:arrow-up-from-line" class="size-4" />
           </button>
         </li>
       </ul>

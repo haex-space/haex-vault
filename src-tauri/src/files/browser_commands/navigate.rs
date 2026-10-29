@@ -248,6 +248,7 @@ pub async fn files_watch(
         };
     #[cfg(not(target_os = "ios"))]
     {
+        let root = real.clone();
         let watch = crate::files::local::watch::watch_folder(&real, recursive, move |changes| {
             let Some((storage, view, open)) = &report else {
                 let paths = changes
@@ -272,7 +273,7 @@ pub async fn files_watch(
             );
             FilesError::new(FilesErrorCode::Unsupported, "this folder cannot be watched")
         })?;
-        Ok(files.keep_watch(watch))
+        Ok(files.keep_watch(root, watch))
     }
     #[cfg(target_os = "ios")]
     {
