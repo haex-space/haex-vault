@@ -168,16 +168,17 @@ impl Connection {
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (reply, answer) = oneshot::channel();
-        let mut pending = self
-            .shared
-            .pending
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if self.is_closed() {
-            return Err(BrowserError::Unavailable("the browser ended".to_owned()));
+        {
+            let mut pending = self
+                .shared
+                .pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if self.is_closed() {
+                return Err(BrowserError::Unavailable("the browser ended".to_owned()));
+            }
+            pending.insert(id, reply);
         }
-        pending.insert(id, reply);
-        drop(pending);
         let _waiting = Waiting {
             shared: &self.shared,
             id,
