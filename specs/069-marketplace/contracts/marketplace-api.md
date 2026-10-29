@@ -110,10 +110,11 @@ Statuscode oder Fehlerart; niemals Antworttext, vollständige URL, Anfragekopfze
 
 ## Bilder
 
-`iconUrl` lädt der Host (R12): ohne Zugangsdaten, `image/png|jpeg|webp`, ≤ 256 KiB
-(Symbole) bzw. ≤ 1 MiB (Screenshots), **kein SVG**. Eine URL auf dem konfigurierten Marketplace-Origin
-ist erlaubt. Eine URL auf einem anderen Origin muss `https` und öffentlich routbar sein; private,
-reservierte, Loopback-, Link-Local-, Multicast- und nicht spezifizierte IP-Adressen sind gesperrt.
-Weiterleitungen werden einzeln nach denselben Regeln geprüft und dürfen nicht von `https` auf `http`
-wechseln. DNS-Adressen werden für die Verbindung validiert und festgehalten, damit die Prüfung nicht
-durch DNS-Rebinding umgangen wird.
+`iconUrl` lädt der Host (R12): ohne Zugangsdaten, nur `http` oder `https`, `image/png|jpeg|webp`, ≤
+256 KiB (Symbole) bzw. ≤ 1 MiB (Screenshots), **kein SVG**. Jedes Ziel muss öffentlich routbar sein,
+auch wenn es auf dem konfigurierten Marketplace-Origin liegt. Private, reservierte, Loopback-,
+Link-Local-, Multicast- und nicht spezifizierte IP-Adressen sind gesperrt. Eine URL auf einem
+anderen Origin muss `https` sein. Der öffentliche Speicher `api.marketplace.haex.space` bleibt
+zulässig. Weiterleitungen werden einzeln nach denselben Regeln geprüft und dürfen nicht von `https`
+auf `http` wechseln. DNS-Adressen werden für die Verbindung validiert und festgehalten, damit die
+Prüfung nicht durch DNS-Rebinding umgangen wird.
