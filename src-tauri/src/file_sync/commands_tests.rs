@@ -13,6 +13,7 @@ use super::*;
 use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection, SyncRulePlace};
 use crate::file_sync::status::SyncRuleState;
 use crate::files::SourceRef;
+use crate::files::{FilesError, FilesErrorCode};
 use crate::remote_storage::test_support::vault;
 
 const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
@@ -50,6 +51,15 @@ fn draft(a: &str, b: &str) -> SyncRuleDraft {
         enabled: true,
         allow_decrypted: false,
     }
+}
+
+#[test]
+fn no_access_on_a_read_is_not_reported_as_read_only() {
+    let read = place_error(FilesError::new(FilesErrorCode::NoAccess, "cannot read"));
+    assert_eq!(read.code, SyncRuleErrorCode::PlaceError);
+
+    let write = place_error(FilesError::new(FilesErrorCode::ReadOnly, "cannot write"));
+    assert_eq!(write.code, SyncRuleErrorCode::ReadOnly);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -131,4 +141,70 @@ async fn the_waiting_deletions_of_an_unknown_rule_are_not_found() {
         .await
         .unwrap()
         .is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_log_depth_is_checked_and_the_runs_belong_to_a_known_rule() {
+    let (_dir, db) = setup();
+    assert_eq!(log_depth(&db, DEVICE).await.unwrap(), 10);
+    let error = set_log_depth(&db, DEVICE, 101).await.unwrap_err();
+    assert_eq!(error.code, SyncRuleErrorCode::InvalidDepth);
+    set_log_depth(&db, DEVICE, 0).await.unwrap();
+    assert_eq!(log_depth(&db, DEVICE).await.unwrap(), 0);
+    let error = runs(&db, DEVICE, "nope").await.unwrap_err();
+    assert_eq!(error.code, SyncRuleErrorCode::NotFound);
+    assert!(run_items(&db, DEVICE, "nope", 0, 10)
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_preview_keeps_the_state_unless_the_draft_moves_the_places() {
+    let (_dir, db) = setup();
+    let rule = create(&db, DEVICE, &own(), draft("/home/a", "/home/b"))
+        .await
+        .unwrap();
+    let row = store::StateRow {
+        path: "x.txt".to_owned(),
+        a: None,
+        b: None,
+        kept: false,
+        hash: None,
+    };
+    let id = rule.id.clone();
+    db.write_blocking(move |tx| {
+        store::put_state(tx, DEVICE, &id, &row)?;
+        Ok(())
+    })
+    .unwrap();
+    let (_, state) = preview_rule(&db, DEVICE, &own(), Some(&rule.id), None)
+        .await
+        .unwrap();
+    assert_eq!(state.len(), 1);
+    let mut renamed = draft("/home/a", "/home/b");
+    renamed.name = "Neu".to_owned();
+    let (previewed, state) = preview_rule(&db, DEVICE, &own(), Some(&rule.id), Some(renamed))
+        .await
+        .unwrap();
+    assert_eq!(previewed.name, "Neu");
+    assert_eq!(state.len(), 1, "a new name keeps the state");
+    let moved = draft("/home/a", "/home/c");
+    let (_, state) = preview_rule(&db, DEVICE, &own(), Some(&rule.id), Some(moved))
+        .await
+        .unwrap();
+    assert!(state.is_empty(), "new places start over");
+    let (fresh, state) = preview_rule(&db, DEVICE, &own(), None, Some(draft("/x", "/y")))
+        .await
+        .unwrap();
+    assert_eq!(fresh.id, "preview");
+    assert!(state.is_empty());
+    let overlap = preview_rule(&db, DEVICE, &own(), None, Some(draft("/home/a/sub", "/z")))
+        .await
+        .unwrap_err();
+    assert_eq!(overlap.code, SyncRuleErrorCode::Overlap);
+    let missing = preview_rule(&db, DEVICE, &own(), None, None)
+        .await
+        .unwrap_err();
+    assert_eq!(missing.code, SyncRuleErrorCode::NotFound);
 }

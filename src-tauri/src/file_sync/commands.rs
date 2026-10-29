@@ -1,18 +1,25 @@
 //! Tauri commands of sync rules (contracts/tauri-commands.md): list, create, change, pause,
-//! delete, run now, stop, and the deletions waiting for the user. The logic lives in the functions without Tauri below them; the
+//! delete, run now, stop, the preview, the exclusion file, the deletions waiting for the user, and
+//! the run log with its depth. The logic lives in the functions without Tauri below them; the
 //! commands only find the vault, the device and the session.
 
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::model::{SyncRule, SyncRuleDraft};
+use super::manage::{self, SyncRuleIgnore, SyncRulePlan};
+use super::model::{SyncRule, SyncRuleDraft, SyncRuleOutcome};
 use super::pending::{self, SyncRulePending, SyncRulePendingChoice};
 use super::rules::{validate, SyncRuleError, SyncRuleErrorCode};
+use super::run_log::{self, SyncRuleRun, SyncRuleRunItem, MAX_LOG_DEPTH};
+use super::scan::ScanError;
 use super::schedule::{Command, Shared};
-use super::service::{open_place, FileSyncState, SyncRulesChanged, SYNC_RULES_CHANGED};
+use super::service::{
+    device_name, open_place, open_place_for, FileSyncState, SyncRulesChanged, SYNC_RULES_CHANGED,
+};
 use super::status::{status_of, SyncRuleFileError, SyncRuleView};
 use super::store;
+use crate::files::access::Want;
 use crate::files::local::OwnPlaces;
 use crate::files::state::FilesState;
 use crate::files::{FilesError, FilesErrorCode};
@@ -179,13 +186,130 @@ pub async fn pending_list(
     pending::list(db, device, id).await.map_err(unavailable)
 }
 
+/// The logged runs of the rule `id` of `device`, the latest first.
+pub async fn runs(db: &VaultDb, device: &str, id: &str) -> Result<Vec<SyncRuleRun>, SyncRuleError> {
+    rule_of(db, device, id).await?;
+    let (device, id) = (device.to_owned(), id.to_owned());
+    db.read(move |r| Ok(run_log::runs(r, &device, &id)))
+        .await
+        .map_err(unavailable)?
+        .map_err(unavailable)
+}
+
+/// Up to `limit` file actions of a logged run of `device`, from `offset` on.
+pub async fn run_items(
+    db: &VaultDb,
+    device: &str,
+    run_id: &str,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<SyncRuleRunItem>, SyncRuleError> {
+    let (device, run_id) = (device.to_owned(), run_id.to_owned());
+    db.read(move |r| Ok(run_log::items(r, &device, &run_id, offset, limit)))
+        .await
+        .map_err(unavailable)?
+        .map_err(unavailable)
+}
+
+/// The log depth of `device`.
+pub async fn log_depth(db: &VaultDb, device: &str) -> Result<u32, SyncRuleError> {
+    let device = device.to_owned();
+    db.read(move |r| Ok(run_log::depth(r, &device)))
+        .await
+        .map_err(unavailable)?
+        .map_err(unavailable)
+}
+
+/// Sets the log depth of `device`; the logs of its rules shrink at once (FR-044).
+pub async fn set_log_depth(db: &VaultDb, device: &str, depth: u32) -> Result<(), SyncRuleError> {
+    if depth > MAX_LOG_DEPTH {
+        return Err(SyncRuleError::new(
+            SyncRuleErrorCode::InvalidDepth,
+            "the log depth lies between 0 and 100",
+        ));
+    }
+    let device = device.to_owned();
+    db.write(move |tx| Ok(run_log::set_depth(tx, &device, depth)?))
+        .await
+        .map_err(unavailable)
+}
+
 fn place_error(error: FilesError) -> SyncRuleError {
     match error.code {
         FilesErrorCode::Unreachable => {
             SyncRuleError::new(SyncRuleErrorCode::Unreachable, error.message)
         }
-        _ => unavailable(error.message),
+        FilesErrorCode::ReadOnly => SyncRuleError::new(SyncRuleErrorCode::ReadOnly, error.message),
+        FilesErrorCode::TooLarge => {
+            SyncRuleError::new(SyncRuleErrorCode::InvalidIgnore, error.message)
+        }
+        _ => SyncRuleError::new(SyncRuleErrorCode::PlaceError, error.message),
     }
+}
+
+fn scan_error(error: ScanError) -> SyncRuleError {
+    match error {
+        ScanError::Unreachable { reason, .. } => {
+            SyncRuleError::new(SyncRuleErrorCode::Unreachable, reason)
+        }
+        ScanError::Failed { reason, .. } => {
+            SyncRuleError::new(SyncRuleErrorCode::PlaceError, reason)
+        }
+    }
+}
+
+/// The rule a preview is for: the stored rule `id`, a draft of it, or a new draft; and the state it
+/// starts from. A draft that moves the places or turns the direction starts without state, as the
+/// saved change would (data-model.md).
+async fn preview_rule(
+    db: &VaultDb,
+    device: &str,
+    own: &OwnPlaces,
+    id: Option<&str>,
+    draft: Option<SyncRuleDraft>,
+) -> Result<(SyncRule, Vec<store::StateRow>), SyncRuleError> {
+    let stored = match id {
+        Some(id) => Some(rule_of(db, device, id).await?),
+        None => None,
+    };
+    let rule = match (draft, &stored) {
+        (Some(draft), _) => {
+            let draft = validate(draft, &others(db, device, id).await?, own)?;
+            SyncRule {
+                id: id.unwrap_or("preview").to_owned(),
+                name: draft.name,
+                place_a: draft.place_a,
+                place_b: draft.place_b,
+                direction: draft.direction,
+                delete_mode: draft.delete_mode,
+                interval_secs: draft.interval_secs,
+                enabled: draft.enabled,
+                allow_decrypted: draft.allow_decrypted,
+                created_at: String::new(),
+                updated_at: String::new(),
+                last_run_at: None,
+                last_outcome: None::<SyncRuleOutcome>,
+                last_error: None,
+            }
+        }
+        (None, Some(stored)) => stored.clone(),
+        (None, None) => return Err(not_found()),
+    };
+    let keeps_state = stored.as_ref().is_some_and(|stored| {
+        stored.place_a == rule.place_a
+            && stored.place_b == rule.place_b
+            && stored.direction == rule.direction
+    });
+    if !keeps_state {
+        return Ok((rule, Vec::new()));
+    }
+    let (owned, rule_id) = (device.to_owned(), rule.id.clone());
+    let state = db
+        .read(move |r| Ok(store::state(r, &owned, &rule_id)))
+        .await
+        .map_err(unavailable)?
+        .map_err(unavailable)?;
+    Ok((rule, state))
 }
 
 /// The open vault and this device.
@@ -355,6 +479,126 @@ pub async fn sync_rules_pending_resolve(
         .into_iter()
         .map(|(path, reason)| SyncRuleFileError { path, reason })
         .collect())
+}
+
+#[tauri::command]
+pub async fn sync_rules_runs(
+    app: AppHandle,
+    id: String,
+) -> Result<Vec<SyncRuleRun>, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    runs(&db, &device, &id).await
+}
+
+#[tauri::command]
+pub async fn sync_rules_run_items(
+    app: AppHandle,
+    run_id: String,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<SyncRuleRunItem>, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    run_items(&db, &device, &run_id, offset, limit).await
+}
+
+#[tauri::command]
+pub async fn sync_rules_log_depth_get(app: AppHandle) -> Result<u32, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    log_depth(&db, &device).await
+}
+
+#[tauri::command]
+pub async fn sync_rules_log_depth_set(app: AppHandle, depth: u32) -> Result<(), SyncRuleError> {
+    let (db, device) = here(&app)?;
+    set_log_depth(&db, &device, depth).await
+}
+
+/// What a run would do now; changes nothing. `id` alone previews a stored rule, `draft` a new one,
+/// both a change of a stored one.
+#[tauri::command]
+pub async fn sync_rules_preview(
+    app: AppHandle,
+    id: Option<String>,
+    draft: Option<SyncRuleDraft>,
+) -> Result<SyncRulePlan, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    let own = app.state::<FilesState>().own.clone();
+    let (rule, state) = preview_rule(&db, &device, &own, id.as_deref(), draft).await?;
+    let a = open_place(&app, &rule.place_a).await.map_err(place_error)?;
+    let b = open_place(&app, &rule.place_b).await.map_err(place_error)?;
+    let name = device_name(&db, &device).await;
+    let today: String = clock::now().chars().take(10).collect();
+    manage::preview(&rule, a.as_ref(), b.as_ref(), &state, &name, &today)
+        .await
+        .map_err(scan_error)
+}
+
+/// Opens place A to write, or to read with the reason it cannot be written.
+async fn open_a(
+    app: &AppHandle,
+    rule: &SyncRule,
+) -> Result<(Box<dyn super::place::Place>, Option<String>), SyncRuleError> {
+    match open_place(app, &rule.place_a).await {
+        Ok(place) => Ok((place, None)),
+        Err(error)
+            if matches!(
+                error.code,
+                FilesErrorCode::ReadOnly | FilesErrorCode::NoAccess
+            ) =>
+        {
+            let place = open_place_for(app, &rule.place_a, Want::Read)
+                .await
+                .map_err(place_error)?;
+            Ok((place, Some(error.message)))
+        }
+        Err(error) => Err(place_error(error)),
+    }
+}
+
+async fn ignore_of(app: &AppHandle, rule: &SyncRule) -> Result<SyncRuleIgnore, SyncRuleError> {
+    let (a, read_only) = open_a(app, rule).await?;
+    let b = open_place_for(app, &rule.place_b, Want::Read)
+        .await
+        .map_err(place_error)?;
+    manage::ignore_get(a.as_ref(), b.as_ref(), read_only)
+        .await
+        .map_err(scan_error)
+}
+
+#[tauri::command]
+pub async fn sync_rules_ignore_get(
+    app: AppHandle,
+    id: String,
+) -> Result<SyncRuleIgnore, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    let rule = rule_of(&db, &device, &id).await?;
+    ignore_of(&app, &rule).await
+}
+
+/// Writes the exclusion file of place A; the rule runs with it after.
+#[tauri::command]
+pub async fn sync_rules_ignore_set(
+    app: AppHandle,
+    id: String,
+    content: String,
+) -> Result<SyncRuleIgnore, SyncRuleError> {
+    let (db, device) = here(&app)?;
+    let rule = rule_of(&db, &device, &id).await?;
+    let (a, read_only) = open_a(&app, &rule).await?;
+    if let Some(reason) = read_only {
+        return Err(SyncRuleError::new(SyncRuleErrorCode::ReadOnly, reason));
+    }
+    manage::ignore_set(a.as_ref(), &content)
+        .await
+        .map_err(|error| {
+            if error.code == FilesErrorCode::NoAccess {
+                SyncRuleError::new(SyncRuleErrorCode::ReadOnly, error.message)
+            } else {
+                place_error(error)
+            }
+        })?;
+    app.state::<FileSyncState>().send(Command::Run(id));
+    ignore_of(&app, &rule).await
 }
 
 #[cfg(test)]

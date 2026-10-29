@@ -26,10 +26,16 @@ pub enum SyncRuleErrorCode {
     InvalidPlace,
     InvalidInterval,
     InvalidName,
+    /// A log depth outside 0 to 100.
+    InvalidDepth,
     NotFound,
     ReadOnly,
     /// A place of the rule cannot be reached now.
     Unreachable,
+    /// A place of the rule cannot be read: access, credentials, an exclusion file.
+    PlaceError,
+    /// An exclusion file over its limits.
+    InvalidIgnore,
     /// The vault cannot be read or written now.
     Unavailable,
 }

@@ -46,6 +46,16 @@ fn the_clipboard_setting_takes_only_its_choices() {
 }
 
 #[test]
+fn the_sync_log_depth_takes_a_whole_number_up_to_a_hundred() {
+    for value in ["0", "10", "100"] {
+        validate_value("syncRules.logDepth", value).expect("a depth");
+    }
+    for value in ["", "-1", "101", "zehn"] {
+        validate_value("syncRules.logDepth", value).expect_err("not a depth");
+    }
+}
+
+#[test]
 fn the_background_takes_only_a_webp_data_url_within_the_limit() {
     let key = "appearance.background";
     validate_value(key, "data:image/webp;base64,UklGRg==").expect("a WebP data URL");

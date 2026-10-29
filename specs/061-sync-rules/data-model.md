@@ -67,7 +67,7 @@ wenn die Datei wieder auftaucht.
 | `error`                                                        | TEXT NULL |                                          |
 | `copied`, `moved`, `deleted`, `conflicts`, `errors`, `skipped` | INTEGER   | Zähler                                   |
 
-Nach jedem Lauf behält `log::trim(rule_id, depth)` die jüngsten `depth` Läufe; bei `depth = 0` wird nichts
+Nach jedem Lauf behält `run_log::trim(rule_id, depth)` die jüngsten `depth` Läufe; bei `depth = 0` wird nichts
 geschrieben. Eine Verkleinerung der Tiefe führt `trim` für alle Regeln sofort aus (FR-044).
 
 ## `haex_sync_run_items_no_sync` — Dateien eines Laufs

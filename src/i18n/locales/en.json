@@ -548,6 +548,11 @@
           "description": "Position, style and entries of the dock.",
           "keywords": "dock bar taskbar wheel pin position edge corner auto hide"
         },
+        "syncLog": {
+          "title": "Sync log",
+          "description": "How many runs of the sync rules are kept.",
+          "keywords": "sync rules log runs depth history"
+        },
         "licenses": {
           "title": "Licenses",
           "description": "The licenses of the bundled icon sets.",
@@ -1300,6 +1305,12 @@
       "removeConfirm": "Remove the server and its models?",
       "cancel": "Cancel",
       "remove": "Remove"
+    },
+    "syncLog": {
+      "title": "Sync log",
+      "depth": "Runs per rule",
+      "hint": "How many runs the log of each sync rule keeps on this device, 0 to 100. At 0 there is no log.",
+      "invalid": "A whole number from 0 to 100."
     }
   },
   "models": {
@@ -2854,6 +2865,7 @@
       "pause": "Pause",
       "resume": "Resume",
       "delete": "Delete rule",
+      "more": "More",
       "deleteTitle": "Delete sync rule",
       "deleteText": "“{name}” will be deleted. The files at both places stay as they are.",
       "deviations": "{count} differences at the target that are not overwritten.",
@@ -2871,6 +2883,87 @@
           "keep": "Keep all",
           "restore": "Copy all back"
         }
+      },
+      "plan": {
+        "open": "Preview",
+        "title": "Sync preview",
+        "loading": "Comparing the places …",
+        "nothing": "No steps were determined for this preview.",
+        "action": {
+          "folder": "Create folder ({count}) | Create folders ({count})",
+          "move": "Move ({count}) | Move ({count})",
+          "conflictCopy": "Conflict copy ({count}) | Conflict copies ({count})",
+          "copy": "Copy ({count}) | Copy ({count})",
+          "adopt": "Equal, taken over ({count}) | Equal, taken over ({count})",
+          "delete": "To the trash ({count}) | To the trash ({count})",
+          "pending": "Deletion to confirm ({count}) | Deletions to confirm ({count})",
+          "keep": "Stays on purpose ({count}) | Stay on purpose ({count})",
+          "deviation": "Difference at the target ({count}) | Differences at the target ({count})"
+        },
+        "deviation": {
+          "changed": "changed there",
+          "deleted": "deleted there",
+          "added": "only there"
+        },
+        "hashReads": "One file is compared by content during the sync. | {count} files are compared by content during the sync.",
+        "ignored": "The exclusions leave out one file or folder. | The exclusions leave out {count} files and folders."
+      },
+      "ignore": {
+        "open": "Exclusions",
+        "title": "Exclusions of “{name}”",
+        "loading": "Loading …",
+        "hint": "Patterns as in .gitignore, one per line. The file .haex-ignore lies in place A and is synced too.",
+        "label": ".haex-ignore",
+        "readOnly": "Place A cannot be written, the patterns can only be viewed: {reason}",
+        "lineError": "Line {line} is skipped: {text}",
+        "ignoredNow": "The exclusions leave out nothing right now. | The exclusions leave out one file or folder right now. | The exclusions leave out {count} files and folders right now.",
+        "fixed": "Fixed exclusions",
+        "saved": "Saved. The rule syncs with it shortly.",
+        "save": "Save"
+      },
+      "log": {
+        "open": "Log",
+        "title": "Log of “{name}”",
+        "loading": "Loading …",
+        "empty": "No run in the log yet.",
+        "noFiles": "No files in this run.",
+        "more": "Load more",
+        "systemTrash": "System trash",
+        "duration": "{seconds} s",
+        "counts": "{copied} copied, {moved} moved, {deleted} deleted, {conflicts} conflicts, {errors} errors, {skipped} skipped",
+        "outcome": {
+          "done": "done",
+          "partial": "partly",
+          "waiting": "waiting",
+          "error": "error",
+          "cancelled": "cancelled"
+        },
+        "cause": {
+          "interval": "interval",
+          "watch": "change",
+          "manual": "by hand",
+          "startup": "on opening"
+        },
+        "action": {
+          "copy": "copied",
+          "move": "moved",
+          "delete": "deleted",
+          "conflictCopy": "conflict copy",
+          "adopt": "taken over",
+          "skip": "skipped",
+          "error": "error"
+        },
+        "skip": {
+          "link": "link",
+          "noAccess": "no access",
+          "badName": "invalid name"
+        }
+      },
+      "edit": {
+        "open": "Edit",
+        "title": "Change sync rule",
+        "save": "Save",
+        "stored": "Currently: {place}. Pick another folder below to change it."
       },
       "create": {
         "open": "New rule",
@@ -2927,7 +3020,10 @@
         "notFound": "This rule no longer exists.",
         "readOnly": "holzi cannot write to this place.",
         "unreachable": "A place of the rule cannot be reached right now.",
-        "unavailable": "The vault is not available right now."
+        "unavailable": "The vault is not available right now.",
+        "invalidDepth": "The log depth lies between 0 and 100.",
+        "placeError": "A place of the rule cannot be read.",
+        "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines)."
       }
     },
     "split": {

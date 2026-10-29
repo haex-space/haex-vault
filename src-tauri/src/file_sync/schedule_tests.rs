@@ -53,6 +53,7 @@ fn report() -> RunReport {
         ignored: 0,
         trashed: Vec::new(),
         conflict_copies: Vec::new(),
+        items: Vec::new(),
     }
 }
 
@@ -60,6 +61,7 @@ fn report() -> RunReport {
 struct Fake {
     rules: Mutex<Vec<SyncRule>>,
     runs: Mutex<Vec<String>>,
+    causes: Mutex<Vec<SyncRuleRunCause>>,
     active: AtomicUsize,
     most: AtomicUsize,
     /// Runs wait here when set, until notified.
@@ -72,8 +74,14 @@ impl Runner for Fake {
     async fn rules(&self) -> Vec<SyncRule> {
         self.rules.lock().unwrap().clone()
     }
-    async fn run(&self, rule: SyncRule, cancel: CancellationToken) -> RunReport {
+    async fn run(
+        &self,
+        rule: SyncRule,
+        cause: SyncRuleRunCause,
+        cancel: CancellationToken,
+    ) -> RunReport {
         self.runs.lock().unwrap().push(rule.id);
+        self.causes.lock().unwrap().push(cause);
         let now = self.active.fetch_add(1, Ordering::SeqCst) + 1;
         self.most.fetch_max(now, Ordering::SeqCst);
         let gate = self.gate.lock().unwrap().clone();
@@ -172,6 +180,7 @@ async fn a_remote_rule_runs_again_after_its_interval() {
     assert_eq!(runs(&l).len(), 1);
     settle(Duration::from_secs(31)).await;
     assert_eq!(runs(&l).len(), 2);
+    assert_eq!(l.fake.causes.lock().unwrap()[1], SyncRuleRunCause::Interval);
     l.token.cancel();
     l.task.await.unwrap();
 }
@@ -188,6 +197,10 @@ async fn a_local_rule_waits_for_the_safety_interval_or_a_quiet_change() {
     assert_eq!(runs(&l).len(), 1, "not before it is quiet");
     settle(QUIET).await;
     assert_eq!(runs(&l).len(), 2);
+    assert_eq!(
+        *l.fake.causes.lock().unwrap(),
+        [SyncRuleRunCause::Startup, SyncRuleRunCause::Watch]
+    );
     l.token.cancel();
     l.task.await.unwrap();
 }
@@ -205,6 +218,7 @@ async fn run_now_runs_and_a_rule_runs_once_at_a_time() {
     settle(TICK).await;
     settle(TICK).await;
     assert_eq!(runs(&l).len(), 2);
+    assert_eq!(l.fake.causes.lock().unwrap()[1], SyncRuleRunCause::Manual);
     gate.notify_waiters();
     l.token.cancel();
     l.task.await.unwrap();
