@@ -22,8 +22,9 @@ Entscheidung über Steuerung, Isolation und Profil in
 
 - **Steuerung** (R1, R2): eigener schmaler CDP-Client über `--remote-debugging-pipe`, kein Port;
   Modul `src-tauri/src/agent_browser/`.
-- **Profil** (R3): verschlüsselter flüchtiger Arbeitscontainer während des Laufs, sonst Archiv
-  (XChaCha20-Poly1305 STREAM) mit zufälligem Schlüssel im geschützten OS-Zugangsspeicher.
+- **Profil** (R3): zwischen zwei Läufen als `profile.zip` in einem verschlüsselten Ordner aus 048;
+  während des Laufs in einem nur für den Nutzer lesbaren Arbeitsverzeichnis, das am Ende und vor
+  jedem Start gelöscht wird. Anmeldedaten nur aus dem Passwortmanager (FR-002, FR-036).
 - **Lesen und Bedienen** (R4): Skript in einer eigenen Welt, nummerierte Elemente, echte
   Eingaben.
 - **Absenden** (R5): Einordnung vor dem Klick plus Anhalten ändernder Anfragen danach.
@@ -43,8 +44,8 @@ Entscheidung über Steuerung, Isolation und Profil in
 <!-- prettier-ignore -->
 **Language/Version**: Rust (Edition 2021, Toolchain des Repos), TypeScript 6, Vue 3.5 / Nuxt 4
 
-**Primary Dependencies**: vorhanden: `tokio`, `serde_json`, `chacha20poly1305` (neues Feature
-`stream`), `zip`, `url`, `rmcp` (021). Für die Pipe unter Windows `windows-sys` als direkte
+**Primary Dependencies**: vorhanden: `tokio`, `serde_json`, `zip`, `url`, `rmcp` (021),
+verschlüsselte Ordner aus 048 (`files::encrypted`). Für die Pipe unter Windows `windows-sys` als direkte
 Abhängigkeit nur für Windows (steht schon im Lockfile über Tauri), Funktion `CreateProcessW` mit
 `STARTUPINFOW.lpReserved2`. Keine neue Crate.
 
@@ -103,18 +104,18 @@ Geprüft gegen `.specify/memory/constitution.md` und die spaex-Constitution
 
 ### Kandidaten (Erweitern statt neu bauen)
 
-| #   | Neues Artefakt                              | Vorhandener Kandidat                                                        | Entscheidung                                     |
-| --- | ------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
-| K1  | Rückfragen des Browsers                     | `src-tauri/src/prompt_park.rs`                                              | Wiederverwenden, eigene Instanz                  |
-| K2  | Rechte der Agenten                          | `mcp_server::grants` (`Rights`, `covers`, `validate`)                       | Um Gruppe `browser` erweitern                    |
-| K3  | Werkzeuge ohne Fenster                      | `chat/tools/native_action.rs` (ADR 0011)                                    | Erweitern um `NativeCall { caller, mode }`       |
-| K4  | Eigene Rückfrage statt allgemeiner Freigabe | `confirmsItself` (060), `permission::decide_for_tool`                       | Wiederverwenden; im MCP-Zugang nachziehen        |
-| K5  | Passwort ↔ Website                          | `browser_bridge/methods/items.rs` Filter über `passwords::site::site_of`    | In den Passwortdienst ziehen (ponytail dort)     |
-| K6  | Verschlüsselung                             | `sync/content_keys_names.rs` (XChaCha20-Poly1305), `files/encrypted/format` | Dieselbe AEAD, STREAM-Variante für große Archive |
-| K7  | Protokoll                                   | `mcp_server::agent_log`, `redact.rs`                                        | Wiederverwenden; zwei neue Ergebnisse            |
-| K8  | Aufrufdialog                                | `components/agents/CallRequestDialog.vue`, `stores/mcpAgents.ts`            | Muster; eigener Dialog mit Arten                 |
-| K9  | Plattformfähigkeiten                        | `platform::capabilities()`                                                  | Neues Feld `agent_browser`                       |
-| K10 | Erweiterung im Browser                      | `browser_bridge` (049, Protokoll 3)                                         | Stufe 2 als neue Nachrichten                     |
+| #   | Neues Artefakt                              | Vorhandener Kandidat                                                     | Entscheidung                                 |
+| --- | ------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------- |
+| K1  | Rückfragen des Browsers                     | `src-tauri/src/prompt_park.rs`                                           | Wiederverwenden, eigene Instanz              |
+| K2  | Rechte der Agenten                          | `mcp_server::grants` (`Rights`, `covers`, `validate`)                    | Um Gruppe `browser` erweitern                |
+| K3  | Werkzeuge ohne Fenster                      | `chat/tools/native_action.rs` (ADR 0011)                                 | Erweitern um `NativeCall { caller, mode }`   |
+| K4  | Eigene Rückfrage statt allgemeiner Freigabe | `confirmsItself` (060), `permission::decide_for_tool`                    | Wiederverwenden; im MCP-Zugang nachziehen    |
+| K5  | Passwort ↔ Website                          | `browser_bridge/methods/items.rs` Filter über `passwords::site::site_of` | In den Passwortdienst ziehen (ponytail dort) |
+| K6  | Verschlüsselung                             | `files/encrypted` (048, `put_file`, `EncryptedFile`)                     | Wiederverwenden: Profil als Datei darin      |
+| K7  | Protokoll                                   | `mcp_server::agent_log`, `redact.rs`                                     | Wiederverwenden; zwei neue Ergebnisse        |
+| K8  | Aufrufdialog                                | `components/agents/CallRequestDialog.vue`, `stores/mcpAgents.ts`         | Muster; eigener Dialog mit Arten             |
+| K9  | Plattformfähigkeiten                        | `platform::capabilities()`                                               | Neues Feld `agent_browser`                   |
+| K10 | Erweiterung im Browser                      | `browser_bridge` (049, Protokoll 3)                                      | Stufe 2 als neue Nachrichten                 |
 
 **Ergebnis nach Phase 1**: keine Verletzung.
 
@@ -151,7 +152,7 @@ src-tauri/src/
 │   │   ├── mod.rs        # Verbindung, ids, Sitzungen, Ereignisse
 │   │   ├── target.rs  page.rs  runtime.rs  input.rs  fetch.rs  browser.rs  dom.rs
 │   ├── profile.rs        # Arbeitsverzeichnis, Packen, Entpacken
-│   ├── profile_crypto.rs # HXBP-Archiv (STREAM)
+│   ├── profile_store.rs  # profile.zip im verschlüsselten Ordner (048)
 │   ├── tab.rs            # Agenten-Tab: eigene Welt, Elementnummern, gefüllte Felder
 │   ├── page_script.js    # Leseskript + Markierung (eingebunden mit include_str!)
 │   ├── read.rs           # Seite lesen, kürzen, kennzeichnen (R4, R10, R12)

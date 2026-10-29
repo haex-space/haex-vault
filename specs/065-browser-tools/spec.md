@@ -79,6 +79,16 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
 - Q: Darf ein Agent im Browser des Nutzers selbst neue Tabs öffnen? → A: Nein, nur übergebene
   Tabs; ein von der Seite geöffneter Tab nach Rückfrage (US6, FR-034).
 
+### Session 2026-10-29
+
+- Q: Womit wird das Browser-Profil verschlüsselt, wenn der Agenten-Browser nicht läuft? → A: Mit
+  einem verschlüsselten Ordner aus Spec 048 im Speicher von holzi auf diesem Gerät; kein eigenes
+  Archivformat, kein Schlüssel im Zugangsspeicher des Betriebssystems. Während des Laufs liegt das
+  Profil in einem nur für den Nutzer lesbaren Arbeitsverzeichnis, das am Ende und beim nächsten
+  Start gelöscht wird (FR-001, R3).
+- Q: Woher kommen Anmeldedaten im Agenten-Browser? → A: Immer aus dem Passwortmanager; neue
+  Anmeldedaten speichert holzi dort, der Agenten-Browser speichert keine selbst (FR-002, FR-036).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Ein Agent erledigt eine Recherche im Agenten-Browser (Priority: P1)
@@ -209,6 +219,9 @@ und kein Bildschirmfoto für den Agenten enthält das Passwort.
    als sichtbaren Text, falls die Seite das Feld aufdeckt.
 4. **Given** die Website des Tabs passt zu keinem Eintrag oder die Adresse ist nicht sicher
    (kein verschlüsselter Zugang), **When** der Agent aufruft, **Then** trägt holzi nichts ein.
+5. **Given** der Agent legt auf einer Website ein Konto an, **When** er für das Passwortfeld
+   „neue Anmeldedaten“ aufruft, **Then** erzeugt holzi ein Passwort, trägt es ein und speichert
+   nach Rückfrage einen Eintrag im Passwortmanager; der Agent erfährt das Passwort nicht (FR-036).
 
 ---
 
@@ -310,13 +323,15 @@ Steuerung.
 
 - **FR-001**: holzi MUSS auf Linux, macOS und Windows einen Agenten-Browser bereitstellen, der in
   einem eigenen Fenster außerhalb von holzi läuft und ein eigenes Browser-Profil je Vault hat. Das
-  Profil MUSS mit einem zufälligen, installationsgebundenen Schlüssel verschlüsselt auf diesem
-  Gerät liegen, über Neustarts erhalten bleiben und DARF nicht auf andere Geräte wandern. Der
-  Schlüssel MUSS im betriebssystemeigenen geschützten Zugangsspeicher liegen, nie in der Vault-Datei;
-  holzi DARF ihn nur bei entsperrter Vault verwenden.
+  Profil MUSS zwischen zwei Läufen in einem verschlüsselten Ordner (Spec 048) im Speicher von holzi
+  auf diesem Gerät liegen, über Neustarts erhalten bleiben und DARF nicht auf andere Geräte
+  wandern. Während des Laufs MUSS es in einem nur für den Nutzer lesbaren Arbeitsverzeichnis
+  liegen, das holzi am Ende jedes Laufs und vor jedem Start löscht.
 - **FR-002**: Der Agenten-Browser DARF keine Daten mit dem Browser des Nutzers teilen und MUSS ohne
   Erweiterungen, ohne Synchronisierung mit einem Konto des Browserherstellers und ohne
-  gespeicherte Passwörter des Browsers laufen.
+  gespeicherte Passwörter des Browsers laufen. Anmeldedaten kommen nur aus dem Passwortmanager
+  (FR-019, FR-036); das Speichern und automatische Ausfüllen von Passwörtern des Browsers MUSS
+  aus sein.
 - **FR-003**: holzi MUSS den Agenten-Browser erst starten, wenn ein Agent mit der Rechtegruppe
   Browser das erste Browser-Werkzeug aufruft, und MUSS ihn beenden, wenn die Vault schließt, der
   Nutzer ihn schließt oder 15 Minuten lang keine Browser-Sitzung läuft.
@@ -384,6 +399,10 @@ Steuerung.
   holzi beim nächsten Mal wieder. Wechselt der Eintrag oder passen mehrere, fragt holzi immer.
 - **FR-022**: Felder, die holzi mit Anmeldedaten gefüllt hat, und alle Passwortfelder MÜSSEN beim
   Lesen der Seite und auf Bildschirmfotos für den Agenten verdeckt sein.
+- **FR-036**: Braucht eine Website neue Anmeldedaten (Konto anlegen, Passwort ändern), MUSS holzi
+  das Passwort selbst erzeugen, in die Seite eintragen und nach Rückfrage als Eintrag mit der
+  Website im Passwortmanager speichern; der Agent nennt nur den Benutzernamen und sieht das
+  Passwort nie. In Plan abgelehnt.
 
 **Seiteninhalte**
 

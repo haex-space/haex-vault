@@ -65,8 +65,11 @@ einmal je Lieferung durchgeht.
 
 ## M8 Profil (FR-001)
 
-- Nach M6 holzi beenden. Im Datenverzeichnis liegt `agent-browser/profile.hxbp`, kein lesbares
-  Cookie-Verzeichnis; unter Linux ist `$XDG_RUNTIME_DIR/holzi-agent-browser/` leer.
+- Nach M6 holzi beenden. Unter `agent-browser/` im Datenverzeichnis liegt nur ein verschlüsselter
+  Ordner (`*.hxef`), kein lesbares Cookie-Verzeichnis; `$XDG_RUNTIME_DIR/holzi-agent-browser/`
+  (Linux) bzw. das Temp-Verzeichnis ist leer.
+- Ein Agent meldet sich mit „Anmeldedaten eintragen“ an; der Agenten-Browser bietet nicht an, das
+  Passwort zu speichern (FR-002).
 - holzi starten, Vault entsperren, `/account` öffnen lassen → noch angemeldet.
 - Dieselbe Vault auf einem zweiten Gerät: Agenten-Browser startet ohne Anmeldung.
 

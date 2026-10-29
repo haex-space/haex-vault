@@ -29,12 +29,12 @@ document loads; what counts as submitting is decided before the click and, as a 
 holding the page's changing requests right after an agent action. A page cannot skip a prompt,
 allow a website or change a right.
 
-**The profile is encrypted during and between runs.** While the browser runs, its profile is in a
-per-run encrypted ephemeral container whose key exists only in process memory. When it ends, holzi
-packs the lasting parts into an XChaCha20-Poly1305 STREAM archive under a random key stored in the
-operating system's protected credential store, bound to this app installation and never copied with
-the vault. holzi uses the archive key only while the vault is unlocked, then destroys the working
-container.
+**Between runs the profile lives in an encrypted folder.** When the browser ends, holzi packs the
+lasting parts of its profile into `profile.zip` in an encrypted folder of spec 048 in holzi's data
+directory on this device; there is no second encryption format and no key of its own. While the
+browser runs, the profile is in an owner-only working directory that holzi deletes at the end of
+every run and before every start. The browser saves no passwords: credentials come only from the
+password manager, and new ones are stored there (spec FR-002, FR-036).
 
 **Browser tools are native catalog actions (ADR 0011) with `confirmsItself`.** One definition serves
 the built-in agent and the MCP access; the browser service asks the user itself, once per action.
@@ -42,8 +42,10 @@ the built-in agent and the MCP access; the browser service asks the user itself,
 ## Consequences
 
 - No other program on the device can attach to the agent browser.
-- If the operating system cannot provide an encrypted ephemeral profile container, holzi disables
-  the agent browser on that device rather than leave profile data readable after a crash.
+- After a crash of holzi, the working directory stays readable to the same user until the next
+  start deletes it; a stolen device is covered by the system's disk encryption, not by holzi.
+- The profile file can be read with the vault's content key; it never leaves this device's data
+  directory.
 - holzi maintains a small CDP client (about 35 methods); Chromium changes CDP rarely for these, and
   a minimum version (120) is checked at start.
 - Flatpak or Snap browsers whose sandbox breaks the pipe are not supported.
