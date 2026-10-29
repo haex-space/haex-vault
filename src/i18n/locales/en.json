@@ -3019,6 +3019,7 @@
       },
       "progress": {
         "label": "Progress",
+        "running": "Running …",
         "scanning": "Comparing the places …",
         "executing": "Applying changes …",
         "files": "{done} of {total} files · {size}"

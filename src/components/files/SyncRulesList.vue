@@ -130,6 +130,7 @@ function running(view: SyncRuleView) {
   if (view.status.state !== 'running') return null
   const progress = store.progress[view.rule.id]
   const share = progress ? progressShare(progress) : null
+  // No report yet (the list opened after the run began) is not "comparing": it only says it runs.
   const text =
     progress?.phase === 'copying' && progress.filesTotal > 0
       ? t('files.syncRules.progress.files', {
@@ -137,7 +138,9 @@ function running(view: SyncRuleView) {
           total: progress.filesTotal,
           size: `${formatFileSize(progress.bytesDone)} / ${formatFileSize(progress.bytesTotal)}`,
         })
-      : t('files.syncRules.progress.scanning')
+      : progress?.phase === 'scanning'
+        ? t('files.syncRules.progress.scanning')
+        : t('files.syncRules.progress.running')
   return { share, text }
 }
 
