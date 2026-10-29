@@ -1,2 +1,4 @@
 # Binary fixtures; a PDF's xref lines end in a space by specification.
 *.pdf binary
+# ONNX models (spec 066 test fixtures) are protobuf, not text.
+*.onnx binary
