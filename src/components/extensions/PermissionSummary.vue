@@ -25,6 +25,9 @@ const props = defineProps<{
   /** For a model job's destination: its provider, host and place (spec 055), instead of the
    * provider's id. */
   destination?: ExtensionModelDestination | null
+  /** The kind is the heading of the list around it (the install dialog's groups): name only the
+   * action. */
+  hideKind?: boolean
 }>()
 const { t } = useI18n()
 
@@ -37,7 +40,9 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
 <template>
   <span class="flex flex-col">
     <span class="text-sm">
-      {{ t(`extensions.permissions.kinds.${kind}`, kind) }} ·
+      <template v-if="!hideKind"
+        >{{ t(`extensions.permissions.kinds.${kind}`, kind) }} ·
+      </template>
       <span v-if="everyAction" class="font-medium text-warning">{{
         t('extensions.permissions.everyMethod')
       }}</span>
