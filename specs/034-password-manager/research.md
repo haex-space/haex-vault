@@ -665,6 +665,14 @@ Stand ab oder fehlt der Eintrag, kommt `PasswordsConflict { reason: 'changed' | 
 und der Editor bietet „Meine Änderungen behalten (neu anlegen)“ oder „Fremde Änderung
 übernehmen“ an. Zwei Fenster teilen den Store und damit Daten, nicht Entwürfe.
 
+_Ergänzt 2026-10-06 (PR #288, Leistung):_ Die Listen des Stores sind flach (`shallowRef`), und
+ein Neuladen behält das Objekt jeder unveränderten Zeile (`keepUnchanged`); ein Neuladen ohne
+Änderung löst nichts aus. Die Liste baut die Einträge seitenweise (100, weitere beim Scrollen
+über `useInfiniteScroll`; eine Zeile, zu der die Tastatur springt, mit ihrer Seite), die
+Zeilenmenüs erst beim Öffnen, und Wurzel und Ordner teilen eine Komponente, die beim Wechsel
+stehen bleibt. Grenze (`ponytail`): nach dem Scrollen bis ans Ende sind wieder alle Zeilen
+gebaut; der nächste Schritt wäre eine virtuelle Liste.
+
 **Verworfen**: _Spaltenweise Zusammenführung im Editor_ (ein Dialog mit Feldvergleich ist
 Umfang für später), _blindes Überschreiben_ (Spec Edge Case).
 
