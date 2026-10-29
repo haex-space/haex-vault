@@ -88,6 +88,7 @@ scenario(
     )
     assert.ok(mounted)
     writeOnDrive(mounted, 'hallo.txt', 'vom Stick')
+    await instance.click('files-reload')
     await instance.waitForDisplayed('files-entry-hallo.txt', 15_000)
 
     // Pulled while a tab shows it: it leaves the sidebar and the tab moves up to a folder that
@@ -143,16 +144,17 @@ scenario(
     assert.ok(row)
 
     // The root is the system's: no button (FR-008).
-    const sources = unwrap<{ drives: { id: string; path: string | null }[] }>(
-      'files_sources',
-      await instance.invoke('files_sources', {}),
-    )
+    const sources = unwrap<{
+      drives: { id: string; label: string | null; path: string | null }[]
+    }>('files_sources', await instance.invoke('files_sources', {}))
     const root = sources.drives.find((drive) => drive.path === '/')
     if (root) {
       assert.ok(
         await instance.exec<boolean>(
-          `return !document.querySelector('[data-testid^="files-drive-eject-' + arguments[0] + '-"]')`,
-          [root.id],
+          `const id = 'files-drive-eject-' + arguments[0] + '-' + (arguments[1] ?? arguments[0])
+           return ![...document.querySelectorAll('[data-testid^="files-drive-eject-"]')]
+             .some((el) => el.getAttribute('data-testid') === id)`,
+          [root.id, root.label],
         ),
         'no button for the root',
       )
