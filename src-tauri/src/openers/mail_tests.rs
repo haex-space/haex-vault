@@ -146,6 +146,8 @@ fn a_broken_escape_is_refused() {
         "mailto:a@example.org?subject=%zz",
         "mailto:a@example.org?subject=100%",
         "mailto:a@example.org?subject=%4",
+        "mailto:?subject=OK&subject=%zz",
+        "mailto:?x=%zz",
         "mailto:a%2@example.org",
         "mailto:a@example.org?body=%g1",
     ] {

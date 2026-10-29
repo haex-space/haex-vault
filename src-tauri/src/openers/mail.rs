@@ -116,12 +116,13 @@ pub fn parse(link: &str) -> Result<MailRequest> {
             continue;
         };
         let name = decode(name)?.to_ascii_lowercase();
+        let value = decode(value)?;
         match name.as_str() {
-            "to" => add_addresses(&mut request.to, value)?,
-            "cc" => add_addresses(&mut request.cc, value)?,
-            "bcc" => add_addresses(&mut request.bcc, value)?,
-            "subject" if subject.is_none() => subject = Some(decode(value)?),
-            "body" if body.is_none() => body = Some(decode(value)?),
+            "to" => add_addresses(&mut request.to, &value)?,
+            "cc" => add_addresses(&mut request.cc, &value)?,
+            "bcc" => add_addresses(&mut request.bcc, &value)?,
+            "subject" if subject.is_none() => subject = Some(value),
+            "body" if body.is_none() => body = Some(value),
             _ => {}
         }
     }
