@@ -69,10 +69,15 @@ pub struct Shared {
     pub cancel_processed: HashSet<String>,
 }
 
+/// Both places are on this device.
+fn is_local(rule: &SyncRule) -> bool {
+    let local = |source: &SourceRef| matches!(source, SourceRef::Device);
+    local(&rule.place_a.source) && local(&rule.place_b.source)
+}
+
 /// The interval of `rule` (research R8).
 pub fn interval_of(rule: &SyncRule) -> Duration {
-    let local = |source: &SourceRef| matches!(source, SourceRef::Device);
-    if local(&rule.place_a.source) && local(&rule.place_b.source) {
+    if is_local(rule) {
         LOCAL_SAFETY
     } else {
         Duration::from_secs(u64::from(rule.interval_secs))
@@ -178,6 +183,18 @@ pub async fn control<R: Runner>(
             .map(|(id, _)| id.clone())
             .collect();
         for id in quiet {
+            // A rule with a place on the network is asked for by changes no more often than its
+            // interval: each run lists the whole place, and a folder that changes all the time
+            // would keep a provider busy until it limits the account.
+            let spare = rules.iter().find(|rule| rule.id == id).is_some_and(|rule| {
+                !is_local(rule)
+                    && last_start
+                        .get(&id)
+                        .is_some_and(|at| now.duration_since(*at) < interval_of(rule))
+            });
+            if spare {
+                continue;
+            }
             changed_at.remove(&id);
             if !due.contains(&id) {
                 due.push(id);
@@ -211,6 +228,8 @@ pub async fn control<R: Runner>(
             let cancel = token.child_token();
             cancels.insert(id.clone(), cancel.clone());
             last_start.insert(id.clone(), now);
+            // Changes up to now are part of this run.
+            changed_at.remove(&id);
             shared
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
