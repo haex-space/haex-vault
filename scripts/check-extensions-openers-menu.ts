@@ -1,6 +1,7 @@
 // Part of `pnpm check:extensions` (spec 063, US1, FR-001, FR-018): who the mail button offers and
 // where a link from outside may not go (src/lib/mail/openers.ts).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import type { ExtensionSummary } from '../src/types/bindings/ExtensionSummary.ts'
@@ -65,4 +66,14 @@ test('the order is the same however the list comes', () => {
 test('a link from outside never goes to the system, the button may', () => {
   assert.equal(systemAllowed('button'), true)
   assert.equal(systemAllowed('external'), false)
+})
+
+test('the choice for a link from outside never reaches the system', () => {
+  const dialog = readFileSync(
+    new URL('../src/components/mail/LinkDialog.vue', import.meta.url),
+    'utf8',
+  )
+  assert.ok(!dialog.includes('openUrl'), 'it must not open anything itself')
+  assert.ok(!dialog.includes('plugin-opener'))
+  assert.ok(!dialog.includes('mail.openers.system'))
 })

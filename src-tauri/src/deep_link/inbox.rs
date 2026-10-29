@@ -21,6 +21,10 @@ pub const INBOX_DIRECTORY: &str = "link-inbox";
 /// How long a process that dropped a link waits for another to take it.
 pub const HANDOFF_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// How long a process without the focus leaves a fresh link to the others, so that the window the
+/// person used last takes it (spec 063 research R6). Shorter than [`HANDOFF_TIMEOUT`].
+pub const UNFOCUSED_DELAY: Duration = Duration::from_secs(1);
+
 /// How often the offering process looks whether its file was taken.
 const POLL: Duration = Duration::from_millis(50);
 
@@ -65,8 +69,9 @@ pub fn offer(dir: &Path, url: &str) -> Result<Offered> {
 
 /// Takes one offered link, if there is one: the file is renamed to `<id>.claimed-<pid>` (only one
 /// process can win that), read and deleted, in any case. A file older than [`HANDOFF_TIMEOUT`] is
-/// not taken, because its writer has given up on it; files older than twice that are removed.
-pub fn claim_next(dir: &Path) -> Result<Option<String>> {
+/// not taken, because its writer has given up on it; files older than twice that are removed. A
+/// process whose window has no focus takes a link only after [`UNFOCUSED_DELAY`].
+pub fn claim_next(dir: &Path, focused: bool) -> Result<Option<String>> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
@@ -93,7 +98,7 @@ pub fn claim_next(dir: &Path) -> Result<Option<String>> {
             let _ = fs::remove_file(&path);
             continue;
         }
-        if !offered || age > HANDOFF_TIMEOUT {
+        if !offered || age > HANDOFF_TIMEOUT || (!focused && age < UNFOCUSED_DELAY) {
             continue;
         }
         let claimed = path.with_extension(format!("claimed-{}", std::process::id()));

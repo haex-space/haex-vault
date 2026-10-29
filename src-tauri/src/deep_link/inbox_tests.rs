@@ -29,7 +29,7 @@ fn an_offered_link_is_claimed_once_and_the_offerer_learns_it() {
     let taker = std::thread::spawn({
         let path = path.clone();
         move || loop {
-            if let Some(url) = claim_next(&path).expect("claim") {
+            if let Some(url) = claim_next(&path, true).expect("claim") {
                 return url;
             }
             std::thread::sleep(Duration::from_millis(10));
@@ -52,7 +52,7 @@ fn of_several_claimers_exactly_one_gets_the_link() {
             let start = Arc::clone(&start);
             std::thread::spawn(move || {
                 start.wait();
-                claim_next(&path).expect("claim")
+                claim_next(&path, true).expect("claim")
             })
         })
         .collect();
@@ -80,7 +80,7 @@ fn a_stale_file_is_not_taken_and_a_very_old_one_is_removed() {
     let stale = dir.path().join("stale.url");
     fs::write(&stale, "haex-vault://contact/stale").expect("write");
     age(&stale, HANDOFF_TIMEOUT + Duration::from_secs(1));
-    assert_eq!(claim_next(dir.path()).expect("claim"), None);
+    assert_eq!(claim_next(dir.path(), true).expect("claim"), None);
     assert!(stale.exists(), "its writer may still be about to remove it");
 
     let ancient = dir.path().join("old.claimed-1");
@@ -90,15 +90,43 @@ fn a_stale_file_is_not_taken_and_a_very_old_one_is_removed() {
     fs::write(&abandoned, "x").expect("write");
     age(&abandoned, HANDOFF_TIMEOUT * 3);
     age(&stale, HANDOFF_TIMEOUT * 3);
-    assert_eq!(claim_next(dir.path()).expect("claim"), None);
+    assert_eq!(claim_next(dir.path(), true).expect("claim"), None);
     assert!(files(dir.path()).is_empty(), "{:?}", files(dir.path()));
 }
 
 #[test]
 fn a_missing_directory_or_foreign_files_hold_nothing() {
     let dir = tempfile::tempdir().expect("dir");
-    assert_eq!(claim_next(&dir.path().join("none")).expect("claim"), None);
+    assert_eq!(
+        claim_next(&dir.path().join("none"), true).expect("claim"),
+        None
+    );
     fs::write(dir.path().join("notes.txt"), "x").expect("write");
-    assert_eq!(claim_next(dir.path()).expect("claim"), None);
+    assert_eq!(claim_next(dir.path(), true).expect("claim"), None);
     assert!(dir.path().join("notes.txt").exists());
+}
+
+#[test]
+fn a_window_without_focus_leaves_a_fresh_link_to_the_others() {
+    let dir = tempfile::tempdir().expect("dir");
+    let link = dir.path().join("one.url");
+    fs::write(&link, "mailto:ben@example.org").expect("write");
+    assert_eq!(claim_next(dir.path(), false).expect("claim"), None);
+    assert!(link.exists(), "the focused window may still take it");
+
+    age(&link, UNFOCUSED_DELAY + Duration::from_millis(100));
+    assert_eq!(
+        claim_next(dir.path(), false).expect("claim").as_deref(),
+        Some("mailto:ben@example.org")
+    );
+}
+
+#[test]
+fn a_focused_window_takes_a_fresh_link_at_once() {
+    let dir = tempfile::tempdir().expect("dir");
+    fs::write(dir.path().join("one.url"), "mailto:ben@example.org").expect("write");
+    assert_eq!(
+        claim_next(dir.path(), true).expect("claim").as_deref(),
+        Some("mailto:ben@example.org")
+    );
 }
