@@ -1369,6 +1369,209 @@
     "runner": "native"
   },
   {
+    "toolName": "syncRules_list",
+    "actionId": "syncRules.list",
+    "description": "List the sync rules of this device, each with its places, direction, delete mode and status.",
+    "inputSchema": { "type": "object" },
+    "effect": "read",
+    "core": false,
+    "titles": { "de": "Sync-Regeln auflisten", "en": "List sync rules" },
+    "runner": "native"
+  },
+  {
+    "toolName": "syncRules_status",
+    "actionId": "syncRules.status",
+    "description": "One sync rule of this device with its status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "id": { "type": "string", "description": "The rule." } },
+      "required": ["id"]
+    },
+    "effect": "read",
+    "core": false,
+    "titles": {
+      "de": "Status einer Sync-Regel",
+      "en": "Status of a sync rule"
+    },
+    "runner": "native"
+  },
+  {
+    "toolName": "syncRules_create",
+    "actionId": "syncRules.create",
+    "description": "Create a sync rule that keeps two folders equal. The user confirms every call in a dialog; holzi's own data and contacts' shares cannot be a place.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "1 to 80 characters." },
+        "placeA": {
+          "type": "object",
+          "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+          "properties": {
+            "source": {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "enum": ["device", "storage"] },
+                "storageId": { "type": "string" }
+              },
+              "required": ["kind"]
+            },
+            "path": { "type": "string" }
+          },
+          "required": ["source", "path"]
+        },
+        "placeB": {
+          "type": "object",
+          "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+          "properties": {
+            "source": {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "enum": ["device", "storage"] },
+                "storageId": { "type": "string" }
+              },
+              "required": ["kind"]
+            },
+            "path": { "type": "string" }
+          },
+          "required": ["source", "path"]
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["aToB", "bToA", "both"],
+          "description": "One way from A to B, from B to A, or both ways."
+        },
+        "deleteMode": {
+          "type": "string",
+          "enum": ["mirror", "keep", "ask"],
+          "description": "What a deletion on one side does on the other: mirror it into the trash, keep the file, or ask the user."
+        },
+        "intervalSecs": {
+          "type": "integer",
+          "description": "How often the rule runs, 60 to 86400 seconds."
+        },
+        "enabled": { "type": "boolean" },
+        "allowDecrypted": {
+          "type": "boolean",
+          "description": "Files of an encrypted place A may be stored decrypted at B. The user sees it in the confirmation."
+        }
+      },
+      "required": [
+        "name",
+        "placeA",
+        "placeB",
+        "direction",
+        "deleteMode",
+        "intervalSecs",
+        "enabled",
+        "allowDecrypted"
+      ]
+    },
+    "effect": "destructive",
+    "core": false,
+    "titles": { "de": "Sync-Regel anlegen", "en": "Create sync rule" },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
+    "toolName": "syncRules_update",
+    "actionId": "syncRules.update",
+    "description": "Change a sync rule; the draft replaces all its settings. The user confirms every call in a dialog that shows the old values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The rule." },
+        "draft": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "1 to 80 characters." },
+            "placeA": {
+              "type": "object",
+              "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+              "properties": {
+                "source": {
+                  "type": "object",
+                  "properties": {
+                    "kind": { "type": "string", "enum": ["device", "storage"] },
+                    "storageId": { "type": "string" }
+                  },
+                  "required": ["kind"]
+                },
+                "path": { "type": "string" }
+              },
+              "required": ["source", "path"]
+            },
+            "placeB": {
+              "type": "object",
+              "description": "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
+              "properties": {
+                "source": {
+                  "type": "object",
+                  "properties": {
+                    "kind": { "type": "string", "enum": ["device", "storage"] },
+                    "storageId": { "type": "string" }
+                  },
+                  "required": ["kind"]
+                },
+                "path": { "type": "string" }
+              },
+              "required": ["source", "path"]
+            },
+            "direction": {
+              "type": "string",
+              "enum": ["aToB", "bToA", "both"],
+              "description": "One way from A to B, from B to A, or both ways."
+            },
+            "deleteMode": {
+              "type": "string",
+              "enum": ["mirror", "keep", "ask"],
+              "description": "What a deletion on one side does on the other: mirror it into the trash, keep the file, or ask the user."
+            },
+            "intervalSecs": {
+              "type": "integer",
+              "description": "How often the rule runs, 60 to 86400 seconds."
+            },
+            "enabled": { "type": "boolean" },
+            "allowDecrypted": {
+              "type": "boolean",
+              "description": "Files of an encrypted place A may be stored decrypted at B. The user sees it in the confirmation."
+            }
+          },
+          "required": [
+            "name",
+            "placeA",
+            "placeB",
+            "direction",
+            "deleteMode",
+            "intervalSecs",
+            "enabled",
+            "allowDecrypted"
+          ]
+        }
+      },
+      "required": ["id", "draft"]
+    },
+    "effect": "destructive",
+    "core": false,
+    "titles": { "de": "Sync-Regel ändern", "en": "Change sync rule" },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
+    "toolName": "syncRules_delete",
+    "actionId": "syncRules.delete",
+    "description": "Delete a sync rule; the files of both places stay. The user confirms every call in a dialog.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "id": { "type": "string", "description": "The rule." } },
+      "required": ["id"]
+    },
+    "effect": "destructive",
+    "core": false,
+    "titles": { "de": "Sync-Regel löschen", "en": "Delete sync rule" },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
     "toolName": "contacts_search",
     "actionId": "contacts.search",
     "description": "Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. The contact marked isSelf is the user themselves. Needs the user to allow reading contacts.",

@@ -1063,7 +1063,9 @@
       "peerDescription": "Anderes Gerät dieser Vault",
       "receivedDescription": "Freigabe eines Kontakts",
       "fileShares": "Dateifreigaben verwalten",
-      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst"
+      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst",
+      "syncRules": "Sync-Regeln verwalten",
+      "syncRulesDescription": "Regeln und ihren Status lesen; jedes Anlegen, Ändern und Löschen bestätigst du selbst"
     },
     "storage": {
       "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
@@ -1746,7 +1748,8 @@
       "files": {
         "read": "Dateien lesen",
         "write": "Dateien ändern",
-        "shares": "Dateifreigaben verwalten"
+        "shares": "Dateifreigaben verwalten",
+        "syncRules": "Sync-Regeln verwalten"
       },
       "contacts": {
         "read": "Kontakte lesen",
@@ -1787,6 +1790,13 @@
       "get": "Kontakt lesen",
       "update": "Kontakt ändern",
       "share": "Kontakt als Link weitergeben"
+    },
+    "syncRules": {
+      "list": "Sync-Regeln auflisten",
+      "status": "Status einer Sync-Regel",
+      "create": "Sync-Regel anlegen",
+      "update": "Sync-Regel ändern",
+      "delete": "Sync-Regel löschen"
     }
   },
   "passwords": {
@@ -3044,6 +3054,23 @@
         "invalidDepth": "Die Protokolltiefe liegt zwischen 0 und 100.",
         "placeError": "Ein Ort der Regel kann nicht gelesen werden.",
         "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen)."
+      },
+      "confirm": {
+        "title": {
+          "create": "Agent: Sync-Regel anlegen",
+          "update": "Agent: Sync-Regel ändern",
+          "delete": "Agent: Sync-Regel löschen"
+        },
+        "body": {
+          "create": "Der Agent möchte die Regel „{name}“ anlegen. Sie läuft danach ohne Agent, so wie hier gezeigt.",
+          "update": "Der Agent möchte die Regel „{name}“ ändern. Durchgestrichen steht, was bisher gilt.",
+          "delete": "Der Agent möchte die Regel „{name}“ löschen. Die Dateien an beiden Orten bleiben, wie sie sind."
+        },
+        "interval": "Intervall",
+        "minutes": "alle {n} Minute | alle {n} Minuten",
+        "decrypted": "Dateien aus einem verschlüsselten Ordner an Ort A liegen an Ort B entschlüsselt.",
+        "allow": "Erlauben",
+        "deny": "Ablehnen"
       }
     },
     "split": {

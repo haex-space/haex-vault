@@ -1063,7 +1063,9 @@
       "peerDescription": "Another device of this vault",
       "receivedDescription": "A contact's share",
       "fileShares": "Manage file shares",
-      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself"
+      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself",
+      "syncRules": "Manage sync rules",
+      "syncRulesDescription": "Read rules and their status; you confirm every create, change and delete yourself"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -1746,7 +1748,8 @@
       "files": {
         "read": "Read files",
         "write": "Change files",
-        "shares": "Manage file shares"
+        "shares": "Manage file shares",
+        "syncRules": "Manage sync rules"
       },
       "contacts": {
         "read": "Read contacts",
@@ -1787,6 +1790,13 @@
       "get": "Read a contact",
       "update": "Change a contact",
       "share": "Share a contact as a link"
+    },
+    "syncRules": {
+      "list": "List sync rules",
+      "status": "Status of a sync rule",
+      "create": "Create sync rule",
+      "update": "Change sync rule",
+      "delete": "Delete sync rule"
     }
   },
   "passwords": {
@@ -3044,6 +3054,23 @@
         "invalidDepth": "The log depth lies between 0 and 100.",
         "placeError": "A place of the rule cannot be read.",
         "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines)."
+      },
+      "confirm": {
+        "title": {
+          "create": "Agent: create a sync rule",
+          "update": "Agent: change a sync rule",
+          "delete": "Agent: delete a sync rule"
+        },
+        "body": {
+          "create": "The agent wants to create the rule “{name}”. It then runs without the agent, as shown here.",
+          "update": "The agent wants to change the rule “{name}”. Struck through is what holds now.",
+          "delete": "The agent wants to delete the rule “{name}”. The files in both places stay as they are."
+        },
+        "interval": "Interval",
+        "minutes": "every {n} minute | every {n} minutes",
+        "decrypted": "Files from an encrypted folder in place A are stored decrypted in place B.",
+        "allow": "Allow",
+        "deny": "Deny"
       }
     },
     "split": {

@@ -1,6 +1,6 @@
 // Sync rules in the window (spec 061): defaults of a new rule, the interval in minutes, the
-// state a rule shows, the hints of the dialog, the paths of the folder picker, the groups of a
-// preview and the log depth. Pure, so
+// state a rule shows, the hints of the dialog, the paths of the folder picker, the name of a
+// place, the groups of a preview and the log depth. Pure, so
 // `scripts/check-files-sync-rules.ts` checks it; no bindings with nested imports (typecheck:scripts).
 
 export type SyncDirection = 'aToB' | 'bToA' | 'both'
@@ -13,6 +13,34 @@ export const DEFAULT_INTERVAL_MINUTES = 15
 /** The shortest and the longest interval in minutes (data-model.md: 60 s to 86 400 s). */
 export const MIN_INTERVAL_MINUTES = 1
 export const MAX_INTERVAL_MINUTES = 1440
+
+/** A place of a rule (`SyncRulePlace` of the bindings). */
+export type PlaceRef = {
+  source: { kind: 'device' } | { kind: 'storage'; storageId: string }
+  path: string
+}
+
+/** The storages and other devices a place may name (`Sources` of the bindings). */
+export type PlaceSources = {
+  storages: readonly { id: string; name: string }[]
+  devices: readonly { id: string; name: string | null }[]
+}
+
+/** The name a place shows: a storage or device by its name, the device by its path; `unknown` for
+ * a storage that is not known (any more). */
+export function placeLabel(
+  place: PlaceRef,
+  sources: PlaceSources | null,
+  unknown: string,
+): string {
+  if (place.source.kind === 'device') return place.path
+  const id = place.source.storageId
+  const named =
+    sources?.storages.find((storage) => storage.id === id)?.name ??
+    sources?.devices.find((device) => device.id === id)?.name ??
+    unknown
+  return place.path === '/' ? named : `${named} ${place.path}`
+}
 
 /** The delete mode a new rule starts with (FR-005): mirror both ways, keep one way. */
 export function defaultDeleteMode(direction: SyncDirection): SyncDeleteMode {
