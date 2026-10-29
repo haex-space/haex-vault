@@ -300,7 +300,7 @@ pub async fn fetch_catalog(
     let mut entries = Vec::new();
     let mut source_errors = Vec::new();
     let mut total_pages = 0;
-    let mut total = 0;
+    let mut total: u64 = 0;
     for (source, answer) in asked.into_iter().zip(answers) {
         match answer {
             Ok(page) => {
