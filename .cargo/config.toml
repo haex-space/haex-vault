@@ -1,0 +1,5 @@
+# Spec 066 (T001, research R3): `sherpa-onnx-sys` would download its native libraries without a
+# checksum. It takes them from here instead; `node scripts/fetch-sherpa-onnx.ts` puts them there
+# after checking each SHA-256 (pins in scripts/lib/sherpaOnnxArchives.ts).
+[env]
+SHERPA_ONNX_ARCHIVE_DIR = { value = "src-tauri/target/sherpa-onnx-archives", relative = true }
