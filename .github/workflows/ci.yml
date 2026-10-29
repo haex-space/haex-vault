@@ -7,14 +7,55 @@ on:
   # their diff-scoped steps when there is no pull-request base to diff against.
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Documentation-only PRs keep the documentation validator and whitespace
+  # check while avoiding application builds and tests. Non-PR runs always do
+  # the full suite; workflow_dispatch can target a feature branch when needed.
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-24.04
+    outputs:
+      non_docs: ${{ steps.detect.outputs.non_docs }}
+    steps:
+      - name: Check out pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect non-documentation changes
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then
+            echo 'non_docs=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          non_docs=false
+          while IFS= read -r path; do
+            case "$path" in
+              *.md|.specify/feature.json|docs/*|plans/*|specs/*) ;;
+              *) non_docs=true; break ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA...$GITHUB_SHA")
+          echo "non_docs=$non_docs" >> "$GITHUB_OUTPUT"
+
   documentation:
     name: Documentation consistency
     runs-on: ubuntu-24.04
+    needs: changes
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,83 +68,112 @@ jobs:
         run: git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.sha }}"
 
       - name: Set up Node.js
+        if: needs.changes.outputs.non_docs == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.19.0
 
       - name: Install frontend dependencies
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Check chat state
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:chat-state
 
       - name: Check window manager state
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:wm-state
 
       - name: Check window manager navigation
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:wm-navigation
 
       - name: Check agent actions
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:agent-actions
 
       - name: Check MCP actions
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:mcp-actions
 
       - name: Check passwords
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:passwords
 
       - name: Check browser bridge
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:browser-bridge
 
       - name: Check storage
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:storage
 
       - name: Check contacts
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:contacts
 
       - name: Check extensions
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:extensions
 
       - name: Check settings app
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:settings
 
       - name: Check fields
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:fields
 
       - name: Check appearance
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:appearance
 
       - name: Check live vault data
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:vault-data
 
       - name: Check chat model search
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:chat-model-search
 
       - name: Check vault lifecycle
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:vault-lifecycle
 
       - name: Check vault passphrase lifetime
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:vault-passphrase-lifetime
 
       # The end-to-end suite's own logic (process control, driver client,
       # stand-in provider, report). Needs no display and no application; the
       # scenarios themselves run through `pnpm test:e2e`.
       - name: Check e2e helpers
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:e2e-lib
 
       - name: Check the platform probe
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:platform-probe
 
+      - name: Check the voice assistant
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:assistant
+
       - name: Check the file browser
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:files
 
       - name: Check the file icons
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:file-icons
 
       - name: Check Android versions against the devShell
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:android-versions
 
       - name: Check the e2e exclusions of Android
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:e2e-exclusions
 
       # Neither `typecheck` nor `lint` parses template expressions, so an
@@ -111,18 +181,22 @@ jobs:
       # `pnpm generate` on main unnoticed. This compiles every template
       # with the build's own compiler, without running a build.
       - name: Check Vue templates compile
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:templates
 
       - name: Typecheck frontend
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm typecheck
 
       # `scripts/` sits outside the Nuxt source root, so the step above never
       # sees it. Node runs these files as TypeScript directly (22.19+), which
       # strips types without checking them.
       - name: Typecheck tooling scripts
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm typecheck:scripts
 
       - name: Lint frontend
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm lint
 
       # Prettier's `semi: false` and Vue's template-expression parser
@@ -131,6 +205,7 @@ jobs:
       # `;` separators Prettier strips, and the result fails to compile.
       # Keep such handlers in named functions — see AliasSetting.vue.
       - name: Check frontend formatting
+        if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm format:check
 
       - name: Validate documentation
@@ -141,6 +216,8 @@ jobs:
   build:
     name: Frontend build
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.non_docs == 'true'
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -172,6 +249,8 @@ jobs:
     # default-features half dominates because it builds mistralrs.
     name: Rust checks (${{ matrix.features }})
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.non_docs == 'true'
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -235,6 +314,19 @@ jobs:
           # The two feature sets produce different artifacts and must not
           # share one cache entry.
           shared-key: ${{ matrix.features }}
+
+      - name: Set up Node.js
+        if: matrix.features == 'default'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.19.0
+
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        if: matrix.features == 'default'
+        run: node scripts/fetch-sherpa-onnx.ts
 
       # Formatting does not depend on features, so it runs on one leg only.
       - name: Check formatting
@@ -302,6 +394,8 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }} --all-targets -- -D warnings
 
+  # Full E2E and cross-platform checks run after merges to main or by manual
+  # dispatch on a feature branch, rather than on every PR update.
   e2e:
     # Builds the debug application (default features, the same profile
     # `pnpm test:e2e` builds locally) and drives it through tauri-driver
@@ -310,6 +404,7 @@ jobs:
     # runs the command unchanged here.
     name: End-to-end suite
     runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
     # The scenarios add up to about 27 minutes on a runner, the build comes on top.
@@ -412,6 +507,12 @@ jobs:
           workspaces: src-tauri
           shared-key: default
 
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts
+
       # tauri-driver is a global `cargo install`, outside the workspace the
       # cache step above covers; cached separately by its pinned version so
       # an ordinary run does not recompile it.
@@ -472,6 +573,8 @@ jobs:
   android-build:
     name: Android build
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.non_docs == 'true'
     timeout-minutes: 75
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -543,6 +646,26 @@ jobs:
           workspaces: src-tauri
           shared-key: android
 
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts --target aarch64-linux-android --target x86_64-linux-android
+
+      # Both Android ABIs link the same shared archive. Extract it once before Cargo builds either
+      # target so concurrent build scripts cannot observe a partially unpacked library directory.
+      - name: Prepare sherpa-onnx Android libraries
+        run: |
+          archive=src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-android.tar.bz2
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf "$archive" -C "$prebuilt"
+          test -f "$prebuilt/jniLibs/arm64-v8a/libsherpa-onnx-c-api.so"
+          test -f "$prebuilt/jniLibs/arm64-v8a/libonnxruntime.so"
+          test -f "$prebuilt/jniLibs/x86_64/libsherpa-onnx-c-api.so"
+          test -f "$prebuilt/jniLibs/x86_64/libonnxruntime.so"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
@@ -561,6 +684,8 @@ jobs:
   android-lint:
     name: Android clippy (${{ matrix.features }})
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.non_docs == 'true'
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -621,6 +746,19 @@ jobs:
           workspaces: src-tauri
           shared-key: android-lint-${{ matrix.features }}
 
+      - name: Set up Node.js
+        if: matrix.features == 'default'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.19.0
+
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        if: matrix.features == 'default'
+        run: node scripts/fetch-sherpa-onnx.ts --target aarch64-linux-android
+
       - name: Run clippy for Android
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android ${{ matrix.flags }} -- -D warnings
 
@@ -629,6 +767,7 @@ jobs:
   android-e2e:
     name: Android end-to-end (${{ matrix.shard }}/3)
     needs: android-build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     strategy:
@@ -781,6 +920,7 @@ jobs:
   platform-probe:
     name: Platform probe (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request'
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -815,11 +955,18 @@ jobs:
           workspaces: src-tauri
           shared-key: platform-probe-${{ matrix.os }}
 
-      # Without local inference and voice: the probe needs neither, and the build stays short. The
-      # runner's default shell on purpose: under Git Bash, `perl` is Git's MSYS Perl, which lacks
-      # modules openssl-src (SQLCipher) needs; PowerShell finds Strawberry Perl.
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts
+
+      # Without local inference, but with voice: spec 066 (T005, T006) checks that sherpa-onnx links
+      # and detects speech on Windows and macOS. The runner's default shell on purpose: under Git
+      # Bash, `perl` is Git's MSYS Perl, which lacks modules openssl-src (SQLCipher) needs;
+      # PowerShell finds Strawberry Perl.
       - name: Build holzi with the probe
-        run: corepack pnpm tauri build --no-bundle --features platform-probe -- --no-default-features
+        run: corepack pnpm tauri build --no-bundle --features platform-probe,voice -- --no-default-features
 
       - name: Run the probe
         shell: bash
@@ -833,6 +980,7 @@ jobs:
   platform-probe-android:
     name: Platform probe (android)
     needs: android-build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -878,8 +1026,8 @@ jobs:
           disable-animations: true
           script: scripts/ci/android-platform-probe.sh ${{ runner.temp }}/apk/x86_64/debug/app-x86_64-debug.apk
 
-  # The one required check for Android (contracts/ci.md): green only when the APK builds, clippy
-  # passes for Android and every e2e shard passes.
+  # On PRs this gate covers the APK build and Android Clippy. Main and manual
+  # runs also require every Android E2E shard.
   android:
     name: Android
     if: always()
@@ -892,5 +1040,8 @@ jobs:
         run: |
           echo "results: $RESULTS"
           for result in $RESULTS; do
+            if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$result" = skipped ]; then
+              continue
+            fi
             [ "$result" = success ] || exit 1
           done

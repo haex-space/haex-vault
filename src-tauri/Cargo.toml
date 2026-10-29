@@ -56,9 +56,10 @@ llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 llm-metal = ["llm-cpu", "mistralrs/metal"]
 
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
-# (audio module, interrupt matcher, voice Tauri commands). Independent of
-# llm-cpu — see the llm-cpu comment above for what running without it means.
-voice = ["dep:cpal"]
+# (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
+# the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
+# comment above for what running without it means.
+voice = ["dep:cpal", "dep:sherpa-onnx"]
 
 # End-to-end tests (spec 024, T078): builds `e2e_nostr_relay`, an in-process
 # `MockRelay` as a process the two application processes of a scenario share.
@@ -290,6 +291,12 @@ anyhow = "1"
 # Cross-platform microphone capture for voice control (spec 008), gated by
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
+# Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
+# `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
+# scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`
+# (`.cargo/config.toml`), so a version bump means new digests there. Without features it links
+# statically on desktop and shared on Android and iOS (the only builds those have).
+sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 # Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
 # above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
 # mistralrs 0.8.1 already resolves to, so only one candle version tree

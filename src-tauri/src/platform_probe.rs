@@ -23,6 +23,10 @@
 //! Spec 044 (T090, FR-039): on Android one more step, [`ALL_FILES_STEP`], says whether holzi holds
 //! "Zugriff auf alle Dateien" and, when it does, whether the shared storage lists. The Android job
 //! runs the probe without the permission and again with it.
+//!
+//! Spec 066 (T005, T006): with the `voice` feature one more step, [`SPEECH_DETECTION_STEP`], runs
+//! the pause detection on a built-in German sample, so sherpa-onnx and its ONNX runtime must link,
+//! load a model and find speech on every platform.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
@@ -53,6 +57,10 @@ pub const ENCRYPTED_VECTORS_STEP: &str = "encrypted-vectors";
 
 /// The name of the step that checks "Zugriff auf alle Dateien" on Android.
 pub const ALL_FILES_STEP: &str = "all-files";
+
+/// The name of the step that detects speech with sherpa-onnx (spec 066).
+#[cfg(feature = "voice")]
+pub const SPEECH_DETECTION_STEP: &str = "speech-detection";
 
 /// How long the probe waits for the window's report before it gives up.
 pub const REPORT_TIMEOUT: Duration = Duration::from_secs(90);
@@ -288,6 +296,37 @@ pub fn all_files(
     }
 }
 
+/// The step [`SPEECH_DETECTION_STEP`]: the pause detection finds the speech in `de_sample.wav`.
+#[cfg(feature = "voice")]
+pub fn speech_detection() -> Step {
+    use crate::assistant::vad::PauseDetector;
+
+    const MODEL: &[u8] = include_bytes!("assistant/fixtures/silero_vad.int8.onnx");
+    const SAMPLE: &[u8] = include_bytes!("stt/fixtures/de_sample.wav");
+
+    let run = || -> Result<String, String> {
+        let dir = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let model = dir.path().join("silero_vad.int8.onnx");
+        std::fs::write(&model, MODEL).map_err(|error| error.to_string())?;
+        let mut detector = PauseDetector::new(&model, 800).map_err(|error| error.to_string())?;
+        let mut utterances = detector.push(&crate::stt::fixture_wav::decode_fixture_wav(SAMPLE));
+        utterances.extend(detector.finish());
+        match utterances.len() {
+            0 => Err("no speech found in the sample".to_owned()),
+            count => Ok(format!("{count} utterances")),
+        }
+    };
+    let (ok, detail) = match run() {
+        Ok(detail) => (true, detail),
+        Err(detail) => (false, detail),
+    };
+    Step {
+        name: SPEECH_DETECTION_STEP.to_owned(),
+        ok,
+        detail: Some(detail),
+    }
+}
+
 /// The exit code for a report: 0 only when there is at least one step and every step passed.
 pub fn exit_code(report: &Report) -> i32 {
     if !report.steps.is_empty() && report.steps.iter().all(|step| step.ok) {
@@ -309,6 +348,8 @@ pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) 
         return;
     }
     report.steps.push(encrypted_vectors());
+    #[cfg(feature = "voice")]
+    report.steps.push(speech_detection());
     #[cfg(target_os = "android")]
     {
         use tauri_plugin_holzi_android::HolziAndroidExt;

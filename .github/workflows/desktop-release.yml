@@ -135,6 +135,12 @@ jobs:
           toolchain: 1.98.1
           targets: ${{ matrix.target }}
 
+      # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
+      # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
+      # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
+      - name: Fetch sherpa-onnx
+        run: node scripts/fetch-sherpa-onnx.ts --target ${{ matrix.target }}
+
       # macOS signs and notarizes only when the repository has the Apple credentials; Tauri reads
       # them from the environment. Without them the build is unsigned. The certificate is a
       # base64 .p12 file, `APPLE_PASSWORD` an app-specific password of the Apple ID.
