@@ -58,7 +58,28 @@ async function fetchOne(archive: SherpaArchive): Promise<void> {
   if (!response.ok) {
     throw new Error(`${url} answered ${response.status}`)
   }
-  const body = Buffer.from(await response.arrayBuffer())
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error(`${archive.name}: response has no body`)
+  const chunks: Buffer[] = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > archive.size) {
+        await reader.cancel()
+        throw new Error(`${archive.name}: response exceeds ${archive.size} bytes`)
+      }
+      chunks.push(Buffer.from(value))
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  if (size !== archive.size) {
+    throw new Error(`${archive.name}: expected ${archive.size} bytes, received ${size}`)
+  }
+  const body = Buffer.concat(chunks, size)
   const digest = createHash('sha256').update(body).digest('hex')
   if (digest !== archive.sha256) {
     throw new Error(
