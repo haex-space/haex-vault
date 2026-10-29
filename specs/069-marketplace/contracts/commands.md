@@ -39,6 +39,10 @@ wird je Name die höchste bekannte kompatible Fassung gezeigt, bei Gleichstand e
 Marketplace-Rangfolge. Ein neuer Aufruf von
 `marketplace_catalog` bricht einen noch laufenden ab.
 
+Die gemeinsame Liste wird **nicht** quellenübergreifend nach Downloads sortiert: Quellen bleiben in ihrer
+eingestellten Rangfolge, und die angeforderte Seite jeder Quelle steht in dieser Reihenfolge. Die Sortierung
+nach Downloads gilt innerhalb jeder Quelle.
+
 ## Download und Installation (FR-010 bis FR-016)
 
 | Command                        | Argumente                                                              | Ergebnis                                                       |

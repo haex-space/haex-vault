@@ -122,11 +122,13 @@ Zugangsdaten gesendet. Akzeptiert und im Vertrag vermerkt.
 ## R7 – Mehrere Marketplaces gleichzeitig: Anordnung und Blättern
 
 **Entscheidung**: Alle eingeschalteten Quellen werden gleichzeitig befragt. Seite N ist die Seite N
-**jeder** Quelle (mit bis zu 20 Einträgen je Quelle), hintereinander in Rangfolge. Innerhalb jeder Quelle
-gilt die Sortierung nach Downloads absteigend. Einträge verschiedener Quellen werden **nie** zusammengelegt
-(FR-012): Ein Eintrag ist durch `(sourceId, slug)` bestimmt, die Kachel nennt die Quelle, ein Filter
-„Quelle“ (`sourceId` im Aufruf) beschränkt auf eine. `totalPages` ist das Maximum der Quellen, `total` die
-Summe. Das ist stabil (kein Eintrag verschwindet beim Blättern).
+**jeder** Quelle (mit bis zu 20 Einträgen je Quelle), hintereinander in Rangfolge. Die gemeinsame Liste
+wird ausdrücklich **nicht** noch einmal quellenübergreifend nach Downloads sortiert: Das würde die
+Rangfolge aufheben und bei Änderungen an den Downloadzahlen Einträge zwischen Quellen und Seiten
+verschieben. Innerhalb jeder Quelle gilt die Sortierung nach Downloads absteigend. Einträge verschiedener
+Quellen werden **nie** zusammengelegt (FR-012): Ein Eintrag ist durch `(sourceId, slug)` bestimmt, die
+Kachel nennt die Quelle, ein Filter „Quelle“ (`sourceId` im Aufruf) beschränkt auf eine. `totalPages` ist
+das Maximum der Quellen, `total` die Summe. Das ist stabil (kein Eintrag verschwindet beim Blättern).
 
 **Begründung**: Der Legacy-Weg (Dopplung nach `extensionId`, kleinste Rangnummer gewinnt) lässt eine
 beliebige, selbst gehostete Quelle den Eintrag einer anderen verdecken, denn `extensionId` ist eine

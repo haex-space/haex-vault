@@ -75,6 +75,12 @@ Keine neue Abhängigkeit: `reqwest`, `sha2`, `semver`, `url`, `futures`, `tokio-
   eine davon signiert und installierbar; Desktop und Android-Emulator (SC-008); Zwei-Geräte-Fall für
   SC-007 (`marketplace-two-devices.test.ts`, Muster `contacts-two-devices.test.ts`).
 
+**Externe Release-Voraussetzung**: Der öffentliche Eintrag `haex-tetris` 0.1.3 enthält derzeit keine von
+Spec 017 verlangte `haextension/signature.json` und ist deshalb über die Installations-Vorschau nicht
+installierbar. Vor der Marketplace-Veröffentlichung muss der Herausgeber eine Spec-017-kompatible,
+signierte Fassung veröffentlichen und den Download durch die Installations-Vorschau prüfen. Das liegt
+außerhalb dieses Repositorys und ist kein Ersatz für den signierten Test-Marketplace in den E2E-Tests.
+
 **Target Platform**: Linux, Windows, macOS, Android, iOS (kein plattformabhängiger Code außer dem
 Fassungs-Kopf `X-Platform`)
 
