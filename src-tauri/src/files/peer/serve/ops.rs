@@ -10,7 +10,7 @@ use tokio::time::Instant;
 
 use super::roots::{window_of, Located};
 use super::ServeContext;
-use crate::files::local::drives::drives;
+use crate::files::local::drives::{display_name, drives};
 use crate::files::peer::wire::{FailCode, Reply, WireEntry, WireKind, WireRoot, WireShare};
 use crate::files::share::store;
 use crate::files::storage_time::parse_iso_ms;
@@ -77,7 +77,10 @@ pub async fn roots(ctx: &ServeContext) -> Result<Reply, FailCode> {
     Ok(Reply::Roots {
         drives: drives
             .iter()
-            .map(|drive| root(&drive.name, std::path::Path::new(&drive.path)))
+            .filter_map(|drive| {
+                let path = drive.path.as_deref()?;
+                Some(root(&display_name(drive), std::path::Path::new(path)))
+            })
             .collect(),
         known: ctx
             .known
@@ -94,8 +97,9 @@ pub async fn drive_entries() -> Result<Vec<WireEntry>, FailCode> {
         .map_err(|_| FailCode::Internal)?;
     Ok(drives
         .iter()
-        .map(|drive| WireEntry {
-            name: window_of(std::path::Path::new(&drive.path))
+        .filter_map(|drive| drive.path.as_deref())
+        .map(|path| WireEntry {
+            name: window_of(std::path::Path::new(path))
                 .trim_start_matches('/')
                 .to_owned(),
             kind: WireKind::Folder,

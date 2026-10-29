@@ -65,7 +65,9 @@ scenario(
 
     // A file and a folder go up.
     await selectIn(ctx, instance, 'left', 'hoch.txt')
-    await press(KEY.f5)
+    // The keyboard path is covered against device folders in `files-split`; use the explicit
+    // action here so this scenario isolates the cross-storage transfer.
+    await instance.click(inPanel('left', 'files-bar-copy-other'))
     await ctx
       .waitFor('hoch.txt in the right panel', () =>
         panelShows(instance, 'right', 'hoch.txt'),

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-26
 
-**Status**: Draft
+**Status**: Implemented (manual M6, M13, A1 and the checks of T044, T048, T052, T055, T056, T062, T063, T064, T067, T069 open)
 
 **Input**: User description: "Dateibrowser: Split-Ansicht mit zwei unabhängigen Panels nebeneinander
 (wie Total Commander). Jedes Panel hat eigenes Verzeichnis, eigene Navigation und Auswahl; ein

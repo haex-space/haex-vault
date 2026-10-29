@@ -513,6 +513,22 @@ impl StorageService {
         Ok(probe(self.store.as_ref(), access).await)
     }
 
+    /// What the storage holds and may hold, for the sidebar of the file browser. `None` where the
+    /// provider cannot tell (S3) or does not answer in time: the sidebar then shows nothing. A
+    /// storage whose credentials are missing is an error, as for every other call.
+    pub async fn space(&self, storage_id: &str) -> Result<Option<super::StorageSpace>> {
+        let access = self.access_of(storage_id).await?;
+        let deadline = tokio::time::Instant::now() + super::probe::TEST_TIME;
+        Ok(self
+            .store
+            .space(&access, deadline)
+            .await
+            .unwrap_or_else(|error| {
+                log::debug!("remote storage: the space of a storage is not known: {error}");
+                None
+            }))
+    }
+
     /// Tests a storage and remembers the outcome on this device.
     pub async fn test_storage(&self, storage_id: &str) -> Result<TestResult> {
         let access = match self.access_of(storage_id).await {

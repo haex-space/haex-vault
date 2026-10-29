@@ -261,3 +261,11 @@
     text-underline-offset: 2px;
   }
 }
+
+/* The scroll body of a dialog (UiDrawerModal of the UI layer) has no padding on its right, so an
+   overlay scrollbar is drawn over the fields. Give the content a gap to it and let the scrollbar
+   sit in the dialog's own padding. */
+[role='dialog'] > .overflow-y-auto.overscroll-contain {
+  margin-inline-end: calc(var(--spacing) * -3);
+  padding-inline-end: calc(var(--spacing) * 3);
+}

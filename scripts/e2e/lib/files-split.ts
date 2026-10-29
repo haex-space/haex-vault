@@ -2,9 +2,10 @@
 // browser (`files-entry-<name>`, `files-up`, `files-search`), so every selector is scoped to the panel
 // by its `data-files-panel` attribute. The hooks these return start with `[`, which the rig reads as
 // a selector (`instance.click`, `waitForDisplayed`, `doubleClick`).
+import type { FlowInstance } from './flows.ts'
 import type { ScenarioContext } from './scenario.ts'
 
-type Instance = Awaited<ReturnType<ScenarioContext['startInstance']>>
+type Instance = Pick<FlowInstance, 'exec' | 'click'>
 
 export type PanelSide = 'left' | 'right'
 

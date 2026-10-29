@@ -45,6 +45,8 @@ const path = computed(() => place.value.path)
 useFilesPanelStart(context, source, path)
 
 const folder = useFilesFolder(source, path)
+// A vanished folder of this device moves the panel up to one that exists (spec 064 R10).
+useFilesNearestFolder(context, source, path, folder.error)
 // Shares (spec 056 US2).
 const { sharing, sharingEntry, receivedShare, readOnlySource, share } =
   useFilesTabShares({ state: context.sources }, source)

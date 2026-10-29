@@ -4800,6 +4800,7 @@ dependencies = [
  "uuid 1.26.1",
  "walkdir",
  "wiremock",
+ "zbus",
  "zeroize",
  "zip 8.6.0",
 ]
