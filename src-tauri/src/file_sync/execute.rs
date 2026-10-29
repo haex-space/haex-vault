@@ -406,7 +406,7 @@ async fn copy(
     planned: &Facts,
     replaces: bool,
 ) -> Result<(), StepError> {
-    let result = copy_inner(target, from, path, replaces).await;
+    let result = copy_inner(target, from, path, planned, replaces).await;
     if result.is_err() {
         target.progress.copy_failed();
     }
@@ -417,6 +417,7 @@ async fn copy_inner(
     target: &Target<'_>,
     from: SyncRuleSide,
     path: &str,
+    planned: &Facts,
     replaces: bool,
 ) -> Result<(), StepError> {
     let (source, sink) = (target.place(from), target.place(from.other()));
