@@ -3605,7 +3605,9 @@
       "no_answer": "Keine Antwort",
       "error": "Fehler",
       "unavailable": "Nicht verfügbar",
-      "too_many": "Zu viele Aufrufe"
+      "too_many": "Zu viele Aufrufe",
+      "denied_site": "Website abgelehnt",
+      "paused": "Nutzer bediente den Browser"
     },
     "browser": {
       "title": "Browser",

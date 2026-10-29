@@ -63,3 +63,104 @@ fn a_website_reads_back_from_json_and_refuses_a_bad_one() {
         .expect("site")
         .is_plain_http());
 }
+
+// ---------------------------------------------------------------------------
+// The check before a document loads (spec 065, T024)
+// ---------------------------------------------------------------------------
+
+mod documents {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use super::super::sites::{check_document, Site, Verdict};
+    use crate::mcp_server::grants::{SiteGrant, SiteLevel};
+
+    fn site(address: &str) -> Site {
+        Site::parse(address).unwrap()
+    }
+
+    fn rights() -> BTreeMap<Site, SiteGrant> {
+        [
+            (
+                site("https://news.example"),
+                SiteGrant {
+                    level: SiteLevel::Read,
+                    fill_remembered: false,
+                },
+            ),
+            (
+                site("http://intranet.example"),
+                SiteGrant {
+                    level: SiteLevel::Read,
+                    fill_remembered: false,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    #[test]
+    fn an_allowed_website_loads_as_page_redirect_or_frame() {
+        let none = BTreeSet::new();
+        for address in [
+            "https://news.example/",
+            "https://news.example/artikel?id=3#oben",
+            "http://intranet.example/plan",
+        ] {
+            assert_eq!(check_document(address, &rights(), &none, true), Verdict::Go);
+        }
+        assert_eq!(
+            check_document("https://news.example:8443/", &rights(), &none, true),
+            Verdict::Ask(site("https://news.example:8443")),
+            "another port is another website"
+        );
+    }
+
+    #[test]
+    fn an_unapproved_website_asks_or_is_refused_in_plan() {
+        let none = BTreeSet::new();
+        assert_eq!(
+            check_document("https://partner.example/x", &rights(), &none, true),
+            Verdict::Ask(site("https://partner.example"))
+        );
+        assert_eq!(
+            check_document("https://partner.example/x", &rights(), &none, false),
+            Verdict::Refuse("site_not_allowed")
+        );
+        let once: BTreeSet<Site> = [site("https://partner.example")].into_iter().collect();
+        assert_eq!(
+            check_document("https://partner.example/y", &rights(), &once, false),
+            Verdict::Go,
+            "allowed once in this session"
+        );
+    }
+
+    #[test]
+    fn other_schemes_internal_pages_and_user_info_never_load() {
+        let none = BTreeSet::new();
+        for address in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,<h1>x</h1>",
+            "blob:https://news.example/123",
+            "chrome://settings",
+            "edge://settings",
+            "brave://settings",
+            "devtools://devtools/bundled/inspector.html",
+            "chrome-extension://abc/page.html",
+            "about:config",
+            "https://user:pass@news.example/",
+            "not an address",
+        ] {
+            assert_eq!(
+                check_document(address, &rights(), &none, true),
+                Verdict::Refuse("blocked_address"),
+                "{address}"
+            );
+        }
+        assert_eq!(
+            check_document("about:blank", &rights(), &none, false),
+            Verdict::Go
+        );
+    }
+}

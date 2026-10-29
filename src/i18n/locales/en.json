@@ -3605,7 +3605,9 @@
       "no_answer": "No answer",
       "error": "Error",
       "unavailable": "Unavailable",
-      "too_many": "Too many calls"
+      "too_many": "Too many calls",
+      "denied_site": "Website declined",
+      "paused": "User was operating the browser"
     },
     "browser": {
       "title": "Browser",

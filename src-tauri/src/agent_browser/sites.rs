@@ -3,10 +3,13 @@
 //! and the port only when it is not the default. Addresses with user info, other schemes and
 //! hosts the browser cannot reach are refused, so a right never names one.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use url::Url;
+
+use crate::mcp_server::grants::SiteGrant;
 
 /// One website. Ordered and compared by its written form.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -79,5 +82,47 @@ impl From<Site> for String {
 impl fmt::Display for Site {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
+    }
+}
+
+/// What happens with a document an agent tab is about to load (research R9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verdict {
+    /// Load it.
+    Go,
+    /// Ask the user whether the agent may open this website (FR-007).
+    Ask(Site),
+    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`).
+    Refuse(&'static str),
+}
+
+/// Blank pages and the documents of `srcdoc` frames, which load nothing from anywhere.
+const BLANK: [&str; 2] = ["about:blank", "about:srcdoc"];
+
+/// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
+/// `sites`, or one allowed once in this session, loads; any other website asks, or is refused in
+/// Plan (`ask` false); other schemes, internal pages and addresses with user info never load.
+pub fn check_document(
+    address: &str,
+    sites: &BTreeMap<Site, SiteGrant>,
+    once: &BTreeSet<Site>,
+    ask: bool,
+) -> Verdict {
+    if BLANK.contains(&address) {
+        return Verdict::Go;
+    }
+    let site = match Url::parse(address)
+        .map_err(|_| SiteError::Unparsable)
+        .and_then(|url| Site::of(&url))
+    {
+        Ok(site) => site,
+        Err(_) => return Verdict::Refuse("blocked_address"),
+    };
+    if sites.contains_key(&site) || once.contains(&site) {
+        Verdict::Go
+    } else if ask {
+        Verdict::Ask(site)
+    } else {
+        Verdict::Refuse("site_not_allowed")
     }
 }

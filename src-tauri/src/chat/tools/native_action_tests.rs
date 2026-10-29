@@ -41,6 +41,7 @@ impl NativeExecutor for Echo {
                     media_type: "image/jpeg".to_owned(),
                     bytes: vec![1, 2, 3],
                 }],
+                target: None,
             }),
             _ => std::future::pending().await,
         }

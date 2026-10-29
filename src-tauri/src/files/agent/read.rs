@@ -81,6 +81,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                     media_type: "image/jpeg".to_owned(),
                     bytes: jpeg,
                 }],
+                target: None,
             },
             Err(_) => noted(entry, NOTE_BROKEN_IMAGE),
         })

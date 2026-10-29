@@ -227,7 +227,12 @@ async fn run(
         let (result, outcome) = tokio::select! {
             biased;
             _ = cancel.cancelled() => (unavailable(), Outcome::Unavailable),
-            reply = executor.run(&def.action_id, input, &call, cancel) => native_result(reply),
+            reply = executor.run(&def.action_id, input, &call, cancel) => {
+                if let Some(target) = reply.as_ref().ok().and_then(|reply| reply.target.clone()) {
+                    entry.target = Some(target);
+                }
+                native_result(reply)
+            }
         };
         entry.outcome = outcome;
         return result;
@@ -259,14 +264,25 @@ fn native_result(reply: Result<NativeReply, NativeError>) -> (CallToolResult, Ou
         Err(error) if error.code == "forbidden_for_agents" => {
             (not_allowed(), Outcome::DeniedRights)
         }
-        Err(error) => (
-            error_result(
-                &error.code,
-                &error.message,
-                error.field.map(|f| ("field", Value::String(f))),
-            ),
-            Outcome::Error,
-        ),
+        Err(error) => {
+            // A native action that asks the user itself reports how that ended (spec 065).
+            let outcome = match error.code.as_str() {
+                "site_not_allowed" => Outcome::DeniedSite,
+                "user_declined" => Outcome::DeniedUser,
+                "no_answer" => Outcome::NoAnswer,
+                "paused" => Outcome::Paused,
+                "not_allowed" => Outcome::DeniedRights,
+                _ => Outcome::Error,
+            };
+            (
+                error_result(
+                    &error.code,
+                    &error.message,
+                    error.field.map(|f| ("field", Value::String(f))),
+                ),
+                outcome,
+            )
+        }
     }
 }
 

@@ -8,12 +8,17 @@
 
 pub mod cdp;
 pub mod error;
+pub mod executor;
 pub mod locate;
 pub mod process;
 pub mod process_windows;
 pub mod profile;
 pub mod profile_store;
+pub mod prompts;
+pub mod read;
+pub mod session;
 pub mod sites;
+pub mod tab;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -324,5 +329,7 @@ mod process_windows_tests;
 mod profile_store_tests;
 #[cfg(test)]
 mod profile_tests;
+#[cfg(test)]
+mod read_tests;
 #[cfg(test)]
 mod sites_tests;

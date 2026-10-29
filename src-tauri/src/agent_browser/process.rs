@@ -48,7 +48,9 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
         "--disable-extensions".into(),
         "--disable-background-networking".into(),
         "--disable-component-update".into(),
-        "--disable-features=AutofillServerCommunication,Translate".into(),
+        // Without the back/forward cache every step through the history loads again, through the
+        // website check and with a load event the tools wait for.
+        "--disable-features=AutofillServerCommunication,Translate,BackForwardCache".into(),
     ];
     match os {
         // Chromium would otherwise ask the system keyring (research R2).

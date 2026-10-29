@@ -53,6 +53,9 @@ impl NativeError {
 pub struct NativeReply {
     pub result: Value,
     pub images: Vec<ToolImage>,
+    /// What the agent log names as the call's target, when the input does not say it well (the
+    /// website of a browser tab, spec 065).
+    pub target: Option<String>,
 }
 
 impl From<Value> for NativeReply {
@@ -60,6 +63,7 @@ impl From<Value> for NativeReply {
         Self {
             result,
             images: Vec::new(),
+            target: None,
         }
     }
 }
