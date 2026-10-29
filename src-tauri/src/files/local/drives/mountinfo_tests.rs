@@ -59,19 +59,22 @@ fn a_broken_line_is_skipped() {
 }
 
 #[test]
-fn android_volume_ids_are_recognised() {
-    assert!(is_volume_id("1A2B-3C4D"));
-    assert!(is_volume_id("abcd-ef01"));
-    assert!(!is_volume_id("emulated"));
-    assert!(!is_volume_id("self"));
-    assert!(!is_volume_id("1A2B3C4D"));
+fn the_list_shows_user_drives_without_home_each_once() {
+    let twice = format!("{MOUNTINFO}54 22 8:33 / /mnt/backup rw shared:43 - ext4 /dev/sdc1 rw\n");
+    assert_eq!(
+        user_mount_points(&twice),
+        vec![
+            PathBuf::from("/"),
+            PathBuf::from("/run/media/anna/USB Stick"),
+            PathBuf::from("/mnt/backup"),
+        ]
+    );
 }
 
-#[cfg(unix)]
 #[test]
-fn the_space_of_a_real_folder_is_known() {
-    let dir = tempfile::tempdir().unwrap();
-    let (total, free) = space(dir.path()).unwrap();
-    assert!(total > 0);
-    assert!(free <= total);
+fn home_itself_is_not_shown_but_a_mount_below_it_is() {
+    assert!(!is_shown_mount_point(Path::new("/home")));
+    assert!(is_shown_mount_point(Path::new("/home/anna/mnt/stick")));
+    assert!(!is_shown_mount_point(Path::new("/boot/efi")));
+    assert!(!is_shown_mount_point(Path::new("/recovery")));
 }

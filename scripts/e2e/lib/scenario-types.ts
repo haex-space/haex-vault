@@ -77,6 +77,8 @@ export interface ScenarioOptions {
     container?: boolean
     /** Runs only on a phone (spec 043, the Android scenarios). */
     phone?: boolean
+    /** A udisks2 the runner user may drive (spec 064: loop images as drives). */
+    udisks?: boolean
   }
   timeoutMs?: number
 }
