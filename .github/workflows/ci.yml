@@ -652,6 +652,20 @@ jobs:
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts --target aarch64-linux-android --target x86_64-linux-android
 
+      # Both Android ABIs link the same shared archive. Extract it once before Cargo builds either
+      # target so concurrent build scripts cannot observe a partially unpacked library directory.
+      - name: Prepare sherpa-onnx Android libraries
+        run: |
+          archive=src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-android.tar.bz2
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf "$archive" -C "$prebuilt"
+          test -f "$prebuilt/jniLibs/arm64-v8a/libsherpa-onnx-c-api.so"
+          test -f "$prebuilt/jniLibs/arm64-v8a/libonnxruntime.so"
+          test -f "$prebuilt/jniLibs/x86_64/libsherpa-onnx-c-api.so"
+          test -f "$prebuilt/jniLibs/x86_64/libonnxruntime.so"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
