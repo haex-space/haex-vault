@@ -8,6 +8,9 @@
  * vault already holds with other content replaces it only after a confirmation. Nothing is written
  * before "Installieren".
  *
+ * The permissions are grouped by kind, each group an accordion that starts closed (spec 017 FR-067);
+ * a group with a wildcard carries a warning triangle in its header.
+ *
  * Tools the extension offers to the agent (spec 018) are a group of their own, by title and effect;
  * ticked, the effect decides when a call needs an approval, unticked every call needs one.
  *
@@ -24,6 +27,7 @@ import {
   splitAgentTools,
   toolTitle,
 } from '~/lib/extensions/agentTools'
+import { groupPermissions } from '~/lib/extensions/permissionGroups'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{ dev?: boolean }>()
@@ -39,6 +43,8 @@ const busy = ref(false)
 const failure = ref<string | null>(null)
 
 const key = (p: DeclaredPermissionView) => `${p.kind}|${p.action}|${p.target}`
+const grantedCount = (rows: readonly DeclaredPermissionView[]) =>
+  rows.filter((p) => choices.value[key(p)]?.granted).length
 
 /** On an update only the permissions it adds are put before the user. */
 const shown = computed(
@@ -46,6 +52,8 @@ const shown = computed(
     preview.value?.existing?.newPermissions ?? preview.value?.declared ?? [],
 )
 const groups = computed(() => splitAgentTools(shown.value, locale.value))
+/** The other permissions by kind, each an accordion (spec 017 FR-067). */
+const kindGroups = computed(() => groupPermissions(groups.value.others))
 /** A preview that can be confirmed: a valid bundle, or any project holzi could read. */
 const usable = computed(
   () => preview.value !== null && (props.dev || preview.value.signatureValid),
@@ -237,72 +245,88 @@ watch(open, (isOpen) => {
             </label>
           </div>
 
-          <SettingsGroup
-            v-if="groups.others.length > 0"
-            :label="t('extensions.install.permissions')"
-          >
-            <li
-              v-for="permission in groups.others"
-              :key="key(permission)"
-              class="flex flex-col gap-2 px-4 py-3"
-            >
-              <label class="flex items-start gap-3">
-                <ShadcnCheckbox
-                  v-model="choices[key(permission)]!.granted"
-                  class="mt-0.5"
-                />
-                <ExtensionsPermissionSummary
-                  :kind="permission.kind"
-                  :action="permission.action"
-                  :target="permission.target"
-                />
-              </label>
-              <p
-                v-if="permission.deviceScoped && !dev"
-                class="pl-7 text-xs text-muted-foreground"
-              >
-                {{ t('extensions.install.deviceOnly') }}
-              </p>
-            </li>
-          </SettingsGroup>
-
-          <div
-            v-if="groups.tools.length > 0"
+          <section
+            v-if="kindGroups.length > 0 || groups.tools.length > 0"
             class="flex flex-col gap-2"
-            data-testid="extensions-install-agent-tools"
           >
-            <SettingsGroup :label="t('extensions.install.agentTools.title')">
+            <h2 class="px-1 text-sm font-semibold">
+              {{ t('extensions.install.permissions') }}
+            </h2>
+            <ExtensionsPermissionGroup
+              v-for="group in kindGroups"
+              :key="group.kind"
+              :label="
+                t(`extensions.permissions.kinds.${group.kind}`, group.kind)
+              "
+              :granted="grantedCount(group.rows)"
+              :total="group.rows.length"
+              :wide="group.wide"
+            >
               <li
-                v-for="tool in groups.tools"
-                :key="key(tool)"
-                class="px-4 py-3"
+                v-for="permission in group.rows"
+                :key="key(permission)"
+                class="flex flex-col gap-2 px-4 py-3"
               >
                 <label class="flex items-start gap-3">
                   <ShadcnCheckbox
-                    v-model="choices[key(tool)]!.granted"
+                    v-model="choices[key(permission)]!.granted"
                     class="mt-0.5"
                   />
-                  <span class="flex flex-col">
-                    <span class="text-sm">
-                      {{ toolTitle(tool, locale) }} ({{ tool.target }})
-                    </span>
-                    <span
-                      v-if="tool.supported === false"
-                      class="text-xs text-muted-foreground"
-                    >
-                      {{ t('extensions.install.agentTools.unavailable') }}
-                    </span>
-                    <span class="text-xs text-muted-foreground">{{
-                      t(effectLabelKey(tool.action))
-                    }}</span>
-                  </span>
+                  <ExtensionsPermissionSummary
+                    hide-kind
+                    :kind="permission.kind"
+                    :action="permission.action"
+                    :target="permission.target"
+                  />
                 </label>
+                <p
+                  v-if="permission.deviceScoped && !dev"
+                  class="pl-7 text-xs text-muted-foreground"
+                >
+                  {{ t('extensions.install.deviceOnly') }}
+                </p>
               </li>
-            </SettingsGroup>
-            <p class="px-1 text-xs text-muted-foreground">
-              {{ t('extensions.install.agentTools.hint') }}
-            </p>
-          </div>
+            </ExtensionsPermissionGroup>
+
+            <template v-if="groups.tools.length > 0">
+              <ExtensionsPermissionGroup
+                :label="t('extensions.install.agentTools.title')"
+                :granted="grantedCount(groups.tools)"
+                :total="groups.tools.length"
+                data-testid="extensions-install-agent-tools"
+              >
+                <li
+                  v-for="tool in groups.tools"
+                  :key="key(tool)"
+                  class="px-4 py-3"
+                >
+                  <label class="flex items-start gap-3">
+                    <ShadcnCheckbox
+                      v-model="choices[key(tool)]!.granted"
+                      class="mt-0.5"
+                    />
+                    <span class="flex flex-col">
+                      <span class="text-sm">
+                        {{ toolTitle(tool, locale) }} ({{ tool.target }})
+                      </span>
+                      <span
+                        v-if="tool.supported === false"
+                        class="text-xs text-muted-foreground"
+                      >
+                        {{ t('extensions.install.agentTools.unavailable') }}
+                      </span>
+                      <span class="text-xs text-muted-foreground">{{
+                        t(effectLabelKey(tool.action))
+                      }}</span>
+                    </span>
+                  </label>
+                </li>
+              </ExtensionsPermissionGroup>
+              <p class="px-1 text-xs text-muted-foreground">
+                {{ t('extensions.install.agentTools.hint') }}
+              </p>
+            </template>
+          </section>
 
           <p
             v-if="preview.unsupportedCategories.length > 0"

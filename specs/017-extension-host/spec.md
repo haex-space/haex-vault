@@ -210,6 +210,12 @@ Ein manipuliertes Bundle (eine Datei geändert) wird abgelehnt.
 7. **Given** eine installierte Erweiterung, **When** der Nutzer ein Bundle mit demselben
    Herausgeberschlüssel und Namen, aber einer anderen Fassung installiert, **Then** gilt das
    als Update dieser Erweiterung (US7), nicht als zweite Erweiterung.
+8. **Given** der Installationsdialog einer Erweiterung mit vielen Berechtigungen, **When** er
+   erscheint, **Then** stehen die Berechtigungen nach Art gruppiert da (die Werkzeuge für den
+   Agenten als eigene Gruppe), jede Gruppe als Ziehharmonika, die der Nutzer aufklappt, um ihre
+   einzelnen Berechtigungen zu sehen und abzuwählen; eine Gruppe, die eine weitreichende
+   Berechtigung enthält (ein Ziel `*` oder die Web-Aktion `*`), trägt ein Warndreieck, auch
+   zugeklappt.
 
 ---
 
@@ -926,6 +932,14 @@ erscheint), Entwicklermodus ausschalten (Erweiterung verschwindet).
   keiner Plattform DARF ein Erweiterungsrahmen Zugriff auf die interne Schnittstelle von holzi haben. Funktionen,
   die eine Plattform nicht bietet (Shell, Beobachten von Ordnern, freie Dateipfade auf Mobilgeräten), MÜSSEN
   „nicht verfügbar“ antworten.
+- **FR-067**: Der Installationsdialog MUSS die erklärten Berechtigungen nach Art gruppiert zeigen, die
+  Werkzeuge für den Agenten (Spec 018) als eigene Gruppe. Jede Gruppe MUSS sich auf- und zuklappen lassen und
+  ist zu Beginn zugeklappt; ihre Kopfzeile nennt den Namen der Art und wie viele ihrer Berechtigungen angehakt
+  sind. Enthält eine Gruppe eine weitreichende Berechtigung (ein Ziel `*`, außer bei
+  `notifications` und `peers`, oder die Web-Aktion `*`), MUSS ihre Kopfzeile ein Warndreieck tragen, auch
+  zugeklappt; das Warndreieck steht nur für Platzhalter, nicht für ändernde oder löschende Werkzeuge. Die
+  Vorgabe (alles angehakt), die Abwahl einzelner Berechtigungen und das Ergebnis der Installation bleiben
+  unverändert.
 
 **Entwicklermodus**
 
