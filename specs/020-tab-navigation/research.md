@@ -107,13 +107,11 @@ Funktionen `(history, …) → history` und damit ohne Vue testbar.
 
 **Decision**:
 
-| Eingabe                               | Ziel                                         | Umsetzung                                                                                          |
-| ------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Schaltflächen Zurück/Vor              | aktiver Tab dieses Fensters                  | `wm/NavButtons.vue` links vor `WmTabBar` in `wm/Window.vue`                                        |
-| Langer Druck (≥ 500 ms) / Rechtsklick | Verlaufsliste                                | Dropdown aus dem haex-ui-Layer (`ShadcnDropdownMenu`), per Tastatur bedienbar                      |
-| Alt+←/→ (alle), Cmd+[/] (macOS)       | aktiver Tab des fokussierten Fensters        | ein globaler `keydown`-Listener auf der Shell-Host-Seite, Auflösung über die Aktions-Registry (R8) |
-| Maustasten Zurück/Vor                 | aktiver Tab des Fensters unter dem Zeiger    | `mouseup`/`auxclick` mit `button` 3/4 am Fenster-Wurzelelement, Default unterdrückt; Spike unten   |
-| System-Zurück (Android-Geste)         | aktiver Tab des obersten sichtbaren Fensters | nativer Zurück-Hook → Aktion `wm.system.back` (R7)                                                 |
+| Eingabe                         | Ziel                                         | Umsetzung                                                                                          |
+| ------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Alt+←/→ (alle), Cmd+[/] (macOS) | aktiver Tab des fokussierten Fensters        | ein globaler `keydown`-Listener auf der Shell-Host-Seite, Auflösung über die Aktions-Registry (R8) |
+| Maustasten Zurück/Vor           | aktiver Tab des Fensters unter dem Zeiger    | `mouseup`/`auxclick` mit `button` 3/4 am Fenster-Wurzelelement, Default unterdrückt; Spike unten   |
+| System-Zurück (Android-Geste)   | aktiver Tab des obersten sichtbaren Fensters | nativer Zurück-Hook → Aktion `wm.system.back` (R7)                                                 |
 
 Für Alt+Pfeil gilt: Liegt der Fokus in einem editierbaren Element und läuft holzi
 unter macOS, wird die Taste nicht abgefangen (Wortsprung hat Vorrang, FR-017).

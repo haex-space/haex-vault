@@ -24,8 +24,8 @@ nicht 1:1 übernommen.
 
 - [`015-workspace-shell`](../015-workspace-shell/spec.md) bleibt maßgeblich für
   Fenster, Tabs, Arbeitsbereiche und deren Persistenz. Diese Spec ergänzt den
-  Tab um einen Ort und eine Historie und erweitert die Titelleiste (FR-007 aus
-  Spec 015) um Zurück und Vor. Die Weiterleitungen der früheren
+  Tab um einen Ort und eine Historie; die Titelleiste enthält keine Zurück/Vor-
+  Schaltflächen. Die Weiterleitungen der früheren
   Vollseiten-Adressen (FR-004 aus Spec 015) laufen künftig über das Öffnen an
   einem Ort (FR-012 dieser Spec).
 - [`004-chat-window-handling`](../004-chat-window-handling/spec.md) und
@@ -65,26 +65,25 @@ einem einzelnen Modell. Mit Zurück gelangt er Schritt für Schritt wieder zur
 Übersicht, mit Vor wieder zum Modell — genau wie in einem Browser-Tab.
 
 **Why this priority**: Das ist der Kern des Features. Ohne Vor/Zurück müssen
-Apps mit Unteransichten eigene Zurück-Knöpfe erfinden, und genau das hat in
+Apps mit Unteransichten eigene Zurück-Logik erfinden, und genau das hat in
 haex-vault 2.x (Legacy) zu inkonsistentem Verhalten geführt.
 
 **Independent Test**: Einen Tab öffnen, drei Ansichten nacheinander aufrufen,
-zweimal Zurück, einmal Vor: der Tab zeigt jeweils die erwartete Ansicht, und die
-Knöpfe sind genau dann bedienbar, wenn es ein Ziel gibt.
+zweimal Alt+←, einmal Alt+→: der Tab zeigt jeweils die erwartete Ansicht.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein frisch geöffneter Tab, **When** der Nutzer die Titelleiste
-   betrachtet, **Then** stehen links vor dem Tab-Bereich die Schaltflächen
-   Zurück und Vor, beide nicht bedienbar.
+   betrachtet, **Then** beginnt der Tab-Bereich links; Zurück/Vor-Schaltflächen
+   sind nicht vorhanden.
 2. **Given** ein Tab zeigt Ansicht A, **When** der Nutzer eine Aktion wählt,
-   die zu Ansicht B führt, **Then** zeigt der Tab B und Zurück ist bedienbar.
+   die zu Ansicht B führt, **Then** zeigt der Tab B und Alt+← navigiert zurück.
 3. **Given** ein Tab hat die Folge A → B → C durchlaufen, **When** der Nutzer
-   zweimal Zurück wählt, **Then** zeigt der Tab A; Zurück ist nicht mehr
-   bedienbar, Vor ist bedienbar.
+   zweimal Alt+← auslöst, **Then** zeigt der Tab A; Alt+← hat kein weiteres
+   Ziel und Alt+→ navigiert vor.
 4. **Given** der Tab zeigt nach Zurück wieder A und Vor führt zu B, **When** der
    Nutzer von A aus eine andere Ansicht D aufruft, **Then** entfallen die
-   Vor-Einträge B und C; Vor ist nicht mehr bedienbar.
+   Vor-Einträge B und C; Alt+→ hat kein Ziel.
 5. **Given** eine Ansicht bietet Filter, Suche oder Sortierung, **When** der
    Nutzer diese ändert, **Then** entsteht kein neuer Historien-Eintrag; der
    aktuelle Eintrag übernimmt den neuen Zustand, und Zurück führt zur vorigen
@@ -111,8 +110,8 @@ haex-vault-2.x-Modells: Zurück landet dort im falschen Tab oder bewirkt gar nic
 Ohne saubere Trennung ist User Story 1 im Mehrfensterbetrieb wertlos.
 
 **Independent Test**: Zwei Fenster mit je einem Tab öffnen, in beiden je zwei
-Ansichten aufrufen. Zurück im ersten Fenster ändert nur das erste; der Wechsel
-zum zweiten Fenster und Zurück dort ändert nur das zweite.
+Ansichten aufrufen. Zurück über die Maustaste im ersten Fenster ändert nur das
+erste; das Tastenkürzel im zweiten Fenster ändert nur das zweite.
 
 **Acceptance Scenarios**:
 
@@ -120,8 +119,8 @@ zum zweiten Fenster und Zurück dort ändert nur das zweite.
    Zurück wählt, **Then** ändert sich nur dieser Tab; Ort und Historie des
    anderen bleiben unverändert.
 2. **Given** ein Fenster mit zwei Tabs, **When** der Nutzer zwischen den Tabs
-   wechselt, **Then** zeigen Zurück und Vor in der Titelleiste den Zustand des
-   jeweils aktiven Tabs.
+   wechselt, **Then** verwenden die Tastenkürzel die Historie des jeweils
+   aktiven Tabs.
 3. **Given** ein Tab mit Historie, **When** der Nutzer das Fenster minimiert und
    wiederherstellt, den Arbeitsbereich wechselt oder das Fenster in einen
    anderen Arbeitsbereich verschiebt, **Then** ist die Historie des Tabs
@@ -143,8 +142,7 @@ Ein Nutzer navigiert zurück, wie er es aus dem Browser kennt: mit den
 Seitentasten der Maus, mit dem gewohnten Tastenkürzel oder auf dem Handy mit der
 Zurück-Geste. Die Eingabe wirkt auf das Fenster, das er meint.
 
-**Why this priority**: Schaltflächen allein reichen für ein Browser-ähnliches
-Gefühl nicht; die Maustasten und die Android-Geste sind die häufigsten Wege
+**Why this priority**: Die Maustasten und die Android-Geste sind häufige Wege
 zurück. Ohne klare Zielregel entsteht wieder das Problem aus User Story 2.
 
 **Independent Test**: Zwei nebeneinander sichtbare Fenster mit Historie.
@@ -231,17 +229,13 @@ Chat-Verlaufs.
 unterscheidbar; ohne sie funktioniert die Navigation aber trotzdem, deshalb P2.
 
 **Independent Test**: In den Einstellungen zu den Modellen wechseln: der
-Tab-Titel ändert sich; die Einträge der Verlaufsliste tragen die Titel der
-jeweiligen Ansichten.
+Tab-Titel ändert sich.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein Ort liefert einen eigenen Titel, **When** der Tab ihn zeigt,
    **Then** tragen Tab, Tab-Liste (Chevron) und Fensterübersicht diesen Titel;
    liefert der Ort keinen, gilt der App-Name.
-2. **Given** der Nutzer öffnet die Verlaufsliste (FR-016), **When** sie
-   erscheint, **Then** trägt jeder Eintrag den Titel, den sein Ort beim Besuch
-   hatte.
 
 ---
 
@@ -363,8 +357,7 @@ ausschließlich nach den Regeln dieser Spec.
 - **Klick auf den aktuellen Ort**: Eine Aktion, die zum bereits angezeigten Ort
   mit denselben Parametern führt, erzeugt keinen neuen Eintrag.
 - **Sehr lange Historie**: Je Tab werden höchstens 50 Einträge behalten; beim
-  Überschreiten entfällt der älteste. Die Verlaufsliste zeigt höchstens die
-  letzten 15 Einträge (wie Firefox).
+  Überschreiten entfällt der älteste.
 - **Ort einer Unteransicht verschwindet**: Verweist ein Eintrag auf etwas, das
   es nicht mehr gibt (gelöschtes Modell, gelöschter Verlauf), zeigt die App
   statt einer kaputten Ansicht die nächsthöhere sinnvolle Ansicht mit
@@ -373,7 +366,7 @@ ausschließlich nach den Regeln dieser Spec.
   nicht gespeicherten Änderungen weg, entscheidet die App, ob sie nachfragt;
   ohne Nachfrage dürfen die Eingaben verloren gehen (siehe Annahmen).
 - **Kompaktdarstellung** (Spec 015: schmales Anwendungsfenster, Fenster im
-  Vollbild): Zurück und Vor bleiben in der Titelleiste sichtbar.
+  Vollbild): Tab-Leiste und Fensteraktionen bleiben sichtbar.
 - **Maustaste über einem Bereich außerhalb von Fenstern** (Launcher, freie
   Fläche des Arbeitsbereichs): wirkt auf nichts.
 - **Neustart**: Nach einem Neustart beginnen alle wiederhergestellten Tabs an
@@ -449,16 +442,13 @@ ausschließlich nach den Regeln dieser Spec.
 
 **Bedienung**
 
-- **FR-015**: Die Titelleiste jedes Fensters MUSS links vor dem Tab-Bereich die
-  Schaltflächen Zurück und Vor enthalten, die sich auf den aktiven Tab des
-  Fensters beziehen und genau dann bedienbar sind, wenn es in ihrer Richtung
-  einen Eintrag gibt. Die übrige Anordnung aus Spec 015 (FR-007) bleibt
-  unverändert. Beide Schaltflächen MÜSSEN auch in der Kompaktdarstellung
-  (Spec 015: Anwendungsfenster schmaler als 768 CSS-Pixel, jedes Fenster füllt
-  den Arbeitsbereich) sichtbar bleiben.
-- **FR-016**: Langes Drücken oder Rechtsklick auf Zurück bzw. Vor MUSS eine
-  Verlaufsliste der Einträge in dieser Richtung zeigen (nächster zuerst, höchstens 15),
-  jeweils mit Titel; die Auswahl springt direkt zu diesem Eintrag.
+- **FR-015**: Die Shell MUSS die Navigation der aktiven Tab-Historie über
+  Alt+Pfeil links/rechts und die Maustasten Zurück/Vor anbieten (FR-017–018).
+  Die Titelleiste enthält keine zusätzlichen Zurück/Vor-Schaltflächen; der
+  Tab-Bereich beginnt links in der Titelleiste.
+- **FR-016**: Die Tab-Historie MUSS über `wm.tab.history` lesbar und über
+  `wm.tab.go` gezielt anspringbar sein. Eine Verlaufsliste in der Titelleiste
+  ist nicht Teil der Oberfläche.
 - **FR-017**: Zurück und Vor MÜSSEN per Alt+Pfeil links / Alt+Pfeil rechts auf
   dem aktiven Tab des fokussierten Fensters auslösbar sein, auf allen
   Plattformen; unter macOS zusätzlich per Cmd+[ / Cmd+]. Hat die Kombination in
@@ -477,11 +467,9 @@ ausschließlich nach den Regeln dieser Spec.
   Historie eines Tabs dienen (siehe FR-035); eine Zurück-Eingabe des Systems
   DARF die Vault nie verlassen.
 - **FR-021**: Liefert ein Ort einen Titel, MÜSSEN Tab, Tab-Liste und
-  Fensterübersicht diesen zeigen; sonst den App-Namen. Einträge der
-  Verlaufsliste tragen den Titel ihres Orts zum Zeitpunkt des Besuchs.
+  Fensterübersicht diesen zeigen; sonst den App-Namen.
 - **FR-022**: Alle neuen Bedienelemente MÜSSEN per Tastatur erreichbar sein und
-  zugängliche Namen tragen; die Verlaufsliste MUSS per Tastatur bedienbar
-  sein.
+  zugängliche Namen tragen.
 - **FR-023**: Alle neuen sichtbaren Texte MÜSSEN in Deutsch und Englisch im
   Gleichschritt vorliegen.
 
@@ -489,7 +477,7 @@ ausschließlich nach den Regeln dieser Spec.
 
 - **FR-024**: Jede Nutzeraktion der Shell und der ausgelieferten Apps, die
   Zustand ändert oder navigiert, MUSS als Aktion mit fester Kennung geführt
-  werden. Mindestens: Zurück, Vor, Sprung in der Verlaufsliste, zu einem Ort
+  werden. Mindestens: Zurück, Vor, Sprung in der Tab-Historie, zu einem Ort
   navigieren, App (an einem Ort) öffnen, Tab schließen, neuer Tab über „+“,
   Tab aktivieren, Fenster fokussieren, minimieren, maximieren/wiederherstellen,
   schließen und in einen Arbeitsbereich verschieben, Fensterübersicht,

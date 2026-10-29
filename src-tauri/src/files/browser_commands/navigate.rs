@@ -16,7 +16,7 @@ use crate::files::encrypted::format::is_folder_prefix;
 use crate::files::encrypted::ops::refresh;
 use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{route, Route};
-use crate::files::local::drives::{drives, Drive};
+use crate::files::local::drives::{volumes, Drive};
 use crate::files::local::ops;
 use crate::files::peer::contacts::FilesContactShares;
 use crate::files::state::FilesState;
@@ -80,7 +80,7 @@ pub async fn files_sources(
             path: place.path.to_string_lossy().into_owned(),
         })
         .collect();
-    let drives = blocking(|| Ok(drives())).await?;
+    let drives = blocking(|| Ok(volumes())).await?;
     // Without an open vault (or with a storage list that fails) the device alone shows.
     let storages = match crate::remote_storage::commands::service(&state) {
         Ok(service) => service
