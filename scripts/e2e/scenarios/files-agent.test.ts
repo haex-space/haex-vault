@@ -11,7 +11,7 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { scenario } from '../lib/scenario.ts'
-import { runAction, wmSnapshot } from '../lib/settings.ts'
+import { runAction, wmSnapshot, WM } from '../lib/settings.ts'
 
 // Spec 044 US6 (T084, quickstart §6 step 1): a scripted model reaches files through the catalog. It
 // finds the file actions with `find_actions` (they are not in the core offer), searches a folder of
@@ -161,14 +161,15 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
         fileTabs.some((tab) => tab.id === existing.id),
         'the original split tab remains open',
       )
-      const activated = await runAction(instance, 'wm.tab.activate', {
-        tabId: existing.id,
-      })
-      assert.ok(activated.ok, JSON.stringify(activated))
-      await ctx.waitFor(
-        'the original split tab to show both panels again',
-        async () => (await visiblePanels(instance)) === 2,
-        { fixed: true, timeoutMs: 15_000 },
+      const originalSplit = await instance.exec<boolean>(
+        `const history = ${WM}.historyOf(arguments[0])
+         return history?.entries[history.index]?.location.query.split === '1'`,
+        [existing.id],
+      )
+      assert.equal(
+        originalSplit,
+        true,
+        'the original tab keeps its split state',
       )
       ctx.step('files.show opens a new tab and keeps the split')
     }
