@@ -129,6 +129,12 @@ fn extension_errors_serialise_with_their_kind_and_fields() {
             serde_json::json!({ "kind": "ExtensionNotFound" }),
         ),
         (
+            HolziError::Marketplace {
+                reason: "marketplace_hash_mismatch".to_string(),
+            },
+            serde_json::json!({ "kind": "Marketplace", "reason": "marketplace_hash_mismatch" }),
+        ),
+        (
             HolziError::ExtensionNotReady {
                 status: "migration_failed".to_string(),
             },

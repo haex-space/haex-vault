@@ -67,14 +67,18 @@ type BundleSource =
   `haex_marketplaces` and to the extensions (`onVaultTablesChanged`, spec 028 live data).
 - No new event.
 
-## Error kinds (`HolziError::Marketplace { kind }`)
+## Error kinds (`HolziError::Marketplace { reason }`)
+
+The field is called `reason` because `kind` is the tag of the error enum (`{ kind: "Marketplace", reason }`).
 
 `marketplace_invalid_url`, `marketplace_credentials_required`,
 `marketplace_insecure_credentials`, `marketplace_not_found`, `marketplace_no_hash`,
 `marketplace_hash_mismatch`, `marketplace_size_mismatch`, `marketplace_too_large`,
 `marketplace_incompatible_version`, `marketplace_download_cancelled`, `marketplace_source_*`
 (`unreachable`, `timeout`, `auth_rejected`, `bad_response`), `marketplace_icon_unavailable`,
-`marketplace_pending_missing` (pending slot empty or expired).
+`marketplace_pending_missing` (pending slot empty or expired), `marketplace_credentials_syncing`
+(the credentials entry has not arrived yet), `marketplace_superseded` (a newer `marketplace_catalog` call took
+the place of this one), `marketplace_destination_refused`.
 
 ## Not present (FR-030)
 

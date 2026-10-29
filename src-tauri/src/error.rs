@@ -358,6 +358,12 @@ pub enum HolziError {
     #[error("Extension not installed: {reason}")]
     ExtensionInstall { reason: String },
 
+    /// The marketplace for extensions refused something or could not do it (spec 069,
+    /// contracts/commands.md "Error kinds"): `reason` is one of `marketplace::kinds`, never text
+    /// of a marketplace. The field is not called `kind`: that is the tag of this enum.
+    #[error("Marketplace: {reason}")]
+    Marketplace { reason: String },
+
     /// No installed extension with this id.
     #[error("Extension not found")]
     ExtensionNotFound,

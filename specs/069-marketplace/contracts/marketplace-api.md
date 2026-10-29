@@ -48,7 +48,7 @@ The response shapes and field types are binding:
 
 ```ts
 type HealthResponse = { status: 'ok' }
-type CategoryWithCount = { name: string; slug: string; count: number }
+type CategoryWithCount = { name: string; slug: string; extensionCount: number }
 type CategoriesResponse = { categories: CategoryWithCount[] }
 type Pagination = {
   page: number

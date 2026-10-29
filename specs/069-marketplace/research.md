@@ -181,8 +181,11 @@ manifests with requirements).
 marketplace, in a single place in `marketplace/store.rs`, to be set by the operator) is an ordinary row
 with the fixed id `preset-public`:
 
-- **New vault**: The row is created once, when the vault gets its initial data (genesis,
-  `sync::genesis`; the exact place is task T017). Not on every open.
+- **New vault**: The row is created once, in `instances/create.rs` (`open_new_database`), right after
+  `sync::genesis::run_after_open(…, true)` and so after the sync state exists: an ordinary write with a clock
+  that syncs like every row (the bootstrap hook would write rows without a clock that stay invisible to the
+  sync). Decided in T017. Not on every open, and not for a vault that is only joined or linked: those get
+  their rows from the sync.
 - **Vault without a marketplace** (created before this feature or everything deleted): the empty state
   of the catalog offers "Öffentlichen Marketplace hinzufügen"; this writes the same row with the same id.
 - Delete, switch off, rename, change the address: like any row. Nothing creates it again.
@@ -250,8 +253,11 @@ equal ranks are resolved stably on read with `(rank, name, id)`.
 **Decision**: The rig (Spec 016) gets a small Node server that serves catalog, categories, details and
 download for two extensions, one of them with the existing signed test bundle (`haextension-test-bundles`,
 throw-away key). The address of the preset can be overridden in the e2e build
-(`HOLZI_E2E_MARKETPLACE_URL`, only in e2e builds, like the other switches of the rig; the exact place is
-settled by task T003 in `tasks.md`). In the release build there is no environment switch.
+(`HOLZI_E2E_MARKETPLACE_URL`). Decided in T003, like `HOLZI_E2E_SYNC_LOOPBACK` in
+`sync/endpoint.rs`: the variable is read only when `cfg!(debug_assertions)` (the E2E suite always builds
+and tests the debug profile) and only for the preset (`store::preset_url`); a release build ignores it. The
+gate is a function of the build kind and the value (`store::preset_url_for`), so a unit test covers the
+release case without a release build.
 
 ## R17 – Comparison with haex-vault 2.x (legacy)
 

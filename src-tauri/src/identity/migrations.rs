@@ -48,6 +48,7 @@ use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
 use super::migrations_file_shares::FILE_SHARES_0039;
 use super::migrations_icon_sets::FILE_ICON_SETS_0036;
+use super::migrations_marketplaces::MARKETPLACES_0048;
 use super::migrations_mcp_agents::MCP_AGENTS_0045;
 use super::migrations_model_access::MODEL_ACCESS_0037;
 use super::migrations_passwords::PASSWORDS_0022;
@@ -116,7 +117,8 @@ use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 ///   with the hash of the signed card as its primary key.
 /// - 29: `0045_mcp_agents` (spec 021) added the CRDT-tracked `haex_mcp_agents` and
 ///   `haex_mcp_agent_grants`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 29;
+/// - 30: `0048_marketplaces` (spec 069) added the CRDT-tracked `haex_marketplaces`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 30;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -734,6 +736,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0047_agent_browser"),
         AGENT_BROWSER_0047.to_owned(),
+    );
+    // Spec 069: the marketplaces of a vault, all rows equal; the preset is an ordinary row.
+    m.insert(
+        MigrationName::from("0048_marketplaces"),
+        MARKETPLACES_0048.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

@@ -19,6 +19,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod marketplace;
 pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
@@ -121,6 +122,10 @@ use instances::{
     active_instance_name, change_vault_passphrase, cleanup_orphans_on_startup, close_instance,
     create_instance, import_instance, list_instances, open_instance, paths::get_app_local_data,
     ProcessPresence,
+};
+use marketplace::commands::{
+    marketplace_catalog, marketplace_categories, marketplace_details, marketplace_icon,
+    marketplace_list,
 };
 use models::commands::{
     check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
@@ -258,6 +263,7 @@ pub fn run() {
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
         contacts::phone::trigger::PhoneRuns::default(),
@@ -797,6 +803,11 @@ pub fn run() {
             passwords_import_report_save,
             passwords_icon_preview,
             extension_install_preview,
+            marketplace_list,
+            marketplace_catalog,
+            marketplace_categories,
+            marketplace_details,
+            marketplace_icon,
             extension_install,
             extension_list,
             extension_remove,
