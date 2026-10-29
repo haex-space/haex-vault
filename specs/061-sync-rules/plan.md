@@ -129,7 +129,7 @@ src-tauri/src/
 │   ├── run.rs                          # ein Lauf: scan, plan, execute, Protokoll, Statuswechsel
 │   ├── schedule.rs                     # Steuerung: Intervall, Wächter, „jetzt“, Obergrenze, Sperre
 │   ├── watch.rs                        # notify-Wächter für lokale Orte
-│   ├── log.rs                          # Lauf-Protokoll schreiben, kürzen, lesen
+│   ├── run_log.rs                      # Lauf-Protokoll schreiben, kürzen, lesen
 │   ├── status.rs                       # RuleStatus ableiten, Ereignis sync-rules-changed
 │   ├── commands.rs                     # Tauri-Befehle
 │   ├── agent.rs                        # SyncRulesAgent (NativeExecutor)
