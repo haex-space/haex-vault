@@ -1,10 +1,10 @@
 //! Which rules holzi accepts (FR-002, FR-004): every error code, overlap within the rule and with
-//! other rules also crosswise, and `BToA` stored as `AToB`.
+//! other rules also crosswise.
 
 use std::path::PathBuf;
 
 use super::*;
-use crate::file_sync::model::SyncRuleDeleteMode;
+use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection};
 
 fn device(path: &str) -> SyncRulePlace {
     SyncRulePlace {
@@ -73,16 +73,6 @@ fn a_good_rule_is_normalised() {
     .expect("accepted");
     assert_eq!(got.place_a, device("/home/anna/Fotos"));
     assert_eq!(got.place_b, storage("s3", "/Backup/Fotos"));
-}
-
-#[test]
-fn b_to_a_is_stored_as_a_to_b_with_swapped_places() {
-    let mut d = draft(device("/home/a"), storage("s3", "x/"));
-    d.direction = SyncRuleDirection::BToA;
-    let got = validate(d, &[], &own()).expect("accepted");
-    assert_eq!(got.direction, SyncRuleDirection::AToB);
-    assert_eq!(got.place_a, storage("s3", "/x"));
-    assert_eq!(got.place_b, device("/home/a"));
 }
 
 #[test]

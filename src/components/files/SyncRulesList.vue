@@ -79,7 +79,7 @@ function openShown(view: SyncRuleView, which: 'preview' | 'ignore' | 'log') {
   logging.value = which === 'log'
 }
 
-const ARROWS = { aToB: '→', bToA: '←', both: '↔' } as const
+const ARROWS = { aToB: '→', both: '↔' } as const
 
 function placesOf(view: SyncRuleView): string {
   return `${placeLabel(view.rule.placeA)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.placeB)}`

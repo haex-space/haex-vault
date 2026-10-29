@@ -27,12 +27,17 @@ const DRAFT: JsonSchema = {
   type: 'object',
   properties: {
     name: { type: 'string', description: '1 to 80 characters.' },
-    placeA: PLACE,
-    placeB: PLACE,
+    placeA: {
+      ...PLACE,
+      description:
+        'The source. Its .haex-ignore file holds the exclusions of the rule.',
+    },
+    placeB: { ...PLACE, description: 'The target.' },
     direction: {
       type: 'string',
-      enum: ['aToB', 'bToA', 'both'],
-      description: 'One way from A to B, from B to A, or both ways.',
+      enum: ['aToB', 'both'],
+      description:
+        'aToB: one way from the source (placeA) to the target (placeB); both: both ways.',
     },
     deleteMode: {
       type: 'string',
@@ -48,7 +53,7 @@ const DRAFT: JsonSchema = {
     allowDecrypted: {
       type: 'boolean',
       description:
-        'Files of an encrypted place A may be stored decrypted at B. The user sees it in the confirmation.',
+        'Files of an encrypted source may be stored decrypted in the target. The user sees it in the confirmation.',
     },
   },
   required: [

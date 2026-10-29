@@ -16,14 +16,13 @@ pub const DEFAULT_INTERVAL_SECS: u32 = 900;
 /// The longest rule name in characters.
 pub const MAX_NAME_CHARS: usize = 80;
 
-/// Which way a rule copies (FR-001). A one-way rule always copies from A to B once stored
-/// ([`super::rules::validate`] swaps the places of `BToA`).
+/// Which way a rule copies (FR-001): one way from the source (`place_a`) to the target (`place_b`),
+/// or both ways.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleDirection {
     AToB,
-    BToA,
     Both,
 }
 
@@ -89,13 +88,16 @@ pub struct SyncRulePlace {
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct SyncRuleDraft {
     pub name: String,
+    /// The source; its `.haex-ignore` holds the exclusions.
     pub place_a: SyncRulePlace,
+    /// The target.
     pub place_b: SyncRulePlace,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
     pub enabled: bool,
-    /// The user agreed that files of an encrypted place A are stored decrypted at B (FR-030a).
+    /// The user agreed that files of an encrypted source are stored decrypted in the target
+    /// (FR-030a).
     pub allow_decrypted: bool,
 }
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * Creates or changes a sync rule (spec 061 US1, US2, US4 scenarios 1, 4 and 6, FR-001, FR-005,
- * FR-030a, FR-031): a name, two places from the folder picker, the direction (one way or both ways),
+ * FR-030a, FR-031): a name, the source and the target from the folder picker, the direction (from
+ * the source to the target, or both ways),
  * the delete mode and the interval. The dialog asks for consent when files would leave an encrypted
  * folder for a plain one, and points to encrypted folders when a place copied into is a storage
  * without one. The preview shows the plan of the rule as it stands in the dialog before it is saved.
@@ -151,7 +152,7 @@ const decryptConsentText = computed(() =>
 )
 
 const directionOptions = computed(() =>
-  (['aToB', 'bToA', 'both'] as const).map((value) => ({
+  (['aToB', 'both'] as const).map((value) => ({
     value,
     label: t(`files.syncRules.direction.${value}`),
   })),
@@ -195,7 +196,7 @@ function draft(): SyncRuleDraft | null {
   }
 }
 
-/** The stored name of a place that is kept, else "Ort A" or "Ort B". */
+/** The stored name of a place that is kept, else "Quelle" or "Ziel". */
 const previewLabels = computed(() => ({
   a: keepsStored('a') && props.labels ? props.labels.a : labelOf('a'),
   b: keepsStored('b') && props.labels ? props.labels.b : labelOf('b'),

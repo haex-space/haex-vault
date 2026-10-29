@@ -27,7 +27,6 @@ import {
 test('a new rule mirrors both ways and keeps one way (FR-005)', () => {
   assert.equal(defaultDeleteMode('both'), 'mirror')
   assert.equal(defaultDeleteMode('aToB'), 'keep')
-  assert.equal(defaultDeleteMode('bToA'), 'keep')
 })
 
 test('the interval stays between one minute and a day', () => {
@@ -55,7 +54,6 @@ test('the dialog asks for consent and points to encrypted folders', () => {
 
 test('a two-way rule copies into both places (FR-011)', () => {
   assert.deepEqual(targetSides('aToB'), ['b'])
-  assert.deepEqual(targetSides('bToA'), ['a'])
   assert.deepEqual(targetSides('both'), ['a', 'b'])
 })
 

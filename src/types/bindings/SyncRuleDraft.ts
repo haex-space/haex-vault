@@ -6,8 +6,17 @@ import type { SyncRulePlace } from "./SyncRulePlace";
 /**
  * What the user sets on a rule.
  */
-export type SyncRuleDraft = { name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
+export type SyncRuleDraft = { name: string,
 /**
- * The user agreed that files of an encrypted place A are stored decrypted at B (FR-030a).
+ * The source; its `.haex-ignore` holds the exclusions.
+ */
+placeA: SyncRulePlace,
+/**
+ * The target.
+ */
+placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
+/**
+ * The user agreed that files of an encrypted source are stored decrypted in the target
+ * (FR-030a).
  */
 allowDecrypted: boolean, };

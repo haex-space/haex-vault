@@ -537,7 +537,7 @@ pub async fn sync_rules_preview(
         .map_err(scan_error)
 }
 
-/// Opens place A to write, or to read with the reason it cannot be written.
+/// Opens the source to write, or to read with the reason it cannot be written.
 async fn open_a(
     app: &AppHandle,
     rule: &SyncRule,
@@ -579,7 +579,7 @@ pub async fn sync_rules_ignore_get(
     ignore_of(&app, &rule).await
 }
 
-/// Writes the exclusion file of place A; the rule runs with it after.
+/// Writes the exclusion file of the source; the rule runs with it after.
 #[tauri::command]
 pub async fn sync_rules_ignore_set(
     app: AppHandle,

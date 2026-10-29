@@ -12,7 +12,8 @@ fn enums_store_their_serde_names_and_read_them_back() {
     assert_eq!(stored(&SyncRuleSide::B), "b");
     assert_eq!(
         parse::<SyncRuleDirection>("bToA"),
-        Some(SyncRuleDirection::BToA)
+        None,
+        "one way is always from the source"
     );
     assert_eq!(parse::<SyncRuleDeleteMode>("later"), None, "a newer value");
 }

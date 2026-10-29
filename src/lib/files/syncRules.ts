@@ -3,7 +3,8 @@
 // place, the groups of a preview and the log depth. Pure, so
 // `scripts/check-files-sync-rules.ts` checks it; no bindings with nested imports (typecheck:scripts).
 
-export type SyncDirection = 'aToB' | 'bToA' | 'both'
+/** One way from the source to the target, or both ways. */
+export type SyncDirection = 'aToB' | 'both'
 export type SyncDeleteMode = 'mirror' | 'keep' | 'ask'
 export type SyncState =
   'active' | 'running' | 'waiting' | 'error' | 'paused' | 'inactive'
@@ -91,8 +92,7 @@ export function progressShare(progress: {
 
 /** The places a rule copies into: its target, or both places of a two-way rule (FR-011). */
 export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
-  if (direction === 'both') return ['a', 'b']
-  return direction === 'bToA' ? ['a'] : ['b']
+  return direction === 'both' ? ['a', 'b'] : ['b']
 }
 
 /** The columns of the rules list the user sorts by. */
