@@ -385,6 +385,12 @@ pub fn run() {
                         if let Some(files) = window.try_state::<files::state::FilesState>() {
                             files.unwatch_all();
                         }
+                        // Spec 064: nor its subscriptions to the drive list.
+                        if let Some(monitor) =
+                            window.try_state::<files::local::drives::monitor::DriveMonitor>()
+                        {
+                            monitor.unsubscribe_all();
+                        }
                     }
                 })
                 .on_web_resource_request(move |request, response| {
@@ -415,6 +421,11 @@ pub fn run() {
             app.manage(files_state);
             app.manage(files::transfer::TransferManager::default());
             app.manage(files::search::SearchManager::default());
+            // Spec 064 (research R4, R8): the live drive list while a file browser listens.
+            app.manage(files::local::drives::monitor::DriveMonitor::new(
+                files::local::drives::backend::backend(),
+                std::time::Duration::from_secs(2),
+            ));
             app.manage(file_sync::service::FileSyncState::default());
             // Spec 044 US6 (ADR 0011): the file actions of the built-in agent run here, without a
             // window; a storage without a grant is asked for through the window.
@@ -480,6 +491,9 @@ pub fn run() {
             platform::commands::platform_capabilities,
             files::commands::picked_file_name,
             files::browser_commands::navigate::files_sources,
+            files::browser_commands::drives::files_drives_watch,
+            files::browser_commands::drives::files_drives_unwatch,
+            files::browser_commands::drives::files_drive_open,
             files::browser_commands::navigate::files_all_access,
             files::browser_commands::navigate::files_request_all_access,
             files::browser_commands::navigate::files_list,

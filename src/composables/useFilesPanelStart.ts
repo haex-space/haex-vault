@@ -26,7 +26,10 @@ export function useFilesPanelStart(
     const data = context.sources.value
     if (!data) return
     const home = data.known.find((known) => known.name === 'home')?.path
-    const start = home ?? data.drives[0]?.path
+    const start =
+      home ??
+      data.drives.find((drive) => drive.state === 'mounted')?.path ??
+      undefined
     if (start) context.initialize({ source: source.value, path: start })
   })
 
