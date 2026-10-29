@@ -10,8 +10,8 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 
 function confirm() {
-  open.value = false
   emit('confirm')
+  open.value = false
 }
 </script>
 

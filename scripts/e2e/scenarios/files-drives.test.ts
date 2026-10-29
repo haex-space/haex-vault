@@ -186,10 +186,40 @@ scenario(
     assert.equal(mountPointOf(device), mounted, 'a no keeps it mounted')
     ctx.step('running transfers: asked, no keeps it')
 
+    // A yes cancels the pending transfer before releasing the drive (FR-010).
+    await contextMenu(instance, 'files-entry-notiz.txt')
+    await instance.click('files-menu-copy')
+    await instance.click(row)
+    await instance.click('files-action-paste')
+    await instance.waitForDisplayed('files-conflict')
+    assert.ok(await pageClick(instance, eject))
+    await instance.waitForDisplayed('files-drive-release-confirm')
+    assert.ok(await pageClick(instance, 'files-drive-release-confirm'))
+    await ctx.waitFor('the confirmed release cancels the transfer', () =>
+      gone(instance, 'files-transfers'),
+    )
+    await ctx.waitFor('the confirmed release unmounts the drive', () =>
+      device ? mountPointOf(device) === null : false,
+    )
+    ctx.step('running transfers: yes cancels them and releases the drive')
+
     // A file of it open in the viewer does not hold it: haex lets go first (FR-009).
+    device = attach(stick.file)
+    const remountedRow = await ctx.waitFor('the stick mounted again', () =>
+      driveRow(instance, 'E2EAUSWURF'),
+    )
+    assert.ok(remountedRow)
+    await instance.click(remountedRow)
+    await ctx.waitFor('the remounted stick', () =>
+      device ? mountPointOf(device) : null,
+    )
     await doubleClick(instance, 'files-entry-lies.txt')
     await instance.waitForDisplayed('files-viewer-text')
-    await instance.click(eject)
+    const remountedEject = remountedRow.replace(
+      'files-drive-',
+      'files-drive-eject-',
+    )
+    await instance.click(remountedEject)
     await ctx.waitFor('the stick unmounted', () =>
       device ? mountPointOf(device) === null : false,
     )
