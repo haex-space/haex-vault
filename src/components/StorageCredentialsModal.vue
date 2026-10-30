@@ -138,7 +138,10 @@ function onUpdateOpen(open: boolean) {
         <CredentialsEntryPicker
           v-if="credentials.source === 'entry'"
           v-model="credentials.entryId"
-          :protocol="protocol"
+          :source="{
+            command: 'storage_credentials_candidates',
+            args: { protocol },
+          }"
         />
         <p
           v-if="failure"

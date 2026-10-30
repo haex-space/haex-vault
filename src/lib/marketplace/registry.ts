@@ -1,4 +1,4 @@
-// Marketplace registry (spec 069): the places of the app "Erweiterungen entdecken" as route
+// Marketplace registry (spec 069): the places of the app "Marktplatz" as route
 // patterns with fixed title keys. Pure — the Vue side attaches the components in
 // `components/wm/appRoutes.ts`. A path carries the slug of an entry only; the marketplace it
 // belongs to travels as `?source=<id>`. No text a marketplace sent goes into a path or a title.

@@ -162,7 +162,7 @@
       "extension": "Extension",
       "files": "Files",
       "contacts": "Contacts",
-      "marketplace": "Discover extensions"
+      "marketplace": "Marketplace"
     },
     "launcher": {
       "lock": "Lock",
@@ -984,7 +984,24 @@
           "deleteTitle": "Delete {name}?",
           "deleteBody": "Installed extensions stay. The catalog and the search for updates no longer use this marketplace.",
           "cancel": "Cancel",
-          "notFound": "This marketplace does not exist any more."
+          "notFound": "This marketplace does not exist any more.",
+          "auth": {
+            "label": "Login",
+            "none": "None",
+            "bearer": "Token (Bearer)",
+            "basic": "User name and password (Basic)"
+          },
+          "login": {
+            "group": "Login",
+            "insecure": "A login is only sent over https. Change the address to https:// or switch the login off.",
+            "notVisible": "The entry with the login is not on this device yet.",
+            "replace": "Use a different login",
+            "username": "User name",
+            "password": "Password",
+            "token": "Token",
+            "entryLabel": "Login from the password manager",
+            "onlyFitting": "Only entries with what this login needs are listed: a password, for a user name and password also the user name."
+          }
         },
         "test": {
           "ok": "Reachable, {count} extensions.",
@@ -1896,7 +1913,8 @@
     "expiredOn": "Expired on {date}",
     "owner": "Belongs to: {name}",
     "owners": {
-      "storage": "Cloud storage"
+      "storage": "Cloud storage",
+      "marketplace": "Marketplace"
     },
     "menu": {
       "button": "Actions for {name}",

@@ -1,14 +1,26 @@
 <script setup lang="ts">
 /**
- * An entry of the password manager as the credentials of a connection (spec 052 US1, FR-001,
- * FR-002, research R7): the entries that fit the protocol, tagged ones first, searchable by title,
- * user name and address. It shows no secret; only the id of the chosen entry goes back.
+ * An entry of the password manager as the credentials of a connection or a marketplace (spec 052
+ * US1, FR-001, FR-002, research R7; spec 069 US5): the entries a command lists as fitting, tagged
+ * ones first, searchable by title, user name and address. It shows no secret; only the id of the
+ * chosen entry goes back. `source` is that command and its arguments (the storage connection asks
+ * `storage_credentials_candidates` for its protocol, a marketplace for its auth type); `labelKey`
+ * names the heading and `hintKey` what the list is limited to.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { CredentialsCandidate } from '@bindings/CredentialsCandidate'
-import type { Protocol } from '@bindings/Protocol'
 
-const props = defineProps<{ protocol: Protocol }>()
+const props = withDefaults(
+  defineProps<{
+    source: { command: string; args: Record<string, unknown> }
+    labelKey?: string
+    hintKey?: string
+  }>(),
+  {
+    labelKey: 'settings.storage.entryPicker.label',
+    hintKey: 'settings.storage.entryPicker.onlyFitting',
+  },
+)
 const entryId = defineModel<string>({ required: true })
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
@@ -22,18 +34,18 @@ async function loadAsync() {
   failure.value = null
   try {
     candidates.value = await invoke<CredentialsCandidate[]>(
-      'storage_credentials_candidates',
-      { protocol: props.protocol },
+      props.source.command,
+      props.source.args,
     )
   } catch (error) {
     failure.value = storageError(error)
     candidates.value = []
   }
-  // An entry that does not fit the protocol (any more) is no choice.
+  // An entry that does not fit (any more) is no choice.
   if (!candidates.value.some((candidate) => candidate.id === entryId.value))
     entryId.value = ''
 }
-watch(() => props.protocol, loadAsync, { immediate: true })
+watch(() => JSON.stringify(props.source), loadAsync, { immediate: true })
 
 const shown = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -54,7 +66,7 @@ function describe(candidate: CredentialsCandidate) {
 <template>
   <section class="flex flex-col gap-2" data-testid="storage-entry-picker">
     <h2 class="px-1 text-sm font-semibold">
-      {{ t('settings.storage.entryPicker.label') }}
+      {{ t(labelKey) }}
     </h2>
     <UiInput
       id="storage-entry-search"
@@ -82,7 +94,7 @@ function describe(candidate: CredentialsCandidate) {
       data-testid="storage-entry-empty"
     >
       {{ t('settings.storage.entryPicker.empty') }}
-      {{ t('settings.storage.entryPicker.onlyFitting') }}
+      {{ t(hintKey) }}
     </p>
     <p
       v-else-if="shown.length === 0"
@@ -105,7 +117,7 @@ function describe(candidate: CredentialsCandidate) {
       </SettingsGroup>
     </div>
     <p v-if="candidates?.length" class="px-1 text-sm text-muted-foreground">
-      {{ t('settings.storage.entryPicker.onlyFitting') }}
+      {{ t(hintKey) }}
     </p>
   </section>
 </template>

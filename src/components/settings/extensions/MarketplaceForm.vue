@@ -5,16 +5,34 @@
  * when it answers, and when it does not shows why and still lets the user save: a marketplace may
  * be down for a while, or on a network this device is not on. A deliberate button, no saving on
  * input (FR-021). The address is shown the way it will be stored; `http://` carries a hint.
+ *
+ * A marketplace may ask for a login (spec 069 US5): none, a bearer token or a user name and
+ * password. The login is typed here and becomes an entry of the password manager, or it is an
+ * entry the user chooses; the table keeps only the id of that entry (FR-026). With `http://` the
+ * form refuses a login (FR-027).
  */
 import { invoke } from '@tauri-apps/api/core'
+import type { CredentialsEntry } from '@bindings/CredentialsEntry'
+import type { MarketplaceAuthType } from '@bindings/MarketplaceAuthType'
 import type { MarketplaceInput } from '@bindings/MarketplaceInput'
 import type { MarketplaceTestResult } from '@bindings/MarketplaceTestResult'
 import type { MarketplaceView } from '@bindings/MarketplaceView'
+import {
+  clearLoginSecrets,
+  emptyLogin,
+  loginFields,
+  loginProblem,
+  needsLoginInput,
+  type KeptLogin,
+} from '~/lib/marketplace/loginForm'
+import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import CredentialsEntryPicker from '~/components/settings/storage/CredentialsEntryPicker.vue'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
+const { openApp } = useWmTab()
 
 const NEW = 'new'
 const id = computed(() => router.route.params.id ?? NEW)
@@ -28,12 +46,28 @@ const busy = ref(false)
 const result = ref<MarketplaceTestResult | null>(null)
 const failure = ref<string | null>(null)
 const deleting = ref(false)
-/** What is kept when the form saves: the login of the row, until the credentials of spec 069 US5
- * have their fields here. */
-let kept: Pick<MarketplaceInput, 'authType' | 'credentialsItemId'> = {
-  authType: 'none',
-}
+/** The login of the saved row; the form keeps it unless the user asks for another. */
+const kept = ref<KeptLogin | null>(null)
+const keptEntry = ref<CredentialsEntry | null>(null)
+const login = reactive(emptyLogin())
 let loadSequence = 0
+
+const authOptions = computed<SettingsSelectOption[]>(() =>
+  (['none', 'bearer', 'basic'] as const).map((type) => ({
+    value: type,
+    label: t(`settings.extensions.marketplaces.form.auth.${type}`),
+  })),
+)
+const sourceOptions = computed<SettingsSelectOption[]>(() =>
+  (['new', 'entry'] as const).map((source) => ({
+    value: source,
+    label: t(`settings.storage.credentialsSource.${source}`),
+  })),
+)
+
+function resetLogin(authType: MarketplaceAuthType = 'none') {
+  Object.assign(login, emptyLogin(), { authType })
+}
 
 async function loadAsync() {
   const mine = ++loadSequence
@@ -44,7 +78,9 @@ async function loadAsync() {
   if (isNew.value) {
     name.value = ''
     baseUrl.value = ''
-    kept = { authType: 'none' }
+    kept.value = null
+    keptEntry.value = null
+    resetLogin()
     loaded.value = true
     return
   }
@@ -57,10 +93,14 @@ async function loadAsync() {
     } else {
       name.value = row.name
       baseUrl.value = row.baseUrl
-      kept = {
+      kept.value = {
         authType: row.authType,
         credentialsItemId: row.credentialsItemId,
       }
+      keptEntry.value = row.credentialsEntry ?? null
+      resetLogin(row.authType)
+      // A login that is gone or lacks its fields is asked for again.
+      login.replace = row.credentials === 'missing'
     }
   } catch (error) {
     if (mine !== loadSequence) return
@@ -71,7 +111,7 @@ async function loadAsync() {
 
 watch(id, loadAsync, { immediate: true })
 
-watch([name, baseUrl], () => {
+watch([name, baseUrl, () => ({ ...login })], () => {
   result.value = null
 })
 
@@ -79,12 +119,25 @@ const input = computed<MarketplaceInput>(() => ({
   id: isNew.value ? undefined : id.value,
   name: name.value,
   baseUrl: baseUrl.value,
-  ...kept,
+  ...loginFields(login, kept.value),
 }))
 const usesHttp = computed(() => /^http:\/\//i.test(baseUrl.value.trim()))
-const complete = computed(
-  () => name.value.trim() !== '' && baseUrl.value.trim() !== '',
+const problem = computed(() => loginProblem(login, baseUrl.value, kept.value))
+const asksForLogin = computed(() => needsLoginInput(login, kept.value))
+const hasKeptLogin = computed(
+  () =>
+    login.authType !== 'none' &&
+    kept.value?.authType === login.authType &&
+    !!kept.value.credentialsItemId,
 )
+const complete = computed(
+  () =>
+    name.value.trim() !== '' && baseUrl.value.trim() !== '' && !problem.value,
+)
+const pickerSource = computed(() => ({
+  command: 'marketplace_credentials_candidates',
+  args: { authType: login.authType },
+}))
 
 function backToList() {
   router.replace('/extensions/marketplaces')
@@ -95,6 +148,7 @@ async function saveAsync() {
   failure.value = null
   try {
     await invoke<MarketplaceView>('marketplace_save', { input: input.value })
+    clearLoginSecrets(login)
     backToList()
   } catch (error) {
     failure.value = errString(error)
@@ -184,7 +238,116 @@ async function deleteAsync() {
             {{ t('settings.extensions.marketplaces.form.httpHint') }}
           </p>
         </li>
+        <SettingsRow
+          :title="t('settings.extensions.marketplaces.form.auth.label')"
+          label-for="settings-marketplace-auth"
+        >
+          <SettingsSelect
+            id="settings-marketplace-auth"
+            v-model="login.authType"
+            :options="authOptions"
+            data-testid="settings-marketplace-auth"
+          />
+        </SettingsRow>
       </SettingsGroup>
+
+      <SettingsGroup
+        v-if="login.authType !== 'none'"
+        :label="t('settings.extensions.marketplaces.form.login.group')"
+      >
+        <li
+          v-if="problem === 'insecure'"
+          class="px-4 py-3 text-sm text-destructive"
+          role="alert"
+          data-testid="settings-marketplace-insecure"
+        >
+          {{ t('settings.extensions.marketplaces.form.login.insecure') }}
+        </li>
+        <li
+          v-if="kept?.credentialsItemId && !keptEntry && !asksForLogin"
+          class="px-4 py-3 text-sm text-muted-foreground"
+        >
+          {{ t('settings.extensions.marketplaces.form.login.notVisible') }}
+        </li>
+        <SettingsRow
+          v-if="hasKeptLogin && keptEntry"
+          :title="t('settings.storage.credentialsLinked')"
+          :description="keptEntry.title || t('passwords.untitled')"
+          data-testid="settings-marketplace-login-entry"
+        >
+          <UiButton
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="settings-marketplace-open-login-entry"
+            @click="openApp('system.passwords', `/entry/${keptEntry.id}`)"
+          >
+            {{ t('settings.storage.openCredentialsEntry') }}
+          </UiButton>
+        </SettingsRow>
+        <SettingsOptionRow
+          v-if="hasKeptLogin"
+          type="checkbox"
+          :checked="login.replace"
+          :title="t('settings.extensions.marketplaces.form.login.replace')"
+          data-testid="settings-marketplace-replace-login"
+          @change="login.replace = $event"
+        />
+        <template v-if="asksForLogin">
+          <SettingsRow
+            :title="t('settings.storage.credentialsSource.label')"
+            label-for="settings-marketplace-login-source"
+          >
+            <SettingsSelect
+              id="settings-marketplace-login-source"
+              v-model="login.source"
+              :options="sourceOptions"
+              data-testid="settings-marketplace-login-source"
+            />
+          </SettingsRow>
+          <template v-if="login.source === 'new'">
+            <li v-if="login.authType === 'basic'" class="px-4 py-3">
+              <UiInput
+                id="settings-marketplace-username"
+                v-model="login.username"
+                :label="
+                  t('settings.extensions.marketplaces.form.login.username')
+                "
+                :labels="fieldLabels.input.value"
+                label-bg="var(--muted)"
+                autocomplete="off"
+                data-testid="settings-marketplace-username"
+              />
+            </li>
+            <li class="px-4 py-3">
+              <UiInputPassword
+                id="settings-marketplace-secret"
+                v-model="login.secret"
+                :label="
+                  t(
+                    login.authType === 'basic'
+                      ? 'settings.extensions.marketplaces.form.login.password'
+                      : 'settings.extensions.marketplaces.form.login.token',
+                  )
+                "
+                :labels="fieldLabels.password.value"
+                label-bg="var(--muted)"
+                autocomplete="new-password"
+                data-testid="settings-marketplace-secret"
+              />
+            </li>
+          </template>
+        </template>
+      </SettingsGroup>
+      <CredentialsEntryPicker
+        v-if="
+          login.authType !== 'none' && asksForLogin && login.source === 'entry'
+        "
+        v-model="login.entryId"
+        :source="pickerSource"
+        label-key="settings.extensions.marketplaces.form.login.entryLabel"
+        hint-key="settings.extensions.marketplaces.form.login.onlyFitting"
+      />
 
       <p
         v-if="result"

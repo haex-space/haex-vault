@@ -6,8 +6,8 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
 
 ## wm app `system.marketplace`
 
-- Entry in `src/lib/wm/apps.ts`: `titleKey: wm.apps.marketplace` ("Erweiterungen entdecken" /
-  "Discover extensions"), icon `lucide:store`, `multiInstance: false`, `tabTitle: 'app'`,
+- Entry in `src/lib/wm/apps.ts`: `titleKey: wm.apps.marketplace` ("Marktplatz" /
+  "Marketplace"), icon `lucide:store`, `multiInstance: false`, `tabTitle: 'app'`,
   size 960 × 640, minimum 360 × 360. Component `MarketplaceApp.vue`, routes in
   `src/lib/marketplace/registry.ts` and `appRoutes.ts`.
 - Routes (tab navigation, spec 020): `/` catalog, `/:slug` details (with `?source=<id>`). The catalog keeps
