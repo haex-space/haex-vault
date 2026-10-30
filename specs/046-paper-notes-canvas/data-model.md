@@ -153,6 +153,14 @@ interface PageMargins {
 rechts 40). Die Vorlagen zeichnen ihre Linien innerhalb der Ränder; neue Inhalte lassen sich nur dort ablegen. Ein
 Ändern verschiebt keine vorhandenen Elemente. Die Spalte `background` hält den Wert; es braucht keine Migration.
 
+## `TextElement.lineHeight` (neu, 2026-10-30)
+
+`lineHeight` ist optional und gibt die Zeilenhöhe eines Textblocks in Seitenpixeln an. Fehlt es, gilt das Bisherige:
+1,25 Schriftgrößen, der Text hängt an seiner Oberkante. Ist es gesetzt, steht die Schrift auf den Zeilen des Papiers: Die
+Grundlinie der ersten Zeile liegt bei 80 % der Zeilenhöhe unter der Oberkante, jede weitere eine Zeilenhöhe tiefer.
+Die Zeilen des Papiers (Abstand, Lage der Grundlinie, passende Schriftgröße je Vorlage) stehen in `app/lib/paperRows.ts`
+und werden aus der Vorlage berechnet, nicht gespeichert. Es braucht keine Migration.
+
 ## Zustandsübergänge
 
 ```text
