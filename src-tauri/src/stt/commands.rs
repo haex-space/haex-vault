@@ -30,7 +30,10 @@ pub struct InstalledSttModel {
 #[tauri::command]
 pub async fn list_stt_catalog() -> Result<Vec<SttCatalogEntryWithFit>> {
     let hw = hardware::probe_async().await;
-    Ok(catalog::entries_with_fit(&hw)?)
+    Ok(catalog::entries_with_fit(
+        &hw,
+        crate::platform::capabilities().model_presets,
+    )?)
 }
 
 /// Tauri command: exactly three tier-labelled STT recommendations for the

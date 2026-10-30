@@ -28,48 +28,43 @@ async fn invalidate_stt_cache_is_a_safe_noop_on_a_fresh_state() {
     assert!(!state.has_cached_stt_adapter().await);
 }
 
-/// Spec 010 FR-007: a device that never sets `voice.stt_model_id` must
-/// resolve to exactly the same default this feature always had.
+/// A device that never sets `voice.stt_model_id` gets the default of its kind:
+/// Parakeet on the desktop (spec 066), the smallest model on a phone (spec 043
+/// FR-030).
 mod stt_catalog_entry_resolution {
     use super::super::imp::resolve_stt_catalog_entry_from_pref;
+    use crate::platform::ModelPresets;
 
-    #[test]
-    fn missing_preference_falls_back_to_whisper_tiny() {
-        assert_eq!(
-            resolve_stt_catalog_entry_from_pref(None)
-                .expect("default catalog entry")
-                .id,
-            "whisper-tiny"
-        );
+    fn resolve(pref: Option<&str>, presets: ModelPresets) -> String {
+        resolve_stt_catalog_entry_from_pref(pref.map(str::to_owned), presets)
+            .expect("catalog entry")
+            .id
+            .clone()
     }
 
     #[test]
-    fn empty_preference_falls_back_to_whisper_tiny() {
-        assert_eq!(
-            resolve_stt_catalog_entry_from_pref(Some(String::new()))
-                .expect("default catalog entry")
-                .id,
-            "whisper-tiny"
-        );
+    fn missing_empty_or_unknown_preference_falls_back_to_parakeet_on_the_desktop() {
+        for pref in [None, Some(""), Some("does-not-exist")] {
+            assert_eq!(resolve(pref, ModelPresets::Desktop), "parakeet-primeline");
+        }
     }
 
     #[test]
-    fn unknown_preference_falls_back_to_whisper_tiny() {
-        assert_eq!(
-            resolve_stt_catalog_entry_from_pref(Some("does-not-exist".to_string()))
-                .expect("default catalog entry")
-                .id,
-            "whisper-tiny"
-        );
+    fn missing_empty_or_unknown_preference_falls_back_to_whisper_tiny_on_a_phone() {
+        for pref in [None, Some(""), Some("does-not-exist")] {
+            assert_eq!(resolve(pref, ModelPresets::Phone), "whisper-tiny");
+        }
     }
 
     #[test]
     fn valid_preference_resolves_to_that_entry() {
         assert_eq!(
-            resolve_stt_catalog_entry_from_pref(Some("whisper-base".to_string()))
-                .expect("valid catalog entry")
-                .id,
+            resolve(Some("whisper-base"), ModelPresets::Desktop),
             "whisper-base"
+        );
+        assert_eq!(
+            resolve(Some("parakeet-primeline"), ModelPresets::Phone),
+            "parakeet-primeline"
         );
     }
 }

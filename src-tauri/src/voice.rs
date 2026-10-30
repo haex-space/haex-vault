@@ -303,11 +303,6 @@ mod imp {
     /// built-in tier — see [`resolve_stt_catalog_entry`].
     const STT_MODEL_PREF_KEY: &str = "voice.stt_model_id";
 
-    /// Fallback tier for anyone who never sets [`STT_MODEL_PREF_KEY`] —
-    /// identical to this feature's pre-spec-010 hardcoded behavior
-    /// (FR-007).
-    const DEFAULT_STT_MODEL_ID: &str = "whisper-tiny";
-
     /// Reads this device's [`STT_MODEL_PREF_KEY`] from the active vault.
     /// Missing preferences return `Ok(None)`; infrastructure failures retain
     /// their cause so a broken active-vault/device lookup is diagnosable.
@@ -335,41 +330,36 @@ mod imp {
     }
 
     /// Resolves a raw preference read (possibly missing/empty/unknown) to
-    /// the STT catalog entry it should mean, falling back to
-    /// [`DEFAULT_STT_MODEL_ID`] — preserves today's behavior exactly for
-    /// anyone who never touches the new setting (FR-007). Pure/`AppHandle`-
-    /// free on purpose, split out from [`resolve_stt_catalog_entry`] so the
-    /// fallback rules are directly unit-testable (`voice_tests.rs`) without
-    /// a Tauri `AppHandle` — this codebase has no mocking convention for
-    /// that type.
+    /// the STT catalog entry it should mean, falling back to the device's
+    /// default (`stt::catalog::default_entry`). Pure/`AppHandle`-free on
+    /// purpose, split out from [`resolve_stt_catalog_entry`] so the fallback
+    /// rules are directly unit-testable (`voice_tests.rs`) without a Tauri
+    /// `AppHandle` — this codebase has no mocking convention for that type.
     pub(crate) fn resolve_stt_catalog_entry_from_pref(
         pref: Option<String>,
+        presets: crate::platform::ModelPresets,
     ) -> std::result::Result<&'static crate::stt::catalog::SttCatalogEntry, crate::stt::SttError>
     {
-        let default = || {
-            crate::stt::catalog::get(DEFAULT_STT_MODEL_ID)?.ok_or_else(|| {
-                crate::stt::SttError::Failed {
-                    reason: format!("STT catalog is missing {DEFAULT_STT_MODEL_ID}"),
-                }
-            })
-        };
         match pref.filter(|id| !id.is_empty()) {
             Some(id) => match crate::stt::catalog::get(&id)? {
                 Some(entry) => Ok(entry),
-                None => default(),
+                None => crate::stt::catalog::default_entry(presets),
             },
-            None => default(),
+            None => crate::stt::catalog::default_entry(presets),
         }
     }
 
     /// Resolves the active STT catalog entry for this device: the
     /// [`STT_MODEL_PREF_KEY`] preference if it names a known catalog
-    /// entry, otherwise [`DEFAULT_STT_MODEL_ID`].
+    /// entry, otherwise the device's default.
     async fn resolve_stt_catalog_entry(
         app: &AppHandle,
     ) -> std::result::Result<&'static crate::stt::catalog::SttCatalogEntry, crate::stt::SttError>
     {
-        resolve_stt_catalog_entry_from_pref(read_stt_model_pref(app).await?)
+        resolve_stt_catalog_entry_from_pref(
+            read_stt_model_pref(app).await?,
+            crate::platform::capabilities().model_presets,
+        )
     }
 
     /// Loads the selected local model on first use and keeps it warm

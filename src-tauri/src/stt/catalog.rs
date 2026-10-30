@@ -83,13 +83,37 @@ pub fn get(id: &str) -> Result<Option<&'static SttCatalogEntry>, crate::stt::Stt
     Ok(entries()?.iter().find(|e| e.id == id))
 }
 
+/// The model a device uses until someone picks one (spec 066, research R7):
+/// Parakeet on the desktop, measured faster and more accurate than Whisper
+/// (operator decision 2026-10-30). Phones keep the smallest model (spec 043
+/// FR-030) until Parakeet is measured on the reference phone (T130).
+pub const DEFAULT_DESKTOP_ID: &str = "parakeet-primeline";
+pub const DEFAULT_PHONE_ID: &str = "whisper-tiny";
+
+/// The default entry for `presets`.
+pub fn default_entry(
+    presets: ModelPresets,
+) -> Result<&'static SttCatalogEntry, crate::stt::SttError> {
+    let id = match presets {
+        ModelPresets::Phone => DEFAULT_PHONE_ID,
+        ModelPresets::Desktop => DEFAULT_DESKTOP_ID,
+    };
+    get(id)?.ok_or_else(|| crate::stt::SttError::Failed {
+        reason: format!("STT catalog is missing {id}"),
+    })
+}
+
 /// Catalog entry enriched with the hardware fit classification. Shown on
 /// the onboarding suggestion list and in Settings.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SttCatalogEntryWithFit {
     #[serde(flatten)]
     pub entry: SttCatalogEntry,
     pub fit: Fit,
+    /// Whether this is [`default_entry`] on this device, so the settings
+    /// show it without knowing the rule.
+    pub is_default: bool,
 }
 
 /// One tier recommendation shown as a chip in the onboarding wizard's STT
@@ -117,27 +141,35 @@ fn fit_for(hw: &HardwareInfo, entry: &SttCatalogEntry) -> Fit {
 }
 
 /// Lists every catalog entry annotated with a fit verdict against the given
-/// hardware snapshot.
+/// hardware snapshot, and which one is the default under `presets`.
 pub fn entries_with_fit(
     hw: &HardwareInfo,
+    presets: ModelPresets,
 ) -> Result<Vec<SttCatalogEntryWithFit>, crate::stt::SttError> {
+    let default_id = &default_entry(presets)?.id;
     Ok(entries()?
         .iter()
         .cloned()
         .map(|entry| {
             let fit = fit_for(hw, &entry);
-            SttCatalogEntryWithFit { entry, fit }
+            let is_default = &entry.id == default_id;
+            SttCatalogEntryWithFit {
+                entry,
+                fit,
+                is_default,
+            }
         })
         .collect())
 }
 
 /// Picks three tier-labelled model suggestions for the onboarding wizard's
 /// STT step, using the same generic algorithm the LLM catalog uses (see
-/// `hardware::tiers::pick_three`). Under the phone presets the suggestion
-/// (`Sweet`) is the smallest model, `whisper-tiny` (spec 043 FR-030); the
-/// larger ones stay choosable as `Max` and in the settings. Returns `None`
-/// only when the catalog is empty (never happens in production — the
-/// built-in JSON always has three entries).
+/// `hardware::tiers::pick_three`). The suggestion (`Sweet`) is
+/// [`default_entry`] whenever it is not too big for the device: the smallest
+/// model under the phone presets (spec 043 FR-030), Parakeet on the desktop
+/// (spec 066). The others stay choosable as `Easy`/`Max` and in the
+/// settings. Returns `None` only when the catalog is empty (never happens in
+/// production).
 pub fn recommend_tiers(
     hw: &HardwareInfo,
     presets: ModelPresets,
@@ -150,19 +182,16 @@ pub fn recommend_tiers(
             (entry, fit)
         })
         .collect();
-    let smallest = candidates
+    let default_id = &default_entry(presets)?.id;
+    let suggestion = candidates
         .iter()
-        .min_by(|a, b| {
-            a.0.approx_size_bytes
-                .cmp(&b.0.approx_size_bytes)
-                .then_with(|| a.0.id.cmp(&b.0.id))
-        })
+        .find(|(entry, fit)| &entry.id == default_id && *fit != Fit::TooBig)
         .cloned();
     let Some(mut picked) = pick_three(candidates, |e| e.approx_size_bytes, |e| e.id.as_str())
     else {
         return Ok(None);
     };
-    if let (ModelPresets::Phone, Some((entry, fit))) = (presets, smallest) {
+    if let Some((entry, fit)) = suggestion {
         picked[1] = (Tier::Sweet, entry, fit);
     }
     Ok(Some(picked.map(|(tier, entry, fit)| {

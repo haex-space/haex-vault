@@ -20,6 +20,8 @@ export interface SttCatalogEntry {
 
 export interface SttCatalogEntryWithFit extends SttCatalogEntry {
   fit: Fit
+  /** The model this device uses until one is picked (spec 066, research R7). */
+  isDefault: boolean
 }
 
 /**

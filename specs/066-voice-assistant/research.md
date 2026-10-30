@@ -220,8 +220,11 @@ Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
   `detect` der Wortliste in Frage.
 - 25 Sätze je Sprache zeigen die Richtung, keine Nachkommastellen. Telefon und kurze
   Assistent-Äußerungen fehlen noch.
-- Das Onboarding empfiehlt weiter nach Größe (Whisper); Parakeet steht in den Einstellungen unter
-  „Weitere Modelle“, bis der Betreiber es als Standard freigibt.
+- **Standard** (Betreiber, 2026-10-30): Auf dem Desktop ist `parakeet-primeline` der Standard, wenn
+  kein Modell gewählt ist, und die Empfehlung im Onboarding. Telefone behalten `whisper-tiny` (043
+  FR-030), bis Parakeet auf dem Referenz-Telefon gemessen ist. Die Regel steht nur in
+  `stt::catalog::default_entry`; die Oberfläche liest sie als `isDefault` aus der Katalogliste.
+  Whisper bleibt wählbar.
 
 **Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
 Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.

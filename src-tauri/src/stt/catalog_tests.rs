@@ -116,6 +116,7 @@ fn recommend_tiers_on_roomy_host_prefers_smallest_for_easy() {
     assert_eq!(tiers[0].tier, Tier::Easy);
     assert_eq!(tiers[0].entry.id, "whisper-tiny");
     assert_eq!(tiers[1].tier, Tier::Sweet);
+    assert_eq!(tiers[1].entry.id, "parakeet-primeline");
     assert_eq!(tiers[2].tier, Tier::Max);
     assert_eq!(tiers[2].entry.id, "whisper-small");
 }
@@ -145,5 +146,22 @@ fn a_phone_is_offered_the_smallest_model_and_keeps_the_larger_ones() {
     let desktop = recommend_tiers(&info, ModelPresets::Desktop)
         .expect("catalog should parse")
         .expect("non-empty catalog");
-    assert_eq!(desktop[1].entry.id, "whisper-small");
+    assert_eq!(desktop[1].entry.id, "parakeet-primeline");
+}
+
+#[test]
+fn exactly_one_entry_is_the_default_and_it_follows_the_device_kind() {
+    use super::catalog::entries_with_fit;
+    let info = hw(Backend::Cpu, 16 * 1024 * 1024 * 1024, None);
+    for (presets, id) in [
+        (ModelPresets::Desktop, "parakeet-primeline"),
+        (ModelPresets::Phone, "whisper-tiny"),
+    ] {
+        let listed = entries_with_fit(&info, presets).expect("catalog should parse");
+        let defaults: Vec<_> = listed.iter().filter(|e| e.is_default).collect();
+        assert_eq!(defaults.len(), 1);
+        assert_eq!(defaults[0].entry.id, id);
+        let wire = serde_json::to_value(defaults[0]).expect("serializes");
+        assert_eq!(wire["isDefault"], true);
+    }
 }
