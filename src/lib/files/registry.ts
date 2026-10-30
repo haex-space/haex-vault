@@ -4,6 +4,7 @@
 import type { SourceRef } from '../../types/bindings/SourceRef.ts'
 
 import type { TabLocation } from '../wm/navigation.ts'
+import { isUnder } from './drives.ts'
 
 /** The app id in `lib/wm/apps.ts`. */
 export const FILES_APP_ID = 'system.files'
@@ -26,6 +27,10 @@ export type FilesPlace = {
   so?: string
   /** `1` while the panel shows the sync rules of this device instead of the folder (spec 061). */
   sr?: string
+  /** The `key` of the drive `path` lies on, and its mount path when the place was made (spec 064
+   * FR-025): only on this device, only together, and `path` lies below `droot`. */
+  drive?: string
+  droot?: string
 }
 
 /** Route patterns below `/`: the start, the device, a storage and another own device (spec 056).
@@ -40,7 +45,19 @@ export const FILES_ROUTE_CHILDREN = [
 ] as const
 
 /** The query keys a place may carry; anything else is dropped. */
-const KEYS = ['p', 'open', 'q', 't', 's', 'd', 'vw', 'so', 'sr'] as const
+const KEYS = [
+  'p',
+  'open',
+  'q',
+  't',
+  's',
+  'd',
+  'vw',
+  'so',
+  'sr',
+  'drive',
+  'droot',
+] as const
 
 /** The keys a place keeps as they are. */
 const PASSED = ['q', 't', 's', 'd', 'vw', 'so', 'sr'] as const
@@ -64,6 +81,18 @@ export function isRemoteStorage(storageId: string): boolean {
   return isPeerStorage(storageId) || storageId.startsWith(SHARE_PREFIX)
 }
 
+/** `drive` and `droot` when a place may carry them: both set, on this device, `path` below
+ * `droot`; else `null`. */
+function onDrive(
+  source: SourceRef,
+  path: string | null,
+  drive: string | undefined,
+  droot: string | undefined,
+): { drive: string; droot: string } | null {
+  if (source.kind !== 'device' || !drive || !droot || path === null) return null
+  return isUnder(path, droot) ? { drive, droot } : null
+}
+
 /** The tab location of `place`. */
 export function filesLocation(place: FilesPlace): TabLocation {
   const query: Record<string, string> = {}
@@ -73,6 +102,8 @@ export function filesLocation(place: FilesPlace): TabLocation {
     const value = place[key]
     if (value) query[key] = value
   }
+  const on = onDrive(place.source, place.path, place.drive, place.droot)
+  if (on) Object.assign(query, on)
   const path =
     place.source.kind === 'device'
       ? '/device'
@@ -105,7 +136,9 @@ export function parseFilesPlace(location: TabLocation): FilesPlace | undefined {
     return out
   }
   if (location.path === '/device') {
-    return withOpen({ source: { kind: 'device' }, path })
+    const place = withOpen({ source: { kind: 'device' }, path })
+    const on = onDrive(place.source, path, query.drive, query.droot)
+    return on ? { ...place, ...on } : place
   }
   const storage = /^\/storage\/([^/]+)$/.exec(location.path)
   if (storage?.[1] && OPAQUE_ID.test(storage[1])) {

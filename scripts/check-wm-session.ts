@@ -105,6 +105,35 @@ test('the split keys of a file browser entry survive the session unchanged (spec
   assert.deepEqual(parsed?.windows[0]?.tabs[0]?.history, history)
 })
 
+test('the drive keys of a file browser entry survive the session unchanged (spec 064 FR-025)', () => {
+  const good = savedSession()
+  const query = {
+    p: '/run/media/anna/BACKUP/ordner',
+    drive: 'a1b2-c3d4',
+    droot: '/run/media/anna/BACKUP',
+    'o.src': 'device',
+    'o.p': '/run/media/anna/BACKUP',
+    'o.drive': 'a1b2-c3d4',
+    'o.droot': '/run/media/anna/BACKUP',
+  }
+  const history: TabHistory = {
+    entries: [{ location: { path: '/device', query }, title: null }],
+    index: 0,
+  }
+  const session: WmSession = {
+    ...good,
+    windows: [
+      {
+        ...good.windows[0],
+        tabs: [{ id: 't1', appId: ALPHA.id, history }],
+        activeTabId: 't1',
+      },
+    ],
+  }
+  const parsed = parseWmSession(JSON.parse(JSON.stringify(session)))
+  assert.deepEqual(parsed?.windows[0]?.tabs[0]?.history, history)
+})
+
 test('parseWmSession rejects a wrong version, a missing field or a mistyped window', () => {
   const good = savedSession()
   assert.equal(parseWmSession({ ...good, version: 2 }), null)

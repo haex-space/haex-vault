@@ -5,6 +5,8 @@
  * sources, the sidebar) comes through the panel context (`composables/useFilesSplit.ts`); the panel
  * never writes the location itself. Managing files (US3) lives in `composables/useFilesManage.ts`.
  */
+import type { Drive } from '@bindings/Drive'
+import type { DriveOpened } from '@bindings/DriveOpened'
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { FolderKeys } from '~/composables/useFilesKeyboard'
@@ -50,8 +52,32 @@ const title = computed(() =>
 useFilesPanelStart(context, source, path)
 
 const folder = useFilesFolder(source, path)
-// A vanished folder of this device moves the panel up to one that exists (spec 064 R10).
-useFilesNearestFolder(context, source, path, folder.error)
+// A folder on a drive that is plugged in but not open waits for it (spec 064 FR-025); any other
+// vanished folder of this device moves the panel up to one that exists (R10).
+const {
+  notice: driveNotice,
+  open: openOnDrive,
+  claimAsync,
+} = useFilesDriveRestore(context, folder.error, () => folder.reload())
+useFilesNearestFolder(context, source, path, folder.error, claimAsync)
+/** The drive of the notice waiting for its password; the dialog stays once the notice is gone. */
+const unlocking = ref<{
+  drive: Drive
+  answer: Extract<DriveOpened, { kind: 'needsPassword' }>
+} | null>(null)
+const unlockOpen = computed({
+  get: () => unlocking.value !== null,
+  set: (open: boolean) => {
+    if (!open) unlocking.value = null
+  },
+})
+
+function onNeedsPassword(
+  answer: Extract<DriveOpened, { kind: 'needsPassword' }>,
+) {
+  const drive = driveNotice.value
+  if (drive) unlocking.value = { drive, answer }
+}
 // Shares (spec 056 US2).
 const { sharing, sharingEntry, receivedShare, readOnlySource, share } =
   useFilesTabShares({ state: context.sources }, source)
@@ -401,6 +427,13 @@ watch(context.tabActive, (active) => {
         class="flex-1"
         @request="allAccess.requestAsync()"
       />
+      <FilesDriveNotice
+        v-else-if="driveNotice"
+        class="flex-1"
+        :drive="driveNotice"
+        @opened="openOnDrive"
+        @needs-password="onNeedsPassword"
+      />
       <FilesSearchResults
         v-else-if="searchQuery && path"
         class="flex-1"
@@ -486,6 +519,14 @@ watch(context.tabActive, (active) => {
       :entry="sharingEntry"
       :source="source"
       :contacts="context.sources.value?.contacts ?? []"
+    />
+    <FilesDriveUnlockDialog
+      v-model:open="unlockOpen"
+      :drive="unlocking?.drive ?? null"
+      :reason="unlocking?.answer.reason ?? 'none'"
+      :message="unlocking?.answer.message ?? null"
+      :matches="unlocking?.answer.candidates ?? []"
+      @opened="openOnDrive"
     />
     <FilesEncryptedNotice v-model:open="noticing" @confirm="ackNotice" />
     <FilesOpenSystemNotice

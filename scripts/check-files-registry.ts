@@ -127,3 +127,63 @@ test('a panel that shows the sync rules keeps that in its tab location (spec 061
   assert.deepEqual(location.query, { p: '/home/anna', sr: '1' })
   assert.deepEqual(parseFilesPlace(location), place)
 })
+
+test('the drive of a device place round-trips, only both keys together (spec 064 FR-025)', () => {
+  const place: FilesPlace = {
+    source: { kind: 'device' },
+    path: '/run/media/anna/BACKUP/ordner',
+    drive: 'a1b2-c3d4',
+    droot: '/run/media/anna/BACKUP',
+  }
+  const location = filesLocation(place)
+  assert.deepEqual(location.query, {
+    p: '/run/media/anna/BACKUP/ordner',
+    drive: 'a1b2-c3d4',
+    droot: '/run/media/anna/BACKUP',
+  })
+  assert.deepEqual(parseFilesPlace(location), place)
+
+  const only = (query: Record<string, string>) =>
+    parseFilesPlace({ path: '/device', query })
+  const bare = { source: { kind: 'device' }, path: '/run/media/anna/BACKUP/x' }
+  assert.deepEqual(
+    only({ p: '/run/media/anna/BACKUP/x', drive: 'a1b2' }),
+    bare,
+    'drive without droot',
+  )
+  assert.deepEqual(
+    only({ p: '/run/media/anna/BACKUP/x', droot: '/run/media/anna/BACKUP' }),
+    bare,
+    'droot without drive',
+  )
+  assert.deepEqual(
+    only({
+      p: '/run/media/anna/BACKUP/x',
+      drive: 'a1b2',
+      droot: '/run/media/anna/OTHER',
+    }),
+    bare,
+    'p not below droot',
+  )
+  assert.deepEqual(
+    filesLocation({ ...place, droot: '/run/media/anna/OTHER' }).query,
+    { p: '/run/media/anna/BACKUP/ordner' },
+  )
+})
+
+test('a storage place never carries a drive', () => {
+  const storage: FilesPlace = {
+    source: { kind: 'storage', storageId: 'abc-123' },
+    path: '/fotos',
+    drive: 'a1b2',
+    droot: '/',
+  }
+  assert.deepEqual(filesLocation(storage).query, { p: '/fotos' })
+  assert.deepEqual(
+    parseFilesPlace({
+      path: '/storage/abc-123',
+      query: { p: '/fotos', drive: 'a1b2', droot: '/' },
+    }),
+    { source: { kind: 'storage', storageId: 'abc-123' }, path: '/fotos' },
+  )
+})

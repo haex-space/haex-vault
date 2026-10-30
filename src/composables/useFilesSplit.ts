@@ -5,6 +5,7 @@ import {
   shallowReactive,
   type InjectionKey,
 } from 'vue'
+import type { Drive } from '@bindings/Drive'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import {
@@ -23,6 +24,7 @@ import {
   withSplit,
 } from '~/lib/files/split'
 import type { PlaceLock } from '~/lib/files/clipboard'
+import { placeOnDrive } from '~/lib/files/drives'
 import {
   canGoBack,
   canGoForward,
@@ -90,6 +92,9 @@ export type FilesPanelContext = {
   switchPanel(): void
   sources: Ref<Sources | null>
   reloadSources(): void
+  /** The drives of this device (spec 064); `drivesKnown` once the list came. */
+  drives: Readonly<Ref<readonly Drive[]>>
+  drivesKnown: Readonly<Ref<boolean>>
   tabId: string
   /** The tab is the one in front of its window. */
   tabActive: ComputedRef<boolean>
@@ -120,6 +125,8 @@ const opposite = (side: SplitSide): SplitSide =>
 export function useFilesSplit(options: {
   sources: Ref<Sources | null>
   reloadSources: () => void
+  drives: Readonly<Ref<readonly Drive[]>>
+  drivesKnown: Readonly<Ref<boolean>>
   pathHost: Readonly<Ref<HTMLElement | null>>
   viewerHost: Readonly<Ref<HTMLElement | null>>
   /** The platform offers two panels (not on a phone, FR-021). */
@@ -170,10 +177,24 @@ export function useFilesSplit(options: {
   })
 
   function write(to: FilesPlace, replace: boolean) {
-    const location = withSplit(filesLocation(to), state.value)
+    const location = withSplit(
+      filesLocation(placeOnDrive(to, options.drives.value)),
+      state.value,
+    )
     if (replace) router.replace(location)
     else router.push(location)
   }
+
+  // A place written from outside the frame (an agent, a restored tab of before) learns its drive
+  // once the list knows it (spec 064 FR-025).
+  watch(
+    () => [active.value, options.drives.value] as const,
+    ([place, drives]) => {
+      if (place.drive) return
+      const on = placeOnDrive(place, drives)
+      if (on.drive) write(on, true)
+    },
+  )
 
   /** Makes `side` the active panel: its history comes in, the other's waits as the lane. Whether it
    * is the active one now. */
@@ -263,6 +284,8 @@ export function useFilesSplit(options: {
     switchPanel: () => switchFrom(side),
     sources: options.sources,
     reloadSources: options.reloadSources,
+    drives: options.drives,
+    drivesKnown: options.drivesKnown,
     tabId,
     tabActive,
     openStorageSettings,

@@ -1,6 +1,7 @@
 // The drives of the file browser (spec 064): which drive a path lies on, how a path moves to a new
 // mount point, and the nearest folder that still exists. Pure, so `node --test` checks it without
 // Vue.
+import type { FilesPlace } from './registry.ts'
 import { parentPath, separatorOf } from './state.ts'
 
 /** What these functions read of a drive (the `Drive` binding fits); kept structural so the checks
@@ -49,6 +50,23 @@ export function remap(p: string, droot: string, root: string): string | null {
   if (rest === '') return root
   const sep = separatorOf(root)
   return root.endsWith(sep) ? `${root}${rest}` : `${root}${sep}${rest}`
+}
+
+/**
+ * `place` with the drive its path lies on (spec 064 FR-025, research R10). A place that already names
+ * a drive above its path keeps it: a drive just mounted may not be in the list yet. Otherwise the
+ * mounted drive `driveOf` finds, when it has a `key`; else the place carries no drive.
+ */
+export function placeOnDrive(
+  place: FilesPlace,
+  drives: readonly (DriveLike & { key: string | null })[],
+): FilesPlace {
+  const { drive: _drive, droot: _droot, ...rest } = place
+  if (place.source.kind !== 'device' || place.path === null) return rest
+  if (place.drive && place.droot && isUnder(place.path, place.droot))
+    return place
+  const on = driveOf(place.path, drives)
+  return on?.key && on.path ? { ...rest, drive: on.key, droot: on.path } : rest
 }
 
 /** The name the sidebar shows: the label, else a name from the size. */

@@ -4,9 +4,9 @@
 // working udisks2 the scenario is skipped. An encrypted stick (US3) needs `cryptsetup` and `mkfs`
 // as root, through `sudo` without a password as on the CI runner.
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 let available: boolean | undefined
 
@@ -75,9 +75,11 @@ export function makeStick(label: string): StickImage {
   }
 }
 
-/** Writes a file onto a mounted drive, as another program would. */
+/** Writes a file onto a mounted drive, as another program would; `name` may name folders. */
 export function writeOnDrive(mountPoint: string, name: string, text: string) {
-  writeFileSync(join(mountPoint, name), text)
+  const file = join(mountPoint, name)
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, text)
 }
 
 /** Attaches `file` as a loop device, as if it were plugged in. */
@@ -95,6 +97,32 @@ export function mountPointOf(device: string): string | null {
   })
   const target = result.stdout?.trim()
   return result.status === 0 && target ? target : null
+}
+
+/** Where the file system labelled `label` is mounted now (udisks names the folder after it), or `null`. */
+export function mountPointByLabel(label: string): string | null {
+  const result = spawnSync('findmnt', ['-rn', '-o', 'TARGET'], {
+    encoding: 'utf8',
+    timeout: 20_000,
+  })
+  return (
+    (result.stdout ?? '')
+      .split('\n')
+      .find((target) => basename(target) === label) ?? null
+  )
+}
+
+/** Mounts `device` as a system tool would; where it is mounted now. */
+export function mount(device: string): string {
+  run('udisksctl', ['mount', '--no-user-interaction', '-b', device])
+  const target = mountPointOf(device)
+  if (!target) throw new Error(`${device} did not mount`)
+  return target
+}
+
+/** Unmounts `device`, as a system tool would. */
+export function unmount(device: string): void {
+  run('udisksctl', ['unmount', '--no-user-interaction', '-b', device])
 }
 
 /** Unmounts `device` if mounted and detaches it, as if it were pulled. Never throws. */
@@ -120,6 +148,21 @@ export function cleartextOf(device: string): string | null {
   return path && path !== '/' ? path : null
 }
 
+/** Unmounts the content of the encrypted `device` and locks it, if it is unlocked. */
+export function lockEncrypted(device: string): void {
+  const cleartext = cleartextOf(device)
+  if (!cleartext) return
+  const object = cleartext.replace('/org/freedesktop/UDisks2/', '')
+  spawnSync('udisksctl', ['unmount', '--no-user-interaction', '-p', object], {
+    stdio: 'ignore',
+    timeout: 60_000,
+  })
+  spawnSync('udisksctl', ['lock', '--no-user-interaction', '-b', device], {
+    stdio: 'ignore',
+    timeout: 60_000,
+  })
+}
+
 /**
  * Locks the encrypted `device` (unmounting its content first) and detaches it, again for a while
  * when an unlock still running at a failure gets in the way. Never throws.
@@ -127,20 +170,7 @@ export function cleartextOf(device: string): string | null {
 export function detachEncrypted(device: string): void {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
-      const cleartext = cleartextOf(device)
-      if (cleartext) {
-        const object = cleartext.replace('/org/freedesktop/UDisks2/', '')
-        spawnSync(
-          'udisksctl',
-          ['unmount', '--no-user-interaction', '-p', object],
-          { stdio: 'ignore', timeout: 60_000 },
-        )
-        spawnSync(
-          'udisksctl',
-          ['lock', '--no-user-interaction', '-b', device],
-          { stdio: 'ignore', timeout: 60_000 },
-        )
-      }
+      lockEncrypted(device)
     } catch {
       return // `udisksctl info` fails: the device is gone.
     }

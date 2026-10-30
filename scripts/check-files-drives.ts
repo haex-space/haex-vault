@@ -1,5 +1,5 @@
-// Part of `pnpm check:files` (spec 064, T016, T031): which drive a path lies on, moving a path to a
-// new mount point, and the nearest folder that still exists.
+// Part of `pnpm check:files` (spec 064, T016, T031, T060): which drive a path lies on, moving a path
+// to a new mount point, the drive a place remembers, and the nearest folder that still exists.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
@@ -10,6 +10,7 @@ import {
   isCurrentDrive,
   isUnder,
   nearestExisting,
+  placeOnDrive,
   remap,
 } from '../src/lib/files/drives.ts'
 
@@ -109,4 +110,54 @@ test('the nearest existing folder is found above a vanished one', async () => {
     '/home/anna',
   ])
   assert.equal(await nearestExisting('/x/y', async () => false), null)
+})
+
+test('a place on a drive with a key remembers that drive and its mount path', () => {
+  const drives = [
+    { ...drive('a', '/run/media/anna/BACKUP'), key: 'uuid-a' },
+    { ...drive('b', '/run/media/anna/NOKEY'), key: null },
+  ]
+  const device = { kind: 'device' } as const
+  assert.deepEqual(
+    placeOnDrive({ source: device, path: '/run/media/anna/BACKUP/x' }, drives),
+    {
+      source: device,
+      path: '/run/media/anna/BACKUP/x',
+      drive: 'uuid-a',
+      droot: '/run/media/anna/BACKUP',
+    },
+  )
+  assert.deepEqual(
+    placeOnDrive({ source: device, path: '/run/media/anna/NOKEY/x' }, drives),
+    { source: device, path: '/run/media/anna/NOKEY/x' },
+    'no key, no drive',
+  )
+  assert.deepEqual(
+    placeOnDrive(
+      {
+        source: device,
+        path: '/home/anna',
+        drive: 'uuid-a',
+        droot: '/run/media/anna/BACKUP',
+      },
+      drives,
+    ),
+    { source: device, path: '/home/anna' },
+    'a place that left the drive forgets it',
+  )
+  const storage = { kind: 'storage', storageId: 'abc' } as const
+  assert.deepEqual(
+    placeOnDrive({ source: storage, path: '/run/media/anna/BACKUP' }, drives),
+    { source: storage, path: '/run/media/anna/BACKUP' },
+  )
+})
+
+test('a place that names a drive above its path keeps it, listed or not', () => {
+  const place = {
+    source: { kind: 'device' } as const,
+    path: '/run/media/anna/BACKUP1/x',
+    drive: 'uuid-a',
+    droot: '/run/media/anna/BACKUP1',
+  }
+  assert.deepEqual(placeOnDrive(place, []), place)
 })
