@@ -120,13 +120,23 @@ impl DriveBackend for UdisksBackend {
                 log::warn!("files: locking a drive again failed: {error:?}");
             }
         };
-        if !has_filesystem(&self.objects()?, &cleartext) {
+        let objects = match self.objects() {
+            Ok(objects) => objects,
+            Err(error) => {
+                lock_again();
+                return Err(error);
+            }
+        };
+        if !has_filesystem(&objects, &cleartext) {
             lock_again();
             return Err(DriveError::NoFilesystem);
         }
-        self.proxy(&cleartext, FILESYSTEM)?
-            .call("Mount", &(no_options(),))
-            .map_err(from_zbus)
+        self.proxy(&cleartext, FILESYSTEM)
+            .and_then(|filesystem| {
+                filesystem
+                    .call("Mount", &(no_options(),))
+                    .map_err(from_zbus)
+            })
             .inspect_err(|_| lock_again())
     }
 

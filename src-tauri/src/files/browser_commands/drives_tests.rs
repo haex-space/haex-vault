@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use super::*;
 use crate::files::local::drives::backend::fake::FakeBackend;
+use crate::files::local::drives::{Drive, DriveKind, DriveRelease};
+use crate::files::FilesErrorCode;
 use crate::passwords::access::Caller;
 use crate::passwords::model::ItemInput;
 use crate::passwords::test_support::MARKER;
 use crate::remote_storage::test_support::vault;
-use crate::files::local::drives::{Drive, DriveKind, DriveRelease};
-use crate::files::FilesErrorCode;
 
 fn stick(id: &str, state: DriveState) -> Drive {
     let mounted = state == DriveState::Mounted;
@@ -257,9 +257,14 @@ async fn a_remembered_password_opens_the_drive_next_time() {
     let (_dir, db) = vault();
     let passwords = PasswordsService::new(db);
     let backend = locked(MARKER);
-    unlock_c(&backend, Some(&passwords), typed("falsch"), DriveRemember::Yes)
-        .await
-        .unwrap_err();
+    unlock_c(
+        &backend,
+        Some(&passwords),
+        typed("falsch"),
+        DriveRemember::Yes,
+    )
+    .await
+    .unwrap_err();
     assert!(
         unlock::matching_entries(&passwords, "c-key")
             .await
@@ -269,9 +274,14 @@ async fn a_remembered_password_opens_the_drive_next_time() {
     );
 
     assert_eq!(
-        unlock_c(&backend, Some(&passwords), typed(MARKER), DriveRemember::Yes)
-            .await
-            .unwrap(),
+        unlock_c(
+            &backend,
+            Some(&passwords),
+            typed(MARKER),
+            DriveRemember::Yes
+        )
+        .await
+        .unwrap(),
         opened_at_c()
     );
     let found = unlock::matching_entries(&passwords, "c-key").await.unwrap();

@@ -282,15 +282,23 @@ pub(crate) fn unlock_drive(
         DriveSecretInput::Typed { password } => (DriveSecret::new(password), None),
         DriveSecretInput::Entry { item_id } => {
             let passwords = passwords.ok_or(DriveError::NoVault)?;
-            (wait(unlock::read_password(passwords, &item_id))?, Some(item_id))
+            (
+                wait(unlock::read_password(passwords, &item_id))?,
+                Some(item_id),
+            )
         }
     };
     let path = backend.unlock(id, &secret)?;
     let remember_failed = match remember {
         DriveRemember::No => None,
-        DriveRemember::Yes => {
-            remember_it(passwords, drive.key.as_deref(), picked, &secret, entry_title).err()
-        }
+        DriveRemember::Yes => remember_it(
+            passwords,
+            drive.key.as_deref(),
+            picked,
+            &secret,
+            entry_title,
+        )
+        .err(),
     };
     Ok(DriveOpened::Opened {
         path,

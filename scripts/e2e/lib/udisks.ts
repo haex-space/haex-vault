@@ -121,10 +121,9 @@ export function detachEncrypted(device: string): void {
   try {
     const cleartext = cleartextOf(device)
     if (cleartext) {
-      const object = cleartext.replace('/org/freedesktop/UDisks2/', '')
       spawnSync(
         'udisksctl',
-        ['unmount', '--no-user-interaction', '-p', object],
+        ['unmount', '--no-user-interaction', '-p', cleartext],
         { stdio: 'ignore', timeout: 60_000 },
       )
       spawnSync('udisksctl', ['lock', '--no-user-interaction', '-b', device], {
