@@ -19,6 +19,7 @@
     "check:browser-bridge": "node --test scripts/check-browser-bridge.ts",
     "check:storage": "node --test scripts/check-storage-*.ts",
     "check:contacts": "node --test scripts/check-contacts-*.ts",
+    "check:marketplace": "node --test scripts/check-marketplace-*.ts",
     "check:fields": "node --test scripts/check-fields.ts",
     "check:appearance": "node --test scripts/check-appearance*.ts",
     "check:extensions": "node --test scripts/check-extensions-*.ts",

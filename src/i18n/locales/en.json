@@ -161,7 +161,8 @@
       "passwords": "Passwords",
       "extension": "Extension",
       "files": "Files",
-      "contacts": "Contacts"
+      "contacts": "Contacts",
+      "marketplace": "Discover extensions"
     },
     "launcher": {
       "lock": "Lock",
@@ -221,6 +222,10 @@
       "entry": "Contact",
       "edit": "Edit contact",
       "import": "Read a business card"
+    },
+    "marketplace": {
+      "catalog": "Discover extensions",
+      "details": "Details"
     }
   },
   "chat": {
@@ -3080,6 +3085,108 @@
       "tooNarrow": "The window is too narrow for two panels.",
       "panelLeft": "Left panel",
       "panelRight": "Right panel"
+    }
+  },
+  "marketplace": {
+    "title": "Discover extensions",
+    "loading": "Loading the catalog …",
+    "search": {
+      "placeholder": "Search extensions",
+      "label": "Search extensions"
+    },
+    "category": {
+      "label": "Category",
+      "all": "All categories"
+    },
+    "source": {
+      "label": "Marketplace",
+      "all": "All marketplaces"
+    },
+    "refresh": "Refresh",
+    "retry": "Try again",
+    "back": "Back to the catalog",
+    "tile": {
+      "by": "by {publisher}",
+      "verified": "verified",
+      "downloads": "{count} downloads",
+      "rating": "{rating} of 5 ({count})",
+      "noRating": "Not rated yet",
+      "from": "From {source}",
+      "open": "Show details of {name}"
+    },
+    "install": "Install",
+    "update": "Update",
+    "installed": "Installed ({version})",
+    "updateAvailable": "Update available ({from} → {to})",
+    "blocked": {
+      "needs_newer": "Needs HaexVault {bound} or newer",
+      "needs_older": "Works with HaexVault up to {bound}",
+      "no_checksum": "Cannot be checked: the marketplace gives no checksum",
+      "no_versions": "No version available"
+    },
+    "states": {
+      "empty": "No extensions found.",
+      "none": "No marketplace is set up.",
+      "allOff": "All marketplaces are switched off.",
+      "offline": "No marketplace could be reached."
+    },
+    "sourceError": {
+      "unreachable": "{name} cannot be reached.",
+      "timeout": "{name} did not answer in time.",
+      "auth_rejected": "{name} refused the login.",
+      "credentials_missing": "The login for {name} is missing.",
+      "credentials_syncing": "The login for {name} has not arrived on this device yet.",
+      "bad_response": "{name} sent an answer HaexVault does not understand.",
+      "insecure_credentials": "{name} asks for a login but is not reachable over https."
+    },
+    "pager": {
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {page} of {total}"
+    },
+    "details": {
+      "description": "Description",
+      "publisher": "Publisher",
+      "publisherKey": "Publisher key {fingerprint}",
+      "category": "Category",
+      "tags": "Tags",
+      "source": "Marketplace",
+      "versions": "Versions",
+      "version": "Version {version}",
+      "noChangelog": "No change note.",
+      "compatible": "compatible",
+      "missing": "This extension is no longer offered by {source}.",
+      "unavailable": "The details could not be loaded.",
+      "choose": "Install this version"
+    },
+    "progress": {
+      "title": "Downloading {name} {version} …",
+      "cancel": "Cancel",
+      "percent": "{percent} %",
+      "busy": "Another installation is already running.",
+      "done": "{name} is installed."
+    },
+    "errors": {
+      "generic": "The marketplace could not be used.",
+      "marketplace_invalid_url": "The address of the marketplace is not valid.",
+      "marketplace_credentials_required": "This marketplace needs a login that is not set up.",
+      "marketplace_insecure_credentials": "A login is only sent over https.",
+      "marketplace_not_found": "The marketplace does not know this extension or version.",
+      "marketplace_no_hash": "The marketplace gives no checksum.",
+      "marketplace_hash_mismatch": "The downloaded file does not match the checksum of the marketplace.",
+      "marketplace_size_mismatch": "The downloaded file does not have the size the marketplace gave.",
+      "marketplace_too_large": "The file is larger than HaexVault accepts.",
+      "marketplace_incompatible_version": "This version does not work with this HaexVault.",
+      "marketplace_download_cancelled": "The download was cancelled.",
+      "marketplace_source_unreachable": "The marketplace cannot be reached.",
+      "marketplace_source_timeout": "The marketplace did not answer in time.",
+      "marketplace_source_auth_rejected": "The marketplace refused the login.",
+      "marketplace_source_bad_response": "The marketplace sent an answer HaexVault does not understand.",
+      "marketplace_icon_unavailable": "The icon could not be loaded.",
+      "marketplace_pending_missing": "The downloaded file is no longer available. Download it again.",
+      "marketplace_credentials_syncing": "The login has not arrived on this device yet.",
+      "marketplace_superseded": "A newer request replaced this one.",
+      "marketplace_destination_refused": "The download address of the marketplace is not allowed."
     }
   },
   "contacts": {

@@ -1,3 +1,5 @@
+import { reasonKey } from '~/lib/marketplace/errors'
+
 /** contracts/tauri-commands.md (spec 009-autonomous-delegate-mode): the
  * `send_message` `InvalidInput` reason prefix for an autonomy mode the
  * connected delegate's installed CLI does not support (FR-013/SC-006).
@@ -114,6 +116,12 @@ export function useErrorString() {
       if (kind === 'OpenerLinkInvalid') return t('errors.openers.linkInvalid')
       if (kind === 'OpenerLinkTooLarge') return t('errors.openers.linkTooLarge')
       if (kind === 'OpenerNotAvailable') return t('errors.openers.notAvailable')
+      // Spec 069: the marketplace commands name a reason from a fixed list, never text of a
+      // marketplace (it may echo a login).
+      if (kind === 'Marketplace') {
+        const key = reasonKey(String(reason))
+        return te(key) ? t(key) : t('marketplace.errors.generic')
+      }
       // Spec 017: the extension host's kinds name a reason or a state, never data of an extension.
       if (kind === 'ExtensionInstall') {
         const key = `extensions.install.errors.${String(reason)}`

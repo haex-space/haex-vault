@@ -113,6 +113,10 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:contacts
 
+      - name: Check marketplace
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:marketplace
+
       - name: Check extensions
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:extensions

@@ -10,12 +10,18 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   "Discover extensions"), icon `lucide:store`, `multiInstance: false`, `tabTitle: 'app'`,
   size 960 × 640, minimum 360 × 360. Component `MarketplaceApp.vue`, routes in
   `src/lib/marketplace/registry.ts` and `appRoutes.ts`.
-- Routes (tab navigation, spec 020): `/` catalog, `/:slug` details (with `?source=<id>`).
+- Routes (tab navigation, spec 020): `/` catalog, `/:slug` details (with `?source=<id>`). The catalog keeps
+  its state in the query of the tab (`?q`, `?category`, `?source`, `?page`), so "Zurück" from the details
+  returns to the catalog as it was.
+- **Agents**: an agent may open the window (`wm.app.open` finds the app by its name like every other
+  app; opening is harmless). Querying the catalog and installing stay out of reach of agents and
+  extensions (FR-030); the app registers no agent action.
 - **Catalog**: toolbar with a search field, a category selector and "Aktualisieren" (FR-017). Below it a
   grid of tiles (one column below `@lg`). States: loading, empty state "Keine Erweiterungen", "Kein Marketplace eingerichtet" with "Öffentlichen Marketplace hinzufügen" and "Eigenen Marketplace hinzufügen" (US4-9), "Keine
   Verbindung" (all sources failed), "Alle Marketplaces sind ausgeschaltet" with a jump to the
   settings. One error line per source with "Erneut versuchen", above the grid (FR-031). A "Quelle" selector (all / one marketplace)
-  next to the category (FR-012); every tile names its source. Paging at the bottom.
+  next to the category (FR-012), shown when more than one marketplace is switched on; every tile names its
+  source. Paging at the bottom.
 - **Tile**: icon, name, short description, publisher (with "geprüft" as a mere display), rating,
   number of downloads, state mark "Installiert (x)" / "Update verfügbar (x → y)", button
   "Installieren" / "Aktualisieren", disabled with the hint "Benötigt HaexVault ab x" (FR-018).
@@ -29,7 +35,14 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   `marketplace-tile-<sourceId>-<slug>`, `marketplace-install-<sourceId>-<slug>`,
   `marketplace-update-<sourceId>-<slug>`,
   `marketplace-source-error-<sourceId>`, `marketplace-source-retry-<sourceId>`, `marketplace-empty`,
-  `marketplace-offline`, `marketplace-page-next`, `marketplace-progress`, `marketplace-progress-cancel`.
+  `marketplace-offline`, `marketplace-none`, `marketplace-all-off`, `marketplace-loading`,
+  `marketplace-page-next`, `marketplace-page-previous`, `marketplace-page`, `marketplace-progress`,
+  `marketplace-progress-cancel`, `marketplace-installed-<sourceId>-<slug>`,
+  `marketplace-blocked-<sourceId>-<slug>`, `marketplace-tile-source-<sourceId>-<slug>`,
+  `marketplace-details`, `marketplace-details-source`, `marketplace-details-error`, `marketplace-back`,
+  `marketplace-version-<version>`, `marketplace-install-version-<version>`, `marketplace-install-error`,
+  `marketplace-install-error-dismiss`; in the install dialog `extensions-install-origin`,
+  `extensions-install-publisher-differs`, `extensions-install-cancel`.
 
 - **Refresh after changes**: After installing, updating and removing (also from the
   settings or from another device) the tile states reload (`vault-data-changed`) without the

@@ -80,6 +80,18 @@ export const WM_APPS: readonly AppDefinition[] = [
     multiInstance: true,
     tabTitle: 'app',
   },
+  // Spec 069: the catalog of the extension marketplaces; one window, it shows the same catalog in
+  // every tab, so re-opening activates the open one.
+  {
+    id: 'system.marketplace',
+    titleKey: 'wm.apps.marketplace',
+    icon: 'lucide:store',
+    iconUrl: '/app-icons/marketplace.svg',
+    defaultSize: { width: 960, height: 640 },
+    minSize: { width: 360, height: 360 },
+    multiInstance: false,
+    tabTitle: 'app',
+  },
   // Spec 044: the file browser; each tab has its own folder.
   {
     id: 'system.files',

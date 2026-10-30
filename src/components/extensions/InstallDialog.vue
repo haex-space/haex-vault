@@ -419,7 +419,11 @@ watch(open, (isOpen) => {
         </p>
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="outline" @click="open = false">
+          <UiButton
+            variant="outline"
+            data-testid="extensions-install-cancel"
+            @click="open = false"
+          >
             {{ t('extensions.install.cancel') }}
           </UiButton>
           <UiButton

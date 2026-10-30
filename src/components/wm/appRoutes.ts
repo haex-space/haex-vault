@@ -1,6 +1,7 @@
 import { defineAsyncComponent, type Component } from 'vue'
 import { contactsRoutePatterns } from '~/lib/contacts/registry'
 import { FILES_ROUTE_CHILDREN } from '~/lib/files/registry'
+import { marketplaceRoutePatterns } from '~/lib/marketplace/registry'
 import { passwordsRoutePatterns } from '~/lib/passwords/registry'
 import { settingsRoutePatterns } from '~/lib/settings/registry'
 import { getAppDefinition } from '~/lib/wm/apps'
@@ -36,6 +37,9 @@ const FilesApp = defineAsyncComponent(
 )
 const ContactsApp = defineAsyncComponent(
   () => import('~/components/apps/ContactsApp.vue'),
+)
+const MarketplaceApp = defineAsyncComponent(
+  () => import('~/components/apps/MarketplaceApp.vue'),
 )
 
 /** The view of each settings location (spec 023-settings-app, contracts §1). */
@@ -235,6 +239,30 @@ function contactsRoutes(): AppRouteRecord[] {
   }))
 }
 
+/** The view of each place of the marketplace app (spec 069). */
+const MARKETPLACE_VIEWS: Record<string, Component> = {
+  catalog: defineAsyncComponent(
+    () => import('~/components/marketplace/CatalogGrid.vue'),
+  ),
+  details: defineAsyncComponent(
+    () => import('~/components/marketplace/CatalogDetails.vue'),
+  ),
+}
+
+/** The marketplace routes from the registry: `MarketplaceApp` as the frame, one flat child per
+ * place. */
+function marketplaceRoutes(): AppRouteRecord[] {
+  return marketplaceRoutePatterns().map((root) => ({
+    path: root.path,
+    component: MarketplaceApp,
+    children: (root.children ?? []).map((child) => ({
+      path: child.path,
+      titleKey: child.titleKey,
+      component: MARKETPLACE_VIEWS[child.locationId ?? ''],
+    })),
+  }))
+}
+
 const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
   // Chat (research R10): one mounted root; children only carry the location.
   'system.chat': [
@@ -250,6 +278,7 @@ const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
   'system.settings': settingsRoutes(),
   'system.passwords': passwordsRoutes(),
   'system.contacts': contactsRoutes(),
+  'system.marketplace': marketplaceRoutes(),
   // File browser (spec 044, research R13): one mounted root; children only carry the location.
   'system.files': [
     { path: '/', component: FilesApp, children: [...FILES_ROUTE_CHILDREN] },
