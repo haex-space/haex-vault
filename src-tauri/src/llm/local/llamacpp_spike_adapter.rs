@@ -222,10 +222,13 @@ fn parse_json_call(inner: &str) -> Option<(String, Value)> {
     let value: Value = serde_json::from_str(inner).ok()?;
     let name = value.get("name")?.as_str()?.to_owned();
     let arguments = match value.get("arguments") {
-        Some(Value::String(s)) => serde_json::from_str(s).unwrap_or(Value::Null),
+        Some(Value::String(s)) => serde_json::from_str(s).ok()?,
         Some(other) => other.clone(),
         None => json!({}),
     };
+    if !arguments.is_object() {
+        return None;
+    }
     Some((name, arguments))
 }
 
@@ -444,6 +447,14 @@ mod tests {
         let (content, calls) = parse_tool_calls(text, &[]);
         assert_eq!(calls.len(), 1);
         assert!(content.contains("{broken"));
+    }
+
+    #[test]
+    fn keeps_a_json_call_with_invalid_arguments_as_text() {
+        let text = "<tool_call>{\"name\":\"open\",\"arguments\":\"{broken\"}</tool_call>";
+        let (content, calls) = parse_tool_calls(text, &[]);
+        assert!(calls.is_empty());
+        assert!(content.contains(text));
     }
 
     #[test]
