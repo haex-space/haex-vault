@@ -5,7 +5,11 @@
  * list; each answers within its own time, so a slow or failing one shows an error line while the
  * others' entries are there. Below `@lg` the grid has one column.
  */
+import { invoke } from '@tauri-apps/api/core'
+
 const { t } = useI18n()
+const { errString } = useErrorString()
+const { openApp } = useWmTab()
 const catalog = useMarketplaceCatalog()
 const {
   markets,
@@ -19,6 +23,27 @@ const {
   searchText,
   flushSearch,
 } = catalog
+
+const adding = ref(false)
+const addFailure = ref<string | null>(null)
+
+/** The empty state's way back to the public marketplace: one row, or none if it is there. */
+async function addPresetAsync() {
+  adding.value = true
+  addFailure.value = null
+  try {
+    await invoke('marketplace_add_preset')
+    await catalog.refreshAsync()
+  } catch (error) {
+    addFailure.value = errString(error)
+  } finally {
+    adding.value = false
+  }
+}
+
+const SETTINGS = 'system.settings'
+const openOwn = () => openApp(SETTINGS, '/extensions/marketplaces/new')
+const openList = () => openApp(SETTINGS, '/extensions/marketplaces')
 
 const sourceValue = computed(() => query.value.sourceId ?? '')
 const categoryValue = computed(() => query.value.category ?? '')
@@ -94,14 +119,48 @@ const stateTestId = computed(() => {
         :before-open="flushSearch"
       />
     </ul>
-    <p
+    <div
       v-else-if="!failure || page"
-      class="py-10 text-center text-sm text-muted-foreground"
-      :data-testid="stateTestId"
-      :role="state === 'loading' ? 'status' : undefined"
+      class="flex flex-col items-center gap-3 py-10"
     >
-      {{ stateText }}
-    </p>
+      <p
+        class="text-center text-sm text-muted-foreground"
+        :data-testid="stateTestId"
+        :role="state === 'loading' ? 'status' : undefined"
+      >
+        {{ stateText }}
+      </p>
+      <div v-if="state === 'none'" class="flex flex-wrap justify-center gap-2">
+        <UiButton
+          type="button"
+          :loading="adding"
+          data-testid="marketplace-empty-add-preset"
+          @click="addPresetAsync"
+        >
+          {{ t('marketplace.states.addPreset') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="outline"
+          data-testid="marketplace-empty-add-own"
+          @click="openOwn"
+        >
+          {{ t('marketplace.states.addOwn') }}
+        </UiButton>
+      </div>
+      <UiButton
+        v-else-if="state === 'allOff'"
+        type="button"
+        variant="outline"
+        data-testid="marketplace-all-off-settings"
+        @click="openList"
+      >
+        {{ t('marketplace.states.openSettings') }}
+      </UiButton>
+      <p v-if="addFailure" class="text-sm text-destructive" role="alert">
+        {{ addFailure }}
+      </p>
+    </div>
 
     <nav
       v-if="page && page.totalPages > 1"

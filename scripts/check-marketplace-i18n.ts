@@ -82,6 +82,34 @@ for (const language of ['de', 'en']) {
   })
 }
 
+for (const language of ['de', 'en']) {
+  test(`${language}: every source error kind has a cause in the test result of the form`, () => {
+    const messages = load(language)
+    for (const kind of SOURCE_ERROR_KINDS)
+      assert.equal(
+        typeof lookup(
+          messages,
+          `settings.extensions.marketplaces.testError.${kind}`,
+        ),
+        'string',
+        kind,
+      )
+  })
+}
+
+test('both languages have the same keys under settings.extensions.marketplaces', () => {
+  const [de, en] = ['de', 'en'].map((language) =>
+    keysOf(
+      (
+        load(language) as {
+          settings: { extensions: { marketplaces: Messages } }
+        }
+      ).settings.extensions.marketplaces,
+    ).sort(),
+  )
+  assert.deepEqual(de, en)
+})
+
 test('both languages have the same keys under marketplace', () => {
   const [de, en] = ['de', 'en'].map((language) =>
     keysOf((load(language) as { marketplace: Messages }).marketplace).sort(),

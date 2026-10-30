@@ -9,6 +9,7 @@ import {
   installedVersions,
   openMarketplace,
   pointPresetAt,
+  repointPreset,
   startMarketplace,
   textOf,
   tileSlugs,
@@ -38,6 +39,7 @@ scenario('marketplace-update', { timeoutMs: 420_000 }, async (ctx) => {
 
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-marketplace-update' })
+  await repointPreset(instance, market.url)
   await openMarketplace(instance)
   await instance.waitForDisplayed(`marketplace-install-${PRESET_ID}-probe`)
   await installFromCatalog(instance, 'probe')

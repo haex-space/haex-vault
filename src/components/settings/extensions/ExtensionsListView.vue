@@ -63,6 +63,20 @@ function description(version: string | undefined, status: string | undefined) {
     </SettingsGroup>
 
     <SettingsGroup
+      :label="t('settings.locations.extensions.marketplaces.title')"
+    >
+      <SettingsRow
+        icon="lucide:store"
+        :title="t('settings.locations.extensions.marketplaces.title')"
+        :description="
+          t('settings.locations.extensions.marketplaces.description')
+        "
+        to="/extensions/marketplaces"
+        data-testid="extensions-marketplaces"
+      />
+    </SettingsGroup>
+
+    <SettingsGroup
       v-if="installed.length > 0"
       :label="t('settings.extensions.installed')"
     >

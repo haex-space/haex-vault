@@ -271,6 +271,16 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       row: true,
     },
   ),
+  // Spec 069: the marketplaces of the vault, a row of its own in the list; `new` creates one.
+  subView('extensions.marketplaces', 'extensions/marketplaces', 'extensions', {
+    icon: 'lucide:store',
+    row: true,
+  }),
+  subView(
+    'extensions.marketplaces.edit',
+    'extensions/marketplaces/:id',
+    'extensions.marketplaces',
+  ),
   subView('extensions.detail', 'extensions/:extensionId', 'extensions'),
   categoryLocation('federation', ['settings.federation.deviceAccess.title']),
   subView('federation.link', 'federation/devices/link', 'federation', {

@@ -97,7 +97,7 @@ pub fn source_of(row: &MarketplaceRow) -> Source {
     }
 }
 
-async fn rows(db: &VaultDb) -> Result<Vec<MarketplaceRow>> {
+pub(super) async fn rows(db: &VaultDb) -> Result<Vec<MarketplaceRow>> {
     db.read(|q| Ok(store::list(q)?)).await
 }
 

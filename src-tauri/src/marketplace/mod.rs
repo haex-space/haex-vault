@@ -13,6 +13,7 @@ pub mod commands;
 pub mod details;
 pub mod download;
 pub mod icons;
+pub mod manage;
 pub mod model;
 pub mod pending;
 pub mod seed;
@@ -20,6 +21,8 @@ pub mod store;
 pub mod updates;
 pub mod wire;
 
+#[cfg(test)]
+mod generic_tests;
 #[cfg(test)]
 mod test_support;
 
