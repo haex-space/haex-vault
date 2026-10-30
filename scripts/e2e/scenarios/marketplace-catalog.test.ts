@@ -130,7 +130,8 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('pending search, details and back')
 
   // Clear the search, then let the marketplace stop answering.
-  await instance.type('marketplace-search', '')
+  // Escape empties the search (CatalogToolbar); WebDriver refuses to send empty text.
+  await instance.type('marketplace-search', '\uE00C')
   await ctx.waitFor(
     'the whole catalog again',
     async () => (await tileCount(instance)) === 20,
