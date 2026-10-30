@@ -51,10 +51,14 @@ async function loadAsync() {
   if (!candidates.value.some((candidate) => candidate.id === entryId.value))
     entryId.value = ''
 }
-watch(() => JSON.stringify(props.source), () => void loadAsync(), {
-  immediate: true,
-  flush: 'sync',
-})
+watch(
+  () => JSON.stringify(props.source),
+  () => void loadAsync(),
+  {
+    immediate: true,
+    flush: 'sync',
+  },
+)
 
 const shown = computed(() => {
   const query = search.value.trim().toLowerCase()
