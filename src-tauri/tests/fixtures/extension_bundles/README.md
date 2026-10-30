@@ -85,7 +85,7 @@ The expected kind assumes this order; the first failing check wins.
 - `bad-openers-not-array.xt` — `manifest_invalid` — openers is an object, not an array of strings
 - `bad-openers-not-strings.xt` — `manifest_invalid` — openers holds a number
 - `bad-openers-too-many.xt` — `manifest_invalid` — 9 openers, more than 8
-- `bad-openers-form.xt` — `manifest_invalid` — opener Mail.compose breaks ^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$
+- `bad-openers-form.xt` — `manifest_invalid` — opener Mail.compose breaks `^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$`
 - `bad-openers-too-long.xt` — `manifest_invalid` — opener kind of 33 characters
 - `bad-openers-duplicate.xt` — `manifest_invalid` — mail.compose twice
 - `bad-weak-key.xt` — `manifest_invalid` — manifest and signature.json both name the small-order identity point as publicKey
