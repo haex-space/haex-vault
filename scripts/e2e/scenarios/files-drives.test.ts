@@ -9,14 +9,19 @@ import {
   updateEntry,
 } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
-import { runAction } from '../lib/settings.ts'
+import { runAction, setSessionRestore, wmSnapshot } from '../lib/settings.ts'
+import { openVault } from '../lib/sync-flows.ts'
 import {
   attach,
   cleartextOf,
   detach,
+  lockEncrypted,
   makeLockedStick,
   makeStick,
+  mount,
+  mountPointByLabel,
   mountPointOf,
+  unmount,
   writeOnDrive,
 } from '../lib/udisks.ts'
 
@@ -356,5 +361,134 @@ scenario(
     await instance.waitForDisplayed('files-drive-unlock-hint', 30_000)
     assert.equal(cleartextOf(stick.device), null)
     ctx.step('a saved password that fails asks again')
+  },
+)
+
+// Spec 064 FR-025 (T064), quickstart Linux 7: a tab stands in a folder of a stick and of an
+// encrypted stick; haex ends, the system unmounts the one and locks the other. Restored, each tab
+// says so instead of moving up, mounts nothing unasked, and its button opens the same folder: the
+// stick mounted, the encrypted one with the password remembered before.
+
+const PLAIN = 'E2ERESTORE'
+const SAFE = 'E2ESAFE'
+const SAFE_PASSWORD = 'e2e-restore-password'
+
+scenario(
+  'files-drives-restore',
+  { needs: { udisks: true, luks: true }, timeoutMs: 300_000 },
+  async (ctx) => {
+    const plain = makeStick(PLAIN)
+    let plainDevice: string | null = null
+    ctx.onTeardown(() => {
+      if (plainDevice) detach(plainDevice)
+      plain.remove()
+    })
+    const safe = makeLockedStick(SAFE, SAFE_PASSWORD, {
+      'ordner/geheim.txt': 'verschlossen',
+    })
+    ctx.onTeardown(() => safe.remove())
+    plainDevice = attach(plain.file)
+    const vault = { name: 'e2e-files-drives-restore', passphrase: 'e2e-vault' }
+
+    const instance = await ctx.startInstance()
+    await createAndUnlock(instance, vault)
+    await setSessionRestore(instance, true)
+
+    // The encrypted stick: unlocked with "merken", then into its folder.
+    await runAction(instance, 'wm.app.open', {
+      appId: 'system.files',
+      at: '/device',
+    })
+    const locked = await ctx.waitFor('the locked stick in the sidebar', () =>
+      driveRow(instance, SAFE),
+    )
+    assert.ok(locked)
+    await instance.click(locked)
+    await instance.type('#files-drive-unlock-password', SAFE_PASSWORD)
+    await instance.click('files-drive-unlock-remember')
+    await instance.click('files-drive-unlock-submit')
+    await ctx.waitFor('the encrypted stick unlocked', () =>
+      cleartextOf(safe.device) ? true : null,
+    )
+    await doubleClick(instance, 'files-entry-ordner', 30_000)
+    await instance.waitForDisplayed('files-entry-geheim.txt', 15_000)
+
+    // The plain stick, mounted by the system and opened in a tab of its own from outside: the tab
+    // learns its drive from the list.
+    const plainRoot = mount(plainDevice)
+    writeOnDrive(plainRoot, 'ordner/inhalt.txt', 'eingehängt')
+    const opened = await runAction(instance, 'wm.tab.new', {
+      appId: 'system.files',
+      at: `/device?p=${encodeURIComponent(`${plainRoot}/ordner`)}`,
+    })
+    assert.ok(opened.ok, JSON.stringify(opened))
+    await instance.waitForDisplayed('files-entry-inhalt.txt', 15_000)
+    ctx.step('two tabs on drives')
+
+    const safeRoot = mountPointByLabel(SAFE)
+    assert.ok(safeRoot, 'the encrypted stick mounted')
+    await ctx.waitFor(
+      'the saved session to know both drives',
+      async () => {
+        const text = JSON.stringify(await instance.invoke('wm_session_load'))
+        return [plainRoot, safeRoot].every((root) =>
+          text.includes(`"droot":${JSON.stringify(root)}`),
+        )
+          ? true
+          : null
+      },
+      { fixed: true, timeoutMs: 15_000 },
+    )
+
+    await instance.stop()
+    unmount(plainDevice)
+    lockEncrypted(safe.device)
+    assert.equal(mountPointOf(plainDevice), null)
+    assert.equal(cleartextOf(safe.device), null)
+    ctx.step('haex ended, the stick unmounted, the encrypted one locked')
+
+    const restored = await ctx.startInstance({ reusesRoot: instance.root })
+    await openVault(restored, vault.name, vault.passphrase)
+    const tabs = (await ctx.waitFor(
+      'two file browser tabs after the restart',
+      async () => {
+        const ids = (await wmSnapshot(restored)).windows.flatMap((window) =>
+          window.tabs
+            .filter((tab) => tab.appId === 'system.files')
+            .map((tab) => tab.id),
+        )
+        return ids.length === 2 ? ids : false
+      },
+      { fixed: true, timeoutMs: 30_000 },
+    )) as string[]
+
+    for (const tabId of tabs) {
+      const activated = await runAction(restored, 'wm.tab.activate', { tabId })
+      assert.ok(activated.ok, JSON.stringify(activated))
+      const text = (await ctx.waitFor('the tab to show its drive notice', () =>
+        restored.exec<string | false>(
+          `const el = [...document.querySelectorAll('[data-testid="files-drive-notice"]')]
+             .find((candidate) => candidate.getClientRects().length > 0)
+           return el ? el.textContent : false`,
+        ),
+      )) as string
+      // Nothing was mounted or unlocked unasked.
+      assert.equal(mountPointOf(plainDevice), null)
+      assert.equal(cleartextOf(safe.device), null)
+      await restored.click('files-drive-notice-open')
+      if (text.includes(PLAIN)) {
+        assert.match(text, /nicht eingehängt/)
+        await restored.waitForDisplayed('files-entry-inhalt.txt', 30_000)
+        ctx.step('the stick mounted, the folder open')
+      } else {
+        assert.match(text, new RegExp(`${SAFE}.*gesperrt`))
+        await restored.waitForDisplayed('files-entry-geheim.txt', 30_000)
+        assert.ok(
+          await gone(restored, 'files-drive-unlock-form'),
+          'the saved password opened it',
+        )
+        ctx.step('the encrypted stick unlocked with its saved password')
+      }
+    }
   },
 )

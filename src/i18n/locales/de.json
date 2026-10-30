@@ -2729,6 +2729,11 @@
       "unmountVerb": "aushängen",
       "systemDialog": "{name}: Entsperren im Dialog des Systems",
       "noFilesystem": "{name} ist entsperrt, enthält aber kein Dateisystem, das sich öffnen lässt",
+      "notice": {
+        "unmounted": "Laufwerk {name} ist nicht eingehängt",
+        "locked": "Laufwerk {name} ist gesperrt",
+        "mount": "Einhängen"
+      },
       "entryTitle": "Laufwerk: {name}",
       "unlock": {
         "title": "{name} entsperren",

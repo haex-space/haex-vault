@@ -336,3 +336,25 @@ test('phones do not offer two panels, everything else does', () => {
   assert.equal(splitAvailable('macos'), true)
   assert.equal(splitAvailable(undefined), true)
 })
+
+test('the drive of the other panel survives, and comes back when it is the active one (spec 064)', () => {
+  const state: SplitState = {
+    on: true,
+    side: 'left',
+    active: storage('abc-123', '/fotos'),
+    other: device('/run/media/anna/BACKUP/x', {
+      drive: 'a1b2',
+      droot: '/run/media/anna/BACKUP',
+    }),
+  }
+  const location = withSplit(filesLocation(state.active), state)
+  assert.equal(location.query['o.drive'], 'a1b2')
+  assert.equal(location.query['o.droot'], '/run/media/anna/BACKUP')
+  assert.deepEqual(readSplit(location), state)
+  const swapped = swapActive(state)
+  assert.deepEqual(filesLocation(swapped.active).query, {
+    p: '/run/media/anna/BACKUP/x',
+    drive: 'a1b2',
+    droot: '/run/media/anna/BACKUP',
+  })
+})

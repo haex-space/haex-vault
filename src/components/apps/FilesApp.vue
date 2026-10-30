@@ -62,6 +62,10 @@ const {
 } = useFilesSplit({
   sources: sources.state,
   reloadSources: () => void sources.execute(),
+  drives,
+  drivesKnown: computed(
+    () => liveDrives.received.value || sources.state.value !== null,
+  ),
   pathHost,
   viewerHost,
   available,

@@ -1,7 +1,8 @@
 /**
  * The open folder of this device is gone (spec 044 edge case "Der offene Ordner verschwindet",
  * spec 064 research R10): the panel moves to the nearest folder above it that still exists, without
- * a new history entry, and says so. Up to the root nothing left, it goes back to its start.
+ * a new history entry, and says so. Up to the root nothing left, it goes back to its start. A folder
+ * whose drive is plugged in but not open waits for it instead (`claimAsync`, FR-025).
  */
 import { toast } from 'vue-sonner'
 import type { FilesError } from '@bindings/FilesError'
@@ -14,6 +15,7 @@ export function useFilesNearestFolder(
   source: Ref<SourceRef>,
   path: Ref<string | null>,
   error: Ref<FilesError | null>,
+  claimAsync: (gone: string) => Promise<boolean>,
 ) {
   const { t } = useI18n()
   const { statAsync } = useFiles()
@@ -30,6 +32,7 @@ export function useFilesNearestFolder(
     const gone = path.value
     if (now?.code !== 'notFound' || source.value.kind !== 'device' || !gone)
       return
+    if (await claimAsync(gone)) return
     const target = await nearestExisting(gone, existsAsync)
     // The panel moved on while the walk ran.
     if (path.value !== gone) return

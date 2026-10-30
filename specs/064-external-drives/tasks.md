@@ -384,7 +384,7 @@ already looks for saved entries; without any it always shows the dialog.
   - Texts in `de.json`/`en.json`.
   - `CredentialsEntryPicker.vue` is not reused or extracted: its own logic is the storage command and protocol; the list itself is already the shared `UiInput`, `SettingsGroup` and `SettingsOptionRow`, which the dialog uses the same way.
   - The candidates load when the dialog opens, so a closed vault greys out the checkbox before the first click.
-- [ ] T052 [US3] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US3 part:
+- [x] T052 [US3] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US3 part:
   - attach the LUKS image `E2EBACKUP` (password from a constant in the scenario): the sidebar shows a locked drive
   - click → dialog; a wrong password → error, dialog stays
   - the right password → the folder view shows the test file
@@ -430,7 +430,7 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
   - preselect the matches for `reason: several`
   - grey out the picker and checkbox with the hint on `noVault` (FR-018)
   - Texts in `de.json`/`en.json`.
-- [ ] T058 [US4] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US4 part:
+- [x] T058 [US4] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US4 part:
   - unlock `E2EBACKUP` with "merken"
   - the password manager (open it through the app, as in the password manager scenarios; read one first) lists "Laufwerk: E2EBACKUP" with tag `haex-drive`
   - eject and click again: it opens without a dialog
@@ -449,25 +449,30 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
 
 **Independent Test**: quickstart Linux step 7.
 
-- [ ] T060 [US1] `src/lib/files/registry.ts`:
+- [x] T060 [US1] `src/lib/files/registry.ts`:
   - add `drive` and `droot` to `FilesPlace` and to `KEYS`, both optional
   - `filesLocation` writes them only for the `device` source and only together
   - `parseFilesPlace` reads them and drops them when one of the two is missing or `p` does not start with `droot`
   - Extend `scripts/check-files-registry.ts`: round trip, only-one-key dropped, wrong prefix dropped, storage source ignores them. Also check that `src/lib/wm/session.ts` keeps them (it keeps any string keys); add a case to `scripts/check-wm-session.ts`.
-- [ ] T061 [US1] Set the keys where device locations are built, using `driveOf(path, drives)` from `useFilesDrives` (only when the drive has a `key`):
+  - The other panel of the split keeps them as `o.drive`/`o.droot` (`lib/files/split.ts`), checked in `scripts/check-files-split.ts`.
+- [x] T061 [US1] Set the keys where device locations are built, using `driveOf(path, drives)` from `useFilesDrives` (only when the drive has a `key`):
   - `go()` in `src/components/apps/FilesApp.vue` (around line 152)
   - `onSidebarPick` (around line 288)
   - `src/stores/filesActionHandlers.ts` (around line 25)
   - If spec 062's `Panel.vue` has landed by then, apply the same in its location writer instead (research R14).
-- [ ] T062 [US1] Create `src/composables/useFilesDriveRestore.ts`:
+  - Spec 062 had landed: the keys are set in one place, `write()` of `composables/useFilesSplit.ts`, through the pure `placeOnDrive(place, drives)` in `lib/files/drives.ts` (a place that already names a drive above its path keeps it, as the list may lag behind a mount). A place written from outside the frame (`filesActionHandlers.ts`, `wm.app.open`) gets them from a watcher in the frame once the list knows the drive, so `filesActionHandlers.ts` is unchanged. The frame hands the list to the panels as `drives`/`drivesKnown` in the panel context.
+- [x] T062 [US1] Create `src/composables/useFilesDriveRestore.ts`:
   - Given the place and the drive list: when the folder load failed with `notFound` and the place has `drive`, find the drive with that `key`.
     - Present and not mounted or locked → expose `notice: { drive, state }` and stop the nearest-folder walk of T031 (T031 must ask this composable first).
     - Absent → let T031's walk run.
   - `resolve()` runs `openDrive`/the unlock flow, then navigates to `remap(p, droot, newPath)` with `replace` and refreshes `droot`.
-- [ ] T063 [US1] Create `src/components/files/DriveNotice.vue` per `contracts/ui.md` (text, one button, busy state, `data-testid="files-drive-notice"`) and show it in the folder area instead of the error. Texts in `de.json`/`en.json`.
-- [ ] T064 [P] [US1] Extend `scripts/e2e/scenarios/files-restore.test.ts` (the existing restore scenario; read it first) or `files-drives.test.ts`:
+  - `useFilesNearestFolder` takes the composable's `claimAsync(gone)` and walks only when it says no. The composable waits for the drive list first, and a drive mounted where the place says counts as "folder gone". The panel also follows when the drive is opened elsewhere (sidebar, system); the button itself lives in `DriveNotice.vue`, the composable's `open(root)` does the remap.
+- [x] T063 [US1] Create `src/components/files/DriveNotice.vue` per `contracts/ui.md` (text, one button, busy state, `data-testid="files-drive-notice"`) and show it in the folder area instead of the error. Texts in `de.json`/`en.json`.
+  - The unlock dialog for the notice sits in `Panel.vue`, not in the notice: once the drive is open the notice goes away, and the dialog may still ask about the entry's address.
+- [x] T064 [P] [US1] Extend `scripts/e2e/scenarios/files-restore.test.ts` (the existing restore scenario; read it first) or `files-drives.test.ts`:
   - open a subfolder on the mounted vfat image, restart with session restore while the image is attached but unmounted: the notice with "Einhängen" appears; the click opens the same subfolder
   - repeat with the LUKS image locked: "Entsperren" and the saved password from US4 open the subfolder without a dialog
+  - A scenario of its own, `files-drives-restore` in `files-drives.test.ts`, with both sticks in two tabs and one restart (stop, `startInstance({ reusesRoot })`, `openVault`); it also checks that nothing was mounted or unlocked before the click. The tab on the plain stick is opened from outside (`wm.tab.new`), so it also covers the watcher of T061.
 - [ ] T065 [US1] `pnpm check:files`, `pnpm check:wm-state`, `pnpm typecheck`, `pnpm typecheck:scripts`, E2E as above, quickstart Linux step 7
 
 **Checkpoint**: The spec is complete on Linux (PR D).

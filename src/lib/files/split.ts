@@ -45,7 +45,17 @@ export function fitsSplit(width: number): boolean {
 }
 
 /** The query keys of the other panel's place, without the `o.` prefix. */
-const OTHER_PASSED = ['q', 't', 's', 'd', 'vw', 'so', 'sr'] as const
+const OTHER_PASSED = [
+  'q',
+  't',
+  's',
+  'd',
+  'vw',
+  'so',
+  'sr',
+  'drive',
+  'droot',
+] as const
 
 const SPLIT_KEYS = [
   'split',

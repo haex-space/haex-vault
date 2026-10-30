@@ -2729,6 +2729,11 @@
       "unmountVerb": "unmount",
       "systemDialog": "{name}: unlock in the system's dialog",
       "noFilesystem": "{name} is unlocked but holds no file system that can be opened",
+      "notice": {
+        "unmounted": "Drive {name} is not mounted",
+        "locked": "Drive {name} is locked",
+        "mount": "Mount"
+      },
       "entryTitle": "Drive: {name}",
       "unlock": {
         "title": "Unlock {name}",
