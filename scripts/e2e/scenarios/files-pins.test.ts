@@ -32,6 +32,7 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
     await createAndUnlock(instance, { name: 'e2e-files-pins' })
 
     // After the start: on Android it clears the app's data, where the folder lives.
+    files.ensureFolder()
     for (const name of ['alpha', 'beta']) {
       unwrap(
         'files_create_folder',
