@@ -181,14 +181,13 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
         .args(args(os, &launch.workdir, launch.headless))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(
-            if std::env::var_os("HOLZI_AGENT_BROWSER_STDERR").is_some() {
-                Stdio::inherit()
-            } else {
-                Stdio::null()
-            },
-        )
+        .stderr(Stdio::null())
         .process_group(0);
+    // Headless integration runs have no desktop session and do not need its bus address. In CI,
+    // the inherited value can be malformed and Chromium reports it while starting.
+    if launch.headless && matches!(os, Os::Linux) {
+        command.env_remove("DBUS_SESSION_BUS_ADDRESS");
+    }
     // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `fcntl` and
     // `dup2`, which are async-signal-safe. Both descriptors are first moved above 9, so placing
     // one on 3 cannot overwrite the other; `dup2` clears close-on-exec on 3 and 4.
