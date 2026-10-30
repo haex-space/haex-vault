@@ -68,7 +68,12 @@ function confirmed() {
         </span>
         <span class="text-base font-medium">{{ rec.entry.name }}</span>
         <span class="text-xs text-muted-foreground">
-          {{ humanBytes(rec.entry.approxSizeBytes) }}
+          {{
+            t(`settings.sttModel.engine.${rec.entry.engine}`, {
+              count: rec.entry.languages.length,
+            })
+          }}
+          · {{ humanBytes(rec.entry.approxSizeBytes) }}
         </span>
         <span class="text-xs">
           {{ t(fitLabelKey(rec.fit)) }}

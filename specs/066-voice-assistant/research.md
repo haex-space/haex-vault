@@ -195,6 +195,37 @@ whisper-small braucht in `tauri dev` für 11 s Audio spürbar lange). Parakeet i
 deutlich schneller als Whisper small, liefert Satzzeichen und Wortzeiten (die 067 braucht) und
 erfindet bei Stille kaum Text (nicht gemessen). sherpa ist durch R3 ohnehin im Build.
 
+**Ergebnis T130 (2026-10-30)**: `tests/stt_compare_eval.rs` (Release) auf je 25 Sätzen aus Google
+FLEURS (dev, CC BY 4.0, vorgelesen, ≈ 11 s pro Satz), Referenz-Desktop (8 Kerne, ohne GPU).
+Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
+
+| Modell                                     | de   | en   | fr   | es   | it   | pt   | Zeit pro Satz |
+| ------------------------------------------ | ---- | ---- | ---- | ---- | ---- | ---- | ------------- |
+| Parakeet TDT 0.6B v3 (k2-fsa, int8)        | 14,4 | 3,4  | 6,8  | 6,3  | 4,5  | 5,5  | 0,6 s         |
+| parakeet-primeline (deutsch nachtrainiert) | 6,5  | 4,4  | 9,1  | 4,5  | 4,1  | 5,3  | 0,6 s         |
+| Whisper tiny                               | 36,3 | 10,4 | 48,8 | 19,5 | 35,7 | 25   | 1,0–2,1 s     |
+| Whisper base                               | 24,7 | 7,6  | 28,3 | 11,4 | 22,7 | 12,6 | 2,3–3,9 s     |
+| Whisper small                              | 11,6 | 5,8  | 14,0 | 6,9  | 11,9 | 8,3  | 5,7–9,9 s     |
+
+- Parakeet ist 5- bis 15-mal schneller als Whisper und liegt als einziges unter 1 s pro Satz
+  (Echtzeitfaktor ≈ 0,05). Das Ziel „Text ≤ 1 s nach Sprechende“ hält nur Parakeet.
+- `parakeet-primeline` (primeline, CC BY 4.0; sherpa-Export `flozen1981/parakeet-primeline-onnx`,
+  Revision `d548e25b…`) halbiert die deutsche Fehlerrate bei gleicher Geschwindigkeit; en und fr
+  verlieren 1–2 Punkte, es/it/pt werden etwas besser. Im Mittel das genaueste Modell (5,7 %).
+  Es wird der Parakeet-Eintrag im Katalog (Betreiber, 2026-10-30).
+- Whisper mit sechs statt zwei Kandidatensprachen erkennt de und en gleich gut; nur Whisper tiny
+  wird auf Deutsch langsamer (Ausreißer bis 19 s).
+- Parakeet über sherpa meldet keine Sprache (`OfflineRecognizerResult` hat kein Feld dafür). Für die
+  Gesprächssprache (R22) kommt sherpas `SpokenLanguageIdentification` als Alternative zur Zeile
+  `detect` der Wortliste in Frage.
+- 25 Sätze je Sprache zeigen die Richtung, keine Nachkommastellen. Telefon und kurze
+  Assistent-Äußerungen fehlen noch.
+- **Standard** (Betreiber, 2026-10-30): Auf dem Desktop ist `parakeet-primeline` der Standard, wenn
+  kein Modell gewählt ist, und die Empfehlung im Onboarding. Telefone behalten `whisper-tiny` (043
+  FR-030), bis Parakeet auf dem Referenz-Telefon gemessen ist. Die Regel steht nur in
+  `stt::catalog::default_entry`; die Oberfläche liest sie als `isDefault` aus der Katalogliste.
+  Whisper bleibt wählbar.
+
 **Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
 Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.
 Whisper zusätzlich über sherpa — vorerst nicht nötig, weil 25 Sprachen reichen. Canary-180m-flash
@@ -236,6 +267,30 @@ einzeln an die Sprachausgabe (FR-022).
 **Spike** (T008): Qualität, Akzent und Echtzeitfaktor je Sprache auf Referenz-Desktop und -Telefon,
 normal und mit 24 Schichten. Reicht Deutsch nicht, ist der Ersatz Piper `de_DE-thorsten` mit eigener
 freier Aussprache-Tabelle (gruut, MIT); die Herkunft der Stimme wird vorher rechtlich geprüft.
+
+**Ergebnis T008 (2026-10-30)**, `tests/tts_spike_eval.rs`, fünf Assistent-Sätze je Sprache,
+Stimme nachgebildet aus je einem FLEURS-Satz (nur zum Test):
+
+- k2-fsa bietet Pocket TTS nur auf Englisch an (`sherpa-onnx-pocket-tts-int8-2026-01-26`). Die
+  übrigen Sprachen gibt es als ONNX nur im Export von KevinAHM (`KevinAHM/pocket-tts-onnx`, CC BY 4.0
+  seit 2026-01-28; der Hinweis „non-commercial“ im README des sherpa-Pakets stammt von davor).
+- Diese Modelle erwarten vor der Stimm-Einbettung ein gelerntes Startsignal (`bos_before_voice.npy`,
+  `insert_bos_before_voice` in `bundle.json`). sherpa-onnx 2.0.1 kennt das nicht: Ohne Startsignal
+  findet das Modell kein Satzende und erzeugt 40–80 s Rauschen.
+- **Umgehung**: Das Startsignal wird als `Concat` vor dem Ausgang in den Mimi-Encoder eingebaut
+  (eigenes Skript, `onnx`-Bibliothek). Danach sprechen alle sechs Sprachen über das unveränderte
+  sherpa. Sauberer wäre ein Upstream-PR an sherpa-onnx, der `bos_before_voice` unterstützt; bis dahin
+  führt haex die angepassten Encoder als eigene, gepinnte Modelldateien (CC BY verlangt Namensnennung
+  und einen Hinweis auf die Änderung).
+- Erster Ton pro Satz 0,7–1,6 s (de, es, it, pt, en), Echtzeitfaktor 0,4–1,0; Französisch nur als
+  24-Schichten-Variante, dort ≈ 2 s pro Sekunde Audio. sherpa ruft den Fortschritt erst am Satzende
+  auf, deshalb schneidet haex Antworten selbst in Sätze (FR-022).
+- Verständlichkeit, gemessen als Wortfehlerrate von Parakeet auf der erzeugten Sprache: meist 0–30 %,
+  Fehler vor allem bei Eigennamen und Zahlen. Kurze Satzanfänge („Done.“, „Devo“) gehen öfter verloren.
+  Pocket würfelt (Temperatur 0,7); zwei Läufe unterscheiden sich spürbar.
+- Der Betreiber hat Deutsch und Englisch angehört: klingt gut (2026-10-30).
+- Text mit Nullzeichen lässt `generate_with_config` panicken (`CString::new(..).unwrap()`); haex
+  entfernt solche Zeichen vorher.
 
 **Alternativen**: Piper-Engine — seit 1.3.0 GPL-3.0 (espeak-ng). Kokoro-82M — kein Deutsch.
 Supertonic 3 — Repo archiviert, OpenRAIL-M. Die vorgefertigten Kyutai-Stimmen — englischer Akzent und

@@ -8,8 +8,9 @@
 use std::path::Path;
 
 use super::catalog::SttCatalogEntry;
+use super::files::ensure_model_files;
 use super::fixture_wav::read_fixture_wav;
-use super::local::{ensure_model_files, LocalWhisperAdapter};
+use super::local::LocalWhisperAdapter;
 use super::{CanonicalPcm, SttAdapter};
 
 /// Cross-checked against `librosa.filters.mel(sr=16000, n_fft=400,
@@ -114,80 +115,4 @@ async fn transcribes_german_fixture() {
         text.contains("öffentlichem"),
         "unexpected transcript: {text}"
     );
-}
-
-/// Spec 010: `is_complete_file`/`is_complete_model` guard against a
-/// previous run's interrupted/truncated download (or a hand-deleted file)
-/// being mistaken for an installed one. No network involved — pure
-/// filesystem checks.
-mod completeness {
-    use std::path::Path;
-
-    use tempfile::tempdir;
-
-    use super::super::local::{is_complete_file, is_complete_model};
-
-    const CONFIG_FILENAME: &str = "config.json";
-    const TOKENIZER_FILENAME: &str = "tokenizer.json";
-    const WEIGHTS_FILENAME: &str = "model.safetensors";
-
-    fn write(dir: &Path, filename: &str, contents: &[u8]) {
-        std::fs::write(dir.join(filename), contents).unwrap();
-    }
-
-    #[test]
-    fn missing_file_is_incomplete() {
-        let dir = tempdir().unwrap();
-        assert!(!is_complete_file(&dir.path().join("config.json")));
-    }
-
-    #[test]
-    fn zero_byte_file_is_incomplete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), "config.json", b"");
-        assert!(!is_complete_file(&dir.path().join("config.json")));
-    }
-
-    #[test]
-    fn nonempty_file_is_complete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), "config.json", b"{}");
-        assert!(is_complete_file(&dir.path().join("config.json")));
-    }
-
-    #[test]
-    fn model_with_one_missing_file_is_incomplete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), CONFIG_FILENAME, b"{}");
-        write(dir.path(), TOKENIZER_FILENAME, b"{}");
-        // WEIGHTS_FILENAME intentionally absent.
-        assert!(!is_complete_model(dir.path()));
-    }
-
-    #[test]
-    fn model_with_one_zero_byte_file_is_incomplete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), CONFIG_FILENAME, b"{}");
-        write(dir.path(), TOKENIZER_FILENAME, b"{}");
-        write(dir.path(), WEIGHTS_FILENAME, b""); // truncated download
-        assert!(!is_complete_model(dir.path()));
-    }
-
-    #[test]
-    fn model_with_nonempty_invalid_metadata_is_incomplete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), CONFIG_FILENAME, b"not-json");
-        write(dir.path(), TOKENIZER_FILENAME, b"{}");
-        write(dir.path(), WEIGHTS_FILENAME, b"weights");
-        assert!(!is_complete_model(dir.path()));
-    }
-
-    #[test]
-    fn model_with_all_three_nonempty_files_is_complete() {
-        let dir = tempdir().unwrap();
-        write(dir.path(), CONFIG_FILENAME, b"{}");
-        write(dir.path(), TOKENIZER_FILENAME, b"{}");
-        write(dir.path(), WEIGHTS_FILENAME, b"weights");
-        assert!(is_complete_model(dir.path()));
-    }
 }

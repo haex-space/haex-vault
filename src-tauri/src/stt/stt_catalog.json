@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "note": "Local Whisper size tiers (candle-transformers, openai/whisper-* checkpoints). approx_size_bytes is the sum of config.json + tokenizer.json + model.safetensors at the pinned revision, not just the weights.",
-    "source": "https://huggingface.co/openai (MIT-licensed Whisper checkpoints)"
+    "note": "Local transcription models. candle-whisper: openai/whisper-* checkpoints (candle-transformers). sherpa-parakeet: Parakeet TDT 0.6B v3 exports for sherpa-onnx. approx_size_bytes is the sum of every file the engine needs at the pinned revision (stt/files.rs).",
+    "source": "https://huggingface.co/openai (MIT Whisper checkpoints); https://huggingface.co/primeline/parakeet-primeline (CC BY 4.0)"
   },
   "models": [
     {
@@ -11,7 +11,8 @@
       "hf_repo": "openai/whisper-tiny",
       "hf_revision": "169d4a4341b33bc18d8881c4b69c2e104e1cc0af",
       "approx_size_bytes": 153544121,
-      "license": "MIT"
+      "license": "MIT",
+      "engine": "candle-whisper"
     },
     {
       "id": "whisper-base",
@@ -19,7 +20,8 @@
       "hf_repo": "openai/whisper-base",
       "hf_revision": "e37978b90ca9030d5170a5c07aadb050351a65bb",
       "approx_size_bytes": 292886385,
-      "license": "MIT"
+      "license": "MIT",
+      "engine": "candle-whisper"
     },
     {
       "id": "whisper-small",
@@ -27,7 +29,45 @@
       "hf_repo": "openai/whisper-small",
       "hf_revision": "973afd24965f72e36ca33b3055d56a652f456b4d",
       "approx_size_bytes": 969477513,
-      "license": "MIT"
+      "license": "MIT",
+      "engine": "candle-whisper"
+    },
+    {
+      "id": "parakeet-primeline",
+      "name": "Parakeet (25 European languages, tuned for German)",
+      "hf_repo": "flozen1981/parakeet-primeline-onnx",
+      "hf_revision": "d548e25b9bfe559aa274f361892dc4ed5d64743a",
+      "approx_size_bytes": 670627013,
+      "license": "CC-BY-4.0",
+      "engine": "sherpa-parakeet",
+      "languages": [
+        "bg",
+        "cs",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "et",
+        "fi",
+        "fr",
+        "hr",
+        "hu",
+        "it",
+        "lt",
+        "lv",
+        "mt",
+        "nl",
+        "pl",
+        "pt",
+        "ro",
+        "ru",
+        "sk",
+        "sl",
+        "sv",
+        "uk"
+      ],
+      "attribution": "parakeet-primeline by primeline (CC BY 4.0), a German fine-tune of NVIDIA parakeet-tdt-0.6b-v3 (CC BY 4.0); int8 ONNX export for sherpa-onnx by flozen1981"
     }
   ]
 }

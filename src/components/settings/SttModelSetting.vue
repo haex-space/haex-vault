@@ -4,7 +4,10 @@
  * (spec 023 FR-021); a model that is not installed is fetched and activated with its own button,
  * because a download is an action, not a value (clarification 2026-09-26).
  */
-import type { SttCatalogEntry } from '~/composables/useSttCatalog'
+import type {
+  SttCatalogEntry,
+  SttCatalogEntryWithFit,
+} from '~/composables/useSttCatalog'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
@@ -17,11 +20,11 @@ const { listInstalledAsync } = useSttModels()
 const device = useSettingsDevice()
 
 const PREF_KEY = 'voice.stt_model_id'
-const DEFAULT_ID = 'whisper-tiny'
 
-const catalog = ref<SttCatalogEntry[]>([])
+const catalog = ref<SttCatalogEntryWithFit[]>([])
 const installedIds = ref<Set<string>>(new Set())
-const activeId = ref(DEFAULT_ID)
+/** Until the catalog is read; then the device's default unless a model is picked. */
+const activeId = ref('')
 
 const loading = ref(true)
 const busyId = ref<string | null>(null)
@@ -48,6 +51,13 @@ const available = computed(() =>
   catalog.value.filter((entry) => !installedIds.value.has(entry.id)),
 )
 
+/** Engine and languages in one line (spec 066 T136). */
+function engineLabel(entry: SttCatalogEntry): string {
+  return t(`settings.sttModel.engine.${entry.engine}`, {
+    count: entry.languages.length,
+  })
+}
+
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
@@ -64,7 +74,9 @@ async function reloadAsync(quiet = false) {
     catalog.value = entries
     installedIds.value = new Set(installedModels.map((m) => m.id))
     activeId.value =
-      pref && entries.some((entry) => entry.id === pref) ? pref : DEFAULT_ID
+      pref && entries.some((entry) => entry.id === pref)
+        ? pref
+        : (entries.find((entry) => entry.isDefault)?.id ?? '')
   } catch (e) {
     loadError.value = errString(e)
   } finally {
@@ -153,6 +165,7 @@ onVaultTablesChanged(['preferences'], () => {
           v-for="entry in available"
           :key="entry.id"
           :title="entry.name"
+          :description="engineLabel(entry)"
         >
           <UiButton
             type="button"

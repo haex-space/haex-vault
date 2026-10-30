@@ -176,7 +176,7 @@ pub async fn open_instance(
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();
-    voice.invalidate_whisper_cache().await;
+    voice.invalidate_stt_cache().await;
     emit_model_load_status(&app, &chat);
 
     // Refresh mtime so `list_instances` shows this instance at the top.

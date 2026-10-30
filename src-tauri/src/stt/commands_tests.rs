@@ -1,12 +1,12 @@
 //! Unit tests for the STT command handlers (spec 010). `list_stt_catalog`/
 //! `stt_recommend_tiers` just delegate to `stt::catalog`, already covered by
-//! `stt/catalog_tests.rs` — this file covers the `llm-cpu`-only logic that
+//! `stt/catalog_tests.rs` — this file covers the engine-backed logic that
 //! isn't: `scan_installed` (behind `list_installed_stt_models`) and
 //! `resolve_catalog_entry`'s error mapping (behind `download_stt_model`).
 //! Both are `AppHandle`-free helpers precisely so they can be unit tested
 //! here — this codebase has no Tauri `AppHandle` mocking convention.
 
-#![cfg(feature = "llm-cpu")]
+#![cfg(any(feature = "llm-cpu", feature = "voice"))]
 
 use tempfile::tempdir;
 

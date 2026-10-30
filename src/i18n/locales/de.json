@@ -460,7 +460,11 @@
       "notInstalled": "Standard (nicht installiert)",
       "noneInstalled": "Es ist noch kein Sprach-zu-Text-Modell installiert.",
       "availableLabel": "Weitere Modelle",
-      "downloadAndUse": "Herunterladen und verwenden"
+      "downloadAndUse": "Herunterladen und verwenden",
+      "engine": {
+        "candle-whisper": "Whisper · viele Sprachen",
+        "sherpa-parakeet": "Parakeet · {count} europäische Sprachen · schnell"
+      }
     },
     "cliDelegate": {
       "connect": "Verbinden",
