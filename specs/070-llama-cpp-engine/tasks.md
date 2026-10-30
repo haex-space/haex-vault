@@ -39,7 +39,7 @@ F; US5 is G.
 
 ## Planning docs (PR plan)
 
-- [ ] T001 Write the ADR `docs/adr/00NN-second-local-inference-engine.md` (next free number): why a second
+- [x] T001 Write the ADR `docs/adr/0023-second-local-inference-engine.md`: why a second
       engine, the choice by architecture, mistralrs wins while it works, the CUDA linking decision once R1 is
       settled (amended in T008).
 - [x] T002 This plan, the tasks, the quickstart and `contracts/tool-call-formats.md`.
@@ -52,13 +52,13 @@ F; US5 is G.
 - [ ] T004 [P] Settle R1 (CUDA linking): try static cuBLAS from the nixpkgs CUDA packages in a devshell
       (a); fall back to `dynamic-link` with the libraries next to the binary (b). Write the finding into
       `research.md`.
-- [ ] T005 `src-tauri/Cargo.toml`: promote the spike features to `llm-llamacpp`, `llm-llamacpp-cuda` and
+- [x] T005 `src-tauri/Cargo.toml`: promote the spike features to `llm-llamacpp`, `llm-llamacpp-cuda` and
       `llm-llamacpp-metal` (platform features for Android in T035); keep `llama-cpp-2 =0.1.160`; drop the
       `[profile.dev.package.llama-cpp-sys-2]` override if the CI leg does not need it; fix the stale comment
       about "mistralrs 0.8.1 still latest" (upstream has v0.9.5 on GitHub, none on crates.io since April).
-- [ ] T006 [P] `.github/workflows/ci.yml`: one Rust leg `llamacpp` (`--features llm-llamacpp`: clippy with
+- [x] T006 [P] `.github/workflows/ci.yml`: one Rust leg `llamacpp` (`--features llm-llamacpp`: clippy with
       `-D warnings` and the unit tests). Measure its time; the default legs must not change (SC-005).
-- [ ] T007 Create `src-tauri/src/llm/llamacpp/` with `mod.rs` and the empty submodules; move the spike's
+- [x] T007 Create `src-tauri/src/llm/llamacpp/` (the shell and a link test; the submodules arrive with the stages that need them); move the spike's
       `llamacpp_spike_adapter.rs` content out of `llm/local/` into place as it is promoted in B and C, and
       remove the spike test files once their content lives in proper tests (end of C).
 - [ ] T008 Amend the ADR with the settled R1 decision.

@@ -5,3 +5,6 @@
 
 #[cfg(feature = "llm-cpu")]
 pub mod local;
+
+#[cfg(feature = "llm-llamacpp")]
+pub mod llamacpp;

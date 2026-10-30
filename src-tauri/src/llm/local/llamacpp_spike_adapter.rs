@@ -57,7 +57,6 @@ impl LlamaCppSpikeAdapter {
         let piece =
             |token| String::from_utf8_lossy(&vocab.token_to_piece(token, true, None)).into_owned();
         let (bos, eos) = (piece(vocab.bos()), piece(vocab.eos()));
-        drop(vocab);
         Ok(Self {
             backend: Arc::new(backend),
             model: Arc::new(model),
