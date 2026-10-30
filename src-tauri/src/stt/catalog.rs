@@ -160,7 +160,7 @@ pub fn entries_with_fit(
         .collect();
     let default_id = default_entry(presets)
         .ok()
-        .map(|entry| entry.id)
+        .map(|entry| entry.id.clone())
         .filter(|id| entries.iter().any(|entry| entry.id == id.as_str()))
         .or_else(|| entries.first().map(|entry| entry.id.clone()));
     Ok(entries
