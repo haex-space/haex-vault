@@ -20,7 +20,7 @@ import {
   sameSource,
   type Selection,
 } from '../src/lib/files/clipboard.ts'
-import { entriesMenu, folderMenu } from '../src/lib/files/menus.ts'
+import { entriesMenu, folderMenu, pinMenu } from '../src/lib/files/menus.ts'
 
 const ORDER = ['/x/a', '/x/b', '/x/c', '/x/d']
 const CLICK = { toggle: false, range: false, touch: false }
@@ -256,6 +256,28 @@ test('several entries cannot be renamed; in own places only copying is left', ()
     ),
     ['open', 'select', 'copy', 'cut-', 'rename-', 'delete-'],
   )
+})
+
+test('a pin command shows for one folder only, and for the open folder (spec 071 FR-003)', () => {
+  const base = { readOnly: false, selecting: false }
+  assert.deepEqual(
+    ids(entriesMenu({ ...base, count: 1, singleFile: false, pin: 'pin' })),
+    ['open', 'pin', 'select', 'copy', 'cut', 'rename', 'delete'],
+  )
+  assert.deepEqual(
+    ids(entriesMenu({ ...base, count: 1, singleFile: false, pin: 'unpin' })),
+    ['open', 'unpin', 'select', 'copy', 'cut', 'rename', 'delete'],
+  )
+  // Several entries: no pin, even if the caller offered one.
+  assert.deepEqual(
+    ids(entriesMenu({ ...base, count: 2, singleFile: false, pin: 'pin' })),
+    ['select', 'copy', 'cut', 'rename-', 'delete'],
+  )
+  assert.deepEqual(
+    ids(folderMenu({ readOnly: false, canPaste: true, pin: 'pin' })),
+    ['newFolder', 'paste', 'pin'],
+  )
+  assert.deepEqual(ids(pinMenu()), ['unpin'])
 })
 
 test('the folder menu creates and pastes where it may', () => {

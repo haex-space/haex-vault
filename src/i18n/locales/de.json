@@ -2699,6 +2699,8 @@
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
       "share": "Freigeben …",
+      "pin": "Zu Favoriten hinzufügen",
+      "unpin": "Aus Favoriten entfernen",
       "copyToOther": "In das andere Panel kopieren",
       "moveToOther": "In das andere Panel verschieben"
     },
@@ -2812,6 +2814,9 @@
       "show": "Seitenleiste zeigen",
       "hide": "Seitenleiste ausblenden",
       "places": "Orte",
+      "pinned": "Favoriten",
+      "pinnedHint": "Ordner hierher ziehen oder per Rechtsklick hinzufügen",
+      "unpinDrop": "Hierher ziehen, um zu entfernen",
       "drives": "Laufwerke",
       "free": "{size} frei",
       "used": "{size} belegt",
@@ -2967,6 +2972,8 @@
       "readOnly": "Nur lesen",
       "overview": {
         "title": "Meine Dateifreigaben",
+        "filter": "Dateifreigaben filtern",
+        "noMatch": "Keine Dateifreigabe passt zum Filter.",
         "empty": "Noch keine Dateifreigaben. Gib einen Ordner oder eine Datei über „Freigeben …“ im Kontextmenü frei.",
         "thisDevice": "Dieses Gerät",
         "edit": "Bearbeiten",

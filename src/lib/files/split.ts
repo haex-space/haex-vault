@@ -53,6 +53,7 @@ const OTHER_PASSED = [
   'vw',
   'so',
   'sr',
+  'sh',
   'drive',
   'droot',
 ] as const

@@ -17,6 +17,9 @@ export type FilesCommand =
   | 'newEncryptedFolder'
   | 'openSystem'
   | 'share'
+  /** Spec 071: the folder into the sidebar's Favoriten, or out of it. */
+  | 'pin'
+  | 'unpin'
   /** Only in the split view (spec 062): the selection into the other panel's folder. */
   | 'copyToOther'
   | 'moveToOther'
@@ -47,7 +50,12 @@ export type EntriesMenuInput = {
   split?: boolean
   /** The other panel's folder takes no changes: holzi's own place, or a share read only. */
   readOnlyTarget?: boolean
+  /** What the menu offers for the one folder entry: pin it or unpin it (spec 071); none for
+   * anything else. */
+  pin?: PinCommand
 }
+
+export type PinCommand = 'pin' | 'unpin'
 
 /** The keys of the commands that have one (`resolveFilesShortcut`). */
 const SHORTCUTS: Partial<Record<FilesCommand, ShortcutHint>> = {
@@ -79,6 +87,7 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
   if (single && input.singleFile && input.systemApps !== false)
     entries.push(item('openSystem'))
   if (single && input.shareable) entries.push(item('share'))
+  if (single && input.pin) entries.push(item(input.pin))
   if (!input.selecting) entries.push(item('select'))
   entries.push(
     SEPARATOR,
@@ -106,6 +115,8 @@ export type FolderMenuInput = {
   canPaste: boolean
   /** An encrypted folder may be created here (spec 048 FR-001, `lib/files/encrypted.ts`). */
   canEncrypt?: boolean
+  /** What the menu offers for the open folder (spec 071). */
+  pin?: PinCommand
 }
 
 /** The menu of the open folder's empty area. */
@@ -114,5 +125,11 @@ export function folderMenu(input: FolderMenuInput): FilesMenuEntry[] {
     item('newFolder', input.readOnly),
     ...(input.canEncrypt ? [item('newEncryptedFolder', input.readOnly)] : []),
     item('paste', input.readOnly || !input.canPaste),
+    ...(input.pin ? [SEPARATOR, item(input.pin)] : []),
   ]
+}
+
+/** The menu of a pinned entry in the sidebar (spec 071 FR-004). */
+export function pinMenu(): FilesMenuEntry[] {
+  return [item('unpin')]
 }

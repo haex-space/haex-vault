@@ -27,6 +27,8 @@ export type FilesPlace = {
   so?: string
   /** `1` while the panel shows the sync rules of this device instead of the folder (spec 061). */
   sr?: string
+  /** `1` while the panel shows the list of the vault's own file shares (spec 071). */
+  sh?: string
   /** The `key` of the drive `path` lies on, and its mount path when the place was made (spec 064
    * FR-025): only on this device, only together, and `path` lies below `droot`. */
   drive?: string
@@ -55,12 +57,13 @@ const KEYS = [
   'vw',
   'so',
   'sr',
+  'sh',
   'drive',
   'droot',
 ] as const
 
 /** The keys a place keeps as they are. */
-const PASSED = ['q', 't', 's', 'd', 'vw', 'so', 'sr'] as const
+const PASSED = ['q', 't', 's', 'd', 'vw', 'so', 'sr', 'sh'] as const
 
 /** What the id of a storage, an own device or a share may look like in a tab location. */
 export const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/
@@ -79,6 +82,22 @@ export const SHARE_PREFIX = 'share:'
 /** Whether `storageId` lives on another device: an own one, or a contact's share. */
 export function isRemoteStorage(storageId: string): boolean {
   return isPeerStorage(storageId) || storageId.startsWith(SHARE_PREFIX)
+}
+
+/** Whether `storageId` is one of the vault's own cloud storages: not another own device, not a share. */
+export function isOwnStorage(storageId: string): boolean {
+  return !isRemoteStorage(storageId) && !storageId.startsWith('device:')
+}
+
+/** Whether entries of `source` may be shared with contacts: this device outside its encrypted
+ * folders, or a storage of the vault, also inside its encrypted folders, which the serving device
+ * opens (spec 056 T081); never another device or a received share (FR-015). */
+export function shareableSource(
+  source: SourceRef,
+  inEncrypted: boolean,
+): boolean {
+  if (source.kind === 'device') return !inEncrypted
+  return isOwnStorage(source.storageId)
 }
 
 /** `drive` and `droot` when a place may carry them: both set, on this device, `path` below

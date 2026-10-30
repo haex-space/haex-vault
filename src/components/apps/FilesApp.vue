@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Drive } from '@bindings/Drive'
 import type { DriveOpened } from '@bindings/DriveOpened'
+import type { FilesPin } from '~/lib/files/pins'
 import { isPeerStorage } from '~/lib/files/registry'
 import { splitAvailable } from '~/lib/files/split'
 
@@ -163,6 +164,18 @@ function onPickSyncRules() {
   go({ source: place.value.source, path: place.value.path, sr: '1' })
 }
 
+/** The list of the vault's own file shares takes the panel, like the sync rules (spec 071). */
+function onPickShares() {
+  close()
+  go({ source: place.value.source, path: place.value.path, sh: '1' })
+}
+
+/** A pinned folder opens like a place (spec 071). */
+function onPickPin(pin: FilesPin) {
+  close()
+  go({ source: pin.source, path: pin.path })
+}
+
 function onPickStorage(storageId: string) {
   close()
   go({
@@ -171,6 +184,9 @@ function onPickStorage(storageId: string) {
     path: isPeerStorage(storageId) ? null : '/',
   })
 }
+
+/** A list (sync rules, file shares) shows in place of the folder. */
+const listView = computed(() => !!place.value.sr || !!place.value.sh)
 
 const storageId = computed(() =>
   place.value.source.kind === 'storage' ? place.value.source.storageId : null,
@@ -213,11 +229,15 @@ watch(tabActive, (active) => {
           :sources="sources.state.value"
           :drives="drives"
           :busy="liveDrives.busy.value"
-          :current="storageId === null && !place.sr ? place.path : null"
-          :current-storage="place.sr ? null : storageId"
+          :current="storageId === null && !listView ? place.path : null"
+          :current-storage="listView ? null : storageId"
+          :current-path="listView ? null : place.path"
           :sync-rules-current="!!place.sr"
+          :shares-current="!!place.sh && !place.sr"
           @pick="onSidebarPick"
           @pick-sync-rules="onPickSyncRules"
+          @pick-shares="onPickShares"
+          @pick-pin="onPickPin"
           @pick-drive="onPickDrive"
           @release-drive="onReleaseDrive"
           @pick-storage="onPickStorage"

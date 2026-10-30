@@ -60,7 +60,10 @@ export type PanelHandle = {
 
 /** Query parts a panel changes without moving; `null` removes one. */
 export type FilesQueryPatch = Partial<
-  Record<'open' | 'q' | 't' | 's' | 'd' | 'vw' | 'so' | 'sr', string | null>
+  Record<
+    'open' | 'q' | 't' | 's' | 'd' | 'vw' | 'so' | 'sr' | 'sh',
+    string | null
+  >
 >
 
 export type FilesPanelContext = {
