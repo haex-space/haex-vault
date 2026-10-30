@@ -559,6 +559,12 @@ jobs:
           VERSION: ${{ steps.e2e-iroh-relay.outputs.version }}
         run: cargo install iroh-relay --locked --version "$VERSION" --features server
 
+      # The agent browser starts Chromium with its sandbox, as in production (spec 065). The
+      # runner's AppArmor blocks the unprivileged user namespaces the sandbox needs, and
+      # Chromium then ends at once ("the browser closed the pipe").
+      - name: Allow user namespaces for Chromium's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite
@@ -675,6 +681,16 @@ jobs:
           test -f "$prebuilt/jniLibs/arm64-v8a/libonnxruntime.so"
           test -f "$prebuilt/jniLibs/x86_64/libsherpa-onnx-c-api.so"
           test -f "$prebuilt/jniLibs/x86_64/libonnxruntime.so"
+          # sherpa-onnx-sys copies these into the APK's jniLibs from its build script, which does
+          # not run when the Rust cache holds the crate: the APK then lacked them and the app ended
+          # at start (`UnsatisfiedLinkError`). Copy them here, as the build script does.
+          for abi in arm64-v8a x86_64; do
+            dest="src-tauri/gen/android/app/src/main/jniLibs/$abi"
+            mkdir -p "$dest"
+            find "$prebuilt/jniLibs/$abi" -maxdepth 1 -name '*.so*' ! -name '*c++*' \
+              -exec cp {} "$dest/" \;
+            test -f "$dest/libsherpa-onnx-c-api.so"
+          done
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0

@@ -110,7 +110,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   // A search still inside its debounce is committed before details navigation; "Zurück" returns
   // to that filtered catalog state.
   await instance.exec(`
-    const input = document.querySelector('[data-testid="marketplace-search"] input');
+    const input = document.querySelector('input[data-testid="marketplace-search"]');
     if (!input) throw new Error('marketplace search input not found');
     input.value = 'agent tools';
     input.dispatchEvent(new Event('input', { bubbles: true }));
