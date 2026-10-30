@@ -1,7 +1,7 @@
 # Agents drive a browser that holzi starts itself, over a pipe, from an isolated world
 
-Status: proposed
-Date: 2026-10-28
+Status: accepted
+Date: 2026-10-28; accepted 2026-10-30 with spec 065 PR C3
 
 ## Context
 
@@ -22,7 +22,9 @@ through `chromiumoxide` or `headless_chrome`, which require a port.
 **Everything holzi runs in a page runs in an isolated world.** Reading, element numbering, the
 marker and its buttons live in `Page.createIsolatedWorld`; the buttons report over a binding that
 exists only in that world, and untrusted events are ignored. The page shares the DOM but cannot
-call or replace holzi's code. Clicks and typing are real input events.
+call or replace holzi's code. Clicks and typing are real input events. Chromium installs such a
+binding in later documents only while the `Runtime` domain is enabled on the tab, so holzi enables
+it there (seen in the PR C3 test against a real Chromium).
 
 **The rules run in Rust, not in the page.** Which websites an agent may open is checked before a
 document loads; what counts as submitting is decided before the click and, as a safety net, by

@@ -393,6 +393,13 @@ pub async fn send_message(
         } => (thread_id, user_message_id, assistant_message_id),
     };
 
+    // A newly persisted user message lets the built-in agent begin a new browser session after
+    // the user stopped its last one (spec 065 FR-016). Do not resume on an idempotent retry or a
+    // message that failed before it was accepted.
+    if let Some(sessions) = app.try_state::<crate::agent_browser::sessions::BrowserSessions>() {
+        sessions.resume(&crate::caller::Caller::BuiltinAgent);
+    }
+
     // The thread and user message were persisted atomically above.
     // Spec 002 §FR-009: `chat.last_active_model_id` is written
     // EXCLUSIVELY here, never by `load_model` — the message is the user's

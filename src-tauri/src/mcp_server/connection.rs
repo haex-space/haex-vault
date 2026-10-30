@@ -109,7 +109,7 @@ async fn run_session(
     } else {
         None
     };
-    let _live = core.live.add(session.clone(), peer.clone());
+    let live = core.live.add(session.clone(), peer.clone());
     if let Some(id) = known_id {
         let device = core.device;
         match core
@@ -182,6 +182,11 @@ async fn run_session(
     }
     drop(controls);
     let _ = tokio::time::timeout(FLUSH_DEADLINE, pump).await;
+    let agent = session.agent().map(|agent| agent.id);
+    drop(live);
+    if let Some(agent) = agent.filter(|agent| !core.live.connected(*agent)) {
+        (core.notify)(Notice::Disconnected(agent));
+    }
 }
 
 /// Reads the greeting line within `deadline`; `None` for a late, long or invalid one.

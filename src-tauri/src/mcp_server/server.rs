@@ -30,6 +30,9 @@ pub enum Notice {
     Changed,
     /// A registration dialog or call prompt ended without the window answering it.
     PromptClosed(PromptClosed),
+    /// The last connection of an agent ended; what holzi keeps for it while connected (its
+    /// browser session, spec 065) ends too.
+    Disconnected(Uuid),
 }
 
 pub type Notifier = Arc<dyn Fn(Notice) + Send + Sync>;

@@ -51,6 +51,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-not-available',
   },
   {
+    scenario: 'agent-browser',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'a phone has no agent browser: holzi steers a Chromium of its own only on the desktop (FR-016, spec 065 research R13), and its stand-in agent needs the `--mcp-agent` helper',
+    counterCase: 'android-not-available',
+  },
+  {
     scenario: 'files-split-restore',
     platform: 'android',
     kind: 'excluded',

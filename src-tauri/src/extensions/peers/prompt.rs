@@ -196,26 +196,16 @@ fn respond(frames: Frames, info: Arc<PromptInfo>, answer: Answer) -> Respond {
     })
 }
 
-const DE: &str = include_str!("../../../../src/i18n/locales/de.json");
-const EN: &str = include_str!("../../../../src/i18n/locales/en.json");
-
-/// `extensions.peers.invitation.<key>` in the language of holzi's window (German, else English),
-/// with `{name}` placeholders filled; the key itself when it is missing.
+/// `extensions.peers.invitation.<key>` in the language of holzi's window, with `{name}`
+/// placeholders filled; the key itself when it is missing.
 fn text(locale: &str, key: &str, values: &[(&str, &str)]) -> String {
-    let source = if locale.starts_with("de") { DE } else { EN };
-    let found = serde_json::from_str::<Value>(source)
-        .ok()
-        .and_then(|texts| {
-            texts
-                .pointer(&format!("/extensions/peers/invitation/{key}"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        });
-    let mut text = found.unwrap_or_else(|| key.to_owned());
-    for (name, value) in values {
-        text = text.replace(&format!("{{{name}}}"), value);
+    let full = format!("extensions.peers.invitation.{key}");
+    let found = crate::window_texts::text(locale, &full, values);
+    if found == full {
+        key.to_owned()
+    } else {
+        found
     }
-    text
 }
 
 #[cfg(test)]

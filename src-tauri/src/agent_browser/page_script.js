@@ -183,5 +183,11 @@ function holziPage(args) {
     if (scope(el)) elements.push(describe(el, index + 1))
   })
 
-  return { title: document.title || '', url: location.href, text, elements }
+  // The marker's prefix on the title is holzi's, not the page's.
+  const marker = globalThis.__holziMarker
+  let title = document.title || ''
+  if (marker && title.startsWith(marker.prefix))
+    title = title.slice(marker.prefix.length)
+
+  return { title, url: location.href, text, elements }
 }

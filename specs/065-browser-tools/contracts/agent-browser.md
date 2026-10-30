@@ -45,8 +45,9 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 1. `Target.createTarget { url: "about:blank" }`, Anhängen in Flat Mode.
 2. `Page.createIsolatedWorld { worldName: "holzi" }` und
    `Page.addScriptToEvaluateOnNewDocument { worldName: "holzi", source: <Leseskript + Markierung> }`.
-3. `Runtime.addBinding { name: "__holzi", executionContextName: "holzi" }` für die Knöpfe der
-   Markierung; nur vertrauenswürdige Ereignisse zählen (R6).
+3. `Runtime.enable` und `Runtime.addBinding { name: "__holzi", executionContextName: "holzi" }`
+   für die Knöpfe der Markierung (ohne `Runtime.enable` erreicht die Bindung keine späteren
+   Dokumente); nur vertrauenswürdige Ereignisse zählen (R6).
 4. `Target.setAutoAttach` hängt auch verschachtelte frame targets an; auf jedem Target aktiviert
    holzi `Fetch.enable` für Dokument-Navigationen (Website- und Wirkungsprüfung vor dem Laden, R9)
    sowie für jede ändernde Anfrage (R5). Jede Freigabe ist an ihre CDP-Request-ID gebunden.
@@ -69,6 +70,8 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 
 ## Ende
 
+- Stoppen gibt die Tabs der Sitzung zurück: `Page.stopLoading`, Markierung entfernen,
+  `Target.detachFromTarget`; der Tab bleibt offen, ohne Prüfung und Bindung von holzi.
 - Vault schließt oder Zugang aus: alle Sitzungen enden (`stopped`), dann Ende wie oben.
 - Nutzer schließt das Fenster: Sitzungen enden; der Prozess endet von selbst, holzi sichert das
   Profil.

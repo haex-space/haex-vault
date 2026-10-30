@@ -268,7 +268,8 @@ fn native_result(reply: Result<NativeReply, NativeError>) -> (CallToolResult, Ou
             // A native action that asks the user itself reports how that ended (spec 065).
             let outcome = match error.code.as_str() {
                 "site_not_allowed" => Outcome::DeniedSite,
-                "user_declined" => Outcome::DeniedUser,
+                // The user stopped the agent's browser session (spec 065 FR-016).
+                "user_declined" | "stopped" => Outcome::DeniedUser,
                 "no_answer" => Outcome::NoAnswer,
                 "paused" => Outcome::Paused,
                 "not_allowed" => Outcome::DeniedRights,

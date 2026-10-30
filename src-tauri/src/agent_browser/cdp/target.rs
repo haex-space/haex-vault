@@ -57,6 +57,19 @@ pub async fn close(connection: &Connection, target: &str) -> Result<()> {
         .map(drop)
 }
 
+/// Ends holzi's session `session` of a target; the target stays open, and what the session set
+/// up (scripts, bindings, held requests) ends with it.
+pub async fn detach(connection: &Connection, session: &str) -> Result<()> {
+    connection
+        .call(
+            "Target.detachFromTarget",
+            json!({ "sessionId": session }),
+            None,
+        )
+        .await
+        .map(drop)
+}
+
 /// Attaches the frames of the page in `session` as they appear, each waiting until holzi has set
 /// it up (research R9: their documents are checked too).
 pub async fn attach_frames(connection: &Connection, session: &str) -> Result<()> {

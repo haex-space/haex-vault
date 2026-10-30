@@ -121,6 +121,7 @@ pub async fn mcp_agent_rights_set<R: Runtime>(
 ) -> Result<()> {
     let device = open_device(&app, &state).await?;
     let core = server.core().await;
+    let browser = args.rights.browser.is_some();
     set_rights(
         &state.database()?,
         device,
@@ -129,6 +130,9 @@ pub async fn mcp_agent_rights_set<R: Runtime>(
         args.rights,
     )
     .await?;
+    if !browser {
+        super::end_browser_session(&app, args.agent_id);
+    }
     changed(&server).await;
     Ok(())
 }
@@ -221,6 +225,7 @@ pub async fn mcp_agent_revoke<R: Runtime>(
     let device = open_device(&app, &state).await?;
     let core = server.core().await;
     revoke(&state.database()?, device, core.as_deref(), args.agent_id).await?;
+    super::end_browser_session(&app, args.agent_id);
     changed(&server).await;
     Ok(())
 }

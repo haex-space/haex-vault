@@ -231,6 +231,10 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             .unwrap_or_default()
     }
 
+    fn locale(&self) -> String {
+        self.app.state::<AppState>().extensions().context().locale
+    }
+
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
         let os = Os::current().ok_or(BrowserError::Unsupported)?;
         let chosen = chosen_path(&self.app).await;

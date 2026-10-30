@@ -3801,6 +3801,17 @@
     }
   },
   "agentBrowser": {
+    "marker": {
+      "text": "{agent} is steering this tab",
+      "stop": "Stop",
+      "titlePrefix": "[Agent] "
+    },
+    "sessions": {
+      "label": "Agents in the browser",
+      "noTab": "no tab yet",
+      "lastAction": "Last: {action}",
+      "stop": "Stop"
+    },
     "notification": {
       "title": "The agent browser asks",
       "body": "An agent wants to do something in the browser. Open holzi to answer."
