@@ -57,7 +57,7 @@ pub struct Env {
     run_root: tempfile::TempDir,
     data: tempfile::TempDir,
     db: VaultDb,
-    rights: Mutex<BrowserRights>,
+    pub rights: Mutex<BrowserRights>,
     remembered: Mutex<Vec<(String, SiteLevel)>>,
 }
 
@@ -107,6 +107,7 @@ impl BrowserEnv for Env {
 }
 
 pub struct Scene {
+    pub env: Arc<Env>,
     pub tools: BrowserTools,
     pub browser: AgentBrowser,
     pub sessions: BrowserSessions,
@@ -144,13 +145,24 @@ impl Scene {
     }
 }
 
+/// The scene with the fixture site over `http`, allowed for reading.
 pub async fn scene() -> Option<Scene> {
+    scene_with(false, SiteLevel::Read).await
+}
+
+/// The scene with the fixture site over `https` (`tls`) or `http`, allowed at `level`. Over
+/// `https`, the browser accepts the test certificate.
+pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
     let os = Os::current()?;
     let Some(executable) = find(os, None, &System) else {
         eprintln!("skipped: no Chromium-based browser on this machine");
         return None;
     };
-    let site = agent_browser_fixture::start().await;
+    let site = if tls {
+        agent_browser_fixture::start_tls().await
+    } else {
+        agent_browser_fixture::start().await
+    };
     let data = tempfile::tempdir().unwrap();
     let db = vault(data.path());
     let rights = BrowserRights {
@@ -158,7 +170,7 @@ pub async fn scene() -> Option<Scene> {
         sites: [(
             Site::parse(&site.origin()).unwrap(),
             SiteGrant {
-                level: SiteLevel::Read,
+                level,
                 fill_remembered: false,
             },
         )]
@@ -197,20 +209,39 @@ pub async fn scene() -> Option<Scene> {
     let browser = AgentBrowser::default();
     let sessions = BrowserSessions::default();
     let tools = BrowserTools::new(
-        env,
+        Arc::clone(&env) as Arc<dyn BrowserEnv>,
         browser.clone(),
         prompts,
         Arc::new(|_| {}),
         sessions.clone(),
     );
-    Some(Scene {
+    let scene = Scene {
+        env,
         tools,
         browser,
         sessions,
         site,
         asked,
         allow,
-    })
+    };
+    if tls {
+        // Starts the browser and lets it accept the test certificate.
+        scene.auto("browser.tabs.list", json!({})).await.unwrap();
+        let connection = scene
+            .browser
+            .ensure(|| Err(BrowserError::Unavailable("already running".to_owned())))
+            .await
+            .unwrap();
+        connection
+            .call(
+                "Security.setIgnoreCertificateErrors",
+                json!({ "ignore": true }),
+                None,
+            )
+            .await
+            .unwrap();
+    }
+    Some(scene)
 }
 
 pub fn content(reply: &NativeReply) -> &Value {

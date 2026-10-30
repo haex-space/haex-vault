@@ -67,6 +67,31 @@ pub(super) struct Wait {
     pub(super) text: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Click {
+    pub(super) tab: String,
+    pub(super) element: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TypeText {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) text: String,
+    #[serde(default)]
+    pub(super) submit: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Select {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) value: String,
+}
+
 pub(super) fn input<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, NativeError> {
     serde_json::from_value(value)
         .map_err(|error| NativeError::invalid_input(None, error.to_string()))
@@ -100,6 +125,19 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
             "blocked_address",
             "This address can never be opened by an agent.",
         ),
+        TabError::Refused("user_declined") => NativeError::new(
+            "user_declined",
+            "The user declined to send this to the website.",
+        ),
+        TabError::Refused("no_answer") => NativeError::new(
+            "no_answer",
+            "The user did not answer in time; nothing was sent.",
+        ),
+        TabError::Refused("plan_mode") => NativeError::new(
+            "plan_mode",
+            "The approval mode of this agent lets nothing be sent to a website.",
+        ),
+        TabError::Refused("stopped") => stopped(),
         TabError::Refused(_) => NativeError::new(
             "site_not_allowed",
             "This website is not allowed for this agent.",
@@ -138,7 +176,7 @@ pub(super) async fn new_tab(
     let tab = Tab::open(
         connection,
         id.clone(),
-        session.guard(),
+        session.guard(id.clone()),
         session.marker().await,
     )
     .await

@@ -6,6 +6,7 @@
 //! (FR-003), keeps its profile between runs ([`profile_store`]) and ends it after
 //! [`IDLE_LIMIT`] without a lease, when the vault closes, or when the user closes its window.
 
+pub mod act;
 pub mod calls;
 pub mod cdp;
 pub mod commands;
@@ -23,6 +24,7 @@ pub mod read;
 pub mod session;
 pub mod sessions;
 pub mod sites;
+pub mod submit;
 pub mod tab;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -357,8 +359,12 @@ mod profile_store_tests;
 #[cfg(test)]
 mod profile_tests;
 #[cfg(test)]
+mod prompts_tests;
+#[cfg(test)]
 mod read_tests;
 #[cfg(test)]
 mod sessions_tests;
 #[cfg(test)]
 mod sites_tests;
+#[cfg(test)]
+mod submit_tests;

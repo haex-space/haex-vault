@@ -5,8 +5,8 @@
 //! session per agent in [`BrowserSessions`] and starts the browser on the first call (FR-003). A
 //! stop of the session ends the running call within a second (FR-016).
 //!
-//! This delivery brings opening, reading, screenshots, history, scrolling, links and waiting;
-//! typing, clicking and submitting follow in PR D.
+//! Operating a page (clicking, typing, choosing) runs in [`super::act`]; those tools ask
+//! themselves, with the element's name and before anything is submitted.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,6 +15,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
+use super::act::Acting;
 use super::calls::{
     browser_error, input, new_tab, not_allowed, read_tab, site_of, stopped, tab_error, unknown_tab,
     wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open, ReadPage, Scroll, Wait,
@@ -27,7 +28,7 @@ use super::prompts::{
 use super::read;
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
-use super::sites::{check_document, Site, Verdict};
+use super::sites::{check_document, may_operate, Site, Verdict};
 use super::tab::{PageInfo, TabError};
 use super::{AgentBrowser, StartConfig};
 use crate::caller::Caller;
@@ -53,7 +54,14 @@ pub const CHANGING: &[&str] = &[
     "browser.tabs.open",
     "browser.navigate",
     "browser.follow_link",
+    "browser.click",
+    "browser.type",
+    "browser.select",
+    "browser.tabs.close",
 ];
+
+/// The changing tools that ask with the element they operate, not with their input.
+const OPERATING: &[&str] = &["browser.click", "browser.type", "browser.select"];
 
 pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.page.read",
@@ -65,6 +73,10 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.tabs.open",
     "browser.navigate",
     "browser.follow_link",
+    "browser.click",
+    "browser.type",
+    "browser.select",
+    "browser.tabs.close",
 ];
 
 /// A screenshot is at most this wide (research R12).
@@ -153,11 +165,23 @@ impl BrowserTools {
     ) -> Result<(), NativeError> {
         let question = BrowserQuestion {
             kind: BrowserPromptKind::Action,
-            agent: self.env.agent_name(&session.caller).await,
+            agent: String::new(),
             site,
             tool: Some(tool.to_owned()),
             label: Some(label),
+            fields: Vec::new(),
         };
+        self.ask(session, question, cancel).await
+    }
+
+    /// Asks `question` for the agent of `session`; anything but "Erlauben" refuses the tool.
+    pub(super) async fn ask(
+        &self,
+        session: &Session,
+        mut question: BrowserQuestion,
+        cancel: &CancellationToken,
+    ) -> Result<(), NativeError> {
+        question.agent = self.env.agent_name(&session.caller).await;
         match prompts::ask(&self.prompts, &self.closed, &question, cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => Ok(()),
             Ok(_) => Err(NativeError::new(
@@ -297,7 +321,7 @@ impl BrowserTools {
                 }
                 _ => {}
             }
-        } else if manual && CHANGING.contains(&action_id) {
+        } else if manual && CHANGING.contains(&action_id) && !OPERATING.contains(&action_id) {
             self.confirm(session, action_id, input_value.to_string(), None, cancel)
                 .await?;
         }
@@ -377,6 +401,14 @@ impl BrowserTools {
                         "element_gone".to_owned(),
                     )));
                 };
+                // Following a link operates the page (FR-008).
+                let here = link["url"].as_str().unwrap_or_default();
+                if !may_operate(here, &rights.sites, &session.once_allowed_sites()) {
+                    return Err(NativeError::new(
+                        "read_only_site",
+                        "The agent may only read this website, not operate it.",
+                    ));
+                }
                 if let Verdict::Refuse(code) = session.check(href).await {
                     return Err(tab_error(TabError::Refused(code)));
                 }
@@ -424,6 +456,30 @@ impl BrowserTools {
                     return Err(NativeError::invalid_input(Some("for"), "load or text"));
                 }
                 read_tab(&connection, tab, 0, None).await?
+            }
+            "browser.click" | "browser.type" | "browser.select" => {
+                let acting = Acting {
+                    tools: self,
+                    connection: &connection,
+                    session,
+                    rights: &rights,
+                    mode: call.mode,
+                    cancel,
+                };
+                acting.run(action_id, input_value, &tabs).await?
+            }
+            "browser.tabs.close" => {
+                let OnTab { tab } = input(input_value)?;
+                let index = tabs
+                    .open
+                    .iter()
+                    .position(|open| open.id == tab)
+                    .ok_or_else(|| unknown_tab(&tab))?;
+                if tabs.current.as_deref() == Some(tab.as_str()) {
+                    tabs.current = None;
+                }
+                tabs.open.remove(index).close().await;
+                json!({ "tab": tab, "closed": true }).into()
             }
             _ => return Err(NativeError::new("not_allowed", "unknown browser tool")),
         };

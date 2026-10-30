@@ -36,7 +36,8 @@ delivery is one PR from its own worktree off `main`.
 | PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)      |
 | PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042) |
 | PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
-| PR D     | Phases 4–5 | US2, US3 rest (operating, submitting, take over, give back, input pause)      |
+| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)            |
+| PR D2    | Phases 4–5 | US2 rest (T047, T053 `newTab`), US3 take over, give back, input pause         |
 | PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                                    |
 | PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)                     |
 | –        | Phase 9    | Polish, manual checks                                                         |
@@ -151,19 +152,19 @@ submitting is refused; a read-only website refuses typing (spec US2).
 
 ### Tests first
 
-- [ ] T044 [P] [US2] Unit tests in src-tauri/src/agent_browser/submit_tests.rs: step 1 of R5 marks submit buttons, default buttons in forms, image inputs, Enter in a form field and the word list (de, en) as submitting, and a plain link or a disclosure button as not
-- [ ] T045 [P] [US2] Unit tests in src-tauri/src/agent_browser/prompts_tests.rs: the decision table of contracts/browser-tools.md "Freigabe" for every row and mode; one prompt per action at most
-- [ ] T046 [US2] Integration test in src-tauri/tests/agent_browser_act.rs with fixture pages for 20 forms and buy or delete buttons (SC-003): every submit asks in Manuell and Auto; the fixture server receives nothing after "Ablehnen"; immediate and delayed mutating requests are held and asked; no time-window expiry releases a request
+- [x] T044 [P] [US2] Unit tests in src-tauri/src/agent_browser/submit_tests.rs: step 1 of R5 marks submit buttons, default buttons in forms, image inputs, Enter in a form field and the word list (de, en) as submitting, and a plain link or a disclosure button as not (done; the rules of step 1 are in Rust, src-tauri/src/agent_browser/submit.rs, and the reading script only reports each element's facts. Enter always submits)
+- [x] T045 [P] [US2] Unit tests in src-tauri/src/agent_browser/prompts_tests.rs: the decision table of contracts/browser-tools.md "Freigabe" for every row and mode; one prompt per action at most (done for the rows of the agent browser through `prompts::need`; the rows of `credentials.fill` and the user's browser come with PR E and F)
+- [x] T046 [US2] Integration test in src-tauri/tests/agent_browser_act.rs with fixture pages for 20 forms and buy or delete buttons (SC-003): every submit asks in Manuell and Auto; the fixture server receives nothing after "Ablehnen"; immediate and delayed mutating requests are held and asked; no time-window expiry releases a request (done in src-tauri/tests/agent_browser_operate.rs over the fixture site with HTTPS and a test certificate, with one form page covering a default button, Enter, a delayed `fetch` POST, a disclosure and a plain button; the 20 pages for measuring SC-003 come with the corpus of T047)
 - [ ] T047 [US2] Integration test in src-tauri/tests/agent_browser_injection.rs with the corpus in src-tauri/tests/fixtures/agent_browser/injection/ (20 pages, SC-002): no call skips a prompt, opens a top-level page or embedded frame outside the rights without a prompt, changes a right or calls holzi's binding; every page result carries `untrusted_page_content`
 
 ### Implementation
 
-- [ ] T048 [US2] Input domain in src-tauri/src/agent_browser/cdp/input.rs and the actions in src-tauri/src/agent_browser/act.rs (`browser.click`, `.type`, `.select`, `.tabs.close` with real input events, R4)
-- [ ] T049 [US2] Submit detection in src-tauri/src/agent_browser/submit.rs: step 1 from the reading script; hold each mutating request through `Fetch` until its request-scoped decision (R5), with a `ponytail:` comment on the word list
-- [ ] T050 [US2] Prompts for actions and submitting in src-tauri/src/agent_browser/prompts.rs per contracts/browser-tools.md "Freigabe", including the fields that would be sent with secrets as `•••` (`mcp_server::redact`)
-- [ ] T051 [US2] Read-only websites refuse navigation, typing, choosing and clicking (`read_only_site`, FR-008) in src-tauri/src/agent_browser/act.rs
-- [ ] T052 [P] [US2] Catalog entries for the changing tools with `confirmsItself` in src/lib/actions/browserActions.ts
-- [ ] T053 [P] [US2] Prompt kinds `submit` and `newTab` in src/components/agentBrowser/PromptDialog.vue with texts in src/i18n/locales/de.json and src/i18n/locales/en.json
+- [x] T048 [US2] Input domain in src-tauri/src/agent_browser/cdp/input.rs and the actions in src-tauri/src/agent_browser/act.rs (`browser.click`, `.type`, `.select`, `.tabs.close` with real input events, R4) (done; element numbers stay the document order the script computes each time, without `backendNodeId`; `.select` sets the list from holzi's world, `.tabs.close` runs in the executor)
+- [x] T049 [US2] Submit detection in src-tauri/src/agent_browser/submit.rs: step 1 from the reading script; hold each mutating request through `Fetch` until its request-scoped decision (R5), with a `ponytail:` comment on the word list (done: tabs hold documents, XHR, fetch, ping, event source and other requests; reading ones go on at once. An allowed step-1 submit lets exactly its next changing request of that tab go, within the same call; every other one asks)
+- [x] T050 [US2] Prompts for actions and submitting in src-tauri/src/agent_browser/prompts.rs per contracts/browser-tools.md "Freigabe", including the fields that would be sent with secrets as `•••` (`mcp_server::redact`) (done: the fields of the form from the page, or of a held request's body; password fields and names like password, token, card, iban become `•••`)
+- [x] T051 [US2] Read-only websites refuse navigation, typing, choosing and clicking (`read_only_site`, FR-008) in src-tauri/src/agent_browser/act.rs (done for clicking, typing, choosing and following a link; opening an address, back, forward and reload stay allowed, since reading a website needs its pages loaded. A website allowed once counts as operable, `http` never)
+- [x] T052 [P] [US2] Catalog entries for the changing tools with `confirmsItself` in src/lib/actions/browserActions.ts
+- [ ] T053 [P] [US2] Prompt kinds `submit` and `newTab` in src/components/agentBrowser/PromptDialog.vue with texts in src/i18n/locales/de.json and src/i18n/locales/en.json (`submit` done in PR D1, with the fields; `newTab` follows in PR D2)
 
 ---
 
@@ -314,6 +315,6 @@ Task: "Fixture site in src-tauri/tests/fixtures/agent_browser/site/"
 ### Incremental Delivery
 
 1. PR C → reading (MVP).
-2. PR D → operating with prompts before submitting, take over and give back (marker and stop came with PR C3).
+2. PR D1 → operating with prompts before submitting; PR D2 → take over and give back (marker and stop came with PR C3).
 3. PR E → logins without the model seeing passwords, downloads and uploads.
 4. PR F → handed-over tabs in the user's browser.

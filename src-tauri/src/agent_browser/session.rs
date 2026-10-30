@@ -4,14 +4,17 @@
 //! they are gone ([`Session::tabs_of`]).
 //!
 //! The website check of every document of its tabs runs here ([`Session::check`]): a website of
-//! the agent's rights loads, any other asks the user once, or is refused in Plan.
+//! the agent's rights loads, any other asks the user once, or is refused in Plan. So does the
+//! question before a request that may change something on a website ([`Session::check_request`],
+//! research R5 step 2): it asks for that one request, in Manuell and Auto, unless the user just
+//! allowed the action that sent it ([`Session::arm`]); it is refused in Plan.
 //!
 //! The session lives in the registry of [`super::sessions`]; what it shows the user (agent, tabs,
 //! last action, FR-015) it keeps outside its tabs' lock, so the sessions bar never waits for a
 //! running call. When the user stops it, its tabs go back to the user ([`Session::end`]).
 
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use tokio::sync::OnceCell;
@@ -21,15 +24,17 @@ use super::cdp::Connection;
 use super::executor::BrowserEnv;
 use super::marker::MarkerTexts;
 use super::prompts::{
-    self, BrowserDecision, BrowserPromptKind, BrowserPrompts, BrowserQuestion, ClosedNotice,
-    Remember,
+    self, need, BrowserDecision, BrowserPromptKind, BrowserPrompts, BrowserQuestion, ClosedNotice,
+    Effect, Need, Remember,
 };
 use super::sessions::{BrowserLastAction, BrowserSessionView, BrowserTabView, SessionHooks};
 use super::sites::{check_document, Site, Verdict};
-use super::tab::{Guard, Tab, TabMarker};
+use super::submit;
+use super::tab::{Guard, Paused, Tab, TabMarker};
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
 use crate::mcp_server::grants::SiteLevel;
+use crate::prompt_park::PromptEnd;
 
 /// The most agent tabs one session has (FR-029).
 pub const MAX_TABS: usize = 5;
@@ -55,6 +60,10 @@ pub struct Session {
     name_notified: AtomicBool,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
+    /// The tab whose next changing request the user already allowed (the action that sends it).
+    armed: Mutex<Option<String>>,
+    /// Submit questions open now; an action waits for them before it reports.
+    submitting: AtomicUsize,
 }
 
 #[derive(Default)]
@@ -109,6 +118,8 @@ impl Session {
             hooks,
             agent: OnceCell::new(),
             name_notified: AtomicBool::new(false),
+            armed: Mutex::default(),
+            submitting: AtomicUsize::new(0),
             shown: Mutex::default(),
         })
     }
@@ -263,18 +274,84 @@ impl Session {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The guard of this session's tabs.
-    pub fn guard(self: &Arc<Self>) -> Guard {
+    /// The guard of this session's tab `tab`.
+    pub fn guard(self: &Arc<Self>, tab: String) -> Guard {
         let session = Arc::downgrade(self);
-        Arc::new(move |url: String| {
-            let session = session.clone();
+        Arc::new(move |paused: Paused| {
+            let (session, tab) = (session.clone(), tab.clone());
             Box::pin(async move {
                 match session.upgrade() {
-                    Some(session) => session.check(&url).await,
+                    Some(session) => session.check_request(&tab, paused).await,
                     None => Verdict::Refuse("site_not_allowed"),
                 }
             })
         })
+    }
+
+    /// The verdict for a held request of tab `tab`: a document's website first, then whether a
+    /// request that may change something may go (research R5 step 2).
+    pub async fn check_request(&self, tab: &str, paused: Paused) -> Verdict {
+        if paused.document {
+            match self.check(&paused.url).await {
+                Verdict::Go => {}
+                other => return other,
+            }
+        }
+        if !submit::changing(&paused.method) {
+            return Verdict::Go;
+        }
+        if self.take_armed(tab) {
+            return Verdict::Go;
+        }
+        if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
+            return Verdict::Refuse(code);
+        }
+        let question = BrowserQuestion {
+            kind: BrowserPromptKind::Submit,
+            agent: self.env.agent_name(&self.caller).await,
+            site: Site::parse(&paused.url).ok().map(|site| site.to_string()),
+            tool: None,
+            label: Some(format!("{} {}", paused.method, paused.url)),
+            fields: submit::fields_of(paused.body.as_deref()),
+        };
+        self.submitting.fetch_add(1, Ordering::SeqCst);
+        let answer = prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await;
+        self.submitting.fetch_sub(1, Ordering::SeqCst);
+        match answer {
+            Ok(answer) if answer.decision == BrowserDecision::Allow => Verdict::Go,
+            Ok(_) => Verdict::Refuse("user_declined"),
+            Err(PromptEnd::Expired) => Verdict::Refuse("no_answer"),
+            Err(_) => Verdict::Refuse("stopped"),
+        }
+    }
+
+    /// The user allowed an action of tab `tab` that submits: its next changing request goes
+    /// without a second question. Only that one request; [`Session::disarm`] ends it with the
+    /// action.
+    pub fn arm(&self, tab: &str) {
+        *self.armed.lock().unwrap_or_else(PoisonError::into_inner) = Some(tab.to_owned());
+    }
+
+    pub fn disarm(&self) {
+        self.armed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+    }
+
+    fn take_armed(&self, tab: &str) -> bool {
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        if armed.as_deref() == Some(tab) {
+            *armed = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Whether a submit question of this session is open.
+    pub fn submitting(&self) -> bool {
+        self.submitting.load(Ordering::SeqCst) > 0
     }
 
     /// The verdict for a document at `url` of one of this session's tabs.
@@ -295,6 +372,7 @@ impl Session {
             site: Some(site.to_string()),
             tool: None,
             label: Some(url.to_owned()),
+            fields: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {

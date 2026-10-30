@@ -1,8 +1,8 @@
 //! The questions of the agent browser (spec 065, research R8, contracts/tauri-commands.md): they
 //! park on a [`PromptPark`] for 5 minutes and appear in the window as one dialog with kinds, as the
-//! call prompt of 021 does. This delivery asks about websites (FR-007) and, in Manuell, about
-//! actions that change something (contracts/browser-tools.md "Freigabe"); submitting, credentials,
-//! taking over and downloads add their kinds later.
+//! call prompt of 021 does. They ask about websites (FR-007), in Manuell about actions that change
+//! something, and in Manuell and Auto before anything is submitted (contracts/browser-tools.md
+//! "Freigabe", [`need`]); credentials, taking over and downloads add their kinds later.
 
 use std::time::Duration;
 
@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
+use super::submit::BrowserField;
+use crate::chat::tools::permission::PermissionMode;
 use crate::prompt_park::{PromptEnd, PromptPark};
 
 /// How long a question waits for an answer.
@@ -29,6 +31,8 @@ pub enum BrowserPromptKind {
     Site,
     /// May the agent do this (Manuell, a tool that changes something)?
     Action,
+    /// May the agent send this to the website (FR-011, FR-012)?
+    Submit,
 }
 
 /// What the dialog shows.
@@ -43,8 +47,40 @@ pub struct BrowserQuestion {
     pub site: Option<String>,
     /// The tool (`browser.open`) for [`BrowserPromptKind::Action`].
     pub tool: Option<String>,
-    /// What the action targets, as text for the dialog (an address).
+    /// What the action targets, as text for the dialog (an address, an element's name).
     pub label: Option<String>,
+    /// What would be sent, secrets as `•••` ([`BrowserPromptKind::Submit`]); empty otherwise.
+    pub fields: Vec<BrowserField>,
+}
+
+/// What a browser tool does, for the approval table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    Read,
+    /// Changes something without submitting (navigating, typing, clicking).
+    Change,
+    /// Submits something (research R5 step 1 or 2).
+    Submit,
+}
+
+/// What a tool needs before it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Need {
+    Run,
+    Ask(BrowserPromptKind),
+    Refuse(&'static str),
+}
+
+/// The approval table of contracts/browser-tools.md "Freigabe" for an allowed website. One action
+/// asks once at most: the submit question replaces the action question.
+pub fn need(mode: PermissionMode, effect: Effect) -> Need {
+    match (effect, mode) {
+        (Effect::Read, _) => Need::Run,
+        (_, PermissionMode::Plan) => Need::Refuse("plan_mode"),
+        (Effect::Change, PermissionMode::Manual) => Need::Ask(BrowserPromptKind::Action),
+        (Effect::Change, _) => Need::Run,
+        (Effect::Submit, _) => Need::Ask(BrowserPromptKind::Submit),
+    }
 }
 
 /// The user's answer.
