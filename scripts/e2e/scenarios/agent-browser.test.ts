@@ -8,9 +8,20 @@ import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
 import { openSettings, runAction, waitForLocation } from '../lib/settings.ts'
 
 /** A website on 127.0.0.1: a page to read, and `/hang`, which never answers. */
-function website(): Promise<{ server: Server; origin: string }> {
+function website(): Promise<{
+  server: Server
+  origin: string
+  hangStarted: Promise<void>
+}> {
+  let onHangStarted!: () => void
+  const hangStarted = new Promise<void>((resolve) => {
+    onHangStarted = resolve
+  })
   const server = createServer((request, response) => {
-    if (request.url === '/hang') return
+    if (request.url === '/hang') {
+      onHangStarted()
+      return
+    }
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
     response.end(
       '<!doctype html><title>E2E-Seite</title><main><h1>Hallo vom Testserver</h1></main>',
@@ -19,7 +30,7 @@ function website(): Promise<{ server: Server; origin: string }> {
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const port = (server.address() as AddressInfo).port
-      resolve({ server, origin: `http://127.0.0.1:${port}` })
+      resolve({ server, origin: `http://127.0.0.1:${port}`, hangStarted })
     })
   })
 }
@@ -37,7 +48,7 @@ function content(result: ToolResult): Record<string, unknown> {
 // "Stoppen" there ends a call that waits for a page that never answers, and the agent's further
 // browser calls are refused until it connects anew.
 scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {
-  const { server, origin } = await website()
+  const { server, origin, hangStarted } = await website()
   ctx.onTeardown(
     () => new Promise<void>((resolve) => server.close(() => resolve())),
   )
@@ -110,9 +121,8 @@ scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('the sessions bar shows the agent and its tab')
 
   const hanging = agent.callTool('browser_open', { url: `${origin}/hang` })
+  await hangStarted
   await instance.waitForDisplayed('agent-browser-session-stop')
-  // Give the call time to reach the page that never answers.
-  await new Promise((resolve) => setTimeout(resolve, 1_000))
   const clicked = performance.now()
   await instance.click('agent-browser-session-stop')
   const stopped = await hanging
