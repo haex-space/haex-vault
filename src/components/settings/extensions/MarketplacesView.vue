@@ -27,8 +27,14 @@ async function loadAsync() {
 }
 
 onMounted(() => void loadAsync())
+// Moving the login's entry to the trash changes only its group link, and the row must then say
+// that the login is missing.
 onVaultTablesChanged(
-  ['haex_marketplaces', 'haex_passwords_item_details'],
+  [
+    'haex_marketplaces',
+    'haex_passwords_item_details',
+    'haex_passwords_group_items',
+  ],
   loadAsync,
 )
 
