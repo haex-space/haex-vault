@@ -161,3 +161,40 @@ test('a place that names a drive above its path keeps it, listed or not', () => 
   }
   assert.deepEqual(placeOnDrive(place, []), place)
 })
+
+test('the system drive never tags a place, and a deeper drive replaces the one it named', () => {
+  const device = { kind: 'device' } as const
+  const root = { ...drive('root', '/'), key: 'root-uuid', kind: 'system' }
+  const stick = { ...drive('s', '/media/anna/STICK'), key: 'stick-uuid' }
+  assert.deepEqual(
+    placeOnDrive({ source: device, path: '/home/anna' }, [root]),
+    { source: device, path: '/home/anna' },
+    'the system drive is always there at a restore',
+  )
+  // A place that named a shallower drive (here as an old session left it) moves to the stick.
+  assert.deepEqual(
+    placeOnDrive(
+      {
+        source: device,
+        path: '/media/anna/STICK/ordner',
+        drive: 'root-uuid',
+        droot: '/',
+      },
+      [root, stick],
+    ),
+    {
+      source: device,
+      path: '/media/anna/STICK/ordner',
+      drive: 'stick-uuid',
+      droot: '/media/anna/STICK',
+    },
+  )
+  // While the list lags behind a mount, the deeper drive the place names stays.
+  const named = {
+    source: device,
+    path: '/media/anna/STICK/ordner',
+    drive: 'stick-uuid',
+    droot: '/media/anna/STICK',
+  }
+  assert.deepEqual(placeOnDrive(named, [root]), named)
+})

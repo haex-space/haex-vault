@@ -53,20 +53,27 @@ export function remap(p: string, droot: string, root: string): string | null {
 }
 
 /**
- * `place` with the drive its path lies on (spec 064 FR-025, research R10). A place that already names
- * a drive above its path keeps it: a drive just mounted may not be in the list yet. Otherwise the
- * mounted drive `driveOf` finds, when it has a `key`; else the place carries no drive.
+ * `place` with the drive its path lies on (spec 064 FR-025, research R10): the deepest mounted drive
+ * with a `key` that `driveOf` finds, never the system drive (it is always there at a restore). A
+ * drive the place already names keeps it while no deeper one is listed: a drive just mounted may not
+ * be in the list yet. Otherwise the place carries no drive.
  */
 export function placeOnDrive(
   place: FilesPlace,
-  drives: readonly (DriveLike & { key: string | null })[],
+  drives: readonly (DriveLike & { key: string | null; kind?: string })[],
 ): FilesPlace {
-  const { drive: _drive, droot: _droot, ...rest } = place
+  const { drive, droot, ...rest } = place
   if (place.source.kind !== 'device' || place.path === null) return rest
-  if (place.drive && place.droot && isUnder(place.path, place.droot))
-    return place
-  const on = driveOf(place.path, drives)
-  return on?.key && on.path ? { ...rest, drive: on.key, droot: on.path } : rest
+  const on = driveOf(
+    place.path,
+    drives.filter((candidate) => candidate.kind !== 'system'),
+  )
+  const found = on?.key && on.path ? { drive: on.key, droot: on.path } : null
+  const kept =
+    drive && droot && isUnder(place.path, droot) ? { drive, droot } : null
+  const best =
+    kept && (!found || kept.droot.length > found.droot.length) ? kept : found
+  return best ? { ...rest, ...best } : rest
 }
 
 /** The name the sidebar shows: the label, else a name from the size. */
