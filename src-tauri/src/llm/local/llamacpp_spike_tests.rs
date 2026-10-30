@@ -233,3 +233,76 @@ async fn mistralrs_baseline_for_llamacpp_spike() {
         vram_used_mib()
     );
 }
+
+/// Through the prototype adapter (the file's own Jinja template), with and without a tool: for a
+/// model whose call format the adapter does not parse (Gemma 4) the raw text shows the format.
+#[tokio::test]
+#[ignore = "spec 070 spike: needs HOLZI_SPIKE_GGUF and a lot of memory"]
+async fn llamacpp_adapter_spike_prints_answers() {
+    use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, ToolSpec};
+    use crate::adapters::ProviderAdapter;
+
+    let path = std::env::var("HOLZI_SPIKE_GGUF").expect("HOLZI_SPIKE_GGUF");
+    let started = Instant::now();
+    let adapter = super::LlamaCppSpikeAdapter::load(std::path::Path::new(&path), 99).expect("load");
+    println!(
+        "=== {path}\nloaded in {:.2}s",
+        started.elapsed().as_secs_f64()
+    );
+
+    let tool = ToolSpec {
+        name: "open_settings".into(),
+        description: "Opens the settings page".into(),
+        input_schema: serde_json::json!({
+            "type": "object",
+            "properties": { "page": { "type": "string" } },
+            "required": ["page"],
+        }),
+    };
+    for (label, user, tools) in [
+        ("plain", PLAIN_PROMPT, vec![]),
+        ("tool", TOOL_PROMPT, vec![tool]),
+    ] {
+        let request = ChatRequest {
+            model_id: "spike".into(),
+            thread_id: None,
+            system_prompt: None,
+            messages: vec![ChatMessage {
+                role: ChatRole::User,
+                content: user.into(),
+                attachments: vec![],
+            }],
+            reasoning_requested: false,
+            max_new_tokens: Some(300),
+            tools,
+            autonomy_mode: Default::default(),
+            reasoning_option: None,
+            capabilities: None,
+            sampling: crate::adapters::types::Sampling::Deterministic,
+        };
+        let mut stream = adapter.stream_chat(request).await.expect("stream");
+        println!("--- {label}");
+        while let Some(chunk) = stream.next().await {
+            match chunk.expect("chunk") {
+                StreamChunk::Delta { content, reasoning } => {
+                    println!("reasoning: {reasoning:?}\ncontent: {content}")
+                }
+                StreamChunk::ToolCalls(calls) => println!("tool calls: {calls:?}"),
+                StreamChunk::Done {
+                    finish_reason,
+                    completion_tokens,
+                    total_ms,
+                    ..
+                } => {
+                    println!("done: {finish_reason:?}, {completion_tokens:?} tokens, {total_ms} ms")
+                }
+                _ => {}
+            }
+        }
+    }
+    println!(
+        "peak RAM {:?} MiB, VRAM in use {:?} MiB",
+        peak_rss_mib(),
+        vram_used_mib()
+    );
+}

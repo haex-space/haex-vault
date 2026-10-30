@@ -9,6 +9,8 @@
 mod gguf_header;
 #[cfg(test)]
 mod gguf_header_tests;
+#[cfg(feature = "llm-llamacpp")]
+mod llamacpp_spike_adapter;
 #[cfg(all(test, feature = "llm-llamacpp"))]
 mod llamacpp_spike_tests;
 mod loader;
@@ -21,4 +23,6 @@ mod probe;
 mod probe_tests;
 mod stream;
 
+#[cfg(feature = "llm-llamacpp")]
+pub use llamacpp_spike_adapter::LlamaCppSpikeAdapter;
 pub use loader::{LocalModel, LocalModelError};
