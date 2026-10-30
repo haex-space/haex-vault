@@ -88,7 +88,7 @@ haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 
 ### User Story 1 - Find an extension in the catalog and install it (Priority: P1)
 
-Anna opens the app "Erweiterungen entdecken" in HaexVault. She sees the shared catalog of her
+Anna opens the app "Marktplatz" in HaexVault. She sees the shared catalog of her
 marketplaces as tiles with icon, name, short description, publisher and rating. She filters by the category
 "Produktivität", searches for "Kalender", opens the details of an extension and taps "Installieren".
 HaexVault loads the install file and shows the same install preview as when installing from a file:
@@ -301,7 +301,7 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
 
 **Catalog**
 
-- **FR-001**: HaexVault MUST offer an app "Erweiterungen entdecken" in the wm that shows the catalog of
+- **FR-001**: HaexVault MUST offer an app "Marktplatz" in the wm that shows the catalog of
   all enabled marketplaces (tiles with icon, name, short description, publisher, category, rating, number
   of downloads).
 - **FR-002**: The catalog MUST support free-text search, filtering by category and paging; filters apply
