@@ -151,7 +151,7 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
     )
     assert.match(
       await textOf(instance, 'files-sync-rule-confirm-direction'),
-      /A → B/,
+      /Quelle → Ziel|Source → target/,
     )
     assert.match(
       await textOf(instance, 'files-sync-rule-confirm-deleteMode'),

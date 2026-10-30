@@ -55,6 +55,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     right.write('Ordner/rechts.txt', 'R')
     askFrom.write('weg.txt', 'W')
     askFrom.write('bleibt.txt', 'B')
+    // Empty, so nothing above creates it; a missing place makes the rule wait.
+    askTo.ensureFolder()
 
     unwrap(
       'sync_rules_create',
