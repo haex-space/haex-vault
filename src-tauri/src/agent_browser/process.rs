@@ -122,11 +122,51 @@ pub struct Launched {
     pub product: String,
 }
 
+/// Owns a browser while its startup awaits CDP; dropping the launch future must stop that process.
+struct StartupGuard {
+    connection: Option<Arc<Connection>>,
+    process: Option<BrowserProcess>,
+}
+
+impl StartupGuard {
+    fn new(connection: Connection, process: BrowserProcess) -> Self {
+        Self {
+            connection: Some(Arc::new(connection)),
+            process: Some(process),
+        }
+    }
+
+    fn connection(&self) -> &Arc<Connection> {
+        self.connection
+            .as_ref()
+            .expect("startup connection is owned")
+    }
+
+    fn into_parts(mut self) -> (Arc<Connection>, BrowserProcess) {
+        (
+            self.connection.take().expect("startup connection is owned"),
+            self.process.take().expect("startup process is owned"),
+        )
+    }
+}
+
+impl Drop for StartupGuard {
+    fn drop(&mut self) {
+        if let Some(connection) = &self.connection {
+            connection.close();
+        }
+        if let Some(process) = &self.process {
+            process.kill();
+        }
+    }
+}
+
 /// Starts the browser of `launch`, checks its version and sets it up (contracts/agent-browser.md
 /// "Start"): auto-attach in flat mode, page permissions denied, downloads into their folder.
 pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
     let (connection, process) = spawn(os, launch)?;
-    let connection = Arc::new(connection);
+    let startup = StartupGuard::new(connection, process);
+    let connection = Arc::clone(startup.connection());
     let started = async {
         let product = tokio::time::timeout(START_TIMEOUT, browser::product(&connection))
             .await
@@ -156,16 +196,15 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
     }
     .await;
     match started {
-        Ok(product) => Ok(Launched {
-            connection,
-            process,
-            product,
-        }),
-        Err(error) => {
-            connection.close();
-            process.kill();
-            Err(error)
+        Ok(product) => {
+            let (connection, process) = startup.into_parts();
+            Ok(Launched {
+                connection,
+                process,
+                product,
+            })
         }
+        Err(error) => Err(error),
     }
 }
 

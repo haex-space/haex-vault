@@ -205,7 +205,7 @@ impl NativeExecutor for BrowserTools {
     ) -> Result<NativeReply, NativeError> {
         let session = self.session_for(action_id, call).await?;
         let ended = session.cancel.child_token();
-        let forward = {
+        let forward = tokio_util::task::AbortOnDropHandle::new({
             let (cancel, ended) = (cancel.clone(), ended.clone());
             tokio::spawn(async move {
                 tokio::select! {
@@ -213,7 +213,7 @@ impl NativeExecutor for BrowserTools {
                     _ = ended.cancelled() => {}
                 }
             })
-        };
+        });
         let serving = self.serve(&session, action_id, input_value, call, &ended);
         tokio::pin!(serving);
         let outcome = tokio::select! {

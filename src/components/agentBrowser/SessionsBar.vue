@@ -15,7 +15,8 @@ const store = useAgentBrowserStore()
 const failure = ref<string | null>(null)
 
 function agentName(session: BrowserSessionView): string {
-  return session.agent || t('agentBrowser.prompt.builtinAgent')
+  if (session.builtin) return t('agentBrowser.prompt.builtinAgent')
+  return session.agent || t('agentBrowser.prompt.agent')
 }
 
 function tabsText(session: BrowserSessionView): string {

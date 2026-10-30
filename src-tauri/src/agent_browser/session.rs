@@ -130,7 +130,11 @@ impl Session {
     /// The marker of a new tab of this session.
     pub async fn marker(&self) -> TabMarker {
         TabMarker {
-            texts: MarkerTexts::new(&self.env.locale(), &self.agent_name().await),
+            texts: MarkerTexts::new(
+                &self.env.locale(),
+                self.caller == Caller::BuiltinAgent,
+                &self.agent_name().await,
+            ),
             on_stop: Arc::clone(&self.hooks.stop),
         }
     }
@@ -335,8 +339,10 @@ impl Session {
     pub async fn end(&self) {
         self.cancel.cancel();
         let tabs = std::mem::take(&mut self.tabs.lock().await.open);
-        for tab in tabs {
-            tab.release().await;
-        }
+        futures::future::join_all(
+            tabs.into_iter()
+                .map(|tab| async move { tab.release().await }),
+        )
+        .await;
     }
 }

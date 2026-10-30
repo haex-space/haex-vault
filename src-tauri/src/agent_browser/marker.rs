@@ -27,12 +27,17 @@ pub struct MarkerTexts {
 }
 
 impl MarkerTexts {
-    /// The texts for `agent` (its own claim; empty for the built-in agent).
-    pub fn new(locale: &str, agent: &str) -> Self {
-        let agent = if agent.is_empty() {
+    /// The texts for `agent` (its own claim), or the generic label for an unnamed external agent.
+    pub fn new(locale: &str, builtin: bool, agent: &str) -> Self {
+        let agent = if builtin {
             text(locale, "agentBrowser.prompt.builtinAgent", &[])
         } else {
-            agent.to_owned()
+            let agent = agent.trim();
+            if agent.is_empty() {
+                text(locale, "agentBrowser.prompt.agent", &[])
+            } else {
+                agent.to_owned()
+            }
         };
         Self {
             text: text(locale, "agentBrowser.marker.text", &[("agent", &agent)]),
@@ -68,3 +73,7 @@ pub async fn remove(connection: &Connection, session: &str) -> Result<()> {
     .await
     .map(drop)
 }
+
+#[cfg(test)]
+#[path = "marker_tests.rs"]
+mod tests;
