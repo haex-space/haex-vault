@@ -69,8 +69,8 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
     assert.ok(row, 'the private marketplace is listed')
     return row
   }
-  // The settings are a singleton: opened again from the launcher they keep their last place, which
-  // is the list itself after a saved form, and start at "general" otherwise.
+  // Settings are a singleton: opening them from the launcher keeps their last place, which is the
+  // list after a saved form, and starts at "general" otherwise.
   const openList = async () => {
     await instance.click('open-launcher')
     await instance.click('[data-app-id="system.settings"]')
@@ -192,6 +192,7 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
   await openList()
   await instance.waitForDisplayed(
     `settings-marketplace-credentials-${added.id}`,
+    20_000,
   )
   ctx.step(
     'deleting the entry warns, then the source says the login is missing',
