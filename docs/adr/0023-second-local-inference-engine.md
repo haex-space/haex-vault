@@ -38,9 +38,14 @@ The spike of spec 070 (PRs #654 and #666, `specs/070-llama-cpp-engine/research.m
   A template with tools that matches no format is refused.
 - **The catalog lists a model only if a compiled engine loads its architecture**: every entry records its
   `architecture`, and a unit test fails otherwise.
-- **The CUDA linking and the CPU kernel strategy are not decided here.** The spike showed that the Nix CUDA
-  toolkit has no static cuBLAS and that ggml is built without AVX2 by default. Spec 070 R1 and R3 settle them,
-  and this ADR is amended with the outcome (task T008 and T038).
+- **CUDA is linked statically** (settled by R1, 2026-10-30). The binary carries cudart and cuBLAS and needs
+  only the NVIDIA driver (`libcuda.so.1`) at run time, so no extra libraries ship next to it. The Nix devShell
+  provides what the sys crate looks for: static cuBLAS from `cudaPackages.libcublas.static` and a directory
+  `$CUDA_LIBRARY_PATH/lib64` holding `libcudart_static.a`, `libculibos.a`, `libcublas_static.a`,
+  `libcublasLt_static.a` and `stubs`. llama.cpp and mistralrs, each with its own CUDA runtime, run in one
+  process (checked on one card, one OS; see `research.md`).
+- **The CPU kernel strategy is not decided here.** ggml is built without AVX2 by default. Spec 070 R3 settles
+  it and this ADR is amended with the outcome (task T038).
 
 ## Consequences
 
