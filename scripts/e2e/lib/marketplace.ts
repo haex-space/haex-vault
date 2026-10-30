@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { fixture, reachableFromDevice } from './extensions.ts'
+import { unwrap } from './flows.ts'
 import { resizeAppWindow } from './settings.ts'
 import type { FlowInstance } from './flows.ts'
 
@@ -394,5 +395,38 @@ export async function enabled(
   return instance.exec<boolean>(
     `const el = document.querySelector('[data-testid="' + arguments[0] + '"]'); return !!el && !el.disabled`,
     [hook],
+  )
+}
+
+/** The preset's id, which the scenarios address tiles by. */
+export const PRESET_ID = 'preset-public'
+
+/** Installs `slug` from its tile as a user does: the button, the preview, the confirmation, and
+ * waits until the tile says it is installed. */
+export async function installFromCatalog(
+  instance: FlowInstance,
+  slug: string,
+): Promise<void> {
+  await instance.click(`marketplace-install-${PRESET_ID}-${slug}`)
+  await instance.waitForDisplayed('extensions-install-dialog', 30_000)
+  await instance.click('extensions-install-confirm')
+  await instance.waitForDisplayed(
+    `marketplace-installed-${PRESET_ID}-${slug}`,
+    30_000,
+  )
+}
+
+/** The names and versions of the installed extensions. */
+export async function installedVersions(
+  instance: FlowInstance,
+): Promise<Record<string, string>> {
+  const list = unwrap<Array<{ name: string; version?: string; state: string }>>(
+    'extension_list',
+    await instance.invoke('extension_list'),
+  )
+  return Object.fromEntries(
+    list
+      .filter((extension) => extension.state === 'installed')
+      .map((extension) => [extension.name, extension.version ?? '']),
   )
 }

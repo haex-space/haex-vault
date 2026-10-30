@@ -570,6 +570,7 @@
           "description": "Welches Modell nach dem Öffnen der Vault geladen wird.",
           "keywords": "Standard Chat Start laden"
         },
+        "remove": "Entfernen",
         "installed": {
           "title": "Installierte Modelle",
           "description": "Modelle laden, aktualisieren und löschen.",
@@ -950,6 +951,8 @@
       }
     },
     "extensions": {
+      "updateAvailable": "Update verfügbar ({version})",
+      "updateAvailableHint": "Im Katalog ansehen",
       "installFromFile": "Aus Datei installieren",
       "installFromFileHint": "Eine signierte Erweiterung (.xt) hinzufügen",
       "installed": "Installiert",

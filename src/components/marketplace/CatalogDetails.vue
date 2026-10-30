@@ -19,6 +19,15 @@ const { busy, startAsync } = useMarketplaceInstall()
 const slug = computed(() => router.route.params.slug ?? '')
 const sourceId = computed(() => router.route.query.source ?? '')
 
+/** The installed extension of the entry's name, which "Entfernen" removes. */
+const installedExtension = computed(() => {
+  const name = detail.value?.entry.name
+  return name === undefined
+    ? undefined
+    : extensions.list.find((e) => e.name === name && e.state === 'installed')
+})
+const removing = ref(false)
+
 const detail = ref<CatalogDetail | null>(null)
 const failure = ref<string | null>(null)
 const loading = ref(false)
@@ -117,7 +126,23 @@ function install(version: string) {
         </div>
       </header>
 
-      <MarketplaceTileAction :entry="detail.entry" />
+      <div class="flex flex-wrap items-center gap-2">
+        <MarketplaceTileAction :entry="detail.entry" class="flex-1" />
+        <UiButton
+          v-if="installedExtension"
+          variant="destructive"
+          size="sm"
+          :data-testid="`marketplace-remove-${detail.entry.source.id}-${detail.entry.slug}`"
+          @click="removing = true"
+        >
+          {{ t('marketplace.remove') }}
+        </UiButton>
+      </div>
+      <ExtensionsRemoveDialog
+        v-if="installedExtension"
+        v-model:open="removing"
+        :extension="installedExtension"
+      />
 
       <section class="flex flex-col gap-1">
         <h3 class="text-sm font-semibold">

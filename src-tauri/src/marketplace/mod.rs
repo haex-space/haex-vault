@@ -17,6 +17,7 @@ pub mod model;
 pub mod pending;
 pub mod seed;
 pub mod store;
+pub mod updates;
 pub mod wire;
 
 #[cfg(test)]
@@ -85,6 +86,8 @@ pub struct MarketplaceState {
     pub pending: std::sync::Arc<pending::PendingSlot>,
     /// The downloads that are running, so one can be cancelled by its id.
     pub downloads: download::Downloads,
+    /// The updates the last catalog page or check saw (FR-017).
+    pub updates: updates::KnownUpdates,
 }
 
 impl Default for MarketplaceState {
@@ -94,6 +97,7 @@ impl Default for MarketplaceState {
             icons: icons::Icons::default(),
             pending: std::sync::Arc::default(),
             downloads: download::Downloads::default(),
+            updates: updates::KnownUpdates::default(),
         }
     }
 }

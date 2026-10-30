@@ -6,6 +6,11 @@ import type { CatalogPage } from '@bindings/CatalogPage'
 import type { MarketplaceView } from '@bindings/MarketplaceView'
 import { catalogQueryOf, catalogState } from '~/lib/marketplace/catalogState'
 import { isCancelled } from '~/lib/marketplace/errors'
+import {
+  checkUpdatesAsync,
+  reloadKnownUpdatesAsync,
+  updateSourceErrors,
+} from '~/composables/useKnownUpdates'
 
 /** How long the search field rests before the catalog is asked (spec 069 US1-2). */
 const SEARCH_DEBOUNCE_MS = 300
@@ -38,6 +43,14 @@ export function useMarketplaceCatalog() {
       sourceId: query.value.sourceId,
     }),
   )
+  const sourceErrors = computed(() => {
+    const bySource = new Map(
+      updateSourceErrors.value.map((error) => [error.sourceId, error]),
+    )
+    for (const error of page.value?.sourceErrors ?? [])
+      bySource.set(error.sourceId, error)
+    return [...bySource.values()]
+  })
 
   let sequence = 0
   async function loadAsync(quiet = false): Promise<void> {
@@ -58,6 +71,8 @@ export function useMarketplaceCatalog() {
       if (mine !== sequence) return
       page.value = result
       failure.value = null
+      // The page told the host what it saw of the updates; the settings list shows it.
+      void reloadKnownUpdatesAsync()
     } catch (error) {
       if (mine !== sequence || isCancelled(error)) return
       failure.value = errString(error)
@@ -80,8 +95,9 @@ export function useMarketplaceCatalog() {
     }
   }
 
+  /** "Aktualisieren": the catalog again and a new look for updates (FR-017). */
   async function refreshAsync(): Promise<void> {
-    await Promise.all([loadAsync(), loadCategoriesAsync()])
+    await Promise.all([loadAsync(), loadCategoriesAsync(), checkUpdatesAsync()])
   }
 
   watch(
@@ -142,6 +158,7 @@ export function useMarketplaceCatalog() {
     categories,
     loading,
     failure,
+    sourceErrors,
     state,
     query,
     searchText,

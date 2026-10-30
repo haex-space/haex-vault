@@ -570,6 +570,7 @@
           "description": "Which model loads when the vault opens.",
           "keywords": "default chat start load"
         },
+        "remove": "Remove",
         "installed": {
           "title": "Installed models",
           "description": "Load, update and delete models.",
@@ -950,6 +951,8 @@
       }
     },
     "extensions": {
+      "updateAvailable": "Update available ({version})",
+      "updateAvailableHint": "Show it in the marketplace catalog",
       "installFromFile": "Install from file",
       "installFromFileHint": "Add a signed extension (.xt)",
       "installed": "Installed",

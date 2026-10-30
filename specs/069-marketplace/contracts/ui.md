@@ -40,7 +40,8 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   `marketplace-progress-cancel`, `marketplace-installed-<sourceId>-<slug>`,
   `marketplace-blocked-<sourceId>-<slug>`, `marketplace-tile-source-<sourceId>-<slug>`,
   `marketplace-details`, `marketplace-details-source`, `marketplace-details-error`, `marketplace-back`,
-  `marketplace-version-<version>`, `marketplace-install-version-<version>`, `marketplace-install-error`,
+  `marketplace-version-<version>`, `marketplace-install-version-<version>`,
+  `marketplace-remove-<sourceId>-<slug>`, `marketplace-install-error`,
   `marketplace-install-error-dismiss`; in the install dialog `extensions-install-origin`,
   `extensions-install-publisher-differs`, `extensions-install-cancel`.
 
