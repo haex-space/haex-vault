@@ -89,27 +89,29 @@ F; US5 is G.
 
 ## PR C – The adapter (US2, US3)
 
-- [ ] T016 `llamacpp/model.rs`: the backend singleton (`LlamaBackend::init` once per process), load from
-      a path, the memory check before the load (file size plus KV estimate against free VRAM and RAM through
-      `hardware`; refuse with a message), and the context size rule (catalog `context_window` capped by what
-      fits, default 8192).
-- [ ] T017 `llamacpp/generate.rs`: the token loop on a blocking thread, greedy for
+- [x] T016 `llamacpp/model.rs` and `memory.rs`: the backend singleton (`LlamaBackend::init` once per
+      process), load from a path, the memory plan before the load (file size plus a KV estimate from the GGUF
+      header against the free memory of the best GPU and of the host; refuse with a message), and the context
+      size rule (catalog `context_window` capped by what the model was trained for and by what fits, default
+      8192). The free memory comes from llama.cpp's own device list and the OS, not from `hardware`, whose
+      VRAM figure is the card's total.
+- [x] T017 `llamacpp/generate.rs`: the token loop on a blocking thread, greedy for
       `Sampling::Deterministic` and the default sampler otherwise, the cancel check after every token, and a
       per-model `tokio::sync::Mutex` so one generation runs at a time.
-- [ ] T018 Streaming: per-token `StreamChunk::Delta`, `reasoning` split, held-back call text, `ToolCalls`
+- [x] T018 Streaming: per-token `StreamChunk::Delta`, `reasoning` split, held-back call text, `ToolCalls`
       at the end, `Done` with token counts and the finish reason of the contract.
-- [ ] T019 `llamacpp/adapter.rs`: `LlamaCppAdapter` implementing `ProviderAdapter` (`list_models` empty,
+- [x] T019 `llamacpp/adapter.rs`: `LlamaCppAdapter` implementing `ProviderAdapter` (`list_models` empty,
       `stream_chat`, `probe_tool_template`).
-- [ ] T020 `probe_tool_template`: render one fixed message with and without a dummy tool and decide through
-      the shared `decide` of `llm/local/probe.rs` (make it reachable, do not copy it). Test with the three
-      fixtures.
-- [ ] T021 Error mapping: template error, memory refusal, ggml failure and cancel map onto `StreamError`
+- [x] T020 `probe_tool_template`: render one fixed message with and without a dummy tool and decide through
+      the shared `decide` of `llm/local/probe.rs` (made reachable, not copied). Tested with the three
+      fixtures and with a template that ignores tools.
+- [x] T021 Error mapping: template error, memory refusal, ggml failure and cancel map onto `StreamError`
       with the right `is_transient`.
-- [ ] T022 Ignored model tests `tests/llamacpp_inference.rs`: load, answer, cancel mid-stream (ends within
+- [x] T022 Ignored model tests `tests/llamacpp_inference.rs`: load, answer, cancel mid-stream (ends within
       one second, US3 scenario 4), a tool call.
-- [ ] T023 Settle R2 (does `llama_rs_fit_params` give a safe GPU layer count) on the 8 GB card and apply the
-      result in T016. Remove the spike test files (`llamacpp_spike_tests.rs`) and fold what is still useful
-      into T022.
+- [x] T023 Settle R2 (see `research.md`: the placement is estimated from the GGUF header instead of through
+      `llama_rs_fit_params`) and apply it in T016. The spike adapter and its test files are gone; the
+      evaluation harness and `tests/llamacpp_inference.rs` use `LlamaCppAdapter`.
 
 ## PR D – Engine choice and the catalog (US3, FR-003, FR-004, FR-007)
 

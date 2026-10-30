@@ -15,8 +15,8 @@ behind it.
 - **Engine choice from the file**: `general.architecture` (already read by `llm/local/gguf_header.rs`)
   picks the engine in one function. mistralrs keeps every architecture it knows (spec edge case: "mistralrs
   wins while it works today"), llama.cpp takes the rest. Flipping the default later (US5) is one line.
-- **`LlamaCppAdapter`** in a new module `src-tauri/src/llm/llamacpp/`, promoted from the spike's
-  `llamacpp_spike_adapter.rs`. It owns what the binding does not give us: the model's own Jinja chat
+- **`LlamaCppAdapter`** in a new module `src-tauri/src/llm/llamacpp/`, grown out of the spike's prototype
+  adapter. It owns what the binding does not give us: the model's own Jinja chat
   template (rendered with `minijinja`), splitting thinking from the answer, and reading tool calls out of the
   text.
 - **Chat formats instead of model names**: a small `ChatFormat` per call syntax (Hermes JSON, Qwen3.5 XML,
@@ -120,7 +120,8 @@ src-tauri/src/llm/
 ├── local/                    # mistralrs path, unchanged apart from reusing gguf_header
 └── llamacpp/                 # NEW  behind feature `llm-llamacpp`
     ├── mod.rs
-    ├── model.rs              # backend singleton, load, memory check, context sizing
+    ├── model.rs              # backend singleton, load
+    ├── memory.rs             # placement plan: GPU layers and context from the header and the free memory
     ├── generate.rs           # token loop, per-generation cancel flag, streaming
     ├── template.rs           # minijinja environment: filters, functions, message shaping
     ├── formats/              # one file per ChatFormat
@@ -171,11 +172,13 @@ after every decoded token. One generation at a time per model (a `tokio::sync::M
 waits, as the model jobs already wait for the chat. A new context per generation, sized from the request
 (prompt plus `max_new_tokens`), freed at the end; prompt-prefix reuse is a later optimisation (non-goal).
 
-**D6 – Memory.** Before a load the plan checks the file size plus the KV estimate against free VRAM and RAM
-with the existing `hardware` module and refuses with a message instead of letting ggml abort. Layer
-placement uses all layers on the GPU when they fit, otherwise llama.cpp's own fit routine
-(`llama_rs_fit_params` in the sys crate) is evaluated in R2. Context size is the catalog `context_window`
-capped by what fits, default 8192 as in the spike.
+**D6 – Memory.** Before a load, `llamacpp/memory.rs` plans the placement and refuses with a message instead
+of letting ggml abort. Its inputs are the file size, the layer and KV-head counts from the GGUF header and
+the free memory of the best GPU (llama.cpp's device list) and of the host (the OS). All layers go on the
+GPU when file, KV cache and a margin fit; the context is halved twice before layers move to the host; then
+as many layers stay on the GPU as fit, and the context shrinks only when the host cannot take the rest
+either. The context is the catalog `context_window`, capped by what the model was trained for, default 8192.
+llama.cpp's own fit routine is not used (R2).
 
 **D7 – Probe and reasoning.** `probe_tool_template` renders one fixed message with and without a dummy tool
 through the real template and compares, exactly as `llm/local/probe.rs` does (`decide` is shared, not
@@ -194,6 +197,7 @@ for desktop only. See R1 to R3 for the three things the spike left open.
   ship the shared llama.cpp libraries next to the binary, (c) `dynamic-backends`. Recommend trying (a) first
   because it keeps one binary; the result decides T004. Decided in the ADR.
 - **R2 – GPU layer fit.** Whether `llama_rs_fit_params` gives a safe default across 4 to 24 GB cards.
+  Settled in `research.md`: not used, the plan estimates from the GGUF header.
 - **R3 – CPU kernels.** The sys crate builds ggml without AVX2/FMA unless `target-cpu=native`, which would
   make a release binary slow, or crash on older CPUs if native is used. Options: `dynamic-backends` with
   runtime CPU dispatch, or a fixed `x86-64-v3` baseline. Needs a measurement on CPU with a quiet machine.

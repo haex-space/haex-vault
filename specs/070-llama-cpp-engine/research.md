@@ -2,8 +2,8 @@
 
 **Date**: 2026-10-29 · **Branch**: `070-b-spike` · **Binding**: `llama-cpp-2` 0.1.160 (bundles llama.cpp)
 
-The spike is `src-tauri/src/llm/local/llamacpp_spike_tests.rs` (ignored tests, feature `llm-llamacpp`,
-CUDA through `llm-llamacpp-cuda`). Every number is one run, greedy decoding, 200 new tokens, the same
+The spike was `src-tauri/src/llm/local/llamacpp_spike_tests.rs` (ignored tests, feature `llm-llamacpp`,
+CUDA through `llm-llamacpp-cuda`; removed in PR C, its checks live on in `tests/llamacpp_inference.rs`). Every number is one run, greedy decoding, 200 new tokens, the same
 prompt, on the development machine: RTX A2000 8 GB laptop GPU, 24 threads, Linux.
 
 ## Verdict
@@ -114,6 +114,50 @@ The spike's template renderer and parsers moved into `llm/llamacpp/` (`template.
 tests and the three real chat templates as fixtures, and the spike adapter now uses them. The 83-sentence
 evaluation through the promoted code gives the same figures as before: **55 of 83 for Qwen3 4B and 60 of 83
 for Qwen3.5 4B**, identical in reach (0.844 and 0.883), extra steps (3 and 6) and spurious calls (0 and 1).
+
+## Adapter results (PR C, 2026-10-30)
+
+`LlamaCppAdapter` (`llm/llamacpp/adapter.rs`) with streaming, cancelling and the per-model gate, on the
+development machine with the CUDA build and Qwen3 4B and Qwen3.5 4B (both Q4_K_M):
+
+- The ignored tests of `tests/llamacpp_inference.rs` pass for both files: the answer arrives in pieces
+  (`finish_reason` `length` at the cap, token count exact), a tool call arrives as a `ToolCall` and no call
+  markup reaches the text, two requests at once both finish, greedy decoding repeats itself, and
+  **a cancel ends the generation 24 ms (Qwen3) and 34 ms (Qwen3.5) after the call** (US3 scenario 4 asks for
+  one second). Both engines answer in one process on one GPU (Qwen3: mistralrs and llama.cpp).
+- The 83-sentence evaluation through the adapter, streaming included, gives the same figures as the spike
+  and as PR B: **55 of 83 (Qwen3 4B) and 60 of 83 (Qwen3.5 4B)**. Streaming, the holdback buffer and the
+  cancel flag change nothing about the quality.
+
+## R2 – GPU layer fit (settled, 2026-10-30)
+
+Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the engine need its own plan?
+
+**Decision: the engine plans itself (`llm/llamacpp/memory.rs`).** `fit_params` sits behind the `common`
+feature of the binding, which builds a second library (`libcommon`) into every platform, Android and iOS
+included, to compute two numbers. The inputs are few and cheap: the file size, the layer count, the KV heads
+and the head size from the GGUF header (`gguf_header::read_summary`, a read of the metadata, no tensors), and
+the free memory of the best GPU (llama.cpp's device list) and of the host. The plan is a pure function, so
+it is tested without a model and on machines that have no 4 GB or 24 GB card
+(`memory_tests.rs`). Rules: everything on the GPU when file, KV cache and a margin of 768 MiB fit; the
+context is halved twice before layers move to the host; then as many layers stay on the GPU as fit; the
+context shrinks further only when the host cannot take the rest; otherwise the load is refused with the
+numbers instead of letting ggml abort.
+
+Measured on the RTX A2000 8 GB (7.9 GiB usable), context 8192:
+
+| Situation                                         | Plan                        | Result                        |
+| ------------------------------------------------- | --------------------------- | ----------------------------- |
+| Qwen3 4B, GPU empty                               | all 37 (36 layers + output) | answers, 12.9 s for six tests |
+| Qwen3.5 4B, GPU empty                             | all 34                      | answers                       |
+| Qwen3 4B, mistralrs already holds its copy        | 25 of 37 layers             | both engines answer           |
+| Qwen3 4B, GPU still held after the mistralrs test | all 37, context cut to 2048 | answers                       |
+| Qwen3 4B, layers forced to 12                     | 12 of 37                    | answers, tool call works      |
+
+What this does not show: only one card was measured. The 4 GB and 24 GB cases rest on the unit tests. The
+KV estimate counts every layer as an attention layer, so it over-counts hybrid models such as Qwen3.5, where
+only some layers keep a cache; that errs towards putting fewer layers on the GPU, never more. If a model
+needs a finer figure later, `memory.rs` is the one place to change.
 
 ## R1 – CUDA linking (settled, 2026-10-30)
 
