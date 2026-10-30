@@ -60,6 +60,7 @@ pub fn views(rows: &[MarketplaceRow]) -> Vec<MarketplaceView> {
             rank,
             auth_type: row.auth_type,
             credentials: credentials_state(row),
+            credentials_item_id: row.credentials_item_id.clone(),
         })
         .collect()
 }
@@ -97,7 +98,7 @@ pub fn source_of(row: &MarketplaceRow) -> Source {
     }
 }
 
-async fn rows(db: &VaultDb) -> Result<Vec<MarketplaceRow>> {
+pub(super) async fn rows(db: &VaultDb) -> Result<Vec<MarketplaceRow>> {
     db.read(|q| Ok(store::list(q)?)).await
 }
 

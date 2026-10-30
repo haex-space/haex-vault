@@ -4,6 +4,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import {
   openMarketplace,
   pointPresetAt,
+  repointPreset,
   startMarketplace,
   textOf,
   tileCount,
@@ -39,6 +40,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
 
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-marketplace' })
+  await repointPreset(instance, market.url)
 
   const rows = unwrap<Row[]>(
     'marketplace_list',

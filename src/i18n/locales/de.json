@@ -657,6 +657,14 @@
           "title": "Browser-Erweiterungen",
           "description": "haex-pass im Browser mit dieser Vault verbinden",
           "keywords": "Browser Erweiterung haex-pass Firefox Chrome Ausfüllen Passwörter Port Bridge"
+        },
+        "marketplaces": {
+          "title": "Marketplaces",
+          "description": "Woher HaexVault Erweiterungen bezieht",
+          "keywords": "marketplace erweiterungen katalog store quelle adresse selbst betrieben",
+          "edit": {
+            "title": "Marketplace"
+          }
         }
       },
       "storage": {
@@ -953,6 +961,45 @@
     "extensions": {
       "updateAvailable": "Update verfügbar ({version})",
       "updateAvailableHint": "Im Katalog ansehen",
+      "marketplaces": {
+        "add": "Marketplace hinzufügen",
+        "addHint": "Dein eigener oder ein selbst betriebener, über seine Adresse",
+        "none": "Es ist kein Marketplace eingerichtet. Der Katalog bleibt leer, bis du einen hinzufügst.",
+        "edit": "Bearbeiten",
+        "toggle": "{name} im Katalog verwenden",
+        "moveUp": "{name} nach oben",
+        "moveDown": "{name} nach unten",
+        "credentials": {
+          "missing": "Zugangsdaten fehlen",
+          "syncing": "Die Zugangsdaten werden synchronisiert"
+        },
+        "form": {
+          "name": "Name",
+          "url": "Adresse",
+          "urlHint": "Die Adresse des Marketplace, mit seinem Pfad, falls er einen hat, zum Beispiel https://market.example/team",
+          "httpHint": "http ist nicht verschlüsselt. Eine Anmeldung wird nie über http gesendet.",
+          "testAndSave": "Testen und speichern",
+          "saveAnyway": "Trotzdem speichern",
+          "delete": "Löschen",
+          "deleteTitle": "{name} löschen?",
+          "deleteBody": "Installierte Erweiterungen bleiben. Der Katalog und die Suche nach Updates nutzen diesen Marketplace nicht mehr.",
+          "cancel": "Abbrechen",
+          "notFound": "Diesen Marketplace gibt es nicht mehr."
+        },
+        "test": {
+          "ok": "Erreichbar, {count} Erweiterungen.",
+          "failed": "Nicht nutzbar: {cause}"
+        },
+        "testError": {
+          "unreachable": "er ist nicht erreichbar.",
+          "timeout": "er hat nicht rechtzeitig geantwortet.",
+          "auth_rejected": "er hat die Anmeldung abgelehnt.",
+          "credentials_missing": "die Zugangsdaten fehlen.",
+          "credentials_syncing": "die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
+          "bad_response": "er hat etwas geantwortet, das kein Marketplace ist.",
+          "insecure_credentials": "eine Anmeldung braucht https."
+        }
+      },
       "installFromFile": "Aus Datei installieren",
       "installFromFileHint": "Eine signierte Erweiterung (.xt) hinzufügen",
       "installed": "Installiert",
@@ -3175,7 +3222,10 @@
       "empty": "Keine Erweiterungen gefunden.",
       "none": "Kein Marketplace eingerichtet.",
       "allOff": "Alle Marketplaces sind ausgeschaltet.",
-      "offline": "Kein Marketplace ist erreichbar."
+      "offline": "Kein Marketplace ist erreichbar.",
+      "addPreset": "Öffentlichen Marketplace hinzufügen",
+      "addOwn": "Eigenen Marketplace hinzufügen",
+      "openSettings": "Marketplace-Einstellungen öffnen"
     },
     "sourceError": {
       "unreachable": "{name} ist nicht erreichbar.",

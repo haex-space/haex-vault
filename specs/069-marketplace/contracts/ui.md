@@ -64,7 +64,10 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   confirmation (own marketplaces only).
 - Test IDs: `settings-marketplaces`, `settings-marketplace-row-<id>`, `settings-marketplace-toggle-<id>`,
   `settings-marketplace-up-<id>`, `settings-marketplace-down-<id>`, `settings-marketplace-form`,
-  `settings-marketplace-name`, `settings-marketplace-url`, `settings-marketplace-auth`,
+  `settings-marketplace-name`, `settings-marketplace-url`, `settings-marketplace-edit-<id>`,
+  `settings-marketplace-save-anyway`, `settings-marketplace-delete-confirm`, `settings-marketplaces-empty`,
+  `settings-marketplace-http-hint`, `settings-marketplace-credentials-<id>`, `extensions-marketplaces`,
+  `marketplace-all-off-settings`, `settings-marketplace-auth`,
   `settings-marketplace-test-result`, `settings-marketplace-save`, `settings-marketplace-delete`.
 
 ## List of installed extensions
