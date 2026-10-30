@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { choose, openSettings } from '../lib/settings.ts'
+import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import { openVault } from '../lib/sync-flows.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
@@ -93,10 +93,11 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   })
   ctx.step('both marketplaces serve one catalog and the filter narrows it')
 
-  // Switched off: its entries are gone and nobody reports an error.
-  await openSettings(instance)
-  await instance.click('settings-category-extensions')
-  await instance.click('extensions-marketplaces')
+  // Switched off: its entries are gone and nobody reports an error. The settings window is still
+  // open on the marketplaces; the launcher brings it back where it was, not to "general".
+  await instance.click('open-launcher')
+  await instance.click('[data-app-id="system.settings"]')
+  await waitForLocation(instance, 'extensions.marketplaces')
   await instance.click(`settings-marketplace-toggle-${added.id}`)
   await ctx.waitFor('the marketplace to be off', async () => {
     const row = (await marketplaces(instance)).find((m) => m.id === added.id)
