@@ -66,8 +66,9 @@ F; US5 is G.
 ## PR B – Template and formats (US2, FR-002)
 
 - [x] T009 `llamacpp/template.rs`: the `minijinja` environment (`pycompat`, lstrip/trim blocks, `tojson`
-      with `indent` and `ensure_ascii`, `raise_exception`, `strftime_now`) and the render function with the
-      context variables of plan D2. A render error is an error, never a fallback to ChatML.
+      with `indent` and `ensure_ascii`, `raise_exception`) and the render function with the context
+      variables of plan D2. `strftime_now` is not provided because none of the supported templates needs it;
+      an unknown function is a render error. A render error is never a fallback to ChatML.
       Tests in `template_tests.rs`.
 - [x] T010 [P] `llamacpp/fixtures/`: the real chat template text of Qwen3 4B, Qwen3.5 4B and Gemma 4 E4B
       (read from the GGUF `tokenizer.chat_template`; public model files, no secrets).

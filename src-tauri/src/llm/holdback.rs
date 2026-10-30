@@ -10,7 +10,11 @@ pub(crate) fn longest_prefix_overlap(text: &str, marker: &str) -> usize {
     let max = marker.len().min(text.len());
     (1..=max)
         .rev()
-        .find(|&len| text.is_char_boundary(text.len() - len) && text.ends_with(&marker[..len]))
+        .find(|&len| {
+            text.is_char_boundary(text.len() - len)
+                && marker.is_char_boundary(len)
+                && text.ends_with(&marker[..len])
+        })
         .unwrap_or(0)
 }
 

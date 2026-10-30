@@ -55,3 +55,13 @@ fn multi_byte_text_next_to_a_marker_is_not_split() {
     assert_eq!(hold.push("tool_call>"), "");
     assert!(hold.in_call());
 }
+
+#[test]
+fn a_multibyte_marker_does_not_slice_inside_its_first_character() {
+    let mut hold = Holdback::new("éx");
+    assert_eq!(hold.push("a"), "a");
+    assert_eq!(hold.push("é"), "");
+    assert_eq!(hold.push("x"), "");
+    assert!(hold.in_call());
+    assert_eq!(hold.finish(), "éx");
+}

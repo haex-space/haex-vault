@@ -97,8 +97,8 @@ fn history_becomes_messages_with_grouped_tool_calls() {
             json!({"role": "system", "content": "Be brief."}),
             json!({"role": "user", "content": "open sync and list"}),
             json!({"role": "assistant", "content": "", "tool_calls": [
-                {"type": "function", "function": {"name": "open", "arguments": {"page": "sync"}}},
-                {"type": "function", "function": {"name": "list", "arguments": {}}},
+                {"type": "function", "id": "1", "function": {"name": "open", "arguments": {"page": "sync"}}},
+                {"type": "function", "id": "2", "function": {"name": "list", "arguments": {}}},
             ]}),
             json!({"role": "tool", "content": "opened", "tool_call_id": "1"}),
             json!({"role": "assistant", "content": "Done."}),

@@ -77,7 +77,8 @@ pub fn template_tools(tools: &[ToolSpec]) -> Vec<Value> {
 }
 
 /// The history as the Qwen templates read it: consecutive `ToolCall` rows become one assistant message
-/// with `tool_calls` (arguments as an object), each `ToolResult` row its own `tool` message.
+/// with `tool_calls` (preserving call IDs and arguments as objects), each `ToolResult` row its own
+/// `tool` message.
 pub fn default_messages(system_prompt: Option<&str>, history: &[ChatMessage]) -> Vec<Value> {
     let mut out = Vec::new();
     if let Some(system) = system_prompt {
@@ -93,11 +94,13 @@ pub fn default_messages(system_prompt: Option<&str>, history: &[ChatMessage]) ->
             }
             ChatRole::ToolCall { .. } => {
                 let mut calls = Vec::new();
-                while let Some(ChatRole::ToolCall { name, input, .. }) =
-                    history.get(i).map(|m| &m.role)
+                while let Some(ChatRole::ToolCall {
+                    id, name, input, ..
+                }) = history.get(i).map(|m| &m.role)
                 {
                     calls.push(json!({
                         "type": "function",
+                        "id": id,
                         "function": {"name": name, "arguments": input},
                     }));
                     i += 1;

@@ -14,3 +14,9 @@ fn longest_prefix_overlap_ignores_text_that_ends_inside_a_wider_character() {
     assert_eq!(longest_prefix_overlap("Küche <", "<tool_call>"), 1);
     assert_eq!(longest_prefix_overlap("Küche", "<tool_call>"), 0);
 }
+
+#[test]
+fn longest_prefix_overlap_skips_marker_offsets_inside_a_wider_character() {
+    assert_eq!(longest_prefix_overlap("a", "éx"), 0);
+    assert_eq!(longest_prefix_overlap("é", "éx"), "é".len());
+}

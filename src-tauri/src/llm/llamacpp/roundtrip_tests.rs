@@ -139,9 +139,9 @@ fn a_plain_question_renders_without_tools_through_every_fixture() {
 #[test]
 fn the_gemma4_template_renders_tools_in_its_own_syntax() {
     let format = detect(QWEN3).unwrap();
-    let history = [message(ChatRole::User, "Open the sync settings.")];
-    let out = render_with(GEMMA4, format, &history, &[tool()], false);
-    assert!(out.contains("open_settings"), "{out}");
+    let out = render_with(GEMMA4, format, &tool_history(), &[tool()], false);
+    assert!(out.contains("<|tool_call>call:open_settings{"), "{out}");
+    assert!(out.contains("response:open_settings{"), "{out}");
 }
 
 #[test]
