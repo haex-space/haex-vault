@@ -91,7 +91,7 @@ Priorities: P1 US1, US2, US3; P2 US4, US5, US6, US9; P3 US7, US8.
 R8). Record every result in research.md.
 
 - [x] T001 Add `sherpa-onnx` (exact pin of the newest 2.0.x, `default-features = false`; no `shared` on desktop, see research R3 "Stand nach T001") as an optional dependency behind the `voice` feature in src-tauri/Cargo.toml; confirm with `cargo tree -i sherpa-onnx` that no GPL crate and no second onnxruntime enters the lockfile
-- [ ] T002 Ship the shared `libonnxruntime` next to the binary: bundle resources in src-tauri/tauri.conf.json for Linux, macOS and Windows and `jniLibs` for Android in src-tauri/gen/android/app/build.gradle.kts; add what the Nix devshell needs in flake.nix
+- [x] T002 Ship the shared `libonnxruntime` next to the binary: bundle resources in src-tauri/tauri.conf.json for Linux, macOS and Windows and `jniLibs` for Android in src-tauri/gen/android/app/build.gradle.kts; add what the Nix devshell needs in flake.nix — not needed (research R3 "Stand nach T001"): the desktop links sherpa statically, and on Android the sherpa build script copies the `.so` files into `jniLibs` itself; iOS waits for an iOS project
 - [ ] T003 [P] Create empty modules `src-tauri/src/assistant/mod.rs` and `src-tauri/src/tts/mod.rs` behind `#[cfg(feature = "voice")]` with stub commands for `--no-default-features` (pattern of src-tauri/src/voice.rs), and register them in src-tauri/src/lib.rs
 - [ ] T004 [P] Create `scripts/check-assistant-actions.ts` and `scripts/check-assistant-ui.ts` (empty rule sets) and the script `check:assistant` in package.json; wire it into the CI job of `check:agent-actions` in .github/workflows/
 - [ ] T005 Spike build: build the app with sherpa on Linux, macOS, Windows, Android (arm64) and iOS (simulator) in CI; record build time and added binary size per target in research.md R3
@@ -112,11 +112,11 @@ update the plan before continuing.
 
 ### Tests first
 
-- [ ] T010 [P] Ring buffer tests in src-tauri/src/audio/ring_tests.rs: 16 kHz mono, capacity "≤ 2 s", pre-roll of 1.5 s returned in order after wrap-around, overrun drops oldest samples, no allocation after construction
-- [ ] T011 [P] Resampler tests in src-tauri/src/audio/resample_tests.rs: 44.1 kHz and 48 kHz stereo blocks of arbitrary size → 16 kHz mono with the same result as the one-shot path of `audio::Capture::stop` within tolerance; state carries across block borders
-- [ ] T012 [P] Mixer tests in src-tauri/src/audio/mixer_tests.rs: speech and tones mix with separate volumes (`assistant.tones.volume` "int 0–100"), the reference signal equals what was written to the device, `stop_speech()` silences speech within one block but lets a tone finish
-- [ ] T013 [P] Source/Sink tests in src-tauri/src/audio/source_tests.rs: a WAV script (files with pauses in between) yields the same samples as the files; the recording sink stores what the mixer outputs
-- [ ] T014 [P] Utterance tests in src-tauri/src/assistant/listen_tests.rs with the WAV source: end of utterance after `assistant.pauseMs` ("int 500–2000", default 800); utterances shorter than 250 ms are dropped; maximum 60 s cuts and delivers; pre-roll included when listening starts on a trigger
+- [x] T010 [P] Ring buffer tests in src-tauri/src/audio/ring_tests.rs: 16 kHz mono, capacity "≤ 2 s", pre-roll of 1.5 s returned in order after wrap-around, overrun drops oldest samples, no allocation after construction
+- [x] T011 [P] Resampler tests in src-tauri/src/audio/resample_tests.rs: 44.1 kHz and 48 kHz stereo blocks of arbitrary size → 16 kHz mono with the same result as the one-shot path of `audio::Capture::stop` within tolerance; state carries across block borders
+- [x] T012 [P] Mixer tests in src-tauri/src/audio/mixer_tests.rs: speech and tones mix with separate volumes (`assistant.tones.volume` "int 0–100"), the reference signal equals what was written to the device, `stop_speech()` silences speech within one block but lets a tone finish
+- [x] T013 [P] Source/Sink tests in src-tauri/src/audio/source_tests.rs: a WAV script (files with pauses in between) yields the same samples as the files; the recording sink stores what the mixer outputs
+- [x] T014 [P] Utterance tests in src-tauri/src/assistant/listen_tests.rs with the WAV source: end of utterance after `assistant.pauseMs` ("int 500–2000", default 800); utterances shorter than 250 ms are dropped; maximum 60 s cuts and delivers; pre-roll included when listening starts on a trigger
 - [ ] T015 [P] Voice catalog tests in src-tauri/src/tts/catalog_tests.rs: `tts_catalog.json` parses, every entry has a pinned 40-hex `hf_revision`, `language` in `"de"|"en"|"fr"|"es"|"it"|"pt"`, `variant` in `"standard"|"24l"`, a licence and attribution; one standard model per language; hardware fit like `stt/catalog.rs`
 - [x] T131 [P] STT catalog tests in src-tauri/src/stt/catalog_tests.rs: every entry has `engine` in `"candle-whisper"|"sherpa-parakeet"`; the existing Whisper entries are unchanged; the Parakeet entry has a pinned 40-hex `hf_revision`, all its files with sizes, `languages` including `de` and `en`, licence `CC-BY-4.0` and attribution
 - [x] T132 [P] Parakeet adapter tests in src-tauri/src/stt/sherpa_tests.rs: `de_sample.wav` and `jfk.wav` give the expected words (tolerant comparison like local_tests.rs); silence gives an empty text; a missing model file gives `SttError` without panic
@@ -125,15 +125,15 @@ update the plan before continuing.
 
 ### Implementation
 
-- [ ] T018 Implement `audio::ring`, `audio::resample` and `audio::source` (traits `Source`, `Sink`; WAV source and recording sink only with feature `e2e-audio` or in tests) in src-tauri/src/audio/{ring,resample,source}.rs
-- [ ] T019 Implement the duplex stream in src-tauri/src/audio/stream.rs: one cpal input stream feeding the ring buffer through the stateful resampler and one cpal output stream driven by src-tauri/src/audio/mixer.rs; start and stop through `VaultGate`; lock-free hand-over between callback and worker (e.g. an SPSC queue)
-- [ ] T020 Let the push-to-talk recording of spec 008 read from the stream when it runs, and keep the current one-shot capture when it does not, in src-tauri/src/audio/mod.rs and src-tauri/src/voice.rs; existing voice tests stay green
-- [ ] T021 Implement `assistant::listen` in src-tauri/src/assistant/listen.rs: Silero VAD through sherpa on the ring buffer, utterances with pre-roll, pause length from the device setting, maximum 60 s
+- [x] T018 Implement `audio::ring`, `audio::resample` and `audio::source` (traits `Source`, `Sink`; WAV source and recording sink only with feature `e2e-audio` or in tests) in src-tauri/src/audio/{ring,resample,source}.rs
+- [x] T019 Implement the duplex stream in src-tauri/src/audio/stream.rs: one cpal input stream feeding the ring buffer through the stateful resampler and one cpal output stream driven by src-tauri/src/audio/mixer.rs; start and stop through `VaultGate`; lock-free hand-over between callback and worker (e.g. an SPSC queue)
+- [x] T020 Let the push-to-talk recording of spec 008 read from the stream when it runs, and keep the current one-shot capture when it does not, in src-tauri/src/audio/mod.rs and src-tauri/src/voice.rs; existing voice tests stay green
+- [x] T021 Implement `assistant::listen` in src-tauri/src/assistant/listen.rs: Silero VAD through sherpa on the ring buffer, utterances with pre-roll, pause length from the device setting, maximum 60 s
 - [ ] T022 Implement the voice catalog and download in src-tauri/src/tts/{catalog.rs,tts_catalog.json,commands.rs} reusing `models::download` and `models::paths::slug_dir`; commands `list_tts_catalog`, `list_installed_tts_voices`, `download_tts_voice` with `assistant-download-progress`
 - [ ] T023 Implement local synthesis in src-tauri/src/tts/local.rs: sherpa `OfflineTts` per installed voice, sentence-wise synthesis on a dedicated thread, rate from `assistant.speechRate` ("float 0.75–1.5"), output into the mixer
 - [ ] T024 [P] Implement `assistant::tones` in src-tauri/src/assistant/tones.rs (synthesized at runtime, research R16) and the event `assistant-tone`
 - [ ] T025 Implement `assistant::assets` in src-tauri/src/assistant/{assets.rs,assets.json} with `download_assistant_assets` and `assistant_readiness`
-- [ ] T026 Wire shutdown: stop the stream, listener and synthesis in `begin_close`/`finish_close` next to `voice.cancel_for_close()`/`reset_for_close()` in src-tauri/src/instances/close.rs
+- [ ] T026 Wire shutdown: stop the stream, listener and synthesis in `begin_close`/`finish_close` next to `voice.cancel_for_close()`/`reset_for_close()` in src-tauri/src/instances/close.rs — stream and listener done in PR B part 3 (`VoiceState::cancel_for_close`/`reset_for_close` stop the stream; a listener ends with it); synthesis joins with T023
 
 - [x] T133 Add `engine` and `languages` to src-tauri/src/stt/catalog.rs and stt_catalog.json, the Parakeet entry with its files, and download through `models::download`
 - [x] T134 Implement the Parakeet adapter in src-tauri/src/stt/sherpa.rs (`SttAdapter` over sherpa `OfflineRecognizer`, `spawn_blocking`); `VoiceState` in src-tauri/src/voice.rs keeps the adapter of the selected entry warm (`Arc<dyn SttAdapter>` instead of the Whisper-only cache), so push-to-talk (008) and the assistant share it; switching the model drops the old one
