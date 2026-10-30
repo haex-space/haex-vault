@@ -3,7 +3,7 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { typeChecked } from '../lib/fields.ts'
 import { createEntry, overview, trashEntry } from '../lib/passwords.ts'
-import { choose, openSettings } from '../lib/settings.ts'
+import { choose, settingsLocation } from '../lib/settings.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
   PRESET_ID,
@@ -69,10 +69,23 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
     assert.ok(row, 'the private marketplace is listed')
     return row
   }
+  // The settings are a singleton: opened again from the launcher they keep their last place, which
+  // is the list itself after a saved form, and start at "general" otherwise.
   const openList = async () => {
-    await openSettings(instance)
-    await instance.click('settings-category-extensions')
-    await instance.click('extensions-marketplaces')
+    await instance.click('open-launcher')
+    await instance.click('[data-app-id="system.settings"]')
+    await ctx.waitFor(
+      'the settings to show a place',
+      async () =>
+        ['general', 'extensions.marketplaces'].includes(
+          await settingsLocation(instance),
+        ),
+      { timeoutMs: 10_000, fixed: true },
+    )
+    if ((await settingsLocation(instance)) === 'general') {
+      await instance.click('settings-category-extensions')
+      await instance.click('extensions-marketplaces')
+    }
     await instance.waitForDisplayed('settings-marketplaces')
   }
 
