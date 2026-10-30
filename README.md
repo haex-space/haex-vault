@@ -229,6 +229,16 @@ With a signed build, `bundle.macOS.entitlements` also has to grant
 `com.apple.security.device.audio-input`, or the hardened runtime blocks the
 microphone. Windows signing is not wired up.
 
+## Einen Marketplace betreiben
+
+HaexVault lädt Erweiterungen aus beliebig vielen Marketplaces. Wer einen eigenen betreiben will (für ein
+Team, eine Firma oder zum Selbsthosten), implementiert das Protokoll in
+[specs/069-marketplace/contracts/marketplace-api.md](specs/069-marketplace/contracts/marketplace-api.md):
+`GET /health`, `/extensions`, `/extensions/{slug}`, `/extensions/{slug}/download` und `/categories`, mit
+SHA-256 und Größe jeder Version. Es ist die einzige Quelle der Wahrheit; HaexVault nimmt darüber hinaus
+nichts an. Hinzugefügt wird er unter Einstellungen → Erweiterungen → Marketplaces. Eine Anmeldung (Bearer
+oder Basic) liegt als Eintrag im Passwortmanager und wird nur über `https` gesendet.
+
 ## Development setup
 
 The repository uses the Claude speckit integration. After a fresh clone,

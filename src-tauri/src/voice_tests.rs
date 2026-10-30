@@ -87,3 +87,39 @@ async fn reset_for_close_is_a_safe_noop_on_a_fresh_state_and_idempotent() {
 
     assert!(!state.has_cached_stt_adapter().await);
 }
+
+/// Spec 066 T026: the close releases the assistant's audio stream with the microphone.
+#[test]
+fn closing_stops_the_assistant_audio_stream() {
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use crate::audio::source::RecordingSink;
+    use crate::audio::stream::{AudioStream, Output};
+    use crate::audio::test_feed::feed;
+
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let gate = crate::vault_gate::VaultGate::with_runtime(runtime.handle().clone());
+    let (_mic, source) = feed();
+    let stream = AudioStream::start(
+        &gate,
+        Box::new(source),
+        Output::Sink {
+            sink: Box::new(RecordingSink::default()),
+            sample_rate: crate::stt::SAMPLE_RATE_HZ,
+        },
+    )
+    .expect("stream starts");
+    let (_, blocks) = stream.subscribe(0.0);
+    let state = VoiceState::new();
+    state.audio_stream().replace(Some(Arc::new(stream)));
+
+    state.cancel_for_close();
+
+    assert!(state.audio_stream().current().is_none());
+    assert_eq!(
+        blocks.recv_timeout(Duration::from_secs(5)),
+        Err(RecvTimeoutError::Disconnected)
+    );
+}

@@ -58,9 +58,10 @@ llm-metal = ["llm-cpu", "mistralrs/metal"]
 # Opt-in: it needs `cmake` and a C++ toolchain at build time, and the default build stays as it is.
 # It rides on `llm-cpu` because the adapter types, the catalog and the evaluation are shared.
 llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2", "dep:minijinja", "dep:minijinja-contrib"]
-# The Nix CUDA toolkit has no static cuBLAS, so the sys crate's default static link fails; the spike
-# linked dynamically. The final choice is spec 070 R1 (task T004) and is recorded in the ADR.
-llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda", "llama-cpp-2/dynamic-link"]
+# Static CUDA link (spec 070 R1, ADR 0023): the binary carries cudart and cuBLAS and needs only the
+# driver at run time. The sys crate looks for them in `$CUDA_LIBRARY_PATH/lib64`, which a Nix devShell
+# has to provide (static cuBLAS from `cudaPackages.libcublas.static`); see `research.md`.
+llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda"]
 # Metal build (Apple GPU), like `llm-metal`. Not built or run yet (spec 070 T037).
 llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 
@@ -68,7 +69,10 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
-voice = ["dep:cpal", "dep:sherpa-onnx"]
+voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue"]
+# Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
+# using the sound card, so e2e scenarios can speak to it. Never part of a release build.
+e2e-audio = ["voice"]
 
 # End-to-end tests (spec 024, T078): builds `e2e_nostr_relay`, an in-process
 # `MockRelay` as a process the two application processes of a scenario share.
@@ -307,6 +311,7 @@ anyhow = "1"
 # Cross-platform microphone capture for voice control (spec 008), gated by
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
+crossbeam-queue = { version = "0.3", optional = true }
 # Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
 # `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
 # scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`

@@ -255,3 +255,94 @@ fn the_source_arrives_from_the_webview_as_a_tagged_object() {
     assert!(serde_json::from_str::<BundleSource>(r#"{"kind":"url","id":"x"}"#).is_err());
     assert!(serde_json::from_str::<BundleSource>(r#""/tmp/a.xt""#).is_err());
 }
+
+/// Quickstart M16 (spec 069): every extension of the public marketplace is downloaded the way the
+/// app does it (client, size and checksum check) and runs through the install preview of spec 017.
+/// It talks to the internet, so it only runs when asked: `cargo test --lib public_marketplace --
+/// --ignored --nocapture`.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "talks to the public marketplace; quickstart M16"]
+async fn every_bundle_of_the_public_marketplace_passes_the_install_preview() {
+    use crate::marketplace::app_version;
+    use crate::marketplace::catalog::{fetch_catalog, Source};
+    use crate::marketplace::client::Http;
+    use crate::marketplace::download::download_bundle;
+    use crate::marketplace::model::CatalogQuery;
+    use crate::marketplace::store::PRESET_URL;
+
+    let source = Source {
+        id: "preset-public".into(),
+        name: "Haex Marketplace".into(),
+        base_url: PRESET_URL.into(),
+        auth: None,
+        unavailable: None,
+    };
+    let rig = rig();
+    let mut checked = Vec::new();
+    let mut failed = Vec::new();
+    for page in 1.. {
+        let query = CatalogQuery {
+            page,
+            search: None,
+            category: None,
+            source_id: None,
+        };
+        let answer = fetch_catalog(
+            Http::default(),
+            std::slice::from_ref(&source),
+            &query,
+            &[],
+            &app_version(),
+        )
+        .await;
+        assert!(
+            answer.source_errors.is_empty(),
+            "{:?}",
+            answer.source_errors
+        );
+        for entry in &answer.entries {
+            let Some(version) = entry.latest_compatible.clone() else {
+                failed.push(format!("{}: no installable version", entry.slug));
+                continue;
+            };
+            let outcome = async {
+                let bytes = download_bundle(
+                    Http::default(),
+                    &source,
+                    &entry.slug,
+                    &version,
+                    &app_version(),
+                    &CancellationToken::new(),
+                    &mut |_| {},
+                )
+                .await?;
+                let size = bytes.len();
+                let preview = rig.preview(&rig.downloaded(&bytes))?;
+                Ok::<_, HolziError>((size, preview))
+            }
+            .await;
+            match outcome {
+                Ok((size, preview)) => {
+                    println!(
+                        "ok   {} {version}: {size} bytes, origin {:?}",
+                        entry.slug,
+                        preview.origin.map(|o| o.source_name)
+                    );
+                    checked.push(entry.slug.clone());
+                }
+                Err(error) => failed.push(format!("{} {version}: {error}", entry.slug)),
+            }
+        }
+        if page >= answer.total_pages {
+            break;
+        }
+    }
+    for line in &failed {
+        println!("FAIL {line}");
+    }
+    assert!(failed.is_empty(), "{failed:?}");
+    assert!(
+        !checked.is_empty(),
+        "the public marketplace lists extensions"
+    );
+}

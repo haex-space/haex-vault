@@ -446,7 +446,7 @@ interface ListedMarketplace {
 
 /** The marketplaces of the vault as `marketplace_list` reports them. */
 export async function marketplaces(
-  instance: FlowInstance,
+  instance: Pick<FlowInstance, 'invoke'>,
 ): Promise<ListedMarketplace[]> {
   return unwrap<ListedMarketplace[]>(
     'marketplace_list',

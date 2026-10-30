@@ -82,10 +82,11 @@ one run each. mistralrs was measured again on the same machine because the figur
 
 - **cmake is missing from the Nix devshell.** The spike took it from `nixpkgs#cmake` outside the shell
   (`nix shell` inside `nix develop` fails on a glibc mismatch).
-- **CUDA**: the Nix CUDA toolkit has no `lib64` and no static cuBLAS, so the crate's default static linking
-  fails (`cudart_static` / `cublas_static` not found). The spike set `CUDA_LIBRARY_PATH` to a directory
-  with a `lib64` link and used the `dynamic-link` feature, which needs the shared llama.cpp libraries on
-  `LD_LIBRARY_PATH` at run time. `CUDAARCHS=86` limited the kernels to this card. A cold build took 15 min.
+- **CUDA** (first spike): the Nix CUDA toolkit has no `lib64` and no static cuBLAS in its merged output, so
+  the crate's default static linking failed (`cudart_static` / `cublas_static` not found). The spike set
+  `CUDA_LIBRARY_PATH` to a directory with a `lib64` link and used the `dynamic-link` feature, which needs the
+  shared llama.cpp libraries on `LD_LIBRARY_PATH` at run time. `CUDAARCHS=86` limited the kernels to this
+  card. A cold build took 15 min. R1 below replaces this with a static link.
 - **Android**: `llama-cpp-2` builds for `aarch64-linux-android` with NDK 28.2 in 1.5 min (isolated crate,
   NDK clang set through `CC_aarch64_linux_android`). It was not run on a device or emulator. The check
   through the whole holzi crate failed earlier, in `aws-lc-sys` (host gcc instead of the NDK compiler),
@@ -106,3 +107,43 @@ one run each. mistralrs was measured again on the same machine because the figur
   package, or the shared libraries shipped next to the binary).
 - Still to do before a plan: an Android run on the emulator, an iOS build on a Mac, a parser for Gemma 4's
   call format and its evaluation, the chat-template probe, CPU speed with `GGML_NATIVE`.
+
+## R1 – CUDA linking (settled, 2026-10-30)
+
+Question: can the CUDA build link cudart and cuBLAS statically, so one binary needs only the driver?
+
+**Yes.** The pinned nixpkgs has an output `static` for cuBLAS (`cudaPackages.libcublas.static`: `libcublas_static.a`
+165 MB and `libcublasLt_static.a` 1.1 GB). The sys crate's `find_cuda_helper` reads only `CUDA_LIBRARY_PATH` on
+Linux (not `CUDA_PATH`) and only looks in `<dir>/lib64`, so a directory has to be laid out for it:
+
+```text
+$CUDA_LIBRARY_PATH/lib64/
+├── libcudart_static.a      (from the merged CUDA toolkit)
+├── libculibos.a            (from the merged CUDA toolkit)
+├── libcublas_static.a      (from cudaPackages.libcublas.static)
+├── libcublasLt_static.a    (from cudaPackages.libcublas.static)
+└── stubs/                  (libcuda.so stub, from the merged CUDA toolkit)
+```
+
+Build with `CUDAARCHS=86` (this card; without it ggml compiles every architecture) and `cmake` on `PATH`. The
+feature `llm-llamacpp-cuda` no longer enables `dynamic-link`.
+
+| Check                                                         | Result                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Isolated probe crate (`llama-cpp-2` with `cuda`), debug build | 5 min 23 s; dynamic dependencies: only `libcuda.so.1` (and libgomp, libstdc++) |
+| Probe run                                                     | finds the RTX A2000 (7893 MiB), `max_devices` 16                               |
+| holzi `--features llm-cuda,llm-llamacpp-cuda`, test build     | 9 min 14 s from a reflinked cache                                              |
+| llama.cpp and mistralrs CUDA tests in **one process**         | both pass; Qwen3 4B 65.2 t/s (llama.cpp) and 54.2 t/s (mistralrs)              |
+
+- A first run of the two-engine test failed with "cudaMalloc failed: out of memory" and a mistralrs "device
+  mismatch": another process (the dev app) held 4.6 GB of the 8 GB card. After it was closed the run passed,
+  so the failure was memory, not the static link.
+- A binary that links cudart statically needs no `libcudart.so` at run time, but still needs the driver. A
+  plain binary has to find `libcuda.so.1` itself; holzi's `build.rs` adds the rpath for the app (and the host
+  bridge script covers the rest), a standalone probe needs `LD_LIBRARY_PATH` set to the host's driver directory.
+- **What it does not show**: Windows (the crate reads `CUDA_PATH` there, with a different layout), more than one
+  card or architecture, and a release build for all GPU architectures (`CUDAARCHS` choice, build time, binary
+  size). A debug binary with `sm_86` only was 961 MiB unstripped.
+
+What the devShell has to provide (task T003, atoms repo): `cmake`, `cudaPackages.libcublas.static`, and the
+`CUDA_LIBRARY_PATH` directory above.
