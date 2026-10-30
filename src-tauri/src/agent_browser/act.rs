@@ -200,9 +200,13 @@ impl Acting<'_> {
             .await?;
         tab.take_refusal();
         let events = tab.events();
-        input::click(self.connection, &tab.session, target.x, target.y)
-            .await
-            .map_err(browser_error)?;
+        let clicked = input::click(self.connection, &tab.session, target.x, target.y).await;
+        if clicked.is_err() {
+            // The approval armed this tab; a failed CDP input must not leave that one-request
+            // allowance available to a later page request.
+            self.session.disarm();
+        }
+        clicked.map_err(browser_error)?;
         self.finish(tab, events).await
     }
 
@@ -242,9 +246,11 @@ impl Acting<'_> {
                 shown_fields(&form.fields),
             )
             .await?;
-            input::enter(self.connection, &tab.session)
-                .await
-                .map_err(browser_error)?;
+            let entered = input::enter(self.connection, &tab.session).await;
+            if entered.is_err() {
+                self.session.disarm();
+            }
+            entered.map_err(browser_error)?;
         }
         self.finish(tab, events).await
     }
