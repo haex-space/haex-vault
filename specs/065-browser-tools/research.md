@@ -52,35 +52,41 @@ schließt ihn aus; keine Trennung vom Fenster von holzi).
 
 ## R3 Browser-Profil verschlüsselt auf dem Gerät
 
-**Entscheidung**: Ein zufälliger Profilschlüssel (32 Byte) liegt ausschließlich im geschützten
-Zugangsspeicher des Betriebssystems unter einer installationsgebundenen Kennung; die Vault enthält
-keinen Schlüssel. Das Profil liegt, solange der Agenten-Browser läuft, in einem verschlüsselten,
-flüchtigen Arbeitscontainer, dessen Schlüssel nur im Prozessspeicher liegt:
+**Entscheidung** (Betreiber, 2026-10-29): Was holzi verschlüsselt auf der Platte ablegt, liegt in
+einem **verschlüsselten Ordner aus Spec 048**; der Agenten-Browser bringt kein eigenes
+Archivformat und keinen eigenen Schlüssel mit.
 
-- Linux: unter `$XDG_RUNTIME_DIR` (tmpfs, beim Abmelden leer),
-- macOS: temporärer verschlüsselter Container im nutzereigenen temporären Verzeichnis,
-- Windows: temporärer verschlüsselter Container unter `%LOCALAPPDATA%\Temp`.
+- **Zwischen zwei Läufen**: Beim Ende des Agenten-Browsers (spätestens beim Schließen der Vault)
+  packt holzi die bleibenden Teile des Profils (Cookies, Local Storage, IndexedDB, Session
+  Storage, `Preferences`, `Local State`) als ZIP und schreibt es als Datei `profile.zip` in den
+  verschlüsselten Ordner „Profil“ unter `<AppLocalData>/agent-browser/<Instanz>/` (ein
+  Geräteordner, 048 US7). Caches (`Cache`, `Code Cache`, `GPUCache`,
+  `Service Worker/CacheStorage`) kommen nicht hinein. Das Datenverzeichnis gehört zu dieser
+  Installation; die Datei wandert nicht mit der Vault.
+- **Während des Laufs**: Chromium braucht ein normales Verzeichnis. Es liegt unter
+  `$XDG_RUNTIME_DIR` (Linux, im Arbeitsspeicher), `$TMPDIR` (macOS) bzw. `%LOCALAPPDATA%\Temp`
+  (Windows), nur für den Nutzer lesbar. holzi löscht es am Ende jedes Laufs und vor jedem Start,
+  also auch die Reste eines abgestürzten Laufs.
+- **Anmeldedaten** liegen nie im Profil als gespeicherte Passwörter: das Speichern und
+  automatische Ausfüllen von Chromium ist aus (FR-002); Anmeldedaten kommen aus dem
+  Passwortmanager und neue werden dort gespeichert (R7, FR-036). Im Profil bleiben nur
+  Sitzungs-Cookies und Daten der Websites.
 
-Beim Beenden des Browsers (spätestens beim Schließen der Vault) packt holzi die bleibenden Teile
-(Cookies, Local Storage, IndexedDB, Session Storage, `Preferences`) in ein Archiv, verschlüsselt es
-mit XChaCha20-Poly1305 im STREAM-Verfahren (Blöcke zu 64 KiB) und legt es im
-Instanz-Datenverzeichnis unter `agent-browser/profile.hxbp` ab; dann löscht es den Arbeitscontainer. Caches (`Cache`,
-`Code Cache`, `GPUCache`, `Service Worker/CacheStorage`) kommen nicht ins Archiv. Beim nächsten
-Start entschlüsselt holzi das Archiv in ein frisches Arbeitsverzeichnis. Reste eines abgestürzten
-Laufs löscht holzi beim nächsten Start, bevor es etwas Neues anlegt.
+**Begründung**: Eine Verschlüsselung, ein Format, eine geprüfte Implementierung (048, mit eigenen
+Tests auf allen Betriebssystemen). Ohne entsperrte Vault ist das Profil unlesbar. Ein zusätzlicher
+verschlüsselter Container für den laufenden Browser wäre je Betriebssystem anders (unter Windows
+nur mit EFS, das Windows Home nicht hat) und schützt nur gegen jemanden, der das Benutzerkonto
+schon hat; den Diebstahl des Geräts deckt die Festplattenverschlüsselung des Systems.
 
-**Begründung**: Chromium schreibt sein Profil als normale Dateien. Ein verschlüsselter flüchtiger
-Container schützt sie während der Sitzung; ein Prozess- oder Systemabsturz verwirft dessen
-flüchtigen Schlüssel. Das Archiv erfüllt FR-001: ohne entsperrte Vault unlesbar, über Neustarts
-erhalten, nie auf anderen Geräten. Eine kopierte Vault-Datei enthält weder den Schlüssel noch den
-lokalen Betriebssystem-Zugang.
+**Abwägung**: Der Schlüssel eines verschlüsselten Ordners stammt aus dem Inhaltsschlüssel der
+Vault und ist auf allen Geräten der Vault gleich. Wer die Datei `profile.zip` aus dem
+Datenverzeichnis dieses Geräts kopiert und eine entsperrte Vault hat, könnte sie lesen; die Datei
+selbst wandert aber nie.
 
-**Grenze**: Unterstützt ein Betriebssystem keinen verschlüsselten flüchtigen Arbeitscontainer,
-startet holzi den Agenten-Browser auf diesem Gerät nicht und meldet die fehlende sichere Ablage.
-
-**Verworfen**: Profil im Klartext neben der Vault (FR-001); Schlüssel aus dem Inhaltsschlüssel der
-Vault abgeleitet (der wandert auf alle Geräte; ein gestohlenes Archiv wäre auf jedem Gerät der
-Vault lesbar); Profil in die Vault-Datenbank (zu groß, Chromium braucht Dateien).
+**Verworfen**: Eigenes Archiv (HXBP, STREAM) mit Schlüssel im Zugangsspeicher des
+Betriebssystems und verschlüsselter Arbeitscontainer (Review von #618; zweite Verschlüsselung
+neben 048, Windows Home ohne Lösung); Profil im Klartext neben der Vault (FR-001); Profil in der
+Vault-Datenbank (zu groß, Chromium braucht Dateien).
 
 ## R4 Seite lesen und Elemente ansprechen
 
@@ -171,6 +177,12 @@ Schutz vor Rückfluss (FR-019, FR-022):
   Zugangsdaten übernommen wurden; ein neues, sauberes Browsersitzungsprofil hebt die Sperre auf.
 - Nur über `https` und nur, wenn die Website des Tabs zum Eintrag passt (FR-020); in einem
   eingebetteten Rahmen nur, wenn dessen Website passt.
+
+Neue Anmeldedaten (FR-036): Das Werkzeug `browser.credentials.create` bekommt die Nummer des
+neuen Passwortfelds und den Benutzernamen. holzi erzeugt das Passwort, trägt es in dieses Feld
+(und ein Wiederholungsfeld desselben Formulars) ein, merkt die Felder als „gefüllt“ und legt nach
+der Rückfrage einen Eintrag mit Benutzername, Passwort und der Website des Tabs im
+Passwortmanager an. Lehnt der Nutzer ab, leert holzi die Felder wieder.
 
 **Begründung**: Das Modell braucht das Passwort nicht, nur das Ergebnis. Das Verweigern von
 Bildschirmfotos ist grob, aber sicher, weil holzi nicht erkennen kann, ob eine Seite das Passwort

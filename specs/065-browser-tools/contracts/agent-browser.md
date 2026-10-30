@@ -56,14 +56,16 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 - Arbeitsverzeichnis: Linux `$XDG_RUNTIME_DIR/holzi-agent-browser/<instanz>`, macOS
   `$TMPDIR/holzi-agent-browser/<instanz>`, Windows `%LOCALAPPDATA%\Temp\holzi-agent-browser\<instanz>`;
   Verzeichnis `0700` bzw. nur der Nutzer.
-- Start: alte Reste dieser Instanz löschen, Archiv `agent-browser/profile.hxbp` (data-model.md) entschlüsseln
-  und auspacken.
+- Start: alte Reste dieser Instanz löschen, `profile.zip` aus dem verschlüsselten Ordner
+  `agent-browser/Profil` (data-model.md) lesen und auspacken.
 - Ende (Browser beendet, 15 Minuten ohne Sitzung, Vault schließt, holzi beendet sich geordnet):
-  Browser beenden (`Browser.close`, nach 5 s Prozess beenden), bleibende Teile packen,
-  verschlüsseln, Archiv atomar ersetzen (schreiben nach `.tmp`, `fsync`, umbenennen),
-  Arbeitsverzeichnis löschen.
-- Bleibende Teile: `Default/Cookies`, `Default/Local Storage/`, `Default/IndexedDB/`,
-  `Default/Session Storage/`, `Default/Preferences`, `Local State`. Alles andere entfällt.
+  Browser beenden (`Browser.close`, nach 5 s Prozess beenden), bleibende Teile packen, als neue
+  Version von `profile.zip` in den verschlüsselten Ordner schreiben, Arbeitsverzeichnis löschen.
+- In `Default/Preferences` setzt holzi vor jedem Start `credentials_enable_service: false` und
+  `autofill.profile_enabled: false` (FR-002).
+- Bleibende Teile: `Local State`, `Default/Preferences`, `Default/Network/Cookies` (vor Chromium 96
+  `Default/Cookies`), `Default/Local Storage/`, `Default/IndexedDB/`, `Default/Session Storage/`,
+  `Default/Network/TransportSecurity` (HSTS), je mit SQLite-Journal. Alles andere entfällt.
 
 ## Ende
 
@@ -72,3 +74,5 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   Profil.
 - Der Browser stürzt ab: Sitzungen enden mit `browser_unavailable`; das Profil des letzten
   geordneten Endes bleibt gültig, das Arbeitsverzeichnis wird gelöscht.
+- holzi stürzt ab: das Arbeitsverzeichnis bleibt bis zum nächsten Start liegen und wird dann vor
+  allem anderen gelöscht.

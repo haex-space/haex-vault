@@ -4857,6 +4857,7 @@ dependencies = [
  "url",
  "uuid 1.26.1",
  "walkdir",
+ "windows-sys 0.61.2",
  "wiremock",
  "zbus",
  "zeroize",

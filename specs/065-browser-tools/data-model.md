@@ -38,22 +38,17 @@ kein Agent aufrufen kann.
 | `browser_path`      | TEXT    | gewählter Browser (leer = suchen) |
 | `created_at`        | INTEGER | Unix-ms                           |
 
-Migration mit der nächsten freien Nummer. Der Profilschlüssel liegt ausschließlich im geschützten
-Zugangsspeicher des Betriebssystems unter einer installationsgebundenen Kennung. Das Archiv darf
-mit einer kopierten Vault-Datei nicht entschlüsselbar sein.
+Migration `0047_agent_browser`. Kein Schlüssel in der Tabelle: das Profil liegt in einem
+verschlüsselten Ordner aus Spec 048 (R3).
 
-## Profilarchiv (Datei)
+## Profil zwischen zwei Läufen
 
-`<Datenverzeichnis der Instanz>/agent-browser/profile.hxbp`:
-
-```text
-magic "HXBP" | version u8 = 1 | key_id[8] (die ersten 8 Byte von SHA-256(profile_key))
-| nonce_prefix[19] | STREAM-Blöcke zu 64 KiB (XChaCha20-Poly1305, letzter Block markiert)
-```
-
-Inhalt nach dem Entschlüsseln: ZIP (Deflate) der bleibenden Profilteile (R3). Ein Archiv mit
-anderem `key_id` oder kaputtem Block wird beiseitegelegt (`.broken-<Zeit>`), der Browser startet
-mit leerem Profil, holzi meldet es in „KI → Browser“.
+`<AppLocalData>/agent-browser/<Instanz>/` ist ein gewöhnlicher Geräteordner; darin liegt der
+verschlüsselte Ordner „Profil“ (048 US7, Schlüssel aus dem Inhaltsschlüssel der Vault) mit der
+Datei `profile.zip`: ZIP (Deflate) der bleibenden Profilteile (R3). Jedes Ende schreibt eine neue
+Version der Datei; die vorige entfällt wie beim Überschreiben im Dateibrowser. Lässt sich die
+Datei nicht lesen (kaputt, Vault ohne passenden Schlüssel), startet der Browser mit leerem Profil
+und holzi meldet es in „KI → Browser“.
 
 ## Im Speicher
 

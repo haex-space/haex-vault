@@ -7,31 +7,36 @@ die Id mit `_` statt `.`. Für den eingebauten Agenten erscheinen sie über `fin
 festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegruppe `browser` an ist.
 `confirmsItself: true` haben alle Werkzeuge mit Wirkung `write` oder `destructive`.
 
-| Id                         | Wirkung     | Eingabe                                                         | Ergebnis                                           |
-| -------------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| `browser.open`             | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
-| `browser.tabs.open`        | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
-| `browser.page.read`        | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                              |
-| `browser.page.screenshot`  | read        | `tab`                                                           | Bild des sichtbaren Bereichs                       |
-| `browser.navigate`         | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                              |
-| `browser.follow_link`      | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                          |
-| `browser.scroll`           | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                     |
-| `browser.click`            | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                            |
-| `browser.type`             | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                              |
-| `browser.select`           | write       | `tab`, `element`, `value`                                       | Seite                                              |
-| `browser.tabs.list`        | read        | –                                                               | Agenten-Tabs: `tab`, Website, Titel                |
-| `browser.tabs.close`       | write       | `tab`                                                           | –                                                  |
-| `browser.wait`             | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                              |
-| `browser.credentials.fill` | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                       |
-| `browser.download`         | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (Agenten-Downloads) |
-| `browser.upload`           | destructive | `tab`, `element`, `path`                                        | Seite                                              |
-| `browser.takeover.request` | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`           |
+| Id                           | Wirkung     | Eingabe                                                         | Ergebnis                                           |
+| ---------------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------------------- |
+| `browser.open`               | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
+| `browser.tabs.open`          | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
+| `browser.page.read`          | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                              |
+| `browser.page.screenshot`    | read        | `tab`                                                           | Bild des sichtbaren Bereichs                       |
+| `browser.navigate`           | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                              |
+| `browser.follow_link`        | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                          |
+| `browser.scroll`             | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                     |
+| `browser.click`              | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                            |
+| `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                              |
+| `browser.select`             | write       | `tab`, `element`, `value`                                       | Seite                                              |
+| `browser.tabs.list`          | read        | –                                                               | Agenten-Tabs: `tab`, Website, Titel                |
+| `browser.tabs.close`         | write       | `tab`                                                           | –                                                  |
+| `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                              |
+| `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                       |
+| `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`               | `created: true` oder `reason` (FR-036)             |
+| `browser.download`           | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (Agenten-Downloads) |
+| `browser.upload`             | destructive | `tab`, `element`, `path`                                        | Seite                                              |
+| `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`           |
 
 `browser.open` nutzt den zuletzt benutzten Agenten-Tab; `browser.tabs.open` erstellt einen neuen
 Tab. Jede Navigation, einschließlich Linkfolgen und direktem Öffnen, gilt als ändernd, weil auch
 eine GET-Anfrage den Zustand der Website ändern kann.
 `tab` ist eine von holzi vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des
 Browsers.
+
+`browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
+Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
+als auch das Wiederholungsfeld.
 
 ## Seite
 

@@ -986,6 +986,17 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           node scripts/run-platform-probe.ts "$binary"
 
+      # Spec 065 (T030): the agent browser's pipe on Windows (`lpReserved2`) and macOS, against
+      # the runner's own Chrome; the tests say so and stop when a runner has none. Same profile
+      # and features as the build above, so only holzi itself is compiled again; the runner's
+      # default shell for the same Perl reason as the build.
+      - name: Agent browser unit tests
+        run: >-
+          cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "agent_browser::"
+
+      - name: Agent browser profile test
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --test agent_browser_profile
+
   # Spec 044 (T007, research R4): the same probe in Android's web view, on the emulator of
   # `android-e2e`. The web view's version is in the job log and in the probe's user agent.
   platform-probe-android:

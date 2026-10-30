@@ -29,15 +29,17 @@ description: 'Task list for spec 065-browser-tools'
 **Organization**: Grouped by user story and shipped in the deliveries of research R15. Each
 delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                                       |
-| -------- | ---------- | ------------------------------------------------------------- |
-| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                    |
-| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords) |
-| PR C     | Phase 3    | US1 (agent browser, profile, reading)                         |
-| PR D     | Phases 4–5 | US2, US3 (operating, submitting, marker, take over, stop)     |
-| PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                    |
-| PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)     |
-| –        | Phase 9    | Polish, manual checks                                         |
+| Delivery | Phases     | Stories                                                                       |
+| -------- | ---------- | ----------------------------------------------------------------------------- |
+| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                    |
+| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                 |
+| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)      |
+| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042) |
+| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
+| PR D     | Phases 4–5 | US2, US3 (operating, submitting, marker, take over, stop)                     |
+| PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                                    |
+| PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)                     |
+| –        | Phase 9    | Polish, manual checks                                                         |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 
@@ -61,7 +63,7 @@ Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 ## Phase 1: Setup (PR B)
 
 - [x] T001 Create the module `src-tauri/src/agent_browser/mod.rs` with empty submodules of plan.md ("Source Code") and register `pub mod agent_browser;` in src-tauri/src/lib.rs (done: only `sites.rs` so far; the other submodules come with the tasks that fill them, so no empty files land)
-- [x] T002 [P] Enable the `stream` feature of `chacha20poly1305` and add `windows-sys` (features `Win32_System_Threading`, `Win32_Foundation`, `Win32_Security`) as a Windows-only dependency in src-tauri/Cargo.toml; no other crate (plan.md Constraints) (moved to PR C with T030 and T032, where they are first used)
+- [x] T002 [P] Enable the `stream` feature of `chacha20poly1305` and add `windows-sys` (features `Win32_System_Threading`, `Win32_Foundation`, `Win32_Security`) as a Windows-only dependency in src-tauri/Cargo.toml; no other crate (plan.md Constraints) (`windows-sys` 0.61 added in PR C1 with T030; the `stream` feature is dropped, since the profile uses the encrypted folders of 048, R3 as of 2026-10-29)
 - [x] T003 [P] Add `agent_browser: bool` to `PlatformCapabilities` in src-tauri/src/platform/mod.rs (true on Linux, macOS, Windows; false on Android, iOS) with a test in src-tauri/src/platform/mod_tests.rs
 - [x] T004 [P] Add the scope `browser` with localized names to src/lib/actions/scopes.ts and src/i18n/locales/de.json, src/i18n/locales/en.json
 
@@ -107,24 +109,24 @@ link and takes a screenshot; the log shows the calls (spec US1).
 
 ### Tests first
 
-- [ ] T019 [P] [US1] Unit tests in src-tauri/src/agent_browser/locate_tests.rs: the search order of contracts/agent-browser.md per OS (with a fake file system root), a chosen path wins, a version below 120 counts as not found
-- [ ] T020 [P] [US1] Unit tests in src-tauri/src/agent_browser/cdp/mod_tests.rs over an in-memory pipe: NUL framing, replies matched by `id`, events routed by `sessionId`, a reply after cancel is dropped, a closed pipe ends every waiting call with `browser_unavailable`
-- [ ] T021 [P] [US1] Unit tests in src-tauri/src/agent_browser/profile_crypto_tests.rs: HXBP round trip for 0 bytes, one block and several blocks; a flipped byte, a cut tail, a reordered block and a wrong `key_id` are refused; the archive never contains plaintext of a cookie fixture
-- [ ] T022 [P] [US1] Tests in src-tauri/src/agent_browser/profile_tests.rs: only lasting profile parts enter the archive; a per-run encrypted ephemeral container is inaccessible after process/system crash on Linux, macOS and Windows; unsupported secure storage disables browser startup; archive replacement is atomic
+- [x] T019 [P] [US1] Unit tests in src-tauri/src/agent_browser/locate_tests.rs: the search order of contracts/agent-browser.md per OS (with a fake file system root), a chosen path wins, a version below 120 counts as not found
+- [x] T020 [P] [US1] Unit tests in src-tauri/src/agent_browser/cdp/mod_tests.rs over an in-memory pipe: NUL framing, replies matched by `id`, events routed by `sessionId`, a reply after cancel is dropped, a closed pipe ends every waiting call with `browser_unavailable`
+- [x] T021 [P] [US1] Unit tests in src-tauri/src/agent_browser/profile_store_tests.rs against a real temporary vault and device folder: `profile.zip` round trip through the encrypted folder `agent-browser/Profil` (048), a second write replaces the first, an unreadable file starts empty and is reported, nothing under `agent-browser/` contains plaintext of a cookie fixture
+- [x] T022 [P] [US1] Unit tests in src-tauri/src/agent_browser/profile_tests.rs: only lasting profile parts enter the ZIP; the working directory is created owner-only and removed at the end; leftovers of a crashed run are removed before a new start; `Preferences` gets `credentials_enable_service: false` and `autofill.profile_enabled: false` (FR-002) (done; `Default/Network/TransportSecurity` joined the lasting parts, and cookies live in `Default/Network/Cookies` since Chromium 96, contracts/agent-browser.md updated)
 - [ ] T023 [P] [US1] Unit tests in src-tauri/src/agent_browser/read_tests.rs: the page result has the shape of contracts/browser-tools.md with `untrusted_page_content` and the note; text over 16 000 characters and more than 300 elements are cut with `truncated: true`; `from` and `section` return the right slice
 - [ ] T024 [P] [US1] Unit tests in src-tauri/src/agent_browser/sites_tests.rs: top-level, redirect and embedded-frame navigation checks for allowed and unapproved websites (asks, or refuses in Plan), blocked schemes and internal pages, user info in the address
 - [ ] T025 [US1] Integration test in src-tauri/tests/agent_browser_read.rs against a real Chromium and the fixture site: start over the pipe (no listening port: check that the process has no TCP listener), `browser.open`, `browser.page.read`, follow a link, `browser.scroll`, `browser.page.screenshot` (image of the tab only), `browser.tabs.list`, page permissions (camera, location) denied
-- [ ] T026 [US1] Integration test in src-tauri/tests/agent_browser_profile.rs: a cookie set by the fixture site survives stopping and restarting the browser; after stopping, the working container is gone and only `profile.hxbp` remains; a copied vault on another device cannot unlock the local archive
+- [x] T026 [US1] Integration test in src-tauri/tests/agent_browser_profile.rs: a cookie set by the fixture site survives stopping and restarting the browser; after stopping, the working directory is gone and only the encrypted folder remains under `agent-browser/`; another vault on the same device starts without the cookie (done with a minimal cookie server in the test; the fixture site of T027 follows in PR C2. The pipe is checked by the missing `DevToolsActivePort` file; the TCP-listener check stays with T025)
 - [ ] T027 [P] [US1] Fixture site in src-tauri/tests/fixtures/agent_browser/site/ (news page, links, a partner page on a second host, a page that sets a cookie, a slow page) and a small HTTPS server for the tests in src-tauri/tests/common/agent_browser_fixture.rs with a certificate made at test time
 
 ### Implementation
 
-- [ ] T028 [US1] Find and check the browser in src-tauri/src/agent_browser/locate.rs per contracts/agent-browser.md
-- [ ] T029 [US1] Start over the pipe on Linux and macOS in src-tauri/src/agent_browser/process.rs (descriptors 3 and 4 set before `exec`, start flags of contracts/agent-browser.md, 15 s for `Browser.getVersion`)
-- [ ] T030 [US1] Start over the pipe on Windows in src-tauri/src/agent_browser/process_windows.rs (`CreateProcessW` with `STARTUPINFOW.lpReserved2`), with a test in src-tauri/src/agent_browser/process_windows_tests.rs that runs in the Windows CI job
-- [ ] T031 [US1] CDP connection in src-tauri/src/agent_browser/cdp/mod.rs and the domains `target.rs`, `page.rs`, `runtime.rs`, `browser.rs`, `fetch.rs`, `dom.rs` (only the methods named in research R1–R11)
-- [ ] T032 [US1] Profile key in the OS protected credential store, encrypted ephemeral working container, packing and unpacking in src-tauri/src/agent_browser/profile.rs and src-tauri/src/agent_browser/profile_crypto.rs (R3), packing in `spawn_blocking`
-- [ ] T033 [US1] `AgentBrowser` managed state in src-tauri/src/agent_browser/mod.rs: start on the first call (FR-003), end after 15 minutes without a session, on vault close and on the user closing the window; registered in src-tauri/src/lib.rs and ended with the vault session
+- [x] T028 [US1] Find and check the browser in src-tauri/src/agent_browser/locate.rs per contracts/agent-browser.md
+- [x] T029 [US1] Start over the pipe on Linux and macOS in src-tauri/src/agent_browser/process.rs (descriptors 3 and 4 set before `exec`, start flags of contracts/agent-browser.md, 15 s for `Browser.getVersion`)
+- [x] T030 [US1] Start over the pipe on Windows in src-tauri/src/agent_browser/process_windows.rs (`CreateProcessW` with `STARTUPINFOW.lpReserved2`), with a test in src-tauri/src/agent_browser/process_windows_tests.rs that runs in the Windows CI job (done; the command line and the `lpReserved2` block are tested on every system, the start itself in the new steps of the `platform-probe` job, which runs on pushes to `main` on Windows and macOS)
+- [ ] T031 [US1] CDP connection in src-tauri/src/agent_browser/cdp/mod.rs and the domains `target.rs`, `page.rs`, `runtime.rs`, `browser.rs`, `fetch.rs`, `dom.rs` (only the methods named in research R1–R11) (PR C1: the connection, `browser.rs` and `target.rs`; `page.rs`, `runtime.rs`, `fetch.rs` and `dom.rs` come with their first users in PR C2)
+- [x] T032 [US1] Working directory, packing and unpacking in src-tauri/src/agent_browser/profile.rs and `profile.zip` in the encrypted folder through `files::encrypted::transfer::put_file` and `EncryptedFile` in src-tauri/src/agent_browser/profile_store.rs (R3), packing in `spawn_blocking`
+- [x] T033 [US1] `AgentBrowser` managed state in src-tauri/src/agent_browser/mod.rs: start on the first call (FR-003), end after 15 minutes without a session, on vault close and on the user closing the window; registered in src-tauri/src/lib.rs and ended with the vault session (done: `AgentBrowser` with `ensure`, `stop`, `Lease` for the idle end, the vault session through `StartConfig.gate`; managed in `lib.rs`. The executor of PR C2 takes a lease per session and passes the gate)
 - [ ] T034 [US1] Agent tab in src-tauri/src/agent_browser/tab.rs: create target, isolated world `holzi`, script on new documents, element numbers mapped to `backendNodeId`, tab ids `t1`… per session (contracts/agent-browser.md "Je Agenten-Tab")
 - [ ] T035 [US1] Reading script in src-tauri/src/agent_browser/page_script.js (main text first, numbered elements with kind, name, value except secret fields, state, visibility) and the reader in src-tauri/src/agent_browser/read.rs (R4, R10, R12)
 - [ ] T036 [US1] Website check before loading in src-tauri/src/agent_browser/sites.rs through `Fetch.requestPaused` for documents (R9), with the website prompt of FR-007 parked in src-tauri/src/agent_browser/prompts.rs (5 minutes)
@@ -206,6 +208,8 @@ contains it (SC-005); the first fill per agent and website asks, a remembered on
 - [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
 - [ ] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
 - [ ] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
+- [ ] T079 [US4] Tests in src-tauri/src/agent_browser/credentials_tests.rs and src-tauri/tests/agent_browser_act.rs for `browser.credentials.create` (FR-036): the generated password fills the new field and its repeat field, never appears in a result, log or screenshot, is stored after "Speichern" as an entry with the tab's website, the fields are emptied after "Ablehnen", Plan refuses
+- [ ] T080 [US4] `browser.credentials.create` in src-tauri/src/agent_browser/credentials.rs (password generator in the password manager service, prompt kind `newCredentials` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue, catalog entry in src/lib/actions/browserActions.ts)
 
 ---
 
@@ -292,7 +296,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 ```text
 Task: "Unit tests for locating the browser in src-tauri/src/agent_browser/locate_tests.rs"
 Task: "Unit tests for the CDP framing in src-tauri/src/agent_browser/cdp/mod_tests.rs"
-Task: "Unit tests for the HXBP archive in src-tauri/src/agent_browser/profile_crypto_tests.rs"
+Task: "Unit tests for the profile in the encrypted folder in src-tauri/src/agent_browser/profile_store_tests.rs"
 Task: "Fixture site in src-tauri/tests/fixtures/agent_browser/site/"
 ```
 
