@@ -81,7 +81,7 @@ _GATE: passes before Phase 0; re-checked after Phase 1 below._
 
 - **ADR for a design decision that affects a principle** (`.spaex/constitution.md`): a second engine, the
   choice of engine by architecture and the CUDA linking decision are such decisions. T001 writes the ADR
-  (next free number under `docs/adr/`) in the first PR.
+  (next free number under `docs/adr/`) in the first implementation PR and T008 amends it after R1.
 - **Every device and OS** (project rule): FR-006 and T035 to T040; nothing in the new code assumes one OS's
   paths. The ggml CPU kernels must not be built for the build machine's CPU only (R3), or a release would
   crash on older CPUs.
@@ -203,16 +203,16 @@ for desktop only. See R1 to R3 for the three things the spike left open.
 
 Each PR is reviewed and merged before the next starts on `main`.
 
-| PR   | Tasks      | Content                                                                           |
-| ---- | ---------- | --------------------------------------------------------------------------------- |
-| docs | T001, T002 | this plan, tasks, quickstart, contract, the ADR                                   |
-| A    | T003–T008  | build: devshell cmake, features, CI leg, CUDA decision applied, the module shell  |
-| B    | T009–T015  | template rendering and the Hermes and Qwen XML formats, fixtures, unit tests      |
-| C    | T016–T023  | `LlamaCppAdapter`: load, memory check, streaming, cancelling, probe, model test   |
-| D    | T024–T029  | engine choice in the loader, catalog `architecture` and the gate, Qwen3.5 returns |
-| E    | T030–T034  | Gemma 4 format and evaluation, catalog tool-use figures                           |
-| F    | T035–T041  | Android, iOS, CPU kernels (R3), documentation                                     |
-| G    | T042–T045  | the one-or-two-engines decision (US5) and wrap-up                                 |
+| PR   | Tasks           | Content                                                                           |
+| ---- | --------------- | --------------------------------------------------------------------------------- |
+| plan | T002            | this plan, tasks, quickstart and contract                                         |
+| A    | T001, T003–T008 | ADR, build: devshell cmake, features, CI leg, CUDA decision applied, module shell |
+| B    | T009–T015       | template rendering and the Hermes and Qwen XML formats, fixtures, unit tests      |
+| C    | T016–T023       | `LlamaCppAdapter`: load, memory check, streaming, cancelling, probe, model test   |
+| D    | T024–T029       | engine choice in the loader, catalog `architecture` and the gate, Qwen3.5 returns |
+| E    | T030–T034       | Gemma 4 format and evaluation, catalog tool-use figures                           |
+| F    | T035–T041       | Android, iOS, CPU kernels (R3), documentation                                     |
+| G    | T042–T045       | the one-or-two-engines decision (US5) and wrap-up                                 |
 
 ## Risks
 

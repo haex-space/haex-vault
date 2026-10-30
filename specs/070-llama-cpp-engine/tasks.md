@@ -24,20 +24,20 @@ F; US5 is G.
 
 **Shipping note** (each PR is reviewed and merged before the next starts on `main`):
 
-| PR   | Tasks      | Content                                                                           |
-| ---- | ---------- | --------------------------------------------------------------------------------- |
-| docs | T001, T002 | this plan, tasks, quickstart, contract, the ADR                                   |
-| A    | T003–T008  | build: devshell cmake, features, CI leg, CUDA decision applied, the module shell  |
-| B    | T009–T015  | template rendering and the Hermes and Qwen XML formats, fixtures, unit tests      |
-| C    | T016–T023  | `LlamaCppAdapter`: load, memory check, streaming, cancelling, probe, model tests  |
-| D    | T024–T029  | engine choice in the loader, catalog `architecture` and the gate, Qwen3.5 returns |
-| E    | T030–T034  | Gemma 4 format and evaluation, catalog tool-use figures                           |
-| F    | T035–T041  | Android, iOS, Windows and macOS, CPU kernels (R3), documentation                  |
-| G    | T042–T045  | the one-or-two-engines decision (US5) and wrap-up                                 |
+| PR   | Tasks           | Content                                                                           |
+| ---- | --------------- | --------------------------------------------------------------------------------- |
+| plan | T002            | this plan, tasks, quickstart and contract                                         |
+| A    | T001, T003–T008 | ADR, build: devshell cmake, features, CI leg, CUDA decision applied, module shell |
+| B    | T009–T015       | template rendering and the Hermes and Qwen XML formats, fixtures, unit tests      |
+| C    | T016–T023       | `LlamaCppAdapter`: load, memory check, streaming, cancelling, probe, model tests  |
+| D    | T024–T029       | engine choice in the loader, catalog `architecture` and the gate, Qwen3.5 returns |
+| E    | T030–T034       | Gemma 4 format and evaluation, catalog tool-use figures                           |
+| F    | T035–T041       | Android, iOS, Windows and macOS, CPU kernels (R3), documentation                  |
+| G    | T042–T045       | the one-or-two-engines decision (US5) and wrap-up                                 |
 
 `[P]` marks tasks that touch different files and can run side by side.
 
-## Docs (PR docs)
+## Planning docs (PR plan)
 
 - [ ] T001 Write the ADR `docs/adr/00NN-second-local-inference-engine.md` (next free number): why a second
       engine, the choice by architecture, mistralrs wins while it works, the CUDA linking decision once R1 is
