@@ -480,13 +480,19 @@ jobs:
     # under a virtual screen (spec 016). `scripts/with-nix-host-bridge.sh`
     # (invoked by `pnpm test:e2e`) is a no-op outside a Nix devShell, so it
     # runs the command unchanged here.
-    name: End-to-end suite
+    name: End-to-end suite (${{ matrix.shard }}/2)
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
-    # The scenarios add up to about 27 minutes on a runner, the build comes on top.
+    # The scenarios of one shard add up to about 30 minutes on a runner, the build comes on top.
     timeout-minutes: 70
+    # Two shards (`--shard i/2` takes every second scenario): the whole suite no longer fits the
+    # run limit of one job, and the scenarios past it were skipped without a failing scenario.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       # Shares the Rust job's default-features cache entry below; the debug
       # build this job produces is that same feature set.
@@ -636,7 +642,7 @@ jobs:
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite
-        run: corepack pnpm test:e2e --run-timeout 2700
+        run: corepack pnpm test:e2e --run-timeout 2700 --shard ${{ matrix.shard }}/2
 
       # The relaunch scenario only runs against a release build (`--app`),
       # so this ordinary run always reports it skipped — expected, not a
@@ -647,7 +653,7 @@ jobs:
         if: failure() || hashFiles('src-tauri/target/e2e/*/retried/**') != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-failure-material
+          name: e2e-failure-material-${{ matrix.shard }}
           path: src-tauri/target/e2e
           if-no-files-found: ignore
 
