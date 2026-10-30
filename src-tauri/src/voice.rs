@@ -24,6 +24,7 @@ mod imp {
     use tokio::sync::watch;
     use tokio::sync::Mutex as AsyncMutex;
 
+    use crate::audio::stream::StreamSlot;
     use crate::error::{HolziError, Result};
     use crate::stt::interrupt::{match_interrupt, InterruptCommand};
     use crate::vault_gate::VaultGate;
@@ -58,6 +59,8 @@ mod imp {
         /// multi-second operation) per transcription would blow SC-001's
         /// 5-second budget. Push-to-talk and the voice assistant share it.
         adapter: AsyncMutex<Option<Arc<dyn crate::stt::SttAdapter>>>,
+        /// The assistant's continuous audio stream while it runs (spec 066 T020).
+        stream: StreamSlot,
     }
 
     impl VoiceState {
@@ -65,6 +68,7 @@ mod imp {
             Self {
                 slot: Mutex::new(VoiceSlot::Idle),
                 adapter: AsyncMutex::new(None),
+                stream: StreamSlot::default(),
             }
         }
 
@@ -92,6 +96,7 @@ mod imp {
         /// while the process finishes ending.
         pub(crate) async fn reset_for_close(&self) {
             self.cancel_recording();
+            self.stream.stop();
             self.invalidate_stt_cache().await;
         }
 
@@ -99,6 +104,12 @@ mod imp {
         /// can survive while the gate drains the remaining tracked work.
         pub(crate) fn cancel_for_close(&self) {
             self.cancel_recording();
+            self.stream.stop();
+        }
+
+        /// The audio stream push-to-talk and the assistant share.
+        pub fn audio_stream(&self) -> &StreamSlot {
+            &self.stream
         }
 
         /// Test-only: whether the STT adapter cache currently holds a
@@ -148,14 +159,22 @@ mod imp {
                 if !matches!(&*slot, VoiceSlot::Idle) {
                     return Err(HolziError::AlreadyRecording);
                 }
-                let capture = crate::audio::Capture::start().map_err(|e| match e {
-                    crate::audio::AudioError::DeviceUnavailable => HolziError::DeviceUnavailable,
-                    // cpal does not surface a distinct OS-permission-denied error
-                    // uniformly across desktop backends; Android asks before this
-                    // (`ensure_microphone`).
-                    crate::audio::AudioError::ConfigUnavailable { .. }
-                    | crate::audio::AudioError::StartFailed { .. } => HolziError::DeviceUnavailable,
-                })?;
+                // While the assistant holds the microphone, record from its stream.
+                let capture = match voice.stream.current() {
+                    Some(stream) => crate::audio::Capture::from_stream(&stream),
+                    None => crate::audio::Capture::start().map_err(|e| match e {
+                        crate::audio::AudioError::DeviceUnavailable => {
+                            HolziError::DeviceUnavailable
+                        }
+                        // cpal does not surface a distinct OS-permission-denied error
+                        // uniformly across desktop backends; Android asks before this
+                        // (`ensure_microphone`).
+                        crate::audio::AudioError::ConfigUnavailable { .. }
+                        | crate::audio::AudioError::StartFailed { .. } => {
+                            HolziError::DeviceUnavailable
+                        }
+                    })?,
+                };
                 *slot = VoiceSlot::Recording(capture);
                 drop(slot);
                 spawn_cap_watcher(app_for_watcher);
@@ -426,56 +445,8 @@ pub use imp::{
 };
 
 #[cfg(not(feature = "voice"))]
-mod stub {
-    use crate::error::{HolziError, Result};
-
-    /// State placeholder for builds without voice support. Instance
-    /// lifecycle commands still receive this state so they can invalidate
-    /// the cache uniformly across feature combinations.
-    #[derive(Default)]
-    pub struct VoiceState;
-
-    impl VoiceState {
-        pub fn new() -> Self {
-            Self
-        }
-
-        pub(crate) async fn invalidate_stt_cache(&self) {}
-
-        pub(crate) async fn reset_for_close(&self) {}
-
-        pub(crate) fn cancel_for_close(&self) {}
-    }
-
-    fn voice_disabled() -> HolziError {
-        HolziError::InvalidInput {
-            reason: "voice control is not enabled in this build".into(),
-        }
-    }
-
-    #[tauri::command]
-    pub async fn start_voice_recording() -> Result<()> {
-        Err(voice_disabled())
-    }
-
-    #[tauri::command]
-    pub async fn stop_voice_recording() -> Result<super::TranscriptionResultWire> {
-        Err(voice_disabled())
-    }
-
-    #[tauri::command]
-    pub async fn cancel_voice_recording() -> Result<()> {
-        Err(voice_disabled())
-    }
-
-    /// Successful no-op — there is no cache to invalidate when `voice`
-    /// isn't compiled in at all, and the frontend must be able to call
-    /// this unconditionally after a Settings switch (spec 010).
-    #[tauri::command]
-    pub async fn invalidate_stt_model_cache() -> Result<()> {
-        Ok(())
-    }
-}
+#[path = "voice_stub.rs"]
+mod stub;
 
 #[cfg(not(feature = "voice"))]
 pub use stub::{
