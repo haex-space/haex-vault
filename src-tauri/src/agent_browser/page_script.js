@@ -2,7 +2,9 @@
 // isolated world, so the page can neither call nor replace it; it sees the same DOM. It returns
 // the page's title, address, readable text (the main content first) and the operable elements,
 // numbered in document order. Password fields never report a value. Rust cuts the result
-// (read.rs); this script only bounds what it hands over.
+// (read.rs) and decides from each element's facts whether a click submits (submit.rs); this
+// script only bounds what it hands over. For clicking, typing and choosing it finds the element
+// of a number, brings it into view and reports where it is (act.rs).
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziPage(args) {
@@ -97,6 +99,36 @@ function holziPage(args) {
     )
   }
 
+  const factsOf = (el) => ({
+    tag: el.tagName.toLowerCase(),
+    type: (el.getAttribute('type') || '').toLowerCase(),
+    form: !!(el.form || el.closest('form')),
+  })
+
+  const isSecret = (el) =>
+    el.tagName.toLowerCase() === 'input' && el.type === 'password'
+
+  // What a form would send, for the submit question: name, value, and whether it is secret.
+  const fieldsOf = (el) => {
+    const form = el.form || el.closest('form')
+    if (!form) return []
+    return Array.from(form.elements)
+      .filter((field) => field.name && !field.disabled)
+      .filter(
+        (field) =>
+          !['submit', 'button', 'reset', 'image', 'file'].includes(field.type),
+      )
+      .filter(
+        (field) => !['checkbox', 'radio'].includes(field.type) || field.checked,
+      )
+      .slice(0, 30)
+      .map((field) => [
+        field.name,
+        cut(String(field.value || ''), 200),
+        isSecret(field),
+      ])
+  }
+
   const describe = (el, n) => {
     const kind = kindOf(el)
     const item = {
@@ -105,8 +137,7 @@ function holziPage(args) {
       name: cut(nameOf(el), MAX_NAME),
       visible: inView(el),
     }
-    const secret =
-      el.tagName.toLowerCase() === 'input' && el.type === 'password'
+    const secret = isSecret(el)
     if (secret) item.secret = true
     else if (kind === 'field')
       item.value = cut(
@@ -128,6 +159,7 @@ function holziPage(args) {
       item.disabled = true
     if (el.required || el.getAttribute('aria-required') === 'true')
       item.required = true
+    item.facts = factsOf(el)
     return item
   }
 
@@ -142,13 +174,79 @@ function holziPage(args) {
   if (args.hrefOf) {
     const el = operable[args.hrefOf - 1]
     if (!el || !el.href) return { gone: true }
-    return { href: String(el.href) }
+    return { href: String(el.href), url: location.href }
   }
   if (args.scrollTo) {
     const el = operable[args.scrollTo - 1]
     if (!el) return { gone: true }
     el.scrollIntoView({ block: 'center' })
     return { scrolled: true }
+  }
+
+  const numbered = (n) => {
+    const el = operable[n - 1]
+    if (el) el.scrollIntoView({ block: 'center', inline: 'center' })
+    return el
+  }
+
+  if (args.target) {
+    const el = numbered(args.target)
+    if (!el) return { gone: true }
+    const r = el.getBoundingClientRect()
+    return {
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2,
+      kind: kindOf(el),
+      name: cut(nameOf(el), MAX_NAME),
+      facts: factsOf(el),
+      fields: fieldsOf(el),
+      url: location.href,
+    }
+  }
+  if (args.focus) {
+    const el = numbered(args.focus)
+    if (!el) return { gone: true }
+    const kind = kindOf(el)
+    if (kind !== 'field') return { kind, notField: true }
+    el.focus()
+    if (typeof el.select === 'function') el.select()
+    else {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      getSelection().removeAllRanges()
+      getSelection().addRange(range)
+    }
+    return {
+      kind,
+      name: cut(nameOf(el), MAX_NAME),
+      facts: factsOf(el),
+      secret: isSecret(el),
+      url: location.href,
+    }
+  }
+  if (args.formOf) {
+    const el = operable[args.formOf - 1]
+    if (!el) return { gone: true }
+    return { fields: fieldsOf(el), form: factsOf(el).form }
+  }
+  if (args.choose) {
+    const el = numbered(args.choose)
+    if (!el) return { gone: true }
+    if (el.tagName.toLowerCase() !== 'select') return { notSelect: true }
+    const wanted = clean(String(args.value)).toLowerCase()
+    const option = Array.from(el.options).find(
+      (o) =>
+        o.value === args.value || clean(o.textContent).toLowerCase() === wanted,
+    )
+    if (!option) return { noOption: true }
+    el.value = option.value
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+    return {
+      chosen: clean(option.textContent),
+      name: cut(nameOf(el), MAX_NAME),
+      url: location.href,
+    }
   }
 
   let root = null

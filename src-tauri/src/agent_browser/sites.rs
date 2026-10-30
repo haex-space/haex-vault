@@ -9,7 +9,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::mcp_server::grants::SiteGrant;
+use crate::mcp_server::grants::{SiteGrant, SiteLevel};
 
 /// One website. Ordered and compared by its written form.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -124,5 +124,24 @@ pub fn check_document(
         Verdict::Ask(site)
     } else {
         Verdict::Refuse("site_not_allowed")
+    }
+}
+
+/// Whether an agent may operate the page at `address` (FR-008): its website is allowed for
+/// operating, or allowed once in this session; a website over `http` is only ever read (R9).
+pub fn may_operate(
+    address: &str,
+    sites: &BTreeMap<Site, SiteGrant>,
+    once: &BTreeSet<Site>,
+) -> bool {
+    let Ok(site) = Site::parse(address) else {
+        return false;
+    };
+    if site.is_plain_http() {
+        return false;
+    }
+    match sites.get(&site) {
+        Some(grant) => grant.level == SiteLevel::Operate,
+        None => once.contains(&site),
     }
 }
