@@ -137,11 +137,12 @@ der Knopf beim System.
       `src/components/contacts/ValueActions.vue`: der Mail-Knopf wird `MailOpenMenu` nur bei `'menu'`, sonst bleibt der
       Knopf wie heute (FR-023: andere Aktionen unverändert); Texte `mail.openers.*` in de/en; Antwort auf
       „Schließen ohne Wahl“: nichts (FR-004).
-- [ ] T017 [P] [US1] [haextension] `apps/haex-mail/haextension/manifest.json`: `"openers": ["mail.compose"]`;
+- [x] T017 [P] [US1] [haextension] `apps/haex-mail/haextension/manifest.json`: `"openers": ["mail.compose"]`;
       `apps/haex-mail/app/plugins/openers.client.ts` (neu, Muster von `agent-tools.client.ts`): beim Start und bei
       `client.openers.onRequest` die Anfrage holen und `ComposeDialog` (`app/components/ComposeDialog.vue`) mit
       Empfänger, Kopie, Blindkopie, Betreff und Text öffnen, ohne zu senden (FR-015); Test des Plugins mit einer
       gefälschten Anfrage; haex-mail hebt dafür die SDK-Version (nach T008).
+      Erledigt in haex-space/haextension#165; die Überschreibung der SDK-Version im Wurzel-`package.json` steht jetzt auf 5.1.
 - [x] T018 [US1] E2E `scripts/e2e/scenarios/contacts-mail-openers.test.ts` (neu): ohne Extension öffnet der Mail-Knopf beim
       System (nicht auswählbar, Aufruf des Systems geprüft über die gefälschte Oberfläche des Hosts, wie die Szenarien
       der Dateifreigaben); mit `mail-opener.xt` zeigt er das Menü mit zwei Zeilen; Öffner wählen → Fenster der
