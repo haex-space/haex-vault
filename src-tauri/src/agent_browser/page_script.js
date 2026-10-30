@@ -175,12 +175,12 @@ function holziPage(args) {
     scrollBy(0, args.scrollBy * Math.round(innerHeight * 0.8))
     return { scrolled: true }
   }
-  if (args.hrefOf !== undefined) {
+  if (args.hrefOf !== undefined && args.hrefOf !== null) {
     const el = operable[args.hrefOf - 1]
     if (!el || !el.href) return { gone: true }
     return { href: String(el.href), url: location.href }
   }
-  if (args.scrollTo !== undefined) {
+  if (args.scrollTo !== undefined && args.scrollTo !== null) {
     const el = operable[args.scrollTo - 1]
     if (!el) return { gone: true }
     el.scrollIntoView({ block: 'center' })
@@ -193,7 +193,7 @@ function holziPage(args) {
     return el
   }
 
-  if (args.target !== undefined) {
+  if (args.target !== undefined && args.target !== null) {
     const el = numbered(args.target)
     if (!el) return { gone: true }
     const r = el.getBoundingClientRect()
@@ -207,7 +207,7 @@ function holziPage(args) {
       url: location.href,
     }
   }
-  if (args.focus !== undefined) {
+  if (args.focus !== undefined && args.focus !== null) {
     const el = numbered(args.focus)
     if (!el) return { gone: true }
     const kind = kindOf(el)
@@ -228,12 +228,12 @@ function holziPage(args) {
       url: location.href,
     }
   }
-  if (args.formOf !== undefined) {
+  if (args.formOf !== undefined && args.formOf !== null) {
     const el = operable[args.formOf - 1]
     if (!el) return { gone: true }
     return { fields: fieldsOf(el), form: factsOf(el).form }
   }
-  if (args.choose !== undefined) {
+  if (args.choose !== undefined && args.choose !== null) {
     const el = numbered(args.choose)
     if (!el) return { gone: true }
     if (el.tagName.toLowerCase() !== 'select') return { notSelect: true }
@@ -254,7 +254,7 @@ function holziPage(args) {
   }
 
   let root = null
-  if (args.section !== undefined) {
+  if (args.section !== undefined && args.section !== null) {
     const el = operable[args.section - 1]
     if (!el) return { gone: true }
     root =
