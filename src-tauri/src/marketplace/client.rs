@@ -19,6 +19,7 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use super::model::SourceErrorKind;
+use super::store::login_transport_ok;
 use super::{app_version, platform, CONNECT_TIMEOUT, SOURCE_TIMEOUT};
 
 /// The most redirects a request follows.
@@ -41,6 +42,12 @@ impl AuthHeader {
         let encoded =
             base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"));
         Self(Zeroizing::new(format!("Basic {encoded}")))
+    }
+
+    /// The header value, for the tests of other modules that check what an entry makes of itself.
+    #[cfg(test)]
+    pub(crate) fn expose(&self) -> &str {
+        &self.0
     }
 
     fn header_value(&self) -> Option<HeaderValue> {
@@ -194,7 +201,8 @@ impl Http {
     }
 
     /// `GET base/route?query` and the answer as `T`. The `Authorization` header is sent only when
-    /// `auth` is given **and** `base` is `https`; a login with `http` fails before anything is
+    /// `auth` is given **and** `base` is `https` (or loopback in a debug build, see
+    /// [`login_transport_ok`]); a login with any other `http` fails before anything is
     /// sent (`insecure_credentials`, FR-027).
     pub async fn get_json<T: DeserializeOwned>(
         &self,
@@ -208,7 +216,7 @@ impl Http {
             .get(url.clone())
             .timeout(self.timeout);
         if let Some(auth) = auth {
-            if url.scheme() != "https" {
+            if !login_transport_ok(url.as_str()) {
                 return Err(SourceFailure::new(
                     SourceErrorKind::InsecureCredentials,
                     "login over http",

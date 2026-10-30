@@ -289,6 +289,8 @@ async fn a_marketplace_that_requires_a_login_over_http_is_not_asked() {
     let fixture = Fixture::serving(&bytes, &bytes).await;
     let mut source = fixture.source();
     source.auth = Some(crate::marketplace::client::AuthHeader::bearer("secret"));
+    // A loopback address would be allowed in a debug build (research R15); this one is not.
+    source.base_url = "http://marketplace.invalid".to_owned();
 
     let result = download_bundle(
         Http::default(),

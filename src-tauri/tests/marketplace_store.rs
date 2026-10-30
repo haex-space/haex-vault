@@ -16,6 +16,7 @@ fn input(name: &str, url: &str) -> MarketplaceInput {
         base_url: url.to_owned(),
         auth_type: MarketplaceAuthType::None,
         credentials_item_id: None,
+        new_credentials: None,
     }
 }
 

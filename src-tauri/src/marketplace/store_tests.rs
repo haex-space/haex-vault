@@ -9,6 +9,7 @@ fn input(url: &str) -> MarketplaceInput {
         base_url: url.to_owned(),
         auth_type: MarketplaceAuthType::None,
         credentials_item_id: None,
+        new_credentials: None,
     }
 }
 
@@ -136,4 +137,23 @@ fn stored_auth_types_read_back_and_an_unknown_one_reads_as_none() {
         MarketplaceAuthType::from_stored("did"),
         MarketplaceAuthType::None
     );
+}
+
+#[test]
+fn a_login_goes_over_https_and_in_a_debug_build_to_loopback_only() {
+    for (debug, url, ok) in [
+        (false, "https://market.example", true),
+        (true, "https://market.example", true),
+        (false, "http://market.example", false),
+        (true, "http://market.example", false),
+        (true, "http://192.168.1.5:3000", false),
+        (true, "http://127.0.0.1:8080/team", true),
+        (true, "http://localhost:8080", true),
+        (true, "http://[::1]:8080", true),
+        (false, "http://127.0.0.1:8080", false),
+        (true, "ftp://127.0.0.1", false),
+        (true, "not a url", false),
+    ] {
+        assert_eq!(login_transport_ok_for(debug, url), ok, "{debug} {url}");
+    }
 }

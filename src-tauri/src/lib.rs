@@ -130,8 +130,8 @@ use marketplace::commands::{
     marketplace_icon, marketplace_known_updates, marketplace_list,
 };
 use marketplace::manage::{
-    marketplace_add_preset, marketplace_delete, marketplace_reorder, marketplace_save,
-    marketplace_set_enabled, marketplace_test,
+    marketplace_add_preset, marketplace_credentials_candidates, marketplace_delete,
+    marketplace_reorder, marketplace_save, marketplace_set_enabled, marketplace_test,
 };
 use models::commands::{
     check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
@@ -351,6 +351,16 @@ pub fn run() {
                 .register(std::sync::Arc::new(
                     remote_storage::credentials::StorageUsage::new(move || {
                         app_for_usage.try_state::<AppState>()?.database().ok()
+                    }),
+                ));
+            // Spec 069 US5: deleting the login entry of a marketplace in the password manager
+            // warns first as well.
+            let app_for_marketplaces = app.handle().clone();
+            app.state::<AppState>()
+                .usage()
+                .register(std::sync::Arc::new(
+                    marketplace::credentials::MarketplaceUsage::new(move || {
+                        app_for_marketplaces.try_state::<AppState>()?.database().ok()
                     }),
                 ));
             // Spec 017 US8: what holzi does outside its window for extensions (browser, notifications).
@@ -879,6 +889,7 @@ pub fn run() {
             marketplace_delete,
             marketplace_add_preset,
             marketplace_test,
+            marketplace_credentials_candidates,
             extension_install,
             extension_list,
             extension_remove,

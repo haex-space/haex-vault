@@ -1,9 +1,15 @@
 //! The types the marketplace commands send and receive (contracts/commands.md, data-model.md).
 //! The protocol itself is read through the tolerant structs of [`super::wire`]; these are what the
-//! frontend sees, and none of them holds a secret.
+//! frontend sees. None of them holds a secret but [`MarketplaceNewCredentials`], which only travels
+//! from the form to the host and shows nothing in `Debug`.
+
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use zeroize::Zeroizing;
+
+use crate::remote_storage::model::CredentialsEntry;
 
 /// How a marketplace asks for a login (FR-026).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -55,8 +61,31 @@ pub enum MarketplaceCredentialsState {
     Syncing,
 }
 
+/// A login typed in the form of a marketplace (US5): it becomes an entry of the password manager
+/// the row points at and is never kept anywhere else. A bearer login takes `secret` as the token
+/// and ignores `username`; a basic login needs both.
+#[derive(Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct MarketplaceNewCredentials {
+    #[ts(optional)]
+    #[serde(default)]
+    pub username: Option<String>,
+    #[ts(type = "string")]
+    pub secret: Zeroizing<String>,
+}
+
+impl fmt::Debug for MarketplaceNewCredentials {
+    /// Shows the user name only (SC-004).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MarketplaceNewCredentials")
+            .field("username", &self.username)
+            .finish_non_exhaustive()
+    }
+}
+
 /// What the form of a marketplace sends (`marketplace_save`).
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct MarketplaceInput {
@@ -70,6 +99,10 @@ pub struct MarketplaceInput {
     #[ts(optional)]
     #[serde(default)]
     pub credentials_item_id: Option<String>,
+    /// A login to keep in a new entry of the password manager instead of `credentials_item_id`.
+    #[ts(optional)]
+    #[serde(default)]
+    pub new_credentials: Option<MarketplaceNewCredentials>,
 }
 
 /// One marketplace of the list; all of them are equal (FR-023).
@@ -85,11 +118,14 @@ pub struct MarketplaceView {
     pub rank: u32,
     pub auth_type: MarketplaceAuthType,
     pub credentials: MarketplaceCredentialsState,
-    /// The password-manager entry associated with this row. It is an identifier, never a secret;
-    /// the form carries it through edits until the credentials controls are available.
+    /// The password-manager entry the row points at. It is an identifier, never a secret.
     #[ts(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credentials_item_id: Option<String>,
+    /// That entry's title, while it is visible; `owned` tells that the form created it.
+    #[ts(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credentials_entry: Option<CredentialsEntry>,
 }
 
 /// Why one source gave no answer (FR-031). Never carries text of the marketplace.
