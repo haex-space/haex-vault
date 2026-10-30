@@ -58,7 +58,7 @@ scenario('marketplace-update', { timeoutMs: 420_000 }, async (ctx) => {
     async () => market.hits('/extensions') > 1,
   )
   await instance.click(
-    `li[data-testid="marketplace-tile-${PRESET_ID}-probe"] button`,
+    `[data-testid="marketplace-tile-${PRESET_ID}-probe"] button`,
   )
   await instance.waitForDisplayed('marketplace-version-1.1.0')
   assert.equal(
