@@ -69,8 +69,13 @@ export function placeOnDrive(
     drives.filter((candidate) => candidate.kind !== 'system'),
   )
   const found = on?.key && on.path ? { drive: on.key, droot: on.path } : null
+  const namesSystemDrive = drives.some(
+    (candidate) => candidate.key === drive && candidate.kind === 'system',
+  )
   const kept =
-    drive && droot && isUnder(place.path, droot) ? { drive, droot } : null
+    drive && droot && !namesSystemDrive && isUnder(place.path, droot)
+      ? { drive, droot }
+      : null
   const best =
     kept && (!found || kept.droot.length > found.droot.length) ? kept : found
   return best ? { ...rest, ...best } : rest

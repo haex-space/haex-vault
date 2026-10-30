@@ -171,6 +171,19 @@ test('the system drive never tags a place, and a deeper drive replaces the one i
     { source: device, path: '/home/anna' },
     'the system drive is always there at a restore',
   )
+  assert.deepEqual(
+    placeOnDrive(
+      {
+        source: device,
+        path: '/home/anna',
+        drive: 'root-uuid',
+        droot: '/',
+      },
+      [root],
+    ),
+    { source: device, path: '/home/anna' },
+    'a previously saved system drive tag is cleared at restore',
+  )
   // A place that named a shallower drive (here as an old session left it) moves to the stick.
   assert.deepEqual(
     placeOnDrive(
