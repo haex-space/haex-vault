@@ -229,7 +229,7 @@ pub async fn import_instance(
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();
-    voice.invalidate_whisper_cache().await;
+    voice.invalidate_stt_cache().await;
     emit_model_load_status(&app, &chat);
     emit_instance_list_changed(&app, "imported", Some(result.info.name.clone()));
     start_default_model_preload(app.clone(), chat.inner().clone());

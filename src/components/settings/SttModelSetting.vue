@@ -48,6 +48,13 @@ const available = computed(() =>
   catalog.value.filter((entry) => !installedIds.value.has(entry.id)),
 )
 
+/** Engine and languages in one line (spec 066 T136). */
+function engineLabel(entry: SttCatalogEntry): string {
+  return t(`settings.sttModel.engine.${entry.engine}`, {
+    count: entry.languages.length,
+  })
+}
+
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
@@ -153,6 +160,7 @@ onVaultTablesChanged(['preferences'], () => {
           v-for="entry in available"
           :key="entry.id"
           :title="entry.name"
+          :description="engineLabel(entry)"
         >
           <UiButton
             type="button"

@@ -460,7 +460,11 @@
       "notInstalled": "Default (not installed)",
       "noneInstalled": "No speech-to-text model is installed yet.",
       "availableLabel": "More models",
-      "downloadAndUse": "Download and use"
+      "downloadAndUse": "Download and use",
+      "engine": {
+        "candle-whisper": "Whisper · many languages",
+        "sherpa-parakeet": "Parakeet · {count} European languages · fast"
+      }
     },
     "cliDelegate": {
       "connect": "Connect",

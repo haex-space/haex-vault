@@ -161,7 +161,7 @@ pub async fn create_instance(
     crate::mcp_server::start_for_active_instance(&app, &state);
 
     *chat.session.lock().unwrap_or_else(|e| e.into_inner()) = None;
-    voice.invalidate_whisper_cache().await;
+    voice.invalidate_stt_cache().await;
     emit_instance_list_changed(&app, "created", Some(args.name.clone()));
     chat.bump_vault_generation();
     emit_model_load_status(&app, &chat);

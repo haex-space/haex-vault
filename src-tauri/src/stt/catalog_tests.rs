@@ -1,6 +1,6 @@
 //! Unit tests for the built-in STT catalog and its tier recommendation.
 
-use super::catalog::{entries, get, recommend_tiers};
+use super::catalog::{entries, get, recommend_tiers, SttEngine};
 use crate::hardware::tiers::Tier;
 use crate::hardware::{Backend, HardwareInfo};
 use crate::platform::ModelPresets;
@@ -33,7 +33,48 @@ fn catalog_contains_the_three_whisper_tiers() {
         .expect("whisper-small entry");
     assert_eq!(small.hf_repo, "openai/whisper-small");
 
-    assert_eq!(entries().expect("catalog should parse").len(), 3);
+    for whisper in [tiny, base, small] {
+        assert_eq!(whisper.engine, SttEngine::CandleWhisper);
+        assert!(whisper.languages.is_empty());
+    }
+    assert_eq!(entries().expect("catalog should parse").len(), 4);
+}
+
+/// Spec 066 T131: the Parakeet entry is pinned, credited and says which
+/// languages it knows.
+#[test]
+fn catalog_contains_a_pinned_parakeet_entry() {
+    let parakeet = get("parakeet-primeline")
+        .expect("catalog should parse")
+        .expect("parakeet-primeline entry");
+    assert_eq!(parakeet.engine, SttEngine::SherpaParakeet);
+    assert_eq!(parakeet.hf_revision.len(), 40);
+    assert!(parakeet.hf_revision.chars().all(|c| c.is_ascii_hexdigit()));
+    assert_eq!(parakeet.license, "CC-BY-4.0");
+    assert!(parakeet
+        .attribution
+        .as_deref()
+        .is_some_and(|credit| credit.contains("primeline") && credit.contains("NVIDIA")));
+    assert_eq!(parakeet.languages.len(), 25);
+    for language in ["de", "en", "fr", "es", "it", "pt"] {
+        assert!(
+            parakeet.languages.iter().any(|l| l == language),
+            "{language}"
+        );
+    }
+}
+
+#[test]
+fn every_entry_names_its_engine_on_the_wire() {
+    for entry in entries().expect("catalog should parse") {
+        let value = serde_json::to_value(entry).expect("serializes");
+        let engine = value["engine"].as_str().expect("engine is a string");
+        assert!(
+            ["candle-whisper", "sherpa-parakeet"].contains(&engine),
+            "{}: {engine}",
+            entry.id
+        );
+    }
 }
 
 #[test]

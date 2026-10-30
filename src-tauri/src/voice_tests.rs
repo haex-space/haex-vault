@@ -21,16 +21,15 @@ fn capped_event_payload_keeps_success_and_drops_failure() {
 /// mocking convention for, or a real downloaded Whisper model, which needs
 /// network — see the `#[ignore]`d tests in `stt/local_tests.rs`).
 #[tokio::test]
-async fn invalidate_whisper_cache_is_a_safe_noop_on_a_fresh_state() {
+async fn invalidate_stt_cache_is_a_safe_noop_on_a_fresh_state() {
     let state = VoiceState::new();
-    assert!(!state.has_cached_whisper_adapter().await);
-    state.invalidate_whisper_cache().await;
-    assert!(!state.has_cached_whisper_adapter().await);
+    assert!(!state.has_cached_stt_adapter().await);
+    state.invalidate_stt_cache().await;
+    assert!(!state.has_cached_stt_adapter().await);
 }
 
 /// Spec 010 FR-007: a device that never sets `voice.stt_model_id` must
 /// resolve to exactly the same default this feature always had.
-#[cfg(feature = "llm-cpu")]
 mod stt_catalog_entry_resolution {
     use super::super::imp::resolve_stt_catalog_entry_from_pref;
 
@@ -84,5 +83,5 @@ async fn reset_for_close_is_a_safe_noop_on_a_fresh_state_and_idempotent() {
     state.reset_for_close().await;
     state.reset_for_close().await;
 
-    assert!(!state.has_cached_whisper_adapter().await);
+    assert!(!state.has_cached_stt_adapter().await);
 }

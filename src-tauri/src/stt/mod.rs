@@ -15,6 +15,9 @@ mod catalog_tests;
 pub mod commands;
 #[cfg(test)]
 mod commands_tests;
+pub mod files;
+#[cfg(test)]
+mod files_tests;
 // Used by the Whisper tests (`llm-cpu`), the pause detection tests and the probe (`voice`).
 #[cfg(any(
     all(test, any(feature = "llm-cpu", feature = "voice")),
@@ -28,6 +31,10 @@ mod interrupt_tests;
 pub mod local;
 #[cfg(all(test, feature = "llm-cpu"))]
 mod local_tests;
+#[cfg(feature = "voice")]
+pub mod sherpa;
+#[cfg(all(test, feature = "voice"))]
+mod sherpa_tests;
 
 /// Every `SttAdapter` accepts exactly this format: 16 kHz, mono, normalized
 /// `f32` samples in `[-1.0, 1.0]`. `audio::capture` converts each device's

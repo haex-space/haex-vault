@@ -1,6 +1,6 @@
 //! Voice control Tauri commands (spec 008-voice-control-stt, T009/T013):
 //! start/stop/cancel a recording and dispatch the completed buffer to the
-//! bundled local Whisper adapter. Registered unconditionally in
+//! selected local STT adapter (Whisper or Parakeet). Registered unconditionally in
 //! `lib.rs::run()`'s `generate_handler!` list; a `--no-default-features`
 //! (no `voice`) build compiles the stub variants below instead of failing
 //! to register the command names at all — matching the existing
@@ -22,7 +22,6 @@ mod imp {
     use serde::Serialize;
     use tauri::{AppHandle, Emitter, Manager, State};
     use tokio::sync::watch;
-    #[cfg(feature = "llm-cpu")]
     use tokio::sync::Mutex as AsyncMutex;
 
     use crate::error::{HolziError, Result};
@@ -54,31 +53,27 @@ mod imp {
     /// `start_voice_recording`).
     pub struct VoiceState {
         slot: Mutex<VoiceSlot>,
-        /// The bundled Whisper model, loaded once on first use and kept
-        /// warm — reloading it (a multi-second operation) per transcription
-        /// would blow SC-001's 5-second budget.
-        #[cfg(feature = "llm-cpu")]
-        whisper: AsyncMutex<Option<Arc<crate::stt::local::LocalWhisperAdapter>>>,
+        /// The selected local model (Whisper or Parakeet, spec 066 T134),
+        /// loaded once on first use and kept warm — reloading it (a
+        /// multi-second operation) per transcription would blow SC-001's
+        /// 5-second budget. Push-to-talk and the voice assistant share it.
+        adapter: AsyncMutex<Option<Arc<dyn crate::stt::SttAdapter>>>,
     }
 
     impl VoiceState {
         pub fn new() -> Self {
             Self {
                 slot: Mutex::new(VoiceSlot::Idle),
-                #[cfg(feature = "llm-cpu")]
-                whisper: AsyncMutex::new(None),
+                adapter: AsyncMutex::new(None),
             }
         }
 
-        /// Clears the cached Whisper adapter so the next
+        /// Clears the cached STT adapter so the next
         /// `resolve_local_adapter` call reloads instead of reusing a stale
-        /// instance (spec 010's `invalidate_stt_model_cache`). A no-op
-        /// when `llm-cpu` isn't compiled in — there is no cache to clear.
-        pub(crate) async fn invalidate_whisper_cache(&self) {
-            #[cfg(feature = "llm-cpu")]
-            {
-                *self.whisper.lock().await = None;
-            }
+        /// instance (spec 010's `invalidate_stt_model_cache`); switching the
+        /// model drops the old one.
+        pub(crate) async fn invalidate_stt_cache(&self) {
+            *self.adapter.lock().await = None;
         }
 
         /// Stops a recording that is still running, if any. Idempotent.
@@ -97,7 +92,7 @@ mod imp {
         /// while the process finishes ending.
         pub(crate) async fn reset_for_close(&self) {
             self.cancel_recording();
-            self.invalidate_whisper_cache().await;
+            self.invalidate_stt_cache().await;
         }
 
         /// Cancels an active capture synchronously during close phase 1, so no microphone stream
@@ -106,19 +101,11 @@ mod imp {
             self.cancel_recording();
         }
 
-        /// Test-only: whether the Whisper adapter cache currently holds a
-        /// loaded instance. Always `false` when `llm-cpu` isn't compiled
-        /// in.
+        /// Test-only: whether the STT adapter cache currently holds a
+        /// loaded instance.
         #[cfg(test)]
-        pub(crate) async fn has_cached_whisper_adapter(&self) -> bool {
-            #[cfg(feature = "llm-cpu")]
-            {
-                self.whisper.lock().await.is_some()
-            }
-            #[cfg(not(feature = "llm-cpu"))]
-            {
-                false
-            }
+        pub(crate) async fn has_cached_stt_adapter(&self) -> bool {
+            self.adapter.lock().await.is_some()
         }
     }
 
@@ -192,10 +179,10 @@ mod imp {
     /// Registered in every feature combination (mirrors
     /// `start_voice_recording`'s registration discipline) so the frontend
     /// can call it unconditionally after a Settings switch; a build
-    /// without `llm-cpu` has no cache to clear and is a successful no-op.
+    /// without `voice` has no cache to clear and is a successful no-op.
     #[tauri::command]
     pub async fn invalidate_stt_model_cache(voice: State<'_, VoiceState>) -> Result<()> {
-        voice.invalidate_whisper_cache().await;
+        voice.invalidate_stt_cache().await;
         Ok(())
     }
 
@@ -314,19 +301,16 @@ mod imp {
     /// Device-scoped preference naming which STT catalog tier is active
     /// (spec 010). Missing/empty/unknown-id all fall back to the smallest
     /// built-in tier — see [`resolve_stt_catalog_entry`].
-    #[cfg(feature = "llm-cpu")]
     const STT_MODEL_PREF_KEY: &str = "voice.stt_model_id";
 
     /// Fallback tier for anyone who never sets [`STT_MODEL_PREF_KEY`] —
     /// identical to this feature's pre-spec-010 hardcoded behavior
     /// (FR-007).
-    #[cfg(feature = "llm-cpu")]
     const DEFAULT_STT_MODEL_ID: &str = "whisper-tiny";
 
     /// Reads this device's [`STT_MODEL_PREF_KEY`] from the active vault.
     /// Missing preferences return `Ok(None)`; infrastructure failures retain
     /// their cause so a broken active-vault/device lookup is diagnosable.
-    #[cfg(feature = "llm-cpu")]
     async fn read_stt_model_pref(
         app: &AppHandle,
     ) -> std::result::Result<Option<String>, crate::stt::SttError> {
@@ -358,7 +342,6 @@ mod imp {
     /// fallback rules are directly unit-testable (`voice_tests.rs`) without
     /// a Tauri `AppHandle` — this codebase has no mocking convention for
     /// that type.
-    #[cfg(feature = "llm-cpu")]
     pub(crate) fn resolve_stt_catalog_entry_from_pref(
         pref: Option<String>,
     ) -> std::result::Result<&'static crate::stt::catalog::SttCatalogEntry, crate::stt::SttError>
@@ -382,7 +365,6 @@ mod imp {
     /// Resolves the active STT catalog entry for this device: the
     /// [`STT_MODEL_PREF_KEY`] preference if it names a known catalog
     /// entry, otherwise [`DEFAULT_STT_MODEL_ID`].
-    #[cfg(feature = "llm-cpu")]
     async fn resolve_stt_catalog_entry(
         app: &AppHandle,
     ) -> std::result::Result<&'static crate::stt::catalog::SttCatalogEntry, crate::stt::SttError>
@@ -390,32 +372,48 @@ mod imp {
         resolve_stt_catalog_entry_from_pref(read_stt_model_pref(app).await?)
     }
 
-    /// Loads the bundled Whisper model on first use and keeps it warm
-    /// (`voice.whisper`) — reloading it per transcription would blow
-    /// SC-001's 5-second budget. Returns a trait object so the
-    /// `llm-cpu`-off branch (`voice` enabled without `llm-cpu`) can report
-    /// `LocalSttUnavailable` without a second concrete adapter type.
+    /// Loads the selected local model on first use and keeps it warm
+    /// (`voice.adapter`) — reloading it per transcription would blow
+    /// SC-001's 5-second budget. The catalog entry's engine decides which
+    /// adapter loads (spec 066 T134).
     async fn resolve_local_adapter(
-        #[cfg_attr(not(feature = "llm-cpu"), allow(unused_variables))] app: &AppHandle,
-        #[cfg_attr(not(feature = "llm-cpu"), allow(unused_variables))] voice: &VoiceState,
+        app: &AppHandle,
+        voice: &VoiceState,
     ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
-        #[cfg(feature = "llm-cpu")]
-        {
-            let mut guard = voice.whisper.lock().await;
-            if let Some(adapter) = guard.as_ref() {
-                return Ok(Arc::clone(adapter) as Arc<dyn crate::stt::SttAdapter>);
+        let mut guard = voice.adapter.lock().await;
+        if let Some(adapter) = guard.as_ref() {
+            return Ok(Arc::clone(adapter));
+        }
+        let entry = resolve_stt_catalog_entry(app).await?;
+        let adapter: Arc<dyn crate::stt::SttAdapter> = match entry.engine {
+            crate::stt::catalog::SttEngine::CandleWhisper => load_whisper(app, entry).await?,
+            crate::stt::catalog::SttEngine::SherpaParakeet => {
+                Arc::new(crate::stt::sherpa::ParakeetAdapter::load(app, entry).await?)
             }
-            let entry = resolve_stt_catalog_entry(app).await?;
-            let adapter = Arc::new(crate::stt::local::LocalWhisperAdapter::load(app, entry).await?);
-            *guard = Some(Arc::clone(&adapter));
-            Ok(adapter as Arc<dyn crate::stt::SttAdapter>)
-        }
-        #[cfg(not(feature = "llm-cpu"))]
-        {
-            Err(crate::stt::SttError::LocalUnavailable {
-                reason: "local transcription is not enabled in this build".into(),
-            })
-        }
+        };
+        *guard = Some(Arc::clone(&adapter));
+        Ok(adapter)
+    }
+
+    #[cfg(feature = "llm-cpu")]
+    async fn load_whisper(
+        app: &AppHandle,
+        entry: &crate::stt::catalog::SttCatalogEntry,
+    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
+        Ok(Arc::new(
+            crate::stt::local::LocalWhisperAdapter::load(app, entry).await?,
+        ))
+    }
+
+    /// Whisper runs on candle, which only `llm-cpu` builds compile in.
+    #[cfg(not(feature = "llm-cpu"))]
+    async fn load_whisper(
+        _app: &AppHandle,
+        _entry: &crate::stt::catalog::SttCatalogEntry,
+    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
+        Err(crate::stt::SttError::LocalUnavailable {
+            reason: "Whisper is not enabled in this build".into(),
+        })
     }
 }
 
@@ -444,7 +442,7 @@ mod stub {
             Self
         }
 
-        pub(crate) async fn invalidate_whisper_cache(&self) {}
+        pub(crate) async fn invalidate_stt_cache(&self) {}
 
         pub(crate) async fn reset_for_close(&self) {}
 

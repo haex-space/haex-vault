@@ -1,12 +1,11 @@
 //! Built-in curated catalog of local speech-to-text model tiers (spec 010).
 //!
-//! Mirrors `catalog/mod.rs` (the LLM catalog) structurally, but for Whisper
-//! size tiers instead of GGUF chat models — no `hf_filename`/`tokenizer_repo`/
-//! `context_window` fields, since those don't apply to the multi-file
-//! `candle-transformers` Whisper load path (see data-model.md). The three
-//! required filenames (`config.json`/`tokenizer.json`/`model.safetensors`)
-//! are `local.rs`'s concern, not a catalog attribute — a later backend swap
-//! must not need to touch this catalog (FR-008).
+//! Mirrors `catalog/mod.rs` (the LLM catalog) structurally, but for local
+//! transcription models instead of GGUF chat models — no `hf_filename`/
+//! `tokenizer_repo`/`context_window` fields, since those don't apply to the
+//! multi-file load paths (see data-model.md). Each entry names its `engine`
+//! (spec 066 T133); which files an engine needs is `files.rs`'s concern, not
+//! a catalog attribute.
 //!
 //! Every `hf_revision` here is a pinned commit SHA, never `"main"` (see
 //! research.md §6) — config, tokenizer, and weights must never drift apart
@@ -22,6 +21,16 @@ use crate::platform::ModelPresets;
 
 const STT_CATALOG_JSON: &str = include_str!("stt_catalog.json");
 
+/// Which local engine runs an entry (spec 066, research R7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SttEngine {
+    /// candle-transformers Whisper (spec 008), behind `llm-cpu`.
+    CandleWhisper,
+    /// Parakeet TDT through sherpa-onnx (spec 066), behind `voice`.
+    SherpaParakeet,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct SttCatalogEntry {
@@ -32,12 +41,19 @@ pub struct SttCatalogEntry {
     pub hf_repo: String,
     /// Pinned commit SHA — never `"main"`.
     pub hf_revision: String,
-    /// Sum of all files this entry's local backend needs (currently
-    /// `config.json` + `tokenizer.json` + `model.safetensors`), not just the
-    /// weights — the real on-disk/download footprint for the hardware-fit
-    /// check.
+    /// Sum of all files this entry's engine needs (`files::files_for`), not
+    /// just the weights — the real on-disk/download footprint for the
+    /// hardware-fit check.
     pub approx_size_bytes: u64,
     pub license: String,
+    pub engine: SttEngine,
+    /// Languages the model recognizes, as ISO 639-1 codes; empty when it is
+    /// Whisper's open-ended list.
+    #[serde(default)]
+    pub languages: Vec<String>,
+    /// Credit the licence asks for (CC BY), shown with the app's licences.
+    #[serde(default)]
+    pub attribution: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -18,7 +18,7 @@
 //! Whisper-specific path onto the same generic `models::paths` root chat
 //! models already use.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex as StdMutex};
 
 use async_trait::async_trait;
@@ -28,16 +28,16 @@ use candle_transformers::models::whisper::{self as m, audio, Config};
 use tauri::{AppHandle, Manager};
 use tokenizers::Tokenizer;
 
-use crate::models::download::download_to_file;
 use crate::models::paths as model_paths;
 use crate::state::AppState;
 
 use super::catalog::SttCatalogEntry;
 use super::{CanonicalPcm, SttAdapter, SttError};
 
-const CONFIG_FILENAME: &str = "config.json";
-const TOKENIZER_FILENAME: &str = "tokenizer.json";
-const WEIGHTS_FILENAME: &str = "model.safetensors";
+use super::files::{
+    ensure_model_files, resolve_model_dir, WHISPER_CONFIG as CONFIG_FILENAME,
+    WHISPER_TOKENIZER as TOKENIZER_FILENAME, WHISPER_WEIGHTS as WEIGHTS_FILENAME,
+};
 
 /// Candidate languages for `detect_language`, restricted to the app's own
 /// supported UI locales (`nuxt.config.ts`'s `i18n.locales` — keep in sync if
@@ -66,6 +66,9 @@ struct Inner {
     tokenizer: Tokenizer,
     mel_filters: Vec<f32>,
     device: Device,
+    /// Candidates for `detect_language`; [`SUPPORTED_LANGUAGES`] unless
+    /// [`LocalWhisperAdapter::with_languages`] says otherwise.
+    languages: Vec<String>,
 }
 
 impl LocalWhisperAdapter {
@@ -136,8 +139,23 @@ impl LocalWhisperAdapter {
                 tokenizer,
                 mel_filters,
                 device,
+                languages: SUPPORTED_LANGUAGES
+                    .iter()
+                    .map(|code| code.to_string())
+                    .collect(),
             })),
         })
+    }
+
+    /// Restricts language detection to `codes` (Whisper language codes such
+    /// as `"de"`) instead of [`SUPPORTED_LANGUAGES`]. Spec 066 (research
+    /// R22) widens it to the six spoken languages; the comparison in
+    /// `tests/stt_compare_eval.rs` measures what that costs.
+    pub fn with_languages(self, codes: &[&str]) -> Self {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.languages = codes.iter().map(|code| code.to_string()).collect();
+        }
+        self
     }
 }
 
@@ -246,7 +264,7 @@ fn transcribe_samples(inner: &mut Inner, samples: &[f32]) -> Result<String, SttE
 
 /// Mirrors candle's whisper example `multilingual::detect_language`: a
 /// single decoder step over just `[sot_token]`, picking whichever `<|xx|>`
-/// language token scores highest — restricted to [`SUPPORTED_LANGUAGES`]
+/// language token scores highest — restricted to `Inner::languages`
 /// rather than Whisper's full language set.
 fn detect_language(
     inner: &mut Inner,
@@ -254,7 +272,8 @@ fn detect_language(
     sot_token: u32,
 ) -> Result<u32, SttError> {
     let device = &inner.device;
-    let language_token_ids = SUPPORTED_LANGUAGES
+    let language_token_ids = inner
+        .languages
         .iter()
         .map(|code| token_id(&inner.tokenizer, &format!("<|{code}|>")))
         .collect::<Result<Vec<_>, _>>()?;
@@ -300,81 +319,6 @@ fn tensor_err(e: candle::Error) -> SttError {
     SttError::Failed {
         reason: format!("whisper tensor op: {e}"),
     }
-}
-
-/// A file counts as a complete download only if it exists, is a regular
-/// file, and has nonzero size — guards against a previous run's
-/// interrupted/truncated download (or a hand-deleted/corrupted file) being
-/// mistaken for an installed one. No content validation beyond that.
-pub fn is_complete_file(path: &Path) -> bool {
-    std::fs::metadata(path)
-        .map(|m| m.is_file() && m.len() > 0)
-        .unwrap_or(false)
-}
-
-/// A model directory is complete only when all three files Whisper needs
-/// are each individually complete (see [`is_complete_file`]). Shared with
-/// `stt::commands::list_installed_stt_models`, which uses the same
-/// predicate so listing, loading, and downloading always agree on the same
-/// installed/not-installed state.
-pub fn is_complete_model(dir: &Path) -> bool {
-    [CONFIG_FILENAME, TOKENIZER_FILENAME, WEIGHTS_FILENAME]
-        .iter()
-        .all(|filename| is_complete_artifact(&dir.join(filename), filename))
-}
-
-/// Checks the lightweight metadata files deeply enough to reject a truncated
-/// or otherwise corrupt JSON document. Weight files intentionally keep the
-/// cheap non-empty check; hashing them on every listing would turn discovery
-/// into a full model read.
-fn is_complete_artifact(path: &Path, filename: &str) -> bool {
-    if !is_complete_file(path) {
-        return false;
-    }
-    if matches!(filename, CONFIG_FILENAME | TOKENIZER_FILENAME) {
-        return std::fs::read(path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .is_some();
-    }
-    true
-}
-
-/// Resolves `entry`'s canonical `models::paths` slug directory, creating it
-/// if missing.
-///
-/// Called before every disk-touching operation (load, install-status
-/// listing, download) so all three agree on the same installed state.
-pub fn resolve_model_dir(app: &AppHandle, entry: &SttCatalogEntry) -> Result<PathBuf, SttError> {
-    model_paths::slug_dir(app, &entry.id).map_err(|e| SttError::LocalUnavailable {
-        reason: format!("resolve model dir for {}: {e}", entry.id),
-    })
-}
-
-/// Downloads whichever of `config.json`/`tokenizer.json`/`model.safetensors`
-/// isn't already complete under `dir` (see [`is_complete_file`]) from
-/// `entry`'s pinned HuggingFace revision. Idempotent — a second call with
-/// all three files already complete makes no network request at all (FR-003
-/// continues to hold once the first download completes). `pub` (rather than
-/// private) so `local_tests.rs` can prime a fixture cache directly, without
-/// needing an `AppHandle` the way [`LocalWhisperAdapter::load`] does.
-pub async fn ensure_model_files(dir: &Path, entry: &SttCatalogEntry) -> Result<(), SttError> {
-    for filename in [CONFIG_FILENAME, TOKENIZER_FILENAME, WEIGHTS_FILENAME] {
-        let dest = dir.join(filename);
-        if is_complete_artifact(&dest, filename) {
-            continue;
-        }
-        let url = format!(
-            "https://huggingface.co/{}/resolve/{}/{filename}",
-            entry.hf_repo, entry.hf_revision
-        );
-        download_to_file(&url, dest, |_progress| {})
-            .await
-            .map_err(|e| SttError::LocalUnavailable {
-                reason: format!("download {filename}: {e}"),
-            })?;
-    }
-    Ok(())
 }
 
 /// Computes the Slaney-normalized mel filterbank matrix Whisper expects
