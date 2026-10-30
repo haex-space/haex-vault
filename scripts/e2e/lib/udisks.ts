@@ -116,25 +116,38 @@ export function cleartextOf(device: string): string | null {
   return path && path !== '/' ? path : null
 }
 
-/** Locks the encrypted `device` (unmounting its content first) and detaches it. Never throws. */
+/**
+ * Locks the encrypted `device` (unmounting its content first) and detaches it, again for a while
+ * when an unlock still running at a failure gets in the way. Never throws.
+ */
 export function detachEncrypted(device: string): void {
-  try {
-    const cleartext = cleartextOf(device)
-    if (cleartext) {
-      spawnSync(
-        'udisksctl',
-        ['unmount', '--no-user-interaction', '-p', cleartext],
-        { stdio: 'ignore', timeout: 60_000 },
-      )
-      spawnSync('udisksctl', ['lock', '--no-user-interaction', '-b', device], {
-        stdio: 'ignore',
-        timeout: 60_000,
-      })
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const cleartext = cleartextOf(device)
+      if (cleartext) {
+        const object = cleartext.replace('/org/freedesktop/UDisks2/', '')
+        spawnSync(
+          'udisksctl',
+          ['unmount', '--no-user-interaction', '-p', object],
+          { stdio: 'ignore', timeout: 60_000 },
+        )
+        spawnSync(
+          'udisksctl',
+          ['lock', '--no-user-interaction', '-b', device],
+          { stdio: 'ignore', timeout: 60_000 },
+        )
+      }
+    } catch {
+      return // `udisksctl info` fails: the device is gone.
     }
-  } catch {
-    // Gone already.
+    detach(device)
+    const left = spawnSync('udisksctl', ['info', '-b', device], {
+      stdio: 'ignore',
+      timeout: 20_000,
+    })
+    if (left.status !== 0) return
+    spawnSync('sleep', ['1'])
   }
-  detach(device)
 }
 
 /** An encrypted stick, attached and locked: the LUKS device and how to remove it. */

@@ -292,6 +292,20 @@ scenario(
       )
     }
 
+    /**
+     * Waits until the stick is unlocked and the dialog gone. The folder view is no signal: after an
+     * eject it still lists the stick's files until the window moves on.
+     */
+    const waitOpened = async (what: string) => {
+      await ctx.waitFor(`${what}: unlocked`, () =>
+        cleartextOf(stick.device) ? true : null,
+      )
+      await ctx.waitFor(`${what}: the dialog closed`, () =>
+        gone(instance, 'files-drive-unlock-form'),
+      )
+      await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
+    }
+
     // US3: a wrong password keeps the dialog open with the system's text; the field is emptied.
     await instance.click(locked)
     await instance.type('#files-drive-unlock-password', 'falsch')
@@ -308,8 +322,7 @@ scenario(
 
     await instance.type('#files-drive-unlock-password', BACKUP_PASSWORD)
     await instance.click('files-drive-unlock-submit')
-    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
-    assert.ok(cleartextOf(stick.device))
+    await waitOpened('typed')
     await ejectAndWait('typed')
     ctx.step('unlocked with the typed password, locked again on eject')
 
@@ -318,7 +331,7 @@ scenario(
     await instance.type('#files-drive-unlock-password', BACKUP_PASSWORD)
     await instance.click('files-drive-unlock-remember')
     await instance.click('files-drive-unlock-submit')
-    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
+    await waitOpened('remembered')
     const saved = (await overview(instance)).headers.find(
       (header) => header.title === `Laufwerk: ${BACKUP}`,
     )
@@ -331,12 +344,9 @@ scenario(
     await ejectAndWait('remembered')
     ctx.step('remembered in the password manager')
 
+    // Unlocked without anybody typing: the dialog would have waited for a password.
     await instance.click(locked)
-    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
-    assert.ok(
-      await gone(instance, 'files-drive-unlock-form'),
-      'no dialog with a saved password',
-    )
+    await waitOpened('saved')
     await ejectAndWait('saved')
     ctx.step('opened with the saved password')
 
