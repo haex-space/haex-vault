@@ -54,9 +54,15 @@ llm-cpu = [
 llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 # Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
 llm-metal = ["llm-cpu", "mistralrs/metal"]
-# Spec 070 spike: llama.cpp as a second engine. Only the ignored spike test uses it so far.
+# llama.cpp as a second local engine for the architectures mistralrs cannot load (spec 070, ADR 0023).
+# Opt-in: it needs `cmake` and a C++ toolchain at build time, and the default build stays as it is.
+# It rides on `llm-cpu` because the adapter types, the catalog and the evaluation are shared.
 llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2", "dep:minijinja", "dep:minijinja-contrib"]
+# The Nix CUDA toolkit has no static cuBLAS, so the sys crate's default static link fails; the spike
+# linked dynamically. The final choice is spec 070 R1 (task T004) and is recorded in the ADR.
 llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda", "llama-cpp-2/dynamic-link"]
+# Metal build (Apple GPU), like `llm-metal`. Not built or run yet (spec 070 T037).
+llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
@@ -196,9 +202,10 @@ semver = "1"
 # crates.io; API moved between 0.6 expectation and 0.8.1). Kept optional so
 # `--no-default-features` builds skip the candle/nvcc dependency graph.
 mistralrs = { version = "0.8.1", optional = true }
-# Spec 070 spike (llama.cpp second engine); bundles its own llama.cpp, needs cmake at build time.
-llama-cpp-2 = { version = "=0.1.160", optional = true }
-# The spike adapter renders the model's own Jinja chat template (the binding has no Jinja); the
+# llama.cpp second engine (spec 070). It bundles its own llama.cpp and builds it with cmake; the crate is
+# declared per platform below because its default features (OpenMP, the shared C++ runtime on Android)
+# do not suit every target. The pin is exact: a new llama.cpp commit can change which architectures load.
+# The llama.cpp engine renders the model's own Jinja chat template (the binding has no Jinja); the
 # versions and features mistralrs already resolves to.
 minijinja = { version = "2", optional = true, features = ["builtins", "json"] }
 minijinja-contrib = { version = "2", optional = true, features = ["pycompat"] }
@@ -311,7 +318,8 @@ sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 # mistralrs 0.8.1 already resolves to, so only one candle version tree
 # exists. `candle-core` is renamed to `candle` (matching candle's own
 # examples) since that is the crate's own `use candle::...` import path.
-# candle 0.11.0 exists upstream but mistralrs 0.8.1 (still latest) requires
+# candle 0.11.0 exists upstream but mistralrs 0.8.1 (the latest on crates.io; upstream tags up to
+# v0.9.5 are not published there) requires
 # candle-core/candle-nn `^0.10.2`; bumping here alone would compile two
 # candle version trees instead of one. Revisit once mistralrs releases
 # against candle 0.11.
@@ -356,6 +364,9 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22"
 ndk-context = "0.1"
+# llama.cpp (spec 070): the C++ runtime is linked statically, so no `libc++_shared.so` has to ship, and
+# there is no OpenMP.
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["android-static-stdcxx"] }
 
 # Spec 051 (research R13): Visitenkarten are scanned as QR codes on phones; the official plugin asks
 # for the camera itself. Desktops paste the link instead.
@@ -378,6 +389,13 @@ notify-debouncer-full = "0.5"
 # Android nor iOS, where holzi deletes for good after asking.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 trash = "5.2"
+
+# llama.cpp (spec 070). OpenMP only where the toolchain has it: Linux and Windows. Apple's clang has none.
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["openmp"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
 
 [dev-dependencies]
 # Mock runtime for IPC-level tests of the vault gateway (spec 013).
@@ -466,7 +484,7 @@ tauri-plugin-notification = { git = "https://github.com/tauri-apps/plugins-works
 # entry once a release contains it.
 lettre = { git = "https://github.com/haexmas/lettre", rev = "993d98c5330ce5a3238e2f7fc37e9c9cf4a3f1c1" }
 
-# Spec 070 spike: cmake-rs derives llama.cpp's build type from this, so a dev build of the spike
-# still compiles ggml with optimisations (a Debug ggml is unusably slow).
+# Spec 070: cmake-rs derives llama.cpp's build type from this, so a dev build still compiles ggml
+# with optimisations (a Debug ggml is unusably slow).
 [profile.dev.package.llama-cpp-sys-2]
 opt-level = 3
