@@ -6,6 +6,7 @@ import type { ScenarioContext } from './scenario.ts'
 import { runAction } from './settings.ts'
 
 const TRANSFER_TIMEOUT_MS = 60_000
+const STORE_TIMEOUT_MS = 30_000
 
 export type Page = Pick<FlowInstance, 'invoke' | 'exec'>
 export type Source = { kind: 'storage'; storageId: string }
@@ -66,10 +67,21 @@ export async function transfersDone(
   )
 }
 
-/** Opens the file browser on the storage's top folder; the transfers live in its store. */
+/** Opens the file browser on the storage's top folder and waits for its transfers store, which the
+ * browser creates when it mounts (the action returns before that). */
 export async function openFiles(page: FlowInstance, storageId: string) {
   await runAction(page, 'wm.app.open', {
     appId: 'system.files',
     at: `/storage/${storageId}?p=${encodeURIComponent('/')}`,
   })
+  const end = Date.now() + STORE_TIMEOUT_MS
+  while (
+    !(await page.exec<boolean>(
+      `return !!document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$pinia?._s.has('filesTransfers')`,
+    ))
+  ) {
+    if (Date.now() >= end)
+      throw new Error('the file browser did not mount its transfers store')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
 }
