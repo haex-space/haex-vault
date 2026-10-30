@@ -194,6 +194,7 @@ export function useFilesSplit(options: {
       const on = placeOnDrive(place, drives)
       if (on.drive) write(on, true)
     },
+    { immediate: true },
   )
 
   /** Makes `side` the active panel: its history comes in, the other's waits as the lane. Whether it
