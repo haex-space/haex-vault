@@ -54,11 +54,15 @@ export function problems(
         found.push(
           `${entry.scenario}: counter case ${entry.counterCase} is no scenario`,
         )
-    } else {
+    } else if (entry.kind === 'pending') {
       if (entry.stage.trim() === '')
         found.push(`${entry.scenario} is pending without a stage`)
       if (!pendingAllowed)
         found.push(`${entry.scenario} is still pending (stage ${entry.stage})`)
+    } else if (!pendingAllowed && !names.includes(entry.counterCase)) {
+      found.push(
+        `${entry.scenario}: counter case ${entry.counterCase} is no scenario`,
+      )
     }
   }
   return found
@@ -94,6 +98,14 @@ test('the rules catch each kind of mistake', () => {
       stage,
       reason: 'later',
     }) as const
+  const harnessLimited = (scenario: string, counterCase: string) =>
+    ({
+      scenario,
+      platform: 'android',
+      kind: 'harness-limited',
+      reason: 'the runner cannot pass its local fixture to the app process',
+      counterCase,
+    }) as const
   assert.deepEqual(
     problems(names, [excluded('a', 'no shell (FR-016)')], true),
     [],
@@ -108,6 +120,11 @@ test('the rules catch each kind of mistake', () => {
   )
   assert.match(
     problems(names, [excluded('a', 'x (FR-016)', 'gone')], false).join(),
+    /counter case gone/,
+  )
+  assert.deepEqual(problems(names, [harnessLimited('a', 'b')], false), [])
+  assert.match(
+    problems(names, [harnessLimited('a', 'gone')], false).join(),
     /counter case gone/,
   )
   assert.match(

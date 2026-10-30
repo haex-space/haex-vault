@@ -11,6 +11,7 @@ import {
   runComposable,
 } from './lib/chat-state-harness.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
+import { reasonKey } from '../src/lib/marketplace/errors.ts'
 
 test('the shared harness boots the chat page against the IPC double', () => {
   const state = createChatState()
@@ -72,6 +73,7 @@ test('useVaultLock swallows a rejected close and shows no error', async () => {
 
 function loadErrString(): { errString: (e: unknown) => string } {
   const req = (specifier: string) => {
+    if (specifier === '~/lib/marketplace/errors') return { reasonKey }
     throw new Error(`useErrorString sandbox: unexpected import '${specifier}'`)
   }
   const mod = runComposable(composablePath('useErrorString'), req, {

@@ -170,22 +170,9 @@ async function installAsync() {
   }
 }
 
-/** Closing without installing drops the downloaded bundle; after an install it is gone already. */
-async function discardDownloadAsync() {
-  if (!props.source) return
-  try {
-    await invoke('marketplace_download_discard', { id: props.source.id })
-  } catch {
-    // Nothing to drop: the host forgot it already.
-  }
-}
-
 watch(open, (isOpen) => {
   if (isOpen) void chooseAsync()
-  else {
-    void discardDownloadAsync()
-    reset()
-  }
+  else reset()
 })
 </script>
 
@@ -419,7 +406,11 @@ watch(open, (isOpen) => {
         </p>
 
         <div class="flex justify-end gap-2">
-          <UiButton variant="outline" @click="open = false">
+          <UiButton
+            variant="outline"
+            data-testid="extensions-install-cancel"
+            @click="open = false"
+          >
             {{ t('extensions.install.cancel') }}
           </UiButton>
           <UiButton

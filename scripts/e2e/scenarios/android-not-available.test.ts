@@ -9,6 +9,7 @@ import {
   probeRequest,
 } from '../lib/extensions.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
+import { openMarketplace } from '../lib/marketplace.ts'
 import { runAction, waitForLocation } from '../lib/settings.ts'
 
 /** The bridge's answer for what this device does not have (spec 017, FR-066). */
@@ -26,6 +27,16 @@ const DENIED = 1002
 scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'phone-vault' })
+  const marketplaces = unwrap<Array<{ id: string }>>(
+    'marketplace_list',
+    await instance.invoke('marketplace_list'),
+  )
+  assert.ok(
+    marketplaces.some((market) => market.id === 'preset-public'),
+    'the Android app still has the built-in marketplace',
+  )
+  await openMarketplace(instance)
+  ctx.step('the marketplace app remains available on Android')
   const table = unwrap<Record<string, unknown>>(
     'platform_capabilities',
     await instance.invoke('platform_capabilities'),

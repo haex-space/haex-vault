@@ -344,7 +344,7 @@ export async function runCli(
     }
     for (const [name, entry] of skippedHere) {
       deps.print(
-        `not on android: ${name} (${entry.kind === 'pending' ? `stage ${entry.stage}` : 'excluded'}: ${entry.reason})`,
+        `not on android: ${name} (${entry.kind === 'pending' ? `stage ${entry.stage}` : entry.kind === 'harness-limited' ? 'harness limitation' : 'excluded'}: ${entry.reason})`,
       )
     }
     // The other devices of a group run on Linux, from the same debug build a Linux run makes. Without

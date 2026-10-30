@@ -161,7 +161,8 @@
       "passwords": "Passwörter",
       "extension": "Erweiterung",
       "files": "Dateien",
-      "contacts": "Kontakte"
+      "contacts": "Kontakte",
+      "marketplace": "Erweiterungen entdecken"
     },
     "launcher": {
       "lock": "Sperren",
@@ -221,6 +222,10 @@
       "entry": "Kontakt",
       "edit": "Kontakt bearbeiten",
       "import": "Visitenkarte einlesen"
+    },
+    "marketplace": {
+      "catalog": "Erweiterungen entdecken",
+      "details": "Details"
     }
   },
   "chat": {
@@ -3101,6 +3106,108 @@
       "tooNarrow": "Das Fenster ist zu schmal für zwei Panels.",
       "panelLeft": "Linkes Panel",
       "panelRight": "Rechtes Panel"
+    }
+  },
+  "marketplace": {
+    "title": "Erweiterungen entdecken",
+    "loading": "Der Katalog wird geladen …",
+    "search": {
+      "placeholder": "Erweiterungen suchen",
+      "label": "Erweiterungen suchen"
+    },
+    "category": {
+      "label": "Kategorie",
+      "all": "Alle Kategorien"
+    },
+    "source": {
+      "label": "Marketplace",
+      "all": "Alle Marketplaces"
+    },
+    "refresh": "Aktualisieren",
+    "retry": "Erneut versuchen",
+    "back": "Zurück zum Katalog",
+    "tile": {
+      "by": "von {publisher}",
+      "verified": "geprüft",
+      "downloads": "{count} Downloads",
+      "rating": "{rating} von 5 ({count})",
+      "noRating": "Noch nicht bewertet",
+      "from": "Aus {source}",
+      "open": "Details zu {name} anzeigen"
+    },
+    "install": "Installieren",
+    "update": "Aktualisieren",
+    "installed": "Installiert ({version})",
+    "updateAvailable": "Update verfügbar ({from} → {to})",
+    "blocked": {
+      "needs_newer": "Benötigt HaexVault ab {bound}",
+      "needs_older": "Läuft mit HaexVault bis {bound}",
+      "no_checksum": "Nicht prüfbar: Der Marketplace liefert keine Prüfsumme",
+      "no_versions": "Keine Version verfügbar"
+    },
+    "states": {
+      "empty": "Keine Erweiterungen gefunden.",
+      "none": "Kein Marketplace eingerichtet.",
+      "allOff": "Alle Marketplaces sind ausgeschaltet.",
+      "offline": "Kein Marketplace ist erreichbar."
+    },
+    "sourceError": {
+      "unreachable": "{name} ist nicht erreichbar.",
+      "timeout": "{name} hat nicht rechtzeitig geantwortet.",
+      "auth_rejected": "{name} hat die Anmeldung abgelehnt.",
+      "credentials_missing": "Die Zugangsdaten für {name} fehlen.",
+      "credentials_syncing": "Die Zugangsdaten für {name} sind auf diesem Gerät noch nicht angekommen.",
+      "bad_response": "{name} hat eine Antwort geschickt, die HaexVault nicht versteht.",
+      "insecure_credentials": "{name} verlangt eine Anmeldung, ist aber nicht über https erreichbar."
+    },
+    "pager": {
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "page": "Seite {page} von {total}"
+    },
+    "details": {
+      "description": "Beschreibung",
+      "publisher": "Herausgeber",
+      "publisherKey": "Herausgeberschlüssel {fingerprint}",
+      "category": "Kategorie",
+      "tags": "Stichworte",
+      "source": "Marketplace",
+      "versions": "Versionen",
+      "version": "Version {version}",
+      "noChangelog": "Keine Änderungsnotiz.",
+      "compatible": "kompatibel",
+      "missing": "Diese Erweiterung wird von {source} nicht mehr angeboten.",
+      "unavailable": "Die Details konnten nicht geladen werden.",
+      "choose": "Diese Version installieren"
+    },
+    "progress": {
+      "title": "{name} {version} wird geladen …",
+      "cancel": "Abbrechen",
+      "percent": "{percent} %",
+      "busy": "Eine andere Installation läuft bereits.",
+      "done": "{name} ist installiert."
+    },
+    "errors": {
+      "generic": "Der Marketplace konnte nicht genutzt werden.",
+      "marketplace_invalid_url": "Die Adresse des Marketplace ist nicht gültig.",
+      "marketplace_credentials_required": "Dieser Marketplace braucht eine Anmeldung, die nicht eingerichtet ist.",
+      "marketplace_insecure_credentials": "Eine Anmeldung wird nur über https gesendet.",
+      "marketplace_not_found": "Der Marketplace kennt diese Erweiterung oder Version nicht.",
+      "marketplace_no_hash": "Der Marketplace liefert keine Prüfsumme.",
+      "marketplace_hash_mismatch": "Die geladene Datei stimmt nicht mit der Angabe des Marketplace überein.",
+      "marketplace_size_mismatch": "Die geladene Datei hat nicht die Größe, die der Marketplace angegeben hat.",
+      "marketplace_too_large": "Die Datei ist größer, als HaexVault annimmt.",
+      "marketplace_incompatible_version": "Diese Version läuft nicht mit diesem HaexVault.",
+      "marketplace_download_cancelled": "Der Download wurde abgebrochen.",
+      "marketplace_source_unreachable": "Der Marketplace ist nicht erreichbar.",
+      "marketplace_source_timeout": "Der Marketplace hat nicht rechtzeitig geantwortet.",
+      "marketplace_source_auth_rejected": "Der Marketplace hat die Anmeldung abgelehnt.",
+      "marketplace_source_bad_response": "Der Marketplace hat eine Antwort geschickt, die HaexVault nicht versteht.",
+      "marketplace_icon_unavailable": "Das Symbol konnte nicht geladen werden.",
+      "marketplace_pending_missing": "Die geladene Datei ist nicht mehr verfügbar. Lade sie erneut.",
+      "marketplace_credentials_syncing": "Die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
+      "marketplace_superseded": "Eine neuere Anfrage hat diese ersetzt.",
+      "marketplace_destination_refused": "Die Download-Adresse des Marketplace ist nicht erlaubt."
     }
   },
   "contacts": {

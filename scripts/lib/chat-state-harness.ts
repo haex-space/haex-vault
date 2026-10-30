@@ -339,6 +339,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/toolNotice.ts'),
         req,
       )
+    // Marketplace error keys are a pure helper imported by useErrorString.
+    if (specifier === '~/lib/marketplace/errors')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/marketplace/errors.ts'),
+        req,
+      )
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.
     if (specifier === '~/lib/actions/agentTools')
       return { agentSafeMessages: () => ({ messages: [] }) }
