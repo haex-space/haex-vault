@@ -154,11 +154,15 @@ pub(super) fn make_parent(path: &Path) -> Result<(), StorageError> {
     }
 }
 
+/// Writes the temporary file `part` through to the disk. The handle may write: Windows refuses
+/// the flush on a read-only one ("access denied"), which made every write to a folder here fail.
+fn sync(part: &Path) -> io::Result<()> {
+    fs::OpenOptions::new().write(true).open(part)?.sync_all()
+}
+
 /// Moves the finished temporary file `part` onto `path`; on failure the temporary file goes.
 pub(super) fn settle(part: &Path, path: &Path) -> Result<(), StorageError> {
-    let moved = fs::File::open(part)
-        .and_then(|file| file.sync_all())
-        .and_then(|()| fs::rename(part, path));
+    let moved = sync(part).and_then(|()| fs::rename(part, path));
     if let Err(error) = moved {
         let _ = fs::remove_file(part);
         return Err(error_of(error));
@@ -168,9 +172,7 @@ pub(super) fn settle(part: &Path, path: &Path) -> Result<(), StorageError> {
 
 /// Links a finished upload into a new name without replacing an entry that appeared meanwhile.
 pub(super) fn settle_if_absent(part: &Path, path: &Path) -> Result<(), StorageError> {
-    let linked = fs::File::open(part)
-        .and_then(|file| file.sync_all())
-        .and_then(|()| fs::hard_link(part, path));
+    let linked = sync(part).and_then(|()| fs::hard_link(part, path));
     if let Err(error) = linked {
         let _ = fs::remove_file(part);
         return if error.kind() == io::ErrorKind::AlreadyExists {
