@@ -177,6 +177,20 @@ test('offline means every asked marketplace failed; one that failed beside an an
   assert.equal(
     catalogState({
       markets: two,
+      page: page([], [error('b')]),
+      sourceId: 'b',
+    }),
+    'offline',
+    'a source filter asks only that marketplace',
+  )
+  assert.equal(
+    catalogState({ markets: two, page: page([]), sourceId: 'stale' }),
+    'empty',
+    'a stale filter with no source error is not offline',
+  )
+  assert.equal(
+    catalogState({
+      markets: two,
       page: page([entry()], [error('a'), error('b')]),
     }),
     'ready',

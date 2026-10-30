@@ -24,6 +24,7 @@ const downloading = ref(false)
 const failure = ref<string | null>(null)
 const publisherFingerprint = ref<string | undefined>(undefined)
 let runningId: string | null = null
+let generation = 0
 
 /**
  * The install flow of the catalog (spec 069 US2): the host downloads and checks the bundle, the
@@ -71,10 +72,11 @@ export function useMarketplaceInstall() {
     progress.value = { loaded: 0, total: 0 }
     downloading.value = true
     const id = crypto.randomUUID()
+    const mine = ++generation
     runningId = id
     const channel = new Channel<DownloadProgress>()
     channel.onmessage = (event) => {
-      progress.value = event
+      if (mine === generation) progress.value = event
     }
     // The key the marketplace lists for the entry: the dialog warns when the bundle's own
     // differs. Best effort, so a marketplace that does not answer the details does not stop it.
@@ -93,16 +95,26 @@ export function useMarketplaceInstall() {
         id,
         onProgress: channel,
       })
-      publisherFingerprint.value = await listed
+      const publisher = await listed
+      if (mine !== generation) {
+        await invoke('marketplace_download_discard', { id: ref.id }).catch(
+          () => undefined,
+        )
+        return false
+      }
+      publisherFingerprint.value = publisher
       pendingId.value = ref.id
       return true
     } catch (error) {
+      if (mine !== generation) return false
       if (!isCancelled(error)) failure.value = errString(error)
       finish()
       return false
     } finally {
-      downloading.value = false
-      runningId = null
+      if (mine === generation) {
+        downloading.value = false
+        runningId = null
+      }
     }
   }
 
@@ -113,6 +125,25 @@ export function useMarketplaceInstall() {
     } catch {
       // The download ended by itself in the meantime.
     }
+  }
+
+  /** Cancels and clears the shared install state when its owning app window closes. */
+  async function disposeAsync(): Promise<void> {
+    const cancelId = runningId
+    const discardId = pendingId.value
+    generation += 1
+    runningId = null
+    downloading.value = false
+    failure.value = null
+    finish()
+    await Promise.all([
+      ...(cancelId
+        ? [invoke('marketplace_download_cancel', { id: cancelId })]
+        : []),
+      ...(discardId
+        ? [invoke('marketplace_download_discard', { id: discardId })]
+        : []),
+    ]).catch(() => undefined)
   }
 
   return {
@@ -126,6 +157,7 @@ export function useMarketplaceInstall() {
     publisherFingerprint,
     startAsync,
     cancelAsync,
+    disposeAsync,
     dismissFailure: () => {
       failure.value = null
     },

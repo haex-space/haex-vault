@@ -1,7 +1,9 @@
 // Scenarios that do not run on a platform (spec 043 FR-033b, data-model.md). `excluded` is final: the
 // function does not exist there (FR-016) or works differently (FR-006), and a counter case checks the
-// "not available" answer. `pending` runs there once the named stage of the plan is done; after stage 5
-// none is left (`PENDING_ALLOWED` turns false). `pnpm check:e2e-exclusions` checks these rules.
+// "not available" answer. `harness-limited` records an adapter that cannot supply a test-only fixture,
+// with a counter case that still exercises the product capability. `pending` runs there once the named
+// stage of the plan is done; after stage 5 none is left (`PENDING_ALLOWED`).
+// `pnpm check:e2e-exclusions` checks these rules.
 
 export type Platform = 'android'
 
@@ -22,6 +24,15 @@ export type PlatformExclusion =
       /** The stage of the plan that makes it run (`2`, `3`, `1c`, …). */
       stage: string
       reason: string
+    }
+  | {
+      scenario: string
+      platform: Platform
+      kind: 'harness-limited'
+      /** Why this test fixture cannot be passed through the platform adapter. */
+      reason: string
+      /** A platform scenario that still exercises the product capability. */
+      counterCase: string
     }
 
 /** False from stage 5 on: every scenario then runs or is excluded for good (SC-007). */
@@ -110,6 +121,22 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     reason:
       'closing the vault ends the app on Android; there is no relaunch (FR-006)',
     counterCase: 'lock-twice',
+  },
+  {
+    scenario: 'marketplace-catalog',
+    platform: 'android',
+    kind: 'harness-limited',
+    reason:
+      'the local marketplace URL is supplied through the host process environment, which the Android app process cannot receive',
+    counterCase: 'android-not-available',
+  },
+  {
+    scenario: 'marketplace-install',
+    platform: 'android',
+    kind: 'harness-limited',
+    reason:
+      'the local marketplace URL is supplied through the host process environment, which the Android app process cannot receive',
+    counterCase: 'android-not-available',
   },
 ]
 

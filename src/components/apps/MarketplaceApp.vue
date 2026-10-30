@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
 /**
  * The frame of the app "Erweiterungen entdecken" (spec 069): the place of the tab (catalog or
  * details) and, above all of it, what belongs to the one install that may run at a time: the
@@ -6,7 +7,10 @@
  * (FR-015). Every place is a tab location (spec 020); only a slug and a marketplace id go into
  * the path.
  */
-const { dialogOpen, pendingId, publisherFingerprint } = useMarketplaceInstall()
+const { dialogOpen, pendingId, publisherFingerprint, disposeAsync } =
+  useMarketplaceInstall()
+
+onBeforeUnmount(() => void disposeAsync())
 
 const source = computed(() =>
   pendingId.value

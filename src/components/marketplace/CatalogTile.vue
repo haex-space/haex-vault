@@ -8,7 +8,10 @@
 import type { CatalogEntry } from '@bindings/CatalogEntry'
 import { detailsPath } from '~/lib/marketplace/registry'
 
-const props = defineProps<{ entry: CatalogEntry }>()
+const props = defineProps<{
+  entry: CatalogEntry
+  beforeOpen?: () => void
+}>()
 const { t, n } = useI18n()
 const router = useTabRouter()
 
@@ -22,6 +25,7 @@ const rating = computed(() =>
 )
 
 function open() {
+  props.beforeOpen?.()
   void router.push(detailsPath(props.entry.source.id, props.entry.slug))
 }
 </script>

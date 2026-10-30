@@ -107,10 +107,15 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   )
   assert.equal(other.entries.length, 0)
 
-  // Details open from a tile and "Zurück" returns to the catalog as it was (the search stays).
-  await instance.click(
-    `li[data-testid="marketplace-tile-${PRESET}-agent-tools"] button`,
-  )
+  // A search still inside its debounce is committed before details navigation; "Zurück" returns
+  // to that filtered catalog state.
+  await instance.exec(`
+    const input = document.querySelector('[data-testid="marketplace-search"] input');
+    if (!input) throw new Error('marketplace search input not found');
+    input.value = 'agent tools';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('li[data-testid="marketplace-tile-${PRESET}-agent-tools"] button')?.click();
+  `)
   await instance.waitForDisplayed('marketplace-details')
   assert.match(
     await textOf(instance, 'marketplace-details-source'),
@@ -119,8 +124,8 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.waitForDisplayed('marketplace-version-1.0.0')
   await instance.click('marketplace-back')
   await instance.waitForDisplayed(`marketplace-tile-${PRESET}-agent-tools`)
-  assert.equal(await tileCount(instance), 1, 'the search is still applied')
-  ctx.step('details and back')
+  assert.equal(await tileCount(instance), 1, 'the pending search is applied')
+  ctx.step('pending search, details and back')
 
   // Clear the search, then let the marketplace stop answering.
   await instance.type('marketplace-search', '')

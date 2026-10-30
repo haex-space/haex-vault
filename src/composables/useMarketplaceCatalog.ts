@@ -32,7 +32,11 @@ export function useMarketplaceCatalog() {
 
   const query = computed(() => catalogQueryOf(router.route.query))
   const state = computed(() =>
-    catalogState({ markets: markets.value, page: page.value }),
+    catalogState({
+      markets: markets.value,
+      page: page.value,
+      sourceId: query.value.sourceId,
+    }),
   )
 
   let sequence = 0
@@ -110,8 +114,9 @@ export function useMarketplaceCatalog() {
   let timer: ReturnType<typeof setTimeout> | undefined
   watch(searchText, (text) => {
     clearTimeout(timer)
+    if (text.trim() === (router.route.query.q ?? '')) return
     timer = setTimeout(() => {
-      router.setQuery({ q: text.trim() ? text : null, page: null })
+      flushSearch()
     }, SEARCH_DEBOUNCE_MS)
   })
   watch(
@@ -123,6 +128,14 @@ export function useMarketplaceCatalog() {
   )
   onBeforeUnmount(() => clearTimeout(timer))
 
+  function flushSearch(): void {
+    clearTimeout(timer)
+    timer = undefined
+    const search = searchText.value.trim()
+    if (search !== (router.route.query.q ?? ''))
+      router.setQuery({ q: search || null, page: null })
+  }
+
   return {
     markets,
     page,
@@ -132,6 +145,7 @@ export function useMarketplaceCatalog() {
     state,
     query,
     searchText,
+    flushSearch,
     refreshAsync,
     setCategory: (slug: string) =>
       router.setQuery({ category: slug || null, page: null }),

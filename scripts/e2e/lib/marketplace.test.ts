@@ -73,6 +73,11 @@ describe('the test marketplace', () => {
     assert.ok(
       games.extensions.every((entry) => entry.category.slug === 'games'),
     )
+    const empty = (await (
+      await fetch(`${market.url}/extensions?search=no-such-extension`)
+    ).json()) as { extensions: unknown[]; pagination: { totalPages: number } }
+    assert.deepEqual(empty.extensions, [])
+    assert.equal(empty.pagination.totalPages, 0)
   })
 
   it('answers the download call with an address that serves the bytes', async () => {
@@ -115,11 +120,16 @@ describe('the test marketplace', () => {
     assert.equal((await call()).bundleSize, honest.bundleSize + 1)
   })
 
-  it('serves behind a path prefix and 503s while down', async () => {
+  it('serves downloads behind a path prefix and 503s while down', async () => {
     const market = await start({ prefix: '/market' })
     assert.equal(market.url, `${market.origin}/market`)
     assert.equal((await get(`${market.url}/health`)).status, 200)
     assert.equal((await get(`${market.origin}/health`)).status, 503)
+    const answer = (await (
+      await fetch(`${market.url}/extensions/probe/download?version=1.0.0`)
+    ).json()) as { downloadUrl: string }
+    assert.equal(answer.downloadUrl, `${market.url}/files/probe/1.0.0.xt`)
+    assert.equal((await get(answer.downloadUrl)).status, 200)
     market.down = true
     assert.equal((await get(`${market.url}/health`)).status, 503)
   })

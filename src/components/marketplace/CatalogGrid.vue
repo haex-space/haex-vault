@@ -16,6 +16,7 @@ const {
   state,
   query,
   searchText,
+  flushSearch,
 } = catalog
 
 const sourceValue = computed(() => query.value.sourceId ?? '')
@@ -89,10 +90,11 @@ const stateTestId = computed(() => {
         v-for="entry in page.entries"
         :key="`${entry.source.id}/${entry.slug}`"
         :entry="entry"
+        :before-open="flushSearch"
       />
     </ul>
     <p
-      v-else
+      v-else-if="!failure || page"
       class="py-10 text-center text-sm text-muted-foreground"
       :data-testid="stateTestId"
       :role="state === 'loading' ? 'status' : undefined"

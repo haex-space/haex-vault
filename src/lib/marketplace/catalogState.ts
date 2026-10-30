@@ -3,7 +3,7 @@
 //
 // The shapes of the generated bindings (`CatalogPage`, `MarketplaceView`) as far as the rules use
 // them, declared here so the check scripts load this file without the bindings.
-type MarketplaceView = { enabled: boolean }
+type MarketplaceView = { id: string; enabled: boolean }
 type CatalogPage = {
   entries: readonly unknown[]
   sourceErrors: readonly unknown[]
@@ -25,8 +25,9 @@ export type CatalogState =
 export function catalogState(input: {
   markets: readonly MarketplaceView[] | null
   page: CatalogPage | null
+  sourceId?: string
 }): CatalogState {
-  const { markets, page } = input
+  const { markets, page, sourceId } = input
   if (markets === null) return 'loading'
   if (markets.length === 0) return 'none'
   const enabled = markets.filter((market) => market.enabled)
@@ -34,7 +35,10 @@ export function catalogState(input: {
   if (page === null) return 'loading'
   if (page.entries.length > 0) return 'ready'
   // Every asked source failed: the answer holds an error line for each and no entry.
-  if (page.sourceErrors.length >= enabled.length) return 'offline'
+  const asked = sourceId
+    ? enabled.filter((market) => market.id === sourceId).length
+    : enabled.length
+  if (page.sourceErrors.length >= Math.max(1, asked)) return 'offline'
   return 'empty'
 }
 

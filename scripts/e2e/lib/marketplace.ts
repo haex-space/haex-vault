@@ -260,7 +260,7 @@ export async function startMarketplace(
           page,
           limit,
           total: matching.length,
-          totalPages: Math.max(1, Math.ceil(matching.length / limit)),
+          totalPages: Math.ceil(matching.length / limit),
         },
       })
     }
@@ -277,7 +277,7 @@ export async function startMarketplace(
       if (!extension || !version) return json(res, 404, { error: 'unknown' })
       const listed = versionJson(version)
       return json(res, 200, {
-        downloadUrl: `${origin}/files/${extension.slug}/${version.version}.xt`,
+        downloadUrl: `${origin}${prefix}/files/${extension.slug}/${version.version}.xt`,
         version: version.version,
         bundleSize: listed.bundleSize,
         ...('bundleHash' in listed ? { bundleHash: listed.bundleHash } : {}),
