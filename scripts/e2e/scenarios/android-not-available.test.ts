@@ -20,8 +20,9 @@ const DENIED = 1002
 // `extension-encrypted-device`): what a phone does not have is not offered and says so. The
 // capability table names it; an extension that reads a free path, picks a folder or watches one
 // hears "not available", and an encrypted folder on the device stays closed to it; developer mode
-// (a project folder) is left out of the extension settings, and the delegate settings and the
-// access for external agents (`mcp-agent`) say "not available on this device".
+// (a project folder) is left out of the extension settings, and the delegate settings, the
+// access for external agents (`mcp-agent`) and the agent browser (spec 065) say "not available on
+// this device".
 scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'phone-vault' })
@@ -156,4 +157,16 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   await waitForLocation(instance, 'ai.agents')
   await instance.waitForDisplayed('settings-not-on-this-device')
   ctx.step('the agent access says it is not available here')
+
+  // Spec 065 research R13: a phone has no agent browser; its settings say so, and the catalog it
+  // pushes to Rust has no browser tool (`forDevice`, checked in check-agent-actions).
+  assert.equal(table.agentBrowser, false)
+  const browser = await runAction(instance, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/ai/browser',
+  })
+  assert.ok(browser.ok, JSON.stringify(browser))
+  await waitForLocation(instance, 'ai.browser')
+  await instance.waitForDisplayed('settings-not-on-this-device')
+  ctx.step('the agent browser is not offered here')
 })

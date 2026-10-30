@@ -8,6 +8,9 @@
 //! [`BrowserError::Unavailable`] and the event streams end.
 
 pub mod browser;
+pub mod fetch;
+pub mod page;
+pub mod runtime;
 pub mod target;
 
 use std::collections::HashMap;

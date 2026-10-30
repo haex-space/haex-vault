@@ -109,6 +109,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.agents.log': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentLogView.vue'),
   ),
+  'ai.browser': defineAsyncComponent(
+    () => import('~/components/settings/agentBrowser/AgentBrowserView.vue'),
+  ),
   storage: defineAsyncComponent(
     () => import('~/components/settings/storage/StorageListView.vue'),
   ),

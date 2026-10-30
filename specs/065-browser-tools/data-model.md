@@ -62,7 +62,7 @@ und holzi meldet es in „KI → Browser“.
 - **Agenten-Sitzung**: `screenshotsBlocked` wird nach dem ersten Credential-Fill bis zum Ende der
   Sitzung gesetzt und kann nicht durch eine Dokument-Navigation zurückgesetzt werden.
 - **Einmal erlaubte Websites**: je Sitzung, verfallen mit ihr (FR-007).
-- **Browser-Rückfrage**: Art (`site`, `submit`, `fill`, `takeover`, `download`, `newTab`),
+- **Browser-Rückfrage**: Art (`site`, `action` (Manuell vor einer Navigation), `submit`, `fill`, `takeover`, `download`, `newTab`),
   Agent, Website, Inhalt je Art (data-model der Ereignisse in
   [contracts/tauri-commands.md](./contracts/tauri-commands.md)), Frist 5 Minuten.
 

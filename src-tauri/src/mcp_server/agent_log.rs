@@ -33,6 +33,10 @@ pub enum Outcome {
     Error,
     Unavailable,
     TooMany,
+    /// The website was not allowed and the user declined it (spec 065).
+    DeniedSite,
+    /// The user was operating the browser (spec 065).
+    Paused,
 }
 
 impl Outcome {
@@ -46,6 +50,8 @@ impl Outcome {
             Self::Error => "error",
             Self::Unavailable => "unavailable",
             Self::TooMany => "too_many",
+            Self::DeniedSite => "denied_site",
+            Self::Paused => "paused",
         }
     }
 
@@ -59,6 +65,8 @@ impl Outcome {
             Self::Error,
             Self::Unavailable,
             Self::TooMany,
+            Self::DeniedSite,
+            Self::Paused,
         ]
         .into_iter()
         .find(|outcome| outcome.as_str() == value)

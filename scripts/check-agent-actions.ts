@@ -21,6 +21,7 @@ import {
   type TitleOf,
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
+import { forDevice } from '../src/lib/actions/browserActions.ts'
 import type { ActionCaller, JsonSchema } from '../src/lib/actions/types.ts'
 import { TOOLS_PATH, evalTools } from './export-eval-tools.ts'
 import { TARGET_FIELD, catalogRunner, sample } from './lib/actions-harness.ts'
@@ -156,6 +157,7 @@ function nativeExecutorIds(): string[] {
     ...ids('files/agent/shares.rs', 'SHARE_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
+    ...ids('agent_browser/executor.rs', 'BROWSER_ACTION_IDS'),
   ]
 }
 
@@ -189,20 +191,20 @@ test('contacts.share is destructive, asks for itself and needs the permission to
   assert.equal(toAgentActionDef(share, titleOf).confirmsItself, true)
   // The action says that the user confirms every call, so a model does not ask for the link twice.
   assert.match(share.description, /every call/)
-  // Only the actions with a dialog of their own skip the chat's approval.
+  // Only the actions with a dialog of their own skip the chat's approval: these and the browser
+  // tools that change something (spec 065).
   const confirming = [
     'contacts.share',
     'syncRules.create',
     'syncRules.update',
     'syncRules.delete',
   ]
+  const asking = ALL_ACTIONS.filter((a) => a.confirmsItself).map((a) => a.id)
   assert.deepEqual(
-    ALL_ACTIONS.filter((a) => a.confirmsItself)
-      .map((a) => a.id)
-      .sort(),
+    asking.filter((id) => !id.startsWith('browser.')).sort(),
     [...confirming].sort(),
   )
-  for (const other of ALL_ACTIONS.filter((a) => !confirming.includes(a.id)))
+  for (const other of ALL_ACTIONS.filter((a) => !asking.includes(a.id)))
     assert.equal(
       toAgentActionDef(other, titleOf).confirmsItself,
       undefined,
@@ -597,6 +599,31 @@ test('every browser tool runs in Rust and asks itself when it changes a page (sp
     if (action.effect !== 'read')
       assert.equal(action.confirmsItself, true, action.id)
   }
+})
+
+test('the browser tools that ask themselves are those the executor asks for (spec 065 R8)', () => {
+  const source = readFileSync(
+    new URL('../src-tauri/src/agent_browser/executor.rs', import.meta.url),
+    'utf8',
+  )
+  const changing = /CHANGING: &\[&str\] = &\[([^\]]*)\]/.exec(source)?.[1] ?? ''
+  const ids = [...changing.matchAll(/"([^"]+)"/g)].map((match) => match[1])
+  assert.deepEqual(
+    ALL_ACTIONS.filter((a) => a.scope === 'browser' && a.confirmsItself)
+      .map((a) => a.id)
+      .sort(),
+    ids.sort(),
+  )
+})
+
+test('a device without an agent browser offers no browser tools (spec 065 R13)', () => {
+  const without = forDevice(ALL_ACTIONS, false)
+  assert.ok(!without.some((a) => a.scope === 'browser'))
+  assert.equal(
+    without.length,
+    ALL_ACTIONS.filter((a) => a.scope !== 'browser').length,
+  )
+  assert.equal(forDevice(ALL_ACTIONS, true).length, ALL_ACTIONS.length)
 })
 
 test('the settings of the agent browser are guardrails (spec 065)', () => {

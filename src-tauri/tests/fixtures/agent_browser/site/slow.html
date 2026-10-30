@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Langsam</title>
+  </head>
+  <body>
+    <p id="state">lädt</p>
+    <script>
+      setTimeout(() => {
+        document.getElementById('state').textContent = 'fertig geladen'
+      }, 1500)
+    </script>
+  </body>
+</html>

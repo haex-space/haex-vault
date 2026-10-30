@@ -28,7 +28,7 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   --no-first-run --no-default-browser-check --disable-sync --disable-extensions
   --disable-background-networking --disable-component-update
   --password-store=basic (Linux) | --use-mock-keychain (macOS)
-  --disable-features=AutofillServerCommunication,Translate
+  --disable-features=AutofillServerCommunication,Translate,BackForwardCache
   about:blank
 ```
 
