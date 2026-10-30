@@ -147,9 +147,11 @@ accepts it, mistralrs; else, if `llm-llamacpp` is compiled, llama.cpp; else `Uns
 **D2 – Template rendering.** The file's own template through `minijinja` with the same context variables
 mistralrs passes (`messages`, `add_generation_prompt`, `bos_token`, `eos_token`, `tools`,
 `enable_thinking`), plus `tojson` (accepting `indent`/`ensure_ascii`), `raise_exception`,
-`strftime_now`, `pycompat`. Known template rewrites mistralrs applies (`[::-1]` to `|reverse`, descending
-`range`) are ported with a test per rewrite; each one is written down in the code with the template that
-needs it. A template that fails to render is an error with the template error text, never a silent
+`pycompat`. The template rewrites a supported template needs are ported with a test each (`[::-1]` to
+`|reverse` for Qwen3 and Qwen3.5), written down in the code with the template that needs them; the others
+mistralrs applies (descending `range`, GLM4, SmolLM3 markup) are left out until a supported template does.
+`strftime_now` is not provided: none of the three fixtures calls it, and an unknown function is a clear
+render error. A template that fails to render is an error with the template error text, never a silent
 fallback to ChatML (the spike showed the binding's own function falls back silently).
 
 **D3 – Formats.** The trait gives each format: `fingerprint(template) -> bool`, `shape_messages`

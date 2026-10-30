@@ -130,14 +130,6 @@ fn drops_two_consecutive_tags() {
 }
 
 #[test]
-fn longest_prefix_overlap_finds_the_longest_match() {
-    assert_eq!(longest_prefix_overlap("foo <tool_c", "<tool_call>"), 7);
-    assert_eq!(longest_prefix_overlap("foo bar", "<tool_call>"), 0);
-    assert_eq!(longest_prefix_overlap("<tool_call>", "<tool_call>"), 11);
-    assert_eq!(longest_prefix_overlap("", "<tool_call>"), 0);
-}
-
-#[test]
 fn a_tool_found_by_the_search_is_forwarded_as_a_mistralrs_function() {
     let spec = ToolSpec {
         name: "settings_sync_setEnabled".to_string(),

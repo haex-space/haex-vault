@@ -4,6 +4,8 @@
 //! `--no-default-features` build can still use provider-backed chat.
 
 #[cfg(feature = "llm-cpu")]
+pub(crate) mod holdback;
+#[cfg(feature = "llm-cpu")]
 pub mod local;
 
 #[cfg(feature = "llm-llamacpp")]

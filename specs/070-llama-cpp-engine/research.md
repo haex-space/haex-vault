@@ -103,10 +103,17 @@ one run each. mistralrs was measured again on the same machine because the figur
 - US1 is answered yes; SC-001 and SC-003 hold on the development machine.
 - US2 is answered for Qwen3 and Qwen3.5: with our own template rendering and parsers (Hermes JSON and the
   Qwen3.5 XML) the evaluation does not fall below mistralrs (SC-002). Gemma 4 needs a third parser.
-- The devshell needs cmake, and the CUDA link needs a decision (static cuBLAS from a different CUDA
-  package, or the shared libraries shipped next to the binary).
+- The devshell needs cmake and static cuBLAS from the Nix CUDA package, exposed through the
+  `CUDA_LIBRARY_PATH` layout documented in R1 (task T003 is handled in the atoms repo).
 - Still to do before a plan: an Android run on the emulator, an iOS build on a Mac, a parser for Gemma 4's
   call format and its evaluation, the chat-template probe, CPU speed with `GGML_NATIVE`.
+
+## Promotion to production modules (PR B)
+
+The spike's template renderer and parsers moved into `llm/llamacpp/` (`template.rs`, `formats/`) with unit
+tests and the three real chat templates as fixtures, and the spike adapter now uses them. The 83-sentence
+evaluation through the promoted code gives the same figures as before: **55 of 83 for Qwen3 4B and 60 of 83
+for Qwen3.5 4B**, identical in reach (0.844 and 0.883), extra steps (3 and 6) and spurious calls (0 and 1).
 
 ## R1 – CUDA linking (settled, 2026-10-30)
 

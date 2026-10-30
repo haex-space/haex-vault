@@ -1,11 +1,10 @@
 //! Spec 070 spike, second part: a prototype [`ProviderAdapter`] over llama.cpp, only to run the
-//! 30-sentence tool evaluation of spec 032 against it (SC-002).
+//! tool evaluation of spec 032 against it (SC-002) and to try models the production adapter does not yet
+//! cover (Gemma 4, whose call syntax has no format yet).
 //!
-//! It is what the binding does not give us: the model's own Jinja chat template is rendered with
-//! `minijinja` (tools included), the answer is split into thinking and text, and tool calls are read
-//! back out of the text, in both formats the Qwen family uses (JSON, and the XML of Qwen3.5).
-//! Not production code: it generates the whole answer before it emits anything, ignores cancelling
-//! and always samples greedily.
+//! The chat template and the tool-call formats are the production modules in `llm/llamacpp`; what is still
+//! prototype is the rest: it generates the whole answer before it emits anything, ignores cancelling and
+//! always samples greedily. PR C of spec 070 replaces it with `LlamaCppAdapter`.
 
 use std::num::NonZeroU32;
 use std::path::Path;
@@ -19,15 +18,14 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
-use minijinja::value::Kwargs;
-use minijinja::{context, Environment, Error, ErrorKind};
-use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use crate::adapters::types::{
-    AdapterStream, ChatRequest, ChatRole, StreamChunk, StreamError, ToolCall, ToolSpec,
-};
+use crate::adapters::types::{AdapterStream, ChatRequest, StreamChunk, StreamError};
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
+use crate::llm::llamacpp::formats::{
+    default_messages, detect, split_thinking, template_tools, ChatFormat, Parsed,
+};
+use crate::llm::llamacpp::template::{render, RenderInput};
 
 const N_CTX: u32 = 8192;
 const N_BATCH: usize = 512;
@@ -37,6 +35,7 @@ pub struct LlamaCppSpikeAdapter {
     backend: Arc<LlamaBackend>,
     model: Arc<LlamaModel>,
     template: Arc<String>,
+    format: Option<&'static dyn ChatFormat>,
     bos: Arc<String>,
     eos: Arc<String>,
 }
@@ -57,212 +56,16 @@ impl LlamaCppSpikeAdapter {
         let piece =
             |token| String::from_utf8_lossy(&vocab.token_to_piece(token, true, None)).into_owned();
         let (bos, eos) = (piece(vocab.bos()), piece(vocab.eos()));
+        let format = detect(&template);
         Ok(Self {
             backend: Arc::new(backend),
             model: Arc::new(model),
             template: Arc::new(template),
+            format,
             bos: Arc::new(bos),
             eos: Arc::new(eos),
         })
     }
-}
-
-fn tojson(value: minijinja::Value, kwargs: Kwargs) -> Result<String, Error> {
-    let _ = kwargs.get::<Option<usize>>("indent");
-    let _ = kwargs.get::<Option<bool>>("ensure_ascii");
-    serde_json::to_string(&value).map_err(|e| {
-        Error::new(ErrorKind::InvalidOperation, "cannot serialize to JSON").with_source(e)
-    })
-}
-
-fn raise_exception(message: String) -> Result<String, Error> {
-    Err(Error::new(ErrorKind::InvalidOperation, message))
-}
-
-/// The messages of a request in the shape the chat templates of the Qwen family read.
-fn template_messages(req: &ChatRequest) -> Vec<Value> {
-    let mut out = Vec::new();
-    if let Some(system) = &req.system_prompt {
-        out.push(json!({"role": "system", "content": system}));
-    }
-    let mut i = 0;
-    while i < req.messages.len() {
-        let message = &req.messages[i];
-        match &message.role {
-            ChatRole::User => out.push(json!({"role": "user", "content": message.content})),
-            ChatRole::Assistant => {
-                out.push(json!({"role": "assistant", "content": message.content}))
-            }
-            ChatRole::ToolCall { .. } => {
-                let mut calls = Vec::new();
-                while let Some(ChatRole::ToolCall { name, input, .. }) =
-                    req.messages.get(i).map(|m| &m.role)
-                {
-                    calls.push(
-                        json!({"type": "function", "function": {"name": name, "arguments": input}}),
-                    );
-                    i += 1;
-                }
-                out.push(json!({"role": "assistant", "content": "", "tool_calls": calls}));
-                continue;
-            }
-            ChatRole::ToolResult {
-                call_id, content, ..
-            } => out.push(json!({"role": "tool", "content": content, "tool_call_id": call_id})),
-        }
-        i += 1;
-    }
-    out
-}
-
-fn template_tools(tools: &[ToolSpec]) -> Vec<Value> {
-    tools
-        .iter()
-        .map(|t| {
-            json!({"type": "function", "function": {
-                "name": t.name, "description": t.description, "parameters": t.input_schema,
-            }})
-        })
-        .collect()
-}
-
-/// Renders the template like mistralrs does for the same inputs (same context variables).
-pub(super) fn render_prompt(
-    template: &str,
-    req: &ChatRequest,
-    bos: &str,
-    eos: &str,
-) -> Result<String, Error> {
-    let mut env = Environment::new();
-    env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
-    env.set_lstrip_blocks(true);
-    env.set_trim_blocks(true);
-    env.add_function("raise_exception", raise_exception);
-    env.add_filter("tojson", tojson);
-    env.add_function("strftime_now", |_format: String| "2026-10-30".to_owned());
-    let template = template.replace("[::-1]", "|reverse");
-    env.add_template("chat", &template)?;
-    let tools = template_tools(&req.tools);
-    let ctx = if tools.is_empty() {
-        context! {
-            messages => template_messages(req),
-            add_generation_prompt => true,
-            bos_token => bos,
-            eos_token => eos,
-            enable_thinking => req.reasoning_requested,
-        }
-    } else {
-        context! {
-            messages => template_messages(req),
-            add_generation_prompt => true,
-            bos_token => bos,
-            eos_token => eos,
-            tools => tools,
-            enable_thinking => req.reasoning_requested,
-        }
-    };
-    env.get_template("chat")?.render(ctx)
-}
-
-/// Splits `<think>…</think>` off the front: the template may have opened the block in the prompt.
-pub(super) fn split_thinking(text: &str) -> (Option<String>, String) {
-    match text.find("</think>") {
-        Some(end) => {
-            let reasoning = text[..end].trim_start_matches("<think>").trim().to_owned();
-            let rest = text[end + "</think>".len()..].trim_start().to_owned();
-            ((!reasoning.is_empty()).then_some(reasoning), rest)
-        }
-        None => (None, text.to_owned()),
-    }
-}
-
-/// The JSON type a tool's schema gives one parameter.
-fn param_type<'a>(tools: &'a [ToolSpec], tool: &str, param: &str) -> Option<&'a str> {
-    tools
-        .iter()
-        .find(|t| t.name == tool)?
-        .input_schema
-        .get("properties")?
-        .get(param)?
-        .get("type")?
-        .as_str()
-}
-
-fn parse_xml_call(inner: &str, tools: &[ToolSpec]) -> Option<(String, Value)> {
-    let start = inner.find("<function=")?;
-    let rest = &inner[start + "<function=".len()..];
-    let name_end = rest.find('>')?;
-    let name = rest[..name_end].trim().to_owned();
-    let mut args = serde_json::Map::new();
-    let mut body = &rest[name_end + 1..];
-    while let Some(p) = body.find("<parameter=") {
-        let after = &body[p + "<parameter=".len()..];
-        let key_end = after.find('>')?;
-        let key = after[..key_end].trim().to_owned();
-        let value_start = &after[key_end + 1..];
-        let value_end = value_start
-            .find("</parameter>")
-            .unwrap_or(value_start.len());
-        let raw = value_start[..value_end]
-            .strip_prefix('\n')
-            .unwrap_or(&value_start[..value_end]);
-        let raw = raw.strip_suffix('\n').unwrap_or(raw);
-        let value = match param_type(tools, &name, &key) {
-            Some("string") => Value::String(raw.to_owned()),
-            _ => serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_owned())),
-        };
-        args.insert(key, value);
-        body = &value_start[(value_end + "</parameter>".len()).min(value_start.len())..];
-    }
-    Some((name, Value::Object(args)))
-}
-
-fn parse_json_call(inner: &str) -> Option<(String, Value)> {
-    let value: Value = serde_json::from_str(inner).ok()?;
-    let name = value.get("name")?.as_str()?.to_owned();
-    let arguments = match value.get("arguments") {
-        Some(Value::String(s)) => serde_json::from_str(s).ok()?,
-        Some(other) => other.clone(),
-        None => json!({}),
-    };
-    if !arguments.is_object() {
-        return None;
-    }
-    Some((name, arguments))
-}
-
-/// Reads the `<tool_call>` blocks out of the text; returns the text without them and the calls.
-pub(super) fn parse_tool_calls(text: &str, tools: &[ToolSpec]) -> (String, Vec<ToolCall>) {
-    const OPEN: &str = "<tool_call>";
-    const CLOSE: &str = "</tool_call>";
-    let mut content = String::new();
-    let mut calls = Vec::new();
-    let mut rest = text;
-    while let Some(start) = rest.find(OPEN) {
-        content.push_str(&rest[..start]);
-        let after = &rest[start + OPEN.len()..];
-        let (inner, next) = match after.find(CLOSE) {
-            Some(end) => (&after[..end], &after[end + CLOSE.len()..]),
-            None => (after, ""),
-        };
-        let inner = inner.trim();
-        let parsed = if inner.starts_with('{') {
-            parse_json_call(inner)
-        } else {
-            parse_xml_call(inner, tools)
-        };
-        match parsed {
-            Some((name, input)) => calls.push(ToolCall {
-                id: format!("call_{}", calls.len()),
-                name,
-                input,
-            }),
-            None => content.push_str(&format!("{OPEN}{inner}{CLOSE}")),
-        }
-        rest = next;
-    }
-    content.push_str(rest);
-    (content.trim().to_owned(), calls)
 }
 
 struct Generated {
@@ -350,11 +153,31 @@ impl ProviderAdapter for LlamaCppSpikeAdapter {
             Arc::clone(&self.bos),
             Arc::clone(&self.eos),
         );
+        let format = self.format;
         let task = tokio::spawn(async move {
             let started = Instant::now();
             let result = tokio::task::spawn_blocking(move || {
-                let prompt = render_prompt(&template, &req, &bos, &eos)
-                    .map_err(|e| StreamError::StartFailed(format!("chat template: {e:#}")))?;
+                if !req.tools.is_empty() && format.is_none() {
+                    return Err(StreamError::StartFailed(
+                        "this model's chat template has no tool-call format the engine knows"
+                            .to_owned(),
+                    ));
+                }
+                let messages = match format {
+                    Some(f) => f.shape_messages(req.system_prompt.as_deref(), &req.messages),
+                    None => default_messages(req.system_prompt.as_deref(), &req.messages),
+                };
+                let prompt = render(
+                    &template,
+                    &RenderInput {
+                        messages,
+                        tools: template_tools(&req.tools),
+                        enable_thinking: req.reasoning_requested,
+                        bos_token: &bos,
+                        eos_token: &eos,
+                    },
+                )
+                .map_err(|e| StreamError::StartFailed(e.to_string()))?;
                 let generated = generate(
                     &backend,
                     &model,
@@ -376,8 +199,21 @@ impl ProviderAdapter for LlamaCppSpikeAdapter {
                     return;
                 }
             };
-            let (reasoning, text) = split_thinking(&generated.text);
-            let (content, calls) = parse_tool_calls(&text, &req.tools);
+            let Parsed {
+                reasoning,
+                content,
+                calls,
+            } = match format {
+                Some(f) => f.parse(&generated.text, &req.tools),
+                None => {
+                    let (reasoning, content) = split_thinking(&generated.text);
+                    Parsed {
+                        reasoning,
+                        content,
+                        calls: Vec::new(),
+                    }
+                }
+            };
             let _ = tx.send(Ok(StreamChunk::Delta { content, reasoning }));
             let tool_calls = !calls.is_empty();
             if tool_calls {
@@ -399,69 +235,5 @@ impl ProviderAdapter for LlamaCppSpikeAdapter {
             }));
         });
         Ok(AdapterStream::new(rx, task.abort_handle()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn tool(name: &str, schema: Value) -> ToolSpec {
-        ToolSpec {
-            name: name.to_owned(),
-            description: String::new(),
-            input_schema: schema,
-        }
-    }
-
-    #[test]
-    fn reads_a_json_call() {
-        let text = "Sure.\n<tool_call>\n{\"name\": \"open\", \"arguments\": {\"page\": \"sync\"}}\n</tool_call>";
-        let (content, calls) = parse_tool_calls(text, &[]);
-        assert_eq!(content, "Sure.");
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "open");
-        assert_eq!(calls[0].input, json!({"page": "sync"}));
-    }
-
-    #[test]
-    fn reads_an_xml_call_and_types_its_parameters_by_schema() {
-        let tools = [tool(
-            "set",
-            json!({"properties": {"label": {"type": "string"}, "count": {"type": "integer"}, "on": {"type": "boolean"}}}),
-        )];
-        let text = "<tool_call>\n<function=set>\n<parameter=label>\n42\n</parameter>\n<parameter=count>\n3\n</parameter>\n<parameter=on>\ntrue\n</parameter>\n</function>\n</tool_call>";
-        let (content, calls) = parse_tool_calls(text, &tools);
-        assert_eq!(content, "");
-        assert_eq!(calls[0].name, "set");
-        assert_eq!(
-            calls[0].input,
-            json!({"label": "42", "count": 3, "on": true})
-        );
-    }
-
-    #[test]
-    fn reads_two_calls_and_keeps_unparseable_text() {
-        let text = "<tool_call>{\"name\":\"a\",\"arguments\":{}}</tool_call><tool_call>{broken</tool_call>";
-        let (content, calls) = parse_tool_calls(text, &[]);
-        assert_eq!(calls.len(), 1);
-        assert!(content.contains("{broken"));
-    }
-
-    #[test]
-    fn keeps_a_json_call_with_invalid_arguments_as_text() {
-        let text = "<tool_call>{\"name\":\"open\",\"arguments\":\"{broken\"}</tool_call>";
-        let (content, calls) = parse_tool_calls(text, &[]);
-        assert!(calls.is_empty());
-        assert!(content.contains(text));
-    }
-
-    #[test]
-    fn splits_thinking_that_the_prompt_opened() {
-        let (reasoning, text) = split_thinking("Let me see.\n</think>\n\nAnswer.");
-        assert_eq!(reasoning.as_deref(), Some("Let me see."));
-        assert_eq!(text, "Answer.");
-        assert_eq!(split_thinking("<think>\n\n</think>\n\nHi").0, None);
-        assert_eq!(split_thinking("plain").1, "plain");
     }
 }
