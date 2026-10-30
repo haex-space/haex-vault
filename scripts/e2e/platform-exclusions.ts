@@ -130,22 +130,6 @@ export const EXCLUSIONS: PlatformExclusion[] = [
       'closing the vault ends the app on Android; there is no relaunch (FR-006)',
     counterCase: 'lock-twice',
   },
-  {
-    scenario: 'marketplace-catalog',
-    platform: 'android',
-    kind: 'harness-limited',
-    reason:
-      'the local marketplace URL is supplied through the host process environment, which the Android app process cannot receive',
-    counterCase: 'android-not-available',
-  },
-  {
-    scenario: 'marketplace-install',
-    platform: 'android',
-    kind: 'harness-limited',
-    reason:
-      'the local marketplace URL is supplied through the host process environment, which the Android app process cannot receive',
-    counterCase: 'android-not-available',
-  },
 ]
 
 /** The entries of `platform`, by scenario. */

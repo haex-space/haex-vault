@@ -163,6 +163,10 @@ Training auf dem Gerät — zu schwer für Telefone.
 0,5–2,0 s), Mindestlänge 250 ms und Vorlauf von 1,5 s aus dem Ringpuffer, damit „Hey Haex, wie
 viele …“ in einem Atemzug ganz ankommt. Höchstdauer einer Runde 60 s wie in 008.
 
+**Stand nach PR B Teil 3 (2026-10-30)**: `assistant::listen` läuft auf dem Strom
+(`audio::stream`). sherpa schneidet bei 60 s, behält aber vor dem erkannten Sprechbeginn einen
+Vorlauf von etwa 0,5 s; eine geschnittene Äußerung ist deshalb rund 60,5 s lang.
+
 **Alternativen**: Smart Turn v3 (BSD-2, erkennt Satzende auch bei Denkpausen) — später, falls feste
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.

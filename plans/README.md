@@ -39,7 +39,7 @@ Ablage und Vorrang: Nummerierte `specs/`-Artefakte einschließlich ihrer Verträ
 | 066: Sprachassistent mit Wake Word (`specs/066-voice-assistant/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–J); Standard-Wake-Word wird im externen Repo `haex-space/haex-wakeword` trainiert | 032, 008 US1 und 010 im Einsatz; PR F nach ADR-0020 |
 | 068: Orchestrator und Modell-Routing (`specs/068-task-orchestration/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–G); ADR-0021 | 032, 012, 007/009, 055 im Einsatz |
 | 067: Meeting-Mitschrift mit Sprecherzuordnung (`specs/067-meeting-transcription/`) | P2 | L | Spezifiziert, geklärt und geplant 2026-10-28 (Lieferungen PR A–G) | 066 PR B–D umgesetzt; PR E nach 066 PR G |
-| 069: Marketplace für Erweiterungen (`specs/069-marketplace/`) | P2 | L | Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-29; Lieferungen PR A–G | 017 und 034 im Einsatz; öffentlicher Marketplace unter `https://marketplace.haex.space` |
+| 069: Marketplace für Erweiterungen (`specs/069-marketplace/`) | P2 | L | Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-29; PR A–F geliefert (2026-10-30), PR G (Zwei-Geräte-Szenario, Glossar) in Arbeit; offen: Android-Emulator, manuelle Prüfungen M10, M12, M13, M16 | 017 und 034 im Einsatz; öffentlicher Marketplace unter `https://marketplace.haex.space` |
 
 Legende: Priorität `P1` (höchste) – `P3` (nachrangig); Aufwand `S` (klein), `M` (mittel), `L` (groß).
 

@@ -81,9 +81,9 @@ of the newest versions are in the old bundle format (no `haextension/signature.j
 manifest, `public.key`) and cannot be installed through the install preview of spec 017: `haex-tetris`
 0.1.3, `haex-image` 0.1.6, `haex-game-unicorn` 1.0.1, `haex-draw` 0.2.7, `haex-code` 0.2.11 and
 `haex-calendar` 1.0.9. `haex-mail`, `haex-notes` and `haex-doom` are already `haextension-bundle/2`.
-Before the marketplace is released, the publisher publishes new, higher versions of the six (the server
-refuses to overwrite a version) through the release pipeline of the `haextension` repository and checks every
-download with `haex verify` and the install preview. That lies outside this repository and is no substitute
+The six were republished on 2026-10-29 as `haex-tetris` 0.1.4, `haex-image` 0.1.7, `haex-game-unicorn`
+1.0.2, `haex-draw` 0.2.8, `haex-code` 0.2.12 and `haex-calendar` 1.0.10 (hash, size and `haex verify`
+checked); what is left is to check every download with the install preview of a release build. That lies outside this repository and is no substitute
 for the signed test marketplace in the E2E tests; the checks are manual step M16 of the quickstart.
 
 **Target Platform**: Linux, Windows, macOS, Android, iOS (no platform-dependent code except the version
