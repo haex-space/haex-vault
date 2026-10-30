@@ -46,12 +46,13 @@ F; US5 is G.
 
 ## PR A – Build and shell (FR-005)
 
-- [ ] T003 Add `cmake` to the devshell. `.devshell/packages.nix` is delivered by the atoms package, so the
-      change goes into the atoms repo (as the Android devShell did) and holzi bumps the pin; record both
-      PR numbers here.
-- [ ] T004 [P] Settle R1 (CUDA linking): try static cuBLAS from the nixpkgs CUDA packages in a devshell
-      (a); fall back to `dynamic-link` with the libraries next to the binary (b). Write the finding into
-      `research.md`.
+- [ ] T003 Add `cmake` to the devshell, and what R1 found the static CUDA link needs
+      (`research.md` "R1"): `cudaPackages.libcublas.static` and a `CUDA_LIBRARY_PATH` directory with a
+      `lib64` of `libcudart_static.a`, `libculibos.a`, `libcublas_static.a`, `libcublasLt_static.a` and
+      `stubs`. `.devshell/packages.nix` is delivered by the atoms package, so the change goes into the atoms
+      repo (as the Android devShell did) and holzi bumps the pin; record both PR numbers here.
+- [x] T004 [P] Settle R1 (CUDA linking): static cuBLAS from the nixpkgs CUDA packages works (option (a));
+      the finding is in `research.md`.
 - [x] T005 `src-tauri/Cargo.toml`: promote the spike features to `llm-llamacpp`, `llm-llamacpp-cuda` and
       `llm-llamacpp-metal` (platform features for Android in T035); keep `llama-cpp-2 =0.1.160`; drop the
       `[profile.dev.package.llama-cpp-sys-2]` override if the CI leg does not need it; fix the stale comment
@@ -61,7 +62,7 @@ F; US5 is G.
 - [x] T007 Create `src-tauri/src/llm/llamacpp/` (the shell and a link test; the submodules arrive with the stages that need them); move the spike's
       `llamacpp_spike_adapter.rs` content out of `llm/local/` into place as it is promoted in B and C, and
       remove the spike test files once their content lives in proper tests (end of C).
-- [ ] T008 Amend the ADR with the settled R1 decision.
+- [x] T008 Amend the ADR with the settled R1 decision.
 
 ## PR B – Template and formats (US2, FR-002)
 

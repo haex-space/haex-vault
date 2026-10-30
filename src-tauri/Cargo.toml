@@ -58,9 +58,10 @@ llm-metal = ["llm-cpu", "mistralrs/metal"]
 # Opt-in: it needs `cmake` and a C++ toolchain at build time, and the default build stays as it is.
 # It rides on `llm-cpu` because the adapter types, the catalog and the evaluation are shared.
 llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2", "dep:minijinja", "dep:minijinja-contrib"]
-# The Nix CUDA toolkit has no static cuBLAS, so the sys crate's default static link fails; the spike
-# linked dynamically. The final choice is spec 070 R1 (task T004) and is recorded in the ADR.
-llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda", "llama-cpp-2/dynamic-link"]
+# Static CUDA link (spec 070 R1, ADR 0023): the binary carries cudart and cuBLAS and needs only the
+# driver at run time. The sys crate looks for them in `$CUDA_LIBRARY_PATH/lib64`, which a Nix devShell
+# has to provide (static cuBLAS from `cudaPackages.libcublas.static`); see `research.md`.
+llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda"]
 # Metal build (Apple GPU), like `llm-metal`. Not built or run yet (spec 070 T037).
 llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 
