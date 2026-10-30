@@ -10,13 +10,14 @@ use uuid::Uuid;
 
 use super::catalog::{fetch_catalog, InstalledExtension, Source};
 use super::client::{Http, SourceFailure};
+use super::credentials::{self, Login};
 use super::details::{fetch_categories, fetch_details};
 use super::download::download_bundle;
 use super::icons::Network;
 use super::model::{
     CatalogCategories, CatalogDetail, CatalogPage, CatalogQuery, CheckUpdatesResult,
-    DownloadProgress, KnownUpdatesView, MarketplaceAuthType, MarketplaceCredentialsState,
-    MarketplaceView, PendingBundleRef, SourceErrorKind,
+    DownloadProgress, KnownUpdatesView, MarketplaceCredentialsState, MarketplaceView,
+    PendingBundleRef, SourceErrorKind,
 };
 use super::pending::PendingBundle;
 use super::store::{self, MarketplaceRow};
@@ -24,6 +25,8 @@ use super::updates::{check_updates, view as updates_view};
 use super::{app_version, kinds, MarketplaceState, PENDING_IDLE};
 use crate::error::{HolziError, Result};
 use crate::extensions::registry::list::list as list_extensions;
+use crate::passwords::commands::service;
+use crate::passwords::service::PasswordsService;
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::wm_session_commands::current_device_uuid;
@@ -48,54 +51,85 @@ pub fn failure_error(failure: &SourceFailure) -> HolziError {
     })
 }
 
-/// The list of the marketplaces in the order of the user.
-pub fn views(rows: &[MarketplaceRow]) -> Vec<MarketplaceView> {
-    rows.iter()
-        .zip(1u32..)
-        .map(|(row, rank)| MarketplaceView {
-            id: row.id.clone(),
-            name: row.name.clone(),
-            base_url: row.base_url.clone(),
-            enabled: row.enabled,
-            rank,
-            auth_type: row.auth_type,
-            credentials: credentials_state(row),
-            credentials_item_id: row.credentials_item_id.clone(),
-        })
-        .collect()
+/// The list of the marketplaces in the order of the user, each with the state of its login
+/// (research R11): one read of the vault.
+pub async fn list_views(db: &VaultDb) -> Result<Vec<MarketplaceView>> {
+    db.read(|q| {
+        let mut views = Vec::new();
+        for (row, rank) in store::list(q)?.into_iter().zip(1u32..) {
+            let (credentials, credentials_entry) = match &row.credentials_item_id {
+                Some(item_id) if row.auth_type.needs_credentials() => (
+                    credentials::state_in(q, row.auth_type, item_id)?,
+                    credentials::entry(q, item_id)?,
+                ),
+                _ if row.auth_type.needs_credentials() => {
+                    (MarketplaceCredentialsState::Missing, None)
+                }
+                _ => (MarketplaceCredentialsState::None, None),
+            };
+            views.push(MarketplaceView {
+                id: row.id,
+                name: row.name,
+                base_url: row.base_url,
+                enabled: row.enabled,
+                rank,
+                auth_type: row.auth_type,
+                credentials,
+                credentials_item_id: row.credentials_item_id,
+                credentials_entry,
+            });
+        }
+        Ok(views)
+    })
+    .await
 }
 
-/// Until the credentials entries are wired in (spec 069 US5) a marketplace that asks for a login
-/// reads as missing its credentials.
-fn credentials_state(row: &MarketplaceRow) -> MarketplaceCredentialsState {
-    match row.auth_type {
-        MarketplaceAuthType::None => MarketplaceCredentialsState::None,
-        _ => MarketplaceCredentialsState::Missing,
+/// The sources to ask: the enabled marketplaces in the order of the list, each with its login. A
+/// disabled one is not asked at all (US4-3).
+pub async fn sources_of(
+    passwords: &PasswordsService,
+    db: &VaultDb,
+    rows: &[MarketplaceRow],
+    source_id: Option<&str>,
+) -> Result<Vec<Source>> {
+    let mut sources = Vec::new();
+    for row in rows
+        .iter()
+        .filter(|row| row.enabled && source_id.is_none_or(|id| row.id == id))
+    {
+        sources.push(source_of(passwords, db, row).await?);
     }
+    Ok(sources)
 }
 
-/// The sources to ask: the enabled marketplaces in the order of the list. A disabled one is not
-/// asked at all (US4-3).
-pub fn sources_of(rows: &[MarketplaceRow]) -> Vec<Source> {
-    rows.iter()
-        .filter(|row| row.enabled)
-        .map(source_of)
-        .collect()
-}
-
-/// One marketplace as a source; one with a login cannot be asked yet.
-pub fn source_of(row: &MarketplaceRow) -> Source {
-    Source {
+/// One marketplace as a source. One whose login is not there — no entry, a deleted one, one that
+/// has not arrived, or a login over `http` — is marked unavailable and is not asked (FR-027,
+/// FR-028).
+pub async fn source_of(
+    passwords: &PasswordsService,
+    db: &VaultDb,
+    row: &MarketplaceRow,
+) -> Result<Source> {
+    let (auth, unavailable) = if !row.auth_type.needs_credentials() {
+        (None, None)
+    } else if !store::login_transport_ok(&row.base_url) {
+        (None, Some(SourceErrorKind::InsecureCredentials))
+    } else if let Some(item_id) = row.credentials_item_id.as_deref() {
+        match credentials::read(passwords, db, row.auth_type, item_id).await? {
+            Login::Ready(header) => (Some(header), None),
+            Login::Missing => (None, Some(SourceErrorKind::CredentialsMissing)),
+            Login::Syncing => (None, Some(SourceErrorKind::CredentialsSyncing)),
+        }
+    } else {
+        (None, Some(SourceErrorKind::CredentialsMissing))
+    };
+    Ok(Source {
         id: row.id.clone(),
         name: row.name.clone(),
         base_url: row.base_url.clone(),
-        auth: None,
-        unavailable: match credentials_state(row) {
-            MarketplaceCredentialsState::None | MarketplaceCredentialsState::Present => None,
-            MarketplaceCredentialsState::Syncing => Some(SourceErrorKind::CredentialsSyncing),
-            MarketplaceCredentialsState::Missing => Some(SourceErrorKind::CredentialsMissing),
-        },
-    }
+        auth,
+        unavailable,
+    })
 }
 
 pub(super) async fn rows(db: &VaultDb) -> Result<Vec<MarketplaceRow>> {
@@ -119,8 +153,7 @@ async fn installed(app: &AppHandle, db: &VaultDb) -> Result<Vec<InstalledExtensi
 /// Every marketplace in the order of the user (FR-020).
 #[tauri::command]
 pub async fn marketplace_list(state: State<'_, AppState>) -> Result<Vec<MarketplaceView>> {
-    let db = active_database(&state)?;
-    Ok(views(&rows(&db).await?))
+    list_views(&active_database(&state)?).await
 }
 
 /// One page of the common catalog (FR-001, FR-012). A newer call aborts a running one.
@@ -132,9 +165,10 @@ pub async fn marketplace_catalog(
     query: CatalogQuery,
 ) -> Result<CatalogPage> {
     let db = active_database(&state)?;
+    let passwords = service(&state)?;
     let registration = market.begin_catalog();
     let work = async {
-        let sources = sources_of(&rows(&db).await?);
+        let sources = sources_of(&passwords, &db, &rows(&db).await?, None).await?;
         let installed = installed(&app, &db).await?;
         let page = fetch_catalog(
             Http::default(),
@@ -161,7 +195,8 @@ pub async fn marketplace_categories(
     source_id: Option<String>,
 ) -> Result<CatalogCategories> {
     let db = active_database(&state)?;
-    let sources = sources_of(&rows(&db).await?);
+    let passwords = service(&state)?;
+    let sources = sources_of(&passwords, &db, &rows(&db).await?, source_id.as_deref()).await?;
     Ok(fetch_categories(Http::default(), &sources, source_id.as_deref()).await)
 }
 
@@ -180,15 +215,10 @@ pub async fn marketplace_details(
         .find(|row| row.id == source_id)
         .ok_or_else(|| refused(kinds::NOT_FOUND))?;
     let installed = installed(&app, &db).await?;
-    fetch_details(
-        Http::default(),
-        &source_of(row),
-        &slug,
-        &installed,
-        &app_version(),
-    )
-    .await
-    .map_err(|failure| failure_error(&failure))
+    let source = source_of(&service(&state)?, &db, row).await?;
+    fetch_details(Http::default(), &source, &slug, &installed, &app_version())
+        .await
+        .map_err(|failure| failure_error(&failure))
 }
 
 /// An icon as a `data:` URL, loaded by the host (FR-006, research R12).
@@ -238,7 +268,8 @@ pub async fn marketplace_check_updates(
     market: State<'_, MarketplaceState>,
 ) -> Result<CheckUpdatesResult> {
     let db = active_database(&state)?;
-    let sources = sources_of(&rows(&db).await?);
+    let passwords = service(&state)?;
+    let sources = sources_of(&passwords, &db, &rows(&db).await?, None).await?;
     let installed = installed(&app, &db).await?;
     let checked = check_updates(Http::default(), &sources, &installed, &app_version()).await;
     for (name, source_id, updates) in &checked.answered {
@@ -282,12 +313,13 @@ pub async fn marketplace_download(
         .iter()
         .find(|row| row.id == source_id)
         .ok_or_else(|| refused(kinds::NOT_FOUND))?;
+    let source = source_of(&service(&state)?, &db, row).await?;
     let closing = state.gate().token();
     let (cancel, _running) = market.downloads.begin(id, &closing)?;
     market.pending.clear();
     let bytes = download_bundle(
         Http::default(),
-        &source_of(row),
+        &source,
         &slug,
         &version,
         &app_version(),

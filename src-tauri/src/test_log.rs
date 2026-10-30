@@ -34,6 +34,19 @@ pub fn all() -> String {
     at_least(log::Level::Trace)
 }
 
+/// Every record whose target does not start with one of `targets`, for a test whose scripted
+/// server logs what it receives (a secret a client sent is in the server's log, not the client's).
+pub fn all_but(targets: &[&str]) -> String {
+    RECORDS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .filter(|(_, line)| !targets.iter().any(|target| line.starts_with(target)))
+        .map(|(_, line)| line.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The records of `level` and above, as a log at that level keeps them (holzi writes `Info` and
 /// above, `lib.rs`).
 pub fn at_least(level: log::Level) -> String {

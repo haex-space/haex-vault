@@ -108,7 +108,11 @@ a type that means "file chosen by the user").
   involved, only within the same host and port. Up to 5 redirects. `reqwest` drops `Authorization` on a
   host change anyway; the test checks it nevertheless (no trust in defaults).
 - Credentials are sent only to `https://`; the form rejects "Bearer/Basic with `http://`" (FR-027, US5-6)
-  and the client does not send them even if the row allows it (second barrier).
+  and the client does not send them even if the row allows it (second barrier). One exception for the
+  end-to-end suite (T063): a **debug** build also takes `http` to a **loopback** address (`127.0.0.0/8`,
+  `::1`, `localhost`), because its test marketplace has no certificate (`store::login_transport_ok`, the
+  one place of the rule; a release build never does, a unit test covers both kinds like
+  `preset_url_for`). The form lets a loopback address through and the host decides.
 - The signed download address and icons are loaded **without** credentials. An `http://` download address
   is allowed only if the marketplace's own address is `http://` (self-hosted on the local network);
   otherwise it is rejected.

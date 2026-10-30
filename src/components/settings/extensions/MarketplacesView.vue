@@ -27,7 +27,10 @@ async function loadAsync() {
 }
 
 onMounted(() => void loadAsync())
-onVaultTablesChanged(['haex_marketplaces'], loadAsync)
+onVaultTablesChanged(
+  ['haex_marketplaces', 'haex_passwords_item_details'],
+  loadAsync,
+)
 
 async function runAsync(action: () => Promise<unknown>) {
   failure.value = null

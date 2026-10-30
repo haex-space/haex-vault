@@ -3,11 +3,22 @@
 //! The fixtures have the shape of the live answers of 2026-10-28; ids and checksums are made up.
 //! No test talks to the internet.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+
+use crate::passwords::test_support::open_test_vault;
+use crate::vault_gate::{VaultDb, VaultGate};
+
+/// A vault with the tables of the marketplace and the password manager; keep the directory alive.
+pub fn vault() -> (tempfile::TempDir, VaultDb) {
+    let (dir, db) = open_test_vault();
+    let vault = VaultGate::new().vault_db(Arc::new(db)).unwrap();
+    (dir, vault)
+}
 
 /// A marketplace served on `127.0.0.1` under `prefix` (empty or `/market`).
 pub struct TestMarketplace {

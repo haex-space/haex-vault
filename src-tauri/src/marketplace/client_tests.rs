@@ -192,17 +192,17 @@ async fn nothing_listening_is_unreachable() {
 
 #[tokio::test]
 async fn a_login_is_never_sent_over_http() {
-    let market = TestMarketplace::start().await;
-    market.healthy().await;
+    // Not a loopback address: a debug build takes a login to one of those (research R15), so
+    // nothing here could tell that a request went out; this host cannot even be resolved.
     let auth = AuthHeader::bearer("test-token");
     let failure = Http::default()
-        .get_json::<Value>(&market.base_url(), "/health", &[], Some(&auth))
+        .get_json::<Value>("http://marketplace.invalid", "/health", &[], Some(&auth))
         .await
         .expect_err("http with a login");
-    assert_eq!(failure.kind, SourceErrorKind::InsecureCredentials);
-    assert!(
-        market.requests().await.is_empty(),
-        "not even a request without the header went out"
+    assert_eq!(
+        failure.kind,
+        SourceErrorKind::InsecureCredentials,
+        "refused before any lookup or request"
     );
 }
 

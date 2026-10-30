@@ -381,7 +381,10 @@ async function confirmHostKeyAsync() {
       <CredentialsEntryPicker
         v-if="withCredentials && credentials.source === 'entry'"
         v-model="credentials.entryId"
-        :protocol="draft.protocol"
+        :source="{
+          command: 'storage_credentials_candidates',
+          args: { protocol: draft.protocol },
+        }"
       />
 
       <SettingsGroup

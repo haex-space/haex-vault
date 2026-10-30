@@ -33,7 +33,7 @@ module `src-tauri/src/marketplace/`; the frontend only displays and calls Tauri 
   field is the token; Basic: user name and password) and reports `present`/`missing`/`syncing`. The
   selection uses `CredentialsEntryPicker.vue`, which gets a source as a property instead of `protocol`
   for this.
-- **UI**: new wm app `system.marketplace` ("Erweiterungen entdecken"), new sub-view
+- **UI**: new wm app `system.marketplace` ("Marktplatz" / "Marketplace"), new sub-view
   `extensions/marketplaces` in the settings with form `extensions/marketplaces/:id`, an update hint in the
   list of installed extensions.
 

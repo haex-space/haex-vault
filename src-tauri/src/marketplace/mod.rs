@@ -10,6 +10,7 @@ use std::time::Duration;
 pub mod catalog;
 pub mod client;
 pub mod commands;
+pub mod credentials;
 pub mod details;
 pub mod download;
 pub mod icons;
@@ -23,6 +24,8 @@ pub mod wire;
 
 #[cfg(test)]
 mod generic_tests;
+#[cfg(test)]
+mod secrets_tests;
 #[cfg(test)]
 mod test_support;
 

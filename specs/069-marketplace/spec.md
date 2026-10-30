@@ -382,7 +382,8 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
   stored as a visible entry there). The marketplace list never holds a token or password.
 - **FR-027**: Credentials MUST ONLY be sent to `https://` addresses and only to the marketplace's host,
   never to a redirect to another host and never to the address an install file is loaded from if it lies
-  on another host.
+  on another host. (The test suite's debug build is the one exception: it also takes `http` to a loopback
+  address, research R6.)
 - **FR-028**: If the credentials are missing (entry deleted, not synced, incomplete), the source MUST say
   so, without disturbing other sources.
 - **FR-029**: When an entry in the password manager that a marketplace uses is deleted, the password

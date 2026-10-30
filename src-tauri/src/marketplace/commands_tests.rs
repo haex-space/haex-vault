@@ -5,46 +5,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::*;
-use crate::marketplace::model::MarketplaceAuthType;
-
-fn row(id: &str, enabled: bool, auth: MarketplaceAuthType) -> MarketplaceRow {
-    MarketplaceRow {
-        id: id.to_owned(),
-        name: format!("Name {id}"),
-        base_url: format!("https://{id}.example"),
-        enabled,
-        sort_order: 1,
-        auth_type: auth,
-        credentials_item_id: None,
-    }
-}
-
-#[test]
-fn the_list_is_ranked_from_one_in_the_order_it_comes() {
-    let views = views(&[
-        row("a", true, MarketplaceAuthType::None),
-        row("b", false, MarketplaceAuthType::Bearer),
-    ]);
-    assert_eq!(views.iter().map(|v| v.rank).collect::<Vec<_>>(), [1, 2]);
-    assert_eq!(views[1].credentials, MarketplaceCredentialsState::Missing);
-    assert!(!views[1].enabled);
-}
-
-#[test]
-fn a_disabled_marketplace_is_not_a_source() {
-    let sources = sources_of(&[
-        row("a", true, MarketplaceAuthType::None),
-        row("b", false, MarketplaceAuthType::None),
-        row("c", true, MarketplaceAuthType::Basic),
-    ]);
-    let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
-    assert_eq!(ids, ["a", "c"]);
-    assert_eq!(sources[0].unavailable, None);
-    assert_eq!(
-        sources[1].unavailable,
-        Some(SourceErrorKind::CredentialsMissing)
-    );
-}
 
 #[test]
 fn a_failed_source_reads_as_the_error_kind_of_a_command() {

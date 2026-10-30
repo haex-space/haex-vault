@@ -6,6 +6,9 @@ use crate::marketplace::kinds;
 use crate::marketplace::model::MarketplaceAuthType;
 use crate::marketplace::store::{PRESET_ID, PRESET_NAME};
 use crate::marketplace::test_support::{entry, page, version, TestMarketplace};
+use crate::passwords::access::Caller;
+use crate::passwords::model::ItemInput;
+use crate::passwords::service::PasswordsService;
 use crate::passwords::test_support::open_test_vault;
 use crate::vault_gate::VaultGate;
 
@@ -22,7 +25,12 @@ fn input(name: &str, url: &str) -> MarketplaceInput {
         base_url: url.to_owned(),
         auth_type: MarketplaceAuthType::None,
         credentials_item_id: None,
+        new_credentials: None,
     }
+}
+
+fn pw(db: &VaultDb) -> PasswordsService {
+    PasswordsService::new(db.clone())
 }
 
 fn reason(error: HolziError) -> String {
@@ -33,7 +41,9 @@ fn reason(error: HolziError) -> String {
 }
 
 async fn order(db: &VaultDb) -> Vec<String> {
-    views(&rows(db).await.unwrap())
+    list_views(db)
+        .await
+        .unwrap()
         .into_iter()
         .map(|view| view.id)
         .collect()
@@ -45,6 +55,7 @@ async fn a_marketplace_is_saved_with_a_normalized_address_and_can_be_changed() {
 
     let saved = save(
         &db,
+        &pw(&db),
         input("  My own  ", "https://Market.Example/team/ "),
         10,
     )
@@ -57,7 +68,7 @@ async fn a_marketplace_is_saved_with_a_normalized_address_and_can_be_changed() {
 
     let mut change = input("Renamed", "http://192.168.1.5:3000");
     change.id = Some(saved.id.clone());
-    let changed = save(&db, change, 20).await.unwrap();
+    let changed = save(&db, &pw(&db), change, 20).await.unwrap();
     assert_eq!(changed.id, saved.id, "an update keeps the row");
     assert_eq!(changed.name, "Renamed");
     assert_eq!(changed.base_url, "http://192.168.1.5:3000");
@@ -68,11 +79,11 @@ async fn a_marketplace_is_saved_with_a_normalized_address_and_can_be_changed() {
 async fn an_address_that_is_no_http_address_is_refused() {
     let (_dir, db) = vault();
     for bad in ["ftp://market.example", "market.example", "https://", ""] {
-        let error = save(&db, input("x", bad), 1).await.unwrap_err();
+        let error = save(&db, &pw(&db), input("x", bad), 1).await.unwrap_err();
         assert_eq!(reason(error), kinds::INVALID_URL, "{bad}");
     }
     assert!(matches!(
-        save(&db, input("   ", "https://market.example"), 1).await,
+        save(&db, &pw(&db), input("   ", "https://market.example"), 1).await,
         Err(HolziError::InvalidInput { .. })
     ));
     assert!(order(&db).await.is_empty(), "nothing was written");
@@ -85,13 +96,17 @@ async fn a_login_needs_https_and_an_entry() {
     with_login.auth_type = MarketplaceAuthType::Bearer;
     with_login.credentials_item_id = Some("item".into());
     assert_eq!(
-        reason(save(&db, with_login.clone(), 1).await.unwrap_err()),
+        reason(
+            save(&db, &pw(&db), with_login.clone(), 1)
+                .await
+                .unwrap_err()
+        ),
         kinds::INSECURE_CREDENTIALS
     );
     with_login.base_url = "https://market.example".into();
     with_login.credentials_item_id = None;
     assert_eq!(
-        reason(save(&db, with_login, 1).await.unwrap_err()),
+        reason(save(&db, &pw(&db), with_login, 1).await.unwrap_err()),
         kinds::CREDENTIALS_REQUIRED
     );
 }
@@ -99,36 +114,50 @@ async fn a_login_needs_https_and_an_entry() {
 #[tokio::test(flavor = "multi_thread")]
 async fn listing_keeps_the_credentials_entry_id_available_to_the_edit_form() {
     let (_dir, db) = vault();
+    let passwords = pw(&db);
+    let item_id = passwords
+        .create_item(
+            &Caller::User,
+            &[],
+            ItemInput {
+                title: Some("Marketplace login".into()),
+                password: Some("token".into()),
+                ..ItemInput::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
     let mut with_login = input("Private", "https://market.example");
     with_login.auth_type = MarketplaceAuthType::Bearer;
-    with_login.credentials_item_id = Some("password-item".into());
+    with_login.credentials_item_id = Some(item_id.clone());
 
-    let saved = save(&db, with_login.clone(), 1).await.unwrap();
-    assert_eq!(saved.credentials_item_id.as_deref(), Some("password-item"));
+    let saved = save(&db, &passwords, with_login.clone(), 1).await.unwrap();
+    assert_eq!(saved.credentials_item_id.as_deref(), Some(item_id.as_str()));
 
     with_login.id = Some(saved.id.clone());
     with_login.name = "Renamed".into();
     with_login.credentials_item_id = saved.credentials_item_id.clone();
-    let updated = save(&db, with_login, 2).await.unwrap();
+    let updated = save(&db, &passwords, with_login, 2).await.unwrap();
     assert_eq!(updated.name, "Renamed");
     assert_eq!(
         updated.credentials_item_id.as_deref(),
-        Some("password-item")
+        Some(item_id.as_str())
     );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_order_of_the_list_is_the_order_the_user_chose() {
     let (_dir, db) = vault();
-    let a = save(&db, input("A", "https://a.example"), 1)
+    let a = save(&db, &pw(&db), input("A", "https://a.example"), 1)
         .await
         .unwrap()
         .id;
-    let b = save(&db, input("B", "https://b.example"), 2)
+    let b = save(&db, &pw(&db), input("B", "https://b.example"), 2)
         .await
         .unwrap()
         .id;
-    let c = save(&db, input("C", "https://c.example"), 3)
+    let c = save(&db, &pw(&db), input("C", "https://c.example"), 3)
         .await
         .unwrap()
         .id;
@@ -138,7 +167,7 @@ async fn the_order_of_the_list_is_the_order_the_user_chose() {
         .await
         .unwrap();
 
-    let ranked = views(&rows(&db).await.unwrap());
+    let ranked = list_views(&db).await.unwrap();
     assert_eq!(
         ranked
             .iter()
@@ -151,15 +180,15 @@ async fn the_order_of_the_list_is_the_order_the_user_chose() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_marketplace_can_be_switched_off_and_on() {
     let (_dir, db) = vault();
-    let id = save(&db, input("A", "https://a.example"), 1)
+    let id = save(&db, &pw(&db), input("A", "https://a.example"), 1)
         .await
         .unwrap()
         .id;
 
     set_enabled(&db, id.clone(), false, 2).await.unwrap();
-    assert!(!views(&rows(&db).await.unwrap())[0].enabled);
+    assert!(!list_views(&db).await.unwrap()[0].enabled);
     set_enabled(&db, id.clone(), true, 3).await.unwrap();
-    assert!(views(&rows(&db).await.unwrap())[0].enabled);
+    assert!(list_views(&db).await.unwrap()[0].enabled);
 
     assert_eq!(
         reason(
@@ -179,17 +208,17 @@ async fn the_preset_is_deleted_like_any_row_and_comes_back_only_when_asked_for()
         (preset.id.as_str(), preset.name.as_str()),
         (PRESET_ID, PRESET_NAME)
     );
-    let own = save(&db, input("Own", "https://own.example"), 2)
+    let own = save(&db, &pw(&db), input("Own", "https://own.example"), 2)
         .await
         .unwrap()
         .id;
 
-    delete(&db, PRESET_ID.into()).await.unwrap();
+    delete(&db, &pw(&db), PRESET_ID.into()).await.unwrap();
 
     assert_eq!(order(&db).await, std::slice::from_ref(&own));
     // Listing, saving another one, switching: nothing brings it back.
     set_enabled(&db, own.clone(), false, 3).await.unwrap();
-    save(&db, input("Third", "https://third.example"), 4)
+    save(&db, &pw(&db), input("Third", "https://third.example"), 4)
         .await
         .unwrap();
     assert!(!order(&db).await.contains(&PRESET_ID.to_owned()));
@@ -288,23 +317,26 @@ async fn an_answer_that_is_no_marketplace_is_a_bad_response_and_is_not_quoted() 
     assert!(!format!("{result:?}").contains("SECRET-ECHO"));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn a_marketplace_that_needs_a_login_is_not_asked_without_one() {
     let market = TestMarketplace::start().await;
     let mut login = input("Private", &market.base_url());
     login.auth_type = MarketplaceAuthType::Bearer;
     login.credentials_item_id = Some("item".into());
-    let asked = source_of_input(&login).unwrap();
+    let (_dir, db) = vault();
+    let asked = source_of_input(&pw(&db), &db, &login).await.unwrap();
 
     let result = test_marketplace(Http::default(), &asked).await;
 
-    assert_eq!(result.error, Some(SourceErrorKind::CredentialsMissing));
+    // The entry has not arrived (it is not in this vault): nothing is sent.
+    assert_eq!(result.error, Some(SourceErrorKind::CredentialsSyncing));
     assert!(market.requests().await.is_empty());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn the_test_of_an_invalid_address_is_an_error_of_the_command() {
-    let error = marketplace_test(input("x", "ftp://market.example"))
+    let (_dir, db) = vault();
+    let error = test_input(&db, &pw(&db), &input("x", "ftp://market.example"))
         .await
         .unwrap_err();
     assert_eq!(reason(error), kinds::INVALID_URL);

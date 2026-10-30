@@ -90,6 +90,34 @@ pub fn normalize_base_url(raw: &str) -> Result<String> {
     Ok(url.as_str().trim_end_matches('/').to_owned())
 }
 
+/// Whether a login may be sent to `base_url` (FR-027): only over `https`. A debug build, which the
+/// end-to-end suite uses, also takes `http` to a loopback address, because its test marketplace has
+/// no certificate (research R15); a release build never does.
+pub fn login_transport_ok(base_url: &str) -> bool {
+    login_transport_ok_for(cfg!(debug_assertions), base_url)
+}
+
+/// [`login_transport_ok`] with the build kind given, so a test covers the release rule without a
+/// release build.
+pub fn login_transport_ok_for(debug_build: bool, base_url: &str) -> bool {
+    let Ok(url) = Url::parse(base_url) else {
+        return false;
+    };
+    match url.scheme() {
+        "https" => true,
+        "http" => {
+            debug_build
+                && match url.host() {
+                    Some(url::Host::Domain(name)) => name.eq_ignore_ascii_case("localhost"),
+                    Some(url::Host::Ipv4(address)) => address.is_loopback(),
+                    Some(url::Host::Ipv6(address)) => address.is_loopback(),
+                    None => false,
+                }
+        }
+        _ => false,
+    }
+}
+
 /// A marketplace that passed the rules of the data model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Checked {
@@ -102,6 +130,12 @@ pub struct Checked {
 /// Checks the form's input (data-model.md "Rules"): a name, a valid address, and for a login an
 /// entry of the password manager and an `https` address (FR-027).
 pub fn check(input: &MarketplaceInput) -> Result<Checked> {
+    check_with(input, input.new_credentials.is_some())
+}
+
+/// [`check`], where `login_follows` says an entry for the login is created from the form's typed
+/// values once the rules hold (so the row needs no id yet).
+pub fn check_with(input: &MarketplaceInput, login_follows: bool) -> Result<Checked> {
     let name = input.name.trim();
     if name.is_empty() {
         return Err(HolziError::InvalidInput {
@@ -116,10 +150,10 @@ pub fn check(input: &MarketplaceInput) -> Result<Checked> {
         .filter(|id| !id.is_empty())
         .map(str::to_owned);
     let credentials_item_id = if input.auth_type.needs_credentials() {
-        if credentials_item_id.is_none() {
+        if credentials_item_id.is_none() && !login_follows {
             return Err(refused(kinds::CREDENTIALS_REQUIRED));
         }
-        if !base_url.starts_with("https://") {
+        if !login_transport_ok(&base_url) {
             return Err(refused(kinds::INSECURE_CREDENTIALS));
         }
         credentials_item_id
@@ -152,6 +186,17 @@ pub fn list(q: &mut impl Query) -> Result<Vec<MarketplaceRow>> {
             usable
         })
         .collect())
+}
+
+/// Whether a marketplace points at the password entry `item_id`.
+pub fn credentials_in_use(q: &mut impl Query, item_id: &str) -> Result<bool> {
+    Ok(q.query_row(
+        "SELECT COUNT(*) FROM haex_marketplaces WHERE credentials_item_id = ?1",
+        params![item_id],
+        |r| r.get::<_, i64>(0),
+    )?
+    .unwrap_or(0)
+        > 0)
 }
 
 /// One marketplace.

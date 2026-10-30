@@ -23,7 +23,7 @@ use super::{
 };
 use crate::error::{HolziError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
-use crate::passwords::model::{ItemInput, KeyValueInput, SecretItem};
+use crate::passwords::model::{ItemHeader, ItemInput, KeyValueInput, SecretItem};
 use crate::passwords::service::PasswordsService;
 use crate::passwords::usage::EntryUsage;
 use crate::passwords::{ids, items, reveal};
@@ -178,13 +178,22 @@ pub fn backfill_owned_tags(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<u3
 
 /// Returns the linked entry's safe display metadata, if it is still visible.
 pub fn entry(q: &mut impl Query, item_id: &str) -> Result<Option<CredentialsEntry>> {
+    entry_for(q, FEATURE, item_id)
+}
+
+/// [`entry`] for the entries of the holzi function `feature` (`owned` tells whether it created it).
+pub(crate) fn entry_for(
+    q: &mut impl Query,
+    feature: &str,
+    item_id: &str,
+) -> Result<Option<CredentialsEntry>> {
     Ok(items::headers_in_scope(q, &Scope::All, &Caller::User)?
         .into_iter()
         .find(|header| header.id == item_id)
         .map(|header| CredentialsEntry {
             id: header.id,
             title: header.title,
-            owned: header.owner.as_deref() == Some(FEATURE),
+            owned: header.owner.as_deref() == Some(feature),
         }))
 }
 
@@ -268,34 +277,56 @@ pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<Credenti
     if matches!(protocol, Protocol::Local | Protocol::Peer) {
         return Err(store::invalid("protocol"));
     }
-    let mut found = db
-        .read(move |q| {
-            let tag = ids::fold(TAG);
-            let mut found = Vec::new();
-            for header in items::headers_in_scope(q, &Scope::All, &Caller::User)? {
-                let owned = header.owner.as_deref() == Some(FEATURE);
-                let username = header.username.clone().unwrap_or_default();
+    db.read(move |q| {
+        candidates_in(
+            q,
+            FEATURE,
+            TAG,
+            |header| {
                 // Values in the header first, so only likely entries are read with their secrets.
-                if (header.owner.is_some() && !owned)
-                    || username.is_empty()
-                    || (protocol != Protocol::Sftp && !header.has_password)
-                    || !reveal::secret_item(q, &header.id)?
-                        .is_some_and(|item| from_item(&item, protocol).is_some())
-                {
-                    continue;
-                }
-                found.push(CredentialsCandidate {
-                    tagged: header.tags.iter().any(|t| ids::fold(&t.name) == tag),
-                    owned,
-                    id: header.id,
-                    title: header.title,
-                    username,
-                    url: header.url,
-                });
-            }
-            Ok(found)
-        })
-        .await?;
+                header
+                    .username
+                    .as_deref()
+                    .is_some_and(|name| !name.is_empty())
+                    && (protocol == Protocol::Sftp || header.has_password)
+            },
+            |item| from_item(item, protocol).is_some(),
+        )
+        .map_err(Into::into)
+    })
+    .await
+}
+
+/// The entries a holzi function `feature` may offer for its `tag` (the one rule behind
+/// [`candidates`] and the marketplace's): visible to the user, not owned by another function, and
+/// accepted by `likely` (header values only) and then `fits` (the entry as read). Tagged entries
+/// first, then by title regardless of case.
+pub(crate) fn candidates_in(
+    q: &mut impl Query,
+    feature: &str,
+    tag: &str,
+    likely: impl Fn(&ItemHeader) -> bool,
+    fits: impl Fn(&SecretItem) -> bool,
+) -> Result<Vec<CredentialsCandidate>> {
+    let tag = ids::fold(tag);
+    let mut found = Vec::new();
+    for header in items::headers_in_scope(q, &Scope::All, &Caller::User)? {
+        let owned = header.owner.as_deref() == Some(feature);
+        if (header.owner.is_some() && !owned)
+            || !likely(&header)
+            || !reveal::secret_item(q, &header.id)?.is_some_and(|item| fits(&item))
+        {
+            continue;
+        }
+        found.push(CredentialsCandidate {
+            tagged: header.tags.iter().any(|t| ids::fold(&t.name) == tag),
+            owned,
+            username: header.username.clone().unwrap_or_default(),
+            id: header.id,
+            title: header.title,
+            url: header.url,
+        });
+    }
     found.sort_by_cached_key(|c| (!c.tagged, c.title.as_deref().unwrap_or("").to_lowercase()));
     Ok(found)
 }
@@ -303,11 +334,19 @@ pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<Credenti
 /// Whether the entry `item_id` is here with the values `protocol` needs, deleted or without them,
 /// or not yet arrived (see the module; spec 052 FR-010).
 pub fn state_in(q: &mut impl Query, item_id: &str, protocol: Protocol) -> Result<CredentialsState> {
+    state_in_with(q, item_id, |item| from_item(item, protocol).is_some())
+}
+
+/// [`state_in`] for any rule of "fits": the marketplace's entries have other fields.
+pub(crate) fn state_in_with(
+    q: &mut impl Query,
+    item_id: &str,
+    fits: impl Fn(&SecretItem) -> bool,
+) -> Result<CredentialsState> {
     if let Some(stored) = items::item_state(q, item_id)? {
-        let fits = !stored.in_trash
-            && reveal::secret_item(q, item_id)?
-                .is_some_and(|item| from_item(&item, protocol).is_some());
-        return Ok(if fits {
+        let present =
+            !stored.in_trash && reveal::secret_item(q, item_id)?.is_some_and(|item| fits(&item));
+        return Ok(if present {
             CredentialsState::Present
         } else {
             CredentialsState::Missing

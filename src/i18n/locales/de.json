@@ -162,7 +162,7 @@
       "extension": "Erweiterung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "marketplace": "Erweiterungen entdecken"
+      "marketplace": "Marktplatz"
     },
     "launcher": {
       "lock": "Sperren",
@@ -984,7 +984,24 @@
           "deleteTitle": "{name} löschen?",
           "deleteBody": "Installierte Erweiterungen bleiben. Der Katalog und die Suche nach Updates nutzen diesen Marketplace nicht mehr.",
           "cancel": "Abbrechen",
-          "notFound": "Diesen Marketplace gibt es nicht mehr."
+          "notFound": "Diesen Marketplace gibt es nicht mehr.",
+          "auth": {
+            "label": "Anmeldung",
+            "none": "Keine",
+            "bearer": "Token (Bearer)",
+            "basic": "Benutzername und Passwort (Basic)"
+          },
+          "login": {
+            "group": "Zugangsdaten",
+            "insecure": "Eine Anmeldung wird nur über https gesendet. Ändere die Adresse auf https:// oder schalte die Anmeldung aus.",
+            "notVisible": "Der Eintrag mit den Zugangsdaten ist auf diesem Gerät noch nicht angekommen.",
+            "replace": "Andere Zugangsdaten verwenden",
+            "username": "Benutzername",
+            "password": "Passwort",
+            "token": "Token",
+            "entryLabel": "Zugangsdaten aus dem Passwortmanager",
+            "onlyFitting": "Hier stehen nur Einträge mit dem, was diese Anmeldung braucht: ein Passwort, bei Benutzername und Passwort auch den Benutzernamen."
+          }
         },
         "test": {
           "ok": "Erreichbar, {count} Erweiterungen.",
@@ -1900,7 +1917,8 @@
     "expiredOn": "Abgelaufen am {date}",
     "owner": "Gehört zu: {name}",
     "owners": {
-      "storage": "Cloud-Speicher"
+      "storage": "Cloud-Speicher",
+      "marketplace": "Marktplatz"
     },
     "menu": {
       "button": "Aktionen für {name}",

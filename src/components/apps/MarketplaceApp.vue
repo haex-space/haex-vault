@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted } from 'vue'
 import { checkUpdatesAsync } from '~/composables/useKnownUpdates'
 /**
- * The frame of the app "Erweiterungen entdecken" (spec 069): the place of the tab (catalog or
+ * The frame of the app "Marktplatz" (spec 069): the place of the tab (catalog or
  * details) and, above all of it, what belongs to the one install that may run at a time: the
  * progress of the download and the install dialog of spec 017 with the bundle the host holds
  * (FR-015), and the one look for updates when the app opens (FR-017). Every place is a tab location (spec 020); only a slug and a marketplace id go into
