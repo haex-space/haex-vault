@@ -1,13 +1,12 @@
 //! Fixed blocks of samples handed between an audio callback and a worker thread (spec 066,
-//! research R2).
-//!
-//! The blocks are allocated once and travel in a circle: the sending side takes an empty one from
-//! the pool, fills it and passes it on; the receiving side hands it back when it is done. Both
-//! directions are bounded `std::sync::mpsc` channels, whose `try_send` and `try_recv` neither
-//! allocate nor lock as long as no thread waits on the channel. So nobody ever blocks on these
-//! channels: both sides poll, and the realtime side never touches a lock.
+//! research R2). Blocks travel through bounded lock-free queues and are allocated once, so the
+//! realtime callbacks neither wait for another thread nor allocate.
 
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TryRecvError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::TryRecvError;
+use std::sync::Arc;
+
+use crossbeam_queue::ArrayQueue;
 
 /// One block of mono or interleaved samples. `index` counts the blocks a sender has sent, so the
 /// receiver can tell which of them a later stop request covers.
@@ -18,65 +17,103 @@ pub struct Block {
 
 /// The sending side: takes empty blocks from the pool and sends filled ones.
 pub struct BlockSender {
-    free: Receiver<Block>,
-    full: SyncSender<Block>,
+    free: Arc<ArrayQueue<Block>>,
+    full: Arc<ArrayQueue<Block>>,
+    sender_open: Arc<AtomicBool>,
+    receiver_open: Arc<AtomicBool>,
 }
 
 /// The receiving side: receives filled blocks and returns them to the pool.
 pub struct BlockReceiver {
-    full: Receiver<Block>,
-    free: SyncSender<Block>,
+    full: Arc<ArrayQueue<Block>>,
+    free: Arc<ArrayQueue<Block>>,
+    sender_open: Arc<AtomicBool>,
+    receiver_open: Arc<AtomicBool>,
 }
 
 /// A pool of `blocks` blocks of `block_len` samples each.
 pub fn block_queue(blocks: usize, block_len: usize) -> (BlockSender, BlockReceiver) {
-    let (free_tx, free_rx) = sync_channel(blocks);
-    let (full_tx, full_rx) = sync_channel(blocks);
+    let free = Arc::new(ArrayQueue::new(blocks));
+    let full = Arc::new(ArrayQueue::new(blocks));
+    let sender_open = Arc::new(AtomicBool::new(true));
+    let receiver_open = Arc::new(AtomicBool::new(true));
     for _ in 0..blocks {
-        // The channel holds exactly `blocks` entries, so every send fits.
-        let _ = free_tx.try_send(Block {
+        // The queue holds exactly `blocks` entries, so every push fits.
+        let _ = free.push(Block {
             samples: Vec::with_capacity(block_len),
             index: 0,
         });
     }
     (
         BlockSender {
-            free: free_rx,
-            full: full_tx,
+            free: Arc::clone(&free),
+            full: Arc::clone(&full),
+            sender_open: Arc::clone(&sender_open),
+            receiver_open: Arc::clone(&receiver_open),
         },
         BlockReceiver {
-            full: full_rx,
-            free: free_tx,
+            full,
+            free,
+            sender_open,
+            receiver_open,
         },
     )
 }
 
 impl BlockSender {
     /// An empty block from the pool. `Empty` when all blocks are on their way (the receiver is
-    /// behind), `Disconnected` when the receiver is gone.
+    /// behind).
     pub fn take(&self) -> Result<Block, TryRecvError> {
-        let mut block = self.free.try_recv()?;
+        let mut block = self.free.pop().ok_or_else(|| {
+            if self.receiver_open.load(Ordering::Acquire) {
+                TryRecvError::Empty
+            } else {
+                TryRecvError::Disconnected
+            }
+        })?;
         block.samples.clear();
         Ok(block)
     }
 
-    /// Passes a filled block on. It always fits: there are never more blocks than the channel
-    /// holds. Returns `false` when the receiver is gone; the block is then dropped, which frees
-    /// memory, but that only happens while a stream ends.
+    /// Passes a filled block on. It always fits: there are never more blocks than the queue holds.
+    /// Returns `false` if the receiver is behind; the block is then dropped and its memory freed.
     pub fn send(&self, block: Block) -> bool {
-        self.full.try_send(block).is_ok()
+        self.receiver_open.load(Ordering::Acquire) && self.full.push(block).is_ok()
     }
 }
 
 impl BlockReceiver {
     /// The next filled block, if one is waiting.
     pub fn try_recv(&self) -> Result<Block, TryRecvError> {
-        self.full.try_recv()
+        self.full.pop().ok_or_else(|| {
+            if self.sender_open.load(Ordering::Acquire) {
+                TryRecvError::Empty
+            } else {
+                TryRecvError::Disconnected
+            }
+        })
     }
 
-    /// Returns a block to the pool. A block that cannot go back (the sender is gone) is dropped,
-    /// which frees memory; that only happens when the stream ends.
+    /// Returns a block to the pool. A block that cannot go back (the sender is behind) is dropped.
     pub fn recycle(&self, block: Block) {
-        let _ = self.free.try_send(block);
+        if self.sender_open.load(Ordering::Acquire) {
+            let _ = self.free.push(block);
+        }
     }
 }
+
+impl Drop for BlockSender {
+    fn drop(&mut self) {
+        self.sender_open.store(false, Ordering::Release);
+    }
+}
+
+impl Drop for BlockReceiver {
+    fn drop(&mut self) {
+        self.receiver_open.store(false, Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+#[path = "blocks_tests.rs"]
+mod tests;
