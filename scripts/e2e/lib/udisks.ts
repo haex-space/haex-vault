@@ -33,6 +33,10 @@ export function luksAvailable(): boolean {
     spawnSync('sudo', ['-n', 'cryptsetup', '--version'], {
       stdio: 'ignore',
       timeout: 20_000,
+    }).status === 0 &&
+    spawnSync('sudo', ['-n', 'mkfs.vfat', '--help'], {
+      stdio: 'ignore',
+      timeout: 5_000,
     }).status === 0
   return luks
 }

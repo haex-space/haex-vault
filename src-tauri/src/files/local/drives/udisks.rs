@@ -3,6 +3,7 @@
 //! rights of haex's own: polkit asks the user where the system wants it (FR-006).
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use zbus::blocking::fdo::ObjectManagerProxy;
 use zbus::blocking::{Connection, Proxy};
@@ -21,6 +22,8 @@ const BLOCK: &str = "org.freedesktop.UDisks2.Block";
 const FILESYSTEM: &str = "org.freedesktop.UDisks2.Filesystem";
 const ENCRYPTED: &str = "org.freedesktop.UDisks2.Encrypted";
 const DRIVE: &str = "org.freedesktop.UDisks2.Drive";
+const FILESYSTEM_WAIT_ATTEMPTS: usize = 10;
+const FILESYSTEM_WAIT_INTERVAL: Duration = Duration::from_millis(100);
 
 pub struct UdisksBackend {
     connection: Connection,
@@ -120,16 +123,9 @@ impl DriveBackend for UdisksBackend {
                 log::warn!("files: locking a drive again failed: {error:?}");
             }
         };
-        let objects = match self.objects() {
-            Ok(objects) => objects,
-            Err(error) => {
-                lock_again();
-                return Err(error);
-            }
-        };
-        if !has_filesystem(&objects, &cleartext) {
+        if let Err(error) = wait_for_filesystem(|| self.objects(), &cleartext) {
             lock_again();
-            return Err(DriveError::NoFilesystem);
+            return Err(error);
         }
         self.proxy(&cleartext, FILESYSTEM)
             .and_then(|filesystem| {
@@ -173,6 +169,21 @@ impl DriveBackend for UdisksBackend {
 
 fn no_options() -> HashMap<&'static str, Value<'static>> {
     HashMap::new()
+}
+
+fn wait_for_filesystem(
+    mut objects: impl FnMut() -> Result<Vec<UdisksObject>, DriveError>,
+    cleartext: &str,
+) -> Result<(), DriveError> {
+    for attempt in 0..FILESYSTEM_WAIT_ATTEMPTS {
+        if has_filesystem(&objects()?, cleartext) {
+            return Ok(());
+        }
+        if attempt + 1 < FILESYSTEM_WAIT_ATTEMPTS {
+            std::thread::sleep(FILESYSTEM_WAIT_INTERVAL);
+        }
+    }
+    Err(DriveError::NoFilesystem)
 }
 
 fn from_zbus(error: zbus::Error) -> DriveError {
