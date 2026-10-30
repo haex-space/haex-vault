@@ -3,7 +3,7 @@
 /**
  * Where a previewed bundle came from, when it did not come from a file (FR-011).
  */
-export type InstallOrigin = { 
+export type InstallOrigin = {
 /**
  * The name of the marketplace as the user knows it.
  */

@@ -235,6 +235,7 @@ pub async fn marketplace_download(
         .ok_or_else(|| refused(kinds::NOT_FOUND))?;
     let closing = state.gate().token();
     let (cancel, _running) = market.downloads.begin(id, &closing)?;
+    market.pending.clear();
     let bytes = download_bundle(
         Http::default(),
         &source_of(row),
@@ -262,6 +263,13 @@ pub async fn marketplace_download(
         PENDING_IDLE,
         closing,
     );
+    // Release the id before checking cancellation. A cancel that arrived while the bundle was
+    // being placed still wins; once the guard is gone, a later cancel is a no-op.
+    drop(_running);
+    if cancel.is_cancelled() {
+        market.pending.take(&id.to_string());
+        return Err(refused(kinds::DOWNLOAD_CANCELLED));
+    }
     Ok(PendingBundleRef { id: id.to_string() })
 }
 

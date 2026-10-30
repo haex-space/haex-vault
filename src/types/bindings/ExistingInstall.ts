@@ -4,15 +4,15 @@ import type { DeclaredPermissionView } from "./DeclaredPermissionView";
 /**
  * The installed extension a bundle would update.
  */
-export type ExistingInstall = { 
+export type ExistingInstall = {
 /**
  * The effective version installed now.
  */
-version: string, 
+version: string,
 /**
  * The bundle is older than the effective version; installing needs a confirmation.
  */
-isDowngrade: boolean, 
+isDowngrade: boolean,
 /**
  * Declarations without any remembered row yet; only these are put before the user.
  */

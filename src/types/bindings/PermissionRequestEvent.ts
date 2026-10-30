@@ -3,71 +3,71 @@
 /**
  * One open question, as holzi's window shows it.
  */
-export type PermissionRequestEvent = { requestId: string, extensionId: string, displayName: string, kind: string, action: string, target: string, 
+export type PermissionRequestEvent = { requestId: string, extensionId: string, displayName: string, kind: string, action: string, target: string,
 /**
  * The manifest declares this permission.
  */
-declared: boolean, 
+declared: boolean,
 /**
  * Remembered for this device only (shell); every other kind for every own device.
  */
-deviceScoped: boolean, 
+deviceScoped: boolean,
 /**
  * A `database` target of an extension that is not installed: only "Verweigern" is offered.
  */
-targetMissing: boolean, 
+targetMissing: boolean,
 /**
  * Raised while the agent called a tool of the extension (spec 018, research R11): the
  * question says so; it is still checked against the extension's own permissions.
  */
-byAgent: boolean, 
+byAgent: boolean,
 /**
  * For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
  * 048 FR-036); the extension never gets them.
  */
-encryptedFolder?: { storageName: string, folderName: string, 
+encryptedFolder?: { storageName: string, folderName: string,
 /**
  * The folder lies on this device, not in a cloud storage (spec 048 US7).
  */
-onDevice: boolean, }, 
+onDevice: boolean, },
 /**
  * For `model` (spec 055): the models of the vault that fit the job, the proposed one
  * (`target`) first. The user picks one and the effort it is used with.
  */
-models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean, 
+models?: Array<{ id: string, name: string, provider: string, place: string, takesImages: boolean,
 /**
  * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
  */
-agent: boolean, 
+agent: boolean,
 /**
  * The efforts the model offers, lowest first; empty when it has no choice of effort.
  */
-efforts: Array<string>, }>, 
+efforts: Array<string>, }>,
 /**
  * For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
  * and place, and what the step would send.
  */
-destination?: { 
+destination?: {
 /**
  * The display name of the provider.
  */
-provider: string, 
+provider: string,
 /**
  * The host of its address with the port, if it names one.
  */
-host?: string, 
+host?: string,
 /**
  * `this_device`, `network` or `cloud`.
  */
-place: string, }, transfer?: { 
+place: string, }, transfer?: {
 /**
  * `text`, and `image` when the step carries images.
  */
-kinds: Array<string>, 
+kinds: Array<string>,
 /**
  * The instruction and the text input.
  */
-textBytes: number, imageCount: number, imageBytes: number, 
+textBytes: number, imageCount: number, imageBytes: number,
 /**
  * The step also sends the result of an earlier step, whose size is known only then.
  */

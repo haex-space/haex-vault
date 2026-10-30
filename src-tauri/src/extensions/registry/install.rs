@@ -15,8 +15,8 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 pub use super::declared_view::DeclaredPermissionView;
-use super::install_source::InstallOrigin;
 use super::effective::{effective_bundle, live_bundles, retire, same_version_others};
+use super::install_source::InstallOrigin;
 use crate::error::{HolziError, Result};
 use crate::extensions::bundle::store::{store_blobs, write_registry_rows, BundleIds};
 use crate::extensions::bundle::{limits, verify_bundle, BundleRejection, Manifest, VerifiedBundle};

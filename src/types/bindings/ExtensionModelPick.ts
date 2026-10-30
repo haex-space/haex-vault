@@ -3,7 +3,7 @@
 /**
  * The model and effort the user picked in a question about a model.
  */
-export type ExtensionModelPick = { modelId: string, 
+export type ExtensionModelPick = { modelId: string,
 /**
  * `none`, `low`, `medium`, `high`, `xhigh` or `max`.
  */

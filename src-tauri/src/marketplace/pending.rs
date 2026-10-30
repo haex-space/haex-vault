@@ -56,6 +56,11 @@ impl PendingSlot {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    /// Drops the bundle that was ready before a new download began.
+    pub fn clear(&self) {
+        self.lock().take();
+    }
+
     /// Puts `bundle` under `id`, dropping the one that waited before. The bundle expires after
     /// `idle` without use, or when `closing` fires, whichever comes first. Needs a tokio runtime.
     pub fn put(

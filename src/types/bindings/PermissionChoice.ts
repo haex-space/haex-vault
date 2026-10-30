@@ -3,7 +3,7 @@
 /**
  * The user's choice for one declared permission.
  */
-export type PermissionChoice = { kind: string, action: string, target: string, 
+export type PermissionChoice = { kind: string, action: string, target: string,
 /**
  * Ticked: `granted`; unticked: `ask`.
  */
