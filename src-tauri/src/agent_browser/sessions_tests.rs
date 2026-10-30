@@ -118,6 +118,18 @@ fn an_agent_has_one_session_and_the_window_hears_of_it() {
     assert_eq!(sessions.list().len(), 2);
 }
 
+#[tokio::test]
+async fn the_window_hears_the_agent_name_after_it_loads() {
+    let (sessions, told) = registry();
+    let session = start(&sessions, &agent()).unwrap();
+    assert_eq!(told.load(Ordering::SeqCst), 1, "session added");
+
+    assert_eq!(session.agent_name().await, "Testagent");
+    assert_eq!(told.load(Ordering::SeqCst), 2, "agent name loaded");
+    assert_eq!(session.agent_name().await, "Testagent");
+    assert_eq!(told.load(Ordering::SeqCst), 2, "name is cached");
+}
+
 #[test]
 fn only_agents_have_sessions() {
     let (sessions, _) = registry();

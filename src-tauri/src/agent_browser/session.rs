@@ -112,10 +112,16 @@ impl Session {
 
     /// The agent's name as it claims it; empty for the built-in agent.
     pub async fn agent_name(&self) -> String {
-        self.agent
-            .get_or_init(|| self.env.agent_name(&self.caller))
+        let name = self
+            .agent
+            .get_or_init(|| async {
+                let name = self.env.agent_name(&self.caller).await;
+                (self.hooks.changed)();
+                name
+            })
             .await
-            .clone()
+            .clone();
+        name
     }
 
     /// The marker of a new tab of this session.
