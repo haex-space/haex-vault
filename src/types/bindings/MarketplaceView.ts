@@ -9,4 +9,9 @@ export type MarketplaceView = { id: string, name: string, baseUrl: string, enabl
 /**
  * 1-based position in the list.
  */
-rank: number, authType: MarketplaceAuthType, credentials: MarketplaceCredentialsState, };
+rank: number, authType: MarketplaceAuthType, credentials: MarketplaceCredentialsState,
+/**
+ * The password-manager entry associated with this row. It is an identifier, never a secret;
+ * the form carries it through edits until the credentials controls are available.
+ */
+credentialsItemId?: string, };

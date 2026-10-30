@@ -97,6 +97,27 @@ async fn a_login_needs_https_and_an_entry() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn listing_keeps_the_credentials_entry_id_available_to_the_edit_form() {
+    let (_dir, db) = vault();
+    let mut with_login = input("Private", "https://market.example");
+    with_login.auth_type = MarketplaceAuthType::Bearer;
+    with_login.credentials_item_id = Some("password-item".into());
+
+    let saved = save(&db, with_login.clone(), 1).await.unwrap();
+    assert_eq!(saved.credentials_item_id.as_deref(), Some("password-item"));
+
+    with_login.id = Some(saved.id.clone());
+    with_login.name = "Renamed".into();
+    with_login.credentials_item_id = saved.credentials_item_id.clone();
+    let updated = save(&db, with_login, 2).await.unwrap();
+    assert_eq!(updated.name, "Renamed");
+    assert_eq!(
+        updated.credentials_item_id.as_deref(),
+        Some("password-item")
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn the_order_of_the_list_is_the_order_the_user_chose() {
     let (_dir, db) = vault();
     let a = save(&db, input("A", "https://a.example"), 1)

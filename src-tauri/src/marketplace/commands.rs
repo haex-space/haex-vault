@@ -60,6 +60,7 @@ pub fn views(rows: &[MarketplaceRow]) -> Vec<MarketplaceView> {
             rank,
             auth_type: row.auth_type,
             credentials: credentials_state(row),
+            credentials_item_id: row.credentials_item_id.clone(),
         })
         .collect()
 }

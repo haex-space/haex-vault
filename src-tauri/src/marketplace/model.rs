@@ -85,6 +85,11 @@ pub struct MarketplaceView {
     pub rank: u32,
     pub auth_type: MarketplaceAuthType,
     pub credentials: MarketplaceCredentialsState,
+    /// The password-manager entry associated with this row. It is an identifier, never a secret;
+    /// the form carries it through edits until the credentials controls are available.
+    #[ts(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credentials_item_id: Option<String>,
 }
 
 /// Why one source gave no answer (FR-031). Never carries text of the marketplace.

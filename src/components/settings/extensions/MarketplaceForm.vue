@@ -54,7 +54,10 @@ async function loadAsync() {
     } else {
       name.value = row.name
       baseUrl.value = row.baseUrl
-      kept = { authType: row.authType }
+      kept = {
+        authType: row.authType,
+        credentialsItemId: row.credentialsItemId,
+      }
     }
   } catch (error) {
     failure.value = errString(error)
@@ -63,6 +66,10 @@ async function loadAsync() {
 }
 
 watch(id, loadAsync, { immediate: true })
+
+watch([name, baseUrl], () => {
+  result.value = null
+})
 
 const input = computed<MarketplaceInput>(() => ({
   id: isNew.value ? undefined : id.value,
@@ -112,6 +119,7 @@ async function testAndSaveAsync() {
   if (result.value.ok) await saveAsync()
 }
 
+// action-exempt: marketplace sources affect extension-install trust; only the user-confirmed form may remove one.
 async function deleteAsync() {
   busy.value = true
   try {
