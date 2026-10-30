@@ -506,6 +506,20 @@ The **Berechtigung** of kind `peers` (action `connect`, target `*`), vault-wide:
 open channels to itself on devices of other vaults.
 _Avoid_: network permission, peer for a contact.
 
+**Marketplace** (spec 069):
+A source of extensions that HaexVault asks over HTTPS by its address (with an optional path prefix) and the
+protocol of `specs/069-marketplace/contracts/marketplace-api.md`. Every marketplace is an equal row of the
+vault (name, address, optional login, position); several are used at once and their entries are never
+merged, so one cannot hide the entry of another. The app that shows their catalog is called "Marktplatz".
+A login is an entry of the password manager (tag `haex-marketplace`), never a value in the row.
+_Avoid_: store, registry, repository, "the" marketplace for the public one.
+
+**Voreinstellung** (preset, spec 069):
+The row `preset-public` that points at the project's public marketplace. It is an ordinary marketplace:
+seeded once when a vault is created, switchable, editable and deletable, and only the button of the empty
+catalog adds it again. No code outside `marketplace/store.rs` knows its address.
+_Avoid_: default marketplace, built-in marketplace.
+
 ### Dateizugriff und Dateifreigaben (spec 056)
 
 **Geräte-Dateizugriff** (device file access):
