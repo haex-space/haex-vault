@@ -66,8 +66,8 @@ mode (`reasoning_requested`) is emitted separately from the answer text.
 worthless for holzi. mistralrs delivers this ready-made today; llama.cpp provides chat template and
 parser only in part through the Rust binding.
 
-**Independent Test**: The 30 sentences of the tool evaluation (spec 032, `eval-results.md`) run through
-the new engine with Qwen3 4B; the result is not below the one measured through mistralrs.
+**Independent Test**: The example sentences of the tool evaluation (spec 032, `eval-results.md`; 83 at set
+version 5, measured 2026-10-30) run through the new engine with Qwen3 4B; the result is not below the one measured through mistralrs.
 
 **Acceptance Scenarios**:
 
@@ -162,7 +162,7 @@ what the spike shows for tool calls, Qwen3-VL (spec 055) and speed. Until then: 
 ## Success Criteria _(mandatory)_
 
 - **SC-001**: Qwen3.5 4B loads and answers on the development machine through llama.cpp.
-- **SC-002**: The 30 sentences of the tool evaluation reach, with Qwen3 4B through the new engine, at
+- **SC-002**: The example sentences of the tool evaluation (spec 032) reach, with Qwen3 4B through the new engine, at
   least the value measured through mistralrs.
 - **SC-003**: Tokens per second for Qwen3 4B are no more than 20 % below mistralrs. (Provisional
   threshold; the spike fixes it.)
