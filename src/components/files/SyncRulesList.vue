@@ -168,7 +168,7 @@ async function confirmDeleteAsync() {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col" data-testid="files-sync-rules">
+  <div class="@container flex min-h-0 flex-col" data-testid="files-sync-rules">
     <div class="flex h-11 shrink-0 items-center gap-2 px-2">
       <UiInput
         v-model="filter"
