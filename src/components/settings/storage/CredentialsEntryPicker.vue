@@ -28,16 +28,22 @@ const storageError = useStorageError()
 const candidates = ref<CredentialsCandidate[] | null>(null)
 const failure = ref<string | null>(null)
 const search = ref('')
+let loadSequence = 0
 
 async function loadAsync() {
+  const mine = ++loadSequence
+  entryId.value = ''
   candidates.value = null
   failure.value = null
   try {
-    candidates.value = await invoke<CredentialsCandidate[]>(
+    const loaded = await invoke<CredentialsCandidate[]>(
       props.source.command,
       props.source.args,
     )
+    if (mine !== loadSequence) return
+    candidates.value = loaded
   } catch (error) {
+    if (mine !== loadSequence) return
     failure.value = storageError(error)
     candidates.value = []
   }
@@ -45,7 +51,10 @@ async function loadAsync() {
   if (!candidates.value.some((candidate) => candidate.id === entryId.value))
     entryId.value = ''
 }
-watch(() => JSON.stringify(props.source), loadAsync, { immediate: true })
+watch(() => JSON.stringify(props.source), () => void loadAsync(), {
+  immediate: true,
+  flush: 'sync',
+})
 
 const shown = computed(() => {
   const query = search.value.trim().toLowerCase()

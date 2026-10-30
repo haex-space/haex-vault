@@ -488,7 +488,9 @@ async fn a_disabled_marketplace_is_not_a_source() {
         row("c", MarketplaceAuthType::Basic, None, "https://c.example"),
     ];
 
-    let sources: Vec<Source> = sources_of(&passwords(&db), &db, &rows).await.unwrap();
+    let sources: Vec<Source> = sources_of(&passwords(&db), &db, &rows, None)
+        .await
+        .unwrap();
 
     let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     assert_eq!(ids, ["a", "c"]);

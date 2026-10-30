@@ -90,9 +90,13 @@ pub async fn sources_of(
     passwords: &PasswordsService,
     db: &VaultDb,
     rows: &[MarketplaceRow],
+    source_id: Option<&str>,
 ) -> Result<Vec<Source>> {
     let mut sources = Vec::new();
-    for row in rows.iter().filter(|row| row.enabled) {
+    for row in rows
+        .iter()
+        .filter(|row| row.enabled && source_id.is_none_or(|id| row.id == id))
+    {
         sources.push(source_of(passwords, db, row).await?);
     }
     Ok(sources)
@@ -164,7 +168,7 @@ pub async fn marketplace_catalog(
     let passwords = service(&state)?;
     let registration = market.begin_catalog();
     let work = async {
-        let sources = sources_of(&passwords, &db, &rows(&db).await?).await?;
+        let sources = sources_of(&passwords, &db, &rows(&db).await?, None).await?;
         let installed = installed(&app, &db).await?;
         let page = fetch_catalog(
             Http::default(),
@@ -192,7 +196,13 @@ pub async fn marketplace_categories(
 ) -> Result<CatalogCategories> {
     let db = active_database(&state)?;
     let passwords = service(&state)?;
-    let sources = sources_of(&passwords, &db, &rows(&db).await?).await?;
+    let sources = sources_of(
+        &passwords,
+        &db,
+        &rows(&db).await?,
+        source_id.as_deref(),
+    )
+    .await?;
     Ok(fetch_categories(Http::default(), &sources, source_id.as_deref()).await)
 }
 
@@ -265,7 +275,7 @@ pub async fn marketplace_check_updates(
 ) -> Result<CheckUpdatesResult> {
     let db = active_database(&state)?;
     let passwords = service(&state)?;
-    let sources = sources_of(&passwords, &db, &rows(&db).await?).await?;
+    let sources = sources_of(&passwords, &db, &rows(&db).await?, None).await?;
     let installed = installed(&app, &db).await?;
     let checked = check_updates(Http::default(), &sources, &installed, &app_version()).await;
     for (name, source_id, updates) in &checked.answered {

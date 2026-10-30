@@ -118,6 +118,7 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
   await choose(instance, 'settings-marketplace-login-source', 'entry')
   await instance.waitForDisplayed(`storage-entry-option-${entry}`, 20_000)
   await instance.click(`storage-entry-option-${entry}`)
+  const beforeLinkedRequests = priv.requests.length
   await instance.click('settings-marketplace-save')
   await instance.waitForDisplayed('settings-marketplaces', 20_000)
   const linked = await privateRow()
@@ -149,6 +150,7 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
   // Only the signed address may go without the login: nothing but the catalog calls carried it.
   assert.ok(
     priv.requests
+      .slice(beforeLinkedRequests)
       .filter((request) => !request.path.startsWith('/files/'))
       .every((request) => request.authorization === `Bearer ${token}`),
     'every call of the catalog carries the login',

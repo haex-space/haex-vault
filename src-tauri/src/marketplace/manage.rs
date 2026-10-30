@@ -157,11 +157,29 @@ pub async fn save(
         .take()
         .filter(|_| input.auth_type.needs_credentials());
     let checked = store::check_with(&input, typed.is_some())?;
-    let previous = match input.id.clone() {
+    let previous_row = match input.id.clone() {
         Some(id) => db.read(move |q| Ok(store::get(q, &id)?)).await?,
         None => None,
+    };
+    if typed.is_none() && checked.auth_type.needs_credentials() {
+        let selected_id = checked
+            .credentials_item_id
+            .as_deref()
+            .ok_or_else(|| refused(super::kinds::CREDENTIALS_REQUIRED))?;
+        let keeping_existing = previous_row.as_ref().is_some_and(|row| {
+            row.auth_type == checked.auth_type
+                && row.credentials_item_id.as_deref() == Some(selected_id)
+        });
+        if !keeping_existing
+            && !credentials::candidates(db, checked.auth_type)
+                .await?
+                .iter()
+                .any(|candidate| candidate.id == selected_id)
+        {
+            return Err(refused(super::kinds::CREDENTIALS_REQUIRED));
+        }
     }
-    .and_then(|row| row.credentials_item_id);
+    let previous = previous_row.and_then(|row| row.credentials_item_id);
     let created = match &typed {
         Some(typed) => Some(
             credentials::create(

@@ -102,7 +102,12 @@ pub async fn read(
             MarketplaceCredentialsState::Syncing => Login::Syncing,
             _ => Login::Missing,
         }),
-        Err(error) => Err(error),
+        // A damaged or unreadable credential must make this one source unavailable, not abort
+        // the catalog request for every marketplace. Keep the underlying error out of the UI.
+        Err(error) => {
+            log::warn!("marketplace credential {item_id} could not be read: {error}");
+            Ok(Login::Missing)
+        }
     }
 }
 
