@@ -109,10 +109,14 @@ function holziPage(args) {
     el.tagName.toLowerCase() === 'input' && el.type === 'password'
 
   // What a form would send, for the submit question: name, value, and whether it is secret.
+  const formElements = Object.getOwnPropertyDescriptor(
+    HTMLFormElement.prototype,
+    'elements',
+  ).get
   const fieldsOf = (el) => {
     const form = el.form || el.closest('form')
     if (!form) return []
-    return Array.from(form.elements)
+    return Array.from(formElements.call(form))
       .filter((field) => field.name && !field.disabled)
       .filter(
         (field) =>
@@ -171,12 +175,12 @@ function holziPage(args) {
     scrollBy(0, args.scrollBy * Math.round(innerHeight * 0.8))
     return { scrolled: true }
   }
-  if (args.hrefOf) {
+  if (args.hrefOf !== undefined) {
     const el = operable[args.hrefOf - 1]
     if (!el || !el.href) return { gone: true }
     return { href: String(el.href), url: location.href }
   }
-  if (args.scrollTo) {
+  if (args.scrollTo !== undefined) {
     const el = operable[args.scrollTo - 1]
     if (!el) return { gone: true }
     el.scrollIntoView({ block: 'center' })
@@ -189,7 +193,7 @@ function holziPage(args) {
     return el
   }
 
-  if (args.target) {
+  if (args.target !== undefined) {
     const el = numbered(args.target)
     if (!el) return { gone: true }
     const r = el.getBoundingClientRect()
@@ -203,7 +207,7 @@ function holziPage(args) {
       url: location.href,
     }
   }
-  if (args.focus) {
+  if (args.focus !== undefined) {
     const el = numbered(args.focus)
     if (!el) return { gone: true }
     const kind = kindOf(el)
@@ -224,12 +228,12 @@ function holziPage(args) {
       url: location.href,
     }
   }
-  if (args.formOf) {
+  if (args.formOf !== undefined) {
     const el = operable[args.formOf - 1]
     if (!el) return { gone: true }
     return { fields: fieldsOf(el), form: factsOf(el).form }
   }
-  if (args.choose) {
+  if (args.choose !== undefined) {
     const el = numbered(args.choose)
     if (!el) return { gone: true }
     if (el.tagName.toLowerCase() !== 'select') return { notSelect: true }
@@ -250,7 +254,7 @@ function holziPage(args) {
   }
 
   let root = null
-  if (args.section) {
+  if (args.section !== undefined) {
     const el = operable[args.section - 1]
     if (!el) return { gone: true }
     root =

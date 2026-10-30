@@ -113,16 +113,48 @@ pub struct BrowserField {
 
 /// Starts of field names whose value is a secret.
 const SECRET_NAMES: &[&str] = &[
-    "pass", "pwd", "secret", "token", "otp", "pin", "cvc", "cvv", "csc", "card", "iban", "auth",
+    "pass",
+    "pwd",
+    "secret",
+    "token",
+    "otp",
+    "pin",
+    "cvc",
+    "cvv",
+    "csc",
+    "card",
+    "iban",
+    "auth",
+    "key",
+    "credential",
+    "private",
+    "bearer",
+    "ssn",
 ];
 
 /// The most fields a dialog lists.
 const MAX_FIELDS: usize = 30;
 
 fn secret_name(name: &str) -> bool {
-    let name = name.to_lowercase();
-    name.split(|c: char| !c.is_alphanumeric())
-        .any(|word| SECRET_NAMES.iter().any(|start| word.starts_with(start)))
+    let mut words = String::new();
+    let mut previous_lower_or_digit = false;
+    for character in name.chars() {
+        if !character.is_alphanumeric() {
+            words.push(' ');
+            previous_lower_or_digit = false;
+            continue;
+        }
+        if character.is_uppercase() && previous_lower_or_digit {
+            words.push(' ');
+        }
+        words.extend(character.to_lowercase());
+        previous_lower_or_digit = character.is_lowercase() || character.is_numeric();
+    }
+    words.split_whitespace().any(|word| {
+        SECRET_NAMES
+            .iter()
+            .any(|stem| word == *stem || (stem.chars().count() >= 4 && word.contains(stem)))
+    })
 }
 
 /// A field as the dialog may show it: a secret by its name or as the page says, cut to length.
@@ -151,6 +183,7 @@ pub fn fields_of(body: Option<&str>) -> Vec<BrowserField> {
                 .map(|(name, value)| {
                     let value = match value {
                         Value::String(text) => text.clone(),
+                        Value::Array(_) | Value::Object(_) => SECRET_PLACEHOLDER.to_owned(),
                         other => other.to_string(),
                     };
                     shown(name, &value, false)

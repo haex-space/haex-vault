@@ -101,10 +101,10 @@ async fn serve(tls: Option<tokio_rustls::TlsAcceptor>) -> Site {
                 match tls {
                     Some(acceptor) => {
                         if let Ok(stream) = acceptor.accept(stream).await {
-                            answer(stream, addr, &recording).await;
+                            answer(stream, addr, scheme, &recording).await;
                         }
                     }
-                    None => answer(stream, addr, &recording).await,
+                    None => answer(stream, addr, scheme, &recording).await,
                 }
             });
         }
@@ -115,6 +115,7 @@ async fn serve(tls: Option<tokio_rustls::TlsAcceptor>) -> Site {
 async fn answer(
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     addr: SocketAddr,
+    scheme: &'static str,
     recording: &Mutex<Vec<Seen>>,
 ) {
     let mut buffer = vec![0u8; 16384];
@@ -159,7 +160,7 @@ async fn answer(
     };
     let reply = match found {
         Some(body) if !name.contains("..") => {
-            let body = body.replace("PARTNER", &format!("http://localhost:{}", addr.port()));
+            let body = body.replace("PARTNER", &format!("{scheme}://localhost:{}", addr.port()));
             format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
                  Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
