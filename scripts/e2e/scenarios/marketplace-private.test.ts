@@ -78,7 +78,7 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
       'the settings to show a place',
       async () =>
         ['general', 'extensions.marketplaces'].includes(
-          await settingsLocation(instance),
+          (await settingsLocation(instance)) ?? '',
         ),
       { timeoutMs: 10_000, fixed: true },
     )
