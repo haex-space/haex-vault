@@ -128,6 +128,17 @@ test('a panel that shows the sync rules keeps that in its tab location (spec 061
   assert.deepEqual(parseFilesPlace(location), place)
 })
 
+test('a panel that shows the list of file shares keeps that in its tab location (spec 071)', () => {
+  const place: FilesPlace = {
+    source: { kind: 'device' },
+    path: '/home/anna',
+    sh: '1',
+  }
+  const location = filesLocation(place)
+  assert.deepEqual(location.query, { p: '/home/anna', sh: '1' })
+  assert.deepEqual(parseFilesPlace(location), place)
+})
+
 test('the drive of a device place round-trips, only both keys together (spec 064 FR-025)', () => {
   const place: FilesPlace = {
     source: { kind: 'device' },

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 /**
- * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
+ * The sidebar of the file browser (spec 044 FR-002): the known places of the device, the pinned
+ * folders (spec 071), its drives
  * with their state and free space where known (spec 064: live, unmounted and locked ones too), the
  * other devices of the vault (spec 056 US1), the shares contacts
- * gave this vault (US2: expanding a contact asks its devices, FR-028), the overview of the vault's
+ * gave this vault (US2: expanding a contact asks its devices, FR-028), the list of the vault's
  * own shares (US4, FR-020), the sync rules of this device (spec 061), and the cloud storages of spec 038 (US5) with a button that leads to
  * adding one in the settings.
  */
 import type { Drive } from '@bindings/Drive'
 import type { FilesPeerState } from '@bindings/FilesPeerState'
 import type { Sources } from '@bindings/Sources'
+import type { FilesPin } from '~/lib/files/pins'
 import { isCurrentDrive } from '~/lib/files/drives'
 import type { StorageSpace } from '@bindings/StorageSpace'
 import { formatSpace } from '~/lib/files/space'
@@ -25,8 +27,12 @@ const props = defineProps<{
   current: string | null
   /** The open storage. */
   currentStorage: string | null
+  /** The open folder of the open place, for the pinned folders of storages (spec 071). */
+  currentPath: string | null
   /** The panel shows the sync rules (spec 061). */
   syncRulesCurrent?: boolean
+  /** The panel shows the list of the vault's own shares (spec 071). */
+  sharesCurrent?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +41,8 @@ const emit = defineEmits<{
   releaseDrive: [drive: Drive]
   pickStorage: [id: string]
   pickSyncRules: []
+  pickShares: []
+  pickPin: [pin: FilesPin]
   addStorage: []
   queryContact: [contactId: string]
 }>()
@@ -98,9 +106,6 @@ function protocolOf(storageId: string): string | undefined {
   )?.protocol
 }
 
-/** "Meine Dateifreigaben" is open. */
-const overviewOpen = ref(false)
-
 /** The contacts expanded in this sidebar. */
 const expanded = ref(new Set<string>())
 
@@ -155,6 +160,13 @@ const PLACE_ICONS: Record<string, string> = {
         </li>
       </ul>
     </section>
+    <FilesPinnedPlaces
+      :sources="sources"
+      :current="current"
+      :current-storage="currentStorage"
+      :current-path="currentPath"
+      @pick="emit('pickPin', $event)"
+    />
     <section v-if="drives.length">
       <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
         {{ t('files.sidebar.drives') }}
@@ -322,7 +334,8 @@ const PLACE_ICONS: Record<string, string> = {
         type="button"
         class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
         data-testid="files-my-shares"
-        @click="overviewOpen = true"
+        :class="sharesCurrent ? 'bg-accent font-medium' : ''"
+        @click="emit('pickShares')"
       >
         <Icon name="lucide:share-2" class="size-4 shrink-0" />
         <span class="truncate">{{ t('files.sidebar.myShares') }}</span>
@@ -388,9 +401,5 @@ const PLACE_ICONS: Record<string, string> = {
         </li>
       </ul>
     </section>
-    <FilesSharesOverview
-      v-model:open="overviewOpen"
-      :contacts="sources?.contacts ?? []"
-    />
   </div>
 </template>

@@ -13,6 +13,10 @@ import {
  * should say move or copy by then. Shared by all panels, as the drag crosses them. */
 let dragging: DragPayload | null = null
 
+/** The drag of holzi's entries under way, `null` when none: what a drop target may look at while
+ * the drag hovers (spec 071: the sidebar decides whether it takes a folder). */
+export const currentDrag = (): DragPayload | null => dragging
+
 /**
  * Dragging entries inside holzi (spec 044 US3, spec 062 US2): a row starts the drag with the
  * selection (or itself), a folder row or the open folder takes it in. The payload carries the

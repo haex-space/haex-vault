@@ -43,10 +43,18 @@ const source = computed((previous?: SourceRef): SourceRef =>
     : place.value.source,
 )
 const path = computed(() => place.value.path)
-/** The panel shows the sync rules of this device instead of the folder (spec 061). */
+/** The panel shows the sync rules of this device instead of the folder (spec 061) ... */
 const syncRules = computed(() => !!place.value.sr)
+/** ... or the list of the vault's own file shares (spec 071). */
+const sharesList = computed(() => !!place.value.sh && !syncRules.value)
+/** A list stands in for the folder: no search, no folder content. */
+const listView = computed(() => syncRules.value || sharesList.value)
 const title = computed(() =>
-  syncRules.value ? t('files.sidebar.syncRules') : undefined,
+  syncRules.value
+    ? t('files.sidebar.syncRules')
+    : sharesList.value
+      ? t('files.sidebar.myShares')
+      : undefined,
 )
 
 useFilesPanelStart(context, source, path)
@@ -193,6 +201,7 @@ const {
   readOnlySource,
   share,
   split: context.split,
+  pins: useFilesPinCommands(source, context.sources),
   otherTarget: () => context.other()?.target() ?? null,
   toOther: (op, entries) => void toOtherAsync(op, entries),
   dropped: (payload, op) => droppedFromOther(payload, op),
@@ -401,7 +410,7 @@ watch(context.tabActive, (active) => {
       />
     </Teleport>
     <FilesSearchBar
-      v-if="!syncRules"
+      v-if="!listView"
       :query="searchQuery"
       :filter="filter"
       @search="onSearch"
@@ -412,13 +421,18 @@ watch(context.tabActive, (active) => {
       data-testid="files-main"
     >
       <FilesForeignHint
-        v-if="folderForeign > 0 && !searchQuery && !syncRules"
+        v-if="folderForeign > 0 && !searchQuery && !listView"
         :count="folderForeign"
       />
       <FilesSyncRulesList
         v-if="syncRules"
         class="flex-1"
         :sources="context.sources.value"
+      />
+      <FilesSharesList
+        v-else-if="sharesList"
+        class="flex-1"
+        :contacts="context.sources.value?.contacts ?? []"
       />
       <FilesAllFilesAccess
         v-else-if="

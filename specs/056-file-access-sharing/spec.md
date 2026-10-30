@@ -439,7 +439,8 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   eigenen Geräte kommen und sich auf jedem eigenen Gerät ändern und entziehen lassen.
 - **FR-020**: holzi MUSS eine Übersicht „Meine Dateifreigaben“ bieten mit Name, Quelle, bedienendem
   Gerät, Kontakten mit Stufe und Zustand: „aktiv“, „Quelle fehlt“, „Quelle nicht verfügbar“ oder
-  „Änderung wartet auf ‹Gerät›“.
+  „Änderung wartet auf ‹Gerät›“. (Seit Spec 071 steht die Übersicht als Liste im Panel des
+  Dateibrowsers, nicht mehr in einem Dialog.)
 - **FR-021**: Die Kontaktseite (Spec 051) MUSS die Dateifreigaben an diesen Kontakt zeigen und Ändern
   und Entziehen dort erlauben.
 - **FR-022**: Fällt die Quelle einer Dateifreigabe weg (umbenannt, verschoben, gelöscht), MUSS die

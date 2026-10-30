@@ -19,8 +19,13 @@ import {
   sameSource,
 } from '~/lib/files/clipboard'
 import { asksBeforeDelete, canCreateEncrypted } from '~/lib/files/encrypted'
-import { isRemoteStorage } from '~/lib/files/registry'
-import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
+import { isRemoteStorage, shareableSource } from '~/lib/files/registry'
+import {
+  entriesMenu,
+  type FilesCommand,
+  folderMenu,
+  type PinCommand,
+} from '~/lib/files/menus'
 
 /**
  * Managing files in a file browser tab (spec 044 US3): the selection, the context menu and the
@@ -28,17 +33,6 @@ import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
  * dialogs, and the transfers they start (`stores/filesTransfers.ts`). `shown` is the folder as
  * listed, `reload` loads it again, `activate` opens an entry.
  */
-/** Whether entries of `source` may be shared with contacts: this device outside its encrypted
- * folders, or a storage of the vault, also inside its encrypted folders, which the serving device
- * opens (spec 056 T081); never another device or a received share (FR-015). */
-function shareableSource(source: SourceRef, inEncrypted: boolean): boolean {
-  if (source.kind === 'device') return !inEncrypted
-  return (
-    !isRemoteStorage(source.storageId) &&
-    !source.storageId.startsWith('device:')
-  )
-}
-
 export function useFilesManage(options: {
   source: Ref<SourceRef>
   path: Ref<string | null>
@@ -59,6 +53,12 @@ export function useFilesManage(options: {
   dropped?: (payload: DragPayload, op: FilesClipboard['op']) => void
   /** Copies or moves entries into the other panel's folder (`useFilesOtherPanel`). */
   toOther?: (op: FilesClipboard['op'], entries: Entry[]) => void
+  /** Pinning folders to the sidebar (spec 071): what the menu offers for a folder of the open
+   * source, and the change. */
+  pins?: {
+    offer: (target: string) => PinCommand | undefined
+    set: (target: string, on: boolean) => void
+  }
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
@@ -132,6 +132,7 @@ export function useFilesManage(options: {
       return folderMenu({
         readOnly: readOnly.value,
         canPaste: canPaste.value,
+        pin: path.value ? options.pins?.offer(path.value) : undefined,
         canEncrypt: canCreateEncrypted({
           source: source.value,
           path: path.value,
@@ -152,6 +153,10 @@ export function useFilesManage(options: {
         shareableSource(source.value, folderEncrypted.value),
       split: options.split?.value ?? false,
       readOnlyTarget: otherReadOnly.value,
+      pin:
+        entries[0]?.kind === 'dir'
+          ? options.pins?.offer(entries[0].path)
+          : undefined,
     })
   }
 
@@ -364,6 +369,12 @@ export function useFilesManage(options: {
       case 'share':
         if (first) options.share?.(first)
         break
+      case 'pin':
+      case 'unpin': {
+        const target = first?.path ?? path.value
+        if (target) options.pins?.set(target, command === 'pin')
+        break
+      }
       case 'delete': {
         pendingDelete.value = entries.map((entry) => entry.path)
         // Desktops move ordinary files to the trash; Android, storages and encrypted folders

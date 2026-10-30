@@ -358,3 +358,15 @@ test('the drive of the other panel survives, and comes back when it is the activ
     droot: '/run/media/anna/BACKUP',
   })
 })
+
+test('the other panel may show the list of file shares (spec 071)', () => {
+  const state: SplitState = {
+    on: true,
+    side: 'left',
+    active: device('/home/anna'),
+    other: device('/home/anna', { sh: '1' }),
+  }
+  const location = withSplit(filesLocation(state.active), state)
+  assert.equal(location.query['o.sh'], '1')
+  assert.deepEqual(readSplit(location), state)
+})

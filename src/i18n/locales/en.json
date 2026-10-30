@@ -2699,6 +2699,8 @@
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
       "share": "Share …",
+      "pin": "Add to favorites",
+      "unpin": "Remove from favorites",
       "copyToOther": "Copy to other panel",
       "moveToOther": "Move to other panel"
     },
@@ -2812,6 +2814,9 @@
       "show": "Show sidebar",
       "hide": "Hide sidebar",
       "places": "Places",
+      "pinned": "Favorites",
+      "pinnedHint": "Drag folders here or add them with a right click",
+      "unpinDrop": "Drag here to remove",
       "drives": "Drives",
       "free": "{size} free",
       "used": "{size} used",
@@ -2967,6 +2972,8 @@
       "readOnly": "Read only",
       "overview": {
         "title": "My file shares",
+        "filter": "Filter file shares",
+        "noMatch": "No file share matches the filter.",
         "empty": "No file shares yet. Share a folder or file with “Share …” in its context menu.",
         "thisDevice": "This device",
         "edit": "Edit",
