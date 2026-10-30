@@ -210,6 +210,19 @@ async fn an_agent_reads_an_allowed_website_and_nothing_else_loads_unasked() {
         .auto("browser.open", json!({ "url": scene.site.url("/") }))
         .await
         .expect("opened");
+    let loaded = scene
+        .auto("browser.wait", json!({ "tab": "t1", "for": "load" }))
+        .await
+        .expect("load completed");
+    assert_eq!(content(&loaded)["title"], "Nachrichten");
+    let same_document = scene
+        .auto(
+            "browser.navigate",
+            json!({ "tab": "t1", "to": format!("{}#top", scene.site.url("/")) }),
+        )
+        .await
+        .expect("same-document navigation completed");
+    assert_eq!(content(&same_document)["title"], "Nachrichten");
     assert_eq!(page.result["tab"], "t1");
     assert!(page.result["note"]
         .as_str()

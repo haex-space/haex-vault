@@ -16,14 +16,15 @@ pub async fn enable(connection: &Connection, session: &str) -> Result<()> {
         .map(drop)
 }
 
-/// `Page.navigate`; an error text of the browser (`net::ERR_BLOCKED_BY_CLIENT`) is an error.
-pub async fn navigate(connection: &Connection, session: &str, url: &str) -> Result<()> {
+/// `Page.navigate`; reports whether a new document loader was created. An error text of the
+/// browser (`net::ERR_BLOCKED_BY_CLIENT`) is an error.
+pub async fn navigate(connection: &Connection, session: &str, url: &str) -> Result<bool> {
     let reply = connection
         .call("Page.navigate", json!({ "url": url }), Some(session))
         .await?;
     match reply.get("errorText").and_then(Value::as_str) {
         Some(error) if !error.is_empty() => Err(BrowserError::Protocol(error.to_owned())),
-        _ => Ok(()),
+        _ => Ok(reply.get("loaderId").and_then(Value::as_str).is_some()),
     }
 }
 

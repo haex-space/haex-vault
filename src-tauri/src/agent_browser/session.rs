@@ -107,6 +107,14 @@ impl Session {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner) = mode;
     }
 
+    /// The websites this session was allowed to visit once.
+    pub fn once_allowed_sites(&self) -> BTreeSet<Site> {
+        self.once
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     fn mode(&self) -> PermissionMode {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -174,15 +182,10 @@ impl Session {
         let Some(rights) = self.env.rights(&self.caller).await else {
             return Verdict::Refuse("site_not_allowed");
         };
-        let once = self
-            .once
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
         check_document(
             url,
             &rights.sites,
-            &once,
+            &self.once_allowed_sites(),
             self.mode() != PermissionMode::Plan,
         )
     }

@@ -84,10 +84,31 @@ impl Tab {
     pub async fn go(&self, url: &str) -> std::result::Result<(), TabError> {
         self.take_refusal();
         let mut events = self.connection.subscribe(Some(&self.session));
-        if let Err(error) = page::navigate(&self.connection, &self.session, url).await {
-            return Err(self.refusal_or(error));
+        let has_loader = match page::navigate(&self.connection, &self.session, url).await {
+            Ok(has_loader) => has_loader,
+            Err(error) => return Err(self.refusal_or(error)),
+        };
+        if has_loader {
+            self.wait_for_load(&mut events).await
+        } else if let Some(code) = self.take_refusal() {
+            Err(TabError::Refused(code))
+        } else {
+            Ok(())
         }
-        self.wait_for_load(&mut events).await
+    }
+
+    /// Whether the main document has finished loading.
+    pub async fn ready(&self) -> Result<bool> {
+        let (frame, _) = page::main_frame(&self.connection, &self.session).await?;
+        let context = page::isolated_world(&self.connection, &self.session, &frame).await?;
+        let ready = runtime::evaluate(
+            &self.connection,
+            &self.session,
+            context,
+            "document.readyState === 'complete'",
+        )
+        .await?;
+        Ok(ready.as_bool().unwrap_or(false))
     }
 
     /// Goes back or forward in the tab's history; nothing there is no error.

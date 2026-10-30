@@ -328,7 +328,7 @@ impl NativeExecutor for BrowserTools {
             let verdict = check_document(
                 address,
                 &rights.sites,
-                &Default::default(),
+                &session.once_allowed_sites(),
                 call.mode != PermissionMode::Plan,
             );
             match verdict {
@@ -422,6 +422,9 @@ impl NativeExecutor for BrowserTools {
                         "element_gone".to_owned(),
                     )));
                 };
+                if let Verdict::Refuse(code) = session.check(href).await {
+                    return Err(tab_error(TabError::Refused(code)));
+                }
                 tab.go(href).await.map_err(tab_error)?;
                 read_tab(&connection, tab, 0, None).await?
             }
@@ -460,7 +463,9 @@ impl NativeExecutor for BrowserTools {
                         NativeError::invalid_input(Some("text"), "the text to wait for")
                     })?;
                     wait_for_text(tab, &wanted).await?;
-                } else if until != "load" {
+                } else if until == "load" {
+                    wait_for_load(tab).await?;
+                } else {
                     return Err(NativeError::invalid_input(Some("for"), "load or text"));
                 }
                 read_tab(&connection, tab, 0, None).await?
@@ -527,4 +532,24 @@ async fn wait_for_text(tab: &Tab, wanted: &str) -> Result<(), NativeError> {
     .await;
     found
         .map_err(|_| NativeError::new("page_timeout", "The text did not appear within 30 seconds."))
+}
+
+/// Waits up to [`LOAD_TIMEOUT`] until the main document is complete.
+async fn wait_for_load(tab: &Tab) -> Result<(), NativeError> {
+    let loaded = tokio::time::timeout(LOAD_TIMEOUT, async {
+        loop {
+            if tab.ready().await.unwrap_or(false) {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await;
+    loaded.map_err(|_| {
+        NativeError::new(
+            "page_timeout",
+            "The page did not finish loading within 30 seconds.",
+        )
+    })?;
+    Ok(())
 }
