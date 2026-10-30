@@ -437,6 +437,11 @@ interface ListedMarketplace {
   baseUrl: string
   enabled: boolean
   rank: number
+  authType: string
+  /** `none`, `present`, `missing` or `syncing`. */
+  credentials: string
+  credentialsItemId?: string
+  credentialsEntry?: { id: string; title: string | null; owned: boolean }
 }
 
 /** The marketplaces of the vault as `marketplace_list` reports them. */
