@@ -196,13 +196,7 @@ pub async fn marketplace_categories(
 ) -> Result<CatalogCategories> {
     let db = active_database(&state)?;
     let passwords = service(&state)?;
-    let sources = sources_of(
-        &passwords,
-        &db,
-        &rows(&db).await?,
-        source_id.as_deref(),
-    )
-    .await?;
+    let sources = sources_of(&passwords, &db, &rows(&db).await?, source_id.as_deref()).await?;
     Ok(fetch_categories(Http::default(), &sources, source_id.as_deref()).await)
 }
 

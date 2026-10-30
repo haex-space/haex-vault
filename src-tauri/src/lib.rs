@@ -360,7 +360,10 @@ pub fn run() {
                 .usage()
                 .register(std::sync::Arc::new(
                     marketplace::credentials::MarketplaceUsage::new(move || {
-                        app_for_marketplaces.try_state::<AppState>()?.database().ok()
+                        app_for_marketplaces
+                            .try_state::<AppState>()?
+                            .database()
+                            .ok()
                     }),
                 ));
             // Spec 017 US8: what holzi does outside its window for extensions (browser, notifications).
