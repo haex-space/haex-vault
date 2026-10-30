@@ -14,7 +14,12 @@ export type FilesPin = { source: SourceRef; path: string }
 /** Only a device's folders and the vault's own cloud storages may be pinned: another own device and
  * a contact's share come and go with the other side (FR-002). */
 export function pinnableSource(source: SourceRef): boolean {
-  return source.kind === 'device' || isOwnStorage(source.storageId)
+  if (source.kind === 'device') return true
+  return (
+    source.kind === 'storage' &&
+    typeof source.storageId === 'string' &&
+    isOwnStorage(source.storageId)
+  )
 }
 
 const same = (a: FilesPin, b: FilesPin) =>
