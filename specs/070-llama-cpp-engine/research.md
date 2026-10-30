@@ -106,3 +106,10 @@ one run each. mistralrs was measured again on the same machine because the figur
   package, or the shared libraries shipped next to the binary).
 - Still to do before a plan: an Android run on the emulator, an iOS build on a Mac, a parser for Gemma 4's
   call format and its evaluation, the chat-template probe, CPU speed with `GGML_NATIVE`.
+
+## Promotion to production modules (PR B)
+
+The spike's template renderer and parsers moved into `llm/llamacpp/` (`template.rs`, `formats/`) with unit
+tests and the three real chat templates as fixtures, and the spike adapter now uses them. The 83-sentence
+evaluation through the promoted code gives the same figures as before: **55 of 83 for Qwen3 4B and 60 of 83
+for Qwen3.5 4B**, identical in reach (0.844 and 0.883), extra steps (3 and 6) and spurious calls (0 and 1).

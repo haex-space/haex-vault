@@ -22,6 +22,7 @@ use super::LocalModel;
 use crate::adapters::types::{
     AdapterStream, ChatRequest, ChatRole, Sampling, StreamChunk, StreamError, ToolCall, ToolSpec,
 };
+use crate::llm::holdback::longest_prefix_overlap;
 
 /// JSON-Schema `input_schema` → mistralrs' `Function.parameters` shape
 /// (research.md §2). `None` when the schema is not a JSON object (should
@@ -118,17 +119,6 @@ fn take_terminal_reasoning_leak_buffer(buffer: &mut String) -> Option<String> {
     } else {
         Some(std::mem::take(buffer))
     }
-}
-
-/// Longest suffix of `text` that is also a prefix of `marker` — how many
-/// trailing bytes of `text` could still grow into `marker` if the next
-/// chunk continues it.
-fn longest_prefix_overlap(text: &str, marker: &str) -> usize {
-    let max = marker.len().min(text.len());
-    (1..=max)
-        .rev()
-        .find(|&len| text.ends_with(&marker[..len]))
-        .unwrap_or(0)
 }
 
 /// Builds the request, translating the flat per-row history (data-model.md)
