@@ -11,6 +11,7 @@
 //! running call. When the user stops it, its tabs go back to the user ([`Session::end`]).
 
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use tokio::sync::OnceCell;
@@ -51,6 +52,7 @@ pub struct Session {
     hooks: SessionHooks,
     /// The agent's name as it claims it; empty for the built-in agent.
     agent: OnceCell<String>,
+    name_notified: AtomicBool,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
 }
@@ -106,6 +108,7 @@ impl Session {
             cancel: CancellationToken::new(),
             hooks,
             agent: OnceCell::new(),
+            name_notified: AtomicBool::new(false),
             shown: Mutex::default(),
         })
     }
@@ -114,13 +117,13 @@ impl Session {
     pub async fn agent_name(&self) -> String {
         let name = self
             .agent
-            .get_or_init(|| async {
-                let name = self.env.agent_name(&self.caller).await;
-                (self.hooks.changed)();
-                name
-            })
+            .get_or_init(|| self.env.agent_name(&self.caller))
             .await
             .clone();
+        if !self.name_notified.swap(true, Ordering::Relaxed) {
+            // Notify after OnceCell has published the name so the window's immediate query sees it.
+            (self.hooks.changed)();
+        }
         name
     }
 
