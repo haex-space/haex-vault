@@ -55,6 +55,10 @@ Erwartet:
    gesetzte Formeln da, eine Formel im Satz als Text mit Indizes. Doppelklick auf eine Formel: einfache Schreibweise
    (Chemie, Mathe & Physik, dazu LaTeX) mit Vorschau und Knöpfen; eine kaputte Formel wird nicht übernommen, Rückgängig stellt die alte her. „Formel einfügen“ legt eine neue an. Im
    PDF stehen die Formeln wie auf der Seite.
+   6d. Kariertes Papier wählen, einen Text auswählen und in der Leiste darüber die Zeilenhöhe 1×, dann 2× und eine Farbe
+   wählen: Die Grundlinie sitzt auf einer Linie, die Schrift ist entsprechend größer. „Schrift an Papier anpassen“ im
+   Hintergrund-Menü stellt alle Texte der Seite auf die Zeilen, eine Überschrift bleibt groß; Rückgängig stellt den alten
+   Stand her. Auf blankem Papier gibt es die Zeilenhöhe nicht.
 7. Speichern, schließen, neu öffnen: Ebenen, Zellen, Positionen und Herkunft sind erhalten.
 8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung und Qualität: Die PDF zeigt
    die Seite mit Papier und Rand, keinen Anhang.
