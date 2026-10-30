@@ -5,7 +5,7 @@ import type { KnownUpdate } from "./KnownUpdate";
  * What the settings list shows about updates (FR-017): the candidates the last catalog page or
  * check saw, and per installed extension the one the hint opens.
  */
-export type KnownUpdatesView = { candidates: Array<KnownUpdate>, 
+export type KnownUpdatesView = { candidates: Array<KnownUpdate>,
 /**
  * Per installed name the highest compatible version, the better-ranked marketplace on a tie.
  */

@@ -3,11 +3,11 @@
 /**
  * The host key an SFTP server showed when it was not the confirmed one (spec 050 research R5).
  */
-export type ShownHostKey = { 
+export type ShownHostKey = {
 /**
  * The OpenSSH line, which the window sends back once the user confirmed it.
  */
-key: string, 
+key: string,
 /**
  * `SHA256:…`, to compare with what the provider publishes.
  */

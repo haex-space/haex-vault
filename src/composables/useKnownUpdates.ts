@@ -3,12 +3,14 @@ import { invoke } from '@tauri-apps/api/core'
 import type { CheckUpdatesResult } from '@bindings/CheckUpdatesResult'
 import type { KnownUpdate } from '@bindings/KnownUpdate'
 import type { KnownUpdatesView } from '@bindings/KnownUpdatesView'
+import type { SourceError } from '@bindings/SourceError'
 
 // What the host knows about updates (spec 069 US3, FR-017): the state is shared by every window
 // of the app, so a check run in the catalog shows in the settings list at once. Nothing here asks
 // a marketplace: `reloadKnownUpdatesAsync` reads what the host holds, and only
 // `checkUpdatesAsync` makes the host ask, when the catalog app opens or on "Aktualisieren".
 const view = ref<KnownUpdatesView>({ candidates: [], selected: [] })
+export const updateSourceErrors = ref<SourceError[]>([])
 
 let sequence = 0
 
@@ -28,9 +30,11 @@ export async function reloadKnownUpdatesAsync(): Promise<void> {
 export async function checkUpdatesAsync(): Promise<CheckUpdatesResult | null> {
   try {
     const result = await invoke<CheckUpdatesResult>('marketplace_check_updates')
+    updateSourceErrors.value = result.sourceErrors
     await reloadKnownUpdatesAsync()
     return result
   } catch {
+    updateSourceErrors.value = []
     return null
   }
 }

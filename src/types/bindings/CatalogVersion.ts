@@ -3,16 +3,16 @@
 /**
  * One version of an entry.
  */
-export type CatalogVersion = { version: string, bundleSize: number | null, changelog?: string, 
+export type CatalogVersion = { version: string, bundleSize: number | null, changelog?: string,
 /**
  * HaexVault of this version is within `minAppVersion` and `maxAppVersion` (FR-018).
  */
-compatible: boolean, 
+compatible: boolean,
 /**
  * `needs_newer` or `needs_older` when not compatible, or `no_checksum` when the marketplace
  * gave no size or checksum (nothing is installed then, FR-013).
  */
-incompatibleReason?: string, 
+incompatibleReason?: string,
 /**
  * The bound the reason names (`minAppVersion` or `maxAppVersion`).
  */

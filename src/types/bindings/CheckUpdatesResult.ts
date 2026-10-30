@@ -5,7 +5,7 @@ import type { SourceError } from "./SourceError";
 /**
  * The result of `marketplace_check_updates`.
  */
-export type CheckUpdatesResult = { 
+export type CheckUpdatesResult = {
 /**
  * The updates this run found.
  */

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
+import { checkUpdatesAsync } from '~/composables/useKnownUpdates'
 /**
  * The frame of the app "Erweiterungen entdecken" (spec 069): the place of the tab (catalog or
  * details) and, above all of it, what belongs to the one install that may run at a time: the
@@ -11,6 +12,7 @@ const { dialogOpen, pendingId, publisherFingerprint, disposeAsync } =
   useMarketplaceInstall()
 
 onBeforeUnmount(() => void disposeAsync())
+onMounted(() => void checkUpdatesAsync())
 
 const source = computed(() =>
   pendingId.value

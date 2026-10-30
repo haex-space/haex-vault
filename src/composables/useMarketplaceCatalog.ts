@@ -9,6 +9,7 @@ import { isCancelled } from '~/lib/marketplace/errors'
 import {
   checkUpdatesAsync,
   reloadKnownUpdatesAsync,
+  updateSourceErrors,
 } from '~/composables/useKnownUpdates'
 
 /** How long the search field rests before the catalog is asked (spec 069 US1-2). */
@@ -42,6 +43,14 @@ export function useMarketplaceCatalog() {
       sourceId: query.value.sourceId,
     }),
   )
+  const sourceErrors = computed(() => {
+    const bySource = new Map(
+      updateSourceErrors.value.map((error) => [error.sourceId, error]),
+    )
+    for (const error of page.value?.sourceErrors ?? [])
+      bySource.set(error.sourceId, error)
+    return [...bySource.values()]
+  })
 
   let sequence = 0
   async function loadAsync(quiet = false): Promise<void> {
@@ -149,6 +158,7 @@ export function useMarketplaceCatalog() {
     categories,
     loading,
     failure,
+    sourceErrors,
     state,
     query,
     searchText,

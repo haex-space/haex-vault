@@ -13,6 +13,7 @@ const {
   categories,
   loading,
   failure,
+  sourceErrors,
   state,
   query,
   searchText,
@@ -70,7 +71,7 @@ const stateTestId = computed(() => {
     />
 
     <MarketplaceSourceErrors
-      :errors="page?.sourceErrors ?? []"
+      :errors="sourceErrors"
       @retry="catalog.refreshAsync"
     />
 

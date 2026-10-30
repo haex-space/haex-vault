@@ -9,11 +9,11 @@ import type { CatalogVersion } from "./CatalogVersion";
  * One extension of the catalog, identified by `(source.id, slug)` and never merged with an entry
  * of another source (FR-012).
  */
-export type CatalogEntry = { source: CatalogSource, extensionId: string, name: string, slug: string, shortDescription: string, iconUrl?: string, verified: boolean, totalDownloads: number, averageRating?: number, reviewCount: number, tags: Array<string>, publisher?: CatalogPublisher, category?: CatalogCategory, versions: Array<CatalogVersion>, installed?: CatalogInstalled, 
+export type CatalogEntry = { source: CatalogSource, extensionId: string, name: string, slug: string, shortDescription: string, iconUrl?: string, verified: boolean, totalDownloads: number, averageRating?: number, reviewCount: number, tags: Array<string>, publisher?: CatalogPublisher, category?: CatalogCategory, versions: Array<CatalogVersion>, installed?: CatalogInstalled,
 /**
  * The newest version this HaexVault can install and that has a checksum.
  */
-latestCompatible?: string, 
+latestCompatible?: string,
 /**
  * `latest_compatible` when it is newer than the installed version.
  */

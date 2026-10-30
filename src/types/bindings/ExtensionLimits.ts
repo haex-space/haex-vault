@@ -3,27 +3,27 @@
 /**
  * The limits of one extension (data-model.md `extension_limits`).
  */
-export type ExtensionLimits = { 
+export type ExtensionLimits = {
 /**
  * Rows one query may return.
  */
-maxRows: number, 
+maxRows: number,
 /**
  * Requests running at the same time.
  */
-maxConcurrent: number, 
+maxConcurrent: number,
 /**
  * Bytes of one SQL statement with its parameters.
  */
-maxSqlBytes: number, 
+maxSqlBytes: number,
 /**
  * Run time of one request in milliseconds.
  */
-timeoutMs: number, 
+timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, 
+maxResponseBytes: number,
 /**
  * Run time of one model job in milliseconds (spec 055).
  */
