@@ -193,6 +193,7 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
   await openList()
   await instance.waitForDisplayed(
     `settings-marketplace-credentials-${added.id}`,
+    20_000,
   )
   ctx.step(
     'deleting the entry warns, then the source says the login is missing',
