@@ -2726,7 +2726,30 @@
       "releaseCancelled": "Eject cancelled",
       "transfersRunning": "A transfer is still running. Cancel it and {verb}? | {count} transfers are still running. Cancel them and {verb}?",
       "ejectVerb": "eject",
-      "unmountVerb": "unmount"
+      "unmountVerb": "unmount",
+      "systemDialog": "{name}: unlock in the system's dialog",
+      "noFilesystem": "{name} is unlocked but holds no file system that can be opened",
+      "entryTitle": "Drive: {name}",
+      "unlock": {
+        "title": "Unlock {name}",
+        "savedFailed": "The saved password did not work: {message}",
+        "savedFailedGeneric": "The saved password did not work",
+        "several": "Several saved passwords fit – please pick one",
+        "password": "Password",
+        "pick": "Pick from the password manager",
+        "search": "Search entries",
+        "loading": "Loading entries …",
+        "empty": "No entries with a password",
+        "noMatch": "No entry matches the search",
+        "noVault": "Password manager only with an open vault",
+        "rememberTyped": "Remember in the password manager",
+        "rememberEntry": "Link with this drive",
+        "submit": "Unlock",
+        "rememberFailed": "{name} is open, but the password could not be remembered",
+        "urlTaken": "The entry already has the address {url}. Replace it with the drive's address?",
+        "replace": "Replace",
+        "keep": "Keep"
+      }
     },
     "sidebar": {
       "label": "Places and drives",

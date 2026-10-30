@@ -3,13 +3,14 @@
 //! rights of haex's own: polkit asks the user where the system wants it (FR-006).
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use zbus::blocking::fdo::ObjectManagerProxy;
 use zbus::blocking::{Connection, Proxy};
 use zbus::fdo::ManagedObjects;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
-use super::backend::{DriveBackend, DriveError, UnlockMode};
+use super::backend::{DriveBackend, DriveError, DriveSecret, UnlockMode};
 use super::udisks_classify::{
     classify, release_steps, BlockProps, DriveProps, EncProps, FsProps, Power, UdisksObject,
 };
@@ -21,6 +22,8 @@ const BLOCK: &str = "org.freedesktop.UDisks2.Block";
 const FILESYSTEM: &str = "org.freedesktop.UDisks2.Filesystem";
 const ENCRYPTED: &str = "org.freedesktop.UDisks2.Encrypted";
 const DRIVE: &str = "org.freedesktop.UDisks2.Drive";
+const FILESYSTEM_WAIT_ATTEMPTS: usize = 10;
+const FILESYSTEM_WAIT_INTERVAL: Duration = Duration::from_millis(100);
 
 pub struct UdisksBackend {
     connection: Connection,
@@ -98,6 +101,41 @@ impl DriveBackend for UdisksBackend {
         }
     }
 
+    /// Unlocks the encrypted block `id` and mounts its content. Content without a file system is
+    /// locked again (FR-020), and so is content that does not mount.
+    fn unlock(&self, id: &str, secret: &DriveSecret) -> Result<String, DriveError> {
+        let drive = self.listed(id)?;
+        if drive.state != DriveState::Locked {
+            return self.mount(id);
+        }
+        let cleartext: OwnedObjectPath = self
+            .proxy(id, ENCRYPTED)?
+            .call("Unlock", &(secret.expose(), no_options()))
+            .map_err(|error| match error {
+                zbus::Error::MethodError(name, message, _) => {
+                    unlock_error(name.as_str(), message.as_deref().unwrap_or_default())
+                }
+                other => DriveError::Failed(other.to_string()),
+            })?;
+        let cleartext = cleartext.to_string();
+        let lock_again = || {
+            if let Err(error) = self.invoke(id, ENCRYPTED, "Lock") {
+                log::warn!("files: locking a drive again failed: {error:?}");
+            }
+        };
+        if let Err(error) = wait_for_filesystem(|| self.objects(), &cleartext) {
+            lock_again();
+            return Err(error);
+        }
+        self.proxy(&cleartext, FILESYSTEM)
+            .and_then(|filesystem| {
+                filesystem
+                    .call("Mount", &(no_options(),))
+                    .map_err(from_zbus)
+            })
+            .inspect_err(|_| lock_again())
+    }
+
     fn release(&self, id: &str) -> Result<bool, DriveError> {
         let objects = self.objects()?;
         let drive = classify(&objects)
@@ -133,6 +171,21 @@ fn no_options() -> HashMap<&'static str, Value<'static>> {
     HashMap::new()
 }
 
+fn wait_for_filesystem(
+    mut objects: impl FnMut() -> Result<Vec<UdisksObject>, DriveError>,
+    cleartext: &str,
+) -> Result<(), DriveError> {
+    for attempt in 0..FILESYSTEM_WAIT_ATTEMPTS {
+        if has_filesystem(&objects()?, cleartext) {
+            return Ok(());
+        }
+        if attempt + 1 < FILESYSTEM_WAIT_ATTEMPTS {
+            std::thread::sleep(FILESYSTEM_WAIT_INTERVAL);
+        }
+    }
+    Err(DriveError::NoFilesystem)
+}
+
 fn from_zbus(error: zbus::Error) -> DriveError {
     match error {
         zbus::Error::MethodError(name, message, _) => {
@@ -160,6 +213,23 @@ pub fn map_error(name: &str, message: &str) -> DriveError {
             message.to_owned()
         }),
     }
+}
+
+/// A failed `Encrypted.Unlock`: udisks2 answers a wrong password with its generic `Failed`, which
+/// the dialog shows under the field (FR-015); everything else as for any call.
+pub fn unlock_error(name: &str, message: &str) -> DriveError {
+    if name == "org.freedesktop.UDisks2.Error.Failed" {
+        DriveError::UnlockFailed(message.to_owned())
+    } else {
+        map_error(name, message)
+    }
+}
+
+/// Whether the unlocked content `cleartext` holds a file system haex can mount.
+pub fn has_filesystem(objects: &[UdisksObject], cleartext: &str) -> bool {
+    objects
+        .iter()
+        .any(|object| object.path == cleartext && object.filesystem.is_some())
 }
 
 /// The objects of `GetManagedObjects` with the properties the list reads.

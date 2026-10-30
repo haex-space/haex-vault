@@ -1,7 +1,8 @@
 // Loop images as drives for the drives scenario (spec 064, T034, research R12): a vfat image is made
 // in a temporary folder and attached through udisks2 as the runner user, which is how a plugged-in
 // stick looks to haex. The CI allows the runner user udisks2's actions with a polkit rule; without a
-// working udisks2 the scenario is skipped.
+// working udisks2 the scenario is skipped. An encrypted stick (US3) needs `cryptsetup` and `mkfs`
+// as root, through `sudo` without a password as on the CI runner.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,6 +22,23 @@ export function udisksAvailable(): boolean {
     spawnSync('truncate', ['--version'], { stdio: 'ignore', timeout: 5_000 })
       .status === 0
   return available
+}
+
+let luks: boolean | undefined
+
+/** Whether an encrypted stick can be made here: `cryptsetup` through `sudo` without a password. */
+export function luksAvailable(): boolean {
+  luks ??=
+    udisksAvailable() &&
+    spawnSync('sudo', ['-n', 'cryptsetup', '--version'], {
+      stdio: 'ignore',
+      timeout: 20_000,
+    }).status === 0 &&
+    spawnSync('sudo', ['-n', 'mkfs.vfat', '--help'], {
+      stdio: 'ignore',
+      timeout: 5_000,
+    }).status === 0
+  return luks
 }
 
 function run(command: string, args: string[]): string {
@@ -93,4 +111,114 @@ export function detach(device: string): void {
       timeout: 60_000,
     },
   )
+}
+
+/** The object path of the unlocked content of the encrypted `device`, or `null` while it is locked. */
+export function cleartextOf(device: string): string | null {
+  const info = run('udisksctl', ['info', '-b', device])
+  const path = /CleartextDevice:\s+'([^']*)'/.exec(info)?.[1]
+  return path && path !== '/' ? path : null
+}
+
+/**
+ * Locks the encrypted `device` (unmounting its content first) and detaches it, again for a while
+ * when an unlock still running at a failure gets in the way. Never throws.
+ */
+export function detachEncrypted(device: string): void {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const cleartext = cleartextOf(device)
+      if (cleartext) {
+        const object = cleartext.replace('/org/freedesktop/UDisks2/', '')
+        spawnSync(
+          'udisksctl',
+          ['unmount', '--no-user-interaction', '-p', object],
+          { stdio: 'ignore', timeout: 60_000 },
+        )
+        spawnSync(
+          'udisksctl',
+          ['lock', '--no-user-interaction', '-b', device],
+          { stdio: 'ignore', timeout: 60_000 },
+        )
+      }
+    } catch {
+      return // `udisksctl info` fails: the device is gone.
+    }
+    detach(device)
+    const left = spawnSync('udisksctl', ['info', '-b', device], {
+      stdio: 'ignore',
+      timeout: 20_000,
+    })
+    if (left.status !== 0) return
+    spawnSync('sleep', ['1'])
+  }
+}
+
+/** An encrypted stick, attached and locked: the LUKS device and how to remove it. */
+export interface LockedStick {
+  device: string
+  remove(): void
+}
+
+/**
+ * A LUKS2 image labelled `label` whose content is a vfat file system of the same label holding
+ * `files`, attached and locked again, as an encrypted stick looks when plugged in. The password goes
+ * through a key file, never the command line.
+ */
+export function makeLockedStick(
+  label: string,
+  password: string,
+  files: Record<string, string>,
+): LockedStick {
+  const dir = mkdtempSync(join(tmpdir(), 'haex-drives-'))
+  const file = join(dir, `${label}.img`)
+  const key = join(dir, 'key')
+  let device: string | null = null
+  const remove = () => {
+    if (device) detachEncrypted(device)
+    rmSync(dir, { recursive: true, force: true })
+  }
+  try {
+    run('truncate', ['-s', '64M', file])
+    writeFileSync(key, password)
+    run('sudo', [
+      '-n',
+      'cryptsetup',
+      'luksFormat',
+      '-q',
+      '--type',
+      'luks2',
+      '--pbkdf',
+      'pbkdf2',
+      '--label',
+      label,
+      '--key-file',
+      key,
+      file,
+    ])
+    device = attach(file)
+    const clear = deviceOf(
+      run('udisksctl', [
+        'unlock',
+        '--no-user-interaction',
+        '-b',
+        device,
+        '--key-file',
+        key,
+      ]),
+    )
+    run('sudo', ['-n', 'mkfs.vfat', '-n', label, clear])
+    spawnSync('udevadm', ['settle'], { stdio: 'ignore', timeout: 60_000 })
+    run('udisksctl', ['mount', '--no-user-interaction', '-b', clear])
+    const mountPoint = mountPointOf(clear)
+    if (!mountPoint) throw new Error(`${clear} did not mount`)
+    for (const [name, text] of Object.entries(files))
+      writeOnDrive(mountPoint, name, text)
+    run('udisksctl', ['unmount', '--no-user-interaction', '-b', clear])
+    run('udisksctl', ['lock', '--no-user-interaction', '-b', device])
+    return { device, remove }
+  } catch (error) {
+    remove()
+    throw error
+  }
 }

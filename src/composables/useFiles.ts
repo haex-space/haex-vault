@@ -3,8 +3,11 @@
  * user; paths are checked in Rust. Errors come back as `FilesError` (`{ code, message }`).
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
+import type { DriveEntry } from '@bindings/DriveEntry'
 import type { DriveOpened } from '@bindings/DriveOpened'
 import type { DriveReleased } from '@bindings/DriveReleased'
+import type { DriveRemember } from '@bindings/DriveRemember'
+import type { DriveSecretInput } from '@bindings/DriveSecretInput'
 import type { DrivesChanged } from '@bindings/DrivesChanged'
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -128,9 +131,38 @@ export function useFiles() {
     await invoke('files_drives_unwatch', { id })
   }
 
-  /** Opens a drive: mounts it when needed (spec 064 FR-006). */
+  /** Opens a drive: mounts it when needed (spec 064 FR-006), unlocks it with the one saved password (FR-013). */
   async function driveOpenAsync(id: string): Promise<DriveOpened> {
     return await invoke<DriveOpened>('files_drive_open', { id })
+  }
+
+  /** Unlocks a drive with the dialog's password; remembers it only once it is open (spec 064 FR-014 to FR-016). */
+  async function driveUnlockAsync(
+    id: string,
+    secret: DriveSecretInput,
+    remember: DriveRemember,
+    entryTitle: string,
+  ): Promise<DriveOpened> {
+    return await invoke<DriveOpened>('files_drive_unlock', {
+      id,
+      secret,
+      remember,
+      entryTitle,
+    })
+  }
+
+  /** The password manager entries the unlock dialog offers, without passwords. */
+  async function driveUnlockCandidatesAsync(
+    query: string,
+  ): Promise<DriveEntry[]> {
+    return await invoke<DriveEntry[]>('files_drive_unlock_candidates', {
+      query,
+    })
+  }
+
+  /** Gives entry `itemId` the address of the drive with `key`, replacing its old one. */
+  async function driveLinkEntryAsync(key: string, itemId: string) {
+    await invoke('files_drive_link_entry', { key, itemId })
   }
 
   /** Unmounts and ejects a drive; running transfers on it end only with `cancelTransfers` (spec 064 FR-008 to FR-012). */
@@ -318,6 +350,9 @@ export function useFiles() {
     drivesWatchAsync,
     drivesUnwatchAsync,
     driveOpenAsync,
+    driveUnlockAsync,
+    driveUnlockCandidatesAsync,
+    driveLinkEntryAsync,
     driveReleaseAsync,
     peerRootsAsync,
     peerTrashAsync,

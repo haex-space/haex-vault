@@ -153,6 +153,10 @@ pub mod fake {
         pub mount_result: Mutex<Option<Result<String, DriveError>>>,
         pub release_result: Mutex<Option<Result<bool, DriveError>>>,
         pub list_count: Mutex<usize>,
+        /// The password a locked drive takes; set, the backend unlocks with a password.
+        pub password: Mutex<Option<String>>,
+        /// Every password `unlock` was given, apart from `calls`, which tests print.
+        pub unlocked_with: Mutex<Vec<String>>,
     }
 
     impl FakeBackend {
@@ -181,6 +185,28 @@ pub mod fake {
                 .unwrap()
                 .clone()
                 .unwrap_or_else(|| Ok(format!("/run/media/test/{id}")))
+        }
+
+        fn unlock(&self, id: &str, secret: &DriveSecret) -> Result<String, DriveError> {
+            self.calls.lock().unwrap().push(format!("unlock {id}"));
+            self.unlocked_with
+                .lock()
+                .unwrap()
+                .push(secret.expose().to_owned());
+            match self.password.lock().unwrap().as_deref() {
+                Some(password) if password == secret.expose() => {
+                    Ok(format!("/run/media/test/{id}"))
+                }
+                _ => Err(DriveError::UnlockFailed("wrong passphrase".to_owned())),
+            }
+        }
+
+        fn unlock_mode(&self) -> UnlockMode {
+            if self.password.lock().unwrap().is_some() {
+                UnlockMode::Passphrase
+            } else {
+                UnlockMode::None
+            }
         }
 
         fn release(&self, id: &str) -> Result<bool, DriveError> {

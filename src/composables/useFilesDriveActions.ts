@@ -1,17 +1,21 @@
 /**
  * What a click on a drive does (spec 064, contracts/ui.md): a mounted drive opens, an unmounted one
- * is mounted first (FR-006). A cancelled system prompt or a failure shows a short notice, never a
- * dialog (FR-007). Its button unmounts or ejects it (FR-008 to FR-012).
+ * is mounted first (FR-006), a locked one opens with its saved password or asks for one (FR-013,
+ * FR-014). A cancelled system prompt or a failure shows a short notice, never a dialog (FR-007).
+ * Its button unmounts or ejects it (FR-008 to FR-012).
  */
 import { toast } from 'vue-sonner'
 import type { Drive } from '@bindings/Drive'
+import type { DriveOpened } from '@bindings/DriveOpened'
+import type { DriveRemember } from '@bindings/DriveRemember'
+import type { DriveSecretInput } from '@bindings/DriveSecretInput'
 import { asFilesError } from '~/composables/useFiles'
 import { driveLabel } from '~/lib/files/drives'
 import { formatFileSize } from '~/lib/passwords/format'
 
 export function useFilesDriveActions() {
   const { t } = useI18n()
-  const { driveOpenAsync, driveReleaseAsync } = useFiles()
+  const { driveOpenAsync, driveUnlockAsync, driveReleaseAsync } = useFiles()
   const { busy, setBusy } = useFilesDrives()
 
   function nameOf(drive: Drive): string {
@@ -22,18 +26,61 @@ export function useFilesDriveActions() {
     )
   }
 
-  /** The path to open, or `null` when the drive did not open (the notice says why). */
-  async function openDriveAsync(drive: Drive): Promise<string | null> {
-    if (drive.state === 'mounted' && drive.path !== null) return drive.path
+  /**
+   * What opening `drive` led to: `opened` with the path to show, or `needsPassword` for the unlock
+   * dialog. `null` when it did not open (the notice says why).
+   */
+  async function openDriveAsync(
+    drive: Drive,
+  ): Promise<Exclude<DriveOpened, { kind: 'systemDialog' }> | null> {
+    if (drive.state === 'mounted' && drive.path !== null)
+      return { kind: 'opened', path: drive.path, rememberFailed: null }
     if (busy.value.has(drive.id)) return null
     setBusy(drive.id, true)
     try {
       const opened = await driveOpenAsync(drive.id)
-      if (opened.kind === 'opened') return opened.path
-      // Unlocking comes with spec 064 US3.
-      toast(t('files.drives.unsupported', { name: nameOf(drive) }))
+      if (opened.kind !== 'systemDialog') return opened
+      toast(t('files.drives.systemDialog', { name: nameOf(drive) }))
       return null
     } catch (cause) {
+      notifyFailure(drive, cause)
+      return null
+    } finally {
+      setBusy(drive.id, false)
+    }
+  }
+
+  /**
+   * Unlocks `drive` with the dialog's password. A wrong password comes back as `unlockFailed` with
+   * the system's text for the dialog (FR-015); anything else shows a notice and is `null`.
+   */
+  async function unlockDriveAsync(
+    drive: Drive,
+    secret: DriveSecretInput,
+    remember: DriveRemember,
+  ): Promise<
+    | {
+        kind: 'opened'
+        path: string
+        rememberFailed: 'urlTaken' | 'failed' | null
+      }
+    | { kind: 'unlockFailed'; message: string }
+    | null
+  > {
+    if (busy.value.has(drive.id)) return null
+    setBusy(drive.id, true)
+    try {
+      const opened = await driveUnlockAsync(
+        drive.id,
+        secret,
+        remember,
+        t('files.drives.entryTitle', { name: nameOf(drive) }),
+      )
+      return opened.kind === 'opened' ? opened : null
+    } catch (cause) {
+      const error = asFilesError(cause)
+      if (error?.code === 'unlockFailed')
+        return { kind: 'unlockFailed', message: error.message }
       notifyFailure(drive, cause)
       return null
     } finally {
@@ -89,6 +136,9 @@ export function useFilesDriveActions() {
       case 'driveUnsupported':
         toast(t('files.drives.unsupported', { name }))
         return
+      case 'driveNoFilesystem':
+        toast.error(t('files.drives.noFilesystem', { name }))
+        return
       default:
         toast.error(
           t('files.drives.failed', {
@@ -99,5 +149,5 @@ export function useFilesDriveActions() {
     }
   }
 
-  return { nameOf, openDriveAsync, releaseDriveAsync }
+  return { nameOf, openDriveAsync, unlockDriveAsync, releaseDriveAsync }
 }

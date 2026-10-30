@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Drive } from '@bindings/Drive'
+import type { DriveOpened } from '@bindings/DriveOpened'
 import { isPeerStorage } from '~/lib/files/registry'
 import { splitAvailable } from '~/lib/files/split'
 
@@ -110,11 +111,27 @@ function onSidebarPick(target: string) {
   go({ source: { kind: 'device' }, path: target })
 }
 
-/** A drive opens once it is mounted (spec 064 FR-006); a failure leaves the tab where it is. */
+/**
+ * A drive opens once it is mounted or unlocked (spec 064 FR-006, FR-013); a locked one without a
+ * saved password that works asks for it. A failure leaves the tab where it is.
+ */
 async function onPickDrive(drive: Drive) {
-  const path = await openDriveAsync(drive)
-  if (path !== null) onSidebarPick(path)
+  const opened = await openDriveAsync(drive)
+  if (opened?.kind === 'opened') onSidebarPick(opened.path)
+  else if (opened?.kind === 'needsPassword') unlocking.value = { drive, opened }
 }
+
+/** A locked drive waiting for its password in the unlock dialog (contracts/ui.md). */
+const unlocking = ref<{
+  drive: Drive
+  opened: Extract<DriveOpened, { kind: 'needsPassword' }>
+} | null>(null)
+const unlockOpen = computed({
+  get: () => unlocking.value !== null,
+  set: (open: boolean) => {
+    if (!open) unlocking.value = null
+  },
+})
 
 /** A drive with transfers still running on it, waiting for the yes to cancel them (contracts/ui.md). */
 const releasing = ref<{ drive: Drive; count: number } | null>(null)
@@ -228,6 +245,14 @@ watch(tabActive, (active) => {
       :name="releasing ? nameOf(releasing.drive) : ''"
       :eject="releasing?.drive.release !== 'unmount'"
       @confirm="onReleaseConfirmed"
+    />
+    <FilesDriveUnlockDialog
+      v-model:open="unlockOpen"
+      :drive="unlocking?.drive ?? null"
+      :reason="unlocking?.opened.reason ?? 'none'"
+      :message="unlocking?.opened.message ?? null"
+      :matches="unlocking?.opened.candidates ?? []"
+      @opened="onSidebarPick"
     />
   </div>
 </template>

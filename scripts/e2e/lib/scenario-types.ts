@@ -79,6 +79,8 @@ export interface ScenarioOptions {
     phone?: boolean
     /** A udisks2 the runner user may drive (spec 064: loop images as drives). */
     udisks?: boolean
+    /** `cryptsetup` through `sudo` without a password, for an encrypted stick (spec 064 US3). */
+    luks?: boolean
   }
   timeoutMs?: number
 }

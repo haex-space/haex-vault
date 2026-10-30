@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 
 use zbus::names::OwnedInterfaceName;
@@ -136,4 +137,92 @@ fn an_unmounted_file_system_has_no_mount_points() {
         .mount_points
         .is_empty());
     assert!(objects[0].block.is_none());
+}
+
+#[test]
+fn a_wrong_password_is_an_unlock_failure_with_the_system_s_text() {
+    assert_eq!(
+        unlock_error(
+            "org.freedesktop.UDisks2.Error.Failed",
+            "Error unlocking /dev/loop0: Failed to activate device: Operation not permitted",
+        ),
+        DriveError::UnlockFailed(
+            "Error unlocking /dev/loop0: Failed to activate device: Operation not permitted"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        unlock_error("org.freedesktop.UDisks2.Error.NotAuthorizedDismissed", ""),
+        DriveError::Cancelled
+    );
+    assert_eq!(
+        unlock_error("org.freedesktop.DBus.Error.UnknownObject", ""),
+        DriveError::Gone
+    );
+}
+
+#[test]
+fn unlocked_content_without_a_file_system_is_not_opened() {
+    let content = |filesystem: Option<FsProps>| UdisksObject {
+        path: "/org/freedesktop/UDisks2/block_devices/dm_2d0".to_owned(),
+        block: Some(BlockProps::default()),
+        filesystem,
+        ..UdisksObject::default()
+    };
+    let path = "/org/freedesktop/UDisks2/block_devices/dm_2d0";
+    assert!(has_filesystem(&[content(Some(FsProps::default()))], path));
+    // LVM or another volume inside (FR-020).
+    assert!(!has_filesystem(&[content(None)], path));
+    assert!(!has_filesystem(&[], path));
+}
+
+#[test]
+fn waits_for_the_cleartext_file_system_to_appear_after_unlock() {
+    let attempts = Cell::new(0);
+    let cleartext = "/org/freedesktop/UDisks2/block_devices/dm_2d0";
+    wait_for_filesystem(
+        || {
+            let attempt = attempts.get() + 1;
+            attempts.set(attempt);
+            Ok(vec![UdisksObject {
+                path: cleartext.to_owned(),
+                block: Some(BlockProps::default()),
+                filesystem: (attempt >= 3).then(FsProps::default),
+                ..UdisksObject::default()
+            }])
+        },
+        cleartext,
+    )
+    .unwrap();
+    assert_eq!(attempts.get(), 3);
+}
+
+#[test]
+fn filesystem_wait_stops_after_a_bounded_number_of_reads() {
+    let attempts = Cell::new(0);
+    let cleartext = "/org/freedesktop/UDisks2/block_devices/dm_2d0";
+    assert_eq!(
+        wait_for_filesystem(
+            || {
+                attempts.set(attempts.get() + 1);
+                Ok(vec![UdisksObject {
+                    path: cleartext.to_owned(),
+                    block: Some(BlockProps::default()),
+                    ..UdisksObject::default()
+                }])
+            },
+            cleartext,
+        ),
+        Err(DriveError::NoFilesystem)
+    );
+    assert_eq!(attempts.get(), FILESYSTEM_WAIT_ATTEMPTS);
+}
+
+#[test]
+fn filesystem_wait_propagates_object_read_failures() {
+    let failure = DriveError::Failed("object manager unavailable".to_owned());
+    assert_eq!(
+        wait_for_filesystem(|| Err(failure.clone()), "/cleartext"),
+        Err(failure)
+    );
 }
