@@ -84,9 +84,8 @@ pub fn get(id: &str) -> Result<Option<&'static SttCatalogEntry>, crate::stt::Stt
 }
 
 /// The model a device uses until someone picks one (spec 066, research R7):
-/// Parakeet on the desktop, measured faster and more accurate than Whisper
-/// (operator decision 2026-10-30). Phones keep the smallest model (spec 043
-/// FR-030) until Parakeet is measured on the reference phone (T130).
+/// Parakeet on a desktop with both engines, Whisper tiny on phones and in a
+/// Whisper-only build. A Parakeet-only build uses Parakeet on every device.
 pub const DEFAULT_DESKTOP_ID: &str = "parakeet-primeline";
 pub const DEFAULT_PHONE_ID: &str = "whisper-tiny";
 
@@ -94,9 +93,16 @@ pub const DEFAULT_PHONE_ID: &str = "whisper-tiny";
 pub fn default_entry(
     presets: ModelPresets,
 ) -> Result<&'static SttCatalogEntry, crate::stt::SttError> {
-    let id = match presets {
-        ModelPresets::Phone => DEFAULT_PHONE_ID,
-        ModelPresets::Desktop => DEFAULT_DESKTOP_ID,
+    let id = match (cfg!(feature = "llm-cpu"), cfg!(feature = "voice"), presets) {
+        (true, true, ModelPresets::Phone) => DEFAULT_PHONE_ID,
+        (true, true, ModelPresets::Desktop) => DEFAULT_DESKTOP_ID,
+        (true, false, _) => DEFAULT_PHONE_ID,
+        (false, true, _) => DEFAULT_DESKTOP_ID,
+        (false, false, _) => {
+            return Err(crate::stt::SttError::LocalUnavailable {
+                reason: "no local STT engine is enabled in this build".to_owned(),
+            });
+        }
     };
     get(id)?.ok_or_else(|| crate::stt::SttError::Failed {
         reason: format!("STT catalog is missing {id}"),
@@ -145,14 +151,23 @@ fn fit_for(hw: &HardwareInfo, entry: &SttCatalogEntry) -> Fit {
 pub fn entries_with_fit(
     hw: &HardwareInfo,
     presets: ModelPresets,
+    supported_engines: &[SttEngine],
 ) -> Result<Vec<SttCatalogEntryWithFit>, crate::stt::SttError> {
-    let default_id = &default_entry(presets)?.id;
-    Ok(entries()?
+    let entries: Vec<_> = entries()?
         .iter()
+        .filter(|entry| supported_engines.contains(&entry.engine))
         .cloned()
+        .collect();
+    let default_id = default_entry(presets)
+        .ok()
+        .map(|entry| entry.id.as_str())
+        .filter(|id| entries.iter().any(|entry| entry.id == *id))
+        .or_else(|| entries.first().map(|entry| entry.id.as_str()));
+    Ok(entries
+        .into_iter()
         .map(|entry| {
             let fit = fit_for(hw, &entry);
-            let is_default = &entry.id == default_id;
+            let is_default = default_id == Some(entry.id.as_str());
             SttCatalogEntryWithFit {
                 entry,
                 fit,
@@ -173,9 +188,11 @@ pub fn entries_with_fit(
 pub fn recommend_tiers(
     hw: &HardwareInfo,
     presets: ModelPresets,
+    supported_engines: &[SttEngine],
 ) -> Result<Option<[SttTierRecommendation; 3]>, crate::stt::SttError> {
     let candidates: Vec<(SttCatalogEntry, Fit)> = entries()?
         .iter()
+        .filter(|entry| supported_engines.contains(&entry.engine))
         .cloned()
         .map(|entry| {
             let fit = fit_for(hw, &entry);

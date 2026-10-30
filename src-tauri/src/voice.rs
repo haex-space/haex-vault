@@ -342,7 +342,15 @@ mod imp {
     {
         match pref.filter(|id| !id.is_empty()) {
             Some(id) => match crate::stt::catalog::get(&id)? {
-                Some(entry) => Ok(entry),
+                Some(entry)
+                    if match entry.engine {
+                        crate::stt::catalog::SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
+                        crate::stt::catalog::SttEngine::SherpaParakeet => cfg!(feature = "voice"),
+                    } =>
+                {
+                    Ok(entry)
+                }
+                Some(_) => crate::stt::catalog::default_entry(presets),
                 None => crate::stt::catalog::default_entry(presets),
             },
             None => crate::stt::catalog::default_entry(presets),

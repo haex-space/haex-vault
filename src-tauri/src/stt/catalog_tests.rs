@@ -1,6 +1,8 @@
 //! Unit tests for the built-in STT catalog and its tier recommendation.
 
-use super::catalog::{entries, get, recommend_tiers, SttEngine};
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+use super::catalog::recommend_tiers;
+use super::catalog::{entries, get, SttEngine};
 use crate::hardware::tiers::Tier;
 use crate::hardware::{Backend, HardwareInfo};
 use crate::platform::ModelPresets;
@@ -105,59 +107,119 @@ fn catalog_entry_serializes_with_frontend_field_names() {
 }
 
 #[test]
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 /// Every tier is tiny relative to any realistic RAM budget, so on a roomy
 /// host all three should classify as `Fits`, and the recommendation should
 /// still be exactly three chips (Easy = smallest, Sweet/Max = largest).
 fn recommend_tiers_on_roomy_host_prefers_smallest_for_easy() {
     let info = hw(Backend::Cpu, 16 * 1024 * 1024 * 1024, None);
-    let tiers = recommend_tiers(&info, ModelPresets::Desktop)
-        .expect("catalog should parse")
-        .expect("non-empty catalog");
+    let tiers = recommend_tiers(
+        &info,
+        ModelPresets::Desktop,
+        &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+    )
+    .expect("catalog should parse")
+    .expect("non-empty catalog");
     assert_eq!(tiers[0].tier, Tier::Easy);
     assert_eq!(tiers[0].entry.id, "whisper-tiny");
     assert_eq!(tiers[1].tier, Tier::Sweet);
-    assert_eq!(tiers[1].entry.id, "parakeet-primeline");
+    assert_eq!(
+        tiers[1].entry.id,
+        if cfg!(feature = "voice") {
+            "parakeet-primeline"
+        } else {
+            "whisper-tiny"
+        }
+    );
     assert_eq!(tiers[2].tier, Tier::Max);
     assert_eq!(tiers[2].entry.id, "whisper-small");
 }
 
 #[test]
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 fn recommend_tiers_returns_three_even_on_a_tiny_host() {
     // Even a very constrained host still gets three tier chips — Whisper
     // sizes are small enough that this is mostly a defensive check.
     let info = hw(Backend::Cpu, 256 * 1024 * 1024, None);
-    let tiers = recommend_tiers(&info, ModelPresets::Desktop)
-        .expect("catalog should parse")
-        .expect("non-empty catalog");
+    let tiers = recommend_tiers(
+        &info,
+        ModelPresets::Desktop,
+        &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+    )
+    .expect("catalog should parse")
+    .expect("non-empty catalog");
     assert_eq!(tiers.len(), 3);
 }
 
 #[test]
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 fn a_phone_is_offered_the_smallest_model_and_keeps_the_larger_ones() {
     // Room for every model: on a desktop the suggestion would be the largest.
     let info = hw(Backend::Cpu, 16 * 1024 * 1024 * 1024, None);
-    let tiers = recommend_tiers(&info, ModelPresets::Phone)
-        .expect("catalog should parse")
-        .expect("non-empty catalog");
+    let tiers = recommend_tiers(
+        &info,
+        ModelPresets::Phone,
+        &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+    )
+    .expect("catalog should parse")
+    .expect("non-empty catalog");
     assert_eq!(tiers[1].tier, Tier::Sweet);
-    assert_eq!(tiers[1].entry.id, "whisper-tiny");
+    assert_eq!(
+        tiers[1].entry.id,
+        if cfg!(feature = "llm-cpu") {
+            "whisper-tiny"
+        } else {
+            "parakeet-primeline"
+        }
+    );
     assert_eq!(tiers[2].entry.id, "whisper-small");
 
-    let desktop = recommend_tiers(&info, ModelPresets::Desktop)
-        .expect("catalog should parse")
-        .expect("non-empty catalog");
-    assert_eq!(desktop[1].entry.id, "parakeet-primeline");
+    let desktop = recommend_tiers(
+        &info,
+        ModelPresets::Desktop,
+        &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+    )
+    .expect("catalog should parse")
+    .expect("non-empty catalog");
+    assert_eq!(
+        desktop[1].entry.id,
+        if cfg!(feature = "voice") {
+            "parakeet-primeline"
+        } else {
+            "whisper-tiny"
+        }
+    );
 }
 
 #[test]
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 fn exactly_one_entry_is_the_default_and_it_follows_the_device_kind() {
     use super::catalog::entries_with_fit;
     let info = hw(Backend::Cpu, 16 * 1024 * 1024 * 1024, None);
     for (presets, id) in [
-        (ModelPresets::Desktop, "parakeet-primeline"),
-        (ModelPresets::Phone, "whisper-tiny"),
+        (
+            ModelPresets::Desktop,
+            if cfg!(feature = "voice") {
+                "parakeet-primeline"
+            } else {
+                "whisper-tiny"
+            },
+        ),
+        (
+            ModelPresets::Phone,
+            if cfg!(feature = "llm-cpu") {
+                "whisper-tiny"
+            } else {
+                "parakeet-primeline"
+            },
+        ),
     ] {
-        let listed = entries_with_fit(&info, presets).expect("catalog should parse");
+        let listed = entries_with_fit(
+            &info,
+            presets,
+            &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+        )
+        .expect("catalog should parse");
         let defaults: Vec<_> = listed.iter().filter(|e| e.is_default).collect();
         assert_eq!(defaults.len(), 1);
         assert_eq!(defaults[0].entry.id, id);

@@ -50,9 +50,16 @@ mod stt_catalog_entry_resolution {
     }
 
     #[test]
-    fn missing_empty_or_unknown_preference_falls_back_to_whisper_tiny_on_a_phone() {
+    fn missing_empty_or_unknown_preference_falls_back_to_a_phone_engine() {
         for pref in [None, Some(""), Some("does-not-exist")] {
-            assert_eq!(resolve(pref, ModelPresets::Phone), "whisper-tiny");
+            assert_eq!(
+                resolve(pref, ModelPresets::Phone),
+                if cfg!(feature = "llm-cpu") {
+                    "whisper-tiny"
+                } else {
+                    "parakeet-primeline"
+                }
+            );
         }
     }
 

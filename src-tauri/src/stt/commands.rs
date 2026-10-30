@@ -14,7 +14,16 @@ use crate::hardware;
 #[cfg(any(feature = "llm-cpu", feature = "voice"))]
 use crate::state::AppState;
 
-use super::catalog::{self, SttCatalogEntry, SttCatalogEntryWithFit, SttTierRecommendation};
+use super::catalog::{
+    self, SttCatalogEntry, SttCatalogEntryWithFit, SttEngine, SttTierRecommendation,
+};
+
+const SUPPORTED_ENGINES: &[SttEngine] = match (cfg!(feature = "llm-cpu"), cfg!(feature = "voice")) {
+    (true, true) => &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
+    (true, false) => &[SttEngine::CandleWhisper],
+    (false, true) => &[SttEngine::SherpaParakeet],
+    (false, false) => &[],
+};
 
 /// One installed (fully downloaded) STT catalog entry.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -33,6 +42,7 @@ pub async fn list_stt_catalog() -> Result<Vec<SttCatalogEntryWithFit>> {
     Ok(catalog::entries_with_fit(
         &hw,
         crate::platform::capabilities().model_presets,
+        SUPPORTED_ENGINES,
     )?)
 }
 
@@ -41,10 +51,13 @@ pub async fn list_stt_catalog() -> Result<Vec<SttCatalogEntryWithFit>> {
 #[tauri::command]
 pub async fn stt_recommend_tiers() -> Result<[SttTierRecommendation; 3]> {
     let hw = hardware::probe_async().await;
-    catalog::recommend_tiers(&hw, crate::platform::capabilities().model_presets)?.ok_or_else(|| {
-        HolziError::CatalogEntryNotFound {
-            id: "<empty stt catalog>".to_string(),
-        }
+    catalog::recommend_tiers(
+        &hw,
+        crate::platform::capabilities().model_presets,
+        SUPPORTED_ENGINES,
+    )?
+    .ok_or_else(|| HolziError::CatalogEntryNotFound {
+        id: "<empty stt catalog>".to_string(),
     })
 }
 
@@ -65,6 +78,10 @@ pub fn scan_installed(
 ) -> Vec<InstalledSttModel> {
     entries
         .iter()
+        .filter(|entry| match entry.engine {
+            super::catalog::SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
+            super::catalog::SttEngine::SherpaParakeet => cfg!(feature = "voice"),
+        })
         .filter_map(|entry| {
             let dir = resolve_dir(entry)?;
             super::files::is_complete_model(&dir, entry.engine).then(|| InstalledSttModel {
@@ -138,6 +155,16 @@ pub async fn download_stt_model(
     catalog_id: String,
 ) -> Result<InstalledSttModel> {
     let entry = resolve_catalog_entry(&catalog_id)?;
+    let engine_enabled = match entry.engine {
+        SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
+        SttEngine::SherpaParakeet => cfg!(feature = "voice"),
+    };
+    if !engine_enabled {
+        return Err(crate::stt::SttError::LocalUnavailable {
+            reason: format!("{:?} is not enabled in this build", entry.engine),
+        }
+        .into());
+    }
     let _publication_lock = crate::models::paths::acquire_model_publication_lock(
         &app,
         &entry.id,
