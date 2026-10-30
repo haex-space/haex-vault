@@ -1,7 +1,30 @@
 /// Runs Tauri's compile-time configuration and code generation.
 fn main() {
-    tauri_build::build();
+    let windows = tauri_build::WindowsAttributes::new_without_app_manifest();
+    if let Err(error) =
+        tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
+    {
+        panic!("{error:#}");
+    }
+    embed_windows_manifest();
     configure_nix_devshell_linker();
+}
+
+/// Embeds the application manifest (Common Controls v6) into every linked target on Windows,
+/// test binaries included. Tauri's own manifest reaches only the app binary
+/// (`cargo:rustc-link-arg-bins`), so a test binary loaded the system's Common Controls v5, which
+/// lacks `TaskDialogIndirect`, and stopped with `STATUS_ENTRYPOINT_NOT_FOUND` before any test ran.
+fn embed_windows_manifest() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    if target_os != "windows" || target_env != "msvc" {
+        return;
+    }
+    let manifest = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("windows-app-manifest.xml");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
 }
 
 /// Two Linux-only linker overrides needed only when the toolchain building

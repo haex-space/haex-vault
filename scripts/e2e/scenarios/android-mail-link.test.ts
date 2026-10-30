@@ -19,6 +19,9 @@ import type { Page } from '../lib/page.ts'
 
 const BEN = 'mailto:ben@example.org?subject=Hallo&body=Zeile%201%0D%0AZeile%202'
 const ADA = 'mailto:ada@example.org?subject=Zweite'
+// Not BEN again: the same link within three seconds counts as the one a start brings twice
+// (`REPEAT_WITHIN_MS`), and the steps before take less than that on a fast runner.
+const CARA = 'mailto:cara@example.org?subject=Erste'
 const BROKEN = 'mailto:ben@example.org?subject=a%0d%0aBcc:x@example.org'
 
 const text = (page: Page, testid: string) =>
@@ -81,7 +84,7 @@ scenario(
     ctx.step('the extension took the fields')
 
     // Two links in a row: the choice shows the second.
-    first.phone!.openLink(BEN)
+    first.phone!.openLink(CARA)
     await first.waitForDisplayed('mail-link-dialog', 30_000)
     first.phone!.openLink(ADA)
     await ctx.waitFor(
@@ -90,7 +93,7 @@ scenario(
         /ada@example\.org/.test(await text(first, 'mail-link-dialog')),
       { timeoutMs: 20_000 },
     )
-    assert.doesNotMatch(await text(first, 'mail-link-dialog'), /ben@/)
+    assert.doesNotMatch(await text(first, 'mail-link-dialog'), /cara@/)
     ctx.step('a second link replaces the first')
 
     // A line break in the subject is refused and shown as unreadable, with no rows.
