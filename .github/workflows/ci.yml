@@ -559,6 +559,12 @@ jobs:
           VERSION: ${{ steps.e2e-iroh-relay.outputs.version }}
         run: cargo install iroh-relay --locked --version "$VERSION" --features server
 
+      # The agent browser starts Chromium with its sandbox, as in production (spec 065). The
+      # runner's AppArmor blocks the unprivileged user namespaces the sandbox needs, and
+      # Chromium then ends at once ("the browser closed the pipe").
+      - name: Allow user namespaces for Chromium's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite
