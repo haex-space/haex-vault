@@ -92,10 +92,11 @@ deaktiviert nicht mehr.
       Manifest mit `"openers": ["mail.compose"]`, eine Seite, die beim Start `extension_opener_take` aufruft und das
       Ergebnis in die Seite schreibt (für T016 und T017); gebaut wie `model-jobs.xt` (Testschlüssel, Bytes in
       `tests/extension_e2e_fixtures.rs` geprüft), mit dem Verfahren der Notiz zum Neubau über eine eigenständige Kiste.
-- [ ] T011 [US3] Nach dem Merge von T007: `src-tauri/Cargo.toml` und `Cargo.lock` auf die neue Revision von
+- [x] T011 [US3] Nach dem Merge von T007: `src-tauri/Cargo.toml` und `Cargo.lock` auf die neue Revision von
       `haex-bundle` heben (nur die Revision, Kommentar daneben anpassen); `cargo test` der Bündel-Tests
       (`extensions::bundle`, `extensions::registry`) laufen lassen; ein Bündel mit falsch geformtem `openers` wird
-      abgelehnt (Test in `bundle/manifest_tests.rs`).
+      abgelehnt (Test in `bundle/manifest_tests.rs`); erledigt mit `haex-space/vault-sdk@517402a94c7c2b5f2093f38e3930f4019ddbba8d`
+      (Pull Request #94, Release 5.1.0), die Entwicklungsfassung prüft `openers` wie `tools`.
 
 **Checkpoint**: Geschichte 3 steht: Anmeldung gelesen, angezeigt, geprüft.
 
