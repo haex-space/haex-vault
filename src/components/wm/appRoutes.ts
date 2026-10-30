@@ -137,6 +137,12 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'extensions.browserBridge': defineAsyncComponent(
     () => import('~/components/settings/BrowserBridgeSettings.vue'),
   ),
+  'extensions.marketplaces': defineAsyncComponent(
+    () => import('~/components/settings/extensions/MarketplacesView.vue'),
+  ),
+  'extensions.marketplaces.edit': defineAsyncComponent(
+    () => import('~/components/settings/extensions/MarketplaceForm.vue'),
+  ),
   'extensions.detail': defineAsyncComponent(
     () => import('~/components/settings/extensions/ExtensionDetailView.vue'),
   ),

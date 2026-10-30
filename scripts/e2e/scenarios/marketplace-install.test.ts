@@ -5,6 +5,7 @@ import {
   enabled,
   openMarketplace,
   pointPresetAt,
+  repointPreset,
   startMarketplace,
   textOf,
 } from '../lib/marketplace.ts'
@@ -32,6 +33,7 @@ scenario('marketplace-install', { timeoutMs: 300_000 }, async (ctx) => {
 
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-marketplace-install' })
+  await repointPreset(instance, market.url)
   await openMarketplace(instance)
   await instance.waitForDisplayed(`marketplace-install-${PRESET}-probe`)
   assert.deepEqual(await installed(instance), [])

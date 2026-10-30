@@ -657,6 +657,14 @@
           "title": "Browser extensions",
           "description": "Connect haex-pass in the browser to this vault",
           "keywords": "browser extension haex-pass Firefox Chrome autofill passwords port bridge"
+        },
+        "marketplaces": {
+          "title": "Marketplaces",
+          "description": "Where HaexVault finds extensions",
+          "keywords": "marketplace extensions catalog store source address self-hosted",
+          "edit": {
+            "title": "Marketplace"
+          }
         }
       },
       "storage": {
@@ -953,6 +961,45 @@
     "extensions": {
       "updateAvailable": "Update available ({version})",
       "updateAvailableHint": "Show it in the marketplace catalog",
+      "marketplaces": {
+        "add": "Add a marketplace",
+        "addHint": "Your own or a self-hosted one, by its address",
+        "none": "No marketplace is set up. The catalog stays empty until you add one.",
+        "edit": "Edit",
+        "toggle": "Use {name} in the catalog",
+        "moveUp": "Move {name} up",
+        "moveDown": "Move {name} down",
+        "credentials": {
+          "missing": "Login missing",
+          "syncing": "The login is being synchronized"
+        },
+        "form": {
+          "name": "Name",
+          "url": "Address",
+          "urlHint": "The address of the marketplace, with its path if it has one, for example https://market.example/team",
+          "httpHint": "http is not encrypted. A login is never sent over http.",
+          "testAndSave": "Test and save",
+          "saveAnyway": "Save anyway",
+          "delete": "Delete",
+          "deleteTitle": "Delete {name}?",
+          "deleteBody": "Installed extensions stay. The catalog and the search for updates no longer use this marketplace.",
+          "cancel": "Cancel",
+          "notFound": "This marketplace does not exist any more."
+        },
+        "test": {
+          "ok": "Reachable, {count} extensions.",
+          "failed": "Not usable: {cause}"
+        },
+        "testError": {
+          "unreachable": "it cannot be reached.",
+          "timeout": "it did not answer in time.",
+          "auth_rejected": "it refused the login.",
+          "credentials_missing": "the login is missing.",
+          "credentials_syncing": "the login has not arrived on this device yet.",
+          "bad_response": "it answered something that is not a marketplace.",
+          "insecure_credentials": "a login needs https."
+        }
+      },
       "installFromFile": "Install from file",
       "installFromFileHint": "Add a signed extension (.xt)",
       "installed": "Installed",
@@ -3179,7 +3226,10 @@
       "empty": "No extensions found.",
       "none": "No marketplace is set up.",
       "allOff": "All marketplaces are switched off.",
-      "offline": "No marketplace could be reached."
+      "offline": "No marketplace could be reached.",
+      "addPreset": "Add the public marketplace",
+      "addOwn": "Add my own marketplace",
+      "openSettings": "Open the marketplace settings"
     },
     "sourceError": {
       "unreachable": "{name} cannot be reached.",

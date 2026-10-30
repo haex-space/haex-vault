@@ -4,6 +4,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import {
   openMarketplace,
   pointPresetAt,
+  repointPreset,
   startMarketplace,
   textOf,
   tileCount,
@@ -39,6 +40,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
 
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-marketplace' })
+  await repointPreset(instance, market.url)
 
   const rows = unwrap<Row[]>(
     'marketplace_list',
@@ -112,7 +114,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.exec(`
     const input = document.querySelector('input[data-testid="marketplace-search"]');
     if (!input) throw new Error('marketplace search input not found');
-    input.value = 'agent tools';
+    input.value = 'agent-tools';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector('li[data-testid="marketplace-tile-${PRESET}-agent-tools"] button')?.click();
   `)

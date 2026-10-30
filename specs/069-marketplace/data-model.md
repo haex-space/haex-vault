@@ -33,7 +33,9 @@ and no foreign key to credentials (see R11, R14).
 ## Derived view `MarketplaceView` (no table)
 
 From the rows, sorted by `(sort_order, name, id)`: `id`, `name`, `baseUrl`, `enabled`, `rank`,
-`authType`, `credentials: none | present | missing | syncing` (R11).
+`authType`, `credentials: none | present | missing | syncing` (R11), and the optional
+`credentialsItemId` identifier so editing a row preserves its existing password-manager link. The
+identifier is not a credential value.
 
 ## Transient types (not stored)
 

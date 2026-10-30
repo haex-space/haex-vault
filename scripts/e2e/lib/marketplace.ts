@@ -430,3 +430,48 @@ export async function installedVersions(
       .map((extension) => [extension.name, extension.version ?? '']),
   )
 }
+
+interface ListedMarketplace {
+  id: string
+  name: string
+  baseUrl: string
+  enabled: boolean
+  rank: number
+}
+
+/** The marketplaces of the vault as `marketplace_list` reports them. */
+export async function marketplaces(
+  instance: FlowInstance,
+): Promise<ListedMarketplace[]> {
+  return unwrap<ListedMarketplace[]>(
+    'marketplace_list',
+    await instance.invoke('marketplace_list'),
+  )
+}
+
+/**
+ * Points the preset row at `url` through the same command the settings form uses. The variable
+ * of `pointPresetAt` reaches only a debug build started from this machine; a phone's app never
+ * sees it, so the scenarios repoint the row the way a user would, which works on every platform.
+ * A row that already holds `url` (or is not there) is left alone.
+ */
+export async function repointPreset(
+  instance: FlowInstance,
+  url: string,
+): Promise<void> {
+  const preset = (await marketplaces(instance)).find(
+    (market) => market.id === PRESET_ID,
+  )
+  if (!preset || preset.baseUrl === url) return
+  unwrap(
+    'marketplace_save',
+    await instance.invoke('marketplace_save', {
+      input: {
+        id: PRESET_ID,
+        name: preset.name,
+        baseUrl: url,
+        authType: 'none',
+      },
+    }),
+  )
+}

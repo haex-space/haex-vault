@@ -75,6 +75,8 @@ const LOCATION_PATHS: Record<string, string> = {
   contacts: '/contacts',
   extensions: '/extensions',
   'extensions.browserBridge': '/extensions/browser-bridge',
+  'extensions.marketplaces': '/extensions/marketplaces',
+  'extensions.marketplaces.edit': '/extensions/marketplaces/new',
   'extensions.detail': '/extensions/00000000-0000-0000-0000-000000000001',
   federation: '/federation',
   'federation.link': '/federation/devices/link',
