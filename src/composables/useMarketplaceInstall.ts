@@ -39,7 +39,17 @@ export function useMarketplaceInstall() {
     get: () => pendingId.value !== null,
     // The dialog closes by install or by the user; the host drops what is left.
     set: (open: boolean) => {
-      if (!open) finish()
+      if (!open) {
+        const id = pendingId.value
+        if (id) {
+          // Capture the id before clearing shared state: the dialog's source prop disappears
+          // with pendingId, so it cannot reliably clean up after this setter runs.
+          void invoke('marketplace_download_discard', { id }).catch(() => {
+            // The host already consumed or forgot the pending bundle.
+          })
+        }
+        finish()
+      }
     },
   })
 
