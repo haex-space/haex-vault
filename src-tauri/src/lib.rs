@@ -19,6 +19,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod marketplace;
 pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
@@ -122,6 +123,10 @@ use instances::{
     create_instance, import_instance, list_instances, open_instance, paths::get_app_local_data,
     ProcessPresence,
 };
+use marketplace::commands::{
+    marketplace_catalog, marketplace_categories, marketplace_details, marketplace_download,
+    marketplace_download_cancel, marketplace_download_discard, marketplace_icon, marketplace_list,
+};
 use models::commands::{
     check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
     download_model_from_hf, get_huggingface_model_details, import_model_from_file,
@@ -130,6 +135,7 @@ use models::commands::{
 };
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
+use openers::commands::{opener_mail_check, opener_mail_open};
 use passwords::commands::agent::passwords_agent_search;
 use passwords::commands::attachments::{
     passwords_attachment_add, passwords_attachment_open, passwords_attachment_open_system,
@@ -257,6 +263,7 @@ pub fn run() {
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
         contacts::phone::trigger::PhoneRuns::default(),
@@ -511,6 +518,19 @@ pub fn run() {
                         files::agent::env::TauriSharesEnv::new(app.handle().clone(), share_confirm),
                     ),
                 ));
+            // Spec 061 US5: the sync rule actions of the built-in agent, confirmed in the window.
+            let sync_rule_confirm = file_sync::agent_confirm::SyncRuleConfirm::default();
+            app.manage(sync_rule_confirm.clone());
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    file_sync::agent::SyncRulesAgent::builtin(
+                        file_sync::agent::TauriSyncRulesEnv::new(
+                            app.handle().clone(),
+                            sync_rule_confirm,
+                        ),
+                    ),
+                ));
             // Spec 060 US5: the share action for contacts, confirmed in the window every time.
             let contact_share_confirm =
                 contacts::agent_share_confirm::ContactShareConfirm::default();
@@ -606,6 +626,7 @@ pub fn run() {
             files::share::commands::files_device_access_get,
             files::share::commands::files_device_access_set,
             files::agent::share_confirm::file_share_confirm_answer,
+            file_sync::agent_confirm::sync_rule_confirm_answer,
             contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
             files::browser_commands::encrypted::files_create_encrypted_folder,
@@ -824,6 +845,14 @@ pub fn run() {
             passwords_import_report_save,
             passwords_icon_preview,
             extension_install_preview,
+            marketplace_list,
+            marketplace_catalog,
+            marketplace_categories,
+            marketplace_details,
+            marketplace_icon,
+            marketplace_download,
+            marketplace_download_cancel,
+            marketplace_download_discard,
             extension_install,
             extension_list,
             extension_remove,
@@ -846,6 +875,8 @@ pub fn run() {
             extension_agent_frame_ready,
             extension_agent_tools_set,
             extension_host_context_set,
+            opener_mail_check,
+            opener_mail_open,
             extension_dialog_resolve,
             extension_encrypted_folder_choose_resolve,
             extension_peer_invitation_answer,

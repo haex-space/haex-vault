@@ -9,6 +9,7 @@ pub mod events;
 pub mod frames;
 pub mod methods;
 pub(crate) mod model_jobs;
+pub(crate) mod openers;
 pub mod permissions;
 
 #[cfg(test)]
@@ -29,3 +30,5 @@ mod model_jobs_steps_tests;
 mod model_jobs_storage_tests;
 #[cfg(test)]
 mod model_jobs_tests;
+#[cfg(test)]
+mod openers_tests;

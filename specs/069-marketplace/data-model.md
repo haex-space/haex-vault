@@ -2,7 +2,7 @@
 
 ## Table `haex_marketplaces` (vault data, CRDT-tracked, synced)
 
-Migration `0047_marketplaces` (next free number at build time), `HOLZI_TRIGGER_VERSION` + 1. No UNIQUE
+Migration `0048_marketplaces` (`0047` was taken by `agent_browser`, spec 065), `HOLZI_TRIGGER_VERSION` + 1. No UNIQUE
 and no foreign key to credentials (see R11, R14).
 
 | Column                | Type                         | Meaning                                                                                              |

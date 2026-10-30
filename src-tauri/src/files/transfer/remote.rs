@@ -228,6 +228,9 @@ impl Run<'_, '_> {
     /// Where a file goes, after asking when its name is taken; `None` to skip it.
     fn resolve(&mut self, rel: &[String]) -> Result<Option<Place>, Stop> {
         let place = self.place_of(rel, false)?;
+        if self.job.known_free && matches!(place, Place::Key(_)) {
+            return Ok(Some(place));
+        }
         if !self.taken(&place)? {
             return Ok(Some(place));
         }

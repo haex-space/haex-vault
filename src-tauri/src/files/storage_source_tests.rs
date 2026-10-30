@@ -190,3 +190,39 @@ async fn the_name_form_of_encrypted_folders_is_refused_for_ordinary_entries() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn a_flat_listing_is_one_request_and_names_the_folders_of_the_keys() {
+    let (fake, files) = scene(&[
+        "Fotos/",
+        "Fotos/a.jpg",
+        "Fotos/2026/05/b.jpg",
+        "leer/",
+        "n.txt",
+    ]);
+    let tree = files.list_flat("/").await.unwrap().unwrap();
+    assert_eq!(
+        tree.folders.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["Fotos", "Fotos/2026", "Fotos/2026/05", "leer"]
+    );
+    assert_eq!(
+        tree.files.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["Fotos/2026/05/b.jpg", "Fotos/a.jpg", "n.txt"]
+    );
+    assert_eq!(tree.files["n.txt"].0, "n.txt".len() as u64);
+    let ops: Vec<Op> = fake.calls().into_iter().map(|(op, _)| op).collect();
+    assert_eq!(ops, [Op::List], "no request per folder");
+    let below = files.list_flat("/Fotos").await.unwrap().unwrap();
+    assert_eq!(
+        below.files.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["2026/05/b.jpg", "a.jpg"]
+    );
+}
+
+#[tokio::test]
+async fn a_flat_listing_gives_way_to_the_folder_walk_for_encrypted_folders_and_odd_keys() {
+    let (_fake, files) = scene(&["a/abcdefghijklmnopqrstuvwxyz.hxef/head", "n.txt"]);
+    assert!(files.list_flat("/").await.unwrap().is_none());
+    let (_fake, files) = scene(&["a//b.txt"]);
+    assert!(files.list_flat("/").await.unwrap().is_none());
+}

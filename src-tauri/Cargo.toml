@@ -54,6 +54,9 @@ llm-cpu = [
 llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 # Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
 llm-metal = ["llm-cpu", "mistralrs/metal"]
+# Spec 070 spike: llama.cpp as a second engine. Only the ignored spike test uses it so far.
+llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2"]
+llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda", "llama-cpp-2/dynamic-link"]
 
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
@@ -193,6 +196,8 @@ semver = "1"
 # crates.io; API moved between 0.6 expectation and 0.8.1). Kept optional so
 # `--no-default-features` builds skip the candle/nvcc dependency graph.
 mistralrs = { version = "0.8.1", optional = true }
+# Spec 070 spike (llama.cpp second engine); bundles its own llama.cpp, needs cmake at build time.
+llama-cpp-2 = { version = "=0.1.160", optional = true }
 # `Model::tokenize` takes an `Either` (the chat-template probe, spec 032 R8); the version mistralrs
 # already resolves to.
 either = { version = "1", optional = true }
@@ -456,3 +461,8 @@ tauri-plugin-notification = { git = "https://github.com/tauri-apps/plugins-works
 # `Verifier::new` without extra roots, like reqwest. Upstream: lettre/lettre#1167; drop this
 # entry once a release contains it.
 lettre = { git = "https://github.com/haexmas/lettre", rev = "993d98c5330ce5a3238e2f7fc37e9c9cf4a3f1c1" }
+
+# Spec 070 spike: cmake-rs derives llama.cpp's build type from this, so a dev build of the spike
+# still compiles ggml with optimisations (a Debug ggml is unusably slow).
+[profile.dev.package.llama-cpp-sys-2]
+opt-level = 3

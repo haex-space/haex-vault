@@ -1068,7 +1068,9 @@
       "peerDescription": "Another device of this vault",
       "receivedDescription": "A contact's share",
       "fileShares": "Manage file shares",
-      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself"
+      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself",
+      "syncRules": "Manage sync rules",
+      "syncRulesDescription": "Read rules and their status; you confirm every create, change and delete yourself"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -1756,7 +1758,8 @@
       "files": {
         "read": "Read files",
         "write": "Change files",
-        "shares": "Manage file shares"
+        "shares": "Manage file shares",
+        "syncRules": "Manage sync rules"
       },
       "contacts": {
         "read": "Read contacts",
@@ -1808,6 +1811,13 @@
       "scroll": "Scroll the page",
       "tabsList": "List the agent tabs",
       "wait": "Wait for the page"
+    },
+    "syncRules": {
+      "list": "List sync rules",
+      "status": "Status of a sync rule",
+      "create": "Create sync rule",
+      "update": "Change sync rule",
+      "delete": "Delete sync rule"
     }
   },
   "passwords": {
@@ -2363,6 +2373,8 @@
       "fileType": "Extension",
       "checking": "Checking the file …",
       "publisher": "Publisher: {author} · key {fingerprint}",
+      "fromMarketplace": "From the marketplace “{name}”.",
+      "publisherDiffers": "The key of this bundle ({bundle}) is not the publisher key the marketplace lists ({listed}). Only install it if you know why.",
       "sameNameOtherPublisher": "Another extension with the same name is already installed. This one comes from a different publisher and gets its own data.",
       "update": "Update from {from} to {to}",
       "confirmDowngrade": "Install the older version anyway",
@@ -2893,8 +2905,8 @@
       "title": "Sync rules",
       "empty": "No sync rule on this device yet.",
       "failed": "The sync rules could not be loaded or changed.",
-      "placeA": "Place A",
-      "placeB": "Place B",
+      "placeA": "Source",
+      "placeB": "Target",
       "name": "Name",
       "interval": "Sync remote places every … minutes",
       "cloudHint": "{place} is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
@@ -2953,9 +2965,9 @@
         "open": "Exclusions",
         "title": "Exclusions of “{name}”",
         "loading": "Loading …",
-        "hint": "Patterns as in .gitignore, one per line. The file .haex-ignore lies in place A and is synced too.",
+        "hint": "Patterns as in .gitignore, one per line. The file .haex-ignore lies in the source and is synced too.",
         "label": ".haex-ignore",
-        "readOnly": "Place A cannot be written, the patterns can only be viewed: {reason}",
+        "readOnly": "The source cannot be written, the patterns can only be viewed: {reason}",
         "lineError": "Line {line} is skipped: {text}",
         "ignoredNow": "The exclusions leave out nothing right now. | The exclusions leave out one file or folder right now. | The exclusions leave out {count} files and folders right now.",
         "fixed": "Fixed exclusions",
@@ -3013,8 +3025,7 @@
       },
       "direction": {
         "label": "Direction",
-        "aToB": "A → B",
-        "bToA": "B → A",
+        "aToB": "Source → target",
         "both": "Both ways"
       },
       "deleteMode": {
@@ -3040,6 +3051,7 @@
       },
       "progress": {
         "label": "Progress",
+        "running": "Running …",
         "scanning": "Comparing the places …",
         "executing": "Applying changes …",
         "files": "{done} of {total} files · {size}"
@@ -3065,6 +3077,23 @@
         "invalidDepth": "The log depth lies between 0 and 100.",
         "placeError": "A place of the rule cannot be read.",
         "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines)."
+      },
+      "confirm": {
+        "title": {
+          "create": "Agent: create a sync rule",
+          "update": "Agent: change a sync rule",
+          "delete": "Agent: delete a sync rule"
+        },
+        "body": {
+          "create": "The agent wants to create the rule “{name}”. It then runs without the agent, as shown here.",
+          "update": "The agent wants to change the rule “{name}”. Struck through is what holds now.",
+          "delete": "The agent wants to delete the rule “{name}”. The files in both places stay as they are."
+        },
+        "interval": "Interval",
+        "minutes": "every {n} minute | every {n} minutes",
+        "decrypted": "Files from an encrypted folder in the source are stored decrypted in the target.",
+        "allow": "Allow",
+        "deny": "Deny"
       }
     },
     "split": {
@@ -3379,6 +3408,23 @@
       "revoke": "Revoke access to “{name}”",
       "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}.",
       "lookupFailed": "The file shares could not be checked. Deletion remains disabled."
+    }
+  },
+  "mail": {
+    "link": {
+      "title": "Open e-mail link",
+      "unreadable": "The link cannot be read.",
+      "to": "To",
+      "subject": "Subject",
+      "openWith": "What should open the link?",
+      "none": "No opener installed. You can copy the link.",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "copyFailed": "Copying failed."
+    },
+    "openers": {
+      "system": "Open with the system",
+      "notTaken": "{name} did not take the e-mail. Try again."
     }
   },
   "browserBridge": {

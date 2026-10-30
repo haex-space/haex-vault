@@ -57,7 +57,7 @@ through `hyper` (dev dependency, already present).
 
 **Storage**:
 
-- New CRDT table `haex_marketplaces` (migration `0047_marketplaces`, next free number at build time;
+- New CRDT table `haex_marketplaces` (migration `0048_marketplaces`, `0047` was taken by spec 065;
   `HOLZI_TRIGGER_VERSION` + 1). No secret in the table.
 - The memory slot for the downloaded bundle is only memory in the `AppState`, at most one bundle.
 - Image cache (icons) only in memory, per session.
@@ -166,7 +166,7 @@ src-tauri/src/marketplace/
 ├── updates.rs          # known updates in memory for the list of installed extensions
 ├── commands.rs         # Tauri commands
 └── *_tests.rs          # one per file
-src-tauri/src/identity/migrations_marketplaces.rs   # Migration 0047
+src-tauri/src/identity/migrations_marketplaces.rs   # Migration 0048
 src-tauri/src/extensions/commands/install.rs        # BundleSource (one place)
 src-tauri/src/extensions/registry/install.rs        # read_bundle: file or memory slot
 

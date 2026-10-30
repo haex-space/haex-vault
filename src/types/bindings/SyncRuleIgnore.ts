@@ -6,11 +6,11 @@ import type { SyncRuleIgnoreLine } from "./SyncRuleIgnoreLine";
  */
 export type SyncRuleIgnore = {
 /**
- * The file in place A; empty when there is none.
+ * The file in the source; empty when there is none.
  */
 content: string, writable: boolean,
 /**
- * Why place A cannot be written.
+ * Why the source cannot be written.
  */
 reason: string | null, fixed: Array<string>,
 /**
@@ -18,6 +18,6 @@ reason: string | null, fixed: Array<string>,
  */
 ignoredNow: number,
 /**
- * Lines of the file in place A that are left out.
+ * Lines of the file in the source that are left out.
  */
 lineErrors: Array<SyncRuleIgnoreLine>, };

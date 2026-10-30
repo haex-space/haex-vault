@@ -35,12 +35,16 @@ fn unavailable(error: impl std::fmt::Display) -> SyncRuleError {
     )
 }
 
-fn not_found() -> SyncRuleError {
+pub(super) fn not_found() -> SyncRuleError {
     SyncRuleError::new(SyncRuleErrorCode::NotFound, "no such rule")
 }
 
 /// The rule `id` of `device`.
-async fn rule_of(db: &VaultDb, device: &str, id: &str) -> Result<SyncRule, SyncRuleError> {
+pub(super) async fn rule_of(
+    db: &VaultDb,
+    device: &str,
+    id: &str,
+) -> Result<SyncRule, SyncRuleError> {
     let (device, id) = (device.to_owned(), id.to_owned());
     db.read(move |r| Ok(store::rule(r, &device, &id)))
         .await
@@ -74,7 +78,7 @@ pub async fn list(
         .collect())
 }
 
-fn view(rule: SyncRule, pending: usize, shared: Option<&Mutex<Shared>>) -> SyncRuleView {
+pub(super) fn view(rule: SyncRule, pending: usize, shared: Option<&Mutex<Shared>>) -> SyncRuleView {
     let guard = shared.map(|shared| shared.lock().unwrap_or_else(|e| e.into_inner()));
     let running = guard
         .as_ref()
@@ -89,7 +93,7 @@ fn view(rule: SyncRule, pending: usize, shared: Option<&Mutex<Shared>>) -> SyncR
     SyncRuleView { rule, status }
 }
 
-async fn others(
+pub(super) async fn others(
     db: &VaultDb,
     device: &str,
     except: Option<&str>,
@@ -313,7 +317,7 @@ async fn preview_rule(
 }
 
 /// The open vault and this device.
-fn here(app: &AppHandle) -> Result<(VaultDb, String), SyncRuleError> {
+pub(super) fn here(app: &AppHandle) -> Result<(VaultDb, String), SyncRuleError> {
     let state = app.state::<AppState>();
     let db = state.database().map_err(unavailable)?;
     if let Some(session) = app.state::<FileSyncState>().session() {
@@ -533,7 +537,7 @@ pub async fn sync_rules_preview(
         .map_err(scan_error)
 }
 
-/// Opens place A to write, or to read with the reason it cannot be written.
+/// Opens the source to write, or to read with the reason it cannot be written.
 async fn open_a(
     app: &AppHandle,
     rule: &SyncRule,
@@ -575,7 +579,7 @@ pub async fn sync_rules_ignore_get(
     ignore_of(&app, &rule).await
 }
 
-/// Writes the exclusion file of place A; the rule runs with it after.
+/// Writes the exclusion file of the source; the rule runs with it after.
 #[tauri::command]
 pub async fn sync_rules_ignore_set(
     app: AppHandle,

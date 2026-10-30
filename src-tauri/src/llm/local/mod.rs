@@ -9,6 +9,8 @@
 mod gguf_header;
 #[cfg(test)]
 mod gguf_header_tests;
+#[cfg(all(test, feature = "llm-llamacpp"))]
+mod llamacpp_spike_tests;
 mod loader;
 #[cfg(test)]
 mod loader_tests;

@@ -45,6 +45,41 @@ fn a_row_completed_by_a_parked_group_waits_whole_while_core_data_arrives() {
 }
 
 #[test]
+fn a_row_held_on_an_earlier_page_parks_with_the_group_that_completes_it() {
+    let (a, b) = (Device::new(), Device::new());
+    ddl(&a, NOTES);
+    ddl(&b, NOTES);
+    write(
+        &a,
+        "INSERT INTO t:notes (id, title, body) VALUES ('n1', 'first', 'text')",
+    );
+    ddl(&a, "ALTER TABLE t:notes ADD COLUMN tag TEXT");
+    write(
+        &a,
+        "UPDATE t:notes SET title = 'second', tag = 'x' WHERE id = 'n1'",
+    );
+    write_thread(&a, "core");
+
+    // One change per page: the first group is held on its own page before the second parks.
+    let received = b.try_pull_from(&a, 1).expect("pull");
+    assert!(received.len() > 2, "the groups came on separate pages");
+    assert_eq!(threads(&b), 1);
+    assert_eq!(count(&b, "SELECT COUNT(*) FROM t:notes"), 0);
+    assert_eq!(parked(&b).len(), 2, "the held group parked with the row");
+
+    ddl(&b, "ALTER TABLE t:notes ADD COLUMN tag TEXT");
+    replay_ready(b.db(), &|| false).expect("replay");
+    assert_eq!(
+        count(
+            &b,
+            "SELECT COUNT(*) FROM t:notes \
+             WHERE title = 'second' AND tag = 'x' AND body = 'text'"
+        ),
+        1
+    );
+}
+
+#[test]
 fn parked_groups_that_only_together_make_a_row_replay_together() {
     let (a, b) = (Device::new(), Device::new());
     ddl(&a, NOTES);

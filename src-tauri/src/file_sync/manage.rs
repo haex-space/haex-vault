@@ -1,5 +1,5 @@
 //! What the window shows of a rule without running it: the preview of its plan (FR-007), which
-//! changes nothing, and the exclusion file of place A with the fixed exclusions and the count of
+//! changes nothing, and the exclusion file of the source with the fixed exclusions and the count of
 //! what they leave out (FR-041, FR-042).
 
 use serde::{Deserialize, Serialize};
@@ -65,15 +65,15 @@ pub struct SyncRulePlan {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct SyncRuleIgnore {
-    /// The file in place A; empty when there is none.
+    /// The file in the source; empty when there is none.
     pub content: String,
     pub writable: bool,
-    /// Why place A cannot be written.
+    /// Why the source cannot be written.
     pub reason: Option<String>,
     pub fixed: Vec<String>,
     /// Files and folders of both places the exclusions leave out now.
     pub ignored_now: u32,
-    /// Lines of the file in place A that are left out.
+    /// Lines of the file in the source that are left out.
     pub line_errors: Vec<SyncRuleIgnoreLine>,
 }
 
@@ -166,8 +166,8 @@ fn view(planned: &Step) -> Vec<SyncRulePlanStep> {
     }
 }
 
-/// The exclusion file of place A, the fixed exclusions, and what both leave out of `a` and `b` now.
-/// `read_only` is why place A cannot be written, if it cannot.
+/// The exclusion file of the source, the fixed exclusions, and what both leave out of `a` and `b` now.
+/// `read_only` is why the source cannot be written, if it cannot.
 pub async fn ignore_get(
     a: &dyn Place,
     b: &dyn Place,
@@ -201,7 +201,7 @@ pub async fn ignore_get(
     })
 }
 
-/// Writes the exclusion file of place A (FR-041); one over the limits is refused.
+/// Writes the exclusion file of the source (FR-041); one over the limits is refused.
 pub async fn ignore_set(a: &dyn Place, content: &str) -> Result<(), FilesError> {
     if !ignore::fits(content) {
         return Err(FilesError::new(

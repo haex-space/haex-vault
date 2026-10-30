@@ -2,7 +2,7 @@
 //! [`super`].
 
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::PoisonError;
 
 use haex_crdt::rusqlite::params;
@@ -31,6 +31,9 @@ pub fn replay_ready(db: &Database, stop: &dyn Fn() -> bool) -> haex_crdt::Result
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
     let mut replayed = Replayed::default();
+    // Extensions whose ready groups failed to apply: nothing changes for them in this run, so
+    // the next round does not read and apply them again.
+    let mut failed: HashSet<String> = HashSet::new();
     loop {
         let context = query::read(db, |r| Context::read(r, db.device_id()))?;
         // Up to the parking limit per extension: each group's changes are read when it is tried.
@@ -49,6 +52,9 @@ pub fn replay_ready(db: &Database, stop: &dyn Fn() -> bool) -> haex_crdt::Result
         for (prefix, mut groups) in by_prefix {
             if stop() {
                 return Ok(replayed);
+            }
+            if failed.contains(&prefix) {
+                continue;
             }
             groups.sort_by(|a, b| compare_hlc_strings(&a.1, &b.1));
             let mut ready: Vec<i64> = Vec::new();
@@ -112,6 +118,7 @@ pub fn replay_ready(db: &Database, stop: &dyn Fn() -> bool) -> haex_crdt::Result
                     }
                     Err(error) => {
                         log::warn!("sync: replaying the parked groups of {prefix} failed: {error}");
+                        failed.insert(prefix);
                         continue;
                     }
                 }

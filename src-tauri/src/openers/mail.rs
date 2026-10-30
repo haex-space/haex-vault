@@ -8,10 +8,10 @@ use ts_rs::TS;
 
 use crate::error::{HolziError, Result};
 
-const SCHEME: &str = "mailto:";
+pub const SCHEME: &str = "mailto:";
 
 /// Largest link holzi reads (FR-008).
-const MAX_LINK_BYTES: usize = 32 * 1024;
+pub const MAX_LINK_BYTES: usize = 32 * 1024;
 /// Most addresses in one of `to`, `cc` and `bcc`.
 const MAX_RECIPIENTS: usize = 50;
 const MAX_SUBJECT_CHARS: usize = 998;

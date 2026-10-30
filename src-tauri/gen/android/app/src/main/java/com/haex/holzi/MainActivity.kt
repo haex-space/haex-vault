@@ -1,5 +1,6 @@
 package com.haex.holzi
 
+import android.content.Intent
 import android.os.Bundle
 import android.system.Os
 import android.view.KeyEvent
@@ -12,7 +13,21 @@ class MainActivity : TauriActivity() {
     // while no other thread reads the environment.
     Os.setenv("TMPDIR", cacheDir.absolutePath, true)
     enableEdgeToEdge()
+    mailLinkAsView(intent)
     super.onCreate(savedInstanceState)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    mailLinkAsView(intent)
+    super.onNewIntent(intent)
+  }
+
+  // Spec 063: apps write a mail with ACTION_SENDTO, but the deep-link plugin only reads
+  // ACTION_VIEW. The link is the same, so the plugin gets it as a view of the mailto: address.
+  private fun mailLinkAsView(intent: Intent?) {
+    if (intent?.action == Intent.ACTION_SENDTO && intent.data?.scheme == "mailto") {
+      intent.action = Intent.ACTION_VIEW
+    }
   }
 
   // WebView can consume an injected KEYCODE_BACK before Android dispatches it through the

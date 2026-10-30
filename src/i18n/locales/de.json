@@ -1068,7 +1068,9 @@
       "peerDescription": "Anderes Gerät dieser Vault",
       "receivedDescription": "Freigabe eines Kontakts",
       "fileShares": "Dateifreigaben verwalten",
-      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst"
+      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst",
+      "syncRules": "Sync-Regeln verwalten",
+      "syncRulesDescription": "Regeln und ihren Status lesen; jedes Anlegen, Ändern und Löschen bestätigst du selbst"
     },
     "storage": {
       "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
@@ -1756,7 +1758,8 @@
       "files": {
         "read": "Dateien lesen",
         "write": "Dateien ändern",
-        "shares": "Dateifreigaben verwalten"
+        "shares": "Dateifreigaben verwalten",
+        "syncRules": "Sync-Regeln verwalten"
       },
       "contacts": {
         "read": "Kontakte lesen",
@@ -1808,6 +1811,13 @@
       "scroll": "Seite scrollen",
       "tabsList": "Agenten-Tabs auflisten",
       "wait": "Auf die Seite warten"
+    },
+    "syncRules": {
+      "list": "Sync-Regeln auflisten",
+      "status": "Status einer Sync-Regel",
+      "create": "Sync-Regel anlegen",
+      "update": "Sync-Regel ändern",
+      "delete": "Sync-Regel löschen"
     }
   },
   "passwords": {
@@ -2363,6 +2373,8 @@
       "fileType": "Erweiterung",
       "checking": "Datei wird geprüft …",
       "publisher": "Herausgeber: {author} · Schlüssel {fingerprint}",
+      "fromMarketplace": "Aus dem Marketplace „{name}“.",
+      "publisherDiffers": "Der Schlüssel dieses Pakets ({bundle}) ist nicht der Herausgeberschlüssel, den der Marketplace nennt ({listed}). Installiere es nur, wenn du den Grund kennst.",
       "sameNameOtherPublisher": "Eine andere Erweiterung mit demselben Namen ist schon installiert. Diese hier stammt von einem anderen Herausgeber und bekommt eigene Daten.",
       "update": "Aktualisierung von {from} auf {to}",
       "confirmDowngrade": "Ältere Fassung trotzdem installieren",
@@ -2893,8 +2905,8 @@
       "title": "Sync-Regeln",
       "empty": "Noch keine Sync-Regel auf diesem Gerät.",
       "failed": "Die Sync-Regeln konnten nicht geladen oder geändert werden.",
-      "placeA": "Ort A",
-      "placeB": "Ort B",
+      "placeA": "Quelle",
+      "placeB": "Ziel",
       "name": "Name",
       "interval": "Abgleich entfernter Orte alle … Minuten",
       "cloudHint": "{place} ist ein Speicher ohne Verschlüsselung. Wähle einen verschlüsselten Ordner, wenn der Anbieter den Inhalt nicht sehen soll.",
@@ -2953,9 +2965,9 @@
         "open": "Ausnahmen",
         "title": "Ausnahmen von „{name}“",
         "loading": "Wird geladen …",
-        "hint": "Muster wie in .gitignore, eins pro Zeile. Die Datei .haex-ignore liegt in Ort A und wird mit abgeglichen.",
+        "hint": "Muster wie in .gitignore, eins pro Zeile. Die Datei .haex-ignore liegt in der Quelle und wird mit abgeglichen.",
         "label": ".haex-ignore",
-        "readOnly": "Ort A ist nicht beschreibbar, die Muster sind nur zu sehen: {reason}",
+        "readOnly": "Die Quelle ist nicht beschreibbar, die Muster sind nur zu sehen: {reason}",
         "lineError": "Zeile {line} wird übersprungen: {text}",
         "ignoredNow": "Die Ausnahmen lassen gerade nichts aus. | Die Ausnahmen lassen gerade eine Datei oder einen Ordner aus. | Die Ausnahmen lassen gerade {count} Dateien und Ordner aus.",
         "fixed": "Feste Ausnahmen",
@@ -3013,8 +3025,7 @@
       },
       "direction": {
         "label": "Richtung",
-        "aToB": "A → B",
-        "bToA": "B → A",
+        "aToB": "Quelle → Ziel",
         "both": "Beidseitig"
       },
       "deleteMode": {
@@ -3040,6 +3051,7 @@
       },
       "progress": {
         "label": "Fortschritt",
+        "running": "Läuft …",
         "scanning": "Orte werden verglichen …",
         "executing": "Änderungen werden ausgeführt …",
         "files": "{done} von {total} Dateien · {size}"
@@ -3065,6 +3077,23 @@
         "invalidDepth": "Die Protokolltiefe liegt zwischen 0 und 100.",
         "placeError": "Ein Ort der Regel kann nicht gelesen werden.",
         "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen)."
+      },
+      "confirm": {
+        "title": {
+          "create": "Agent: Sync-Regel anlegen",
+          "update": "Agent: Sync-Regel ändern",
+          "delete": "Agent: Sync-Regel löschen"
+        },
+        "body": {
+          "create": "Der Agent möchte die Regel „{name}“ anlegen. Sie läuft danach ohne Agent, so wie hier gezeigt.",
+          "update": "Der Agent möchte die Regel „{name}“ ändern. Durchgestrichen steht, was bisher gilt.",
+          "delete": "Der Agent möchte die Regel „{name}“ löschen. Die Dateien an beiden Orten bleiben, wie sie sind."
+        },
+        "interval": "Intervall",
+        "minutes": "alle {n} Minute | alle {n} Minuten",
+        "decrypted": "Dateien aus einem verschlüsselten Ordner der Quelle liegen am Ziel entschlüsselt.",
+        "allow": "Erlauben",
+        "deny": "Ablehnen"
       }
     },
     "split": {
@@ -3379,6 +3408,23 @@
       "revoke": "Zugriff auf „{name}“ entziehen",
       "affected": "Der Kontakt verliert den Zugriff auf die Dateifreigabe {names}. | Der Kontakt verliert den Zugriff auf die Dateifreigaben {names}.",
       "lookupFailed": "Die Dateifreigaben konnten nicht geprüft werden. Das Löschen bleibt gesperrt."
+    }
+  },
+  "mail": {
+    "link": {
+      "title": "E-Mail-Link öffnen",
+      "unreadable": "Der Link kann nicht gelesen werden.",
+      "to": "An",
+      "subject": "Betreff",
+      "openWith": "Womit soll der Link geöffnet werden?",
+      "none": "Kein Öffner installiert. Du kannst den Link kopieren.",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
+      "copyFailed": "Kopieren ist fehlgeschlagen."
+    },
+    "openers": {
+      "system": "Mit dem System öffnen",
+      "notTaken": "{name} hat die E-Mail nicht übernommen. Versuche es noch einmal."
     }
   },
   "browserBridge": {

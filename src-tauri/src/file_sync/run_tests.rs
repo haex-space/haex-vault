@@ -22,11 +22,13 @@ use crate::file_sync::model::{
 };
 use crate::file_sync::place::{Facts, Listing, Trashed};
 use crate::file_sync::place_device::DevicePlace;
+use crate::file_sync::place_storage::StoragePlace;
 use crate::file_sync::progress::SyncRulePhase;
 use crate::file_sync::test_support::MemPlace;
+use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::remote::Side;
 use crate::files::{FilesError, FilesErrorCode, SourceRef};
-use crate::remote_storage::test_support::vault;
+use crate::remote_storage::test_support::{access, vault, FakeStore, Op};
 
 const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
 
@@ -516,6 +518,50 @@ async fn files_that_fail_ten_times_in_a_row_stop_the_run() {
     assert_eq!(report.outcome, SyncRuleOutcome::Error, "{report:?}");
     assert_eq!(asked, FAILURES_IN_A_ROW as usize);
     assert_eq!(report.counts.errors, u64::from(FAILURES_IN_A_ROW));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_with_a_file_going_in_needs_no_marker_in_an_object_storage() {
+    let w = world(SyncRuleDeleteMode::Keep);
+    write(&w.a.join("x.txt"), "x");
+    write(&w.a.join("Fotos/2026/y.jpg"), "yy");
+    std::fs::create_dir_all(w.a.join("leer")).unwrap();
+    let fake = Arc::new(FakeStore::new());
+    let storage = StoragePlace::new(Arc::new(StorageFiles::new(fake.clone(), access("b"))), "/");
+    let report = w
+        .run_with(
+            &DevicePlace::with_rule_trash(&w.a),
+            &storage,
+            &CancellationToken::new(),
+        )
+        .await;
+    assert_eq!(report.outcome, SyncRuleOutcome::Done, "{report:?}");
+    // Only the empty folder has a marker; the others are the prefixes of their files.
+    assert_eq!(
+        fake.keys("b"),
+        ["Fotos/2026/y.jpg", "leer/", "x.txt"],
+        "{:?}",
+        fake.calls()
+    );
+    // A file is checked once, after it went up; the storage is not asked for its name first.
+    let calls = fake.calls();
+    for key in ["x.txt", "Fotos/2026/y.jpg"] {
+        let at = |op: Op| calls.iter().position(|call| *call == (op, key.to_owned()));
+        let heads = calls
+            .iter()
+            .filter(|call| **call == (Op::Head, key.to_owned()))
+            .count();
+        assert_eq!(heads, 1, "{key}: {calls:?}");
+        assert!(at(Op::Put) < at(Op::Head), "{key}: {calls:?}");
+    }
+    let again = w
+        .run_with(
+            &DevicePlace::with_rule_trash(&w.a),
+            &storage,
+            &CancellationToken::new(),
+        )
+        .await;
+    assert_eq!(again.counts.copied, 0, "{again:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

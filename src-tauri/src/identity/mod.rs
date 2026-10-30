@@ -41,6 +41,9 @@ mod migrations_file_shares_tests;
 mod migrations_icon_sets;
 #[cfg(test)]
 mod migrations_icon_sets_tests;
+mod migrations_marketplaces;
+#[cfg(test)]
+mod migrations_marketplaces_tests;
 mod migrations_mcp_agents;
 #[cfg(test)]
 mod migrations_mcp_agents_tests;

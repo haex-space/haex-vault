@@ -245,6 +245,19 @@ Visitenkarte.
 _Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
 sharing identities of haex-vault 2.x, which holzi does not have.
 
+**Öffner / Öffner-Anmeldung / Öffnen-Auswahl** (spec 063):
+An **Öffner** is an extension that takes over one kind of link, for now `mail.compose`: it
+writes an e-mail. The extension registers itself in the `openers` block of its manifest
+(**Öffner-Anmeldung**); holzi lists it only while it is installed and enabled, and the
+registration grants no access. The **Öffnen-Auswahl** is the choice the person makes: a menu at
+the mail button of an address (the system's mail program and one row per Öffner), or a dialog for
+a `mailto:` link from another app (one row per Öffner and "Link kopieren", never the system).
+holzi reads the link; the Öffner gets the fields (`to`, `cc`, `bcc`, `subject`, `body`) once,
+through the bridge method `extension_opener_take`, never the link, and only after the person
+chose it.
+_Avoid_: "Handler" or "Standard-Programm" (holzi never makes itself the default for a link);
+"Mail-Extension" for the registration (it is the Öffner-Anmeldung, whatever the extension is called).
+
 **Ich-Kontakt / Weitergabe / Teilen-Dialog / Echtheitsnachweis der holzi-Adressen** (spec 060):
 The **Ich-Kontakt** is the one contact of the Adressbuch that is the person
 themselves: a fixed id, always there, never deleted, shown first as "Ich" whatever

@@ -44,19 +44,25 @@ by downloads applies within each source.
 
 ## Download and installation (FR-010 to FR-016)
 
-| Command                        | Arguments                                                              | Result                                                           |
-| ------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `marketplace_download`         | `sourceId`, `slug`, `version`, `onProgress: Channel<DownloadProgress>` | `PendingBundleRef { id }`                                        |
-| `marketplace_download_cancel`  | `id`                                                                   | –                                                                |
-| `marketplace_download_discard` | `id`                                                                   | – (closing the preview)                                          |
-| `extension_install_preview`    | `source: BundleSource`                                                 | `InstallPreview` (+ `origin?: { sourceName }` for a marketplace) |
-| `extension_install`            | `ExtensionInstallArgs { source: BundleSource, accepted, confirmed }`   | `ExtensionSummary`                                               |
+| Command                        | Arguments                                                                    | Result                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `marketplace_download`         | `sourceId`, `slug`, `version`, `id`, `onProgress: Channel<DownloadProgress>` | `PendingBundleRef { id }`                                        |
+| `marketplace_download_cancel`  | `id`                                                                         | –                                                                |
+| `marketplace_download_discard` | `id`                                                                         | – (closing the preview)                                          |
+| `extension_install_preview`    | `source: BundleSource`                                                       | `InstallPreview` (+ `origin?: { sourceName }` for a marketplace) |
+| `extension_install`            | `ExtensionInstallArgs { source: BundleSource, accepted, confirmed }`         | `ExtensionSummary`                                               |
 
 ```ts
 type BundleSource =
   | { kind: 'file'; file: PickedFile } // as before
   | { kind: 'marketplace'; id: string } // PendingBundleRef.id
 ```
+
+`id` is a UUID chosen by the caller: the download can then be cancelled by `marketplace_download_cancel`
+before it has ended, and the same `id` names the pending bundle afterwards (`PendingBundleRef.id`). An
+`id` that is already running is refused. `marketplace_download_discard` also ends a download that
+is still running. A closing vault ends running downloads and drops the pending bundle (the app process
+ends with the vault, spec 013); the pending bundle also expires 10 minutes after its last use.
 
 `extension_install` with `marketplace` consumes the pending slot on success. Removal
 (`extension_remove`, spec 017) stays unchanged and is called from the catalog (FR-016).
@@ -67,14 +73,18 @@ type BundleSource =
   `haex_marketplaces` and to the extensions (`onVaultTablesChanged`, spec 028 live data).
 - No new event.
 
-## Error kinds (`HolziError::Marketplace { kind }`)
+## Error kinds (`HolziError::Marketplace { reason }`)
+
+The field is called `reason` because `kind` is the tag of the error enum (`{ kind: "Marketplace", reason }`).
 
 `marketplace_invalid_url`, `marketplace_credentials_required`,
 `marketplace_insecure_credentials`, `marketplace_not_found`, `marketplace_no_hash`,
 `marketplace_hash_mismatch`, `marketplace_size_mismatch`, `marketplace_too_large`,
 `marketplace_incompatible_version`, `marketplace_download_cancelled`, `marketplace_source_*`
 (`unreachable`, `timeout`, `auth_rejected`, `bad_response`), `marketplace_icon_unavailable`,
-`marketplace_pending_missing` (pending slot empty or expired).
+`marketplace_pending_missing` (pending slot empty or expired), `marketplace_credentials_syncing`
+(the credentials entry has not arrived yet), `marketplace_superseded` (a newer `marketplace_catalog` call took
+the place of this one), `marketplace_destination_refused`.
 
 ## Not present (FR-030)
 

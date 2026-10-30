@@ -86,6 +86,12 @@ pub trait Place: Send + Sync {
     /// Writes a small text file in place of what is there, never leaving a half file.
     async fn write_text(&self, path: &str, text: &str) -> Result<(), FilesError>;
 
+    /// Whether a folder exists as long as a file lies in it, so a folder with a file going in needs
+    /// no request of its own (the prefixes of an object storage).
+    fn implies_folders(&self) -> bool {
+        false
+    }
+
     /// The side copies of this place go through.
     fn side(&self) -> Side;
 

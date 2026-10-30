@@ -46,7 +46,7 @@ scenario('extension-contacts', { timeoutMs: 300_000 }, async (ctx) => {
   }>(
     'extension_install_preview',
     await page.invoke('extension_install_preview', {
-      file: onDevice(fixture('e2e', 'probe'), page),
+      source: { kind: 'file', file: onDevice(fixture('e2e', 'probe'), page) },
     }),
   )
   assert.deepEqual(

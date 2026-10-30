@@ -1,4 +1,5 @@
-//! Links of the form `haex-vault://contact/…` opened outside holzi (spec 060 FR-018a, research R9).
+//! Links of the form `haex-vault://contact/…` and `mailto:…` opened outside holzi (spec 060
+//! FR-018a, research R9; spec 063 research R6).
 //! The plugin hands the link to the process: on Android and macOS as an event, on Linux and
 //! Windows as the argument of a **new** process. [`inbox`] gets such a link to the process that
 //! has the vault open. The window then shows a preview only, nothing is saved before the user
@@ -13,6 +14,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::Result;
 use crate::instances::paths::get_app_local_data;
+use crate::openers::mail;
 use crate::state::AppState;
 
 /// Sent to the window with the link as payload when another process passed one on.
@@ -27,16 +29,22 @@ const MAX_LINK_LEN: usize = 16 * 1024;
 /// How often a process with an open vault looks into the inbox.
 const WATCH_INTERVAL: Duration = Duration::from_millis(500);
 
-/// `url` itself when it is a link of a share, else nothing: other schemes, other hosts and
-/// absurdly long texts are ignored.
-pub fn contact_link(url: &str) -> Option<&str> {
-    (url.starts_with(LINK_PREFIX) && url.len() > LINK_PREFIX.len() && url.len() <= MAX_LINK_LEN)
-        .then_some(url)
+/// `url` itself when it is a link of a share or a mail link, else nothing: other schemes, other
+/// hosts and absurdly long texts are ignored. Each kind keeps its own limit; the window reads the
+/// link further (`mailto:` by [`mail::parse`]).
+pub fn known_link(url: &str) -> Option<&str> {
+    let share =
+        url.starts_with(LINK_PREFIX) && url.len() > LINK_PREFIX.len() && url.len() <= MAX_LINK_LEN;
+    let mail = url
+        .get(..mail::SCHEME.len())
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case(mail::SCHEME))
+        && url.len() <= mail::MAX_LINK_BYTES;
+    (share || mail).then_some(url)
 }
 
-/// The first link of a share among `urls` (the arguments or events a start brings).
-pub fn first_contact_link(urls: impl IntoIterator<Item = String>) -> Option<String> {
-    urls.into_iter().find(|url| contact_link(url).is_some())
+/// The first known link among `urls` (the arguments or events a start brings).
+pub fn first_known_link(urls: impl IntoIterator<Item = String>) -> Option<String> {
+    urls.into_iter().find(|url| known_link(url).is_some())
 }
 
 fn inbox_dir(app: &AppHandle) -> Result<PathBuf> {
@@ -44,12 +52,14 @@ fn inbox_dir(app: &AppHandle) -> Result<PathBuf> {
 }
 
 /// Registers the scheme with the system where holzi is started from a build directory, so a
-/// link opens the binary being developed. Installed builds register through their package.
+/// link opens the binary being developed. Installed builds register through their package. Only
+/// `haex-vault`: `register_all` would also make holzi the program for `mailto` on a developer's
+/// machine, and holzi never makes itself the default (spec 063 FR-016).
 #[cfg(any(target_os = "linux", windows))]
 pub fn register_for_development(app: &AppHandle) {
     use tauri_plugin_deep_link::DeepLinkExt;
     if cfg!(debug_assertions) {
-        if let Err(error) = app.deep_link().register_all() {
+        if let Err(error) = app.deep_link().register("haex-vault") {
             log::warn!("deep link: could not register the scheme: {error}");
         }
     }
@@ -72,7 +82,7 @@ pub fn handed_over_at_start(app: &AppHandle, was_alone: bool) -> bool {
             return false;
         }
     };
-    let Some(url) = first_contact_link(current.into_iter().map(String::from)) else {
+    let Some(url) = first_known_link(current.into_iter().map(String::from)) else {
         return false;
     };
     let Ok(dir) = inbox_dir(app) else {
@@ -91,7 +101,7 @@ pub fn watch_opened_links(app: &AppHandle) {
     }
     let app_for_event = app.clone();
     app.deep_link().on_open_url(move |event| {
-        let Some(url) = first_contact_link(event.urls().into_iter().map(String::from)) else {
+        let Some(url) = first_known_link(event.urls().into_iter().map(String::from)) else {
             return;
         };
         if app_for_event.state::<AppState>().database().is_ok() {
@@ -126,7 +136,9 @@ pub fn start_for_active_instance(app: &AppHandle) {
                 () = tokio::time::sleep(WATCH_INTERVAL) => {}
             }
             let dir = dir.clone();
-            let claimed = tokio::task::spawn_blocking(move || inbox::claim_next(&dir)).await;
+            let focused = window_is_focused(&app);
+            let claimed =
+                tokio::task::spawn_blocking(move || inbox::claim_next(&dir, focused)).await;
             match claimed {
                 Ok(Ok(Some(url))) => pass_on(&app, &url),
                 Ok(Ok(None)) => {}
@@ -140,8 +152,16 @@ pub fn start_for_active_instance(app: &AppHandle) {
     }
 }
 
+/// Whether the window of this process has the focus: the process the person last used takes a
+/// link from outside first (spec 063 research R6).
+fn window_is_focused(app: &AppHandle) -> bool {
+    app.webview_windows()
+        .into_values()
+        .any(|window| window.is_focused().unwrap_or(false))
+}
+
 fn pass_on(app: &AppHandle, url: &str) {
-    let Some(url) = contact_link(url) else {
+    let Some(url) = known_link(url) else {
         return;
     };
     if let Err(error) = app.emit(RECEIVED_EVENT, url) {

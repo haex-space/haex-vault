@@ -29,6 +29,7 @@ test('without rows the built-in agent reaches the device and every storage asks'
       agentId: BUILTIN_AGENT,
       device: true,
       fileShares: false,
+      syncRules: false,
       storages: [
         { id: 's1', name: 'Fotos', status: 'ask' },
         { id: 's2', name: 'Archiv', status: 'ask' },
@@ -162,6 +163,25 @@ test('managing file shares is off until the user turns it on, per agent (spec 05
     [
       [BUILTIN_AGENT, true],
       ['ext-1', false],
+    ],
+  )
+})
+
+test('managing sync rules is off until the user turns it on, per agent and apart from file shares (spec 061 FR-035)', () => {
+  const agents = agentFiles(
+    [
+      row(BUILTIN_AGENT, 'syncRules', '', 'granted'),
+      row('ext-1', 'syncRules', '', 'denied'),
+      row('ext-2', 'fileShares', '', 'granted'),
+    ],
+    STORAGES,
+  )
+  assert.deepEqual(
+    agents.map((agent) => [agent.agentId, agent.syncRules, agent.fileShares]),
+    [
+      [BUILTIN_AGENT, true, false],
+      ['ext-1', false, false],
+      ['ext-2', false, true],
     ],
   )
 })

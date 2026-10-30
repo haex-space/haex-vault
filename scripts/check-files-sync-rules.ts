@@ -1,6 +1,6 @@
 // Part of `pnpm check:files` (spec 061, T033): defaults of a new sync rule, the interval, the shown
-// state, the hints of the dialog, the paths of the folder picker, the groups of a preview and the
-// log depth.
+// state, the hints of the dialog, the paths of the folder picker, the name of a place, the groups
+// of a preview and the log depth.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
@@ -13,6 +13,7 @@ import {
   lastName,
   needsDecryptConsent,
   parseLogDepth,
+  placeLabel,
   planGroups,
   progressShare,
   sortRules,
@@ -26,7 +27,6 @@ import {
 test('a new rule mirrors both ways and keeps one way (FR-005)', () => {
   assert.equal(defaultDeleteMode('both'), 'mirror')
   assert.equal(defaultDeleteMode('aToB'), 'keep')
-  assert.equal(defaultDeleteMode('bToA'), 'keep')
 })
 
 test('the interval stays between one minute and a day', () => {
@@ -54,7 +54,6 @@ test('the dialog asks for consent and points to encrypted folders', () => {
 
 test('a two-way rule copies into both places (FR-011)', () => {
   assert.deepEqual(targetSides('aToB'), ['b'])
-  assert.deepEqual(targetSides('bToA'), ['a'])
   assert.deepEqual(targetSides('both'), ['a', 'b'])
 })
 
@@ -200,4 +199,34 @@ test('the log depth is a whole number from 0 to 100 (FR-044)', () => {
   for (const bad of ['', '101', '-1', '2.5', 'zehn', '1000']) {
     assert.equal(parseLogDepth(bad), null, bad)
   }
+})
+
+test('a place shows the path on the device and the name of a storage or device', () => {
+  const sources = {
+    storages: [{ id: 's1', name: 'Cloud' }],
+    devices: [
+      { id: 'peer:1', name: 'Laptop' },
+      { id: 'peer:2', name: null },
+    ],
+  }
+  const storage = (storageId: string, path: string) => ({
+    source: { kind: 'storage' as const, storageId },
+    path,
+  })
+  assert.equal(
+    placeLabel(
+      { source: { kind: 'device' }, path: '/home/anna' },
+      sources,
+      '?',
+    ),
+    '/home/anna',
+  )
+  assert.equal(placeLabel(storage('s1', '/'), sources, '?'), 'Cloud')
+  assert.equal(
+    placeLabel(storage('s1', '/Fotos'), sources, '?'),
+    'Cloud /Fotos',
+  )
+  assert.equal(placeLabel(storage('peer:1', '/a'), sources, '?'), 'Laptop /a')
+  assert.equal(placeLabel(storage('peer:2', '/'), sources, '?'), '?')
+  assert.equal(placeLabel(storage('gone', '/'), null, '?'), '?')
 })

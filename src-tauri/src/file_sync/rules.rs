@@ -1,6 +1,6 @@
 //! Which rules holzi accepts (FR-002, FR-004, data-model.md): two different places, none a contact's
 //! share or one of holzi's own places, no overlap with another rule of this device, a name and an
-//! interval in range. A one-way rule `BToA` is stored as `AToB` with the places swapped.
+//! interval in range.
 
 use std::path::Path;
 
@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::model::{
-    is_contact_share, SyncRule, SyncRuleDirection, SyncRuleDraft, SyncRulePlace, MAX_INTERVAL_SECS,
-    MAX_NAME_CHARS, MIN_INTERVAL_SECS,
+    is_contact_share, SyncRule, SyncRuleDraft, SyncRulePlace, MAX_INTERVAL_SECS, MAX_NAME_CHARS,
+    MIN_INTERVAL_SECS,
 };
 use crate::files::local::OwnPlaces;
 use crate::files::SourceRef;
@@ -97,15 +97,10 @@ pub fn validate(
             }
         }
     }
-    let (place_a, place_b, direction) = match draft.direction {
-        SyncRuleDirection::BToA => (place_b, place_a, SyncRuleDirection::AToB),
-        direction => (place_a, place_b, direction),
-    };
     Ok(SyncRuleDraft {
         name,
         place_a,
         place_b,
-        direction,
         ..draft
     })
 }

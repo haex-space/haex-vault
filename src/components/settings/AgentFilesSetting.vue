@@ -119,7 +119,7 @@ const groupName = (groupId: string) => {
 
 async function saveAsync(
   agentId: string,
-  kind: 'device' | 'storage' | 'contacts' | 'fileShares',
+  kind: 'device' | 'storage' | 'contacts' | 'fileShares' | 'syncRules',
   target: string,
   status: string,
 ) {
@@ -244,6 +244,27 @@ function onStorage(agentId: string, storageId: string, next: string) {
             saveAsync(
               agent.agentId,
               'fileShares',
+              '',
+              $event === true ? 'granted' : 'denied',
+            )
+          "
+        />
+      </SettingsRow>
+      <SettingsRow
+        :title="t('settings.agentFiles.syncRules')"
+        :description="t('settings.agentFiles.syncRulesDescription')"
+        icon="lucide:refresh-cw"
+        :label-for="`agent-files-sync-rules-${agent.agentId}`"
+      >
+        <ShadcnSwitch
+          :id="`agent-files-sync-rules-${agent.agentId}`"
+          :model-value="agent.syncRules"
+          :disabled="busy"
+          :data-testid="`agent-files-sync-rules-${agent.agentId}`"
+          @update:model-value="
+            saveAsync(
+              agent.agentId,
+              'syncRules',
               '',
               $event === true ? 'granted' : 'denied',
             )

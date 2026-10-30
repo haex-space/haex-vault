@@ -2,6 +2,7 @@
 import type { BundleRejection } from "./BundleRejection";
 import type { DeclaredPermissionView } from "./DeclaredPermissionView";
 import type { ExistingInstall } from "./ExistingInstall";
+import type { InstallOrigin } from "./InstallOrigin";
 
 /**
  * What the install dialog shows before anything is written.
@@ -32,4 +33,8 @@ sameNameOtherPublisher: boolean,
  * The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
  * dialog only says it.
  */
-openers: Array<string>, };
+openers: Array<string>,
+/**
+ * The marketplace the bundle came from; absent for a file (spec 069 FR-011).
+ */
+origin?: InstallOrigin, };

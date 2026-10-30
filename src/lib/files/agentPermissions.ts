@@ -2,8 +2,8 @@
 // `agent_file_permissions`). Pure, so `scripts/check-files-agent-permissions.ts` runs it without vue.
 // No row is a decision too: the built-in agent reaches the device, nobody reaches a storage or an
 // encrypted folder in it (spec 048 FR-030) or the contacts (spec 051 FR-030) before the user
-// answered its question, and no agent manages file shares until the user turns it on (spec 056
-// FR-045). Other own devices and received shares are storages of their own (FR-040).
+// answered its question, and no agent manages file shares (spec 056 FR-045) or sync rules (spec
+// 061 FR-035) until the user turns it on. Other own devices and received shares are storages of their own (FR-040).
 
 /** `agent_id` of the agent of the holzi chat (`files::permissions::BUILTIN_AGENT`). */
 export const BUILTIN_AGENT = 'builtin'
@@ -11,7 +11,13 @@ export const BUILTIN_AGENT = 'builtin'
 /** One stored row (`AgentFilePermission` of the bindings, of which this needs only these fields). */
 export type PermissionRow = {
   agentId: string
-  kind: 'device' | 'storage' | 'encryptedFolder' | 'contacts' | 'fileShares'
+  kind:
+    | 'device'
+    | 'storage'
+    | 'encryptedFolder'
+    | 'contacts'
+    | 'fileShares'
+    | 'syncRules'
   /** Empty for the device, the storage id, `<storage_id>/<folder_id>` for a folder, `*` or
    * `group:<id>` for the contacts. */
   target: string
@@ -48,6 +54,8 @@ export type AgentFiles = {
   device: boolean
   /** "Dateifreigaben verwalten" (spec 056 FR-045); off without a row. */
   fileShares: boolean
+  /** "Sync-Regeln verwalten" (spec 061 FR-035); off without a row. */
+  syncRules: boolean
   storages: { id: string; name: string; status: StorageChoice }[]
   /** All contacts (`*`); `ask` without a row. */
   contacts: StorageChoice
@@ -84,6 +92,8 @@ export function agentFiles(
         device === undefined ? agentId === BUILTIN_AGENT : device === 'granted',
       fileShares:
         own.find((row) => row.kind === 'fileShares')?.status === 'granted',
+      syncRules:
+        own.find((row) => row.kind === 'syncRules')?.status === 'granted',
       storages: storages.map((storage) => {
         const status = own.find(
           (row) => row.kind === 'storage' && row.target === storage.id,
