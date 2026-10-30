@@ -15,6 +15,8 @@
  * system back can close them and open the window overview.
  *
  * Behind every workspace lies the vault's background image, if one is set (spec 042, FR-017).
+ * While an agent steers the agent browser, the sessions bar lies over the windows (spec 065,
+ * FR-015).
  */
 import { computed, useTemplateRef, watch } from 'vue'
 
@@ -66,6 +68,7 @@ const backgroundStyle = computed(() =>
         :window="win"
         :active="win.id === wm.activeWindowId"
       />
+      <AgentBrowserSessionsBar />
     </div>
 
     <WmDock />

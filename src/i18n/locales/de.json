@@ -3694,6 +3694,17 @@
     }
   },
   "agentBrowser": {
+    "marker": {
+      "text": "{agent} steuert diesen Tab",
+      "stop": "Stoppen",
+      "titlePrefix": "[Agent] "
+    },
+    "sessions": {
+      "label": "Agenten im Browser",
+      "noTab": "noch kein Tab",
+      "lastAction": "Zuletzt: {action}",
+      "stop": "Stoppen"
+    },
     "notification": {
       "title": "Der Agenten-Browser fragt",
       "body": "Ein Agent möchte im Browser etwas tun. Öffne holzi, um zu antworten."

@@ -124,6 +124,10 @@ impl McpServer {
                 let sent = match notice {
                     Notice::Changed => handle.emit(EVENT_AGENTS_CHANGED, ()),
                     Notice::PromptClosed(closed) => handle.emit(EVENT_PROMPT_CLOSED, closed),
+                    Notice::Disconnected(agent) => {
+                        end_browser_session(&handle, agent);
+                        Ok(())
+                    }
                 };
                 if let Err(error) = sent {
                     log::warn!("mcp server: could not tell the window: {error}");
@@ -217,6 +221,22 @@ impl McpServer {
 /// When a prompt that waits `timeout` from now ends, in Unix milliseconds.
 pub(crate) fn expires_at(timeout: std::time::Duration) -> i64 {
     now_millis().saturating_add(i64::try_from(timeout.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// Ends the browser session of `agent` (spec 065 T058): it disconnected, was revoked or lost the
+/// browser rights; its tabs go back to the user.
+pub(crate) fn end_browser_session<R: Runtime>(app: &AppHandle<R>, agent: Uuid) {
+    let Some(sessions) = app.try_state::<crate::agent_browser::sessions::BrowserSessions>() else {
+        return;
+    };
+    let sessions = sessions.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        sessions
+            .end(&crate::caller::Caller::ExternalAgent {
+                id: agent.to_string(),
+            })
+            .await;
+    });
 }
 
 /// Starts the access for the vault that just opened, when this device turned it on (FR-001).

@@ -290,6 +290,12 @@ pub async fn send_message(
         return Err(HolziError::InvalidIdempotencyKey);
     }
 
+    // A new message of the user lets the built-in agent begin a new browser session after the
+    // user stopped its last one (spec 065 FR-016).
+    if let Some(sessions) = app.try_state::<crate::agent_browser::sessions::BrowserSessions>() {
+        sessions.resume(&crate::caller::Caller::BuiltinAgent);
+    }
+
     // Reserve before reading the vault, while still letting an idempotent
     // retry return its existing ids when a turn already owns the reservation.
     let operation = chat.acquire_operation();

@@ -3,6 +3,8 @@
 //! The same server is two websites: `http://127.0.0.1:<port>` and `http://localhost:<port>`
 //! (the partner), so the website check sees a second origin without a second server.
 //!
+//! `/hang` answers only after a minute.
+//!
 //! The fixtures are plain HTTP: a website over `http` may be read (research R9), which is all the
 //! reading tools need; HTTPS fixtures come with the tools that operate.
 
@@ -85,6 +87,10 @@ pub async fn start() -> Site {
                     path: path.clone(),
                 });
                 let file = path.split(['?', '#']).next().unwrap_or("/");
+                // A page that never answers in time, for stopping a call that waits for it.
+                if file == "/hang" {
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                }
                 let file = if file == "/" { "/index.html" } else { file };
                 let name = file.trim_start_matches('/');
                 let reply = match std::fs::read_to_string(dir().join(name)) {

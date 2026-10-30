@@ -28,6 +28,14 @@ pub async fn navigate(connection: &Connection, session: &str, url: &str) -> Resu
     }
 }
 
+/// `Page.stopLoading`: a pending navigation ends where it is.
+pub async fn stop_loading(connection: &Connection, session: &str) -> Result<()> {
+    connection
+        .call("Page.stopLoading", json!({}), Some(session))
+        .await
+        .map(drop)
+}
+
 /// `Page.reload`.
 pub async fn reload(connection: &Connection, session: &str) -> Result<()> {
     connection
@@ -60,6 +68,18 @@ pub async fn isolated_world(connection: &Connection, session: &str, frame: &str)
     reply["executionContextId"]
         .as_i64()
         .ok_or_else(|| BrowserError::Protocol("no execution context".to_owned()))
+}
+
+/// Runs `source` in the world [`WORLD`] of every new document of the tab, and of the current one.
+pub async fn add_script(connection: &Connection, session: &str, source: &str) -> Result<()> {
+    connection
+        .call(
+            "Page.addScriptToEvaluateOnNewDocument",
+            json!({ "source": source, "worldName": WORLD, "runImmediately": true }),
+            Some(session),
+        )
+        .await
+        .map(drop)
 }
 
 /// The history of the tab: the index of the current entry and the ids of all entries.

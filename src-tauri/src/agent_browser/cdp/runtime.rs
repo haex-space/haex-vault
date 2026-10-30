@@ -43,3 +43,29 @@ pub async fn run_if_waiting(connection: &Connection, session: &str) -> Result<()
         .await
         .map(drop)
 }
+
+/// `Runtime.enable`: without it, a binding reaches no context created later.
+pub async fn enable(connection: &Connection, session: &str) -> Result<()> {
+    connection
+        .call("Runtime.enable", json!({}), Some(session))
+        .await
+        .map(drop)
+}
+
+/// Adds the binding `name` to every context of the world `world`, now and in later documents; a
+/// call arrives as `Runtime.bindingCalled`. Needs [`enable`].
+pub async fn add_binding(
+    connection: &Connection,
+    session: &str,
+    name: &str,
+    world: &str,
+) -> Result<()> {
+    connection
+        .call(
+            "Runtime.addBinding",
+            json!({ "name": name, "executionContextName": world }),
+            Some(session),
+        )
+        .await
+        .map(drop)
+}

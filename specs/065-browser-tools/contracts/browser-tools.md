@@ -79,7 +79,7 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `read_only_site`      | „lesen“ für die Website, Werkzeug bedient                                    |
 | `user_declined`       | Rückfrage (Absenden, Anmeldung, Download) abgelehnt                          |
 | `paused`              | der Nutzer bedient den Browser gerade                                        |
-| `stopped`             | der Nutzer hat die Sitzung gestoppt                                          |
+| `stopped`             | der Nutzer hat die Sitzung gestoppt; gilt bis zu einer neuen Sitzung (\*)    |
 | `element_gone`        | Elementnummer gilt nicht mehr; Seite neu lesen                               |
 | `page_timeout`        | 30 s ohne Ergebnis                                                           |
 | `browser_unavailable` | kein Browser gefunden oder Start fehlgeschlagen; `hint` für den Nutzer       |
@@ -87,6 +87,9 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `no_matching_entry`   | `credentials.fill`: kein passender Eintrag oder kein Recht darauf            |
 | `too_many_tabs`       | mehr als 5 Agenten-Tabs                                                      |
 | `blocked_address`     | `file:`, `javascript:`, `data:`, interne Seiten, Zugangsdaten in der Adresse |
+
+(\*) Eine neue Sitzung beginnt ein externer Agent mit einer neuen Verbindung, der eingebaute Agent
+mit der nächsten Chat-Nachricht des Nutzers.
 
 ## Freigabe
 

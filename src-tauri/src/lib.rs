@@ -53,6 +53,7 @@ pub mod vault_gate;
 // Unconditional like `stt`, above — see `voice.rs`'s module doc for why
 // the stub commands live in the same file as the real ones.
 pub mod voice;
+pub mod window_texts;
 
 pub use error::{HolziError, Result};
 pub use state::{ActiveInstanceHandle, AppState};
@@ -455,7 +456,13 @@ pub fn run() {
             app.manage(agent_browser.clone());
             let browser_prompts = agent_browser::prompts::new_browser_prompts();
             app.manage(browser_prompts.clone());
+            let browser_sessions = agent_browser::sessions::BrowserSessions::default();
+            app.manage(browser_sessions.clone());
             if platform::capabilities().agent_browser {
+                let handle = app.handle().clone();
+                browser_sessions.set_changed(std::sync::Arc::new(move || {
+                    let _ = handle.emit(agent_browser::sessions::EVENT_SESSIONS_CHANGED, ());
+                }));
                 let handle = app.handle().clone();
                 browser_prompts.set_emitter(std::sync::Arc::new(move |id, question| {
                     let event = agent_browser::prompts::BrowserPromptEvent {
@@ -482,6 +489,7 @@ pub fn run() {
                             agent_browser,
                             browser_prompts,
                             closed,
+                            browser_sessions,
                         ),
                     ));
             }
@@ -646,6 +654,8 @@ pub fn run() {
             mcp_server::commands::mcp_registration_answer,
             mcp_server::commands::mcp_call_answer,
             agent_browser::commands::agent_browser_prompt_answer,
+            agent_browser::commands::agent_browser_sessions,
+            agent_browser::commands::agent_browser_control,
             agent_browser::commands::agent_browser_status,
             agent_browser::commands::agent_browser_builtin_set,
             agent_browser::commands::agent_browser_path_set,

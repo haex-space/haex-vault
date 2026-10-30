@@ -6,12 +6,14 @@
 //! (FR-003), keeps its profile between runs ([`profile_store`]) and ends it after
 //! [`IDLE_LIMIT`] without a lease, when the vault closes, or when the user closes its window.
 
+pub mod calls;
 pub mod cdp;
 pub mod commands;
 pub mod env;
 pub mod error;
 pub mod executor;
 pub mod locate;
+pub mod marker;
 pub mod process;
 pub mod process_windows;
 pub mod profile;
@@ -19,6 +21,7 @@ pub mod profile_store;
 pub mod prompts;
 pub mod read;
 pub mod session;
+pub mod sessions;
 pub mod sites;
 pub mod tab;
 
@@ -355,5 +358,7 @@ mod profile_store_tests;
 mod profile_tests;
 #[cfg(test)]
 mod read_tests;
+#[cfg(test)]
+mod sessions_tests;
 #[cfg(test)]
 mod sites_tests;

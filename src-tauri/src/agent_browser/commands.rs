@@ -1,6 +1,6 @@
 //! The window's commands for the agent browser (spec 065, contracts/tauri-commands.md): answering
-//! a browser question, the state for "KI → Browser", and the settings behind the guardrail actions
-//! `settings.agentBrowser.*`, which no agent can call.
+//! a browser question, the running sessions and their stop, the state for "KI → Browser", and the
+//! settings behind the guardrail actions `settings.agentBrowser.*`, which no agent can call.
 
 use std::path::Path;
 
@@ -11,7 +11,9 @@ use ts_rs::TS;
 use super::env;
 use super::locate::{self, Os, System};
 use super::prompts::{BrowserDecision, BrowserPrompts, Remember};
+use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
 use super::AgentBrowser;
+use crate::caller::Caller;
 use crate::error::{HolziError, Result};
 use crate::mcp_server::grants::BrowserRights;
 
@@ -39,6 +41,33 @@ pub async fn agent_browser_prompt_answer(
             remember: args.remember,
         },
     ))
+}
+
+/// The running browser sessions, for the sessions bar (FR-015).
+#[tauri::command]
+pub async fn agent_browser_sessions(
+    sessions: State<'_, BrowserSessions>,
+) -> Result<Vec<BrowserSessionView>> {
+    Ok(sessions.list())
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserControlArgs {
+    pub session_id: String,
+    pub command: BrowserControl,
+}
+
+/// "Stoppen" in the sessions bar (FR-016); `false` when the session no longer runs.
+#[tauri::command]
+pub async fn agent_browser_control(
+    sessions: State<'_, BrowserSessions>,
+    args: AgentBrowserControlArgs,
+) -> Result<bool> {
+    match args.command {
+        BrowserControl::Stop => Ok(sessions.stop(&args.session_id).await),
+    }
 }
 
 /// What "KI → Browser" shows.
@@ -96,15 +125,21 @@ pub struct AgentBrowserBuiltinArgs {
     pub rights: Option<BrowserRights>,
 }
 
-/// Behind `settings.agentBrowser.builtin.set`.
+/// Behind `settings.agentBrowser.builtin.set`; switching it off ends the built-in agent's session.
 #[tauri::command]
 pub async fn agent_browser_builtin_set<R: Runtime>(
     app: AppHandle<R>,
+    sessions: State<'_, BrowserSessions>,
     args: AgentBrowserBuiltinArgs,
 ) -> Result<()> {
+    let off = args.rights.is_none();
     env::set_builtin_rights(&app, args.rights)
         .await
-        .map_err(|reason| HolziError::InvalidInput { reason })
+        .map_err(|reason| HolziError::InvalidInput { reason })?;
+    if off {
+        sessions.end(&Caller::BuiltinAgent).await;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize, TS)]
