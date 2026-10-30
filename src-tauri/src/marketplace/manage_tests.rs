@@ -6,6 +6,8 @@ use crate::marketplace::kinds;
 use crate::marketplace::model::MarketplaceAuthType;
 use crate::marketplace::store::{PRESET_ID, PRESET_NAME};
 use crate::marketplace::test_support::{entry, page, version, TestMarketplace};
+use crate::passwords::access::Caller;
+use crate::passwords::model::ItemInput;
 use crate::passwords::service::PasswordsService;
 use crate::passwords::test_support::open_test_vault;
 use crate::vault_gate::VaultGate;
@@ -112,21 +114,35 @@ async fn a_login_needs_https_and_an_entry() {
 #[tokio::test(flavor = "multi_thread")]
 async fn listing_keeps_the_credentials_entry_id_available_to_the_edit_form() {
     let (_dir, db) = vault();
+    let passwords = pw(&db);
+    let item_id = passwords
+        .create_item(
+            &Caller::User,
+            &[],
+            ItemInput {
+                title: Some("Marketplace login".into()),
+                password: Some("token".into()),
+                ..ItemInput::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
     let mut with_login = input("Private", "https://market.example");
     with_login.auth_type = MarketplaceAuthType::Bearer;
-    with_login.credentials_item_id = Some("password-item".into());
+    with_login.credentials_item_id = Some(item_id.clone());
 
-    let saved = save(&db, &pw(&db), with_login.clone(), 1).await.unwrap();
-    assert_eq!(saved.credentials_item_id.as_deref(), Some("password-item"));
+    let saved = save(&db, &passwords, with_login.clone(), 1).await.unwrap();
+    assert_eq!(saved.credentials_item_id.as_deref(), Some(item_id.as_str()));
 
     with_login.id = Some(saved.id.clone());
     with_login.name = "Renamed".into();
     with_login.credentials_item_id = saved.credentials_item_id.clone();
-    let updated = save(&db, &pw(&db), with_login, 2).await.unwrap();
+    let updated = save(&db, &passwords, with_login, 2).await.unwrap();
     assert_eq!(updated.name, "Renamed");
     assert_eq!(
         updated.credentials_item_id.as_deref(),
-        Some("password-item")
+        Some(item_id.as_str())
     );
 }
 
