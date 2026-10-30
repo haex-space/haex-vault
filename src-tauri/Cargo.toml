@@ -55,7 +55,7 @@ llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 # Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
 llm-metal = ["llm-cpu", "mistralrs/metal"]
 # Spec 070 spike: llama.cpp as a second engine. Only the ignored spike test uses it so far.
-llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2"]
+llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2", "dep:minijinja", "dep:minijinja-contrib"]
 llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda", "llama-cpp-2/dynamic-link"]
 
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
@@ -198,6 +198,10 @@ semver = "1"
 mistralrs = { version = "0.8.1", optional = true }
 # Spec 070 spike (llama.cpp second engine); bundles its own llama.cpp, needs cmake at build time.
 llama-cpp-2 = { version = "=0.1.160", optional = true }
+# The spike adapter renders the model's own Jinja chat template (the binding has no Jinja); the
+# versions and features mistralrs already resolves to.
+minijinja = { version = "2", optional = true, features = ["builtins", "json"] }
+minijinja-contrib = { version = "2", optional = true, features = ["pycompat"] }
 # `Model::tokenize` takes an `Either` (the chat-template probe, spec 032 R8); the version mistralrs
 # already resolves to.
 either = { version = "1", optional = true }

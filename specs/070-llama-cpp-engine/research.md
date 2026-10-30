@@ -8,9 +8,12 @@ prompt, on the development machine: RTX A2000 8 GB laptop GPU, 24 threads, Linux
 
 ## Verdict
 
-llama.cpp through `llama-cpp-2` **loads Qwen3.5, answers coherently, is faster than mistralrs on Qwen3 4B
-and needs less VRAM**. It builds for `aarch64-linux-android`. What it does not bring is a chat template
-and tool-call parser; those would be ours to build. iOS could not be tested here.
+llama.cpp through `llama-cpp-2` **loads Qwen3.5 and Gemma 4, is faster than mistralrs on Qwen3 4B, needs
+less VRAM, and with a prototype chat-template renderer and tool-call parser it calls holzi's tools at
+least as well as mistralrs** (spec 032 evaluation: 55 against 52 of 83 sentences with Qwen3 4B, 60 with
+Qwen3.5). It builds for `aarch64-linux-android`. The renderer and parsers are not part of the binding;
+they would be ours to build and keep. iOS could not be tested here, and the Android run on an emulator did
+not happen (see Build).
 
 ## Results
 
@@ -28,7 +31,9 @@ and tool-call parser; those would be ours to build. iOS could not be tested here
   checked on the GPU only.
 - Qwen3.5 prompt processing is slow (75 t/s against 273 t/s for Qwen3) on a 23-token prompt; the 151-token
   tool prompt ran at several thousand t/s, so the first figure is probably start-up cost. Not investigated.
-- Gemma 4: llama.cpp's `llama-arch.cpp` lists `gemma4`, but no Gemma 4 file was loaded.
+- Gemma 4 E4B Q4_K_M (5.3 GB, `lmstudio-community`): loads through llama.cpp in 5.8 s, all 43 layers on
+  the GPU, about 3.0 GB of VRAM and 5.6 GB of RAM at peak (the per-layer embeddings stay in RAM), and answers
+  the plain prompt coherently (29 tokens in 0.85 s).
 
 ## Tool calls (US2)
 
@@ -42,7 +47,36 @@ and tool-call parser; those would be ours to build. iOS could not be tested here
   it reported success but rendered plain ChatML, without the model's thinking handling and without tools.
   The `common` feature of the sys crate wraps grammar, fit and speculative decoding, not
   `common_chat_*`. Rendering the real template needs `minijinja`; parsing needs one parser per family.
-- Not done: the 30-sentence evaluation of spec 032 (SC-002) and the chat-template probe.
+- **Gemma 4 uses a third format**, with its own string delimiter:
+  `<|tool_call>call:open_settings{page:<|"|>sync<|"|>}<tool_call|>`. The prototype has no parser for it, so
+  Gemma 4 was loaded and asked but not evaluated.
+- Not done: the chat-template probe of spec 032 R8.
+
+## Evaluation of spec 032 (SC-002)
+
+`src-tauri/tests/model_tool_eval.rs` with `HOLZI_EVAL_ENGINE=llamacpp`, through the prototype
+`LlamaCppSpikeAdapter` (`llamacpp_spike_adapter.rs`: the file's own Jinja template through `minijinja`,
+thinking split off, `<tool_call>` blocks read as JSON or XML, greedy decoding). The example set is now
+**83 sentences** (set version 5), not the 30 the spec first named. All three runs on the GPU, deterministic,
+one run each. mistralrs was measured again on the same machine because the figure in spec 032
+(16 of 30) is a CPU run of an older set.
+
+| Engine / model        | Pass (of 83) | Reached | Extra steps | Spurious calls | Time  |
+| --------------------- | ------------ | ------- | ----------- | -------------- | ----- |
+| mistralrs, Qwen3 4B   | 52 (62.7 %)  | 0.857   | 4           | 0              | 112 s |
+| llama.cpp, Qwen3 4B   | 55 (66.3 %)  | 0.844   | 3           | 0              | 100 s |
+| llama.cpp, Qwen3.5 4B | 60 (72.3 %)  | 0.883   | 6           | 1              | 151 s |
+
+- With the same model llama.cpp is not below mistralrs, so the prototype's template rendering and parsing
+  are at least as good as mistralrs' for Qwen3. The gap of three sentences is small and one run each;
+  read it as "no regression", not as "better".
+- Qwen3.5 gains most on the extension sentences (32 of 40 against 27 of 40 for Qwen3 on mistralrs).
+- Qwen3.5's one spurious call was a `find_actions` search for small talk about the weather (harmless);
+  its one `run_command` call was `echo "Küchen-Laptop"` for an alias change. Nothing is executed in the
+  evaluation, but `run_command` is the kind of call the approval rules must catch in production.
+- The prototype also needed what mistralrs does for the same templates: its own `tojson` filter, Python
+  string methods (`minijinja-contrib` `pycompat`) and `raise_exception`; mistralrs additionally rewrites
+  `[::-1]` and descending `range` calls and special-cases several model families. Expect that tail.
 
 ## Build (US4 and FR-005)
 
@@ -57,14 +91,18 @@ and tool-call parser; those would be ours to build. iOS could not be tested here
   through the whole holzi crate failed earlier, in `aws-lc-sys` (host gcc instead of the NDK compiler),
   which is unrelated to llama.cpp but shows the cross-build environment needs the same variables.
 - **iOS**: not buildable on this Linux machine; the sys crate's `build.rs` has no iOS-specific branch.
+- **Android run on an emulator: not done.** The x86_64 probe build and the emulator were started, then the
+  `/tmp` tmpfs (32 GB) filled up and the run was abandoned; the leftovers were cleaned up afterwards. The
+  `aarch64-linux-android` build is the only Android evidence.
 - Two engines in one binary built and ran (mistralrs and llama.cpp in the CUDA test binary). Each test ran
   in its own process, so both in one process at once is not shown.
 
 ## Consequences for the spec
 
 - US1 is answered yes; SC-001 and SC-003 hold on the development machine.
-- US2 stays open: tool calls need our own template rendering and parsers (new open question in the spec).
+- US2 is answered for Qwen3 and Qwen3.5: with our own template rendering and parsers (Hermes JSON and the
+  Qwen3.5 XML) the evaluation does not fall below mistralrs (SC-002). Gemma 4 needs a third parser.
 - The devshell needs cmake, and the CUDA link needs a decision (static cuBLAS from a different CUDA
   package, or the shared libraries shipped next to the binary).
-- Still to do before a plan: a Gemma 4 load, the 30-sentence evaluation, an Android run on the
-  emulator, an iOS build on a Mac.
+- Still to do before a plan: an Android run on the emulator, an iOS build on a Mac, a parser for Gemma 4's
+  call format and its evaluation, the chat-template probe, CPU speed with `GGML_NATIVE`.

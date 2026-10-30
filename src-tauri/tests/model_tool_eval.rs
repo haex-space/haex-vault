@@ -35,8 +35,31 @@ async fn adapter_from_env() -> (Box<dyn ProviderAdapter>, String, bool) {
             (Box::new(adapter), model, false)
         }
         Ok(other) => panic!("HOLZI_EVAL_PROVIDER={other} is not supported (use anthropic)"),
+        #[cfg(feature = "llm-llamacpp")]
+        Err(_) if env::var("HOLZI_EVAL_ENGINE").as_deref() == Ok("llamacpp") => {
+            llamacpp_from_env().await
+        }
         Err(_) => local_from_env().await,
     }
+}
+
+#[cfg(feature = "llm-llamacpp")]
+async fn llamacpp_from_env() -> (Box<dyn ProviderAdapter>, String, bool) {
+    // Spec 070 spike: the same measurement through llama.cpp.
+    use holzi_lib::llm::local::LlamaCppSpikeAdapter;
+    let path = PathBuf::from(env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF"));
+    let layers = env::var("HOLZI_SPIKE_GPU_LAYERS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let name = format!(
+        "llamacpp-{}",
+        path.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    );
+    let adapter = LlamaCppSpikeAdapter::load(&path, layers).expect("llama.cpp load");
+    (Box::new(adapter), name, true)
 }
 
 #[cfg(feature = "llm-cpu")]

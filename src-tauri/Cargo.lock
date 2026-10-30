@@ -4798,6 +4798,8 @@ dependencies = [
  "log",
  "lopdf",
  "mail-parser",
+ "minijinja",
+ "minijinja-contrib",
  "mistralrs",
  "ndk-context",
  "nostr",
