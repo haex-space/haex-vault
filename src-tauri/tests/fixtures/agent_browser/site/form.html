@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bestellung</title>
+  </head>
+  <body>
+    <main>
+      <h1>Bestellung</h1>
+      <form method="post" action="/send">
+        <label for="name">Name</label>
+        <input id="name" name="name" />
+        <label for="pw">Passwort</label>
+        <input id="pw" type="password" name="password" value="geheim-123" />
+        <label for="menge">Menge</label>
+        <select id="menge" name="menge">
+          <option>1</option>
+          <option>2</option>
+        </select>
+        <button>Weiter</button>
+      </form>
+      <button
+        type="button"
+        onclick="
+          setTimeout(
+            () => fetch('/api', { method: 'POST', body: 'merken=1' }),
+            1500,
+          )
+        "
+      >
+        Merken
+      </button>
+      <details>
+        <summary>Versandkosten</summary>
+        Kostenlos ab 20 Euro.
+      </details>
+      <p id="shown"></p>
+      <button
+        type="button"
+        onclick="document.getElementById('shown').textContent = 'Geöffnet'"
+      >
+        Details zeigen
+      </button>
+      <a href="/article.html">Zum Artikel</a>
+    </main>
+  </body>
+</html>

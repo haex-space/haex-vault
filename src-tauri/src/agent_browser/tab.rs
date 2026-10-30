@@ -1,7 +1,9 @@
 //! One agent tab (spec 065, contracts/agent-browser.md "Je Agenten-Tab"): a page target holzi
 //! created and attached to in flat mode. Every document it loads, the page itself, a redirect and
-//! each frame alike, is paused through `Fetch` until the website check of research R9 has decided
-//! ([`Guard`]); frames in their own process attach, wait for holzi and get the same check.
+//! each frame alike, is paused through `Fetch` until the website check of research R9 has decided,
+//! and so is every request that may change something on a website (research R5 step 2), until the
+//! user allowed it ([`Guard`]); frames in their own process attach, wait for holzi and get the same
+//! checks.
 //!
 //! Reading happens in holzi's own world ([`super::read`]); the element numbers are those of the
 //! reading script and hold until the document changes. The same world shows the marker
@@ -20,15 +22,30 @@ use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
 use super::marker::{self, MarkerTexts};
 use super::sites::Verdict;
+use super::submit;
 
 /// How long a page may take to load before a tool gives up (FR-030).
 pub const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// How long a page has after a click or an Enter to begin loading a new document.
+const SETTLE: Duration = Duration::from_secs(1);
+
 /// How long each step of giving a tab back may take; a busy page must not hold up a stop.
 const RELEASE_STEP: Duration = Duration::from_secs(1);
 
-/// Decides about a document before it loads; may ask the user, so it may take minutes.
-pub type Guard = Arc<dyn Fn(String) -> BoxFuture<'static, Verdict> + Send + Sync>;
+/// A request the tab holds until holzi has decided about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Paused {
+    pub url: String,
+    pub method: String,
+    /// A document: a page or a frame.
+    pub document: bool,
+    /// The body, when the browser hands it over.
+    pub body: Option<String>,
+}
+
+/// Decides about a held request; may ask the user, so it may take minutes.
+pub type Guard = Arc<dyn Fn(Paused) -> BoxFuture<'static, Verdict> + Send + Sync>;
 
 /// What the user's "Stoppen" in the marker does.
 pub type OnStop = Arc<dyn Fn() + Send + Sync>;
@@ -83,7 +100,7 @@ impl Tab {
         let setup = async {
             page::enable(connection, &session).await?;
             marker::install(connection, &session, &marker.texts).await?;
-            fetch::hold_documents(connection, &session).await?;
+            fetch::hold_requests(connection, &session).await?;
             target::attach_frames(connection, &session).await
         }
         .await;
@@ -113,6 +130,58 @@ impl Tab {
 
     pub fn set_page(&self, page: PageInfo) {
         *self.page.lock().unwrap_or_else(PoisonError::into_inner) = page;
+    }
+
+    /// The events of the tab from now on, taken before an action so nothing it sets off is missed.
+    pub fn events(&self) -> UnboundedReceiver<Event> {
+        self.connection.subscribe(Some(&self.session))
+    }
+
+    /// Waits for what an action set off: a new document of the tab is waited for until it has
+    /// loaded; otherwise the page gets [`SETTLE`]. A request refused meanwhile ends with its code.
+    /// While `busy` (a question about what the page sends is open), loading has no time limit.
+    pub async fn settle(
+        &self,
+        mut events: UnboundedReceiver<Event>,
+        busy: &(dyn Fn() -> bool + Send + Sync),
+    ) -> std::result::Result<(), TabError> {
+        let main = self.target.as_str();
+        let loading = tokio::time::timeout(SETTLE, async {
+            while let Some(event) = events.recv().await {
+                if event.method == "Page.frameStartedLoading" && event.params["frameId"] == main {
+                    return true;
+                }
+            }
+            false
+        })
+        .await
+        .unwrap_or(false);
+        let mut deadline = tokio::time::Instant::now() + LOAD_TIMEOUT;
+        while loading && !self.refusal_pending() {
+            match tokio::time::timeout(Duration::from_millis(200), events.recv()).await {
+                Ok(Some(event)) if event.method == "Page.loadEventFired" => break,
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    return Err(TabError::Browser(BrowserError::Unavailable(
+                        "the browser ended".to_owned(),
+                    )))
+                }
+                Err(_) if busy() => deadline = tokio::time::Instant::now() + LOAD_TIMEOUT,
+                Err(_) if tokio::time::Instant::now() >= deadline => return Err(TabError::Timeout),
+                Err(_) => {}
+            }
+        }
+        match self.take_refusal() {
+            Some(code) => Err(TabError::Refused(code)),
+            None => Ok(()),
+        }
+    }
+
+    fn refusal_pending(&self) -> bool {
+        self.refused
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
     }
 
     /// Takes the code of the last refused document, if any.
@@ -289,10 +358,10 @@ impl From<BrowserError> for TabError {
     }
 }
 
-/// Answers the paused documents of `session` and sets up the frames that attach to it. Only a
-/// refused document of `main` (the tab's own frame, whose id is the target's) fails a tool; a
-/// refused frame stays empty. A stop from the marker goes to `on_stop`. Boxed, since a frame's own
-/// frames are watched by the same function.
+/// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
+/// document of `main` (the tab's own frame, whose id is the target's) and any refused request that
+/// would have changed something fail a tool; a refused frame stays empty. A stop from the marker
+/// goes to `on_stop`. Boxed, since a frame's own frames are watched by the same function.
 fn watch(
     connection: Arc<Connection>,
     session: String,
@@ -310,10 +379,11 @@ fn watch(
                         main.is_some() && event.params["frameId"].as_str() == main.as_deref();
                     let (connection, session, guard) =
                         (Arc::clone(&connection), session.clone(), Arc::clone(&guard));
-                    let refused = is_main.then(|| Arc::clone(&refused));
+                    let main = is_main.then(|| Arc::clone(&refused));
+                    let any = Arc::clone(&refused);
                     tokio::spawn(async move {
-                        let refused = refused.as_deref();
-                        decide(&connection, &session, &event.params, &guard, refused).await;
+                        let main = main.as_deref();
+                        decide(&connection, &session, &event.params, &guard, main, &any).await;
                     });
                 }
                 "Target.attachedToTarget" => {
@@ -333,7 +403,7 @@ fn watch(
                     let connection = Arc::clone(&connection);
                     tokio::spawn(async move {
                         // The frame waits for holzi; its documents are held before it may go on.
-                        let _ = fetch::hold_documents(&connection, &child).await;
+                        let _ = fetch::hold_requests(&connection, &child).await;
                         let _ = target::attach_frames(&connection, &child).await;
                         let _ = runtime::run_if_waiting(&connection, &child).await;
                     });
@@ -355,16 +425,31 @@ async fn decide(
     session: &str,
     params: &Value,
     guard: &Guard,
-    refused: Option<&Mutex<Option<&'static str>>>,
+    main: Option<&Mutex<Option<&'static str>>>,
+    any: &Mutex<Option<&'static str>>,
 ) {
     let Some(request) = params["requestId"].as_str() else {
         return;
     };
-    let url = params["request"]["url"]
-        .as_str()
-        .unwrap_or_default()
-        .to_owned();
-    let code = match guard(url).await {
+    let paused = Paused {
+        url: params["request"]["url"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned(),
+        method: params["request"]["method"]
+            .as_str()
+            .unwrap_or("GET")
+            .to_owned(),
+        document: params["resourceType"] == "Document",
+        body: params["request"]["postData"].as_str().map(str::to_owned),
+    };
+    let changing = submit::changing(&paused.method);
+    // Reading requests of a page need no decision.
+    if !paused.document && !changing {
+        let _ = fetch::go_on(connection, session, request).await;
+        return;
+    }
+    let code = match guard(paused).await {
         Verdict::Go => {
             let _ = fetch::go_on(connection, session, request).await;
             return;
@@ -373,6 +458,7 @@ async fn decide(
         // The guard resolves its own questions; one that still asks has no answer.
         Verdict::Ask(_) => "site_not_allowed",
     };
+    let refused = if changing { Some(any) } else { main };
     if let Some(refused) = refused {
         *refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
     }

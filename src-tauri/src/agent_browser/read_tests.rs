@@ -72,3 +72,26 @@ fn from_beyond_the_end_gives_empty_text() {
     assert_eq!(page["untrusted_page_content"]["text"], "");
     assert_eq!(page["untrusted_page_content"]["truncated"], false);
 }
+
+#[test]
+fn elements_say_whether_a_click_submits_without_the_facts_behind_it() {
+    let mut page = raw("Kasse", 0);
+    page.elements = vec![
+        json!({ "n": 1, "kind": "button", "name": "Jetzt kaufen", "facts": { "tag": "button", "type": "button", "form": false } }),
+        json!({ "n": 2, "kind": "button", "name": "Weiter", "facts": { "tag": "button", "type": "", "form": true } }),
+        json!({ "n": 3, "kind": "link", "name": "Startseite", "facts": { "tag": "a", "type": "", "form": false } }),
+        json!({ "n": 4, "kind": "field", "name": "Bestellnummer", "facts": { "tag": "input", "type": "text", "form": true } }),
+    ];
+    let result = page_result("t1", "https://shop.example.de", page, 0);
+    let elements = result["untrusted_page_content"]["elements"]
+        .as_array()
+        .unwrap();
+    let submits: Vec<bool> = elements
+        .iter()
+        .map(|element| element.get("submits") == Some(&Value::Bool(true)))
+        .collect();
+    assert_eq!(submits, [true, true, false, false]);
+    assert!(elements
+        .iter()
+        .all(|element| element.get("facts").is_none()));
+}

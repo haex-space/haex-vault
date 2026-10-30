@@ -1,9 +1,10 @@
-//! Spec 065 T025 against a real Chromium and the fixture site: an agent opens a page of an allowed
-//! website, reads it, follows a link, scrolls, takes a screenshot and lists its tabs; a website
-//! outside its rights asks first (and loads nothing when declined), is refused in Plan, and a frame
-//! of another website is checked like a page; addresses that are no website never load; page
-//! permissions are denied. Without a Chromium-based browser the test says so and stops.
+//! Spec 065 T025 against a real Chromium and the fixture site over `https`: an agent opens a page of
+//! a website it may operate (following a link is navigation, FR-008), reads it, follows a link,
+//! scrolls, takes a screenshot and lists its tabs; a website outside its rights asks first (and
+//! loads nothing when declined), is refused in Plan, and a frame of another website is checked like
+//! a page; addresses that are no website never load; page permissions are denied. Without a Chromium-based browser the test says so and stops.
 
+#[allow(dead_code)]
 #[path = "common/agent_browser_fixture.rs"]
 mod agent_browser_fixture;
 #[path = "common/agent_browser_scene.rs"]
@@ -11,13 +12,14 @@ mod agent_browser_scene;
 
 use serde_json::json;
 
-use agent_browser_scene::{content, scene, Scene};
+use agent_browser_scene::{content, scene_with, Scene};
 use holzi_lib::agent_browser::error::BrowserError;
 use holzi_lib::chat::tools::permission::PermissionMode;
+use holzi_lib::mcp_server::grants::SiteLevel;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_agent_reads_an_allowed_website_and_nothing_else_loads_unasked() {
-    let Some(scene) = scene().await else {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
         return;
     };
 

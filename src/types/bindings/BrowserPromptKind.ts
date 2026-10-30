@@ -3,4 +3,4 @@
 /**
  * What the user is asked.
  */
-export type BrowserPromptKind = "site" | "action";
+export type BrowserPromptKind = "site" | "action" | "submit";

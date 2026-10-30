@@ -4,8 +4,10 @@
  * website (FR-007), and in Manuell, may it do something that changes a page. The agent's name is
  * its own claim; the address comes from the agent or the page. A website can be allowed once or
  * remembered for the agent, for reading or for operating (`http` only for reading, research R9).
- * Closing the dialog declines.
+ * Before something is sent to a website (FR-011, FR-012), the dialog lists what would be sent,
+ * secrets as `•••`; the field names and values come from the page. Closing the dialog declines.
  */
+import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import type { Remember } from '~/types/bindings/Remember'
 
 const { t } = useI18n()
@@ -19,6 +21,11 @@ const waiting = computed(() => Math.max(store.prompts.length - 1, 0))
 const plainHttp = computed(
   () => question.value?.site?.startsWith('http://') === true,
 )
+const toolTitle = computed(() => {
+  const tool = question.value?.tool
+  const def = BROWSER_ACTIONS.find((action) => action.id === tool)
+  return def ? t(def.titleKey) : tool
+})
 const agentName = computed(
   () => question.value?.agent || t('agentBrowser.prompt.builtinAgent'),
 )
@@ -83,15 +90,38 @@ function onUpdateOpen(open: boolean) {
             <dt class="text-muted-foreground">
               {{ t('agentBrowser.prompt.actionLabel') }}
             </dt>
-            <dd class="min-w-0 break-words">{{ question.tool }}</dd>
+            <dd class="min-w-0 break-words">{{ toolTitle }}</dd>
           </template>
           <template v-if="question.label">
             <dt class="text-muted-foreground">
-              {{ t('agentBrowser.prompt.address') }}
+              {{
+                question.kind === 'site'
+                  ? t('agentBrowser.prompt.address')
+                  : t('agentBrowser.prompt.target')
+              }}
             </dt>
-            <dd class="min-w-0 break-all text-xs">{{ question.label }}</dd>
+            <dd
+              class="min-w-0 break-all text-xs"
+              data-testid="agent-browser-prompt-label"
+            >
+              {{ question.label }}
+            </dd>
           </template>
         </dl>
+        <div v-if="question.fields.length > 0" class="space-y-1">
+          <p class="text-sm font-medium">
+            {{ t('agentBrowser.prompt.submit.fields') }}
+          </p>
+          <dl
+            class="grid max-h-48 grid-cols-[auto_1fr] gap-x-3 gap-y-1 overflow-y-auto rounded-md border border-border p-2 text-xs"
+            data-testid="agent-browser-prompt-fields"
+          >
+            <template v-for="(field, index) in question.fields" :key="index">
+              <dt class="break-all text-muted-foreground">{{ field.name }}</dt>
+              <dd class="min-w-0 break-all">{{ field.value }}</dd>
+            </template>
+          </dl>
+        </div>
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
         </p>

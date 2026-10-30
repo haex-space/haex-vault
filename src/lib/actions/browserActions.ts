@@ -2,7 +2,7 @@
 // holzi's agent browser. They run in Rust (`runner: 'native'`, src-tauri/src/agent_browser/
 // executor.rs) for the built-in agent and the MCP access alike; the window never runs them. Every
 // tool that changes something asks the user itself (`confirmsItself`), so the general call prompt
-// does not ask twice. Typing, clicking and submitting follow in delivery D. Pure, relative `.ts`
+// does not ask twice; before anything is submitted it asks in Auto too. Pure, relative `.ts`
 // imports only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
 
@@ -158,6 +158,71 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     result: PAGE,
     effect: 'read',
     ...SHARED,
+  },
+  {
+    id: 'browser.click',
+    titleKey: 'actions.browser.click',
+    description:
+      'Click an element of the page by its element number, as a person does, and read the page after it. A click that submits (an element with submits: true, or anything that sends data to the website) always asks the user first.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: { tab: TAB, element: ELEMENT },
+      required: ['tab', 'element'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.type',
+    titleKey: 'actions.browser.type',
+    description:
+      'Type text into a field of the page by its element number; the text replaces what is in the field. With submit, Enter is pressed afterwards, which submits and asks the user first. Never type passwords; logins come from the password manager.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: ELEMENT,
+        text: { type: 'string', description: 'What to type.' },
+        submit: {
+          type: 'boolean',
+          description: 'Press Enter afterwards (submits).',
+        },
+      },
+      required: ['tab', 'element', 'text'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.select',
+    titleKey: 'actions.browser.select',
+    description:
+      "Choose an option of a selection list by its element number, by the option's value or text." +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: ELEMENT,
+        value: {
+          type: 'string',
+          description: 'The option, by its value or its text.',
+        },
+      },
+      required: ['tab', 'element', 'value'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.tabs.close',
+    titleKey: 'actions.browser.tabsClose',
+    description: 'Close an agent tab.',
+    input: { type: 'object', properties: { tab: TAB }, required: ['tab'] },
+    result: { type: 'object' },
+    ...CHANGING,
   },
   {
     id: 'browser.tabs.list',

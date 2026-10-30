@@ -1882,7 +1882,11 @@
       "followLink": "Follow a link",
       "scroll": "Scroll the page",
       "tabsList": "List the agent tabs",
-      "wait": "Wait for the page"
+      "wait": "Wait for the page",
+      "click": "Click an element",
+      "type": "Type into a field",
+      "select": "Choose an option",
+      "tabsClose": "Close an agent tab"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -3924,9 +3928,15 @@
       },
       "action": {
         "title": "Allow this browser action?",
-        "hint": "The agent works in the approval mode Manual and asks before every navigation."
+        "hint": "The agent works in the approval mode Manual and asks before every action."
+      },
+      "submit": {
+        "title": "Send to the website?",
+        "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
+        "fields": "What would be sent"
       },
       "address": "Address",
+      "target": "Target",
       "more": "{count} more questions wait after this one.",
       "deny": "Decline",
       "allow": "Allow",

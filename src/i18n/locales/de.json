@@ -1882,7 +1882,11 @@
       "followLink": "Link folgen",
       "scroll": "Seite scrollen",
       "tabsList": "Agenten-Tabs auflisten",
-      "wait": "Auf die Seite warten"
+      "wait": "Auf die Seite warten",
+      "click": "Element anklicken",
+      "type": "In ein Feld tippen",
+      "select": "Option auswählen",
+      "tabsClose": "Agenten-Tab schließen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -3924,9 +3928,15 @@
       },
       "action": {
         "title": "Handlung im Browser erlauben?",
-        "hint": "Der Agent arbeitet in der Freigabestufe Manuell und fragt vor jeder Navigation."
+        "hint": "Der Agent arbeitet in der Freigabestufe Manuell und fragt vor jeder Handlung."
+      },
+      "submit": {
+        "title": "An die Website senden?",
+        "hint": "Der Agent möchte etwas an die Website schicken, zum Beispiel ein Formular, eine Bestellung oder eine Löschung. Ohne deine Zustimmung wird nichts gesendet.",
+        "fields": "Was gesendet würde"
       },
       "address": "Adresse",
+      "target": "Ziel",
       "more": "Danach warten noch {count} Fragen.",
       "deny": "Ablehnen",
       "allow": "Erlauben",
