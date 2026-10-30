@@ -69,6 +69,9 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
 voice = ["dep:cpal", "dep:sherpa-onnx"]
+# Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
+# using the sound card, so e2e scenarios can speak to it. Never part of a release build.
+e2e-audio = ["voice"]
 
 # End-to-end tests (spec 024, T078): builds `e2e_nostr_relay`, an in-process
 # `MockRelay` as a process the two application processes of a scenario share.
