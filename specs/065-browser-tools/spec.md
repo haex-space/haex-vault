@@ -400,9 +400,11 @@ Steuerung.
 - **FR-022**: Felder, die holzi mit Anmeldedaten gefüllt hat, und alle Passwortfelder MÜSSEN beim
   Lesen der Seite und auf Bildschirmfotos für den Agenten verdeckt sein.
 - **FR-036**: Braucht eine Website neue Anmeldedaten (Konto anlegen, Passwort ändern), MUSS holzi
-  das Passwort selbst erzeugen, in die Seite eintragen und nach Rückfrage als Eintrag mit der
-  Website im Passwortmanager speichern; der Agent nennt nur den Benutzernamen und sieht das
-  Passwort nie. In Plan abgelehnt.
+  das Passwort selbst erzeugen, in die Seite eintragen und nach Zustimmung als Eintrag mit der
+  Website über den gemeinsamen Passwortmanager-Dienst speichern. Dafür MUSS holzi den aufgelösten
+  Caller und dessen Grants verwenden; die ReadWrite- und Tagbereich-Prüfungen aus Spec 034 gelten
+  weiter und DÜRFEN nicht durch die Rückfrage ersetzt werden. Der Agent nennt nur den Benutzernamen
+  und sieht das Passwort nie. In Plan abgelehnt.
 
 **Seiteninhalte**
 

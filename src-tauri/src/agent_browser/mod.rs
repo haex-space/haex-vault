@@ -315,7 +315,7 @@ impl AgentBrowser {
             run.process.kill();
         }
         run.connection.close();
-        let saved = if closed.is_ok() {
+        let saved = if matches!(closed, Ok(true)) {
             save(&run.workdir, &run.store).await
         } else {
             // A browser that had to be killed may have left its files half written; the profile of

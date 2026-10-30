@@ -19,7 +19,7 @@ use super::error::{BrowserError, Result};
 use super::locate::{self, Os};
 
 /// How long the browser gets to answer `Browser.getVersion` after its start.
-pub const START_TIMEOUT: Duration = Duration::from_secs(15);
+pub const START_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// What a start needs.
 #[derive(Debug, Clone)]
@@ -131,7 +131,7 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
         let product = tokio::time::timeout(START_TIMEOUT, browser::product(&connection))
             .await
             .map_err(|_| {
-                BrowserError::Unavailable("no answer within 15 seconds of the start".to_owned())
+                BrowserError::Unavailable("no answer within 30 seconds of the start".to_owned())
             })??;
         if !locate::new_enough(&product) {
             return Err(BrowserError::NotFound(format!(
@@ -139,9 +139,19 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
                 locate::MIN_MAJOR
             )));
         }
-        target::auto_attach(&connection, None).await?;
-        browser::deny_permissions(&connection).await?;
-        browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
+        let configure = async {
+            target::auto_attach(&connection, None).await?;
+            browser::deny_permissions(&connection).await?;
+            browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
+            Ok::<(), BrowserError>(())
+        };
+        tokio::time::timeout(START_TIMEOUT, configure)
+            .await
+            .map_err(|_| {
+                BrowserError::Unavailable(
+                    "browser setup did not finish within 30 seconds".to_owned(),
+                )
+            })??;
         Ok(product)
     }
     .await;
@@ -175,6 +185,11 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .process_group(0);
+    // Headless integration runs have no desktop session and do not need its bus address. In CI,
+    // the inherited value can be malformed and Chromium reports it while starting.
+    if launch.headless && matches!(os, Os::Linux) {
+        command.env_remove("DBUS_SESSION_BUS_ADDRESS");
+    }
     // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `fcntl` and
     // `dup2`, which are async-signal-safe. Both descriptors are first moved above 9, so placing
     // one on 3 cannot overwrite the other; `dup2` clears close-on-exec on 3 and 4.
