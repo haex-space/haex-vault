@@ -2,16 +2,16 @@
 import type { BundleSource } from "./BundleSource";
 import type { PermissionChoice } from "./PermissionChoice";
 
-export type ExtensionInstallArgs = {
+export type ExtensionInstallArgs = { 
 /**
  * Where the bytes come from: the choice of the open dialog (spec 043: a path or a provider
  * address) or a bundle downloaded from a marketplace (spec 069).
  */
-source: BundleSource,
+source: BundleSource, 
 /**
  * The choice per declared permission; a declaration without a choice becomes `ask`.
  */
-accepted: Array<PermissionChoice>,
+accepted: Array<PermissionChoice>, 
 /**
  * The user confirmed a downgrade or the replacement of another bundle of the same version.
  */

@@ -7,33 +7,33 @@ import type { InstallOrigin } from "./InstallOrigin";
 /**
  * What the install dialog shows before anything is written.
  */
-export type InstallPreview = {
+export type InstallPreview = { 
 /**
  * The bundle passed every check of the format.
  */
-signatureValid: boolean, error?: BundleRejection, extensionId?: string, name?: string, displayName?: string, version?: string, description?: string, author?: string,
+signatureValid: boolean, error?: BundleRejection, extensionId?: string, name?: string, displayName?: string, version?: string, description?: string, author?: string, 
 /**
  * Short form of the publisher key: the first and last four groups of four hex digits.
  */
-publisherFingerprint?: string, declared: Array<DeclaredPermissionView>,
+publisherFingerprint?: string, declared: Array<DeclaredPermissionView>, 
 /**
  * Manifest categories holzi does not offer ("wird von holzi nicht unterstützt").
  */
-unsupportedCategories: Array<string>, existing?: ExistingInstall,
+unsupportedCategories: Array<string>, existing?: ExistingInstall, 
 /**
  * A live bundle of the same version with other content is in the vault; installing replaces
  * it and needs a confirmation.
  */
-replacesSameVersion: boolean,
+replacesSameVersion: boolean, 
 /**
  * Another installed extension has the same name but another publisher (US7-2).
  */
-sameNameOtherPublisher: boolean,
+sameNameOtherPublisher: boolean, 
 /**
  * The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
  * dialog only says it.
  */
-openers: Array<string>,
+openers: Array<string>, 
 /**
  * The marketplace the bundle came from; absent for a file (spec 069 FR-011).
  */

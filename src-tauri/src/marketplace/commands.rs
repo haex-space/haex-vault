@@ -14,12 +14,13 @@ use super::details::{fetch_categories, fetch_details};
 use super::download::download_bundle;
 use super::icons::Network;
 use super::model::{
-    CatalogCategories, CatalogDetail, CatalogPage, CatalogQuery, DownloadProgress,
-    MarketplaceAuthType, MarketplaceCredentialsState, MarketplaceView, PendingBundleRef,
-    SourceErrorKind,
+    CatalogCategories, CatalogDetail, CatalogPage, CatalogQuery, CheckUpdatesResult,
+    DownloadProgress, KnownUpdatesView, MarketplaceAuthType, MarketplaceCredentialsState,
+    MarketplaceView, PendingBundleRef, SourceErrorKind,
 };
 use super::pending::PendingBundle;
 use super::store::{self, MarketplaceRow};
+use super::updates::{check_updates, view as updates_view};
 use super::{app_version, kinds, MarketplaceState, PENDING_IDLE};
 use crate::error::{HolziError, Result};
 use crate::extensions::registry::list::list as list_extensions;
@@ -134,14 +135,17 @@ pub async fn marketplace_catalog(
     let work = async {
         let sources = sources_of(&rows(&db).await?);
         let installed = installed(&app, &db).await?;
-        Ok(fetch_catalog(
+        let page = fetch_catalog(
             Http::default(),
             &sources,
             &query,
             &installed,
             &app_version(),
         )
-        .await)
+        .await;
+        // The entries of this page tell what is known about their updates; the rest stays.
+        market.updates.record_page(&page.entries);
+        Ok(page)
     };
     match Abortable::new(work, registration).await {
         Ok(result) => result,
@@ -204,6 +208,50 @@ pub async fn marketplace_icon(
         .icons
         .load(&Network::system(), &row.base_url, &url)
         .await
+}
+
+/// What the settings list shows about updates: only what the last catalog page or check found, no
+/// request goes out (FR-017).
+#[tauri::command]
+pub async fn marketplace_known_updates(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    market: State<'_, MarketplaceState>,
+) -> Result<KnownUpdatesView> {
+    let db = active_database(&state)?;
+    let enabled = enabled_ids(&rows(&db).await?);
+    let installed = installed(&app, &db).await?;
+    Ok(updates_view(
+        market.updates.candidates(),
+        &installed,
+        &enabled,
+    ))
+}
+
+/// Looks for updates of every installed extension in every marketplace that is on (FR-017). It
+/// runs when the catalog app opens and on "Aktualisieren", never by itself.
+#[tauri::command]
+pub async fn marketplace_check_updates(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    market: State<'_, MarketplaceState>,
+) -> Result<CheckUpdatesResult> {
+    let db = active_database(&state)?;
+    let sources = sources_of(&rows(&db).await?);
+    let installed = installed(&app, &db).await?;
+    let checked = check_updates(Http::default(), &sources, &installed, &app_version()).await;
+    for (name, source_id, updates) in &checked.answered {
+        market.updates.replace_for(name, source_id, updates.clone());
+    }
+    Ok(checked.result())
+}
+
+/// The ids of the marketplaces that are on, in the order of the list.
+pub fn enabled_ids(rows: &[MarketplaceRow]) -> Vec<String> {
+    rows.iter()
+        .filter(|row| row.enabled)
+        .map(|row| row.id.clone())
+        .collect()
 }
 
 fn download_id(text: &str) -> Result<Uuid> {

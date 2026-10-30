@@ -41,16 +41,8 @@ function setEnabledAsync(enabled: boolean) {
   )
 }
 
-async function removeAsync(deleteData: boolean) {
-  const removed = await runAsync(() =>
-    invoke('extension_remove', {
-      extensionId: props.extension.id,
-      deleteData,
-    }),
-  )
-  if (!removed) return
-  removing.value = false
-  // With its data kept the extension stays listed; deleted, the list is where to go on.
+/** With its data kept the extension stays listed; deleted, the list is where to go on. */
+function onRemoved(deleteData: boolean) {
   if (deleteData) tabRouter.replace('/extensions')
 }
 </script>
@@ -99,39 +91,9 @@ async function removeAsync(deleteData: boolean) {
 
   <ExtensionsInstallDialog v-model:open="updating" />
 
-  <ShadcnAlertDialog v-model:open="removing">
-    <ShadcnAlertDialogContent>
-      <ShadcnAlertDialogHeader>
-        <ShadcnAlertDialogTitle>{{
-          t('settings.extensions.removeConfirmTitle', {
-            name: extension.title,
-          })
-        }}</ShadcnAlertDialogTitle>
-        <ShadcnAlertDialogDescription>{{
-          t('settings.extensions.removeConfirmBody')
-        }}</ShadcnAlertDialogDescription>
-      </ShadcnAlertDialogHeader>
-      <ShadcnAlertDialogFooter>
-        <ShadcnAlertDialogCancel>{{
-          t('settings.extensions.cancel')
-        }}</ShadcnAlertDialogCancel>
-        <UiButton
-          variant="outline"
-          :loading="busy"
-          data-testid="extension-remove-keep"
-          @click="removeAsync(false)"
-        >
-          {{ t('settings.extensions.keepData') }}
-        </UiButton>
-        <UiButton
-          variant="destructive"
-          :loading="busy"
-          data-testid="extension-remove-delete"
-          @click="removeAsync(true)"
-        >
-          {{ t('settings.extensions.deleteData') }}
-        </UiButton>
-      </ShadcnAlertDialogFooter>
-    </ShadcnAlertDialogContent>
-  </ShadcnAlertDialog>
+  <ExtensionsRemoveDialog
+    v-model:open="removing"
+    :extension="extension"
+    @removed="onRemoved"
+  />
 </template>

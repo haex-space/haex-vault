@@ -3,15 +3,15 @@
 /**
  * One declared permission as the install dialog shows it.
  */
-export type DeclaredPermissionView = { kind: string, action: string, target: string,
+export type DeclaredPermissionView = { kind: string, action: string, target: string, 
 /**
  * Remembered only for this device (shell); every other kind holds on every own device.
  */
-deviceScoped: boolean,
+deviceScoped: boolean, 
 /**
  * For `agentTool`: the tool's title per locale, from the manifest.
  */
-titleDe?: string, titleEn?: string,
+titleDe?: string, titleEn?: string, 
 /**
  * For `agentTool`: whether holzi can offer the tool to the agent.
  */

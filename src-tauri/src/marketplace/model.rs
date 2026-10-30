@@ -323,6 +323,27 @@ pub struct KnownUpdate {
     pub slug: String,
 }
 
+/// What the settings list shows about updates (FR-017): the candidates the last catalog page or
+/// check saw, and per installed extension the one the hint opens.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct KnownUpdatesView {
+    pub candidates: Vec<KnownUpdate>,
+    /// Per installed name the highest compatible version, the better-ranked marketplace on a tie.
+    pub selected: Vec<KnownUpdate>,
+}
+
+/// The result of `marketplace_check_updates`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct CheckUpdatesResult {
+    /// The updates this run found.
+    pub updates: Vec<KnownUpdate>,
+    pub source_errors: Vec<SourceError>,
+}
+
 /// The progress of a download (FR-015).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
