@@ -3,10 +3,14 @@
 #[cfg(any(feature = "llm-cpu", feature = "voice"))]
 use super::catalog::recommend_tiers;
 use super::catalog::{entries, get, SttEngine};
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 use crate::hardware::tiers::Tier;
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 use crate::hardware::{Backend, HardwareInfo};
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 use crate::platform::ModelPresets;
 
+#[cfg(any(feature = "llm-cpu", feature = "voice"))]
 fn hw(backend: Backend, ram: u64, vram: Option<u64>) -> HardwareInfo {
     HardwareInfo {
         backend,
