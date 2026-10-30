@@ -3,7 +3,13 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { typeChecked } from '../lib/fields.ts'
 import { createEntry, overview, trashEntry } from '../lib/passwords.ts'
-import { choose, openSettings } from '../lib/settings.ts'
+import {
+  choose,
+  openSettings,
+  settingsTabs,
+  waitForLocation,
+  wmSnapshot,
+} from '../lib/settings.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
   PRESET_ID,
@@ -69,10 +75,18 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
     assert.ok(row, 'the private marketplace is listed')
     return row
   }
+  // Once open, the settings window stays open behind the catalog and the password manager; the
+  // launcher then brings it back where it was, on the marketplaces, not to "general".
   const openList = async () => {
-    await openSettings(instance)
-    await instance.click('settings-category-extensions')
-    await instance.click('extensions-marketplaces')
+    if (settingsTabs(await wmSnapshot(instance)).length > 0) {
+      await instance.click('open-launcher')
+      await instance.click('[data-app-id="system.settings"]')
+      await waitForLocation(instance, 'extensions.marketplaces')
+    } else {
+      await openSettings(instance)
+      await instance.click('settings-category-extensions')
+      await instance.click('extensions-marketplaces')
+    }
     await instance.waitForDisplayed('settings-marketplaces')
   }
 
