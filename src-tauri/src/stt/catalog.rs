@@ -160,14 +160,14 @@ pub fn entries_with_fit(
         .collect();
     let default_id = default_entry(presets)
         .ok()
-        .map(|entry| entry.id.as_str())
-        .filter(|id| entries.iter().any(|entry| entry.id == *id))
-        .or_else(|| entries.first().map(|entry| entry.id.as_str()));
+        .map(|entry| entry.id)
+        .filter(|id| entries.iter().any(|entry| entry.id == id.as_str()))
+        .or_else(|| entries.first().map(|entry| entry.id.clone()));
     Ok(entries
         .into_iter()
         .map(|entry| {
             let fit = fit_for(hw, &entry);
-            let is_default = default_id == Some(entry.id.as_str());
+            let is_default = default_id.as_deref() == Some(entry.id.as_str());
             SttCatalogEntryWithFit {
                 entry,
                 fit,
