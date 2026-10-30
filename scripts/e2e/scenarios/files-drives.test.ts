@@ -472,16 +472,18 @@ scenario(
            return el ? el.textContent : false`,
         ),
       )) as string
-      // Nothing was mounted or unlocked unasked.
-      assert.equal(mountPointOf(plainDevice), null)
-      assert.equal(cleartextOf(safe.device), null)
-      await restored.click('files-drive-notice-open')
+      // Nothing was mounted or unlocked unasked: this tab's drive is still closed (the other tab's
+      // may be open by now, through its own click).
       if (text.includes(PLAIN)) {
         assert.match(text, /nicht eingehängt/)
+        assert.equal(mountPointOf(plainDevice), null)
+        await restored.click('files-drive-notice-open')
         await restored.waitForDisplayed('files-entry-inhalt.txt', 30_000)
         ctx.step('the stick mounted, the folder open')
       } else {
         assert.match(text, new RegExp(`${SAFE}.*gesperrt`))
+        assert.equal(cleartextOf(safe.device), null)
+        await restored.click('files-drive-notice-open')
         await restored.waitForDisplayed('files-entry-geheim.txt', 30_000)
         assert.ok(
           await gone(restored, 'files-drive-unlock-form'),

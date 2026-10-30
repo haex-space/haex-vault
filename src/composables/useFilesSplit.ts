@@ -189,13 +189,13 @@ export function useFilesSplit(options: {
   }
 
   // A place written from outside the frame (an agent, a restored tab of before) learns its drive
-  // once the list knows it (spec 064 FR-025).
+  // once the list knows it, and a deeper drive mounted later replaces the one it named (spec 064
+  // FR-025).
   watch(
     () => [active.value, options.drives.value] as const,
     ([place, drives]) => {
-      if (place.drive) return
       const on = placeOnDrive(place, drives)
-      if (on.drive) write(on, true)
+      if (on.drive !== place.drive || on.droot !== place.droot) write(on, true)
     },
     { immediate: true },
   )
