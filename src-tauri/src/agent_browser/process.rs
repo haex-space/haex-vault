@@ -19,7 +19,7 @@ use super::error::{BrowserError, Result};
 use super::locate::{self, Os};
 
 /// How long the browser gets to answer `Browser.getVersion` after its start.
-pub const START_TIMEOUT: Duration = Duration::from_secs(15);
+pub const START_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// What a start needs.
 #[derive(Debug, Clone)]
@@ -129,7 +129,7 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
         let product = tokio::time::timeout(START_TIMEOUT, browser::product(&connection))
             .await
             .map_err(|_| {
-                BrowserError::Unavailable("no answer within 15 seconds of the start".to_owned())
+                BrowserError::Unavailable("no answer within 30 seconds of the start".to_owned())
             })??;
         if !locate::new_enough(&product) {
             return Err(BrowserError::NotFound(format!(
@@ -147,7 +147,7 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
             .await
             .map_err(|_| {
                 BrowserError::Unavailable(
-                    "browser setup did not finish within 15 seconds".to_owned(),
+                    "browser setup did not finish within 30 seconds".to_owned(),
                 )
             })??;
         Ok(product)
