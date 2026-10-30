@@ -55,6 +55,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     right.write('Ordner/rechts.txt', 'R')
     askFrom.write('weg.txt', 'W')
     askFrom.write('bleibt.txt', 'B')
+    // Empty, so nothing above creates it; a missing place makes the rule wait.
+    askTo.ensureFolder()
 
     unwrap(
       'sync_rules_create',
@@ -158,7 +160,6 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     // The waiting deletions are in the details of the rule's row.
     await instance.click('files-sync-rule-open-Nachfrage')
     await instance.click('files-sync-rule-run-Nachfrage')
-    await instance.click('files-sync-rule-open-Nachfrage')
     await instance.waitForDisplayed('files-sync-rule-pending-Nachfrage', 30_000)
     if (!askTo.files().includes('weg.txt')) {
       throw new Error('the asking rule deleted before it was confirmed')

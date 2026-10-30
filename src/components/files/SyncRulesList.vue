@@ -168,7 +168,7 @@ async function confirmDeleteAsync() {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col" data-testid="files-sync-rules">
+  <div class="@container flex min-h-0 flex-col" data-testid="files-sync-rules">
     <div class="flex h-11 shrink-0 items-center gap-2 px-2">
       <UiInput
         v-model="filter"
@@ -229,7 +229,7 @@ async function confirmDeleteAsync() {
           :class="[
             key === 'name' && 'min-w-0 flex-1',
             key === 'status' && 'w-28 shrink-0',
-            key === 'lastRun' && 'hidden w-56 shrink-0 @md:flex',
+            key === 'lastRun' && 'hidden w-56 shrink-0 @2xl:flex',
           ]"
           :data-testid="`files-sync-rules-sort-${key}`"
           @click="pickSort(key)"
@@ -275,7 +275,7 @@ async function confirmDeleteAsync() {
               >
             </span>
             <div
-              class="hidden w-56 shrink-0 flex-col gap-1 text-xs text-muted-foreground @md:flex"
+              class="hidden w-56 shrink-0 flex-col gap-1 text-xs text-muted-foreground @2xl:flex"
             >
               <template v-if="activity[view.rule.id]">
                 <div
