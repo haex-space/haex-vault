@@ -77,7 +77,10 @@ impl ModelShape {
             file_bytes,
             layers,
             kv_bytes_per_token,
-            trained_context: summary.context_length.and_then(|n| u32::try_from(n).ok()),
+            trained_context: summary
+                .context_length
+                .and_then(|n| u32::try_from(n).ok())
+                .filter(|n| *n > 0),
         })
     }
 }
@@ -97,11 +100,13 @@ pub fn plan(
     let start = shape
         .trained_context
         .map_or(wanted, |trained| wanted.min(trained))
-        .max(MIN_CONTEXT);
+        .max(1);
+    // Keep a smaller requested/trained context when it is already below the planner's normal floor.
+    let minimum = start.min(MIN_CONTEXT);
     let kv = |context: u32| shape.kv_bytes_per_token * u64::from(context);
 
     if let Some(device) = free.device {
-        for context in contexts(start).take(3) {
+        for context in contexts(start, minimum).take(3) {
             if shape.file_bytes + kv(context) + DEVICE_MARGIN <= device {
                 return Ok(Placement {
                     gpu_layers: shape.layers + 1,
@@ -117,7 +122,7 @@ pub fn plan(
     let remainder = shape.file_bytes - per_layer * layers;
     let host_budget = (free.host.saturating_sub(HOST_MARGIN) as f64 * HOST_USABLE) as u64;
     let mut last = start;
-    for context in contexts(start) {
+    for context in contexts(start, minimum) {
         last = context;
         let per_layer_total = per_layer + kv(context) / layers;
         // At least one layer stays on the host, or the full-offload case above would have taken it.
@@ -139,12 +144,12 @@ pub fn plan(
     })
 }
 
-/// `start`, then half of it, down to [`MIN_CONTEXT`].
-fn contexts(start: u32) -> impl Iterator<Item = u32> {
+/// `start`, then half of it, down to `minimum`.
+fn contexts(start: u32, minimum: u32) -> impl Iterator<Item = u32> {
     let mut next = Some(start);
     std::iter::from_fn(move || {
         let current = next?;
-        next = (current > MIN_CONTEXT).then(|| (current / 2).max(MIN_CONTEXT));
+        next = (current > minimum).then(|| (current / 2).max(minimum));
         Some(current)
     })
 }

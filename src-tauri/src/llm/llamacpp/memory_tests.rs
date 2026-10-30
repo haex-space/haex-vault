@@ -84,6 +84,28 @@ fn context_is_capped_by_what_the_model_was_trained_for() {
 }
 
 #[test]
+fn trained_context_below_the_normal_floor_is_preserved() {
+    let free = FreeMemory {
+        device: Some(24 * GIB),
+        host: 16 * GIB,
+    };
+    let mut shape = qwen3_4b();
+    shape.trained_context = Some(1024);
+    assert_eq!(plan(&shape, free, Some(8192)).unwrap().context, 1024);
+}
+
+#[test]
+fn requested_context_below_the_normal_floor_is_preserved() {
+    let free = FreeMemory {
+        device: Some(24 * GIB),
+        host: 16 * GIB,
+    };
+    let mut shape = qwen3_4b();
+    shape.trained_context = Some(4096);
+    assert_eq!(plan(&shape, free, Some(512)).unwrap().context, 512);
+}
+
+#[test]
 fn the_default_context_applies_without_a_catalog_value() {
     let free = FreeMemory {
         device: Some(24 * GIB),
