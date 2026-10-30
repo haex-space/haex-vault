@@ -11,8 +11,10 @@ pub mod catalog;
 pub mod client;
 pub mod commands;
 pub mod details;
+pub mod download;
 pub mod icons;
 pub mod model;
+pub mod pending;
 pub mod seed;
 pub mod store;
 pub mod wire;
@@ -79,6 +81,10 @@ pub struct MarketplaceState {
     /// The catalog call that is running; a newer call aborts it (contracts/commands.md).
     catalog: std::sync::Mutex<Option<futures::future::AbortHandle>>,
     pub icons: icons::Icons,
+    /// The downloaded bundle that waits for its install preview (one at a time).
+    pub pending: std::sync::Arc<pending::PendingSlot>,
+    /// The downloads that are running, so one can be cancelled by its id.
+    pub downloads: download::Downloads,
 }
 
 impl Default for MarketplaceState {
@@ -86,6 +92,8 @@ impl Default for MarketplaceState {
         Self {
             catalog: std::sync::Mutex::new(None),
             icons: icons::Icons::default(),
+            pending: std::sync::Arc::default(),
+            downloads: download::Downloads::default(),
         }
     }
 }

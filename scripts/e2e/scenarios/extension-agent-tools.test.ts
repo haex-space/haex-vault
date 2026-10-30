@@ -35,7 +35,9 @@ scenario('extension-agent-tools', { timeoutMs: 300_000 }, async (ctx) => {
     declared: DeclaredRow[]
   }>(
     'extension_install_preview',
-    await page.invoke('extension_install_preview', { file }),
+    await page.invoke('extension_install_preview', {
+      source: { kind: 'file', file },
+    }),
   )
   assert.ok(preview.signatureValid)
   assert.equal(preview.displayName, 'Test-Erweiterung')
@@ -62,7 +64,7 @@ scenario('extension-agent-tools', { timeoutMs: 300_000 }, async (ctx) => {
   const extension = unwrap<InstalledExtension>(
     'extension_install',
     await page.invoke('extension_install', {
-      args: { file, accepted, confirmed: false },
+      args: { source: { kind: 'file', file }, accepted, confirmed: false },
     }),
   )
   const views = unwrap<Array<{ kind: string; target: string; status: string }>>(

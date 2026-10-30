@@ -2352,6 +2352,8 @@
       "fileType": "Extension",
       "checking": "Checking the file …",
       "publisher": "Publisher: {author} · key {fingerprint}",
+      "fromMarketplace": "From the marketplace “{name}”.",
+      "publisherDiffers": "The key of this bundle ({bundle}) is not the publisher key the marketplace lists ({listed}). Only install it if you know why.",
       "sameNameOtherPublisher": "Another extension with the same name is already installed. This one comes from a different publisher and gets its own data.",
       "update": "Update from {from} to {to}",
       "confirmDowngrade": "Install the older version anyway",

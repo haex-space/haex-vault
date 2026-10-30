@@ -4,18 +4,23 @@
 //! extension reaches them (FR-030, checked by `commands_tests.rs`).
 
 use futures::future::Abortable;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
+use uuid::Uuid;
 
 use super::catalog::{fetch_catalog, InstalledExtension, Source};
 use super::client::{Http, SourceFailure};
 use super::details::{fetch_categories, fetch_details};
+use super::download::download_bundle;
 use super::icons::Network;
 use super::model::{
-    CatalogCategories, CatalogDetail, CatalogPage, CatalogQuery, MarketplaceAuthType,
-    MarketplaceCredentialsState, MarketplaceView, SourceErrorKind,
+    CatalogCategories, CatalogDetail, CatalogPage, CatalogQuery, DownloadProgress,
+    MarketplaceAuthType, MarketplaceCredentialsState, MarketplaceView, PendingBundleRef,
+    SourceErrorKind,
 };
+use super::pending::PendingBundle;
 use super::store::{self, MarketplaceRow};
-use super::{app_version, kinds, MarketplaceState};
+use super::{app_version, kinds, MarketplaceState, PENDING_IDLE};
 use crate::error::{HolziError, Result};
 use crate::extensions::registry::list::list as list_extensions;
 use crate::state::AppState;
@@ -23,7 +28,7 @@ use crate::state_utils::active_database;
 use crate::storage::wm_session_commands::current_device_uuid;
 use crate::vault_gate::VaultDb;
 
-fn refused(kind: &str) -> HolziError {
+pub(super) fn refused(kind: &str) -> HolziError {
     HolziError::Marketplace {
         reason: kind.to_owned(),
     }
@@ -199,6 +204,95 @@ pub async fn marketplace_icon(
         .icons
         .load(&Network::system(), &row.base_url, &url)
         .await
+}
+
+fn download_id(text: &str) -> Result<Uuid> {
+    Uuid::parse_str(text).map_err(|_| HolziError::InvalidInput {
+        reason: "download id".into(),
+    })
+}
+
+/// Downloads a version of an entry, checks size and checksum and keeps the bytes in the host for
+/// the install preview (FR-010 to FR-013). `id` is chosen by the caller, so the download can be
+/// cancelled before it has ended; it names the pending bundle afterwards. Progress goes to
+/// `on_progress`.
+#[tauri::command]
+pub async fn marketplace_download(
+    state: State<'_, AppState>,
+    market: State<'_, MarketplaceState>,
+    source_id: String,
+    slug: String,
+    version: String,
+    id: String,
+    on_progress: Channel<DownloadProgress>,
+) -> Result<PendingBundleRef> {
+    let id = download_id(&id)?;
+    let db = active_database(&state)?;
+    let rows = rows(&db).await?;
+    let row = rows
+        .iter()
+        .find(|row| row.id == source_id)
+        .ok_or_else(|| refused(kinds::NOT_FOUND))?;
+    let closing = state.gate().token();
+    let (cancel, _running) = market.downloads.begin(id, &closing)?;
+    market.pending.clear();
+    let bytes = download_bundle(
+        Http::default(),
+        &source_of(row),
+        &slug,
+        &version,
+        &app_version(),
+        &cancel,
+        &mut |progress| {
+            let _ = on_progress.send(progress);
+        },
+    )
+    .await?;
+    if cancel.is_cancelled() {
+        return Err(refused(kinds::DOWNLOAD_CANCELLED));
+    }
+    market.pending.put(
+        id,
+        PendingBundle {
+            source_id: row.id.clone(),
+            source_name: row.name.clone(),
+            slug,
+            version,
+            bytes: std::sync::Arc::new(bytes),
+        },
+        PENDING_IDLE,
+        closing,
+    );
+    // Release the id before checking cancellation. A cancel that arrived while the bundle was
+    // being placed still wins; once the guard is gone, a later cancel is a no-op.
+    drop(_running);
+    if cancel.is_cancelled() {
+        market.pending.take(&id.to_string());
+        return Err(refused(kinds::DOWNLOAD_CANCELLED));
+    }
+    Ok(PendingBundleRef { id: id.to_string() })
+}
+
+/// Ends a running download; one that has ended or never ran is ignored.
+#[tauri::command]
+pub async fn marketplace_download_cancel(
+    market: State<'_, MarketplaceState>,
+    id: String,
+) -> Result<()> {
+    market.downloads.cancel(download_id(&id)?);
+    Ok(())
+}
+
+/// Drops a downloaded bundle without installing it (the preview was closed).
+#[tauri::command]
+pub async fn marketplace_download_discard(
+    market: State<'_, MarketplaceState>,
+    id: String,
+) -> Result<()> {
+    let id = download_id(&id)?;
+    market.downloads.cancel(id);
+    market.pending.take(&id.to_string());
+    Ok(())
 }
 
 #[cfg(test)]
