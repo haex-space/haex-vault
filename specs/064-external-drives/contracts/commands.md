@@ -45,16 +45,20 @@ Passwort.
 ## Entsperren mit Dialog
 
 ```ts
-files_drive_unlock(id: string, secret: DriveSecret, remember: DriveRemember): DriveOpened // nur 'opened'
+files_drive_unlock(id: string, secret: DriveSecretInput, remember: DriveRemember, entryTitle: string): DriveOpened // nur 'opened'
 
-type DriveSecret =
+type DriveSecretInput =
   | { kind: 'typed'; password: string }
   | { kind: 'entry'; itemId: string }
 
 type DriveRemember = 'no' | 'yes' // typed: neuer Eintrag; entry ohne URL: URL setzen
 
-files_drive_link_entry(id: string, itemId: string): void // nach Zustimmung: URL des Eintrags ersetzen
+files_drive_link_entry(key: string, itemId: string): void // nach Zustimmung: URL des Eintrags ersetzen
 ```
+
+- `entryTitle` ist der Titel eines neuen Eintrags in der Sprache des Fensters („Laufwerk: {name}“).
+- `files_drive_link_entry` nimmt den `key` des Laufwerks: Nach dem Entsperren trägt es die Id seines
+  Inhalts, die alte Id gibt es dann nicht mehr.
 
 - Gemerkt wird erst nach erfolgreichem Entsperren (FR-016). Scheitert das Merken, bleibt das Laufwerk
   offen; die Antwort trägt `rememberFailed: 'failed'` (etwa ein Konflikt beim Eintrag).

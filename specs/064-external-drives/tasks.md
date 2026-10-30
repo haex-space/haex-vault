@@ -339,7 +339,7 @@ already looks for saved entries; without any it always shows the dialog.
 
 **Independent Test**: quickstart Linux step 4, and the E2E "LUKS" case.
 
-- [ ] T047 [US3] `src-tauri/src/files/local/drives/udisks.rs` `unlock(id, secret)`:
+- [x] T047 [US3] `src-tauri/src/files/local/drives/udisks.rs` `unlock(id, secret)`:
   - `Encrypted.Unlock(secret, {})` → cleartext object, then read it again
   - with no `Filesystem` interface → `Encrypted.Lock` again and `driveNoFilesystem` (FR-020)
   - else `Filesystem.Mount({})` → path; if mounting fails after the unlock, lock the cleartext
@@ -347,19 +347,20 @@ already looks for saved entries; without any it always shows the dialog.
   - `Error.Failed` during unlock → `unlockFailed` with the message
   - The secret is passed as `&str` borrowed from `DriveSecret` only for the call.
   - Test the decision logic (cleartext without filesystem, error mapping) in `udisks_tests.rs` with the pure helpers.
-- [ ] T048 [US3] Create `src-tauri/src/files/local/drives/unlock.rs` for the lookup half (US4 adds remembering):
+- [x] T048 [US3] Create `src-tauri/src/files/local/drives/unlock.rs` for the lookup half (US4 adds remembering):
   - `pub fn entry_url(key: &str) -> String` (`haex:drive:` + lowercase key)
   - `pub fn matching_entries(passwords: &PasswordsService, key) -> Result<Vec<DriveEntry>, DriveError>`: `list_headers(&Caller::User, &[])` filtered on the exact URL
   - `pub fn read_password(passwords, item_id) -> Result<DriveSecret, DriveError>` via `read_secret_item(&Caller::User, &[], id)`
   - No open vault (`state.database()` fails with `NoActiveInstance`) → `NoVault`.
   - `DriveEntry` (`itemId`, `title`, `username`, `url`) is `#[ts(export)]`.
-- [ ] T049 [P] [US3] Tests in `src-tauri/src/files/local/drives/unlock_tests.rs` against a test vault (use the passwords `test_support.rs`; read it first):
+  - `DriveEntry` moved here from `browser_commands/drives.rs` (PR A had put it there); `candidates(passwords, query)` lives here too, not in the command.
+- [x] T049 [P] [US3] Tests in `src-tauri/src/files/local/drives/unlock_tests.rs` against a test vault (use the passwords `test_support.rs`; read it first):
   - `entry_url` lowercases
   - 0, 1 and 2 matching entries; an entry with the URL in another case or with a suffix does not match
   - an entry in the trash does not match
   - `read_password` returns the password
   - The password never appears in the `Debug` of anything returned (assert on `format!("{:?}", …)` of `DriveEntry` lists).
-- [ ] T050 [US3] Extend `files_drive_open` for `state == locked` per `contracts/commands.md` steps 3–4:
+- [x] T050 [US3] Extend `files_drive_open` for `state == locked` per `contracts/commands.md` steps 3–4:
   - `unlock_mode == SystemDialog` → `open_system_unlock`, `systemDialog`
   - `Passphrase`, depending on the matches:
     - exactly one → read and unlock (returns `opened`, or on `unlockFailed` → `needsPassword { reason: savedFailed, message }`)
@@ -368,7 +369,11 @@ already looks for saved entries; without any it always shows the dialog.
   - Without a vault → `needsPassword { reason: none }`; the dialog learns `noVault` from the candidates call. This is a safeguard (FR-018, research R7): test it in `drives_tests.rs` with a state that has no database, not in the E2E.
   - Add `files_drive_unlock(id, secret, remember)` with `remember` accepted but only `no` implemented yet (`yes` → `driveUnsupported` until T055), and `files_drive_unlock_candidates(query)` (entries with a password, titles/usernames/URLs only, pattern `remote_storage::credentials::candidates`).
   - Register them in `lib.rs`. Tests in `drives_tests.rs` with the fake backend and a test vault: each branch, and that a typed secret reaches the fake's `unlock` unchanged.
-- [ ] T051 [US3] Frontend:
+  - The secret type on the wire is `DriveSecretInput` (TS), as `DriveSecret` is the Rust type that never leaves the backend.
+  - `files_drive_unlock` also takes `entryTitle` (the window's "Laufwerk: {name}" in its language), as T054 allows.
+  - `files_drive_link_entry` takes the drive's `key`, not its `id`: unlocking gives the drive the id of its content block, so the old id is gone by the time the window asks.
+  - The password manager calls run on the command's blocking thread through `Handle::block_on`, as `AppHolders::cancel_transfers` does.
+- [x] T051 [US3] Frontend:
   - `useFiles.ts` wrappers `driveUnlockAsync`, `driveUnlockCandidatesAsync`
   - `useFilesDriveActions.ts` handles `needsPassword` (opens the dialog) and `systemDialog` (toast "Entsperren im Dialog des Systems")
   - Create `src/components/files/DriveUnlockDialog.vue` per `contracts/ui.md`:
@@ -377,12 +382,16 @@ already looks for saved entries; without any it always shows the dialog.
     - the hint line for `savedFailed`/`several`
     - the "merken" checkbox rendered but disabled until US4
   - Texts in `de.json`/`en.json`.
+  - `CredentialsEntryPicker.vue` is not reused or extracted: its own logic is the storage command and protocol; the list itself is already the shared `UiInput`, `SettingsGroup` and `SettingsOptionRow`, which the dialog uses the same way.
+  - The candidates load when the dialog opens, so a closed vault greys out the checkbox before the first click.
 - [ ] T052 [US3] Extend `scripts/e2e/scenarios/files-drives.test.ts` with the US3 part:
   - attach the LUKS image `E2EBACKUP` (password from a constant in the scenario): the sidebar shows a locked drive
   - click → dialog; a wrong password → error, dialog stays
   - the right password → the folder view shows the test file
   - eject → the crypto device is locked again (`udisksctl info -b /dev/loopN` shows `CleartextDevice: '/'`)
+  - A scenario of its own, `files-drives-unlock`, with the new `needs.luks` (`cryptsetup` through `sudo -n`); the LUKS image comes from `makeLockedStick` in `scripts/e2e/lib/udisks.ts`, the password through a key file.
 - [ ] T053 [US3] FR-017 check: add a test in `drives_tests.rs` that runs `files_drive_unlock` with a typed secret through a capturing `tracing` subscriber (pattern: grep `tracing_subscriber` in existing `*_tests.rs`) and asserts the secret is not in any log line; then the checks as in T036 and quickstart Linux steps 4 and 6 by hand
+  - The log test is `a_typed_password_never_reaches_the_log` in `drives_tests.rs` (the `log` capture of `crate::test_log`, as holzi logs through `log`, not `tracing`); the hand checks are open.
 
 **Checkpoint**: US1–US3 work on Linux.
 
@@ -395,27 +404,27 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
 
 **Independent Test**: quickstart Linux step 5.
 
-- [ ] T054 [US4] `src-tauri/src/files/local/drives/unlock.rs`, the remembering half:
+- [x] T054 [US4] `src-tauri/src/files/local/drives/unlock.rs`, the remembering half:
   - `remember_typed(passwords, key, label, secret)`: `create_item(&Caller::User, &[], ItemInput { title: "Laufwerk: {label}", password, url: entry_url(key), tags: vec!["haex-drive"], ..Default::default() }, None)`. The title prefix comes from a constant shared with the frontend text, or is passed in from the frontend in its language: read how `remote_storage/credentials.rs` builds "S3: …" and do the same.
   - `link_entry(passwords, item_id, key, replace: bool)`:
     - reads the header
     - URL already `entry_url(key)` → nothing
     - URL empty → `update_item` with `Patch::Set(url)` and the header's `updated_at`, and `set_tags` add `haex-drive`
     - other URL → `UrlTaken` unless `replace`
-- [ ] T055 [US4] Implement `remember` in `files_drive_unlock`:
+- [x] T055 [US4] Implement `remember` in `files_drive_unlock`:
   - remember only after a successful `backend.unlock` (FR-016)
   - `typed` + `yes` → `remember_typed`
   - `entry` + `yes` → `link_entry(replace = false)`. A `UrlTaken` comes back **after** the drive is open, as `opened` with `rememberFailed: 'urlTaken'` (`contracts/commands.md`), so the UI can ask without unlocking twice
   - add `files_drive_link_entry(id, itemId)`: `link_entry(replace = true)` for the drive's `key`; register it in `lib.rs`
   - A failing remember never closes the drive.
-- [ ] T056 [P] [US4] Tests in `unlock_tests.rs` and `drives_tests.rs`:
+- [x] T056 [P] [US4] Tests in `unlock_tests.rs` and `drives_tests.rs`:
   - typed + yes creates exactly one normal entry (no owner) with title, URL and tag
   - a failed unlock creates nothing
   - entry without URL gets the URL and the tag
   - entry with another URL → `urlTaken` and unchanged; with replace → replaced
   - entry already linked → unchanged
   - the next `files_drive_open` on the same key unlocks without a dialog (one match)
-- [ ] T057 [US4] `DriveUnlockDialog.vue`:
+- [x] T057 [US4] `DriveUnlockDialog.vue`:
   - enable the checkbox; its text "Im Passwortmanager merken" when typing, "Mit diesem Laufwerk verknüpfen" for a picked entry
   - on `rememberFailed: 'urlTaken'` ask "Der Eintrag hat schon die Adresse {url}. Durch die Laufwerks-Adresse ersetzen?" and on yes call `files_drive_link_entry(id, itemId)` (`contracts/commands.md`, added in T055)
   - preselect the matches for `reason: several`
@@ -426,6 +435,7 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
   - the password manager (open it through the app, as in the password manager scenarios; read one first) lists "Laufwerk: E2EBACKUP" with tag `haex-drive`
   - eject and click again: it opens without a dialog
   - change the entry's password to a wrong one, eject and click: the dialog shows the `savedFailed` hint
+  - The entry is checked through `passwords_load_overview` and changed through `passwords_update_item` (the helpers of `lib/passwords.ts`), not through the password manager's window.
 - [ ] T059 [US4] Checks as in T036, quickstart Linux step 5. The second-device part of SC-003 is manual (two instances with sync, as in the sync scenarios).
 
 **Checkpoint**: US1–US4 work on Linux (PR C).

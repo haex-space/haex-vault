@@ -137,3 +137,40 @@ fn an_unmounted_file_system_has_no_mount_points() {
         .is_empty());
     assert!(objects[0].block.is_none());
 }
+
+#[test]
+fn a_wrong_password_is_an_unlock_failure_with_the_system_s_text() {
+    assert_eq!(
+        unlock_error(
+            "org.freedesktop.UDisks2.Error.Failed",
+            "Error unlocking /dev/loop0: Failed to activate device: Operation not permitted",
+        ),
+        DriveError::UnlockFailed(
+            "Error unlocking /dev/loop0: Failed to activate device: Operation not permitted"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        unlock_error("org.freedesktop.UDisks2.Error.NotAuthorizedDismissed", ""),
+        DriveError::Cancelled
+    );
+    assert_eq!(
+        unlock_error("org.freedesktop.DBus.Error.UnknownObject", ""),
+        DriveError::Gone
+    );
+}
+
+#[test]
+fn unlocked_content_without_a_file_system_is_not_opened() {
+    let content = |filesystem: Option<FsProps>| UdisksObject {
+        path: "/org/freedesktop/UDisks2/block_devices/dm_2d0".to_owned(),
+        block: Some(BlockProps::default()),
+        filesystem,
+        ..UdisksObject::default()
+    };
+    let path = "/org/freedesktop/UDisks2/block_devices/dm_2d0";
+    assert!(has_filesystem(&[content(Some(FsProps::default()))], path));
+    // LVM or another volume inside (FR-020).
+    assert!(!has_filesystem(&[content(None)], path));
+    assert!(!has_filesystem(&[], path));
+}

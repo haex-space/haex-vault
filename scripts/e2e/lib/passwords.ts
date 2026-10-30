@@ -13,6 +13,7 @@ export interface Overview {
   headers: Array<{
     id: string
     title: string | null
+    url: string | null
     groupId: string | null
     tags: Array<{ id: string; name: string }>
   }>

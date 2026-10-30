@@ -2,12 +2,19 @@ import assert from 'node:assert/strict'
 
 import { deviceFiles } from '../lib/extension-files.ts'
 import { createAndUnlock, unwrap, type FlowInstance } from '../lib/flows.ts'
-import { contextMenu, doubleClick } from '../lib/passwords.ts'
+import {
+  contextMenu,
+  doubleClick,
+  overview,
+  updateEntry,
+} from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 import {
   attach,
+  cleartextOf,
   detach,
+  makeLockedStick,
   makeStick,
   mountPointOf,
   writeOnDrive,
@@ -240,5 +247,104 @@ scenario(
       ),
     )
     ctx.step('ejected with a file open')
+  },
+)
+
+// Spec 064 US3 and US4 (T052, T058), quickstart Linux 4 and 5: an encrypted stick shows up locked,
+// opens through the dialog with its password (a wrong one keeps the dialog open), is locked again on
+// eject, and with "remember" opens the next time without a dialog, until its saved password is wrong.
+const BACKUP = 'E2EBACKUP'
+const BACKUP_PASSWORD = 'e2e-drive-password'
+
+scenario(
+  'files-drives-unlock',
+  { needs: { udisks: true, luks: true }, timeoutMs: 240_000 },
+  async (ctx) => {
+    const stick = makeLockedStick(BACKUP, BACKUP_PASSWORD, {
+      'sicherung.txt': 'gesichert',
+    })
+    ctx.onTeardown(() => stick.remove())
+
+    const instance = await ctx.startInstance()
+    await createAndUnlock(instance, { name: 'e2e-files-drives-unlock' })
+    await runAction(instance, 'wm.app.open', { appId: 'system.files' })
+    const locked = await ctx.waitFor('the locked stick in the sidebar', () =>
+      driveRow(instance, BACKUP),
+    )
+    assert.ok(locked)
+
+    /** Ejects the open stick and waits until the sidebar shows it locked again. */
+    const ejectAndWait = async (what: string) => {
+      const open = await ctx.waitFor(`${what}: the open stick`, async () => {
+        const row = await driveRow(instance, BACKUP)
+        return row !== locked ? row : null
+      })
+      assert.ok(open)
+      await instance.click(
+        open.replace('files-drive-', 'files-drive-eject-'),
+        15_000,
+      )
+      await ctx.waitFor(`${what}: locked again`, () =>
+        cleartextOf(stick.device) === null ? true : null,
+      )
+      await ctx.waitFor(`${what}: the sidebar showing it locked`, async () =>
+        (await driveRow(instance, BACKUP)) === locked ? true : null,
+      )
+    }
+
+    // US3: a wrong password keeps the dialog open with the system's text; the field is emptied.
+    await instance.click(locked)
+    await instance.type('#files-drive-unlock-password', 'falsch')
+    await instance.click('files-drive-unlock-submit')
+    await instance.waitForDisplayed('files-drive-unlock-error', 30_000)
+    assert.equal(cleartextOf(stick.device), null)
+    assert.equal(
+      await instance.exec<string>(
+        `return document.getElementById('files-drive-unlock-password')?.value ?? null`,
+      ),
+      '',
+    )
+    ctx.step('a wrong password keeps the dialog')
+
+    await instance.type('#files-drive-unlock-password', BACKUP_PASSWORD)
+    await instance.click('files-drive-unlock-submit')
+    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
+    assert.ok(cleartextOf(stick.device))
+    await ejectAndWait('typed')
+    ctx.step('unlocked with the typed password, locked again on eject')
+
+    // US4: remembered, it opens the next time without a dialog.
+    await instance.click(locked)
+    await instance.type('#files-drive-unlock-password', BACKUP_PASSWORD)
+    await instance.click('files-drive-unlock-remember')
+    await instance.click('files-drive-unlock-submit')
+    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
+    const saved = (await overview(instance)).headers.find(
+      (header) => header.title === `Laufwerk: ${BACKUP}`,
+    )
+    assert.ok(saved, 'the entry in the password manager')
+    assert.ok(saved.url?.startsWith('haex:drive:'), saved.url ?? 'no address')
+    assert.deepEqual(
+      saved.tags.map((tag) => tag.name),
+      ['haex-drive'],
+    )
+    await ejectAndWait('remembered')
+    ctx.step('remembered in the password manager')
+
+    await instance.click(locked)
+    await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
+    assert.ok(
+      await gone(instance, 'files-drive-unlock-form'),
+      'no dialog with a saved password',
+    )
+    await ejectAndWait('saved')
+    ctx.step('opened with the saved password')
+
+    // A saved password that no longer fits opens the dialog with the hint.
+    await updateEntry(instance, saved.id, { password: 'nicht mehr' })
+    await instance.click(locked)
+    await instance.waitForDisplayed('files-drive-unlock-hint', 30_000)
+    assert.equal(cleartextOf(stick.device), null)
+    ctx.step('a saved password that fails asks again')
   },
 )

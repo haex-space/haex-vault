@@ -2718,7 +2718,30 @@
       "releaseCancelled": "Auswerfen abgebrochen",
       "transfersRunning": "Eine Übertragung läuft noch. Abbrechen und {verb}? | {count} Übertragungen laufen noch. Abbrechen und {verb}?",
       "ejectVerb": "auswerfen",
-      "unmountVerb": "aushängen"
+      "unmountVerb": "aushängen",
+      "systemDialog": "{name}: Entsperren im Dialog des Systems",
+      "noFilesystem": "{name} ist entsperrt, enthält aber kein Dateisystem, das sich öffnen lässt",
+      "entryTitle": "Laufwerk: {name}",
+      "unlock": {
+        "title": "{name} entsperren",
+        "savedFailed": "Mit dem gespeicherten Passwort ging es nicht: {message}",
+        "savedFailedGeneric": "Mit dem gespeicherten Passwort ging es nicht",
+        "several": "Mehrere gespeicherte Passwörter passen – bitte eins wählen",
+        "password": "Passwort",
+        "pick": "Aus Passwortmanager wählen",
+        "search": "Einträge durchsuchen",
+        "loading": "Einträge werden geladen …",
+        "empty": "Keine Einträge mit Passwort",
+        "noMatch": "Kein Eintrag passt zur Suche",
+        "noVault": "Passwortmanager nur mit offenem Vault",
+        "rememberTyped": "Im Passwortmanager merken",
+        "rememberEntry": "Mit diesem Laufwerk verknüpfen",
+        "submit": "Entsperren",
+        "rememberFailed": "{name} ist offen, aber das Passwort ließ sich nicht merken",
+        "urlTaken": "Der Eintrag hat schon die Adresse {url}. Durch die Laufwerks-Adresse ersetzen?",
+        "replace": "Ersetzen",
+        "keep": "Behalten"
+      }
     },
     "sidebar": {
       "label": "Orte und Laufwerke",

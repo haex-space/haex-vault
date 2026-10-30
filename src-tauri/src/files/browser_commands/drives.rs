@@ -1,35 +1,30 @@
 //! The drives of the file browser (spec 064, contracts/commands.md): the live list, opening a
-//! drive, which mounts it first when needed, and releasing it. None of this is an agent action or a peer request
-//! (FR-021, FR-022). The backend blocks, so every call runs off the async executor.
+//! drive, which mounts or unlocks it first when needed, and releasing it. None of this is an agent
+//! action or a peer request (FR-021, FR-022). The backend blocks, so every call runs off the async
+//! executor; the password manager is asked from there too.
 
+use std::future::Future;
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
 use super::blocking;
-use crate::files::local::drives::backend::{backend, DriveBackend, DriveError, UnlockMode};
+use crate::files::local::drives::backend::{
+    backend, DriveBackend, DriveError, DriveSecret, UnlockMode,
+};
 use crate::files::local::drives::monitor::{DriveMonitor, DrivesChanged};
-use crate::files::local::drives::{DriveRelease, DriveState};
+use crate::files::local::drives::unlock::{self, DriveEntry};
+use crate::files::local::drives::{Drive, DriveRelease, DriveState};
 use crate::files::media::server::MediaServer;
 use crate::files::search::SearchManager;
 use crate::files::state::FilesState;
 use crate::files::transfer::TransferManager;
 use crate::files::FilesError;
+use crate::passwords::service::PasswordsService;
 use crate::state::AppState;
-
-/// A password manager entry offered for a drive; never its password.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct DriveEntry {
-    pub item_id: String,
-    pub title: String,
-    pub username: Option<String>,
-    pub url: Option<String>,
-}
 
 /// Why the unlock dialog opens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -78,6 +73,30 @@ pub enum DriveOpened {
     SystemDialog,
 }
 
+/// The password the unlock dialog sends: typed, or the one of an entry the user picked. It has no
+/// `Debug`, so a typed password cannot end up in a log line (FR-017).
+#[derive(Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum DriveSecretInput {
+    Typed { password: String },
+    Entry { item_id: String },
+}
+
+/// Whether the dialog's "remember" box was ticked: a typed password becomes a new entry, a picked
+/// entry gets the drive's address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum DriveRemember {
+    No,
+    Yes,
+}
+
 /// What releasing a drive led to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -109,37 +128,216 @@ pub fn files_drives_unwatch(monitor: State<'_, DriveMonitor>, id: u64) {
     monitor.unsubscribe(id);
 }
 
-/// Opens a drive from the sidebar or a tab's notice: mounts it when needed (FR-006).
+/// Opens a drive from the sidebar or a tab's notice: mounts it when needed (FR-006), and unlocks it
+/// with the one saved password that fits (FR-013).
 #[tauri::command]
-pub async fn files_drive_open(id: String) -> Result<DriveOpened, FilesError> {
-    blocking(move || open(&*backend(), &id)).await
+pub async fn files_drive_open(app: AppHandle, id: String) -> Result<DriveOpened, FilesError> {
+    blocking(move || open(&*backend(), passwords(&app).as_ref(), &id)).await
 }
 
-/// [`files_drive_open`] against any backend.
-pub(crate) fn open(backend: &dyn DriveBackend, id: &str) -> Result<DriveOpened, FilesError> {
-    let drive = backend
+/// Unlocks a drive with the password from the dialog and remembers it when asked, but only once the
+/// drive is open (FR-014 to FR-016). `entry_title` names a new entry in the window's language.
+#[tauri::command]
+pub async fn files_drive_unlock(
+    app: AppHandle,
+    id: String,
+    secret: DriveSecretInput,
+    remember: DriveRemember,
+    entry_title: String,
+) -> Result<DriveOpened, FilesError> {
+    blocking(move || {
+        unlock_drive(
+            &*backend(),
+            passwords(&app).as_ref(),
+            &id,
+            secret,
+            remember,
+            &entry_title,
+        )
+    })
+    .await
+}
+
+/// Gives the entry `item_id` the address of the drive with `key` after the user agreed to replace
+/// its old one (`rememberFailed: urlTaken`). The drive is named by its key, as unlocking it gave it
+/// a new id.
+#[tauri::command]
+pub async fn files_drive_link_entry(
+    app: AppHandle,
+    key: String,
+    item_id: String,
+) -> Result<(), FilesError> {
+    blocking(move || link(&*backend(), passwords(&app).as_ref(), &key, &item_id)).await
+}
+
+/// The entries the unlock dialog offers, without their passwords.
+#[tauri::command]
+pub async fn files_drive_unlock_candidates(
+    app: AppHandle,
+    query: String,
+) -> Result<Vec<DriveEntry>, FilesError> {
+    let passwords = passwords(&app).ok_or(DriveError::NoVault)?;
+    Ok(unlock::candidates(&passwords, &query).await?)
+}
+
+/// The password manager of the open vault, if one is open (FR-018).
+fn passwords(app: &AppHandle) -> Option<PasswordsService> {
+    let state = app.state::<AppState>();
+    let db = state.database().ok()?;
+    Some(PasswordsService::with_usage(db, state.usage()))
+}
+
+/// Waits for a password manager call on the blocking thread a drive command runs on.
+fn wait<T>(work: impl Future<Output = T>) -> T {
+    tokio::runtime::Handle::current().block_on(work)
+}
+
+fn listed(backend: &dyn DriveBackend, id: &str) -> Result<Drive, DriveError> {
+    backend
         .list()?
         .into_iter()
         .find(|drive| drive.id == id)
-        .ok_or(DriveError::Gone)?;
+        .ok_or(DriveError::Gone)
+}
+
+fn opened(path: String) -> DriveOpened {
+    DriveOpened::Opened {
+        path,
+        remember_failed: None,
+    }
+}
+
+/// [`files_drive_open`] against any backend and password manager.
+pub(crate) fn open(
+    backend: &dyn DriveBackend,
+    passwords: Option<&PasswordsService>,
+    id: &str,
+) -> Result<DriveOpened, FilesError> {
+    let drive = listed(backend, id)?;
     let path = match drive.state {
         DriveState::Mounted => drive.path.ok_or(DriveError::Gone)?,
         DriveState::Unmounted => backend.mount(id)?,
-        DriveState::Locked => {
-            return match backend.unlock_mode() {
-                UnlockMode::SystemDialog => {
-                    backend.open_system_unlock(id)?;
-                    Ok(DriveOpened::SystemDialog)
-                }
-                // Unlocking with a password comes with spec 064 US3.
-                UnlockMode::Passphrase | UnlockMode::None => Err(DriveError::Unsupported.into()),
-            };
+        DriveState::Locked => return open_locked(backend, passwords, &drive),
+    };
+    Ok(opened(path))
+}
+
+/// Steps 3 and 4 of contracts/commands.md: the system's dialog, the one saved password, or the
+/// window's dialog.
+fn open_locked(
+    backend: &dyn DriveBackend,
+    passwords: Option<&PasswordsService>,
+    drive: &Drive,
+) -> Result<DriveOpened, FilesError> {
+    match backend.unlock_mode() {
+        UnlockMode::SystemDialog => {
+            backend.open_system_unlock(&drive.id)?;
+            return Ok(DriveOpened::SystemDialog);
+        }
+        UnlockMode::None => return Err(DriveError::Unsupported.into()),
+        UnlockMode::Passphrase => {}
+    }
+    let ask = |reason, message, candidates| DriveOpened::NeedsPassword {
+        reason,
+        message,
+        candidates,
+    };
+    let (Some(passwords), Some(key)) = (passwords, drive.key.as_deref()) else {
+        return Ok(ask(DriveNeedsPassword::None, None, Vec::new()));
+    };
+    let mut matches = match wait(unlock::matching_entries(passwords, key)) {
+        Err(DriveError::NoVault) => Vec::new(),
+        other => other?,
+    };
+    match matches.len() {
+        0 => Ok(ask(DriveNeedsPassword::None, None, Vec::new())),
+        1 => {
+            let entry = matches.remove(0);
+            let secret = wait(unlock::read_password(passwords, &entry.item_id))?;
+            match backend.unlock(&drive.id, &secret) {
+                Ok(path) => Ok(opened(path)),
+                Err(DriveError::UnlockFailed(message)) => Ok(ask(
+                    DriveNeedsPassword::SavedFailed,
+                    Some(message),
+                    Vec::new(),
+                )),
+                Err(error) => Err(error.into()),
+            }
+        }
+        _ => Ok(ask(DriveNeedsPassword::Several, None, matches)),
+    }
+}
+
+/// [`files_drive_unlock`] against any backend and password manager.
+pub(crate) fn unlock_drive(
+    backend: &dyn DriveBackend,
+    passwords: Option<&PasswordsService>,
+    id: &str,
+    secret: DriveSecretInput,
+    remember: DriveRemember,
+    entry_title: &str,
+) -> Result<DriveOpened, FilesError> {
+    let drive = listed(backend, id)?;
+    let (secret, picked) = match secret {
+        DriveSecretInput::Typed { password } => (DriveSecret::new(password), None),
+        DriveSecretInput::Entry { item_id } => {
+            let passwords = passwords.ok_or(DriveError::NoVault)?;
+            (wait(unlock::read_password(passwords, &item_id))?, Some(item_id))
+        }
+    };
+    let path = backend.unlock(id, &secret)?;
+    let remember_failed = match remember {
+        DriveRemember::No => None,
+        DriveRemember::Yes => {
+            remember_it(passwords, drive.key.as_deref(), picked, &secret, entry_title).err()
         }
     };
     Ok(DriveOpened::Opened {
         path,
-        remember_failed: None,
+        remember_failed,
     })
+}
+
+/// Remembers the password of a drive that is open now; a failure leaves it open.
+fn remember_it(
+    passwords: Option<&PasswordsService>,
+    key: Option<&str>,
+    picked: Option<String>,
+    secret: &DriveSecret,
+    entry_title: &str,
+) -> Result<(), DriveRememberFailed> {
+    let (Some(passwords), Some(key)) = (passwords, key) else {
+        return Err(DriveRememberFailed::Failed);
+    };
+    let remembered = match picked {
+        None => wait(unlock::remember_typed(passwords, key, entry_title, secret)),
+        Some(item_id) => wait(unlock::link_entry(passwords, &item_id, key, false)),
+    };
+    remembered.map_err(|error| match error {
+        DriveError::UrlTaken => DriveRememberFailed::UrlTaken,
+        other => {
+            log::warn!("files: remembering a drive password failed: {other:?}");
+            DriveRememberFailed::Failed
+        }
+    })
+}
+
+/// [`files_drive_link_entry`] against any backend and password manager.
+pub(crate) fn link(
+    backend: &dyn DriveBackend,
+    passwords: Option<&PasswordsService>,
+    key: &str,
+    item_id: &str,
+) -> Result<(), FilesError> {
+    if !backend
+        .list()?
+        .iter()
+        .any(|drive| drive.key.as_deref() == Some(key))
+    {
+        return Err(DriveError::Gone.into());
+    }
+    let passwords = passwords.ok_or(DriveError::NoVault)?;
+    Ok(wait(unlock::link_entry(passwords, item_id, key, true))?)
 }
 
 /// Unmounts a drive and, as the sidebar's button says, ejects it (FR-008 to FR-012). Running
@@ -197,11 +395,7 @@ pub(crate) fn release(
     id: &str,
     cancel_transfers: bool,
 ) -> Result<DriveReleased, FilesError> {
-    let drive = backend
-        .list()?
-        .into_iter()
-        .find(|drive| drive.id == id)
-        .ok_or(DriveError::Gone)?;
+    let drive = listed(backend, id)?;
     if drive.release == DriveRelease::None {
         return Err(DriveError::Unsupported.into());
     }

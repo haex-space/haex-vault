@@ -17,6 +17,7 @@ pub mod mountinfo;
 pub mod udisks;
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 pub mod udisks_classify;
+pub mod unlock;
 
 /// What kind of drive it is; picks the icon and the order (spec 064 FR-002, FR-003).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, TS)]
