@@ -185,9 +185,9 @@ subtle = "2.6"
 haex-crdt = { git = "https://github.com/haexmas/haex-crdt", rev = "928d06af1ef61c507395a38fc3012ad03d15fc33", features = ["raw-connection"] }
 
 # The bundle format of extensions (spec 017, research R3): its one implementation, shared with
-# the `haex` tool of the vault-sdk (which uses its WebAssembly build). Pinned to the commit of
-# haex-space/vault-sdk#54 on the haexmas fork until that PR is merged, then to the merge SHA.
-haex-bundle = { git = "https://github.com/haex-space/vault-sdk", rev = "280cebf63eba72422d1ddd62e1edeb5ad7e7d3cc" }
+# the `haex` tool of the vault-sdk (which uses its WebAssembly build). Pinned to the merge commit
+# of haex-space/vault-sdk#94, which checks the `openers` block (spec 063).
+haex-bundle = { git = "https://github.com/haex-space/vault-sdk", rev = "517402a94c7c2b5f2093f38e3930f4019ddbba8d" }
 # Versions of bundles, compared as the format parses them (effective bundle = highest, R11).
 semver = "1"
 

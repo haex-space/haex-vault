@@ -208,3 +208,45 @@ fn a_development_version_reads_its_openers() {
     let manifest = Manifest::from_dev_file(json, None).unwrap();
     assert!(manifest.opens(OpenerKind::MailCompose));
 }
+
+/// Checks that a bundle whose `openers` block is outside the bundle format is refused, before the
+/// manifest is read at all (spec 063, FR-013).
+#[test]
+fn a_bundle_with_a_malformed_openers_block_is_refused() {
+    for name in [
+        "bad-openers-not-array.xt",
+        "bad-openers-not-strings.xt",
+        "bad-openers-too-many.xt",
+        "bad-openers-form.xt",
+        "bad-openers-too-long.xt",
+        "bad-openers-duplicate.xt",
+    ] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/extension_bundles")
+            .join(name);
+        let error = verify_bundle(&std::fs::read(path).unwrap()).unwrap_err();
+        assert_eq!(error.kind, "manifest_invalid", "{name}");
+    }
+}
+
+#[test]
+fn a_bundle_with_openers_opens_the_kind() {
+    let manifest = Manifest::from_verified(&vector("good-openers.xt")).unwrap();
+    assert!(manifest.opens(OpenerKind::MailCompose));
+}
+
+#[test]
+fn a_development_version_with_a_malformed_openers_block_is_refused() {
+    for openers in [
+        r#""mail.compose""#,
+        "[1]",
+        r#"["mail.compose","mail.compose"]"#,
+        r#"["Mail"]"#,
+    ] {
+        let json = format!(
+            r#"{{"name":"dev-mail","version":"0.1.0","publicKey":"3614253f84ba66a8faa168d317a6979992979a3e7ad15ae83ca2823f5ca97d34","permissions":{{}},"openers":{openers}}}"#
+        );
+        let error = Manifest::from_dev_file(&json, None).unwrap_err();
+        assert_eq!(error.kind, "manifest_invalid", "{openers}");
+    }
+}

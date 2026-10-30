@@ -191,10 +191,14 @@ impl Manifest {
                 .and_then(serde_json::Value::as_str)
                 .map(|value| JsonValue::String(value.to_owned()))
         };
-        // A bundle's tools are checked by `haex-bundle` on verification; a development version is
-        // never verified, so its tools block gets the same check here.
+        // A bundle's tools and openers are checked by `haex-bundle` on verification; a development
+        // version is never verified, so its blocks get the same checks here.
         if let Some(tools) = manifest.get("tools").filter(|v| !v.is_null()) {
             haex_bundle::tools::check_tools(tools)
+                .map_err(|_| BundleRejection::new(haex_bundle::ErrorKind::ManifestInvalid))?;
+        }
+        if let Some(openers) = manifest.get("openers").filter(|v| !v.is_null()) {
+            haex_bundle::openers::check_openers(openers)
                 .map_err(|_| BundleRejection::new(haex_bundle::ErrorKind::ManifestInvalid))?;
         }
         if let Some(name) = from_package("name") {

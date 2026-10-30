@@ -81,6 +81,13 @@ The expected kind assumes this order; the first failing check wins.
 - `bad-tools-schema.xt` — `manifest_invalid` — tool inputSchema has type string, not object
 - `bad-tools-unknown-key.xt` — `manifest_invalid` — tool has the unknown key risk
 - `bad-tools-too-many.xt` — `manifest_invalid` — 33 tools, more than 32
+- `good-openers.xt` — valid — openers block with the known kind mail.compose and a kind of the right form no host knows
+- `bad-openers-not-array.xt` — `manifest_invalid` — openers is an object, not an array of strings
+- `bad-openers-not-strings.xt` — `manifest_invalid` — openers holds a number
+- `bad-openers-too-many.xt` — `manifest_invalid` — 9 openers, more than 8
+- `bad-openers-form.xt` — `manifest_invalid` — opener Mail.compose breaks ^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$
+- `bad-openers-too-long.xt` — `manifest_invalid` — opener kind of 33 characters
+- `bad-openers-duplicate.xt` — `manifest_invalid` — mail.compose twice
 - `bad-weak-key.xt` — `manifest_invalid` — manifest and signature.json both name the small-order identity point as publicKey
 - `bad-journal-missing-sql.xt` — `manifest_invalid` — db/meta/_journal.json names 0001_tags, db/0001_tags.sql is absent
 - `bad-migration-not-utf8.xt` — `manifest_invalid` — db/0001_tags.sql named by the journal is not UTF-8

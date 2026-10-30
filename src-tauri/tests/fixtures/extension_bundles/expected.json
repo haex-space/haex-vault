@@ -134,6 +134,33 @@
     "valid": false,
     "kind": "manifest_invalid"
   },
+  "good-openers.xt": {
+    "valid": true
+  },
+  "bad-openers-not-array.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-openers-not-strings.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-openers-too-many.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-openers-form.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-openers-too-long.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-openers-duplicate.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
   "bad-weak-key.xt": {
     "valid": false,
     "kind": "manifest_invalid"

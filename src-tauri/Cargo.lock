@@ -4483,7 +4483,7 @@ dependencies = [
 [[package]]
 name = "haex-bundle"
 version = "0.1.0"
-source = "git+https://github.com/haex-space/vault-sdk?rev=280cebf63eba72422d1ddd62e1edeb5ad7e7d3cc#280cebf63eba72422d1ddd62e1edeb5ad7e7d3cc"
+source = "git+https://github.com/haex-space/vault-sdk?rev=517402a94c7c2b5f2093f38e3930f4019ddbba8d#517402a94c7c2b5f2093f38e3930f4019ddbba8d"
 dependencies = [
  "crc32fast",
  "ed25519-dalek",
