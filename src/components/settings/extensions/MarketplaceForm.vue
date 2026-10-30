@@ -33,8 +33,10 @@ const deleting = ref(false)
 let kept: Pick<MarketplaceInput, 'authType' | 'credentialsItemId'> = {
   authType: 'none',
 }
+let loadSequence = 0
 
 async function loadAsync() {
+  const mine = ++loadSequence
   loaded.value = false
   missing.value = false
   result.value = null
@@ -48,6 +50,7 @@ async function loadAsync() {
   }
   try {
     const all = await invoke<MarketplaceView[]>('marketplace_list')
+    if (mine !== loadSequence) return
     const row = all.find((market) => market.id === id.value)
     if (!row) {
       missing.value = true
@@ -60,6 +63,7 @@ async function loadAsync() {
       }
     }
   } catch (error) {
+    if (mine !== loadSequence) return
     failure.value = errString(error)
   }
   loaded.value = true
