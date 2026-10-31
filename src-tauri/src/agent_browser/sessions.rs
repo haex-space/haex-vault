@@ -3,7 +3,8 @@
 //! in the sessions bar and stops them; a stop ends the running call within a second, gives the
 //! tabs back to the user and refuses the agent's further browser calls with `stopped` until it
 //! begins a new session: an external agent with a new connection, the built-in agent with the
-//! user's next chat message ([`BrowserSessions::resume`]).
+//! user's next chat message ([`BrowserSessions::resume`]). "Eingreifen" pauses the agent until
+//! "Zurückgeben" (FR-017, [`BrowserSessions::control`]).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
@@ -11,7 +12,7 @@ use std::sync::{Arc, Mutex, PoisonError, Weak};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::session::Session;
+use super::session::{Front, Session};
 use super::tab::OnStop;
 use crate::caller::Caller;
 
@@ -45,6 +46,21 @@ pub struct BrowserSessionView {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub last_action: Option<BrowserLastAction>,
+    /// Set while the user has the browser and the agent waits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub paused: Option<BrowserPause>,
+}
+
+/// Why the user has the browser of a session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "by", rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum BrowserPause {
+    /// "Eingreifen", or the user's own input in an agent tab.
+    User,
+    /// The agent asked (`browser.takeover.request`), with its reason in its own words.
+    Request { reason: String },
 }
 
 /// A tab of a session: the website and title of the page the agent last saw (the title comes
@@ -69,13 +85,14 @@ pub struct BrowserLastAction {
     pub at: i64,
 }
 
-/// What the window can do with a session (contracts/tauri-commands.md); taking over and giving
-/// back follow with PR D.
+/// What the window can do with a session (contracts/tauri-commands.md).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum BrowserControl {
     Stop,
+    Takeover,
+    Return,
 }
 
 /// Why no session serves a call.
@@ -230,6 +247,36 @@ impl BrowserSessions {
             Err(_) => session.end().await,
         }
         true
+    }
+
+    /// "Stoppen", "Eingreifen" or "Zurückgeben" for session `id`; `false` when it no longer runs or
+    /// is in that state already. Giving back may ask about the tabs' websites, so it goes on after
+    /// this returns.
+    pub async fn control(&self, id: &str, command: BrowserControl) -> bool {
+        if command == BrowserControl::Stop {
+            return self.stop(id).await;
+        }
+        let session = self
+            .shared
+            .entries
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .find_map(|entry| match entry {
+                Entry::Live(session) if session.id == id => Some(Arc::clone(session)),
+                _ => None,
+            });
+        let Some(session) = session else {
+            return false;
+        };
+        match command {
+            BrowserControl::Takeover => session.take_over(BrowserPause::User, Front::Current).await,
+            _ if !session.is_paused() => false,
+            _ => {
+                tokio::spawn(async move { session.give_back().await });
+                true
+            }
+        }
     }
 
     /// The browser of session `id` ended; the agent's next call begins a new session.

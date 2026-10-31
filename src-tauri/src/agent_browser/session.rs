@@ -13,7 +13,8 @@
 //! last action, FR-015) it keeps outside its tabs' lock, so the sessions bar never waits for a
 //! running call; so does it keep which targets are its tabs and their frames, so a tab their pages
 //! open finds its session while the call that opened it still runs ([`super::new_tab`]). When the
-//! user stops it, its tabs go back to the user ([`Session::end`]).
+//! user stops it, its tabs go back to the user ([`Session::end`]); while the user has taken over,
+//! the agent waits (session_pause.rs).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -24,22 +25,24 @@ use tokio_util::sync::CancellationToken;
 
 use super::cdp::Connection;
 use super::executor::BrowserEnv;
-use super::marker::MarkerTexts;
-use super::prompts::{
-    self, need, BrowserDecision, BrowserPromptKind, BrowserPrompts, BrowserQuestion, ClosedNotice,
-    Effect, Need, Remember,
+use super::marker::{MarkerTexts, Signal};
+use super::prompts::{BrowserPrompts, ClosedNotice};
+use super::sessions::{
+    BrowserLastAction, BrowserPause, BrowserSessionView, BrowserTabView, SessionHooks,
 };
-use super::sessions::{BrowserLastAction, BrowserSessionView, BrowserTabView, SessionHooks};
-use super::sites::{check_document, Site, Verdict};
-use super::submit;
-use super::tab::{Guard, Paused, Tab, TabHooks};
+use super::sites::Site;
+use super::tab::{Tab, TabHooks};
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
-use crate::mcp_server::grants::SiteLevel;
-use crate::prompt_park::PromptEnd;
 
+#[path = "session_checks.rs"]
+mod checks;
 #[path = "session_grants.rs"]
 mod grants;
+#[path = "session_pause.rs"]
+mod pause;
+
+pub use pause::Front;
 
 /// The most agent tabs one session has (FR-029).
 pub const MAX_TABS: usize = 5;
@@ -74,6 +77,13 @@ pub struct Session {
     numbered: AtomicU32,
     /// The targets of the tabs and of their frames, each with its tab's id.
     targets: Mutex<BTreeMap<String, String>>,
+    /// Who has the browser: `None` while the agent steers, else why the user has it.
+    pause: tokio::sync::watch::Sender<Option<BrowserPause>>,
+    /// One taking over or giving back at a time, the markers' change included.
+    steering: Arc<tokio::sync::Mutex<()>>,
+    own_input: Mutex<pause::OwnInput>,
+    /// The last page each tab loaded while the user had the browser, perhaps still on its way.
+    loaded_while_paused: Mutex<BTreeMap<String, String>>,
 }
 
 #[derive(Default)]
@@ -126,6 +136,10 @@ impl Session {
             numbered: AtomicU32::new(0),
             targets: Mutex::default(),
             shown: Mutex::default(),
+            pause: tokio::sync::watch::Sender::new(None),
+            steering: Arc::default(),
+            own_input: Mutex::default(),
+            loaded_while_paused: Mutex::default(),
         })
     }
 
@@ -148,16 +162,41 @@ impl Session {
         format!("t{}", self.numbered.fetch_add(1, Ordering::SeqCst) + 1)
     }
 
-    /// The marker of the new tab `tab` of this session, and where it reports its targets.
+    /// The marker of the new tab `tab` of this session, where the marker reports, and where the
+    /// tab reports its targets.
     pub async fn tab_hooks(self: &Arc<Self>, tab: &str) -> TabHooks {
         let (session, tab) = (Arc::downgrade(self), tab.to_owned());
+        let (signalled, stop) = (Arc::downgrade(self), Arc::clone(&self.hooks.stop));
+        let asked = Arc::downgrade(self);
         TabHooks {
             texts: MarkerTexts::new(
                 &self.env.locale(),
                 self.caller == Caller::BuiltinAgent,
                 &self.agent_name().await,
             ),
-            on_stop: Arc::clone(&self.hooks.stop),
+            paused: Arc::new(move || asked.upgrade().is_some_and(|session| session.is_paused())),
+            on_signal: Arc::new(move |signal| {
+                if signal == Signal::Stop {
+                    return stop();
+                }
+                let (Some(session), Ok(runtime)) =
+                    (signalled.upgrade(), tokio::runtime::Handle::try_current())
+                else {
+                    return;
+                };
+                runtime.spawn(async move {
+                    match signal {
+                        Signal::Takeover => {
+                            session.take_over(BrowserPause::User, Front::Stay).await;
+                        }
+                        Signal::Return => {
+                            session.give_back().await;
+                        }
+                        Signal::Input => session.noticed_input().await,
+                        Signal::Stop | Signal::Hello => {}
+                    }
+                });
+            }),
             on_target: Arc::new(move |target: &str| {
                 if let Some(session) = session.upgrade() {
                     session.targets().insert(target.to_owned(), tab.clone());
@@ -202,6 +241,7 @@ impl Session {
             builtin: self.caller == Caller::BuiltinAgent,
             tabs: shown.tabs.clone(),
             last_action: shown.last_action.clone(),
+            paused: self.pause(),
         }
     }
 
@@ -320,153 +360,6 @@ impl Session {
 
     pub(super) fn mode(&self) -> PermissionMode {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// The guard of this session's tab `tab`.
-    pub fn guard(self: &Arc<Self>, tab: String) -> Guard {
-        let session = Arc::downgrade(self);
-        Arc::new(move |paused: Paused| {
-            let (session, tab) = (session.clone(), tab.clone());
-            Box::pin(async move {
-                match session.upgrade() {
-                    Some(session) => session.check_request(&tab, paused).await,
-                    None => Verdict::Refuse("site_not_allowed"),
-                }
-            })
-        })
-    }
-
-    /// The verdict for a held request of tab `tab`: a document's website first, then whether a
-    /// request that may change something may go (research R5 step 2).
-    pub async fn check_request(&self, tab: &str, paused: Paused) -> Verdict {
-        if paused.document {
-            match self.check(&paused.url).await {
-                Verdict::Go => {}
-                other => return other,
-            }
-        }
-        self.check_send(tab, &paused).await
-    }
-
-    /// Whether a held request of tab `tab` may go when it may change something: once after the
-    /// user allowed the action that sends it, otherwise after asking (research R5 step 2).
-    pub(super) async fn check_send(&self, tab: &str, paused: &Paused) -> Verdict {
-        if !submit::changing(&paused.method) {
-            return Verdict::Go;
-        }
-        if self.take_armed(tab) {
-            return Verdict::Go;
-        }
-        self.ask_to_submit(paused).await
-    }
-
-    /// The first changing request of a new tab may use only its opener's reserved grant.
-    pub(super) async fn check_new_tab_send(&self, grant: Option<u64>, paused: &Paused) -> Verdict {
-        if !submit::changing(&paused.method) {
-            return Verdict::Go;
-        }
-        if grant.is_some_and(|id| self.take_pending_armed(id)) {
-            return Verdict::Go;
-        }
-        self.ask_to_submit(paused).await
-    }
-
-    async fn ask_to_submit(&self, paused: &Paused) -> Verdict {
-        if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
-            return Verdict::Refuse(code);
-        }
-        let question = BrowserQuestion {
-            kind: BrowserPromptKind::Submit,
-            agent: self.env.agent_name(&self.caller).await,
-            site: Site::parse(&paused.url).ok().map(|site| site.to_string()),
-            tool: None,
-            label: Some(format!("{} {}", paused.method, paused.url)),
-            fields: submit::fields_of(paused.body.as_deref()),
-        };
-        let answer = self.ask_for_page(&question).await;
-        match answer {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => Verdict::Go,
-            Ok(_) => Verdict::Refuse("user_declined"),
-            Err(PromptEnd::Expired) => Verdict::Refuse("no_answer"),
-            Err(_) => Verdict::Refuse("stopped"),
-        }
-    }
-
-    /// Asks `question`, which a page set off; the action that caused it waits for the answer.
-    pub(super) async fn ask_for_page(
-        &self,
-        question: &BrowserQuestion,
-    ) -> Result<prompts::BrowserAnswer, PromptEnd> {
-        self.questions.fetch_add(1, Ordering::SeqCst);
-        let answer = prompts::ask(&self.prompts, &self.closed, question, &self.cancel).await;
-        self.questions.fetch_sub(1, Ordering::SeqCst);
-        answer
-    }
-
-    /// Whether a question a page set off is open.
-    pub fn questions_open(&self) -> bool {
-        self.questions.load(Ordering::SeqCst) > 0
-    }
-
-    /// The verdict for a document at `url` of one of this session's tabs.
-    pub async fn check(&self, url: &str) -> Verdict {
-        let first = self.verdict(url).await;
-        let Verdict::Ask(_) = first else {
-            return first;
-        };
-        // One question at a time: after waiting, the answer to another may already cover this one.
-        let _asking = self.asking.lock().await;
-        let site = match self.verdict(url).await {
-            Verdict::Ask(site) => site,
-            other => return other,
-        };
-        let question = BrowserQuestion {
-            kind: BrowserPromptKind::Site,
-            agent: self.env.agent_name(&self.caller).await,
-            site: Some(site.to_string()),
-            tool: None,
-            label: Some(url.to_owned()),
-            fields: Vec::new(),
-        };
-        match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => {
-                self.allow_site(&site, answer.remember).await;
-                Verdict::Go
-            }
-            _ => Verdict::Refuse("site_not_allowed"),
-        }
-    }
-
-    /// The user allowed `site` for this session, and with `remember` for the agent beyond it.
-    pub(super) async fn allow_site(&self, site: &Site, remember: Option<Remember>) {
-        self.once
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(site.clone());
-        let level = match remember {
-            Some(Remember::SiteRead) => Some(SiteLevel::Read),
-            // `http` can only be read (research R9).
-            Some(Remember::SiteOperate) if !site.is_plain_http() => Some(SiteLevel::Operate),
-            Some(Remember::SiteOperate) => Some(SiteLevel::Read),
-            None => None,
-        };
-        if let Some(level) = level {
-            if let Err(error) = self.env.remember(&self.caller, site, level).await {
-                log::warn!("agent browser: could not remember a website: {error}");
-            }
-        }
-    }
-
-    pub(super) async fn verdict(&self, url: &str) -> Verdict {
-        let Some(rights) = self.env.rights(&self.caller).await else {
-            return Verdict::Refuse("site_not_allowed");
-        };
-        check_document(
-            url,
-            &rights.sites,
-            &self.once_allowed_sites(),
-            self.mode() != PermissionMode::Plan,
-        )
     }
 
     /// Ends the session: its questions and running call end, and its tabs go back to the user,

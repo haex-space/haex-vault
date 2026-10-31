@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { defineStore } from 'pinia'
+import type { BrowserControl } from '~/types/bindings/BrowserControl'
 import type { BrowserDecision } from '~/types/bindings/BrowserDecision'
 import type { BrowserPromptClosed } from '~/types/bindings/BrowserPromptClosed'
 import type { BrowserPromptEvent } from '~/types/bindings/BrowserPromptEvent'
@@ -12,8 +13,8 @@ import type { Remember } from '~/types/bindings/Remember'
  * The questions and sessions of the agent browser (spec 065, contracts/tauri-commands.md): Rust
  * asks with `agent-browser-prompt` and closes a question nobody waits for any more with
  * `agent-browser-prompt-closed`. One question is shown at a time, the oldest first. The running
- * sessions are read again on `agent-browser-sessions-changed`; the sessions bar stops them. Only
- * this window answers and stops; no agent can.
+ * sessions are read again on `agent-browser-sessions-changed`; the sessions bar stops them, takes
+ * over and gives back. Only this window answers, stops and takes over; no agent can.
  */
 export const useAgentBrowserStore = defineStore('agentBrowser', () => {
   const prompts = ref<BrowserPromptEvent[]>([])
@@ -71,6 +72,17 @@ export const useAgentBrowserStore = defineStore('agentBrowser', () => {
     sessions.value = sessions.value.filter((s) => s.id !== sessionId)
   }
 
+  /**
+   * "Eingreifen" and "Zurückgeben" (FR-017): the agent waits while the user has the browser; the
+   * sessions are read again when the state changed.
+   */
+  async function steerAsync(
+    sessionId: string,
+    command: Exclude<BrowserControl, 'stop'>,
+  ): Promise<void> {
+    await invoke('agent_browser_control', { args: { sessionId, command } })
+  }
+
   return {
     prompts,
     shown,
@@ -78,5 +90,6 @@ export const useAgentBrowserStore = defineStore('agentBrowser', () => {
     startAsync,
     answerAsync,
     stopAsync,
+    steerAsync,
   }
 })

@@ -7,7 +7,8 @@
 //! changes something, in Manuell and Auto before it submits (research R5 step 1). A submit the user
 //! allowed lets exactly its next changing request go ([`Session::arm`]); any other such request
 //! asks on its own (step 2). The action reports after the page settled and every question it set
-//! off is answered.
+//! off is answered. Its input is holzi's own ([`Session::own`]): the marker's report of it does
+//! not pause the agent.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -158,6 +159,7 @@ impl Acting<'_> {
             tool: Some(tool.to_owned()),
             label: Some(target.name.clone()),
             fields,
+            reason: None,
         };
         self.tools.ask(self.session, question, self.cancel).await?;
         if kind == BrowserPromptKind::Submit {
@@ -200,7 +202,15 @@ impl Acting<'_> {
             .await?;
         tab.take_refusal();
         let events = tab.events();
-        let clicked = input::click(self.connection, &tab.session, target.x, target.y).await;
+        let clicked = self
+            .session
+            .own(input::click(
+                self.connection,
+                &tab.session,
+                target.x,
+                target.y,
+            ))
+            .await;
         if clicked.is_err() {
             // The approval armed this tab; a failed CDP input must not leave that one-request
             // allowance available to a later page request.
@@ -232,7 +242,8 @@ impl Acting<'_> {
         }
         tab.take_refusal();
         let events = tab.events();
-        input::insert_text(self.connection, &tab.session, text)
+        self.session
+            .own(input::insert_text(self.connection, &tab.session, text))
             .await
             .map_err(browser_error)?;
         if submit {
@@ -246,7 +257,10 @@ impl Acting<'_> {
                 shown_fields(&form.fields),
             )
             .await?;
-            let entered = input::enter(self.connection, &tab.session).await;
+            let entered = self
+                .session
+                .own(input::enter(self.connection, &tab.session))
+                .await;
             if entered.is_err() {
                 self.session.disarm();
             }

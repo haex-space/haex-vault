@@ -102,6 +102,15 @@ impl Session {
         Self::clean_submit_grants(&mut armed);
     }
 
+    /// Drops every grant: the user took over, and what the agent was allowed to send is past.
+    pub(super) fn drop_grants(&self) {
+        self.armed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .grants
+            .clear();
+    }
+
     fn clean_submit_grants(armed: &mut SubmitGrants) {
         armed
             .grants

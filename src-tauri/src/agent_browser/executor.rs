@@ -3,7 +3,9 @@
 //! comes with each call. It checks the rights group `browser`, asks in Manuell before a tool that
 //! changes something (the general call prompt is skipped through `confirmsItself`), keeps one
 //! session per agent in [`BrowserSessions`] and starts the browser on the first call (FR-003). A
-//! stop of the session ends the running call within a second (FR-016).
+//! stop of the session ends the running call within a second (FR-016); so does the user taking
+//! over, and until the user gives back, every call gets `paused` (FR-017). Only
+//! `browser.takeover.request` ([`super::takeover`]) waits for that.
 //!
 //! Operating a page (clicking, typing, choosing) runs in [`super::act`]; those tools ask
 //! themselves, with the element's name and before anything is submitted.
@@ -17,10 +19,11 @@ use tokio_util::sync::CancellationToken;
 
 use super::act::Acting;
 use super::calls::{
-    browser_error, input, new_tab, not_allowed, read_tab, site_of, stopped, tab_error, unknown_tab,
-    wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open, ReadPage, Scroll, Wait,
+    browser_error, input, new_tab, not_allowed, paused, read_tab, screenshot, site_of, stopped,
+    tab_error, unknown_tab, wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open,
+    ReadPage, Scroll, Wait,
 };
-use super::cdp::{page, Connection};
+use super::cdp::Connection;
 use super::error::BrowserError;
 use super::prompts::{
     self, BrowserDecision, BrowserPromptKind, BrowserPrompts, BrowserQuestion, ClosedNotice,
@@ -29,12 +32,11 @@ use super::read;
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
 use super::sites::{check_document, may_operate, Site, Verdict};
-use super::tab::{PageInfo, TabError};
-use super::{AgentBrowser, StartConfig};
+use super::tab::TabError;
+use super::{takeover, AgentBrowser, StartConfig};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
-use crate::chat::tools::ToolImage;
 use crate::mcp_server::grants::{BrowserRights, SiteLevel};
 use crate::prompt_park::PromptEnd;
 
@@ -45,7 +47,12 @@ pub const READING: &[&str] = &[
     "browser.scroll",
     "browser.tabs.list",
     "browser.wait",
+    "browser.takeover.request",
 ];
+
+/// Asks the user to take over and waits for the browser back; reading, since it changes nothing on
+/// a website.
+const TAKEOVER: &str = "browser.takeover.request";
 
 /// The tools that change something (every navigation counts, contracts/browser-tools.md); they ask
 /// the user themselves.
@@ -77,10 +84,8 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.type",
     "browser.select",
     "browser.tabs.close",
+    "browser.takeover.request",
 ];
-
-/// A screenshot is at most this wide (research R12).
-const SCREENSHOT_WIDTH: f64 = 1280.0;
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
 /// whole stop within a second).
@@ -171,6 +176,7 @@ impl BrowserTools {
             tool: Some(tool.to_owned()),
             label: Some(label),
             fields: Vec::new(),
+            reason: None,
         };
         self.ask(session, question, cancel).await
     }
@@ -200,7 +206,7 @@ impl BrowserTools {
         }
     }
 
-    async fn connection(&self) -> Result<Arc<Connection>, NativeError> {
+    pub(super) async fn connection(&self) -> Result<Arc<Connection>, NativeError> {
         let config = self.env.start_config().await;
         self.browser
             .ensure(move || config)
@@ -219,8 +225,8 @@ impl NativeExecutor for BrowserTools {
         CHANGING
     }
 
-    /// Runs one tool; a stop of the session ends it within a second. Its questions hear the stop
-    /// first and close, so no dialog stays behind.
+    /// Runs one tool; a stop of the session, or the user taking over, ends it within a second.
+    /// Its questions hear that first and close, so no dialog stays behind.
     async fn run(
         &self,
         action_id: &str,
@@ -229,12 +235,18 @@ impl NativeExecutor for BrowserTools {
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
         let session = self.session_for(action_id, call).await?;
+        // Asking to take over waits for the pause; nothing else runs in it.
+        let pauses = action_id != TAKEOVER;
+        if pauses && session.is_paused() {
+            return Err(paused());
+        }
         let ended = session.cancel.child_token();
         let forward = tokio_util::task::AbortOnDropHandle::new({
-            let (cancel, ended) = (cancel.clone(), ended.clone());
+            let (cancel, ended, session) = (cancel.clone(), ended.clone(), Arc::clone(&session));
             tokio::spawn(async move {
                 tokio::select! {
                     _ = cancel.cancelled() => ended.cancel(),
+                    _ = session.until_paused(), if pauses => ended.cancel(),
                     _ = ended.cancelled() => {}
                 }
             })
@@ -246,6 +258,10 @@ impl NativeExecutor for BrowserTools {
             _ = session.cancel.cancelled() => {
                 let _ = tokio::time::timeout(STOP_GRACE, &mut serving).await;
                 Err(stopped())
+            }
+            _ = session.until_paused(), if pauses => {
+                let _ = tokio::time::timeout(STOP_GRACE, &mut serving).await;
+                Err(paused())
             }
         };
         forward.abort();
@@ -289,6 +305,9 @@ impl BrowserTools {
         };
         session.set_mode(call.mode);
         let _lease = self.browser.lease();
+        if action_id == TAKEOVER {
+            return takeover::request(self, session, input_value, cancel).await;
+        }
         let manual = call.mode == PermissionMode::Manual;
 
         // A new address is checked before anything starts: a refused one never loads, and one that
@@ -354,30 +373,7 @@ impl BrowserTools {
             "browser.page.screenshot" => {
                 let OnTab { tab } = input(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                let jpeg = page::screenshot(&connection, &tab.session, SCREENSHOT_WIDTH)
-                    .await
-                    .map_err(browser_error)?;
-                let raw = read::raw(&connection, &tab.session, None)
-                    .await
-                    .map_err(browser_error)?;
-                let site = site_of(&raw.url);
-                tab.set_page(PageInfo {
-                    site: site.clone(),
-                    title: raw.title.clone(),
-                });
-                NativeReply {
-                    result: json!({
-                        "tab": tab.id,
-                        "untrusted_page_content": { "site": site, "url": raw.url, "title": raw.title },
-                        "note": read::NOTE,
-                    }),
-                    images: vec![ToolImage {
-                        name: format!("{}.jpg", tab.id),
-                        media_type: "image/jpeg".to_owned(),
-                        bytes: jpeg,
-                    }],
-                    target: Some(site),
-                }
+                screenshot(&connection, tab).await?
             }
             "browser.navigate" => {
                 let Navigate { tab, to } = input(input_value)?;

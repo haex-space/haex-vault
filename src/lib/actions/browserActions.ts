@@ -225,6 +225,27 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.takeover.request',
+    titleKey: 'actions.browser.takeoverRequest',
+    description:
+      'Ask the user to take over the browser, for a captcha, a second factor or a payment window, with a short reason. The call waits until the user gives the browser back (returned: true); meanwhile other browser tools answer paused. Use it instead of trying to solve such steps yourself.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        reason: {
+          type: 'string',
+          description:
+            'Why the user should take over, shown to the user; at most 200 characters.',
+        },
+      },
+      required: ['tab', 'reason'],
+    },
+    result: { type: 'object' },
+    effect: 'read',
+    ...SHARED,
+  },
+  {
     id: 'browser.tabs.list',
     titleKey: 'actions.browser.tabsList',
     description:

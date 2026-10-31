@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * The sessions bar (spec 065, FR-015, FR-016): while an agent steers the agent browser, the
- * desktop shows which agent, its tabs with website and title, and its last action, with
- * "Stoppen". Stopping here is binding; the marker in the browser tab is the convenient way. The
- * agent's name is its own claim, a tab's title comes from the website. Taking over and giving
- * back follow with the tools that operate pages (PR D).
+ * The sessions bar (spec 065, FR-015, FR-016, FR-017): while an agent steers the agent browser,
+ * the desktop shows which agent, its tabs with website and title, and its last action, with
+ * "Eingreifen" and "Stoppen". While the user has the browser, it says so (with the agent's reason
+ * when the agent asked, as its claim) and offers "Zurückgeben". Stopping here is binding; the
+ * marker in the browser tab is the convenient way. The agent's name is its own claim, a tab's
+ * title comes from the website.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import type { BrowserSessionView } from '~/types/bindings/BrowserSessionView'
@@ -36,13 +37,31 @@ function lastAction(session: BrowserSessionView): string | null {
   })
 }
 
-async function stopAsync(session: BrowserSessionView) {
+function pauseText(session: BrowserSessionView): string | null {
+  const pause = session.paused
+  if (!pause) return null
+  if (pause.by === 'request')
+    return t('agentBrowser.sessions.requested', { reason: pause.reason })
+  return t('agentBrowser.sessions.paused')
+}
+
+async function runAsync(action: () => Promise<void>) {
   failure.value = null
   try {
-    await store.stopAsync(session.id)
+    await action()
   } catch (error) {
     failure.value = errString(error)
   }
+}
+
+function stopAsync(session: BrowserSessionView) {
+  return runAsync(() => store.stopAsync(session.id))
+}
+
+function steerAsync(session: BrowserSessionView) {
+  return runAsync(() =>
+    store.steerAsync(session.id, session.paused ? 'return' : 'takeover'),
+  )
 }
 </script>
 
@@ -90,7 +109,27 @@ async function stopAsync(session: BrowserSessionView) {
           >
             {{ lastAction(session) }}
           </p>
+          <p
+            v-if="pauseText(session)"
+            class="max-w-md text-xs break-words text-warning"
+            data-testid="agent-browser-session-paused"
+          >
+            {{ pauseText(session) }}
+          </p>
         </div>
+        <UiButton
+          type="button"
+          size="sm"
+          :variant="session.paused ? 'default' : 'outline'"
+          data-testid="agent-browser-session-steer"
+          @click="steerAsync(session)"
+        >
+          {{
+            session.paused
+              ? t('agentBrowser.sessions.giveBack')
+              : t('agentBrowser.sessions.takeOver')
+          }}
+        </UiButton>
         <UiButton
           type="button"
           size="sm"
