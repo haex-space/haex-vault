@@ -1896,7 +1896,8 @@
       "click": "Element anklicken",
       "type": "In ein Feld tippen",
       "select": "Option auswählen",
-      "tabsClose": "Agenten-Tab schließen"
+      "tabsClose": "Agenten-Tab schließen",
+      "takeoverRequest": "Um Eingreifen bitten"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -3952,6 +3953,9 @@
   "agentBrowser": {
     "marker": {
       "text": "{agent} steuert diesen Tab",
+      "paused": "Du hast diesen Tab, {agent} wartet",
+      "takeOver": "Eingreifen",
+      "giveBack": "Zurückgeben",
       "stop": "Stoppen",
       "titlePrefix": "[Agent] "
     },
@@ -3959,6 +3963,10 @@
       "label": "Agenten im Browser",
       "noTab": "noch kein Tab",
       "lastAction": "Zuletzt: {action}",
+      "paused": "Du bedienst den Browser; der Agent wartet, bis du zurückgibst.",
+      "requested": "Der Agent bat dich einzugreifen: „{reason}“ (Angabe des Agenten)",
+      "takeOver": "Eingreifen",
+      "giveBack": "Zurückgeben",
       "stop": "Stoppen"
     },
     "notification": {
@@ -3985,6 +3993,12 @@
         "title": "Neuen Tab öffnen?",
         "hint": "Eine Seite in einem Tab des Agenten möchte einen neuen Tab öffnen. Ohne deine Zustimmung lädt er nichts und wird geschlossen. Mit Zustimmung steuert ihn der Agent, und er darf diese Website in dieser Sitzung öffnen.",
         "allow": "Öffnen"
+      },
+      "takeover": {
+        "title": "Der Agent bittet dich einzugreifen",
+        "hint": "Mit „Eingreifen“ holt holzi den Tab nach vorn, und du bedienst den Browser selbst, etwa für ein Captcha oder eine Bestätigung. Der Agent wartet und erfährt nichts von dem, was du tust. Gib danach mit „Zurückgeben“ in holzi oder im Tab zurück.",
+        "allow": "Eingreifen",
+        "reason": "Grund"
       },
       "address": "Adresse",
       "target": "Ziel",

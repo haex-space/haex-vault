@@ -7,13 +7,17 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::cdp::Connection;
+use super::cdp::{page, Connection};
 use super::error::BrowserError;
 use super::read::{self, page_result};
 use super::session::{Session, Tabs};
 use super::sites::Site;
 use super::tab::{PageInfo, Tab, TabError, LOAD_TIMEOUT};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
+use crate::chat::tools::ToolImage;
+
+/// A screenshot is at most this wide (research R12).
+const SCREENSHOT_WIDTH: f64 = 1280.0;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,6 +110,14 @@ pub(super) fn stopped() -> NativeError {
         "stopped",
         "The user stopped this browser session. Do not continue in the browser unless the user \
          asks again.",
+    )
+}
+
+pub(super) fn paused() -> NativeError {
+    NativeError::new(
+        "paused",
+        "The user is operating the browser right now. Wait and try again later; nothing of the \
+         user's own actions is reported to you.",
     )
 }
 
@@ -250,4 +262,35 @@ pub(super) async fn wait_for_load(tab: &Tab) -> Result<(), NativeError> {
         )
     })?;
     Ok(())
+}
+
+/// A picture of the visible part of `tab` (research R12).
+pub(super) async fn screenshot(
+    connection: &Connection,
+    tab: &Tab,
+) -> Result<NativeReply, NativeError> {
+    let jpeg = page::screenshot(connection, &tab.session, SCREENSHOT_WIDTH)
+        .await
+        .map_err(browser_error)?;
+    let raw = read::raw(connection, &tab.session, None)
+        .await
+        .map_err(browser_error)?;
+    let site = site_of(&raw.url);
+    tab.set_page(PageInfo {
+        site: site.clone(),
+        title: raw.title.clone(),
+    });
+    Ok(NativeReply {
+        result: serde_json::json!({
+            "tab": tab.id,
+            "untrusted_page_content": { "site": site, "url": raw.url, "title": raw.title },
+            "note": read::NOTE,
+        }),
+        images: vec![ToolImage {
+            name: format!("{}.jpg", tab.id),
+            media_type: "image/jpeg".to_owned(),
+            bytes: jpeg,
+        }],
+        target: Some(site),
+    })
 }

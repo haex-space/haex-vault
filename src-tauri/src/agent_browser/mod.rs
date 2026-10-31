@@ -28,6 +28,7 @@ pub mod sites;
 pub mod submit;
 pub mod tab;
 mod tab_watch;
+mod takeover;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};

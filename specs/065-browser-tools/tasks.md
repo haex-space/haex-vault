@@ -38,7 +38,8 @@ delivery is one PR from its own worktree off `main`.
 | PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
 | PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)            |
 | PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                         |
-| PR D3    | Phases 4–5 | US2 rest (T047), US3 take over, give back, input pause                        |
+| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`             |
+| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                           |
 | PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                                    |
 | PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)                     |
 | –        | Phase 9    | Polish, manual checks                                                         |
@@ -179,14 +180,14 @@ agent until "Zurückgeben"; user input in a steered tab pauses it (spec US3).
 ### Tests first
 
 - [x] T054 [P] [US3] Unit tests in src-tauri/src/agent_browser/session_tests.rs: stop ends the running call and session within 1 s; closing the window ends the session; revoking an agent (021) ends its sessions (done in src-tauri/src/agent_browser/sessions_tests.rs, the tests of the session registry; the end of the browser stands for closing its window)
-- [x] T055 [US3] Integration test in src-tauri/tests/agent_browser_act.rs: stop within 1 s (SC-004) while a page is slow; the marker exists in each document of an agent tab and its buttons react only to trusted events (a synthetic `click()` from the page does nothing); `browser.takeover.request` waits until return (done without `browser.takeover.request`, which comes with taking over in PR D; the scene of both browser tests moved to src-tauri/tests/common/agent_browser_scene.rs)
+- [x] T055 [US3] Integration test in src-tauri/tests/agent_browser_act.rs: stop within 1 s (SC-004) while a page is slow; the marker exists in each document of an agent tab and its buttons react only to trusted events (a synthetic `click()` from the page does nothing); `browser.takeover.request` waits until return (done; `browser.takeover.request` came with PR D3, tested in src-tauri/tests/agent_browser_takeover.rs; the scene of the browser tests moved to src-tauri/tests/common/agent_browser_scene.rs)
 
 ### Implementation
 
-- [x] T056 [US3] Marker in a closed shadow root from the isolated world, binding `__holzi` in that world only, title prefix of the tab (R6) in src-tauri/src/agent_browser/page_script.js and src-tauri/src/agent_browser/tab.rs (done in src-tauri/src/agent_browser/marker.js and marker.rs, in the language of holzi's window through the new src-tauri/src/window_texts.rs; only "Stoppen" so far, "Eingreifen" comes with PR D. Stopping gives a tab back: holzi removes the marker and detaches, so the tab stays open without the website check)
-- [x] T057 [US3] Stop and session visibility in src-tauri/src/agent_browser/session.rs; command `agent_browser_control` and `agent_browser_sessions` in src-tauri/src/agent_browser/commands.rs; event `agent-browser-sessions-changed`; takeover, return and trusted user-input pause follow in PR D (done with the registry src-tauri/src/agent_browser/sessions.rs, shared by the executor and the window; a stopped agent hears `stopped` until it begins a new session: an external agent with a new connection, the built-in agent with the user's next chat message)
+- [x] T056 [US3] Marker in a closed shadow root from the isolated world, binding `__holzi` in that world only, title prefix of the tab (R6) in src-tauri/src/agent_browser/page_script.js and src-tauri/src/agent_browser/tab.rs (done in src-tauri/src/agent_browser/marker.js and marker.rs, in the language of holzi's window through the new src-tauri/src/window_texts.rs; "Eingreifen" and "Zurückgeben" came with PR D3, which re-registers the script with the new state. Stopping gives a tab back: holzi removes the marker and detaches, so the tab stays open without the website check)
+- [x] T057 [US3] Stop and session visibility in src-tauri/src/agent_browser/session.rs; command `agent_browser_control` and `agent_browser_sessions` in src-tauri/src/agent_browser/commands.rs; event `agent-browser-sessions-changed`; takeover, return and trusted user-input pause in src-tauri/src/agent_browser/session_pause.rs since PR D3 (done with the registry src-tauri/src/agent_browser/sessions.rs, shared by the executor and the window; a stopped agent hears `stopped` until it begins a new session: an external agent with a new connection, the built-in agent with the user's next chat message)
 - [x] T058 [US3] End all sessions of an agent on revocation (021 `live.rs`) and on vault close in src-tauri/src/agent_browser/session.rs (done: revocation, rights without the group `browser` and the end of an agent's last connection end its session through `mcp_server::end_browser_session`; switching the built-in agent's browser off ends its session; the vault closing ends the browser, and the end of the browser ends its sessions)
-- [x] T059 [P] [US3] Sessions bar in src/components/agentBrowser/SessionsBar.vue (agent, tab, website, last action, "Eingreifen", "Stoppen"), mounted in the desktop (src/components/wm/Desktop.vue) while a session runs, and the prompt kind `takeover` in src/components/agentBrowser/PromptDialog.vue (done without "Eingreifen" and the prompt kind `takeover`, which come with taking over in PR D)
+- [x] T059 [P] [US3] Sessions bar in src/components/agentBrowser/SessionsBar.vue (agent, tab, website, last action, "Eingreifen", "Stoppen"), mounted in the desktop (src/components/wm/Desktop.vue) while a session runs, and the prompt kind `takeover` in src/components/agentBrowser/PromptDialog.vue (done; "Eingreifen", "Zurückgeben" and the prompt kind `takeover` came with PR D3)
 - [x] T060 [US3] e2e scenario scripts/e2e/scenarios/agent-browser.test.ts: the stand-in agent of 021 (`scripts/e2e/lib/mcp-agent.ts`) with the group `browser` reads a fixture page and is stopped from the sessions bar (done, with the Android exclusion in scripts/e2e/platform-exclusions.ts)
 
 **Checkpoint (end of PR D)**: quickstart M1–M5 pass.
@@ -316,6 +317,6 @@ Task: "Fixture site in src-tauri/tests/fixtures/agent_browser/site/"
 ### Incremental Delivery
 
 1. PR C → reading (MVP).
-2. PR D1 → operating with prompts before submitting; PR D2 → tabs a page opens ask first; PR D3 → take over and give back (marker and stop came with PR C3).
+2. PR D1 → operating with prompts before submitting; PR D2 → tabs a page opens ask first; PR D3 → take over and give back (marker and stop came with PR C3); PR D4 → the injection corpus.
 3. PR E → logins without the model seeing passwords, downloads and uploads.
 4. PR F → handed-over tabs in the user's browser.

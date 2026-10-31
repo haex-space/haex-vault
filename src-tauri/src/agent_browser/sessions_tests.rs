@@ -1,6 +1,8 @@
 //! Tests for the session registry (spec 065, T054): a session per agent, listed for the window; a
 //! stop ends the running call within a second and holds until a new session begins; revoking ends
-//! a session, stopped or not; the end of the browser ends its sessions.
+//! a session, stopped or not; the end of the browser ends its sessions. Taking over pauses the
+//! agent until the user gives back: its running call ends within a second, further calls get
+//! `paused`, and its tabs' requests go without asking; holzi's own input does not pause it.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -14,9 +16,11 @@ use super::cdp::Connection;
 use super::error::BrowserError;
 use super::executor::{BrowserEnv, BrowserTools};
 use super::prompts::new_browser_prompts;
-use super::session::Session;
-use super::sessions::{BrowserSessions, NoSession};
+use super::session::{Front, Session};
+use super::sessions::{BrowserControl, BrowserPause, BrowserSessions, NoSession};
 use super::sites::Site;
+use super::sites::Verdict;
+use super::tab::Paused;
 use super::{AgentBrowser, StartConfig};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeExecutor};
@@ -187,7 +191,7 @@ async fn revoking_ends_a_session_stopped_or_not() {
 async fn the_marker_stops_the_session() {
     let (sessions, _) = registry();
     let session = start(&sessions, &agent()).unwrap();
-    (session.tab_hooks("t1").await.on_stop)();
+    (session.tab_hooks("t1").await.on_signal)(crate::agent_browser::marker::Signal::Stop);
     eventually("the stop", || sessions.list().is_empty()).await;
     assert_eq!(start(&sessions, &agent()).err(), Some(NoSession::Stopped));
 }
@@ -264,4 +268,132 @@ async fn a_stop_ends_the_running_call_within_a_second() {
         .await
         .unwrap_err();
     assert_eq!(refused.code, "stopped", "further calls are refused");
+}
+
+#[tokio::test]
+async fn taking_over_pauses_until_the_user_gives_back() {
+    let (sessions, told) = registry();
+    let session = start(&sessions, &agent()).unwrap();
+    let before = told.load(Ordering::SeqCst);
+    assert!(
+        !sessions.control(&session.id, BrowserControl::Return).await,
+        "nothing to give back"
+    );
+
+    assert!(
+        sessions
+            .control(&session.id, BrowserControl::Takeover)
+            .await
+    );
+    assert_eq!(sessions.list()[0].paused, Some(BrowserPause::User));
+    assert!(
+        told.load(Ordering::SeqCst) > before,
+        "the window hears of it"
+    );
+    assert!(
+        !sessions
+            .control(&session.id, BrowserControl::Takeover)
+            .await,
+        "taken over once"
+    );
+
+    assert!(sessions.control(&session.id, BrowserControl::Return).await);
+    eventually("the return", || !session.is_paused()).await;
+    assert_eq!(sessions.list()[0].paused, None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn taking_over_ends_the_running_call_and_refuses_the_next() {
+    if !crate::platform::capabilities().agent_browser {
+        return;
+    }
+    let (sessions, _) = registry();
+    let tools = Arc::new(BrowserTools::new(
+        Arc::new(Env),
+        AgentBrowser::default(),
+        new_browser_prompts(),
+        Arc::new(|_| {}),
+        sessions.clone(),
+    ));
+    let call = NativeCall {
+        caller: agent(),
+        mode: PermissionMode::Auto,
+    };
+    let run = |tool: &'static str| {
+        let (tools, call) = (Arc::clone(&tools), call.clone());
+        tokio::spawn(async move {
+            tools
+                .run(tool, json!({}), &call, &CancellationToken::new())
+                .await
+        })
+    };
+    // The browser never finishes starting, so the call waits.
+    let running = run("browser.tabs.list");
+    eventually("the session", || !sessions.list().is_empty()).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let id = sessions.list()[0].id.clone();
+    let asked = Instant::now();
+    assert!(sessions.control(&id, BrowserControl::Takeover).await);
+    let outcome = running.await.unwrap();
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(outcome.unwrap_err().code, "paused");
+    let refused = run("browser.tabs.list").await.unwrap();
+    assert_eq!(
+        refused.unwrap_err().code,
+        "paused",
+        "until the user gives back"
+    );
+
+    assert!(sessions.control(&id, BrowserControl::Return).await);
+    eventually("the return", || sessions.list()[0].paused.is_none()).await;
+    let steering = run("browser.tabs.list");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(!steering.is_finished(), "the agent steers again");
+    steering.abort();
+}
+
+#[tokio::test]
+async fn holzis_own_input_does_not_pause_the_agent() {
+    let (sessions, _) = registry();
+    let session = start(&sessions, &agent()).unwrap();
+    session.own(session.noticed_input()).await;
+    assert!(!session.is_paused(), "while holzi's input runs");
+    session.noticed_input().await;
+    assert!(!session.is_paused(), "right after it");
+
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    session.noticed_input().await;
+    assert_eq!(
+        session.pause(),
+        Some(BrowserPause::User),
+        "the user's input"
+    );
+}
+
+#[tokio::test]
+async fn while_the_user_has_the_browser_requests_go_without_asking() {
+    let (sessions, _) = registry();
+    let session = start(&sessions, &agent()).unwrap();
+    session.set_mode(PermissionMode::Manual);
+    let post = || Paused {
+        url: "https://elsewhere.example/buy".to_owned(),
+        method: "POST".to_owned(),
+        document: true,
+        main: true,
+        body: None,
+    };
+    // Nobody can be asked here: the agent alone would be refused.
+    assert_ne!(session.check_request("t1", post()).await, Verdict::Go);
+
+    let reason = "Captcha".to_owned();
+    assert!(
+        session
+            .take_over(BrowserPause::Request { reason }, Front::Stay)
+            .await
+    );
+    assert_eq!(session.check_request("t1", post()).await, Verdict::Go);
 }

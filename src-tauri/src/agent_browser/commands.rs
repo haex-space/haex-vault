@@ -1,6 +1,7 @@
 //! The window's commands for the agent browser (spec 065, contracts/tauri-commands.md): answering
-//! a browser question, the running sessions and their stop, the state for "KI → Browser", and the
-//! settings behind the guardrail actions `settings.agentBrowser.*`, which no agent can call.
+//! a browser question, the running sessions with stopping, taking over and giving back, the state
+//! for "KI → Browser", and the settings behind the guardrail actions `settings.agentBrowser.*`,
+//! which no agent can call.
 
 use std::path::Path;
 
@@ -59,15 +60,14 @@ pub struct AgentBrowserControlArgs {
     pub command: BrowserControl,
 }
 
-/// "Stoppen" in the sessions bar (FR-016); `false` when the session no longer runs.
+/// "Stoppen", "Eingreifen" and "Zurückgeben" in the sessions bar (FR-016, FR-017); `false` when
+/// the session no longer runs or is in that state already.
 #[tauri::command]
 pub async fn agent_browser_control(
     sessions: State<'_, BrowserSessions>,
     args: AgentBrowserControlArgs,
 ) -> Result<bool> {
-    match args.command {
-        BrowserControl::Stop => Ok(sessions.stop(&args.session_id).await),
-    }
+    Ok(sessions.control(&args.session_id, args.command).await)
 }
 
 /// What "KI → Browser" shows.
