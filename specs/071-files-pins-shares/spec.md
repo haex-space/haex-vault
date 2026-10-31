@@ -191,6 +191,10 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
   the known places of the device included. A removed known place MUST be hidden (stored per device like
   the pins) and MUST come back when the same folder is added again; the menus then offer "Zu Orten
   hinzufügen" for it.
+- **FR-016**: An added folder MUST show the icon its entry shows in the folder list (the chosen icon
+  set of spec 053, e.g. the picture folder for "Bilder"), not a generic folder. Paths of known places
+  MUST be compared without trailing separators (Windows paths case-insensitively), and a known place
+  that is also stored as an added folder MUST show once, as the known place with its own icon.
 - **FR-014**: All new texts MUST exist in German and English; no new dependency; no change to Rust.
 
 ### Key Entities

@@ -84,8 +84,45 @@ export function pinLabel(pin: FilesPin, rootName: string): string {
  * the user removed (paths of this device). */
 export type FilesPlaces = { pins: FilesPin[]; hidden: string[] }
 
+/** `path` for comparing: without a trailing separator (a root keeps it), a Windows path in lower case. */
+function pathKey(path: string): string {
+  const windows = path.includes('\\')
+  const trimmed = path.replace(/[\\/]+$/, '')
+  const key = trimmed === '' || /^[A-Za-z]:$/.test(trimmed) ? path : trimmed
+  return windows ? key.toLowerCase() : key
+}
+
+const samePath = (a: string, b: string) => pathKey(a) === pathKey(b)
+
 const isKnown = (pin: FilesPin, knownPaths: readonly string[]) =>
-  pin.source.kind === 'device' && knownPaths.includes(pin.path)
+  pin.source.kind === 'device' &&
+  knownPaths.some((known) => samePath(known, pin.path))
+
+const isHidden = (places: FilesPlaces, path: string) =>
+  places.hidden.some((hidden) => samePath(hidden, path))
+
+/** The known places "Orte" shows: all but the removed ones. One that is also stored as an added
+ * folder (a state older builds could leave) shows as the known place. */
+export function shownKnown(
+  places: FilesPlaces,
+  knownPaths: readonly string[],
+): string[] {
+  return knownPaths.filter(
+    (path) =>
+      !isHidden(places, path) ||
+      places.pins.some(
+        (pin) => pin.source.kind === 'device' && samePath(pin.path, path),
+      ),
+  )
+}
+
+/** The added folders "Orte" shows below the known places: none that is a known place. */
+export function shownPins(
+  places: FilesPlaces,
+  knownPaths: readonly string[],
+): FilesPin[] {
+  return places.pins.filter((pin) => !isKnown(pin, knownPaths))
+}
 
 /** The removed known places stored in `raw`; whatever is not a path is dropped. */
 export function parseHidden(raw: string | null | undefined): string[] {
@@ -110,7 +147,11 @@ export function offerPin(
 ): PinCommand | undefined {
   if (!pinnableSource(pin.source)) return undefined
   if (isKnown(pin, knownPaths))
-    return places.hidden.includes(pin.path) ? 'pin' : 'unpin'
+    return shownKnown(places, knownPaths).some((path) =>
+      samePath(path, pin.path),
+    )
+      ? 'unpin'
+      : 'pin'
   return isPinned(places.pins, pin) ? 'unpin' : 'pin'
 }
 
@@ -127,7 +168,7 @@ export function addPlaces(
       added.filter((pin) => !isKnown(pin, knownPaths)),
     ),
     hidden: places.hidden.filter(
-      (path) => !back.some((pin) => pin.path === path),
+      (path) => !back.some((pin) => samePath(pin.path, path)),
     ),
   }
 }
@@ -140,7 +181,15 @@ export function removePlace(
 ): FilesPlaces {
   if (!isKnown(removed, knownPaths))
     return { ...places, pins: removePin(places.pins, removed) }
-  return places.hidden.includes(removed.path)
-    ? places
-    : { ...places, hidden: [...places.hidden, removed.path] }
+  // An added copy of the known place goes along, so it does not show the place again.
+  const pins = places.pins.filter(
+    (pin) =>
+      !(pin.source.kind === 'device' && samePath(pin.path, removed.path)),
+  )
+  const hidden = isHidden(places, removed.path)
+  if (hidden && pins.length === places.pins.length) return places
+  return {
+    pins: pins.length === places.pins.length ? places.pins : pins,
+    hidden: hidden ? places.hidden : [...places.hidden, removed.path],
+  }
 }

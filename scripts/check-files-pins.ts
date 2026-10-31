@@ -15,6 +15,8 @@ import {
   pinnableSource,
   removePin,
   removePlace,
+  shownKnown,
+  shownPins,
 } from '../src/lib/files/pins.ts'
 
 const docs: FilesPin = { source: { kind: 'device' }, path: '/home/anna/docs' }
@@ -145,4 +147,30 @@ test('the removed known places stored are not trusted', () => {
   assert.deepEqual(parseHidden(null), [])
   assert.deepEqual(parseHidden('not json'), [])
   assert.deepEqual(parseHidden(JSON.stringify([home, '', 7, null])), [home])
+})
+
+test('a known place is matched whatever its trailing separator', () => {
+  const homePin: FilesPin = { ...docs, path: `${home}/` }
+  assert.equal(offerPin(none, homePin, [home]), 'unpin')
+  assert.deepEqual(addPlaces({ pins: [], hidden: [home] }, [homePin], [home]), {
+    pins: [],
+    hidden: [],
+  })
+  const windows: FilesPin = { ...docs, path: 'C:\\Users\\Anna\\Bilder\\' }
+  assert.equal(offerPin(none, windows, ['c:\\users\\anna\\Bilder']), 'unpin')
+})
+
+test('a known place stored as an added folder too shows once, as the known place', () => {
+  const bilder = '/home/anna/Bilder'
+  const stale = { pins: [{ ...docs, path: bilder }, docs], hidden: [bilder] }
+  assert.deepEqual(shownKnown(stale, [home, bilder]), [home, bilder])
+  assert.deepEqual(shownPins(stale, [home, bilder]), [docs])
+  // Removing it takes the added copy along.
+  assert.deepEqual(removePlace(stale, { ...docs, path: bilder }, [bilder]), {
+    pins: [docs],
+    hidden: [bilder],
+  })
+  assert.deepEqual(shownKnown({ pins: [], hidden: [bilder] }, [home, bilder]), [
+    home,
+  ])
 })
