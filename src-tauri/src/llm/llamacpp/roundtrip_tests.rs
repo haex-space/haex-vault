@@ -137,11 +137,45 @@ fn a_plain_question_renders_without_tools_through_every_fixture() {
 }
 
 #[test]
-fn the_gemma4_template_renders_tools_in_its_own_syntax() {
-    let format = detect(QWEN3).unwrap();
+fn gemma4_shows_the_call_and_its_result_inside_the_model_turn() {
+    let format = detect(GEMMA4).unwrap();
     let out = render_with(GEMMA4, format, &tool_history(), &[tool()], false);
-    assert!(out.contains("<|tool_call>call:open_settings{"), "{out}");
-    assert!(out.contains("response:open_settings{"), "{out}");
+    assert!(
+        out.contains(
+            "<|turn>model\n<|tool_call>call:open_settings{page:<|\"|>sync<|\"|>}<tool_call|>\
+             <|tool_response>response:open_settings{value:<|\"|>opened the sync page<|\"|>}<tool_response|>"
+        ),
+        "{out}"
+    );
+    // The turn stays open: the model goes on after the result.
+    assert!(out.ends_with("<tool_response|>"), "{out}");
+}
+
+#[test]
+fn gemma4_with_thinking_opens_the_thought_channel_after_a_result() {
+    let format = detect(GEMMA4).unwrap();
+    let out = render_with(GEMMA4, format, &tool_history(), &[tool()], true);
+    assert!(out.contains("<|turn>system\n<|think|>\n"), "{out}");
+    assert!(
+        out.ends_with("<tool_response|><|channel>thought\n"),
+        "{out}"
+    );
+}
+
+#[test]
+fn gemma4_continues_the_model_turn_with_the_answer_after_a_result() {
+    let format = detect(GEMMA4).unwrap();
+    let mut history = tool_history();
+    history.push(message(ChatRole::Assistant, "The sync page is open."));
+    history.push(message(ChatRole::User, "Thanks."));
+    let out = render_with(GEMMA4, format, &history, &[tool()], false);
+    assert!(
+        out.contains(
+            "<tool_response|>The sync page is open.<turn|>\n<|turn>user\nThanks.<turn|>\n"
+        ),
+        "{out}"
+    );
+    assert!(out.ends_with("<|turn>model\n"), "{out}");
 }
 
 #[test]

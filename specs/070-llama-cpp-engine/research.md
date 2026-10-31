@@ -144,6 +144,30 @@ there. One consequence worth knowing: on a roomy desktop the tier suggestion is 
 which in a build with llama.cpp is Qwen3.5 4B (3.0 GB) and not the Qwen3 4B profile. The profile itself
 stays Qwen3 4B until the decision of US5.
 
+## R4 – Gemma 4 call syntax (settled, 2026-10-31)
+
+Read from the template in `gemma-4-E4B-it-Q4_K_M.gguf` (fixture `gemma4.jinja`) and llama.cpp's reader
+(`common/parsers/gemma4.cpp`, `chat-peg-parser.cpp` `gemma4_to_json`) in the pinned `llama-cpp-sys-2`
+0.1.160. The full syntax with its cases is in `contracts/tool-call-formats.md`; what mattered beyond the
+spike's one example:
+
+- Thinking is not `<think>`: it sits in `<|channel>thought…<channel|>`, and the model may add an empty
+  thought block or a lone `<channel|>` after its answer. A format now names its own thinking tags, and the
+  streamer holds text back at these stray tags as at a call marker.
+- The vocabulary marks `<|tool_response>` and `<turn|>` as end of generation, so the model stops after its
+  calls without a stop string.
+- Tool results belong in the model turn that made the calls. The current template reads OpenAI-style `tool`
+  messages, older ones only `tool_responses` on the assistant message; the format sends the merged shape,
+  which both read (llama.cpp does the same for older templates).
+- llama.cpp holds the model to the syntax with a lazy grammar once `<|tool_call>` appears; holzi has no
+  grammar, so the reader also takes what the model may write without one: quoted keys, bare words as strings,
+  calls without braces.
+
+With the CUDA build, the Gemma 4 E4B file loads with all 43 layers on the GPU at 8192 tokens, answers in
+pieces, returns `open_settings{page: "sync"}` as a call, stops 49 ms after a cancel and repeats itself under
+greedy decoding. The evaluation (T033) gave 53 of 83 (`specs/032-model-operates-holzi/eval-results.md`), so
+the catalog leaves Gemma 4 out and the desktop profile stays Qwen3 4B (T034).
+
 ## R2 – GPU layer fit (settled, 2026-10-30)
 
 Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the engine need its own plan?

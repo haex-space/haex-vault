@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::Streamer;
 use crate::adapters::types::{StreamChunk, ToolCall, ToolSpec};
-use crate::llm::llamacpp::formats::{Hermes, QwenXml};
+use crate::llm::llamacpp::formats::{Gemma4, Hermes, QwenXml};
 
 #[derive(Debug, Default, PartialEq)]
 struct Collected {
@@ -192,10 +192,77 @@ fn a_call_cut_off_by_the_token_limit_is_read_up_to_its_end() {
 #[test]
 fn the_prompt_ending_in_an_open_think_tag_is_recognised() {
     assert!(Streamer::prompt_opens_thinking(
-        "…<|im_start|>assistant\n<think>\n"
+        "…<|im_start|>assistant\n<think>\n",
+        None
     ));
     assert!(!Streamer::prompt_opens_thinking(
-        "…assistant\n<think>\n\n</think>\n\n"
+        "…assistant\n<think>\n\n</think>\n\n",
+        None
     ));
-    assert!(!Streamer::prompt_opens_thinking("…assistant\n"));
+    assert!(!Streamer::prompt_opens_thinking("…assistant\n", None));
+    // Gemma 4 opens its thought channel after a tool result when thinking is on.
+    assert!(Streamer::prompt_opens_thinking(
+        "…<tool_response|><|channel>thought\n",
+        Some(&Gemma4)
+    ));
+    assert!(!Streamer::prompt_opens_thinking(
+        "…<|turn>model\n",
+        Some(&Gemma4)
+    ));
+}
+
+fn gemma4(thinking_open: bool) -> Streamer {
+    Streamer::new(Some(&Gemma4), vec![tool()], thinking_open)
+}
+
+#[test]
+fn a_gemma4_thought_is_reasoning_and_its_call_arrives_as_a_call() {
+    let out = run(
+        gemma4(false),
+        &[
+            "<|channel>",
+            "thought",
+            "\nThe user wants sync.",
+            "<channel|>",
+            "<|tool_call>",
+            "call:open_settings{page:",
+            "<|\"|>",
+            "sync",
+            "<|\"|>",
+            "}",
+            "<tool_call|>",
+        ],
+    );
+    assert_eq!(out.reasoning, "The user wants sync.");
+    assert_eq!(out.content, "");
+    assert!(out.saw_tool_calls);
+    assert_eq!(out.calls[0].name, "open_settings");
+    assert_eq!(out.calls[0].input, json!({"page": "sync"}));
+}
+
+#[test]
+fn an_empty_gemma4_thought_after_the_answer_is_not_shown() {
+    let out = run(
+        gemma4(false),
+        &["Done", ".", "<|channel>", "thought", "\n", "<channel|>"],
+    );
+    assert_eq!(out.content, "Done.");
+    assert_eq!(out.reasoning, "");
+    assert!(!out.saw_tool_calls);
+}
+
+#[test]
+fn a_gemma4_thought_the_prompt_opened_ends_at_the_closing_tag() {
+    let out = run(
+        gemma4(true),
+        &[
+            "Checking",
+            " the result.",
+            "<channel|>",
+            "It is open.",
+            "<channel|>",
+        ],
+    );
+    assert_eq!(out.reasoning, "Checking the result.");
+    assert_eq!(out.content, "It is open.");
 }

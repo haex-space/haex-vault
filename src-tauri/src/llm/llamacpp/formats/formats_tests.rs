@@ -30,12 +30,11 @@ fn call(id: &str, name: &str, input: serde_json::Value) -> ChatMessage {
 fn each_template_picks_its_format() {
     assert_eq!(detect(QWEN3).map(|f| f.name()), Some("hermes-json"));
     assert_eq!(detect(QWEN3_5).map(|f| f.name()), Some("qwen-xml"));
+    assert_eq!(detect(GEMMA4).map(|f| f.name()), Some("gemma4"));
 }
 
 #[test]
 fn a_template_in_a_syntax_the_engine_does_not_know_matches_no_format() {
-    // Gemma 4 gets its format in a later stage (spec 070 PR E); until then it is refused, not guessed at.
-    assert!(detect(GEMMA4).is_none());
     assert!(detect("{{ messages }}").is_none());
     assert!(detect("").is_none());
 }

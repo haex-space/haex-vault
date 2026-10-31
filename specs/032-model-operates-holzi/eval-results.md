@@ -37,6 +37,23 @@ The catalog therefore records Qwen3.5-4B as `tool_use: supported`, on the same f
 measured model, not evidence for other sizes. The older 30-sentence figures above are not comparable with
 the 83-sentence set.
 
+## Gemma 4 E4B (through the llama.cpp engine, spec 070)
+
+Measured on 2026-10-31 with `gemma-4-E4B-it-Q4_K_M.gguf` (lmstudio-community, 5.3 GB) on the same machine
+and set, all layers on the GPU, deterministic settings, after the engine learned Gemma 4's call syntax
+(spec 070 PR E).
+
+- 53 of 83 sentences reached the expected result (64%): German 32 of 43, English 21 of 40. Qwen3-4B has
+  55 and Qwen3.5-4B 60 of 83 on the same set and engine.
+- `reachRate` was 0.870, with 5 extra search steps and no spurious call; extension tools were called
+  correctly in 23 of 40 sentences (Qwen3.5-4B: 33).
+- The misses are the model's choices, not unread calls: no call markup reached the answer text, and nested
+  arguments (lists, numbers) arrived intact. Gemma 4 E4B asks back far more often ("which account?") instead
+  of searching, and picks a read tool where a change was asked (17 wrong tools, 10 missed calls).
+
+The catalog does not list Gemma 4 E4B: it is larger than Qwen3.5-4B and measured lower (operator decision,
+2026-10-31).
+
 ## Not measured
 
 Qwen3 0.6B and 1.7B were not installed in the measurement environment. A Claude

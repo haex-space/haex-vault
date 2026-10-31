@@ -135,14 +135,15 @@ F; US5 is G.
 
 ## PR E – Gemma 4 (US3)
 
-- [ ] T030 Settle R4: read Gemma 4's call syntax from the template in the file and from llama.cpp, and
+- [x] T030 Settle R4: read Gemma 4's call syntax from the template in the file and from llama.cpp, and
       write every open case into the contract with an example.
-- [ ] T031 `formats/gemma4.rs`: `fingerprint`, `shape_messages` (tool results merged into the preceding
+- [x] T031 `formats/gemma4.rs`: `fingerprint`, `shape_messages` (tool results merged into the preceding
       assistant turn), `marker`, `parse`.
-- [ ] T032 `gemma4_tests.rs`: the case table of the contract and a render test against the fixture.
-- [ ] T033 Run the evaluation for Gemma 4 E4B; record the figures.
-- [ ] T034 Re-add Gemma 4 to the catalog if T033 supports it, and decide whether it becomes the desktop
+- [x] T032 `gemma4_tests.rs`: the case table of the contract and a render test against the fixture.
+- [x] T033 Run the evaluation for Gemma 4 E4B; record the figures.
+- [x] T034 Re-add Gemma 4 to the catalog if T033 supports it, and decide whether it becomes the desktop
       profile (it pointed there before #640 without a measurement; the answer is a measured one now).
+      Result: 53 of 83 (Qwen3.5 4B: 60); Gemma 4 stays out of the catalog and is not the profile.
 
 ## PR F – Platforms and CPU (US4, FR-006)
 
