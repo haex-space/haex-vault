@@ -64,9 +64,10 @@ fn a_phone_with_little_memory_gets_the_low_memory_profile() {
 
 #[test]
 fn a_desktop_still_chooses_from_the_whole_catalog() {
-    // The suggestion on a roomy desktop is the largest model of the build's catalog. Without llama.cpp
-    // that is the desktop profile; with it, Qwen3.5 4B is larger and wins until the decision of spec 070
-    // (US5, T044) moves the profile.
+    // The suggestion on a roomy desktop is the largest model of the build's catalog. In a build with
+    // mistralrs only, that is the desktop profile; with llama.cpp, Qwen3.5 4B is larger and wins until
+    // the decision of spec 070 (US5, T044) moves the profile. A build without local inference filters
+    // nothing (it runs no model at all), so it lists Qwen3.5 as well.
     let largest = crate::catalog::entries()
         .iter()
         .max_by_key(|e| (e.approx_size_bytes, e.id.as_str()))
@@ -74,7 +75,7 @@ fn a_desktop_still_chooses_from_the_whole_catalog() {
         .id
         .clone();
     assert_eq!(suggestion(64 * GIB, ModelPresets::Desktop), largest);
-    if !cfg!(feature = "llm-llamacpp") {
+    if cfg!(feature = "llm-cpu") && !cfg!(feature = "llm-llamacpp") {
         assert_eq!(largest, profiles().desktop);
     }
 }
