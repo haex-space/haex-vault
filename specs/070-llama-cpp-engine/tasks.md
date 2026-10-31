@@ -147,20 +147,30 @@ F; US5 is G.
 
 ## PR F – Platforms and CPU (US4, FR-006)
 
-- [ ] T035 Android: platform feature set (`android-static-stdcxx`, no `openmp`), the NDK environment for
+- [x] T035 Android: platform feature set (`android-static-stdcxx`, no `openmp`), the NDK environment for
       the cross-build (`CC_<target>`, `AR_<target>`, linker; the whole-crate check failed in `aws-lc-sys`
       without them), the build of `aarch64-linux-android` in CI's Android job.
-- [ ] T036 Phone profiles: Qwen3 1.7B and 0.6B through llama.cpp on a phone; the same memory limits and
+      Result: the `llamacpp` leg of the Android clippy job builds llama.cpp with the NDK. The build script
+      takes the newest NDK it finds unless `ANDROID_NDK` names one, and API 28 unless `ANDROID_API_LEVEL`
+      says 26 (the app's `minSdk`, now in `.cargo/config.toml`).
+- [x] T036 Phone profiles: Qwen3 1.7B and 0.6B through llama.cpp on a phone; the same memory limits and
       indicators as with mistralrs. Decide whether phones use llama.cpp at all (they load nothing new).
+      Result (operator, 2026-10-31): holzi keeps one engine. If US5 picks llama.cpp, it runs everywhere,
+      phones included; otherwise mistralrs stays everywhere. The phone work moves into T044.
 - [ ] T037 iOS: build on a Mac with Metal; `llama-cpp-sys-2`'s `build.rs` has no iOS branch, so patch it
       upstream or in a fork. If it cannot be done, iOS keeps mistralrs and the gap is filed (FR-006).
 - [x] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose
       runtime dispatch (`dynamic-backends`) or a fixed baseline; apply it to every desktop build.
       Result (`research.md` R3): a fixed AVX2 baseline in `.cargo/config.toml`, a processor without it gets
       no llama.cpp (`llm/llamacpp/cpu.rs`); threads default to the physical cores.
-- [ ] T039 Windows and macOS: the build and a load of Qwen3 0.6B. A CI leg if one exists for them.
+- [x] T039 Windows and macOS: the build and a load of Qwen3 0.6B. A CI leg if one exists for them.
+      Result: `.github/workflows/llamacpp-platforms.yml` (manual, or a PR that changes it). Windows runs on
+      the CPU (46 tokens/s, a cancel ends after 30 ms); macOS puts all 29 layers on Metal, the runner's
+      virtual GPU (4.1 tokens/s, 278 ms). Cargo keeps PowerShell on Windows: Git Bash's Perl cannot build
+      openssl-src.
 - [ ] T040 Android emulator e2e (spec 043 rig): load Qwen3 0.6B through the new engine and answer one
-      prompt; the scenario goes into `scripts/e2e/scenarios/`.
+      prompt; the scenario goes into `scripts/e2e/scenarios/`. Only if T043 picks llama.cpp (T036); it is
+      then part of T044.
 - [ ] T041 Documentation: `docs/` page on engines, which models each runs, how to build with the
       features; the quickstart is checked on a clean checkout.
 
@@ -170,6 +180,9 @@ F; US5 is G.
       both engines where both load; table in `research.md`.
 - [ ] T043 Decide US5: llama.cpp replaces mistralrs, or both stay. Amend the ADR with the numbers.
 - [ ] T044 Apply the decision: flip `engine_for` (one line) or leave it, and set the desktop profile.
+      One engine everywhere (T036): if llama.cpp wins, the switch carries Android (T040, the phone profiles
+      and their memory limits) and iOS (T037, which needs a Mac). mistralrs leaves only when every platform
+      runs llama.cpp.
 - [ ] T045 Wrap-up: remove leftovers (spike paths, the dev-profile override if still there), update
       memory notes and the spec status to Implemented.
 
