@@ -21,6 +21,8 @@ pub const APP_SCOPED_COMMANDS: &[&str] = &[
     "catalog_recommend_tiers",
     "list_stt_catalog",
     "stt_recommend_tiers",
+    // Spec 066: a fixed table like the STT catalog.
+    "list_tts_catalog",
     // Spec 043: a fixed table of the platform; the vault picker needs it too.
     "platform_capabilities",
 ];

@@ -2,6 +2,9 @@ pub mod adapters;
 pub mod agent_browser;
 #[cfg(feature = "voice")]
 pub mod assistant;
+#[cfg(not(feature = "voice"))]
+#[path = "assistant_stub.rs"]
+pub mod assistant;
 #[cfg(feature = "voice")]
 pub mod audio;
 pub mod browser_bridge;
@@ -48,6 +51,7 @@ pub mod sync;
 #[cfg(test)]
 mod test_log;
 pub mod tls;
+pub mod tts;
 pub mod vault_events;
 pub mod vault_gate;
 // Unconditional like `stt`, above — see `voice.rs`'s module doc for why
@@ -199,6 +203,7 @@ use stt::commands::{
     download_stt_model, list_installed_stt_models, list_stt_catalog, stt_recommend_tiers,
 };
 use tauri::{Emitter, Manager};
+use tts::commands::{download_tts_voice, list_installed_tts_voices, list_tts_catalog};
 use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
 };
@@ -777,6 +782,11 @@ pub fn run() {
             stt_recommend_tiers,
             list_installed_stt_models,
             download_stt_model,
+            list_tts_catalog,
+            list_installed_tts_voices,
+            download_tts_voice,
+            assistant::assets::assistant_readiness,
+            assistant::assets::download_assistant_assets,
             // Password manager (spec 034).
             passwords_load_overview,
             passwords_get_item,

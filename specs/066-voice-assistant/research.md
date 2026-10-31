@@ -167,6 +167,10 @@ viele …“ in einem Atemzug ganz ankommt. Höchstdauer einer Runde 60 s wie in
 (`audio::stream`). sherpa schneidet bei 60 s, behält aber vor dem erkannten Sprechbeginn einen
 Vorlauf von etwa 0,5 s; eine geschnittene Äußerung ist deshalb rund 60,5 s lang.
 
+**Stand nach PR B Teil 4 (2026-10-31)**: Das Silero-Modell ist 212 KB groß und MIT-lizenziert; es
+liegt im Binary (`assistant/models/`) statt im Download-Katalog und wird beim ersten Gebrauch nach
+`models/silero-vad/` geschrieben. Die Pausenerkennung ist damit immer bereit.
+
 **Alternativen**: Smart Turn v3 (BSD-2, erkennt Satzende auch bei Denkpausen) — später, falls feste
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.
@@ -296,6 +300,20 @@ Stimme nachgebildet aus je einem FLEURS-Satz (nur zum Test):
 - Text mit Nullzeichen lässt `generate_with_config` panicken (`CString::new(..).unwrap()`); haex
   entfernt solche Zeichen vorher.
 
+**Stand nach PR B Teil 4 (2026-10-31)**:
+
+- Die Modelle liegen als eigenes Repo `haex-space/pocket-tts-sherpa-onnx` auf Hugging Face (CC BY 4.0,
+  Revision `d8f5915ed8bd94e1aa3dbd5a219360b3bb966190`), ein Ordner je Sprache mit den Dateinamen von
+  sherpa. Geändert ist nur `encoder.onnx` von de, es, fr, it und pt (Startsignal eingebaut); das
+  Skript liegt im Repo unter `tools/` und erzeugt die Dateien byte-gleich. Englisch ist das Paket von
+  k2-fsa. Das Skript ist als k2-fsa/sherpa-onnx#4148 vorgeschlagen.
+- Pocket über sherpa beachtet `GenerationConfig.speed` nicht: Tempo 0,75, 1,0 und 1,5 ergaben 2,43 s,
+  2,44 s und 2,59 s für denselben Satz. haex streckt die Ausgabe darum selbst (`audio::stretch`,
+  WSOLA, eigener Code): Die Länge ändert sich, die Tonhöhe nicht.
+- `tts::local::Speaker` erzeugt Satz für Satz auf einem eigenen Thread unter `VaultGate` und schiebt
+  das Ergebnis in den Mischer; `stop()` verwirft, was der Mischer hält, die Warteschlange und den Satz,
+  der gerade entsteht. Ein Schließen des Vaults beendet den Thread.
+
 **Alternativen**: Piper-Engine — seit 1.3.0 GPL-3.0 (espeak-ng). Kokoro-82M — kein Deutsch.
 Supertonic 3 — Repo archiviert, OpenRAIL-M. Die vorgefertigten Kyutai-Stimmen — englischer Akzent und
 teils nicht-kommerzielle Quellen.
@@ -409,6 +427,13 @@ stoppt der Assistent, im Vordergrund läuft er wieder.
 Hüllkurve in einer gemeinsamen Tonart (Familie), direkt in den Mischer. Eigener Code, keine
 Fremd-Lizenz (FR-046: Herkunft = dieses Repo, dokumentiert in `docs/voice-assistant-platforms.md`).
 „Arbeitet“ wiederholt sich alle 2 s leise, solange FR-023 gilt.
+
+**Umsetzung (PR B Teil 4)**: Alle Töne bestehen aus Noten der D-Dur-Pentatonik um D5 (587 Hz),
+je ein Sinus mit leichtem FM-Anteil (Verhältnis 2, Index 0,6), 4 ms Anstieg und abklingender Hüllkurve;
+ein bis drei Noten, höchstens 320 ms, Spitze 0,5. „Arbeitet“ ist eine leise einzelne Note mit
+`WORKING_REPEAT` = 2 s; wann er läuft, steuert der Gesprächskern (PR C). „Hört zu“ und „Geheimnis“
+klingen auch bei ausgeschalteten Tönen (FR-045). Jeder Ton geht zusätzlich als `assistant-tone` an die
+Oberfläche.
 
 **Alternativen**: Kenney „Interface Sounds“ (CC0) — passt nicht als Familie, nur als Platzhalter.
 
