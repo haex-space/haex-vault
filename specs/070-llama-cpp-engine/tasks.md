@@ -155,10 +155,10 @@ F; US5 is G.
       Result: the `llamacpp` leg of the Android clippy job builds llama.cpp with the NDK. The build script
       takes the newest NDK it finds unless `ANDROID_NDK` names one, and API 28 unless `ANDROID_API_LEVEL`
       says 26 (the app's `minSdk`, now in `.cargo/config.toml`).
-- [x] T036 Phone profiles: Qwen3 1.7B and 0.6B through llama.cpp on a phone; the same memory limits and
-      indicators as with mistralrs. Decide whether phones use llama.cpp at all (they load nothing new).
+- [x] T036 Decide whether phones use llama.cpp (the profiles load no new models).
       Result (operator, 2026-10-31): holzi keeps one engine. If US5 picks llama.cpp, it runs everywhere,
-      phones included; otherwise mistralrs stays everywhere. The phone work moves into T044.
+      phones included; otherwise mistralrs stays everywhere. Runtime and memory validation of the phone
+      profiles remains in T044.
 - [ ] T037 iOS: build on a Mac with Metal; `llama-cpp-sys-2`'s `build.rs` has no iOS branch, so patch it
       upstream or in a fork. If it cannot be done, iOS keeps mistralrs and the gap is filed (FR-006).
 - [x] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose

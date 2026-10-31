@@ -266,13 +266,15 @@ async fn measures_the_speed() {
             .expect("stream");
         let mut first = None;
         let mut out = Drained::default();
-        let mut content_chunks = 0usize;
+        let mut delta_chunks = 0usize;
         let mut saw_done = false;
         while let Some(chunk) = stream.next().await {
             match chunk.expect("stream error") {
-                StreamChunk::Delta { content, .. } if !content.is_empty() => {
-                    first.get_or_insert_with(|| started.elapsed());
-                    content_chunks += 1;
+                StreamChunk::Delta { content, .. } => {
+                    delta_chunks += 1;
+                    if !content.is_empty() {
+                        first.get_or_insert_with(|| started.elapsed());
+                    }
                 }
                 StreamChunk::Done {
                     completion_tokens, ..
@@ -300,9 +302,9 @@ async fn measures_the_speed() {
                     (tokens.saturating_sub(1)) as f64 / after_first
                 ),
                 None => println!(
-                    "speed: first text after {:.2} s, completion token count unavailable; {:.1} text chunks/s after it",
+                    "speed: first text after {:.2} s, completion token count unavailable; {:.1} delta chunks/s after it",
                     first.as_secs_f64(),
-                    content_chunks.saturating_sub(1) as f64 / after_first
+                    delta_chunks.saturating_sub(1) as f64 / after_first
                 ),
             }
         }
