@@ -10,6 +10,7 @@ import {
   type DetailLike,
   emptyDraft,
   isDirty,
+  readAliases,
   toInput,
   toPatch,
 } from '../src/lib/passwords/draft.ts'
@@ -27,6 +28,7 @@ const DETAIL: DetailLike = {
     { id: 'k1', key: 'PIN', value: '{$REF:password@abc}-1' },
     { id: 'k2', key: 'Empty', value: null },
   ],
+  autofillAliases: null,
 }
 
 test('an untouched draft makes an empty patch and is not dirty', () => {
@@ -152,4 +154,73 @@ test('a create input carries a TOTP secret with its parts', () => {
   assert.equal(input.otpPeriod, 60)
   assert.equal(input.otpAlgorithm, 'SHA256')
   assert.equal('otpDigits' in input, false)
+})
+
+test('the draft carries the autofill aliases it can read (036 FR-001a)', () => {
+  const draft = draftFromDetail(
+    {
+      ...DETAIL,
+      autofillAliases:
+        '{"username":["login","",7],"password":"pw","PIN":["pin_code"]}',
+    },
+    '',
+  )
+  assert.deepEqual(draft.aliases, {
+    username: ['login'],
+    PIN: ['pin_code'],
+  })
+  assert.deepEqual(
+    draftFromDetail({ ...DETAIL, autofillAliases: 'oops' }, '').aliases,
+    {},
+  )
+  assert.deepEqual(draftFromDetail(DETAIL, '').aliases, {})
+})
+
+test('alias keys that shadow object properties remain data', () => {
+  const aliases = readAliases('{"__proto__":["login"],"constructor":["field"]}')
+  assert.equal(Object.hasOwn(aliases, '__proto__'), true)
+  assert.deepEqual(aliases['__proto__'], ['login'])
+  assert.deepEqual(aliases.constructor, ['field'])
+})
+
+test('untouched aliases stay out of the patch, even when unreadable', () => {
+  const initial = draftFromDetail(
+    { ...DETAIL, autofillAliases: '{"username":["login"],"password":"pw"}' },
+    '',
+  )
+  assert.deepEqual(toPatch(initial, cloneDraft(initial)), {})
+})
+
+test('changed aliases are sent without empty rows, none at all as null', () => {
+  const initial = draftFromDetail(
+    { ...DETAIL, autofillAliases: '{"username":["login"]}' },
+    '',
+  )
+  const added = cloneDraft(initial)
+  added.aliases = { username: ['login', 'account_name'], password: [] }
+  assert.deepEqual(toPatch(initial, added), {
+    autofillAliases: '{"username":["login","account_name"]}',
+  })
+  const removed = cloneDraft(initial)
+  removed.aliases = { username: [] }
+  assert.deepEqual(toPatch(initial, removed), { autofillAliases: null })
+})
+
+test('the same aliases in another key order are no change', () => {
+  const initial = draftFromDetail(
+    { ...DETAIL, autofillAliases: '{"username":["login"],"otp":["code"]}' },
+    '',
+  )
+  const reordered = cloneDraft(initial)
+  reordered.aliases = { otp: ['code'], username: ['login'] }
+  assert.deepEqual(toPatch(initial, reordered), {})
+})
+
+test('a create input carries aliases only when a row has names', () => {
+  const draft = emptyDraft()
+  draft.title = 'New'
+  draft.aliases = { username: [] }
+  assert.equal('autofillAliases' in toInput(draft), false)
+  draft.aliases = { username: ['account_name'] }
+  assert.equal(toInput(draft).autofillAliases, '{"username":["account_name"]}')
 })

@@ -16,6 +16,8 @@ export type DetailLike = {
   expiresAt: string | null
   tags: { name: string }[]
   keyValues: { id: string; key: string | null; value: string | null }[]
+  /** The stored JSON text of the autofill aliases (spec 036, FR-001a). */
+  autofillAliases: string | null
 }
 
 /** Same shape as the generated `ItemInput`. */
@@ -32,6 +34,7 @@ export type InputOut = {
   otpDigits?: number
   otpPeriod?: number
   otpAlgorithm?: string
+  autofillAliases?: string
   tags: string[]
   keyValues: { key: string; value?: string }[]
 }
@@ -50,6 +53,7 @@ export type PatchOut = {
   otpDigits?: number | null
   otpPeriod?: number | null
   otpAlgorithm?: string | null
+  autofillAliases?: string | null
   tags?: string[]
   keyValues?: { id?: string; key: string; value?: string }[]
 }
@@ -87,6 +91,8 @@ export type Draft = {
   /** Tag names. */
   tags: string[]
   keyValues: KeyValueDraft[]
+  /** Input field names per value key (`username`, `password`, `otp`, a custom field's name). */
+  aliases: Record<string, string[]>
 }
 
 export function emptyDraft(): Draft {
@@ -102,6 +108,7 @@ export function emptyDraft(): Draft {
     otp: { mode: 'keep' },
     tags: [],
     keyValues: [],
+    aliases: {},
   }
 }
 
@@ -124,7 +131,49 @@ export function draftFromDetail(detail: DetailLike, password: string): Draft {
       key: field.key ?? '',
       value: field.value ?? '',
     })),
+    aliases: readAliases(detail.autofillAliases),
   }
+}
+
+/** The aliases of a stored JSON text: only lists of names count, anything else is left out. */
+export function readAliases(text: string | null): Record<string, string[]> {
+  let value: unknown
+  try {
+    value = JSON.parse(text ?? 'null')
+  } catch {
+    return {}
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, names]) => {
+      if (!Array.isArray(names)) return []
+      const kept = names.filter(
+        (name): name is string => typeof name === 'string' && name !== '',
+      )
+      return kept.length ? [[key, kept]] : []
+    }),
+  )
+}
+
+/** The JSON text to store: rows without names are left out, no row at all is `null`. */
+function aliasesText(aliases: Record<string, string[]>): string | null {
+  const rows = Object.entries(aliases).filter(([, names]) => names.length)
+  return rows.length ? JSON.stringify(Object.fromEntries(rows)) : null
+}
+
+/** Equal aliases regardless of the order of the keys. */
+function sameAliases(
+  a: Record<string, string[]>,
+  b: Record<string, string[]>,
+): boolean {
+  const sorted = (aliases: Record<string, string[]>) =>
+    aliasesText(
+      Object.fromEntries(
+        Object.entries(aliases).sort(([x], [y]) => x.localeCompare(y)),
+      ),
+    )
+  return sorted(a) === sorted(b)
 }
 
 /** A deep copy, so the initial state is not changed by edits. */
@@ -154,6 +203,8 @@ export function toInput(draft: Draft): InputOut {
       .map((field) => ({ key: field.key, value: field.value })),
   }
   if (draft.password !== '') input.password = draft.password
+  const aliases = aliasesText(draft.aliases)
+  if (aliases !== null) input.autofillAliases = aliases
   if (draft.otp.mode === 'set' && draft.otp.text.trim() !== '') {
     input.otpSecret = draft.otp.text
     if (draft.otp.digits !== null) input.otpDigits = draft.otp.digits
@@ -197,6 +248,9 @@ export function toPatch(initial: Draft, draft: Draft): PatchOut {
       key: field.key,
       value: field.value,
     }))
+  }
+  if (!sameAliases(draft.aliases, initial.aliases)) {
+    patch.autofillAliases = aliasesText(draft.aliases)
   }
   return patch
 }

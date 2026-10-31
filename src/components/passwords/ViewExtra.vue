@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * The tab Extra of an entry in view mode (spec 036, FR-001, FR-005): the custom fields, the
- * attachments and the passkeys. The custom values show as stored, unmasked (amends spec 034
+ * The tab Extra of an entry in view mode (spec 036, FR-001, FR-001a, FR-005): the custom fields,
+ * the autofill aliases, the attachments and the passkeys. The custom values show as stored, unmasked (amends spec 034
  * FR-005); a value with references shows its marks and a masked resolved value, like the user
  * name. Only the value itself carries `data-no-swipe`, so it can be selected without changing the
  * tab (FR-003).
  */
 import type { ItemDetail } from '@bindings/ItemDetail'
+import { readAliases } from '~/lib/passwords/draft'
 
 const emit = defineEmits<{
   changed: []
@@ -86,6 +87,12 @@ function marksOf(id: string) {
         />
       </SettingsRow>
     </SettingsGroup>
+
+    <PasswordsAutofillAliases
+      :model-value="readAliases(detail.autofillAliases)"
+      :field-keys="detail.keyValues.map((field) => field.key ?? '')"
+      readonly
+    />
 
     <PasswordsAttachments
       :item-id="itemId"
