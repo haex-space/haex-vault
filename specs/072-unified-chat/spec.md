@@ -190,7 +190,7 @@ afterwards.
    other own device of Anna confirmed it has the file, **Then** Anna's vault removes it from the
    server.
 4. **Given** a received file, **When** Ben taps it, **Then** it opens in HaexVault where it can show the
-   type (images, text, PDF as in spec 058) or in the system app; "Speichern unter" copies it to a place
+   type (images, text, PDF, with the file viewer of the file browser) or in the system app; "Speichern unter" copies it to a place
    of his choice.
 5. **Given** a file is still being sent or received, **When** Anna or Ben looks at the message, **Then**
    it shows progress; a failed transfer shows the reason and can be retried.
@@ -350,8 +350,10 @@ where her files go and what others see.
 
 1. **Given** the category "Chat", **When** Anna picks a Blossom-Server from the list or enters an
    address, **Then** it is used for the next file and saved at once (no save button).
-2. **Given** a Blossom-Server that needs a login, **When** Anna enters it, **Then** the credentials are
-   picked from or saved into the password manager (spec 034/052), never stored elsewhere.
+2. **Given** a Blossom-Server that only accepts registered keys (Blossom has no passwords; a paid plan
+   registers a Nostr key), **When** Anna creates a Blossom upload key, **Then** HaexVault stores it as an
+   entry of the password manager (spec 034/052), never elsewhere, and shows its public key to register
+   at the server.
 3. **Given** read receipts are off, **When** Anna reads a message, **Then** the sender never sees _read_
    for it, and Anna does not see _read_ for her own messages either.
 4. **Given** an automatic download limit, **When** a larger file arrives, **Then** it shows with its
@@ -561,7 +563,8 @@ where her files go and what others see.
 - **FR-080**: The settings app MUST have a category "Chat" with: Blossom-Server (preset list of public
   servers plus own address, or none), read receipts (FR-024), automatic download limit (FR-036), and
   notifications on/off. Every change is saved on selection.
-- **FR-081**: Login data of a Blossom-Server MUST come from or go into the password manager.
+- **FR-081**: A Blossom upload key (the credential of a Blossom-Server that only accepts registered keys)
+  MUST come from or go into the password manager.
 - **FR-082**: The Nostr-Relays used for the chat MUST be the vault's Nostr-Relays as configured today and
   listed on the own Visitenkarte; changing them in the settings MUST update the own Visitenkarte the next
   time it is shared (spec 060).
