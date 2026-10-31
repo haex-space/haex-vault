@@ -2,11 +2,11 @@
 
 use std::cell::Cell;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use super::formats::{default_messages, template_tools, ChatFormat};
@@ -25,13 +25,34 @@ pub struct LlamaCppAdapter {
     model: Arc<LoadedModel>,
 }
 
+/// The model load runs in a blocking task which cannot be stopped once it starts. Keep its permit in
+/// the task result as well as during the load: if the async caller is cancelled, the completed model
+/// is dropped before another load can acquire the permit.
+struct SerializedLoad {
+    result: Result<LoadedModel, LoadError>,
+    _permit: OwnedSemaphorePermit,
+}
+
+fn model_load_gate() -> &'static Arc<Semaphore> {
+    static GATE: OnceLock<Arc<Semaphore>> = OnceLock::new();
+    GATE.get_or_init(|| Arc::new(Semaphore::new(1)))
+}
+
 impl LlamaCppAdapter {
     /// Loads a GGUF. Takes seconds to a minute; the work runs on a blocking thread.
     pub async fn load(path: &Path, options: LoadOptions) -> Result<Self, LoadError> {
-        let path = path.to_path_buf();
-        let model = tokio::task::spawn_blocking(move || LoadedModel::load(&path, options))
+        let permit = Arc::clone(model_load_gate())
+            .acquire_owned()
             .await
-            .map_err(|e| LoadError::Load(e.to_string()))??;
+            .map_err(|error| LoadError::Load(error.to_string()))?;
+        let path = path.to_path_buf();
+        let pending = tokio::task::spawn_blocking(move || SerializedLoad {
+            result: LoadedModel::load(&path, options),
+            _permit: permit,
+        })
+            .await
+            .map_err(|e| LoadError::Load(e.to_string()))?;
+        let model = pending.result?;
         Ok(Self {
             model: Arc::new(model),
         })
