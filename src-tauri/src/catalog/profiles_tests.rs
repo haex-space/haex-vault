@@ -86,7 +86,8 @@ fn a_desktop_still_chooses_from_the_whole_catalog() {
         .id
         .clone();
     assert_eq!(suggestion(64 * GIB, ModelPresets::Desktop), largest);
-    if cfg!(feature = "llm-llamacpp") {
+    #[cfg(feature = "llm-llamacpp")]
+    if crate::llm::llamacpp::cpu::missing_features().is_empty() {
         assert_eq!(largest, profiles().desktop);
     }
 }

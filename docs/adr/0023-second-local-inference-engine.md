@@ -90,10 +90,11 @@ better. Spec 070 T042 measured every catalog model through both engines in relea
 
 - **Quality is the same** with the same model: 14 against 12 (Qwen3 0.6B), 48 against 48 (1.7B), 52 against 55
   (4B) of 83 sentences, mistralrs first. Qwen3.5 4B reaches 60 and loads only through llama.cpp.
-- **On the CPU llama.cpp starts answering 12 to 14 times sooner** (Qwen3 4B: 4 s against 52 s) and generates
-  1.3 to 2.5 times faster. That is every phone and every computer without a usable GPU, and every release
-  build so far (they carry no GPU feature).
-- **On the GPU** llama.cpp generates 11 to 46 % faster; both start within a third of a second.
+- **On the measured x86 CPU llama.cpp starts answering 12 to 14 times sooner** (Qwen3 4B: 4 s against 52 s).
+  The benchmark did not obtain comparable throughput units for both engines, so it does not establish which
+  generates faster. Phone performance remains unmeasured on ARM.
+- **On the GPU** both start within a third of a second. The measured throughput rates use tokens/s for
+  llama.cpp and Delta chunks/s for mistralrs, so they do not establish which generates faster.
 - llama.cpp loads three to eight times faster.
 - Spec 055's vision test (Qwen3-VL 4B) ran 3 to 6 times faster through Ollama, which is llama.cpp, than
   through mistralrs, and without its loops.

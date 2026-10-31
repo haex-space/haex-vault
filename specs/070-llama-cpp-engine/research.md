@@ -154,9 +154,9 @@ GPU), a quiet machine (load about 3), one run each, greedy decoding:
   R3's last paragraph drops);
 - the 83 sentences of spec 032 (set version 5) on the GPU, `model_tool_eval`;
 - the speed with `measures_the_speed` (now also through mistralrs, `HOLZI_TEST_ENGINE=mistralrs`): a prompt
-  of about 560 tokens, 128 new tokens, the second of two rounds. mistralrs closes the stream at the token
-  limit without its final frame and so without a token count; the test then counts the pieces, one per
-  token.
+  of about 560 tokens, 128 new tokens, the second of two rounds. mistralrs provides no completion-token count
+  in its `Done` frame, so the benchmark reports Delta chunks/s for it. A chunk can contain multiple tokens
+  after UTF-8 buffering, so its chunk rate cannot be compared with llama.cpp tokens/s.
 
 Qwen3.5 4B runs only through llama.cpp (mistralrs 0.8.1 panics on `qwen35`).
 
@@ -169,36 +169,37 @@ Qwen3.5 4B runs only through llama.cpp (mistralrs 0.8.1 panics on `qwen35`).
 | Qwen3 4B   | 52        | 55        | 0.857 / 0.844   | 4 / 3               | 0 / 0          |
 | Qwen3.5 4B | –         | 60        | – / 0.883       | – / 6               | – / 1          |
 
-**Speed, GPU** (first text after the prompt, then tokens per second; load time; the process' peak resident
-memory, where the weights in video memory do not count):
+**Speed, GPU** (each cell: time to first text; throughput (tokens/s for llama.cpp, Delta chunks/s for
+mistralrs; these rates are not comparable); load time; process peak resident memory, excluding weights in video
+memory):
 
-| Model      | mistralrs                        | llama.cpp                        |
-| ---------- | -------------------------------- | -------------------------------- |
-| Qwen3 0.6B | 0.03 s, 155 t/s; 2.8 s; 1134 MiB | 0.05 s, 226 t/s; 0.4 s; 977 MiB  |
-| Qwen3 1.7B | 0.05 s, 100 t/s; 3.7 s; 1259 MiB | 0.10 s, 125 t/s; 0.4 s; 1739 MiB |
-| Qwen3 4B   | 0.10 s, 55 t/s; 1.7 s; 1319 MiB  | 0.22 s, 61 t/s; 0.6 s; 2897 MiB  |
-| Qwen3.5 4B | –                                | 0.30 s, 51 t/s; 0.8 s; 3426 MiB  |
+| Model      | mistralrs                             | llama.cpp                        |
+| ---------- | ------------------------------------- | -------------------------------- |
+| Qwen3 0.6B | 0.03 s, 155 chunks/s; 2.8 s; 1134 MiB | 0.05 s, 226 t/s; 0.4 s; 977 MiB  |
+| Qwen3 1.7B | 0.05 s, 100 chunks/s; 3.7 s; 1259 MiB | 0.10 s, 125 t/s; 0.4 s; 1739 MiB |
+| Qwen3 4B   | 0.10 s, 55 chunks/s; 1.7 s; 1319 MiB  | 0.22 s, 61 t/s; 0.6 s; 2897 MiB  |
+| Qwen3.5 4B | –                                     | 0.30 s, 51 t/s; 0.8 s; 3426 MiB  |
 
 **Speed, CPU only:**
 
-| Model      | mistralrs                        | llama.cpp                      |
-| ---------- | -------------------------------- | ------------------------------ |
-| Qwen3 0.6B | 12.3 s, 21 t/s; 1.8 s; 1430 MiB  | 0.9 s, 27 t/s; 0.2 s; 864 MiB  |
-| Qwen3 1.7B | 22.0 s, 13 t/s; 2.5 s; 2714 MiB  | 1.6 s, 32 t/s; 0.3 s; 2085 MiB |
-| Qwen3 4B   | 51.6 s, 6.2 t/s; 2.1 s; 4420 MiB | 4.1 s, 16 t/s; 0.6 s; 4321 MiB |
-| Qwen3.5 4B | –                                | 4.8 s, 13 t/s; 0.6 s; 4296 MiB |
+| Model      | mistralrs                             | llama.cpp                      |
+| ---------- | ------------------------------------- | ------------------------------ |
+| Qwen3 0.6B | 12.3 s, 21 chunks/s; 1.8 s; 1430 MiB  | 0.9 s, 27 t/s; 0.2 s; 864 MiB  |
+| Qwen3 1.7B | 22.0 s, 13 chunks/s; 2.5 s; 2714 MiB  | 1.6 s, 32 t/s; 0.3 s; 2085 MiB |
+| Qwen3 4B   | 51.6 s, 6.2 chunks/s; 2.1 s; 4420 MiB | 4.1 s, 16 t/s; 0.6 s; 4321 MiB |
+| Qwen3.5 4B | –                                     | 4.8 s, 13 t/s; 0.6 s; 4296 MiB |
 
 What the figures say:
 
 - **Quality:** the same model gives the same result through both engines within one or three sentences, in
   both directions (0.6B: 14 against 12, 1.7B: equal, 4B: 52 against 55). Neither engine reads calls
   better. The real gain is the model: Qwen3.5 4B reaches 60, and only llama.cpp loads it.
-- **GPU:** llama.cpp generates faster at every size (+11 % to +46 %); mistralrs reads the prompt faster,
-  but both start within a third of a second, which nobody notices. Loading is three to eight times faster
-  through llama.cpp, on the CPU as well.
+- **GPU:** both engines start within a third of a second. The throughput rates use different units and do not
+  establish which engine generates faster. Loading is three to eight times faster through llama.cpp, on the CPU
+  as well.
 - **CPU:** on the measured x86 machine, llama.cpp starts answering 12 to 14 times sooner (4B: 4 s against
-  52 s) and generates 1.3 to 2.5 times faster. The phone result is still unmeasured: the phone check
-  belongs to the ARM validation in T040.
+  52 s). The throughput rates use different units and do not establish which engine generates faster. The phone
+  result is still unmeasured: the phone check belongs to the ARM validation in T040.
 - **Memory:** on the CPU about equal, llama.cpp lower with the small models. On the GPU llama.cpp's
   resident memory is higher because the file is mapped into the process and counted there; it is page
   cache, not a copy.
