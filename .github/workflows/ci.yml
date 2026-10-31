@@ -1137,9 +1137,17 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
 
+      # Clippy has not run on Windows over the rest of holzi yet, which still has findings there:
+      # this step fails on a compile error or on a finding in the drives only, and lists the rest.
       - name: Drives clippy (Windows)
         if: runner.os == 'Windows'
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
+        run: |
+          $lint = cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets --message-format=short 2>&1 | ForEach-Object { "$_" }
+          $code = $LASTEXITCODE
+          $lint
+          $own = $lint | Select-String -SimpleMatch 'files\local\drives\'
+          if ($code -ne 0 -or $own) { exit 1 }
+          exit 0
 
   # Spec 044 (T007, research R4): the same probe in Android's web view, on the emulator of
   # `android-e2e`. The web view's version is in the job log and in the probe's user agent.
