@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use serde_json::json;
 
+use super::cdp::Connection;
 use super::error::BrowserError;
 use super::executor::BrowserEnv;
 use super::prompts::{new_browser_prompts, BrowserPromptKind, BrowserQuestion};
@@ -101,6 +102,10 @@ fn kinds(asked: &Mutex<Vec<BrowserQuestion>>) -> Vec<(BrowserPromptKind, Option<
 #[tokio::test]
 async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     let (session, _) = session(PermissionMode::Auto, true);
+    let (from_browser, _browser_writes) = std::io::pipe().unwrap();
+    let (_browser_reads, to_browser) = std::io::pipe().unwrap();
+    let connection = Arc::new(Connection::new(from_browser, to_browser));
+    let opening = session.tabs_of(&connection).await;
     // A tool call reserves before CDP returns its target; popups can arrive during that await.
     let explicit = session.reserve_new_tab(None).unwrap();
     let reservations = (0..MAX_TABS + 4)
@@ -134,12 +139,21 @@ async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     );
     assert!(session.reserve_new_tab(Some("still-too-many")).is_none());
     assert!(session.reserve_new_tab(None).is_none());
+    drop(opening);
 
     // Both failed setup and an ordinary close release the same reservation.
     session.forget_targets(&explicit);
     let pending = session.reserve_new_tab(None).unwrap();
     session.forget_targets(&pending);
+
+    // Cancellation drops the tab lock before the target is registered. The next call reclaims
+    // only that pending slot, keeping every popup that is still being adopted.
+    let cancelled = session.tabs_of(&connection).await;
+    assert!(session.reserve_new_tab(None).is_some());
+    drop(cancelled);
+    drop(session.tabs_of(&connection).await);
     assert!(session.reserve_new_tab(Some("replacement-popup")).is_some());
+    assert!(session.reserve_new_tab(Some("still-over-limit")).is_none());
 }
 
 #[tokio::test]

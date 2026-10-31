@@ -244,6 +244,9 @@ impl Session {
         connection: &Arc<Connection>,
     ) -> tokio::sync::MutexGuard<'_, Tabs> {
         let mut tabs = self.tabs.lock().await;
+        // An active tool-created tab holds this lock until its target is registered. A pending
+        // reservation here therefore belongs to a cancelled call; popup reservations have targets.
+        self.targets().remove(&None);
         if !Self::same_run(&tabs, connection) {
             tabs.open.clear();
             tabs.current = None;
