@@ -186,8 +186,9 @@ copied). The chat command's reasoning rule (`model_id` containing `qwen3` with t
 also matches `qwen3.5-…` ids; this is kept on purpose, since the evaluation ran that way, and a test pins it.
 
 **D8 – Features and build.** `llm-llamacpp` pulls `llama-cpp-2` with `default-features = false` plus the
-platform feature: `android-static-stdcxx` on Android, `metal` on Apple, `cuda` where asked. `openmp` is on
-for desktop only. See R1 to R3 for the three things the spike left open.
+platform feature: `android-static-stdcxx` on Android, `metal` on Apple, `cuda` where asked. `openmp` was on
+for desktop until US5 made the engine a default feature; it is off since, so the installers carry no OpenMP
+runtime library (`vcomp140.dll`, `libgomp.so.1`). See R1 to R3 for the three things the spike left open.
 
 ## Research items (to settle before the PR that needs them)
 

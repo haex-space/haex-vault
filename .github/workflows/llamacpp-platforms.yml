@@ -2,8 +2,8 @@ name: llama.cpp platforms
 
 # Spec 070 T039: the llama.cpp engine on Windows and macOS. It builds the engine, runs its unit tests and
 # loads Qwen3 0.6B (the catalog's smallest model) to answer a prompt. The release workflow builds the
-# default features, which do not carry the engine yet, so this is the only place the two platforms build
-# it. `workflow_dispatch` runs it on any branch; a pull request that changes this file runs it too.
+# engine too (it is a default feature since US5), but loads no model; this one does. `workflow_dispatch`
+# runs it on any branch; a pull request that changes this file runs it too.
 
 on:
   pull_request:

@@ -150,7 +150,8 @@ Release builds on the development machine (i7-12800HX, 16 cores and 24 threads; 
 GPU), a quiet machine (load about 3), one run each, greedy decoding:
 
 - the GPU build `llm-cuda,llm-llamacpp-cuda`, and the CPU build `llm-llamacpp` (no CUDA, so mistralrs runs
-  on the CPU too; ggml with the AVX2 baseline of R3, threads = physical cores);
+  on the CPU too; ggml with the AVX2 baseline of R3, threads = physical cores, still with OpenMP, which
+  R3's last paragraph drops);
 - the 83 sentences of spec 032 (set version 5) on the GPU, `model_tool_eval`;
 - the speed with `measures_the_speed` (now also through mistralrs, `HOLZI_TEST_ENGINE=mistralrs`): a prompt
   of about 560 tokens, 128 new tokens, the second of two rounds. mistralrs closes the stream at the token
@@ -251,6 +252,19 @@ Two build traps found on the way: the sys crate prints `rerun-if-env-changed` on
 present at its last run, and CMake keeps an option in its cache once set. A target dir built before the
 switches keeps the C kernels until `cargo clean -p llama-cpp-sys-2`; the `llamacpp` CI leg got a new cache
 key for that reason, and the unit test fails on such a stale build instead of letting it pass slowly.
+
+**OpenMP (2026-10-31, PR G).** The R3 builds used OpenMP on Linux and Windows. With llama.cpp in the
+default features, OpenMP would add a runtime library the installers do not carry: `vcomp140.dll` next to
+Tauri's static VC runtime on Windows (the runners have Visual Studio and would not notice), `libgomp.so.1` on
+Linux. Without it ggml uses its own thread pool, as on Android and the Mac. The two release builds were
+measured in turns (CPU only, the R3 prompt, two rounds each, a machine at load 4 to 10):
+
+| Model      | With OpenMP              | Without OpenMP           |
+| ---------- | ------------------------ | ------------------------ |
+| Qwen3 1.7B | 1.5–1.6 s, 20–27 t/s     | 1.4–1.6 s, 38.5–38.6 t/s |
+| Qwen3 4B   | 3.7–3.9 s, 14.8–15.0 t/s | 4.2–4.4 s, 17.1–17.8 t/s |
+
+The prompt reads a little slower, the answer comes faster; OpenMP is off on every platform.
 
 ## R4 – Gemma 4 call syntax (settled, 2026-10-31)
 
