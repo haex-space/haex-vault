@@ -61,8 +61,8 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
 - **Design**: [`docs/plans/2026-10-26-sync-rules-design.md`](../../docs/plans/2026-10-26-sync-rules-design.md)
   hält die Entscheidungen, das Modell, den Ablauf und den Testansatz fest.
 - **Spec 025** (Dateisync zwischen eigenen Geräten): entfällt. Diese Spec ersetzt den Entwurf, der noch
-  auf Spaces, Dateiindex und verschlüsselten Objekten beruhte. 025 wird mit dem letzten Umsetzungsschritt
-  gelöscht; Verweise in anderen Dokumenten zeigen danach auf diese Spec.
+  auf Spaces, Dateiindex und verschlüsselten Objekten beruhte. 025 ist mit dem letzten Umsetzungsschritt
+  gelöscht; Verweise in anderen Dokumenten zeigen auf diese Spec.
 - **Spec 056** (Dateizugriff und Dateifreigaben): liefert den Zugriff auf andere eigene Geräte. Ein
   eigenes Gerät ist dort eine Quelle wie ein Speicher; diese Spec braucht deshalb keinen eigenen
   Transport. Ein Gerät, dessen Schalter „Geräte-Dateizugriff“ aus ist, ist als Ort nicht erreichbar.

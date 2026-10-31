@@ -13,7 +13,7 @@ work agreed in the same session:
 | Spec  | Topic                                                                                                               |
 | ----- | ------------------------------------------------------------------------------------------------------------------- |
 | 044   | This design: file browser and viewer                                                                                |
-| open  | Sync rules (replaces 025): device ↔ device in plaintext, cloud with optional encryption, one-/two-way, delete modes |
+| 061   | Sync rules (replaces 025): device ↔ device in plaintext, cloud with optional encryption, one-/two-way, delete modes |
 | 046   | Background service (Android and desktop tray): file sync and notifications                                          |
 | 056   | File access between own devices and file shares with contacts; replaces spaces (2026-10-21)                         |
 | later | Content search with embeddings (needs its own index)                                                                |

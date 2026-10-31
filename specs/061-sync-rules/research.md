@@ -284,3 +284,10 @@ Beim Löschen von `specs/025-own-device-file-sync/` müssen folgende Stellen mit
 `docs/plans/2026-10-26-sync-rules-design.md` (Zeile 5), `specs/061-sync-rules/spec.md` (Zeile ~61). Zeilen
 von Hand prüfen, nicht nur per Suche (`specs/026-blind-relay`, `specs/028-data-shares` erwähnen 025
 möglicherweise nur mit der bloßen Nummer).
+
+## R15 — Messung SC-007
+
+`src-tauri/src/file_sync/perf_tests.rs` (T068): 10 000 Dateien in 100 Ordnern auf dem Gerät, der erste
+Lauf kopiert sie, der zweite findet nichts zu tun. Gemessen am 2026-10-31 im Debug-Build auf einem
+i7-12800HX mit ext4: **0,25 s** für den zweiten Lauf (SC-007 erlaubt 5 s). Der Test ist `#[ignore]` und
+läuft nur von Hand (`cargo test --lib -- --ignored file_sync::run::tests::perf --nocapture`).

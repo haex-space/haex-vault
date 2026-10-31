@@ -2,7 +2,7 @@
 
 **Status**: Design agreed with the operator on 2026-10-26; to be specified as its own spec (number open).
 
-**Replaces** the draft [025](../../specs/025-own-device-file-sync/spec.md) (file index, content-addressed
+**Replaces** the draft 025, removed with spec 061 (file index, content-addressed
 objects, per-file keys, conflict copies at Bereich level). Builds on spec
 [056](../../specs/056-file-access-sharing/spec.md): another own device appears in the file browser as a
 storage, so a rule needs no transport of its own.

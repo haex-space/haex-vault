@@ -89,7 +89,7 @@ Schlüssel-Wert-Speicher). Die Entscheidungen von ADR-0004 gelten. Referenzen: h
   derselben Erweiterung auf Geräten anderer Vaults. Die Berechtigung `peers`, acht Methoden
   `extension_peers_*` und fünf Meldungen `peers:*` kommen über diese Brücke
   ([contracts/bridge.md](contracts/bridge.md)); der Rest ist dort geregelt.
-- [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md): Die Dateifunktionen dieser
+- `025-own-device-file-sync` (entfernt, ersetzt durch [`061-sync-rules`](../061-sync-rules/spec.md)): Die Dateifunktionen dieser
   Spec arbeiten auf dem Dateisystem des Geräts. Ob ein Ordner synchronisiert wird, ändert an
   den Berechtigungen nichts.
 - [`027-spaces`](../027-spaces/spec.md) und [`028-data-shares`](../028-data-shares/spec.md):

@@ -30,7 +30,7 @@ nicht Teil dieser Spec.
   Passwortmanagers (Wischen zwischen Tabs, Langdruck-Auswahl, Zeilenmenü, Lightbox mit Pinch
   und Wischen, 360 px Breite) sind Teil von User Story 1 dieser Spec.
 - [`024-own-device-sync`](../024-own-device-sync/spec.md) und
-  [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md): Ein Telefon ist ein
+  `025-own-device-file-sync` (entfernt, ersetzt durch [`061-sync-rules`](../061-sync-rules/spec.md)): Ein Telefon ist ein
   weiteres eigenes Gerät. Beide Specs sehen bereits vor, dass mobile Geräte nur im Vordergrund
   synchronisieren.
 - [`017-extension-host`](../017-extension-host/spec.md) FR-066 und T112: Erweiterungen laufen
