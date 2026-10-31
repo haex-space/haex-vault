@@ -11,6 +11,7 @@ mod agent_browser_fixture;
 #[path = "common/agent_browser_scene.rs"]
 mod agent_browser_scene;
 
+use std::future::Future;
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
@@ -59,6 +60,17 @@ async fn tab_count(scene: &Scene, count: usize) -> Vec<Value> {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// Gives each browser action a useful failure point instead of letting a broken target wait hang
+/// the whole integration-test process.
+async fn action<T>(name: &str, future: impl Future<Output = T>) -> T {
+    eprintln!("starting {name}");
+    let result = tokio::time::timeout(Duration::from_secs(60), future)
+        .await
+        .unwrap_or_else(|_| panic!("timed out during {name}"));
+    eprintln!("finished {name}");
+    result
 }
 
 /// What the page of the browser's tab at an address containing `part` sees of the marker.
@@ -120,22 +132,26 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
     let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
         return;
     };
-    let page = scene
-        .auto(
+    let page = action(
+        "open starting page",
+        scene.auto(
             "browser.open",
             json!({ "url": scene.site.url("/popup.html") }),
-        )
-        .await
-        .expect("the page");
+        ),
+    )
+    .await
+    .expect("the page");
 
     // Declined: the other website gets no request, and the tab closes.
-    scene
-        .auto(
+    action(
+        "open popup",
+        scene.auto(
             "browser.click",
             json!({ "tab": "t1", "element": element(&page, "Fenster öffnen") }),
-        )
-        .await
-        .expect("the click returns");
+        ),
+    )
+    .await
+    .expect("the click returns");
     let partner = scene
         .site
         .url("/partner.html?via=open")
@@ -146,13 +162,15 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
 
     // A link with `target=_blank` has no opener, yet is held just the same.
     *scene.allow.lock().unwrap() = true;
-    scene
-        .auto(
+    action(
+        "open partner link",
+        scene.auto(
             "browser.click",
             json!({ "tab": "t1", "element": element(&page, "Partner im neuen Tab") }),
-        )
-        .await
-        .expect("the click returns");
+        ),
+    )
+    .await
+    .expect("the click returns");
     let partner = scene
         .site
         .url("/partner.html?via=link")
@@ -164,10 +182,12 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
         .find(|tab| tab["title"] == "Partner")
         .unwrap_or_else(|| panic!("the new tab: {listed:?}"));
     assert_eq!(partner_requests(&scene), ["/partner.html?via=link"]);
-    let read = scene
-        .auto("browser.page.read", json!({ "tab": joined["tab"] }))
-        .await
-        .expect("the agent reads the new tab");
+    let read = action(
+        "read partner page",
+        scene.auto("browser.page.read", json!({ "tab": joined["tab"] })),
+    )
+    .await
+    .expect("the agent reads the new tab");
     assert!(content(&read)["text"]
         .as_str()
         .unwrap()
@@ -177,33 +197,39 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
     assert_eq!(marker["title"], "[Agent] Partner");
 
     // A new tab on an allowed website joins without a question.
-    scene
-        .auto(
+    action(
+        "open allowed article",
+        scene.auto(
             "browser.click",
             json!({ "tab": "t1", "element": element(&page, "Artikel im neuen Tab") }),
-        )
-        .await
-        .expect("the click returns");
+        ),
+    )
+    .await
+    .expect("the click returns");
     tab_count(&scene, 3).await;
     assert_eq!(asked(&scene).len(), 2);
 
     // At five tabs, the next one a page opens closes at once.
     for _ in 0..2 {
-        scene
-            .auto(
+        action(
+            "open fixture tab",
+            scene.auto(
                 "browser.tabs.open",
                 json!({ "url": scene.site.url("/index.html") }),
-            )
-            .await
-            .expect("a tab");
-    }
-    scene
-        .auto(
-            "browser.click",
-            json!({ "tab": "t1", "element": element(&page, "Artikel im neuen Tab") }),
+            ),
         )
         .await
-        .expect("the click returns");
+        .expect("a tab");
+    }
+    action(
+        "open popup at tab limit",
+        scene.auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": element(&page, "Artikel im neuen Tab") }),
+        ),
+    )
+    .await
+    .expect("the click returns");
     tokio::time::sleep(Duration::from_secs(1)).await;
     tab_count(&scene, 5).await;
     assert_eq!(asked(&scene).len(), 2);
