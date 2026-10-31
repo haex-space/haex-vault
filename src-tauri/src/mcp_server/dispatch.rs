@@ -3,8 +3,9 @@
 //! per agent, let through, asked about or refused by the agent's approval mode, run by the window's
 //! action runner as caller `externalAgent`, written to the agent log, and turned into an MCP result.
 //! A tool of an extension takes the same way and runs over the extension's own connection, where
-//! the stricter of the agent's approval mode and the tool's own setting wins (US4, FR-018). A
-//! refusal never says whether a target exists.
+//! the stricter of the agent's approval mode and the tool's own setting wins (US4, FR-018), and so
+//! does holzi's command tool, which is `Risky` (US5, FR-012). A refusal never says whether a target
+//! exists.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -17,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::agent_log::{self, NewEntry, Outcome};
+use super::command_tool;
 use super::connection::now_millis;
 use super::extension_tools;
 use super::grants::{self, DataRights, Reach};
@@ -100,25 +102,26 @@ impl CallSlots {
     }
 }
 
-/// What a call reaches: an action of the catalog or a tool of an extension.
+/// What a call reaches: an action of the catalog, a tool of an extension or the command tool.
 #[derive(Clone, Copy)]
 enum Callee<'a> {
     Action(&'a AgentActionDef),
     Extension(&'a Arc<dyn ChatTool>),
+    Command(&'a Arc<dyn ChatTool>),
 }
 
 impl Callee<'_> {
     fn input_schema(self) -> Value {
         match self {
             Self::Action(def) => def.input_schema.clone(),
-            Self::Extension(tool) => tool.input_schema(),
+            Self::Extension(tool) | Self::Command(tool) => tool.input_schema(),
         }
     }
 
     fn effect(self) -> ActionEffect {
         match self {
             Self::Action(def) => def.effect,
-            Self::Extension(tool) => match tool.risk_class() {
+            Self::Extension(tool) | Self::Command(tool) => match tool.risk_class() {
                 RiskClass::Safe => ActionEffect::Read,
                 RiskClass::Change => ActionEffect::Write,
                 RiskClass::Risky => ActionEffect::Destructive,
@@ -131,6 +134,7 @@ impl Callee<'_> {
 fn find<'a>(
     catalog: &'a [AgentActionDef],
     tools: &'a [Arc<dyn ChatTool>],
+    command: Option<&'a Arc<dyn ChatTool>>,
     tool_name: &str,
 ) -> Option<Callee<'a>> {
     catalog
@@ -142,6 +146,11 @@ fn find<'a>(
                 .iter()
                 .find(|tool| tool.name() == tool_name)
                 .map(Callee::Extension)
+        })
+        .or_else(|| {
+            command
+                .filter(|tool| tool.name() == tool_name)
+                .map(Callee::Command)
         })
 }
 
@@ -186,7 +195,8 @@ pub async fn call(
     let tools = core.extension_tools.snapshot();
     let reach = reach(core, agent.id).await;
     let input = Value::Object(arguments.unwrap_or_default());
-    let known = find(&catalog, &tools, tool_name);
+    let command = core.command_tool.as_ref();
+    let known = find(&catalog, &tools, command, tool_name);
     let shown = redact(&known.map_or(Value::Null, Callee::input_schema), &input);
     let mut entry = NewEntry {
         tool: tool_name.to_owned(),
@@ -196,21 +206,21 @@ pub async fn call(
         outcome: Outcome::DeniedRights,
         asked: false,
     };
-    let callee = match grants::check(&agent.rights, &reach, &catalog, tool_name) {
-        Some(def) => Callee::Action(def),
-        None => match grants::check_extension_tool(&agent.rights, &tools, tool_name) {
-            Some(tool) => Callee::Extension(tool),
-            None => {
-                let result = if known.is_none() && seen {
-                    entry.outcome = Outcome::Unavailable;
-                    unavailable()
-                } else {
-                    not_allowed()
-                };
-                record(core, agent.id, &entry).await;
-                return result;
-            }
-        },
+    let callee = grants::check(&agent.rights, &reach, &catalog, tool_name)
+        .map(Callee::Action)
+        .or_else(|| {
+            grants::check_extension_tool(&agent.rights, &tools, tool_name).map(Callee::Extension)
+        })
+        .or_else(|| command_tool::check(&agent.rights, command, tool_name).map(Callee::Command));
+    let Some(callee) = callee else {
+        let result = if known.is_none() && seen {
+            entry.outcome = Outcome::Unavailable;
+            unavailable()
+        } else {
+            not_allowed()
+        };
+        record(core, agent.id, &entry).await;
+        return result;
     };
     let Some(_slot) = core
         .slots
@@ -235,7 +245,9 @@ pub async fn call(
             });
             call_gate(agent.mode, def, confirms_itself)
         }
-        Callee::Extension(tool) => extension_gate(agent.mode, tool.risk_class(), tool.always_ask()),
+        Callee::Extension(tool) | Callee::Command(tool) => {
+            extension_gate(agent.mode, tool.risk_class(), tool.always_ask())
+        }
     };
     let result = match decision {
         Decision::Deny => {
@@ -326,6 +338,7 @@ fn question(
             );
             (tool.name().to_owned(), titles, false)
         }
+        Callee::Command(tool) => (tool.name().to_owned(), command_tool::titles(), false),
     };
     CallQuestion {
         agent_id: agent.id.to_string(),
@@ -353,6 +366,11 @@ async fn run(
             // The extension's frame learns nothing about the agent (research R5).
             let (result, outcome) =
                 extension_tools::result(tool.execute(input, cancel.clone()).await);
+            entry.outcome = outcome;
+            return result;
+        }
+        Callee::Command(tool) => {
+            let (result, outcome) = command_tool::result(tool.execute(input, cancel.clone()).await);
             entry.outcome = outcome;
             return result;
         }

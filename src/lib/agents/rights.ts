@@ -1,7 +1,7 @@
 // The rights of an external agent as the window edits them (spec 021 FR-008, research R3): per
 // scope of "holzi bedienen" nothing, reading, or reading and changing, the group `browser` with
-// its websites (spec 065), the extensions whose tools it sees (spec 021 US4) and the group
-// `passwords` with its tags (US5). Rust checks every change again (`grants::validate`). Pure, relative
+// its websites (spec 065), the extensions whose tools it sees (spec 021 US4), the group
+// `passwords` with its tags and the group `commands` (US5). Rust checks every change again (`grants::validate`). Pure, relative
 // `.ts` imports only; the shapes below are those of the bindings `Rights` and `BrowserRights`,
 // restated because the scripts' Node resolution cannot load bindings that import other bindings.
 import type { OperateLevel } from '../../types/bindings/OperateLevel.ts'
@@ -25,6 +25,7 @@ export type Rights = {
   browser?: BrowserRights
   passwords?: PasswordRights
   extensions?: string[]
+  commands?: boolean
 }
 
 /** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -50,14 +51,15 @@ export function levelsOf(rights: Rights | null | undefined): Levels {
   ) as Levels
 }
 
-/** The rights the levels, the groups `browser` and `passwords` and the granted extensions stand
- * for; "none" is left out, and `null` keeps a group off. An incomplete password tag draft
+/** The rights the levels, the groups `browser`, `passwords` and `commands` and the granted
+ * extensions stand for; "none" is left out, and `null` keeps a group off. An incomplete password tag draft
  * also keeps the group off, so changing from all entries to tags immediately revokes access. */
 export function rightsOf(
   levels: Levels,
   browser: BrowserRights | null = null,
   extensions: string[] = [],
   passwords: PasswordRights | null = null,
+  commands = false,
 ): Rights {
   const operate: Record<string, OperateLevel> = {}
   for (const scope of OPERATE_SCOPES) {
@@ -72,6 +74,7 @@ export function rightsOf(
       ? { passwords }
       : {}),
     ...(extensions.length > 0 ? { extensions } : {}),
+    ...(commands ? { commands } : {}),
   }
 }
 
