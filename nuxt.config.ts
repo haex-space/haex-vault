@@ -25,7 +25,7 @@ export default defineNuxtConfig({
   // #96: a closed context menu trigger no longer catches clicks meant for
   // what lies above it.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#be5fdfdbd146cb2f3d145c25c5076412add4f06b',
+    'github:haex-space/haextension/packages/haex-ui#523a9c6db40cc64526288a0bc168afec6c4478b1',
   ],
   build: {
     transpile: ['reka-ui'],
