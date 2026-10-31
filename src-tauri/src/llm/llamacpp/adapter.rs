@@ -50,8 +50,8 @@ impl LlamaCppAdapter {
             result: LoadedModel::load(&path, options),
             _permit: permit,
         })
-            .await
-            .map_err(|e| LoadError::Load(e.to_string()))?;
+        .await
+        .map_err(|e| LoadError::Load(e.to_string()))?;
         let model = pending.result?;
         Ok(Self {
             model: Arc::new(model),
