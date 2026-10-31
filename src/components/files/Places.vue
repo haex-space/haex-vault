@@ -18,6 +18,8 @@ import {
   offerPin,
   pinLabel,
   pinnableSource,
+  shownKnown,
+  shownPins,
 } from '~/lib/files/pins'
 
 const props = defineProps<{
@@ -37,26 +39,17 @@ const prefs = useFilesPrefs()
 /** What a dragged pin carries, so no other drop target takes it for entries. */
 const PIN_MIME = 'application/x-holzi-files-pin'
 
-const PLACE_ICONS: Record<string, string> = {
-  home: 'lucide:house',
-  pictures: 'lucide:image',
-  downloads: 'lucide:download',
-  documents: 'lucide:file-text',
-  desktop: 'lucide:monitor',
-  videos: 'lucide:film',
-}
-
 const known = computed(
   () => props.sources?.known.map((place) => place.path) ?? [],
 )
 
 /** The known places the user did not remove. */
-const knownShown = computed(
-  () =>
-    props.sources?.known.filter(
-      (place) => !prefs.places.value.hidden.includes(place.path),
-    ) ?? [],
-)
+const knownShown = computed(() => {
+  const paths = shownKnown(prefs.places.value, known.value)
+  return (
+    props.sources?.known.filter((place) => paths.includes(place.path)) ?? []
+  )
+})
 
 const devicePin = (path: string): FilesPin => ({
   source: { kind: 'device' },
@@ -88,7 +81,7 @@ function sourceOf(pin: FilesPin): PinSource {
 
 /** The pins to show: a pin whose source is gone stays stored but hidden, as the source may return. */
 const shown = computed(() =>
-  prefs.pins.value.flatMap((pin) => {
+  shownPins(prefs.places.value, known.value).flatMap((pin) => {
     const source = sourceOf(pin)
     return source === undefined ? [] : [{ pin, source }]
   }),
@@ -211,10 +204,12 @@ function endPinDrag() {
             @dragstart="onPinDragStart(devicePin(place.path), $event)"
             @dragend="endPinDrag"
           >
-            <Icon
-              :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
-              class="size-4 shrink-0"
-            />
+            <span class="size-4 shrink-0">
+              <FilesFolderIcon
+                :path="place.path"
+                :name="place.name === 'home' ? 'home' : undefined"
+              />
+            </span>
             <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
           </button>
         </FilesMenu>
@@ -233,7 +228,9 @@ function endPinDrag() {
             @dragstart="onPinDragStart(pin, $event)"
             @dragend="endPinDrag"
           >
-            <Icon name="lucide:folder" class="size-4 shrink-0" />
+            <span class="size-4 shrink-0">
+              <FilesFolderIcon :path="pin.path" />
+            </span>
             <span class="min-w-0 flex-1 truncate">
               {{ labelOf(pin, source) }}
             </span>
