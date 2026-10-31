@@ -1145,7 +1145,8 @@ jobs:
           $lint = cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets --message-format=short 2>&1 | ForEach-Object { "$_" }
           $code = $LASTEXITCODE
           $lint
-          $own = $lint | Select-String -SimpleMatch 'files\local\drives\'
+          # Cargo may print source paths with either separator on Windows.
+          $own = $lint | Select-String -Pattern 'files[\\/]local[\\/]drives[\\/]'
           if ($code -ne 0 -or $own) { exit 1 }
           exit 0
 
