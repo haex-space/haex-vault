@@ -399,6 +399,10 @@ trash = "5.2"
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["openmp"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# The plists of `diskutil` for the drives (spec 064 research R5).
+plist = "1.10"
+
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
 
@@ -408,6 +412,8 @@ tauri = { version = "2.12.0", features = ["test"] }
 # Additive to the `[dependencies]` nostr-sdk entry: an in-process relay for
 # presence/link tests (spec 024), no real server needed.
 nostr-sdk = { version = "0.45", features = ["local-relay"] }
+# The macOS drive parser runs its fixture tests on every platform (spec 064 T067).
+plist = "1.10"
 # `tempfile` moved to `[dependencies]` above — tests already get it
 # transitively, no separate dev-dependency entry needed.
 # Additive to the `[dependencies]` rmcp entry: test-only `server` support

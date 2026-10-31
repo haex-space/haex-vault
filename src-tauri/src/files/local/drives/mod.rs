@@ -11,6 +11,10 @@ use ts_rs::TS;
 pub mod android;
 pub mod backend;
 pub mod fallback;
+#[cfg(any(target_os = "macos", test))]
+pub mod macos;
+#[cfg(any(target_os = "macos", test))]
+pub mod macos_plist;
 pub mod monitor;
 pub mod mountinfo;
 #[cfg(all(target_os = "linux", not(target_os = "android")))]

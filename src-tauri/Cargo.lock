@@ -4821,6 +4821,7 @@ dependencies = [
  "percent-encoding",
  "pkcs1",
  "pkcs8",
+ "plist",
  "portable-pty",
  "postcard",
  "psl",
