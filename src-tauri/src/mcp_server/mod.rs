@@ -25,6 +25,8 @@ pub mod settings;
 #[cfg(test)]
 mod agent_log_tests;
 #[cfg(test)]
+mod dispatch_tests;
+#[cfg(test)]
 mod endpoint_tests;
 #[cfg(test)]
 mod grants_tests;
@@ -172,6 +174,7 @@ impl McpServer {
                         socket_dir: endpoint::default_socket_dir(),
                         parent: state.gate().token(),
                         catalog: chat.action_catalog.clone(),
+                        extension_tools: chat.extension_tools.clone(),
                         bridge: chat.action_bridge.clone(),
                         native: chat.native_actions.clone(),
                         prompts: self.prompts.clone(),

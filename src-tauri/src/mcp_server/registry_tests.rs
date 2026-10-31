@@ -142,7 +142,8 @@ async fn rights_round_trip_and_are_replaced() {
             .expect("read"),
         default_rights()
     );
-    // Spec 065 T008: the group `browser` is stored next to `operate` and reads back the same.
+    // Spec 065 T008: the group `browser` is stored next to `operate` and reads back the same;
+    // so does the group `extension` (spec 021 US4).
     let site = crate::agent_browser::sites::Site::parse("https://shop.example.de").expect("site");
     let narrow = Rights {
         operate: [("settings.device".to_owned(), OperateLevel::Write)]
@@ -160,6 +161,7 @@ async fn rights_round_trip_and_are_replaced() {
             .into_iter()
             .collect(),
         }),
+        extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
     };
     let saved = narrow.clone();
     v.db.write(move |tx| save_rights(tx, device, id, &saved))

@@ -101,3 +101,15 @@ test('changing a scope keeps the browser rights, and an off group is left out (s
   })
   assert.deepEqual(rightsOf(levels), { operate: { 'wm.read': 'read' } })
 })
+
+test('granted extensions are kept with the other rights, and none is left out (spec 021 US4)', () => {
+  const levels = levelsOf({ operate: { 'wm.read': 'read' } })
+  const mail = '0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'
+  assert.deepEqual(rightsOf(levels, null, [mail]), {
+    operate: { 'wm.read': 'read' },
+    extensions: [mail],
+  })
+  assert.deepEqual(rightsOf(levels, null, []), {
+    operate: { 'wm.read': 'read' },
+  })
+})

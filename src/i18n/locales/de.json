@@ -3910,6 +3910,12 @@
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
       "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
+    },
+    "extensions": {
+      "title": "Erweiterungen",
+      "none": "Keine Erweiterung installiert",
+      "dev": "Entwicklungsversion",
+      "hint": "Der Agent sieht die Werkzeuge der eingeschalteten Erweiterungen. Wie ein Werkzeug fragt, legst du außerdem in der Erweiterung fest; die strengere Regel gilt."
     }
   },
   "agentBrowser": {

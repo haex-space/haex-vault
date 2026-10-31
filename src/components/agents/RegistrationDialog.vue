@@ -3,7 +3,8 @@
  * May an external agent use holzi, and with which rights? (spec 021, US1, FR-006, FR-009,
  * contracts/tauri-commands.md). Shows what the agent reports about itself, marked as its own claim,
  * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
- * the websites of the rights group "Browser" (spec 065), plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
+ * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
+ * all off), plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
  * without remembering. Rust checks the rights again; rights it refuses count as declining.
  */
 import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
@@ -20,6 +21,7 @@ const question = computed<RegistrationQuestion | null>(
 )
 const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
+const extensions = ref<string[]>([])
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -33,6 +35,7 @@ watch(
     if (!asked) return
     levels.value = levelsOf(asked.rights)
     browser.value = asked.rights.browser ?? null
+    extensions.value = asked.rights.extensions ?? []
     mode.value = asked.mode
   },
   { immediate: true },
@@ -46,7 +49,7 @@ async function answerAsync(register: boolean) {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
       rights: register
-        ? rightsOf(levels.value, browser.value)
+        ? rightsOf(levels.value, browser.value, extensions.value)
         : { operate: {} },
       mode: mode.value,
     })
@@ -95,6 +98,7 @@ function onUpdateOpen(open: boolean) {
 
         <AgentsRightsFields v-model="levels" />
         <AgentsBrowserRightsFields v-model="browser" />
+        <AgentsExtensionRightsFields v-model="extensions" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.rightsHint') }}
         </p>

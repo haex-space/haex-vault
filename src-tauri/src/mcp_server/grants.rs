@@ -2,17 +2,21 @@
 //! decides the tool list and every call, so a tool an agent does not see is also a tool it cannot
 //! call. The rights group "holzi bedienen" (`operate`) has per scope of the action catalog nothing,
 //! reading, or reading and changing; the group `browser` (spec 065) opens the browser tools and
-//! names the websites an agent may read or operate. The scope `guardrails` is never a right. Later
-//! groups (extensions, files, passwords, commands) add fields that are off when missing (FR-008).
+//! names the websites an agent may read or operate; the group `extension` names the extensions
+//! whose tools it sees (US4, FR-018). The scope `guardrails` is never a right. Later groups (files,
+//! passwords, commands) add fields that are off when missing (FR-008).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use uuid::Uuid;
 
 use crate::agent_browser::sites::Site;
 use crate::chat::action_commands::GUARDRAILS_SCOPE;
 use crate::chat::tools::action_tool::{ActionEffect, AgentActionDef};
+use crate::chat::tools::Tool;
 
 /// The scopes of the group "holzi bedienen" (`src/lib/actions/scopes.ts`): the window manager, the
 /// chat and the settings an agent may reach. Files, contacts and passwords are their own groups.
@@ -120,6 +124,10 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub browser: Option<BrowserRights>,
+    /// The extensions whose tools the agent sees (US4); a new extension is not among them.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub extensions: BTreeSet<Uuid>,
 }
 
 /// What a new agent may do until the user changes it (FR-009): read in every scope of
@@ -131,6 +139,7 @@ pub fn default_rights() -> Rights {
             .map(|scope| ((*scope).to_owned(), OperateLevel::Read))
             .collect(),
         browser: None,
+        extensions: BTreeSet::new(),
     }
 }
 
@@ -251,4 +260,32 @@ pub fn browser_from_rows(rows: &[BrowserRow]) -> Option<BrowserRights> {
         );
     }
     Some(browser)
+}
+
+/// Whether `rights` cover a tool of an extension (FR-018); holzi's own tools have no origin and
+/// are never covered here.
+fn covers_extension_tool(rights: &Rights, tool: &dyn Tool) -> bool {
+    tool.origin()
+        .and_then(|origin| Uuid::parse_str(&origin.extension_id).ok())
+        .is_some_and(|id| rights.extensions.contains(&id))
+}
+
+/// The extension tools an agent with `rights` sees (US4).
+pub fn extension_offers<'a>(rights: &Rights, tools: &'a [Arc<dyn Tool>]) -> Vec<&'a Arc<dyn Tool>> {
+    tools
+        .iter()
+        .filter(|tool| covers_extension_tool(rights, tool.as_ref()))
+        .collect()
+}
+
+/// The extension tool behind `tool_name`, if the agent may call it; checked again on every call.
+pub fn check_extension_tool<'a>(
+    rights: &Rights,
+    tools: &'a [Arc<dyn Tool>],
+    tool_name: &str,
+) -> Option<&'a Arc<dyn Tool>> {
+    tools
+        .iter()
+        .find(|tool| tool.name() == tool_name)
+        .filter(|tool| covers_extension_tool(rights, tool.as_ref()))
 }

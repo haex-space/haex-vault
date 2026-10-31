@@ -56,12 +56,15 @@ fn the_extension_tools_are_replaced_and_other_tools_stay() {
     registry.register(Arc::new(AskUserTool));
     let links: Arc<dyn Links> = Arc::new(NoFrame);
 
-    register_extension_tools(
+    let published = register_extension_tools(
         &mut registry,
         vec![def("x_mail_count"), def("x_mail_old")],
         &links,
     );
     assert_eq!(names(&registry), ["ask_user", "x_mail_count", "x_mail_old"]);
+    // The same tools are published for external agents (spec 021 US4).
+    let published: Vec<&str> = published.iter().map(|tool| tool.name()).collect();
+    assert_eq!(published, ["x_mail_count", "x_mail_old"]);
 
     register_extension_tools(&mut registry, vec![def("x_mail_count")], &links);
     assert_eq!(names(&registry), ["ask_user", "x_mail_count"]);

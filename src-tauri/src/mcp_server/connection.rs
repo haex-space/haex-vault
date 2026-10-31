@@ -298,10 +298,19 @@ async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previou
     }
 }
 
-/// Tells a registered agent when the window pushed a new action list (FR-017).
+/// Tells a registered agent when the window pushed a new action list (FR-017), or the extension
+/// tools changed: one installed, removed, turned off, or its tool settings changed (US4).
 async fn tell_catalog_changes(core: Arc<Core>, session: Session, peer: Peer<RoleServer>) {
-    let mut versions = core.catalog.subscribe();
-    while versions.changed().await.is_ok() {
+    let mut actions = core.catalog.subscribe();
+    let mut extension_tools = core.extension_tools.subscribe();
+    loop {
+        let changed = tokio::select! {
+            changed = actions.changed() => changed,
+            changed = extension_tools.changed() => changed,
+        };
+        if changed.is_err() {
+            break;
+        }
         if session.agent().is_some() && peer.notify_tool_list_changed().await.is_err() {
             break;
         }

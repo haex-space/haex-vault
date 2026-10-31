@@ -1,6 +1,6 @@
 // The rights of an external agent as the window edits them (spec 021 FR-008, research R3): per
-// scope of "holzi bedienen" nothing, reading, or reading and changing, and the group `browser` with
-// its websites (spec 065). Rust checks every change again (`grants::validate`). Pure, relative
+// scope of "holzi bedienen" nothing, reading, or reading and changing, the group `browser` with
+// its websites (spec 065), and the extensions whose tools it sees (spec 021 US4). Rust checks every change again (`grants::validate`). Pure, relative
 // `.ts` imports only; the shapes below are those of the bindings `Rights` and `BrowserRights`,
 // restated because the scripts' Node resolution cannot load bindings that import other bindings.
 import type { OperateLevel } from '../../types/bindings/OperateLevel.ts'
@@ -16,6 +16,7 @@ export type BrowserRights = {
 export type Rights = {
   operate: { [scope in string]: OperateLevel }
   browser?: BrowserRights
+  extensions?: string[]
 }
 
 /** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -41,18 +42,23 @@ export function levelsOf(rights: Rights | null | undefined): Levels {
   ) as Levels
 }
 
-/** The rights the levels and the group `browser` stand for; "none" is left out, and `null` keeps
- * the group off. */
+/** The rights the levels, the group `browser` and the granted extensions stand for; "none" is
+ * left out, and `null` keeps the group `browser` off. */
 export function rightsOf(
   levels: Levels,
   browser: BrowserRights | null = null,
+  extensions: string[] = [],
 ): Rights {
   const operate: Record<string, OperateLevel> = {}
   for (const scope of OPERATE_SCOPES) {
     const level = levels[scope]
     if (level !== 'none') operate[scope] = level
   }
-  return browser ? { operate, browser } : { operate }
+  return {
+    operate,
+    ...(browser ? { browser } : {}),
+    ...(extensions.length > 0 ? { extensions } : {}),
+  }
 }
 
 /**
