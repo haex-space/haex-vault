@@ -6,6 +6,9 @@ SHERPA_ONNX_ARCHIVE_DIR = { value = "src-tauri/target/sherpa-onnx-archives", rel
 # Spec 070 US5: llama.cpp's C++ standard-library headers use std::filesystem, which is available from
 # macOS 10.15. Keep cc-rs and rustc aligned with the app's minimumSystemVersion in tauri.conf.json.
 MACOSX_DEPLOYMENT_TARGET = { value = "10.15", force = false }
+# Spec 070: llama.cpp's Windows build must use the static MSVC runtime; the desktop release check
+# rejects binaries that would require users to install the VC++ redistributable. Ignored elsewhere.
+LLAMA_STATIC_CRT = "1"
 # Spec 070 R3: ggml for the x86-64 AVX2 baseline. Without these switches it builds its plain C kernels,
 # which run Qwen3 4B several times slower; a processor without them gets no llama.cpp (`llm/llamacpp/cpu.rs`).
 # Off x86 ggml ignores them. A target dir built before a change keeps its ggml until

@@ -7,11 +7,12 @@
 //!
 //! ```text
 //! HOLZI_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
-//!   --no-default-features --features llm-llamacpp --test llamacpp_inference -- --ignored --nocapture
+//!   --no-default-features --features llm-llamacpp --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 //! ```
 //!
-//! For a CUDA build use `--features llm-llamacpp-cuda`. The two-engines test also needs
-//! `llm-cpu` (the mistralrs path) and a model both engines load, such as Qwen3.
+//! For the default llama.cpp engine on CUDA use `--features llm-llamacpp-cuda`.
+//! A two-engine GPU comparison needs both `llm-cuda` and `llm-llamacpp-cuda`,
+//! plus a model both engines load, such as Qwen3.
 
 #![cfg(feature = "llm-llamacpp")]
 
@@ -265,30 +266,45 @@ async fn measures_the_speed() {
             .expect("stream");
         let mut first = None;
         let mut out = Drained::default();
+        let mut content_chunks = 0usize;
+        let mut saw_done = false;
         while let Some(chunk) = stream.next().await {
-            if let Ok(StreamChunk::Delta { .. }) = chunk {
-                first.get_or_insert_with(|| started.elapsed());
-                out.chunks += 1;
-            }
-            if let Ok(StreamChunk::Done {
-                completion_tokens, ..
-            }) = chunk
-            {
-                out.completion_tokens = completion_tokens;
+            match chunk.expect("stream error") {
+                StreamChunk::Delta { content, .. } if !content.is_empty() => {
+                    first.get_or_insert_with(|| started.elapsed());
+                    content_chunks += 1;
+                }
+                StreamChunk::Done {
+                    completion_tokens, ..
+                } => {
+                    assert!(!saw_done, "stream emitted more than one Done frame");
+                    saw_done = true;
+                    out.completion_tokens = completion_tokens;
+                }
+                _ => {}
             }
         }
+        assert!(saw_done, "stream ended without a Done frame");
         let total = started.elapsed();
         let first = first.expect("no text");
         // mistralrs closes the stream at the token limit without its final frame and so without the count
-        // (`llm/local/stream.rs`); it sends one piece per token, so the pieces count instead.
-        let tokens = out.completion_tokens.unwrap_or(out.chunks) as f64;
+        // (`llm/local/stream.rs`). Do not infer token counts from text chunks: one chunk can hold several
+        // tokens after UTF-8 buffering. Report chunk throughput separately when the count is unavailable.
         // The first round warms the caches up; only the second counts.
         if round == 1 {
-            println!(
-                "speed: first text after {:.2} s, {:.1} tokens/s after it",
-                first.as_secs_f64(),
-                (tokens - 1.0) / (total - first).as_secs_f64()
-            );
+            let after_first = (total - first).as_secs_f64();
+            match out.completion_tokens.filter(|&tokens| tokens > 0) {
+                Some(tokens) => println!(
+                    "speed: first text after {:.2} s, {:.1} tokens/s after it",
+                    first.as_secs_f64(),
+                    (tokens.saturating_sub(1)) as f64 / after_first
+                ),
+                None => println!(
+                    "speed: first text after {:.2} s, completion token count unavailable; {:.1} text chunks/s after it",
+                    first.as_secs_f64(),
+                    content_chunks.saturating_sub(1) as f64 / after_first
+                ),
+            }
         }
     }
     if let Some(mib) = peak_memory_mib() {

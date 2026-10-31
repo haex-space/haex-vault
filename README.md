@@ -267,9 +267,11 @@ It loads every model of the catalog: Qwen3 0.6B, 1.7B and 4B, and Qwen3.5 4B.
 **mistralrs** (`llm-cpu`, which `llm-llamacpp` includes) is the fallback where
 llama.cpp cannot run yet:
 
-- **a processor without AVX2**: x86-64 builds compile ggml for the AVX2
-  baseline (`GGML_*` in `.cargo/config.toml`); `llm/llamacpp/cpu.rs` checks the
-  processor before a load. Such a machine cannot run Qwen3.5.
+- **a processor without the compiled x86 extensions**: x86-64 builds compile
+  ggml for AVX, AVX2, FMA, F16C and BMI2 (`GGML_*` in `.cargo/config.toml`);
+  `llm/llamacpp/cpu.rs` checks each extension before a load. A processor
+  missing any of them uses mistralrs for the architectures it supports;
+  Qwen3.5 remains unavailable there.
 - **iOS**: the sys crate has no iOS build yet (spec 070 T037). Build iOS with
   `--no-default-features --features llm-cpu,voice`.
 
@@ -309,7 +311,7 @@ GGUF and add `--ignored`:
 # llama.cpp: loading, streaming, cancelling, tool calls, speed
 HOLZI_TEST_GGUF=~/path/to/model.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml \
-  --test llamacpp_inference -- --ignored --nocapture
+  --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 
 # mistralrs
 HOLZI_TEST_GGUF=~/path/to/model.gguf \
@@ -350,5 +352,5 @@ The model must support tool calling. The test is ignored by default so normal
 developer test runs stay fast. CI runs the deterministic
 `ci_e2e_loaded_model_can_request_and_process_a_cli_command` test in the
 dedicated `local-cli-e2e` job; this keeps the CI gate independent of model
-sampling and network-hosted weights. For CUDA, add `--features llm-cuda`
-before `--test`.
+sampling and network-hosted weights. For CUDA with the default llama.cpp
+engine, add `--features llm-llamacpp-cuda` before `--test`.

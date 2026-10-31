@@ -196,8 +196,9 @@ What the figures say:
 - **GPU:** llama.cpp generates faster at every size (+11 % to +46 %); mistralrs reads the prompt faster,
   but both start within a third of a second, which nobody notices. Loading is three to eight times faster
   through llama.cpp, on the CPU as well.
-- **CPU:** llama.cpp starts answering 12 to 14 times sooner (4B: 4 s against 52 s) and generates 1.3 to
-  2.5 times faster. This is the case of every phone and of every computer without a usable GPU.
+- **CPU:** on the measured x86 machine, llama.cpp starts answering 12 to 14 times sooner (4B: 4 s against
+  52 s) and generates 1.3 to 2.5 times faster. The phone result is still unmeasured: the phone check
+  belongs to the ARM validation in T040.
 - **Memory:** on the CPU about equal, llama.cpp lower with the small models. On the GPU llama.cpp's
   resident memory is higher because the file is mapped into the process and counted there; it is page
   cache, not a copy.

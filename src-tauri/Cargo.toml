@@ -49,9 +49,10 @@ llm-cpu = [
     "dep:candle-transformers",
     "dep:tokenizers",
 ]
-# CUDA build. Needs nvcc + CUDA toolkit >= 12.0 present at build time
-# (Etappe 0 finding #3). Not enabled by default; opt in via
-# `cargo build --features llm-cuda`.
+# mistralrs CUDA build. Needs nvcc + CUDA toolkit >= 12.0 present at build time
+# (Etappe 0 finding #3). It does not change the default engine; use
+# `llm-llamacpp-cuda` for the default llama.cpp path, or combine both features
+# when comparing the engines on CUDA.
 llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 # Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
 llm-metal = ["llm-cpu", "mistralrs/metal"]

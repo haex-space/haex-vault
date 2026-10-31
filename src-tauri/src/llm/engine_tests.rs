@@ -20,18 +20,34 @@ fn write_header_only_gguf(name: &str, architecture: &str) -> PathBuf {
     path
 }
 
-/// Spec 070 US5: with llama.cpp compiled in, it takes every architecture, the ones mistralrs knows too.
-/// The test machines run the AVX2 baseline (`llm/llamacpp/cpu_tests.rs`).
+/// Spec 070 US5: llama.cpp takes every architecture on a processor that supports the compiled ggml;
+/// otherwise the known architectures fall back to mistralrs.
 #[cfg(feature = "llm-llamacpp")]
 #[test]
 fn llama_cpp_takes_every_architecture_where_it_runs() {
-    for architecture in ["llama", "qwen2", "qwen3", "phi3", "qwen35", "gemma4"] {
+    let llama_cpp_runs = crate::llm::llamacpp::cpu::missing_features().is_empty();
+    let phone_architectures = ["llama", "qwen2", "qwen3", "phi3"];
+    for architecture in phone_architectures {
         assert_eq!(
             engine_for(architecture).unwrap(),
-            Engine::LlamaCpp,
+            if llama_cpp_runs {
+                Engine::LlamaCpp
+            } else {
+                Engine::Mistralrs
+            },
             "{architecture}"
         );
         assert!(is_loadable(architecture));
+    }
+
+    for architecture in ["qwen35", "gemma4"] {
+        if llama_cpp_runs {
+            assert_eq!(engine_for(architecture).unwrap(), Engine::LlamaCpp);
+            assert!(is_loadable(architecture));
+        } else {
+            assert!(engine_for(architecture).is_err(), "{architecture}");
+            assert!(!is_loadable(architecture), "{architecture}");
+        }
     }
 }
 
