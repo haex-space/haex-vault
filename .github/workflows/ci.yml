@@ -474,8 +474,9 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --all-targets -- -D warnings
 
-  # Full E2E and cross-platform checks run after merges to main or by manual
-  # dispatch on a feature branch, rather than on every PR update.
+  # Full E2E and general cross-platform checks run after merges to main or by manual
+  # dispatch on a feature branch. The Windows/macOS platform probes also run for spec 064 PRs,
+  # so the native drive backends are checked before merge.
   e2e-shards:
     # Builds the debug application (default features, the same profile
     # `pnpm test:e2e` builds locally) and drives it through tauri-driver
@@ -1054,7 +1055,7 @@ jobs:
   platform-probe:
     name: Platform probe (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, '064-')
     timeout-minutes: 90
     strategy:
       fail-fast: false
