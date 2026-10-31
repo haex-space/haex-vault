@@ -110,3 +110,4 @@ Consequences:
 - **What still uses mistralrs or candle** keeps it until then: the multimodal spike of spec 055 (not in
   production) and the local Whisper of spec 008 (candle, not mistralrs).
 - The builds need `cmake` everywhere: CI's runners have it, the devShell gets it from the atoms package.
+- The Mac app needs macOS 10.15 or newer (Tauri's default was 10.13): llama.cpp uses `std::filesystem`.

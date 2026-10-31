@@ -88,6 +88,8 @@ build without the devShell.
 - Xcode, or the Xcode Command Line Tools: `xcode-select --install`. They
   bring the C compiler, make and Perl.
 - CMake: `brew install cmake`.
+- The app runs on macOS 10.15 or newer (`minimumSystemVersion` in
+  `src-tauri/tauri.conf.json`): llama.cpp uses `std::filesystem`.
 - If bindgen cannot find libclang: `brew install llvm`, then set
   `LIBCLANG_PATH` to its `lib` directory (`$(brew --prefix llvm)/lib`).
 
