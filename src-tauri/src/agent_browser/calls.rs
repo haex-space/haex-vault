@@ -173,14 +173,20 @@ pub(super) async fn new_tab(
         ));
     }
     let id = session.next_tab_id();
-    let tab = Tab::open(
+    let opened = Tab::open(
         connection,
         id.clone(),
         session.guard(id.clone()),
         session.tab_hooks(&id).await,
     )
-    .await
-    .map_err(browser_error)?;
+    .await;
+    let tab = match opened {
+        Ok(tab) => tab,
+        Err(error) => {
+            session.forget_targets(&id);
+            return Err(browser_error(error));
+        }
+    };
     tabs.open.push(tab);
     Ok(id)
 }
