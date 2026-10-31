@@ -66,3 +66,5 @@ lines; every text in `de.json` and `en.json` (vue-i18n refuses `<…>`); `UiButt
 - [x] T019 `pins.ts`: compare known-place paths without trailing separators; `shownKnown`/`shownPins`
       show a known place stored as an added folder too once, as the known place; removing it drops the
       added copy; tests in `check-files-pins.ts`
+- [x] T020 the known places of "Orte" use `FolderIcon` too (operator: "in Orte die gleichen Icons wie
+      im Rest des Dateibrowsers", also after a change of the icon set); the fixed symbols are gone

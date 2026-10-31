@@ -39,15 +39,6 @@ const prefs = useFilesPrefs()
 /** What a dragged pin carries, so no other drop target takes it for entries. */
 const PIN_MIME = 'application/x-holzi-files-pin'
 
-const PLACE_ICONS: Record<string, string> = {
-  home: 'lucide:house',
-  pictures: 'lucide:image',
-  downloads: 'lucide:download',
-  documents: 'lucide:file-text',
-  desktop: 'lucide:monitor',
-  videos: 'lucide:film',
-}
-
 const known = computed(
   () => props.sources?.known.map((place) => place.path) ?? [],
 )
@@ -213,10 +204,12 @@ function endPinDrag() {
             @dragstart="onPinDragStart(devicePin(place.path), $event)"
             @dragend="endPinDrag"
           >
-            <Icon
-              :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
-              class="size-4 shrink-0"
-            />
+            <span class="size-4 shrink-0">
+              <FilesFolderIcon
+                :path="place.path"
+                :name="place.name === 'home' ? 'home' : undefined"
+              />
+            </span>
             <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
           </button>
         </FilesMenu>
