@@ -5,7 +5,8 @@
  * its own claim; the address comes from the agent or the page. A website can be allowed once or
  * remembered for the agent, for reading or for operating (`http` only for reading, research R9).
  * Before something is sent to a website (FR-011, FR-012), the dialog lists what would be sent,
- * secrets as `•••`; the field names and values come from the page. Closing the dialog declines.
+ * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
+ * it loads anything (`newTab`); its address comes from the page. Closing the dialog declines.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import type { Remember } from '~/types/bindings/Remember'
@@ -25,6 +26,16 @@ const toolTitle = computed(() => {
   const tool = question.value?.tool
   const def = BROWSER_ACTIONS.find((action) => action.id === tool)
   return def ? t(def.titleKey) : tool
+})
+const allowLabel = computed(() => {
+  switch (question.value?.kind) {
+    case 'site':
+      return t('agentBrowser.prompt.allowOnce')
+    case 'newTab':
+      return t('agentBrowser.prompt.newTab.allow')
+    default:
+      return t('agentBrowser.prompt.allow')
+  }
 })
 const agentName = computed(
   () => question.value?.agent || t('agentBrowser.prompt.builtinAgent'),
@@ -95,7 +106,7 @@ function onUpdateOpen(open: boolean) {
           <template v-if="question.label">
             <dt class="text-muted-foreground">
               {{
-                question.kind === 'site'
+                question.kind === 'site' || question.kind === 'newTab'
                   ? t('agentBrowser.prompt.address')
                   : t('agentBrowser.prompt.target')
               }}
@@ -171,11 +182,7 @@ function onUpdateOpen(open: boolean) {
           data-testid="agent-browser-prompt-allow"
           @click="answerAsync(true)"
         >
-          {{
-            question.kind === 'site'
-              ? t('agentBrowser.prompt.allowOnce')
-              : t('agentBrowser.prompt.allow')
-          }}
+          {{ allowLabel }}
         </UiButton>
       </div>
     </template>

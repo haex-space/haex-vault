@@ -3,7 +3,8 @@
 //! each frame alike, is paused through `Fetch` until the website check of research R9 has decided,
 //! and so is every request that may change something on a website (research R5 step 2), until the
 //! user allowed it ([`Guard`]); frames in their own process attach, wait for holzi and get the same
-//! checks.
+//! checks. A tab a page of an agent tab opens waits for holzi too ([`Tab::adopt`]); its session
+//! decides whether it becomes an agent tab.
 //!
 //! Reading happens in holzi's own world ([`super::read`]); the element numbers are those of the
 //! reading script and hold until the document changes. The same world shows the marker
@@ -22,7 +23,7 @@ use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
 use super::marker::{self, MarkerTexts};
 use super::sites::Verdict;
-use super::submit;
+use super::tab_watch::{watch, Reports};
 
 /// How long a page may take to load before a tool gives up (FR-030).
 pub const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
@@ -50,10 +51,15 @@ pub type Guard = Arc<dyn Fn(Paused) -> BoxFuture<'static, Verdict> + Send + Sync
 /// What the user's "Stoppen" in the marker does.
 pub type OnStop = Arc<dyn Fn() + Send + Sync>;
 
-/// The marker of a tab: its texts and what its stop button does.
-pub struct TabMarker {
+/// Hears of each target of a tab, its own and those of its frames, by target id.
+pub type OnTarget = Arc<dyn Fn(&str) + Send + Sync>;
+
+/// What a tab shows and reports to its session: the marker's texts, what its stop button does, and
+/// the targets whose new tabs belong to the session.
+pub struct TabHooks {
     pub texts: MarkerTexts,
     pub on_stop: OnStop,
+    pub on_target: OnTarget,
 }
 
 /// What the sessions bar shows of a tab: the website and title of the page the agent last saw.
@@ -77,15 +83,43 @@ pub struct Tab {
 }
 
 impl Tab {
-    /// Creates a tab on `about:blank` whose documents `guard` checks and which shows `marker`.
+    /// Creates a tab on `about:blank` whose documents `guard` checks and which shows the marker.
     pub async fn open(
         connection: &Arc<Connection>,
         id: String,
         guard: Guard,
-        marker: TabMarker,
+        hooks: TabHooks,
     ) -> Result<Self> {
         let target = target::create(connection).await?;
         let session = target::attach(connection, &target).await?;
+        Self::set_up(connection, id, target, session, guard, hooks, false).await
+    }
+
+    /// Takes over the new tab `target` a page opened, attached as `session` and waiting for holzi
+    /// (research R9): set up like [`Tab::open`]. It goes on once its requests are held, since its
+    /// page may only start then; `guard` sees its first document, and the rest of the set-up
+    /// finishes once that is decided.
+    pub async fn adopt(
+        connection: &Arc<Connection>,
+        id: String,
+        target: String,
+        session: String,
+        guard: Guard,
+        hooks: TabHooks,
+    ) -> Result<Self> {
+        Self::set_up(connection, id, target, session, guard, hooks, true).await
+    }
+
+    async fn set_up(
+        connection: &Arc<Connection>,
+        id: String,
+        target: String,
+        session: String,
+        guard: Guard,
+        hooks: TabHooks,
+        waiting: bool,
+    ) -> Result<Self> {
+        (hooks.on_target)(&target);
         let events = connection.subscribe(Some(&session));
         let refused = Arc::new(Mutex::new(None));
         let guard_task = tokio::spawn(watch(
@@ -95,13 +129,21 @@ impl Tab {
             events,
             guard,
             Arc::clone(&refused),
-            marker.on_stop,
+            Reports {
+                on_stop: hooks.on_stop,
+                on_target: hooks.on_target,
+            },
         ));
         let setup = async {
-            page::enable(connection, &session).await?;
-            marker::install(connection, &session, &marker.texts).await?;
             fetch::hold_requests(connection, &session).await?;
-            target::attach_frames(connection, &session).await
+            target::attach_frames(connection, &session).await?;
+            if waiting {
+                runtime::run_if_waiting(connection, &session).await?;
+            }
+            // The browser holds these until the page that is loading has committed; the marker
+            // then also shows in the document already there.
+            page::enable(connection, &session).await?;
+            marker::install(connection, &session, &hooks.texts).await
         }
         .await;
         if let Err(error) = setup {
@@ -356,111 +398,4 @@ impl From<BrowserError> for TabError {
     fn from(error: BrowserError) -> Self {
         Self::Browser(error)
     }
-}
-
-/// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
-/// document of `main` (the tab's own frame, whose id is the target's) and any refused request that
-/// would have changed something fail a tool; a refused frame stays empty. A stop from the marker
-/// goes to `on_stop`. Boxed, since a frame's own frames are watched by the same function.
-fn watch(
-    connection: Arc<Connection>,
-    session: String,
-    main: Option<String>,
-    mut events: UnboundedReceiver<Event>,
-    guard: Guard,
-    refused: Arc<Mutex<Option<&'static str>>>,
-    on_stop: OnStop,
-) -> BoxFuture<'static, ()> {
-    Box::pin(async move {
-        while let Some(event) = events.recv().await {
-            match event.method.as_str() {
-                "Fetch.requestPaused" => {
-                    let is_main =
-                        main.is_some() && event.params["frameId"].as_str() == main.as_deref();
-                    let (connection, session, guard) =
-                        (Arc::clone(&connection), session.clone(), Arc::clone(&guard));
-                    let main = is_main.then(|| Arc::clone(&refused));
-                    let any = Arc::clone(&refused);
-                    tokio::spawn(async move {
-                        let main = main.as_deref();
-                        decide(&connection, &session, &event.params, &guard, main, &any).await;
-                    });
-                }
-                "Target.attachedToTarget" => {
-                    let Some(child) = event.params["sessionId"].as_str().map(str::to_owned) else {
-                        continue;
-                    };
-                    let child_events = connection.subscribe(Some(&child));
-                    tokio::spawn(watch(
-                        Arc::clone(&connection),
-                        child.clone(),
-                        None,
-                        child_events,
-                        Arc::clone(&guard),
-                        Arc::clone(&refused),
-                        Arc::clone(&on_stop),
-                    ));
-                    let connection = Arc::clone(&connection);
-                    tokio::spawn(async move {
-                        // The frame waits for holzi; its documents are held before it may go on.
-                        let _ = fetch::hold_requests(&connection, &child).await;
-                        let _ = target::attach_frames(&connection, &child).await;
-                        let _ = runtime::run_if_waiting(&connection, &child).await;
-                    });
-                }
-                "Runtime.bindingCalled"
-                    if event.params["name"] == marker::BINDING
-                        && event.params["payload"] == marker::STOP =>
-                {
-                    on_stop();
-                }
-                _ => {}
-            }
-        }
-    })
-}
-
-async fn decide(
-    connection: &Connection,
-    session: &str,
-    params: &Value,
-    guard: &Guard,
-    main: Option<&Mutex<Option<&'static str>>>,
-    any: &Mutex<Option<&'static str>>,
-) {
-    let Some(request) = params["requestId"].as_str() else {
-        return;
-    };
-    let paused = Paused {
-        url: params["request"]["url"]
-            .as_str()
-            .unwrap_or_default()
-            .to_owned(),
-        method: params["request"]["method"]
-            .as_str()
-            .unwrap_or("GET")
-            .to_owned(),
-        document: params["resourceType"] == "Document",
-        body: params["request"]["postData"].as_str().map(str::to_owned),
-    };
-    let changing = submit::changing(&paused.method);
-    // Reading requests of a page need no decision.
-    if !paused.document && !changing {
-        let _ = fetch::go_on(connection, session, request).await;
-        return;
-    }
-    let code = match guard(paused).await {
-        Verdict::Go => {
-            let _ = fetch::go_on(connection, session, request).await;
-            return;
-        }
-        Verdict::Refuse(code) => code,
-        // The guard resolves its own questions; one that still asks has no answer.
-        Verdict::Ask(_) => "site_not_allowed",
-    };
-    let refused = if changing { Some(any) } else { main };
-    if let Some(refused) = refused {
-        *refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
-    }
-    let _ = fetch::block(connection, session, request).await;
 }

@@ -3975,6 +3975,11 @@
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
         "fields": "What would be sent"
       },
+      "newTab": {
+        "title": "Open a new tab?",
+        "hint": "A page in one of the agent's tabs wants to open a new tab. Without your consent it loads nothing and closes. With it, the agent steers the tab and may open this website in this session.",
+        "allow": "Open"
+      },
       "address": "Address",
       "target": "Target",
       "more": "{count} more questions wait after this one.",

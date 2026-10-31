@@ -187,7 +187,7 @@ async fn revoking_ends_a_session_stopped_or_not() {
 async fn the_marker_stops_the_session() {
     let (sessions, _) = registry();
     let session = start(&sessions, &agent()).unwrap();
-    (session.marker().await.on_stop)();
+    (session.tab_hooks("t1").await.on_stop)();
     eventually("the stop", || sessions.list().is_empty()).await;
     assert_eq!(start(&sessions, &agent()).err(), Some(NoSession::Stopped));
 }

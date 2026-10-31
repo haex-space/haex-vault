@@ -36,7 +36,13 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   Ende. Windows über die CRT-Vererbung (`lpReserved2`), getestet im Windows-Lauf.
 - holzi wartet höchstens 15 s auf die Antwort von `Browser.getVersion`, sonst
   `browser_unavailable`.
-- Nach dem Start: `Target.setAutoAttach { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }`, `Browser.setPermission` für Kamera,
+- Nach dem Start: `Target.setAutoAttach { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }`:
+  jedes neue Ziel wartet auf holzi. Ein Tab, den eine Seite oder ein Rahmen eines Agenten-Tabs öffnet
+  (`window.open`, Link oder Formular mit `target=_blank`, auch ohne Opener), gehört der Sitzung dieses
+  Agenten-Tabs: holzi hält seine Anfragen an, lässt ihn weiterlaufen und fragt vor seinem ersten
+  Dokument (Art `newTab`; Manuell immer, Auto bei nicht erlaubter Website, die Zustimmung erlaubt sie
+  einmal; Plan, Ablehnung und mehr als 5 Tabs schließen ihn). Jedes andere neue Ziel läuft sofort
+  weiter. `Browser.setPermission` für Kamera,
   Mikrofon, Standort, Benachrichtigungen, Zwischenablage → `denied` (FR-026),
   `Browser.setDownloadBehavior { behavior: "allowAndName", downloadPath: <Arbeitsverzeichnis> }` (R11).
 
