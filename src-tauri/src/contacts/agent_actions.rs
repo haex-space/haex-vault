@@ -119,7 +119,7 @@ fn contacts_error(error: HolziError) -> NativeError {
             "no contact of that id is available to this agent",
         ),
         HolziError::ContactsInvalid { reason } => NativeError::invalid_input(None, reason),
-        other => NativeError::new("failed", other.to_string()),
+        _ => NativeError::new("failed", "the contact action failed"),
     }
 }
 

@@ -155,10 +155,16 @@ fn a_wrong_password_is_an_unlock_failure_with_the_system_text() {
 fn the_list_is_read_again_only_when_disks_or_volumes_change() {
     let fake = FakeDiskutil::scenario("fat-unmounted");
     let backend = MacBackend::new(&fake);
-    let first = backend.list().unwrap();
+    let mut first = backend.list().unwrap();
     assert!(first.iter().any(|d| d.label.as_deref() == Some("E2EFAT")));
     let reads = fake.calls().len();
-    assert_eq!(backend.list().unwrap(), first);
+    let mut cached = backend.list().unwrap();
+    // Space is refreshed from the host even when diskutil's volume list is cached.
+    for drive in first.iter_mut().chain(cached.iter_mut()) {
+        drive.total = None;
+        drive.free = None;
+    }
+    assert_eq!(cached, first);
     assert_eq!(
         fake.calls().len(),
         reads,
