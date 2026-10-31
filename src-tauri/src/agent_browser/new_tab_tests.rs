@@ -101,13 +101,17 @@ fn kinds(asked: &Mutex<Vec<BrowserQuestion>>) -> Vec<(BrowserPromptKind, Option<
 #[tokio::test]
 async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     let (session, _) = session(PermissionMode::Auto, true);
+    // A tool call reserves before CDP returns its target; popups can arrive during that await.
+    let explicit = session.reserve_new_tab(None).unwrap();
     let reservations = (0..MAX_TABS + 4)
         .map(|n| {
             let session = Arc::clone(&session);
-            tokio::task::spawn_blocking(move || session.reserve_new_tab(&format!("target-{n}")))
+            tokio::task::spawn_blocking(move || {
+                session.reserve_new_tab(Some(&format!("target-{n}")))
+            })
         })
         .collect::<Vec<_>>();
-    let mut ids = Vec::new();
+    let mut ids = vec![explicit.clone()];
     for reservation in reservations {
         if let Some(id) = reservation.await.unwrap() {
             ids.push(id);
@@ -118,7 +122,24 @@ async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     ids.sort();
     ids.dedup();
     assert_eq!(ids.len(), MAX_TABS);
-    assert!(session.reserve_new_tab("one-too-many").is_none());
+    assert!(session.reserve_new_tab(Some("one-too-many")).is_none());
+    assert!(session.reserve_new_tab(None).is_none());
+
+    // Registering the real target replaces its pending slot, without freeing a place for a popup.
+    let hooks = session.tab_hooks(&explicit).await;
+    (hooks.on_target)("explicit-target");
+    assert_eq!(
+        session.tab_of_target("explicit-target"),
+        Some(explicit.clone())
+    );
+    assert!(session.reserve_new_tab(Some("still-too-many")).is_none());
+    assert!(session.reserve_new_tab(None).is_none());
+
+    // Both failed setup and an ordinary close release the same reservation.
+    session.forget_targets(&explicit);
+    let pending = session.reserve_new_tab(None).unwrap();
+    session.forget_targets(&pending);
+    assert!(session.reserve_new_tab(Some("replacement-popup")).is_some());
 }
 
 #[tokio::test]

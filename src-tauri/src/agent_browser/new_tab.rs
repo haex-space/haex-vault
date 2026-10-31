@@ -45,7 +45,7 @@ pub(super) fn opened(
         return false;
     };
     let target = target.to_owned();
-    let Some(id) = session.reserve_new_tab(&target) else {
+    let Some(id) = session.reserve_new_tab(Some(&target)) else {
         let connection = Arc::clone(connection);
         tokio::spawn(async move {
             let _ = target::close(&connection, &target).await;

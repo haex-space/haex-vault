@@ -72,8 +72,8 @@ pub struct Session {
     questions: AtomicUsize,
     /// The last tab number given out.
     numbered: AtomicU32,
-    /// The targets of the tabs and of their frames, each with its tab's id.
-    targets: Mutex<BTreeMap<String, String>>,
+    /// Targets and their tab ids; `None` reserves the one tool-created tab being opened under `tabs`.
+    targets: Mutex<BTreeMap<Option<String>, String>>,
 }
 
 #[derive(Default)]
@@ -144,7 +144,7 @@ impl Session {
     }
 
     /// The next tab id, `t1`, `t2`, ….
-    pub fn next_tab_id(&self) -> String {
+    fn next_tab_id(&self) -> String {
         format!("t{}", self.numbered.fetch_add(1, Ordering::SeqCst) + 1)
     }
 
@@ -160,31 +160,36 @@ impl Session {
             on_stop: Arc::clone(&self.hooks.stop),
             on_target: Arc::new(move |target: &str| {
                 if let Some(session) = session.upgrade() {
-                    session.targets().insert(target.to_owned(), tab.clone());
+                    let mut targets = session.targets();
+                    if targets.get(&None) == Some(&tab) {
+                        targets.remove(&None);
+                    }
+                    targets.insert(Some(target.to_owned()), tab.clone());
                 }
             }),
         }
     }
 
-    fn targets(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, String>> {
+    fn targets(&self) -> std::sync::MutexGuard<'_, BTreeMap<Option<String>, String>> {
         self.targets.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The tab whose page or frame is the target `target`.
     pub(super) fn tab_of_target(&self, target: &str) -> Option<String> {
-        self.targets().get(target).cloned()
+        self.targets().get(&Some(target.to_owned())).cloned()
     }
 
-    /// Reserves a slot for a page opened by a tab, before its asynchronous adoption starts.
-    pub(super) fn reserve_new_tab(&self, target: &str) -> Option<String> {
+    /// Reserves before any asynchronous opening: `Some` adopts a popup, `None` creates a target.
+    pub(super) fn reserve_new_tab(&self, target: Option<&str>) -> Option<String> {
         let mut targets = self.targets();
-        if targets.contains_key(target)
+        let target = target.map(str::to_owned);
+        if targets.contains_key(&target)
             || targets.values().collect::<BTreeSet<_>>().len() >= MAX_TABS
         {
             return None;
         }
         let tab = self.next_tab_id();
-        targets.insert(target.to_owned(), tab.clone());
+        targets.insert(target, tab.clone());
         Some(tab)
     }
 
