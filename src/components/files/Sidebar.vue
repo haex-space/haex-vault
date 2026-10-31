@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * The sidebar of the file browser (spec 044 FR-002): the known places of the device, the pinned
- * folders (spec 071), its drives
+ * The sidebar of the file browser (spec 044 FR-002): "Orte" with the known places of the device and
+ * the folders the user added (spec 071), its drives
  * with their state and free space where known (spec 064: live, unmounted and locked ones too), the
  * other devices of the vault (spec 056 US1), the shares contacts
  * gave this vault (US2: expanding a contact asks its devices, FR-028), the list of the vault's
@@ -27,7 +27,7 @@ const props = defineProps<{
   current: string | null
   /** The open storage. */
   currentStorage: string | null
-  /** The open folder of the open place, for the pinned folders of storages (spec 071). */
+  /** The open folder of the open place, for the added folders of other sources (spec 071). */
   currentPath: string | null
   /** The panel shows the sync rules (spec 061). */
   syncRulesCurrent?: boolean
@@ -125,47 +125,17 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
   unreachable: 'lucide:monitor-off',
   accessOff: 'lucide:lock',
 }
-
-const PLACE_ICONS: Record<string, string> = {
-  home: 'lucide:house',
-  pictures: 'lucide:image',
-  downloads: 'lucide:download',
-  documents: 'lucide:file-text',
-  desktop: 'lucide:monitor',
-  videos: 'lucide:film',
-}
 </script>
 
 <template>
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-2">
-    <section v-if="sources?.known.length">
-      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
-        {{ t('files.sidebar.places') }}
-      </h2>
-      <ul>
-        <li v-for="place in sources.known" :key="place.path">
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-            :class="current === place.path ? 'bg-accent font-medium' : ''"
-            :data-testid="`files-place-${place.name}`"
-            @click="emit('pick', place.path)"
-          >
-            <Icon
-              :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
-              class="size-4 shrink-0"
-            />
-            <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
-          </button>
-        </li>
-      </ul>
-    </section>
-    <FilesPinnedPlaces
+    <FilesPlaces
       :sources="sources"
       :current="current"
       :current-storage="currentStorage"
       :current-path="currentPath"
-      @pick="emit('pickPin', $event)"
+      @pick="emit('pick', $event)"
+      @pick-pin="emit('pickPin', $event)"
     />
     <section v-if="drives.length">
       <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">

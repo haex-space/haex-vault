@@ -1,24 +1,24 @@
-// The pinned folders of the file browser sidebar (spec 071): shortcuts to any folder of this device or
-// of a cloud storage. Pure, so `scripts/check-files-pins.ts` runs it without vue. A pin is stored as
+// The pinned folders of the file browser sidebar (spec 071): shortcuts in "Orte" to any folder of any
+// source: this device, a cloud storage, another own device, a contact's share. Pure, so `scripts/check-files-pins.ts` runs it without vue. A pin is stored as
 // JSON in a device preference (`useFilesPrefs`); what the file holds is never trusted.
 import type { SourceRef } from '../../types/bindings/SourceRef.ts'
 
 import type { PinCommand } from './menus.ts'
-import { isOwnStorage } from './registry.ts'
 import { breadcrumbs } from './state.ts'
 import { sameSource } from './clipboard.ts'
 import { sourceFromToken, sourceToken } from './split.ts'
 
 export type FilesPin = { source: SourceRef; path: string }
 
-/** Only a device's folders and the vault's own cloud storages may be pinned: another own device and
- * a contact's share come and go with the other side (FR-002). */
+/** Every source the sidebar lists may be pinned (FR-002); a `device:` storage only names an encrypted
+ * folder of this device inside holzi and is never browsed as a source of its own. */
 export function pinnableSource(source: SourceRef): boolean {
   if (source.kind === 'device') return true
   return (
     source.kind === 'storage' &&
     typeof source.storageId === 'string' &&
-    isOwnStorage(source.storageId)
+    source.storageId !== '' &&
+    !source.storageId.startsWith('device:')
   )
 }
 

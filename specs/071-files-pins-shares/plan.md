@@ -9,7 +9,7 @@ Two front-end changes in the file browser; no Rust, no schema, no new dependency
 1. **Pins** are a device preference (`files.pins`, JSON) read and written through the existing
    `useFilesPrefs` (shared module state, same load/save path as view, sort, hidden). The rules (parse,
    add, remove, "is it a known place", "may this source be pinned", label) are pure in
-   `src/lib/files/pins.ts`. The sidebar section is a new component `components/files/PinnedPlaces.vue`
+   `src/lib/files/pins.ts`. The sidebar section "Orte" (known places + pins) is the component `components/files/Places.vue` (revision 2026-10-31; first `PinnedPlaces.vue` with a section of its own)
    (Sidebar.vue stays under 500 lines). The context menu gets two commands `pin`/`unpin`
    (`lib/files/menus.ts`); `useFilesManage` only asks an optional `pins` option what to offer and calls
    `set` for the command. Drag: the section is a drop target for the entries drag of
