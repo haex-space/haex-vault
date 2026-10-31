@@ -76,9 +76,9 @@ pub fn write_vad_model(dir: &Path) -> std::io::Result<PathBuf> {
         return Ok(path);
     }
     std::fs::create_dir_all(dir)?;
-    let part = dir.join(format!("{SILERO_VAD_FILE}.part"));
-    std::fs::write(&part, SILERO_VAD)?;
-    std::fs::rename(&part, &path)?;
+    let mut part = tempfile::NamedTempFile::new_in(dir)?;
+    std::io::Write::write_all(&mut part, SILERO_VAD)?;
+    part.persist(&path).map_err(|error| error.error)?;
     Ok(path)
 }
 

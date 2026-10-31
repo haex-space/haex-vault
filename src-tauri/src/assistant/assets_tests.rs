@@ -1,6 +1,8 @@
 //! Spec 066 T016: readiness and the shipped pause detection model.
 
 use sha2::{Digest, Sha256};
+use std::sync::{Arc, Barrier};
+use std::thread;
 use tempfile::tempdir;
 
 use super::assets::{missing, voice_language, write_vad_model, Facts, Missing, SILERO_VAD};
@@ -87,4 +89,24 @@ fn the_vad_model_is_written_once_and_repaired() {
     std::fs::write(&path, b"broken").expect("corrupt");
     write_vad_model(&target).expect("repairs");
     assert_eq!(std::fs::read(&path).expect("reads"), SILERO_VAD);
+}
+
+#[test]
+fn concurrent_vad_model_writes_publish_a_complete_model() {
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("silero-vad");
+    let barrier = Arc::new(Barrier::new(8));
+    let writers: Vec<_> = (0..8)
+        .map(|_| {
+            let (target, barrier) = (target.clone(), Arc::clone(&barrier));
+            thread::spawn(move || {
+                barrier.wait();
+                write_vad_model(&target).expect("writes model")
+            })
+        })
+        .collect();
+    for writer in writers {
+        assert_eq!(writer.join().expect("writer completes"), target);
+    }
+    assert_eq!(std::fs::read(target).expect("reads model"), SILERO_VAD);
 }

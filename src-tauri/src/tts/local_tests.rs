@@ -180,6 +180,35 @@ fn stop_drops_playing_and_queued_sentences() {
 }
 
 #[test]
+fn dropping_speaker_finishes_current_sentence_and_skips_queued_ones() {
+    let mut rig = rig();
+    let (entered, started) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let mut engine = FakeEngine::new();
+    Arc::get_mut(&mut engine).expect("unique engine").generating =
+        Some((entered, Mutex::new(proceed)));
+    rig.speaker.speak(sentence(&engine, "0.25"));
+    rig.speaker.speak(sentence(&engine, "0.5"));
+    started.recv_timeout(WAIT).expect("first synthesis starts");
+    drop(rig.speaker);
+    release.send(()).expect("finish current synthesis");
+
+    let deadline = Instant::now() + WAIT;
+    while Arc::strong_count(&rig.input) != 1 && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    assert_eq!(Arc::strong_count(&rig.input), 1, "worker has ended");
+    assert_eq!(
+        engine.calls.load(Ordering::SeqCst),
+        1,
+        "queued sentence skipped"
+    );
+    let heard = render_until(&mut rig.render, 4 * MIXER_RATE as usize / 100);
+    assert!(heard.len().abs_diff(4 * MIXER_RATE as usize / 100) <= 2);
+    assert!(heard.iter().all(|sample| (*sample - 0.25).abs() < 1e-3));
+}
+
+#[test]
 fn a_failing_sentence_does_not_end_the_speaker() {
     let mut rig = rig();
     let engine = FakeEngine::new();

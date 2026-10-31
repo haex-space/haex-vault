@@ -7,7 +7,7 @@
 //! sentence, and [`Speaker::stop`] also drops what the mixer still holds.
 
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
@@ -179,17 +179,26 @@ pub struct Speaker {
     jobs: Sender<Job>,
     generation: Arc<AtomicU64>,
     out: Arc<dyn SpeechOut>,
+    ended: Arc<AtomicBool>,
+}
+
+impl Drop for Speaker {
+    fn drop(&mut self) {
+        self.ended.store(true, Ordering::Release);
+    }
 }
 
 impl Speaker {
     pub fn start(gate: &VaultGate, out: Arc<dyn SpeechOut>) -> Result<Self, TtsError> {
         let (jobs, queue) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
+        let ended = Arc::new(AtomicBool::new(false));
         let worker = Worker {
             queue,
             generation: Arc::clone(&generation),
             out: Arc::clone(&out),
             closing: gate.token(),
+            ended: Arc::clone(&ended),
         };
         gate.spawn_blocking(move || worker.run())
             .map_err(|_| TtsError::Unavailable {
@@ -199,6 +208,7 @@ impl Speaker {
             jobs,
             generation,
             out,
+            ended,
         })
     }
 
@@ -225,6 +235,7 @@ struct Worker {
     generation: Arc<AtomicU64>,
     out: Arc<dyn SpeechOut>,
     closing: CancellationToken,
+    ended: Arc<AtomicBool>,
 }
 
 impl Worker {
@@ -238,6 +249,9 @@ impl Worker {
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => return,
             };
+            if self.ended.load(Ordering::Acquire) {
+                return;
+            }
             if self.is_stale(&job) {
                 continue;
             }
