@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grants::{browser_from_rows, browser_rows, OperateLevel, Rights};
+use super::grants::{browser_from_rows, browser_rows, OperateLevel, PasswordRights, Rights};
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
@@ -26,6 +26,9 @@ const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_
 const GROUP_OPERATE: &str = "operate";
 /// The rights group of [`Rights::browser`] (spec 065).
 const GROUP_BROWSER: &str = "browser";
+/// The rights group of [`Rights::passwords`]: one row with an empty key; its scope tags are a JSON
+/// array of tag names, none for every entry.
+const GROUP_PASSWORDS: &str = "passwords";
 /// The rights group of [`Rights::extensions`]: one row per extension, keyed by its id.
 const GROUP_EXTENSION: &str = "extension";
 /// The level of a row of [`GROUP_EXTENSION`].
@@ -413,6 +416,9 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
                 }
             }
             GROUP_BROWSER => browser.push((key, level, tags)),
+            GROUP_PASSWORDS => {
+                rights.passwords = PasswordRights::from_row(&level, tags.as_deref());
+            }
             GROUP_EXTENSION if level == EXTENSION_ON => {
                 if let Ok(id) = Uuid::parse_str(&key) {
                     rights.extensions.insert(id);
@@ -457,7 +463,11 @@ pub fn save_rights(
             None,
         )
     });
-    for (group, key, level, tags) in operate.chain(browser).chain(extensions) {
+    let passwords = rights.passwords.iter().map(|passwords| {
+        let (level, tags) = passwords.row();
+        (GROUP_PASSWORDS, String::new(), level, tags)
+    });
+    for (group, key, level, tags) in operate.chain(browser).chain(extensions).chain(passwords) {
         tx.execute(
             "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
              grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",

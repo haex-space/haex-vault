@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use super::grants::{
     browser_from_rows, browser_rows, check, check_extension_tool, default_rights, extension_offers,
-    offers, validate, BrowserRights, DataRights, InvalidRights, OperateLevel, Reach, Rights,
-    SiteGrant, SiteLevel, OPERATE_SCOPES,
+    offers, validate, BrowserRights, DataRights, InvalidRights, OperateLevel, PasswordLevel,
+    PasswordRights, Reach, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
 };
 use crate::agent_browser::sites::Site;
 use crate::chat::tools::action_tool::AgentActionDef;
@@ -452,4 +452,53 @@ fn data_tools_need_a_row_and_an_executor_for_external_agents() {
     });
     assert_eq!(names(offers(&rights, &reading, &catalog)), ["files.list"]);
     assert!(check(&rights, &reading, &catalog, "files_delete").is_none());
+}
+
+/// US5, FR-019: the group `passwords` opens the search and the single secret, nothing else; its
+/// grant reaches the tags it names, or every entry without tags.
+#[test]
+fn the_password_group_opens_search_and_secret_within_its_tags() {
+    let catalog = vec![
+        action("passwords.items.search", "passwords.read", "read", true),
+        action("passwords.secret.get", "passwords.secret", "read", false),
+    ];
+    assert!(offers(&default_rights(), &Reach::default(), &catalog).is_empty());
+    let dev = PasswordRights {
+        level: PasswordLevel::Read,
+        tags: Some(vec!["dev".to_owned()]),
+    };
+    let rights = Rights {
+        passwords: Some(dev.clone()),
+        ..default_rights()
+    };
+    assert_eq!(
+        names(offers(&rights, &Reach::default(), &catalog)),
+        ["passwords.items.search", "passwords.secret.get"]
+    );
+    assert_eq!(
+        dev.grants(),
+        [crate::passwords::access::Grant::new(
+            crate::passwords::access::GrantAction::Read,
+            crate::passwords::access::Scope::tags(["dev"])
+        )]
+    );
+    let every = PasswordRights {
+        level: PasswordLevel::ReadWrite,
+        tags: None,
+    };
+    assert_eq!(
+        every.grants(),
+        [crate::passwords::access::Grant::new(
+            crate::passwords::access::GrantAction::ReadWrite,
+            crate::passwords::access::Scope::All
+        )]
+    );
+    let empty = Rights {
+        passwords: Some(PasswordRights {
+            level: PasswordLevel::Read,
+            tags: Some(vec![" ".to_owned()]),
+        }),
+        ..default_rights()
+    };
+    assert_eq!(validate(&empty), Err(InvalidRights::EmptyTags));
 }

@@ -141,7 +141,6 @@ use models::commands::{
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
 use openers::commands::{opener_mail_check, opener_mail_open};
-use passwords::commands::agent::passwords_agent_search;
 use passwords::commands::attachments::{
     passwords_attachment_add, passwords_attachment_open, passwords_attachment_open_system,
     passwords_attachment_preview, passwords_attachment_remove, passwords_attachment_rename,
@@ -559,6 +558,14 @@ pub fn run() {
                         ),
                     ),
                 ));
+            // Spec 034 FR-027, spec 021 US5: the password search and the single secret of agents.
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    passwords::agent_actions::PasswordsActions::new(
+                        mcp_server::password_env::TauriPasswordsAgentEnv::new(app.handle().clone()),
+                    ),
+                ));
             // Spec 051 US6, spec 021 US5: the contact actions of the built-in and external agents.
             app.state::<ChatState>()
                 .native_actions
@@ -859,7 +866,6 @@ pub fn run() {
             passwords_reference_token,
             passwords_item_key_names,
             passwords_reference_usage,
-            passwords_agent_search,
             passwords_trash,
             passwords_restore,
             passwords_delete_permanently,

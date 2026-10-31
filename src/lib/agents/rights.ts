@@ -1,6 +1,7 @@
 // The rights of an external agent as the window edits them (spec 021 FR-008, research R3): per
 // scope of "holzi bedienen" nothing, reading, or reading and changing, the group `browser` with
-// its websites (spec 065), and the extensions whose tools it sees (spec 021 US4). Rust checks every change again (`grants::validate`). Pure, relative
+// its websites (spec 065), the extensions whose tools it sees (spec 021 US4) and the group
+// `passwords` with its tags (US5). Rust checks every change again (`grants::validate`). Pure, relative
 // `.ts` imports only; the shapes below are those of the bindings `Rights` and `BrowserRights`,
 // restated because the scripts' Node resolution cannot load bindings that import other bindings.
 import type { OperateLevel } from '../../types/bindings/OperateLevel.ts'
@@ -12,10 +13,17 @@ export type BrowserRights = {
   sites: { [site in string]: { level: SiteLevel; fillRemembered: boolean } }
 }
 
+/** `PasswordRights` of the bindings; `tags: null` reaches every entry. */
+export type PasswordRights = {
+  level: 'read' | 'readWrite'
+  tags: string[] | null
+}
+
 /** `Rights` of the bindings. */
 export type Rights = {
   operate: { [scope in string]: OperateLevel }
   browser?: BrowserRights
+  passwords?: PasswordRights
   extensions?: string[]
 }
 
@@ -42,12 +50,13 @@ export function levelsOf(rights: Rights | null | undefined): Levels {
   ) as Levels
 }
 
-/** The rights the levels, the group `browser` and the granted extensions stand for; "none" is
- * left out, and `null` keeps the group `browser` off. */
+/** The rights the levels, the groups `browser` and `passwords` and the granted extensions stand
+ * for; "none" is left out, and `null` keeps a group off. */
 export function rightsOf(
   levels: Levels,
   browser: BrowserRights | null = null,
   extensions: string[] = [],
+  passwords: PasswordRights | null = null,
 ): Rights {
   const operate: Record<string, OperateLevel> = {}
   for (const scope of OPERATE_SCOPES) {
@@ -57,6 +66,7 @@ export function rightsOf(
   return {
     operate,
     ...(browser ? { browser } : {}),
+    ...(passwords ? { passwords } : {}),
     ...(extensions.length > 0 ? { extensions } : {}),
   }
 }

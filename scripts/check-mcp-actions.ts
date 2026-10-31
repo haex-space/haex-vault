@@ -46,6 +46,7 @@ test('the push carries the built-in agent share unchanged', () => {
     'chat.message.retry',
     'chat.message.send',
     'chat.reply.cancel',
+    'passwords.secret.get',
   ])
 })
 
@@ -66,6 +67,22 @@ test('the actions of the MCP access are guardrails no agent can call (FR-016)', 
 
 test('the scope for one secret of a password entry exists (research R13)', () => {
   assert.ok(ACTION_SCOPE_IDS.includes('passwords.secret'))
+})
+
+test('passwords.secret.get reads one secret, natively, never for the built-in agent (T074, R13)', () => {
+  const secret = ALL_ACTIONS.find((a) => a.id === 'passwords.secret.get')
+  assert.ok(secret)
+  assert.equal(secret.scope, 'passwords.secret')
+  assert.equal(secret.effect, 'read')
+  assert.equal(secret.builtinAgentCallable, false)
+  assert.equal(secret.runner, 'native')
+  assert.deepEqual(secret.input.required, ['entryId', 'field'])
+  for (const [name, field] of Object.entries(secret.input.properties ?? {}))
+    assert.notEqual(
+      (field as Record<string, unknown>)['x-holzi-secret'],
+      true,
+      `${name} is an id or a field name, not a secret`,
+    )
 })
 
 test('a website is written as Rust writes it, and no website is refused (spec 065)', () => {
@@ -112,4 +129,14 @@ test('granted extensions are kept with the other rights, and none is left out (s
   assert.deepEqual(rightsOf(levels, null, []), {
     operate: { 'wm.read': 'read' },
   })
+})
+
+test('the group passwords is kept with the other rights, and off is left out (spec 021 US5)', () => {
+  const levels = levelsOf({ operate: {} })
+  const passwords = { level: 'read' as const, tags: ['dev'] }
+  assert.deepEqual(rightsOf(levels, null, [], passwords), {
+    operate: {},
+    passwords,
+  })
+  assert.deepEqual(rightsOf(levels, null, [], null), { operate: {} })
 })

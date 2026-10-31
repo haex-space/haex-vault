@@ -2,7 +2,6 @@ import { onBackButtonPress } from '@tauri-apps/api/app'
 import { registerChatActionHandlers } from '~/stores/chatActionHandlers'
 import { registerFileShareActionHandlers } from '~/stores/fileShareActionHandlers'
 import { registerFilesActionHandlers } from '~/stores/filesActionHandlers'
-import { registerPasswordsActionHandlers } from '~/stores/passwordsActionHandlers'
 import { registerSettingsActionHandlers } from '~/stores/settingsActionHandlers'
 import type { Translate } from '~/composables/useModelInventory'
 import { registerWmActionHandlers } from '~/stores/wmActionHandlers'
@@ -25,7 +24,6 @@ export default defineNuxtPlugin((nuxtApp) => {
   registerWmLayoutHandlers(wm, t)
   registerChatActionHandlers(wm)
   registerSettingsActionHandlers(wm)
-  registerPasswordsActionHandlers(wm)
   registerFilesActionHandlers(wm)
   registerFileShareActionHandlers(wm)
 

@@ -15,6 +15,7 @@ pub mod helper;
 pub mod live;
 pub mod manage;
 pub mod manage_commands;
+pub mod password_env;
 pub mod prompts;
 pub mod redact;
 mod registration;
