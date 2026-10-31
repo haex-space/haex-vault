@@ -28,6 +28,9 @@ export interface ScriptSetupGlobals {
   useErrorString?: () => unknown
   useLanguage?: () => unknown
   usePickedFile?: () => unknown
+  useMcpAgentsStore?: () => unknown
+  useTabRouter?: () => unknown
+  useActionOrThrow?: (action: string) => unknown
   navigateTo?: (to: string) => unknown
   /** The route params the page reads, `{ instance: 'vault' }` by default. */
   params?: Record<string, string>
@@ -39,6 +42,8 @@ export interface ScriptSetupGlobals {
   /** `defineEmits<{...}>()`'s return value — a no-op by default (events are silently swallowed).
    * A case that needs to observe emit order/arguments provides its own spy here. */
   emit?: (event: string, ...args: unknown[]) => void
+  /** Explicit module dependencies; every import absent from this map still fails loudly. */
+  imports?: Record<string, unknown>
   /** Bare `window`/`document` stand-ins for a page that registers real DOM listeners. Left
    * unprovided, using either throws the same loud "not provided" error as the Nuxt auto-imports. */
   window?: unknown
@@ -117,6 +122,11 @@ export function loadScriptSetup<T>(
     useErrorString: globals.useErrorString ?? notProvided('useErrorString'),
     useLanguage: globals.useLanguage ?? notProvided('useLanguage'),
     usePickedFile: globals.usePickedFile ?? notProvided('usePickedFile'),
+    useMcpAgentsStore:
+      globals.useMcpAgentsStore ?? notProvided('useMcpAgentsStore'),
+    useTabRouter: globals.useTabRouter ?? notProvided('useTabRouter'),
+    useActionOrThrow:
+      globals.useActionOrThrow ?? notProvided('useActionOrThrow'),
     navigateTo: globals.navigateTo ?? notProvided('navigateTo'),
     window: 'window' in globals ? globals.window : notProvided('window'),
     document:
@@ -131,6 +141,8 @@ export function loadScriptSetup<T>(
   )(
     {},
     (specifier: string) => {
+      if (globals.imports && Object.hasOwn(globals.imports, specifier))
+        return globals.imports[specifier]
       throw new Error(
         `script-setup sandbox: unexpected import '${specifier}' in ${vueFile}`,
       )

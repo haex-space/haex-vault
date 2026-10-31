@@ -963,7 +963,8 @@
     "titles": {
       "de": "Passwortmanager durchsuchen (nur Titel und Tags)",
       "en": "Search the password manager (titles and tags only)"
-    }
+    },
+    "runner": "native"
   },
   {
     "toolName": "files_sources",

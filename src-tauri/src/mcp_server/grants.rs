@@ -5,8 +5,9 @@
 //! names the websites an agent may read or operate; the group `extension` names the extensions
 //! whose tools it sees (US4, FR-018). Files and contacts follow the agent's rows in
 //! `agent_file_permissions` ([`DataRights`], US5, FR-020), and a native action is offered only when
-//! its executor serves external agents. The scope `guardrails` is never a right. Later groups
-//! (passwords, commands) add fields that are off when missing (FR-008).
+//! its executor serves external agents. The group `passwords` opens the search of the password
+//! manager and the single secret, within its tags (US5, FR-019). The scope `guardrails` is never a
+//! right. A later group (commands) adds a field that is off when missing (FR-008).
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
@@ -23,6 +24,9 @@ use crate::contacts::access::GrantAction;
 use crate::contacts::agent::grants_from;
 use crate::files::access::{AgentGrants, DeviceGrant, StorageGrant};
 use crate::files::permissions::AgentFileStatus;
+use crate::passwords::access::{
+    Grant as PasswordGrant, GrantAction as PasswordAction, Scope as PasswordScope,
+};
 
 /// The scopes of the group "holzi bedienen" (`src/lib/actions/scopes.ts`): the window manager, the
 /// chat and the settings an agent may reach. Files, contacts and passwords are their own groups.
@@ -121,6 +125,86 @@ pub struct BrowserRights {
     pub sites: BTreeMap<Site, SiteGrant>,
 }
 
+/// The scopes of the group `passwords`: the search and the single secret.
+pub const PASSWORD_SCOPES: [&str; 2] = ["passwords.read", "passwords.secret"];
+
+/// What the group `passwords` lets an agent do with the entries in its tags (034 FR-028).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum PasswordLevel {
+    Read,
+    /// Takes effect once agents get writing password actions (research R13).
+    ReadWrite,
+}
+
+impl PasswordLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::ReadWrite => "read_write",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "read" => Some(Self::Read),
+            "read_write" => Some(Self::ReadWrite),
+            _ => None,
+        }
+    }
+}
+
+/// The rights group `passwords` (data-model.md). Present means on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct PasswordRights {
+    pub level: PasswordLevel,
+    /// The tag names whose entries it reaches; `None` reaches every entry.
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+}
+
+impl PasswordRights {
+    /// The one grant the password manager checks the agent's calls with, like the approval of a
+    /// browser client (spec 049).
+    pub fn grants(&self) -> Vec<PasswordGrant> {
+        let action = match self.level {
+            PasswordLevel::Read => PasswordAction::Read,
+            PasswordLevel::ReadWrite => PasswordAction::ReadWrite,
+        };
+        let scope = match &self.tags {
+            None => PasswordScope::All,
+            Some(tags) => PasswordScope::tags(tags.iter()),
+        };
+        vec![PasswordGrant::new(action, scope)]
+    }
+
+    /// The level and the scope tags of its row in `haex_mcp_agent_grants`; the tags are a JSON
+    /// array of tag names, none for every entry.
+    pub fn row(&self) -> (String, Option<String>) {
+        let tags = self
+            .tags
+            .as_ref()
+            .map(|tags| serde_json::Value::from(tags.clone()).to_string());
+        (self.level.as_str().to_owned(), tags)
+    }
+
+    /// The group back from its row; unreadable tags must not widen it to every entry.
+    pub fn from_row(level: &str, tags: Option<&str>) -> Option<Self> {
+        let tags = match tags.map(serde_json::from_str::<Vec<String>>) {
+            None => None,
+            Some(Ok(tags)) => Some(tags),
+            Some(Err(_)) => return None,
+        };
+        Some(Self {
+            level: PasswordLevel::parse(level)?,
+            tags,
+        })
+    }
+}
+
 /// The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -130,6 +214,9 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub browser: Option<BrowserRights>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub passwords: Option<PasswordRights>,
     /// The extensions whose tools the agent sees (US4); a new extension is not among them.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
@@ -145,6 +232,7 @@ pub fn default_rights() -> Rights {
             .map(|scope| ((*scope).to_owned(), OperateLevel::Read))
             .collect(),
         browser: None,
+        passwords: None,
         extensions: BTreeSet::new(),
     }
 }
@@ -158,6 +246,9 @@ pub enum InvalidRights {
     /// A website over plain http can only be read (spec 065 research R9).
     #[error("{0} is not encrypted and can only be read")]
     PlainSite(String),
+    /// A tag scope of the passwords needs at least one tag.
+    #[error("a tag scope needs at least one tag")]
+    EmptyTags,
 }
 
 /// Refuses a scope no agent may get, the guardrails above all (FR-016).
@@ -168,6 +259,14 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
         .find(|scope| !OPERATE_SCOPES.contains(&scope.as_str()))
     {
         return Err(InvalidRights::Scope(scope.clone()));
+    }
+    if rights.passwords.as_ref().is_some_and(|passwords| {
+        passwords
+            .tags
+            .as_ref()
+            .is_some_and(|tags| tags.iter().all(|tag| tag.trim().is_empty()))
+    }) {
+        return Err(InvalidRights::EmptyTags);
     }
     let sites = rights.browser.iter().flat_map(|browser| &browser.sites);
     for (site, grant) in sites {
@@ -246,6 +345,10 @@ fn covers(rights: &Rights, reach: &Reach, def: &AgentActionDef) -> bool {
     // The browser tools check the website of each call themselves (spec 065 research R8).
     if def.scope == BROWSER_SCOPE {
         return rights.browser.is_some();
+    }
+    // The password manager checks each entry against the group's tags (034 FR-029).
+    if PASSWORD_SCOPES.contains(&def.scope.as_str()) {
+        return rights.passwords.is_some();
     }
     // Files and contacts: their executors check each call against the same rows.
     if let Some(open) = reach.data.covers(&def.scope) {

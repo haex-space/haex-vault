@@ -1849,6 +1849,9 @@
     "passwords": {
       "items": {
         "search": "Search the password manager (titles and tags only)"
+      },
+      "secret": {
+        "get": "Read a secret of a password entry"
       }
     },
     "files": {
@@ -3932,6 +3935,12 @@
       "none": "No extension installed",
       "dev": "Development version",
       "hint": "The agent sees the tools of the extensions turned on. How a tool asks is also set in the extension; the stricter rule applies."
+    },
+    "passwords": {
+      "title": "Passwords",
+      "enabled": "Password manager",
+      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries below",
+      "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
     }
   },
   "agentBrowser": {

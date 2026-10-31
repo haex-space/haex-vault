@@ -5,6 +5,8 @@
 //! (FR-024). A caller that is not the user gets only what its grants cover, and never a secret in
 //! a list (Z4).
 
+use std::collections::HashSet;
+
 use zeroize::Zeroizing;
 
 use super::{require_user, PasswordsService};
@@ -70,20 +72,23 @@ impl PasswordsService {
             .await
     }
 
-    /// The search of the built-in agent (FR-027, action `passwords.items.search`): title, tag
-    /// names and folder name of the entries outside the trash that match `query` (every word) and
-    /// carry `tag`, at most `limit` (default 20, at most 50). Closed to every other caller.
+    /// The search of the agents (FR-027, action `passwords.items.search`): title, tag names and
+    /// folder name of the entries outside the trash that match `query` (every word) and carry
+    /// `tag`, at most `limit` (default 20, at most 50). The built-in agent searches every entry
+    /// without a grant (Z2); an external agent (spec 021 US5) only the entries its read grants
+    /// cover. Closed to the user and every other caller.
     pub async fn agent_search(
         &self,
         caller: &Caller,
+        grants: &[Grant],
         query: Option<String>,
         tag: Option<String>,
         limit: Option<u32>,
     ) -> Result<Vec<AgentHeader>> {
-        match authorize_list(caller, &[])? {
-            ListView::Agent => {}
-            ListView::Items(_) => return Err(HolziError::PasswordsForbidden),
-        }
+        let view = match (caller, authorize_list(caller, grants)?) {
+            (Caller::BuiltinAgent | Caller::ExternalAgent { .. }, view) => view,
+            _ => return Err(HolziError::PasswordsForbidden),
+        };
         let limit = limit.unwrap_or(20).clamp(1, 50) as usize;
         let words: Vec<String> = query
             .as_deref()
@@ -94,9 +99,24 @@ impl PasswordsService {
             .as_deref()
             .map(fold_for_search)
             .filter(|t| !t.is_empty());
+        let caller = caller.clone();
         let all = self
             .db()
-            .read(|q| items::agent_headers(q).map_err(Into::into))
+            .read(move |q| {
+                let all = items::agent_headers(q)?;
+                Ok(match view {
+                    ListView::Agent => all,
+                    ListView::Items(scope) => {
+                        let visible: HashSet<String> = items::headers_in_scope(q, &scope, &caller)?
+                            .into_iter()
+                            .map(|header| header.id)
+                            .collect();
+                        all.into_iter()
+                            .filter(|header| visible.contains(&header.id))
+                            .collect()
+                    }
+                })
+            })
             .await?;
         Ok(all
             .into_iter()

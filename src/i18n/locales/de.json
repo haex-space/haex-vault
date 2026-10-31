@@ -1849,6 +1849,9 @@
     "passwords": {
       "items": {
         "search": "Passwortmanager durchsuchen (nur Titel und Tags)"
+      },
+      "secret": {
+        "get": "Geheimnis eines Passwort-Eintrags lesen"
       }
     },
     "files": {
@@ -3932,6 +3935,12 @@
       "none": "Keine Erweiterung installiert",
       "dev": "Entwicklungsversion",
       "hint": "Der Agent sieht die Werkzeuge der eingeschalteten Erweiterungen. Wie ein Werkzeug fragt, legst du außerdem in der Erweiterung fest; die strengere Regel gilt."
+    },
+    "passwords": {
+      "title": "Passwörter",
+      "enabled": "Passwortmanager",
+      "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen unten",
+      "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     }
   },
   "agentBrowser": {
