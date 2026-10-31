@@ -122,13 +122,33 @@ Primärquellen stehen bei jeder Entscheidung.
       gewöhnliche interne Volumes sind; Systemrollen, EFI-Partitionen und unformatierte Volumes
       bleiben ausgeschlossen. Das APFS-Volume mit Rolle `Data` ist eine bewusste Ausnahme und wird
       nicht separat gelistet, weil es hinter `/` über das Firmlink steckt.
-    - Die Rollen-Schlüssel (`Roles` in `apfs list -plist`) sind UNVERIFIED und werden mit den Fixtures
-      aus dem Spike geprüft.
-- **Risiko (UNVERIFIED)**: Apple dokumentiert die Plist-Schlüssel nicht; die Namen stammen aus
-  Fremd-Parsern ([ghw](https://github.com/jaypipes/ghw/blob/main/pkg/block/block_darwin.go),
-  [fleet](https://github.com/fleetdm/fleet/blob/main/orbit/pkg/table/diskutil/apfs/apfs_darwin.go)).
-  Gegenmaßnahme: Fixture-Tests mit echten, auf einem Mac aufgenommenen Ausgaben (Spike-Aufgabe), und
-  der Parser behandelt fehlende Schlüssel als „unbekannt“ statt als Fehler.
+- **Spike (T066, 2026-10-31)**: Aufgenommen auf `macos-latest` (macOS 26.6, Apple Silicon) und
+  `macos-15-intel` (macOS 15.7, Intel) mit einem FAT-Image und einem verschlüsselten APFS-Image; die
+  Ausgaben liegen als Fixtures in `src-tauri/src/files/local/drives/fixtures/macos/`. Bestätigt:
+  - `diskutil list -plist`: `AllDisksAndPartitions` mit `DeviceIdentifier`, `Content`, `OSInternal`,
+    `Partitions` und `APFSVolumes` (je `VolumeName`, `MountPoint`, `VolumeUUID`).
+  - `diskutil apfs list -plist`: `Containers[].Volumes[]` mit `Roles` (Liste, leer bei gewöhnlichen
+    Volumes), `Locked`, `Encryption`, `APFSVolumeUUID`.
+  - `diskutil info -plist <id>`: `MountPoint` (leer, wenn nicht eingehängt), `VolumeName`,
+    `VolumeUUID`, `Internal`, `RemovableMediaOrExternalDevice`, `FilesystemType`, `Content`,
+    `Locked`, `Encryption`, `ParentWholeDisk`, `Size`. Einen Rollen-Schlüssel hat `info` nicht.
+    `FreeSpace` ist bei APFS 0; den freien Platz liefert `statvfs` über `space()`.
+  - Ein Disk-Image meldet `Internal = false` und `RemovableMediaOrExternalDevice = true`.
+  - Das System-Volume (Rolle `System`) ist nicht selbst eingehängt; `/` ist sein versiegelter
+    Snapshot (`diskNs1s1`) ohne Eintrag in `apfs list`.
+  - Apple Silicon hat keine EFI-Partition, sondern `Apple_APFS_ISC` und `Apple_APFS_Recovery`; Intel
+    hat `Content = EFI` (msdos, nicht eingehängt, intern). Beide halten kein Laufwerk.
+  - Zusätzlich gefunden: System-Container mit `OSInternal = true` (iBoot, Cryptexe), deren Volumes
+    unter `/System/Library/AssetsV2/…` eingehängt sind. Sie erscheinen nie.
+  - Befehle: `diskutil apfs unlockVolume <id> -stdinpassphrase` liest das Passwort von stdin und
+    hängt das Volume gleich ein. Ein falsches Passwort endet mit Status 1 und „Passphrase incorrect
+    or user does not exist“ auf stderr. Ein belegtes Volume: „failed to unmount: dissented by PID …“.
+    Ein verschlüsseltes APFS-Volume ist nach dem Aushängen wieder gesperrt. Ein Volume, das es nicht
+    gibt: „Could not find …“. Die Texte sind englisch und stehen auf stderr.
+  - `diskutil apfs addVolume … -stdinpassphrase` scheiterte in einem frischen Image mit -69493; das
+    verschlüsselte Volume entstand mit `diskutil apfs encryptVolume <id> -user disk -stdinpassphrase`.
+- **Risiko**: Apple dokumentiert die Plist-Schlüssel nicht und kann sie ändern. Gegenmaßnahme: die
+  Fixture-Tests und ein Parser, der fehlende Schlüssel als „unbekannt“ behandelt statt als Fehler.
 - **Alternatives**: DiskArbitration über `objc2-disk-arbitration` (dokumentierte Schlüssel und
   Ereignisse, aber FFI und als veraltet markierte freie Funktionen). Wird es, wenn die Plists sich als
   unbrauchbar erweisen.
