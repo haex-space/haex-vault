@@ -174,7 +174,9 @@ jobs:
 
       # No cargo cache: releases are rare, and a release build's cache would push the CI's
       # caches out of the repository's 10 GB. Local inference and voice are in on purpose (the
-      # default features): the release is the full app. The runner's default shell on Windows on
+      # default features): the release is the full app. Local inference is llama.cpp (spec 070 US5),
+      # built through cmake, which every runner image has; ggml gets the x86-64 AVX2 baseline from
+      # `.cargo/config.toml`, the Mac builds Metal. The runner's default shell on Windows on
       # purpose: under Git Bash, `perl` is Git's MSYS Perl, which lacks modules openssl-src
       # (SQLCipher) needs; PowerShell finds Strawberry Perl.
       - name: Build the installers
@@ -182,6 +184,22 @@ jobs:
           # linuxdeploy's bundled `strip` does not know the newer ELF sections of Ubuntu 24.04.
           NO_STRIP: 'true'
         run: corepack pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      # Tauri links the VC runtime statically, so the app starts on a Windows without the Visual C++
+      # redistributable. Native code built beside it (llama.cpp, spec 070) must not bring a runtime
+      # DLL back: the runners have Visual Studio installed and would never notice.
+      - name: Check the app needs no VC++ runtime DLL
+        if: runner.os == 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          $exe = Get-ChildItem "src-tauri\target\$env:TARGET\release\*.exe" | Where-Object { $_.Name -in 'holzi.exe', 'HaexVault.exe' } | Select-Object -First 1
+          $dlls = & $dumpbin /nologo /dependents $exe.FullName | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '\.dll$' }
+          $dlls
+          $runtime = $dlls | Where-Object { $_ -match '^(vcruntime|msvcp|vcomp|concrt)\d+' }
+          if ($runtime) { Write-Output "::error::$($exe.Name) needs $($runtime -join ', ')"; exit 1 }
 
       # Every installer is renamed to `haexvault-<version>-<platform>.<ext>`, so a release's files say
       # which machine they are for.

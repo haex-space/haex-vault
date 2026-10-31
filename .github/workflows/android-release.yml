@@ -95,6 +95,8 @@ jobs:
             "build-tools;36.0.0" "build-tools;37.0.0" "ndk;28.2.13676358" > /dev/null
           echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          # llama.cpp's build script takes the newest NDK it finds unless told which one.
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
           echo "APKSIGNER=$ANDROID_HOME/build-tools/37.0.0/apksigner" >> "$GITHUB_ENV"
           # openssl-src (SQLCipher) runs ranlib by the target prefix unless told otherwise; the
           # Tauri CLI sets only the compilers.

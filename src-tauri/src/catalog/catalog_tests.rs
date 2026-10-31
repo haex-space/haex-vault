@@ -126,7 +126,9 @@ fn a_local_record_takes_the_catalog_answer_as_curated_and_otherwise_starts_unkno
 #[cfg(feature = "llm-cpu")]
 mod engines {
     use super::super::{all_entries, entries};
-    use crate::llm::engine::{engine_for, is_loadable, Engine};
+    use crate::llm::engine::is_loadable;
+    #[cfg(feature = "llm-llamacpp")]
+    use crate::llm::engine::{engine_for, Engine};
 
     #[test]
     fn every_built_in_entry_names_its_architecture() {
@@ -171,19 +173,39 @@ mod engines {
         assert_eq!(qwen35_offered, cfg!(feature = "llm-llamacpp"));
     }
 
-    /// The three profiles are the defaults of a fresh install: they must load without the optional
-    /// engine, so a build without llama.cpp still has a working default (spec 070, until US5 is decided).
+    /// The architecture of a catalog entry, whether or not this build offers it.
+    fn architecture_of(id: &str) -> String {
+        all_entries()
+            .into_iter()
+            .find(|e| e.id == id)
+            .and_then(|e| e.architecture)
+            .unwrap_or_else(|| panic!("{id} is not in the catalog"))
+    }
+
+    /// The profiles are the defaults of a fresh install (spec 070 US5): with llama.cpp each loads through
+    /// it. The phone profiles also load through mistralrs, the fallback of iOS and of processors without
+    /// AVX2, so those keep a working default; the desktop profile, Qwen3.5, has none there.
     #[test]
-    fn the_profile_models_load_with_mistralrs() {
+    fn the_profile_models_load_in_this_build() {
         let profiles = super::super::profiles::profiles();
+        for id in [&profiles.mobile, &profiles.mobile_low_memory] {
+            let architecture = architecture_of(id);
+            assert!(
+                mistralrs::core::GGUFArchitecture::from_value(&architecture).is_ok(),
+                "{id} does not load through mistralrs"
+            );
+        }
+        #[cfg(feature = "llm-llamacpp")]
         for id in [
             &profiles.desktop,
             &profiles.mobile,
             &profiles.mobile_low_memory,
         ] {
-            let entry = crate::catalog::get(id).expect("profile model is in the catalog");
-            let architecture = entry.architecture.as_deref().expect("has an architecture");
-            assert_eq!(engine_for(architecture).unwrap(), Engine::Mistralrs, "{id}");
+            assert_eq!(
+                engine_for(&architecture_of(id)).unwrap(),
+                Engine::LlamaCpp,
+                "{id}"
+            );
         }
     }
 }

@@ -45,13 +45,15 @@ dependencies but are not built in CI.
     with bindgen).
   - `aws-lc-sys` (rustls) and the tokenizers of the local models
     (`onig_sys`, `esaxx-rs`) need a C/C++ compiler.
+  - llama.cpp, the local inference engine (`llama-cpp-sys-2`), needs **CMake**
+    and a C++ compiler.
 
 ### Linux
 
 **Debian / Ubuntu** (what CI installs):
 
 ```bash
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+sudo apt install libwebkit2gtk-4.1-dev build-essential cmake curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
   libasound2-dev libclang-dev
 ```
@@ -59,14 +61,14 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 **Arch**:
 
 ```bash
-sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl \
+sudo pacman -S --needed webkit2gtk-4.1 base-devel cmake curl wget file openssl \
   appmenu-gtk-module libappindicator-gtk3 librsvg xdotool alsa-lib clang perl
 ```
 
 **Fedora**:
 
 ```bash
-sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file \
+sudo dnf install webkit2gtk4.1-devel openssl-devel cmake curl wget file \
   libappindicator-gtk3-devel librsvg2-devel libxdo-devel alsa-lib-devel \
   clang-devel perl-FindBin perl-IPC-Cmd
 sudo dnf group install "c-development"
@@ -85,14 +87,15 @@ build without the devShell.
 
 - Xcode, or the Xcode Command Line Tools: `xcode-select --install`. They
   bring the C compiler, make and Perl.
+- CMake: `brew install cmake`.
 - If bindgen cannot find libclang: `brew install llvm`, then set
   `LIBCLANG_PATH` to its `lib` directory (`$(brew --prefix llvm)/lib`).
 
 ### Windows
 
 - [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-  with the "Desktop development with C++" workload, and the MSVC Rust
-  toolchain (rustup's default on Windows).
+  with the "Desktop development with C++" workload (it includes CMake), and
+  the MSVC Rust toolchain (rustup's default on Windows).
 - WebView2 Runtime: part of Windows 10 (1803+) and 11. Otherwise install the
   Evergreen Bootstrapper.
 - LLVM for libclang: `winget install LLVM.LLVM`, then set `LIBCLANG_PATH` to
@@ -113,9 +116,9 @@ On Windows run `pnpm tauri dev` and `pnpm tauri build` instead. The
 `tauri:*` scripts go through a Bash wrapper (`scripts/with-nix-host-bridge.sh`)
 that only matters inside the Linux Nix devShell.
 
-The first Rust build compiles the local-inference stack (mistralrs, candle)
-and takes several minutes. GPU builds: `pnpm tauri:dev:cuda` (NVIDIA, CUDA
-toolkit ≥ 12 with `nvcc`) and `pnpm tauri:dev:metal` (Apple). See
+The first Rust build compiles the local-inference stack (llama.cpp, mistralrs,
+candle) and takes several minutes. NVIDIA GPUs: `pnpm tauri:dev:cuda`. On a
+Mac llama.cpp uses the GPU (Metal) without a flag. See
 [Local inference build](#local-inference-build).
 
 ### End-to-end tests
@@ -256,51 +259,75 @@ the host system because its helper binaries must match the host runtime; the
 host development package (for example `libwebkit2gtk-4.1-dev` on Debian/
 Ubuntu) must be installed. Outside the Nix devShell, the wrapper is a no-op.
 
-The default `cargo build` enables the `llm-cpu` feature, which pulls
-`mistralrs = 0.8.1` and its candle/tokio dependency tree. The first
-build downloads and compiles many crates; expect several minutes on a
-cold cache. Iterating on non-LLM code can skip that path with
-`cargo build --no-default-features` (the `llm` module then compiles as
-an empty gate).
+holzi runs local models with **llama.cpp** (`llama-cpp-2` 0.1.160, the default
+feature `llm-llamacpp`; spec 070, [ADR-0023](docs/adr/0023-second-local-inference-engine.md)).
+It loads every model of the catalog: Qwen3 0.6B, 1.7B and 4B, and Qwen3.5 4B.
+**mistralrs** (`llm-cpu`, which `llm-llamacpp` includes) is the fallback where
+llama.cpp cannot run yet:
 
-For GPU inference, opt into one of the stacked features:
+- **a processor without AVX2**: x86-64 builds compile ggml for the AVX2
+  baseline (`GGML_*` in `.cargo/config.toml`); `llm/llamacpp/cpu.rs` checks the
+  processor before a load. Such a machine cannot run Qwen3.5.
+- **iOS**: the sys crate has no iOS build yet (spec 070 T037). Build iOS with
+  `--no-default-features --features llm-cpu,voice`.
+
+`llm::engine::engine_for` makes that choice. The first build compiles
+llama.cpp through CMake and mistralrs with its candle tree; expect several
+minutes on a cold cache. `cargo build --no-default-features` skips both (the
+`llm` module then compiles as an empty gate).
+
+A reused `target/` keeps the ggml it was built with: after changing a `GGML_*`
+switch, run `cargo clean -p llama-cpp-sys-2`.
+
+For an NVIDIA GPU:
 
 ```bash
-# NVIDIA GPU — requires nvcc + CUDA toolkit >= 12.0 at build time.
-# The driver alone is not enough (Etappe 0 finding #3).
-cargo build --features llm-cuda
-
-# Apple GPU.
-cargo build --features llm-metal
+pnpm tauri:dev:cuda      # tauri dev with --features llm-llamacpp-cuda
+# or
+CUDAARCHS=86 cargo build --features llm-llamacpp-cuda
 ```
 
-**First-load warning on CUDA hosts.** Under CUDA the very first model
-load per host takes 30-45 s while nvcc's JIT cache in
-`~/.nv/ComputeCache` warms. Subsequent loads on the same hardware are
-~4 s. The chat UI shows a dedicated "GPU wird für dieses Modell
-optimiert" state for that first load (Etappe 0 finding #4).
+The CUDA build links cudart and cuBLAS statically, so the app needs only the
+driver at run time. It needs `nvcc` (CUDA toolkit ≥ 12) and the static
+libraries in `$CUDA_LIBRARY_PATH/lib64`; the Nix devShell sets that variable.
+`CUDAARCHS` limits the kernels to your card (`native` in the `pnpm` scripts,
+`86` for an RTX 30xx/A2000); without it ggml compiles every architecture. On a
+Mac, llama.cpp uses Metal on its own.
+
+The Android build cross-compiles llama.cpp with the NDK; set `ANDROID_NDK` to
+the NDK (the devShell does), or the build script takes the newest one it finds.
 
 ### Running the local-inference integration test
 
-The wrapper's real-runtime test is skipped by default because it needs
-a GGUF file on disk. To exercise it, point `HOLZI_TEST_GGUF` at any
+The engines' real-runtime tests are skipped by default because they need
+a GGUF file on disk. To exercise them, point `HOLZI_TEST_GGUF` at any
 GGUF and add `--ignored`:
 
 ```bash
+# llama.cpp: loading, streaming, cancelling, tool calls, speed
+HOLZI_TEST_GGUF=~/path/to/model.gguf \
+  cargo test --manifest-path src-tauri/Cargo.toml \
+  --test llamacpp_inference -- --ignored --nocapture
+
+# mistralrs
 HOLZI_TEST_GGUF=~/path/to/model.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml \
   --test local_inference -- --ignored
 ```
+
+`measures_the_speed` in `llamacpp_inference` measures mistralrs too with
+`HOLZI_TEST_ENGINE=mistralrs`.
 
 `HOLZI_TEST_GGUF_TOKENIZER` overrides the tokenizer repo id (default:
 `Qwen/Qwen3-4B`).
 
 ### Local model presets
 
-Holzi uses Qwen3 as its local model family: Qwen3-4B Q4_K_M is the desktop
-preset, Qwen3-1.7B Q4_K_M is the smartphone preset, and Qwen3-0.6B Q4_K_M is
-the low-memory fallback. See [ADR-0002](docs/adr/0002-local-model-profiles.md)
-for the platform boundary and rationale.
+Qwen3.5-4B Q4_K_M is the desktop preset (spec 070: 60 of 83 sentences of the
+tool evaluation against 55 for Qwen3-4B), Qwen3-1.7B Q4_K_M is the smartphone
+preset, and Qwen3-0.6B Q4_K_M is the low-memory fallback. See
+[ADR-0002](docs/adr/0002-local-model-profiles.md) for the platform boundary and
+rationale.
 
 ### Running the real local CLI tool-loop test
 
