@@ -13,13 +13,16 @@ use super::stream::to_mistralrs_tool;
 use super::LocalModel;
 use crate::adapters::types::{ToolSpec, ToolTemplateProbe};
 
+/// The fixed message both engines render with and without the dummy tool.
+pub(crate) const PROBE_MESSAGE: &str = "Please open the settings.";
+
 /// What mistralrs says when a template has no part for tools.
 const NO_TOOL_USAGE: &str = "does not handle tool usage";
 
 /// The decision, apart from the model so a test can feed it any pair of renderings: `without` is
 /// the text rendered with no tool, `with` the text rendered with one, or the error that came
 /// instead.
-pub(super) fn decide(without: Result<&str, &str>, with: Result<&str, &str>) -> ToolTemplateProbe {
+pub(crate) fn decide(without: Result<&str, &str>, with: Result<&str, &str>) -> ToolTemplateProbe {
     match (without, with) {
         // A template that cannot render a plain message tells nothing about tools.
         (Err(_), _) => ToolTemplateProbe::Inconclusive,
@@ -30,7 +33,7 @@ pub(super) fn decide(without: Result<&str, &str>, with: Result<&str, &str>) -> T
 }
 
 /// Builds the stable tool definition used to compare the model's template output.
-fn dummy_tool() -> ToolSpec {
+pub(crate) fn dummy_tool() -> ToolSpec {
     ToolSpec {
         name: "holzi_probe_tool".to_owned(),
         description: "A tool that only exists to see whether the template shows tools.".to_owned(),
@@ -55,8 +58,7 @@ impl LocalModel {
 
     /// Renders the fixed probe message with the requested optional tool.
     async fn render_probe(&self, tool: Option<ToolSpec>) -> Result<String, String> {
-        let messages =
-            TextMessages::new().add_message(TextMessageRole::User, "Please open the settings.");
+        let messages = TextMessages::new().add_message(TextMessageRole::User, PROBE_MESSAGE);
         let tools = tool.as_ref().map(|spec| vec![to_mistralrs_tool(spec)]);
         let model = self.inner();
         let tokens = model

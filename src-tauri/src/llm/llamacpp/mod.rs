@@ -2,12 +2,24 @@
 //!
 //! It loads the GGUF architectures mistralrs cannot (Qwen3.5, Gemma 4) and sits behind the same
 //! `ProviderAdapter` as the mistralrs path. The pieces arrive stage by stage (`specs/070-llama-cpp-engine/
-//! tasks.md`): the template renderer and the call formats (PR B, here), the adapter (PR C), the choice of
-//! engine (PR D). Until the adapter lands, the prototype in `llm/local/llamacpp_spike_adapter.rs` serves the
-//! evaluation and uses these modules.
+//! tasks.md`): the template renderer and the call formats (PR B), the adapter (PR C, here), the choice of
+//! engine (PR D).
+//!
+//! - `model`: the backend of the process, the load and the memory plan (`memory`).
+//! - `generate`: the token loop, with cancelling.
+//! - `streaming`: generated text into reasoning, content and tool calls (`formats`).
+//! - `adapter`: `LlamaCppAdapter` over all of it.
 
+pub mod adapter;
 pub mod formats;
+pub mod generate;
+pub mod memory;
+pub mod model;
+pub mod streaming;
 pub mod template;
+
+pub use adapter::LlamaCppAdapter;
+pub use model::{LoadError, LoadOptions};
 
 #[cfg(test)]
 #[path = "links_tests.rs"]

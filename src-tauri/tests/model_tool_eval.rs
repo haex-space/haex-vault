@@ -45,20 +45,28 @@ async fn adapter_from_env() -> (Box<dyn ProviderAdapter>, String, bool) {
 
 #[cfg(feature = "llm-llamacpp")]
 async fn llamacpp_from_env() -> (Box<dyn ProviderAdapter>, String, bool) {
-    // Spec 070 spike: the same measurement through llama.cpp.
-    use holzi_lib::llm::local::LlamaCppSpikeAdapter;
+    // The same measurement through llama.cpp. `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU;
+    // without it the memory plan of the engine decides.
+    use holzi_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
     let path = PathBuf::from(env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF"));
-    let layers = env::var("HOLZI_SPIKE_GPU_LAYERS")
+    let gpu_layers = env::var("HOLZI_LLAMACPP_GPU_LAYERS")
         .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+        .and_then(|v| v.parse().ok());
     let name = format!(
         "llamacpp-{}",
         path.file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default()
     );
-    let adapter = LlamaCppSpikeAdapter::load(&path, layers).expect("llama.cpp load");
+    let adapter = LlamaCppAdapter::load(
+        &path,
+        LoadOptions {
+            context_window: None,
+            gpu_layers,
+        },
+    )
+    .await
+    .expect("llama.cpp load");
     (Box::new(adapter), name, true)
 }
 

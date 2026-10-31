@@ -6,23 +6,17 @@
 //! happens at compile time via feature flags — the runtime cannot
 //! upgrade CPU to CUDA without a rebuild (Etappe 0 finding #3).
 
-mod gguf_header;
+pub(crate) mod gguf_header;
 #[cfg(test)]
 mod gguf_header_tests;
-#[cfg(feature = "llm-llamacpp")]
-mod llamacpp_spike_adapter;
-#[cfg(all(test, feature = "llm-llamacpp"))]
-mod llamacpp_spike_tests;
 mod loader;
 #[cfg(test)]
 mod loader_tests;
 #[cfg(test)]
 mod multimodal_spike_tests;
-mod probe;
+pub(crate) mod probe;
 #[cfg(test)]
 mod probe_tests;
 mod stream;
 
-#[cfg(feature = "llm-llamacpp")]
-pub use llamacpp_spike_adapter::LlamaCppSpikeAdapter;
 pub use loader::{LocalModel, LocalModelError};

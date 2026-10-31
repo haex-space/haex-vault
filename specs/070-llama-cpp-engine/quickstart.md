@@ -21,10 +21,14 @@ choice table and the catalog gate.
 Run memory-limited and with the holzi dev app closed, so the GPU is free:
 
 ```sh
-HOLZI_TEST_GGUF=<file> HOLZI_SPIKE_GPU_LAYERS=99 systemd-run --user --scope -p MemoryMax=12G \
+HOLZI_TEST_GGUF=<file> systemd-run --user --scope -p MemoryMax=12G \
   nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml \
   --features llm-llamacpp-cuda --test llamacpp_inference -- --ignored --nocapture
 ```
+
+The engine's memory plan decides how many layers go on the GPU; `HOLZI_LLAMACPP_GPU_LAYERS=<n>` forces a
+number. The test `both_engines_answer_in_one_process` also needs `llm-cuda` in `--features` and a file that
+mistralrs loads too (Qwen3); skip it for Qwen3.5.
 
 Checks: the model loads (SC-001), answers, a running stream cancels within a second (US3), a tool call
 arrives as a `ToolCall` and no call text reaches the answer (US2).
@@ -32,7 +36,7 @@ arrives as a `ToolCall` and no call text reaches the answer (US2).
 The 83-sentence evaluation through the new engine (SC-002), once per catalog model:
 
 ```sh
-HOLZI_EVAL_ENGINE=llamacpp HOLZI_SPIKE_GPU_LAYERS=99 HOLZI_TEST_GGUF=<file> \
+HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<file> \
   nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml \
   --features llm-llamacpp-cuda --test model_tool_eval -- --ignored --nocapture
 ```

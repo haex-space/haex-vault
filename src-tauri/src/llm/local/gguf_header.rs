@@ -1,4 +1,5 @@
-//! Reads `general.architecture` from a GGUF header without loading any tensors.
+//! Reads `general.architecture` (and the few sizes a memory estimate needs) from a GGUF header without
+//! loading any tensors.
 //!
 //! mistralrs 0.8.1 `unwrap()`s the architecture lookup while building a GGUF model, so a file of
 //! an architecture it does not know (Qwen3.5 is `qwen35`) panics inside the build and the load
@@ -105,3 +106,101 @@ pub(super) fn read_architecture(reader: &mut impl Read) -> io::Result<String> {
     }
     Err(invalid("GGUF has no general.architecture"))
 }
+
+#[cfg(feature = "llm-llamacpp")]
+mod summary {
+    use std::collections::HashMap;
+    use std::io::{self, Read};
+
+    use super::{
+        invalid, read_string, read_u32, read_u64, skip_value, ARCHITECTURE_KEY, MAGIC, TYPE_STRING,
+    };
+
+    /// What the header says about the model's shape, as far as the memory estimate of the llama.cpp engine
+    /// (spec 070, plan D6) needs it. A value the file does not carry, or stores as a per-layer array, is `None`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct GgufSummary {
+        pub architecture: String,
+        pub block_count: Option<u64>,
+        pub embedding_length: Option<u64>,
+        pub head_count: Option<u64>,
+        pub head_count_kv: Option<u64>,
+        pub key_length: Option<u64>,
+        pub context_length: Option<u64>,
+    }
+
+    /// The `<architecture>.<suffix>` keys [`read_summary`] keeps.
+    const SHAPE_SUFFIXES: [&str; 6] = [
+        "block_count",
+        "embedding_length",
+        "attention.head_count",
+        "attention.head_count_kv",
+        "attention.key_length",
+        "context_length",
+    ];
+
+    /// Reads an integer value of any GGUF integer type; `None` for every other type (the value is consumed).
+    fn read_uint(reader: &mut impl Read, value_type: u32) -> io::Result<Option<u64>> {
+        let width = match value_type {
+            0 | 1 => 1,
+            2 | 3 => 2,
+            4 | 5 => 4,
+            10 | 11 => 8,
+            other => {
+                skip_value(reader, other)?;
+                return Ok(None);
+            }
+        };
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf[..width])?;
+        Ok(Some(u64::from_le_bytes(buf)))
+    }
+
+    /// Walks all metadata key/value pairs of a GGUF stream and keeps the architecture and the shape numbers.
+    pub fn read_summary(reader: &mut impl Read) -> io::Result<GgufSummary> {
+        let mut magic = [0u8; 4];
+        reader.read_exact(&mut magic)?;
+        if &magic != MAGIC {
+            return Err(invalid("not a GGUF file"));
+        }
+        let _version = read_u32(reader)?;
+        let _tensor_count = read_u64(reader)?;
+        let kv_count = read_u64(reader)?;
+        let mut architecture = None;
+        let mut numbers: HashMap<String, u64> = HashMap::new();
+        for _ in 0..kv_count {
+            let key = read_string(reader)?;
+            let value_type = read_u32(reader)?;
+            if key == ARCHITECTURE_KEY {
+                if value_type != TYPE_STRING {
+                    return Err(invalid("general.architecture is not a string"));
+                }
+                architecture = Some(read_string(reader)?);
+            } else if SHAPE_SUFFIXES
+                .iter()
+                .any(|suffix| key.ends_with(&format!(".{suffix}")))
+            {
+                if let Some(value) = read_uint(reader, value_type)? {
+                    numbers.insert(key, value);
+                }
+            } else {
+                skip_value(reader, value_type)?;
+            }
+        }
+        let architecture =
+            architecture.ok_or_else(|| invalid("GGUF has no general.architecture"))?;
+        let number = |suffix: &str| numbers.get(&format!("{architecture}.{suffix}")).copied();
+        Ok(GgufSummary {
+            block_count: number("block_count"),
+            embedding_length: number("embedding_length"),
+            head_count: number("attention.head_count"),
+            head_count_kv: number("attention.head_count_kv"),
+            key_length: number("attention.key_length"),
+            context_length: number("context_length"),
+            architecture,
+        })
+    }
+}
+
+#[cfg(feature = "llm-llamacpp")]
+pub use summary::{read_summary, GgufSummary};
