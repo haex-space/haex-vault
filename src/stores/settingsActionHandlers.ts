@@ -16,6 +16,7 @@ import { useWorkspaceBackground } from '~/composables/useWorkspaceBackground'
 import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
+import { useModelDownloadsStore } from '~/stores/modelDownloads'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
 import type { McpStatus } from '~/types/bindings/McpStatus'
@@ -45,6 +46,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   const huggingFace = useHuggingFace()
   const providers = useProviders()
   const sttModels = useSttModels()
+  const downloads = useModelDownloadsStore()
   const colorScheme = useColorScheme()
   const appearance = useAppearance()
   const language = useLanguage()
@@ -272,9 +274,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     return done
   })
   on('settings.models.setStt', async ({ input }) => {
-    const installed = await sttModels.downloadFromCatalogAsync(
-      String(input.catalogId),
-    )
+    const catalogId = String(input.catalogId)
+    // The download reports progress to the shared store; forget it whoever started the action.
+    const installed = await sttModels
+      .downloadFromCatalogAsync(catalogId)
+      .finally(() => downloads.clearDownload(catalogId))
     await setPrefAsync(await deviceScope(), STT_MODEL_KEY, installed.id)
     await invoke('invalidate_stt_model_cache')
     return { modelId: installed.id }

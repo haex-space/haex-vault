@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 #[cfg(any(feature = "llm-cpu", feature = "voice"))]
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::error::{HolziError, Result};
 use crate::hardware;
@@ -179,9 +179,20 @@ pub async fn download_stt_model(
     .map_err(|e| HolziError::CrdtInit {
         reason: format!("resolve STT model directory: {e}"),
     })??;
+    let model_id = entry.id.clone();
+    let emitter = app.clone();
     state
         .gate()
-        .run(super::files::ensure_model_files(&dir, entry))
+        .run(super::files::ensure_model_files(&dir, entry, move |p| {
+            let _ = emitter.emit(
+                crate::models::commands::EVENT_PROGRESS,
+                crate::models::commands::ProgressEvent {
+                    model_id: model_id.clone(),
+                    bytes_downloaded: p.bytes_downloaded,
+                    bytes_total: p.bytes_total,
+                },
+            );
+        }))
         .await??;
     Ok(InstalledSttModel {
         id: entry.id.clone(),

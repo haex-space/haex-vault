@@ -2,7 +2,8 @@
 /**
  * Speech-to-text model (spec 010). The select lists only installed models and saves on selection
  * (spec 023 FR-021); a model that is not installed is fetched and activated with its own button,
- * because a download is an action, not a value (clarification 2026-09-26).
+ * because a download is an action, not a value (clarification 2026-09-26). Its row shows the
+ * download progress like the chat model downloads do.
  */
 import type {
   SttCatalogEntry,
@@ -165,8 +166,16 @@ onVaultTablesChanged(['preferences'], () => {
           v-for="entry in available"
           :key="entry.id"
           :title="entry.name"
-          :description="engineLabel(entry)"
         >
+          <template #backdrop>
+            <ModelsDownloadBar :model-id="entry.id" />
+          </template>
+          <template #description>
+            <span class="flex flex-col">
+              <span>{{ engineLabel(entry) }}</span>
+              <ModelsDownloadStatus :model-id="entry.id" />
+            </span>
+          </template>
           <UiButton
             type="button"
             variant="outline"
