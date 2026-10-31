@@ -60,6 +60,9 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
     }
     if headless {
         args.push("--headless=new".into());
+        // Opening a foreground tab changes visibility in headless Chromium; EventTiming crashes
+        // some CI renderer builds while they flush the click event during that transition.
+        args.push("--disable-blink-features=EventTiming".into());
         // Headless Linux integration tests run under CI's AppArmor profile, which blocks
         // unprivileged user namespaces. Production launches are not headless and keep Chromium's
         // sandbox enabled.
