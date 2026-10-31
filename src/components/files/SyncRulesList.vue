@@ -278,28 +278,16 @@ async function confirmDeleteAsync() {
               class="hidden w-56 shrink-0 flex-col gap-1 text-xs text-muted-foreground @2xl:flex"
             >
               <template v-if="activity[view.rule.id]">
-                <div
-                  class="h-1 overflow-hidden rounded bg-muted"
-                  role="progressbar"
-                  :aria-label="t('files.syncRules.progress.label')"
-                  :aria-valuemin="0"
-                  :aria-valuemax="100"
-                  :aria-valuenow="
+                <UiProgress
+                  class="h-1 rounded"
+                  :value="
                     activity[view.rule.id]?.share == null
-                      ? undefined
+                      ? null
                       : Math.round((activity[view.rule.id]?.share ?? 0) * 100)
                   "
+                  :label="t('files.syncRules.progress.label')"
                   :data-testid="`files-sync-rule-progress-${view.rule.name}`"
-                >
-                  <div
-                    v-if="activity[view.rule.id]?.share != null"
-                    class="h-full bg-primary transition-[width]"
-                    :style="{
-                      width: `${Math.round((activity[view.rule.id]?.share ?? 0) * 100)}%`,
-                    }"
-                  />
-                  <div v-else class="h-full w-1/3 animate-pulse bg-primary" />
-                </div>
+                />
                 <span class="truncate">{{ activity[view.rule.id]?.text }}</span>
               </template>
               <span v-else class="truncate">{{ lastRun(view) }}</span>

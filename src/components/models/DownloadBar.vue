@@ -26,15 +26,5 @@ const label = computed(() =>
 </script>
 
 <template>
-  <div
-    v-if="state"
-    class="pointer-events-none absolute inset-y-0 left-0 bg-primary/10 transition-[width] duration-150"
-    :class="percent === null ? 'animate-pulse' : ''"
-    :style="{ width: `${percent ?? 35}%` }"
-    role="progressbar"
-    :aria-valuenow="percent ?? undefined"
-    aria-valuemin="0"
-    aria-valuemax="100"
-    :aria-label="label"
-  />
+  <UiProgress v-if="state" :value="percent" :label="label" variant="backdrop" />
 </template>
