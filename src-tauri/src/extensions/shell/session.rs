@@ -150,7 +150,7 @@ impl Session {
     }
 
     /// The output events `frame` has open, if the reading waits for it.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(super) fn open_events(&self, frame: &str) -> Option<u64> {
         self.flow.open_of(frame)
     }

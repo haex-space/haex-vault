@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::files::local::{resolve, OwnPlaces};
+#[cfg(unix)]
+use crate::files::local::resolve;
+use crate::files::local::OwnPlaces;
 use crate::files::FilesErrorCode;
 
 fn own() -> OwnPlaces {

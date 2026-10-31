@@ -369,6 +369,8 @@ pub(super) async fn spawn_claude_invocation(
         (None, None)
     } else {
         let socket_path = tmp.path().join("approval.sock");
+        // Without Unix sockets the bind fails, and its success type is `()`.
+        #[cfg_attr(not(unix), allow(clippy::let_unit_value))]
         let listener =
             approval_bridge::bind_socket(&socket_path).map_err(|error| AdapterError::Http {
                 reason: format!("failed to create Claude approval socket: {error}"),

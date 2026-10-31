@@ -167,6 +167,8 @@ async fn a_search_finds_names_and_never_holzis_own_files() {
 #[tokio::test]
 async fn holzis_own_files_are_blocked_however_they_are_named() {
     let scene = Scene::new(None);
+    // Only Unix adds the links below.
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut ways = vec![
         scene.at("holzi/vault.db"),
         scene.at("holzi"),

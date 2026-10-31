@@ -3,9 +3,12 @@
 
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
+#[cfg(unix)]
 use uuid::Uuid;
 
-use super::helper::{credential_path, exit, parse_args, run, HelperArgs, HelperEnv};
+#[cfg(unix)]
+use super::helper::credential_path;
+use super::helper::{exit, parse_args, run, HelperArgs, HelperEnv};
 
 fn env(dir: &std::path::Path) -> HelperEnv {
     HelperEnv {

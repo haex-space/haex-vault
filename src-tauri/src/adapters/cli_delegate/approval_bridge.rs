@@ -1,8 +1,10 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
 use serde::Deserialize;
 use serde_json::{json, Value};
+#[cfg(unix)]
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::oneshot;
 use uuid::Uuid;
@@ -31,6 +33,7 @@ const MARKER_PERMITTED: &str = "gated_permissive_call_permitted";
 /// credentials).
 const REDACTED_TOOL_INPUT: &str = "[redacted]";
 
+#[cfg(unix)]
 #[derive(Debug, Deserialize)]
 struct ApprovalRequest {
     tool_name: String,
