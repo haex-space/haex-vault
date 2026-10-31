@@ -6,7 +6,12 @@
  * guardrail action (`settings.agents.mcp.*`), which no agent can call.
  */
 import { invoke } from '@tauri-apps/api/core'
-import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
+import {
+  levelsOf,
+  rightsOf,
+  type Levels,
+  type PasswordRights,
+} from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { AgentView } from '~/types/bindings/AgentView'
@@ -24,6 +29,7 @@ const agent = ref<AgentView | null>(null)
 const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
 const extensions = ref<string[]>([])
+const passwords = ref<PasswordRights | null>(null)
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
@@ -37,6 +43,7 @@ async function reloadAsync() {
     levels.value = levelsOf(agent.value.rights)
     browser.value = agent.value.rights.browser ?? null
     extensions.value = agent.value.rights.extensions ?? []
+    passwords.value = agent.value.rights.passwords ?? null
   } catch (error) {
     agent.value = null
     failure.value = errString(error)
@@ -56,7 +63,12 @@ async function runAsync(action: () => Promise<unknown>) {
 }
 
 function saveRights() {
-  const rights = rightsOf(levels.value, browser.value, extensions.value)
+  const rights = rightsOf(
+    levels.value,
+    browser.value,
+    extensions.value,
+    passwords.value,
+  )
   const agentIdAtChange = agentId.value
   rightsSaveQueue = rightsSaveQueue.then(() =>
     runAsync(() => setRights({ agentId: agentIdAtChange, rights })),
@@ -77,6 +89,12 @@ function onBrowser(next: BrowserRights | null) {
 /** Spec 021 US4: the extensions whose tools the agent sees, saved with the other rights. */
 function onExtensions(next: string[]) {
   extensions.value = next
+  saveRights()
+}
+
+/** Spec 021 US5: the group `passwords`, saved with the other rights. */
+function onPasswords(next: PasswordRights | null) {
+  passwords.value = next
   saveRights()
 }
 
@@ -146,6 +164,11 @@ watch(() => store.changes, reloadAsync)
       <AgentsExtensionRightsFields
         :model-value="extensions"
         @update:model-value="onExtensions"
+      />
+
+      <AgentsPasswordRightsFields
+        :model-value="passwords"
+        @update:model-value="onPasswords"
       />
 
       <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->

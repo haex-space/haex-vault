@@ -7,7 +7,12 @@
  * all off), plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
  * without remembering. Rust checks the rights again; rights it refuses count as declining.
  */
-import { levelsOf, rightsOf, type Levels } from '~/lib/agents/rights'
+import {
+  levelsOf,
+  rightsOf,
+  type Levels,
+  type PasswordRights,
+} from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
@@ -22,6 +27,7 @@ const question = computed<RegistrationQuestion | null>(
 const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
 const extensions = ref<string[]>([])
+const passwords = ref<PasswordRights | null>(null)
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -36,6 +42,7 @@ watch(
     levels.value = levelsOf(asked.rights)
     browser.value = asked.rights.browser ?? null
     extensions.value = asked.rights.extensions ?? []
+    passwords.value = asked.rights.passwords ?? null
     mode.value = asked.mode
   },
   { immediate: true },
@@ -49,7 +56,12 @@ async function answerAsync(register: boolean) {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
       rights: register
-        ? rightsOf(levels.value, browser.value, extensions.value)
+        ? rightsOf(
+            levels.value,
+            browser.value,
+            extensions.value,
+            passwords.value,
+          )
         : { operate: {} },
       mode: mode.value,
     })
@@ -99,6 +111,7 @@ function onUpdateOpen(open: boolean) {
         <AgentsRightsFields v-model="levels" />
         <AgentsBrowserRightsFields v-model="browser" />
         <AgentsExtensionRightsFields v-model="extensions" />
+        <AgentsPasswordRightsFields v-model="passwords" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.filesHint') }}
         </p>
