@@ -17,8 +17,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, read_tab, site_of, tab_error, unknown_tab, Click, Select,
-    TypeText,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, Select, TypeText,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -174,16 +173,16 @@ impl Acting<'_> {
         events: tokio::sync::mpsc::UnboundedReceiver<Event>,
     ) -> Result<NativeReply, NativeError> {
         let session = Arc::clone(self.session);
-        let settled = tab.settle(events, &move || session.submitting()).await;
+        let settled = tab.settle(events, &move || session.questions_open()).await;
         let _ = tokio::time::timeout(PROMPT_TIMEOUT + Duration::from_secs(5), async {
-            while self.session.submitting() {
+            while self.session.questions_open() {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         })
         .await;
         self.session.disarm();
         settled.map_err(tab_error)?;
-        read_tab(self.connection, tab, 0, None).await
+        Ok(json!({ "tab": tab.id }).into())
     }
 
     /// `browser.click`: a real click in the middle of the element.

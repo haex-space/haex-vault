@@ -2,7 +2,8 @@
 //! park on a [`PromptPark`] for 5 minutes and appear in the window as one dialog with kinds, as the
 //! call prompt of 021 does. They ask about websites (FR-007), in Manuell about actions that change
 //! something, and in Manuell and Auto before anything is submitted (contracts/browser-tools.md
-//! "Freigabe", [`need`]); credentials, taking over and downloads add their kinds later.
+//! "Freigabe", [`need`]), and before a tab a page opened becomes an agent tab; credentials, taking
+//! over and downloads add their kinds later.
 
 use std::time::Duration;
 
@@ -33,6 +34,8 @@ pub enum BrowserPromptKind {
     Action,
     /// May the agent send this to the website (FR-011, FR-012)?
     Submit,
+    /// May a page of an agent tab open this new tab for the agent (research R9)?
+    NewTab,
 }
 
 /// What the dialog shows.

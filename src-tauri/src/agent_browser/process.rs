@@ -60,6 +60,9 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
     }
     if headless {
         args.push("--headless=new".into());
+        // Opening a foreground tab changes visibility in headless Chromium; EventTiming crashes
+        // some CI renderer builds while they flush the click event during that transition.
+        args.push("--disable-blink-features=EventTiming".into());
         // Headless Linux integration tests run under CI's AppArmor profile, which blocks
         // unprivileged user namespaces. Production launches are not headless and keep Chromium's
         // sandbox enabled.
@@ -166,8 +169,9 @@ impl Drop for StartupGuard {
 }
 
 /// Starts the browser of `launch`, checks its version and sets it up (contracts/agent-browser.md
-/// "Start"): auto-attach in flat mode, page permissions denied, downloads into their folder.
-pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
+/// "Start"): auto-attach in flat mode with each new target waiting until `claim` takes it or it
+/// goes on, page permissions denied, downloads into their folder.
+pub async fn launch(os: Os, launch: &Launch, claim: target::Claim) -> Result<Launched> {
     let (connection, process) = spawn(os, launch)?;
     let startup = StartupGuard::new(connection, process);
     let connection = Arc::clone(startup.connection());
@@ -187,7 +191,8 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
             )));
         }
         let configure = async {
-            target::auto_attach(&connection, None).await?;
+            target::resume_unclaimed(&connection, claim);
+            target::auto_attach(&connection).await?;
             browser::deny_permissions(&connection).await?;
             browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
             Ok::<(), BrowserError>(())

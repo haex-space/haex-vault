@@ -10,7 +10,7 @@ use serde_json::Value;
 use super::cdp::Connection;
 use super::error::BrowserError;
 use super::read::{self, page_result};
-use super::session::{Session, Tabs, MAX_TABS};
+use super::session::{Session, Tabs};
 use super::sites::Site;
 use super::tab::{PageInfo, Tab, TabError, LOAD_TIMEOUT};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
@@ -160,27 +160,32 @@ pub(super) fn site_of(url: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Opens a new tab in `tabs`, at most [`MAX_TABS`].
+/// Opens a new tab in `tabs`, at most [`super::session::MAX_TABS`].
 pub(super) async fn new_tab(
     connection: &Arc<Connection>,
     session: &Arc<Session>,
     tabs: &mut Tabs,
 ) -> Result<String, NativeError> {
-    if tabs.open.len() >= MAX_TABS {
+    let Some(id) = session.reserve_new_tab(None) else {
         return Err(NativeError::new(
             "too_many_tabs",
             "An agent has at most 5 tabs; close one first.",
         ));
-    }
-    let id = tabs.next_id();
-    let tab = Tab::open(
+    };
+    let opened = Tab::open(
         connection,
         id.clone(),
         session.guard(id.clone()),
-        session.marker().await,
+        session.tab_hooks(&id).await,
     )
-    .await
-    .map_err(browser_error)?;
+    .await;
+    let tab = match opened {
+        Ok(tab) => tab,
+        Err(error) => {
+            session.forget_targets(&id);
+            return Err(browser_error(error));
+        }
+    };
     tabs.open.push(tab);
     Ok(id)
 }

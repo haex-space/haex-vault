@@ -37,7 +37,8 @@ delivery is one PR from its own worktree off `main`.
 | PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042) |
 | PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
 | PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)            |
-| PR D2    | Phases 4–5 | US2 rest (T047, T053 `newTab`), US3 take over, give back, input pause         |
+| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                         |
+| PR D3    | Phases 4–5 | US2 rest (T047), US3 take over, give back, input pause                        |
 | PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                                    |
 | PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)                     |
 | –        | Phase 9    | Polish, manual checks                                                         |
@@ -130,7 +131,7 @@ link and takes a screenshot; the log shows the calls (spec US1).
 - [x] T033 [US1] `AgentBrowser` managed state in src-tauri/src/agent_browser/mod.rs: start on the first call (FR-003), end after 15 minutes without a session, on vault close and on the user closing the window; registered in src-tauri/src/lib.rs and ended with the vault session (done: `AgentBrowser` with `ensure`, `stop`, `Lease` for the idle end, the vault session through `StartConfig.gate`; managed in `lib.rs`. The executor of PR C2 takes a lease per session and passes the gate)
 - [x] T034 [US1] Agent tab in src-tauri/src/agent_browser/tab.rs: create target, isolated world `holzi`, script on new documents, element numbers mapped to `backendNodeId`, tab ids `t1`… per session (contracts/agent-browser.md "Je Agenten-Tab") (done without a script on new documents: the page script runs on demand in a fresh context of the world `holzi`, and element numbers are the document order it computes each time; mapping them to `backendNodeId` comes with clicking in PR D, the marker in PR C3)
 - [x] T035 [US1] Reading script in src-tauri/src/agent_browser/page_script.js (main text first, numbered elements with kind, name, value except secret fields, state, visibility) and the reader in src-tauri/src/agent_browser/read.rs (R4, R10, R12)
-- [x] T036 [US1] Website check before loading in src-tauri/src/agent_browser/sites.rs through `Fetch.requestPaused` for documents (R9), with the website prompt of FR-007 parked in src-tauri/src/agent_browser/prompts.rs (5 minutes) (done; a new tab a page opens itself is not held yet: the `newTab` prompt of T053 follows in PR D)
+- [x] T036 [US1] Website check before loading in src-tauri/src/agent_browser/sites.rs through `Fetch.requestPaused` for documents (R9), with the website prompt of FR-007 parked in src-tauri/src/agent_browser/prompts.rs (5 minutes) (done; a tab a page opens itself is held and asks since PR D2, with the `newTab` prompt of T053)
 - [x] T037 [US1] Browser session in src-tauri/src/agent_browser/session.rs (agent, tabs ≤ 5, state, last action) and the executor for the read tools (`browser.open`, `.page.read`, `.page.screenshot`, `.navigate`, `.scroll`, `.tabs.list`, `.wait`) in src-tauri/src/agent_browser/executor.rs, registered in `NativeExecutors` (done, plus `browser.follow_link`; `browser.open` and `.navigate` ask in Manuell through the new prompt kind `action`, contracts/tauri-commands.md updated)
 - [x] T038 [US1] Log entries in src-tauri/src/agent_browser/executor.rs through `mcp_server::agent_log` with website and label as target; new outcomes `denied_site` and `paused` in src-tauri/src/mcp_server/agent_log.rs (done: native replies name their website for the log through `NativeReply.target`; the MCP access maps the codes of a self-asking action to `denied_site`, `user_declined`, `no_answer` and `paused`)
 - [x] T039 [P] [US1] Catalog entries for the read tools in src/lib/actions/browserActions.ts (native, scope `browser`), registered in src/lib/actions/catalog.ts (done; a device without an agent browser pushes no browser tool to Rust, `forDevice`)
@@ -164,7 +165,7 @@ submitting is refused; a read-only website refuses typing (spec US2).
 - [x] T050 [US2] Prompts for actions and submitting in src-tauri/src/agent_browser/prompts.rs per contracts/browser-tools.md "Freigabe", including the fields that would be sent with secrets as `•••` (`mcp_server::redact`) (done: the fields of the form from the page, or of a held request's body; password fields and names like password, token, card, iban become `•••`)
 - [x] T051 [US2] Read-only websites refuse navigation, typing, choosing and clicking (`read_only_site`, FR-008) in src-tauri/src/agent_browser/act.rs (done for clicking, typing, choosing and following a link; opening an address, back, forward and reload stay allowed, since reading a website needs its pages loaded. A website allowed once counts as operable, `http` never)
 - [x] T052 [P] [US2] Catalog entries for the changing tools with `confirmsItself` in src/lib/actions/browserActions.ts
-- [ ] T053 [P] [US2] Prompt kinds `submit` and `newTab` in src/components/agentBrowser/PromptDialog.vue with texts in src/i18n/locales/de.json and src/i18n/locales/en.json (`submit` done in PR D1, with the fields; `newTab` follows in PR D2)
+- [x] T053 [P] [US2] Prompt kinds `submit` and `newTab` in src/components/agentBrowser/PromptDialog.vue with texts in src/i18n/locales/de.json and src/i18n/locales/en.json (`submit` done in PR D1, with the fields; `newTab` done in PR D2: every new target of the browser waits, a tab opened from an agent tab or its frames joins that session after the question, src-tauri/src/agent_browser/new_tab.rs, tested in src-tauri/tests/agent_browser_new_tab.rs)
 
 ---
 
@@ -315,6 +316,6 @@ Task: "Fixture site in src-tauri/tests/fixtures/agent_browser/site/"
 ### Incremental Delivery
 
 1. PR C → reading (MVP).
-2. PR D1 → operating with prompts before submitting; PR D2 → take over and give back (marker and stop came with PR C3).
+2. PR D1 → operating with prompts before submitting; PR D2 → tabs a page opens ask first; PR D3 → take over and give back (marker and stop came with PR C3).
 3. PR E → logins without the model seeing passwords, downloads and uploads.
 4. PR F → handed-over tabs in the user's browser.
