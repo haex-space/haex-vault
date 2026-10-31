@@ -43,7 +43,9 @@ const rows = computed(() => {
 })
 
 function add(key: string) {
-  const name = (Object.hasOwn(inputs.value, key) ? inputs.value[key] : '').trim()
+  const name = (
+    Object.hasOwn(inputs.value, key) ? inputs.value[key] : ''
+  ).trim()
   inputs.value = { ...inputs.value, [key]: '' }
   if (!name) return
   const names = Object.hasOwn(aliases.value, key) ? aliases.value[key]! : []
