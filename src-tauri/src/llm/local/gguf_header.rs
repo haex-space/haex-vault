@@ -84,7 +84,7 @@ fn skip_value(reader: &mut impl Read, value_type: u32) -> io::Result<()> {
 }
 
 /// Walks the metadata key/value pairs of a GGUF stream up to `general.architecture`.
-pub(super) fn read_architecture(reader: &mut impl Read) -> io::Result<String> {
+pub(crate) fn read_architecture(reader: &mut impl Read) -> io::Result<String> {
     let mut magic = [0u8; 4];
     reader.read_exact(&mut magic)?;
     if &magic != MAGIC {

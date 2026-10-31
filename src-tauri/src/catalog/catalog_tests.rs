@@ -86,10 +86,13 @@ fn catalog_contains_the_selected_qwen3_profiles() {
 
 #[test]
 fn tool_use_is_optional_and_only_measured_entries_carry_it() {
-    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools); the
-    // smaller models were not, so the self-test finds out at their first load.
+    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools) and so was
+    // Qwen3.5-4B (spec 070: 60 of 83 sentences); the smaller models were not, so the self-test finds
+    // out at their first load.
+    const MEASURED: [&str; 2] = ["qwen3-4b-instruct-q4_k_m", "qwen3.5-4b-instruct-q4_k_m"];
     for entry in entries() {
-        let expected = (entry.id == "qwen3-4b-instruct-q4_k_m")
+        let expected = MEASURED
+            .contains(&entry.id.as_str())
             .then_some(crate::model_capabilities::ToolSupport::Supported);
         assert_eq!(entry.tool_use, expected, "{}", entry.id);
     }
@@ -118,4 +121,69 @@ fn a_local_record_takes_the_catalog_answer_as_curated_and_otherwise_starts_unkno
         None
     );
     assert_eq!(ModelCapabilities::local("my-own-finetune").tool_use, None);
+}
+
+#[cfg(feature = "llm-cpu")]
+mod engines {
+    use super::super::{all_entries, entries};
+    use crate::llm::engine::{engine_for, is_loadable, Engine};
+
+    #[test]
+    fn every_built_in_entry_names_its_architecture() {
+        for entry in all_entries() {
+            let architecture = entry.architecture.as_deref();
+            assert!(
+                architecture.is_some_and(|a| !a.is_empty()),
+                "{} has no architecture",
+                entry.id
+            );
+        }
+    }
+
+    /// Spec 070 FR-007: a model is offered only when an engine compiled into this build loads it.
+    #[test]
+    fn catalog_entries_name_a_loadable_architecture() {
+        for entry in entries() {
+            let architecture = entry.architecture.as_deref().expect("checked above");
+            assert!(
+                is_loadable(architecture),
+                "{} ({architecture}) is loadable by no compiled engine",
+                entry.id
+            );
+        }
+    }
+
+    #[test]
+    fn a_build_hides_exactly_the_entries_it_cannot_load() {
+        let hidden: Vec<String> = all_entries()
+            .into_iter()
+            .filter(|e| !is_loadable(e.architecture.as_deref().unwrap_or_default()))
+            .map(|e| e.id)
+            .collect();
+        assert_eq!(all_entries().len() - hidden.len(), entries().len());
+        for id in &hidden {
+            assert!(entries().iter().all(|e| &e.id != id), "{id} is offered");
+        }
+        // Without llama.cpp the Qwen3.5 download is not offered; with it, it is.
+        let qwen35_offered = entries()
+            .iter()
+            .any(|e| e.id == "qwen3.5-4b-instruct-q4_k_m");
+        assert_eq!(qwen35_offered, cfg!(feature = "llm-llamacpp"));
+    }
+
+    /// The three profiles are the defaults of a fresh install: they must load without the optional
+    /// engine, so a build without llama.cpp still has a working default (spec 070, until US5 is decided).
+    #[test]
+    fn the_profile_models_load_with_mistralrs() {
+        let profiles = super::super::profiles::profiles();
+        for id in [
+            &profiles.desktop,
+            &profiles.mobile,
+            &profiles.mobile_low_memory,
+        ] {
+            let entry = crate::catalog::get(id).expect("profile model is in the catalog");
+            let architecture = entry.architecture.as_deref().expect("has an architecture");
+            assert_eq!(engine_for(architecture).unwrap(), Engine::Mistralrs, "{id}");
+        }
+    }
 }

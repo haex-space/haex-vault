@@ -197,6 +197,7 @@ fn local_reasoning_is_derived_conservatively_from_the_model_id() {
     let reasons = |id: &str| local_model_reasoning(id) == ReasoningControl::ModelManaged;
 
     assert!(reasons("Qwen/Qwen3-4B-Instruct"));
+    assert!(reasons("qwen3.5-4b-instruct-q4_k_m"));
     assert!(reasons("deepseek-r1-distill-qwen-7b"));
     assert!(reasons("gpt-oss-20b"));
     assert!(!reasons("Qwen/Qwen2.5-0.5B-Instruct"));

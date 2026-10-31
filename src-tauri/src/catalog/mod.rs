@@ -45,6 +45,11 @@ pub struct CatalogEntry {
     pub approx_size_bytes: u64,
     pub context_window: u64,
     pub license: String,
+    /// `general.architecture` of the GGUF file. Only the catalog gate uses it (spec 070 FR-007): an entry
+    /// whose architecture no compiled engine loads is not offered. The engine itself is chosen from the
+    /// file's own header at load time, never from this field. Absent for stand-in entries of the e2e suite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture: Option<String>,
     /// Measured once for a curated model (spec 032); absent until the first evaluation run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_use: Option<crate::model_capabilities::ToolSupport>,
@@ -57,13 +62,29 @@ struct RawCatalog {
 
 static CATALOG: OnceLock<Vec<CatalogEntry>> = OnceLock::new();
 
-/// Returns the curated list, cheap-copied per call.
+/// Every entry of the built-in JSON, whether or not this build can load it.
+fn all_entries() -> Vec<CatalogEntry> {
+    let raw: RawCatalog = serde_json::from_str(CATALOG_JSON)
+        .expect("built-in catalog JSON must be valid at compile time");
+    raw.models
+}
+
+/// Returns the curated list, cheap-copied per call. A model appears only when an engine compiled into
+/// this build loads its architecture (spec 070 FR-007), so a build without llama.cpp does not offer a
+/// download it could not run.
 pub fn entries() -> &'static [CatalogEntry] {
     CATALOG
         .get_or_init(|| {
-            let raw: RawCatalog = serde_json::from_str(CATALOG_JSON)
-                .expect("built-in catalog JSON must be valid at compile time");
-            raw.models
+            #[allow(unused_mut)]
+            let mut models = all_entries();
+            #[cfg(feature = "llm-cpu")]
+            models.retain(|entry| {
+                entry
+                    .architecture
+                    .as_deref()
+                    .is_none_or(crate::llm::engine::is_loadable)
+            });
+            models
         })
         .as_slice()
 }

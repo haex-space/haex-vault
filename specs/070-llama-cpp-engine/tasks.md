@@ -115,20 +115,22 @@ F; US5 is G.
 
 ## PR D – Engine choice and the catalog (US3, FR-003, FR-004, FR-007)
 
-- [ ] T024 `llm/engine.rs`: `Engine`, `engine_for(architecture)` (plan D1) and `load_local` (path and tokenizer repo in, an `Arc<dyn ProviderAdapter>` out). Table test: every architecture mistralrs knows maps to
+- [x] T024 `llm/engine.rs`: `Engine`, `engine_for(architecture)` (plan D1) and `load_local` (path, tokenizer repo and context in, an `Arc<dyn ProviderAdapter>` out). Table test: every architecture mistralrs knows maps to
       mistralrs; `qwen35` maps to llama.cpp when compiled and to `UnsupportedArchitecture` otherwise.
-- [ ] T025 Switch the call sites to `llm::engine::load_local`: `chat/model_loading.rs`
-      (`load_local_model_from_metadata`, `load_local_session`), the model-job path, `providers/mod.rs`, and the
-      tests that build a `LocalAdapter` directly keep doing so on purpose. Grep every call site (memory
-      `holzi-every-call-site`).
-- [ ] T026 Catalog: add `architecture` to every entry of `model_catalog.json` and the gate test
-      `catalog_entries_name_a_loadable_architecture` (fails when an entry's architecture is loadable by no
-      compiled engine). Same test for the phone profiles.
-- [ ] T027 Re-add Qwen3.5 4B to the catalog (the entry removed in #640) and let the gate test pass for it.
+- [x] T025 Switch the call sites to `llm::engine::load_local`. There is exactly one production call site,
+      `load_local_model_from_metadata` in `chat/model_loading.rs`, which the chat load, `load_local_session`
+      and the model jobs all go through (grepped: no other `LocalModel::load` outside tests). The tests that
+      build a `LocalAdapter` directly keep doing so on purpose.
+- [x] T026 Catalog: add `architecture` to every entry of `model_catalog.json`. A build offers only the
+      entries a compiled engine loads (`entries()` filters, FR-007), the gate test
+      `catalog_entries_name_a_loadable_architecture` pins that, and the profile models must load with
+      mistralrs so that a build without llama.cpp keeps a working default. The CI leg `llamacpp` runs the
+      `catalog::` tests too.
+- [x] T027 Re-add Qwen3.5 4B to the catalog (the entry removed in #640) and let the gate test pass for it.
       The desktop profile stays Qwen3 4B until T044.
-- [ ] T028 Run the 83-sentence evaluation for Qwen3.5 through the real adapter, write the figures into
+- [x] T028 Run the 83-sentence evaluation for Qwen3.5 through the real adapter, write the figures into
       `specs/032-*/eval-results.md` and set `tool_use` in the catalog if the measured result supports it.
-- [ ] T029 Pin the reasoning rule (plan D7): a test that `qwen3.5-…` ids turn thinking off when tools are
+- [x] T029 Pin the reasoning rule (plan D7): a test that `qwen3.5-…` ids turn thinking off when tools are
       present, with a comment saying it is deliberate.
 
 ## PR E – Gemma 4 (US3)

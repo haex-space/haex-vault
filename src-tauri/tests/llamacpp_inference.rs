@@ -250,3 +250,37 @@ async fn both_engines_answer_in_one_process() {
         assert!(!out.content.trim().is_empty(), "{name} gave no answer");
     }
 }
+
+/// Spec 070 PR D: the engine follows from the file. Qwen3 loads through mistralrs, Qwen3.5 through
+/// llama.cpp, and the adapter answers either way.
+#[cfg(feature = "llm-cpu")]
+#[tokio::test]
+#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+async fn load_local_picks_the_engine_from_the_file_and_answers() {
+    use holzi_lib::llm::engine::{load_local, Engine, LoadRequest};
+
+    let tokenizer =
+        env::var("HOLZI_TEST_GGUF_TOKENIZER").unwrap_or_else(|_| "Qwen/Qwen3-4B".to_owned());
+    let (adapter, engine) = load_local(
+        &model_path(),
+        LoadRequest {
+            tokenizer_repo: Some(&tokenizer),
+            context_window: Some(8192),
+        },
+    )
+    .await
+    .expect("load");
+    println!("engine: {}", engine.name());
+    let expected = env::var("HOLZI_TEST_EXPECT_ENGINE").unwrap_or_default();
+    match expected.as_str() {
+        "mistralrs" => assert_eq!(engine, Engine::Mistralrs),
+        "llama.cpp" => assert_eq!(engine.name(), "llama.cpp"),
+        _ => {}
+    }
+    let mut stream = adapter
+        .stream_chat(request("Say hello in one word.", vec![], 16))
+        .await
+        .expect("stream");
+    let out = drain(&mut stream).await;
+    assert!(!out.content.trim().is_empty(), "no answer");
+}
