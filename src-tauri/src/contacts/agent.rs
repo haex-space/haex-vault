@@ -1,6 +1,7 @@
-//! Contacts for agents (spec 051 US6, FR-030, FR-031, research R15): the built-in agent reads and,
-//! with a grant, changes contacts through the service like every caller. Its grants are rows of
-//! kind `contacts` in `agent_file_permissions` (target `*` or `group:<id>`). Without one that
+//! Contacts for agents (spec 051 US6, FR-030, FR-031, research R15): the built-in agent and each
+//! external agent (spec 021 US5) read and, with a grant, change contacts through the service like
+//! every caller. Their grants are rows of kind `contacts` in `agent_file_permissions` (target `*` or
+//! `group:<id>`) under their own id. Without one that
 //! covers the call, holzi asks the user (the question of spec 044): "Einmal erlauben" holds for
 //! this call, "Immer erlauben" and "Ablehnen" are kept. A refusal looks like a missing contact.
 
@@ -96,11 +97,12 @@ fn hidden(error: HolziError) -> HolziError {
     }
 }
 
-/// The built-in agent's way into the address book.
+/// An agent's way into the address book.
 pub struct ContactsAgent {
     db: VaultDb,
     prompt: PermissionPrompt,
     agent_id: String,
+    caller: Caller,
 }
 
 impl ContactsAgent {
@@ -109,6 +111,19 @@ impl ContactsAgent {
             db,
             prompt,
             agent_id: permissions::BUILTIN_AGENT.to_owned(),
+            caller: Caller::BuiltinAgent,
+        }
+    }
+
+    /// The external agent `agent_id` (spec 021 US5).
+    pub fn external(db: VaultDb, prompt: PermissionPrompt, agent_id: &str) -> Self {
+        Self {
+            db,
+            prompt,
+            agent_id: agent_id.to_owned(),
+            caller: Caller::ExternalAgent {
+                id: agent_id.to_owned(),
+            },
         }
     }
 
@@ -200,7 +215,7 @@ impl ContactsAgent {
         let grants = self.grants(GrantAction::Read, cancel).await?;
         let headers = self
             .service()
-            .search(&Caller::BuiltinAgent, &grants, query)
+            .search(&self.caller, &grants, query)
             .await
             .map_err(hidden)?;
         let groups = self.groups().await?;
@@ -216,7 +231,7 @@ impl ContactsAgent {
     pub async fn get(&self, id: &str, cancel: &CancellationToken) -> Result<OutsideContact> {
         let grants = self.grants(GrantAction::Read, cancel).await?;
         self.service()
-            .get(&Caller::BuiltinAgent, &grants, id)
+            .get(&self.caller, &grants, id)
             .await
             .map(outside::contact)
             .map_err(hidden)
@@ -237,7 +252,7 @@ impl ContactsAgent {
         }
         let grants = self.grants(GrantAction::ReadWrite, cancel).await?;
         self.service()
-            .update(&Caller::BuiltinAgent, &grants, id, patch)
+            .update(&self.caller, &grants, id, patch)
             .await
             .map(outside::contact)
             .map_err(hidden)

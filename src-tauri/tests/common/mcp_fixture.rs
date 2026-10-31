@@ -40,6 +40,7 @@ use holzi_lib::mcp_server::registry::{self, AgentMode};
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
 use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
+use holzi_lib::vault_events::{changes_channel, VaultChanges};
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -89,6 +90,8 @@ pub struct Fixture {
     pub catalog: ActionCatalog,
     /// The extension tools a test publishes (spec 021 US4).
     pub extension_tools: ExtensionToolCatalog,
+    /// Where a test announces changed tables, as the vault observer does in the app.
+    pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     /// Native executors a test adds (ADR 0011).
     pub native: NativeExecutors,
@@ -175,6 +178,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         limits: Limits::default(),
         catalog,
         extension_tools: ExtensionToolCatalog::default(),
+        vault_changes: changes_channel(),
         bridge,
         native: NativeExecutors::default(),
         window_calls,
@@ -234,6 +238,7 @@ impl Fixture {
             parent: self.session.clone(),
             catalog: self.catalog.clone(),
             extension_tools: self.extension_tools.clone(),
+            vault_changes: self.vault_changes.clone(),
             bridge: self.bridge.clone(),
             native: self.native.clone(),
             prompts: self.prompts.clone(),

@@ -8,6 +8,7 @@ pub mod commands;
 pub mod connection;
 pub mod dispatch;
 pub mod endpoint;
+pub mod extension_tools;
 pub mod grants;
 pub mod hello;
 pub mod helper;
@@ -175,6 +176,7 @@ impl McpServer {
                         parent: state.gate().token(),
                         catalog: chat.action_catalog.clone(),
                         extension_tools: chat.extension_tools.clone(),
+                        vault_changes: state.vault_changes().clone(),
                         bridge: chat.action_bridge.clone(),
                         native: chat.native_actions.clone(),
                         prompts: self.prompts.clone(),

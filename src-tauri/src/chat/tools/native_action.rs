@@ -6,7 +6,7 @@
 //! ([`NativeCall`], spec 065 research R8): the chat passes the built-in agent and the chat's mode,
 //! the MCP access an external agent and its own mode.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use async_trait::async_trait;
@@ -86,8 +86,8 @@ impl NativeCall {
     }
 }
 
-/// Refuses a call that is not the built-in agent's, for executors that serve only it so far (the
-/// file and share actions until spec 021 PR E gives external agents their own).
+/// Refuses a call that is not the built-in agent's, for executors that serve only it (the share
+/// and sync rule actions).
 pub fn builtin_only(call: &NativeCall) -> Result<(), NativeError> {
     if call.caller == Caller::BuiltinAgent {
         Ok(())
@@ -112,6 +112,12 @@ pub trait NativeExecutor: Send + Sync {
     /// The action ids for which the executor performs confirmation itself on every call.
     fn confirming_action_ids(&self) -> &'static [&'static str] {
         &[]
+    }
+
+    /// Whether it runs calls of external agents (spec 021) as themselves; an executor that serves
+    /// only the built-in agent is never offered to them.
+    fn serves_external_agents(&self) -> bool {
+        false
     }
 
     async fn run(
@@ -163,6 +169,17 @@ impl NativeExecutors {
             .unwrap_or_else(PoisonError::into_inner)
             .get(action_id)
             .cloned()
+    }
+
+    /// The ids whose executor runs calls of external agents.
+    pub fn external_ids(&self) -> HashSet<&'static str> {
+        self.by_id
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|(_, executor)| executor.serves_external_agents())
+            .map(|(id, _)| *id)
+            .collect()
     }
 
     /// Every id with an executor.

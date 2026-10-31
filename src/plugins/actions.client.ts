@@ -3,7 +3,6 @@ import { registerChatActionHandlers } from '~/stores/chatActionHandlers'
 import { registerFileShareActionHandlers } from '~/stores/fileShareActionHandlers'
 import { registerFilesActionHandlers } from '~/stores/filesActionHandlers'
 import { registerPasswordsActionHandlers } from '~/stores/passwordsActionHandlers'
-import { registerContactsActionHandlers } from '~/stores/contactsActionHandlers'
 import { registerSettingsActionHandlers } from '~/stores/settingsActionHandlers'
 import type { Translate } from '~/composables/useModelInventory'
 import { registerWmActionHandlers } from '~/stores/wmActionHandlers'
@@ -27,7 +26,6 @@ export default defineNuxtPlugin((nuxtApp) => {
   registerChatActionHandlers(wm)
   registerSettingsActionHandlers(wm)
   registerPasswordsActionHandlers(wm)
-  registerContactsActionHandlers(wm)
   registerFilesActionHandlers(wm)
   registerFileShareActionHandlers(wm)
 

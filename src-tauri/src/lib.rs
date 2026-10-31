@@ -73,7 +73,6 @@ use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
 };
-use contacts::commands::agent::{contacts_agent_get, contacts_agent_search, contacts_agent_update};
 use contacts::commands::cards::{
     contacts_block, contacts_blocked, contacts_share_accept, contacts_share_build,
     contacts_share_options, contacts_share_preview, contacts_unblock,
@@ -526,13 +525,16 @@ pub fn run() {
                 }));
             let prompt = files::agent::prompt::PermissionPrompt::default();
             app.manage(prompt.clone());
+            let files_env = files::agent::env::TauriEnv::new(app.handle().clone(), prompt);
             let files_agent: files::agent::commands::BuiltinFilesAgent =
-                std::sync::Arc::new(files::agent::exec::FilesAgent::builtin(
-                    files::agent::env::TauriEnv::new(app.handle().clone(), prompt),
-                ));
+                std::sync::Arc::new(files::agent::exec::FilesAgent::builtin(files_env.clone()));
+            // Spec 021 US5: external agents get their own file executors next to it.
             app.state::<ChatState>()
                 .native_actions
-                .add(files_agent.clone());
+                .add(std::sync::Arc::new(files::agent::agents::FilesAgents::new(
+                    files_agent.clone(),
+                    move |id| files::agent::exec::FilesAgent::external(files_env.clone(), id),
+                )));
             app.manage(files_agent);
             // Spec 056 US6: the share actions of the built-in agent, confirmed in the window.
             let share_confirm = files::agent::share_confirm::ShareConfirm::default();
@@ -555,6 +557,14 @@ pub fn run() {
                             app.handle().clone(),
                             sync_rule_confirm,
                         ),
+                    ),
+                ));
+            // Spec 051 US6, spec 021 US5: the contact actions of the built-in and external agents.
+            app.state::<ChatState>()
+                .native_actions
+                .add(std::sync::Arc::new(
+                    contacts::agent_actions::ContactsActions::new(
+                        contacts::agent_actions::TauriContactsAgentEnv::new(app.handle().clone()),
                     ),
                 ));
             // Spec 060 US5: the share action for contacts, confirmed in the window every time.
@@ -814,9 +824,6 @@ pub fn run() {
             contacts_blocked,
             contacts_block,
             contacts_unblock,
-            contacts_agent_search,
-            contacts_agent_get,
-            contacts_agent_update,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,
