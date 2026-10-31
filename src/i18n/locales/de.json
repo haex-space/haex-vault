@@ -2413,6 +2413,14 @@
       "confirm": "Kopieren",
       "created": "{count} Eintrag kopiert | {count} Einträge kopiert",
       "createdFolders": "{count} Ordner kopiert | {count} Ordner kopiert"
+    },
+    "aliases": {
+      "title": "Autofill-Aliase",
+      "hint": "Namen von Eingabefeldern auf Webseiten, die die Browser-Erweiterung mit diesem Wert füllt. Ohne Namen nutzt sie ihre Standardnamen.",
+      "placeholder": "Name des Eingabefelds",
+      "add": "Namen für {field} hinzufügen",
+      "remove": "{name} entfernen",
+      "noField": "Kein Feld mit diesem Namen"
     }
   },
   "extensions": {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * The tab Extra of the editor (spec 036, FR-001, FR-004): the custom fields and the attachments.
+ * The tab Extra of the editor (spec 036, FR-001, FR-001a, FR-004): the custom fields, the autofill
+ * aliases and the attachments.
  * An attachment is saved at once and does not touch the draft or the update token; the parent only
  * refreshes its list (`changed`). A new entry has no attachments yet.
  */
@@ -24,6 +25,11 @@ const { t } = useI18n()
         <PasswordsKeyValues v-model="draft.keyValues" :item-id="itemId" />
       </li>
     </SettingsGroup>
+
+    <PasswordsAutofillAliases
+      v-model="draft.aliases"
+      :field-keys="draft.keyValues.map((field) => field.key)"
+    />
 
     <PasswordsAttachments
       v-if="itemId !== null && detail"

@@ -2413,6 +2413,14 @@
       "confirm": "Copy",
       "created": "{count} entry copied | {count} entries copied",
       "createdFolders": "{count} folder copied | {count} folders copied"
+    },
+    "aliases": {
+      "title": "Autofill aliases",
+      "hint": "Names of input fields on web pages that the browser extension fills with this value. Without names it uses its default names.",
+      "placeholder": "Input field name",
+      "add": "Add a name for {field}",
+      "remove": "Remove {name}",
+      "noField": "No field with this name"
     }
   },
   "extensions": {
