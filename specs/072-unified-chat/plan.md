@@ -144,12 +144,14 @@ src-tauri/src/
 │       │   ├── blossom.rs           # HEAD/PUT/GET/DELETE, auth events
 │       │   ├── store.rs             # per-device encrypted folder (ProfileStore pattern)
 │       │   ├── transfers.rs         # upload before send, downloads, chat-transfer events, limits
-│       │   └── sweep.rs             # delete after all `files`, 30-day sweep
+│       │   ├── sweep.rs             # delete after all `files`, 30-day sweep
+│       │   └── network.rs           # metered network (Android plugin; desktop = not metered)
 │       ├── settings.rs              # chat.* preferences, presets
 │       ├── notify.rs                # system notifications (R17)
 │       ├── agent_actions.rs         # chat.contacts.* executor (R16)
 │       ├── agent_send_confirm.rs    # chat-send-confirm-request / answer
-│       ├── commands.rs              # Tauri commands of contracts/ipc.md
+│       ├── commands/                # Tauri commands of contracts/ipc.md, split to stay < 500 lines:
+│       │   └── conversations.rs, messages.rs, requests.rs, files.rs, groups.rs, settings.rs
 │       └── test_support.rs          # two/three vaults, MockRelay, test Blossom
 ├── notifications/                   # NEW shared routing, extracted from extensions/desktop.rs
 ├── files/permissions.rs             # AgentFileKind::ContactChats
@@ -159,6 +161,7 @@ src-tauri/src/
 ├── instances/{open,create,import}.rs # start chat::peer with the session
 ├── lib.rs                           # commands, executor registration
 └── bin/e2e_blossom.rs               # NEW, feature e2e
+src-tauri/plugins/holzi-android/     # HolziAndroidPlugin.kt: isActiveNetworkMetered (FR-036)
 src-tauri/tests/
 ├── support/blossom.rs               # in-process Blossom server (hyper)
 └── chat_two_vaults.rs, chat_own_devices.rs, chat_files.rs, chat_group_three_vaults.rs,
