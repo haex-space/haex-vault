@@ -1,7 +1,7 @@
 //! Integration tests of the llama.cpp engine against a real model (spec 070 T022).
 //!
 //! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HOLZI_TEST_GGUF`, and its
-//! memory. Any Qwen3 or Qwen3.5 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
+//! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
 //! (otherwise the engine's memory plan decides).
 //!
 //! ```text
@@ -148,7 +148,7 @@ async fn a_tool_call_arrives_as_a_call_and_not_as_text() {
     assert_eq!(out.calls.len(), 1, "expected one tool call");
     assert_eq!(out.calls[0].name, "open_settings");
     assert!(
-        !out.content.contains("<tool_call>"),
+        !out.content.contains("tool_call"),
         "call markup leaked into the text: {}",
         out.content
     );

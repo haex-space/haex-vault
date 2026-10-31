@@ -122,7 +122,7 @@ fn run(
     let mut streamer = Streamer::new(
         model.format,
         req.tools.clone(),
-        Streamer::prompt_opens_thinking(&prompt),
+        Streamer::prompt_opens_thinking(&prompt, model.format),
     );
     let ttft_ms = Cell::new(None);
     let send = |chunk: StreamChunk| {

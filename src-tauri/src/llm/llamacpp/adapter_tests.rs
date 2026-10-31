@@ -59,18 +59,33 @@ fn the_prompt_carries_system_user_and_tools_through_the_files_own_template() {
 fn qwen3_5_with_thinking_ends_inside_an_open_think_block() {
     use crate::llm::llamacpp::streaming::Streamer;
     let on = prompt_for(&parts(QWEN3_5), &request(vec![], true)).unwrap();
-    assert!(Streamer::prompt_opens_thinking(&on), "{on}");
+    let format = detect(QWEN3_5);
+    assert!(Streamer::prompt_opens_thinking(&on, format), "{on}");
     let off = prompt_for(&parts(QWEN3_5), &request(vec![], false)).unwrap();
-    assert!(!Streamer::prompt_opens_thinking(&off), "{off}");
+    assert!(!Streamer::prompt_opens_thinking(&off, format), "{off}");
+}
+
+#[test]
+fn gemma4_gets_its_own_format_and_tools_in_its_own_syntax() {
+    let gemma = parts(GEMMA4);
+    assert_eq!(gemma.format.map(|f| f.name()), Some("gemma4"));
+    let prompt = prompt_for(&gemma, &request(vec![tool()], false)).unwrap();
+    assert!(
+        prompt.contains("<|tool>declaration:open_settings{"),
+        "{prompt}"
+    );
+    assert!(prompt.ends_with("<|turn>model\n"), "{prompt}");
 }
 
 #[test]
 fn a_model_without_a_known_call_format_is_refused_tools_but_not_chat() {
-    let gemma = parts(GEMMA4);
-    assert!(gemma.format.is_none());
-    let error = prompt_for(&gemma, &request(vec![tool()], false)).unwrap_err();
+    let unknown = parts(
+        "{% for m in messages %}{{ m.content }}{% endfor %}{% if tools %}{{ tools|tojson }}{% endif %}",
+    );
+    assert!(unknown.format.is_none());
+    let error = prompt_for(&unknown, &request(vec![tool()], false)).unwrap_err();
     assert!(matches!(error, StreamError::StartFailed(_)), "{error:?}");
-    assert!(prompt_for(&gemma, &request(vec![], false)).is_ok());
+    assert!(prompt_for(&unknown, &request(vec![], false)).is_ok());
 }
 
 #[test]
