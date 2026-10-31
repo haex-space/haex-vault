@@ -101,7 +101,16 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
     await contextMenu(instance, place)
     await instance.click('files-menu-unpin')
     await ctx.waitFor('the place to go', () => gone(instance, place))
-    await contextMenu(instance, 'files-entries')
+    // The rig's known places may be empty folders: then the panel shows its empty text, which takes
+    // the open folder's menu as the list does.
+    const area = await ctx.waitFor('the place to load', () =>
+      instance.exec<string | null>(
+        `const list = document.querySelector('[data-testid="files-entries"]')
+         if (list && list.getAttribute('aria-busy') !== 'true') return 'files-entries'
+         return document.querySelector('[data-testid="files-empty"]') ? 'files-empty' : null`,
+      ),
+    )
+    await contextMenu(instance, area as string)
     await instance.click('files-menu-pin')
     await instance.waitForDisplayed(place)
     ctx.step('a known place is removed and added again')
