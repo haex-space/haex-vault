@@ -23,6 +23,7 @@ const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
 const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
+const extensions = ref<string[]>([])
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
@@ -35,6 +36,7 @@ async function reloadAsync() {
     })
     levels.value = levelsOf(agent.value.rights)
     browser.value = agent.value.rights.browser ?? null
+    extensions.value = agent.value.rights.extensions ?? []
   } catch (error) {
     agent.value = null
     failure.value = errString(error)
@@ -54,7 +56,7 @@ async function runAsync(action: () => Promise<unknown>) {
 }
 
 function saveRights() {
-  const rights = rightsOf(levels.value, browser.value)
+  const rights = rightsOf(levels.value, browser.value, extensions.value)
   const agentIdAtChange = agentId.value
   rightsSaveQueue = rightsSaveQueue.then(() =>
     runAsync(() => setRights({ agentId: agentIdAtChange, rights })),
@@ -69,6 +71,12 @@ function onLevels(next: Levels) {
 /** Spec 065: the websites of the rights group "Browser", saved with the other rights. */
 function onBrowser(next: BrowserRights | null) {
   browser.value = next
+  saveRights()
+}
+
+/** Spec 021 US4: the extensions whose tools the agent sees, saved with the other rights. */
+function onExtensions(next: string[]) {
+  extensions.value = next
   saveRights()
 }
 
@@ -133,6 +141,11 @@ watch(() => store.changes, reloadAsync)
       <AgentsBrowserRightsFields
         :model-value="browser"
         @update:model-value="onBrowser"
+      />
+
+      <AgentsExtensionRightsFields
+        :model-value="extensions"
+        @update:model-value="onExtensions"
       />
       <p class="px-1 text-xs text-muted-foreground">
         {{ t('mcpAgents.registration.rightsHint') }}

@@ -3910,6 +3910,12 @@
       "removeShort": "Remove",
       "invalid": "This is not an https or http website.",
       "hint": "A website over unencrypted http can only be read. Other websites ask before they open."
+    },
+    "extensions": {
+      "title": "Extensions",
+      "none": "No extension installed",
+      "dev": "Development version",
+      "hint": "The agent sees the tools of the extensions turned on. How a tool asks is also set in the extension; the stricter rule applies."
     }
   },
   "agentBrowser": {
