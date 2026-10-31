@@ -114,6 +114,26 @@ fn tool_requests_disable_reasoning_for_qwen_tool_call_compatibility() {
     ));
 }
 
+/// Deliberate: the rule matches every id that contains `qwen3`, so `qwen3.5-…` is covered too. The
+/// evaluation of Qwen3.5 through the llama.cpp engine (spec 070, 60 of 83 sentences) ran with thinking
+/// off for tool requests, which is how the chat runs it; a Qwen3.5 file that thinks before every tool
+/// call would not have measured the same. Change the rule and the measurement together.
+#[test]
+fn tool_requests_disable_reasoning_for_qwen3_5_as_well() {
+    let managed = record(Some(ReasoningControl::ModelManaged));
+
+    assert!(!reasoning_requested_for(
+        Some(&managed),
+        "qwen3.5-4b-instruct-q4_k_m",
+        &run_command_tool()
+    ));
+    assert!(reasoning_requested_for(
+        Some(&managed),
+        "qwen3.5-4b-instruct-q4_k_m",
+        &[]
+    ));
+}
+
 #[test]
 fn a_reasoning_option_is_kept_only_when_the_model_offers_it() {
     let caps = record(Some(presets(&["low", "high"])));

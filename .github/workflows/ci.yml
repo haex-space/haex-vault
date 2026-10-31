@@ -466,7 +466,7 @@ jobs:
       - name: Run the engine tests
         if: needs.changes.outputs.non_docs == 'true'
         run: |
-          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --lib llm::
+          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --lib -- llm:: catalog::
 
       - name: Run Clippy
         if: needs.changes.outputs.non_docs == 'true'

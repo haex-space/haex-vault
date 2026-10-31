@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": 2,
-    "note": "Desktop defaults to Qwen3 4B; Qwen3.5 and Gemma 4 are left out until the inference engine loads their GGUF architectures (`qwen35`, `gemma4`). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
+    "note": "Desktop defaults to Qwen3 4B. Qwen3.5 loads through the llama.cpp engine and is listed only in a build that has it; Gemma 4 is left out until its tool-call format is read (spec 070). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
     "source": "Hugging Face model repositories listed per entry (community-quantized GGUFs)",
     "profiles": {
       "desktop": "qwen3-4b-instruct-q4_k_m",
@@ -21,7 +21,8 @@
       "tokenizer_repo": "Qwen/Qwen3-0.6B",
       "approx_size_bytes": 484000000,
       "context_window": 32768,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "architecture": "qwen3"
     },
     {
       "id": "qwen3-1.7b-instruct-q4_k_m",
@@ -34,7 +35,8 @@
       "tokenizer_repo": "Qwen/Qwen3-1.7B",
       "approx_size_bytes": 1280000000,
       "context_window": 32768,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "architecture": "qwen3"
     },
     {
       "id": "qwen3-4b-instruct-q4_k_m",
@@ -48,6 +50,22 @@
       "approx_size_bytes": 2500000000,
       "context_window": 32768,
       "license": "Apache-2.0",
+      "tool_use": "supported",
+      "architecture": "qwen3"
+    },
+    {
+      "id": "qwen3.5-4b-instruct-q4_k_m",
+      "name": "Qwen3.5 4B Instruct (Q4_K_M)",
+      "family": "Qwen 3.5",
+      "parameters": "4B",
+      "quantization": "Q4_K_M",
+      "hf_repo": "bartowski/Qwen_Qwen3.5-4B-GGUF",
+      "hf_filename": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+      "tokenizer_repo": "Qwen/Qwen3.5-4B",
+      "approx_size_bytes": 3010000000,
+      "context_window": 32768,
+      "license": "Apache-2.0",
+      "architecture": "qwen35",
       "tool_use": "supported"
     }
   ]

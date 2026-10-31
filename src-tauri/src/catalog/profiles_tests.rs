@@ -64,8 +64,17 @@ fn a_phone_with_little_memory_gets_the_low_memory_profile() {
 
 #[test]
 fn a_desktop_still_chooses_from_the_whole_catalog() {
-    assert_eq!(
-        suggestion(64 * GIB, ModelPresets::Desktop),
-        profiles().desktop
-    );
+    // The suggestion on a roomy desktop is the largest model of the build's catalog. Without llama.cpp
+    // that is the desktop profile; with it, Qwen3.5 4B is larger and wins until the decision of spec 070
+    // (US5, T044) moves the profile.
+    let largest = crate::catalog::entries()
+        .iter()
+        .max_by_key(|e| (e.approx_size_bytes, e.id.as_str()))
+        .expect("a catalog")
+        .id
+        .clone();
+    assert_eq!(suggestion(64 * GIB, ModelPresets::Desktop), largest);
+    if !cfg!(feature = "llm-llamacpp") {
+        assert_eq!(largest, profiles().desktop);
+    }
 }

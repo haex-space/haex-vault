@@ -28,11 +28,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-#[cfg(feature = "llm-cpu")]
-use crate::adapters::local::LocalAdapter;
 use crate::error::{HolziError, Result};
-#[cfg(feature = "llm-cpu")]
-use crate::llm::local::LocalModel;
 #[cfg(feature = "llm-cpu")]
 use crate::models::paths;
 use crate::providers::build_adapter;
@@ -608,17 +604,25 @@ async fn load_local_model_from_metadata(
     model_id: &str,
     (path, context_window, tokenizer_repo): (std::path::PathBuf, Option<i64>, String),
 ) -> Result<ActiveSession> {
-    let model = LocalModel::load(&path, Some(&tokenizer_repo))
-        .await
-        .map_err(|e| HolziError::ModelDownload {
-            reason: format!("mistralrs load: {e}"),
-        })?;
+    // The engine follows from the file's own architecture (spec 070); a model no compiled engine
+    // loads fails here with a message, not inside the engine.
+    let (adapter, _engine) = crate::llm::engine::load_local(
+        &path,
+        crate::llm::engine::LoadRequest {
+            tokenizer_repo: Some(&tokenizer_repo),
+            context_window: context_window.and_then(|n| u32::try_from(n).ok()),
+        },
+    )
+    .await
+    .map_err(|e| HolziError::ModelDownload {
+        reason: format!("local model load: {e}"),
+    })?;
 
     Ok(ActiveSession {
         model_id: model_id.to_string(),
         provider_id: None,
         provider_kind: crate::storage::providers::ProviderKind::Local,
-        adapter: Arc::new(LocalAdapter::new(model)),
+        adapter,
         tokenizer_repo,
         context_window,
     })

@@ -129,6 +129,21 @@ development machine with the CUDA build and Qwen3 4B and Qwen3.5 4B (both Q4_K_M
   and as PR B: **55 of 83 (Qwen3 4B) and 60 of 83 (Qwen3.5 4B)**. Streaming, the holdback buffer and the
   cancel flag change nothing about the quality.
 
+## Engine choice (PR D, 2026-10-31)
+
+`llm::engine::load_local` reads `general.architecture` from the file and picks the engine: every
+architecture mistralrs knows stays with mistralrs, the rest goes to llama.cpp where it is compiled in, and
+otherwise the load fails at once with a message. With the CUDA build on the development machine,
+`HOLZI_TEST_GGUF` set to the Qwen3 4B file loads through mistralrs and the Qwen3.5 4B file through
+llama.cpp, and both answer (`load_local_picks_the_engine_from_the_file_and_answers`).
+
+The catalog carries an `architecture` per entry, used only as a gate (FR-007): `entries()` hides a model no
+compiled engine loads, so a build without llama.cpp does not offer the Qwen3.5 download. The `llamacpp` CI
+leg runs the `catalog::` tests, because a default build never sees Qwen3.5 and could not catch a mistake
+there. One consequence worth knowing: on a roomy desktop the tier suggestion is the largest model that fits,
+which in a build with llama.cpp is Qwen3.5 4B (3.0 GB) and not the Qwen3 4B profile. The profile itself
+stays Qwen3 4B until the decision of US5.
+
 ## R2 – GPU layer fit (settled, 2026-10-30)
 
 Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the engine need its own plan?
