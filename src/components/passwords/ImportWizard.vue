@@ -430,19 +430,7 @@ onBeforeUnmount(() => {
             </UiButton>
           </SettingsRow>
           <li class="px-4 pb-4">
-            <div
-              class="h-2 overflow-hidden rounded-full bg-background"
-              role="progressbar"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              :aria-valuenow="percent ?? undefined"
-            >
-              <div
-                class="h-full bg-primary transition-[width] duration-150"
-                :class="percent === null ? 'animate-pulse' : ''"
-                :style="{ width: `${percent ?? 35}%` }"
-              />
-            </div>
+            <UiProgress class="bg-background" :value="percent" />
           </li>
         </SettingsGroup>
         <p

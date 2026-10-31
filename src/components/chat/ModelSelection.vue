@@ -88,41 +88,18 @@ function downloadProgressPercent(
         :key="e.id"
         class="relative overflow-hidden border border-border rounded p-3 flex items-center justify-between gap-4"
       >
-        <div
+        <UiProgress
           v-if="downloadingId === e.id"
-          class="pointer-events-none absolute inset-y-0 left-0 bg-primary/10 transition-[width] duration-150"
-          :class="
+          :value="
             downloadProgressPercent(
               e.id,
               downloadingId,
               downloadTotalBytes,
               downloadProgressBytes,
-            ) === null
-              ? 'animate-pulse'
-              : ''
+            )
           "
-          :style="{
-            width: `${
-              downloadProgressPercent(
-                e.id,
-                downloadingId,
-                downloadTotalBytes,
-                downloadProgressBytes,
-              ) ?? 35
-            }%`,
-          }"
-          role="progressbar"
-          :aria-valuenow="
-            downloadProgressPercent(
-              e.id,
-              downloadingId,
-              downloadTotalBytes,
-              downloadProgressBytes,
-            ) ?? undefined
-          "
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-label="`${humanBytes(downloadProgressBytes)} / ${humanBytes(downloadTotalBytes)}`"
+          :label="`${humanBytes(downloadProgressBytes)} / ${humanBytes(downloadTotalBytes)}`"
+          variant="backdrop"
         />
         <div class="relative z-10 flex-1 min-w-0">
           <div class="font-medium text-sm">

@@ -33,27 +33,15 @@ const percent = computed(() => {
           })
         }}
       </p>
-      <div
-        class="h-2 overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        :aria-valuemin="0"
-        :aria-valuemax="100"
-        :aria-valuenow="percent ?? undefined"
-        :aria-label="
+      <UiProgress
+        :value="percent"
+        :label="
           t('marketplace.progress.title', {
             name: target.name,
             version: target.version,
           })
         "
-      >
-        <div
-          :class="[
-            'h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none',
-            percent === null ? 'w-1/3 animate-pulse' : '',
-          ]"
-          :style="percent === null ? undefined : { width: `${percent}%` }"
-        />
-      </div>
+      />
       <div class="flex items-center justify-between gap-2">
         <span class="text-xs text-muted-foreground">{{
           percent === null ? '' : t('marketplace.progress.percent', { percent })
