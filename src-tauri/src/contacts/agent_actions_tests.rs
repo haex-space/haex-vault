@@ -12,6 +12,25 @@ use crate::contacts::service::test_support::{person, test_vault, value, TestVaul
 use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
 use crate::patch::Patch;
 
+#[test]
+fn internal_failures_do_not_expose_contact_storage_details() {
+    for error in [
+        HolziError::CrdtSqlite {
+            reason: "private database detail".to_owned(),
+        },
+        HolziError::CrdtIo {
+            reason: "private storage detail".to_owned(),
+        },
+        HolziError::PathResolution {
+            reason: "private path detail".to_owned(),
+        },
+    ] {
+        let error = contacts_error(error);
+        assert_eq!(error.code, "failed");
+        assert_eq!(error.message, "the contact action failed");
+    }
+}
+
 struct Env {
     db: VaultDb,
     prompt: PermissionPrompt,
