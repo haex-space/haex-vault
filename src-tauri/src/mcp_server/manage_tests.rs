@@ -95,6 +95,7 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
             .into_iter()
             .collect(),
         browser: None,
+        ..Default::default()
     };
     let renewal = Renewal {
         client_name: "codex".to_owned(),

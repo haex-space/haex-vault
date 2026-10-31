@@ -2,8 +2,9 @@
 //! one connection. Until the agent is registered it sees no tool and every call is refused; after
 //! the registration its rights decide both the list and each call.
 
+use std::collections::HashSet;
 use std::future::Future;
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, Implementation, InitializeResult, ListToolsResult,
@@ -46,6 +47,9 @@ pub struct Session {
     agent: Arc<RwLock<Option<SessionAgent>>>,
     initialized: Arc<watch::Sender<bool>>,
     link: Arc<Link>,
+    /// Every tool name a list of this connection held, so a tool that went away since reads as
+    /// unavailable rather than as not allowed (US4 scenario 4).
+    seen: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Session {
@@ -56,6 +60,7 @@ impl Session {
             agent: Arc::new(RwLock::new(agent)),
             initialized: Arc::new(initialized),
             link,
+            seen: Arc::default(),
         }
     }
 
@@ -98,10 +103,28 @@ impl Session {
             return Vec::new();
         };
         let catalog = self.core.catalog.snapshot();
-        grants::offers(&agent.rights, &catalog)
+        let extension_tools = self.core.extension_tools.snapshot();
+        let tools: Vec<_> = grants::offers(&agent.rights, &catalog)
             .into_iter()
             .map(dispatch::tool_of)
-            .collect()
+            .chain(
+                grants::extension_offers(&agent.rights, &extension_tools)
+                    .into_iter()
+                    .map(|tool| dispatch::extension_tool_of(tool.as_ref())),
+            )
+            .collect();
+        self.seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(tools.iter().map(|tool| tool.name.to_string()));
+        tools
+    }
+
+    fn was_seen(&self, tool_name: &str) -> bool {
+        self.seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(tool_name)
     }
 }
 
@@ -162,6 +185,7 @@ impl ServerHandler for Session {
             &self.link,
             request.name.as_ref(),
             request.arguments,
+            self.was_seen(request.name.as_ref()),
             &cancel,
         )
         .await;

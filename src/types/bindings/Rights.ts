@@ -5,4 +5,8 @@ import type { OperateLevel } from "./OperateLevel";
 /**
  * The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
  */
-export type Rights = { operate: { [key in string]: OperateLevel }, browser?: BrowserRights, };
+export type Rights = { operate: { [key in string]: OperateLevel }, browser?: BrowserRights,
+/**
+ * The extensions whose tools the agent sees (US4); a new extension is not among them.
+ */
+extensions?: Array<string>, };

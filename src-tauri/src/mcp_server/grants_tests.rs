@@ -1,11 +1,23 @@
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use serde_json::json;
+use uuid::Uuid;
 
 use super::grants::{
-    browser_from_rows, browser_rows, check, default_rights, offers, validate, BrowserRights,
-    InvalidRights, OperateLevel, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
+    browser_from_rows, browser_rows, check, check_extension_tool, default_rights, extension_offers,
+    offers, validate, BrowserRights, InvalidRights, OperateLevel, Rights, SiteGrant, SiteLevel,
+    OPERATE_SCOPES,
 };
 use crate::agent_browser::sites::Site;
 use crate::chat::tools::action_tool::AgentActionDef;
+use crate::chat::tools::ask_user::AskUserTool;
+use crate::chat::tools::Tool;
+use crate::extensions::agent_tools::defs::ExtensionToolDef;
+use crate::extensions::agent_tools::slot::McpLink;
+use crate::extensions::agent_tools::tool::{ExtensionTool, Links};
+use crate::extensions::bridge::frames::FrameSession;
+use crate::extensions::bundle::{ManifestTool, ToolEffect};
 
 fn action(id: &str, scope: &str, effect: &str, builtin: bool) -> AgentActionDef {
     serde_json::from_value(json!({
@@ -44,6 +56,7 @@ fn only(scope: &str, level: OperateLevel) -> Rights {
     Rights {
         operate: [(scope.to_owned(), level)].into_iter().collect(),
         browser: None,
+        ..Default::default()
     }
 }
 
@@ -230,4 +243,63 @@ fn the_browser_group_round_trips_through_its_rows() {
         None,
         "off without its switch"
     );
+}
+
+struct NoFrame;
+
+#[async_trait]
+impl Links for NoFrame {
+    async fn open(&self, _: Uuid) -> Result<(Arc<FrameSession>, Arc<McpLink>), String> {
+        Err("none".to_owned())
+    }
+}
+
+fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
+    let def = ExtensionToolDef {
+        extension_id,
+        extension_title: "Mail".to_owned(),
+        tool: ManifestTool {
+            name: "count".to_owned(),
+            title_de: "Zählen".to_owned(),
+            title_en: "Count".to_owned(),
+            description: "Counts".to_owned(),
+            input_schema: json!({ "type": "object" }),
+            effect: ToolEffect::Read,
+            examples_de: vec![],
+            examples_en: vec![],
+            supported: true,
+        },
+        model_name: model_name.to_owned(),
+        always_ask: false,
+        dev: false,
+    };
+    Arc::new(ExtensionTool::new(def, Arc::new(NoFrame)))
+}
+
+/// US4: an agent sees and calls only the tools of the extensions granted to it; a new extension
+/// is not granted, and holzi's own tools never come through this group.
+#[test]
+fn only_tools_of_granted_extensions_are_offered_and_callable() {
+    let mail = Uuid::from_u128(1);
+    let notes = Uuid::from_u128(2);
+    let tools: Vec<Arc<dyn Tool>> = vec![
+        extension_tool(mail, "x_mail_count"),
+        extension_tool(notes, "x_notes_count"),
+        Arc::new(AskUserTool),
+    ];
+    assert!(extension_offers(&default_rights(), &tools).is_empty());
+
+    let rights = Rights {
+        extensions: [mail].into_iter().collect(),
+        ..default_rights()
+    };
+    let offered: Vec<&str> = extension_offers(&rights, &tools)
+        .iter()
+        .map(|tool| tool.name())
+        .collect();
+    assert_eq!(offered, ["x_mail_count"]);
+    assert!(check_extension_tool(&rights, &tools, "x_mail_count").is_some());
+    assert!(check_extension_tool(&rights, &tools, "x_notes_count").is_none());
+    assert!(check_extension_tool(&rights, &tools, "ask_user").is_none());
+    assert!(check_extension_tool(&rights, &tools, "x_mail_gone").is_none());
 }

@@ -19,7 +19,7 @@ use super::hello::CloseReason;
 use super::live::Live;
 use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
 use crate::chat::tools::action_bridge::ActionBridge;
-use crate::chat::tools::action_catalog::ActionCatalog;
+use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::native_action::NativeExecutors;
 use crate::vault_gate::VaultDb;
 
@@ -82,6 +82,8 @@ pub struct StartArgs {
     /// The vault session's token; the server stops with it.
     pub parent: CancellationToken,
     pub catalog: ActionCatalog,
+    /// The tools of extensions (spec 018), offered per agent by its grants (US4).
+    pub extension_tools: ExtensionToolCatalog,
     pub bridge: ActionBridge,
     /// The Rust executors of native catalog actions (ADR 0011).
     pub native: NativeExecutors,
@@ -96,6 +98,7 @@ pub struct Core {
     pub db: VaultDb,
     pub device: Uuid,
     pub catalog: ActionCatalog,
+    pub extension_tools: ExtensionToolCatalog,
     pub bridge: ActionBridge,
     pub native: NativeExecutors,
     pub prompts: RegistrationPrompts,
@@ -178,6 +181,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         db: args.db,
         device: args.device,
         catalog: args.catalog,
+        extension_tools: args.extension_tools,
         bridge: args.bridge,
         native: args.native,
         prompts: args.prompts,

@@ -84,6 +84,7 @@ fn rights() -> Rights {
         .into_iter()
         .collect(),
         browser: None,
+        ..Default::default()
     }
 }
 

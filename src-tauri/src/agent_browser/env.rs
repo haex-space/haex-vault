@@ -59,6 +59,7 @@ pub async fn set_builtin_rights<R: Runtime>(
         validate(&Rights {
             operate: Default::default(),
             browser: Some(rights.clone()),
+            ..Default::default()
         })
         .map_err(|error| error.to_string())?;
     }

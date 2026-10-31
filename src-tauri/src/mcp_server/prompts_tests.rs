@@ -1,12 +1,13 @@
 use std::time::Duration;
 
 use super::prompts::{
-    call_gate, RegistrationGate, CALL_TIMEOUT, MAX_OPEN_REGISTRATIONS, REGISTRATION_TIMEOUT,
-    SECRET_SCOPE,
+    call_gate, extension_gate, RegistrationGate, CALL_TIMEOUT, MAX_OPEN_REGISTRATIONS,
+    REGISTRATION_TIMEOUT, SECRET_SCOPE,
 };
 use super::registry::AgentMode;
 use crate::chat::tools::action_tool::AgentActionDef;
 use crate::chat::tools::permission::Decision;
+use crate::chat::tools::RiskClass;
 
 #[test]
 fn a_registration_waits_five_minutes() {
@@ -106,6 +107,35 @@ fn an_action_that_confirms_itself_is_not_asked_twice() {
             call_gate(mode, &action(effect, "browser"), true),
             decision,
             "{mode:?} {effect}"
+        );
+    }
+}
+
+/// FR-018 (T067): for a tool of an extension the stricter of the agent's approval mode and the
+/// tool's setting in the extension (`granted` or `ask`) wins; Plan refuses a changing tool even when
+/// it is set to ask.
+#[test]
+fn the_stricter_of_the_mode_and_the_extension_setting_wins() {
+    use AgentMode::{Auto, Manual, Plan};
+    use Decision::{Allow, Ask, Deny};
+    use RiskClass::{Change, Risky, Safe};
+    for (mode, risk, always_ask, decision) in [
+        (Auto, Safe, false, Allow),
+        (Auto, Safe, true, Ask),
+        (Auto, Change, false, Allow),
+        (Auto, Change, true, Ask),
+        (Auto, Risky, false, Ask),
+        (Manual, Safe, false, Ask),
+        (Manual, Change, true, Ask),
+        (Plan, Safe, false, Allow),
+        (Plan, Safe, true, Ask),
+        (Plan, Change, true, Deny),
+        (Plan, Risky, false, Deny),
+    ] {
+        assert_eq!(
+            extension_gate(mode, risk, always_ask),
+            decision,
+            "{mode:?} {risk:?} ask={always_ask}"
         );
     }
 }
