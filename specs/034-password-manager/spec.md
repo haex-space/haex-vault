@@ -29,7 +29,7 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 - [`024-own-device-sync`](../024-own-device-sync/spec.md): Alle Tabellen des
   Passwortmanagers sind Vault-Daten und gehen wie alle Vault-Daten über den Sync der
   eigenen Geräte (iroh direkt, Relay optional). Diese Spec baut keinen eigenen Sync.
-- [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md): Dateisync betrifft
+- `025-own-device-file-sync` (entfernt, ersetzt durch [`061-sync-rules`](../061-sync-rules/spec.md)): Dateisync betrifft
   Ordner im Dateisystem, nicht die Anhänge der Einträge; sie liegen in der Vault-Datenbank.
 - [`038-storage-connections`](../038-storage-connections/spec.md): Diese Spec liefert den
   Passwortmanager, den 038 voraussetzt. Die Zugangsdaten der Speicherverbindungen liegen dort als

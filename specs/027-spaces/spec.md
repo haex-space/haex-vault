@@ -125,7 +125,7 @@ Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   Auffinden von Geräten anderer Mitglieder (FR-039). Ob ein Änderungspaket als
   Ganzes oder je Transaktionsgruppe geprüft wird, legt Spec 024 fest (FR-013
   dort); diese Spec wendet es in FR-026 an.
-- [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md) (Ordner-Synchronisierung
+- `025-own-device-file-sync` (entfernt, ersetzt durch [`061-sync-rules`](../061-sync-rules/spec.md)) (Ordner-Synchronisierung
   eigener Geräte): Diese Spec **erweitert** die Maschinerie aus Spec 025 auf
   mehrere Nutzer. Dateiindex, Objekte, Übertragung, Konfliktkopien und die
   Bindung an einen lokalen Ordner gelten unverändert; Spec 025 ist der Fall

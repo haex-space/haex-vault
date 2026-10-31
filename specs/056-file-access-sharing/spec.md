@@ -64,8 +64,9 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
   Teilen von Dateien über Spaces vollständig. 027 bleibt nur als Grundlage für 028; 029 bleibt stehen,
   bis diese Spec umgesetzt ist, und wird dann gelöscht. Verweise in anderen Dokumenten zeigen auf diese
   Spec.
-- **Spec 025** (Dateisync zwischen eigenen Geräten): bleibt Entwurf für die späteren Sync-Regeln
-  (Spiegeln, Cloud-Sicherung). Diese Spec spiegelt nichts; sie gibt Live-Zugriff.
+- **Spec 025** (Dateisync zwischen eigenen Geräten): war Entwurf für die späteren Sync-Regeln
+  (Spiegeln, Cloud-Sicherung); Spec 061 hat ihn ersetzt und entfernt. Diese Spec spiegelt nichts; sie
+  gibt Live-Zugriff.
 - **Spec 024** (Sync der eigenen Geräte): liefert Vault-Identität, Geräteschlüssel, Geräteliste,
   Präsenz und die direkte, verschlüsselte Verbindung zwischen Geräten. Dateifreigaben und empfangene
   Dateifreigaben sind gewöhnliche Vault-Daten und kommen mit dem Datensync auf alle eigenen Geräte.
@@ -581,7 +582,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 
 ## Nicht im Umfang
 
-- Gespiegelte Kopien, Offline-Verfügbarkeit und Cloud-Sicherung (spätere Sync-Regeln, Spec 025).
+- Gespiegelte Kopien, Offline-Verfügbarkeit und Cloud-Sicherung (Sync-Regeln, Spec 061).
 - Zugriff, wenn eine Seite offline ist; Zwischenspeichern von Inhalten bei Dritten.
 - Ablaufdatum von Dateifreigaben, Kontaktgruppen, Benachrichtigung über neue Dateifreigaben.
 - Links für Personen ohne holzi.

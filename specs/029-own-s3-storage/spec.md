@@ -95,7 +95,7 @@ Zugangsschlüssel erzeugen kann), lässt sich für einen Space nicht verbinden
 - Spec 034 (Passwortmanager): verwahrt die Hauptzugangsdaten und die
   Zugangsschlüssel dieser Spec (D32). Wie der Passwortmanager aussieht und wie
   Erweiterungen ihn nutzen, legt Spec 034 fest, nicht diese.
-- [`025-own-device-file-sync`](../025-own-device-file-sync/spec.md) (Dateisync
+- `025-own-device-file-sync` (entfernt, ersetzt durch [`061-sync-rules`](../061-sync-rules/spec.md)) (Dateisync
   zwischen eigenen Geräten): Die eigenen synchronisierten Ordner einer Vault
   können statt direkter Übertragung und Backend A ebenfalls Backend B nutzen
   (User Story 6). Dateiindex und Objekte bleiben unverändert; diese Spec ändert
