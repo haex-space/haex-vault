@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
-use tokio::sync::OnceCell;
+use tokio::sync::{Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 
 use super::cdp::Connection;
@@ -70,6 +70,9 @@ pub struct Session {
     /// Questions a page set off that are open now (submitting, a new tab); an action waits for
     /// them before it reports.
     questions: AtomicUsize,
+    /// Popup targets claimed from the browser but not yet adopted or closed.
+    pending_opened_tabs: AtomicUsize,
+    opened_tabs_changed: Notify,
     /// The last tab number given out.
     numbered: AtomicU32,
     /// Targets and their tab ids; `None` reserves the one tool-created tab being opened under `tabs`.
@@ -123,6 +126,8 @@ impl Session {
             name_notified: AtomicBool::new(false),
             armed: Mutex::default(),
             questions: AtomicUsize::new(0),
+            pending_opened_tabs: AtomicUsize::new(0),
+            opened_tabs_changed: Notify::new(),
             numbered: AtomicU32::new(0),
             targets: Mutex::default(),
             shown: Mutex::default(),
@@ -414,6 +419,32 @@ impl Session {
     /// Whether a question a page set off is open.
     pub fn questions_open(&self) -> bool {
         self.questions.load(Ordering::SeqCst) > 0
+    }
+
+    pub(super) fn opened_tab_started(&self) {
+        self.pending_opened_tabs.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub(super) fn opened_tab_finished(&self) {
+        if self.pending_opened_tabs.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.opened_tabs_changed.notify_waiters();
+        }
+    }
+
+    /// Waits until popups caused by the last browser action have joined the tabs or closed.
+    pub(super) async fn wait_for_opened_tabs(&self, cancel: &CancellationToken) {
+        loop {
+            let notified = self.opened_tabs_changed.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.pending_opened_tabs.load(Ordering::SeqCst) == 0 {
+                return;
+            }
+            tokio::select! {
+                _ = notified => {}
+                _ = cancel.cancelled() => return,
+            }
+        }
     }
 
     /// The verdict for a document at `url` of one of this session's tabs.

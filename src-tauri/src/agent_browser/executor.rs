@@ -248,6 +248,9 @@ impl NativeExecutor for BrowserTools {
                 Err(stopped())
             }
         };
+        if !ended.is_cancelled() {
+            session.wait_for_opened_tabs(&ended).await;
+        }
         forward.abort();
         outcome
     }

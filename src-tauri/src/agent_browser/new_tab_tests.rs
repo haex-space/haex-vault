@@ -90,6 +90,28 @@ fn session(mode: PermissionMode, allow: bool) -> (Arc<Session>, Arc<Mutex<Vec<Br
     (session, asked)
 }
 
+#[tokio::test]
+async fn a_browser_action_can_wait_for_opened_tabs_to_finish() {
+    let (session, _) = session(PermissionMode::Auto, true);
+    session.opened_tab_started();
+    let waiting = {
+        let session = Arc::clone(&session);
+        tokio::spawn(async move {
+            session
+                .wait_for_opened_tabs(&tokio_util::sync::CancellationToken::new())
+                .await
+        })
+    };
+
+    tokio::task::yield_now().await;
+    assert!(!waiting.is_finished());
+    session.opened_tab_finished();
+    tokio::time::timeout(std::time::Duration::from_secs(1), waiting)
+        .await
+        .expect("the popup completion wakes the action")
+        .expect("the waiter runs");
+}
+
 fn kinds(asked: &Mutex<Vec<BrowserQuestion>>) -> Vec<(BrowserPromptKind, Option<String>)> {
     asked
         .lock()

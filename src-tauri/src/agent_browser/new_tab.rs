@@ -23,6 +23,22 @@ use super::tab::{Guard, Paused, Tab};
 use crate::chat::tools::permission::PermissionMode;
 use crate::prompt_park::PromptEnd;
 
+/// Keeps an opened target pending until it has joined the session or closed.
+struct PendingOpenedTab(Arc<Session>);
+
+impl PendingOpenedTab {
+    fn new(session: &Arc<Session>) -> Self {
+        session.opened_tab_started();
+        Self(Arc::clone(session))
+    }
+}
+
+impl Drop for PendingOpenedTab {
+    fn drop(&mut self) {
+        self.0.opened_tab_finished();
+    }
+}
+
 /// Takes over the new page target of `attached` (a `Target.attachedToTarget` of the browser,
 /// waiting for holzi) when a page or frame of one of `session`'s tabs opened it; `false` leaves it.
 pub(super) fn opened(
@@ -45,22 +61,22 @@ pub(super) fn opened(
         return false;
     };
     let target = target.to_owned();
+    let pending = PendingOpenedTab::new(session);
     let Some(id) = session.reserve_new_tab(Some(&target)) else {
         let connection = Arc::clone(connection);
         tokio::spawn(async move {
+            let _pending = pending;
             let _ = target::close(&connection, &target).await;
         });
         return true;
     };
     let submit_grant = session.reserve_submit_for_new_tab(&opener);
-    tokio::spawn(adopt(
-        Arc::clone(session),
-        Arc::clone(connection),
-        target,
-        cdp_session.to_owned(),
-        id,
-        submit_grant,
-    ));
+    let cdp_session = cdp_session.to_owned();
+    let (session, connection) = (Arc::clone(session), Arc::clone(connection));
+    tokio::spawn(async move {
+        let _pending = pending;
+        adopt(session, connection, target, cdp_session, id, submit_grant).await;
+    });
     true
 }
 
