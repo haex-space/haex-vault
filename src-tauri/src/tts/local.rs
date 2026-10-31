@@ -260,10 +260,12 @@ impl Worker {
             let samples =
                 resample_linear(&samples, sentence.engine.sample_rate(), mixer.sample_rate());
             // Waits while the mixer's queue is full; returns early on a stop.
-            mixer.queue_speech(&samples);
-            // A stop between the check above and the queueing would let this sentence through;
-            // the mixer holds nothing newer than it, so stopping again drops just that.
-            if self.is_stale(&job) {
+            mixer.queue_speech(&samples, || {
+                self.is_stale(&job) || self.closing.is_cancelled()
+            });
+            // Cover a stop racing with the final block enqueue too. The worker has not
+            // queued a newer sentence yet, so this only drops the cancelled sentence.
+            if self.is_stale(&job) || self.closing.is_cancelled() {
                 mixer.stop_speech();
             }
         }

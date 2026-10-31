@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::local::{
@@ -10,22 +10,25 @@ use super::local::{
 };
 use super::TtsError;
 use crate::audio::mixer::{mixer, MixerInput, MixerRender};
-use crate::vault_gate::VaultGate;
+use crate::vault_gate::{DrainOutcome, VaultGate};
 
 const ENGINE_RATE: u32 = 16_000;
 const MIXER_RATE: u32 = 48_000;
 const WAIT: Duration = Duration::from_secs(5);
 
-/// Speaks every sentence as 10 ms per character at the sentence's level, after `delay`.
+/// Speaks every sentence as 10 ms per character, with optional synchronization at synthesis
+/// and the final sample-rate lookup before queueing.
 struct FakeEngine {
-    delay: Duration,
+    generating: Option<(mpsc::Sender<()>, Mutex<mpsc::Receiver<()>>)>,
+    before_queue: Mutex<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>>,
     calls: AtomicUsize,
 }
 
 impl FakeEngine {
-    fn new(delay: Duration) -> Arc<Self> {
+    fn new() -> Arc<Self> {
         Arc::new(Self {
-            delay,
+            generating: None,
+            before_queue: Mutex::new(None),
             calls: AtomicUsize::new(0),
         })
     }
@@ -33,12 +36,23 @@ impl FakeEngine {
 
 impl Engine for FakeEngine {
     fn sample_rate(&self) -> u32 {
+        if let Some((entered, release)) = self.before_queue.lock().expect("queue hook").take() {
+            entered.send(()).expect("notify queue hook");
+            release.recv_timeout(WAIT).expect("release queue hook");
+        }
         ENGINE_RATE
     }
 
     fn generate(&self, text: &str, _: &Reference, _: f32) -> Result<Vec<f32>, TtsError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        std::thread::sleep(self.delay);
+        if let Some((entered, release)) = &self.generating {
+            entered.send(()).expect("notify synthesis");
+            release
+                .lock()
+                .expect("synthesis hook")
+                .recv_timeout(WAIT)
+                .expect("release synthesis");
+        }
         let level: f32 = text.parse().map_err(|_| TtsError::Failed {
             reason: "not a level".to_owned(),
         })?;
@@ -91,7 +105,7 @@ fn render_until(render: &mut MixerRender, count: usize) -> Vec<f32> {
         render.render(&mut block);
         heard.extend(block.iter().copied().filter(|s| *s != 0.0));
         if block.iter().all(|s| *s == 0.0) {
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::yield_now();
         }
     }
     heard
@@ -110,7 +124,7 @@ fn speakable_text_drops_control_characters() {
 #[test]
 fn sentences_reach_the_mixer_in_order_at_its_rate() {
     let mut rig = rig();
-    let engine = FakeEngine::new(Duration::ZERO);
+    let engine = FakeEngine::new();
     rig.speaker.speak(sentence(&engine, "0.25"));
     rig.speaker.speak(sentence(&engine, "0.5"));
     // 10 ms per character at 48 kHz: 4 and 3 characters.
@@ -131,10 +145,17 @@ fn sentences_reach_the_mixer_in_order_at_its_rate() {
 #[test]
 fn stop_drops_playing_and_queued_sentences() {
     let mut rig = rig();
-    let engine = FakeEngine::new(Duration::from_millis(100));
+    let (entered, started) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let mut engine = FakeEngine::new();
+    Arc::get_mut(&mut engine).expect("unique engine").generating =
+        Some((entered, Mutex::new(proceed)));
     rig.speaker.speak(sentence(&engine, "0.25"));
     rig.speaker.speak(sentence(&engine, "0.5"));
     rig.speaker.speak(sentence(&engine, "0.75"));
+    started.recv_timeout(WAIT).expect("first synthesis starts");
+    release.send(()).expect("finish first synthesis");
+    started.recv_timeout(WAIT).expect("second synthesis starts");
     assert!(!render_until(&mut rig.render, 1).is_empty());
     rig.speaker.stop();
     let mut block = vec![0.0; 1024];
@@ -143,24 +164,25 @@ fn stop_drops_playing_and_queued_sentences() {
         block.iter().all(|s| *s == 0.0),
         "speech stops within a block"
     );
-    std::thread::sleep(Duration::from_millis(400));
-    assert!(render_until(&mut rig.render, 1).is_empty());
-    assert!(
-        engine.calls.load(Ordering::SeqCst) <= 2,
-        "queued sentences are skipped"
-    );
+    release.send(()).expect("finish stopped synthesis");
 
     rig.speaker.speak(sentence(&engine, "0.5"));
-    assert!(
-        !render_until(&mut rig.render, 1).is_empty(),
-        "speaks again after a stop"
+    started.recv_timeout(WAIT).expect("new synthesis starts");
+    release.send(()).expect("finish new synthesis");
+    let heard = render_until(&mut rig.render, 3 * MIXER_RATE as usize / 100);
+    assert!(!heard.is_empty(), "speaks again after a stop");
+    assert!(heard.iter().all(|s| (*s - 0.5).abs() < 1e-3));
+    assert_eq!(
+        engine.calls.load(Ordering::SeqCst),
+        3,
+        "queued sentence is skipped"
     );
 }
 
 #[test]
 fn a_failing_sentence_does_not_end_the_speaker() {
     let mut rig = rig();
-    let engine = FakeEngine::new(Duration::ZERO);
+    let engine = FakeEngine::new();
     rig.speaker.speak(sentence(&engine, "kein Pegel"));
     rig.speaker.speak(sentence(&engine, "0.5"));
     assert!(!render_until(&mut rig.render, 1).is_empty());
@@ -172,14 +194,62 @@ fn closing_the_vault_ends_the_speaker() {
     // The test, the speaker and its worker each hold the mixer input.
     assert_eq!(Arc::strong_count(&rig.input), 3);
     assert!(rig.gate.request_close());
-    let deadline = Instant::now() + WAIT;
-    while Arc::strong_count(&rig.input) > 2 && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert_eq!(
+        rig._runtime.block_on(rig.gate.drain()),
+        DrainOutcome::Drained
+    );
     assert_eq!(Arc::strong_count(&rig.input), 2, "the worker has ended");
-    let engine = FakeEngine::new(Duration::ZERO);
+    let engine = FakeEngine::new();
     rig.speaker.speak(sentence(&engine, "0.5"));
     assert_eq!(engine.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn stop_between_synthesis_and_queueing_discards_the_old_sentence() {
+    let mut rig = rig();
+    let (entered, started) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let engine = FakeEngine::new();
+    *engine.before_queue.lock().expect("queue hook") = Some((entered, proceed));
+    // More than the mixer's capacity: missing this stop would block until old speech plays.
+    let long_sentence = format!("0.25{}", "0".repeat(200));
+    rig.speaker.speak(sentence(&engine, &long_sentence));
+    started
+        .recv_timeout(WAIT)
+        .expect("past the worker's stale check");
+    rig.speaker.stop();
+    release.send(()).expect("allow queueing after stop");
+    rig.speaker.speak(sentence(&engine, "0.5"));
+
+    let heard = render_until(&mut rig.render, 3 * MIXER_RATE as usize / 100);
+    assert!(!heard.is_empty(), "the next sentence plays");
+    assert!(
+        heard.iter().all(|s| (*s - 0.5).abs() < 1e-3),
+        "no stopped speech is played"
+    );
+}
+
+#[test]
+fn closing_between_synthesis_and_queueing_does_not_wait_for_playback() {
+    let mut rig = rig();
+    let (entered, started) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let engine = FakeEngine::new();
+    *engine.before_queue.lock().expect("queue hook") = Some((entered, proceed));
+    rig.speaker
+        .speak(sentence(&engine, &format!("0.25{}", "0".repeat(200))));
+    started
+        .recv_timeout(WAIT)
+        .expect("past the worker's closing check");
+    rig.gate.request_close();
+    release.send(()).expect("allow queueing after close");
+    assert_eq!(
+        rig._runtime.block_on(rig.gate.drain()),
+        DrainOutcome::Drained
+    );
+    let mut block = [0.0; 1024];
+    rig.render.render(&mut block);
+    assert!(block.iter().all(|s| *s == 0.0));
 }
 
 /// Needs a Pocket model and a reference recording:

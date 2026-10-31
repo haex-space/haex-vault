@@ -67,18 +67,28 @@ pub async fn ensure_model_files(
     mut on_progress: impl FnMut(u64, u64),
 ) -> Result<(), TtsError> {
     let total = entry.approx_size_bytes;
-    let mut done: u64 = files_for(entry.engine)
-        .iter()
-        .filter(|filename| is_complete_artifact(&dir.join(filename), filename))
-        .filter_map(|filename| std::fs::metadata(dir.join(filename)).ok())
-        .map(|meta| meta.len())
-        .sum();
-    on_progress(done, total);
-    for filename in files_for(entry.engine) {
-        let dest = dir.join(filename);
-        if is_complete_artifact(&dest, filename) {
-            continue;
+    let model_dir = dir.to_path_buf();
+    let engine = entry.engine;
+    let (mut done, missing) = tokio::task::spawn_blocking(move || {
+        let mut done = 0;
+        let mut missing = Vec::new();
+        for filename in files_for(engine) {
+            let path = model_dir.join(filename);
+            if is_complete_artifact(&path, filename) {
+                done += std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+            } else {
+                missing.push(*filename);
+            }
         }
+        (done, missing)
+    })
+    .await
+    .map_err(|e| TtsError::Unavailable {
+        reason: format!("inspect speech model files: {e}"),
+    })?;
+    on_progress(done, total);
+    for filename in missing {
+        let dest = dir.join(filename);
         let file = download_to_file(&file_url(entry, filename), dest, |progress| {
             on_progress(done + progress.bytes_downloaded, total);
         })

@@ -3,10 +3,10 @@
 use tempfile::tempdir;
 
 use super::catalog::{get, TtsEngine};
-use super::files::{file_url, files_for, is_complete_model};
+use super::files::{ensure_model_files, file_url, files_for, is_complete_model};
 
-#[test]
-fn a_model_is_complete_only_with_every_file() {
+#[tokio::test]
+async fn a_model_is_complete_only_with_every_file() {
     let dir = tempdir().expect("temp dir");
     let files = files_for(TtsEngine::Pocket);
     for (i, name) in files.iter().enumerate() {
@@ -15,6 +15,14 @@ fn a_model_is_complete_only_with_every_file() {
         std::fs::write(dir.path().join(name), contents).expect("write");
     }
     assert!(is_complete_model(dir.path(), TtsEngine::Pocket));
+    let entry = get("pocket-de").expect("known");
+    let mut progress = Vec::new();
+    ensure_model_files(dir.path(), entry, |done, total| {
+        progress.push((done, total))
+    })
+    .await
+    .expect("complete model needs no downloads");
+    assert_eq!(progress, vec![(9, entry.approx_size_bytes)]);
 }
 
 #[test]
