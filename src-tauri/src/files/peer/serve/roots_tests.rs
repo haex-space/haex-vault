@@ -2,7 +2,9 @@
 //! links out of a root are refused by `LocalStore` and tested with the round trip in
 //! `files/peer/serve_tests.rs`.
 
-use super::{in_share, on_device, parts};
+#[cfg(not(windows))]
+use super::on_device;
+use super::{in_share, parts};
 use crate::files::peer::wire::FailCode;
 use crate::files::share::store::FileShareRow;
 use crate::files::share::{FileShareItemKind, FileShareSourceState};

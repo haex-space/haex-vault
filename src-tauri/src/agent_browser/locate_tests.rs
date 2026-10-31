@@ -4,7 +4,9 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use super::locate::{candidates, find, major_version, new_enough, Os, Probe};
+#[cfg(unix)]
+use super::locate::candidates;
+use super::locate::{find, major_version, new_enough, Os, Probe};
 
 #[derive(Default)]
 struct Fake {

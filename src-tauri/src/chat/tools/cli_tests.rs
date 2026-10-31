@@ -2,6 +2,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::cli::CliTool;
 use super::Tool;
+#[cfg(unix)]
 use crate::vault_gate::ChildRegistry;
 
 #[tokio::test]
