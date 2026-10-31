@@ -114,10 +114,10 @@ async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     }
 
     assert_eq!(ids.len(), MAX_TABS);
-    assert_eq!(session.tab_count(), MAX_TABS);
     ids.sort();
     ids.dedup();
     assert_eq!(ids.len(), MAX_TABS);
+    assert!(session.reserve_new_tab("one-too-many").is_none());
 }
 
 #[tokio::test]

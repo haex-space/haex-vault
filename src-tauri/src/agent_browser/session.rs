@@ -172,11 +172,6 @@ impl Session {
         self.targets().get(target).cloned()
     }
 
-    /// How many tabs this session has, those a page opened that are not yet set up included.
-    pub(super) fn tab_count(&self) -> usize {
-        self.targets().values().collect::<BTreeSet<_>>().len()
-    }
-
     /// Reserves a slot for a page opened by a tab, before its asynchronous adoption starts.
     pub(super) fn reserve_new_tab(&self, target: &str) -> Option<String> {
         let mut targets = self.targets();
