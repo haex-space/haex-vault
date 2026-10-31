@@ -64,7 +64,8 @@ jobs:
           set -euo pipefail
           model="$RUNNER_TEMP/qwen3-0.6b.gguf"
           curl --fail --location --retry 3 --silent --show-error --output "$model" "$MODEL_URL"
-          actual=$( (sha256sum "$model" 2>/dev/null || shasum -a 256 "$model") | cut -d' ' -f1)
+          # From stdin: with a Windows path, sha256sum escapes the line and the hash gets a leading `\`.
+          actual=$( (sha256sum < "$model" 2>/dev/null || shasum -a 256 < "$model") | cut -d' ' -f1)
           if [ "$actual" != "$MODEL_SHA256" ]; then
             echo "::error::model checksum $actual, expected $MODEL_SHA256"
             exit 1
