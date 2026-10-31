@@ -10,6 +10,9 @@
 //! the code, so a future refactor that reintroduces a live DB dependency
 //! into the streaming path would fail it.
 
+// The stub is a shell script.
+#![cfg(unix)]
+
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
