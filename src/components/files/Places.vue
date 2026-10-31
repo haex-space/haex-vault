@@ -2,10 +2,10 @@
 /**
  * "Orte" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
  * device, then the folders the user added, from any source (this device, a cloud storage, another own
- * device, a contact's share). An added folder is a shortcut that never touches the folder. It comes
- * from a folder's context menu (`useFilesManage`) or by dropping folders on the section; it goes by
- * its own context menu, or by dragging it onto the strip that shows while it is dragged. The known
- * places stay fixed.
+ * device, a contact's share). An entry is a shortcut that never touches the folder. A folder comes in
+ * by its context menu (`useFilesManage`) or by dropping it on the section; any entry, a known place
+ * too, goes by its own context menu or by dragging it onto the strip that shows while it is dragged.
+ * A removed known place is hidden on this device and comes back when it is added again.
  */
 import type { Sources } from '@bindings/Sources'
 import type { SourceRef } from '@bindings/SourceRef'
@@ -49,6 +49,19 @@ const PLACE_ICONS: Record<string, string> = {
 const known = computed(
   () => props.sources?.known.map((place) => place.path) ?? [],
 )
+
+/** The known places the user did not remove. */
+const knownShown = computed(
+  () =>
+    props.sources?.known.filter(
+      (place) => !prefs.places.value.hidden.includes(place.path),
+    ) ?? [],
+)
+
+const devicePin = (path: string): FilesPin => ({
+  source: { kind: 'device' },
+  path,
+})
 
 /** The source of a pin as the sidebar lists it: its name and whether it can be opened now; `null`
  * for a folder of this device, `undefined` for a source that is gone. */
@@ -116,8 +129,9 @@ function offered(event: DragEvent): boolean {
 function onDragOver(event: DragEvent) {
   if (!offered(event)) return
   event.preventDefault()
-  // A link: the folder itself is not moved or copied.
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'link'
+  // "copy", as the entries drag allows only copy and move (`useFilesDrag`): a "link" would make the
+  // browser refuse the drop. Nothing is copied; the folder itself stays where it is.
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
   over.value = true
 }
 
@@ -131,8 +145,9 @@ function onDrop(event: DragEvent) {
     .map((item) => ({ source: payload.source as SourceRef, path: item.path }))
   prefs.pin(
     dropped.filter(
-      (pin) => offerPin(prefs.pins.value, pin, known.value) === 'pin',
+      (pin) => offerPin(prefs.places.value, pin, known.value) === 'pin',
     ),
+    known.value,
   )
 }
 
@@ -159,7 +174,7 @@ function onStripDrop(event: DragEvent) {
   event.preventDefault()
   const pin = dragged.value
   endPinDrag()
-  if (pin) prefs.unpin(pin)
+  if (pin) prefs.unpin(pin, known.value)
 }
 
 function endPinDrag() {
@@ -181,23 +196,31 @@ function endPinDrag() {
       {{ t('files.sidebar.places') }}
     </h2>
     <ul>
-      <li v-for="place in sources.known" :key="place.path">
-        <button
-          type="button"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-          :class="current === place.path ? 'bg-accent font-medium' : ''"
-          :data-testid="`files-place-${place.name}`"
-          @click="emit('pick', place.path)"
+      <li v-for="place in knownShown" :key="place.path">
+        <FilesMenu
+          :entries="pinMenu()"
+          @run="prefs.unpin(devicePin(place.path), known)"
         >
-          <Icon
-            :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
-            class="size-4 shrink-0"
-          />
-          <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
-        </button>
+          <button
+            type="button"
+            draggable="true"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            :class="current === place.path ? 'bg-accent font-medium' : ''"
+            :data-testid="`files-place-${place.name}`"
+            @click="emit('pick', place.path)"
+            @dragstart="onPinDragStart(devicePin(place.path), $event)"
+            @dragend="endPinDrag"
+          >
+            <Icon
+              :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
+              class="size-4 shrink-0"
+            />
+            <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
+          </button>
+        </FilesMenu>
       </li>
       <li v-for="{ pin, source } in shown" :key="keyOf(pin)">
-        <FilesMenu :entries="pinMenu()" @run="prefs.unpin(pin)">
+        <FilesMenu :entries="pinMenu()" @run="prefs.unpin(pin, known)">
           <button
             type="button"
             draggable="true"

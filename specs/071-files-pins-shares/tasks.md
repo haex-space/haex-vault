@@ -48,3 +48,13 @@ lines; every text in `de.json` and `en.json` (vue-i18n refuses `<…>`); `UiButt
 - [x] T013 texts `files.actions.pin/unpin` ("Zu Orten hinzufügen", "Aus Orten entfernen"),
       `files.sidebar.unpinDrop`; drop `files.sidebar.pinned/pinnedHint`
 - [x] T014 E2E `files-pins.test.ts`: drop target `files-places`, no empty hint
+
+## Phase 5: Second revision 2026-10-31 (drop in the app, known places removable)
+
+- [x] T015 drop on "Orte" uses `dropEffect = 'copy'` (the entries drag allows copy/move only, `link`
+      was refused by the webview); the E2E `dragTo` helper now refuses a drop as a webview does
+      (hover not taken, or an effect the drag does not allow)
+- [x] T016 `pins.ts`: `FilesPlaces`, `parseHidden`, `addPlaces`, `removePlace`, `offerPin` over both;
+      `useFilesPrefs` stores `files.hiddenPlaces`; tests in `check-files-pins.ts`
+- [x] T017 `Places.vue`: known places get the context menu and drag to the strip; hidden ones are left
+      out; E2E step: remove a known place, add it back from the open folder's menu

@@ -18,6 +18,10 @@ Bereich für Favoriten zu machen, sondern den Bereich 'Orte' entsprechend zu erw
 Ordner aus beliebigen Quellen (eigener Host, Cloud Storage, anderer Vault Storage) via Drag & Drop".
 So the added folders are entries of **Orte** below the known places, there is no "Favoriten" section,
 and every source of the sidebar may be added (FR-001, FR-002, US1–US3 below are the revised text).
+In a second round the same day the operator found that dropping did not work in the app and that only
+added folders, not the known places, could be removed: "ich kann nur zusätzlich hinzugefügte Ordner per
+Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "Orte" is removable now
+(FR-015), and the drop uses the "copy" effect the entries drag allows (FR-005).
 
 ## Terms
 
@@ -91,7 +95,8 @@ while he drags.
 
 1. **Given** a folder entry (or a selection with folders), **When** Ben drops it on the "Orte"
    section, **Then** every folder of the drag is added; files in the selection are ignored. The
-   cursor shows "link", never "move": the folder is not moved.
+   cursor shows "copy" (the only effect besides "move" the entries drag allows; "link" would make the
+   webview refuse the drop), never "move": nothing is copied or moved.
 2. **Given** a drag with only files, **When** it hovers over the section, **Then** the drop is not
    offered.
 3. **Given** a pinned entry, **When** Ben starts dragging it, **Then** the removal strip appears below
@@ -182,6 +187,10 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
   change (as the overview did).
 - **FR-013**: While a panel shows the share list the search bar and the folder content are not shown;
   navigating (a place, a path, back) returns to a folder.
+- **FR-015**: Every entry of "Orte" MUST be removable by its context menu and by the removal strip,
+  the known places of the device included. A removed known place MUST be hidden (stored per device like
+  the pins) and MUST come back when the same folder is added again; the menus then offer "Zu Orten
+  hinzufügen" for it.
 - **FR-014**: All new texts MUST exist in German and English; no new dependency; no change to Rust.
 
 ### Key Entities
@@ -204,7 +213,8 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
 ## Assumptions
 
 - Pins are not reordered by hand in this spec (order = pinning order). Reordering may follow.
-- The known places stay fixed in "Orte"; "Abwählen" applies to added folders only (as in GNOME Files).
+- A removed known place is hidden on this device only (FR-007) and is not deleted; it comes back when
+  it is added again (by its parent folder's entry menu, the open folder's menu, or a drop).
 - A pinned folder on a drive that is not plugged in is opened like any restored place of that drive
   (spec 064 FR-025) without the drive key; if the path is missing, the panel moves up to the nearest
   existing folder.

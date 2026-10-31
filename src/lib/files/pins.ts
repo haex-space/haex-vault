@@ -80,15 +80,67 @@ export function pinLabel(pin: FilesPin, rootName: string): string {
   return !name || name === '/' ? rootName : name
 }
 
-/** What the context menu offers for `pin`: nothing for a source that cannot be pinned and for a known
- * place (it is in the sidebar anyway), else to pin it or, if it is, to unpin it (FR-003). */
+/** What "Orte" holds beyond the known places of the device: the added folders, and the known places
+ * the user removed (paths of this device). */
+export type FilesPlaces = { pins: FilesPin[]; hidden: string[] }
+
+const isKnown = (pin: FilesPin, knownPaths: readonly string[]) =>
+  pin.source.kind === 'device' && knownPaths.includes(pin.path)
+
+/** The removed known places stored in `raw`; whatever is not a path is dropped. */
+export function parseHidden(raw: string | null | undefined): string[] {
+  try {
+    const stored: unknown = JSON.parse(raw ?? '[]')
+    return Array.isArray(stored)
+      ? stored.filter(
+          (path): path is string => typeof path === 'string' && !!path,
+        )
+      : []
+  } catch {
+    return []
+  }
+}
+
+/** What the context menu offers for `pin`: nothing for a source that cannot be added, else to add it
+ * or, if "Orte" shows it (an added folder, a known place not removed), to remove it (FR-003). */
 export function offerPin(
-  pins: readonly FilesPin[],
+  places: FilesPlaces,
   pin: FilesPin,
   knownPaths: readonly string[],
 ): PinCommand | undefined {
   if (!pinnableSource(pin.source)) return undefined
-  if (pin.source.kind === 'device' && knownPaths.includes(pin.path))
-    return undefined
-  return isPinned(pins, pin) ? 'unpin' : 'pin'
+  if (isKnown(pin, knownPaths))
+    return places.hidden.includes(pin.path) ? 'pin' : 'unpin'
+  return isPinned(places.pins, pin) ? 'unpin' : 'pin'
+}
+
+/** `places` with `added` in "Orte": a removed known place comes back, any other folder is pinned. */
+export function addPlaces(
+  places: FilesPlaces,
+  added: readonly FilesPin[],
+  knownPaths: readonly string[],
+): FilesPlaces {
+  const back = added.filter((pin) => isKnown(pin, knownPaths))
+  return {
+    pins: addPins(
+      places.pins,
+      added.filter((pin) => !isKnown(pin, knownPaths)),
+    ),
+    hidden: places.hidden.filter(
+      (path) => !back.some((pin) => pin.path === path),
+    ),
+  }
+}
+
+/** `places` without `removed`: a known place is hidden, an added folder unpinned (FR-004). */
+export function removePlace(
+  places: FilesPlaces,
+  removed: FilesPin,
+  knownPaths: readonly string[],
+): FilesPlaces {
+  if (!isKnown(removed, knownPaths))
+    return { ...places, pins: removePin(places.pins, removed) }
+  return places.hidden.includes(removed.path)
+    ? places
+    : { ...places, hidden: [...places.hidden, removed.path] }
 }

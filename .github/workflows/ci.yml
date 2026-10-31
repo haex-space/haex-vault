@@ -607,9 +607,14 @@ jobs:
           path: ~/.cargo/bin/tauri-driver
           key: tauri-driver-2.0.6-${{ runner.os }}
 
+      # The Rust cache may bring the binary back while this cache misses; then
+      # `cargo install` refuses with "already exists", so it only runs when
+      # cargo does not list that version.
       - name: Install tauri-driver
         if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
-        run: cargo install tauri-driver --locked --version 2.0.6
+        run: |
+          cargo install --list | grep -qx 'tauri-driver v2.0.6:' ||
+            cargo install tauri-driver --locked --version 2.0.6 --force
 
       # Spec 057 (T081): the desktop peer scenario starts a local relay for the vault group, just
       # like the Android scenarios do. Keep the binary version tied to the release holzi uses.
@@ -950,9 +955,14 @@ jobs:
           path: ~/.cargo/bin/tauri-driver
           key: tauri-driver-2.0.6-${{ runner.os }}
 
+      # The Rust cache may bring the binary back while this cache misses; then
+      # `cargo install` refuses with "already exists", so it only runs when
+      # cargo does not list that version.
       - name: Install tauri-driver
         if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
-        run: cargo install tauri-driver --locked --version 2.0.6
+        run: |
+          cargo install --list | grep -qx 'tauri-driver v2.0.6:' ||
+            cargo install tauri-driver --locked --version 2.0.6 --force
 
       # The devices of a group meet through a local iroh relay, since the phone sits behind the
       # emulator's own network (contract e2e-android.md): the `iroh-relay` of the release holzi uses.
