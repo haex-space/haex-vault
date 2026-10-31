@@ -1130,6 +1130,16 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
           cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
 
+      # Spec 064 (T073): the same for the Windows backend; the runner's default shell, as above, in
+      # two steps, as PowerShell fails a step only on its last command's exit code.
+      - name: Drives tests (Windows)
+        if: runner.os == 'Windows'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
+
+      - name: Drives clippy (Windows)
+        if: runner.os == 'Windows'
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
+
   # Spec 044 (T007, research R4): the same probe in Android's web view, on the emulator of
   # `android-e2e`. The web view's version is in the job log and in the probe's user agent.
   platform-probe-android:

@@ -139,7 +139,17 @@ fn choose() -> Arc<dyn DriveBackend> {
     Arc::new(super::macos::MacBackend::new(super::macos::SystemDiskutil))
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+#[cfg(windows)]
+fn choose() -> Arc<dyn DriveBackend> {
+    Arc::new(super::windows::WindowsBackend)
+}
+
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    windows
+)))]
 fn choose() -> Arc<dyn DriveBackend> {
     Arc::new(super::fallback::FallbackBackend)
 }

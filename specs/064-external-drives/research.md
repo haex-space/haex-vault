@@ -180,6 +180,25 @@ Primärquellen stehen bei jeder Entscheidung.
   - Ob ein gesperrtes BitLocker-Laufwerk ohne Admin als gesperrt erkennbar ist (Fehlercode von
     `GetVolumeInformationW`): UNVERIFIED, Spike. Ist es das nicht, erscheint es als eingehängt, und
     der Fehler beim Öffnen sagt „gesperrt – im System entsperren“ mit demselben Knopf.
+- **Spike (T070, 2026-10-31)** auf `windows-latest` (Windows Server 2025, 10.0.26100) mit einem
+  kleinen Rust-Programm über genau diese Aufrufe, je eine VHD als Stick und als BitLocker-To-Go-Volume:
+  - `GetVolumePathNamesForVolumeNameW` liefert `C:\` mit zwei abschließenden NUL; ein Volume ohne
+    Buchstaben (die EFI-Partition) eine leere Liste. `GetVolumeInformationW` liefert Name,
+    Dateisystem und eine 32-Bit-Seriennummer.
+  - Das Öffnen mit Zugriff 0 und `IOCTL_STORAGE_QUERY_PROPERTY`/`IOCTL_STORAGE_GET_DEVICE_NUMBER`
+    gehen auch als Standardbenutzer. Bus-Typen auf dem Runner: SAS (10) bzw. NVMe (17) für die Platten,
+    `FileBackedVirtual` (15) für eine VHD; `RemovableMedia` ist überall `false`.
+  - (b) Ein gesperrtes BitLocker-To-Go-Volume: `GetVolumeInformationW` scheitert mit `0x80310000`
+    (`FVE_E_LOCKED_VOLUME`), als Admin wie als Standardbenutzer (`BUILTIN\Users`, mittlere
+    Integritätsstufe). Es ist also als `locked` erkennbar.
+  - (c) `ShellExecuteExW` mit dem Verb `unlock-bde` auf `B:\` startet `bdeunlock.exe`; das Verb steht
+    in `HKCR\Drive\shell\unlock-bde` (`AppliesTo System.Volume.BitLockerProtection:=6`, Befehl
+    `bdeunlock.exe %1`). `bdeunlock.exe X:` bleibt der Rückweg.
+  - (a) Offen: Eine VHD lässt sich über `CM_Request_Device_EjectW` nicht auswerfen, weder am
+    Datenträger noch am Elterngerät (`CR_REMOVE_VETOED`, Veto 8 `IllegalDeviceRequest`, auch ohne
+    offene Datei). Ob ein USB-Stick am Datenträger oder am Elterngerät ausgeworfen werden muss,
+    klärt erst die Handprüfung (T073). Das Backend fragt zuerst den Datenträger und bei einer
+    Ablehnung, die nicht „belegt“ heißt, das Elterngerät.
 - **Abhängigkeit**: `windows-sys` (schon transitiv im Lockfile) als direkte Abhängigkeit für
   `cfg(windows)` mit den Features `Win32_Foundation`, `Win32_Storage_FileSystem`, `Win32_System_IO`
   (`DeviceIoControl`), `Win32_System_Ioctl`,
