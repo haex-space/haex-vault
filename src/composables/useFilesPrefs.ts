@@ -1,15 +1,18 @@
 /**
  * The file browser's device preferences (spec 044 FR-003, data-model.md): list or grid, the sort,
- * whether hidden entries show and the pinned folders of the sidebar (spec 071). Stored per device
+ * whether hidden entries show, and what "Orte" of the sidebar holds beyond the known places: the
+ * added folders and the known places the user removed (spec 071). Stored per device
  * (ADR 0001), never synced.
  */
 import type { PrefScope } from '~/composables/usePreferences'
 import {
-  addPins,
+  addPlaces,
   type FilesPin,
+  type FilesPlaces,
   formatPins,
+  parseHidden,
   parsePins,
-  removePin,
+  removePlace,
 } from '~/lib/files/pins'
 import {
   DEFAULT_SORT,
@@ -25,12 +28,14 @@ const KEYS = {
   sort: 'files.sort',
   hidden: 'files.hidden',
   pins: 'files.pins',
+  hiddenPlaces: 'files.hiddenPlaces',
 } as const
 
 const view = ref<FilesView>('list')
 const sort = ref<Sort>(DEFAULT_SORT)
 const showHidden = ref(false)
 const pins = ref<FilesPin[]>([])
+const hiddenPlaces = ref<string[]>([])
 let loaded: Promise<void> | null = null
 
 export function useFilesPrefs() {
@@ -44,17 +49,19 @@ export function useFilesPrefs() {
 
   async function loadAsync(): Promise<void> {
     const scope = await scopeAsync()
-    const [storedView, storedSort, storedHidden, storedPins] =
+    const [storedView, storedSort, storedHidden, storedPins, storedPlaces] =
       await Promise.all([
         getPrefAsync(scope, KEYS.view),
         getPrefAsync(scope, KEYS.sort),
         getPrefAsync(scope, KEYS.hidden),
         getPrefAsync(scope, KEYS.pins),
+        getPrefAsync(scope, KEYS.hiddenPlaces),
       ])
     view.value = storedView === 'grid' ? 'grid' : 'list'
     sort.value = parseSort(storedSort)
     showHidden.value = storedHidden === 'true'
     pins.value = parsePins(storedPins)
+    hiddenPlaces.value = parseHidden(storedPlaces)
   }
 
   /** Loads once per app process; later calls share the first load. */
@@ -84,19 +91,35 @@ export function useFilesPrefs() {
     void saveAsync(KEYS.hidden, String(next))
   }
 
-  function setPins(next: FilesPin[]) {
-    pins.value = next
-    void saveAsync(KEYS.pins, formatPins(next))
+  const places = computed<FilesPlaces>(() => ({
+    pins: pins.value,
+    hidden: hiddenPlaces.value,
+  }))
+
+  function setPlaces(next: FilesPlaces) {
+    if (next.pins !== pins.value) {
+      pins.value = next.pins
+      void saveAsync(KEYS.pins, formatPins(next.pins))
+    }
+    if (next.hidden !== hiddenPlaces.value) {
+      hiddenPlaces.value = next.hidden
+      void saveAsync(KEYS.hiddenPlaces, JSON.stringify(next.hidden))
+    }
   }
 
-  const pin = (added: FilesPin[]) => setPins(addPins(pins.value, added))
-  const unpin = (removed: FilesPin) => setPins(removePin(pins.value, removed))
+  /** Puts `added` into "Orte"; `knownPaths` are the device's known places, which come back instead. */
+  const pin = (added: FilesPin[], knownPaths: readonly string[]) =>
+    setPlaces(addPlaces(places.value, added, knownPaths))
+  /** Takes `removed` out of "Orte": a known place is hidden, an added folder unpinned. */
+  const unpin = (removed: FilesPin, knownPaths: readonly string[]) =>
+    setPlaces(removePlace(places.value, removed, knownPaths))
 
   return {
     view: readonly(view),
     sort: readonly(sort),
     showHidden: readonly(showHidden),
     pins: readonly(pins),
+    places,
     ensureLoaded,
     setView,
     setSort,
