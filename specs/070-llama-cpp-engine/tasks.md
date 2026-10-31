@@ -176,8 +176,11 @@ F; US5 is G.
 
 ## PR G – Decision and wrap-up (US5)
 
-- [ ] T042 Re-run the 83-sentence evaluation and the speed measurement for every catalog model through
+- [x] T042 Re-run the 83-sentence evaluation and the speed measurement for every catalog model through
       both engines where both load; table in `research.md`.
+      Result (`research.md`, "Both engines on every catalog model"): equal quality with the same model
+      (within one to three sentences, both ways); llama.cpp generates faster on the GPU and answers 12 to 14
+      times sooner on the CPU; Qwen3.5 4B (60 of 83) loads only there.
 - [ ] T043 Decide US5: llama.cpp replaces mistralrs, or both stay. Amend the ADR with the numbers.
 - [ ] T044 Apply the decision: flip `engine_for` (one line) or leave it, and set the desktop profile.
       One engine everywhere (T036): if llama.cpp wins, the switch carries Android (T040, the phone profiles
