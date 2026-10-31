@@ -2,7 +2,7 @@
 // question and the editor in the settings. Rust checks every grant again (`approvals::validate`):
 // never wider than declared, a tag scope with tags, and for reading and writing in a tag scope a
 // default tag inside it.
-import type { BridgeAccess } from '~/types/bindings/BridgeAccess'
+import type { BridgeAccess } from '../types/bindings/BridgeAccess.ts'
 
 /** The fields while the user picks; `scope: 'tags'` may hold no tag yet. */
 export type GrantDraft = {

@@ -4,6 +4,7 @@
 // guardrails of the MCP access must never reach any agent (FR-016).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { nextTick, reactive } from 'vue'
 
 import {
   TOOL_NAME_PATTERN,
@@ -13,7 +14,14 @@ import {
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 import { ACTION_SCOPE_IDS } from '../src/lib/actions/scopes.ts'
-import { levelsOf, rightsOf, siteOf } from '../src/lib/agents/rights.ts'
+import {
+  levelsOf,
+  rightsOf,
+  siteOf,
+  type PasswordRights,
+} from '../src/lib/agents/rights.ts'
+import { draftOf, type GrantDraft } from '../src/lib/browserBridgeGrant.ts'
+import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
 
@@ -139,4 +147,178 @@ test('the group passwords is kept with the other rights, and off is left out (sp
     passwords,
   })
   assert.deepEqual(rightsOf(levels, null, [], null), { operate: {} })
+})
+
+test('an incomplete password tag selection revokes access instead of retaining all entries', () => {
+  const levels = levelsOf({ operate: { 'wm.read': 'read' } })
+  for (const tags of [[], [' ', '\t']]) {
+    assert.deepEqual(rightsOf(levels, null, [], { level: 'read', tags }), {
+      operate: { 'wm.read': 'read' },
+    })
+  }
+  for (const tags of [null, ['dev']]) {
+    const passwords = { level: 'read' as const, tags }
+    assert.deepEqual(rightsOf(levels, null, [], passwords).passwords, passwords)
+  }
+})
+
+test('the password editor emits restricted drafts and keeps empty tags editable', async () => {
+  const levels = levelsOf(null)
+  const updates: Array<PasswordRights | null> = []
+  const editor = loadScriptSetup<{
+    onDraft: (draft: GrantDraft) => void
+    toggle: (on: boolean) => void
+    draft: { value: GrantDraft }
+  }>(
+    'src/components/agents/PasswordRightsFields.vue',
+    ['onDraft', 'toggle', 'draft'],
+    {
+      props: { modelValue: { level: 'read', tags: null } },
+      imports: { '~/lib/browserBridgeGrant': { draftOf } },
+      emit: (event, value) => {
+        assert.equal(event, 'update:modelValue')
+        updates.push(value as PasswordRights | null)
+      },
+    },
+  )
+  // Selecting the tag scope must publish a revocation, even before a tag is chosen.
+  editor.onDraft(draftOf('read', [], null))
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: [] })
+  assert.equal(rightsOf(levels, null, [], updates.at(-1)).passwords, undefined)
+  editor.props.modelValue = updates.at(-1)
+  await nextTick()
+  assert.equal(editor.draft.value.scope, 'tags')
+  assert.deepEqual(editor.draft.value.tags, [])
+
+  editor.onDraft(draftOf('read', ['dev'], null))
+  assert.deepEqual(rightsOf(levels, null, [], updates.at(-1)).passwords, {
+    level: 'read',
+    tags: ['dev'],
+  })
+  editor.props.modelValue = updates.at(-1)
+  await nextTick()
+  // Removing the last tag revokes the saved grant as well.
+  editor.onDraft(draftOf('read', [], null))
+  assert.equal(rightsOf(levels, null, [], updates.at(-1)).passwords, undefined)
+  editor.toggle(false)
+  assert.equal(updates.at(-1), null)
+  // A different agent's actual rights replace the old draft.
+  editor.props.modelValue = { level: 'read', tags: ['bank'] }
+  await nextTick()
+  assert.deepEqual(editor.draft.value.tags, ['bank'])
+})
+
+test('registration cannot approve an incomplete password tag draft', async () => {
+  const answers: unknown[] = []
+  const dialog = loadScriptSetup<{
+    passwords: { value: PasswordRights | null }
+    passwordsComplete: { value: boolean }
+    answerAsync: (register: boolean) => Promise<void>
+  }>(
+    'src/components/agents/RegistrationDialog.vue',
+    ['passwords', 'passwordsComplete', 'answerAsync'],
+    {
+      imports: { '~/lib/agents/rights': { levelsOf, rightsOf } },
+      useErrorString: () => ({ errString: String }),
+      useMcpAgentsStore: () => ({
+        shown: {
+          requestId: 'registration',
+          question: { rights: { operate: {} }, mode: 'manual' },
+        },
+        answerAsync: async (_id: string, answer: unknown) => {
+          answers.push(answer)
+        },
+      }),
+    },
+  )
+  dialog.passwords.value = { level: 'read', tags: [] }
+  assert.equal(dialog.passwordsComplete.value, false)
+  await dialog.answerAsync(true)
+  assert.equal(answers.length, 0)
+  dialog.passwords.value = { level: 'read', tags: ['dev'] }
+  assert.equal(dialog.passwordsComplete.value, true)
+  await dialog.answerAsync(true)
+  assert.equal(answers.length, 1)
+  dialog.passwords.value = { level: 'read', tags: [] }
+  await dialog.answerAsync(false)
+  assert.equal(answers.length, 2, 'declining is always possible')
+})
+
+test('instant password saves revoke access and keep the empty draft across reloads', async () => {
+  let saved: ReturnType<typeof rightsOf> = {
+    operate: {},
+    passwords: { level: 'read', tags: null },
+  }
+  let failSave = false
+  const route = reactive({ params: { agentId: 'agent' } })
+  const detail = loadScriptSetup<{
+    passwords: { value: PasswordRights | null }
+    onPasswords: (rights: PasswordRights | null) => void
+    settled: () => Promise<void>
+    reloadAsync: () => Promise<void>
+  }>(
+    'src/components/settings/agents/AgentDetailView.vue',
+    [
+      'passwords',
+      'onPasswords',
+      'settled: () => rightsSaveQueue',
+      'reloadAsync',
+    ],
+    {
+      imports: {
+        '~/lib/agents/rights': { levelsOf, rightsOf },
+        '@tauri-apps/api/core': {
+          invoke: async () => ({ id: route.params.agentId, rights: saved }),
+        },
+      },
+      useErrorString: () => ({ errString: String }),
+      useTabRouter: () => ({ route }),
+      useMcpAgentsStore: () => ({ changes: 0 }),
+      useActionOrThrow:
+        () =>
+        async ({ rights }: { rights: typeof saved }) => {
+          if (failSave) throw new Error('save failed')
+          saved = rights
+        },
+    },
+  )
+  await detail.mount()
+  assert.equal(detail.passwords.value?.tags, null)
+  detail.onPasswords({ level: 'read', tags: [] })
+  await detail.settled()
+  assert.equal(saved.passwords, undefined)
+  assert.deepEqual(detail.passwords.value?.tags, [])
+  await detail.reloadAsync()
+  assert.deepEqual(detail.passwords.value?.tags, [])
+  // A response for an earlier queued save must not replace the newer incomplete draft.
+  detail.onPasswords({ level: 'read', tags: ['dev'] })
+  detail.onPasswords({ level: 'read', tags: [] })
+  await detail.settled()
+  assert.equal(saved.passwords, undefined)
+  assert.deepEqual(detail.passwords.value?.tags, [])
+  detail.onPasswords({ level: 'read', tags: ['bank'] })
+  await detail.settled()
+  assert.deepEqual(saved, {
+    operate: {},
+    passwords: { level: 'read', tags: ['bank'] },
+  })
+  assert.deepEqual(detail.passwords.value?.tags, ['bank'])
+  failSave = true
+  detail.onPasswords({ level: 'read', tags: [] })
+  await detail.settled()
+  assert.deepEqual(
+    detail.passwords.value?.tags,
+    ['bank'],
+    'a failed revocation restores the actual grant',
+  )
+  failSave = false
+  detail.onPasswords({ level: 'read', tags: [] })
+  await detail.settled()
+  route.params.agentId = 'another-agent'
+  await detail.reloadAsync()
+  assert.equal(
+    detail.passwords.value,
+    null,
+    'a different agent does not inherit the incomplete draft',
+  )
 })

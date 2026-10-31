@@ -3,13 +3,10 @@
  * The rights group "Passwörter" of an agent (spec 021 US5, FR-019): off by default; when on, the
  * entries it reaches, all of them or those with chosen tags, with the fields of a browser
  * extension's grant (spec 049). Agents only read: no password action writes yet (research R13).
- * Every secret still asks on each call. A tag scope without a tag is not passed on.
+ * Every secret still asks on each call. Empty tags stay editable; `rightsOf` keeps access off
+ * until a tag is chosen, and registration stays disabled while the draft is incomplete.
  */
-import {
-  draftOf,
-  grantComplete,
-  type GrantDraft,
-} from '~/lib/browserBridgeGrant'
+import { draftOf, type GrantDraft } from '~/lib/browserBridgeGrant'
 import type { PasswordRights } from '~/lib/agents/rights'
 
 const props = defineProps<{ modelValue: PasswordRights | null }>()
@@ -34,7 +31,6 @@ function toggle(on: boolean) {
 
 function onDraft(next: GrantDraft) {
   draft.value = next
-  if (!grantComplete(next)) return
   emit('update:modelValue', {
     level: 'read',
     tags: next.scope === 'tags' ? [...next.tags] : null,

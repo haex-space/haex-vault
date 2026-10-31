@@ -132,6 +132,31 @@ fn the_field_names_a_password_a_code_or_a_custom_field() {
     }
 }
 
+#[test]
+fn internal_password_failures_do_not_reveal_vault_details() {
+    for error in [
+        HolziError::CrdtIo {
+            reason: "private-vault.db could not be read".to_owned(),
+        },
+        HolziError::CrdtSqlite {
+            reason: "SELECT secret FROM private_table".to_owned(),
+        },
+    ] {
+        let failure = passwords_error(error);
+        assert_eq!(failure.code, "failed");
+        assert_eq!(failure.message, "The password action failed.");
+        assert!(failure.field.is_none());
+    }
+    for error in [
+        HolziError::PasswordsNotFound,
+        HolziError::PasswordsForbidden,
+    ] {
+        let failure = passwords_error(error);
+        assert_eq!(failure.code, "not_found");
+        assert_eq!(failure.message, no_entry().message);
+    }
+}
+
 /// US5 scenario 2: the grant "Lesen, Tag dev" lists only the dev entries, with the five fields.
 #[tokio::test]
 async fn an_external_agent_searches_within_its_tags_and_the_built_in_agent_everything() {

@@ -34,8 +34,10 @@ const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
 let rightsSaveQueue = Promise.resolve()
+let pendingRights = 0
 
 async function reloadAsync() {
+  const sameAgent = agent.value?.id === agentId.value
   try {
     agent.value = await invoke<AgentView>('mcp_agent_get', {
       args: { agentId: agentId.value },
@@ -43,7 +45,13 @@ async function reloadAsync() {
     levels.value = levelsOf(agent.value.rights)
     browser.value = agent.value.rights.browser ?? null
     extensions.value = agent.value.rights.extensions ?? []
-    passwords.value = agent.value.rights.passwords ?? null
+    if (pendingRights === 0 || !sameAgent) {
+      // Keep an empty tag draft editable after its save revoked access. A failed save restores
+      // the actual grant, and moving to another agent always resets the draft.
+      const incomplete = passwords.value?.tags?.every((tag) => !tag.trim())
+      if (!sameAgent || !incomplete || agent.value.rights.passwords)
+        passwords.value = agent.value.rights.passwords ?? null
+    }
   } catch (error) {
     agent.value = null
     failure.value = errString(error)
@@ -70,9 +78,12 @@ function saveRights() {
     passwords.value,
   )
   const agentIdAtChange = agentId.value
-  rightsSaveQueue = rightsSaveQueue.then(() =>
-    runAsync(() => setRights({ agentId: agentIdAtChange, rights })),
-  )
+  pendingRights += 1
+  rightsSaveQueue = rightsSaveQueue.then(async () => {
+    await runAsync(() => setRights({ agentId: agentIdAtChange, rights }))
+    pendingRights -= 1
+    if (pendingRights === 0) await reloadAsync()
+  })
 }
 
 function onLevels(next: Levels) {
@@ -167,6 +178,7 @@ watch(() => store.changes, reloadAsync)
       />
 
       <AgentsPasswordRightsFields
+        :key="agent.id"
         :model-value="passwords"
         @update:model-value="onPasswords"
       />

@@ -51,7 +51,8 @@ export function levelsOf(rights: Rights | null | undefined): Levels {
 }
 
 /** The rights the levels, the groups `browser` and `passwords` and the granted extensions stand
- * for; "none" is left out, and `null` keeps a group off. */
+ * for; "none" is left out, and `null` keeps a group off. An incomplete password tag draft
+ * also keeps the group off, so changing from all entries to tags immediately revokes access. */
 export function rightsOf(
   levels: Levels,
   browser: BrowserRights | null = null,
@@ -66,7 +67,10 @@ export function rightsOf(
   return {
     operate,
     ...(browser ? { browser } : {}),
-    ...(passwords ? { passwords } : {}),
+    ...(passwords &&
+    (passwords.tags === null || passwords.tags.some((tag) => tag.trim()))
+      ? { passwords }
+      : {}),
     ...(extensions.length > 0 ? { extensions } : {}),
   }
 }

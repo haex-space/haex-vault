@@ -28,6 +28,12 @@ const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
 const extensions = ref<string[]>([])
 const passwords = ref<PasswordRights | null>(null)
+const passwordsComplete = computed(
+  () =>
+    !passwords.value ||
+    passwords.value.tags === null ||
+    passwords.value.tags.some((tag) => tag.trim()),
+)
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -50,7 +56,7 @@ watch(
 
 async function answerAsync(register: boolean) {
   const shown = store.shown
-  if (!shown) return
+  if (!shown || (register && !passwordsComplete.value)) return
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
@@ -111,7 +117,10 @@ function onUpdateOpen(open: boolean) {
         <AgentsRightsFields v-model="levels" />
         <AgentsBrowserRightsFields v-model="browser" />
         <AgentsExtensionRightsFields v-model="extensions" />
-        <AgentsPasswordRightsFields v-model="passwords" />
+        <AgentsPasswordRightsFields
+          :key="store.shown?.requestId"
+          v-model="passwords"
+        />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.filesHint') }}
         </p>
@@ -158,6 +167,7 @@ function onUpdateOpen(open: boolean) {
           type="button"
           size="sm"
           data-testid="mcp-registration-register"
+          :disabled="!passwordsComplete"
           @click="answerAsync(true)"
         >
           {{ t('mcpAgents.registration.register') }}

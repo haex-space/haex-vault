@@ -96,7 +96,7 @@ fn no_entry() -> NativeError {
 fn passwords_error(error: HolziError) -> NativeError {
     match error {
         HolziError::PasswordsNotFound | HolziError::PasswordsForbidden => no_entry(),
-        other => NativeError::new("failed", other.to_string()),
+        _ => NativeError::new("failed", "The password action failed."),
     }
 }
 
