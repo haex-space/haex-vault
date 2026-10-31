@@ -17,7 +17,7 @@ export type FilesCommand =
   | 'newEncryptedFolder'
   | 'openSystem'
   | 'share'
-  /** Spec 071: the folder into the sidebar's Favoriten, or out of it. */
+  /** Spec 071: the folder into the sidebar's Orte, or out of it. */
   | 'pin'
   | 'unpin'
   /** Only in the split view (spec 062): the selection into the other panel's folder. */

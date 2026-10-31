@@ -4,7 +4,7 @@ description: 'Task list for spec 071-files-pins-shares'
 
 # Tasks: Pinned folders and the share list
 
-**Status**: implemented; the E2E scenario (T008) was type-checked but not run locally, CI runs it.
+**Status**: implemented, revised 2026-10-31 (Phase 4); the E2E scenario runs in CI (not locally).
 
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md)
 
@@ -37,3 +37,14 @@ lines; every text in `de.json` and `en.json` (vue-i18n refuses `<…>`); `UiButt
 
 - [x] T009 spec 056 FR-020 note, `prettier --write` on touched md/json, typecheck, lint, checks
 - [ ] T010 manual check M1: pin by drag with a real mouse in the app; Esc cancels a pin drag
+
+## Phase 4: Revision 2026-10-31 (added folders live in "Orte", any source)
+
+- [x] T011 `pins.ts` `pinnableSource`: every source but a `device:` storage; update
+      `check-files-pins.ts`
+- [x] T012 `PinnedPlaces.vue` → `Places.vue`: the whole "Orte" section (known places, then added
+      folders with their source's name, greyed out while unreachable), drop target and removal strip;
+      no "Favoriten" section, no empty hint; `Sidebar.vue` uses it
+- [x] T013 texts `files.actions.pin/unpin` ("Zu Orten hinzufügen", "Aus Orten entfernen"),
+      `files.sidebar.unpinDrop`; drop `files.sidebar.pinned/pinnedHint`
+- [x] T014 E2E `files-pins.test.ts`: drop target `files-places`, no empty hint

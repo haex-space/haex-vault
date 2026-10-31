@@ -20,17 +20,23 @@ const cloud: FilesPin = {
   path: '/fotos',
 }
 
-test("only a device and the vault's own cloud storages may be pinned (FR-002)", () => {
+const peer: FilesPin = {
+  source: { kind: 'storage', storageId: 'peer:abc' },
+  path: '/home/ben/x',
+}
+
+test('every source of the sidebar may be pinned, a device: storage not (FR-002)', () => {
   assert.equal(pinnableSource({ kind: 'device' }), true)
   assert.equal(pinnableSource({ kind: 'storage', storageId: 'abc-123' }), true)
   assert.equal(
     pinnableSource({ kind: 'storage', storageId: 'peer:abc-123' }),
-    false,
+    true,
   )
   assert.equal(
     pinnableSource({ kind: 'storage', storageId: 'share:abc-123' }),
-    false,
+    true,
   )
+  assert.equal(pinnableSource({ kind: 'storage', storageId: '' }), false)
   assert.equal(
     pinnableSource({ kind: 'storage', storageId: 'device:abc' }),
     false,
@@ -38,7 +44,7 @@ test("only a device and the vault's own cloud storages may be pinned (FR-002)", 
 })
 
 test('pins round-trip through their stored form, in order', () => {
-  const pins = [docs, cloud]
+  const pins = [docs, cloud, peer]
   assert.deepEqual(parsePins(formatPins(pins)), pins)
 })
 
@@ -50,7 +56,7 @@ test('what is stored is not trusted: junk, unknown sources and empty paths are d
     parsePins(
       JSON.stringify([
         { s: 'device', p: '/ok' },
-        { s: 'peer:abc', p: '/other-device' },
+        { s: 'device:C:', p: '/x' },
         { s: 'bogus', p: '/x' },
         { s: 'device', p: '' },
         { s: 'device', p: 7 },
@@ -63,11 +69,15 @@ test('what is stored is not trusted: junk, unknown sources and empty paths are d
 })
 
 test('adding keeps the order, skips duplicates and what cannot be pinned', () => {
-  const peer: FilesPin = {
-    source: { kind: 'storage', storageId: 'peer:abc' },
+  const encrypted: FilesPin = {
+    source: { kind: 'storage', storageId: 'device:C:' },
     path: '/x',
   }
-  assert.deepEqual(addPins([docs], [cloud, docs, peer]), [docs, cloud])
+  assert.deepEqual(addPins([docs], [cloud, docs, encrypted, peer]), [
+    docs,
+    cloud,
+    peer,
+  ])
   assert.deepEqual(addPins([], [docs, docs]), [docs])
 })
 
@@ -95,11 +105,15 @@ test('the menu offers to pin, to unpin, or nothing (FR-003)', () => {
   assert.equal(offerPin([], docs, [home]), 'pin')
   assert.equal(offerPin([docs], docs, [home]), 'unpin')
   assert.equal(offerPin([], { ...docs, path: home }, [home]), undefined)
-  const peer: FilesPin = {
-    source: { kind: 'storage', storageId: 'peer:abc' },
-    path: '/x',
-  }
-  assert.equal(offerPin([], peer, []), undefined)
+  assert.equal(offerPin([], peer, []), 'pin')
+  assert.equal(
+    offerPin(
+      [],
+      { source: { kind: 'storage', storageId: 'device:C:' }, path: '/x' },
+      [],
+    ),
+    undefined,
+  )
   // A known place of this device says nothing about the same path in a storage.
   assert.equal(offerPin([], { ...cloud, path: home }, [home]), 'pin')
 })

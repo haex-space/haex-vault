@@ -4,16 +4,25 @@
 
 **Created**: 2026-10-30
 
-**Status**: Implemented (manual M1 open: pin by drag with a real mouse)
+**Status**: Implemented; revised 2026-10-31 (added folders live in "Orte", any source); manual M1 open
 
 **Input**: User description (operator, 2026-10-30): "In the file explorer I want 1. to add any folder to
 the sidebar for quick access and remove it again (also via context menu and by drag & drop); 2. my
 'Dateifreigaben' should not be shown in a dialog but as a list in the browser, like the sync rules."
 
+## Revision 2026-10-31
+
+The first version put the pinned folders into a section "Favoriten" of their own and allowed only this
+device and the vault's cloud storages. The operator rejected that: "Das Ziel war NICHT einen extra
+Bereich für Favoriten zu machen, sondern den Bereich 'Orte' entsprechend zu erweitern … beliebige
+Ordner aus beliebigen Quellen (eigener Host, Cloud Storage, anderer Vault Storage) via Drag & Drop".
+So the added folders are entries of **Orte** below the known places, there is no "Favoriten" section,
+and every source of the sidebar may be added (FR-001, FR-002, US1–US3 below are the revised text).
+
 ## Terms
 
-- **Pinned folder** ("Favorit"): a folder the user put into the sidebar's own section **Favoriten**. It
-  is a shortcut: removing it never touches the folder.
+- **Added folder** (pin): a folder the user added to the sidebar's section **Orte**, below the known
+  places of the device. It is a shortcut: removing it never touches the folder.
 - **Place**, **source**, **entry**, **panel**, **frame**: as in specs 044 and 062.
 - **Share list**: the list of the vault's own file shares (spec 056 US4, FR-020) as the content of a
   panel, laid out like the sync rule list of spec 061.
@@ -35,8 +44,9 @@ the sidebar for quick access and remove it again (also via context menu and by d
 ### User Story 1 - Pin a folder and open it from the sidebar (Priority: P1)
 
 Anna works in `~/Projekte/holzi/docs` every day. She right-clicks the folder in the file browser and
-chooses "Zu Favoriten hinzufügen". The folder shows in the sidebar under "Favoriten"; a click opens it.
-She can pin any folder of this device, and any folder of her cloud storages.
+chooses "Zu Orten hinzufügen". The folder shows in the sidebar under "Orte", below Bilder, Downloads and
+the other known places; a click opens it. She can add any folder of any source: this device, her cloud
+storages, her other devices, a share a contact gave her.
 
 **Why this priority**: The core of the request: a quick way to the folders one really uses.
 
@@ -46,7 +56,7 @@ see it again.
 **Acceptance Scenarios**:
 
 1. **Given** a folder entry, **When** Anna opens its context menu, **Then** the menu offers "Zu
-   Favoriten hinzufügen"; once pinned, it offers "Aus Favoriten entfernen" instead.
+   Orten hinzufügen"; once added, it offers "Aus Orten entfernen" instead.
 2. **Given** the open folder, **When** Anna opens the context menu of the empty area, **Then** it offers
    the same for the open folder.
 3. **Given** a pinned folder, **When** Anna clicks it in the sidebar, **Then** the active panel opens
@@ -58,15 +68,19 @@ see it again.
 6. **Given** a pinned folder that no longer exists (deleted, drive not plugged in), **When** Anna
    clicks it, **Then** the panel behaves as for any vanished folder (spec 044, spec 064 FR-025); the pin
    stays until Anna removes it.
-7. **Given** a place that is another own device or a share of a contact, **When** Anna opens a folder's
-   menu, **Then** no pin command is offered (these places come and go with the other side).
+7. **Given** a folder of another own device or of a share of a contact, **When** Anna adds it, **Then**
+   it shows in "Orte" with the name of its source next to it; while that source cannot be reached the
+   entry is greyed out and does not open, but its context menu still removes it.
+8. **Given** an added folder of a cloud storage, device or share that is no longer in the sidebar (removed,
+   card deleted), **Then** the entry is hidden but kept, as the source may return.
 
 ---
 
 ### User Story 2 - Pin and unpin by drag & drop (Priority: P1)
 
-Ben drags a folder from the list onto the "Favoriten" section of the sidebar. It is pinned. To remove a
-pinned folder he drags it from the sidebar onto the strip "Hierher ziehen, um zu entfernen" that shows
+Ben drags a folder from the list onto the "Orte" section of the sidebar. It is added below the known
+places. To remove a
+pinned folder he drags it from the sidebar onto the strip "Hierher ziehen, um aus Orten zu entfernen" that shows
 while he drags.
 
 **Why this priority**: Named explicitly by the operator.
@@ -75,28 +89,28 @@ while he drags.
 
 **Acceptance Scenarios**:
 
-1. **Given** a folder entry (or a selection with folders), **When** Ben drops it on the "Favoriten"
-   section, **Then** every folder of the drag is pinned; files in the selection are ignored. The
+1. **Given** a folder entry (or a selection with folders), **When** Ben drops it on the "Orte"
+   section, **Then** every folder of the drag is added; files in the selection are ignored. The
    cursor shows "link", never "move": the folder is not moved.
-2. **Given** a drag with only files or from a place that cannot be pinned, **When** it hovers over the
-   section, **Then** the drop is not offered.
+2. **Given** a drag with only files, **When** it hovers over the section, **Then** the drop is not
+   offered.
 3. **Given** a pinned entry, **When** Ben starts dragging it, **Then** the removal strip appears below
    the list; dropping the entry there removes the pin; dropping it anywhere else, or cancelling with
    Esc, changes nothing.
-4. **Given** an empty "Favoriten" section, **Then** it still shows with a hint, so there is a place to
-   drop on.
+4. **Given** no added folders, **Then** "Orte" shows only the known places, with no hint and no empty
+   section; it is the drop target all the same.
 
 ---
 
 ### User Story 3 - Unpin from the sidebar's context menu (Priority: P1)
 
-Clara right-clicks a pinned folder in the sidebar and chooses "Aus Favoriten entfernen".
+Clara right-clicks an added folder in "Orte" and chooses "Aus Orten entfernen".
 
 **Independent Test**: Right-click a pinned entry, remove it, see it gone and the folder untouched.
 
 **Acceptance Scenarios**:
 
-1. **Given** a pinned entry, **When** Clara opens its context menu, **Then** it offers "Aus Favoriten
+1. **Given** a pinned entry, **When** Clara opens its context menu, **Then** it offers "Aus Orten
    entfernen" (and nothing that changes the folder).
 2. **Given** the menu was used, **Then** the entry leaves the sidebar at once and the folder on the disk
    is unchanged.
@@ -138,17 +152,18 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
 
 ### Functional Requirements
 
-- **FR-001**: The sidebar MUST have a section "Favoriten" between "Orte" and "Laufwerke" with the pinned
-  folders in the order they were pinned. It MUST show even when empty (with a hint) so drag & drop has a
-  target.
-- **FR-002**: A pin is a folder of this device or of a cloud storage of the vault (spec 038). Another own
-  device and a share of a contact MUST NOT be pinnable (neither by menu nor by drop).
+- **FR-001**: The sidebar section "Orte" MUST list the added folders below the known places, in the order
+  they were added. There MUST NOT be a section of their own. "Orte" is the drop target for adding.
+- **FR-002**: Any folder of any source of the sidebar MAY be added: this device, a cloud storage of the
+  vault (spec 038), another own device (spec 056 US1), a share of a contact (US2). An entry of another
+  source MUST show that source's name; while the source cannot be reached it MUST be greyed out and not
+  open, but stay removable. Entries of sources no longer listed are hidden, not deleted.
 - **FR-003**: The context menu of a single folder entry, and of the open folder (empty area), MUST offer
-  "Zu Favoriten hinzufügen" or, if the folder is pinned, "Aus Favoriten entfernen". Neither is offered for
-  files, several entries, or places that cannot be pinned (FR-002). A folder that already is one of the
+  "Zu Orten hinzufügen" or, if the folder is added, "Aus Orten entfernen". Neither is offered for
+  files, several entries, or the internal `device:` storages of encrypted folders. A folder that already is one of the
   known places (Orte) is neither pinned nor offered.
-- **FR-004**: The context menu of a pinned entry in the sidebar MUST offer "Aus Favoriten entfernen".
-- **FR-005**: Dropping a folder drag of holzi's entries on the "Favoriten" section MUST pin every folder
+- **FR-004**: The context menu of an added entry in "Orte" MUST offer "Aus Orten entfernen".
+- **FR-005**: Dropping a folder drag of holzi's entries on the "Orte" section MUST pin every folder
   of the drag (not files), without duplicates; it MUST NOT move or copy anything.
 - **FR-006**: A pinned entry MUST be draggable; while one is dragged a removal strip MUST show, and
   dropping the entry there MUST remove the pin. Any other drop or Esc MUST leave it.
@@ -171,8 +186,8 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
 
 ### Key Entities
 
-- **Pin**: `{ source, path }`; `source` as `lib/files/split.ts` `sourceToken`. The label is the folder's
-  name, or the storage's name for its root.
+- **Pin** (added folder): `{ source, path }`; `source` as `lib/files/split.ts` `sourceToken`. The label
+  is the folder's name, or the source's name for its root.
 - **View key** `sh`: the panel shows the share list (like `sr` for the sync rules).
 
 ## Success Criteria _(mandatory)_
@@ -189,10 +204,10 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
 ## Assumptions
 
 - Pins are not reordered by hand in this spec (order = pinning order). Reordering may follow.
-- The known places (Orte) stay fixed; "Abwählen" applies to pins only.
+- The known places stay fixed in "Orte"; "Abwählen" applies to added folders only (as in GNOME Files).
 - A pinned folder on a drive that is not plugged in is opened like any restored place of that drive
   (spec 064 FR-025) without the drive key; if the path is missing, the panel moves up to the nearest
   existing folder.
-- Pins of cloud storages whose storage no longer exists are hidden but kept, as the storage may return.
-- Phones: the sidebar has the same section; drag & drop is a mouse feature there, the context menu (long
+- Added folders of sources that are no longer listed are hidden but kept, as the source may return.
+- Phones: "Orte" is the same; drag & drop is a mouse feature there, the context menu (long
   press) is the way.

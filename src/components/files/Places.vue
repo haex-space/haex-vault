@@ -1,9 +1,11 @@
 <script setup lang="ts">
 /**
- * "Favoriten" in the sidebar of the file browser (spec 071): the folders the user pinned, as
- * shortcuts that never touch the folder. A folder is pinned from its context menu (`useFilesManage`)
- * or by dropping it on this section; a pin goes by its own context menu, or by dragging it onto the
- * strip that shows while it is dragged. The section stays when it is empty, as a place to drop on.
+ * "Orte" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
+ * device, then the folders the user added, from any source (this device, a cloud storage, another own
+ * device, a contact's share). An added folder is a shortcut that never touches the folder. It comes
+ * from a folder's context menu (`useFilesManage`) or by dropping folders on the section; it goes by
+ * its own context menu, or by dragging it onto the strip that shows while it is dragged. The known
+ * places stay fixed.
  */
 import type { Sources } from '@bindings/Sources'
 import type { SourceRef } from '@bindings/SourceRef'
@@ -27,7 +29,7 @@ const props = defineProps<{
   currentPath: string | null
 }>()
 
-const emit = defineEmits<{ pick: [pin: FilesPin] }>()
+const emit = defineEmits<{ pick: [path: string]; pickPin: [pin: FilesPin] }>()
 
 const { t } = useI18n()
 const prefs = useFilesPrefs()
@@ -35,30 +37,57 @@ const prefs = useFilesPrefs()
 /** What a dragged pin carries, so no other drop target takes it for entries. */
 const PIN_MIME = 'application/x-holzi-files-pin'
 
+const PLACE_ICONS: Record<string, string> = {
+  home: 'lucide:house',
+  pictures: 'lucide:image',
+  downloads: 'lucide:download',
+  documents: 'lucide:file-text',
+  desktop: 'lucide:monitor',
+  videos: 'lucide:film',
+}
+
 const known = computed(
   () => props.sources?.known.map((place) => place.path) ?? [],
 )
 
-function storageOf(pin: FilesPin) {
+/** The source of a pin as the sidebar lists it: its name and whether it can be opened now; `null`
+ * for a folder of this device, `undefined` for a source that is gone. */
+type PinSource = { name: string; available: boolean } | null | undefined
+
+function sourceOf(pin: FilesPin): PinSource {
   const { source } = pin
-  return source.kind === 'storage'
-    ? props.sources?.storages.find((storage) => storage.id === source.storageId)
-    : undefined
+  if (source.kind === 'device') return null
+  const id = source.storageId
+  const storage = props.sources?.storages.find((entry) => entry.id === id)
+  if (storage) return { name: storage.name, available: true }
+  const device = props.sources?.devices.find((entry) => entry.id === id)
+  if (device)
+    return {
+      name: device.name ?? t('files.peer.unnamed'),
+      available: device.state === 'reachable',
+    }
+  for (const contact of props.sources?.contacts ?? []) {
+    const share = contact.shares.find((entry) => entry.storageId === id)
+    if (share) return { name: share.name, available: share.reachable }
+  }
+  return undefined
 }
 
-/** The pins to show: a pin of a storage that is gone stays stored but hidden, as it may return. */
+/** The pins to show: a pin whose source is gone stays stored but hidden, as the source may return. */
 const shown = computed(() =>
-  prefs.pins.value.filter(
-    (pin) => pin.source.kind === 'device' || storageOf(pin) !== undefined,
-  ),
+  prefs.pins.value.flatMap((pin) => {
+    const source = sourceOf(pin)
+    return source === undefined ? [] : [{ pin, source }]
+  }),
 )
 
-const labelOf = (pin: FilesPin) =>
-  pinLabel(pin, storageOf(pin)?.name ?? t('files.sidebar.storages'))
+const keyOf = (pin: FilesPin) => `${JSON.stringify(pin.source)}${pin.path}`
 
-function titleOf(pin: FilesPin): string {
-  const storage = storageOf(pin)
-  return storage ? `${storage.name}: ${pin.path}` : pin.path
+const labelOf = (pin: FilesPin, source: PinSource) =>
+  pinLabel(pin, source?.name ?? pin.path)
+
+function titleOf(pin: FilesPin, source: PinSource): string {
+  return source ? `${source.name}: ${pin.path}` : pin.path
 }
 
 function isCurrent(pin: FilesPin): boolean {
@@ -72,7 +101,7 @@ function isCurrent(pin: FilesPin): boolean {
 
 const over = ref(false)
 
-/** A drag of holzi's entries that may hold a folder to pin. While it hovers the browser hides what
+/** A drag of holzi's entries that may hold a folder to add. While it hovers the browser hides what
  * it carries, so the drag under way says; a drag from elsewhere is judged at the drop. */
 function offered(event: DragEvent): boolean {
   if (!event.dataTransfer?.types.includes(ENTRIES_MIME)) return false
@@ -141,41 +170,56 @@ function endPinDrag() {
 
 <template>
   <section
+    v-if="sources"
     :class="['rounded', over && 'ring-2 ring-primary']"
-    data-testid="files-pinned"
+    data-testid="files-places"
     @dragover="onDragOver"
     @dragleave="over = false"
     @drop="onDrop"
   >
     <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
-      {{ t('files.sidebar.pinned') }}
+      {{ t('files.sidebar.places') }}
     </h2>
-    <p
-      v-if="shown.length === 0"
-      class="px-2 py-1.5 text-xs text-muted-foreground"
-      data-testid="files-pinned-empty"
-    >
-      {{ t('files.sidebar.pinnedHint') }}
-    </p>
     <ul>
-      <li
-        v-for="pin in shown"
-        :key="`${JSON.stringify(pin.source)}${pin.path}`"
-      >
+      <li v-for="place in sources.known" :key="place.path">
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+          :class="current === place.path ? 'bg-accent font-medium' : ''"
+          :data-testid="`files-place-${place.name}`"
+          @click="emit('pick', place.path)"
+        >
+          <Icon
+            :name="PLACE_ICONS[place.name] ?? 'lucide:folder'"
+            class="size-4 shrink-0"
+          />
+          <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
+        </button>
+      </li>
+      <li v-for="{ pin, source } in shown" :key="keyOf(pin)">
         <FilesMenu :entries="pinMenu()" @run="prefs.unpin(pin)">
           <button
             type="button"
             draggable="true"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             :class="isCurrent(pin) ? 'bg-accent font-medium' : ''"
-            :title="titleOf(pin)"
-            :data-testid="`files-pin-${labelOf(pin)}`"
-            @click="emit('pick', pin)"
+            :aria-disabled="source?.available === false"
+            :title="titleOf(pin, source)"
+            :data-testid="`files-pin-${labelOf(pin, source)}`"
+            @click="source?.available !== false && emit('pickPin', pin)"
             @dragstart="onPinDragStart(pin, $event)"
             @dragend="endPinDrag"
           >
             <Icon name="lucide:folder" class="size-4 shrink-0" />
-            <span class="truncate">{{ labelOf(pin) }}</span>
+            <span class="min-w-0 flex-1 truncate">
+              {{ labelOf(pin, source) }}
+            </span>
+            <span
+              v-if="source"
+              class="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground"
+            >
+              {{ source.name }}
+            </span>
           </button>
         </FilesMenu>
       </li>

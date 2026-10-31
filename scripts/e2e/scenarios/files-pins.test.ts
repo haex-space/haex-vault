@@ -6,10 +6,10 @@ import { contextMenu, dragTo } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
-// Spec 071: pinned folders in the sidebar and "Meine Dateifreigaben" as a list in the panel. A folder
-// is pinned from its context menu, opens from the sidebar, and goes again by the pin's own context
-// menu; a folder dragged onto the section is pinned, a pin dragged onto the strip is removed, and
-// the folder stays in both cases. The list of shares shows in the panel, with no dialog.
+// Spec 071: folders added to "Orte" in the sidebar and "Meine Dateifreigaben" as a list in the panel.
+// A folder is added from its context menu, opens from the sidebar, and goes again by its own context
+// menu there; a folder dragged onto "Orte" is added, an added one dragged onto the strip is removed,
+// and the folder stays in both cases. The list of shares shows in the panel, with no dialog.
 
 const gone = (instance: FlowInstance, hook: string) =>
   instance.exec<boolean>(
@@ -50,13 +50,12 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
       at: `/device?p=${encodeURIComponent(files.folder)}`,
     })
     await instance.waitForDisplayed('files-entry-alpha')
-    await instance.waitForDisplayed('files-pinned-empty')
+    await instance.waitForDisplayed('files-places')
 
     // Pinned from the context menu, the pin opens its folder from the sidebar.
     await contextMenu(instance, 'files-entry-alpha')
     await instance.click('files-menu-pin')
     await instance.waitForDisplayed('files-pin-alpha')
-    assert.ok(await gone(instance, 'files-pinned-empty'))
     await contextMenu(instance, 'files-entry-alpha')
     await instance.waitForDisplayed('files-menu-unpin')
     await instance.click('files-menu-unpin')
@@ -80,8 +79,8 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
     ])
     ctx.step('unpinned from the sidebar menu')
 
-    // Dropping a folder on the section pins it; dragging the pin onto the strip removes it.
-    await dragTo(instance, 'files-entry-beta', 'files-pinned')
+    // Dropping a folder on "Orte" adds it; dragging the pin onto the strip removes it.
+    await dragTo(instance, 'files-entry-beta', 'files-places')
     await instance.waitForDisplayed('files-pin-beta')
     await dragTo(instance, 'files-pin-beta', 'files-pins-unpin-strip')
     await ctx.waitFor('the pin to go', () => gone(instance, 'files-pin-beta'))
