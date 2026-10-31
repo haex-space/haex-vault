@@ -6,8 +6,9 @@
 //! whose tools it sees (US4, FR-018). Files and contacts follow the agent's rows in
 //! `agent_file_permissions` ([`DataRights`], US5, FR-020), and a native action is offered only when
 //! its executor serves external agents. The group `passwords` opens the search of the password
-//! manager and the single secret, within its tags (US5, FR-019). The scope `guardrails` is never a
-//! right. A later group (commands) adds a field that is off when missing (FR-008).
+//! manager and the single secret, within its tags (US5, FR-019); the group `commands` opens holzi's
+//! command tool (`command_tool.rs`). The scope `guardrails` is never a right. A later group adds a
+//! field that is off when missing (FR-008).
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
@@ -221,6 +222,10 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
     pub extensions: BTreeSet<Uuid>,
+    /// "Befehle ausführen": the command tool, where the device has it (US5, FR-012).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub commands: bool,
 }
 
 /// What a new agent may do until the user changes it (FR-009): read in every scope of
@@ -234,6 +239,7 @@ pub fn default_rights() -> Rights {
         browser: None,
         passwords: None,
         extensions: BTreeSet::new(),
+        commands: false,
     }
 }
 

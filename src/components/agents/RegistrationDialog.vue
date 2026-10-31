@@ -4,8 +4,8 @@
  * contracts/tauri-commands.md). Shows what the agent reports about itself, marked as its own claim,
  * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
  * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
- * all off), plus the approval mode. Preset: reading everywhere, Manuell. Closing the dialog declines once,
- * without remembering. Rust checks the rights again; rights it refuses count as declining.
+ * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
+ * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering. Rust checks the rights again; rights it refuses count as declining.
  */
 import {
   levelsOf,
@@ -28,6 +28,7 @@ const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
 const extensions = ref<string[]>([])
 const passwords = ref<PasswordRights | null>(null)
+const commands = ref(false)
 const passwordsComplete = computed(
   () =>
     !passwords.value ||
@@ -49,6 +50,7 @@ watch(
     browser.value = asked.rights.browser ?? null
     extensions.value = asked.rights.extensions ?? []
     passwords.value = asked.rights.passwords ?? null
+    commands.value = asked.rights.commands ?? false
     mode.value = asked.mode
   },
   { immediate: true },
@@ -67,6 +69,7 @@ async function answerAsync(register: boolean) {
             browser.value,
             extensions.value,
             passwords.value,
+            commands.value,
           )
         : { operate: {} },
       mode: mode.value,
@@ -121,6 +124,7 @@ function onUpdateOpen(open: boolean) {
           :key="store.shown?.requestId"
           v-model="passwords"
         />
+        <AgentsCommandRightsFields v-model="commands" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.filesHint') }}
         </p>

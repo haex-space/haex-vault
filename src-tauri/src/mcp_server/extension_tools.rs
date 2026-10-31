@@ -9,8 +9,8 @@ use super::dispatch::{error_result, unavailable};
 use crate::chat::tools::action_bridge::ACTION_FAILED_MESSAGE;
 use crate::chat::tools::{RiskClass, Tool as ChatTool, ToolResult};
 
-/// The tool an agent sees for a tool of an extension: the name, description and schema the built-in
-/// agent gets (US4).
+/// The tool an agent sees for a tool of an extension, or for the command tool: the name, description
+/// and schema the built-in agent gets (US4, US5).
 pub fn tool_of(tool: &dyn ChatTool) -> Tool {
     let schema = match tool.input_schema() {
         Value::Object(map) => map,

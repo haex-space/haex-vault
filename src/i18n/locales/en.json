@@ -3941,6 +3941,12 @@
       "enabled": "Password manager",
       "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries below",
       "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
+    },
+    "commands": {
+      "title": "Run commands",
+      "enabled": "Run commands",
+      "enabledHint": "Run shell commands on this device, with your rights and access to your programs and files",
+      "askHint": "Every command counts as destructive: in the approval mode Auto holzi asks before each command, in Plan it refuses all of them."
     }
   },
   "agentBrowser": {

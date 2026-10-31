@@ -21,6 +21,7 @@ use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPr
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::native_action::NativeExecutors;
+use crate::chat::tools::Tool;
 use crate::vault_events::VaultChanges;
 use crate::vault_gate::VaultDb;
 
@@ -90,6 +91,8 @@ pub struct StartArgs {
     pub bridge: ActionBridge,
     /// The Rust executors of native catalog actions (ADR 0011).
     pub native: NativeExecutors,
+    /// holzi's command tool (spec 003); `None` where the device runs no commands (US5).
+    pub command_tool: Option<Arc<dyn Tool>>,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
     pub notify: Notifier,
@@ -105,6 +108,7 @@ pub struct Core {
     pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     pub native: NativeExecutors,
+    pub command_tool: Option<Arc<dyn Tool>>,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
     pub slots: CallSlots,
@@ -189,6 +193,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         vault_changes: args.vault_changes,
         bridge: args.bridge,
         native: args.native,
+        command_tool: args.command_tool,
         prompts: args.prompts,
         calls: args.calls,
         slots: CallSlots::default(),

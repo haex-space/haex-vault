@@ -15,6 +15,7 @@ use rmcp::{ErrorData as McpError, ServerHandler};
 use tokio::sync::watch;
 use uuid::Uuid;
 
+use super::command_tool;
 use super::dispatch;
 use super::extension_tools;
 use super::grants::{self, Rights};
@@ -112,6 +113,10 @@ impl Session {
             .chain(
                 grants::extension_offers(&agent.rights, &extension_tools)
                     .into_iter()
+                    .map(|tool| extension_tools::tool_of(tool.as_ref())),
+            )
+            .chain(
+                command_tool::offer(&agent.rights, self.core.command_tool.as_ref())
                     .map(|tool| extension_tools::tool_of(tool.as_ref())),
             )
             .collect();

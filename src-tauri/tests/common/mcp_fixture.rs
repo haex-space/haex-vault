@@ -23,6 +23,7 @@ use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
 use holzi_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
 use holzi_lib::chat::tools::native_action::NativeExecutors;
+use holzi_lib::chat::tools::Tool as ChatTool;
 use holzi_lib::identity::{
     holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
     HOLZI_TRIGGER_VERSION,
@@ -95,6 +96,8 @@ pub struct Fixture {
     pub bridge: ActionBridge,
     /// Native executors a test adds (ADR 0011).
     pub native: NativeExecutors,
+    /// The command tool a test sets; `None` is a device that runs no commands (US5).
+    pub command_tool: Option<Arc<dyn ChatTool>>,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -181,6 +184,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         vault_changes: changes_channel(),
         bridge,
         native: NativeExecutors::default(),
+        command_tool: None,
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -241,6 +245,7 @@ impl Fixture {
             vault_changes: self.vault_changes.clone(),
             bridge: self.bridge.clone(),
             native: self.native.clone(),
+            command_tool: self.command_tool.clone(),
             prompts: self.prompts.clone(),
             calls: self.calls.clone(),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),

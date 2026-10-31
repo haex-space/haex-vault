@@ -149,6 +149,15 @@ test('the group passwords is kept with the other rights, and off is left out (sp
   assert.deepEqual(rightsOf(levels, null, [], null), { operate: {} })
 })
 
+test('the group commands is kept with the other rights, and off is left out (spec 021 US5)', () => {
+  const levels = levelsOf({ operate: {} })
+  assert.deepEqual(rightsOf(levels, null, [], null, true), {
+    operate: {},
+    commands: true,
+  })
+  assert.deepEqual(rightsOf(levels, null, [], null, false), { operate: {} })
+})
+
 test('an incomplete password tag selection revokes access instead of retaining all entries', () => {
   const levels = levelsOf({ operate: { 'wm.read': 'read' } })
   for (const tags of [[], [' ', '\t']]) {

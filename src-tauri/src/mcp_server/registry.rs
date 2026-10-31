@@ -31,8 +31,10 @@ const GROUP_BROWSER: &str = "browser";
 const GROUP_PASSWORDS: &str = "passwords";
 /// The rights group of [`Rights::extensions`]: one row per extension, keyed by its id.
 const GROUP_EXTENSION: &str = "extension";
-/// The level of a row of [`GROUP_EXTENSION`].
-const EXTENSION_ON: &str = "on";
+/// The rights group of [`Rights::commands`]: one row with an empty key when it is on.
+const GROUP_COMMANDS: &str = "commands";
+/// The level of a row of [`GROUP_EXTENSION`] and [`GROUP_COMMANDS`].
+const ON: &str = "on";
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -419,11 +421,12 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
             GROUP_PASSWORDS => {
                 rights.passwords = PasswordRights::from_row(&level, tags.as_deref());
             }
-            GROUP_EXTENSION if level == EXTENSION_ON => {
+            GROUP_EXTENSION if level == ON => {
                 if let Ok(id) = Uuid::parse_str(&key) {
                     rights.extensions.insert(id);
                 }
             }
+            GROUP_COMMANDS => rights.commands = level == ON,
             _ => {}
         }
     }
@@ -455,19 +458,23 @@ pub fn save_rights(
         .iter()
         .flat_map(browser_rows)
         .map(|(key, level, tags)| (GROUP_BROWSER, key, level, tags));
-    let extensions = rights.extensions.iter().map(|id| {
-        (
-            GROUP_EXTENSION,
-            id.to_string(),
-            EXTENSION_ON.to_owned(),
-            None,
-        )
-    });
+    let extensions = rights
+        .extensions
+        .iter()
+        .map(|id| (GROUP_EXTENSION, id.to_string(), ON.to_owned(), None));
+    let commands = rights
+        .commands
+        .then(|| (GROUP_COMMANDS, String::new(), ON.to_owned(), None));
     let passwords = rights.passwords.iter().map(|passwords| {
         let (level, tags) = passwords.row();
         (GROUP_PASSWORDS, String::new(), level, tags)
     });
-    for (group, key, level, tags) in operate.chain(browser).chain(extensions).chain(passwords) {
+    for (group, key, level, tags) in operate
+        .chain(browser)
+        .chain(extensions)
+        .chain(passwords)
+        .chain(commands)
+    {
         tx.execute(
             "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
              grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",

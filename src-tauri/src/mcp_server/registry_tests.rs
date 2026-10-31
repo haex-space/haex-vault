@@ -166,6 +166,7 @@ async fn rights_round_trip_and_are_replaced() {
             tags: Some(vec!["dev".to_owned(), "Büro".to_owned()]),
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
+        commands: true,
     };
     let saved = narrow.clone();
     v.db.write(move |tx| save_rights(tx, device, id, &saved))

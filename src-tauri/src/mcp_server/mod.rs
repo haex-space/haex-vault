@@ -4,6 +4,7 @@
 //! a vault is open (FR-001, FR-002).
 
 pub mod agent_log;
+pub mod command_tool;
 pub mod commands;
 pub mod connection;
 pub mod dispatch;
@@ -26,6 +27,8 @@ pub mod settings;
 
 #[cfg(test)]
 mod agent_log_tests;
+#[cfg(test)]
+mod command_tool_tests;
 #[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
@@ -180,6 +183,7 @@ impl McpServer {
                         vault_changes: state.vault_changes().clone(),
                         bridge: chat.action_bridge.clone(),
                         native: chat.native_actions.clone(),
+                        command_tool: command_tool::for_device(chat.children()),
                         prompts: self.prompts.clone(),
                         calls: self.calls.clone(),
                         notify: self.notifier(),
