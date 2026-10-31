@@ -2045,7 +2045,7 @@
       "reason": "An entry in the password manager has unsaved changes."
     },
     "settings": {
-      "title": "Password manager settings",
+      "title": "Settings",
       "clipboard": {
         "title": "Clear clipboard after",
         "off": "Never",
