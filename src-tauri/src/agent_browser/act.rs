@@ -17,8 +17,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, read_tab, site_of, tab_error, unknown_tab, Click, Select,
-    TypeText,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, Select, TypeText,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -183,7 +182,7 @@ impl Acting<'_> {
         .await;
         self.session.disarm();
         settled.map_err(tab_error)?;
-        read_tab(self.connection, tab, 0, None).await
+        Ok(json!({ "tab": tab.id }).into())
     }
 
     /// `browser.click`: a real click in the middle of the element.
