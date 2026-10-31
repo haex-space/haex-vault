@@ -145,15 +145,15 @@ export function readAliases(text: string | null): Record<string, string[]> {
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     return {}
-  const aliases: Record<string, string[]> = {}
-  for (const [key, names] of Object.entries(value)) {
-    if (!Array.isArray(names)) continue
-    const kept = names.filter(
-      (name): name is string => typeof name === 'string' && name !== '',
-    )
-    if (kept.length) aliases[key] = kept
-  }
-  return aliases
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, names]) => {
+      if (!Array.isArray(names)) return []
+      const kept = names.filter(
+        (name): name is string => typeof name === 'string' && name !== '',
+      )
+      return kept.length ? [[key, kept]] : []
+    }),
+  )
 }
 
 /** The JSON text to store: rows without names are left out, no row at all is `null`. */

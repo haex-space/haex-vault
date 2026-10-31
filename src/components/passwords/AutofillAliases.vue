@@ -35,24 +35,27 @@ const rows = computed(() => {
   return keys
     .map((key) => ({
       key,
-      label: key in FIXED ? t(FIXED[key]!) : key,
-      names: aliases.value[key] ?? [],
+      label: Object.hasOwn(FIXED, key) ? t(FIXED[key]!) : key,
+      names: Object.hasOwn(aliases.value, key) ? aliases.value[key]! : [],
       hasField: withField.has(key),
     }))
     .filter((row) => !props.readonly || row.names.length)
 })
 
 function add(key: string) {
-  const name = (inputs.value[key] ?? '').trim()
+  const name = (Object.hasOwn(inputs.value, key) ? inputs.value[key] : '').trim()
   inputs.value = { ...inputs.value, [key]: '' }
   if (!name) return
-  const names = aliases.value[key] ?? []
+  const names = Object.hasOwn(aliases.value, key) ? aliases.value[key]! : []
   if (names.some((known) => known.toLowerCase() === name.toLowerCase())) return
   aliases.value = { ...aliases.value, [key]: [...names, name] }
 }
 
 function remove(key: string, name: string) {
-  const { [key]: names = [], ...rest } = aliases.value
+  const names = Object.hasOwn(aliases.value, key) ? aliases.value[key]! : []
+  const rest = Object.fromEntries(
+    Object.entries(aliases.value).filter(([aliasKey]) => aliasKey !== key),
+  )
   const kept = names.filter((known) => known !== name)
   aliases.value = kept.length ? { ...rest, [key]: kept } : rest
 }

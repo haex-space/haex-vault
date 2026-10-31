@@ -175,6 +175,13 @@ test('the draft carries the autofill aliases it can read (036 FR-001a)', () => {
   assert.deepEqual(draftFromDetail(DETAIL, '').aliases, {})
 })
 
+test('alias keys that shadow object properties remain data', () => {
+  const aliases = readAliases('{"__proto__":["login"],"constructor":["field"]}')
+  assert.equal(Object.hasOwn(aliases, '__proto__'), true)
+  assert.deepEqual(aliases['__proto__'], ['login'])
+  assert.deepEqual(aliases.constructor, ['field'])
+})
+
 test('untouched aliases stay out of the patch, even when unreadable', () => {
   const initial = draftFromDetail(
     { ...DETAIL, autofillAliases: '{"username":["login"],"password":"pw"}' },
