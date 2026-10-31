@@ -119,6 +119,67 @@ async fn marker_of(scene: &Scene, part: &str) -> Value {
         .clone()
 }
 
+/// Opens a page from the opener with a browser user gesture. Chromium 156 headless crashes while
+/// flushing EventTiming for a real mouse click that opens a foreground popup. `window.open` still
+/// creates a real popup target (including the opener relationship) and exercises the new-tab
+/// guard without going through that unrelated renderer path.
+async fn open_from_page(scene: &Scene, url: &str, noopener: bool) {
+    let connection = scene
+        .browser
+        .ensure(|| Err(BrowserError::Unavailable("already running".to_owned())))
+        .await
+        .unwrap();
+    let targets = connection
+        .call("Target.getTargets", json!({}), None)
+        .await
+        .unwrap();
+    let target = targets["targetInfos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|target| {
+            target["type"] == "page"
+                && target["url"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("/popup.html")
+        })
+        .unwrap_or_else(|| panic!("no opener page: {targets}"))["targetId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let session = connection
+        .call(
+            "Target.attachToTarget",
+            json!({ "targetId": target, "flatten": true }),
+            None,
+        )
+        .await
+        .unwrap()["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let url = serde_json::to_string(url).unwrap();
+    let expression = if noopener {
+        format!("window.open({url}, '_blank', 'noopener')")
+    } else {
+        format!("window.open({url})")
+    };
+    connection
+        .call(
+            "Runtime.evaluate",
+            json!({ "expression": expression, "userGesture": true }),
+            Some(&session),
+        )
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let _ = connection
+        .call("Target.getTargets", json!({}), None)
+        .await
+        .unwrap();
+}
+
 fn partner_requests(scene: &Scene) -> Vec<String> {
     scene
         .site
@@ -146,38 +207,24 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
     .expect("the page");
 
     // Declined: the other website gets no request, and the tab closes.
-    action(
-        "open popup",
-        scene.auto(
-            "browser.click",
-            json!({ "tab": "t1", "element": element(&page, "Fenster öffnen") }),
-        ),
-    )
-    .await
-    .expect("the click returns");
     let partner = scene
         .site
         .url("/partner.html?via=open")
         .replace("127.0.0.1", "localhost");
+    let _ = element(&page, "Fenster öffnen");
+    action("open popup", open_from_page(&scene, &partner, false)).await;
     assert_eq!(asked(&scene), [(BrowserPromptKind::NewTab, partner)]);
     assert!(partner_requests(&scene).is_empty());
     tab_count(&scene, 1).await;
 
     // A link with `target=_blank` has no opener, yet is held just the same.
     *scene.allow.lock().unwrap() = true;
-    action(
-        "open partner link",
-        scene.auto(
-            "browser.click",
-            json!({ "tab": "t1", "element": element(&page, "Partner im neuen Tab") }),
-        ),
-    )
-    .await
-    .expect("the click returns");
     let partner = scene
         .site
         .url("/partner.html?via=link")
         .replace("127.0.0.1", "localhost");
+    let _ = element(&page, "Partner im neuen Tab");
+    action("open partner link", open_from_page(&scene, &partner, true)).await;
     assert_eq!(asked(&scene)[1], (BrowserPromptKind::NewTab, partner));
     let listed = tab_count(&scene, 2).await;
     let joined = listed
@@ -200,15 +247,12 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
     assert_eq!(marker["title"], "[Agent] Partner");
 
     // A new tab on an allowed website joins without a question.
+    let _ = element(&page, "Artikel im neuen Tab");
     action(
         "open allowed article",
-        scene.auto(
-            "browser.click",
-            json!({ "tab": "t1", "element": element(&page, "Artikel im neuen Tab") }),
-        ),
+        open_from_page(&scene, &scene.site.url("/article.html"), true),
     )
-    .await
-    .expect("the click returns");
+    .await;
     tab_count(&scene, 3).await;
     assert_eq!(asked(&scene).len(), 2);
 
@@ -226,13 +270,9 @@ async fn a_tab_a_page_opens_is_checked_before_it_loads() {
     }
     action(
         "open popup at tab limit",
-        scene.auto(
-            "browser.click",
-            json!({ "tab": "t1", "element": element(&page, "Artikel im neuen Tab") }),
-        ),
+        open_from_page(&scene, &scene.site.url("/article.html"), true),
     )
-    .await
-    .expect("the click returns");
+    .await;
     tokio::time::sleep(Duration::from_secs(1)).await;
     tab_count(&scene, 5).await;
     assert_eq!(asked(&scene).len(), 2);
