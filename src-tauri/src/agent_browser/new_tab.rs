@@ -52,13 +52,14 @@ pub(super) fn opened(
         });
         return true;
     };
+    let submit_grant = session.reserve_submit_for_new_tab(&opener);
     tokio::spawn(adopt(
         Arc::clone(session),
         Arc::clone(connection),
         target,
         cdp_session.to_owned(),
-        opener,
         id,
+        submit_grant,
     ));
     true
 }
@@ -68,30 +69,34 @@ async fn adopt(
     connection: Arc<Connection>,
     target: String,
     cdp_session: String,
-    opener: String,
     id: String,
+    submit_grant: Option<u64>,
 ) {
     if session.cancel.is_cancelled() {
         let _ = target::close(&connection, &target).await;
         session.forget_targets(&id);
+        session.finish_pending_new_tab(submit_grant);
         return;
     }
     let refused = Arc::new(AtomicBool::new(false));
-    let guard = guard(&session, id.clone(), opener, Arc::clone(&refused));
+    let guard = guard(&session, id.clone(), submit_grant, Arc::clone(&refused));
     let hooks = session.tab_hooks(&id).await;
     let Ok(tab) = Tab::adopt(&connection, id.clone(), target, cdp_session, guard, hooks).await
     else {
         session.forget_targets(&id);
+        session.finish_pending_new_tab(submit_grant);
         return;
     };
     let mut tabs = session.tabs.lock().await;
     if refused.load(Ordering::SeqCst) || !Session::same_run(&tabs, &connection) {
         drop(tabs);
         session.forget_targets(&id);
+        session.finish_pending_new_tab(submit_grant);
         tab.close().await;
     } else if session.cancel.is_cancelled() {
         drop(tabs);
         session.forget_targets(&id);
+        session.finish_pending_new_tab(submit_grant);
         tab.release().await;
     } else {
         tabs.open.push(tab);
@@ -102,12 +107,18 @@ async fn adopt(
 /// The guard of the new tab `tab`: its first document asks ([`Session::check_new_tab`]), and a
 /// changing one counts as sent by the action of `opener` that the user may already have allowed;
 /// later requests are checked like those of any tab. A refused first document closes the tab.
-fn guard(session: &Arc<Session>, tab: String, opener: String, refused: Arc<AtomicBool>) -> Guard {
+fn guard(
+    session: &Arc<Session>,
+    tab: String,
+    submit_grant: Option<u64>,
+    refused: Arc<AtomicBool>,
+) -> Guard {
     let session = Arc::downgrade(session);
     let first = Arc::new(AtomicBool::new(true));
     Arc::new(move |paused: Paused| {
-        let (session, tab, opener) = (session.clone(), tab.clone(), opener.clone());
+        let (session, tab) = (session.clone(), tab.clone());
         let (first, refused) = (Arc::clone(&first), Arc::clone(&refused));
+        let submit_grant = submit_grant;
         Box::pin(async move {
             let Some(session) = session.upgrade() else {
                 return Verdict::Refuse("site_not_allowed");
@@ -116,9 +127,10 @@ fn guard(session: &Arc<Session>, tab: String, opener: String, refused: Arc<Atomi
                 return session.check_request(&tab, paused).await;
             }
             let verdict = match session.check_new_tab(&paused.url).await {
-                Verdict::Go => session.check_send(&opener, &paused).await,
+                Verdict::Go => session.check_new_tab_send(submit_grant, &paused).await,
                 other => other,
             };
+            session.finish_pending_new_tab(submit_grant);
             if verdict != Verdict::Go {
                 refused.store(true, Ordering::SeqCst);
                 tokio::spawn(close(Arc::downgrade(&session), tab));

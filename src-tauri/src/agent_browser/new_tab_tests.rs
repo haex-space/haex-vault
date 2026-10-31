@@ -13,6 +13,7 @@ use super::prompts::{new_browser_prompts, BrowserPromptKind, BrowserQuestion};
 use super::session::{Session, MAX_TABS};
 use super::sessions::SessionHooks;
 use super::sites::{Site, Verdict};
+use super::tab::Paused;
 use super::StartConfig;
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
@@ -118,6 +119,44 @@ async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
     ids.dedup();
     assert_eq!(ids.len(), MAX_TABS);
     assert!(session.reserve_new_tab("one-too-many").is_none());
+}
+
+#[tokio::test]
+async fn a_new_tab_consumes_only_its_opener_submit_grant_after_disarm() {
+    let (session, asked) = session(PermissionMode::Auto, false);
+    let paused = Paused {
+        url: "https://example.org/submit".to_owned(),
+        method: "POST".to_owned(),
+        document: true,
+        body: Some("field=value".to_owned()),
+    };
+
+    session.arm("t1");
+    let first = session.reserve_submit_for_new_tab("t1").unwrap();
+    session.disarm();
+    session.arm("t1");
+    let second = session.reserve_submit_for_new_tab("t1").unwrap();
+    session.disarm();
+
+    assert_eq!(
+        session.check_send("t1", &paused).await,
+        Verdict::Refuse("user_declined")
+    );
+    assert_eq!(
+        session.check_new_tab_send(Some(first), &paused).await,
+        Verdict::Go
+    );
+    session.finish_pending_new_tab(Some(first));
+    assert_eq!(
+        session.check_new_tab_send(Some(second), &paused).await,
+        Verdict::Go
+    );
+    session.finish_pending_new_tab(Some(second));
+    assert_eq!(
+        session.check_new_tab_send(Some(second), &paused).await,
+        Verdict::Refuse("user_declined")
+    );
+    assert_eq!(kinds(&asked).len(), 2);
 }
 
 #[tokio::test]

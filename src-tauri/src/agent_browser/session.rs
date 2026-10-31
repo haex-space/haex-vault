@@ -62,8 +62,8 @@ pub struct Session {
     name_notified: AtomicBool,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
-    /// The tab whose next changing request the user already allowed (the action that sends it).
-    armed: Mutex<Option<String>>,
+    /// Submit grants and their first new tab, when the action opens one.
+    armed: Mutex<SubmitGrants>,
     /// Questions a page set off that are open now (submitting, a new tab); an action waits for
     /// them before it reports.
     questions: AtomicUsize,
@@ -77,6 +77,20 @@ pub struct Session {
 struct Shown {
     tabs: Vec<BrowserTabView>,
     last_action: Option<BrowserLastAction>,
+}
+
+#[derive(Default)]
+struct SubmitGrants {
+    next_id: u64,
+    grants: Vec<SubmitGrant>,
+}
+
+struct SubmitGrant {
+    id: u64,
+    tab: String,
+    available: bool,
+    pending_new_tab: bool,
+    disarm_requested: bool,
 }
 
 /// The tabs of a session.
@@ -354,6 +368,21 @@ impl Session {
         if self.take_armed(tab) {
             return Verdict::Go;
         }
+        self.ask_to_submit(paused).await
+    }
+
+    /// The first changing request of a new tab may use only its opener's reserved grant.
+    pub(super) async fn check_new_tab_send(&self, grant: Option<u64>, paused: &Paused) -> Verdict {
+        if !submit::changing(&paused.method) {
+            return Verdict::Go;
+        }
+        if grant.is_some_and(|id| self.take_pending_armed(id)) {
+            return Verdict::Go;
+        }
+        self.ask_to_submit(paused).await
+    }
+
+    async fn ask_to_submit(&self, paused: &Paused) -> Verdict {
         if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
             return Verdict::Refuse(code);
         }
@@ -374,28 +403,91 @@ impl Session {
         }
     }
 
-    /// The user allowed an action of tab `tab` that submits: its next changing request goes
-    /// without a second question. Only that one request; [`Session::disarm`] ends it with the
-    /// action.
+    /// The user allowed an action of tab `tab` that submits. A new tab opened by that action may
+    /// reserve the grant until its first document decision completes.
     pub fn arm(&self, tab: &str) {
-        *self.armed.lock().unwrap_or_else(PoisonError::into_inner) = Some(tab.to_owned());
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        let id = armed.next_id;
+        armed.next_id = armed.next_id.wrapping_add(1);
+        armed.grants.push(SubmitGrant {
+            id,
+            tab: tab.to_owned(),
+            available: true,
+            pending_new_tab: false,
+            disarm_requested: false,
+        });
     }
 
     pub fn disarm(&self) {
-        self.armed
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(grant) = armed
+            .grants
+            .iter_mut()
+            .rev()
+            .find(|grant| !grant.disarm_requested)
+        {
+            grant.disarm_requested = true;
+        }
+        Self::clean_submit_grants(&mut armed);
     }
 
     fn take_armed(&self, tab: &str) -> bool {
         let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
-        if armed.as_deref() == Some(tab) {
-            *armed = None;
-            true
-        } else {
-            false
+        let Some(grant) = armed
+            .grants
+            .iter_mut()
+            .rev()
+            .find(|grant| grant.tab == tab && grant.available && !grant.disarm_requested)
+        else {
+            return false;
+        };
+        grant.available = false;
+        Self::clean_submit_grants(&mut armed);
+        true
+    }
+
+    /// Reserves the active submit grant for the first new tab this opener creates.
+    pub(super) fn reserve_submit_for_new_tab(&self, opener: &str) -> Option<u64> {
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        let grant = armed.grants.iter_mut().rev().find(|grant| {
+            grant.tab == opener
+                && grant.available
+                && !grant.pending_new_tab
+                && !grant.disarm_requested
+        })?;
+        grant.pending_new_tab = true;
+        Some(grant.id)
+    }
+
+    fn take_pending_armed(&self, id: u64) -> bool {
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(grant) = armed
+            .grants
+            .iter_mut()
+            .find(|grant| grant.id == id && grant.available && grant.pending_new_tab)
+        else {
+            return false;
+        };
+        grant.available = false;
+        Self::clean_submit_grants(&mut armed);
+        true
+    }
+
+    pub(super) fn finish_pending_new_tab(&self, id: Option<u64>) {
+        let Some(id) = id else {
+            return;
+        };
+        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(grant) = armed.grants.iter_mut().find(|grant| grant.id == id) {
+            grant.pending_new_tab = false;
         }
+        Self::clean_submit_grants(&mut armed);
+    }
+
+    fn clean_submit_grants(armed: &mut SubmitGrants) {
+        armed
+            .grants
+            .retain(|grant| grant.pending_new_tab || (grant.available && !grant.disarm_requested));
     }
 
     /// Asks `question`, which a page set off; the action that caused it waits for the answer.
