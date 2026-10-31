@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Integration test for tasks.md T023 (analyze finding G3, spec.md FR-013
 //! Edge Cases): disconnecting a `cli_delegate` provider while one of its
 //! responses is still streaming must not affect that in-flight response —
