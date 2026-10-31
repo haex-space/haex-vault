@@ -45,7 +45,9 @@ fn asked(scene: &Scene) -> Vec<(BrowserPromptKind, String)> {
 
 /// The agent's tabs: id, website and title.
 async fn tabs(scene: &Scene) -> Vec<Value> {
-    let listed = scene.auto("browser.tabs.list", json!({})).await.unwrap();
+    let listed = action("list tabs", scene.auto("browser.tabs.list", json!({})))
+        .await
+        .unwrap();
     content(&listed)["tabs"].as_array().unwrap().clone()
 }
 
@@ -129,7 +131,8 @@ fn partner_requests(scene: &Scene) -> Vec<String> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_tab_a_page_opens_is_checked_before_it_loads() {
-    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+    let Some(scene) = action("start browser scene", scene_with(true, SiteLevel::Operate)).await
+    else {
         return;
     };
     let page = action(
