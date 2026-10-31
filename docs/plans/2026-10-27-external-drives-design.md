@@ -41,10 +41,14 @@ contacts every time).
   - Linux: udisks2 over D-Bus with `zbus` (already in the lock file through other crates). No root;
     polkit asks through the desktop's agent where needed. `Filesystem.Mount`, `Encrypted.Unlock`,
     `Filesystem.Unmount` then `Drive.PowerOff`.
-  - macOS: the `diskutil` CLI with `-plist` output (`list`, `info`, `mount`, `eject`,
-    `apfs unlockVolume` with the passphrase on stdin, never as an argument).
-  - Windows: the `windows` crate for drive letters and volume information; eject through the
-    volume IOCTLs. BitLocker To Go: see open questions.
+  - macOS: the `diskutil` CLI with `-plist` output (`list`, `info`, `apfs list`, `mount`,
+    `unmount`, `eject`, `apfs unlockVolume` with the passphrase on stdin, never as an argument).
+    Listing runs `diskutil` again only when the disks in `/dev` or the entries of `/Volumes`
+    changed (a fingerprint gate); otherwise only the free space is read again.
+  - Windows: `windows-sys` for the volumes with a drive letter and their information; the kind from
+    the storage bus. Eject through the PnP manager (`CM_Request_Device_EjectW` with a veto buffer).
+    Internal drives offer no unmount, which would need an administrator, and volumes without a
+    letter do not appear. BitLocker To Go unlocks only in the system's own dialog (below).
   - Fallback without udisks2 (minimal distro, sandbox): today's mountinfo listing, no mount or eject.
 - **`DriveMonitor`**: starts with the first files window and stops with the last. Calls `list()`
   about every 2 s, diffs against the previous list (pure function) and emits `files://drives` on a
@@ -68,8 +72,11 @@ contacts every time).
 | `total`     | As today, only while mounted                                                                |
 | `free`      | As today, only while mounted                                                                |
 
-**Which unmounted drives appear**: all removable media, and internal partitions the system does not
-mark as system partitions (udisks `HintSystem`/`HintIgnore`), so EFI, recovery and swap stay hidden.
+**Which unmounted drives appear**: all removable media, and internal partitions with a file system,
+following gvfs's `should_include_volume`: udisks `HintIgnore` hides a partition, `HintSystem` does
+not (udisks sets it on every internal disk). EFI, recovery and swap stay hidden through
+`HintIgnore` and the missing file system. On macOS the APFS system roles, EFI, the stores of APFS
+containers and the system's own containers stay hidden.
 Each partition of a stick is its own entry, as in Nautilus. Unformatted partitions do not appear.
 
 **Frontend**
@@ -114,7 +121,11 @@ grants, as decided in [spec 052](../../specs/052-storage-credentials-picker/spec
   "Übertragung abbrechen und auswerfen?". If another program holds the drive: "wird noch von einem
   anderen Programm benutzt".
 - **Stick pulled without eject**: the monitor drops it; tabs on it jump to the nearest existing
-  folder and transfers abort with the reason (spec 044).
+  folder and transfers abort with the reason. Spec 044 described this jump but had not built it;
+  spec 064 implements it for every folder of the device.
+- **Restored tab on a drive that is plugged in but not open** (FR-025): the tab remembers the
+  drive's key and mount path, says "nicht eingehängt" or "gesperrt" with one button, and opens the
+  same folder afterwards, even at a new mount point. Nothing mounts unasked.
 
 ## Testing
 
@@ -130,9 +141,15 @@ grants, as decided in [spec 052](../../specs/052-storage-credentials-picker/spec
 - **Manual**: a real USB stick and a LUKS stick on Linux, encrypted APFS on macOS, BitLocker To Go on
   Windows, an OTG stick on Android (live update only).
 
-## Open questions for research
+## Open questions, answered
 
-- **BitLocker To Go without admin rights**: whether a password can unlock it programmatically. If
-  not, haex opens the system dialog (`bdeunlock.exe`) and Windows gets no password manager link.
-- **udisks2 on the CI runner**: whether `udisksctl loop-setup` works on the GitHub Ubuntu runner. If
-  not, the E2E scene stays manual.
+- **BitLocker To Go without admin rights**: no programmatic unlock with a password
+  (`Win32_EncryptableVolume` needs an administrator, `manage-bde` takes no password argument).
+  haex opens the system dialog through the shell verb `unlock-bde` (`bdeunlock.exe`), so Windows
+  gets no password manager link. A locked volume is recognisable without admin rights:
+  `GetVolumeInformationW` fails with `FVE_E_LOCKED_VOLUME` (spike T070).
+- **udisks2 on the CI runner**: works through a polkit rule for the runner user; the E2E scenarios
+  use vfat loop images, and LUKS images made with `cryptsetup` through `sudo -n`.
+- **Still open**: whether a USB stick on Windows must be ejected through its disk or its parent
+  device; a VHD on the runner cannot be ejected at all. The backend tries the disk first, then the
+  parent; the manual check settles it.
