@@ -66,8 +66,12 @@ test('every target holzi builds has an archive', () => {
   assert.throws(() => archiveFor('riscv64gc-unknown-linux-gnu'))
 })
 
-test('desktop links statically, mobile takes the shared builds', () => {
-  assert.match(archiveFor('x86_64-unknown-linux-gnu').name, /-static-lib\./)
+test('Linux isolates Sherpa from llama.cpp, other desktop targets link statically', () => {
+  assert.match(archiveFor('x86_64-unknown-linux-gnu').name, /-shared-lib\./)
+  assert.match(
+    archiveFor('aarch64-unknown-linux-gnu').name,
+    /-shared-cpu-lib\./,
+  )
   assert.match(archiveFor('x86_64-pc-windows-msvc').name, /-static-MT-/)
   assert.match(archiveFor('aarch64-linux-android').name, /-android\.tar/)
   assert.match(
@@ -79,7 +83,7 @@ test('desktop links statically, mobile takes the shared builds', () => {
 test('download URLs follow the release layout of sherpa-onnx-sys', () => {
   assert.equal(
     downloadUrl(archiveFor('x86_64-unknown-linux-gnu')),
-    `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}/sherpa-onnx-v${SHERPA_ONNX_VERSION}-linux-x64-static-lib.tar.bz2`,
+    `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}/sherpa-onnx-v${SHERPA_ONNX_VERSION}-linux-x64-shared-lib.tar.bz2`,
   )
   assert.match(
     downloadUrl(archiveFor('aarch64-apple-ios')),

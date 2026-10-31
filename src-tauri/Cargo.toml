@@ -323,12 +323,6 @@ anyhow = "1"
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
-# Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
-# `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
-# scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`
-# (`.cargo/config.toml`), so a version bump means new digests there. Without features it links
-# statically on desktop and shared on Android and iOS (the only builds those have).
-sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 # Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
 # above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
 # mistralrs 0.8.1 already resolves to, so only one candle version tree
@@ -418,6 +412,18 @@ plist = "1.10"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
+
+# Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
+# `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
+# scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`
+# (`.cargo/config.toml`), so a version bump means new digests there. Linux links Sherpa as a shared
+# library: its static ONNX Runtime was built with GCC 11 headers, and mixing it into the executable
+# alongside llama.cpp built by a newer GCC corrupts `std::regex` during VAD initialization.
+[target.'cfg(target_os = "linux")'.dependencies]
+sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false, features = ["shared"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 
 [dev-dependencies]
 # Mock runtime for IPC-level tests of the vault gateway (spec 013).

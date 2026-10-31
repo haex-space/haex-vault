@@ -22,19 +22,21 @@ export interface SherpaArchive {
 const v = SHERPA_ONNX_VERSION
 
 /**
- * Desktop links statically (onnxruntime inside, nothing to ship next to the binary); Android and
- * iOS only exist as shared builds, which `sherpa-onnx-sys` picks on its own.
+ * Desktop links statically where the packaged C++ runtimes share one toolchain. Linux uses the
+ * shared build to keep sherpa-onnx's GCC 11 ONNX Runtime objects isolated from llama.cpp, which is
+ * compiled with the host GCC. Android and iOS only exist as shared builds, which `sherpa-onnx-sys`
+ * picks on its own.
  */
 const BY_TARGET: Record<string, SherpaArchive> = {
   'x86_64-unknown-linux-gnu': {
-    name: `sherpa-onnx-v${v}-linux-x64-static-lib.tar.bz2`,
-    sha256: '55cfadf65ba50d0afc1a802b7a337942819e51c94a5b5a384def1978f7c70871',
-    size: 22_694_241,
+    name: `sherpa-onnx-v${v}-linux-x64-shared-lib.tar.bz2`,
+    sha256: '532c45bbd41036d83cd70606797529aa8086c2053395a58967736c727625b120',
+    size: 9_710_131,
   },
   'aarch64-unknown-linux-gnu': {
-    name: `sherpa-onnx-v${v}-linux-aarch64-static-lib.tar.bz2`,
-    sha256: 'b6c6090e40fd18d6812f04fe21260602cd1223d7b5e83ad39dab87ad7c1c031d',
-    size: 21_076_492,
+    name: `sherpa-onnx-v${v}-linux-aarch64-shared-cpu-lib.tar.bz2`,
+    sha256: '15bd737eae467da32ec97e3740a329a535fd21e33caca4f327b0081451d11533',
+    size: 12_500_491,
   },
   'x86_64-apple-darwin': {
     name: `sherpa-onnx-v${v}-osx-x64-static-lib.tar.bz2`,
