@@ -1065,6 +1065,8 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: 1.98.1
+          # The drives step lints the macOS backend (spec 064 T069).
+          components: clippy
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
