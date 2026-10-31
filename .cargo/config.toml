@@ -3,3 +3,15 @@
 # after checking each SHA-256 (pins in scripts/lib/sherpaOnnxArchives.ts).
 [env]
 SHERPA_ONNX_ARCHIVE_DIR = { value = "src-tauri/target/sherpa-onnx-archives", relative = true }
+# Spec 070 R3: ggml for the x86-64 AVX2 baseline. Without these switches it builds its plain C kernels,
+# which run Qwen3 4B several times slower; a processor without them gets no llama.cpp (`llm/llamacpp/cpu.rs`).
+# Off x86 ggml ignores them. A target dir built before a change keeps its ggml until
+# `cargo clean -p llama-cpp-sys-2`: the sys crate does not watch GGML_* variables it has not seen yet.
+GGML_AVX = "ON"
+GGML_AVX2 = "ON"
+GGML_FMA = "ON"
+GGML_F16C = "ON"
+GGML_BMI2 = "ON"
+# Spec 070 T035: llama.cpp's build script builds for Android API 28 unless told otherwise; the app's
+# `minSdk` is 26 (spec 043).
+ANDROID_API_LEVEL = "26"

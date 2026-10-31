@@ -144,6 +144,55 @@ there. One consequence worth knowing: on a roomy desktop the tier suggestion is 
 which in a build with llama.cpp is Qwen3.5 4B (3.0 GB) and not the Qwen3 4B profile. The profile itself
 stays Qwen3 4B until the decision of US5.
 
+## R3 – CPU kernels (settled, 2026-10-31)
+
+Question: how does a release build get fast ggml kernels without being built for the build machine's CPU?
+
+**Finding.** Without `target-cpu`, the sys crate sets `GGML_NATIVE=OFF` and turns on only the extensions Rust's
+target has, which for `x86_64-unknown-linux-gnu` is SSE2. ggml then has no x86 kernel for the K-quants at all:
+in such a binary `ggml_vec_dot_q4_K_q8_K` is a jump to `ggml_vec_dot_q4_K_q8_K_generic`, plain C. Every
+build so far (CI, the evaluations' engine, a release) ran like that on the CPU. A second finding: the engine
+set no thread count, so llama.cpp used its default of 4.
+
+**Measurement** (T038). Qwen3 4B Q4_K_M on the CPU only, i7-12800HX (8 performance and 8 efficiency cores,
+24 threads), a prompt of about 560 tokens and 128 new tokens, `measures_the_speed` in
+`tests/llamacpp_inference.rs`, second of two rounds. Each variant was built cold in its own target dir with
+`LLAMA_LIB_PROFILE=Release`, and the kernel was checked in the binary (60 `ymm`/FMA instructions in the
+AVX2 build, a jump to the generic kernel in the other). The machine was not quiet (load 11 to 39 from
+other builds), so the figures are rough; the gap is not.
+
+| ggml build      | Threads | First text after | Tokens/s after it |
+| --------------- | ------- | ---------------- | ----------------- |
+| as before (C)   | 4       | 94.3 s           | 1.5               |
+| as before (C)   | 8       | 45.8 s           | 4.2               |
+| as before (C)   | 16      | 51.6 s           | 5.6               |
+| as before (C)   | 24      | 52.6 s           | 3.2               |
+| AVX2, FMA, F16C | 4       | 11.7 s           | 9.6               |
+| AVX2, FMA, F16C | 8       | 5.3 s            | 11.1              |
+| AVX2, FMA, F16C | 16      | 4.8 s            | 11.4              |
+| AVX2, FMA, F16C | 24      | 4.4 s            | 11.2              |
+
+AVX2 reads the prompt 8 to 18 times faster and generates 2 to 6 times faster. Reading the prompt scales
+with threads; generating stops gaining after about eight, where memory bandwidth is the limit.
+
+**Decision (operator, 2026-10-31): a fixed AVX2 baseline, not runtime dispatch.** `.cargo/config.toml`
+passes `GGML_AVX`, `GGML_AVX2`, `GGML_FMA`, `GGML_F16C` and `GGML_BMI2` to the sys crate, which forwards
+`GGML_*` variables to CMake; ggml reads them only for x86, so Android and Apple builds on ARM are untouched.
+Runtime dispatch (`dynamic-backends`) would cover every CPU and use AVX-512 where it exists, but it needs
+`dynamic-link`: llama.cpp as shared libraries next to the binary in every installer, which undoes R1's one
+static binary. The price of the baseline is processors without AVX2 (Intel before Haswell, 2013; AMD before
+Excavator, 2015): `llm/llamacpp/cpu.rs` compares what ggml was built with (`ggml_cpu_has_*`) against the
+processor, and where something is missing the engine choice refuses llama.cpp, so the catalog hides
+Qwen3.5 there and mistralrs models keep working. A unit test pins the baseline, because a build without
+the switches fails nothing and is only slow.
+
+Threads now default to one per physical core (`sysinfo`), for both the prompt and the generation.
+
+Two build traps found on the way: the sys crate prints `rerun-if-env-changed` only for the `GGML_*` variables
+present at its last run, and CMake keeps an option in its cache once set. A target dir built before the
+switches keeps the C kernels until `cargo clean -p llama-cpp-sys-2`; the `llamacpp` CI leg got a new cache
+key for that reason, and the unit test fails on such a stale build instead of letting it pass slowly.
+
 ## R4 – Gemma 4 call syntax (settled, 2026-10-31)
 
 Read from the template in `gemma-4-E4B-it-Q4_K_M.gguf` (fixture `gemma4.jinja`) and llama.cpp's reader

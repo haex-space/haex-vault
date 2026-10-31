@@ -154,8 +154,10 @@ F; US5 is G.
       indicators as with mistralrs. Decide whether phones use llama.cpp at all (they load nothing new).
 - [ ] T037 iOS: build on a Mac with Metal; `llama-cpp-sys-2`'s `build.rs` has no iOS branch, so patch it
       upstream or in a fork. If it cannot be done, iOS keeps mistralrs and the gap is filed (FR-006).
-- [ ] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose
+- [x] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose
       runtime dispatch (`dynamic-backends`) or a fixed baseline; apply it to every desktop build.
+      Result (`research.md` R3): a fixed AVX2 baseline in `.cargo/config.toml`, a processor without it gets
+      no llama.cpp (`llm/llamacpp/cpu.rs`); threads default to the physical cores.
 - [ ] T039 Windows and macOS: the build and a load of Qwen3 0.6B. A CI leg if one exists for them.
 - [ ] T040 Android emulator e2e (spec 043 rig): load Qwen3 0.6B through the new engine and answer one
       prompt; the scenario goes into `scripts/e2e/scenarios/`.
