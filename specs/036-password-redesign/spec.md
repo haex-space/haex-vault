@@ -83,6 +83,15 @@ Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault 2.x @
   und das Menü bleiben. Die Ansicht des Eintrags zeigt über sich die Brotkrumen wie die Liste,
   mit dem Titel des Eintrags als letztem Teil (Betreiber).
 
+### Session 2026-10-31
+
+- Q: How does the user configure which input fields of a web page the browser extension fills
+  with a value of the entry (the autofill aliases named in FR-001)? → A: In the tab Extra, as in
+  HaexVault 2.x: one row per fillable value of the entry (user name, password, TOTP code and
+  every custom field), each holding a list of input field names. Until now holzi stored and
+  imported the aliases and handed them to the extension (spec 049), but showed them nowhere
+  (operator, after haex-pass-browser missed the user name field on huggingface.co).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Eintrag in Tabs lesen und bearbeiten (Priority: P1)
@@ -409,6 +418,9 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
 
 ### Edge Cases
 
+- **A custom field with autofill aliases is renamed or removed.** The aliases stay under the
+  old name as their own row in the group (FR-001a); the extension never sees a field of that
+  name, so they do nothing until the user removes them or names a field like that again.
 - **Wischen im Bearbeiten.** Wer in einem Textfeld Text markiert oder den Cursor mit dem
   Finger zieht, wechselt dabei nie den Tab; ein Wischen, das auf einem Eingabefeld, einem
   Code oder einem waagerecht scrollbaren Bereich beginnt, gehört diesem Element.
@@ -463,6 +475,22 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   Details enthalten Titel, Benutzername, Passwort, Adresse, Tags, Notiz, Ablaufdatum, Symbol,
   Farbe und TOTP samt Live-Code und Restzeit; Extra enthält eigene Felder, Anhänge, Passkeys
   und Autofill-Aliase. Das ersetzt die eine lange Seite aus 034.
+- **FR-001a** (amendment 2026-10-31): The autofill aliases of an entry MUST be shown and
+  edited in the tab Extra as their own group. The editor MUST offer one row per fillable value
+  of the entry: user name (`username`), password (`password`), TOTP code (`otp`) and every
+  custom field under its name. Each row holds a list of input field names (the `name`, `id` or
+  `autocomplete` of an input on a web page); the user adds a name with Enter and removes it
+  with its remove button; a name already in the row, compared without case, is not added a
+  second time. A row without names means the browser extension uses its own default names; the
+  hint of the group says so and holzi does not list the extension's defaults. Aliases stored
+  for a key that no longer has a field (a custom field renamed or removed) MUST stay as their
+  own row under that key until the user removes their names. In view mode only rows with names
+  appear, and the group is hidden when there are none (FR-005). The aliases are stored as the
+  JSON object `{ "<key>": ["<name>", …] }` without empty rows, or as nothing when every row is
+  empty; a stored value that is not such an object is shown as far as it can be read and is
+  only rewritten when the user changes the aliases. A change goes into the update only when the
+  aliases differ from the stored ones (034 R7) and is part of the history like every other
+  field.
 - **FR-002**: Zwischen den Tabs MUSS der Nutzer durch Tippen auf den Tab und durch eine
   waagerechte Wischgeste wechseln können; die Wischgeste MUSS dem Finger folgen, vom ersten
   zum letzten Tab nicht weiterführen und mit der Einstellung „Bewegung reduzieren“ ohne
