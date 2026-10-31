@@ -56,6 +56,7 @@ let
       export ANDROID_SDK_ROOT="$ANDROID_HOME"
       export NDK_HOME="$ANDROID_HOME/ndk/${ndkVersion}"
       export ANDROID_NDK_ROOT="$NDK_HOME"
+      export ANDROID_NDK="$NDK_HOME"
       export JAVA_HOME=${pkgs.jdk17.home}
     ''
   );
@@ -141,9 +142,30 @@ let
     installPhase = "install -Dm755 chromedriver $out/bin/chromedriver";
   };
   emulatorHost = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isx86_64;
+
+  # llama.cpp's CUDA build (holzi feature `llm-llamacpp-cuda`, spec 070 R1) links cudart and cuBLAS
+  # statically, so the app needs only the NVIDIA driver at run time. `llama-cpp-sys-2` looks for the
+  # static libraries in `$CUDA_LIBRARY_PATH/lib64`; nixpkgs' toolkit has no `lib64` and keeps static
+  # cuBLAS in a separate output, so this directory gathers them. The same toolkit as `cudatoolkit` in
+  # the package fragment, and only where that one exists.
+  cudaHost = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isx86_64;
+  cudaStatic = pkgs.runCommand "holzi-cuda-static" { } ''
+    mkdir -p $out/lib64
+    ln -s ${pkgs.cudatoolkit}/include $out/include
+    ln -s ${pkgs.cudatoolkit}/lib/libcudart_static.a ${pkgs.cudatoolkit}/lib/libculibos.a \
+      ${pkgs.cudatoolkit}/lib/stubs $out/lib64/
+    ln -s ${pkgs.cudaPackages.libcublas.static}/lib/libcublas_static.a \
+      ${pkgs.cudaPackages.libcublas.static}/lib/libcublasLt_static.a $out/lib64/
+  '';
+  cuda-env = pkgs.makeSetupHook { name = "holzi-cuda-env"; } (
+    pkgs.writeText "holzi-cuda-env.sh" ''
+      export CUDA_LIBRARY_PATH=${cudaStatic}
+    ''
+  );
 in
 # WebKitGTK and Xvfb are Linux-only; the other platforms have their own drivers.
 pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ tauri-driver webkit-webdriver ]
 ++ pkgs.lib.optionals androidHost [ androidSdk android-env ]
 ++ pkgs.lib.optionals emulatorHost [ holzi-emulator chromedriver ]
+++ pkgs.lib.optionals cudaHost [ cuda-env ]
 ++ [ iroh-relay ]
