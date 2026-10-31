@@ -126,8 +126,12 @@ async fn loads_and_answers_in_pieces() {
     println!("{}", out.content);
     assert!(!out.content.trim().is_empty(), "no answer");
     assert!(out.chunks > 3, "the answer came in {} chunks", out.chunks);
-    assert_eq!(out.finish_reason.as_deref(), Some("length"));
-    assert_eq!(out.completion_tokens, Some(64));
+    // A small model may finish its list before the limit.
+    match out.finish_reason.as_deref() {
+        Some("length") => assert_eq!(out.completion_tokens, Some(64)),
+        Some("stop") => assert!(out.completion_tokens.is_some_and(|n| n > 0 && n < 64)),
+        other => panic!("finish reason {other:?}"),
+    }
 }
 
 #[tokio::test]
