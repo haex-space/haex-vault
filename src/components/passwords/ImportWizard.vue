@@ -430,7 +430,11 @@ onBeforeUnmount(() => {
             </UiButton>
           </SettingsRow>
           <li class="px-4 pb-4">
-            <UiProgress class="bg-background" :value="percent" />
+            <UiProgress
+              class="bg-background"
+              :value="percent"
+              :label="t('passwords.import.running')"
+            />
           </li>
         </SettingsGroup>
         <p
