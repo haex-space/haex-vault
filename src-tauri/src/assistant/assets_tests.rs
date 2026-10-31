@@ -94,14 +94,15 @@ fn the_vad_model_is_written_once_and_repaired() {
 #[test]
 fn concurrent_vad_model_writes_publish_a_complete_model() {
     let dir = tempdir().expect("temp dir");
-    let target = dir.path().join("silero-vad");
+    let model_dir = dir.path().join("silero-vad");
+    let target = model_dir.join("silero_vad.int8.onnx");
     let barrier = Arc::new(Barrier::new(8));
     let writers: Vec<_> = (0..8)
         .map(|_| {
-            let (target, barrier) = (target.clone(), Arc::clone(&barrier));
+            let (model_dir, barrier) = (model_dir.clone(), Arc::clone(&barrier));
             thread::spawn(move || {
                 barrier.wait();
-                write_vad_model(&target).expect("writes model")
+                write_vad_model(&model_dir).expect("writes model")
             })
         })
         .collect();
