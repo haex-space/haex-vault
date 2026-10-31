@@ -218,6 +218,11 @@ impl NativeExecutor for BrowserTools {
         CHANGING
     }
 
+    /// Each external agent gets its own browser session (spec 065).
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
     /// Runs one tool; a stop of the session ends it within a second. Its questions hear the stop
     /// first and close, so no dialog stays behind.
     async fn run(

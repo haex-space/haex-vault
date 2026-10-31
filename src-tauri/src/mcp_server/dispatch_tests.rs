@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::agent_log::Outcome;
-use super::dispatch::extension_result;
+use super::extension_tools::result as extension_result;
 use crate::chat::tools::action_bridge::ACTION_FAILED_MESSAGE;
 use crate::chat::tools::{Tool, ToolResult};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;

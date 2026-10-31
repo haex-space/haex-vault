@@ -185,3 +185,22 @@ test('managing sync rules is off until the user turns it on, per agent and apart
     ],
   )
 })
+
+test('one external agent is listed alone, without rows and without the device (spec 021 US5)', () => {
+  const agents = agentFiles(
+    [
+      row(BUILTIN_AGENT, 'storage', 's1', 'readWrite'),
+      row('other', 'device', '', 'granted'),
+    ],
+    STORAGES,
+    'claude',
+  )
+  assert.deepEqual(
+    agents.map((agent) => [agent.agentId, agent.device, agent.contacts]),
+    [['claude', false, 'ask']],
+  )
+  assert.deepEqual(
+    agents[0]?.storages.map((storage) => storage.status),
+    ['ask', 'ask'],
+  )
+})

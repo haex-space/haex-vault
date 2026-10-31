@@ -18,7 +18,8 @@ use uuid::Uuid;
 
 use super::agent_log::{self, NewEntry, Outcome};
 use super::connection::now_millis;
-use super::grants;
+use super::extension_tools;
+use super::grants::{self, DataRights, Reach};
 use super::hello::CloseReason;
 use super::live::Link;
 use super::prompts::{
@@ -29,11 +30,12 @@ use super::redact::{redact, target_of};
 use super::server::{Core, Notice};
 use super::session::SessionAgent;
 use crate::caller::Caller;
-use crate::chat::tools::action_bridge::{ActionCaller, ActionReply, ACTION_FAILED_MESSAGE};
+use crate::chat::tools::action_bridge::{ActionCaller, ActionReply};
 use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::Decision;
-use crate::chat::tools::{RiskClass, Tool as ChatTool, ToolResult};
+use crate::chat::tools::{RiskClass, Tool as ChatTool};
+use crate::files::permissions;
 use crate::prompt_park::PromptEnd;
 
 /// What the agent learns when its rights do not cover a call, or the tool does not exist.
@@ -53,26 +55,6 @@ pub fn tool_of(def: &AgentActionDef) -> Tool {
     )
 }
 
-/// The tool an agent sees for a tool of an extension: the name, description and schema the built-in
-/// agent gets (US4).
-pub fn extension_tool_of(tool: &dyn ChatTool) -> Tool {
-    let schema = match tool.input_schema() {
-        Value::Object(map) => map,
-        _ => Map::new(),
-    };
-    let risk = tool.risk_class();
-    Tool::new(
-        tool.name().to_owned(),
-        tool.description().to_owned(),
-        schema,
-    )
-    .with_annotations(
-        ToolAnnotations::new()
-            .read_only(risk == RiskClass::Safe)
-            .destructive(risk == RiskClass::Risky),
-    )
-}
-
 /// A refusal in the shape of the contract.
 pub fn error_result(code: &str, message: &str, extra: Option<(&str, Value)>) -> CallToolResult {
     let mut body = json!({ "code": code, "message": message });
@@ -86,7 +68,7 @@ pub fn not_allowed() -> CallToolResult {
     error_result("not_allowed", NOT_ALLOWED_MESSAGE, None)
 }
 
-fn unavailable() -> CallToolResult {
+pub(super) fn unavailable() -> CallToolResult {
     error_result("unavailable", "holzi could not run the action now.", None)
 }
 
@@ -163,6 +145,31 @@ fn find<'a>(
         })
 }
 
+/// What decides the tools of `agent` besides its stored rights, as the vault says now: its rows of
+/// `agent_file_permissions` (US5) and the native actions that serve external agents. A failed read
+/// opens no data scope.
+pub async fn reach(core: &Core, agent: Uuid) -> Reach {
+    let id = agent.to_string();
+    let data = core
+        .db
+        .read(move |q| {
+            Ok((
+                permissions::grants_of(q, &id)?,
+                permissions::contacts_of(q, &id)?,
+            ))
+        })
+        .await
+        .map(|(files, contacts)| DataRights::of(&files, &contacts))
+        .unwrap_or_else(|error| {
+            log::warn!("mcp server: could not read an agent's file permissions: {error}");
+            DataRights::default()
+        });
+    Reach {
+        data,
+        native: core.native.external_ids(),
+    }
+}
+
 /// Runs `tool_name` for `agent` when its rights and its approval mode let it, and logs the call.
 /// `seen` says the agent's tool list held the tool during this connection: when it is gone since,
 /// its extension was removed and the call is `unavailable` (US4 scenario 4).
@@ -177,6 +184,7 @@ pub async fn call(
 ) -> CallToolResult {
     let catalog = core.catalog.snapshot();
     let tools = core.extension_tools.snapshot();
+    let reach = reach(core, agent.id).await;
     let input = Value::Object(arguments.unwrap_or_default());
     let known = find(&catalog, &tools, tool_name);
     let shown = redact(&known.map_or(Value::Null, Callee::input_schema), &input);
@@ -188,7 +196,7 @@ pub async fn call(
         outcome: Outcome::DeniedRights,
         asked: false,
     };
-    let callee = match grants::check(&agent.rights, &catalog, tool_name) {
+    let callee = match grants::check(&agent.rights, &reach, &catalog, tool_name) {
         Some(def) => Callee::Action(def),
         None => match grants::check_extension_tool(&agent.rights, &tools, tool_name) {
             Some(tool) => Callee::Extension(tool),
@@ -343,7 +351,8 @@ async fn run(
         Callee::Action(def) => def,
         Callee::Extension(tool) => {
             // The extension's frame learns nothing about the agent (research R5).
-            let (result, outcome) = extension_result(tool.execute(input, cancel.clone()).await);
+            let (result, outcome) =
+                extension_tools::result(tool.execute(input, cancel.clone()).await);
             entry.outcome = outcome;
             return result;
         }
@@ -463,31 +472,5 @@ pub fn into_result(reply: ActionReply) -> (CallToolResult, Outcome) {
                 Outcome::Error,
             ),
         },
-    }
-}
-
-/// An extension tool's answer as the agent sees it (spec 018 `tool.rs`): its data on success; a
-/// connection holzi could not make, a stop or a timeout is `unavailable`; an error of the extension
-/// itself keeps the extension's data, which the agent reads as data, never as instructions.
-pub fn extension_result(result: ToolResult) -> (CallToolResult, Outcome) {
-    let body = serde_json::from_str::<Value>(&result.content)
-        .unwrap_or_else(|_| json!({ "data": result.content }));
-    if !result.is_error {
-        return (CallToolResult::structured(body), Outcome::Ok);
-    }
-    match body["error"].as_str() {
-        Some("extension_unavailable" | "tool_unavailable" | "cancelled" | "timeout") => {
-            (unavailable(), Outcome::Unavailable)
-        }
-        Some(_) => (
-            error_result("failed", ACTION_FAILED_MESSAGE, None),
-            Outcome::Error,
-        ),
-        None => {
-            let mut answer = json!({ "code": "failed", "message": ACTION_FAILED_MESSAGE });
-            answer["extension"] = body["extension"].clone();
-            answer["data"] = body["data"].clone();
-            (CallToolResult::structured_error(answer), Outcome::Error)
-        }
     }
 }

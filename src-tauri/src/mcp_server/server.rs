@@ -21,6 +21,7 @@ use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPr
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::native_action::NativeExecutors;
+use crate::vault_events::VaultChanges;
 use crate::vault_gate::VaultDb;
 
 /// What the server tells the window.
@@ -84,6 +85,8 @@ pub struct StartArgs {
     pub catalog: ActionCatalog,
     /// The tools of extensions (spec 018), offered per agent by its grants (US4).
     pub extension_tools: ExtensionToolCatalog,
+    /// The tables each commit changed; a change of `agent_file_permissions` changes tool lists (US5).
+    pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     /// The Rust executors of native catalog actions (ADR 0011).
     pub native: NativeExecutors,
@@ -99,6 +102,7 @@ pub struct Core {
     pub device: Uuid,
     pub catalog: ActionCatalog,
     pub extension_tools: ExtensionToolCatalog,
+    pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     pub native: NativeExecutors,
     pub prompts: RegistrationPrompts,
@@ -182,6 +186,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         device: args.device,
         catalog: args.catalog,
         extension_tools: args.extension_tools,
+        vault_changes: args.vault_changes,
         bridge: args.bridge,
         native: args.native,
         prompts: args.prompts,

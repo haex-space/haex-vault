@@ -3,10 +3,12 @@
 //! call. The rights group "holzi bedienen" (`operate`) has per scope of the action catalog nothing,
 //! reading, or reading and changing; the group `browser` (spec 065) opens the browser tools and
 //! names the websites an agent may read or operate; the group `extension` names the extensions
-//! whose tools it sees (US4, FR-018). The scope `guardrails` is never a right. Later groups (files,
-//! passwords, commands) add fields that are off when missing (FR-008).
+//! whose tools it sees (US4, FR-018). Files and contacts follow the agent's rows in
+//! `agent_file_permissions` ([`DataRights`], US5, FR-020), and a native action is offered only when
+//! its executor serves external agents. The scope `guardrails` is never a right. Later groups
+//! (passwords, commands) add fields that are off when missing (FR-008).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -15,8 +17,12 @@ use uuid::Uuid;
 
 use crate::agent_browser::sites::Site;
 use crate::chat::action_commands::GUARDRAILS_SCOPE;
-use crate::chat::tools::action_tool::{ActionEffect, AgentActionDef};
+use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
 use crate::chat::tools::Tool;
+use crate::contacts::access::GrantAction;
+use crate::contacts::agent::grants_from;
+use crate::files::access::{AgentGrants, DeviceGrant, StorageGrant};
+use crate::files::permissions::AgentFileStatus;
 
 /// The scopes of the group "holzi bedienen" (`src/lib/actions/scopes.ts`): the window manager, the
 /// chat and the settings an agent may reach. Files, contacts and passwords are their own groups.
@@ -172,15 +178,78 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
     Ok(())
 }
 
+/// Which data scopes the rows of an agent in `agent_file_permissions` open (research R3, FR-020):
+/// a scope's tools appear once any row covers its kind and action; the service checks the reach of
+/// each call as before and asks for a storage without a row. An external agent has no row until
+/// the user grants one, not even the device.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataRights {
+    pub files_read: bool,
+    pub files_write: bool,
+    pub contacts_read: bool,
+    pub contacts_write: bool,
+}
+
+impl DataRights {
+    pub fn of(files: &AgentGrants, contacts: &[(String, AgentFileStatus)]) -> Self {
+        let device = files.device == Some(DeviceGrant::Granted);
+        let stored = files
+            .storages
+            .values()
+            .chain(files.folders.values().map(|folder| &folder.grant));
+        let (mut read, mut write) = (device, device);
+        for grant in stored {
+            read |= *grant != StorageGrant::Denied;
+            write |= *grant == StorageGrant::ReadWrite;
+        }
+        let contact_grants = grants_from(contacts);
+        Self {
+            files_read: read,
+            files_write: write,
+            contacts_read: !contact_grants.is_empty(),
+            contacts_write: contact_grants
+                .iter()
+                .any(|grant| grant.action == GrantAction::ReadWrite),
+        }
+    }
+
+    /// Whether the data scope `scope` is open; `None` for a scope that is no data scope.
+    fn covers(self, scope: &str) -> Option<bool> {
+        match scope {
+            "files.read" => Some(self.files_read),
+            "files.write" => Some(self.files_write),
+            "contacts.read" => Some(self.contacts_read),
+            "contacts.write" => Some(self.contacts_write),
+            _ => None,
+        }
+    }
+}
+
+/// What decides an agent's tools besides its stored rights, read fresh for each list and call.
+#[derive(Debug, Clone, Default)]
+pub struct Reach {
+    pub data: DataRights,
+    /// The native actions whose executor serves external agents.
+    pub native: HashSet<&'static str>,
+}
+
 /// Whether `rights` cover `def`. Whether a covered call asks first is the approval mode's matter
 /// (`prompts::call_gate`).
-fn covers(rights: &Rights, def: &AgentActionDef) -> bool {
+fn covers(rights: &Rights, reach: &Reach, def: &AgentActionDef) -> bool {
     if def.scope == GUARDRAILS_SCOPE {
+        return false;
+    }
+    // A native executor that serves only the built-in agent would refuse the call.
+    if def.runner == Some(ActionRunner::Native) && !reach.native.contains(def.action_id.as_str()) {
         return false;
     }
     // The browser tools check the website of each call themselves (spec 065 research R8).
     if def.scope == BROWSER_SCOPE {
         return rights.browser.is_some();
+    }
+    // Files and contacts: their executors check each call against the same rows.
+    if let Some(open) = reach.data.covers(&def.scope) {
+        return open && def.runner == Some(ActionRunner::Native);
     }
     match rights.operate.get(&def.scope) {
         None => false,
@@ -190,21 +259,29 @@ fn covers(rights: &Rights, def: &AgentActionDef) -> bool {
 }
 
 /// The actions of `catalog` an agent with `rights` sees (FR-012, FR-013).
-pub fn offers<'a>(rights: &Rights, catalog: &'a [AgentActionDef]) -> Vec<&'a AgentActionDef> {
-    catalog.iter().filter(|def| covers(rights, def)).collect()
+pub fn offers<'a>(
+    rights: &Rights,
+    reach: &Reach,
+    catalog: &'a [AgentActionDef],
+) -> Vec<&'a AgentActionDef> {
+    catalog
+        .iter()
+        .filter(|def| covers(rights, reach, def))
+        .collect()
 }
 
 /// The action behind `tool_name`, if the agent may call it (FR-014); checked again on every call,
 /// independent of the list the agent saw.
 pub fn check<'a>(
     rights: &Rights,
+    reach: &Reach,
     catalog: &'a [AgentActionDef],
     tool_name: &str,
 ) -> Option<&'a AgentActionDef> {
     catalog
         .iter()
         .find(|def| def.tool_name == tool_name)
-        .filter(|def| covers(rights, def))
+        .filter(|def| covers(rights, reach, def))
 }
 
 /// One row of `haex_mcp_agent_grants` in the group `browser` (spec 065 data-model.md): key, level

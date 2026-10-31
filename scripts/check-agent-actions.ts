@@ -138,8 +138,8 @@ test('every built-in-callable read action runs for a built-in agent naming its t
   }
 })
 
-/** The ids of the Rust executors of the file, file share and contact share actions
- * (`FILE_ACTION_IDS`, `SHARE_ACTION_IDS`). */
+/** The ids of the Rust executors of the native actions (`FILE_ACTION_IDS`, `SHARE_ACTION_IDS`,
+ * `CONTACT_ACTION_IDS`, …). */
 function nativeExecutorIds(): string[] {
   const ids = (file: string, name: string) => {
     const source = readFileSync(
@@ -155,6 +155,7 @@ function nativeExecutorIds(): string[] {
   return [
     ...ids('files/agent/exec.rs', 'FILE_ACTION_IDS'),
     ...ids('files/agent/shares.rs', 'SHARE_ACTION_IDS'),
+    ...ids('contacts/agent_actions.rs', 'CONTACT_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
     ...ids('agent_browser/executor.rs', 'BROWSER_ACTION_IDS'),
