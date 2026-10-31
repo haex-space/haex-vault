@@ -9,7 +9,7 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | Command                       | Eingabe                                                         | Ergebnis                                             | Spec           |
 | ----------------------------- | --------------------------------------------------------------- | ---------------------------------------------------- | -------------- |
 | `assistant_get_state`         | –                                                               | `AssistantStateWire`                                 | FR-003         |
-| `assistant_readiness`         | –                                                               | `{missing: Missing[]}`                               | FR-005         |
+| `assistant_readiness`         | `{language}`                                                    | `{missing: Missing[]}`                               | FR-005         |
 | `assistant_set_enabled`       | `{enabled: bool}`                                               | `AssistantStateWire`                                 | FR-001, FR-005 |
 | `assistant_set_muted`         | `{muted: bool}`                                                 | `AssistantStateWire`                                 | US9            |
 | `assistant_talk`              | –                                                               | –                                                    | FR-011         |
@@ -34,7 +34,12 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `tts_model_import`            | `{source, name, languages, licenseNote, rightsConfirmed: true}` | `VoiceOption[]`                                      | FR-051         |
 | `assistant_transcript_list`   | `{threadId}`                                                    | `TranscriptEntryWire[]`                              | FR-048         |
 | `assistant_transcript_search` | `{query, cursor?, limit?}`                                      | `{entries: {threadId, seq, snippet}[], nextCursor?}` | FR-048         |
-| `download_assistant_assets`   | –                                                               | – (Fortschritt als Ereignis)                         | FR-005         |
+| `download_assistant_assets`   | `{language}`                                                    | – (Fortschritt als Ereignis)                         | FR-005         |
+
+`language` ist die Sprache des Fensters; sie bestimmt, welche Stimme bereit sein muss (eine der sechs
+Sprachen, sonst Englisch). `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
+Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Das Standard-Wake-Word meldet
+`assistant_readiness` als fehlend, bis PR D sein Modell liefert.
 
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
 `PrefScope::Device`; der Assistent beobachtet die Schlüssel und übernimmt Änderungen ohne Neustart

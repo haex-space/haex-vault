@@ -5,7 +5,7 @@ use crate::stt::fixture_wav::read_fixture_wav;
 use crate::stt::SAMPLE_RATE_HZ;
 
 fn model() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/fixtures/silero_vad.int8.onnx")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/models/silero_vad.int8.onnx")
 }
 
 fn speech() -> Vec<f32> {
@@ -81,7 +81,7 @@ fn finish_returns_running_speech_and_starts_over() {
 
 #[test]
 fn a_missing_model_is_an_error_not_a_crash() {
-    let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/fixtures/nope.onnx");
+    let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/models/nope.onnx");
     assert!(matches!(
         PauseDetector::new(&missing, 800),
         Err(VadError::ModelMissing)

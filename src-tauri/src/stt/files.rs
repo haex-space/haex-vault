@@ -60,7 +60,7 @@ pub fn is_complete_model(dir: &Path, engine: SttEngine) -> bool {
 /// truncated or otherwise corrupt document. Weight files intentionally keep
 /// the cheap non-empty check; hashing them on every listing would turn
 /// discovery into a full model read.
-fn is_complete_artifact(path: &Path, filename: &str) -> bool {
+pub(crate) fn is_complete_artifact(path: &Path, filename: &str) -> bool {
     if !is_complete_file(path) {
         return false;
     }
