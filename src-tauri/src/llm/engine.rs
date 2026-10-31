@@ -58,9 +58,14 @@ pub fn engine_for(architecture: &str) -> Result<Engine, EngineError> {
     beyond_mistralrs(architecture)
 }
 
-/// What takes an architecture mistralrs does not know: llama.cpp where it is compiled in.
+/// What takes an architecture mistralrs does not know: llama.cpp where it is compiled in and the processor
+/// runs it (spec 070 R3).
 #[cfg(feature = "llm-llamacpp")]
 fn beyond_mistralrs(_architecture: &str) -> Result<Engine, EngineError> {
+    let missing = crate::llm::llamacpp::cpu::missing_features();
+    if !missing.is_empty() {
+        return Err(crate::llm::llamacpp::LoadError::Cpu(missing).into());
+    }
     Ok(Engine::LlamaCpp)
 }
 
@@ -111,6 +116,7 @@ pub async fn load_local(
                 crate::llm::llamacpp::LoadOptions {
                     context_window: request.context_window,
                     gpu_layers: None,
+                    threads: None,
                 },
             )
             .await?;

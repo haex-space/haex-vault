@@ -6,11 +6,13 @@
 //! engine (PR D).
 //!
 //! - `model`: the backend of the process, the load and the memory plan (`memory`).
+//! - `cpu`: which processors run this build's ggml, and the thread count.
 //! - `generate`: the token loop, with cancelling.
 //! - `streaming`: generated text into reasoning, content and tool calls (`formats`).
 //! - `adapter`: `LlamaCppAdapter` over all of it.
 
 pub mod adapter;
+pub mod cpu;
 pub mod formats;
 pub mod generate;
 pub mod memory;

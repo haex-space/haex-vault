@@ -57,7 +57,13 @@ llm-metal = ["llm-cpu", "mistralrs/metal"]
 # llama.cpp as a second local engine for the architectures mistralrs cannot load (spec 070, ADR 0023).
 # Opt-in: it needs `cmake` and a C++ toolchain at build time, and the default build stays as it is.
 # It rides on `llm-cpu` because the adapter types, the catalog and the evaluation are shared.
-llm-llamacpp = ["llm-cpu", "dep:llama-cpp-2", "dep:minijinja", "dep:minijinja-contrib"]
+llm-llamacpp = [
+    "llm-cpu",
+    "dep:llama-cpp-2",
+    "dep:llama-cpp-sys-2",
+    "dep:minijinja",
+    "dep:minijinja-contrib",
+]
 # Static CUDA link (spec 070 R1, ADR 0023): the binary carries cudart and cuBLAS and needs only the
 # driver at run time. The sys crate looks for them in `$CUDA_LIBRARY_PATH/lib64`, which a Nix devShell
 # has to provide (static cuBLAS from `cudaPackages.libcublas.static`); see `research.md`.
@@ -209,6 +215,9 @@ mistralrs = { version = "0.8.1", optional = true }
 # llama.cpp second engine (spec 070). It bundles its own llama.cpp and builds it with cmake; the crate is
 # declared per platform below because its default features (OpenMP, the shared C++ runtime on Android)
 # do not suit every target. The pin is exact: a new llama.cpp commit can change which architectures load.
+# The sys crate itself only for ggml's record of the CPU extensions it was built with (spec 070 R3); its
+# features come from `llama-cpp-2` below.
+llama-cpp-sys-2 = { version = "=0.1.160", optional = true, default-features = false }
 # The llama.cpp engine renders the model's own Jinja chat template (the binding has no Jinja); the
 # versions and features mistralrs already resolves to.
 minijinja = { version = "2", optional = true, features = ["builtins", "json"] }
