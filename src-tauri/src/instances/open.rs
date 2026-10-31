@@ -227,6 +227,8 @@ pub(super) fn open_existing_database(
             crate::storage::maintenance::run_after_open(&db);
             // Spec 024: vault identity, device keys, first device list and content key.
             crate::sync::genesis::run_after_open(&db, installation_id_file, false);
+            // Spec 069: a vault from before the marketplace gets the preset (research R10).
+            crate::marketplace::seed::ensure_preset(&db);
             Ok(Arc::new(db))
         }
         Err(e) if is_wrong_passphrase(&e) => Err(HolziError::WrongPassphrase),

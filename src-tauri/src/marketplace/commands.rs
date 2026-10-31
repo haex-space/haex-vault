@@ -68,6 +68,7 @@ pub async fn list_views(db: &VaultDb) -> Result<Vec<MarketplaceView>> {
                 _ => (MarketplaceCredentialsState::None, None),
             };
             views.push(MarketplaceView {
+                deletable: store::deletable(&row.id),
                 id: row.id,
                 name: row.name,
                 base_url: row.base_url,

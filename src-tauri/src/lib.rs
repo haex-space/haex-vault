@@ -130,8 +130,8 @@ use marketplace::commands::{
     marketplace_icon, marketplace_known_updates, marketplace_list,
 };
 use marketplace::manage::{
-    marketplace_add_preset, marketplace_credentials_candidates, marketplace_delete,
-    marketplace_reorder, marketplace_save, marketplace_set_enabled, marketplace_test,
+    marketplace_credentials_candidates, marketplace_delete, marketplace_reorder, marketplace_save,
+    marketplace_set_enabled, marketplace_test,
 };
 use models::commands::{
     check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
@@ -890,7 +890,6 @@ pub fn run() {
             marketplace_set_enabled,
             marketplace_reorder,
             marketplace_delete,
-            marketplace_add_preset,
             marketplace_test,
             marketplace_credentials_candidates,
             extension_install,

@@ -26,14 +26,15 @@ and no foreign key to credentials (see R11, R14).
   in the host command on save **and** in the client on send.
 - A new row gets `sort_order` = highest existing value + 1 (at the end); the user moves it with up/down,
   and the UI then rewrites the full order (`marketplace_reorder`).
-- All rows are equal: each can be changed, switched off and deleted. There is no default marker and no
-  row that may not be deleted.
+- All rows are equal: each can be changed and switched off. There is no default marker; only the preset
+  (`preset-public`, recognised by its id) cannot be deleted, so the public marketplace is always there
+  (FR-023, operator 2026-10-31).
 - A row without a valid address (from a future version) is left out on read and logged, not rejected.
 
 ## Derived view `MarketplaceView` (no table)
 
 From the rows, sorted by `(sort_order, name, id)`: `id`, `name`, `baseUrl`, `enabled`, `rank`,
-`authType`, `credentials: none | present | missing | syncing` (R11), and the optional
+`deletable` (false only for the preset), `authType`, `credentials: none | present | missing | syncing` (R11), and the optional
 `credentialsItemId` identifier so editing a row preserves its existing password-manager link. The
 identifier is not a credential value.
 

@@ -267,6 +267,11 @@ source shows "Anmeldung nötig", with the chosen entry it loads; deleting the en
 - [x] T066 [P] Add the glossary terms "Marketplace" and "Voreinstellung" to `CONTEXT.md` and link `specs/069-marketplace/contracts/marketplace-api.md` as the protocol for operators from `README.md` (one short section "Einen Marketplace betreiben")
 - [ ] T067 Wrap-up: run the manual checks of quickstart M1–M16 that need a person (M10, M12, M13, M16), update `plans/README.md` with the shipped status, mark finished tasks here, run all "Before every push" commands, and run `/speckit-analyze` once over spec, plan and tasks
 
+## Phase 9: Follow-up after the merge (operator 2026-10-31, PR H)
+
+- [x] T068 The preset is always there (FR-022, FR-023, SC-006, research R10): `marketplace::seed::ensure_preset` adds it when a vault is created and whenever one is opened, only on a main device; `store::delete` refuses it (`marketplace_preset_not_deletable`); `MarketplaceView.deletable`; the form hides delete for it; the catalog's "Öffentlichen Marketplace hinzufügen" and `marketplace_add_preset` are gone. Tests: `instances/create_tests.rs` (new vault, old vault on open, switch stays off, copy adds nothing), `manage_tests.rs`; scenarios `marketplace-manage` and `marketplace-two-devices` switch the preset off instead of deleting it.
+- [x] T069 Large icons (FR-006, research R12): icons up to 4 MiB, decoded within limits and shrunk to 192 px as a PNG with transparency through the shared decode of `files::thumbnails` (`upright_rgba_within`); tests in `icons_tests.rs`.
+
 ---
 
 ## Dependencies & Execution Order

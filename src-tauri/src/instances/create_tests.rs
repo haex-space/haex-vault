@@ -37,10 +37,12 @@ fn published_genesis_survives_startup_cleanup() {
     assert!(path.is_file());
 }
 
-/// Spec 069 (FR-022, SC-006): a new vault has the preset marketplace as one ordinary row, opening
-/// it again adds nothing, and a deleted preset does not come back.
+/// Spec 069 (FR-022, SC-006): a new vault has the preset marketplace as one ordinary row; a vault
+/// without it (from before the marketplace) gets it when it is opened, once, and a switched-off
+/// preset stays off. A copy adds nothing: it gets the row from the sync.
 #[test]
-fn a_new_vault_gets_the_preset_marketplace_once_and_never_again() {
+fn the_preset_marketplace_is_always_there_on_a_main_device() {
+    use crate::instances::open::open_existing_database;
     use crate::marketplace::store;
 
     fn marketplaces(db: &Database) -> Vec<store::MarketplaceRow> {
@@ -57,15 +59,46 @@ fn a_new_vault_gets_the_preset_marketplace_once_and_never_again() {
     assert_eq!(rows[0].name, store::PRESET_NAME);
     assert_eq!(rows[0].base_url, store::PRESET_URL);
     assert!(rows[0].enabled);
-    // The row is written after genesis, with a clock, so it syncs like any other row.
-    db.write(|tx| Ok(store::delete(tx, store::PRESET_ID)?))
-        .expect("delete");
+    // A vault from before the marketplace has no row.
+    db.write(|tx| {
+        tx.execute(
+            "DELETE FROM haex_marketplaces",
+            haex_crdt::rusqlite::params![],
+        )?;
+        Ok(())
+    })
+    .expect("forget the row");
     drop(db);
 
-    let reopened = Database::open(vault_config("test-passphrase", &path, &id_file, false)).unwrap();
-    crate::sync::genesis::run_after_open(&reopened, &id_file, false);
-    assert!(
-        marketplaces(&reopened).is_empty(),
-        "opening does not bring the preset back"
-    );
+    let reopened = open_existing_database("test-passphrase", &path, &id_file).unwrap();
+    let rows = marketplaces(&reopened);
+    assert_eq!(rows.len(), 1, "opening brings the preset");
+    assert_eq!(rows[0].id, store::PRESET_ID);
+    reopened
+        .write(|tx| Ok(store::set_enabled(tx, store::PRESET_ID, false, 1)?))
+        .expect("switch off");
+    drop(reopened);
+
+    let again = open_existing_database("test-passphrase", &path, &id_file).unwrap();
+    let rows = marketplaces(&again);
+    assert_eq!(rows.len(), 1, "no second row");
+    assert!(!rows[0].enabled, "the switch stays off");
+    // Without the vault secret this device is a copy.
+    again
+        .write(|tx| {
+            tx.execute(
+                "DELETE FROM haex_marketplaces",
+                haex_crdt::rusqlite::params![],
+            )?;
+            tx.execute(
+                "DELETE FROM vault_identity_secret_no_sync",
+                haex_crdt::rusqlite::params![],
+            )?;
+            Ok(())
+        })
+        .expect("become a copy");
+    drop(again);
+
+    let copy = open_existing_database("test-passphrase", &path, &id_file).unwrap();
+    assert!(marketplaces(&copy).is_empty(), "a copy waits for the sync");
 }

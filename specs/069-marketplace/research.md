@@ -185,18 +185,21 @@ manifests with requirements).
 marketplace, in a single place in `marketplace/store.rs`, to be set by the operator) is an ordinary row
 with the fixed id `preset-public`:
 
-- **New vault**: The row is created once, in `instances/create.rs` (`open_new_database`), right after
-  `sync::genesis::run_after_open(…, true)` and so after the sync state exists: an ordinary write with a clock
+- **Always there** (operator 2026-10-31, replaces "deletable, the empty state adds it again"):
+  `marketplace::seed::ensure_preset` adds the row if it is missing, after
+  `sync::genesis::run_after_open(…)` and so after the sync state exists: an ordinary write with a clock
   that syncs like every row (the bootstrap hook would write rows without a clock that stay invisible to the
-  sync). Decided in T017. Not on every open, and not for a vault that is only joined or linked: those get
-  their rows from the sync.
-- **Vault without a marketplace** (created before this feature or everything deleted): the empty state
-  of the catalog offers "Öffentlichen Marketplace hinzufügen"; this writes the same row with the same id.
-- Delete, switch off, rename, change the address: like any row. Nothing creates it again.
+  sync). It runs when a vault is created (`instances/create.rs`) and whenever one is opened
+  (`instances/open.rs`), so a vault from before this feature gets the row without a button.
+- **Only on a main device** (it holds `vault_identity_secret_no_sync`): a copy gets the row from the sync.
+  A copy that opened before its first sync and wrote the row itself would carry a newer clock than the
+  switch of the user and turn a switched-off preset back on.
+- Switch off, rename, change the address, move: like any row. **Delete is refused**
+  (`marketplace_preset_not_deletable`, the form has no delete for it), so nothing has to bring it back.
 
 **Rationale**: The fixed id lets two devices that both create it converge on **one** row (no duplicate,
-SC-006). Because nothing creates it on open, a late-arriving sync cannot silently switch the marketplace
-back on (the legacy case `ensureDefaultMarketplaceAsync`). The address in the code is no special
+SC-006). An existing row is never written, and a copy never writes it, so a late-arriving sync cannot
+silently switch the marketplace back on (the legacy case `ensureDefaultMarketplaceAsync`). The address in the code is no special
 treatment: the rest of the code does not know it (FR-034), a test searches the source for the address
 outside `store.rs`.
 
@@ -223,8 +226,11 @@ fields (storage: protocols, marketplace: Bearer/Basic) and is drawn only when a 
 ## R12 – Icons
 
 **Decision**: The frontend asks `marketplace_icon(source_id, url)`; the host loads (without credentials,
-≤ 256 KiB, only `image/png|jpeg|webp`, **no SVG**) and returns a `data:` URL, cached in memory (at most
-200 entries). At most 4 icons at the same time. Every destination must be publicly routable, even if it
+≤ 4 MiB, only `image/png|jpeg|webp` by their bytes, **no SVG**), decodes it within limits (at most 4096 px
+per side), shrinks it to at most 192 px (a tile shows 64 px, screens have up to three pixels per point)
+and returns a PNG it encoded itself as a `data:` URL, cached in memory (at most 200 entries). The decoding
+and shrinking are those of the file thumbnails (`files::thumbnails`), with the transparency kept. The
+first limit of 256 KiB hid most icons of the public marketplace (0.6 to 1.2 MB, operator 2026-10-31). At most 4 icons at the same time. Every destination must be publicly routable, even if it
 lies on the configured marketplace origin; this keeps internal marketplace addresses usable for catalog
 calls, but their icons are not loaded through this fetch. External URLs must be `https`. The public
 storage `api.marketplace.haex.space` remains permitted. Private, reserved, loopback, link-local,
@@ -288,7 +294,7 @@ Read in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog.ts
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Dedupe by `extensionId`, first source wins (test `dedupes…`)  | No merging, every tile with its source (R7)                                                 | a source must not hide another (self-hosted)        |
 | Token/password as columns of the table                        | Reference to a password entry (R11)                                                         | no secrets in vault tables, sync and logs           |
-| `is_default` column, default not deletable, row on open       | ordinary row `preset-public` (R10)                                                          | generic configuration, no sync race                 |
+| `is_default` column, default not deletable, row on open       | ordinary row `preset-public`, added when missing on a main device, not deletable (R10)      | generic configuration, no sync race                 |
 | Network in the webview via `plugin-http` and SDK              | Host (Rust, `reqwest`)                                                                      | one HTTP path, redirect and auth rules in one place |
 | `bundleHash` is passed, the check is a `TODO`                 | Checksum and size are mandatory (FR-013)                                                    | a third party supplies the file                     |
 | Bytes as `Array.from(Uint8Array)` through the IPC and back    | Bytes stay in the host (R3)                                                                 | 24 MiB bundles, no doubling, nothing in the webview |

@@ -10,8 +10,9 @@ const names = async (device: Device) =>
 
 // Spec 069, SC-007 (quickstart M11): the marketplaces are rows of the vault, so two devices of one
 // user keep them in step. A marketplace added on one shows on the other; switching the public one
-// off on one leaves it off on the other (a device does not turn it on again); deleting it on one
-// removes it on both and no device brings it back. The devices come from the group API of spec 033.
+// off on one leaves it off on the other (a device does not turn it on again); deleting a marketplace
+// on one removes it on both, while the public one stays there once. The devices come from the group
+// API of spec 033.
 scenario('marketplace-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
   const group = await ctx.group({ users: { anna: ['laptop', 'phone'] } })
   const laptop = group.device('anna/laptop').page
@@ -80,35 +81,27 @@ scenario('marketplace-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
   assert.equal((await preset(phone))?.enabled, false)
   ctx.step('the public marketplace switched off stays off on both')
 
+  const second = (await marketplaces(phone)).find(
+    (market) => market.name === 'Second',
+  )
+  assert.ok(second, 'the second marketplace is listed')
   unwrap(
     'marketplace_delete',
-    await laptop.invoke('marketplace_delete', { id: PRESET_ID }),
+    await laptop.invoke('marketplace_delete', { id: second.id }),
   )
   await ctx.waitFor(
     'the deletion to reach the phone',
-    async () => (await preset(phone)) === undefined,
+    async () => !(await names(phone)).includes('Second'),
     { timeoutMs: 40_000, fixed: true },
   )
-  unwrap(
-    'marketplace_save',
-    await laptop.invoke('marketplace_save', {
-      input: {
-        name: 'Third',
-        baseUrl: 'https://third.example',
-        authType: 'none',
-      },
-    }),
-  )
-  await ctx.waitFor(
-    'a later change to reach the phone',
-    async () => (await names(phone)).includes('Third'),
-    { timeoutMs: 40_000, fixed: true },
-  )
-  assert.equal(
-    await preset(phone),
-    undefined,
-    'the phone did not bring it back',
-  )
-  assert.equal(await preset(laptop), undefined, 'nor did the laptop')
-  ctx.step('the public marketplace deleted on one device is gone on both')
+  for (const device of [laptop, phone]) {
+    assert.deepEqual(
+      (await marketplaces(device))
+        .filter((market) => market.id === PRESET_ID)
+        .map((market) => market.enabled),
+      [false],
+      'the public marketplace is there once, still switched off',
+    )
+  }
+  ctx.step('a marketplace deleted on one device is gone on both')
 })

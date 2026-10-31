@@ -200,48 +200,48 @@ async fn a_marketplace_can_be_switched_off_and_on() {
     );
 }
 
+/// The preset as `seed::ensure_preset` writes it.
+async fn add_preset(db: &VaultDb, at: i64) -> MarketplaceView {
+    db.write(move |tx| store::add_preset(tx, at).map_err(Into::into))
+        .await
+        .unwrap();
+    view_of(db, PRESET_ID).await.unwrap()
+}
+
 #[tokio::test(flavor = "multi_thread")]
-async fn the_preset_is_deleted_like_any_row_and_comes_back_only_when_asked_for() {
+async fn the_preset_is_switched_off_like_any_row_but_never_deleted() {
     let (_dir, db) = vault();
-    let preset = add_preset(&db, 1).await.unwrap();
+    let preset = add_preset(&db, 1).await;
     assert_eq!(
         (preset.id.as_str(), preset.name.as_str()),
         (PRESET_ID, PRESET_NAME)
     );
+    assert!(!preset.deletable);
     let own = save(&db, &pw(&db), input("Own", "https://own.example"), 2)
         .await
-        .unwrap()
-        .id;
-
-    delete(&db, &pw(&db), PRESET_ID.into()).await.unwrap();
-
-    assert_eq!(order(&db).await, std::slice::from_ref(&own));
-    // Listing, saving another one, switching: nothing brings it back.
-    set_enabled(&db, own.clone(), false, 3).await.unwrap();
-    save(&db, &pw(&db), input("Third", "https://third.example"), 4)
-        .await
         .unwrap();
-    assert!(!order(&db).await.contains(&PRESET_ID.to_owned()));
+    assert!(own.deletable);
 
-    let again = add_preset(&db, 5).await.unwrap();
-    assert_eq!(again.id, PRESET_ID);
     assert_eq!(
-        order(&db)
-            .await
-            .iter()
-            .filter(|id| *id == PRESET_ID)
-            .count(),
-        1
+        reason(delete(&db, &pw(&db), PRESET_ID.into()).await.unwrap_err()),
+        kinds::PRESET_NOT_DELETABLE
     );
+    set_enabled(&db, PRESET_ID.into(), false, 3).await.unwrap();
+    delete(&db, &pw(&db), own.id).await.unwrap();
+
+    let left = list_views(&db).await.unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].id, PRESET_ID);
+    assert!(!left[0].enabled, "switched off, still there");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn adding_the_preset_twice_changes_nothing_even_after_it_was_switched_off() {
     let (_dir, db) = vault();
-    add_preset(&db, 1).await.unwrap();
+    add_preset(&db, 1).await;
     set_enabled(&db, PRESET_ID.into(), false, 2).await.unwrap();
 
-    let second = add_preset(&db, 3).await.unwrap();
+    let second = add_preset(&db, 3).await;
 
     assert!(!second.enabled, "the user's switch stays");
     assert_eq!(order(&db).await, [PRESET_ID.to_owned()]);

@@ -3259,7 +3259,6 @@
       "none": "Kein Marketplace eingerichtet.",
       "allOff": "Alle Marketplaces sind ausgeschaltet.",
       "offline": "Kein Marketplace ist erreichbar.",
-      "addPreset": "Öffentlichen Marketplace hinzufügen",
       "addOwn": "Eigenen Marketplace hinzufügen",
       "openSettings": "Marketplace-Einstellungen öffnen"
     },
@@ -3319,6 +3318,7 @@
       "marketplace_pending_missing": "Die geladene Datei ist nicht mehr verfügbar. Lade sie erneut.",
       "marketplace_credentials_syncing": "Die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
       "marketplace_superseded": "Eine neuere Anfrage hat diese ersetzt.",
+      "marketplace_preset_not_deletable": "Der öffentliche Marketplace lässt sich nur ausschalten, nicht löschen.",
       "marketplace_destination_refused": "Die Download-Adresse des Marketplace ist nicht erlaubt."
     }
   },

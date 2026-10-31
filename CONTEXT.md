@@ -516,8 +516,8 @@ _Avoid_: store, registry, repository, "the" marketplace for the public one.
 
 **Voreinstellung** (preset, spec 069):
 The row `preset-public` that points at the project's public marketplace. It is an ordinary marketplace:
-seeded once when a vault is created, switchable, editable and deletable, and only the button of the empty
-catalog adds it again. No code outside `marketplace/store.rs` knows its address.
+every vault holds it (one from before the marketplace gets it when it is opened on a main device); it is
+switchable and editable but not deletable, so the public marketplace is always there. No code outside `marketplace/store.rs` knows its address.
 _Avoid_: default marketplace, built-in marketplace.
 
 ### Dateizugriff und Dateifreigaben (spec 056)

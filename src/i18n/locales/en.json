@@ -3259,7 +3259,6 @@
       "none": "No marketplace is set up.",
       "allOff": "All marketplaces are switched off.",
       "offline": "No marketplace could be reached.",
-      "addPreset": "Add the public marketplace",
       "addOwn": "Add my own marketplace",
       "openSettings": "Open the marketplace settings"
     },
@@ -3319,6 +3318,7 @@
       "marketplace_pending_missing": "The downloaded file is no longer available. Download it again.",
       "marketplace_credentials_syncing": "The login has not arrived on this device yet.",
       "marketplace_superseded": "A newer request replaced this one.",
+      "marketplace_preset_not_deletable": "The public marketplace can only be switched off, not deleted.",
       "marketplace_destination_refused": "The download address of the marketplace is not allowed."
     }
   },

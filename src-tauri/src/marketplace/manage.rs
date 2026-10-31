@@ -1,7 +1,8 @@
 //! Managing the marketplaces of a vault (spec 069 US4, FR-020 to FR-024): the commands behind
 //! Settings → Erweiterungen → Marketplaces and the empty state of the catalog. Every row is equal
-//! — editing, switching off, reordering and deleting work the same for the preset — and nothing
-//! here creates a row by itself: only a saved form and `marketplace_add_preset` do.
+//! — editing, switching off and reordering work the same for the preset, only deleting does not —
+//! and nothing here creates a row by itself: only a saved form does (the preset comes from
+//! [`super::seed`]).
 
 use tauri::State;
 
@@ -250,15 +251,6 @@ pub async fn delete(db: &VaultDb, passwords: &PasswordsService, id: String) -> R
     Ok(())
 }
 
-/// Adds the public marketplace if its row is missing; one that exists is left as it is, even
-/// switched off (FR-022).
-pub async fn add_preset(db: &VaultDb, at: i64) -> Result<MarketplaceView> {
-    let row = db
-        .write(move |tx| store::add_preset(tx, at).map_err(Into::into))
-        .await?;
-    view_of(db, &row.id).await
-}
-
 #[tauri::command]
 pub async fn marketplace_save(
     state: State<'_, AppState>,
@@ -284,12 +276,6 @@ pub async fn marketplace_reorder(state: State<'_, AppState>, ids: Vec<String>) -
 #[tauri::command]
 pub async fn marketplace_delete(state: State<'_, AppState>, id: String) -> Result<()> {
     delete(&active_database(&state)?, &service(&state)?, id).await
-}
-
-/// The empty state of the catalog calls this.
-#[tauri::command]
-pub async fn marketplace_add_preset(state: State<'_, AppState>) -> Result<MarketplaceView> {
-    add_preset(&active_database(&state)?, now()).await
 }
 
 /// Tries a marketplace with the values of the form: `GET /health` and the first page (FR-021).
