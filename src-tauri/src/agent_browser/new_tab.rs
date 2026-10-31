@@ -17,7 +17,7 @@ use serde_json::Value;
 
 use super::cdp::{target, Connection};
 use super::prompts::{BrowserDecision, BrowserPromptKind, BrowserQuestion};
-use super::session::{Session, MAX_TABS};
+use super::session::Session;
 use super::sites::{Site, Verdict};
 use super::tab::{Guard, Paused, Tab};
 use crate::chat::tools::permission::PermissionMode;
@@ -44,12 +44,21 @@ pub(super) fn opened(
     let Some(opener) = session.tab_of_target(opener) else {
         return false;
     };
+    let target = target.to_owned();
+    let Some(id) = session.reserve_new_tab(&target) else {
+        let connection = Arc::clone(connection);
+        tokio::spawn(async move {
+            let _ = target::close(&connection, &target).await;
+        });
+        return true;
+    };
     tokio::spawn(adopt(
         Arc::clone(session),
         Arc::clone(connection),
-        target.to_owned(),
+        target,
         cdp_session.to_owned(),
         opener,
+        id,
     ));
     true
 }
@@ -60,12 +69,13 @@ async fn adopt(
     target: String,
     cdp_session: String,
     opener: String,
+    id: String,
 ) {
-    if session.tab_count() >= MAX_TABS || session.cancel.is_cancelled() {
+    if session.cancel.is_cancelled() {
         let _ = target::close(&connection, &target).await;
+        session.forget_targets(&id);
         return;
     }
-    let id = session.next_tab_id();
     let refused = Arc::new(AtomicBool::new(false));
     let guard = guard(&session, id.clone(), opener, Arc::clone(&refused));
     let hooks = session.tab_hooks(&id).await;
@@ -81,6 +91,7 @@ async fn adopt(
         tab.close().await;
     } else if session.cancel.is_cancelled() {
         drop(tabs);
+        session.forget_targets(&id);
         tab.release().await;
     } else {
         tabs.open.push(tab);

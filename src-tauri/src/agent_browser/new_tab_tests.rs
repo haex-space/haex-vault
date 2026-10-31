@@ -10,7 +10,7 @@ use serde_json::json;
 use super::error::BrowserError;
 use super::executor::BrowserEnv;
 use super::prompts::{new_browser_prompts, BrowserPromptKind, BrowserQuestion};
-use super::session::Session;
+use super::session::{Session, MAX_TABS};
 use super::sessions::SessionHooks;
 use super::sites::{Site, Verdict};
 use super::StartConfig;
@@ -95,6 +95,29 @@ fn kinds(asked: &Mutex<Vec<BrowserQuestion>>) -> Vec<(BrowserPromptKind, Option<
         .iter()
         .map(|question| (question.kind, question.site.clone()))
         .collect()
+}
+
+#[tokio::test]
+async fn concurrent_new_tabs_cannot_reserve_more_than_the_limit() {
+    let (session, _) = session(PermissionMode::Auto, true);
+    let reservations = (0..MAX_TABS + 4)
+        .map(|n| {
+            let session = Arc::clone(&session);
+            tokio::task::spawn_blocking(move || session.reserve_new_tab(&format!("target-{n}")))
+        })
+        .collect::<Vec<_>>();
+    let mut ids = Vec::new();
+    for reservation in reservations {
+        if let Some(id) = reservation.await.unwrap() {
+            ids.push(id);
+        }
+    }
+
+    assert_eq!(ids.len(), MAX_TABS);
+    assert_eq!(session.tab_count(), MAX_TABS);
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), MAX_TABS);
 }
 
 #[tokio::test]

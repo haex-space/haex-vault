@@ -177,6 +177,19 @@ impl Session {
         self.targets().values().collect::<BTreeSet<_>>().len()
     }
 
+    /// Reserves a slot for a page opened by a tab, before its asynchronous adoption starts.
+    pub(super) fn reserve_new_tab(&self, target: &str) -> Option<String> {
+        let mut targets = self.targets();
+        if targets.contains_key(target)
+            || targets.values().collect::<BTreeSet<_>>().len() >= MAX_TABS
+        {
+            return None;
+        }
+        let tab = self.next_tab_id();
+        targets.insert(target.to_owned(), tab.clone());
+        Some(tab)
+    }
+
     /// Forgets the targets of tab `tab`, which left the session.
     pub fn forget_targets(&self, tab: &str) {
         self.targets().retain(|_, owner| owner != tab);
