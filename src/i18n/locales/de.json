@@ -1519,9 +1519,11 @@
   "voiceControl": {
     "mic": {
       "start": "Diktieren",
-      "cancel": "Aufnahme abbrechen",
+      "cancel": "Aufnahme verwerfen",
       "finishAndSend": "Aufnahme beenden und senden",
-      "finishAndInsert": "Aufnahme beenden und Text einfügen"
+      "finishAndInsert": "Aufnahme beenden und Text einfügen",
+      "send": "Senden",
+      "insert": "Einfügen"
     },
     "recording": "Aufnahme läuft",
     "autoSend": {
