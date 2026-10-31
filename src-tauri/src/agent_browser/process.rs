@@ -282,6 +282,7 @@ fn spawn(_os: Os, _launch: &Launch) -> Result<(Connection, BrowserProcess)> {
     Err(BrowserError::Unsupported)
 }
 
+#[cfg(unix)]
 fn unavailable(error: std::io::Error) -> BrowserError {
     BrowserError::Unavailable(error.to_string())
 }
