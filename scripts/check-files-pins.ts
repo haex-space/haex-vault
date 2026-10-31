@@ -158,6 +158,18 @@ test('a known place is matched whatever its trailing separator', () => {
   })
   const windows: FilesPin = { ...docs, path: 'C:\\Users\\Anna\\Bilder\\' }
   assert.equal(offerPin(none, windows, ['c:\\users\\anna\\Bilder']), 'unpin')
+  const windowsForwardSlashes: FilesPin = {
+    ...docs,
+    path: 'C:/Users/Anna/Bilder/',
+  }
+  assert.equal(
+    offerPin(none, windowsForwardSlashes, ['c:/users/anna/bilder']),
+    'unpin',
+  )
+  assert.equal(
+    offerPin(none, windowsForwardSlashes, ['c:\\users\\anna\\bilder']),
+    'unpin',
+  )
 })
 
 test('a known place stored as an added folder too shows once, as the known place', () => {

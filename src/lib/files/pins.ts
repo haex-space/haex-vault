@@ -86,9 +86,12 @@ export type FilesPlaces = { pins: FilesPin[]; hidden: string[] }
 
 /** `path` for comparing: without a trailing separator (a root keeps it), a Windows path in lower case. */
 function pathKey(path: string): string {
-  const windows = path.includes('\\')
-  const trimmed = path.replace(/[\\/]+$/, '')
-  const key = trimmed === '' || /^[A-Za-z]:$/.test(trimmed) ? path : trimmed
+  const windows =
+    /^[A-Za-z]:/.test(path) || path.includes('\\') || path.startsWith('//')
+  const normalized = windows ? path.replaceAll('/', '\\') : path
+  const trimmed = normalized.replace(/[\\/]+$/, '')
+  const key =
+    trimmed === '' || /^[A-Za-z]:$/.test(trimmed) ? normalized : trimmed
   return windows ? key.toLowerCase() : key
 }
 
