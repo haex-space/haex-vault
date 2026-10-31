@@ -30,6 +30,7 @@ const levels = ref<Levels>(levelsOf(null))
 const browser = ref<BrowserRights | null>(null)
 const extensions = ref<string[]>([])
 const passwords = ref<PasswordRights | null>(null)
+const commands = ref(false)
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
@@ -45,6 +46,7 @@ async function reloadAsync() {
     levels.value = levelsOf(agent.value.rights)
     browser.value = agent.value.rights.browser ?? null
     extensions.value = agent.value.rights.extensions ?? []
+    commands.value = agent.value.rights.commands ?? false
     if (pendingRights === 0 || !sameAgent) {
       // Keep an empty tag draft editable after its save revoked access. A failed save restores
       // the actual grant, and moving to another agent always resets the draft.
@@ -76,6 +78,7 @@ function saveRights() {
     browser.value,
     extensions.value,
     passwords.value,
+    commands.value,
   )
   const agentIdAtChange = agentId.value
   pendingRights += 1
@@ -106,6 +109,12 @@ function onExtensions(next: string[]) {
 /** Spec 021 US5: the group `passwords`, saved with the other rights. */
 function onPasswords(next: PasswordRights | null) {
   passwords.value = next
+  saveRights()
+}
+
+/** Spec 021 US5: the group "Befehle ausführen", saved with the other rights. */
+function onCommands(next: boolean) {
+  commands.value = next
   saveRights()
 }
 
@@ -181,6 +190,11 @@ watch(() => store.changes, reloadAsync)
         :key="agent.id"
         :model-value="passwords"
         @update:model-value="onPasswords"
+      />
+
+      <AgentsCommandRightsFields
+        :model-value="commands"
+        @update:model-value="onCommands"
       />
 
       <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->

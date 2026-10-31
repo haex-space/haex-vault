@@ -3941,6 +3941,12 @@
       "enabled": "Passwortmanager",
       "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen unten",
       "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
+    },
+    "commands": {
+      "title": "Befehle ausführen",
+      "enabled": "Befehle ausführen",
+      "enabledHint": "Shell-Befehle auf diesem Gerät ausführen, mit deinen Rechten und Zugriff auf deine Programme und Dateien",
+      "askHint": "Jeder Befehl gilt als zerstörend: In der Freigabestufe Auto fragt holzi vor jedem Befehl nach, in Plan lehnt es jeden ab."
     }
   },
   "agentBrowser": {
