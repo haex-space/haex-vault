@@ -11,6 +11,7 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOptions};
 
+use super::cpu::{default_threads, missing_features};
 use super::formats::{detect, ChatFormat};
 use super::memory::{plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT};
 use crate::llm::local::gguf_header::read_summary;
@@ -27,6 +28,8 @@ pub enum LoadError {
     Header(String),
     #[error("llama.cpp could not start: {0}")]
     Backend(String),
+    #[error("this processor lacks {}, which the llama.cpp engine of this build needs", .0.join(", "))]
+    Cpu(Vec<&'static str>),
     #[error("not enough memory to load the model: {0}")]
     Memory(#[from] MemoryRefusal),
     #[error("llama.cpp could not load the model: {0}")]
@@ -43,6 +46,8 @@ pub struct LoadOptions {
     pub context_window: Option<u32>,
     /// Forces the number of layers on the GPU instead of letting the memory plan choose.
     pub gpu_layers: Option<u32>,
+    /// Forces the number of CPU threads a generation uses instead of [`default_threads`].
+    pub threads: Option<u32>,
 }
 
 /// The llama.cpp backend of this process. It may be initialised once only, and two engines or two loads
@@ -67,6 +72,7 @@ pub struct LoadedModel {
     pub(super) bos: String,
     pub(super) eos: String,
     pub(super) placement: Placement,
+    pub(super) threads: u32,
     /// One generation at a time: a context is cheap to make but the weights and the device are shared.
     pub(super) gate: Arc<tokio::sync::Mutex<()>>,
 }
@@ -76,6 +82,10 @@ impl LoadedModel {
     pub fn load(path: &Path, options: LoadOptions) -> Result<Self, LoadError> {
         if !path.exists() {
             return Err(LoadError::NotFound(path.to_path_buf()));
+        }
+        let missing = missing_features();
+        if !missing.is_empty() {
+            return Err(LoadError::Cpu(missing));
         }
         let backend = backend()?;
         let placement = placement_for(path, options)?;
@@ -99,6 +109,7 @@ impl LoadedModel {
             bos,
             eos,
             placement,
+            threads: options.threads.unwrap_or_else(default_threads),
             gate: Arc::new(tokio::sync::Mutex::new(())),
         })
     }

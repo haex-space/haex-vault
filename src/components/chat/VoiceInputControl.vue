@@ -9,9 +9,10 @@ import { listen } from '@tauri-apps/api/event'
  * A toggle whose icon-only buttons follow the recording state:
  * - idle/error: the auto-send switch and the mic button, which starts a
  *   recording;
- * - recording: only cancel (discards, nothing is transcribed or sent) and
- *   send (ends the recording and transcribes it; the text is sent when
- *   auto-send is on, otherwise it is placed in the input field);
+ * - recording: only discard (a bin icon: nothing is transcribed or sent) and
+ *   finish, which says "Senden"/"Einfügen" in words (ends the recording and
+ *   transcribes it; the text is sent when auto-send is on, otherwise it is
+ *   placed in the input field);
  * - transcribing: a spinner.
  * `recording` tells the composer to hide its own send button meanwhile,
  * because the send button here takes its place.
@@ -51,6 +52,10 @@ const finishLabel = computed(() =>
   autoSend.value
     ? t('voiceControl.mic.finishAndSend')
     : t('voiceControl.mic.finishAndInsert'),
+)
+/** The visible text of the finish button, so it is not mistaken for discarding. */
+const finishShort = computed(() =>
+  autoSend.value ? t('voiceControl.mic.send') : t('voiceControl.mic.insert'),
 )
 
 watch(state, (value) => (recording.value = value === 'recording'), {
@@ -214,21 +219,25 @@ async function cancelRecording() {
       <UiButton
         type="button"
         size="icon-sm"
-        variant="secondary"
+        variant="ghost"
         :aria-label="t('voiceControl.mic.cancel')"
         :title="t('voiceControl.mic.cancel')"
+        data-testid="voice-cancel"
         @click="cancelRecording"
       >
-        <Icon name="lucide:x" class="h-3.5 w-3.5" />
+        <Icon name="lucide:trash-2" class="h-3.5 w-3.5" />
       </UiButton>
       <UiButton
         type="button"
-        size="icon-sm"
+        size="sm"
+        class="h-7 gap-1 px-2.5"
         :aria-label="finishLabel"
         :title="finishLabel"
+        data-testid="voice-finish"
         @click="finishRecording()"
       >
-        <Icon name="lucide:arrow-up" class="h-3.5 w-3.5" />
+        <Icon name="lucide:check" class="h-3.5 w-3.5" />
+        {{ finishShort }}
       </UiButton>
     </template>
     <template v-else>

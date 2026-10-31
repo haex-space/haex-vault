@@ -135,14 +135,15 @@ F; US5 is G.
 
 ## PR E – Gemma 4 (US3)
 
-- [ ] T030 Settle R4: read Gemma 4's call syntax from the template in the file and from llama.cpp, and
+- [x] T030 Settle R4: read Gemma 4's call syntax from the template in the file and from llama.cpp, and
       write every open case into the contract with an example.
-- [ ] T031 `formats/gemma4.rs`: `fingerprint`, `shape_messages` (tool results merged into the preceding
+- [x] T031 `formats/gemma4.rs`: `fingerprint`, `shape_messages` (tool results merged into the preceding
       assistant turn), `marker`, `parse`.
-- [ ] T032 `gemma4_tests.rs`: the case table of the contract and a render test against the fixture.
-- [ ] T033 Run the evaluation for Gemma 4 E4B; record the figures.
-- [ ] T034 Re-add Gemma 4 to the catalog if T033 supports it, and decide whether it becomes the desktop
+- [x] T032 `gemma4_tests.rs`: the case table of the contract and a render test against the fixture.
+- [x] T033 Run the evaluation for Gemma 4 E4B; record the figures.
+- [x] T034 Re-add Gemma 4 to the catalog if T033 supports it, and decide whether it becomes the desktop
       profile (it pointed there before #640 without a measurement; the answer is a measured one now).
+      Result: 53 of 83 (Qwen3.5 4B: 60); Gemma 4 stays out of the catalog and is not the profile.
 
 ## PR F – Platforms and CPU (US4, FR-006)
 
@@ -153,8 +154,10 @@ F; US5 is G.
       indicators as with mistralrs. Decide whether phones use llama.cpp at all (they load nothing new).
 - [ ] T037 iOS: build on a Mac with Metal; `llama-cpp-sys-2`'s `build.rs` has no iOS branch, so patch it
       upstream or in a fork. If it cannot be done, iOS keeps mistralrs and the gap is filed (FR-006).
-- [ ] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose
+- [x] T038 Settle R3 (CPU kernels): measure CPU speed on a quiet machine with and without AVX2, then choose
       runtime dispatch (`dynamic-backends`) or a fixed baseline; apply it to every desktop build.
+      Result (`research.md` R3): a fixed AVX2 baseline in `.cargo/config.toml`, a processor without it gets
+      no llama.cpp (`llm/llamacpp/cpu.rs`); threads default to the physical cores.
 - [ ] T039 Windows and macOS: the build and a load of Qwen3 0.6B. A CI leg if one exists for them.
 - [ ] T040 Android emulator e2e (spec 043 rig): load Qwen3 0.6B through the new engine and answer one
       prompt; the scenario goes into `scripts/e2e/scenarios/`.

@@ -2,7 +2,9 @@
 //! contracts/mcp-surface.md): checked again against the agent's rights, held to four running calls
 //! per agent, let through, asked about or refused by the agent's approval mode, run by the window's
 //! action runner as caller `externalAgent`, written to the agent log, and turned into an MCP result.
-//! A refusal never says whether a target exists.
+//! A tool of an extension takes the same way and runs over the extension's own connection, where
+//! the stricter of the agent's approval mode and the tool's own setting wins (US4, FR-018). A
+//! refusal never says whether a target exists.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -16,10 +18,14 @@ use uuid::Uuid;
 
 use super::agent_log::{self, NewEntry, Outcome};
 use super::connection::now_millis;
-use super::grants;
+use super::extension_tools;
+use super::grants::{self, DataRights, Reach};
 use super::hello::CloseReason;
 use super::live::Link;
-use super::prompts::{call_gate, CallDecision, CallQuestion, PromptClosed, PromptClosedReason};
+use super::prompts::{
+    call_gate, extension_gate, CallDecision, CallEffect, CallQuestion, CallTitles, PromptClosed,
+    PromptClosedReason, SECRET_SCOPE,
+};
 use super::redact::{redact, target_of};
 use super::server::{Core, Notice};
 use super::session::SessionAgent;
@@ -28,6 +34,8 @@ use crate::chat::tools::action_bridge::{ActionCaller, ActionReply};
 use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::Decision;
+use crate::chat::tools::{RiskClass, Tool as ChatTool};
+use crate::files::permissions;
 use crate::prompt_park::PromptEnd;
 
 /// What the agent learns when its rights do not cover a call, or the tool does not exist.
@@ -60,7 +68,7 @@ pub fn not_allowed() -> CallToolResult {
     error_result("not_allowed", NOT_ALLOWED_MESSAGE, None)
 }
 
-fn unavailable() -> CallToolResult {
+pub(super) fn unavailable() -> CallToolResult {
     error_result("unavailable", "holzi could not run the action now.", None)
 }
 
@@ -92,30 +100,117 @@ impl CallSlots {
     }
 }
 
+/// What a call reaches: an action of the catalog or a tool of an extension.
+#[derive(Clone, Copy)]
+enum Callee<'a> {
+    Action(&'a AgentActionDef),
+    Extension(&'a Arc<dyn ChatTool>),
+}
+
+impl Callee<'_> {
+    fn input_schema(self) -> Value {
+        match self {
+            Self::Action(def) => def.input_schema.clone(),
+            Self::Extension(tool) => tool.input_schema(),
+        }
+    }
+
+    fn effect(self) -> ActionEffect {
+        match self {
+            Self::Action(def) => def.effect,
+            Self::Extension(tool) => match tool.risk_class() {
+                RiskClass::Safe => ActionEffect::Read,
+                RiskClass::Change => ActionEffect::Write,
+                RiskClass::Risky => ActionEffect::Destructive,
+            },
+        }
+    }
+}
+
+/// The tool behind `tool_name`, whether or not the agent may call it.
+fn find<'a>(
+    catalog: &'a [AgentActionDef],
+    tools: &'a [Arc<dyn ChatTool>],
+    tool_name: &str,
+) -> Option<Callee<'a>> {
+    catalog
+        .iter()
+        .find(|def| def.tool_name == tool_name)
+        .map(Callee::Action)
+        .or_else(|| {
+            tools
+                .iter()
+                .find(|tool| tool.name() == tool_name)
+                .map(Callee::Extension)
+        })
+}
+
+/// What decides the tools of `agent` besides its stored rights, as the vault says now: its rows of
+/// `agent_file_permissions` (US5) and the native actions that serve external agents. A failed read
+/// opens no data scope.
+pub async fn reach(core: &Core, agent: Uuid) -> Reach {
+    let id = agent.to_string();
+    let data = core
+        .db
+        .read(move |q| {
+            Ok((
+                permissions::grants_of(q, &id)?,
+                permissions::contacts_of(q, &id)?,
+            ))
+        })
+        .await
+        .map(|(files, contacts)| DataRights::of(&files, &contacts))
+        .unwrap_or_else(|error| {
+            log::warn!("mcp server: could not read an agent's file permissions: {error}");
+            DataRights::default()
+        });
+    Reach {
+        data,
+        native: core.native.external_ids(),
+    }
+}
+
 /// Runs `tool_name` for `agent` when its rights and its approval mode let it, and logs the call.
+/// `seen` says the agent's tool list held the tool during this connection: when it is gone since,
+/// its extension was removed and the call is `unavailable` (US4 scenario 4).
 pub async fn call(
     core: &Core,
     agent: &SessionAgent,
     link: &Link,
     tool_name: &str,
     arguments: Option<Map<String, Value>>,
+    seen: bool,
     cancel: &CancellationToken,
 ) -> CallToolResult {
     let catalog = core.catalog.snapshot();
+    let tools = core.extension_tools.snapshot();
+    let reach = reach(core, agent.id).await;
     let input = Value::Object(arguments.unwrap_or_default());
-    let known = catalog.iter().find(|def| def.tool_name == tool_name);
-    let shown = redact(known.map_or(&Value::Null, |def| &def.input_schema), &input);
+    let known = find(&catalog, &tools, tool_name);
+    let shown = redact(&known.map_or(Value::Null, Callee::input_schema), &input);
     let mut entry = NewEntry {
         tool: tool_name.to_owned(),
-        effect: known.map(|def| def.effect),
+        effect: known.map(Callee::effect),
         target: target_of(&shown),
         input: Some(shown.to_string()),
         outcome: Outcome::DeniedRights,
         asked: false,
     };
-    let Some(def) = grants::check(&agent.rights, &catalog, tool_name) else {
-        record(core, agent.id, &entry).await;
-        return not_allowed();
+    let callee = match grants::check(&agent.rights, &reach, &catalog, tool_name) {
+        Some(def) => Callee::Action(def),
+        None => match grants::check_extension_tool(&agent.rights, &tools, tool_name) {
+            Some(tool) => Callee::Extension(tool),
+            None => {
+                let result = if known.is_none() && seen {
+                    entry.outcome = Outcome::Unavailable;
+                    unavailable()
+                } else {
+                    not_allowed()
+                };
+                record(core, agent.id, &entry).await;
+                return result;
+            }
+        },
     };
     let Some(_slot) = core
         .slots
@@ -130,14 +225,19 @@ pub async fn call(
             None,
         );
     };
-    let native = native_executor(core, def);
-    let confirms_itself = native.as_ref().is_some_and(|executor| {
-        def.confirms_itself
-            && executor
-                .confirming_action_ids()
-                .contains(&def.action_id.as_str())
-    });
-    let result = match call_gate(agent.mode, def, confirms_itself) {
+    let decision = match callee {
+        Callee::Action(def) => {
+            let confirms_itself = native_executor(core, def).is_some_and(|executor| {
+                def.confirms_itself
+                    && executor
+                        .confirming_action_ids()
+                        .contains(&def.action_id.as_str())
+            });
+            call_gate(agent.mode, def, confirms_itself)
+        }
+        Callee::Extension(tool) => extension_gate(agent.mode, tool.risk_class(), tool.always_ask()),
+    };
+    let result = match decision {
         Decision::Deny => {
             entry.outcome = Outcome::DeniedPlan;
             error_result(
@@ -146,22 +246,13 @@ pub async fn call(
                 None,
             )
         }
-        Decision::Allow => run(core, agent, def, input, cancel, &mut entry).await,
+        Decision::Allow => run(core, agent, callee, input, cancel, &mut entry).await,
         Decision::Ask => {
-            let question = CallQuestion {
-                agent_id: agent.id.to_string(),
-                client_name: agent.client_name.clone(),
-                action_id: def.action_id.clone(),
-                titles: (&def.titles).into(),
-                effect: def.effect.into(),
-                target: entry.target.clone(),
-                input: shown,
-                secret: def.scope == super::prompts::SECRET_SCOPE,
-            };
+            let question = question(agent, callee, entry.target.clone(), shown);
             match ask(core, &question, cancel).await {
                 Ok(CallDecision::Allow) => {
                     entry.asked = true;
-                    run(core, agent, def, input, cancel, &mut entry).await
+                    run(core, agent, callee, input, cancel, &mut entry).await
                 }
                 Ok(CallDecision::Deny) => {
                     entry.asked = true;
@@ -209,14 +300,63 @@ async fn ask(
     answer
 }
 
+/// What the call prompt shows about `callee`. A tool of an extension is named with its extension.
+fn question(
+    agent: &SessionAgent,
+    callee: Callee<'_>,
+    target: Option<String>,
+    shown: Value,
+) -> CallQuestion {
+    let (action_id, titles, secret) = match callee {
+        Callee::Action(def) => (
+            def.action_id.clone(),
+            (&def.titles).into(),
+            def.scope == SECRET_SCOPE,
+        ),
+        Callee::Extension(tool) => {
+            let titles = tool.origin().map_or_else(
+                || CallTitles {
+                    de: String::new(),
+                    en: String::new(),
+                },
+                |origin| CallTitles {
+                    de: format!("{}: {}", origin.extension_name, origin.tool_title_de),
+                    en: format!("{}: {}", origin.extension_name, origin.tool_title_en),
+                },
+            );
+            (tool.name().to_owned(), titles, false)
+        }
+    };
+    CallQuestion {
+        agent_id: agent.id.to_string(),
+        client_name: agent.client_name.clone(),
+        action_id,
+        titles,
+        effect: CallEffect::from(callee.effect()),
+        target,
+        input: shown,
+        secret,
+    }
+}
+
 async fn run(
     core: &Core,
     agent: &SessionAgent,
-    def: &AgentActionDef,
+    callee: Callee<'_>,
     input: Value,
     cancel: &CancellationToken,
     entry: &mut NewEntry,
 ) -> CallToolResult {
+    let def = match callee {
+        Callee::Action(def) => def,
+        Callee::Extension(tool) => {
+            // The extension's frame learns nothing about the agent (research R5).
+            let (result, outcome) =
+                extension_tools::result(tool.execute(input, cancel.clone()).await);
+            entry.outcome = outcome;
+            return result;
+        }
+    };
     if let Some(executor) = native_executor(core, def) {
         let call = NativeCall {
             caller: Caller::ExternalAgent {

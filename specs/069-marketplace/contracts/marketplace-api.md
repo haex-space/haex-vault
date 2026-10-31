@@ -111,7 +111,8 @@ status code or the error kind; never the response text, the full URL, request he
 ## Images
 
 The host loads `iconUrl` (R12): without credentials, only `http` or `https`, `image/png|jpeg|webp`, ≤
-256 KiB (icons) or ≤ 1 MiB (screenshots), **no SVG**. Every target must be publicly routable,
+4 MiB (icons; the host shows a copy of at most 192 px, so 256 × 256 is plenty) or ≤ 1 MiB (screenshots),
+**no SVG**. Every target must be publicly routable,
 even if it lies on the configured marketplace origin. Private, reserved, loopback,
 link-local, multicast and unspecified IP addresses are blocked. A URL on a
 different origin must use `https`. The public storage `api.marketplace.haex.space` remains

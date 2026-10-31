@@ -63,6 +63,7 @@ async fn llamacpp_from_env() -> (Box<dyn ProviderAdapter>, String, bool) {
         LoadOptions {
             context_window: None,
             gpu_layers,
+            threads: None,
         },
     )
     .await

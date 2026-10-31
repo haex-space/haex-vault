@@ -66,11 +66,15 @@ test('the built-in agent is offered no guardrail action (FR-003)', () => {
   }
 })
 
-test('exactly the three self-triggering chat actions are withheld from the built-in agent', () => {
+test('the three self-triggering chat actions and the password secret are withheld from the built-in agent', () => {
   const withheld = ALL_ACTIONS.filter(
     (a) => a.builtinAgentCallable === false,
   ).map((a) => a.id)
-  assert.deepEqual(withheld.sort(), [...WITHHELD_FROM_BUILTIN].sort())
+  // Spec 021 research R13: the secret runs natively, so it is checked in check-mcp-actions.ts.
+  assert.deepEqual(
+    withheld.sort(),
+    [...WITHHELD_FROM_BUILTIN, 'passwords.secret.get'].sort(),
+  )
   const offered = listAgentActions(ALL_ACTIONS, titleOf).map((d) => d.actionId)
   for (const id of WITHHELD_FROM_BUILTIN) {
     assert.ok(!offered.includes(id), id)
@@ -138,8 +142,8 @@ test('every built-in-callable read action runs for a built-in agent naming its t
   }
 })
 
-/** The ids of the Rust executors of the file, file share and contact share actions
- * (`FILE_ACTION_IDS`, `SHARE_ACTION_IDS`). */
+/** The ids of the Rust executors of the native actions (`FILE_ACTION_IDS`, `SHARE_ACTION_IDS`,
+ * `CONTACT_ACTION_IDS`, …). */
 function nativeExecutorIds(): string[] {
   const ids = (file: string, name: string) => {
     const source = readFileSync(
@@ -155,6 +159,8 @@ function nativeExecutorIds(): string[] {
   return [
     ...ids('files/agent/exec.rs', 'FILE_ACTION_IDS'),
     ...ids('files/agent/shares.rs', 'SHARE_ACTION_IDS'),
+    ...ids('contacts/agent_actions.rs', 'CONTACT_ACTION_IDS'),
+    ...ids('passwords/agent_actions.rs', 'PASSWORD_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
     ...ids('agent_browser/executor.rs', 'BROWSER_ACTION_IDS'),
@@ -168,7 +174,10 @@ test('every native action has its Rust executor and every executor its action (A
     // No window is involved: nothing to wait for, nothing to target.
     assert.equal(action.binding, 'global', action.id)
     assert.equal(action.target, 'none', action.id)
-    assert.ok(isBuiltinAgentAction(action), action.id)
+    // The password secret is for external agents only (spec 021 research R13).
+    if (action.id !== 'passwords.secret.get')
+      assert.ok(isBuiltinAgentAction(action), action.id)
+    assert.ok(action.agentCallable, action.id)
     assert.ok(!CORE_AGENT_TOOLS.includes(action.id), action.id)
     assert.equal(toAgentActionDef(action, titleOf).runner, 'native', action.id)
   }

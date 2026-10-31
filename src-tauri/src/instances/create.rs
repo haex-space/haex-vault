@@ -207,9 +207,8 @@ fn open_new_database(
     crate::storage::maintenance::run_after_open(&db);
     // Spec 024: vault identity, device keys, first device list and content key.
     crate::sync::genesis::run_after_open(&db, installation_id_file, true);
-    // Spec 069: the preset marketplace, once, as an ordinary row. Only here, never on open, so a
-    // marketplace the user deleted or switched off stays that way (research R10).
-    crate::marketplace::seed::seed_preset_after_creation(&db);
+    // Spec 069: the preset marketplace as an ordinary row (research R10).
+    crate::marketplace::seed::ensure_preset(&db);
     Ok(Arc::new(db))
 }
 

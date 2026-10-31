@@ -99,7 +99,9 @@ pub fn generate(
     let n_ctx = (tokens.len() + max_new).max(BATCH);
     let params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(n_ctx as u32))
-        .with_n_batch(BATCH as u32);
+        .with_n_batch(BATCH as u32)
+        .with_n_threads(loaded.threads as i32)
+        .with_n_threads_batch(loaded.threads as i32);
     let mut ctx = model.new_context(backend, params).map_err(ggml)?;
 
     let mut batch = LlamaBatch::new(BATCH, 1);

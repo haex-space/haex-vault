@@ -22,6 +22,7 @@ export const MARKETPLACE_REASONS = [
   'marketplace_pending_missing',
   'marketplace_credentials_syncing',
   'marketplace_superseded',
+  'marketplace_preset_not_deletable',
   'marketplace_destination_refused',
 ] as const
 

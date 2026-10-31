@@ -24,6 +24,7 @@ fn all_rights() -> Rights {
             .map(|scope| (scope.to_owned(), OperateLevel::Write))
             .collect(),
         browser: None,
+        ..Default::default()
     }
 }
 
@@ -167,6 +168,7 @@ async fn refused_calls_are_logged_too() {
             .into_iter()
             .collect(),
         browser: None,
+        ..Default::default()
     };
     let (agent, _helper) = fx.registered("reader", rights).await;
     for tool in ["settings_appearance_setColorScheme", "no_such_tool"] {

@@ -4,14 +4,17 @@ import { test } from 'node:test'
 
 import {
   addPins,
+  addPlaces,
   type FilesPin,
   formatPins,
   isPinned,
   offerPin,
+  parseHidden,
   parsePins,
   pinLabel,
   pinnableSource,
   removePin,
+  removePlace,
 } from '../src/lib/files/pins.ts'
 
 const docs: FilesPin = { source: { kind: 'device' }, path: '/home/anna/docs' }
@@ -100,20 +103,46 @@ test('a pin is named after its folder, a root after its storage', () => {
   )
 })
 
-test('the menu offers to pin, to unpin, or nothing (FR-003)', () => {
-  const home = '/home/anna'
-  assert.equal(offerPin([], docs, [home]), 'pin')
-  assert.equal(offerPin([docs], docs, [home]), 'unpin')
-  assert.equal(offerPin([], { ...docs, path: home }, [home]), undefined)
-  assert.equal(offerPin([], peer, []), 'pin')
+const none = { pins: [], hidden: [] }
+const home = '/home/anna'
+
+test('the menu offers to add, to remove, or nothing (FR-003)', () => {
+  assert.equal(offerPin(none, docs, [home]), 'pin')
+  assert.equal(offerPin({ pins: [docs], hidden: [] }, docs, [home]), 'unpin')
+  assert.equal(offerPin(none, peer, []), 'pin')
   assert.equal(
     offerPin(
-      [],
+      none,
       { source: { kind: 'storage', storageId: 'device:C:' }, path: '/x' },
       [],
     ),
     undefined,
   )
+  // A known place is removed while shown and added back while removed.
+  const homePin: FilesPin = { ...docs, path: home }
+  assert.equal(offerPin(none, homePin, [home]), 'unpin')
+  assert.equal(offerPin({ pins: [], hidden: [home] }, homePin, [home]), 'pin')
   // A known place of this device says nothing about the same path in a storage.
-  assert.equal(offerPin([], { ...cloud, path: home }, [home]), 'pin')
+  assert.equal(offerPin(none, { ...cloud, path: home }, [home]), 'pin')
+})
+
+test('a known place is hidden when removed and comes back when added (FR-004)', () => {
+  const homePin: FilesPin = { ...docs, path: home }
+  const removed = removePlace(none, homePin, [home])
+  assert.deepEqual(removed, { pins: [], hidden: [home] })
+  assert.equal(removePlace(removed, homePin, [home]), removed)
+  assert.deepEqual(addPlaces(removed, [homePin, docs], [home]), {
+    pins: [docs],
+    hidden: [],
+  })
+  assert.deepEqual(
+    removePlace({ pins: [docs, cloud], hidden: [] }, docs, [home]),
+    { pins: [cloud], hidden: [] },
+  )
+})
+
+test('the removed known places stored are not trusted', () => {
+  assert.deepEqual(parseHidden(null), [])
+  assert.deepEqual(parseHidden('not json'), [])
+  assert.deepEqual(parseHidden(JSON.stringify([home, '', 7, null])), [home])
 })

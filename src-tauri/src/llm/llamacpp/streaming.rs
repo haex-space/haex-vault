@@ -2,12 +2,9 @@
 //! D4): thinking goes to `reasoning`, answer text goes out at once, and from the first character of a
 //! tool-call marker on nothing is shown until the answer ends and the call block can be read whole.
 
-use super::formats::{ChatFormat, Holdback};
+use super::formats::{ChatFormat, Holdback, Thinking, THINK};
 use crate::adapters::types::{StreamChunk, ToolSpec};
 use crate::llm::holdback::longest_prefix_overlap;
-
-const THINK_OPEN: &str = "<think>";
-const THINK_CLOSE: &str = "</think>";
 
 enum Phase {
     /// The first characters decide whether the model starts by thinking (`<think>` in its own output).
@@ -33,8 +30,10 @@ pub struct Finished {
 
 pub struct Streamer {
     format: Option<&'static dyn ChatFormat>,
+    tags: Thinking,
     tools: Vec<ToolSpec>,
-    /// Everything generated, for reading the call blocks at the end.
+    /// Everything generated, for reading the call blocks at the end; it starts with the opening thinking
+    /// tag when the prompt opened the block, so the parse sees the block whole.
     raw: String,
     /// Everything shown as content so far.
     shown: String,
@@ -42,7 +41,7 @@ pub struct Streamer {
 }
 
 impl Streamer {
-    /// `thinking_open` is true when the prompt itself ends inside a `<think>` block (Qwen3.5 with thinking
+    /// `thinking_open` is true when the prompt itself ends inside a thinking block (Qwen3.5 with thinking
     /// on), so the output starts with reasoning and no opening tag.
     pub fn new(
         format: Option<&'static dyn ChatFormat>,
@@ -57,18 +56,24 @@ impl Streamer {
         } else {
             Phase::Probe(String::new())
         };
+        let tags = thinking_tags(format);
         Self {
             format,
+            tags,
             tools,
-            raw: String::new(),
+            raw: if thinking_open {
+                format!("{}\n", tags.open)
+            } else {
+                String::new()
+            },
             shown: String::new(),
             phase,
         }
     }
 
-    /// True when `prompt` ends inside an open `<think>` block.
-    pub fn prompt_opens_thinking(prompt: &str) -> bool {
-        prompt.trim_end().ends_with(THINK_OPEN)
+    /// True when `prompt` ends inside an open thinking block of `format`'s tags.
+    pub fn prompt_opens_thinking(prompt: &str, format: Option<&'static dyn ChatFormat>) -> bool {
+        prompt.trim_end().ends_with(thinking_tags(format).open)
     }
 
     /// Takes the next piece of generated text; returns what can be shown of it.
@@ -128,22 +133,20 @@ impl Streamer {
         }
         let format = self.format.expect("a holdback exists only with a format");
         let parsed = format.parse(&self.raw, &self.tools);
+        // Text from the first held-back marker on: the parse has it without the call blocks and the stray
+        // markup. A call block that could not be read stays in it, as the whole-text parse leaves it.
+        let tail = match parsed.content.strip_prefix(self.shown.trim()) {
+            Some(tail) => tail.trim_start().to_owned(),
+            None if parsed.calls.is_empty() => rest.trim_end().to_owned(),
+            None => String::new(),
+        };
+        self.show(&tail, &mut chunks);
         if parsed.calls.is_empty() {
-            // The call block could not be read: it stays in the text, as the whole-text parse would leave it.
-            self.show(rest.trim_end(), &mut chunks);
             return Finished {
                 chunks,
                 tool_calls: false,
             };
         }
-        // Text after the first call block was held back with it; the parse has it without the blocks.
-        let tail = parsed
-            .content
-            .strip_prefix(self.shown.trim())
-            .unwrap_or_default()
-            .trim_start()
-            .to_owned();
-        self.show(&tail, &mut chunks);
         chunks.push(StreamChunk::ToolCalls(parsed.calls));
         Finished {
             chunks,
@@ -156,13 +159,12 @@ impl Streamer {
             Phase::Probe(buffer) => {
                 buffer.push_str(text);
                 let seen = buffer.trim_start();
-                if seen.is_empty()
-                    || (THINK_OPEN.starts_with(seen) && seen.len() < THINK_OPEN.len())
-                {
+                let open = self.tags.open;
+                if seen.is_empty() || (open.starts_with(seen) && seen.len() < open.len()) {
                     return;
                 }
                 let seen = seen.to_owned();
-                match seen.strip_prefix(THINK_OPEN) {
+                match seen.strip_prefix(open) {
                     Some(after) => {
                         self.phase = Phase::Thinking {
                             pending: String::new(),
@@ -172,7 +174,7 @@ impl Streamer {
                     }
                     None => {
                         self.phase = Phase::Answer {
-                            hold: self.format.map(|f| Holdback::new(f.marker())),
+                            hold: self.format.map(answer_holdback),
                             started: false,
                         };
                         self.feed(&seen, out);
@@ -186,20 +188,21 @@ impl Streamer {
                     *pending = trimmed;
                     *started = !pending.is_empty();
                 }
-                if let Some(end) = pending.find(THINK_CLOSE) {
+                let close = self.tags.close;
+                if let Some(end) = pending.find(close) {
                     let thought = pending[..end].trim_end().to_owned();
-                    let after = pending[end + THINK_CLOSE.len()..].to_owned();
+                    let after = pending[end + close.len()..].to_owned();
                     reasoning(&thought, out);
                     self.phase = Phase::Answer {
-                        hold: self.format.map(|f| Holdback::new(f.marker())),
+                        hold: self.format.map(answer_holdback),
                         started: false,
                     };
                     self.feed(&after, out);
                     return;
                 }
-                // Keep back what may still become `</think>`, and trailing whitespace, which is dropped
-                // when the block ends.
-                let keep = longest_prefix_overlap(pending, THINK_CLOSE);
+                // Keep back what may still become the closing tag, and trailing whitespace, which is
+                // dropped when the block ends.
+                let keep = longest_prefix_overlap(pending, close);
                 let safe = pending[..pending.len() - keep].trim_end().len();
                 let shown: String = pending.drain(..safe).collect();
                 reasoning(&shown, out);
@@ -229,6 +232,17 @@ impl Streamer {
             reasoning: None,
         });
     }
+}
+
+fn thinking_tags(format: Option<&'static dyn ChatFormat>) -> Thinking {
+    format.map_or(THINK, |f| f.thinking())
+}
+
+/// Holds answer text back at the format's call marker and at its stray markup.
+fn answer_holdback(format: &'static dyn ChatFormat) -> Holdback {
+    let mut markers = vec![format.marker()];
+    markers.extend(format.stray_markers());
+    Holdback::with_markers(&markers)
 }
 
 fn reasoning(text: &str, out: &mut Vec<StreamChunk>) {

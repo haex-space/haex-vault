@@ -4,22 +4,23 @@
 //! `--mcp-agent` helper. Included per binary via `#[path = "common/mcp_fixture.rs"] mod mcp_fixture;`.
 #![allow(dead_code, clippy::disallowed_methods)]
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
-use rmcp::service::{Peer, RoleClient, RunningService};
-use rmcp::ServiceExt;
+use rmcp::service::{MaybeSendFuture, NotificationContext, Peer, RoleClient, RunningService};
+use rmcp::{ClientHandler, ServiceExt};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
-use holzi_lib::chat::tools::action_catalog::ActionCatalog;
+use holzi_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
 use holzi_lib::chat::tools::native_action::NativeExecutors;
 use holzi_lib::identity::{
@@ -39,6 +40,7 @@ use holzi_lib::mcp_server::registry::{self, AgentMode};
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
 use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
+use holzi_lib::vault_events::{changes_channel, VaultChanges};
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -86,6 +88,10 @@ pub struct Fixture {
     pub call_asked: mpsc::UnboundedReceiver<(String, CallQuestion)>,
     pub limits: Limits,
     pub catalog: ActionCatalog,
+    /// The extension tools a test publishes (spec 021 US4).
+    pub extension_tools: ExtensionToolCatalog,
+    /// Where a test announces changed tables, as the vault observer does in the app.
+    pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     /// Native executors a test adds (ADR 0011).
     pub native: NativeExecutors,
@@ -171,6 +177,8 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         call_asked,
         limits: Limits::default(),
         catalog,
+        extension_tools: ExtensionToolCatalog::default(),
+        vault_changes: changes_channel(),
         bridge,
         native: NativeExecutors::default(),
         window_calls,
@@ -179,7 +187,46 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
     }
 }
 
-pub type Agent = RunningService<RoleClient, ()>;
+pub type Agent = RunningService<RoleClient, AgentClient>;
+
+/// The client side of a test agent: it counts `notifications/tools/list_changed`.
+#[derive(Clone)]
+pub struct AgentClient {
+    list_changed: Arc<watch::Sender<u64>>,
+}
+
+impl Default for AgentClient {
+    fn default() -> Self {
+        Self {
+            list_changed: Arc::new(watch::channel(0).0),
+        }
+    }
+}
+
+impl AgentClient {
+    /// Moves on with every `notifications/tools/list_changed` from now on.
+    pub fn list_changes(&self) -> watch::Receiver<u64> {
+        self.list_changed.subscribe()
+    }
+}
+
+impl ClientHandler for AgentClient {
+    fn on_tool_list_changed(
+        &self,
+        _context: NotificationContext<RoleClient>,
+    ) -> impl Future<Output = ()> + MaybeSendFuture + '_ {
+        self.list_changed.send_modify(|count| *count += 1);
+        std::future::ready(())
+    }
+}
+
+/// Waits for the next `notifications/tools/list_changed` on `changes`.
+pub async fn next_list_change(changes: &mut watch::Receiver<u64>) {
+    tokio::time::timeout(WAIT, changes.changed())
+        .await
+        .expect("tools/list_changed in time")
+        .expect("the agent is connected");
+}
 
 impl Fixture {
     pub async fn server(&self) -> Running {
@@ -190,6 +237,8 @@ impl Fixture {
             socket_dir: self.env.socket_dir.clone(),
             parent: self.session.clone(),
             catalog: self.catalog.clone(),
+            extension_tools: self.extension_tools.clone(),
+            vault_changes: self.vault_changes.clone(),
             bridge: self.bridge.clone(),
             native: self.native.clone(),
             prompts: self.prompts.clone(),
@@ -214,7 +263,8 @@ impl Fixture {
         let env = self.env.clone();
         let helper =
             tokio::spawn(async move { helper::run(args, env, helper_stdin, helper_stdout).await });
-        match tokio::time::timeout(WAIT, ().serve((agent_out, agent_in))).await {
+        match tokio::time::timeout(WAIT, AgentClient::default().serve((agent_out, agent_in))).await
+        {
             Ok(Ok(client)) => Ok((client, helper)),
             _ => Err(helper),
         }

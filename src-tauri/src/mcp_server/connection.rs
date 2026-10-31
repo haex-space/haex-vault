@@ -27,6 +27,7 @@ use tokio::io::{
     AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadBuf,
     ReadHalf, WriteHalf,
 };
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
 
 /// How long the pump may take to write the last lines after the session ended.
@@ -298,10 +299,29 @@ async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previou
     }
 }
 
-/// Tells a registered agent when the window pushed a new action list (FR-017).
+/// The table of the agents' file and contact permissions (spec 044, 051).
+const FILE_PERMISSIONS: &str = "agent_file_permissions";
+
+/// Tells a registered agent when the window pushed a new action list (FR-017), the extension tools
+/// changed: one installed, removed, turned off, or its tool settings changed (US4), or the file and
+/// contact permissions of agents changed (US5).
 async fn tell_catalog_changes(core: Arc<Core>, session: Session, peer: Peer<RoleServer>) {
-    let mut versions = core.catalog.subscribe();
-    while versions.changed().await.is_ok() {
+    let mut actions = core.catalog.subscribe();
+    let mut extension_tools = core.extension_tools.subscribe();
+    let mut tables = core.vault_changes.subscribe();
+    loop {
+        let changed = tokio::select! {
+            changed = actions.changed() => changed.is_ok(),
+            changed = extension_tools.changed() => changed.is_ok(),
+            received = tables.recv() => match received {
+                Ok(tables) if !tables.iter().any(|table| table == FILE_PERMISSIONS) => continue,
+                Ok(_) | Err(RecvError::Lagged(_)) => true,
+                Err(RecvError::Closed) => false,
+            },
+        };
+        if !changed {
+            break;
+        }
         if session.agent().is_some() && peer.notify_tool_list_changed().await.is_err() {
             break;
         }

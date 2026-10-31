@@ -182,24 +182,39 @@ export async function dragTo(
   await instance.exec(
     `const source = document.querySelector('[data-testid="' + arguments[0] + '"]')
      const data = new DataTransfer()
+     // WebKit keeps no effects on a DataTransfer made by script (both read "none"), so the drag
+     // keeps them itself, as a webview does for a real drag.
+     let allowed = 'uninitialized'
+     let effect = 'none'
+     Object.defineProperty(data, 'effectAllowed', { configurable: true, get: () => allowed, set: (value) => { allowed = value } })
+     Object.defineProperty(data, 'dropEffect', { configurable: true, get: () => effect, set: (value) => { if (['none', 'copy', 'link', 'move'].includes(value)) effect = value } })
      window.__e2eDrag = { source, data }
      source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
      return true`,
     [from],
   )
   await instance.waitForDisplayed(to)
-  await instance.exec(
+  const result = await instance.exec<true | string>(
     `const { source, data } = window.__e2eDrag
      delete window.__e2eDrag
      const target = document.querySelector('[data-testid="' + arguments[0] + '"]')
      const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data }))
      fire(target, 'dragenter')
-     fire(target, 'dragover')
-     fire(target, 'drop')
+     // As a real webview: the hover starts with the default effect of what the drag allows, and
+     // there is no drop unless the hover was taken (cancelled) with an effect the drag allows; a
+     // "link" on a copy/move drag is refused there.
+     const allowed = data.effectAllowed
+     data.dropEffect = allowed === 'none' ? 'none' : allowed === 'move' ? 'move' : /^link/.test(allowed) ? 'link' : 'copy'
+     const taken = !fire(target, 'dragover')
+     const effect = data.dropEffect
+     const fits = effect !== 'none' && (allowed === 'uninitialized' || allowed === 'all' || allowed.toLowerCase().includes(effect))
+     if (taken && fits) fire(target, 'drop')
+     else fire(target, 'dragleave')
      fire(source, 'dragend')
-     return true`,
+     return taken && fits ? true : 'refused: dragover ' + (taken ? 'taken' : 'not taken') + ', effect ' + effect + ' of ' + allowed`,
     [to],
   )
+  if (result !== true) throw new Error(`drag ${from} → ${to} ${result}`)
 }
 
 /** The ids of the rows the list marks as selected. */

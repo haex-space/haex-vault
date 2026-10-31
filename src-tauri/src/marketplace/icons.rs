@@ -2,25 +2,32 @@
 //! of a marketplace, the host loads the icon and sends a `data:` URL. An icon address comes from a
 //! marketplace and is therefore untrusted: it must lead to a publicly routable address (a hostile
 //! marketplace must not make the host call the local network), only a PNG, JPEG or WebP is
-//! accepted by its bytes (never an SVG), and no login ever goes with the request.
+//! accepted by its bytes (never an SVG), and no login ever goes with the request. The host decodes
+//! the icon within limits and sends a PNG of at most [`ICON_EDGE`] pixels it encoded itself.
 //!
 //! The resolved address is checked and then pinned for the connection, so a changing DNS answer
 //! cannot slip past the check, and every redirect is checked again.
 
 use std::collections::VecDeque;
+use std::io::Cursor;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
 use base64::Engine as _;
 use futures::future::BoxFuture;
 use futures::StreamExt;
+use image::{ImageFormat, ImageReader};
 use reqwest::header::LOCATION;
 use reqwest::redirect::Policy;
 use tokio::sync::Semaphore;
 use url::{Origin, Url};
 
-use super::{app_version, ICON_CACHE_ENTRIES, ICON_MAX_BYTES, ICON_PARALLEL, SOURCE_TIMEOUT};
+use super::{
+    app_version, ICON_CACHE_ENTRIES, ICON_EDGE, ICON_MAX_ALLOC, ICON_MAX_BYTES, ICON_MAX_SIDE,
+    ICON_PARALLEL, SOURCE_TIMEOUT,
+};
 use crate::error::HolziError;
+use crate::files::thumbnails::upright_rgba_within;
 
 /// How many redirects an icon request follows.
 const MAX_REDIRECTS: usize = 5;
@@ -225,12 +232,17 @@ impl Icons {
         let Ok(_permit) = self.limit.acquire().await else {
             return Err(unavailable());
         };
-        let result = fetch(network, source_base, url).await;
+        let result = match fetch(network, source_base, url).await {
+            Ok((mime, bytes)) => tokio::task::spawn_blocking(move || small_png(mime, &bytes))
+                .await
+                .unwrap_or(Err(IconRefusal::NotAnImage)),
+            Err(refusal) => Err(refusal),
+        };
         match result {
-            Ok((mime, bytes)) => {
+            Ok(png) => {
                 let data = format!(
-                    "data:{mime};base64,{}",
-                    base64::engine::general_purpose::STANDARD.encode(bytes)
+                    "data:image/png;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(png)
                 );
                 self.remember(url.to_owned(), data.clone());
                 Ok(data)
@@ -241,6 +253,22 @@ impl Icons {
             }
         }
     }
+}
+
+/// The icon in `bytes` (of the kind `mime`, see [`image_mime`]) decoded within the limits, shrunk
+/// to at most [`ICON_EDGE`] and encoded again as PNG with its transparency: a large icon costs
+/// neither memory in the cache nor time in the webview, and what reaches the webview is an image
+/// the host made itself.
+pub fn small_png(mime: &str, bytes: &[u8]) -> Result<Vec<u8>, IconRefusal> {
+    let format = ImageFormat::from_mime_type(mime).ok_or(IconRefusal::NotAnImage)?;
+    let reader = ImageReader::with_format(Cursor::new(bytes), format);
+    let small = upright_rgba_within(reader, ICON_EDGE, ICON_MAX_SIDE, ICON_MAX_ALLOC)
+        .map_err(|_| IconRefusal::NotAnImage)?;
+    let mut png = Vec::new();
+    small
+        .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+        .map_err(|_| IconRefusal::NotAnImage)?;
+    Ok(png)
 }
 
 fn unavailable() -> HolziError {

@@ -47,7 +47,18 @@ pub const PAGE_LIMIT: u32 = 20;
 pub const PENDING_IDLE: Duration = Duration::from_secs(10 * 60);
 
 /// The most bytes of an icon the host loads (research R12).
-pub const ICON_MAX_BYTES: usize = 256 * 1024;
+pub const ICON_MAX_BYTES: usize = 4 * 1024 * 1024;
+
+/// The longest edge of an icon the host sends: a tile shows it at most 64 px wide, on screens of
+/// up to three pixels per point.
+pub const ICON_EDGE: u32 = 192;
+
+/// The largest width or height of an icon the host decodes: an icon comes from a marketplace, so
+/// its claims about itself are not trusted.
+pub const ICON_MAX_SIDE: u32 = 4096;
+
+/// The most memory one decode of an icon may take.
+pub const ICON_MAX_ALLOC: u64 = 96 * 1024 * 1024;
 
 /// How many icons the host keeps in memory.
 pub const ICON_CACHE_ENTRIES: usize = 200;
@@ -79,6 +90,8 @@ pub mod kinds {
     pub const SOURCE_AUTH_REJECTED: &str = "marketplace_source_auth_rejected";
     pub const SOURCE_BAD_RESPONSE: &str = "marketplace_source_bad_response";
     pub const CREDENTIALS_SYNCING: &str = "marketplace_credentials_syncing";
+    /// The public marketplace is switched off, never deleted.
+    pub const PRESET_NOT_DELETABLE: &str = "marketplace_preset_not_deletable";
     /// A newer `marketplace_catalog` call took the place of this one.
     pub const SUPERSEDED: &str = "marketplace_superseded";
 }

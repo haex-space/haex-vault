@@ -4,6 +4,7 @@
 //! template (`detect`), never from the model's name, so a renamed or re-quantised file keeps working and a
 //! template this engine does not know is refused instead of guessed at.
 
+mod gemma4;
 mod hermes;
 mod holdback;
 mod qwen_xml;
@@ -12,6 +13,7 @@ use serde_json::{json, Value};
 
 use crate::adapters::types::{ChatMessage, ChatRole, ToolCall, ToolSpec};
 
+pub use gemma4::Gemma4;
 pub use hermes::Hermes;
 pub use holdback::Holdback;
 pub use qwen_xml::QwenXml;
@@ -24,6 +26,19 @@ pub struct Parsed {
     pub calls: Vec<ToolCall>,
 }
 
+/// The tags a model family wraps its thinking in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Thinking {
+    pub open: &'static str,
+    pub close: &'static str,
+}
+
+/// `<think>…</think>`, the Qwen family's tags and the default.
+pub const THINK: Thinking = Thinking {
+    open: "<think>",
+    close: "</think>",
+};
+
 /// One way a model family writes tool calls.
 pub trait ChatFormat: Sync {
     /// Short name for messages and logs.
@@ -34,6 +49,17 @@ pub trait ChatFormat: Sync {
 
     /// The string a call block starts with; streamed text is held back from its first character on.
     fn marker(&self) -> &'static str;
+
+    /// Further strings that hold streamed text back like the marker: markup the model may write inside an
+    /// answer that `parse` removes again.
+    fn stray_markers(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// The tags the family's thinking is wrapped in.
+    fn thinking(&self) -> Thinking {
+        THINK
+    }
 
     /// Reads the call blocks out of `text`: returns the text without them and the calls, in order.
     fn parse_calls(&self, text: &str, tools: &[ToolSpec]) -> (String, Vec<ToolCall>);
@@ -57,7 +83,7 @@ pub trait ChatFormat: Sync {
 }
 
 /// The formats this engine knows, in the order `detect` tries them.
-static FORMATS: [&dyn ChatFormat; 2] = [&QwenXml, &Hermes];
+static FORMATS: [&dyn ChatFormat; 3] = [&Gemma4, &QwenXml, &Hermes];
 
 /// The format whose marks the template carries, or `None` when the engine does not know the syntax.
 pub fn detect(template: &str) -> Option<&'static dyn ChatFormat> {
@@ -130,34 +156,39 @@ pub fn split_thinking(text: &str) -> (Option<String>, String) {
     }
 }
 
-const OPEN: &str = "<tool_call>";
-const CLOSE: &str = "</tool_call>";
-
 /// Walks the `<tool_call>…</tool_call>` blocks of `text` and lets `parse_inner` read each block's inside.
-/// A block that cannot be read stays in the text as it was written; a block with no closing tag (cut off
-/// by the token limit) is read up to its end.
+/// A block that cannot be read stays in the text exactly as it was written; a block with no closing tag
+/// (cut off by the token limit) is read up to its end.
 pub(crate) fn scan_tool_calls(
     text: &str,
+    parse_inner: impl FnMut(&str) -> Option<(String, Value)>,
+) -> (String, Vec<ToolCall>) {
+    scan_blocks(text, ("<tool_call>", "</tool_call>"), parse_inner)
+}
+
+/// [`scan_tool_calls`] for blocks between any `open` and `close` tags.
+pub(crate) fn scan_blocks(
+    text: &str,
+    (open, close): (&str, &str),
     mut parse_inner: impl FnMut(&str) -> Option<(String, Value)>,
 ) -> (String, Vec<ToolCall>) {
     let mut content = String::new();
     let mut calls = Vec::new();
     let mut rest = text;
-    while let Some(start) = rest.find(OPEN) {
+    while let Some(start) = rest.find(open) {
         content.push_str(&rest[..start]);
-        let after = &rest[start + OPEN.len()..];
-        let (inner, next) = match after.find(CLOSE) {
-            Some(end) => (&after[..end], &after[end + CLOSE.len()..]),
+        let after = &rest[start + open.len()..];
+        let (inner, next) = match after.find(close) {
+            Some(end) => (&after[..end], &after[end + close.len()..]),
             None => (after, ""),
         };
-        let inner = inner.trim();
-        match parse_inner(inner) {
+        match parse_inner(inner.trim()) {
             Some((name, input)) => calls.push(ToolCall {
                 id: format!("call_{}", calls.len()),
                 name,
                 input,
             }),
-            None => content.push_str(&format!("{OPEN}{inner}{CLOSE}")),
+            None => content.push_str(&rest[start..rest.len() - next.len()]),
         }
         rest = next;
     }

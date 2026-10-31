@@ -2,8 +2,9 @@
 //! one connection. Until the agent is registered it sees no tool and every call is refused; after
 //! the registration its rights decide both the list and each call.
 
+use std::collections::HashSet;
 use std::future::Future;
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, Implementation, InitializeResult, ListToolsResult,
@@ -15,6 +16,7 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 use super::dispatch;
+use super::extension_tools;
 use super::grants::{self, Rights};
 use super::live::Link;
 use super::registry::AgentMode;
@@ -46,6 +48,9 @@ pub struct Session {
     agent: Arc<RwLock<Option<SessionAgent>>>,
     initialized: Arc<watch::Sender<bool>>,
     link: Arc<Link>,
+    /// Every tool name a list of this connection held, so a tool that went away since reads as
+    /// unavailable rather than as not allowed (US4 scenario 4).
+    seen: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Session {
@@ -56,6 +61,7 @@ impl Session {
             agent: Arc::new(RwLock::new(agent)),
             initialized: Arc::new(initialized),
             link,
+            seen: Arc::default(),
         }
     }
 
@@ -93,15 +99,34 @@ impl Session {
         self.initialized.subscribe()
     }
 
-    fn tools(&self) -> Vec<rmcp::model::Tool> {
+    async fn tools(&self) -> Vec<rmcp::model::Tool> {
         let Some(agent) = self.agent() else {
             return Vec::new();
         };
+        let reach = dispatch::reach(&self.core, agent.id).await;
         let catalog = self.core.catalog.snapshot();
-        grants::offers(&agent.rights, &catalog)
+        let extension_tools = self.core.extension_tools.snapshot();
+        let tools: Vec<_> = grants::offers(&agent.rights, &reach, &catalog)
             .into_iter()
             .map(dispatch::tool_of)
-            .collect()
+            .chain(
+                grants::extension_offers(&agent.rights, &extension_tools)
+                    .into_iter()
+                    .map(|tool| extension_tools::tool_of(tool.as_ref())),
+            )
+            .collect();
+        self.seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(tools.iter().map(|tool| tool.name.to_string()));
+        tools
+    }
+
+    fn was_seen(&self, tool_name: &str) -> bool {
+        self.seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(tool_name)
     }
 }
 
@@ -129,15 +154,15 @@ impl ServerHandler for Session {
         std::future::ready(())
     }
 
-    fn list_tools(
+    async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ListToolsResult, McpError>> + MaybeSendFuture + '_ {
-        std::future::ready(Ok(ListToolsResult {
-            tools: self.tools(),
+    ) -> Result<ListToolsResult, McpError> {
+        Ok(ListToolsResult {
+            tools: self.tools().await,
             ..Default::default()
-        }))
+        })
     }
 
     async fn call_tool(
@@ -162,6 +187,7 @@ impl ServerHandler for Session {
             &self.link,
             request.name.as_ref(),
             request.arguments,
+            self.was_seen(request.name.as_ref()),
             &cancel,
         )
         .await;

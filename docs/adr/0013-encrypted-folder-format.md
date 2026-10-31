@@ -7,7 +7,7 @@ Date: 2026-10-10
 
 Spec 048 lets users keep single folders of an S3 storage (spec 038) encrypted, with the provider seeing
 no names, no structure and no content. Two later features need the same thing: sync rules ("cloud,
-encrypted", successor of 025) and the rework of spaces 027/029, where a folder is shared with other
+encrypted", spec 061, successor of 025) and the rework of spaces 027/029, where a folder is shared with other
 users. If each built its own encryption, holzi would have three formats, three key schemes and three
 sets of checks for one rule.
 

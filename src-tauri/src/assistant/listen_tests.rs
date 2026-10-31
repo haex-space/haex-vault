@@ -14,7 +14,7 @@ const WAIT: Duration = Duration::from_secs(30);
 const RATE: usize = SAMPLE_RATE_HZ as usize;
 
 fn model() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/fixtures/silero_vad.int8.onnx")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/assistant/models/silero_vad.int8.onnx")
 }
 
 /// The German fixture through the WAV source, as a script would play it.

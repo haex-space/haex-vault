@@ -1,0 +1,81 @@
+name: llama.cpp platforms
+
+# Spec 070 T039: the llama.cpp engine on Windows and macOS. It builds the engine, runs its unit tests and
+# loads Qwen3 0.6B (the catalog's smallest model) to answer a prompt. The release workflow builds the
+# default features, which do not carry the engine yet, so this is the only place the two platforms build
+# it. `workflow_dispatch` runs it on any branch; a pull request that changes this file runs it too.
+
+on:
+  pull_request:
+    paths: ['.github/workflows/llamacpp-platforms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: llamacpp-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: llama.cpp (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # The catalog entry `qwen3-0.6b-instruct-q4_k_m`, pinned to a revision and checked by its SHA-256.
+      MODEL_URL: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/60b85c0e3d8fe0f6474f406922a26d12aca4550d/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+      MODEL_SHA256: 9acfc1e001311f34b4252001b626f2e466d592a42065f66571bff3790d4e1b14
+    # The cargo steps keep the runner's default shell: under Git Bash on Windows, `perl` is Git's MSYS Perl,
+    # which lacks modules openssl-src (SQLCipher) needs; PowerShell finds Strawberry Perl.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: 1.98.1
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+          shared-key: llamacpp-${{ matrix.name }}
+
+      - name: Run the engine tests
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --lib -- llm:: catalog::
+
+      - name: Fetch the model
+        shell: bash
+        run: |
+          set -euo pipefail
+          model="$RUNNER_TEMP/qwen3-0.6b.gguf"
+          curl --fail --location --retry 3 --silent --show-error --output "$model" "$MODEL_URL"
+          # From stdin: with a Windows path, sha256sum escapes the line and the hash gets a leading `\`.
+          actual=$( (sha256sum < "$model" 2>/dev/null || shasum -a 256 < "$model") | cut -d' ' -f1)
+          if [ "$actual" != "$MODEL_SHA256" ]; then
+            echo "::error::model checksum $actual, expected $MODEL_SHA256"
+            exit 1
+          fi
+          echo "HOLZI_TEST_GGUF=$model" >> "$GITHUB_ENV"
+
+      # The tests that need neither tool use (the smallest model calls tools unreliably) nor a second
+      # engine (mistralrs fetches a tokenizer). The speed test prints the figures for `research.md`.
+      - name: Load the model and answer
+        run: >-
+          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp
+          --test llamacpp_inference -- --ignored --nocapture --test-threads=1
+          --skip a_tool_call --skip both_engines --skip load_local

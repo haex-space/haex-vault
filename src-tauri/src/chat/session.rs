@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::adapters::{AbortHandle, ProviderAdapter};
 use crate::chat::choices::PendingChoices;
 use crate::chat::tools::action_bridge::ActionBridge;
-use crate::chat::tools::action_catalog::ActionCatalog;
+use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::cli::CliTool;
 use crate::chat::tools::mcp::{self, McpServerConfig};
 use crate::chat::tools::native_action::NativeExecutors;
@@ -166,6 +166,8 @@ pub struct ChatState {
     pub action_bridge: ActionBridge,
     /// Every action any agent may call; the MCP server offers from it (spec 021).
     pub action_catalog: ActionCatalog,
+    /// The extension tools of `tool_registry`, for the MCP server (spec 021 US4).
+    pub extension_tools: ExtensionToolCatalog,
     /// The Rust executors of catalog actions with `runner: 'native'` (ADR 0011).
     pub native_actions: NativeExecutors,
     pub pending_tool_approvals: Arc<Mutex<HashMap<Uuid, oneshot::Sender<ApprovalDecision>>>>,
@@ -190,6 +192,7 @@ impl Clone for ChatState {
             tool_registry: Arc::clone(&self.tool_registry),
             action_bridge: self.action_bridge.clone(),
             action_catalog: self.action_catalog.clone(),
+            extension_tools: self.extension_tools.clone(),
             native_actions: self.native_actions.clone(),
             pending_tool_approvals: Arc::clone(&self.pending_tool_approvals),
             cancelled_tool_approvals: Arc::clone(&self.cancelled_tool_approvals),
@@ -220,6 +223,7 @@ impl ChatState {
             tool_registry: Arc::new(Mutex::new(registry)),
             action_bridge: ActionBridge::default(),
             action_catalog: ActionCatalog::default(),
+            extension_tools: ExtensionToolCatalog::default(),
             native_actions: NativeExecutors::default(),
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
             cancelled_tool_approvals: Arc::new(Mutex::new(HashSet::new())),
@@ -461,10 +465,19 @@ impl ChatState {
             &mut *self.tool_registry.lock().unwrap_or_else(|e| e.into_inner()),
             host_only,
         );
+        let extension_tools = self.extension_tools.snapshot();
+        self.extension_tools.replace(Vec::new());
         // The registry above already dropped the action tools; open calls end as cancelled. The
         // bridge keeps its emitter, which belongs to the app and not to the vault session.
         self.action_bridge.drop_pending();
-        drop((session, generation, cancellation, pending, tools));
+        drop((
+            session,
+            generation,
+            cancellation,
+            pending,
+            tools,
+            extension_tools,
+        ));
     }
 
     /// Reject overlapping operations before they can replace another turn's

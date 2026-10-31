@@ -1117,6 +1117,7 @@
     },
     "agentFiles": {
       "builtin": "Agent im Chat",
+      "thisAgent": "Dateien und Kontakte",
       "device": "Dateien des Geräts",
       "deviceDescription": "Lesen und Suchen überall, Ändern nach der Freigabestufe",
       "storageDescription": "Cloud-Speicher",
@@ -1519,9 +1520,11 @@
   "voiceControl": {
     "mic": {
       "start": "Diktieren",
-      "cancel": "Aufnahme abbrechen",
+      "cancel": "Aufnahme verwerfen",
       "finishAndSend": "Aufnahme beenden und senden",
-      "finishAndInsert": "Aufnahme beenden und Text einfügen"
+      "finishAndInsert": "Aufnahme beenden und Text einfügen",
+      "send": "Senden",
+      "insert": "Einfügen"
     },
     "recording": "Aufnahme läuft",
     "autoSend": {
@@ -1846,6 +1849,9 @@
     "passwords": {
       "items": {
         "search": "Passwortmanager durchsuchen (nur Titel und Tags)"
+      },
+      "secret": {
+        "get": "Geheimnis eines Passwort-Eintrags lesen"
       }
     },
     "files": {
@@ -2413,6 +2419,14 @@
       "confirm": "Kopieren",
       "created": "{count} Eintrag kopiert | {count} Einträge kopiert",
       "createdFolders": "{count} Ordner kopiert | {count} Ordner kopiert"
+    },
+    "aliases": {
+      "title": "Autofill-Aliase",
+      "hint": "Namen von Eingabefeldern auf Webseiten, die die Browser-Erweiterung mit diesem Wert füllt. Ohne Namen nutzt sie ihre Standardnamen.",
+      "placeholder": "Name des Eingabefelds",
+      "add": "Namen für {field} hinzufügen",
+      "remove": "{name} entfernen",
+      "noField": "Kein Feld mit diesem Namen"
     }
   },
   "extensions": {
@@ -2940,20 +2954,24 @@
     },
     "agentPermission": {
       "title": "Zugriff auf einen Cloud-Speicher",
-      "read": "Der Agent im Chat möchte Dateien im Cloud-Speicher „{name}“ lesen.",
-      "readWrite": "Der Agent im Chat möchte Dateien im Cloud-Speicher „{name}“ lesen und ändern.",
+      "builtinAgent": "Der Agent im Chat",
+      "externalAgent": "Der Agent „{name}“ (Angabe des Agenten)",
+      "unknownAgent": "Ein externer Agent",
+      "read": "{agent} möchte Dateien im Cloud-Speicher „{name}“ lesen.",
+      "readWrite": "{agent} möchte Dateien im Cloud-Speicher „{name}“ lesen und ändern.",
       "hint": "holzi merkt sich deine Antwort für diesen Cloud-Speicher.",
       "allowRead": "Lesen erlauben",
       "allowReadWrite": "Lesen und Schreiben erlauben",
       "deny": "Ablehnen",
       "folder": {
         "title": "Zugriff auf einen verschlüsselten Ordner",
-        "read": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen.",
-        "readDevice": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen.",
-        "readWrite": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen und ändern.",
-        "readWriteDevice": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen und ändern.",
+        "read": "{agent} möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen.",
+        "readDevice": "{agent} möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen.",
+        "readWrite": "{agent} möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen und ändern.",
+        "readWriteDevice": "{agent} möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen und ändern.",
         "local": "Gelesene Inhalte gehen an das Modell „{model}“ auf diesem Gerät.",
         "cloud": "Gelesene Inhalte gehen an das Modell „{model}“ in der Cloud.",
+        "external": "Gelesene Inhalte gehen an den Agenten und dessen Modellanbieter.",
         "remember": "Erlaubnis merken",
         "alsoCloud": "auch für Cloud-Modelle",
         "thisTask": "Ohne Haken gilt die Antwort nur für diese Aufgabe.",
@@ -2962,8 +2980,8 @@
       },
       "contacts": {
         "title": "Zugriff auf deine Kontakte",
-        "read": "Der Agent im Chat möchte deine Kontakte lesen.",
-        "readWrite": "Der Agent im Chat möchte deine Kontakte lesen und ändern. Änderungen gehen auf alle deine Geräte und in die Telefon-Adressbücher.",
+        "read": "{agent} möchte deine Kontakte lesen.",
+        "readWrite": "{agent} möchte deine Kontakte lesen und ändern. Änderungen gehen auf alle deine Geräte und in die Telefon-Adressbücher.",
         "hint": "„Einmal erlauben“ gilt nur für diesen Zugriff. „Immer erlauben“ und „Ablehnen“ merkt sich holzi; in den Einstellungen unter KI kannst du das wieder ändern.",
         "once": "Einmal erlauben",
         "always": "Immer erlauben"
@@ -3259,7 +3277,6 @@
       "none": "Kein Marketplace eingerichtet.",
       "allOff": "Alle Marketplaces sind ausgeschaltet.",
       "offline": "Kein Marketplace ist erreichbar.",
-      "addPreset": "Öffentlichen Marketplace hinzufügen",
       "addOwn": "Eigenen Marketplace hinzufügen",
       "openSettings": "Marketplace-Einstellungen öffnen"
     },
@@ -3319,6 +3336,7 @@
       "marketplace_pending_missing": "Die geladene Datei ist nicht mehr verfügbar. Lade sie erneut.",
       "marketplace_credentials_syncing": "Die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
       "marketplace_superseded": "Eine neuere Anfrage hat diese ersetzt.",
+      "marketplace_preset_not_deletable": "Der öffentliche Marketplace lässt sich nur ausschalten, nicht löschen.",
       "marketplace_destination_refused": "Die Download-Adresse des Marketplace ist nicht erlaubt."
     }
   },
@@ -3778,6 +3796,7 @@
       "connection": "Verbindung",
       "rights": "Was darf der Agent?",
       "rightsHint": "Ab Werk darf ein Agent nur lesen. Leitplanken wie Freigabestufen und Agenten-Rechte kann kein Agent ändern.",
+      "filesHint": "Dateien und Kontakte darf ein neuer Agent nicht. Das legst du nach der Registrierung auf seiner Seite unter KI → Agenten fest.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
       "deny": "Ablehnen"
@@ -3910,6 +3929,18 @@
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
       "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
+    },
+    "extensions": {
+      "title": "Erweiterungen",
+      "none": "Keine Erweiterung installiert",
+      "dev": "Entwicklungsversion",
+      "hint": "Der Agent sieht die Werkzeuge der eingeschalteten Erweiterungen. Wie ein Werkzeug fragt, legst du außerdem in der Erweiterung fest; die strengere Regel gilt."
+    },
+    "passwords": {
+      "title": "Passwörter",
+      "enabled": "Passwortmanager",
+      "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen unten",
+      "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     }
   },
   "agentBrowser": {

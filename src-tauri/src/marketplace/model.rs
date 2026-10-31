@@ -116,6 +116,8 @@ pub struct MarketplaceView {
     pub enabled: bool,
     /// 1-based position in the list.
     pub rank: u32,
+    /// Whether the row can be deleted: every one but the preset, which is only switched off.
+    pub deletable: bool,
     pub auth_type: MarketplaceAuthType,
     pub credentials: MarketplaceCredentialsState,
     /// The password-manager entry the row points at. It is an identifier, never a secret.

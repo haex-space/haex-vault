@@ -37,6 +37,8 @@ const { openApp } = useWmTab()
 const NEW = 'new'
 const id = computed(() => router.route.params.id ?? NEW)
 const isNew = computed(() => id.value === NEW)
+/** The public marketplace is only switched off, never deleted. */
+const deletable = ref(false)
 
 const name = ref('')
 const baseUrl = ref('')
@@ -98,6 +100,7 @@ async function loadAsync() {
         credentialsItemId: row.credentialsItemId,
       }
       keptEntry.value = row.credentialsEntry ?? null
+      deletable.value = row.deletable
       resetLogin(row.authType)
       // A login that is gone or lacks its fields is asked for again.
       login.replace = row.credentials === 'missing'
@@ -376,7 +379,7 @@ async function deleteAsync() {
 
       <div class="flex flex-wrap justify-end gap-2">
         <UiButton
-          v-if="!isNew"
+          v-if="!isNew && deletable"
           type="button"
           variant="destructive"
           :disabled="busy"

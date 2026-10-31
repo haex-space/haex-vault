@@ -9,7 +9,7 @@ import { runAction } from '../lib/settings.ts'
 // Spec 071: folders added to "Orte" in the sidebar and "Meine Dateifreigaben" as a list in the panel.
 // A folder is added from its context menu, opens from the sidebar, and goes again by its own context
 // menu there; a folder dragged onto "Orte" is added, an added one dragged onto the strip is removed,
-// and the folder stays in both cases. The list of shares shows in the panel, with no dialog.
+// and the folder stays in both cases. A known place is removed and added back the same way. The list of shares shows in the panel, with no dialog.
 
 const gone = (instance: FlowInstance, hook: string) =>
   instance.exec<boolean>(
@@ -92,6 +92,28 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
       'beta',
     ])
     ctx.step('pinned and unpinned by dragging, the folders stay')
+
+    // A known place goes by its own context menu too, and comes back from the open folder's menu.
+    const place = await instance.exec<string>(
+      `return document.querySelector('[data-testid^="files-place-"]').dataset.testid`,
+    )
+    await instance.click(place)
+    await contextMenu(instance, place)
+    await instance.click('files-menu-unpin')
+    await ctx.waitFor('the place to go', () => gone(instance, place))
+    // The rig's known places may be empty folders: then the panel shows its empty text, which takes
+    // the open folder's menu as the list does.
+    const area = await ctx.waitFor('the place to load', () =>
+      instance.exec<string | null>(
+        `const list = document.querySelector('[data-testid="files-entries"]')
+         if (list && list.getAttribute('aria-busy') !== 'true') return 'files-entries'
+         return document.querySelector('[data-testid="files-empty"]') ? 'files-empty' : null`,
+      ),
+    )
+    await contextMenu(instance, area as string)
+    await instance.click('files-menu-pin')
+    await instance.waitForDisplayed(place)
+    ctx.step('a known place is removed and added again')
 
     // "Meine Dateifreigaben" is a list in the panel, not a dialog.
     await instance.click('files-my-shares')

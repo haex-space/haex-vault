@@ -91,7 +91,7 @@ impl LocalWhisperAdapter {
             .map_err(|error| SttError::LocalUnavailable {
                 reason: format!("acquire Whisper model lock: {error}"),
             })?;
-        ensure_model_files(&dir, entry).await?;
+        ensure_model_files(&dir, entry, |_| {}).await?;
         drop(_publication_lock);
         tauri::async_runtime::spawn_blocking(move || Self::load_from_dir(&dir))
             .await

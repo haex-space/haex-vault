@@ -219,6 +219,17 @@ description: 'Task list for spec 036-password-redesign'
 
 ---
 
+## Phase 12: Autofill aliases in the tab Extra (amendment 2026-10-31)
+
+**Goal**: FR-001a: show and edit the autofill aliases that holzi already stores, imports and hands to the browser extension (T009 took them over only "if shown today", and they were shown nowhere).
+
+**Independent test**: open an entry, add the name `account_name` to the user name in the tab Extra, save; the view lists it, the history names the change "Autofill-Aliase", and haex-pass-browser fills an input `name="account_name"` with the user name.
+
+- [x] T082 [US1] Tests first in `scripts/check-passwords-draft.ts`: the draft carries the aliases parsed from `autofillAliases` (string lists only, other values dropped); untouched aliases are not in the patch; a change sends the JSON object without empty rows, removing every name sends `null`; a new entry sends `autofillAliases` only when a row has names; the same aliases in another key order are no change
+- [x] T083 [US1] Extend `src/lib/passwords/draft.ts` (`DetailLike.autofillAliases`, `Draft.aliases`, `toInput`, `toPatch`) until T082 passes
+- [x] T084 [US1] `src/components/passwords/AutofillAliases.vue` (editor rows: user name, password, TOTP code, every custom field of the draft, then stored keys without a field; chips plus an input per row) in `EditorExtra.vue`, and the read-only group in `ViewExtra.vue`; de/en texts
+- [x] T085 [US1] e2e scenario in `scripts/e2e/scenarios/`: add an alias in the editor, save, see it in the view, remove it again
+
 ## Dependencies & Execution Order
 
 - **Phase 1** → **Phase 2** (the ADR has no code dependency; T003 gates Phases 7 and 9 only).

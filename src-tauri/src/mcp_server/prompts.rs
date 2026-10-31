@@ -14,7 +14,8 @@ use ts_rs::TS;
 use super::grants::Rights;
 use super::registry::{AgentMode, Transport};
 use crate::chat::tools::action_tool::{ActionEffect, ActionTitles, AgentActionDef};
-use crate::chat::tools::permission::{decide_for_tool, Decision};
+use crate::chat::tools::permission::{decide, decide_for_tool, Decision};
+use crate::chat::tools::RiskClass;
 use crate::prompt_park::PromptPark;
 
 /// How long a registration dialog waits (data-model.md, "Registrierungsdialog").
@@ -123,6 +124,18 @@ pub fn call_gate(mode: AgentMode, def: &AgentActionDef, confirms_itself: bool) -
         def.effect.risk_class(),
         confirms_itself,
     )
+}
+
+/// Whether a call of an extension's tool runs, asks first, or is refused (FR-018): the approval
+/// mode of the agent decides by the tool's effect, and a tool the user set to "ask" in the
+/// extension asks in every mode; the stricter of the two wins, so Plan still refuses a changing
+/// tool.
+pub fn extension_gate(mode: AgentMode, risk: RiskClass, always_ask: bool) -> Decision {
+    match (decide(mode.permission_mode(), risk), always_ask) {
+        (Decision::Deny, _) => Decision::Deny,
+        (_, true) => Decision::Ask,
+        (decision, false) => decision,
+    }
 }
 
 /// The localized names of an action, for the prompt.

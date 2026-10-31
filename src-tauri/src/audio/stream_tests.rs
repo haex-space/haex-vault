@@ -90,7 +90,7 @@ fn a_subscription_starts_with_the_preroll_and_continues_without_a_gap() {
 #[test]
 fn the_speaker_gets_as_much_output_as_the_microphone_got_input() {
     let rig = rig(48_000);
-    assert!(rig.stream.mixer().queue_speech(&[0.5; 24_000]));
+    assert!(rig.stream.mixer().queue_speech(&[0.5; 24_000], || false));
 
     rig.say(vec![0.0; 16_000]);
 

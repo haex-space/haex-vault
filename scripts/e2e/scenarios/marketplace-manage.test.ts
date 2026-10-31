@@ -29,8 +29,8 @@ const catalog = async (instance: Parameters<typeof marketplaces>[0]) =>
 // path prefix is added through the form and both serve the catalog at once, each tile naming its
 // marketplace, and the marketplace filter narrows it to one; switching one off removes its entries
 // without an error line; the order of the list is the order of the catalog; a marketplace is
-// deleted through its form; the public one is deleted like any other, stays away after a restart,
-// and only the button of the empty state brings it back, once.
+// deleted through its form; the public one is always there: its form offers no delete, deleting it
+// is refused, and switched off it stays off and single after a restart.
 scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   const preset = await startMarketplace()
   ctx.onTeardown(() => preset.close())
@@ -141,39 +141,47 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   )
   ctx.step('deleted through its form')
 
-  // The public one is deleted like any other and does not come back by itself.
+  // The public one is always there: its form has no delete, the command refuses, and it is only
+  // switched off.
   await instance.click(`settings-marketplace-edit-${PRESET_ID}`)
   await instance.waitForDisplayed('settings-marketplace-form')
-  await instance.click('settings-marketplace-delete')
-  await instance.click('settings-marketplace-delete-confirm')
-  await instance.waitForDisplayed('settings-marketplaces-empty', 15_000)
-  assert.deepEqual(await marketplaces(instance), [])
+  await ctx.waitFor('the form of the public marketplace', async () => {
+    const value = await instance.exec<string>(
+      `return document.querySelector('[data-testid="settings-marketplace-name"]')?.value ?? ''`,
+    )
+    return value !== ''
+  })
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="settings-marketplace-delete"]') !== null`,
+    ),
+    false,
+    'the public marketplace offers no delete',
+  )
+  const refused = await instance.invoke('marketplace_delete', { id: PRESET_ID })
+  if ('ended' in refused || refused.ok) {
+    assert.fail('deleting the public marketplace is refused')
+  }
+  assert.match(
+    JSON.stringify(refused.error),
+    /marketplace_preset_not_deletable/,
+  )
+  unwrap(
+    'marketplace_set_enabled',
+    await instance.invoke('marketplace_set_enabled', {
+      id: PRESET_ID,
+      enabled: false,
+    }),
+  )
   await instance.stop()
 
   const next = await ctx.startInstance({ reusesRoot: instance.root })
   await openVault(next, name, passphrase)
+  const after = await marketplaces(next)
   assert.deepEqual(
-    await marketplaces(next),
-    [],
-    'opening the vault again does not recreate the public marketplace',
+    after.map((market) => [market.id, market.enabled]),
+    [[PRESET_ID, false]],
+    'after a restart the public marketplace is there once, still switched off',
   )
-  ctx.step('deleted for good, also after a restart')
-
-  // The empty state offers it; one tap restores exactly one row, a second call changes nothing.
-  await openMarketplace(next)
-  await next.waitForDisplayed('marketplace-none')
-  await next.waitForDisplayed('marketplace-empty-add-own')
-  await next.click('marketplace-empty-add-preset')
-  await ctx.waitFor(
-    'the preset row',
-    async () => (await marketplaces(next)).length === 1,
-  )
-  await repointPreset(next, preset.url)
-  await next.waitForDisplayed(`marketplace-tile-${PRESET_ID}-probe`, 20_000)
-  unwrap('marketplace_add_preset', await next.invoke('marketplace_add_preset'))
-  assert.deepEqual(
-    (await marketplaces(next)).map((market) => market.id),
-    [PRESET_ID],
-  )
-  ctx.step('the empty state brings back exactly one public marketplace')
+  ctx.step('the public marketplace is always there and only switched off')
 })

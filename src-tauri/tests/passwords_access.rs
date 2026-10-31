@@ -565,13 +565,13 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
     let agent = Caller::BuiltinAgent;
     let all = f
         .service
-        .agent_search(&agent, None, None, None)
+        .agent_search(&agent, &[], None, None, None)
         .await
         .expect("all");
     assert_eq!(all.len(), 4);
     let by_word = f
         .service
-        .agent_search(&agent, Some("BANK".to_string()), None, None)
+        .agent_search(&agent, &[], Some("BANK".to_string()), None, None)
         .await
         .expect("by word");
     let mut titles: Vec<_> = by_word.iter().filter_map(|h| h.title.clone()).collect();
@@ -583,13 +583,13 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
     );
     let by_tag = f
         .service
-        .agent_search(&agent, None, Some("S3".to_string()), None)
+        .agent_search(&agent, &[], None, Some("S3".to_string()), None)
         .await
         .expect("by tag");
     assert_eq!(by_tag.len(), 2);
     let limited = f
         .service
-        .agent_search(&agent, None, None, Some(1))
+        .agent_search(&agent, &[], None, None, Some(1))
         .await
         .expect("limited");
     assert_eq!(limited.len(), 1);
@@ -599,7 +599,7 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
     }
     // Only the built-in agent searches this way.
     for caller in outside_callers() {
-        let result = f.service.agent_search(&caller, None, None, None).await;
+        let result = f.service.agent_search(&caller, &[], None, None, None).await;
         assert!(
             matches!(result, Err(HolziError::PasswordsForbidden)),
             "{caller:?}"
@@ -607,9 +607,36 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
     }
     let user = f
         .service
-        .agent_search(&Caller::User, None, None, None)
+        .agent_search(&Caller::User, &[], None, None, None)
         .await;
     assert!(matches!(user, Err(HolziError::PasswordsForbidden)));
+}
+
+/// Spec 021 US5: an external agent searches only the entries its read grant covers, with the same
+/// narrow headers; without a grant it gets nothing.
+#[tokio::test]
+async fn an_external_agent_searches_only_the_entries_of_its_grant() {
+    let f = fixture();
+    seed(&f).await;
+    let agent = Caller::ExternalAgent {
+        id: "claude".to_string(),
+    };
+    let grant = [Grant::new(GrantAction::Read, Scope::tags(["S3"]))];
+    let found = f
+        .service
+        .agent_search(&agent, &grant, None, None, None)
+        .await
+        .expect("in scope");
+    assert_eq!(found.len(), 2);
+    assert!(found
+        .iter()
+        .all(|header| header.tags.iter().any(|tag| tag.eq_ignore_ascii_case("s3"))));
+    let json = serde_json::to_string(&found).expect("json");
+    for hidden in ["user-of-", "example.invalid", MARKER] {
+        assert!(!json.contains(hidden), "{hidden} in {json}");
+    }
+    let refused = f.service.agent_search(&agent, &[], None, None, None).await;
+    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
 }
 
 fn id_target(id: &str) -> holzi_lib::passwords::model::Target {

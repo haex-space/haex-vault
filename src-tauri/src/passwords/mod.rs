@@ -19,6 +19,7 @@ pub const TRASH_GROUP_ID: &str = "trash";
 pub mod access;
 #[cfg(test)]
 mod access_tests;
+pub mod agent_actions;
 pub mod attachment_view;
 #[cfg(test)]
 mod attachment_view_tests;

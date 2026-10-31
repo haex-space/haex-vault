@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use tauri::AppHandle;
 
-use crate::models::download::download_to_file;
+use crate::models::download::{download_to_file, DownloadProgress};
 use crate::models::paths as model_paths;
 
 use super::catalog::{SttCatalogEntry, SttEngine};
@@ -60,7 +60,7 @@ pub fn is_complete_model(dir: &Path, engine: SttEngine) -> bool {
 /// truncated or otherwise corrupt document. Weight files intentionally keep
 /// the cheap non-empty check; hashing them on every listing would turn
 /// discovery into a full model read.
-fn is_complete_artifact(path: &Path, filename: &str) -> bool {
+pub(crate) fn is_complete_artifact(path: &Path, filename: &str) -> bool {
     if !is_complete_file(path) {
         return false;
     }
@@ -87,21 +87,42 @@ pub fn resolve_model_dir(app: &AppHandle, entry: &SttCatalogEntry) -> Result<Pat
 /// Downloads whichever of `entry`'s files isn't already complete under `dir`
 /// from its pinned Hugging Face revision. Idempotent — a second call with
 /// every file complete makes no network request at all.
-pub async fn ensure_model_files(dir: &Path, entry: &SttCatalogEntry) -> Result<(), SttError> {
+///
+/// `on_progress` sees the whole model, not one file: the bytes of the files
+/// already complete plus the running count of the current one, against the
+/// catalog's `approx_size_bytes` (raised to the bytes seen if that falls short).
+pub async fn ensure_model_files<F>(
+    dir: &Path,
+    entry: &SttCatalogEntry,
+    mut on_progress: F,
+) -> Result<(), SttError>
+where
+    F: FnMut(DownloadProgress),
+{
+    let mut done: u64 = 0;
     for filename in files_for(entry.engine) {
         let dest = dir.join(filename);
         if is_complete_artifact(&dest, filename) {
+            done += std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
             continue;
         }
         let url = format!(
             "https://huggingface.co/{}/resolve/{}/{filename}",
             entry.hf_repo, entry.hf_revision
         );
-        download_to_file(&url, dest, |_progress| {})
-            .await
-            .map_err(|e| SttError::LocalUnavailable {
-                reason: format!("download {filename}: {e}"),
-            })?;
+        let before = done;
+        let downloaded = download_to_file(&url, dest, |progress| {
+            let bytes_downloaded = before + progress.bytes_downloaded;
+            on_progress(DownloadProgress {
+                bytes_downloaded,
+                bytes_total: Some(entry.approx_size_bytes.max(bytes_downloaded)),
+            });
+        })
+        .await
+        .map_err(|e| SttError::LocalUnavailable {
+            reason: format!("download {filename}: {e}"),
+        })?;
+        done += downloaded.bytes_written;
     }
     Ok(())
 }

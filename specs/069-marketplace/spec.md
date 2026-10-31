@@ -50,6 +50,15 @@ haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 - Q: Is there a size limit for `.xt`? → A: Yes, 64 MiB (spec 017, `limits::ARCHIVE_BYTES`). The download
   keeps the same limit (FR-014).
 
+### Session 2026-10-31 (operator, after the merge)
+
+- Q: Must the user add the public marketplace when it is missing? → A: No. The public marketplace is
+  **always there at once** and needs no button: every vault holds the preset, also one from before this
+  feature, which gets it when it is opened. It can be switched off, edited and moved, but not deleted.
+  This replaces the earlier answer that the preset can be deleted (session "operator, after the plan").
+- Q: Some public extensions show no icon. → A: Their icons are larger than the old limit of 256 KiB. The
+  host loads icons up to 4 MiB and sends a small copy it made itself (FR-006).
+
 ## Terms
 
 - **Marketplace**: a catalog service that speaks the **marketplace protocol**
@@ -57,8 +66,8 @@ haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
   description, publisher, category, versions and a download address. To HaexVault a marketplace is only a
   row of name, address and optional credentials; all are equal. Anyone can run one: the project (public),
   a company or the user themselves.
-- **Preset**: the entry for the project's public marketplace that a new vault brings along. It is an
-  ordinary row and can be changed, switched off and deleted.
+- **Preset**: the entry for the project's public marketplace that every vault holds. It is an ordinary
+  row and can be changed and switched off, but not deleted.
 - **Catalog**: the shared list of the extensions of all enabled marketplaces, at the same time.
 - **Catalog entry**: an extension in the catalog with the marketplace's details (name, short description,
   icon, publisher, category, rating, number of downloads, available versions).
@@ -196,9 +205,9 @@ whether the extension's data is kept.
 
 ### User Story 4 - Manage marketplaces (Priority: P2)
 
-Under Settings → Extensions → Marketplaces Anna sees a list of her marketplaces, in a new vault with the
+Under Settings → Extensions → Marketplaces Anna sees a list of her marketplaces, always with the
 preset. All rows are equal: she switches each one on or off (applies at once), changes the order, adds a
-new one with name and address, edits and deletes any of them. Whoever hosts a marketplace of their own
+new one with name and address, edits any of them and deletes any but the preset. Whoever hosts a marketplace of their own
 (company, club, home server) enters its address, and it works next to the others without HaexVault having
 to know anything about it.
 
@@ -219,8 +228,9 @@ catalog and the order of the sources follow each time at once.
    neither entries nor categories nor errors.
 4. **Given** two marketplaces, **When** Anna moves one up, **Then** their arrangement in the catalog
    changes at once.
-5. **Given** the preset, **When** Anna edits, switches off or deletes it, **Then** it works like with any
-   other marketplace; HaexVault never re-creates it on its own or switches it on again.
+5. **Given** the preset, **When** Anna edits or switches it off, **Then** it works like with any other
+   marketplace and HaexVault never switches it on again; it cannot be deleted (the form offers no
+   delete), so the public marketplace is always there.
 6. **Given** Anna deletes a marketplace, **When** she confirms, **Then** it disappears from the list and
    from the catalog; already installed extensions stay untouched.
 7. **Given** Anna added a marketplace on device A, **When** device B has synced, **Then** it is in the
@@ -228,9 +238,9 @@ catalog and the order of the sources follow each time at once.
 8. **Given** Ben runs a marketplace of his own following the marketplace protocol at any address (also
    with a path part, also `http://` on the local network), **When** Anna enters the address, **Then** his
    extensions appear in the catalog next to those of the others, without any change to HaexVault.
-9. **Given** Anna has no marketplace (vault created before this feature or all deleted), **When** she
-   opens the catalog, **Then** the empty state explains this and offers "Öffentlichen Marketplace
-   hinzufügen" (the preset) and "Eigenen Marketplace hinzufügen".
+9. **Given** a vault created before this feature, **When** Anna opens it, **Then** the preset is there
+   at once, without a button; only a copy that has not synced yet shows the empty state, with "Eigenen
+   Marketplace hinzufügen".
 
 ---
 
@@ -268,8 +278,8 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
   and "Erneut versuchen"; other sources load. If all sources failed, there is an empty state with "Keine
   Verbindung", not "Keine Erweiterungen".
 - **All marketplaces switched off**: Empty state with a pointer to the settings.
-- **No marketplace set up**: Empty state with "Öffentlichen Marketplace hinzufügen" and "Eigenen
-  Marketplace hinzufügen" (US4-9).
+- **No marketplace on this device yet** (a copy before its first sync): Empty state with "Eigenen
+  Marketplace hinzufügen" (US4-9); the preset arrives with the sync.
 - **The same extension in two marketplaces**: Both entries appear with their source, nothing is merged
   (FR-012). The preview shows the publisher key from the bundle, so a planted entry can be recognised.
 - **Marketplace delivers garbage** (no valid format, missing fields): The source shows "Antwort nicht
@@ -319,7 +329,8 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
   active content (no HTML, no scripts). Icons are loaded and embedded by the host without credentials. URLs
   on the configured marketplace origin are allowed; external URLs must be `https` and publicly routable.
   Private or reserved IP addresses and redirects to them are blocked; the webview itself never calls an
-  address of a marketplace.
+  address of a marketplace. The host decodes an icon within limits and hands the webview a small PNG it
+  encoded itself, so a large icon of a marketplace is shown as well.
 - **FR-007**: The marketplace catalog MUST be usable without any chosen installation (view only); a
   request to a marketplace sends neither vault nor device identifiers nor the user's name.
 
@@ -364,11 +375,14 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
 - **FR-021**: The form of a marketplace (name, address, auth type, credentials entry) MUST test the
   connection on confirming (reachability, sign-in) and show the result before it saves; the user can also
   save deliberately after a failure.
-- **FR-022**: A new vault MUST contain the preset (the project's public marketplace) as an ordinary row.
-  If a vault has no marketplace, the catalog MUST offer "Öffentlichen Marketplace hinzufügen". After the
-  initial setup HaexVault creates no row without the user's action and switches none back on.
-- **FR-023**: Every marketplace MUST be addable, editable, switchable on/off, reorderable and deletable,
-  the preset included. Deleting does not remove any installed extension.
+- **FR-022**: Every vault MUST contain the preset (the project's public marketplace) as an ordinary row,
+  without any action of the user: a new vault from the start, a vault from before this feature when it is
+  opened on a main device (a copy gets the row from the sync). An existing row is never changed by this,
+  so a switched-off preset stays off. Apart from the preset HaexVault creates no row without the user's
+  action and switches none back on.
+- **FR-023**: Every marketplace MUST be addable, editable, switchable on/off and reorderable, the preset
+  included; every marketplace but the preset MUST be deletable. Deleting does not remove any installed
+  extension.
 - **FR-024**: Addresses MUST be `https://` or `http://` and may have a path part
   (`https://example.org/market`); `http://` is allowed (self-hosted marketplaces on the local network),
   the form points this out.
@@ -435,8 +449,8 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
   marketplace (automated test).
 - **SC-005**: Credentials never leave the device to a host other than the marketplace's and never over
   `http://` (automated test with a redirect and an `http` address).
-- **SC-006**: A new vault contains the preset without any setup; it can be deleted and does not come back
-  on its own; a vault without a marketplace offers it with one tap, without entries being created twice.
+- **SC-006**: Every vault contains the preset without any setup, a vault from before this feature after
+  it is opened; it cannot be deleted, a switched-off preset stays off, and no entry is created twice.
 - **SC-007**: A marketplace added on device A appears on device B after the sync (E2E with two devices).
 - **SC-009**: Two test marketplaces at different addresses (one with a path part, one with sign-in)
   deliver entries into one catalog at the same time; without a line of code that knows either address

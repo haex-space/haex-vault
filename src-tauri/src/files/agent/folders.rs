@@ -99,6 +99,11 @@ impl<E: AgentEnv> FilesAgent<E> {
         memory
     }
 
+    /// Drops the answers given without "Erlaubnis merken"; the opaque names stay.
+    pub(super) fn forget_answers(&self) {
+        self.memory().held.clear();
+    }
+
     /// The opaque name of the folder at `path` of `storage_id`, the same within the task.
     fn opaque_name(&self, storage_id: &str, path: &str) -> String {
         let mut memory = self.memory();

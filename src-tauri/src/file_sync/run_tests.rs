@@ -979,3 +979,6 @@ async fn a_failed_exclusion_union_write_keeps_both_original_files() {
     assert_eq!(read(&w.a.join(".haex-ignore")), "*.tmp\n");
     assert_eq!(read(&w.b.join(".haex-ignore")), "*.log\n");
 }
+
+#[path = "perf_tests.rs"]
+mod perf;

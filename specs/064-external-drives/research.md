@@ -122,13 +122,33 @@ Primärquellen stehen bei jeder Entscheidung.
       gewöhnliche interne Volumes sind; Systemrollen, EFI-Partitionen und unformatierte Volumes
       bleiben ausgeschlossen. Das APFS-Volume mit Rolle `Data` ist eine bewusste Ausnahme und wird
       nicht separat gelistet, weil es hinter `/` über das Firmlink steckt.
-    - Die Rollen-Schlüssel (`Roles` in `apfs list -plist`) sind UNVERIFIED und werden mit den Fixtures
-      aus dem Spike geprüft.
-- **Risiko (UNVERIFIED)**: Apple dokumentiert die Plist-Schlüssel nicht; die Namen stammen aus
-  Fremd-Parsern ([ghw](https://github.com/jaypipes/ghw/blob/main/pkg/block/block_darwin.go),
-  [fleet](https://github.com/fleetdm/fleet/blob/main/orbit/pkg/table/diskutil/apfs/apfs_darwin.go)).
-  Gegenmaßnahme: Fixture-Tests mit echten, auf einem Mac aufgenommenen Ausgaben (Spike-Aufgabe), und
-  der Parser behandelt fehlende Schlüssel als „unbekannt“ statt als Fehler.
+- **Spike (T066, 2026-10-31)**: Aufgenommen auf `macos-latest` (macOS 26.6, Apple Silicon) und
+  `macos-15-intel` (macOS 15.7, Intel) mit einem FAT-Image und einem verschlüsselten APFS-Image; die
+  Ausgaben liegen als Fixtures in `src-tauri/src/files/local/drives/fixtures/macos/`. Bestätigt:
+  - `diskutil list -plist`: `AllDisksAndPartitions` mit `DeviceIdentifier`, `Content`, `OSInternal`,
+    `Partitions` und `APFSVolumes` (je `VolumeName`, `MountPoint`, `VolumeUUID`).
+  - `diskutil apfs list -plist`: `Containers[].Volumes[]` mit `Roles` (Liste, leer bei gewöhnlichen
+    Volumes), `Locked`, `Encryption`, `APFSVolumeUUID`.
+  - `diskutil info -plist <id>`: `MountPoint` (leer, wenn nicht eingehängt), `VolumeName`,
+    `VolumeUUID`, `Internal`, `RemovableMediaOrExternalDevice`, `FilesystemType`, `Content`,
+    `Locked`, `Encryption`, `ParentWholeDisk`, `Size`. Einen Rollen-Schlüssel hat `info` nicht.
+    `FreeSpace` ist bei APFS 0; den freien Platz liefert `statvfs` über `space()`.
+  - Ein Disk-Image meldet `Internal = false` und `RemovableMediaOrExternalDevice = true`.
+  - Das System-Volume (Rolle `System`) ist nicht selbst eingehängt; `/` ist sein versiegelter
+    Snapshot (`diskNs1s1`) ohne Eintrag in `apfs list`.
+  - Apple Silicon hat keine EFI-Partition, sondern `Apple_APFS_ISC` und `Apple_APFS_Recovery`; Intel
+    hat `Content = EFI` (msdos, nicht eingehängt, intern). Beide halten kein Laufwerk.
+  - Zusätzlich gefunden: System-Container mit `OSInternal = true` (iBoot, Cryptexe), deren Volumes
+    unter `/System/Library/AssetsV2/…` eingehängt sind. Sie erscheinen nie.
+  - Befehle: `diskutil apfs unlockVolume <id> -stdinpassphrase` liest das Passwort von stdin und
+    hängt das Volume gleich ein. Ein falsches Passwort endet mit Status 1 und „Passphrase incorrect
+    or user does not exist“ auf stderr. Ein belegtes Volume: „failed to unmount: dissented by PID …“.
+    Ein verschlüsseltes APFS-Volume ist nach dem Aushängen wieder gesperrt. Ein Volume, das es nicht
+    gibt: „Could not find …“. Die Texte sind englisch und stehen auf stderr.
+  - `diskutil apfs addVolume … -stdinpassphrase` scheiterte in einem frischen Image mit -69493; das
+    verschlüsselte Volume entstand mit `diskutil apfs encryptVolume <id> -user disk -stdinpassphrase`.
+- **Risiko**: Apple dokumentiert die Plist-Schlüssel nicht und kann sie ändern. Gegenmaßnahme: die
+  Fixture-Tests und ein Parser, der fehlende Schlüssel als „unbekannt“ behandelt statt als Fehler.
 - **Alternatives**: DiskArbitration über `objc2-disk-arbitration` (dokumentierte Schlüssel und
   Ereignisse, aber FFI und als veraltet markierte freie Funktionen). Wird es, wenn die Plists sich als
   unbrauchbar erweisen.
@@ -160,6 +180,25 @@ Primärquellen stehen bei jeder Entscheidung.
   - Ob ein gesperrtes BitLocker-Laufwerk ohne Admin als gesperrt erkennbar ist (Fehlercode von
     `GetVolumeInformationW`): UNVERIFIED, Spike. Ist es das nicht, erscheint es als eingehängt, und
     der Fehler beim Öffnen sagt „gesperrt – im System entsperren“ mit demselben Knopf.
+- **Spike (T070, 2026-10-31)** auf `windows-latest` (Windows Server 2025, 10.0.26100) mit einem
+  kleinen Rust-Programm über genau diese Aufrufe, je eine VHD als Stick und als BitLocker-To-Go-Volume:
+  - `GetVolumePathNamesForVolumeNameW` liefert `C:\` mit zwei abschließenden NUL; ein Volume ohne
+    Buchstaben (die EFI-Partition) eine leere Liste. `GetVolumeInformationW` liefert Name,
+    Dateisystem und eine 32-Bit-Seriennummer.
+  - Das Öffnen mit Zugriff 0 und `IOCTL_STORAGE_QUERY_PROPERTY`/`IOCTL_STORAGE_GET_DEVICE_NUMBER`
+    gehen auch als Standardbenutzer. Bus-Typen auf dem Runner: SAS (10) bzw. NVMe (17) für die Platten,
+    `FileBackedVirtual` (15) für eine VHD; `RemovableMedia` ist überall `false`.
+  - (b) Ein gesperrtes BitLocker-To-Go-Volume: `GetVolumeInformationW` scheitert mit `0x80310000`
+    (`FVE_E_LOCKED_VOLUME`), als Admin wie als Standardbenutzer (`BUILTIN\Users`, mittlere
+    Integritätsstufe). Es ist also als `locked` erkennbar.
+  - (c) `ShellExecuteExW` mit dem Verb `unlock-bde` auf `B:\` startet `bdeunlock.exe`; das Verb steht
+    in `HKCR\Drive\shell\unlock-bde` (`AppliesTo System.Volume.BitLockerProtection:=6`, Befehl
+    `bdeunlock.exe %1`). `bdeunlock.exe X:` bleibt der Rückweg.
+  - (a) Offen: Eine VHD lässt sich über `CM_Request_Device_EjectW` nicht auswerfen, weder am
+    Datenträger noch am Elterngerät (`CR_REMOVE_VETOED`, Veto 8 `IllegalDeviceRequest`, auch ohne
+    offene Datei). Ob ein USB-Stick am Datenträger oder am Elterngerät ausgeworfen werden muss,
+    klärt erst die Handprüfung (T073). Das Backend fragt zuerst den Datenträger und bei einer
+    Ablehnung, die nicht „belegt“ heißt, das Elterngerät.
 - **Abhängigkeit**: `windows-sys` (schon transitiv im Lockfile) als direkte Abhängigkeit für
   `cfg(windows)` mit den Features `Win32_Foundation`, `Win32_Storage_FileSystem`, `Win32_System_IO`
   (`DeviceIoControl`), `Win32_System_Ioctl`,

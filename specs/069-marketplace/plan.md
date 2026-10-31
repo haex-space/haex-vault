@@ -23,8 +23,8 @@ module `src-tauri/src/marketplace/`; the frontend only displays and calls Tauri 
 - **Marketplace list (generic)**: new CRDT table `haex_marketplaces`; every row is equal (name, address
   with any path part, on/off, rank, auth type, credentials reference). There is **no special case in the
   code**: the project's public marketplace is only the **preset**, an ordinary row with the fixed id
-  `preset-public`, which a new vault brings along and which the user can change or delete. A vault without
-  a marketplace offers it in the empty state with one tap.
+  `preset-public`, which every vault holds (a vault from before this feature gets it when it is opened on
+  a main device) and which the user can change or switch off, but not delete (operator 2026-10-31).
 - **Open protocol**: `contracts/marketplace-api.md` is the normative contract "Marketplace protocol v1"
   for anyone who wants to run a marketplace; the host assumes nothing about a marketplace beyond this
   contract (FR-034).
@@ -69,7 +69,8 @@ through `hyper` (dev dependency, already present).
   redirect to another host, `http` with credentials, deadline, broken answers, 401.
 - **Pure parts without network**: merging and paging, version comparison (`semver`), compatibility
   (`minAppVersion`/`maxAppVersion`), preset as an ordinary row.
-- **Vault test**: table, preset (create, delete, do not re-create), credentials state against a test vault.
+- **Vault test**: table, preset (create, add on open, not deletable, a switched-off one stays off),
+  credentials state against a test vault.
 - **Frontend**: no logic of its own that would need unit tests (it sits in the host); type check, lint,
   `check:templates` and e2e.
 - **E2E** (tauri-driver rig, spec 016): a local test marketplace (Node, in the rig) with two extensions,

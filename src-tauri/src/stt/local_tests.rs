@@ -54,7 +54,7 @@ async fn transcribes_known_fixture() {
 
     let model_dir = std::env::temp_dir().join("holzi-whisper-tiny-test-cache");
     std::fs::create_dir_all(&model_dir).unwrap();
-    ensure_model_files(&model_dir, &whisper_tiny_entry())
+    ensure_model_files(&model_dir, &whisper_tiny_entry(), |_| {})
         .await
         .expect("failed to fetch whisper-tiny fixture cache");
 
@@ -98,7 +98,7 @@ async fn transcribes_german_fixture() {
 
     let model_dir = std::env::temp_dir().join("holzi-whisper-tiny-test-cache");
     std::fs::create_dir_all(&model_dir).unwrap();
-    ensure_model_files(&model_dir, &whisper_tiny_entry())
+    ensure_model_files(&model_dir, &whisper_tiny_entry(), |_| {})
         .await
         .expect("failed to fetch whisper-tiny fixture cache");
 

@@ -70,7 +70,7 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 - **Folgende Specs**: Spec 056 (`specs/056-file-access-sharing/`, umgesetzt 2026-10-25) baut auf dem
   Dateibrowser auf: andere eigene Geräte und empfangene Dateifreigaben stehen in der Seitenleiste wie
   Speicher, „Freigeben …“ im Kontextmenü und „Meine Dateifreigaben“ verwalten die eigenen. Die
-  Sync-Regeln (ersetzen 025, noch ohne Nummer) mit einem Sync-Status je Ordner folgen. Beide sind
+  Sync-Regeln (Spec 061, ersetzen 025) mit einem Sync-Status je Ordner folgen. Beide sind
   nicht Teil dieser Spec.
 
 ## Clarifications

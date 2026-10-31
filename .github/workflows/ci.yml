@@ -461,7 +461,9 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          shared-key: llamacpp
+          # A cached llama.cpp keeps the CPU kernels it was built with (spec 070 R3); a new key starts it
+          # fresh whenever the GGML_* switches in `.cargo/config.toml` change.
+          shared-key: llamacpp-avx2
 
       - name: Run the engine tests
         if: needs.changes.outputs.non_docs == 'true'
@@ -472,8 +474,9 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --all-targets -- -D warnings
 
-  # Full E2E and cross-platform checks run after merges to main or by manual
-  # dispatch on a feature branch, rather than on every PR update.
+  # Full E2E and general cross-platform checks run after merges to main or by manual
+  # dispatch on a feature branch. The Windows/macOS platform probes also run for spec 064 PRs,
+  # so the native drive backends are checked before merge.
   e2e-shards:
     # Builds the debug application (default features, the same profile
     # `pnpm test:e2e` builds locally) and drives it through tauri-driver
@@ -607,9 +610,14 @@ jobs:
           path: ~/.cargo/bin/tauri-driver
           key: tauri-driver-2.0.6-${{ runner.os }}
 
+      # The Rust cache may bring the binary back while this cache misses; then
+      # `cargo install` refuses with "already exists", so it only runs when
+      # cargo does not list that version.
       - name: Install tauri-driver
         if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
-        run: cargo install tauri-driver --locked --version 2.0.6
+        run: |
+          cargo install --list | grep -qx 'tauri-driver v2.0.6:' ||
+            cargo install tauri-driver --locked --version 2.0.6 --force
 
       # Spec 057 (T081): the desktop peer scenario starts a local relay for the vault group, just
       # like the Android scenarios do. Keep the binary version tied to the release holzi uses.
@@ -807,6 +815,9 @@ jobs:
             flags: ''
           - features: no-default
             flags: '--no-default-features'
+          # Spec 070 T035: cross-builds llama.cpp with the NDK through cmake.
+          - features: llamacpp
+            flags: '--no-default-features --features llm-llamacpp'
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
@@ -829,6 +840,8 @@ jobs:
             # openssl-src (SQLCipher) runs ranlib by the target prefix unless told otherwise.
             echo "RANLIB_aarch64_linux_android=$ndk/llvm-ranlib"
             echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$ndk/aarch64-linux-android26-clang"
+            # llama.cpp's build script takes the newest NDK it finds unless told which one.
+            echo "ANDROID_NDK=$ANDROID_HOME/ndk/28.2.13676358"
           } >> "$GITHUB_ENV"
 
       - name: Install Linux build dependencies
@@ -950,9 +963,14 @@ jobs:
           path: ~/.cargo/bin/tauri-driver
           key: tauri-driver-2.0.6-${{ runner.os }}
 
+      # The Rust cache may bring the binary back while this cache misses; then
+      # `cargo install` refuses with "already exists", so it only runs when
+      # cargo does not list that version.
       - name: Install tauri-driver
         if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
-        run: cargo install tauri-driver --locked --version 2.0.6
+        run: |
+          cargo install --list | grep -qx 'tauri-driver v2.0.6:' ||
+            cargo install tauri-driver --locked --version 2.0.6 --force
 
       # The devices of a group meet through a local iroh relay, since the phone sits behind the
       # emulator's own network (contract e2e-android.md): the `iroh-relay` of the release holzi uses.
@@ -1037,7 +1055,7 @@ jobs:
   platform-probe:
     name: Platform probe (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, '064-')
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -1065,6 +1083,8 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: 1.98.1
+          # The drives step lints the macOS backend (spec 064 T069).
+          components: clippy
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -1102,6 +1122,33 @@ jobs:
 
       - name: Agent browser profile test
         run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --test agent_browser_profile
+
+      # Spec 064 (T069): the drives on macOS: the fixture tests and the real `diskutil` of the runner,
+      # then clippy over the macOS backend, which no Linux job compiles.
+      - name: Drives tests and clippy (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
+          cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
+
+      # Spec 064 (T073): the same for the Windows backend; the runner's default shell, as above, in
+      # two steps, as PowerShell fails a step only on its last command's exit code.
+      - name: Drives tests (Windows)
+        if: runner.os == 'Windows'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
+
+      # Clippy has not run on Windows over the rest of holzi yet, which still has findings there:
+      # this step fails on a compile error or on a finding in the drives only, and lists the rest.
+      - name: Drives clippy (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $lint = cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets --message-format=short 2>&1 | ForEach-Object { "$_" }
+          $code = $LASTEXITCODE
+          $lint
+          # Cargo may print source paths with either separator on Windows.
+          $own = $lint | Select-String -Pattern 'files[\\/]local[\\/]drives[\\/]'
+          if ($code -ne 0 -or $own) { exit 1 }
+          exit 0
 
   # Spec 044 (T007, research R4): the same probe in Android's web view, on the emulator of
   # `android-e2e`. The web view's version is in the job log and in the probe's user agent.

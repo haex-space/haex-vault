@@ -26,6 +26,7 @@ fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
             .map(|(scope, level)| ((*scope).to_owned(), *level))
             .collect(),
         browser: None,
+        ..Default::default()
     }
 }
 

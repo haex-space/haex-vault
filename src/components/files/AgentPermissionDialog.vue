@@ -9,11 +9,17 @@
  *
  * The same question asks for the contacts (spec 051 FR-030, research R15): "Einmal erlauben" holds
  * for this access, "Immer erlauben" and "Ablehnen" are kept.
+ *
+ * An external agent (spec 021 US5) is named by what it reports, marked as its own claim; holzi does
+ * not know its model, so a folder's question says that the contents go to the agent and its
+ * provider.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { FilesAgentChoice } from '@bindings/FilesAgentChoice'
 import type { FilesAgentPermissionRequest } from '@bindings/FilesAgentPermissionRequest'
+import type { AgentView } from '@bindings/AgentView'
+import { BUILTIN_AGENT } from '~/lib/files/agentPermissions'
 
 const { t } = useI18n()
 const queue = ref<FilesAgentPermissionRequest[]>([])
@@ -75,6 +81,38 @@ onBeforeUnmount(() => {
 })
 
 const contacts = computed(() => current.value?.kind === 'contacts')
+const external = computed(
+  () => current.value !== undefined && current.value.agentId !== BUILTIN_AGENT,
+)
+
+/** The names external agents report, by id; read once per agent. */
+const externalNames = reactive<Record<string, string>>({})
+watch(
+  () => current.value?.agentId,
+  async (agentId) => {
+    if (!agentId || agentId === BUILTIN_AGENT || agentId in externalNames)
+      return
+    try {
+      const agent = await invoke<AgentView>('mcp_agent_get', {
+        args: { agentId },
+      })
+      externalNames[agentId] = agent.clientName
+    } catch {
+      // Unknown or revoked: the question names no agent.
+    }
+  },
+  { immediate: true },
+)
+
+const agent = computed(() => {
+  const agentId = current.value?.agentId
+  if (!external.value || !agentId)
+    return t('files.agentPermission.builtinAgent')
+  const name = externalNames[agentId]
+  return name
+    ? t('files.agentPermission.externalAgent', { name })
+    : t('files.agentPermission.unknownAgent')
+})
 
 /** `keep` answers a contacts question for good ("Immer erlauben"). */
 async function answerAsync(
@@ -120,28 +158,35 @@ async function answerAsync(
           }}
         </ShadcnAlertDialogTitle>
         <ShadcnAlertDialogDescription v-if="contacts">
-          {{ t(`files.agentPermission.contacts.${current.wants}`) }}
+          {{ t(`files.agentPermission.contacts.${current.wants}`, { agent }) }}
           {{ t('files.agentPermission.contacts.hint') }}
         </ShadcnAlertDialogDescription>
         <ShadcnAlertDialogDescription v-else-if="current.folder">
           {{
             t(
               `files.agentPermission.folder.${current.wants}${current.storageId.startsWith('device:') ? 'Device' : ''}`,
-              { name: current.folder.name, storage: current.storageName },
+              {
+                agent,
+                name: current.folder.name,
+                storage: current.storageName,
+              },
             )
           }}
           {{
-            t(
-              current.folder.cloud
-                ? 'files.agentPermission.folder.cloud'
-                : 'files.agentPermission.folder.local',
-              { model: current.folder.model },
-            )
+            external
+              ? t('files.agentPermission.folder.external')
+              : t(
+                  current.folder.cloud
+                    ? 'files.agentPermission.folder.cloud'
+                    : 'files.agentPermission.folder.local',
+                  { model: current.folder.model },
+                )
           }}
         </ShadcnAlertDialogDescription>
         <ShadcnAlertDialogDescription v-else>
           {{
             t(`files.agentPermission.${current.wants}`, {
+              agent,
               name: current.storageName,
             })
           }}

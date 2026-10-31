@@ -136,7 +136,7 @@ async fn whisper(id: &str, cache: &Path) -> LocalWhisperAdapter {
         .unwrap_or_else(|| panic!("{id} is in the STT catalog"));
     let dir = cache.join(id);
     std::fs::create_dir_all(&dir).expect("cache dir");
-    ensure_model_files(&dir, entry)
+    ensure_model_files(&dir, entry, |_| {})
         .await
         .expect("Whisper download");
     LocalWhisperAdapter::load_from_dir(&dir).expect("Whisper loads")

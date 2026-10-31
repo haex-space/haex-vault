@@ -1,8 +1,8 @@
 //! Integration tests of the llama.cpp engine against a real model (spec 070 T022).
 //!
 //! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HOLZI_TEST_GGUF`, and its
-//! memory. Any Qwen3 or Qwen3.5 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
-//! (otherwise the engine's memory plan decides).
+//! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
+//! (otherwise the engine's memory plan decides), `HOLZI_LLAMACPP_THREADS` the CPU threads.
 //!
 //! ```text
 //! HOLZI_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
@@ -32,14 +32,13 @@ fn model_path() -> PathBuf {
 }
 
 async fn load() -> LlamaCppAdapter {
-    let gpu_layers = env::var("HOLZI_LLAMACPP_GPU_LAYERS")
-        .ok()
-        .and_then(|v| v.parse().ok());
+    let number = |name| env::var(name).ok().and_then(|v| v.parse().ok());
     let adapter = LlamaCppAdapter::load(
         &model_path(),
         LoadOptions {
             context_window: None,
-            gpu_layers,
+            gpu_layers: number("HOLZI_LLAMACPP_GPU_LAYERS"),
+            threads: number("HOLZI_LLAMACPP_THREADS"),
         },
     )
     .await
@@ -127,8 +126,12 @@ async fn loads_and_answers_in_pieces() {
     println!("{}", out.content);
     assert!(!out.content.trim().is_empty(), "no answer");
     assert!(out.chunks > 3, "the answer came in {} chunks", out.chunks);
-    assert_eq!(out.finish_reason.as_deref(), Some("length"));
-    assert_eq!(out.completion_tokens, Some(64));
+    // A small model may finish its list before the limit.
+    match out.finish_reason.as_deref() {
+        Some("length") => assert_eq!(out.completion_tokens, Some(64)),
+        Some("stop") => assert!(out.completion_tokens.is_some_and(|n| n > 0 && n < 64)),
+        other => panic!("finish reason {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -148,7 +151,7 @@ async fn a_tool_call_arrives_as_a_call_and_not_as_text() {
     assert_eq!(out.calls.len(), 1, "expected one tool call");
     assert_eq!(out.calls[0].name, "open_settings");
     assert!(
-        !out.content.contains("<tool_call>"),
+        !out.content.contains("tool_call"),
         "call markup leaked into the text: {}",
         out.content
     );
@@ -218,6 +221,46 @@ async fn greedy_decoding_gives_the_same_answer_twice() {
         answers.push(drain(&mut stream).await.content);
     }
     assert_eq!(answers[0], answers[1]);
+}
+
+/// Spec 070 R3: prompt and generation speed, for comparing builds and thread counts. It prints and does not
+/// judge; the figures go into `research.md`.
+#[tokio::test]
+#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+async fn measures_the_speed() {
+    let adapter = load().await;
+    let prompt = "Summarise the following notes in two sentences. ".repeat(40);
+    for round in 0..2 {
+        let started = Instant::now();
+        let mut stream = adapter
+            .stream_chat(request(&prompt, vec![], 128))
+            .await
+            .expect("stream");
+        let mut first = None;
+        let mut out = Drained::default();
+        while let Some(chunk) = stream.next().await {
+            if first.is_none() && matches!(chunk, Ok(StreamChunk::Delta { .. })) {
+                first = Some(started.elapsed());
+            }
+            if let Ok(StreamChunk::Done {
+                completion_tokens, ..
+            }) = chunk
+            {
+                out.completion_tokens = completion_tokens;
+            }
+        }
+        let total = started.elapsed();
+        let first = first.expect("no text");
+        let tokens = out.completion_tokens.expect("token count") as f64;
+        // The first round warms the caches up; only the second counts.
+        if round == 1 {
+            println!(
+                "speed: first text after {:.2} s, {:.1} tokens/s after it",
+                first.as_secs_f64(),
+                (tokens - 1.0) / (total - first).as_secs_f64()
+            );
+        }
+    }
 }
 
 /// Both engines in one process and one GPU: the backend of llama.cpp and mistralrs' own CUDA state must

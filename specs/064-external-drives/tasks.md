@@ -484,20 +484,24 @@ entry and remember (FR-013, FR-016, US4 scenarios 1–8).
 **Purpose**: The macOS backend for all stories (research R5). Requires a Mac or the macOS CI runner;
 the plist keys are UNVERIFIED until T066.
 
-- [ ] T066 Spike on a Mac (or a `macos-latest` workflow run with `workflow_dispatch`):
+- [x] T066 Spike on a Mac (or a `macos-latest` workflow run with `workflow_dispatch`):
   - capture the real outputs of `diskutil list -plist`, `diskutil info -plist <id>` for the boot volume, the EFI partition, the APFS Preboot/Recovery/VM/Update volumes, an external USB stick and a disk image (`hdiutil create -size 64m -fs APFS -encryption AES-256 -stdinpass`, attached), and `diskutil apfs list -plist` with that image locked
   - store them as fixtures in `src-tauri/src/files/local/drives/fixtures/macos/*.plist`
   - record in `research.md` R5 which keys exist (confirm or correct the UNVERIFIED list)
   - Do not commit any personal disk names or serials; anonymise them.
-- [ ] T067 Create `src-tauri/src/files/local/drives/macos_plist.rs`, pure: parse the fixtures' structure with `plist` into `Drive`s (`kind` by `Internal`/`RemovableMediaOrExternalDevice`/root, `locked` from the APFS list, `key` = `VolumeUUID`/`APFSVolumeUUID` lowercase). Apply the visibility rule of research R5 (no system roles, no EFI, `Data` not on its own, unmounted only when removable or locked). Missing keys mean "unknown", not an error. Tests in `macos_plist_tests.rs` over the fixtures, including that none of EFI, Preboot, Recovery, VM, Update appears (SC-006).
-- [ ] T068 Create `src-tauri/src/files/local/drives/macos.rs`:
+  - Done on CI runners (`macos-latest`, macOS 26.6 on Apple silicon, and `macos-15-intel`, macOS 15.7, for the EFI partition) through a throwaway workflow, with disk images instead of a USB stick: a FAT image and an APFS image whose volume was encrypted with `diskutil apfs encryptVolume -user disk -stdinpassphrase` (`apfs addVolume` failed with -69493). Fixtures per architecture in two snapshots, `fat-unmounted/` and `apfs-locked/`, plus the info of the mounted or unlocked state. Runner VMs only, nothing personal. Findings in research R5.
+- [x] T067 Create `src-tauri/src/files/local/drives/macos_plist.rs`, pure: parse the fixtures' structure with `plist` into `Drive`s (`kind` by `Internal`/`RemovableMediaOrExternalDevice`/root, `locked` from the APFS list, `key` = `VolumeUUID`/`APFSVolumeUUID` lowercase). Apply the visibility rule of research R5 (no system roles, no EFI, `Data` not on its own, unmounted only when removable or locked). Missing keys mean "unknown", not an error. Tests in `macos_plist_tests.rs` over the fixtures, including that none of EFI, Preboot, Recovery, VM, Update appears (SC-006).
+  - Follows the visibility rule as research R5 states it now: an unmounted volume with a file system shows also when internal, as on Linux. Hidden besides the roles and EFI: the stores of APFS containers (`Apple_APFS*`), containers with `OSInternal` (iBoot, cryptexes) and volumes mounted outside `/` and `/Volumes`. The module builds for tests on every platform (`plist` also as a dev-dependency), so the fixture tests run in the Linux jobs.
+- [x] T068 Create `src-tauri/src/files/local/drives/macos.rs`:
   - fingerprint gate: names in `/dev` starting with `disk` plus the entries of `/Volumes`; `list()` reruns `diskutil` only when it changed, else it returns the cached list with fresh `free` values via `space()`
   - `mount` → `diskutil mount <id>`
   - `release` → `diskutil unmount` or `eject`
   - `unlock` → `diskutil apfs unlockVolume <id> -stdinpassphrase` with the secret written to stdin and stdin closed; never `-passphrase` (FR-017)
   - map the exit status and stderr to `DriveError`
   - Test the argument lists (a pure `fn command_for(action) -> Vec<&str>` asserting `-stdinpassphrase` and no secret in the args) in `macos_tests.rs`.
+  - `diskutil` is the trait `Diskutil` (`SystemDiskutil` on the Mac), so `macos_tests.rs` runs the backend over the fixtures on Linux: cache by fingerprint, mount, unlock with the secret on stdin only, release (unmount, then `eject` of `ParentWholeDisk`), busy and gone. `unlockVolume` mounts by itself; the backend mounts only when it did not.
 - [ ] T069 Build and clippy for `aarch64-apple-darwin` on the macOS CI job (`pnpm lint:rust` equivalent there), then quickstart macOS by hand
+  - The platform probe job runs the drives tests (fixtures plus the runner's real `diskutil`) and clippy `--all-targets` on macOS. The hand check is open.
 
 ---
 
@@ -506,11 +510,12 @@ the plist keys are UNVERIFIED until T066.
 **Purpose**: The Windows backend (research R6). Requires a Windows machine or the Windows CI runner for
 the spikes.
 
-- [ ] T070 Spikes on Windows, results into `research.md` R6:
+- [x] T070 Spikes on Windows, results into `research.md` R6:
   - (a) whether `CM_Request_Device_EjectW` must target the disk devinst or its parent for a USB stick and a USB HDD
   - (b) which error `GetVolumeInformationW` returns for a locked BitLocker To Go volume without admin rights (so it can show as `locked`)
   - (c) whether `ShellExecuteExW` with verb `unlock-bde` on `X:\` opens the unlock dialog, else `bdeunlock.exe X:`
-- [ ] T071 Create `src-tauri/src/files/local/drives/windows.rs`:
+  - Done on `windows-latest` with a small Rust program over the same calls and two VHDs (stick, BitLocker To Go), the standard-user part through a scheduled task. (b) and (c) answered, see research R6; (a) cannot be answered with a VHD (not ejectable at all) and moves to the hand check of T073.
+- [x] T071 Create `src-tauri/src/files/local/drives/windows.rs`:
   - list volumes with drive letters via `FindFirstVolumeW`/`FindNextVolumeW`/`GetVolumePathNamesForVolumeNameW`, never `GetLogicalDrives`
   - label and file system via `GetVolumeInformationW`; `locked` per T070 (b)
   - `kind` via `IOCTL_STORAGE_QUERY_PROPERTY` on a handle opened with access 0; the Windows directory's volume is `system`
@@ -519,8 +524,11 @@ the spikes.
   - `release` per T070 (a) with a veto buffer; a veto → `driveBusy` with the veto name
   - `unlock_mode: SystemDialog`, `open_system_unlock` per T070 (c)
   - Each `unsafe` call in a small wrapper with a `// SAFETY:` comment.
-- [ ] T072 [P] Tests in `windows_tests.rs` for the pure parts: multi-string parsing of `GetVolumePathNamesForVolumeNameW` output, bus type → kind, veto type → error. Run them on the Windows CI job.
+  - The id of a drive is its root `E:\`. A locked volume has no serial, so no `key`; a volume whose `GetVolumeInformationW` fails otherwise (a card reader without a card) is left out. `release` asks the disk first and its parent when the disk refuses without a busy veto (T070 a open). Free space through `GetDiskFreeSpaceExW`. The pure parts are separate and build for tests on every platform; the Win32 part was checked with clippy for `x86_64-pc-windows-gnu` and runs on the Windows CI job.
+- [x] T072 [P] Tests in `windows_tests.rs` for the pure parts: multi-string parsing of `GetVolumePathNamesForVolumeNameW` output, bus type → kind, veto type → error. Run them on the Windows CI job.
+  - They run in every job, as the macOS parser's do: multi-string, drive roots, bus → kind, the drive of a volume (stick, system, internal, locked), veto → error.
 - [ ] T073 Clippy and tests on the Windows CI job, then quickstart Windows by hand
+  - The platform probe job runs the drives tests and clippy `--all-targets` on Windows too. The hand check, including (a) of T070, is open.
 
 ---
 

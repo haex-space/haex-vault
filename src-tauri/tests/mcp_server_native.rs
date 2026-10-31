@@ -36,6 +36,10 @@ impl NativeExecutor for Recorder {
         &["native.change"]
     }
 
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
     async fn run(
         &self,
         action_id: &str,
@@ -84,6 +88,7 @@ fn rights() -> Rights {
         .into_iter()
         .collect(),
         browser: None,
+        ..Default::default()
     }
 }
 

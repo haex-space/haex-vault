@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": 2,
-    "note": "Desktop defaults to Qwen3 4B. Qwen3.5 loads through the llama.cpp engine and is listed only in a build that has it; Gemma 4 is left out until its tool-call format is read (spec 070). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
+    "note": "Desktop defaults to Qwen3 4B. Qwen3.5 loads through the llama.cpp engine and is listed only in a build that has it; Gemma 4 E4B is left out: the engine reads its tool calls, but it measured 53 of 83 against 60 for Qwen3.5 4B at a larger file (spec 070). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
     "source": "Hugging Face model repositories listed per entry (community-quantized GGUFs)",
     "profiles": {
       "desktop": "qwen3-4b-instruct-q4_k_m",

@@ -10,7 +10,11 @@ export type MarketplaceView = { id: string, name: string, baseUrl: string, enabl
 /**
  * 1-based position in the list.
  */
-rank: number, authType: MarketplaceAuthType, credentials: MarketplaceCredentialsState,
+rank: number,
+/**
+ * Whether the row can be deleted: every one but the preset, which is only switched off.
+ */
+deletable: boolean, authType: MarketplaceAuthType, credentials: MarketplaceCredentialsState,
 /**
  * The password-manager entry the row points at. It is an identifier, never a secret.
  */

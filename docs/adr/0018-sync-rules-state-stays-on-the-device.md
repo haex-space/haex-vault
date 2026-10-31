@@ -1,6 +1,6 @@
 # Sync rules and their state stay on the device that runs them
 
-Status: proposed
+Status: accepted
 Date: 2026-10-26
 
 ## Context

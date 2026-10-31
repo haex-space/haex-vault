@@ -196,6 +196,11 @@ pub enum HolziError {
     #[error("Transcription failed: {reason}")]
     TranscriptionFailed { reason: String },
 
+    // --- Voice assistant (spec 066) -----------------------------------------
+    /// Speech output or one of its models failed; `reason` says what.
+    #[error("Speech output failed: {reason}")]
+    SpeechFailed { reason: String },
+
     // --- Address book (spec 051, contracts/tauri-commands.md) ---
     /// The contact or group does not exist, or the caller may not know that it does (FR-031).
     #[error("Contact not found")]

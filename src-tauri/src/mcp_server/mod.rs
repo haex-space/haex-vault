@@ -8,12 +8,14 @@ pub mod commands;
 pub mod connection;
 pub mod dispatch;
 pub mod endpoint;
+pub mod extension_tools;
 pub mod grants;
 pub mod hello;
 pub mod helper;
 pub mod live;
 pub mod manage;
 pub mod manage_commands;
+pub mod password_env;
 pub mod prompts;
 pub mod redact;
 mod registration;
@@ -24,6 +26,8 @@ pub mod settings;
 
 #[cfg(test)]
 mod agent_log_tests;
+#[cfg(test)]
+mod dispatch_tests;
 #[cfg(test)]
 mod endpoint_tests;
 #[cfg(test)]
@@ -172,6 +176,8 @@ impl McpServer {
                         socket_dir: endpoint::default_socket_dir(),
                         parent: state.gate().token(),
                         catalog: chat.action_catalog.clone(),
+                        extension_tools: chat.extension_tools.clone(),
+                        vault_changes: state.vault_changes().clone(),
                         bridge: chat.action_bridge.clone(),
                         native: chat.native_actions.clone(),
                         prompts: self.prompts.clone(),
