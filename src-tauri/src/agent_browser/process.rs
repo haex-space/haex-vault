@@ -162,8 +162,9 @@ impl Drop for StartupGuard {
 }
 
 /// Starts the browser of `launch`, checks its version and sets it up (contracts/agent-browser.md
-/// "Start"): auto-attach in flat mode, page permissions denied, downloads into their folder.
-pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
+/// "Start"): auto-attach in flat mode with each new target waiting until `claim` takes it or it
+/// goes on, page permissions denied, downloads into their folder.
+pub async fn launch(os: Os, launch: &Launch, claim: target::Claim) -> Result<Launched> {
     let (connection, process) = spawn(os, launch)?;
     let startup = StartupGuard::new(connection, process);
     let connection = Arc::clone(startup.connection());
@@ -180,7 +181,8 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
             )));
         }
         let configure = async {
-            target::auto_attach(&connection, None).await?;
+            target::resume_unclaimed(&connection, claim);
+            target::auto_attach(&connection).await?;
             browser::deny_permissions(&connection).await?;
             browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
             Ok::<(), BrowserError>(())

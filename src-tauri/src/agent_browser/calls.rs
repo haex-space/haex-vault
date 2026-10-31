@@ -172,12 +172,12 @@ pub(super) async fn new_tab(
             "An agent has at most 5 tabs; close one first.",
         ));
     }
-    let id = tabs.next_id();
+    let id = session.next_tab_id();
     let tab = Tab::open(
         connection,
         id.clone(),
         session.guard(id.clone()),
-        session.marker().await,
+        session.tab_hooks(&id).await,
     )
     .await
     .map_err(browser_error)?;

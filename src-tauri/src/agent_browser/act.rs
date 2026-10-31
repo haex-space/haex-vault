@@ -174,9 +174,9 @@ impl Acting<'_> {
         events: tokio::sync::mpsc::UnboundedReceiver<Event>,
     ) -> Result<NativeReply, NativeError> {
         let session = Arc::clone(self.session);
-        let settled = tab.settle(events, &move || session.submitting()).await;
+        let settled = tab.settle(events, &move || session.questions_open()).await;
         let _ = tokio::time::timeout(PROMPT_TIMEOUT + Duration::from_secs(5), async {
-            while self.session.submitting() {
+            while self.session.questions_open() {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         })

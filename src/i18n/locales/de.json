@@ -3944,6 +3944,11 @@
         "hint": "Der Agent möchte etwas an die Website schicken, zum Beispiel ein Formular, eine Bestellung oder eine Löschung. Ohne deine Zustimmung wird nichts gesendet.",
         "fields": "Was gesendet würde"
       },
+      "newTab": {
+        "title": "Neuen Tab öffnen?",
+        "hint": "Eine Seite in einem Tab des Agenten möchte einen neuen Tab öffnen. Ohne deine Zustimmung lädt er nichts und wird geschlossen. Mit Zustimmung steuert ihn der Agent, und er darf diese Website in dieser Sitzung öffnen.",
+        "allow": "Öffnen"
+      },
       "address": "Adresse",
       "target": "Ziel",
       "more": "Danach warten noch {count} Fragen.",

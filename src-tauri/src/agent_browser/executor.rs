@@ -118,6 +118,7 @@ impl BrowserTools {
         closed: ClosedNotice,
         sessions: BrowserSessions,
     ) -> Self {
+        browser.set_claim(sessions.claim());
         Self {
             env,
             browser,
@@ -478,6 +479,7 @@ impl BrowserTools {
                 if tabs.current.as_deref() == Some(tab.as_str()) {
                     tabs.current = None;
                 }
+                session.forget_targets(&tab);
                 tabs.open.remove(index).close().await;
                 json!({ "tab": tab, "closed": true }).into()
             }
