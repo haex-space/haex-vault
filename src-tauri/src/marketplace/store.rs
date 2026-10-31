@@ -1,5 +1,6 @@
 //! The marketplaces of a vault in `haex_marketplaces` (spec 069, data-model.md, research R10,
-//! R14). Every row is equal and can be changed, switched off or deleted, the preset included.
+//! R14). Every row is equal and can be changed and switched off, the preset included; every row
+//! but the preset can be deleted, so the public marketplace is always there.
 //! Rows are written the way the other tables are: check, then insert or update, never an upsert
 //! (an upsert fires two CRDT triggers), and without a UNIQUE constraint.
 
@@ -295,8 +296,17 @@ pub fn reorder(tx: &mut CrdtTransaction<'_>, ids: &[String], now: i64) -> Result
     Ok(())
 }
 
-/// Deletes a marketplace, whichever it is (FR-023). Installed extensions stay.
+/// Whether a marketplace can be deleted: every one but the preset, which is only switched off
+/// (FR-023).
+pub fn deletable(id: &str) -> bool {
+    id != PRESET_ID
+}
+
+/// Deletes a marketplace (FR-023); the preset is refused. Installed extensions stay.
 pub fn delete(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
+    if !deletable(id) {
+        return Err(refused(kinds::PRESET_NOT_DELETABLE));
+    }
     if get(tx, id)?.is_none() {
         return Err(refused(kinds::NOT_FOUND));
     }
@@ -305,8 +315,7 @@ pub fn delete(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
 }
 
 /// Adds the preset row if no row of that id exists; otherwise changes nothing, not even a switch
-/// the user turned off (FR-022). Called when a vault is created and by the empty state of the
-/// catalog, never on open. Returns the row.
+/// the user turned off (FR-022). Called by [`super::seed::ensure_preset`]. Returns the row.
 pub fn add_preset(tx: &mut CrdtTransaction<'_>, now: i64) -> Result<MarketplaceRow> {
     if let Some(existing) = get(tx, PRESET_ID)? {
         return Ok(existing);

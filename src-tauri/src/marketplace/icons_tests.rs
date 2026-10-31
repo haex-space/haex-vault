@@ -20,6 +20,46 @@ const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
 const JPEG: &[u8] = b"\xff\xd8\xff\xe0\0\x10JFIF";
 const WEBP: &[u8] = b"RIFF\x24\0\0\0WEBPVP8 ";
 
+/// A real PNG of `width` × `height`: opaque on the left half, fully transparent on the right.
+fn real_png(width: u32, height: u32) -> Vec<u8> {
+    let image = image::RgbaImage::from_fn(width, height, |x, y| {
+        let alpha = if x < width / 2 { 255 } else { 0 };
+        image::Rgba([(x % 256) as u8, (y % 256) as u8, 128, alpha])
+    });
+    let mut png = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+        .expect("png");
+    png
+}
+
+/// A real 8 × 8 image in `format`.
+fn real(format: ImageFormat) -> Vec<u8> {
+    let image = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+        8,
+        8,
+        image::Rgb([200, 100, 50]),
+    ));
+    let mut bytes = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut bytes), format)
+        .expect("encodes");
+    bytes
+}
+
+/// The image of a `data:image/png;base64,…` URL.
+fn decoded(data: &str) -> image::RgbaImage {
+    let encoded = data
+        .strip_prefix("data:image/png;base64,")
+        .expect("a png data url");
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .expect("base64");
+    image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .expect("decodes")
+        .to_rgba8()
+}
+
 /// A network where `table` says what a name resolves to and every connection ends at the local
 /// test server, like a public address that happens to be this machine.
 fn network(table: &[(&str, &[&str])]) -> (Network, Arc<Mutex<Vec<IpAddr>>>) {
@@ -56,21 +96,23 @@ async fn serve(market: &TestMarketplace, route: &str, body: Vec<u8>, content_typ
 }
 
 #[tokio::test]
-async fn png_jpeg_and_webp_are_accepted_by_their_bytes() {
+async fn png_jpeg_and_webp_are_accepted_by_their_bytes_and_arrive_as_png() {
     let market = TestMarketplace::start().await;
-    serve(&market, "/a.png", PNG.to_vec(), "application/octet-stream").await;
-    serve(&market, "/b.jpg", JPEG.to_vec(), "text/plain").await;
-    serve(&market, "/c.webp", WEBP.to_vec(), "image/webp").await;
+    serve(
+        &market,
+        "/a.png",
+        real(ImageFormat::Png),
+        "application/octet-stream",
+    )
+    .await;
+    serve(&market, "/b.jpg", real(ImageFormat::Jpeg), "text/plain").await;
+    serve(&market, "/c.webp", real(ImageFormat::WebP), "image/webp").await;
     let (net, _) = network(&[("icons.example", &[PUBLIC])]);
     let base = format!("http://icons.example:{}/api", port(&market));
-    for (route, prefix) in [
-        ("/a.png", "data:image/png;base64,"),
-        ("/b.jpg", "data:image/jpeg;base64,"),
-        ("/c.webp", "data:image/webp;base64,"),
-    ] {
+    for route in ["/a.png", "/b.jpg", "/c.webp"] {
         let url = format!("http://icons.example:{}{route}", port(&market));
         let data = Icons::default().load(&net, &base, &url).await.expect(route);
-        assert!(data.starts_with(prefix), "{route}: {data}");
+        assert_eq!(decoded(&data).dimensions(), (8, 8), "{route}");
     }
 }
 
@@ -379,7 +421,7 @@ fn the_kind_of_an_image_is_read_from_its_bytes_only() {
 #[tokio::test]
 async fn the_cache_serves_the_second_call_without_a_request() {
     let market = TestMarketplace::start().await;
-    serve(&market, "/a.png", PNG.to_vec(), "image/png").await;
+    serve(&market, "/a.png", real_png(8, 8), "image/png").await;
     let (net, _) = network(&[("icons.example", &[PUBLIC])]);
     let base = format!("http://icons.example:{}", port(&market));
     let url = format!("{base}/a.png");
@@ -394,7 +436,7 @@ async fn the_cache_serves_the_second_call_without_a_request() {
 async fn the_cache_forgets_the_oldest_first() {
     let market = TestMarketplace::start().await;
     for route in ["/1.png", "/2.png", "/3.png"] {
-        serve(&market, route, PNG.to_vec(), "image/png").await;
+        serve(&market, route, real_png(8, 8), "image/png").await;
     }
     let (net, _) = network(&[("icons.example", &[PUBLIC])]);
     let base = format!("http://icons.example:{}", port(&market));
@@ -420,7 +462,7 @@ async fn the_cache_forgets_the_oldest_first() {
 #[tokio::test]
 async fn a_load_waits_when_all_permits_are_taken() {
     let market = TestMarketplace::start().await;
-    serve(&market, "/a.png", PNG.to_vec(), "image/png").await;
+    serve(&market, "/a.png", real_png(8, 8), "image/png").await;
     let (net, _) = network(&[("icons.example", &[PUBLIC])]);
     let base = format!("http://icons.example:{}", port(&market));
     let url = format!("{base}/a.png");
@@ -445,4 +487,47 @@ async fn every_refusal_reads_as_unavailable() {
         error,
         HolziError::Marketplace { ref reason } if reason == crate::marketplace::kinds::ICON_UNAVAILABLE
     ));
+}
+
+#[tokio::test]
+async fn a_large_icon_arrives_shrunk_to_the_edge_with_its_transparency() {
+    let market = TestMarketplace::start().await;
+    serve(&market, "/big.png", real_png(1024, 512), "image/png").await;
+    let (net, _) = network(&[("icons.example", &[PUBLIC])]);
+    let base = format!("http://icons.example:{}", port(&market));
+
+    let data = Icons::default()
+        .load(&net, &base, &format!("{base}/big.png"))
+        .await
+        .expect("loads");
+
+    let icon = decoded(&data);
+    assert_eq!(icon.dimensions(), (ICON_EDGE, ICON_EDGE / 2));
+    assert_eq!(icon.get_pixel(ICON_EDGE - 1, 0)[3], 0, "transparent stays");
+    assert_eq!(icon.get_pixel(0, 0)[3], 255, "opaque stays");
+}
+
+#[test]
+fn a_small_icon_is_not_enlarged_and_a_jpeg_becomes_a_png() {
+    let small = small_png("image/png", &real_png(16, 16)).expect("png");
+    let icon = image::load_from_memory_with_format(&small, ImageFormat::Png).expect("decodes");
+    assert_eq!((icon.width(), icon.height()), (16, 16));
+
+    let mut jpeg = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::new(300, 300))
+        .write_to(&mut Cursor::new(&mut jpeg), ImageFormat::Jpeg)
+        .expect("jpeg");
+    let from_jpeg = small_png("image/jpeg", &jpeg).expect("jpeg is read");
+    assert_eq!(image_mime(&from_jpeg), Some("image/png"));
+}
+
+#[test]
+fn bytes_that_only_start_like_an_image_or_claim_too_many_pixels_are_refused() {
+    assert_eq!(small_png("image/png", PNG), Err(IconRefusal::NotAnImage));
+    assert_eq!(small_png("image/jpeg", JPEG), Err(IconRefusal::NotAnImage));
+    assert_eq!(
+        small_png("image/png", &real_png(ICON_MAX_SIDE + 1, 1)),
+        Err(IconRefusal::NotAnImage),
+        "wider than the host decodes"
+    );
 }

@@ -127,12 +127,13 @@ scenario('marketplace-update', { timeoutMs: 420_000 }, async (ctx) => {
     'the update to be installed',
     async () => (await installedVersions(instance)).probe === '1.1.0',
   )
-  assert.equal(
-    await instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="marketplace-update-${PRESET_ID}-probe"]')`,
-    ),
-    false,
-    'the update mark goes away',
+  // The details read the installed version again after the install; that can come a moment later.
+  await ctx.waitFor(
+    'the update mark to go away',
+    async () =>
+      !(await instance.exec<boolean>(
+        `return !!document.querySelector('[data-testid="marketplace-update-${PRESET_ID}-probe"]')`,
+      )),
   )
   ctx.step('the update installed through the preview')
 

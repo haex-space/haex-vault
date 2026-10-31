@@ -5,10 +5,7 @@
  * list; each answers within its own time, so a slow or failing one shows an error line while the
  * others' entries are there. Below `@lg` the grid has one column.
  */
-import { invoke } from '@tauri-apps/api/core'
-
 const { t } = useI18n()
-const { errString } = useErrorString()
 const { openApp } = useWmTab()
 const catalog = useMarketplaceCatalog()
 const {
@@ -23,23 +20,6 @@ const {
   searchText,
   flushSearch,
 } = catalog
-
-const adding = ref(false)
-const addFailure = ref<string | null>(null)
-
-/** The empty state's way back to the public marketplace: one row, or none if it is there. */
-async function addPresetAsync() {
-  adding.value = true
-  addFailure.value = null
-  try {
-    await invoke('marketplace_add_preset')
-    await catalog.refreshAsync()
-  } catch (error) {
-    addFailure.value = errString(error)
-  } finally {
-    adding.value = false
-  }
-}
 
 const SETTINGS = 'system.settings'
 const openOwn = () => openApp(SETTINGS, '/extensions/marketplaces/new')
@@ -133,14 +113,6 @@ const stateTestId = computed(() => {
       <div v-if="state === 'none'" class="flex flex-wrap justify-center gap-2">
         <UiButton
           type="button"
-          :loading="adding"
-          data-testid="marketplace-empty-add-preset"
-          @click="addPresetAsync"
-        >
-          {{ t('marketplace.states.addPreset') }}
-        </UiButton>
-        <UiButton
-          type="button"
           variant="outline"
           data-testid="marketplace-empty-add-own"
           @click="openOwn"
@@ -157,9 +129,6 @@ const stateTestId = computed(() => {
       >
         {{ t('marketplace.states.openSettings') }}
       </UiButton>
-      <p v-if="addFailure" class="text-sm text-destructive" role="alert">
-        {{ addFailure }}
-      </p>
     </div>
 
     <nav

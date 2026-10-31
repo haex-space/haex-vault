@@ -1,6 +1,6 @@
 //! Spec 069, the store of the marketplaces against a real vault (T012): new rows go to the end,
-//! the order can be rewritten, every row can be deleted, and the preset is added once and never
-//! comes back by itself.
+//! the order can be rewritten, every row but the preset can be deleted, and the preset is added
+//! once.
 
 #[path = "common/marketplace_fixture.rs"]
 mod marketplace_fixture;
@@ -185,22 +185,15 @@ fn the_preset_is_added_once_and_a_second_call_changes_nothing() {
 }
 
 #[test]
-fn a_deleted_preset_does_not_come_back_by_itself() {
+fn the_preset_is_never_deleted() {
     let vault = vault();
     vault
         .db
         .write_blocking(|tx| Ok(store::add_preset(tx, 1)?))
         .expect("add preset");
-    vault
+    let deleted = vault
         .db
-        .write_blocking(|tx| Ok(store::delete(tx, PRESET_ID)?))
-        .expect("delete");
-    assert!(rows(&vault).is_empty());
-    assert!(rows(&vault).is_empty(), "listing never adds it");
-    // Only the explicit call adds it again, and it makes exactly one row.
-    vault
-        .db
-        .write_blocking(|tx| Ok(store::add_preset(tx, 5)?))
-        .expect("add again");
+        .write_blocking(|tx| Ok(store::delete(tx, PRESET_ID)?));
+    assert!(deleted.is_err(), "the preset is only switched off");
     assert_eq!(ids(&vault), [PRESET_ID]);
 }

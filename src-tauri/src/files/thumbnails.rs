@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use fast_image_resize::images::Image;
 use fast_image_resize::{IntoImageView, PixelType, ResizeOptions, Resizer};
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, ImageDecoder, ImageReader, Limits, RgbImage};
+use image::{DynamicImage, ImageDecoder, ImageReader, Limits, RgbImage, RgbaImage};
 use sha2::{Digest, Sha256};
 
 use crate::files::{FilesError, FilesErrorCode};
@@ -159,33 +159,69 @@ fn render_from<R: std::io::BufRead + std::io::Seek>(
 /// shrunk so its longest edge is at most `edge` (never enlarged). Thumbnails and the images agents
 /// read (`files::extract::image`) share it.
 pub(crate) fn upright_within<R: std::io::BufRead + std::io::Seek>(
-    mut reader: ImageReader<R>,
+    reader: ImageReader<R>,
     edge: u32,
 ) -> Result<RgbImage, String> {
+    let image = decode_upright(reader, MAX_SIDE, MAX_ALLOC)?;
+    let rgb = DynamicImage::ImageRgb8(image.to_rgb8());
+    let (width, height, pixels) = shrink(&rgb, edge, PixelType::U8x3)?;
+    RgbImage::from_raw(width, height, pixels)
+        .ok_or_else(|| "resized buffer has the wrong size".to_owned())
+}
+
+/// Like [`upright_within`], but keeping the transparency and with the decode limits given: the
+/// icons of a marketplace (spec 069 R12).
+pub(crate) fn upright_rgba_within<R: std::io::BufRead + std::io::Seek>(
+    reader: ImageReader<R>,
+    edge: u32,
+    max_side: u32,
+    max_alloc: u64,
+) -> Result<RgbaImage, String> {
+    let image = decode_upright(reader, max_side, max_alloc)?;
+    let rgba = DynamicImage::ImageRgba8(image.to_rgba8());
+    let (width, height, pixels) = shrink(&rgba, edge, PixelType::U8x4)?;
+    RgbaImage::from_raw(width, height, pixels)
+        .ok_or_else(|| "resized buffer has the wrong size".to_owned())
+}
+
+/// The image of `reader`, decoded with at most `max_side` per side and `max_alloc` bytes, and
+/// turned upright by its EXIF orientation.
+fn decode_upright<R: std::io::BufRead + std::io::Seek>(
+    mut reader: ImageReader<R>,
+    max_side: u32,
+    max_alloc: u64,
+) -> Result<DynamicImage, String> {
     let mut limits = Limits::default();
-    limits.max_image_width = Some(MAX_SIDE);
-    limits.max_image_height = Some(MAX_SIDE);
-    limits.max_alloc = Some(MAX_ALLOC);
+    limits.max_image_width = Some(max_side);
+    limits.max_image_height = Some(max_side);
+    limits.max_alloc = Some(max_alloc);
     reader.limits(limits);
     let mut decoder = reader.into_decoder().map_err(|e| e.to_string())?;
     let orientation = decoder.orientation().map_err(|e| e.to_string())?;
     let mut image = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
     image.apply_orientation(orientation);
-    let rgb = DynamicImage::ImageRgb8(image.to_rgb8());
-    let (width, height) = fit(rgb.width(), rgb.height(), edge);
-    if (width, height) == (rgb.width(), rgb.height()) {
-        Ok(rgb.to_rgb8())
-    } else {
-        let mut target = Image::new(width, height, PixelType::U8x3);
-        if rgb.pixel_type() != Some(PixelType::U8x3) {
-            return Err("unexpected pixel type".to_owned());
-        }
-        Resizer::new()
-            .resize(&rgb, &mut target, &ResizeOptions::new())
-            .map_err(|e| e.to_string())?;
-        RgbImage::from_raw(width, height, target.into_vec())
-            .ok_or_else(|| "resized buffer has the wrong size".to_owned())
+    Ok(image)
+}
+
+/// The pixels of `image` (of the kind `pixel`) shrunk so the longest edge is at most `edge`, never
+/// enlarged, with the new width and height. Transparent pixels do not darken their neighbours.
+fn shrink(
+    image: &DynamicImage,
+    edge: u32,
+    pixel: PixelType,
+) -> Result<(u32, u32, Vec<u8>), String> {
+    if image.pixel_type() != Some(pixel) {
+        return Err("unexpected pixel type".to_owned());
     }
+    let (width, height) = fit(image.width(), image.height(), edge);
+    if (width, height) == (image.width(), image.height()) {
+        return Ok((width, height, image.as_bytes().to_vec()));
+    }
+    let mut target = Image::new(width, height, pixel);
+    Resizer::new()
+        .resize(image, &mut target, &ResizeOptions::new())
+        .map_err(|e| e.to_string())?;
+    Ok((width, height, target.into_vec()))
 }
 
 /// The most bytes [`MemoryThumbnails`] keeps.
