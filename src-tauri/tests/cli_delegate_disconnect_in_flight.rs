@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Integration test for tasks.md T023 (analyze finding G3, spec.md FR-013
 //! Edge Cases): disconnecting a `cli_delegate` provider while one of its
 //! responses is still streaming must not affect that in-flight response —
@@ -9,9 +11,6 @@
 //! This test pins that guarantee rather than merely asserting it by reading
 //! the code, so a future refactor that reintroduces a live DB dependency
 //! into the streaming path would fail it.
-
-// The stub is a shell script.
-#![cfg(unix)]
 
 use std::collections::HashMap;
 use std::fs;
