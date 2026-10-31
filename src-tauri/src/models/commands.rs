@@ -32,7 +32,7 @@ use crate::vault_gate::VaultDb;
 
 use super::{download, hash, huggingface, import, paths};
 
-const EVENT_PROGRESS: &str = "model-download-progress";
+pub(crate) const EVENT_PROGRESS: &str = "model-download-progress";
 const EVENT_COMPLETE: &str = "model-download-complete";
 
 /// Payload for the frontend: joins the model row and the local file
@@ -81,10 +81,10 @@ impl InstalledModelPayload {
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ProgressEvent {
-    model_id: String,
-    bytes_downloaded: u64,
-    bytes_total: Option<u64>,
+pub(crate) struct ProgressEvent {
+    pub(crate) model_id: String,
+    pub(crate) bytes_downloaded: u64,
+    pub(crate) bytes_total: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
