@@ -35,9 +35,8 @@ jobs:
       # The catalog entry `qwen3-0.6b-instruct-q4_k_m`, pinned to a revision and checked by its SHA-256.
       MODEL_URL: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/60b85c0e3d8fe0f6474f406922a26d12aca4550d/Qwen_Qwen3-0.6B-Q4_K_M.gguf
       MODEL_SHA256: 9acfc1e001311f34b4252001b626f2e466d592a42065f66571bff3790d4e1b14
-    defaults:
-      run:
-        shell: bash
+    # The cargo steps keep the runner's default shell: under Git Bash on Windows, `perl` is Git's MSYS Perl,
+    # which lacks modules openssl-src (SQLCipher) needs; PowerShell finds Strawberry Perl.
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,6 +59,7 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp --lib -- llm:: catalog::
 
       - name: Fetch the model
+        shell: bash
         run: |
           set -euo pipefail
           model="$RUNNER_TEMP/qwen3-0.6b.gguf"
