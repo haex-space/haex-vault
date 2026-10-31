@@ -2045,7 +2045,7 @@
       "reason": "Ein Eintrag im Passwortmanager hat ungespeicherte Änderungen."
     },
     "settings": {
-      "title": "Einstellungen des Passwortmanagers",
+      "title": "Einstellungen",
       "clipboard": {
         "title": "Zwischenablage leeren nach",
         "off": "Nie",
