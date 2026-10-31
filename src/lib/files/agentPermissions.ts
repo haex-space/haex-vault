@@ -73,17 +73,20 @@ function choiceOf(status: PermissionRow['status'] | undefined): StorageChoice {
 }
 
 /**
- * One entry per agent: the built-in one first, then every other agent with a row, by id. Each lists
- * every storage in `storages`; rows of storages that are gone are left out.
+ * One entry per agent: the built-in one first, then every other agent with a row, by id; with
+ * `only`, just that agent, rows or not (an external agent's page, spec 021 US5). Each lists every
+ * storage in `storages`; rows of storages that are gone are left out.
  */
 export function agentFiles(
   rows: readonly PermissionRow[],
   storages: readonly { id: string; name: string }[],
+  only?: string,
 ): AgentFiles[] {
   const others = [...new Set(rows.map((row) => row.agentId))]
     .filter((id) => id !== BUILTIN_AGENT)
     .sort()
-  return [BUILTIN_AGENT, ...others].map((agentId) => {
+  const agentIds = only === undefined ? [BUILTIN_AGENT, ...others] : [only]
+  return agentIds.map((agentId) => {
     const own = rows.filter((row) => row.agentId === agentId)
     const device = own.find((row) => row.kind === 'device')?.status
     return {

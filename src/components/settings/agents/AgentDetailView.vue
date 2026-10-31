@@ -147,6 +147,9 @@ watch(() => store.changes, reloadAsync)
         :model-value="extensions"
         @update:model-value="onExtensions"
       />
+
+      <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->
+      <SettingsAgentFilesSetting :agent-id="agent.id" />
       <p class="px-1 text-xs text-muted-foreground">
         {{ t('mcpAgents.registration.rightsHint') }}
       </p>

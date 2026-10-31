@@ -9,9 +9,14 @@
  * with a revoke. Other own devices and the shares contacts gave this vault list as storages (spec
  * 056 FR-040), and "Dateifreigaben verwalten" lets an agent manage file shares (FR-045). Writes go
  * through the catalog actions, which no agent may call (guardrails).
+ *
+ * With `agentId` it shows only that agent, for the page of an external agent (spec 021 US5), which
+ * starts without any permission, not even the device. File shares and sync rules stay with the
+ * built-in agent; their actions serve only it.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentFilePermissionView } from '@bindings/AgentFilePermissionView'
+import type { AgentView } from '@bindings/AgentView'
 import type { ContactGroup } from '@bindings/ContactGroup'
 import type { Sources } from '@bindings/Sources'
 import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
@@ -20,6 +25,8 @@ import {
   BUILTIN_AGENT,
   type StorageChoice,
 } from '~/lib/files/agentPermissions'
+
+const props = defineProps<{ agentId?: string }>()
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -75,7 +82,11 @@ onVaultTablesChanged(['agent_file_permissions'], () => {
 
 const agents = computed(() =>
   rows.value && overview.value
-    ? agentFiles(rows.value, [...overview.value.storages, ...remote.value])
+    ? agentFiles(
+        rows.value,
+        [...overview.value.storages, ...remote.value],
+        props.agentId,
+      )
     : [],
 )
 
@@ -91,8 +102,26 @@ function storageDescription(id: string): string {
     : t('settings.agentFiles.storageDescription')
 }
 
-const agentName = (agentId: string) =>
-  agentId === BUILTIN_AGENT ? t('settings.agentFiles.builtin') : agentId
+/** The names external agents report, by id (spec 021). */
+const externalNames = ref<Record<string, string>>({})
+
+async function loadNamesAsync() {
+  try {
+    const agents = await invoke<AgentView[]>('mcp_agents_list')
+    externalNames.value = Object.fromEntries(
+      agents.map((agent) => [agent.id, agent.clientName]),
+    )
+  } catch {
+    // Without the names the ids stand in.
+  }
+}
+onMounted(loadNamesAsync)
+
+const agentName = (agentId: string) => {
+  if (agentId === BUILTIN_AGENT) return t('settings.agentFiles.builtin')
+  if (props.agentId) return t('settings.agentFiles.thisAgent')
+  return externalNames.value[agentId] ?? agentId
+}
 
 const choices = computed(() =>
   (['ask', 'read', 'readWrite', 'denied'] as const).map((value) => ({
@@ -230,6 +259,7 @@ function onStorage(agentId: string, storageId: string, next: string) {
         />
       </SettingsRow>
       <SettingsRow
+        v-if="agent.agentId === BUILTIN_AGENT"
         :title="t('settings.agentFiles.fileShares')"
         :description="t('settings.agentFiles.fileSharesDescription')"
         icon="lucide:share-2"
@@ -251,6 +281,7 @@ function onStorage(agentId: string, storageId: string, next: string) {
         />
       </SettingsRow>
       <SettingsRow
+        v-if="agent.agentId === BUILTIN_AGENT"
         :title="t('settings.agentFiles.syncRules')"
         :description="t('settings.agentFiles.syncRulesDescription')"
         icon="lucide:refresh-cw"

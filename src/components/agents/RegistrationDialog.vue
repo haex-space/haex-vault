@@ -100,6 +100,9 @@ function onUpdateOpen(open: boolean) {
         <AgentsBrowserRightsFields v-model="browser" />
         <AgentsExtensionRightsFields v-model="extensions" />
         <p class="text-xs text-muted-foreground">
+          {{ t('mcpAgents.registration.filesHint') }}
+        </p>
+        <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.rightsHint') }}
         </p>
 
