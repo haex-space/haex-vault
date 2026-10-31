@@ -182,6 +182,12 @@ export async function dragTo(
   await instance.exec(
     `const source = document.querySelector('[data-testid="' + arguments[0] + '"]')
      const data = new DataTransfer()
+     // WebKit keeps no effects on a DataTransfer made by script (both read "none"), so the drag
+     // keeps them itself, as a webview does for a real drag.
+     let allowed = 'uninitialized'
+     let effect = 'none'
+     Object.defineProperty(data, 'effectAllowed', { configurable: true, get: () => allowed, set: (value) => { allowed = value } })
+     Object.defineProperty(data, 'dropEffect', { configurable: true, get: () => effect, set: (value) => { if (['none', 'copy', 'link', 'move'].includes(value)) effect = value } })
      window.__e2eDrag = { source, data }
      source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
      return true`,
