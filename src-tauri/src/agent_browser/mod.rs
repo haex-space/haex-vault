@@ -353,6 +353,8 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
 #[cfg(test)]
 mod locate_tests;
 #[cfg(test)]
+mod process_tests;
+#[cfg(test)]
 mod process_windows_tests;
 #[cfg(test)]
 mod profile_store_tests;
