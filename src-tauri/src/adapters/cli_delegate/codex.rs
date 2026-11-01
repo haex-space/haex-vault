@@ -22,6 +22,7 @@ use crate::adapters::{AdapterError, AdapterStream, ChatRequest};
 
 use super::approval_bridge;
 use super::autonomy::{self, ApprovalRequestPayload, AutonomyMode, NetworkContext};
+use super::holzi_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
 
@@ -338,6 +339,10 @@ pub(super) async fn spawn_codex_app_server(
             reason: format!("failed to write codex auth.json: {error}"),
         })?;
 
+    // holzi's own server for a registered delegate (spec 021 R7).
+    let holzi = holzi_mcp::server_for(&context, DelegateVendor::Codex, req.thread_id).await;
+    holzi_mcp::write_codex_config(tmp.path(), holzi.as_ref()).await?;
+
     let mut command = build_command(&binary, &tmp);
     configure_process_group(&mut command);
     let mut child = ChildLifecycle::spawn(&mut command, &context.children)
@@ -469,6 +474,8 @@ pub(super) async fn spawn_codex_app_server(
     let task_cancellation = cancellation.clone();
     let join = tokio::spawn(async move {
         let _tmp = tmp;
+        // holzi's pass for this start ends with it.
+        let _holzi = holzi;
         let start = Instant::now();
         let mut ttft_ms = None;
         let mut last_usage: Option<(Option<usize>, Option<usize>)> = None;

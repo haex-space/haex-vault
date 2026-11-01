@@ -31,6 +31,9 @@ mod connect_claude_tests;
 pub mod connect_codex;
 #[cfg(test)]
 mod connect_codex_tests;
+pub mod holzi_mcp;
+#[cfg(test)]
+mod holzi_mcp_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
@@ -127,6 +130,8 @@ pub struct DelegateChatContext {
     pub database: Option<VaultDb>,
     /// Where the delegated CLI's process registers, so ending the vault ends it.
     pub children: ChildRegistry,
+    /// holzi's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
+    pub holzi: Option<Arc<dyn holzi_mcp::HolziAccess>>,
 }
 
 /// Which subscription vendor a `cli_delegate` provider row talks to.

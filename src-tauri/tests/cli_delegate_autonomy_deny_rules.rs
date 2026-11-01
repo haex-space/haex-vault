@@ -134,6 +134,7 @@ async fn run_codex_turn(
                     .vault_db(Arc::clone(db))
                     .expect("open gate"),
             ),
+            holzi: None,
         }),
     );
     let stream = adapter

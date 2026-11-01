@@ -105,6 +105,7 @@ EOF
             pending_tool_approvals: pending,
             emit,
             database: None,
+            holzi: None,
         }),
     );
 
@@ -203,6 +204,7 @@ sys.stdin.readline()
             pending_tool_approvals: pending,
             emit,
             database: None,
+            holzi: None,
         }),
     );
 

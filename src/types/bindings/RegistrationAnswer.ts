@@ -6,7 +6,7 @@ import type { Rights } from "./Rights";
 /**
  * The window's answer (`mcp_registration_answer`).
  */
-export type RegistrationAnswer = { decision: RegistrationDecision,
+export type RegistrationAnswer = { decision: RegistrationDecision, 
 /**
  * For a denial: block the agent until the user lifts it.
  */

@@ -41,6 +41,8 @@ pub struct SessionAgent {
     pub mode: AgentMode,
     /// The agent's own claim, shown in call prompts.
     pub client_name: String,
+    /// The chat thread of a delegate's start (US6); its call prompts show there.
+    pub delegate_thread: Option<Uuid>,
 }
 
 /// The server handler of one connection. Cheap to clone; the clones share the state.

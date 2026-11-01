@@ -4,7 +4,7 @@ import type { SiteLevel } from "./SiteLevel";
 /**
  * One allowed website.
  */
-export type SiteGrant = { level: SiteLevel,
+export type SiteGrant = { level: SiteLevel, 
 /**
  * "Für diese Website merken": filling credentials asks no more (spec 065 FR-021).
  */

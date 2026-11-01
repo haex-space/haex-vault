@@ -112,6 +112,7 @@ EOF
             pending_tool_approvals: pending,
             emit,
             database: Some(VaultGate::new().vault_db(db).expect("open gate")),
+            holzi: None,
         }),
     );
 
@@ -194,6 +195,7 @@ sys.stdin.readline()
                     .vault_db(Arc::clone(&db))
                     .expect("open gate"),
             ),
+            holzi: None,
         }),
     );
 

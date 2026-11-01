@@ -30,6 +30,7 @@ use holzi_lib::identity::{
 };
 use holzi_lib::mcp_server::agent_log::{self, AgentLogEntry};
 use holzi_lib::mcp_server::connection::now_millis;
+use holzi_lib::mcp_server::delegates::DelegateHub;
 use holzi_lib::mcp_server::endpoint::{self, endpoint_name};
 use holzi_lib::mcp_server::grants::Rights;
 use holzi_lib::mcp_server::helper::{self, HelperArgs, HelperEnv};
@@ -98,6 +99,8 @@ pub struct Fixture {
     pub native: NativeExecutors,
     /// The command tool a test sets; `None` is a device that runs no commands (US5).
     pub command_tool: Option<Arc<dyn ChatTool>>,
+    /// The passes of delegates' starts (spec 021 US6).
+    pub delegates: Arc<DelegateHub>,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -185,6 +188,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         bridge,
         native: NativeExecutors::default(),
         command_tool: None,
+        delegates: Arc::default(),
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -248,6 +252,7 @@ impl Fixture {
             command_tool: self.command_tool.clone(),
             prompts: self.prompts.clone(),
             calls: self.calls.clone(),
+            delegates: Arc::clone(&self.delegates),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),
             limits: self.limits,
         })
@@ -258,13 +263,26 @@ impl Fixture {
     /// An agent started with `slug`, as an rmcp client behind the real helper. The helper's exit
     /// code arrives through the handle.
     pub async fn agent(&self, slug: &str) -> Result<(Agent, JoinHandle<i32>), JoinHandle<i32>> {
-        let (agent_in, helper_stdin) = tokio::io::duplex(64 * 1024);
-        let (helper_stdout, agent_out) = tokio::io::duplex(64 * 1024);
-        let args = HelperArgs {
+        self.helper(HelperArgs {
             slug: slug.to_owned(),
             vault: None,
             delegate_token: None,
-        };
+        })
+        .await
+    }
+
+    /// A delegate holzi started with `args` (spec 021 US6), behind the real helper.
+    pub async fn delegate(
+        &self,
+        args: &[String],
+    ) -> Result<(Agent, JoinHandle<i32>), JoinHandle<i32>> {
+        let args = helper::parse_args(args[1..].iter().cloned()).expect("the helper's arguments");
+        self.helper(args).await
+    }
+
+    async fn helper(&self, args: HelperArgs) -> Result<(Agent, JoinHandle<i32>), JoinHandle<i32>> {
+        let (agent_in, helper_stdin) = tokio::io::duplex(64 * 1024);
+        let (helper_stdout, agent_out) = tokio::io::duplex(64 * 1024);
         let env = self.env.clone();
         let helper =
             tokio::spawn(async move { helper::run(args, env, helper_stdin, helper_stdout).await });

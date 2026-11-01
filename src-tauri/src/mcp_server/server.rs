@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::connection;
+use super::delegates::DelegateHub;
 use super::dispatch::CallSlots;
 use super::endpoint;
 use super::hello::CloseReason;
@@ -95,6 +96,8 @@ pub struct StartArgs {
     pub command_tool: Option<Arc<dyn Tool>>,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
+    /// The passes of delegates' starts (US6); the started server answers them.
+    pub delegates: Arc<DelegateHub>,
     pub notify: Notifier,
     pub limits: Limits,
 }
@@ -111,6 +114,7 @@ pub struct Core {
     pub command_tool: Option<Arc<dyn Tool>>,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,
+    pub delegates: Arc<DelegateHub>,
     pub slots: CallSlots,
     pub live: Live,
     pub gate: RegistrationGate,
@@ -196,6 +200,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         command_tool: args.command_tool,
         prompts: args.prompts,
         calls: args.calls,
+        delegates: args.delegates,
         slots: CallSlots::default(),
         live: Live::default(),
         gate: RegistrationGate::default(),
@@ -205,6 +210,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         declined: Mutex::new(HashSet::new()),
         closing: Mutex::new(CloseReason::VaultClosed),
     });
+    core.delegates.attach(&core);
     let accept = tokio::spawn(accept_loop(Arc::clone(&core), listener));
     log::info!("mcp server: listening");
     Ok(Running { core, accept })

@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -177,6 +177,10 @@ pub(crate) async fn load_model_inner(
             emit,
             database: Some(active_database(state)?),
             children: chat.children().clone(),
+            // Spec 021 US6: a registered delegate gets holzi's own MCP server.
+            holzi: app
+                .try_state::<crate::mcp_server::McpServer>()
+                .map(|server| server.delegate_access()),
         });
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
     } else {

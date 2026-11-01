@@ -88,6 +88,7 @@ pub(super) async fn register(context: RegistrationContext) {
         mode: previous
             .as_ref()
             .map_or_else(AgentMode::default, |previous| previous.mode),
+        delegate: false,
     };
     let mut request_id = String::new();
     let answer = core
@@ -189,6 +190,7 @@ pub(super) async fn register(context: RegistrationContext) {
         rights: answer.rights,
         mode: agent.mode,
         client_name: agent.client_name,
+        delegate_thread: None,
     });
     drop(agent_guard);
     // The credential before the new tool list, so the helper has saved it when the agent asks.

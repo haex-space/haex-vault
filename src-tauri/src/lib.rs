@@ -719,6 +719,8 @@ pub fn run() {
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,
             mcp_server::commands::mcp_setup_snippet,
+            mcp_server::commands::mcp_delegate_status,
+            mcp_server::commands::mcp_delegate_register,
             files::agent::commands::files_agent_permissions,
             files::agent::commands::files_agent_permission_set,
             files::agent::commands::files_agent_permission_remove,

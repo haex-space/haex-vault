@@ -22,6 +22,8 @@ pub(crate) fn job_context(children: ChildRegistry) -> DelegateChatContext {
         emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
         database: None,
         children,
+        // A job has no chat to ask in, so it gets no holzi tools (spec 021 US6).
+        holzi: None,
     }
 }
 
