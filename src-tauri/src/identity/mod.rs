@@ -44,6 +44,9 @@ mod migrations_file_shares_tests;
 mod migrations_icon_sets;
 #[cfg(test)]
 mod migrations_icon_sets_tests;
+mod migrations_legacy_names;
+#[cfg(test)]
+mod migrations_legacy_names_tests;
 mod migrations_marketplaces;
 #[cfg(test)]
 mod migrations_marketplaces_tests;
@@ -75,9 +78,9 @@ mod migrations_tests;
 
 pub use bootstrap::HolziBootstrap;
 pub use installation::{installation_id_path, read_or_mint_installation_uuid};
-pub use migrations::{
-    holzi_migration_source, holzi_migration_source_with_legacy_contacts_display_name,
-    holzi_migration_source_with_legacy_icon_set_name, HOLZI_TRIGGER_VERSION,
+pub use migrations::{holzi_migration_source, HOLZI_TRIGGER_VERSION};
+pub use migrations_legacy_names::{
+    holzi_migration_source_with_legacy_names, is_legacy_migration_name,
 };
 
 /// Nil UUID reserved as the sentinel row in `known_devices` representing
