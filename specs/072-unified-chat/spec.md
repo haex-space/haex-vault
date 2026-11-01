@@ -37,13 +37,32 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
 - Q: Chat with people using other Nostr messengers (by npub)? → A: No; both sides use HaexVault. A
   later spec may add it.
 
+### Session 2026-11-01
+
+- Q: How should the chat's list look? → A: Like a common messenger (Signal): the list shows only the
+  people and groups the user wrote with, newest activity first, one entry each; a click shows the whole
+  history with them. The agent is one of these entries ("Agent"), always listed, and moves up with
+  activity like any contact. There are no kind filters. Only the agent has sessions: its conversation
+  view offers "Neue Sitzung" and "Verlauf" (all sessions, rename, delete); a click on the agent opens
+  its latest session. Model or delegate are still chosen inside the agent's conversation, per session
+  (operator: "ich möchte das chat ui/ux mehr wie ein ganz normalen messenger haben, wie etwa signal. der
+  agent soll dabei einfach ein eigener kontakt sein").
+- Q: Can the user write notes to themselves? → A: Yes. "Ich", the user's own contact as the address
+  book shows it, is a further entry of the list, always listed like "Agent". What the user writes there
+  is a note: it stays in the vault and shows on all own devices, and it never goes to a Nostr-Relay
+  (operator: "ein weiterer kontakt im chat soll \"Ich\" sein ... darüber soll sich der nutzer selber
+  notizen hinterlassen können").
+
 ## Terms
 
-- **Conversation**: one entry of the chat's list, with its messages. It is one of three kinds:
+- **Conversation**: the messages between the user and one counterpart. It is one of three kinds:
   - **Agent conversation**: the user talks with a model or a delegate, as the chat does today (specs
-    003, 007, 032; spec 068 reworks how the agent answers).
+    003, 007, 032; spec 068 reworks how the agent answers). The user may hold many of them; each is a
+    **session** of the agent.
   - **Direct conversation**: the user and one contact.
   - **Group conversation**: the user and two or more contacts, with a name.
+  - **Notes**: the user's conversation with themselves, shown as the own contact "Ich". There is at
+    most one per vault.
 - **Member**: a vault taking part in a direct or group conversation, identified by its vault identity
   (spec 024) and reached through its Visitenkarte (spec 051). The user's own vault is always a member.
 - **Message**: what one member writes: text, attachments or both. It has a sender, a time and, for the
@@ -91,11 +110,13 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
 
 ### User Story 1 - One chat app for the agent and for contacts (Priority: P1)
 
-Anna opens the chat. Her earlier talks with the agent are all there, as before. Next to them she now
-sees her conversations with contacts and groups, newest first, each with name, picture and the last
-message; unread conversations are marked. With "Neue Unterhaltung" she chooses whether to talk to the
-agent or to pick one or more contacts. From a contact in the address book she can start a direct
-conversation with "Nachricht senden".
+Anna opens the chat. It looks like the messenger on her phone: on the left the people and groups she
+last wrote with, newest first, each with name, picture and the last message; unread ones are marked. The
+agent is one of them, "Agent". A click on an entry shows the whole history with that person or group. A
+click on "Agent" shows the agent's latest session; "Neue Sitzung" starts a fresh one, and "Verlauf"
+brings back any earlier one, all her earlier talks with the agent are there. With "Neue Unterhaltung"
+she picks one or more contacts. From a contact in the address book she can start a direct conversation
+with "Nachricht senden".
 
 **Why this priority**: the operator's core request: one chat that serves both purposes. Without the
 shared list no other story is reachable.
@@ -105,14 +126,17 @@ conversation unchanged, start a direct conversation from the address book and se
 
 **Acceptance Scenarios**:
 
-1. **Given** a vault with agent conversations from before this spec, **When** Anna opens the chat after
-   the update, **Then** every agent conversation is there with all its messages, unchanged, and
-   continues as before.
-2. **Given** the conversation list, **When** Anna looks at an entry, **Then** she can tell an agent
-   conversation, a direct conversation and a group conversation apart at a glance (icon or picture and
-   name), and sees the time and the start of the last message.
-3. **Given** the conversation list, **When** Anna filters by "Agent", "Kontakte" or "Gruppen", **Then**
-   only conversations of that kind show; "Alle" shows every kind.
+1. **Given** a vault with agent conversations from before this spec, **When** Anna opens the agent's
+   "Verlauf" after the update, **Then** every agent conversation is there as a session with all its
+   messages, unchanged, and continues as before.
+2. **Given** the list, **When** Anna looks at it, **Then** it holds one entry per contact she wrote with,
+   one per group and exactly one "Agent" entry (also before her first session), newest activity first;
+   each entry shows picture or icon, name, the time and the start of the last message, and agent
+   sessions never show as entries of their own.
+3. **Given** the list, **When** Anna clicks "Agent", **Then** the agent's latest session opens; **When**
+   she chooses "Neue Sitzung", **Then** an empty session opens and "Agent" moves to the top once she
+   writes; **When** she opens "Verlauf", **Then** she sees every session with its title and time, newest
+   first, can open, rename or delete it.
 4. **Given** a contact with a confirmed Visitenkarte in the address book, **When** Anna chooses
    "Nachricht senden", **Then** the chat opens the direct conversation with this contact, creating it if
    there is none yet.
@@ -122,6 +146,11 @@ conversation unchanged, start a direct conversation from the address book and se
 6. **Given** a contact without a confirmed Visitenkarte (no vault identity), **When** Anna looks at it,
    **Then** "Nachricht senden" is not offered, with a hint that the contact first needs to share its
    Visitenkarte.
+7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Ich" with the
+   name and picture of her own contact, also before her first note; **When** she clicks it and writes
+   "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, "Ich" moves
+   to the top, and the note appears on her phone through the sync of her own devices, without any
+   Nostr-Relay involved.
 
 ---
 
@@ -405,15 +434,29 @@ where her files go and what others see.
 
 **One chat for every conversation**
 
-- **FR-001**: The chat MUST show agent, direct and group conversations in one list, newest activity first,
-  with kind, name, picture or icon, time and the start of the last message, and an unread mark with
-  count for direct and group conversations.
-- **FR-002**: The list MUST offer filters "Alle", "Agent", "Kontakte", "Gruppen", and the area
-  "Anfragen" with its count when there are requests (FR-040).
+- **FR-001**: The chat's list MUST show one entry per direct conversation, one per group conversation
+  and exactly one entry "Agent" for all agent conversations, newest activity first, with name, picture
+  or icon, time and the start of the last message, and an unread mark with count for direct and group
+  conversations. The "Agent" entry MUST always be listed, also without any session; its activity and
+  time are those of its most recently active session, its preview is that session's title. A click on an entry MUST show that
+  conversation; a click on "Agent" MUST open its most recently active session (an empty new one when
+  there is none).
+- **FR-002**: The list MUST NOT offer kind filters. When there are requests (FR-040) it MUST show an
+  entry "Anfragen" with their count above the conversations.
+- **FR-002a**: Only the agent's conversation view MUST offer "Neue Sitzung" (opens an empty agent
+  conversation) and "Verlauf" (every agent conversation with title and time of last activity, newest
+  first; open, rename, delete). Direct and group conversations have no sessions: their whole history is
+  one conversation.
 - **FR-003**: Existing agent conversations MUST be kept with all their messages and keep working as
   before; the update MUST NOT need any action of the user.
-- **FR-004**: "Neue Unterhaltung" MUST let the user choose the agent, one contact (direct) or several
-  contacts plus a name (group). Only contacts with a confirmed Visitenkarte of another vault are
+- **FR-002b**: The list MUST always show exactly one entry "Ich" with the name and picture of the
+  user's own contact (spec 051), sorted by its last note like any entry. A click opens the notes; the
+  first note creates them. The notes view offers the same composer as a direct conversation (FR-006),
+  shows each note with its time and no delivery state, and can be deleted (FR-008). A note MUST NOT be
+  sent to any Nostr-Relay or Blossom-Server and MUST NOT cause receipts or notifications; it reaches
+  the own devices only through the vault's sync (FR-009).
+- **FR-004**: "Neue Unterhaltung" MUST let the user choose one contact (direct) or several contacts plus
+  a name (group); the agent and the notes are reached through their list entries (FR-001, FR-002b). Only contacts with a confirmed Visitenkarte of another vault are
   offered; the user's own contact ("Ich") is never offered.
 - **FR-005**: The address book MUST offer "Nachricht senden" on a contact with a confirmed Visitenkarte;
   it opens the existing direct conversation or creates it.
@@ -571,7 +614,7 @@ where her files go and what others see.
 
 ### Key Entities
 
-- **Conversation**: kind (agent, direct, group), name (group, or the contact's name), picture, members,
+- **Conversation**: kind (agent, direct, group, notes), name (group, or the contact's name), picture, members,
   created and last activity, mute, unread count, archived state of a left group. Agent conversations
   keep their existing data (title, model used).
 - **Member**: vault identity, last known Visitenkarte, state in the conversation (invited, member,
