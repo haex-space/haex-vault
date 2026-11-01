@@ -2,7 +2,7 @@
 //! say dates and times as words and are cut when long.
 
 use super::speakable::{
-    Civil, Clock, Speakable, Speech, cardinal, day_phrase, speak_all, time_phrase,
+    cardinal, day_phrase, speak_all, time_phrase, Civil, Clock, Speakable, Speech,
 };
 
 /// Wednesday, 28 October 2026, 15:00, one hour ahead of UTC.

@@ -8,7 +8,7 @@
 //! sentences come from the word list.
 
 use super::lexicon::{self, FALLBACK_LANGUAGE};
-use super::sentences::{Fence, Sentences, fence_closer, fence_opener};
+use super::sentences::{fence_closer, fence_opener, Fence, Sentences};
 
 /// Sentences an answer may have before it is cut.
 pub const MAX_SENTENCES: usize = 4;
