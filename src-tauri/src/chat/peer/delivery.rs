@@ -166,10 +166,7 @@ impl Delivery {
     /// Tracks cards added or removed while the vault stayed open, so the fallback route can be
     /// received even when the contact's own card lists no Nostr-Relays.
     async fn refresh_read_relays(&self) -> Result<()> {
-        let desired = self
-            .db
-            .read(|r| Ok(targets::listening_relays(r)?))
-            .await?;
+        let desired = self.db.read(|r| Ok(targets::listening_relays(r)?)).await?;
         let current = self
             .read_relays
             .lock()
