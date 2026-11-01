@@ -4,8 +4,11 @@
  * error with retry actions, autonomy-mode preference error, model
  * loading status) — extracted from `src/pages/chat/[instance].vue` (spec
  * 015-workspace-shell, T013, to keep the orchestrator page under the
- * 500-line constitution limit). Presentational only.
+ * 500-line constitution limit). Presentational only. The tool-use notice of a delegate offers
+ * "Rechte festlegen" (spec 021 US6).
  */
+import type { ToolNotice } from '~/composables/useToolNotice'
+
 defineProps<{
   displayedError: string | null
   canRetrySend: boolean
@@ -13,8 +16,8 @@ defineProps<{
   autonomyPreferenceError: string | null
   autonomyPreferenceLoading: boolean
   loadingLabel: string | null
-  /** i18n key of the tool-use notice to show (spec 032 US4), or `null`. */
-  toolNoticeKey?: string | null
+  /** The tool-use notice to show (spec 032 US4, spec 021 US6), or `null`. */
+  toolNotice?: ToolNotice | null
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +26,7 @@ const emit = defineEmits<{
   dismissError: []
   retryAutonomyMode: []
   dismissToolNotice: []
+  setDelegateRights: []
 }>()
 
 const { t } = useI18n()
@@ -74,17 +78,38 @@ const { t } = useI18n()
   </div>
 
   <div
-    v-if="toolNoticeKey"
+    v-if="toolNotice"
     class="border-b border-primary/20 bg-primary/10 p-3 text-sm text-primary flex items-start justify-between gap-2"
     role="status"
+    data-testid="chat-tool-notice"
   >
-    <span>{{ t(toolNoticeKey) }}</span>
-    <button
-      class="text-xs underline shrink-0"
-      @click="emit('dismissToolNotice')"
-    >
-      {{ t('chat.close') }}
-    </button>
+    <span class="space-y-1">
+      <span class="block">{{ t(toolNotice.key, toolNotice.params) }}</span>
+      <span
+        v-if="toolNotice.failure"
+        class="block text-destructive"
+        role="alert"
+        >{{ toolNotice.failure }}</span
+      >
+    </span>
+    <span class="flex gap-2 shrink-0">
+      <button
+        v-if="toolNotice.setRights"
+        type="button"
+        class="text-xs underline font-medium"
+        data-testid="chat-delegate-set-rights"
+        @click="emit('setDelegateRights')"
+      >
+        {{ t('chat.toolNotice.setRights') }}
+      </button>
+      <button
+        type="button"
+        class="text-xs underline"
+        @click="emit('dismissToolNotice')"
+      >
+        {{ t('chat.close') }}
+      </button>
+    </span>
   </div>
 
   <div

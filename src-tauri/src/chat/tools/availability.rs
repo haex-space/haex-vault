@@ -5,6 +5,7 @@
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::mcp_server::registry::AgentKind;
 use crate::model_capabilities::{ModelCapabilities, ToolSupport};
 use crate::storage::providers::ProviderKind;
 
@@ -44,6 +45,9 @@ impl ToolAvailability {
 pub struct ToolAvailabilityEvent {
     pub thread_id: Uuid,
     pub state: ToolAvailability,
+    /// Which delegate runs, for a `Delegate` turn: the chat asks for its MCP rights (spec 021 US6).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delegate_kind: Option<AgentKind>,
 }
 
 #[cfg(test)]

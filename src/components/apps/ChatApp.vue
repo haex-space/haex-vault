@@ -254,8 +254,12 @@ const {
 )
 
 // Spec 032 US4: the once-per-conversation notice about a model's tool use.
-const { toolNoticeKey, handleToolAvailability, dismissToolNotice } =
-  useToolNotice(activeThreadId)
+const {
+  toolNotice,
+  handleToolAvailability,
+  dismissToolNotice,
+  setDelegateRightsAsync,
+} = useToolNotice(activeThreadId)
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).
 const { syncFromLocation, ui } = useChatTab({
@@ -411,8 +415,9 @@ onBeforeUnmount(() => {
         :autonomy-preference-error="autonomyPreferenceError"
         :autonomy-preference-loading="autonomyPreferenceLoading"
         :loading-label="loadingLabel"
-        :tool-notice-key="toolNoticeKey"
+        :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
+        @set-delegate-rights="setDelegateRightsAsync"
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"
         @dismiss-error="dismissError"
@@ -453,6 +458,7 @@ onBeforeUnmount(() => {
           :last-agent-batch-size="lastAgentBatchSize"
           :permission-mode="permissionMode"
           :pending-prompts="pendingPrompts"
+          :thread-id="activeThreadId"
           :permission-disabled="!deviceUuid || permissionModeSaving"
           @send="ui.send"
           @abort="ui.abort"

@@ -575,6 +575,10 @@ pub async fn send_message(
         ToolAvailabilityEvent {
             thread_id,
             state: tool_availability,
+            delegate_kind: session
+                .adapter
+                .delegate_vendor()
+                .map(crate::mcp_server::delegates::kind_of),
         },
     );
 

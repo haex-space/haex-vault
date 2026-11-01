@@ -79,8 +79,9 @@ fn sample_provider(adapter: Option<&str>) -> Provider {
 #[test]
 fn build_adapter_constructs_cli_delegate_for_well_formed_row() {
     let provider = sample_provider(Some("claude"));
-    let adapter = build_adapter(&provider, None);
-    assert!(adapter.is_ok(), "expected Ok, got an error instead");
+    let adapter = build_adapter(&provider, None).expect("a delegate adapter");
+    // The chat learns from it which delegate runs (spec 021 US6).
+    assert_eq!(adapter.delegate_vendor(), Some(DelegateVendor::Claude));
 }
 
 #[test]

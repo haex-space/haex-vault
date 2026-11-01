@@ -23,6 +23,8 @@ const props = defineProps<{
   lastAgentBatchSize: number | null
   permissionMode: 'manual' | 'auto' | 'plan'
   pendingPrompts: PendingPrompt[]
+  /** The open thread, for its delegate's calls to holzi (spec 021 US6). */
+  threadId?: string | null
   permissionDisabled: boolean
 }>()
 
@@ -152,6 +154,7 @@ defineExpose({ reset })
             <ChatPermissionPrompt
               :mode="permissionMode"
               :pending-prompts="pendingPrompts"
+              :thread-id="threadId"
               :disabled="permissionDisabled"
               @update:mode="emit('updatePermissionMode', $event)"
               @allow="emit('respondApproval', $event, 'allow')"
