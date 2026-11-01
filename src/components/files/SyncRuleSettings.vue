@@ -60,12 +60,12 @@ watch(open, (isOpen) => {
 </script>
 
 <template>
-  <UiDrawerModal v-model:open="open" :title="t('files.syncRules.settings.title')">
+  <UiDrawerModal
+    v-model:open="open"
+    :title="t('files.syncRules.settings.title')"
+  >
     <template #content>
-      <div
-        class="flex flex-col gap-3"
-        data-testid="files-sync-rules-settings"
-      >
+      <div class="flex flex-col gap-3" data-testid="files-sync-rules-settings">
         <h3 class="text-sm font-semibold">
           {{ t('files.syncRules.settings.logHeading') }}
         </h3>
