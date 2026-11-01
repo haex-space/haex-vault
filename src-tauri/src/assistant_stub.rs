@@ -1,5 +1,11 @@
 //! `assistant` commands for builds without the `voice` feature: registered either way, they
 //! answer that the voice assistant is not built in (contracts/tauri-commands.md).
+//!
+//! The word list is compiled either way: the stop words of spec 008 and Whisper's language
+//! candidates read it (research R22).
+
+#[path = "assistant/lexicon.rs"]
+pub mod lexicon;
 
 pub mod assets {
     use crate::error::{HolziError, Result};
