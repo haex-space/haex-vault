@@ -185,6 +185,7 @@ async fn a_new_tab_consumes_only_its_opener_submit_grant_after_disarm() {
         url: "https://example.org/submit".to_owned(),
         method: "POST".to_owned(),
         document: true,
+        main: true,
         body: Some("field=value".to_owned()),
     };
 

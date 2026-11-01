@@ -4,7 +4,8 @@
 //! session that owns the opener takes it over ([`opened`]). Its first document asks the user:
 //! always in Manuell, in Auto when its website is not allowed (the answer then allows the website
 //! once, so nothing asks twice), and Plan refuses it. Refused, it closes; at [`MAX_TABS`] it
-//! closes at once. Allowed, it is an agent tab like any other, under the same checks.
+//! closes at once. Allowed, it is an agent tab like any other, under the same checks. While the
+//! user has taken over, a new tab stays the user's.
 //!
 //! The call that opened it holds the session's tabs until the browser lets the opener go on, which
 //! it does only once the new tab runs. So the new tab is set up and runs first, and joins the tabs
@@ -57,6 +58,10 @@ pub(super) fn opened(
     ) else {
         return false;
     };
+    // While the user has the browser, a tab the user opens stays the user's.
+    if session.is_paused() {
+        return false;
+    }
     let Some(opener) = session.tab_of_target(opener) else {
         return false;
     };
@@ -201,6 +206,7 @@ impl Session {
             tool: None,
             label: Some(url.to_owned()),
             fields: Vec::new(),
+            reason: None,
         };
         match self.ask_for_page(&question).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {

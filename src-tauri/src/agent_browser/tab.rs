@@ -8,8 +8,9 @@
 //!
 //! Reading happens in holzi's own world ([`super::read`]); the element numbers are those of the
 //! reading script and hold until the document changes. The same world shows the marker
-//! ([`super::marker`]) while the agent steers the tab; [`Tab::release`] gives the tab back to the
-//! user, open and unchecked.
+//! ([`super::marker`]) while the agent steers the tab, and as paused while the user has it
+//! ([`Tab::show_marker`], and for each new document through [`TabHooks::paused`]);
+//! [`Tab::release`] gives the tab back to the user, open and unchecked.
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -21,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
-use super::marker::{self, MarkerTexts};
+use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::tab_watch::{watch, Reports};
 
@@ -41,6 +42,8 @@ pub struct Paused {
     pub method: String,
     /// A document: a page or a frame.
     pub document: bool,
+    /// Of the tab's own frame, not of a frame in it.
+    pub main: bool,
     /// The body, when the browser hands it over.
     pub body: Option<String>,
 }
@@ -51,14 +54,21 @@ pub type Guard = Arc<dyn Fn(Paused) -> BoxFuture<'static, Verdict> + Send + Sync
 /// What the user's "Stoppen" in the marker does.
 pub type OnStop = Arc<dyn Fn() + Send + Sync>;
 
+/// Hears what the marker reports: its buttons and the user's own input.
+pub type OnSignal = Arc<dyn Fn(Signal) + Send + Sync>;
+
 /// Hears of each target of a tab, its own and those of its frames, by target id.
 pub type OnTarget = Arc<dyn Fn(&str) + Send + Sync>;
 
-/// What a tab shows and reports to its session: the marker's texts, what its stop button does, and
-/// the targets whose new tabs belong to the session.
+/// Whether the user has the browser now.
+pub type IsPaused = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// What a tab shows and reports to its session: the marker's texts and state, what the marker
+/// reports, and the targets whose new tabs belong to the session.
 pub struct TabHooks {
     pub texts: MarkerTexts,
-    pub on_stop: OnStop,
+    pub paused: IsPaused,
+    pub on_signal: OnSignal,
     pub on_target: OnTarget,
 }
 
@@ -79,6 +89,7 @@ pub struct Tab {
     /// The last document the guard refused in this tab, as the code an agent sees.
     refused: Arc<Mutex<Option<&'static str>>>,
     page: Mutex<PageInfo>,
+    texts: MarkerTexts,
     guard_task: JoinHandle<()>,
 }
 
@@ -130,7 +141,9 @@ impl Tab {
             guard,
             Arc::clone(&refused),
             Reports {
-                on_stop: hooks.on_stop,
+                texts: hooks.texts.clone(),
+                paused: hooks.paused,
+                on_signal: hooks.on_signal,
                 on_target: hooks.on_target,
             },
         ));
@@ -158,6 +171,7 @@ impl Tab {
             connection: Arc::clone(connection),
             refused,
             page: Mutex::default(),
+            texts: hooks.texts,
             guard_task,
         })
     }
@@ -340,6 +354,22 @@ impl Tab {
     pub async fn text(&self) -> Result<String> {
         let raw = super::read::raw(&self.connection, &self.session, None).await?;
         Ok(raw.text)
+    }
+
+    /// Shows the marker of the current document as paused while the user has the tab, or as
+    /// steered by the agent. A page waiting for a slow document answers only once it is there.
+    pub async fn show_marker(&self, paused: bool) -> Result<()> {
+        marker::update(&self.connection, &self.session, None, &self.texts, paused).await
+    }
+
+    /// The address of the tab's page now, from the browser, so a slow page does not hold it up.
+    pub async fn url(&self) -> Result<String> {
+        target::url(&self.connection, &self.target).await
+    }
+
+    /// Brings the tab to the front of its window.
+    pub async fn activate(&self) -> Result<()> {
+        target::activate(&self.connection, &self.target).await
     }
 
     /// Closes the tab in the browser.

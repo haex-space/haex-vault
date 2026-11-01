@@ -1,15 +1,35 @@
-// The marker of an agent tab (spec 065, FR-014, research R6). holzi adds it to every document of
-// the tab's main frame from its own isolated world: a bar in a closed shadow root with the agent's
-// name and "Stoppen", and a prefix on the tab's title. The page shares the DOM but not this world:
-// it cannot reach the bar's buttons, cannot call the binding `__holzi`, and its synthetic events
-// are not trusted. It can remove the bar; the bar comes back a few times, and holzi's own window
-// stays the binding place to stop (FR-015).
+// The marker of an agent tab (spec 065, FR-014, FR-017, research R6). holzi adds it to every
+// document of the tab's main frame from its own isolated world: a bar in a closed shadow root with
+// the agent's name, "Eingreifen" (or "Zurückgeben" while the user has the tab) and "Stoppen", and a
+// prefix on the tab's title. The page shares the DOM but not this world: it cannot reach the bar's
+// buttons, cannot call the binding `__holzi`, and its synthetic events are not trusted. It can
+// remove the bar; the bar comes back a few times, and holzi's own window stays the binding place
+// to stop (FR-015).
+//
+// A trusted press of a mouse button or a key anywhere in the page, outside the bar, reports
+// `input`: holzi pauses the agent when the input is not its own (FR-017). Each new bar says
+// `hello`, and holzi sets the state the session has now; run again with a new config (the agent
+// paused or steering again), the script updates the bar that is there.
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziMarker(config) {
-  if (window !== window.top || globalThis.__holziMarker) return
+  if (window !== window.top) {
+    // Input in an embedded frame does not bubble to the main frame. Install only the input
+    // listener here: the visible marker and title belong to the main frame.
+    if (!globalThis.__holziInputListener) {
+      const noticed = (event) => {
+        if (event.isTrusted) globalThis.__holzi('input')
+      }
+      window.addEventListener('pointerdown', noticed, true)
+      window.addEventListener('keydown', noticed, true)
+      globalThis.__holziInputListener = noticed
+    }
+    return
+  }
+  if (globalThis.__holziMarker) return globalThis.__holziMarker.update(config)
   const MAX_RESTORES = 20
   let restores = 0
+  let current = config
 
   const styled = (element, styles) => {
     // Style properties, not a style attribute or sheet: a page's CSP cannot refuse them, and
@@ -46,29 +66,58 @@ function holziMarker(config) {
     'text-overflow': 'ellipsis',
     'white-space': 'nowrap',
   })
-  label.textContent = config.text
-  const stop = styled(document.createElement('button'), {
-    all: 'initial',
-    cursor: 'pointer',
-    padding: '3px 12px',
-    'border-radius': '999px',
-    background: '#dc2626',
-    color: '#ffffff',
-    font: '600 13px/1.4 system-ui, sans-serif',
-  })
-  stop.type = 'button'
-  stop.textContent = config.stop
-  stop.addEventListener('click', (event) => {
+  const button = (background) => {
+    const made = styled(document.createElement('button'), {
+      all: 'initial',
+      cursor: 'pointer',
+      padding: '3px 12px',
+      'border-radius': '999px',
+      background,
+      color: '#ffffff',
+      font: '600 13px/1.4 system-ui, sans-serif',
+      'white-space': 'nowrap',
+    })
+    made.type = 'button'
+    return made
+  }
+  const steer = button('#2563eb')
+  const stop = button('#dc2626')
+  const pressed = (what) => (event) => {
     if (!event.isTrusted) return
     event.stopPropagation()
-    globalThis.__holzi('stop')
-  })
-  bar.append(label, stop)
+    globalThis.__holzi(what())
+  }
+  steer.addEventListener(
+    'click',
+    pressed(() => (current.paused ? 'return' : 'takeover')),
+  )
+  stop.addEventListener(
+    'click',
+    pressed(() => 'stop'),
+  )
+  bar.append(label, steer, stop)
   root.append(bar)
+
+  const render = () => {
+    label.textContent = current.paused ? current.pausedText : current.text
+    steer.textContent = current.paused ? current.giveBack : current.takeOver
+    stop.textContent = current.stop
+  }
+  render()
+
+  // The user's own input in the page while the agent steers. holzi tells its own input apart.
+  const noticed = (event) => {
+    if (!event.isTrusted || current.paused) return
+    if (event.composedPath().includes(host)) return
+    globalThis.__holzi('input')
+  }
+  window.addEventListener('pointerdown', noticed, true)
+  window.addEventListener('keydown', noticed, true)
 
   const prefixed = () => {
     const title = document.title
-    if (!title.startsWith(config.prefix)) document.title = config.prefix + title
+    if (!title.startsWith(current.prefix))
+      document.title = current.prefix + title
   }
 
   const place = () => {
@@ -94,12 +143,20 @@ function holziMarker(config) {
   })
 
   globalThis.__holziMarker = {
-    prefix: config.prefix,
+    get prefix() {
+      return current.prefix
+    },
+    update(config) {
+      current = config
+      render()
+    },
     remove() {
       watching.disconnect()
+      window.removeEventListener('pointerdown', noticed, true)
+      window.removeEventListener('keydown', noticed, true)
       host.remove()
-      if (document.title.startsWith(config.prefix))
-        document.title = document.title.slice(config.prefix.length)
+      if (document.title.startsWith(current.prefix))
+        document.title = document.title.slice(current.prefix.length)
       delete globalThis.__holziMarker
     },
   }
@@ -109,4 +166,5 @@ function holziMarker(config) {
     place()
     prefixed()
   }
+  globalThis.__holzi('hello')
 }

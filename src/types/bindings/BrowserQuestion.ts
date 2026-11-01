@@ -25,4 +25,8 @@ label: string | null,
 /**
  * What would be sent, secrets as `•••` ([`BrowserPromptKind::Submit`]); empty otherwise.
  */
-fields: Array<BrowserField>, };
+fields: Array<BrowserField>,
+/**
+ * Why the agent asks the user to take over ([`BrowserPromptKind::Takeover`]), its own words.
+ */
+reason: string | null, };

@@ -6,7 +6,8 @@
  * remembered for the agent, for reading or for operating (`http` only for reading, research R9).
  * Before something is sent to a website (FR-011, FR-012), the dialog lists what would be sent,
  * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
- * it loads anything (`newTab`); its address comes from the page. Closing the dialog declines.
+ * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
+ * over (`takeover`), with a reason in its own words. Closing the dialog declines.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import type { Remember } from '~/types/bindings/Remember'
@@ -33,6 +34,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.allowOnce')
     case 'newTab':
       return t('agentBrowser.prompt.newTab.allow')
+    case 'takeover':
+      return t('agentBrowser.prompt.takeover.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -116,6 +119,20 @@ function onUpdateOpen(open: boolean) {
               data-testid="agent-browser-prompt-label"
             >
               {{ question.label }}
+            </dd>
+          </template>
+          <template v-if="question.reason">
+            <dt class="text-muted-foreground">
+              {{ t('agentBrowser.prompt.takeover.reason') }}
+            </dt>
+            <dd
+              class="min-w-0 break-words"
+              data-testid="agent-browser-prompt-reason"
+            >
+              {{ question.reason }}
+              <span class="text-xs text-muted-foreground">
+                ({{ t('mcpAgents.registration.claimed') }})
+              </span>
             </dd>
           </template>
         </dl>

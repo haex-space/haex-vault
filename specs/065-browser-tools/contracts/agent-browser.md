@@ -58,6 +58,28 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
    holzi `Fetch.enable` für Dokument-Navigationen (Website- und Wirkungsprüfung vor dem Laden, R9)
    sowie für jede ändernde Anfrage (R5). Jede Freigabe ist an ihre CDP-Request-ID gebunden.
 
+## Eingreifen und Zurückgeben
+
+- Der Nutzer greift ein mit „Eingreifen“ (Sitzungsleiste oder Markierung), auf Bitte des Agenten
+  (`browser.takeover.request`, Rückfrage `takeover` mit dem Grund als Angabe des Agenten) oder
+  durch eine eigene Eingabe im Tab: Die Markierung meldet jeden vertrauenswürdigen `pointerdown`
+  und `keydown` außerhalb der Leiste über die Bindung (`input`); eingebettete Frames erhalten den
+  Listener auf ihrem Frame-Target, da ihre Ereignisse nicht zum Hauptframe aufsteigen. holzi
+  ignoriert die Meldung während seiner eigenen `Input.*`-Aufrufe und 500 ms danach (R6).
+- Während der Pause endet der laufende Aufruf innerhalb einer Sekunde mit `paused`, jeder weitere
+  bekommt `paused`; nur `browser.takeover.request` wartet bis zum Zurückgeben (`returned: true`).
+  Die Markierung zeigt „Zurückgeben“: im aktuellen Dokument über `Runtime.evaluate` in holzis Welt
+  (höchstens 1 s je Tab, denn eine Seite, die auf ein langsames Dokument wartet, antwortet erst mit
+  ihm), in jedem neuen Dokument meldet sich die Markierung über die Bindung (`hello`) und bekommt
+  den Zustand der Sitzung. Die gehaltenen Anfragen der Tabs gehen ohne Rückfrage weiter, denn der
+  Nutzer handelt; ein neuer Tab, den der Nutzer öffnet, bleibt seiner. Freigaben zum Absenden
+  verfallen.
+- Zurückgeben prüft die Seite jedes Tabs (Adresse aus `Target.getTargetInfo`, die der Browser auch
+  während eines langsamen Dokuments nennt) und die letzte Seite, die er während der Pause zu laden
+  begann (sie kann noch unterwegs sein), wie ein neues Dokument (FR-007): außerhalb der Rechte
+  fragt holzi; ohne Zustimmung bleibt der Tab beim Nutzer (wie beim Stoppen). Danach steuert der
+  Agent wieder.
+
 ## Profil
 
 - Arbeitsverzeichnis: Linux `$XDG_RUNTIME_DIR/holzi-agent-browser/<instanz>`, macOS

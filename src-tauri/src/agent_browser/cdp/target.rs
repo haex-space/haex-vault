@@ -94,6 +94,26 @@ pub async fn close(connection: &Connection, target: &str) -> Result<()> {
         .map(drop)
 }
 
+/// The address of the page target `target`, from the browser itself: it answers while the page
+/// waits for a slow document, when the page's own domains do not.
+pub async fn url(connection: &Connection, target: &str) -> Result<String> {
+    let reply = connection
+        .call("Target.getTargetInfo", json!({ "targetId": target }), None)
+        .await?;
+    reply["targetInfo"]["url"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| crate::agent_browser::error::BrowserError::Protocol("no target".to_owned()))
+}
+
+/// Brings the page target `target` to the front of its window.
+pub async fn activate(connection: &Connection, target: &str) -> Result<()> {
+    connection
+        .call("Target.activateTarget", json!({ "targetId": target }), None)
+        .await
+        .map(drop)
+}
+
 /// Ends holzi's session `session` of a target; the target stays open, and what the session set
 /// up (scripts, bindings, held requests) ends with it.
 pub async fn detach(connection: &Connection, session: &str) -> Result<()> {

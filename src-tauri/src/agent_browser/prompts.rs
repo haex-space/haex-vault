@@ -2,8 +2,8 @@
 //! park on a [`PromptPark`] for 5 minutes and appear in the window as one dialog with kinds, as the
 //! call prompt of 021 does. They ask about websites (FR-007), in Manuell about actions that change
 //! something, and in Manuell and Auto before anything is submitted (contracts/browser-tools.md
-//! "Freigabe", [`need`]), and before a tab a page opened becomes an agent tab; credentials, taking
-//! over and downloads add their kinds later.
+//! "Freigabe", [`need`]), before a tab a page opened becomes an agent tab, and when an agent asks
+//! the user to take over (FR-018); credentials and downloads add their kinds later.
 
 use std::time::Duration;
 
@@ -36,6 +36,8 @@ pub enum BrowserPromptKind {
     Submit,
     /// May a page of an agent tab open this new tab for the agent (research R9)?
     NewTab,
+    /// The agent asks the user to take over (FR-018), with its reason.
+    Takeover,
 }
 
 /// What the dialog shows.
@@ -54,6 +56,8 @@ pub struct BrowserQuestion {
     pub label: Option<String>,
     /// What would be sent, secrets as `•••` ([`BrowserPromptKind::Submit`]); empty otherwise.
     pub fields: Vec<BrowserField>,
+    /// Why the agent asks the user to take over ([`BrowserPromptKind::Takeover`]), its own words.
+    pub reason: Option<String>,
 }
 
 /// What a browser tool does, for the approval table.
