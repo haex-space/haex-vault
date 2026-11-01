@@ -9,11 +9,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use super::attach;
 use super::delegates;
 use super::endpoint::BoxStream;
 use super::hello::{
-    control_line, json_line, parse_greeting, CloseReason, Control, Greeting, HelloReply,
-    RejectReason, MAX_GREETING_BYTES,
+    control_line, json_line, parse_greeting, Control, Greeting, HelloReply, RejectReason,
+    MAX_GREETING_BYTES,
 };
 use super::live::Link;
 use super::manage;
@@ -22,13 +23,11 @@ use super::registration::{self, Previous, RegistrationContext};
 use super::registry::{self, AgentStatus};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
-use rmcp::service::{Peer, RoleServer};
 use rmcp::ServiceExt;
 use tokio::io::{
     AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadBuf,
     ReadHalf, WriteHalf,
 };
-use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
 
 /// How long the pump may take to write the last lines after the session ended.
@@ -91,7 +90,7 @@ async fn run_session(
     let known_id = agent.as_ref().map(|agent| agent.id);
     let delegate_thread = agent.as_ref().and_then(|agent| agent.delegate_thread);
     let link = Arc::new(Link::new(core.token.child_token()));
-    // A known agent is installed only after the synchronized database refresh below; using the
+    // A known agent is installed only by `attach::join`'s synchronized database refresh; using the
     // admission snapshot here could let an early tool call observe stale rights.
     let session = Session::new(Arc::clone(&core), None, Arc::clone(&link));
     let reader = LineLimit::new(reader, core.limits.max_message_bytes);
@@ -105,47 +104,7 @@ async fn run_session(
         }
     };
     let peer = running.peer().clone();
-    // Serialize the refresh with rights, mode and revocation changes. Otherwise a management
-    // update can commit before this connection is added to `live`, miss it, and leave stale rights.
-    let _agent_guard = if let Some(id) = known_id {
-        Some(core.live.synchronize(id).await)
-    } else {
-        None
-    };
-    let live = core.live.add(session.clone(), peer.clone());
-    if let Some(id) = known_id {
-        let device = core.device;
-        match core
-            .db
-            .read(move |q| {
-                let Some(agent) = registry::get(q, device, id)? else {
-                    return Ok(None);
-                };
-                if agent.status != AgentStatus::Registered {
-                    return Ok(None);
-                }
-                let rights = registry::load_rights(q, device, id)?;
-                Ok(Some(SessionAgent {
-                    id,
-                    rights,
-                    mode: agent.mode,
-                    client_name: agent.client_name,
-                    delegate_thread,
-                }))
-            })
-            .await
-        {
-            Ok(Some(agent)) => {
-                session.set_agent(agent);
-                let _ = peer.notify_tool_list_changed().await;
-            }
-            Ok(None) => link.end(CloseReason::Revoked),
-            Err(error) => {
-                log::warn!("mcp server: could not refresh an agent's rights: {error}");
-                link.end(CloseReason::Disabled);
-            }
-        }
-    }
+    let live = attach::join(&core, &session, &peer, &link, known_id, delegate_thread).await;
     let ended = link.close.child_token();
     let registration = waiting.map(|(ticket, previous)| {
         tokio::spawn(registration::register(RegistrationContext {
@@ -160,7 +119,7 @@ async fn run_session(
             link: Arc::clone(&link),
         }))
     });
-    let watcher = tokio::spawn(tell_catalog_changes(
+    let watcher = tokio::spawn(attach::tell_catalog_changes(
         Arc::clone(&core),
         session.clone(),
         peer,
@@ -307,35 +266,6 @@ async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previou
     match core.gate.try_open(&greeting.slug) {
         Some(ticket) => Admission::Pending(ticket, previous),
         None => Admission::Rejected(RejectReason::RegistrationBusy),
-    }
-}
-
-/// The table of the agents' file and contact permissions (spec 044, 051).
-const FILE_PERMISSIONS: &str = "agent_file_permissions";
-
-/// Tells a registered agent when the window pushed a new action list (FR-017), the extension tools
-/// changed: one installed, removed, turned off, or its tool settings changed (US4), or the file and
-/// contact permissions of agents changed (US5).
-async fn tell_catalog_changes(core: Arc<Core>, session: Session, peer: Peer<RoleServer>) {
-    let mut actions = core.catalog.subscribe();
-    let mut extension_tools = core.extension_tools.subscribe();
-    let mut tables = core.vault_changes.subscribe();
-    loop {
-        let changed = tokio::select! {
-            changed = actions.changed() => changed.is_ok(),
-            changed = extension_tools.changed() => changed.is_ok(),
-            received = tables.recv() => match received {
-                Ok(tables) if !tables.iter().any(|table| table == FILE_PERMISSIONS) => continue,
-                Ok(_) | Err(RecvError::Lagged(_)) => true,
-                Err(RecvError::Closed) => false,
-            },
-        };
-        if !changed {
-            break;
-        }
-        if session.agent().is_some() && peer.notify_tool_list_changed().await.is_err() {
-            break;
-        }
     }
 }
 

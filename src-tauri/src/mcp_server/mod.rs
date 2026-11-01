@@ -4,6 +4,7 @@
 //! a vault is open (FR-001, FR-002).
 
 pub mod agent_log;
+mod attach;
 mod callee;
 pub mod command_tool;
 pub mod commands;
@@ -16,9 +17,15 @@ pub mod grant_rows;
 pub mod grants;
 pub mod hello;
 pub mod helper;
+pub mod http;
+pub mod http_session;
 pub mod live;
 pub mod manage;
 pub mod manage_commands;
+pub mod oauth;
+mod oauth_flow;
+mod oauth_http;
+pub mod oauth_rows;
 pub mod password_env;
 pub mod prompts;
 pub mod redact;
@@ -46,7 +53,11 @@ mod hello_tests;
 #[cfg(test)]
 mod helper_tests;
 #[cfg(test)]
+mod http_tests;
+#[cfg(test)]
 mod manage_tests;
+#[cfg(test)]
+mod oauth_tests;
 #[cfg(test)]
 mod prompts_tests;
 #[cfg(test)]
@@ -203,6 +214,8 @@ impl McpServer {
                         delegates: Arc::clone(&self.delegates),
                         notify: self.notifier(),
                         limits: Limits::default(),
+                        // The HTTP way starts with PR G2 (T096).
+                        http_port: None,
                     };
                     match server::start(args).await {
                         Ok(running) => slot.running = Some(running),

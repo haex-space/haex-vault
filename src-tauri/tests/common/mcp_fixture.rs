@@ -101,6 +101,8 @@ pub struct Fixture {
     pub command_tool: Option<Arc<dyn ChatTool>>,
     /// The passes of delegates' starts (spec 021 US6).
     pub delegates: Arc<DelegateHub>,
+    /// `Some(0)` starts the HTTP way on a free port (spec 021 PR G).
+    pub http_port: Option<u16>,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -189,6 +191,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         native: NativeExecutors::default(),
         command_tool: None,
         delegates: Arc::default(),
+        http_port: None,
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -255,6 +258,7 @@ impl Fixture {
             delegates: Arc::clone(&self.delegates),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),
             limits: self.limits,
+            http_port: self.http_port,
         })
         .await
         .expect("the server starts")
