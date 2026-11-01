@@ -273,6 +273,11 @@ export interface PhoneControls extends ContactControls {
   notificationTitles(): string[]
   /** What the app's process `pid` left in the system's crash log, e.g. an abort while it ended. */
   crashLines(pid: number): string[]
+  /**
+   * Makes the app's loopback `port` reachable on this machine at the same port, so a client here
+   * names the same `Host` (spec 021 HTTP way); returns the call that ends it.
+   */
+  reachAppPort(port: number): () => void
 }
 
 export interface Instance extends Page {

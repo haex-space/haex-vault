@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
+use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage;
 use holzi_lib::mcp_server::registry::{self, AgentMode, Transport};
 use holzi_lib::mcp_server::server::Running;
@@ -368,5 +369,46 @@ async fn a_declined_authorization_registers_nobody() {
         .await
         .expect("the agents");
     assert!(agents.is_empty(), "{agents:?}");
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// T096: a phone serves only the HTTP way; there is no socket for the helper.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_phone_serves_the_http_way_only() {
+    let mut fx = fixture();
+    fx.program_way = false;
+    let (server, base) = http_server(&mut fx).await;
+    match fx.agent("no-socket").await {
+        Ok(_) => panic!("the helper found a socket"),
+        Err(helper) => assert_eq!(helper.await.expect("the helper"), exit::NOT_OPEN),
+    }
+    let metadata = http()
+        .get(format!("{base}/.well-known/oauth-protected-resource"))
+        .send()
+        .await
+        .expect("metadata");
+    assert_eq!(metadata.status(), 200);
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// R14: the kept port is used again; when another program holds it, the HTTP way moves.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_taken_port_moves_the_http_way() {
+    let taken = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+    let port = taken.local_addr().expect("an address").port();
+    let mut fx = fixture();
+    fx.http_port = Some(port);
+    let server = fx.server().await;
+    let moved = server.http_address().expect("the HTTP way runs").port();
+    assert_ne!(moved, port);
+    server.stop(CloseReason::Disabled).await;
+    drop(taken);
+
+    fx.http_port = Some(moved);
+    let server = fx.server().await;
+    assert_eq!(
+        server.http_address().map(|address| address.port()),
+        Some(moved)
+    );
     server.stop(CloseReason::Disabled).await;
 }

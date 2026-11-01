@@ -4018,7 +4018,9 @@
       "other": "Anderer MCP-Client",
       "otherHint": "In die MCP-Konfiguration des Clients eintragen",
       "copy": "Kopieren",
-      "copied": "Kopiert"
+      "copied": "Kopiert",
+      "httpTitle": "Über HTTP verbinden",
+      "httpHint": "holzi wartet auf 127.0.0.1:{port}. Beim ersten Verbinden öffnet der Agent eine Seite im Browser; bestätige ihn dann hier in holzi."
     },
     "notification": {
       "title": "Ein Agent möchte holzi nutzen",
