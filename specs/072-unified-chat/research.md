@@ -350,13 +350,15 @@ Anfrage"), no text. Android: permission requested on first use (desktop.rs:135-1
 
 **Decision**:
 
-- `ChatApp.vue` (493 lines) is split: `ChatApp.vue` keeps layout, list and navigation; the existing agent
-  parts move into `chat/AgentConversation.vue` unchanged in behaviour; new `chat/PeerConversation.vue`
-  (message list, composer without agent controls, members panel for groups).
-- `ThreadSidebar.vue` becomes the conversation list with kind filter, avatars (`ContactsAvatar`), unread
-  badge (`ShadcnBadge`) and "Anfragen" entry.
-- Routes (appRoutes.ts:277-285): keep `''` and `thread/:id` for every kind, add `requests` and
-  `requests/:id`. The `Thread` type gains `kind`, `state`, `peerVault`, `muted`, `unread`.
+- `ChatApp.vue` (493 lines) keeps the agent conversation, whose state the tab actions share
+  (`useChatTab`); its model wiring moves into `useAgentModelState.ts` to stay below 500 lines
+  (PR B). A contact or group conversation renders `chat/PeerConversation.vue` instead of the agent
+  section (message list, composer without agent controls, members panel for groups).
+- `ThreadSidebar.vue` becomes the conversation list with kind filter; peer rows in
+  `PeerListItem.vue` with avatars (`ContactsAvatar`), unread badge (`ShadcnBadge`); "Anfragen" entry.
+- Routes (appRoutes.ts:277-285): keep `''` and `thread/:id` for agent conversations, add
+  `contact/:id` for contact and group conversations (it opens on top of the agent conversation,
+  which keeps running) and `requests`.
 - New: `NewConversationDialog.vue` (agent / contact / group), `PeerMessageList.vue`,
   `AttachmentBubble.vue`, `ContactCardBubble.vue`, `GroupMembersPanel.vue`, `RequestBanner.vue`,
   `SendConfirmDialog.vue` (agent send, mounted beside ShareConfirmDialog in
@@ -385,8 +387,8 @@ Anfrage"), no text. Android: permission requested on first use (desktop.rs:135-1
 
 ## R20 Relationship to spec 068 and ordering
 
-**Decision**: 068 has no code yet (0/52 tasks). This spec moves the agent UI into
-`AgentConversation.vue` and adds `kind` to `chat_threads` with default `agent`; 068's later changes to the
+**Decision**: 068 has no code yet (0/52 tasks). This spec keeps the agent UI in
+`ChatApp.vue` (model wiring in `useAgentModelState.ts`) and adds `kind` to `chat_threads` with default `agent`; 068's later changes to the
 turn engine and agent UI land in those places. Nothing here touches `chat/turn/`, `ChatState` or
 `model_jobs`.
 

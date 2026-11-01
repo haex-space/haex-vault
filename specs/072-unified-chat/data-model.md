@@ -136,7 +136,7 @@ removed after `DELETE` (R13).
 (`pending`, `downloading`, `stored`, `failed`, `gone`), bytes_done INTEGER, error TEXT, updated_at
 INTEGER)`. `pending` above the automatic download limit waits for a tap (FR-036).
 
-**`chat_group_parts_no_sync`** — incomplete invitation parts: `(group_id, part INTEGER, of INTEGER,
+**`chat_group_parts_no_sync`** — incomplete invitation parts: `(group_id, part INTEGER, part_count INTEGER,
 payload TEXT, received_at)`, PK `(group_id, part)`; dropped after 7 days or when complete (R9).
 
 ## Preferences (`preferences`, typed accessors in `chat::settings`)

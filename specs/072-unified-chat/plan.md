@@ -36,7 +36,7 @@ Technical approach (reasons and rejected alternatives in [research.md](./researc
   unknown senders land in "Anfragen", accepted through spec 060's preview/merge.
 - **Agents** (R16): grant kind `contact_chats`, permission prompt, `chat.contacts.message.send` with a
   mandatory confirmation, same rules over MCP.
-- **Window** (R17, R18): `ChatApp.vue` split into list + `AgentConversation.vue` + `PeerConversation.vue`;
+- **Window** (R17, R18): `ChatApp.vue` keeps the agent conversation (model wiring in `useAgentModelState.ts`) and shows `PeerConversation.vue` for contact conversations;
   address book "Nachricht senden"; share dialog "Im Chat senden"; settings category "Chat"; system
   notifications through the shared notification routing.
 
@@ -93,7 +93,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | VIII. No concealment                                 | ✅ not touched                                                                                                                                                                                                                                      |
 | ADR for principle-affecting decisions                | ✅ new ADR 0024 "Chat between vaults over stored Nostr gift wraps and Blossom" (accepts ADR 0014's layers for chat; records "no direct path", per-device Blossom pickup, LWW group membership)                                                      |
 | No agent attribution in commits and PRs              | ✅                                                                                                                                                                                                                                                  |
-| Phase order                                          | ✅ builds on 024, 048, 051, 060, all in use. 068 has no code; this plan only moves agent UI into `AgentConversation.vue` and adds `kind` to `chat_threads` (R20)                                                                                    |
+| Phase order                                          | ✅ builds on 024, 048, 051, 060, all in use. 068 has no code; this plan keeps the agent UI in `ChatApp.vue` (model wiring in `useAgentModelState.ts`) and adds `kind` to `chat_threads` (R20)                                                       |
 
 After Phase 1, re-checked: no violation; Complexity Tracking empty.
 
@@ -170,7 +170,7 @@ src-tauri/tests/
 src/
 ├── components/apps/ChatApp.vue              # list + navigation only
 ├── components/chat/
-│   ├── AgentConversation.vue                # moved agent parts (behaviour unchanged)
+│   ├── PeerListItem.vue, NewContactDialog.vue   # NEW (PR B)
 │   ├── PeerConversation.vue                 # NEW
 │   ├── PeerMessageList.vue, AttachmentBubble.vue, ContactCardBubble.vue,
 │   │   GroupMembersPanel.vue, RequestBanner.vue, NewConversationDialog.vue,
@@ -195,17 +195,17 @@ app; agent and peer views are siblings under it.
 
 Each slice is mergeable and testable on its own; later ones build on earlier ones.
 
-| PR  | Content                                                                                                                                                                                    | Stories         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
-| A   | docs: spec, plan, research, contracts, ADR 0024 (this PR #724)                                                                                                                             | –               |
-| B   | migration 0049, `chat::peer::{ids, store}`, `chat_conversations_list`, ChatApp split (AgentConversation), conversation list with kinds/filter, "Nachricht senden" + empty PeerConversation | US1             |
-| C   | wrap generalisation, envelope, verify, outbox, delivery service, receive, receipts, direct send/receive, read state, notifications                                                         | US2, FR-023/024 |
-| D   | requests and blocking                                                                                                                                                                      | US5             |
-| E   | files: HXCF, Blossom client, test server, transfers, per-device store, sweep, viewer/save, download limits, chat settings (Blossom part)                                                   | US3, US8 (part) |
-| F   | groups: ops, invitations, members panel, notes                                                                                                                                             | US4             |
-| G   | contact share in chat                                                                                                                                                                      | US6             |
-| H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                            | US7             |
-| I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                 | US8, SC-011     |
+| PR  | Content                                                                                                                                                                                       | Stories         |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| A   | docs: spec, plan, research, contracts, ADR 0024 (this PR #724)                                                                                                                                | –               |
+| B   | migration 0049, `chat::peer::{ids, store}`, `chat_conversations_list`, model wiring into useAgentModelState, conversation list with kinds/filter, "Nachricht senden" + empty PeerConversation | US1             |
+| C   | wrap generalisation, envelope, verify, outbox, delivery service, receive, receipts, direct send/receive, read state, notifications                                                            | US2, FR-023/024 |
+| D   | requests and blocking                                                                                                                                                                         | US5             |
+| E   | files: HXCF, Blossom client, test server, transfers, per-device store, sweep, viewer/save, download limits, chat settings (Blossom part)                                                      | US3, US8 (part) |
+| F   | groups: ops, invitations, members panel, notes                                                                                                                                                | US4             |
+| G   | contact share in chat                                                                                                                                                                         | US6             |
+| H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                               | US7             |
+| I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                    | US8, SC-011     |
 
 ## Complexity Tracking
 
