@@ -48,6 +48,7 @@ fn no_op_context() -> DelegateChatContext {
         pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
         emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
         database: None,
+        holzi: None,
     }
 }
 

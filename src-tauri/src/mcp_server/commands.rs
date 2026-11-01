@@ -1,7 +1,7 @@
 //! Commands of the window (spec 021, contracts/tauri-commands.md): the state of the MCP access, the
 //! switch behind the guardrail action `settings.agents.mcp.enable`, the answers to a registration
-//! dialog and a call prompt, the agent log and the setup snippets. Only the window calls them; no
-//! agent reaches a command.
+//! dialog and a call prompt, the agent log, the setup snippets and a delegate's registration in the
+//! chat. Only the window calls them; no agent reaches a command.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
@@ -10,7 +10,9 @@ use uuid::Uuid;
 
 use super::agent_log::{self, AgentLogEntry};
 use super::connection::now_millis;
+use super::delegates::{self, DelegateRegistration, DelegateStatus};
 use super::prompts::{CallDecision, RegistrationAnswer};
+use super::registry::AgentKind;
 use super::settings;
 use super::{McpRunState, McpServer};
 use crate::chat::session::ChatState;
@@ -201,20 +203,10 @@ pub async fn mcp_setup_snippet<R: Runtime>(
     args: McpSnippetArgs,
 ) -> Result<String> {
     let device = open_device(&app, &state).await?;
-    let executable = helper_executable()?;
+    let executable = super::helper::executable().map_err(|error| HolziError::Io {
+        reason: format!("the path of holzi: {error}"),
+    })?;
     Ok(snippet(args.client, &executable, device))
-}
-
-/// The executable an agent starts: the AppImage itself when holzi runs as one, else this binary.
-fn helper_executable() -> Result<String> {
-    if let Some(appimage) = std::env::var_os("APPIMAGE") {
-        return Ok(appimage.to_string_lossy().into_owned());
-    }
-    std::env::current_exe()
-        .map(|path| path.to_string_lossy().into_owned())
-        .map_err(|error| HolziError::Io {
-            reason: format!("the path of holzi: {error}"),
-        })
 }
 
 /// The snippet for `client`.
@@ -239,4 +231,48 @@ pub fn snippet(client: SnippetClient, executable: &str, device: Uuid) -> String 
             serde_json::to_string_pretty(&config).unwrap_or_default()
         }
     }
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct McpDelegateArgs {
+    /// `claudeCodeDelegate` or `codexDelegate`.
+    pub kind: AgentKind,
+}
+
+fn delegate_kind(kind: AgentKind) -> Result<AgentKind> {
+    match delegates::slug_of(kind) {
+        Some(_) => Ok(kind),
+        None => Err(HolziError::InvalidInput {
+            reason: "no delegate".to_owned(),
+        }),
+    }
+}
+
+/// Whether the delegate `kind` has holzi's tools in the chat (spec 021 US6, FR-025).
+#[tauri::command]
+pub async fn mcp_delegate_status(
+    server: State<'_, McpServer>,
+    args: McpDelegateArgs,
+) -> Result<DelegateStatus> {
+    let kind = delegate_kind(args.kind)?;
+    Ok(match server.core().await {
+        Some(core) => delegates::status(&core, kind).await,
+        None => DelegateStatus::Off,
+    })
+}
+
+/// "Rechte festlegen" in the chat, behind the guardrail action
+/// `settings.agents.mcp.delegate.register`: the registration dialog for the delegate `kind`.
+#[tauri::command]
+pub async fn mcp_delegate_register(
+    server: State<'_, McpServer>,
+    args: McpDelegateArgs,
+) -> Result<DelegateRegistration> {
+    let kind = delegate_kind(args.kind)?;
+    Ok(match server.core().await {
+        Some(core) => delegates::register(&core, kind).await,
+        None => DelegateRegistration::Off,
+    })
 }

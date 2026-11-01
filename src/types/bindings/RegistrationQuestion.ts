@@ -6,12 +6,16 @@ import type { Transport } from "./Transport";
 /**
  * What the dialog shows.
  */
-export type RegistrationQuestion = { slug: string,
+export type RegistrationQuestion = { slug: string, 
 /**
  * The agent's own claim (`clientInfo.name`), never checked.
  */
-clientName: string, clientVersion: string | null, transport: Transport,
+clientName: string, clientVersion: string | null, transport: Transport, 
 /**
  * Preset: reading in "holzi bedienen", nothing else (FR-009).
  */
-rights: Rights, mode: AgentMode, };
+rights: Rights, mode: AgentMode, 
+/**
+ * A delegate the user asked to set rights for (US6): declining remembers nothing.
+ */
+delegate: boolean, };

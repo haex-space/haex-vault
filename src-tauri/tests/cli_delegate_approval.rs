@@ -112,6 +112,7 @@ sys.stdin.readline()
             pending_tool_approvals: Arc::clone(&pending),
             emit,
             database: None, // Manual mode => always Ask, forcing the live round trip
+            holzi: None,
         }),
     );
 
@@ -199,6 +200,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         pending_tool_approvals: Arc::clone(&pending),
         emit,
         database: None, // Manual mode => always Ask
+        holzi: None,
     };
 
     let listener = bind_socket(&socket_path).expect("bind approval socket");

@@ -90,6 +90,8 @@ pub enum RejectReason {
     Disabled,
     /// The greeting could not be read.
     Malformed,
+    /// A delegate whose pass is unknown or ended, or that lost its registration (US6).
+    NotRegistered,
 }
 
 /// The app's answer to a greeting.

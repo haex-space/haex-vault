@@ -35,7 +35,7 @@ pub enum AgentKind {
 }
 
 impl AgentKind {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::External => "external",
             Self::ClaudeCodeDelegate => "claude_code_delegate",
@@ -337,6 +337,52 @@ pub fn register(
     )?;
     save_rights(tx, device, agent.id, rights)?;
     Ok(agent)
+}
+
+/// Registers the delegate `kind` (spec 021 US6, data-model.md): one row per kind and device, its
+/// id from both (`delegates::delegate_id`), no credential; an existing row is renewed.
+pub fn register_delegate(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    kind: AgentKind,
+    client_name: &str,
+    rights: &Rights,
+    mode: AgentMode,
+    now: i64,
+) -> Result<Agent> {
+    let id = super::delegates::delegate_id(device, kind);
+    let slug = super::delegates::slug_of(kind).unwrap_or_default();
+    let renewed = tx.execute(
+        "UPDATE haex_mcp_agents SET status = 'registered', permission_mode = ?3, \
+         client_name = ?4, token_hash = NULL, last_seen_at = ?5 \
+         WHERE id = ?1 AND vault_device_uuid = ?2",
+        params![
+            id.to_string(),
+            device.to_string(),
+            mode.as_str(),
+            client_name,
+            now
+        ],
+    )?;
+    if renewed == 0 {
+        tx.execute(
+            "INSERT INTO haex_mcp_agents (id, vault_device_uuid, kind, slug, client_name, \
+             client_version, transport, oauth_client_id, token_hash, status, permission_mode, \
+             registered_at, last_seen_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, NULL, 'ipc', NULL, NULL, 'registered', ?6, ?7, ?7)",
+            params![
+                id.to_string(),
+                device.to_string(),
+                kind.as_str(),
+                slug,
+                client_name,
+                mode.as_str(),
+                now,
+            ],
+        )?;
+    }
+    save_rights(tx, device, id, rights)?;
+    get(tx, device, id)?.ok_or_else(|| haex_crdt::rusqlite::Error::QueryReturnedNoRows.into())
 }
 
 /// Remembers that the user blocked the agent of `slug` (data-model.md: no credential).

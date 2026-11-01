@@ -18,7 +18,6 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use serde_json::json;
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -30,6 +29,7 @@ use crate::adapters::{AdapterError, AdapterStream, ChatRequest};
 
 use super::approval_bridge;
 use super::autonomy::{self, AutonomyMode};
+use super::holzi_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::subagents;
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
@@ -211,10 +211,16 @@ pub(super) fn parse_line(
     }
 }
 
+/// The `--mcp-config` file and whether it carries holzi's own server.
+pub(super) struct McpArgs<'a> {
+    pub config: &'a Path,
+    pub holzi: bool,
+}
+
 pub(super) fn build_command(
     binary: &str,
     model: &str,
-    mcp_config: Option<&Path>,
+    mcp: Option<McpArgs<'_>>,
     system_prompt_path: Option<&Path>,
     tmp: &TempDir,
     autonomy_mode: AutonomyMode,
@@ -253,13 +259,19 @@ pub(super) fn build_command(
         // `GatedPermissive` (approval_bridge.rs), not the invocation.
         cmd.arg("--permission-mode").arg("bypassPermissions");
     } else {
-        let mcp_config = mcp_config.expect("mcp_config is required outside Ungated mode");
         cmd.arg("--permission-mode")
             .arg("default")
-            .arg("--mcp-config")
-            .arg(mcp_config)
             .arg("--permission-prompt-tool")
             .arg("mcp__holzi-approve__approve");
+    }
+    // The approval bridge outside `Ungated`, and holzi's own server for a registered delegate in
+    // every mode (spec 021 R7).
+    if let Some(mcp) = mcp {
+        cmd.arg("--mcp-config").arg(mcp.config);
+        // holzi asks for its own tools by the delegate's approval mode; Claude must not ask again.
+        if mcp.holzi {
+            cmd.arg("--allowedTools").arg(holzi_mcp::CLAUDE_HOLZI_TOOLS);
+        }
     }
     if let Some(system_prompt_path) = system_prompt_path {
         cmd.arg("--append-system-prompt-file")
@@ -364,8 +376,9 @@ pub(super) async fn spawn_claude_invocation(
     let autonomy_mode = req.autonomy_mode;
     // `Ungated` never needs a bridge process at all — Claude is told to
     // bypass permissions entirely, so there is no approval tool call to
-    // relay (tasks.md T021).
-    let (mcp_config_path, listener_task) = if autonomy_mode == AutonomyMode::Ungated {
+    // relay (tasks.md T021). holzi's own server comes in every mode.
+    let holzi = holzi_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id).await;
+    let (approve_socket, listener_task) = if autonomy_mode == AutonomyMode::Ungated {
         (None, None)
     } else {
         let socket_path = tmp.path().join("approval.sock");
@@ -382,34 +395,18 @@ pub(super) async fn spawn_claude_invocation(
             autonomy_mode,
             tmp.path().to_path_buf(),
         );
-        let mcp_config_path = tmp.path().join("mcp-config.json");
-        let current_exe = std::env::current_exe().map_err(|error| AdapterError::Http {
-            reason: format!("failed to locate holzi executable for approval bridge: {error}"),
-        })?;
-        let mcp_config = json!({
-            "mcpServers": {
-                "holzi-approve": {
-                    "command": current_exe,
-                    "args": ["--internal-cli-delegate-approval-bridge", "--socket", socket_path]
-                }
-            }
-        });
-        tokio::fs::write(
-            &mcp_config_path,
-            serde_json::to_vec(&mcp_config).map_err(|error| AdapterError::Http {
-                reason: format!("failed to serialize Claude MCP config: {error}"),
-            })?,
-        )
-        .await
-        .map_err(|error| AdapterError::Http {
-            reason: format!("failed to write Claude MCP config: {error}"),
-        })?;
-        (Some(mcp_config_path), Some(listener_task))
+        (Some(socket_path), Some(listener_task))
     };
+    let mcp_config_path =
+        holzi_mcp::write_claude_config(tmp.path(), approve_socket.as_deref(), holzi.as_ref())
+            .await?;
     let mut cmd = build_command(
         &binary,
         &req.model_id,
-        mcp_config_path.as_deref(),
+        mcp_config_path.as_deref().map(|config| McpArgs {
+            config,
+            holzi: holzi.is_some(),
+        }),
         system_prompt_path.as_ref().map(|(path, _)| path.as_path()),
         &tmp,
         autonomy_mode,
@@ -552,6 +549,8 @@ pub(super) async fn spawn_claude_invocation(
         // Keep `tmp` alive for the whole process lifetime; it is removed
         // when this task ends, on every path below.
         let _tmp = tmp;
+        // holzi's pass for this start ends with it.
+        let _holzi = holzi;
 
         let start = Instant::now();
         let mut ttft_ms = None;

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use super::delegates;
 use super::endpoint::BoxStream;
 use super::hello::{
     control_line, json_line, parse_greeting, CloseReason, Control, Greeting, HelloReply,
@@ -88,6 +89,7 @@ async fn run_session(
     let (rmcp_side, pump_side) = tokio::io::duplex(64 * 1024);
     let pump = tokio::spawn(pump(pump_side, write_half, control_rx));
     let known_id = agent.as_ref().map(|agent| agent.id);
+    let delegate_thread = agent.as_ref().and_then(|agent| agent.delegate_thread);
     let link = Arc::new(Link::new(core.token.child_token()));
     // A known agent is installed only after the synchronized database refresh below; using the
     // admission snapshot here could let an early tool call observe stale rights.
@@ -128,6 +130,7 @@ async fn run_session(
                     rights,
                     mode: agent.mode,
                     client_name: agent.client_name,
+                    delegate_thread,
                 }))
             })
             .await
@@ -211,6 +214,13 @@ async fn read_greeting(
 }
 
 async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
+    // A delegate registers in the chat, never through this dialog (US6).
+    if greeting.delegate {
+        return match delegates::admit(core, greeting.token.as_deref()).await {
+            Ok(agent) => Admission::Known(agent),
+            Err(reason) => Admission::Rejected(reason),
+        };
+    }
     let device = core.device;
     if let Some(credential) = greeting.token.clone() {
         let found = core
@@ -260,6 +270,7 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
                         rights,
                         mode,
                         client_name,
+                        delegate_thread: None,
                     }),
                     Err(error) => {
                         log::warn!("mcp server: could not read an agent's rights: {error}");

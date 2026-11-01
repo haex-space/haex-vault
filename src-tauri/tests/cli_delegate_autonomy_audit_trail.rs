@@ -131,6 +131,7 @@ sys.stdin.readline()
                     .vault_db(Arc::clone(&db))
                     .expect("open gate"),
             ),
+            holzi: None,
         }),
     );
 
@@ -247,6 +248,7 @@ sys.stdin.readline()
                     .vault_db(Arc::clone(&db))
                     .expect("open gate"),
             ),
+            holzi: None,
         }),
     );
 

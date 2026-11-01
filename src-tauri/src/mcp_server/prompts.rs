@@ -46,6 +46,8 @@ pub struct RegistrationQuestion {
     /// Preset: reading in "holzi bedienen", nothing else (FR-009).
     pub rights: Rights,
     pub mode: AgentMode,
+    /// A delegate the user asked to set rights for (US6): declining remembers nothing.
+    pub delegate: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
@@ -172,6 +174,10 @@ pub struct CallQuestion {
     pub input: serde_json::Value,
     /// The answer hands a secret to the agent and its provider.
     pub secret: bool,
+    /// A delegate's call: the chat thread that shows the prompt instead of the dialog (US6, R6).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub delegate_thread_id: Option<String>,
 }
 
 /// The effect of the called action, as the prompt names it.
