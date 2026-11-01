@@ -622,11 +622,6 @@
           "description": "Position, Stil und Einträge des Docks.",
           "keywords": "Dock Leiste Taskleiste Rad anheften Position Kante Ecke automatisch ausblenden"
         },
-        "syncLog": {
-          "title": "Sync-Protokoll",
-          "description": "Wie viele Läufe der Sync-Regeln gespeichert bleiben.",
-          "keywords": "Sync Regeln Protokoll Log Läufe Tiefe Verlauf Abgleich"
-        },
         "licenses": {
           "title": "Lizenzen",
           "description": "Die Lizenzen der mitgelieferten Icon-Sets, Stimmen und Sprachmodelle.",
@@ -1470,12 +1465,6 @@
       "removeConfirm": "Server und seine Modelle entfernen?",
       "cancel": "Abbrechen",
       "remove": "Entfernen"
-    },
-    "syncLog": {
-      "title": "Sync-Protokoll",
-      "depth": "Läufe je Regel",
-      "hint": "Wie viele Läufe das Protokoll jeder Sync-Regel auf diesem Gerät behält, 0 bis 100. Bei 0 gibt es kein Protokoll.",
-      "invalid": "Eine ganze Zahl von 0 bis 100."
     },
     "assistant": {
       "labels": {
@@ -3327,6 +3316,17 @@
         "title": "Sync-Regel ändern",
         "save": "Speichern",
         "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+      },
+      "settings": {
+        "open": "Einstellungen",
+        "title": "Einstellungen der Sync-Regeln",
+        "logHeading": "Protokoll",
+        "logIntro": "Nach jedem Abgleich schreibt holzi auf, was geschehen ist: wann er lief, wie lange er dauerte, wie er ausging und welche Dateien er kopiert, verschoben, gelöscht oder als Konfliktkopie angelegt hat. Das Protokoll einer Regel öffnest du in ihrem Menü. Dort siehst du auch, wohin eine gespiegelte Löschung die Datei gelegt hat.",
+        "depth": "Läufe je Regel",
+        "hint": "So viele der letzten Abgleiche behält holzi für jede Regel, von 0 bis 100. Ältere Läufe werden gelöscht. Stellst du eine kleinere Zahl ein, verschwinden die ältesten Läufe sofort.",
+        "cost": "Mehr Läufe heißen, dass du weiter zurückblicken kannst, brauchen aber mehr Speicherplatz, vor allem bei Regeln mit vielen Dateien. Bei 0 führt holzi kein Protokoll, und du kannst nicht nachsehen, was mit einer Datei geschehen ist.",
+        "scope": "Die Einstellung gilt für alle Sync-Regeln auf diesem Gerät. Das Protokoll bleibt auf diesem Gerät und wird nicht mit anderen Geräten abgeglichen. Es speichert Lauf-Metadaten wie Zeitpunkte, Dauer, Auslöser, Ergebnis und Zähler sowie Dateipfade, Aktionen und Fehlergründe. Dateiinhalte speichert es nicht.",
+        "invalid": "Eine ganze Zahl von 0 bis 100."
       },
       "create": {
         "open": "Neue Regel",
