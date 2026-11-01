@@ -4,7 +4,7 @@ import type { PasswordLevel } from "./PasswordLevel";
 /**
  * The rights group `passwords` (data-model.md). Present means on.
  */
-export type PasswordRights = { level: PasswordLevel, 
+export type PasswordRights = { level: PasswordLevel,
 /**
  * The tag names whose entries it reaches; `None` reaches every entry.
  */
