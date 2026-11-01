@@ -127,10 +127,12 @@ Derived state: `failed` if `failed_at` and no later `sent_at`; else `read` > `de
 
 **`chat_relay_cursors_no_sync`** — `(relay TEXT PK, newest_created_at INTEGER)` for `since` (R3).
 
-**`chat_blobs_no_sync`** — uploads of this device: `(blob_sha256 TEXT PK, server TEXT, upload_secret
-BLOB, attachment_id TEXT, pending_devices TEXT, uploaded_at INTEGER)`; the secret is the per-blob key
-(R12); `pending_devices` is the JSON list of device keys whose `files` receipt is still missing; row
-removed after `DELETE` (R13).
+**`chat_blobs_no_sync`** — uploads of this device: `(blob_sha256 TEXT PK, server TEXT, signer TEXT,
+upload_secret BLOB NULL, key_entry_id TEXT NULL, attachment_id TEXT, pending_devices TEXT,
+uploaded_at INTEGER)`. `signer` is `per_blob` or `registered`; per-blob uploads keep their signing key in
+`upload_secret`, while registered-key uploads store only the password-manager entry id in
+`key_entry_id` (never the secret itself). `pending_devices` lists every recipient device at send time
+and the sender's other devices whose `files` receipt is still missing; row removed after `DELETE` (R13).
 
 **`chat_attachment_files_no_sync`** — files on this device: `(attachment_id TEXT PK, state TEXT
 (`pending`, `downloading`, `stored`, `failed`, `gone`), bytes_done INTEGER, error TEXT, updated_at
@@ -141,14 +143,14 @@ payload TEXT, received_at)`, PK `(group_id, part)`; dropped after 7 days or when
 
 ## Preferences (`preferences`, typed accessors in `chat::settings`)
 
-| Key                              | Scope  | Default      | Notes                                                 |
-| -------------------------------- | ------ | ------------ | ----------------------------------------------------- |
-| `chat.blossom.server`            | vault  | first preset | URL or `none` (FR-080)                                |
-| `chat.blossom.keyEntry`          | vault  | unset        | id of the password entry holding the upload key (R12) |
-| `chat.receipts.read`             | vault  | `true`       | FR-024                                                |
-| `chat.download.autoLimit`        | device | `25` (MB)    | FR-036                                                |
-| `chat.download.autoLimitMetered` | device | `5` (MB)     | Android on mobile data                                |
-| `chat.notifications`             | device | `true`       | FR-023                                                |
+| Key                              | Scope  | Default   | Notes                                                              |
+| -------------------------------- | ------ | --------- | ------------------------------------------------------------------ |
+| `chat.blossom.server`            | vault  | `none`    | URL or `none`; a preset is enabled only after T104 passes (FR-080) |
+| `chat.blossom.keyEntry`          | vault  | unset     | id of the password entry holding the upload key (R12)              |
+| `chat.receipts.read`             | vault  | `true`    | FR-024                                                             |
+| `chat.download.autoLimit`        | device | `25` (MB) | FR-036                                                             |
+| `chat.download.autoLimitMetered` | device | `5` (MB)  | Android on mobile data                                             |
+| `chat.notifications`             | device | `true`    | FR-023                                                             |
 
 Device-scoped keys are added to `DEVICE_PREFERENCE_KEYS` (storage/maintenance.rs:70). An invalid stored
 value reads as the default (pattern passwords/settings.rs:12-34).
