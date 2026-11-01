@@ -98,3 +98,42 @@ test('an initial conversation location is applied after threads load', async () 
   assert.equal(state.activeThreadId.value, 'a')
   assert.equal(tabRouter.route.path, '/thread/a')
 })
+
+// Spec 072: a contact or group conversation is a location of its own (`/contact/<id>`). It opens on
+// top of the agent conversation, which keeps its state underneath.
+test('a contact conversation location opens it and leaves the agent conversation as it is', async () => {
+  const { state, tabRouter } = chatWithRouter()
+  tabRouter.push('/thread/a')
+  await flush()
+  tabRouter.push('/contact/ben')
+  await flush()
+  assert.equal(state.activePeerId.value, 'ben')
+  assert.equal(state.activeThreadId.value, 'a', 'the agent conversation stays')
+  assert.equal(tabRouter.route.path, '/contact/ben', 'nothing aligns it away')
+  tabRouter.back()
+  await flush()
+  assert.equal(state.activePeerId.value, null)
+  assert.equal(state.activeThreadId.value, 'a')
+  tabRouter.forward()
+  await flush()
+  assert.equal(state.activePeerId.value, 'ben')
+})
+
+test('an initial contact conversation location is applied on mount', async () => {
+  const tabRouter = createRecordingTabRouter()
+  tabRouter.replace('/contact/ben')
+  const state = createChatState({}, {}, {}, undefined, { tabRouter })
+  await state.mount()
+  assert.equal(state.activePeerId.value, 'ben')
+  assert.equal(tabRouter.route.path, '/contact/ben')
+})
+
+test('starting a new agent conversation from a contact conversation leaves it', async () => {
+  const { state, tabRouter } = chatWithRouter()
+  tabRouter.push('/contact/ben')
+  await flush()
+  tabRouter.push('/')
+  await flush()
+  assert.equal(state.activePeerId.value, null)
+  assert.equal(state.activeThreadId.value, null)
+})

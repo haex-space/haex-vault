@@ -20,6 +20,9 @@ mod migrations_agent_files_tests;
 mod migrations_browser_clients;
 #[cfg(test)]
 mod migrations_browser_clients_tests;
+mod migrations_chat_contacts;
+#[cfg(test)]
+mod migrations_chat_contacts_tests;
 mod migrations_contacts;
 mod migrations_contacts_cards;
 #[cfg(test)]

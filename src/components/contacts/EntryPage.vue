@@ -26,6 +26,16 @@ const contact = ref<Contact | null>(null)
 const missing = ref(false)
 const deleteOpen = ref(false)
 const shareOpen = ref(false)
+// Spec 072 FR-005: start or open the direct conversation in the chat.
+const openDirect = useAction('chat.contact.openDirect')
+function messageContact() {
+  if (!contact.value) return
+  if (!contact.value.card) {
+    toast.info(t('contacts.message.needsCard'))
+    return
+  }
+  void openDirect({ contactId: contact.value.id })
+}
 
 async function loadAsync() {
   try {
@@ -170,6 +180,17 @@ async function removePhotoAsync() {
         >
           <Icon name="lucide:pencil" class="size-4" />
           {{ t('contacts.edit') }}
+        </UiButton>
+        <UiButton
+          v-if="!contact.isSelf"
+          variant="outline"
+          data-testid="contacts-message"
+          :aria-disabled="!contact.card"
+          :tooltip="contact.card ? undefined : t('contacts.message.needsCard')"
+          @click="messageContact"
+        >
+          <Icon name="lucide:message-circle" class="size-4" />
+          {{ t('contacts.message.action') }}
         </UiButton>
         <UiButton
           variant="outline"

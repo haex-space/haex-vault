@@ -281,6 +281,8 @@ const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
       children: [
         { path: '' },
         { path: 'thread/:id', titleKey: 'wm.chat.thread' },
+        // Spec 072: a contact or group conversation.
+        { path: 'contact/:id', titleKey: 'wm.chat.contact' },
       ],
     },
   ],

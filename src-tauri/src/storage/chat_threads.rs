@@ -2,6 +2,11 @@
 //!
 //! Threads are conversation containers. Individual messages live in the
 //! sibling `chat_messages` module and reference `thread_id` here.
+//!
+//! Since spec 072 `chat_threads` also holds conversations with contacts (`kind` `direct` or
+//! `group`, see `chat::peer::store`). Every reader and every change here is limited to
+//! `kind = 'agent'`, so the agent's commands never see or change a contact conversation; new rows
+//! get the column default `agent`.
 
 use ::uuid::Uuid;
 use haex_crdt::rusqlite::{params, Result};
@@ -42,7 +47,7 @@ pub fn insert_thread(tx: &mut CrdtTransaction<'_>, t: &ChatThread) -> haex_crdt:
 /// Removes a thread created solely for a generation that failed to start.
 pub fn delete_thread(tx: &mut CrdtTransaction<'_>, id: Uuid) -> haex_crdt::Result<usize> {
     tx.execute(
-        "DELETE FROM chat_threads WHERE id = ?1",
+        "DELETE FROM chat_threads WHERE id = ?1 AND kind = 'agent'",
         params![id.to_string()],
     )
 }
@@ -54,7 +59,7 @@ pub fn rename_title(
     title: &str,
 ) -> haex_crdt::Result<usize> {
     tx.execute(
-        "UPDATE chat_threads SET title = ?1 WHERE id = ?2",
+        "UPDATE chat_threads SET title = ?1 WHERE id = ?2 AND kind = 'agent'",
         params![title, id.to_string()],
     )
 }
@@ -69,7 +74,7 @@ pub fn delete_thread_and_messages(
     id: Uuid,
 ) -> haex_crdt::Result<bool> {
     let exists: Option<i64> = tx.query_row(
-        "SELECT 1 FROM chat_threads WHERE id = ?1",
+        "SELECT 1 FROM chat_threads WHERE id = ?1 AND kind = 'agent'",
         params![id.to_string()],
         |row| row.get(0),
     )?;
@@ -98,7 +103,7 @@ pub fn update_thread(
         "UPDATE chat_threads SET \
            title = ?1, last_provider_id = COALESCE(?2, last_provider_id), last_model_id = ?3, \
            updated_at = ?4 \
-         WHERE id = ?5",
+         WHERE id = ?5 AND kind = 'agent'",
         params![
             title,
             last_provider_id.map(|u| u.to_string()),
@@ -113,7 +118,7 @@ pub fn update_thread(
 pub fn list_threads(q: &mut impl Query) -> haex_crdt::Result<Vec<ChatThread>> {
     q.query_map(
         "SELECT id, title, last_provider_id, last_model_id, created_at, updated_at \
-         FROM chat_threads ORDER BY updated_at DESC",
+         FROM chat_threads WHERE kind = 'agent' ORDER BY updated_at DESC",
         &[],
         row_to_thread,
     )
@@ -123,7 +128,7 @@ pub fn list_threads(q: &mut impl Query) -> haex_crdt::Result<Vec<ChatThread>> {
 pub fn get_thread(q: &mut impl Query, id: Uuid) -> haex_crdt::Result<Option<ChatThread>> {
     q.query_row(
         "SELECT id, title, last_provider_id, last_model_id, created_at, updated_at \
-         FROM chat_threads WHERE id = ?1",
+         FROM chat_threads WHERE id = ?1 AND kind = 'agent'",
         params![id.to_string()],
         row_to_thread,
     )

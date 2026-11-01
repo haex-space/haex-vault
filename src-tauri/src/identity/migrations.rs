@@ -39,6 +39,7 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
+use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
@@ -118,7 +119,9 @@ use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 /// - 29: `0045_mcp_agents` (spec 021) added the CRDT-tracked `haex_mcp_agents` and
 ///   `haex_mcp_agent_grants`.
 /// - 30: `0048_marketplaces` (spec 069) added the CRDT-tracked `haex_marketplaces`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 30;
+/// - 31: `0049_chat_contacts` (spec 072) added columns to the CRDT-tracked `chat_threads` and the
+///   CRDT-tracked `chat_members`, `chat_peer_messages`, `chat_attachments` and `chat_deliveries`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 31;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -741,6 +744,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0048_marketplaces"),
         MARKETPLACES_0048.to_owned(),
+    );
+    // Spec 072: conversations with contacts and groups beside the agent's, delivered over Nostr.
+    m.insert(
+        MigrationName::from("0049_chat_contacts"),
+        CHAT_CONTACTS_0049.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

@@ -199,7 +199,8 @@
       "unknownLocation": "Diese Ansicht gibt es nicht mehr. Die App startet am Anfang."
     },
     "chat": {
-      "thread": "Unterhaltung"
+      "thread": "Unterhaltung",
+      "contact": "Unterhaltung mit Kontakten"
     },
     "passwords": {
       "list": "Passwörter",
@@ -396,6 +397,38 @@
         "denied_by_deny_rule": "Durch Verbotsregel abgelehnt",
         "declined_by_user": "Rückfrage abgelehnt"
       }
+    },
+    "list": {
+      "filter": {
+        "label": "Unterhaltungen filtern",
+        "all": "Alle",
+        "agent": "Agent",
+        "contacts": "Kontakte",
+        "groups": "Gruppen"
+      },
+      "title": "Unterhaltungen",
+      "writeContact": "Mit Kontakt schreiben",
+      "empty": "Noch keine Unterhaltungen",
+      "muted": "Stummgeschaltet",
+      "unread": "{count} ungelesen"
+    },
+    "peer": {
+      "unknownName": "Unbekannt",
+      "noMessages": "Noch keine Nachrichten",
+      "sendingLater": "Nachrichten an Kontakte senden kommt mit dem nächsten Teil dieser Funktion.",
+      "placeholder": "Nachricht schreiben",
+      "mute": "Stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "delete": "Unterhaltung löschen",
+      "deleteConfirm": "Möchtest du die Unterhaltung mit {name} wirklich löschen? Sie verschwindet mit allen Nachrichten und Dateien auf all deinen Geräten.",
+      "deleteButton": "Löschen",
+      "missing": "Diese Unterhaltung gibt es nicht mehr."
+    },
+    "newContact": {
+      "title": "Mit Kontakt schreiben",
+      "search": "Kontakt suchen",
+      "empty": "Keiner deiner Kontakte hat eine Visitenkarte geteilt. Erst mit einer Visitenkarte kannst du einem Kontakt schreiben.",
+      "noMatch": "Kein Kontakt passt zur Suche."
     }
   },
   "settings": {
@@ -1676,7 +1709,8 @@
         "new": "Neue Unterhaltung",
         "open": "Unterhaltung öffnen",
         "rename": "Unterhaltung umbenennen",
-        "delete": "Unterhaltung löschen"
+        "delete": "Unterhaltung löschen",
+        "mute": "Unterhaltung stummschalten"
       },
       "conversations": {
         "list": "Unterhaltungen auflisten"
@@ -1713,6 +1747,10 @@
       },
       "voice": {
         "setAutoSend": "Automatisches Senden nach Diktat"
+      },
+      "contact": {
+        "open": "Unterhaltung mit Kontakten öffnen",
+        "openDirect": "Unterhaltung mit Kontakt öffnen"
       }
     },
     "settings": {
@@ -3645,6 +3683,10 @@
       "revoke": "Zugriff auf „{name}“ entziehen",
       "affected": "Der Kontakt verliert den Zugriff auf die Dateifreigabe {names}. | Der Kontakt verliert den Zugriff auf die Dateifreigaben {names}.",
       "lookupFailed": "Die Dateifreigaben konnten nicht geprüft werden. Das Löschen bleibt gesperrt."
+    },
+    "message": {
+      "action": "Nachricht senden",
+      "needsCard": "Um zu schreiben, muss der Kontakt erst seine Visitenkarte mit dir teilen."
     }
   },
   "mail": {
