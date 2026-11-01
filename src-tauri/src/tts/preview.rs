@@ -122,6 +122,8 @@ pub async fn run(
     voice: &'static BuiltinVoice,
     rate: f32,
 ) -> Result<()> {
+    let speech = app.state::<VoiceState>();
+    let cancel = speech.begin_preview(&state.gate().token());
     let entry = catalog::default_for(&voice.language)?.ok_or_else(|| TtsError::Unavailable {
         reason: format!("no speech model speaks {}", voice.language),
     })?;
@@ -133,10 +135,8 @@ pub async fn run(
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
-    let speech = app.state::<VoiceState>();
     let model = speech.speech_model(&entry.id, dir, state.gate()).await?;
     let reference = voices::reference(voice)?;
-    let cancel = speech.begin_preview(&state.gate().token());
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();
     let language = voice.language.as_str();
