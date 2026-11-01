@@ -6,6 +6,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import type { InvokeOptions, InvokeResult } from './platform/host.ts'
 import type { StepRecorder } from './page.ts'
 import type { Provider } from './provider.ts'
+import type { ScenarioContext } from './scenario-types.ts'
 
 /** The slice of an instance these flows need — any real `Instance` (scripts/e2e/lib/instance.ts) satisfies it. */
 export interface FlowInstance {
@@ -51,6 +52,46 @@ export async function invokeAfterBusyOperation(
   const end = Date.now() + deadlineMs
   for (;;) {
     const result = await instance.invoke(command, args)
+    if (!isOperationBusy(result) || Date.now() >= end) return result
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
+/**
+ * `invoke` for a call that may outlast the driver's script limit of 60 s, such as loading a model on
+ * the emulator: the page starts the call and keeps its answer, and the scenario asks for that answer
+ * until it is there. Like `invokeAfterBusyOperation`, a call refused because another operation still
+ * runs is tried again for a few seconds.
+ */
+export async function invokeLong(
+  instance: FlowInstance,
+  waitFor: ScenarioContext['waitFor'],
+  command: string,
+  args: unknown,
+  timeoutMs: number,
+): Promise<InvokeResult> {
+  const end = Date.now() + 5000
+  for (;;) {
+    const key = randomUUID()
+    await instance.exec(
+      `const [key, command, args] = arguments
+      const answers = (window.__holziE2eAnswers ??= {})
+      answers[key] = null
+      window.__TAURI_INTERNALS__.invoke(command, args)
+        .then((data) => (answers[key] = { ok: true, data }))
+        .catch((error) => (answers[key] = { ok: false, error }))`,
+      [key, command, args],
+    )
+    // `waitFor` returns only once the page holds an answer.
+    const result = (await waitFor(
+      `the answer of ${command}`,
+      () =>
+        instance.exec<InvokeResult | null>(
+          'return window.__holziE2eAnswers?.[arguments[0]] ?? null',
+          [key],
+        ),
+      { timeoutMs, intervalMs: 1000 },
+    )) as InvokeResult
     if (!isOperationBusy(result) || Date.now() >= end) return result
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
