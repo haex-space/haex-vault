@@ -33,6 +33,8 @@ pub enum ConversationKind {
     Direct,
     /// The user and two or more contacts, with a name.
     Group,
+    /// The user's notes to themselves, shown as the own contact "Ich" (FR-002b).
+    Note,
 }
 
 impl ConversationKind {
@@ -41,6 +43,7 @@ impl ConversationKind {
             Self::Agent => "agent",
             Self::Direct => "direct",
             Self::Group => "group",
+            Self::Note => "note",
         }
     }
 
@@ -49,6 +52,7 @@ impl ConversationKind {
             "agent" => Ok(Self::Agent),
             "direct" => Ok(Self::Direct),
             "group" => Ok(Self::Group),
+            "note" => Ok(Self::Note),
             other => Err(invalid_text("chat_threads.kind", other)),
         }
     }
@@ -249,6 +253,22 @@ pub fn open_direct(
     for vault in [own_vault, peer_vault] {
         insert_member(tx, id, vault, own_vault, now)?;
     }
+    Ok(id)
+}
+
+/// Opens the user's notes, creating them the first time with the id derived from the own vault, so
+/// every own device opens the same conversation (FR-002b). The own vault is its only member.
+pub fn open_note(tx: &mut CrdtTransaction<'_>, own_vault: &str, now: i64) -> Result<Uuid> {
+    let id = ids::note_thread_id(own_vault);
+    if kind_of(tx, id)?.is_some() {
+        return Ok(id);
+    }
+    tx.execute(
+        "INSERT INTO chat_threads (id, title, created_at, updated_at, kind, state) \
+         VALUES (?1, '', ?2, ?2, 'note', 'active')",
+        params![id.to_string(), now],
+    )?;
+    insert_member(tx, id, own_vault, own_vault, now)?;
     Ok(id)
 }
 

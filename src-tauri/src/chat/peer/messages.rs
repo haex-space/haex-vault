@@ -8,6 +8,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::settings;
+use super::store::{self, ConversationKind};
 use crate::error::Result;
 use crate::storage::query::Query;
 
@@ -105,6 +106,8 @@ pub fn list(
     page: Page,
 ) -> Result<Vec<PeerMessage>> {
     let show_read = settings::read_receipts(q)?;
+    // Notes are never delivered, so they have no delivery state at all (FR-002b).
+    let note = store::kind_of(q, thread_id)? == Some(ConversationKind::Note);
     let rows = q.query_map(
         "SELECT m.id, m.sender_vault, m.text, m.sent_at, m.sort_at, \
            d.sent_at IS NOT NULL, d.delivered_at IS NOT NULL, d.read_at IS NOT NULL, \
@@ -137,7 +140,7 @@ pub fn list(
                 } else {
                     None
                 },
-                delivery: delivery.or(own_message.then_some(DeliveryState::Waiting)),
+                delivery: delivery.or((own_message && !note).then_some(DeliveryState::Waiting)),
             })
         },
     )?;
