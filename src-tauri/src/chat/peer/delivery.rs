@@ -14,8 +14,9 @@ use haex_crdt::rusqlite::params;
 use nostr::event::{Event, Kind};
 use nostr::filter::Filter;
 use nostr::types::Timestamp;
-use nostr_sdk::client::Client;
+use nostr_sdk::client::{Client, ClientNotification};
 use nostr_sdk::relay::RelayCapabilities;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::outbox::{self, Attempt, Entry, FailReason};
@@ -68,7 +69,11 @@ impl Delivery {
         me: Me,
         read_relays: Vec<String>,
         closing: CancellationToken,
-    ) -> Result<Arc<Self>> {
+    ) -> Result<(
+        Arc<Self>,
+        mpsc::UnboundedReceiver<(String, Event)>,
+        tokio::task::JoinHandle<()>,
+    )> {
         crate::sync::presence::ensure_crypto_provider();
         let client = Client::builder()
             .notification_channel_size(NOTIFICATION_CHANNEL)
@@ -89,12 +94,43 @@ impl Delivery {
             receipts: Mutex::new(BTreeMap::new()),
             closing,
         });
+        // Attach the notification reader before subscribing: relays may send stored wraps as soon
+        // as the subscription is created, and Client::notifications() does not replay earlier ones.
+        let (incoming, forward) = delivery.forward_wraps();
         // Without a reachable Nostr-Relay the outbox still runs and marks failures; the
         // subscription is made again on the next wake.
         if let Err(error) = delivery.subscribe().await {
             log::warn!("chat: not subscribed to the listening Nostr-Relays: {error}");
         }
-        Ok(delivery)
+        Ok((delivery, incoming, forward))
+    }
+
+    /// Starts forwarding live wraps before the first subscription is sent.
+    fn forward_wraps(
+        &self,
+    ) -> (
+        mpsc::UnboundedReceiver<(String, Event)>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let mut notifications = self.client.notifications();
+        let forward = tokio::spawn(async move {
+            use futures::StreamExt;
+
+            while let Some(notification) = notifications.next().await {
+                if let ClientNotification::Event {
+                    relay_url, event, ..
+                } = notification
+                {
+                    if event.kind == Kind::GiftWrap
+                        && sender.send((relay_url.to_string(), *event)).is_err()
+                    {
+                        return;
+                    }
+                }
+            }
+        });
+        (receiver, forward)
     }
 
     /// The wraps to this device since the oldest cursor of the listening Nostr-Relays, 48 h

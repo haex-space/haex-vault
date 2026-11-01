@@ -143,10 +143,11 @@ impl ChatDevice {
             token.clone(),
         );
         old.cancel();
-        let delivery = Delivery::connect(self.db.clone(), self.me.clone(), relays, token)
-            .await
-            .expect("connect");
-        tokio::spawn(delivery.run(Arc::clone(&self.session)));
+        let (delivery, incoming, forward) =
+            Delivery::connect(self.db.clone(), self.me.clone(), relays, token)
+                .await
+                .expect("connect");
+        tokio::spawn(delivery.run(Arc::clone(&self.session), incoming, forward));
     }
 
     /// Ends this device's delivery (the vault closes); [`Self::start`] opens it again.

@@ -3,48 +3,21 @@
 
 use std::sync::Arc;
 
-use futures::StreamExt;
-use nostr::event::{Event, Kind};
-use nostr_sdk::client::ClientNotification;
-use tokio::sync::mpsc;
+use nostr::event::Event;
 
 use super::{now_ms, Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH};
 use crate::chat::peer::session::Session;
 use crate::chat::peer::verify;
 
 impl Delivery {
-    /// Reads the client's notifications in a task of their own and hands the wraps on without a
-    /// limit: nostr-sdk skips notifications for a reader that falls behind, and this service's
-    /// loop also publishes.
-    fn forward_wraps(
-        &self,
-    ) -> (
-        mpsc::UnboundedReceiver<(String, Event)>,
-        tokio::task::JoinHandle<()>,
+    /// Runs until the vault closes: receives wraps, publishes outbox entries and sends receipts.
+    pub async fn run(
+        self: Arc<Self>,
+        session: Arc<Session>,
+        mut incoming: tokio::sync::mpsc::UnboundedReceiver<(String, Event)>,
+        forward: tokio::task::JoinHandle<()>,
     ) {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        let mut notifications = self.client.notifications();
-        let forward = tokio::spawn(async move {
-            while let Some(notification) = notifications.next().await {
-                if let ClientNotification::Event {
-                    relay_url, event, ..
-                } = notification
-                {
-                    if event.kind == Kind::GiftWrap
-                        && sender.send((relay_url.to_string(), *event)).is_err()
-                    {
-                        return;
-                    }
-                }
-            }
-        });
-        (receiver, forward)
-    }
-
-    /// Runs until the vault closes: receives, publishes, sends receipts.
-    pub async fn run(self: Arc<Self>, session: Arc<Session>) {
         let token = self.closing.clone();
-        let (mut incoming, forward) = self.forward_wraps();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
         let mut catch_up_tick =
