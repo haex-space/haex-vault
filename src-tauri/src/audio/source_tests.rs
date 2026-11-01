@@ -57,7 +57,7 @@ fn a_missing_file_is_an_error() {
 fn the_recording_sink_keeps_what_the_mixer_put_out() {
     let (input, mut render) = mixer(SAMPLE_RATE_HZ);
     let speech: Vec<f32> = (0..2_000).map(|i| (i as f32 / 50.0).sin() * 0.5).collect();
-    assert!(input.queue_speech(&speech));
+    assert!(input.queue_speech(&speech, || false));
 
     let sink = RecordingSink::default();
     let mut writer: Box<dyn Sink> = Box::new(sink.clone());

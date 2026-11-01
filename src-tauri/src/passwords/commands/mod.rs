@@ -1,9 +1,8 @@
 //! The Tauri commands of the password manager (spec 034, `contracts/tauri-commands.md`). Each calls
 //! only the [`PasswordsService`], with the caller that its entrance stands for: the commands of the
-//! window are `Caller::User`, `passwords_agent_search` is `Caller::BuiltinAgent`. No command takes a
-//! caller as an argument.
+//! window are `Caller::User`; the agents' actions run in Rust (`passwords::agent_actions`). No
+//! command takes a caller as an argument.
 
-pub mod agent;
 pub mod attachments;
 pub mod copy;
 pub mod history;

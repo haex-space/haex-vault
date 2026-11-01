@@ -88,6 +88,15 @@ pub struct TauriEnv<R: Runtime> {
     prompt: PermissionPrompt,
 }
 
+impl<R: Runtime> Clone for TauriEnv<R> {
+    fn clone(&self) -> Self {
+        Self {
+            app: self.app.clone(),
+            prompt: self.prompt.clone(),
+        }
+    }
+}
+
 impl<R: Runtime> TauriEnv<R> {
     /// Sends the question to the windows, if there is one (FR-034: without one nobody is asked).
     pub fn new(app: AppHandle<R>, prompt: PermissionPrompt) -> Self {

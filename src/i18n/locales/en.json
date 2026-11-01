@@ -1117,6 +1117,7 @@
     },
     "agentFiles": {
       "builtin": "Agent in the chat",
+      "thisAgent": "Files and contacts",
       "device": "Files of this device",
       "deviceDescription": "Read and search everywhere, change per approval level",
       "storageDescription": "Cloud storage",
@@ -1519,9 +1520,11 @@
   "voiceControl": {
     "mic": {
       "start": "Dictate",
-      "cancel": "Cancel recording",
+      "cancel": "Discard recording",
       "finishAndSend": "Stop recording and send",
-      "finishAndInsert": "Stop recording and insert text"
+      "finishAndInsert": "Stop recording and insert text",
+      "send": "Send",
+      "insert": "Insert"
     },
     "recording": "Recording",
     "autoSend": {
@@ -1846,6 +1849,9 @@
     "passwords": {
       "items": {
         "search": "Search the password manager (titles and tags only)"
+      },
+      "secret": {
+        "get": "Read a secret of a password entry"
       }
     },
     "files": {
@@ -2948,20 +2954,24 @@
     },
     "agentPermission": {
       "title": "Access to a cloud storage",
-      "read": "The agent in the chat wants to read files in the cloud storage “{name}”.",
-      "readWrite": "The agent in the chat wants to read and change files in the cloud storage “{name}”.",
+      "builtinAgent": "The agent in the chat",
+      "externalAgent": "The agent “{name}” (as the agent says)",
+      "unknownAgent": "An external agent",
+      "read": "{agent} wants to read files in the cloud storage “{name}”.",
+      "readWrite": "{agent} wants to read and change files in the cloud storage “{name}”.",
       "hint": "holzi remembers your answer for this cloud storage.",
       "allowRead": "Allow reading",
       "allowReadWrite": "Allow reading and writing",
       "deny": "Deny",
       "folder": {
         "title": "Access to an encrypted folder",
-        "read": "The agent in the chat wants to read the encrypted folder “{name}” in the cloud storage “{storage}”.",
-        "readDevice": "The agent in the chat wants to read the encrypted folder “{name}” on this device.",
-        "readWrite": "The agent in the chat wants to read and change the encrypted folder “{name}” in the cloud storage “{storage}”.",
-        "readWriteDevice": "The agent in the chat wants to read and change the encrypted folder “{name}” on this device.",
+        "read": "{agent} wants to read the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "readDevice": "{agent} wants to read the encrypted folder “{name}” on this device.",
+        "readWrite": "{agent} wants to read and change the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "readWriteDevice": "{agent} wants to read and change the encrypted folder “{name}” on this device.",
         "local": "What it reads goes to the model “{model}” on this device.",
         "cloud": "What it reads goes to the model “{model}” in the cloud.",
+        "external": "What it reads goes to the agent and its model provider.",
         "remember": "Remember this permission",
         "alsoCloud": "also for cloud models",
         "thisTask": "Without the checkbox the answer holds for this task only.",
@@ -2970,8 +2980,8 @@
       },
       "contacts": {
         "title": "Access to your contacts",
-        "read": "The agent in the chat wants to read your contacts.",
-        "readWrite": "The agent in the chat wants to read and change your contacts. Changes go to all your devices and into the phone address books.",
+        "read": "{agent} wants to read your contacts.",
+        "readWrite": "{agent} wants to read and change your contacts. Changes go to all your devices and into the phone address books.",
         "hint": "“Allow once” holds for this access only. holzi remembers “Always allow” and “Deny”; you can change that in the settings under AI.",
         "once": "Allow once",
         "always": "Always allow"
@@ -3786,6 +3796,7 @@
       "connection": "Connection",
       "rights": "What may the agent do?",
       "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
+      "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → Agents.",
       "remember": "Remember the refusal",
       "register": "Register",
       "deny": "Decline"
@@ -3924,6 +3935,18 @@
       "none": "No extension installed",
       "dev": "Development version",
       "hint": "The agent sees the tools of the extensions turned on. How a tool asks is also set in the extension; the stricter rule applies."
+    },
+    "passwords": {
+      "title": "Passwords",
+      "enabled": "Password manager",
+      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries below",
+      "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
+    },
+    "commands": {
+      "title": "Run commands",
+      "enabled": "Run commands",
+      "enabledHint": "Run shell commands on this device, with your rights and access to your programs and files",
+      "askHint": "Every command counts as destructive: in the approval mode Auto holzi asks before each command, in Plan it refuses all of them."
     }
   },
   "agentBrowser": {
@@ -3957,6 +3980,11 @@
         "title": "Send to the website?",
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
         "fields": "What would be sent"
+      },
+      "newTab": {
+        "title": "Open a new tab?",
+        "hint": "A page in one of the agent's tabs wants to open a new tab. Without your consent it loads nothing and closes. With it, the agent steers the tab and may open this website in this session.",
+        "allow": "Open"
       },
       "address": "Address",
       "target": "Target",

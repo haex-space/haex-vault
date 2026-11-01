@@ -510,11 +510,12 @@ the plist keys are UNVERIFIED until T066.
 **Purpose**: The Windows backend (research R6). Requires a Windows machine or the Windows CI runner for
 the spikes.
 
-- [ ] T070 Spikes on Windows, results into `research.md` R6:
+- [x] T070 Spikes on Windows, results into `research.md` R6:
   - (a) whether `CM_Request_Device_EjectW` must target the disk devinst or its parent for a USB stick and a USB HDD
   - (b) which error `GetVolumeInformationW` returns for a locked BitLocker To Go volume without admin rights (so it can show as `locked`)
   - (c) whether `ShellExecuteExW` with verb `unlock-bde` on `X:\` opens the unlock dialog, else `bdeunlock.exe X:`
-- [ ] T071 Create `src-tauri/src/files/local/drives/windows.rs`:
+  - Done on `windows-latest` with a small Rust program over the same calls and two VHDs (stick, BitLocker To Go), the standard-user part through a scheduled task. (b) and (c) answered, see research R6; (a) cannot be answered with a VHD (not ejectable at all) and moves to the hand check of T073.
+- [x] T071 Create `src-tauri/src/files/local/drives/windows.rs`:
   - list volumes with drive letters via `FindFirstVolumeW`/`FindNextVolumeW`/`GetVolumePathNamesForVolumeNameW`, never `GetLogicalDrives`
   - label and file system via `GetVolumeInformationW`; `locked` per T070 (b)
   - `kind` via `IOCTL_STORAGE_QUERY_PROPERTY` on a handle opened with access 0; the Windows directory's volume is `system`
@@ -523,20 +524,24 @@ the spikes.
   - `release` per T070 (a) with a veto buffer; a veto → `driveBusy` with the veto name
   - `unlock_mode: SystemDialog`, `open_system_unlock` per T070 (c)
   - Each `unsafe` call in a small wrapper with a `// SAFETY:` comment.
-- [ ] T072 [P] Tests in `windows_tests.rs` for the pure parts: multi-string parsing of `GetVolumePathNamesForVolumeNameW` output, bus type → kind, veto type → error. Run them on the Windows CI job.
+  - The id of a drive is its root `E:\`. A locked volume has no serial, so no `key`; a volume whose `GetVolumeInformationW` fails otherwise (a card reader without a card) is left out. `release` asks the disk first and its parent when the disk refuses without a busy veto (T070 a open). Free space through `GetDiskFreeSpaceExW`. The pure parts are separate and build for tests on every platform; the Win32 part was checked with clippy for `x86_64-pc-windows-gnu` and runs on the Windows CI job.
+- [x] T072 [P] Tests in `windows_tests.rs` for the pure parts: multi-string parsing of `GetVolumePathNamesForVolumeNameW` output, bus type → kind, veto type → error. Run them on the Windows CI job.
+  - They run in every job, as the macOS parser's do: multi-string, drive roots, bus → kind, the drive of a volume (stick, system, internal, locked), veto → error.
 - [ ] T073 Clippy and tests on the Windows CI job, then quickstart Windows by hand
+  - The platform probe job runs the drives tests and clippy `--all-targets` on Windows too. The hand check, including (a) of T070, is open.
 
 ---
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T074 [P] SC-001 check: in `files-drives.test.ts` measure the time from `udisksctl loop-setup` to the sidebar entry and assert ≤ 3 s, plus the runner tolerance the other timed scenarios use (grep for their tolerance constant first)
-- [ ] T075 [P] Update `docs/plans/2026-10-27-external-drives-design.md` with the deviations decided in planning:
+- [x] T074 [P] SC-001 check: in `files-drives.test.ts` measure the time from `udisksctl loop-setup` to the sidebar entry and assert ≤ 3 s, plus the runner tolerance the other timed scenarios use (grep for their tolerance constant first)
+  - Measured in Node from `udisksctl loop-setup` to the sidebar entry and logged as a step; the limit times `HARD_FACTOR = 2`, as `files-large-folder` and `files-split-large` allow the shared runner.
+- [x] T075 [P] Update `docs/plans/2026-10-27-external-drives-design.md` with the deviations decided in planning:
   - the visibility rule follows gvfs, not `HintSystem`
   - Windows: no unmount for internal drives and no letterless volumes; BitLocker uses the system dialog
   - macOS lists through `diskutil` behind a fingerprint gate
   - the nearest-folder jump is implemented here
-- [ ] T076 Set the status in `specs/064-external-drives/spec.md` to "Implemented" (or "Implemented, manual … open"), update the row in `plans/README.md`, and tick the checklist.
+- [x] T076 Set the status in `specs/064-external-drives/spec.md` to "Implemented" (or "Implemented, manual … open"), update the row in `plans/README.md`, and tick the checklist.
 - [ ] T077 Final run as in CI:
   - `pnpm lint:all`, `pnpm typecheck`, `pnpm typecheck:scripts`, all `pnpm check:*`
   - `cargo test -j 4` of the touched modules

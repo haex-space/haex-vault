@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Neue Tabs</title>
+  </head>
+  <body>
+    <main>
+      <h1>Neue Tabs</h1>
+      <button type="button" id="open">Fenster öffnen</button>
+      <a id="partner" target="_blank">Partner im neuen Tab</a>
+      <a href="/article.html" target="_blank">Artikel im neuen Tab</a>
+    </main>
+    <script>
+      // The partner is another website: the same server under the other host name.
+      const partner =
+        location.origin.replace('127.0.0.1', 'localhost') + '/partner.html?via='
+      document
+        .getElementById('open')
+        .addEventListener('click', () => window.open(partner + 'open'))
+      document.getElementById('partner').href = partner + 'link'
+    </script>
+  </body>
+</html>

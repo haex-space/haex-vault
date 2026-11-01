@@ -23,6 +23,7 @@ use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
 use holzi_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
 use holzi_lib::chat::tools::native_action::NativeExecutors;
+use holzi_lib::chat::tools::Tool as ChatTool;
 use holzi_lib::identity::{
     holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
     HOLZI_TRIGGER_VERSION,
@@ -40,6 +41,7 @@ use holzi_lib::mcp_server::registry::{self, AgentMode};
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
 use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
+use holzi_lib::vault_events::{changes_channel, VaultChanges};
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -89,9 +91,13 @@ pub struct Fixture {
     pub catalog: ActionCatalog,
     /// The extension tools a test publishes (spec 021 US4).
     pub extension_tools: ExtensionToolCatalog,
+    /// Where a test announces changed tables, as the vault observer does in the app.
+    pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     /// Native executors a test adds (ADR 0011).
     pub native: NativeExecutors,
+    /// The command tool a test sets; `None` is a device that runs no commands (US5).
+    pub command_tool: Option<Arc<dyn ChatTool>>,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -175,8 +181,10 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         limits: Limits::default(),
         catalog,
         extension_tools: ExtensionToolCatalog::default(),
+        vault_changes: changes_channel(),
         bridge,
         native: NativeExecutors::default(),
+        command_tool: None,
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -234,8 +242,10 @@ impl Fixture {
             parent: self.session.clone(),
             catalog: self.catalog.clone(),
             extension_tools: self.extension_tools.clone(),
+            vault_changes: self.vault_changes.clone(),
             bridge: self.bridge.clone(),
             native: self.native.clone(),
+            command_tool: self.command_tool.clone(),
             prompts: self.prompts.clone(),
             calls: self.calls.clone(),
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),

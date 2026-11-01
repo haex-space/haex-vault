@@ -60,6 +60,9 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
     }
     if headless {
         args.push("--headless=new".into());
+        // Opening a foreground tab changes visibility in headless Chromium; EventTiming crashes
+        // some CI renderer builds while they flush the click event during that transition.
+        args.push("--disable-blink-features=EventTiming".into());
         // Headless Linux integration tests run under CI's AppArmor profile, which blocks
         // unprivileged user namespaces. Production launches are not headless and keep Chromium's
         // sandbox enabled.
@@ -142,6 +145,10 @@ impl StartupGuard {
             .expect("startup connection is owned")
     }
 
+    fn process(&self) -> &BrowserProcess {
+        self.process.as_ref().expect("startup process is owned")
+    }
+
     fn into_parts(mut self) -> (Arc<Connection>, BrowserProcess) {
         (
             self.connection.take().expect("startup connection is owned"),
@@ -162,8 +169,9 @@ impl Drop for StartupGuard {
 }
 
 /// Starts the browser of `launch`, checks its version and sets it up (contracts/agent-browser.md
-/// "Start"): auto-attach in flat mode, page permissions denied, downloads into their folder.
-pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
+/// "Start"): auto-attach in flat mode with each new target waiting until `claim` takes it or it
+/// goes on, page permissions denied, downloads into their folder.
+pub async fn launch(os: Os, launch: &Launch, claim: target::Claim) -> Result<Launched> {
     let (connection, process) = spawn(os, launch)?;
     let startup = StartupGuard::new(connection, process);
     let connection = Arc::clone(startup.connection());
@@ -171,7 +179,10 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
         let product = tokio::time::timeout(START_TIMEOUT, browser::product(&connection))
             .await
             .map_err(|_| {
-                BrowserError::Unavailable("no answer within 30 seconds of the start".to_owned())
+                BrowserError::Unavailable(format!(
+                    "no answer within 30 seconds of the start{}",
+                    start_report(startup.process(), launch)
+                ))
             })??;
         if !locate::new_enough(&product) {
             return Err(BrowserError::NotFound(format!(
@@ -180,7 +191,8 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
             )));
         }
         let configure = async {
-            target::auto_attach(&connection, None).await?;
+            target::resume_unclaimed(&connection, claim);
+            target::auto_attach(&connection).await?;
             browser::deny_permissions(&connection).await?;
             browser::download_into(&connection, &launch.downloads.to_string_lossy()).await?;
             Ok::<(), BrowserError>(())
@@ -208,6 +220,27 @@ pub async fn launch(os: Os, launch: &Launch) -> Result<Launched> {
     }
 }
 
+/// Where a headless browser writes its error output. Only tests start one, and CI cannot see why
+/// a start there sometimes gets no answer.
+fn stderr_log(launch: &Launch) -> PathBuf {
+    launch.workdir.join("holzi-stderr.log")
+}
+
+/// What a headless start that got no answer left behind: whether the browser still runs and the
+/// end of its error output. Empty for a browser with a window.
+pub(super) fn start_report(process: &BrowserProcess, launch: &Launch) -> String {
+    if !launch.headless {
+        return String::new();
+    }
+    let state = match process.ended() {
+        None => "still running".to_owned(),
+        Some(success) => format!("ended, success {success}"),
+    };
+    let output = std::fs::read(stderr_log(launch)).unwrap_or_default();
+    let tail = String::from_utf8_lossy(&output[output.len().saturating_sub(2000)..]);
+    format!(" (browser {state}; error output: {})", tail.trim())
+}
+
 #[cfg(unix)]
 fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
     use std::os::fd::AsRawFd;
@@ -217,12 +250,17 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
     let (child_reads, holzi_writes) = std::io::pipe().map_err(unavailable)?;
     let (holzi_reads, child_writes) = std::io::pipe().map_err(unavailable)?;
     let (read_fd, write_fd) = (child_reads.as_raw_fd(), child_writes.as_raw_fd());
+    let stderr = if launch.headless {
+        std::fs::File::create(stderr_log(launch)).map_or_else(|_| Stdio::null(), Stdio::from)
+    } else {
+        Stdio::null()
+    };
     let mut command = Command::new(&launch.executable);
     command
         .args(args(os, &launch.workdir, launch.headless))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(stderr)
         .process_group(0);
     // Headless integration runs have no desktop session and do not need its bus address. In CI,
     // the inherited value can be malformed and Chromium reports it while starting.
@@ -282,6 +320,7 @@ fn spawn(_os: Os, _launch: &Launch) -> Result<(Connection, BrowserProcess)> {
     Err(BrowserError::Unsupported)
 }
 
+#[cfg(unix)]
 fn unavailable(error: std::io::Error) -> BrowserError {
     BrowserError::Unavailable(error.to_string())
 }

@@ -11,13 +11,15 @@
 //!
 //! The session lives in the registry of [`super::sessions`]; what it shows the user (agent, tabs,
 //! last action, FR-015) it keeps outside its tabs' lock, so the sessions bar never waits for a
-//! running call. When the user stops it, its tabs go back to the user ([`Session::end`]).
+//! running call; so does it keep which targets are its tabs and their frames, so a tab their pages
+//! open finds its session while the call that opened it still runs ([`super::new_tab`]). When the
+//! user stops it, its tabs go back to the user ([`Session::end`]).
 
-use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
-use tokio::sync::OnceCell;
+use tokio::sync::{Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 
 use super::cdp::Connection;
@@ -30,11 +32,14 @@ use super::prompts::{
 use super::sessions::{BrowserLastAction, BrowserSessionView, BrowserTabView, SessionHooks};
 use super::sites::{check_document, Site, Verdict};
 use super::submit;
-use super::tab::{Guard, Paused, Tab, TabMarker};
+use super::tab::{Guard, Paused, Tab, TabHooks};
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
 use crate::mcp_server::grants::SiteLevel;
 use crate::prompt_park::PromptEnd;
+
+#[path = "session_grants.rs"]
+mod grants;
 
 /// The most agent tabs one session has (FR-029).
 pub const MAX_TABS: usize = 5;
@@ -47,7 +52,7 @@ pub struct Session {
     once: Mutex<BTreeSet<Site>>,
     mode: Mutex<PermissionMode>,
     /// One question at a time, so frames of the same new website ask once.
-    asking: tokio::sync::Mutex<()>,
+    pub(super) asking: tokio::sync::Mutex<()>,
     pub tabs: tokio::sync::Mutex<Tabs>,
     env: Arc<dyn BrowserEnv>,
     prompts: BrowserPrompts,
@@ -60,10 +65,18 @@ pub struct Session {
     name_notified: AtomicBool,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
-    /// The tab whose next changing request the user already allowed (the action that sends it).
-    armed: Mutex<Option<String>>,
-    /// Submit questions open now; an action waits for them before it reports.
-    submitting: AtomicUsize,
+    /// Submit grants and their first new tab, when the action opens one.
+    armed: Mutex<grants::SubmitGrants>,
+    /// Questions a page set off that are open now (submitting, a new tab); an action waits for
+    /// them before it reports.
+    questions: AtomicUsize,
+    /// Popup targets claimed from the browser but not yet adopted or closed.
+    pending_opened_tabs: AtomicUsize,
+    opened_tabs_changed: Notify,
+    /// The last tab number given out.
+    numbered: AtomicU32,
+    /// Targets and their tab ids; `None` reserves the one tool-created tab being opened under `tabs`.
+    targets: Mutex<BTreeMap<Option<String>, String>>,
 }
 
 #[derive(Default)]
@@ -76,7 +89,6 @@ struct Shown {
 #[derive(Default)]
 pub struct Tabs {
     pub open: Vec<Tab>,
-    next: u32,
     /// The tab `browser.open` uses.
     pub current: Option<String>,
     /// The run of the browser the tabs belong to.
@@ -84,12 +96,6 @@ pub struct Tabs {
 }
 
 impl Tabs {
-    /// The next tab id, `t1`, `t2`, ….
-    pub fn next_id(&mut self) -> String {
-        self.next += 1;
-        format!("t{}", self.next)
-    }
-
     pub fn get(&self, id: &str) -> Option<&Tab> {
         self.open.iter().find(|tab| tab.id == id)
     }
@@ -119,7 +125,11 @@ impl Session {
             agent: OnceCell::new(),
             name_notified: AtomicBool::new(false),
             armed: Mutex::default(),
-            submitting: AtomicUsize::new(0),
+            questions: AtomicUsize::new(0),
+            pending_opened_tabs: AtomicUsize::new(0),
+            opened_tabs_changed: Notify::new(),
+            numbered: AtomicU32::new(0),
+            targets: Mutex::default(),
             shown: Mutex::default(),
         })
     }
@@ -138,16 +148,59 @@ impl Session {
         name
     }
 
-    /// The marker of a new tab of this session.
-    pub async fn marker(&self) -> TabMarker {
-        TabMarker {
+    /// The next tab id, `t1`, `t2`, ….
+    fn next_tab_id(&self) -> String {
+        format!("t{}", self.numbered.fetch_add(1, Ordering::SeqCst) + 1)
+    }
+
+    /// The marker of the new tab `tab` of this session, and where it reports its targets.
+    pub async fn tab_hooks(self: &Arc<Self>, tab: &str) -> TabHooks {
+        let (session, tab) = (Arc::downgrade(self), tab.to_owned());
+        TabHooks {
             texts: MarkerTexts::new(
                 &self.env.locale(),
                 self.caller == Caller::BuiltinAgent,
                 &self.agent_name().await,
             ),
             on_stop: Arc::clone(&self.hooks.stop),
+            on_target: Arc::new(move |target: &str| {
+                if let Some(session) = session.upgrade() {
+                    let mut targets = session.targets();
+                    if targets.get(&None) == Some(&tab) {
+                        targets.remove(&None);
+                    }
+                    targets.insert(Some(target.to_owned()), tab.clone());
+                }
+            }),
         }
+    }
+
+    fn targets(&self) -> std::sync::MutexGuard<'_, BTreeMap<Option<String>, String>> {
+        self.targets.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The tab whose page or frame is the target `target`.
+    pub(super) fn tab_of_target(&self, target: &str) -> Option<String> {
+        self.targets().get(&Some(target.to_owned())).cloned()
+    }
+
+    /// Reserves before any asynchronous opening: `Some` adopts a popup, `None` creates a target.
+    pub(super) fn reserve_new_tab(&self, target: Option<&str>) -> Option<String> {
+        let mut targets = self.targets();
+        let target = target.map(str::to_owned);
+        if targets.contains_key(&target)
+            || targets.values().collect::<BTreeSet<_>>().len() >= MAX_TABS
+        {
+            return None;
+        }
+        let tab = self.next_tab_id();
+        targets.insert(target, tab.clone());
+        Some(tab)
+    }
+
+    /// Forgets the targets of tab `tab`, which left the session.
+    pub fn forget_targets(&self, tab: &str) {
+        self.targets().retain(|_, owner| owner != tab);
     }
 
     /// What the sessions bar shows of this session.
@@ -196,14 +249,13 @@ impl Session {
         connection: &Arc<Connection>,
     ) -> tokio::sync::MutexGuard<'_, Tabs> {
         let mut tabs = self.tabs.lock().await;
-        let same = tabs
-            .run
-            .as_ref()
-            .and_then(Weak::upgrade)
-            .is_some_and(|run| Arc::ptr_eq(&run, connection));
-        if !same {
+        // An active tool-created tab holds this lock until its target is registered. A pending
+        // reservation here therefore belongs to a cancelled call; popup reservations have targets.
+        self.targets().remove(&None);
+        if !Self::same_run(&tabs, connection) {
             tabs.open.clear();
             tabs.current = None;
+            self.targets().clear();
             tabs.run = Some(Arc::downgrade(connection));
             self.watch_run(connection);
         }
@@ -244,6 +296,14 @@ impl Session {
         });
     }
 
+    /// Whether `tabs` belong to the run of `connection`.
+    pub(super) fn same_run(tabs: &Tabs, connection: &Arc<Connection>) -> bool {
+        tabs.run
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .is_some_and(|run| Arc::ptr_eq(&run, connection))
+    }
+
     /// Drops the tab whose CDP session `gone` ended (the user closed it).
     async fn forget_tab(&self, gone: &str) {
         let mut tabs = self.tabs.lock().await;
@@ -254,6 +314,7 @@ impl Session {
         if tabs.current.as_deref() == Some(tab.id.as_str()) {
             tabs.current = None;
         }
+        self.forget_targets(&tab.id);
         self.note(&tabs, None);
     }
 
@@ -270,7 +331,7 @@ impl Session {
             .clone()
     }
 
-    fn mode(&self) -> PermissionMode {
+    pub(super) fn mode(&self) -> PermissionMode {
         *self.mode.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -297,12 +358,33 @@ impl Session {
                 other => return other,
             }
         }
+        self.check_send(tab, &paused).await
+    }
+
+    /// Whether a held request of tab `tab` may go when it may change something: once after the
+    /// user allowed the action that sends it, otherwise after asking (research R5 step 2).
+    pub(super) async fn check_send(&self, tab: &str, paused: &Paused) -> Verdict {
         if !submit::changing(&paused.method) {
             return Verdict::Go;
         }
         if self.take_armed(tab) {
             return Verdict::Go;
         }
+        self.ask_to_submit(paused).await
+    }
+
+    /// The first changing request of a new tab may use only its opener's reserved grant.
+    pub(super) async fn check_new_tab_send(&self, grant: Option<u64>, paused: &Paused) -> Verdict {
+        if !submit::changing(&paused.method) {
+            return Verdict::Go;
+        }
+        if grant.is_some_and(|id| self.take_pending_armed(id)) {
+            return Verdict::Go;
+        }
+        self.ask_to_submit(paused).await
+    }
+
+    async fn ask_to_submit(&self, paused: &Paused) -> Verdict {
         if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
             return Verdict::Refuse(code);
         }
@@ -314,9 +396,7 @@ impl Session {
             label: Some(format!("{} {}", paused.method, paused.url)),
             fields: submit::fields_of(paused.body.as_deref()),
         };
-        self.submitting.fetch_add(1, Ordering::SeqCst);
-        let answer = prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await;
-        self.submitting.fetch_sub(1, Ordering::SeqCst);
+        let answer = self.ask_for_page(&question).await;
         match answer {
             Ok(answer) if answer.decision == BrowserDecision::Allow => Verdict::Go,
             Ok(_) => Verdict::Refuse("user_declined"),
@@ -325,33 +405,46 @@ impl Session {
         }
     }
 
-    /// The user allowed an action of tab `tab` that submits: its next changing request goes
-    /// without a second question. Only that one request; [`Session::disarm`] ends it with the
-    /// action.
-    pub fn arm(&self, tab: &str) {
-        *self.armed.lock().unwrap_or_else(PoisonError::into_inner) = Some(tab.to_owned());
+    /// Asks `question`, which a page set off; the action that caused it waits for the answer.
+    pub(super) async fn ask_for_page(
+        &self,
+        question: &BrowserQuestion,
+    ) -> Result<prompts::BrowserAnswer, PromptEnd> {
+        self.questions.fetch_add(1, Ordering::SeqCst);
+        let answer = prompts::ask(&self.prompts, &self.closed, question, &self.cancel).await;
+        self.questions.fetch_sub(1, Ordering::SeqCst);
+        answer
     }
 
-    pub fn disarm(&self) {
-        self.armed
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+    /// Whether a question a page set off is open.
+    pub fn questions_open(&self) -> bool {
+        self.questions.load(Ordering::SeqCst) > 0
     }
 
-    fn take_armed(&self, tab: &str) -> bool {
-        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
-        if armed.as_deref() == Some(tab) {
-            *armed = None;
-            true
-        } else {
-            false
+    pub(super) fn opened_tab_started(&self) {
+        self.pending_opened_tabs.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub(super) fn opened_tab_finished(&self) {
+        if self.pending_opened_tabs.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.opened_tabs_changed.notify_waiters();
         }
     }
 
-    /// Whether a submit question of this session is open.
-    pub fn submitting(&self) -> bool {
-        self.submitting.load(Ordering::SeqCst) > 0
+    /// Waits until popups caused by the last browser action have joined the tabs or closed.
+    pub(super) async fn wait_for_opened_tabs(&self, cancel: &CancellationToken) {
+        loop {
+            let notified = self.opened_tabs_changed.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.pending_opened_tabs.load(Ordering::SeqCst) == 0 {
+                return;
+            }
+            tokio::select! {
+                _ = notified => {}
+                _ = cancel.cancelled() => return,
+            }
+        }
     }
 
     /// The verdict for a document at `url` of one of this session's tabs.
@@ -376,31 +469,34 @@ impl Session {
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {
-                self.once
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(site.clone());
-                let level = match answer.remember {
-                    Some(Remember::SiteRead) => Some(SiteLevel::Read),
-                    // `http` can only be read (research R9).
-                    Some(Remember::SiteOperate) if !site.is_plain_http() => {
-                        Some(SiteLevel::Operate)
-                    }
-                    Some(Remember::SiteOperate) => Some(SiteLevel::Read),
-                    None => None,
-                };
-                if let Some(level) = level {
-                    if let Err(error) = self.env.remember(&self.caller, &site, level).await {
-                        log::warn!("agent browser: could not remember a website: {error}");
-                    }
-                }
+                self.allow_site(&site, answer.remember).await;
                 Verdict::Go
             }
             _ => Verdict::Refuse("site_not_allowed"),
         }
     }
 
-    async fn verdict(&self, url: &str) -> Verdict {
+    /// The user allowed `site` for this session, and with `remember` for the agent beyond it.
+    pub(super) async fn allow_site(&self, site: &Site, remember: Option<Remember>) {
+        self.once
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(site.clone());
+        let level = match remember {
+            Some(Remember::SiteRead) => Some(SiteLevel::Read),
+            // `http` can only be read (research R9).
+            Some(Remember::SiteOperate) if !site.is_plain_http() => Some(SiteLevel::Operate),
+            Some(Remember::SiteOperate) => Some(SiteLevel::Read),
+            None => None,
+        };
+        if let Some(level) = level {
+            if let Err(error) = self.env.remember(&self.caller, site, level).await {
+                log::warn!("agent browser: could not remember a website: {error}");
+            }
+        }
+    }
+
+    pub(super) async fn verdict(&self, url: &str) -> Verdict {
         let Some(rights) = self.env.rights(&self.caller).await else {
             return Verdict::Refuse("site_not_allowed");
         };
@@ -417,6 +513,7 @@ impl Session {
     pub async fn end(&self) {
         self.cancel.cancel();
         let tabs = std::mem::take(&mut self.tabs.lock().await.open);
+        self.targets().clear();
         futures::future::join_all(
             tabs.into_iter()
                 .map(|tab| async move { tab.release().await }),

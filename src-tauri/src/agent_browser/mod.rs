@@ -15,6 +15,7 @@ pub mod error;
 pub mod executor;
 pub mod locate;
 pub mod marker;
+mod new_tab;
 pub mod process;
 pub mod process_windows;
 pub mod profile;
@@ -26,6 +27,7 @@ pub mod sessions;
 pub mod sites;
 pub mod submit;
 pub mod tab;
+mod tab_watch;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -78,6 +80,8 @@ struct Shared {
     lease_epoch: AtomicU64,
     /// Why the last profile could not be read, for "KI → Browser".
     profile_problem: Mutex<Option<String>>,
+    /// Who takes the new targets of the browser (agent sessions, for tabs their pages open).
+    claim: Mutex<Option<cdp::target::Claim>>,
 }
 
 /// The agent browser of this app. Cheap to clone; every clone is the same browser.
@@ -171,6 +175,30 @@ impl AgentBrowser {
             .map(|run| run.product.clone())
     }
 
+    /// Sets who takes a new target of the browser before it goes on; called once when the browser
+    /// tools are built.
+    pub fn set_claim(&self, claim: cdp::target::Claim) {
+        *self
+            .shared
+            .claim
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(claim);
+    }
+
+    fn claim(&self) -> cdp::target::Claim {
+        let shared = Arc::downgrade(&self.shared);
+        Arc::new(move |connection, attached| {
+            let claim = shared.upgrade().and_then(|shared| {
+                shared
+                    .claim
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone()
+            });
+            claim.is_some_and(|claim| claim(connection, attached))
+        })
+    }
+
     /// Why the last saved profile could not be read, if it could not.
     pub fn profile_problem(&self) -> Option<String> {
         self.shared
@@ -216,7 +244,7 @@ impl AgentBrowser {
             downloads: config.workdir.downloads(),
             headless: config.headless,
         };
-        let launched = match process::launch(config.os, &launch).await {
+        let launched = match process::launch(config.os, &launch, self.claim()).await {
             Ok(launched) => launched,
             Err(error) => {
                 let _ = config.workdir.remove();
@@ -352,6 +380,10 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
 
 #[cfg(test)]
 mod locate_tests;
+#[cfg(test)]
+mod new_tab_tests;
+#[cfg(test)]
+mod process_tests;
 #[cfg(test)]
 mod process_windows_tests;
 #[cfg(test)]

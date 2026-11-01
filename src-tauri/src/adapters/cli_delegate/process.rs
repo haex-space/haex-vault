@@ -87,6 +87,8 @@ impl Drop for ChildLifecycle {
 pub(super) fn configure_process_group(command: &mut Command) {
     #[cfg(unix)]
     command.process_group(0);
+    #[cfg(not(unix))]
+    let _ = command;
 }
 
 fn kill_process_group(pid: Option<u32>) {

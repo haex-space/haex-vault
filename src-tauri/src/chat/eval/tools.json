@@ -963,7 +963,8 @@
     "titles": {
       "de": "Passwortmanager durchsuchen (nur Titel und Tags)",
       "en": "Search the password manager (titles and tags only)"
-    }
+    },
+    "runner": "native"
   },
   {
     "toolName": "files_sources",
@@ -1591,7 +1592,8 @@
     },
     "effect": "read",
     "core": false,
-    "titles": { "de": "Kontakte suchen", "en": "Search contacts" }
+    "titles": { "de": "Kontakte suchen", "en": "Search contacts" },
+    "runner": "native"
   },
   {
     "toolName": "contacts_get",
@@ -1606,7 +1608,8 @@
     },
     "effect": "read",
     "core": false,
-    "titles": { "de": "Kontakt lesen", "en": "Read a contact" }
+    "titles": { "de": "Kontakt lesen", "en": "Read a contact" },
+    "runner": "native"
   },
   {
     "toolName": "contacts_update",
@@ -1666,7 +1669,8 @@
     },
     "effect": "write",
     "core": false,
-    "titles": { "de": "Kontakt ändern", "en": "Change a contact" }
+    "titles": { "de": "Kontakt ändern", "en": "Change a contact" },
+    "runner": "native"
   },
   {
     "toolName": "contacts_share",

@@ -80,14 +80,15 @@ impl MixerInput {
     }
 
     /// Queues mono speech at [`Self::sample_rate`], waiting while the queue is full. Returns
-    /// `false` when speech was stopped meanwhile (the rest is not queued) or the mixer is gone.
-    pub fn queue_speech(&self, samples: &[f32]) -> bool {
+    /// `false` when speech was stopped, `cancelled` becomes true, or the mixer is gone.
+    /// Cancellation is checked before every block and while waiting for room.
+    pub fn queue_speech(&self, samples: &[f32], cancelled: impl Fn() -> bool) -> bool {
         let speech = self.speech.lock().unwrap_or_else(|e| e.into_inner());
         let stopped_at = self.shared.flush_below.load(Ordering::Acquire);
         queue(
             &speech,
             samples,
-            || self.shared.flush_below.load(Ordering::Acquire) != stopped_at,
+            || cancelled() || self.shared.flush_below.load(Ordering::Acquire) != stopped_at,
             || self.shared.next_speech.fetch_add(1, Ordering::AcqRel),
         )
     }

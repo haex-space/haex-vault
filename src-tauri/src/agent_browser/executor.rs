@@ -118,6 +118,7 @@ impl BrowserTools {
         closed: ClosedNotice,
         sessions: BrowserSessions,
     ) -> Self {
+        browser.set_claim(sessions.claim());
         Self {
             env,
             browser,
@@ -218,6 +219,11 @@ impl NativeExecutor for BrowserTools {
         CHANGING
     }
 
+    /// Each external agent gets its own browser session (spec 065).
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
     /// Runs one tool; a stop of the session ends it within a second. Its questions hear the stop
     /// first and close, so no dialog stays behind.
     async fn run(
@@ -228,6 +234,14 @@ impl NativeExecutor for BrowserTools {
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
         let session = self.session_for(action_id, call).await?;
+        let refresh_tab = if OPERATING.contains(&action_id) {
+            input_value
+                .get("tab")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            None
+        };
         let ended = session.cancel.child_token();
         let forward = tokio_util::task::AbortOnDropHandle::new({
             let (cancel, ended) = (cancel.clone(), ended.clone());
@@ -240,13 +254,29 @@ impl NativeExecutor for BrowserTools {
         });
         let serving = self.serve(&session, action_id, input_value, call, &ended);
         tokio::pin!(serving);
-        let outcome = tokio::select! {
+        let mut outcome = tokio::select! {
             outcome = &mut serving => outcome,
             _ = session.cancel.cancelled() => {
                 let _ = tokio::time::timeout(STOP_GRACE, &mut serving).await;
                 Err(stopped())
             }
         };
+        if !ended.is_cancelled() {
+            session.wait_for_opened_tabs(&ended).await;
+            if let Some(tab_id) = refresh_tab.filter(|_| outcome.is_ok()) {
+                let connection = self.connection().await?;
+                let tabs = session.tabs_of(&connection).await;
+                let tab = tabs.get(&tab_id).ok_or_else(|| unknown_tab(&tab_id))?;
+                let reply = read_tab(&connection, tab, 0, None).await;
+                if let Ok(reply) = &reply {
+                    session.note(
+                        &tabs,
+                        Some((action_id, reply.target.clone().unwrap_or_default())),
+                    );
+                }
+                outcome = reply;
+            }
+        }
         forward.abort();
         outcome
     }
@@ -478,6 +508,7 @@ impl BrowserTools {
                 if tabs.current.as_deref() == Some(tab.as_str()) {
                     tabs.current = None;
                 }
+                session.forget_targets(&tab);
                 tabs.open.remove(index).close().await;
                 json!({ "tab": tab, "closed": true }).into()
             }

@@ -379,7 +379,7 @@ mod imp {
     /// Resolves the active STT catalog entry for this device: the
     /// [`STT_MODEL_PREF_KEY`] preference if it names a known catalog
     /// entry, otherwise the device's default.
-    async fn resolve_stt_catalog_entry(
+    pub(crate) async fn resolve_stt_catalog_entry(
         app: &AppHandle,
     ) -> std::result::Result<&'static crate::stt::catalog::SttCatalogEntry, crate::stt::SttError>
     {
@@ -438,6 +438,8 @@ mod imp {
 #[path = "voice_tests.rs"]
 mod voice_tests;
 
+#[cfg(feature = "voice")]
+pub(crate) use imp::resolve_stt_catalog_entry;
 #[cfg(feature = "voice")]
 pub use imp::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording,

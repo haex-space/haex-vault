@@ -137,14 +137,20 @@ CREATE TABLE haex_tts_models_no_sync (    -- nur dieses Gerät (FR-051)
   CC-BY-4.0, Namensnennung). Die Whisper-Einträge bleiben unverändert (R7).
 - `src-tauri/src/tts/tts_catalog.json`: Sprachmodelle, Format wie `stt_catalog.json` plus
   `language` (`"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"pt"`), `engine` (`"pocket"` …), `variant`
-  (`"standard"` oder `"24l"`), `sample_rate`. Gepinnte Revision, Größe, Lizenz, Namensnennung.
+  (`"standard"` oder `"24l"`), `sample_rate` und `hf_folder` (alle Sprachen liegen in einem Repo,
+  `haex-space/pocket-tts-sherpa-onnx`, je ein Ordner). Gepinnte Revision, Größe, Lizenz,
+  Namensnennung. Standard einer Sprache ist ihre `standard`-Variante, sonst die einzige (Französisch
+  gibt es nur als `24l`).
 - `src-tauri/src/assistant/lexicon.json`: die Wortliste (R22), `languages` plus `entries` mit `id`,
   optional `match` und einer Zelle pro Sprache; Pflege nur im Repo, nie zur Laufzeit geändert.
 - `src-tauri/src/tts/voices/voices.json` mit den Referenzaufnahmen daneben (`include_bytes!`): je
   Sprache 2–3 mitgelieferte Stimmen mit `id`, `name`, `language`, `default`, Quelle, Lizenz,
   Namensnennung (R8).
-- `src-tauri/src/assistant/assets.json`: feste Modelle ohne Wahl: Pausenerkennung (Silero VAD) und
-  Standard-Wake-Word (`haex-space/haex-wakeword`), je mit Revision, Größe, Lizenz.
+- `src-tauri/src/assistant/assets.json` (ab PR D, T061): feste Modelle ohne Wahl, die geladen werden:
+  Standard-Wake-Word (`haex-space/haex-wakeword`) mit Revision, Größe, Lizenz. Die Pausenerkennung
+  (Silero VAD, 212 KB, MIT) liegt dagegen im Binary (`src-tauri/src/assistant/models/`,
+  `include_bytes!`) und wird beim ersten Gebrauch nach `<AppLocalData>/models/silero-vad/`
+  geschrieben; sie fehlt also nie.
 
 Dateien liegen wie die STT-Modelle unter `<AppLocalData>/models/<id>/`.
 

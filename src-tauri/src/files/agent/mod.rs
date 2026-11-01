@@ -3,6 +3,7 @@
 //! encrypted folder (spec 048 US6); the `files.shares.*` actions with their confirmation (spec 056
 //! US6).
 
+pub mod agents;
 pub mod commands;
 pub mod env;
 pub mod exec;

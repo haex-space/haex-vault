@@ -1,0 +1,93 @@
+{
+  "_meta": {
+    "version": 1,
+    "note": "Local speech models (spec 066, research R8). pocket: Kyutai Pocket TTS for sherpa-onnx, one folder per language in one repo. approx_size_bytes is the sum of every file the engine needs at the pinned revision (tts/files.rs).",
+    "source": "https://huggingface.co/haex-space/pocket-tts-sherpa-onnx (CC BY 4.0), built from https://huggingface.co/KevinAHM/pocket-tts-onnx and the k2-fsa sherpa-onnx export"
+  },
+  "models": [
+    {
+      "id": "pocket-de",
+      "name": "Pocket TTS Deutsch",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "de",
+      "approx_size_bytes": 146353800,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "de",
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); German ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+    },
+    {
+      "id": "pocket-en",
+      "name": "Pocket TTS English",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "en",
+      "approx_size_bytes": 198291829,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "en",
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); sherpa-onnx export by k2-fsa"
+    },
+    {
+      "id": "pocket-fr-24l",
+      "name": "Pocket TTS Français (24 couches)",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "fr",
+      "approx_size_bytes": 375157645,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "fr",
+      "variant": "24l",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); French ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+    },
+    {
+      "id": "pocket-es",
+      "name": "Pocket TTS Español",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "es",
+      "approx_size_bytes": 146355832,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "es",
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Spanish ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+    },
+    {
+      "id": "pocket-it",
+      "name": "Pocket TTS Italiano",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "it",
+      "approx_size_bytes": 146354080,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "it",
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Italian ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+    },
+    {
+      "id": "pocket-pt",
+      "name": "Pocket TTS Português",
+      "hf_repo": "haex-space/pocket-tts-sherpa-onnx",
+      "hf_revision": "d8f5915ed8bd94e1aa3dbd5a219360b3bb966190",
+      "hf_folder": "pt",
+      "approx_size_bytes": 146356094,
+      "license": "CC-BY-4.0",
+      "engine": "pocket",
+      "language": "pt",
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Portuguese ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+    }
+  ]
+}

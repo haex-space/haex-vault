@@ -301,7 +301,7 @@ pub fn all_files(
 pub fn speech_detection() -> Step {
     use crate::assistant::vad::PauseDetector;
 
-    const MODEL: &[u8] = include_bytes!("assistant/fixtures/silero_vad.int8.onnx");
+    const MODEL: &[u8] = crate::assistant::assets::SILERO_VAD;
     const SAMPLE: &[u8] = include_bytes!("stt/fixtures/de_sample.wav");
 
     let run = || -> Result<String, String> {

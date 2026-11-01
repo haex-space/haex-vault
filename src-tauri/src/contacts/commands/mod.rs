@@ -1,9 +1,8 @@
 //! The Tauri commands of the address book (spec 051, contracts/tauri-commands.md). Each calls only
 //! the [`ContactsService`], with the caller its entrance stands for: the commands of the window
-//! are `Caller::User`, those of the agent's actions `Caller::BuiltinAgent`. No command takes a caller
-//! as an argument.
+//! are `Caller::User`; the agents' actions run in Rust (`contacts::agent_actions`). No command takes
+//! a caller as an argument.
 
-pub mod agent;
 pub mod cards;
 pub mod contacts;
 pub mod phone;

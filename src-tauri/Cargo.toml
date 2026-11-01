@@ -366,7 +366,20 @@ libc = "0.2"
 # Spec 065 (research R2): the agent browser reads its pipe ends as descriptors 3 and 4, which
 # Windows passes through `STARTUPINFOW.lpReserved2` of `CreateProcessW`.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Threading",
+  # The drives (spec 064 research R6).
+  "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Registry",
+  "Win32_System_SystemInformation",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 # Spec 017, US9 (research R19): extensions watch folders on desktops only; Android and iOS answer
 # "not available" (FR-066), so the watcher is not built there.

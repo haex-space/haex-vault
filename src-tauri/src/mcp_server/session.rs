@@ -15,7 +15,9 @@ use rmcp::{ErrorData as McpError, ServerHandler};
 use tokio::sync::watch;
 use uuid::Uuid;
 
+use super::command_tool;
 use super::dispatch;
+use super::extension_tools;
 use super::grants::{self, Rights};
 use super::live::Link;
 use super::registry::AgentMode;
@@ -98,19 +100,24 @@ impl Session {
         self.initialized.subscribe()
     }
 
-    fn tools(&self) -> Vec<rmcp::model::Tool> {
+    async fn tools(&self) -> Vec<rmcp::model::Tool> {
         let Some(agent) = self.agent() else {
             return Vec::new();
         };
+        let reach = dispatch::reach(&self.core, agent.id).await;
         let catalog = self.core.catalog.snapshot();
         let extension_tools = self.core.extension_tools.snapshot();
-        let tools: Vec<_> = grants::offers(&agent.rights, &catalog)
+        let tools: Vec<_> = grants::offers(&agent.rights, &reach, &catalog)
             .into_iter()
             .map(dispatch::tool_of)
             .chain(
                 grants::extension_offers(&agent.rights, &extension_tools)
                     .into_iter()
-                    .map(|tool| dispatch::extension_tool_of(tool.as_ref())),
+                    .map(|tool| extension_tools::tool_of(tool.as_ref())),
+            )
+            .chain(
+                command_tool::offer(&agent.rights, self.core.command_tool.as_ref())
+                    .map(|tool| extension_tools::tool_of(tool.as_ref())),
             )
             .collect();
         self.seen
@@ -152,15 +159,15 @@ impl ServerHandler for Session {
         std::future::ready(())
     }
 
-    fn list_tools(
+    async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ListToolsResult, McpError>> + MaybeSendFuture + '_ {
-        std::future::ready(Ok(ListToolsResult {
-            tools: self.tools(),
+    ) -> Result<ListToolsResult, McpError> {
+        Ok(ListToolsResult {
+            tools: self.tools().await,
             ..Default::default()
-        }))
+        })
     }
 
     async fn call_tool(

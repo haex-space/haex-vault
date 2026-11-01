@@ -90,7 +90,7 @@ fn a_subscription_starts_with_the_preroll_and_continues_without_a_gap() {
 #[test]
 fn the_speaker_gets_as_much_output_as_the_microphone_got_input() {
     let rig = rig(48_000);
-    assert!(rig.stream.mixer().queue_speech(&[0.5; 24_000]));
+    assert!(rig.stream.mixer().queue_speech(&[0.5; 24_000], || false));
 
     rig.say(vec![0.0; 16_000]);
 
@@ -147,7 +147,13 @@ fn push_to_talk_records_from_the_running_stream() {
     let rig = rig(SAMPLE_RATE_HZ);
     rig.say(ramp(0, 1_600));
     let capture = Capture::from_stream(&rig.stream);
+    // Register the barrier after capture so a receive here proves that the
+    // capture subscriber has already received the block as well.
+    let (_, capture_barrier) = rig.stream.subscribe(0.0);
     rig.say(ramp(1_600, 4_800));
+    capture_barrier
+        .recv_timeout(WAIT)
+        .expect("capture block published");
 
     assert!(!capture.has_capped());
     assert_eq!(capture.stop().samples, ramp(1_600, 4_800));

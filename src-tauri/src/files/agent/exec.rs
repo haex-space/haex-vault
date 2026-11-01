@@ -1,5 +1,6 @@
 //! The native executor of the `files.*` actions (spec 044 US6, contracts/agent-actions.md, ADR
-//! 0011). Every call runs as the agent it was built for, never as a caller named in the input:
+//! 0011), for the built-in agent and for each external agent (spec 021 US5, [`super::agents`]).
+//! Every call runs as the agent it was built for, never as a caller named in the input:
 //! holzi's own places are refused and left out of every answer (FR-033), the device needs the grant
 //! "files of the device" (FR-031), a storage its own grant, asked for once when it is missing
 //! (FR-031a; [`super::reach`]). Reading is in [`super::read`], the writing actions are in
@@ -16,9 +17,7 @@ use tokio_util::sync::CancellationToken;
 use super::env::AgentEnv;
 use super::folders::TaskMemory;
 use super::reach::{blocking, cancelled, entry_json, files_error, parse, PathInput, Place};
-use crate::chat::tools::native_action::{
-    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
-};
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::files::access::is_device_storage;
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
 use crate::files::kind::FileCategory;
@@ -75,6 +74,20 @@ impl<E: AgentEnv> FilesAgent<E> {
             memory: Mutex::default(),
         }
     }
+
+    /// The executor of the external agent `agent_id` (spec 021 US5): its grants are the rows of
+    /// that id in `agent_file_permissions`, and the device needs its own grant (FR-031).
+    pub fn external(env: E, agent_id: &str) -> Self {
+        Self {
+            env,
+            agent_id: agent_id.to_owned(),
+            caller: Caller::ExternalAgent {
+                id: agent_id.to_owned(),
+            },
+            removal: platform_removal(),
+            memory: Mutex::default(),
+        }
+    }
 }
 
 #[async_trait]
@@ -90,7 +103,16 @@ impl<E: AgentEnv + 'static> NativeExecutor for FilesAgent<E> {
         call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
-        builtin_only(call)?;
+        if call.caller != self.caller {
+            return Err(NativeError::new(
+                "forbidden_for_agents",
+                "This action is not available to this agent.",
+            ));
+        }
+        // An external agent has no task: an answer without "Erlaubnis merken" holds for this call.
+        if self.caller != Caller::BuiltinAgent {
+            self.forget_answers();
+        }
         if action_id == "files.read" {
             return self.read(parse(input)?, cancel).await;
         }

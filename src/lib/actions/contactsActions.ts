@@ -1,7 +1,7 @@
 // Address book actions for agents (spec 051 US6, FR-030, FR-032, research R15): search, read and
-// change contacts. Each runs one backend command that fixes the built-in agent as the caller
-// (`stores/contactsActionHandlers.ts`); without a grant holzi asks the user there, and a refusal
-// looks like a missing contact. Agents never change groups, phone targets or where a contact came
+// change contacts. They run in Rust (`runner: 'native'`, `src-tauri/src/contacts/agent_actions.rs`)
+// as the calling agent, the built-in one or an external one (spec 021 US5); without a grant holzi
+// asks the user there, and a refusal looks like a missing contact. Agents never change groups, phone targets or where a contact came
 // from. Pure, relative `.ts` imports only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
 
@@ -114,6 +114,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'read',
     agentCallable: true,
     binding: 'global',
+    runner: 'native',
   },
   {
     id: 'contacts.get',
@@ -131,6 +132,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'read',
     agentCallable: true,
     binding: 'global',
+    runner: 'native',
   },
   {
     id: 'contacts.update',
@@ -166,6 +168,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
     agentCallable: true,
     binding: 'global',
+    runner: 'native',
   },
   {
     id: 'contacts.share',
@@ -238,47 +241,3 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     binding: 'global',
   },
 ]
-
-const HEAD_KEYS = [
-  'givenName',
-  'familyName',
-  'displayName',
-  'organization',
-  'jobTitle',
-  'note',
-] as const
-
-/** The backend's patch (`ContactPatch`) from the input of `contacts.update`: a head field given as
- * text is set, as an empty text cleared; values with an id change, without one they are added. */
-export function patchOf(
-  input: Record<string, unknown>,
-): Record<string, unknown> {
-  const patch: Record<string, unknown> = {}
-  for (const key of HEAD_KEYS) {
-    const value = input[key]
-    if (typeof value === 'string') patch[key] = value.trim() ? value : null
-  }
-  const values = Array.isArray(input.values) ? input.values : []
-  const remove = Array.isArray(input.remove)
-    ? input.remove.filter((id): id is string => typeof id === 'string')
-    : []
-  if (values.length > 0 || remove.length > 0) {
-    patch.values = {
-      upsert: values.flatMap((raw) => {
-        const value = raw as Record<string, unknown>
-        if (typeof value.kind !== 'string' || typeof value.value !== 'string')
-          return []
-        return [
-          {
-            ...(typeof value.id === 'string' ? { id: value.id } : {}),
-            kind: value.kind,
-            label: typeof value.label === 'string' ? value.label : 'other',
-            value: value.value,
-          },
-        ]
-      }),
-      remove,
-    }
-  }
-  return patch
-}

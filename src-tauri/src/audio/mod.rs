@@ -28,6 +28,7 @@ pub mod resample;
 pub mod ring;
 pub mod source;
 pub mod stream;
+pub mod stretch;
 
 #[cfg(test)]
 mod audio_tests;
@@ -41,6 +42,8 @@ mod ring_tests;
 mod source_tests;
 #[cfg(test)]
 mod stream_tests;
+#[cfg(test)]
+mod stretch_tests;
 #[cfg(test)]
 pub(crate) mod test_feed;
 
@@ -155,6 +158,11 @@ struct StreamCapture {
     blocks: Receiver<SharedBlock>,
     recorded: StdMutex<Vec<f32>>,
     capped: AtomicBool,
+}
+
+/// Whether this device has a microphone the assistant could listen on (spec 066 FR-005).
+pub fn has_input_device() -> bool {
+    cpal::default_host().default_input_device().is_some()
 }
 
 impl Capture {

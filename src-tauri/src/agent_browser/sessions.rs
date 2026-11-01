@@ -276,6 +276,29 @@ impl BrowserSessions {
         }
     }
 
+    /// Takes a new target of the browser for the live session whose page or frame opened it
+    /// ([`super::new_tab`]).
+    pub fn claim(&self) -> super::cdp::target::Claim {
+        let shared = Arc::downgrade(&self.shared);
+        Arc::new(move |connection, attached| {
+            let Some(shared) = shared.upgrade() else {
+                return false;
+            };
+            let live: Vec<Arc<Session>> = shared
+                .entries
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .values()
+                .filter_map(|entry| match entry {
+                    Entry::Live(session) => Some(Arc::clone(session)),
+                    Entry::Stopped => None,
+                })
+                .collect();
+            live.iter()
+                .any(|session| super::new_tab::opened(session, connection, attached))
+        })
+    }
+
     /// The running sessions, for the sessions bar.
     pub fn list(&self) -> Vec<BrowserSessionView> {
         let mut views: Vec<BrowserSessionView> = self

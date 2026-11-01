@@ -1,7 +1,7 @@
 //! The mounted drives as the system reports them, without a drive service (spec 064 FR-024): on
 //! Linux the mounts of `/proc/self/mountinfo`, on macOS `/` and `/Volumes`, on Windows the drive
-//! letters. Every drive is mounted, nothing can be mounted, unlocked or ejected. macOS and Windows
-//! use this until their own backends (spec 064 PR E, PR F).
+//! letters. Every drive is mounted, nothing can be mounted, unlocked or ejected. It stands in when a
+//! platform's backend cannot list (`super::current`).
 
 use std::path::{Path, PathBuf};
 
