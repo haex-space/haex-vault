@@ -5,9 +5,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::grants::{
-    browser_from_rows, browser_rows, check, check_extension_tool, default_rights, extension_offers,
-    offers, validate, BrowserRights, DataRights, InvalidRights, OperateLevel, PasswordLevel,
-    PasswordRights, Reach, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
+    check, check_extension_tool, default_rights, extension_offers, offers, validate, BrowserRights,
+    DataRights, InvalidRights, OperateLevel, PasswordLevel, PasswordRights, Reach, Rights,
+    SiteGrant, SiteLevel, OPERATE_SCOPES,
 };
 use crate::agent_browser::sites::Site;
 use crate::chat::tools::action_tool::AgentActionDef;
@@ -265,32 +265,6 @@ fn the_window_cannot_send_a_website_that_is_none() {
     let rights: Rights = serde_json::from_value(sent).expect("rights");
     let sites = rights.browser.expect("on").sites;
     assert!(sites.contains_key(&Site::parse("https://example.com").expect("site")));
-}
-
-#[test]
-fn the_browser_group_round_trips_through_its_rows() {
-    let mut rights = browser(&[
-        ("https://shop.example.de", SiteLevel::Operate),
-        ("http://intranet.example", SiteLevel::Read),
-    ]);
-    rights.user_browser = true;
-    rights
-        .sites
-        .get_mut(&Site::parse("https://shop.example.de").expect("site"))
-        .expect("grant")
-        .fill_remembered = true;
-    let rows = browser_rows(&rights);
-    assert!(rows.contains(&(String::new(), "on".to_owned(), None)));
-    assert_eq!(browser_from_rows(&rows), Some(rights));
-    let without_switch: Vec<_> = rows
-        .into_iter()
-        .filter(|(key, _, _)| !key.is_empty())
-        .collect();
-    assert_eq!(
-        browser_from_rows(&without_switch),
-        None,
-        "off without its switch"
-    );
 }
 
 struct NoFrame;

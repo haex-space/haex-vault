@@ -5,16 +5,16 @@
  * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
  * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
  * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
- * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering. Rust checks the rights again; rights it refuses count as declining.
+ * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering.
+ * Rust checks the rights again; rights it refuses count as declining.
  */
 import {
-  levelsOf,
+  passwordsComplete,
+  rightsDraftOf,
   rightsOf,
-  type Levels,
-  type PasswordRights,
+  type RightsDraft,
 } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
-import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
 
 const { t } = useI18n()
@@ -24,17 +24,8 @@ const store = useMcpAgentsStore()
 const question = computed<RegistrationQuestion | null>(
   () => store.shown?.question ?? null,
 )
-const levels = ref<Levels>(levelsOf(null))
-const browser = ref<BrowserRights | null>(null)
-const extensions = ref<string[]>([])
-const passwords = ref<PasswordRights | null>(null)
-const commands = ref(false)
-const passwordsComplete = computed(
-  () =>
-    !passwords.value ||
-    passwords.value.tags === null ||
-    passwords.value.tags.some((tag) => tag.trim()),
-)
+const draft = ref<RightsDraft>(rightsDraftOf(null))
+const complete = computed(() => passwordsComplete(draft.value.passwords))
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 const failure = ref<string | null>(null)
@@ -46,11 +37,7 @@ watch(
     failure.value = null
     remember.value = false
     if (!asked) return
-    levels.value = levelsOf(asked.rights)
-    browser.value = asked.rights.browser ?? null
-    extensions.value = asked.rights.extensions ?? []
-    passwords.value = asked.rights.passwords ?? null
-    commands.value = asked.rights.commands ?? false
+    draft.value = rightsDraftOf(asked.rights)
     mode.value = asked.mode
   },
   { immediate: true },
@@ -58,20 +45,12 @@ watch(
 
 async function answerAsync(register: boolean) {
   const shown = store.shown
-  if (!shown || (register && !passwordsComplete.value)) return
+  if (!shown || (register && !complete.value)) return
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
-      rights: register
-        ? rightsOf(
-            levels.value,
-            browser.value,
-            extensions.value,
-            passwords.value,
-            commands.value,
-          )
-        : { operate: {} },
+      rights: register ? rightsOf(draft.value) : { operate: {} },
       mode: mode.value,
     })
   } catch (error) {
@@ -117,14 +96,10 @@ function onUpdateOpen(open: boolean) {
           </dd>
         </dl>
 
-        <AgentsRightsFields v-model="levels" />
-        <AgentsBrowserRightsFields v-model="browser" />
-        <AgentsExtensionRightsFields v-model="extensions" />
-        <AgentsPasswordRightsFields
-          :key="store.shown?.requestId"
-          v-model="passwords"
+        <AgentsRightsEditor
+          v-model="draft"
+          :reset-key="store.shown?.requestId"
         />
-        <AgentsCommandRightsFields v-model="commands" />
         <p class="text-xs text-muted-foreground">
           {{ t('mcpAgents.registration.filesHint') }}
         </p>
@@ -171,7 +146,7 @@ function onUpdateOpen(open: boolean) {
           type="button"
           size="sm"
           data-testid="mcp-registration-register"
-          :disabled="!passwordsComplete"
+          :disabled="!complete"
           @click="answerAsync(true)"
         >
           {{ t('mcpAgents.registration.register') }}

@@ -1,9 +1,10 @@
 // The rights of an external agent as the window edits them (spec 021 FR-008, research R3): per
 // scope of "holzi bedienen" nothing, reading, or reading and changing, the group `browser` with
 // its websites (spec 065), the extensions whose tools it sees (spec 021 US4), the group
-// `passwords` with its tags and the group `commands` (US5). Rust checks every change again (`grants::validate`). Pure, relative
-// `.ts` imports only; the shapes below are those of the bindings `Rights` and `BrowserRights`,
-// restated because the scripts' Node resolution cannot load bindings that import other bindings.
+// `passwords` with its tags and the group `commands` (US5). Rust checks every change again
+// (`grants::validate`). Pure, relative `.ts` imports only; the shapes below are those of the
+// bindings `Rights` and `BrowserRights`, restated because the scripts' Node resolution cannot load
+// bindings that import other bindings.
 import type { OperateLevel } from '../../types/bindings/OperateLevel.ts'
 import type { SiteLevel } from '../../types/bindings/SiteLevel.ts'
 
@@ -51,28 +52,49 @@ export function levelsOf(rights: Rights | null | undefined): Levels {
   ) as Levels
 }
 
-/** The rights the levels, the groups `browser`, `passwords` and `commands` and the granted
- * extensions stand for; "none" is left out, and `null` keeps a group off. An incomplete password tag draft
- * also keeps the group off, so changing from all entries to tags immediately revokes access. */
-export function rightsOf(
-  levels: Levels,
-  browser: BrowserRights | null = null,
-  extensions: string[] = [],
-  passwords: PasswordRights | null = null,
-  commands = false,
-): Rights {
+/** The rights as the window edits them, one value per group; `null` keeps a group off. */
+export type RightsDraft = {
+  levels: Levels
+  browser: BrowserRights | null
+  extensions: string[]
+  passwords: PasswordRights | null
+  commands: boolean
+}
+
+/** The draft of stored rights; `null` stands for an agent without any. */
+export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
+  return {
+    levels: levelsOf(rights),
+    browser: rights?.browser ?? null,
+    extensions: rights?.extensions ?? [],
+    passwords: rights?.passwords ?? null,
+    commands: rights?.commands ?? false,
+  }
+}
+
+/** Whether the group `passwords` names what it reaches: off, every entry or at least one tag. */
+export function passwordsComplete(passwords: PasswordRights | null): boolean {
+  return (
+    !passwords ||
+    passwords.tags === null ||
+    passwords.tags.some((tag) => tag.trim())
+  )
+}
+
+/** The rights a draft stands for; "none" and groups that are off are left out. An incomplete
+ * password tag draft also keeps the group off, so changing from all entries to tags immediately
+ * revokes access. */
+export function rightsOf(draft: RightsDraft): Rights {
   const operate: Record<string, OperateLevel> = {}
   for (const scope of OPERATE_SCOPES) {
-    const level = levels[scope]
+    const level = draft.levels[scope]
     if (level !== 'none') operate[scope] = level
   }
+  const { browser, passwords, extensions, commands } = draft
   return {
     operate,
     ...(browser ? { browser } : {}),
-    ...(passwords &&
-    (passwords.tags === null || passwords.tags.some((tag) => tag.trim()))
-      ? { passwords }
-      : {}),
+    ...(passwords && passwordsComplete(passwords) ? { passwords } : {}),
     ...(extensions.length > 0 ? { extensions } : {}),
     ...(commands ? { commands } : {}),
   }

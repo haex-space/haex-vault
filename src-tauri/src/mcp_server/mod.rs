@@ -4,12 +4,14 @@
 //! a vault is open (FR-001, FR-002).
 
 pub mod agent_log;
+mod callee;
 pub mod command_tool;
 pub mod commands;
 pub mod connection;
 pub mod dispatch;
 pub mod endpoint;
 pub mod extension_tools;
+pub mod grant_rows;
 pub mod grants;
 pub mod hello;
 pub mod helper;
@@ -21,6 +23,7 @@ pub mod prompts;
 pub mod redact;
 mod registration;
 pub mod registry;
+pub mod results;
 pub mod server;
 pub mod session;
 pub mod settings;
@@ -33,6 +36,8 @@ mod command_tool_tests;
 mod dispatch_tests;
 #[cfg(test)]
 mod endpoint_tests;
+#[cfg(test)]
+mod grant_rows_tests;
 #[cfg(test)]
 mod grants_tests;
 #[cfg(test)]

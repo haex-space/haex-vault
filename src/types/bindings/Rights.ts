@@ -5,6 +5,7 @@ import type { PasswordRights } from "./PasswordRights";
 
 /**
  * The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
+ * `grant_rows.rs` stores them.
  */
 export type Rights = { operate: { [key in string]: OperateLevel }, browser?: BrowserRights, passwords?: PasswordRights,
 /**

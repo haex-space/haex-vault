@@ -4,44 +4,42 @@
 //! action runner as caller `externalAgent`, written to the agent log, and turned into an MCP result.
 //! A tool of an extension takes the same way and runs over the extension's own connection, where
 //! the stricter of the agent's approval mode and the tool's own setting wins (US4, FR-018), and so
-//! does holzi's command tool, which is `Risky` (US5, FR-012). A refusal never says whether a target
-//! exists.
+//! does holzi's command tool, which is `Risky` (US5, FR-012). What a call reaches is `callee.rs`,
+//! what it answers `results.rs`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Tool, ToolAnnotations};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::agent_log::{self, NewEntry, Outcome};
+use super::callee::{Callee, Tools};
 use super::command_tool;
 use super::connection::now_millis;
 use super::extension_tools;
-use super::grants::{self, DataRights, Reach};
+use super::grants::{DataRights, Reach};
 use super::hello::CloseReason;
 use super::live::Link;
 use super::prompts::{
-    call_gate, extension_gate, CallDecision, CallEffect, CallQuestion, CallTitles, PromptClosed,
-    PromptClosedReason, SECRET_SCOPE,
+    call_gate, extension_gate, CallDecision, CallEffect, CallQuestion, PromptClosed,
+    PromptClosedReason,
 };
 use super::redact::{redact, target_of};
+use super::results::{error_result, into_result, native_result, not_allowed, unavailable};
 use super::server::{Core, Notice};
 use super::session::SessionAgent;
 use crate::caller::Caller;
-use crate::chat::tools::action_bridge::{ActionCaller, ActionReply};
+use crate::chat::tools::action_bridge::ActionCaller;
 use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
-use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
+use crate::chat::tools::native_action::{NativeCall, NativeExecutor};
 use crate::chat::tools::permission::Decision;
-use crate::chat::tools::{RiskClass, Tool as ChatTool};
 use crate::files::permissions;
 use crate::prompt_park::PromptEnd;
-
-/// What the agent learns when its rights do not cover a call, or the tool does not exist.
-pub const NOT_ALLOWED_MESSAGE: &str = "This tool is not available to this agent.";
 
 /// The tool an agent sees for an action: the same name, description and schema as the built-in
 /// agent gets (FR-013), with hints about its effect.
@@ -55,23 +53,6 @@ pub fn tool_of(def: &AgentActionDef) -> Tool {
             .read_only(def.effect == ActionEffect::Read)
             .destructive(def.effect == ActionEffect::Destructive),
     )
-}
-
-/// A refusal in the shape of the contract.
-pub fn error_result(code: &str, message: &str, extra: Option<(&str, Value)>) -> CallToolResult {
-    let mut body = json!({ "code": code, "message": message });
-    if let Some((key, value)) = extra {
-        body[key] = value;
-    }
-    CallToolResult::structured_error(body)
-}
-
-pub fn not_allowed() -> CallToolResult {
-    error_result("not_allowed", NOT_ALLOWED_MESSAGE, None)
-}
-
-pub(super) fn unavailable() -> CallToolResult {
-    error_result("unavailable", "holzi could not run the action now.", None)
 }
 
 /// The running calls of each agent (FR-029, research R11), across its connections.
@@ -100,58 +81,6 @@ impl CallSlots {
             .ok()?
             .ok()
     }
-}
-
-/// What a call reaches: an action of the catalog, a tool of an extension or the command tool.
-#[derive(Clone, Copy)]
-enum Callee<'a> {
-    Action(&'a AgentActionDef),
-    Extension(&'a Arc<dyn ChatTool>),
-    Command(&'a Arc<dyn ChatTool>),
-}
-
-impl Callee<'_> {
-    fn input_schema(self) -> Value {
-        match self {
-            Self::Action(def) => def.input_schema.clone(),
-            Self::Extension(tool) | Self::Command(tool) => tool.input_schema(),
-        }
-    }
-
-    fn effect(self) -> ActionEffect {
-        match self {
-            Self::Action(def) => def.effect,
-            Self::Extension(tool) | Self::Command(tool) => match tool.risk_class() {
-                RiskClass::Safe => ActionEffect::Read,
-                RiskClass::Change => ActionEffect::Write,
-                RiskClass::Risky => ActionEffect::Destructive,
-            },
-        }
-    }
-}
-
-/// The tool behind `tool_name`, whether or not the agent may call it.
-fn find<'a>(
-    catalog: &'a [AgentActionDef],
-    tools: &'a [Arc<dyn ChatTool>],
-    command: Option<&'a Arc<dyn ChatTool>>,
-    tool_name: &str,
-) -> Option<Callee<'a>> {
-    catalog
-        .iter()
-        .find(|def| def.tool_name == tool_name)
-        .map(Callee::Action)
-        .or_else(|| {
-            tools
-                .iter()
-                .find(|tool| tool.name() == tool_name)
-                .map(Callee::Extension)
-        })
-        .or_else(|| {
-            command
-                .filter(|tool| tool.name() == tool_name)
-                .map(Callee::Command)
-        })
 }
 
 /// What decides the tools of `agent` besides its stored rights, as the vault says now: its rows of
@@ -192,11 +121,15 @@ pub async fn call(
     cancel: &CancellationToken,
 ) -> CallToolResult {
     let catalog = core.catalog.snapshot();
-    let tools = core.extension_tools.snapshot();
+    let extensions = core.extension_tools.snapshot();
     let reach = reach(core, agent.id).await;
     let input = Value::Object(arguments.unwrap_or_default());
-    let command = core.command_tool.as_ref();
-    let known = find(&catalog, &tools, command, tool_name);
+    let tools = Tools {
+        catalog: &catalog,
+        extensions: &extensions,
+        command: core.command_tool.as_ref(),
+    };
+    let known = Callee::find(&tools, tool_name);
     let shown = redact(&known.map_or(Value::Null, Callee::input_schema), &input);
     let mut entry = NewEntry {
         tool: tool_name.to_owned(),
@@ -206,12 +139,7 @@ pub async fn call(
         outcome: Outcome::DeniedRights,
         asked: false,
     };
-    let callee = grants::check(&agent.rights, &reach, &catalog, tool_name)
-        .map(Callee::Action)
-        .or_else(|| {
-            grants::check_extension_tool(&agent.rights, &tools, tool_name).map(Callee::Extension)
-        })
-        .or_else(|| command_tool::check(&agent.rights, command, tool_name).map(Callee::Command));
+    let callee = Callee::permitted(&tools, &agent.rights, &reach, tool_name);
     let Some(callee) = callee else {
         let result = if known.is_none() && seen {
             entry.outcome = Outcome::Unavailable;
@@ -319,27 +247,7 @@ fn question(
     target: Option<String>,
     shown: Value,
 ) -> CallQuestion {
-    let (action_id, titles, secret) = match callee {
-        Callee::Action(def) => (
-            def.action_id.clone(),
-            (&def.titles).into(),
-            def.scope == SECRET_SCOPE,
-        ),
-        Callee::Extension(tool) => {
-            let titles = tool.origin().map_or_else(
-                || CallTitles {
-                    de: String::new(),
-                    en: String::new(),
-                },
-                |origin| CallTitles {
-                    de: format!("{}: {}", origin.extension_name, origin.tool_title_de),
-                    en: format!("{}: {}", origin.extension_name, origin.tool_title_en),
-                },
-            );
-            (tool.name().to_owned(), titles, false)
-        }
-        Callee::Command(tool) => (tool.name().to_owned(), command_tool::titles(), false),
-    };
+    let (action_id, titles, secret) = callee.described();
     CallQuestion {
         agent_id: agent.id.to_string(),
         client_name: agent.client_name.clone(),
@@ -414,37 +322,6 @@ fn native_executor(core: &Core, def: &AgentActionDef) -> Option<Arc<dyn NativeEx
         .flatten()
 }
 
-/// A native executor's answer as the agent sees it; a refusal of the caller reads as missing
-/// rights.
-fn native_result(reply: Result<NativeReply, NativeError>) -> (CallToolResult, Outcome) {
-    match reply {
-        Ok(reply) => (CallToolResult::structured(reply.result), Outcome::Ok),
-        Err(error) if error.code == "forbidden_for_agents" => {
-            (not_allowed(), Outcome::DeniedRights)
-        }
-        Err(error) => {
-            // A native action that asks the user itself reports how that ended (spec 065).
-            let outcome = match error.code.as_str() {
-                "site_not_allowed" => Outcome::DeniedSite,
-                // The user stopped the agent's browser session (spec 065 FR-016).
-                "user_declined" | "stopped" => Outcome::DeniedUser,
-                "no_answer" => Outcome::NoAnswer,
-                "paused" => Outcome::Paused,
-                "not_allowed" => Outcome::DeniedRights,
-                _ => Outcome::Error,
-            };
-            (
-                error_result(
-                    &error.code,
-                    &error.message,
-                    error.field.map(|f| ("field", Value::String(f))),
-                ),
-                outcome,
-            )
-        }
-    }
-}
-
 /// Writes one log entry; a failed write only warns, the call has happened.
 async fn record(core: &Core, agent: Uuid, entry: &NewEntry) {
     let device = core.device;
@@ -456,39 +333,5 @@ async fn record(core: &Core, agent: Uuid, entry: &NewEntry) {
         .await
     {
         log::warn!("mcp server: could not write the agent log: {error}");
-    }
-}
-
-/// The runner's reply as the agent sees it (contracts/mcp-surface.md, "Ergebnisse"), and how the
-/// log names it.
-pub fn into_result(reply: ActionReply) -> (CallToolResult, Outcome) {
-    match reply {
-        ActionReply::Ok { result } => (CallToolResult::structured(result), Outcome::Ok),
-        ActionReply::NeedsChoice {
-            field,
-            message,
-            options,
-        } => {
-            let options = serde_json::to_value(options).unwrap_or(Value::Array(Vec::new()));
-            let mut body = json!({ "code": "needs_choice", "message": message, "field": field });
-            body["options"] = options;
-            // Nothing ran; the agent calls again with a choice.
-            (CallToolResult::structured_error(body), Outcome::Error)
-        }
-        ActionReply::Err {
-            code,
-            field,
-            message,
-        } => match code.as_str() {
-            // The runner refused the caller: the same answer as missing rights.
-            "forbidden_for_agents" | "unknown_action" => (not_allowed(), Outcome::DeniedRights),
-            "action_timeout" | "action_unavailable" | "tool_call_cancelled" => {
-                (unavailable(), Outcome::Unavailable)
-            }
-            _ => (
-                error_result(&code, &message, field.map(|f| ("field", Value::String(f)))),
-                Outcome::Error,
-            ),
-        },
     }
 }

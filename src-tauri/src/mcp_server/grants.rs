@@ -181,32 +181,10 @@ impl PasswordRights {
         };
         vec![PasswordGrant::new(action, scope)]
     }
-
-    /// The level and the scope tags of its row in `haex_mcp_agent_grants`; the tags are a JSON
-    /// array of tag names, none for every entry.
-    pub fn row(&self) -> (String, Option<String>) {
-        let tags = self
-            .tags
-            .as_ref()
-            .map(|tags| serde_json::Value::from(tags.clone()).to_string());
-        (self.level.as_str().to_owned(), tags)
-    }
-
-    /// The group back from its row; unreadable tags must not widen it to every entry.
-    pub fn from_row(level: &str, tags: Option<&str>) -> Option<Self> {
-        let tags = match tags.map(serde_json::from_str::<Vec<String>>) {
-            None => None,
-            Some(Ok(tags)) => Some(tags),
-            Some(Err(_)) => return None,
-        };
-        Some(Self {
-            level: PasswordLevel::parse(level)?,
-            tags,
-        })
-    }
 }
 
 /// The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
+/// `grant_rows.rs` stores them.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -391,61 +369,6 @@ pub fn check<'a>(
         .iter()
         .find(|def| def.tool_name == tool_name)
         .filter(|def| covers(rights, reach, def))
-}
-
-/// One row of `haex_mcp_agent_grants` in the group `browser` (spec 065 data-model.md): key, level
-/// and scope tags.
-pub type BrowserRow = (String, String, Option<String>);
-
-/// The key of the row that turns the group on.
-const BROWSER_ON: &str = "";
-/// The key of the row that allows the user's own browser.
-const USER_BROWSER: &str = "user-browser";
-/// The level of the two switch rows.
-const ON: &str = "on";
-/// The scope tags of a website whose credential fill is remembered.
-const FILL_TAGS: &str = r#"["fill"]"#;
-
-/// The rows the group `browser` is stored as.
-pub fn browser_rows(browser: &BrowserRights) -> Vec<BrowserRow> {
-    let mut rows = vec![(BROWSER_ON.to_owned(), ON.to_owned(), None)];
-    if browser.user_browser {
-        rows.push((USER_BROWSER.to_owned(), ON.to_owned(), None));
-    }
-    rows.extend(browser.sites.iter().map(|(site, grant)| {
-        let tags = grant.fill_remembered.then(|| FILL_TAGS.to_owned());
-        (site.to_string(), grant.level.as_str().to_owned(), tags)
-    }));
-    rows
-}
-
-/// The group from its rows; `None` without the row that turns it on (021 FR-008). A row this build
-/// cannot read counts as no right.
-pub fn browser_from_rows(rows: &[BrowserRow]) -> Option<BrowserRights> {
-    rows.iter()
-        .find(|(key, level, _)| key == BROWSER_ON && level == ON)?;
-    let mut browser = BrowserRights::default();
-    for (key, level, tags) in rows {
-        if key == BROWSER_ON {
-            continue;
-        }
-        if key == USER_BROWSER {
-            browser.user_browser = level == ON;
-            continue;
-        }
-        let (Ok(site), Some(level)) = (Site::parse(key), SiteLevel::parse(level)) else {
-            continue;
-        };
-        let fill_remembered = level == SiteLevel::Operate && tags.as_deref() == Some(FILL_TAGS);
-        browser.sites.insert(
-            site,
-            SiteGrant {
-                level,
-                fill_remembered,
-            },
-        );
-    }
-    Some(browser)
 }
 
 /// Whether `rights` cover a tool of an extension (FR-018); holzi's own tools have no origin and

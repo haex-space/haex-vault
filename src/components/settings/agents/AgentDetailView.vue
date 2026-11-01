@@ -7,13 +7,12 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import {
-  levelsOf,
+  passwordsComplete,
+  rightsDraftOf,
   rightsOf,
-  type Levels,
-  type PasswordRights,
+  type RightsDraft,
 } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
-import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { AgentView } from '~/types/bindings/AgentView'
 
 const { t } = useI18n()
@@ -26,11 +25,7 @@ const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 
 const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
-const levels = ref<Levels>(levelsOf(null))
-const browser = ref<BrowserRights | null>(null)
-const extensions = ref<string[]>([])
-const passwords = ref<PasswordRights | null>(null)
-const commands = ref(false)
+const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
 const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
@@ -43,17 +38,17 @@ async function reloadAsync() {
     agent.value = await invoke<AgentView>('mcp_agent_get', {
       args: { agentId: agentId.value },
     })
-    levels.value = levelsOf(agent.value.rights)
-    browser.value = agent.value.rights.browser ?? null
-    extensions.value = agent.value.rights.extensions ?? []
-    commands.value = agent.value.rights.commands ?? false
-    if (pendingRights === 0 || !sameAgent) {
-      // Keep an empty tag draft editable after its save revoked access. A failed save restores
-      // the actual grant, and moving to another agent always resets the draft.
-      const incomplete = passwords.value?.tags?.every((tag) => !tag.trim())
-      if (!sameAgent || !incomplete || agent.value.rights.passwords)
-        passwords.value = agent.value.rights.passwords ?? null
-    }
+    const stored = rightsDraftOf(agent.value.rights)
+    // Keep an empty tag draft editable after its save revoked access, and keep the password draft
+    // while saves are queued. A failed save restores the actual grant, and moving to another agent
+    // always resets the draft.
+    const keepPasswords =
+      sameAgent &&
+      (pendingRights > 0 ||
+        (!passwordsComplete(draft.value.passwords) && !stored.passwords))
+    draft.value = keepPasswords
+      ? { ...stored, passwords: draft.value.passwords }
+      : stored
   } catch (error) {
     agent.value = null
     failure.value = errString(error)
@@ -73,13 +68,7 @@ async function runAsync(action: () => Promise<unknown>) {
 }
 
 function saveRights() {
-  const rights = rightsOf(
-    levels.value,
-    browser.value,
-    extensions.value,
-    passwords.value,
-    commands.value,
-  )
+  const rights = rightsOf(draft.value)
   const agentIdAtChange = agentId.value
   pendingRights += 1
   rightsSaveQueue = rightsSaveQueue.then(async () => {
@@ -89,32 +78,9 @@ function saveRights() {
   })
 }
 
-function onLevels(next: Levels) {
-  levels.value = next
-  saveRights()
-}
-
-/** Spec 065: the websites of the rights group "Browser", saved with the other rights. */
-function onBrowser(next: BrowserRights | null) {
-  browser.value = next
-  saveRights()
-}
-
-/** Spec 021 US4: the extensions whose tools the agent sees, saved with the other rights. */
-function onExtensions(next: string[]) {
-  extensions.value = next
-  saveRights()
-}
-
-/** Spec 021 US5: the group `passwords`, saved with the other rights. */
-function onPasswords(next: PasswordRights | null) {
-  passwords.value = next
-  saveRights()
-}
-
-/** Spec 021 US5: the group "Befehle ausführen", saved with the other rights. */
-function onCommands(next: boolean) {
-  commands.value = next
+/** Any rights group changed: saved with the others at once. */
+function onDraft(next: RightsDraft) {
+  draft.value = next
   saveRights()
 }
 
@@ -171,30 +137,10 @@ watch(() => store.changes, reloadAsync)
         />
       </SettingsGroup>
 
-      <AgentsRightsFields
-        :model-value="levels"
-        @update:model-value="onLevels"
-      />
-
-      <AgentsBrowserRightsFields
-        :model-value="browser"
-        @update:model-value="onBrowser"
-      />
-
-      <AgentsExtensionRightsFields
-        :model-value="extensions"
-        @update:model-value="onExtensions"
-      />
-
-      <AgentsPasswordRightsFields
-        :key="agent.id"
-        :model-value="passwords"
-        @update:model-value="onPasswords"
-      />
-
-      <AgentsCommandRightsFields
-        :model-value="commands"
-        @update:model-value="onCommands"
+      <AgentsRightsEditor
+        :model-value="draft"
+        :reset-key="agent.id"
+        @update:model-value="onDraft"
       />
 
       <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->
