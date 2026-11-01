@@ -307,13 +307,22 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             // Android and iOS do not provide a home directory. mistralrs' GGUF tokenizer loader
-            // uses hf-hub's default cache, which panics without one; give it a writable app-local
-            // cache before any model can be loaded, unless the operator configured HF_HOME.
+            // uses hf-hub's default cache (which ignores HF_HOME), so provide a writable app-local
+            // home before any model can be loaded. Also configure HF_HOME for consumers that honor it.
             #[cfg(any(target_os = "android", target_os = "ios"))]
-            if std::env::var_os("HF_HOME").is_none() {
-                let hf_home = app.path().app_cache_dir()?.join("huggingface");
-                std::fs::create_dir_all(&hf_home)?;
-                std::env::set_var("HF_HOME", hf_home);
+            {
+                let app_cache_dir = app.path().app_cache_dir()?;
+                std::fs::create_dir_all(&app_cache_dir)?;
+
+                if std::env::var_os("HOME").is_none() {
+                    std::env::set_var("HOME", &app_cache_dir);
+                }
+
+                if std::env::var_os("HF_HOME").is_none() {
+                    let hf_home = app_cache_dir.join("huggingface");
+                    std::fs::create_dir_all(&hf_home)?;
+                    std::env::set_var("HF_HOME", hf_home);
+                }
             }
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
