@@ -4,7 +4,7 @@ import type { SiteGrant } from "./SiteGrant";
 /**
  * The rights group `browser` (spec 065 data-model.md). Present means on.
  */
-export type BrowserRights = { 
+export type BrowserRights = {
 /**
  * Handed-over tabs in the user's own browser (US6).
  */
