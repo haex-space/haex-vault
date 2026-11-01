@@ -19,11 +19,13 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
   an encrypted gift wrap to every device of the contact's Visitenkarte and is stored on the contact's
   Nostr-Relays until the contact's vault opens and picks it up. The same path is used when the contact
   is online.
-- Q: How are files exchanged? → A: As a copy: afterwards the file is with the recipient. When both sides
-  are online the file goes directly between the devices; otherwise the sender puts it, encrypted, on a
-  Blossom-Server and the message carries where it is and the key to open it. The user chooses the
-  Blossom-Server in the settings (public servers preset); the file is removed from it once it was picked
-  up.
+- Q: How are files exchanged? → A: As a copy: afterwards the file is with the recipient. The sender puts
+  it, encrypted, on a Blossom-Server and the message carries where it is and the key to open it. The
+  user chooses the Blossom-Server in the settings (public servers preset); the file is removed from it
+  once it was picked up. _Changed 2026-11-01 (operator):_ files go only this way, also when both sides
+  are online; there is no direct transfer between the devices ("können wir nicht den nostr weg gehen,
+  um dateien und nachrichten austauschen zu können?"). Messages and files use only Nostr-Relays and
+  Blossom-Servers.
 - Q: Groups now or later? → A: Now. Group conversations with a member list, adding, leaving and
   delivery to every member belong to this spec.
 - Q: How do the agent and contact conversations relate? → A: One chat app and one conversation list for
@@ -69,15 +71,14 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
   change the agent's turn; it gives agent conversations their place next to contact conversations.
   Both specs keep "a conversation is a chat thread".
 - **Spec 024** (own-device sync): conversations and messages are vault data and appear on all own
-  devices. Contact messages additionally reach every own device directly (FR-016), so own devices that
+  devices. Contact messages additionally reach every own device as Nostr wraps (FR-016), so own devices that
   are never online at the same time still show the same conversation.
 - **Spec 051** (address book): contacts, groups of contacts and blocking. Its Nostr invitation contract
   (US7, ADR 0014) fixes the layers this spec uses for messages: gift wrap to a device key, seal signed
   by the sender's device key, unsigned inner message. Its area "Von Unbekannten" is this spec's
   requests (FR-040). 051 US7 itself stays with spec 027/028.
 - **Spec 056** (file shares): stays the way to give live access to folders and big files. A file too
-  large for the chat (FR-034) points the user there. Received chat files are read by the user's other
-  own devices through 056's own-device access (FR-033).
+  large for the chat (FR-034) points the user there.
 - **Spec 057** (extension peer channels): unrelated channels between extension frames; no change.
 - **Spec 060** (contact sharing): this is the "later messenger spec" 060 names. The share dialog gets
   the target "Im Chat senden" (US6), and a contact passed on in a chat carries its photo.
@@ -166,39 +167,40 @@ see the message on B and the state change on A; answer from B and see it on A.
 
 ### User Story 3 - Send files to a contact (Priority: P1)
 
-Anna attaches three photos and a PDF to a message to Ben. Ben is online: the files arrive directly at
-once. A week later Ben is offline; Anna sends a document anyway. HaexVault puts it encrypted on Anna's
-Blossom-Server; when Ben opens his vault, the document is downloaded and the copy on the server is
-removed. Ben opens the files in the chat or saves them wherever he wants.
+Anna attaches three photos and a PDF to a message to Ben. HaexVault puts them encrypted on Anna's
+Blossom-Server and sends the message. Ben is online: the files arrive within seconds. A week later Ben
+is offline; Anna sends a document anyway. When Ben opens his vault, the document is downloaded and,
+once all his devices have it, the copy on the server is removed. Ben opens the files in the chat or
+saves them wherever he wants.
 
 **Why this priority**: file exchange is part of the request and the main gap today: spec 056 only gives
 live access while both are online.
 
-**Independent Test**: Send a file while both are online and see it arrive directly; send one while the
-recipient is closed, open the recipient later and see it arrive; check the file is gone from the
-Blossom-Server afterwards.
+**Independent Test**: Send a file while both are online and see it arrive; send one while the recipient
+is closed, open the recipient later and see it arrive; check the file is gone from the Blossom-Server
+afterwards.
 
 **Acceptance Scenarios**:
 
-1. **Given** both vaults are open and reachable, **When** Anna sends a file, **Then** it goes directly
-   between the devices and nothing is put on a Blossom-Server.
-2. **Given** Ben's vault is closed or not reachable directly, **When** Anna sends a file, **Then** it is
-   put encrypted on Anna's chosen Blossom-Server and Ben's device downloads it when it receives the
-   message.
-3. **Given** a file was put on a Blossom-Server, **When** every recipient vault confirmed it has the
-   file, **Then** the sender's vault removes it from the server.
+1. **Given** both vaults are open, **When** Anna sends a file, **Then** it is put encrypted on Anna's
+   chosen Blossom-Server, and Ben's devices download it as soon as they receive the message.
+2. **Given** Ben's vault is closed, **When** Anna sends a file, **Then** the same happens once Ben opens
+   his vault, also if Anna's vault is closed by then.
+3. **Given** a file was put on a Blossom-Server, **When** every device of every recipient and every
+   other own device of Anna confirmed it has the file, **Then** Anna's vault removes it from the
+   server.
 4. **Given** a received file, **When** Ben taps it, **Then** it opens in HaexVault where it can show the
-   type (images, text, PDF as in spec 058) or in the system app; "Speichern unter" copies it to a place
+   type (images, text, PDF, with the file viewer of the file browser) or in the system app; "Speichern unter" copies it to a place
    of his choice.
 5. **Given** a file is still being sent or received, **When** Anna or Ben looks at the message, **Then**
    it shows progress; a failed transfer shows the reason and can be retried.
 6. **Given** a file larger than the chat accepts (FR-034), **When** Anna attaches it, **Then** HaexVault
    refuses it before sending and offers to share it as a file share (spec 056) instead.
-7. **Given** no Blossom-Server is chosen, **When** Anna sends a file to a contact who is offline,
-   **Then** the message waits for a direct transfer and tells Anna that a Blossom-Server in the
-   settings would deliver it while the contact is offline.
+7. **Given** no Blossom-Server is chosen ("Keiner"), **When** Anna wants to attach a file, **Then**
+   attaching is not offered and a hint leads to the chat settings; text and contacts can still be sent.
 8. **Given** Ben received a file on his laptop, **When** he opens the conversation on his phone,
-   **Then** the phone can open the file too.
+   **Then** the phone has downloaded it too (or downloads it on tap above the automatic limit) while it
+   is on the Blossom-Server.
 
 ---
 
@@ -348,8 +350,10 @@ where her files go and what others see.
 
 1. **Given** the category "Chat", **When** Anna picks a Blossom-Server from the list or enters an
    address, **Then** it is used for the next file and saved at once (no save button).
-2. **Given** a Blossom-Server that needs a login, **When** Anna enters it, **Then** the credentials are
-   picked from or saved into the password manager (spec 034/052), never stored elsewhere.
+2. **Given** a Blossom-Server that only accepts registered keys (Blossom has no passwords; a paid plan
+   registers a Nostr key), **When** Anna creates a Blossom upload key, **Then** HaexVault stores it as an
+   entry of the password manager (spec 034/052), never elsewhere, and shows its public key to register
+   at the server.
 3. **Given** read receipts are off, **When** Anna reads a message, **Then** the sender never sees _read_
    for it, and Anna does not see _read_ for her own messages either.
 4. **Given** an automatic download limit, **When** a larger file arrives, **Then** it shows with its
@@ -451,9 +455,8 @@ where her files go and what others see.
 - **FR-017**: A message that cannot be handed to any Nostr-Relay MUST stay _waiting_ and be sent
   automatically when one is reachable, also after a restart; after the attempts end without success it
   is _failed_ with the reason and "Erneut senden".
-- **FR-018**: When both sides are online and directly reachable, HaexVault MAY additionally deliver the
-  message directly between the devices to cut the delay; the message MUST still be identical and appear
-  once.
+- **FR-018**: Messages and files MUST travel only through Nostr-Relays and Blossom-Servers; there is no
+  direct connection between the devices of different vaults for the chat (Clarifications 2026-11-01).
 - **FR-019**: A device that stored a message MUST confirm it to the sender (a delivery receipt on the
   same path); the sender then shows _delivered_ for that recipient. No receipt of any kind is ever sent
   to a blocked vault, and no read receipt for a request not yet accepted (FR-043).
@@ -478,27 +481,26 @@ where her files go and what others see.
 - **FR-030**: A file attached to a message MUST reach every recipient as a copy that stays with the
   recipient, independent of whether the sender is still online.
 - **FR-031**: Received files MUST be kept in the vault's chat file folder, an encrypted folder of spec
-  048, on the device that received them; "Öffnen" uses the viewer of spec 058 or the system app;
+  048, on each device that downloaded them; "Öffnen" uses the file viewer or the system app;
   "Speichern unter" writes a plain copy to a place the user picks.
-- **FR-032**: When the recipient's device is directly reachable, the file MUST go directly between the
-  devices. Otherwise the sender MUST encrypt it with a key of its own, put it on the chosen
+- **FR-032**: The sender MUST encrypt every file with a key of its own, put it on the chosen
   Blossom-Server and send the address, the file's hash, size, type, name and the key inside the message;
   the recipient MUST check the hash before keeping the file.
-- **FR-033**: Own devices that did not receive the file themselves MUST be able to open it, from the
-  Blossom-Server while it is still there or from the own device that has it (spec 056 own-device
-  access).
+- **FR-033**: Every device that receives the message (each device of each recipient and each other own
+  device of the sender) MUST download the file itself from the Blossom-Server, subject to FR-036. A
+  device added to a vault after the file was removed from the server does not get it.
 - **FR-034**: The chat MUST accept files up to 100 MB each, and the Blossom-Server's own limit when it is
   lower; a larger file is refused before sending and the user is offered a file share (spec 056)
   instead.
-- **FR-035**: Once every recipient vault confirmed it has the file, the sender's vault MUST remove it
-  from the Blossom-Server. A file not confirmed within 30 days MUST be removed then; recipients that
+- **FR-035**: Once every device that received the message confirmed it has the file, the sender's vault
+  MUST remove it from the Blossom-Server. A file not confirmed within 30 days MUST be removed then; recipients that
   have not downloaded it see "Datei nicht mehr verfügbar".
 - **FR-036**: Files above the automatic download limit (setting, default 25 MB; Android on mobile data:
   default only files up to 5 MB) MUST be fetched only on tap.
 - **FR-037**: Sending and receiving a file MUST show progress and, on failure, the reason and a retry; a
   transfer interrupted by closing the app MUST resume or restart after the next opening.
-- **FR-038**: Without a chosen Blossom-Server, files MUST still be sent directly when possible; when not,
-  the file waits for a direct transfer with the hint of US3 scenario 7.
+- **FR-038**: Without a chosen Blossom-Server, attaching files MUST NOT be offered (US3 scenario 7); a
+  preset public Blossom-Server is chosen by default.
 
 **Requests and blocking**
 
@@ -561,7 +563,8 @@ where her files go and what others see.
 - **FR-080**: The settings app MUST have a category "Chat" with: Blossom-Server (preset list of public
   servers plus own address, or none), read receipts (FR-024), automatic download limit (FR-036), and
   notifications on/off. Every change is saved on selection.
-- **FR-081**: Login data of a Blossom-Server MUST come from or go into the password manager.
+- **FR-081**: A Blossom upload key (the credential of a Blossom-Server that only accepts registered keys)
+  MUST come from or go into the password manager.
 - **FR-082**: The Nostr-Relays used for the chat MUST be the vault's Nostr-Relays as configured today and
   listed on the own Visitenkarte; changing them in the settings MUST update the own Visitenkarte the next
   time it is shared (spec 060).
@@ -576,8 +579,8 @@ where her files go and what others see.
 - **Message**: id, conversation, sender vault and device, sender's time, arrival time, text, attachments,
   kind (text, membership note, contact card), and for own messages the delivery state per recipient.
   Agent conversation messages keep their existing roles and fields.
-- **Attachment**: kind (file or contact); for files name, type, size, hash, where it is (direct, on a
-  Blossom-Server with address and key, received and kept), transfer state.
+- **Attachment**: kind (file or contact); for files name, type, size, hash, where it is (on a
+  Blossom-Server with address and key, kept on this device), transfer state.
 - **Outbox entry**: a message or file still to be sent, with attempts and last error, kept across
   restarts.
 - **Chat settings**: Blossom-Server, read receipts, automatic download limits, notifications.
