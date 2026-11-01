@@ -8,7 +8,7 @@ use nostr::event::{Event, Kind};
 use nostr_sdk::client::ClientNotification;
 use tokio::sync::mpsc;
 
-use super::{now_ms, Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH, WRITE_RELAY_IDLE};
+use super::{now_ms, Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH};
 use crate::chat::peer::session::Session;
 use crate::chat::peer::verify;
 
@@ -47,7 +47,6 @@ impl Delivery {
         let (mut incoming, forward) = self.forward_wraps();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
-        let mut idle_tick = tokio::time::interval(WRITE_RELAY_IDLE / 10);
         let mut catch_up_tick =
             tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
         let prune_now = now_ms();
@@ -68,10 +67,6 @@ impl Delivery {
                 _ = outbox_tick.tick() => self.pump().await,
                 _ = receipt_tick.tick() => self.flush_receipts().await,
                 _ = catch_up_tick.tick() => self.catch_up().await,
-                _ = idle_tick.tick() => {
-                    self.drop_idle_relays().await;
-                    Ok(())
-                }
                 () = session.wake.notified() => self.reconnect().await,
                 received = incoming.recv() => {
                     let Some((relay, event)) = received else { break };

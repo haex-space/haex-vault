@@ -135,7 +135,7 @@ impl ChatDevice {
     pub(crate) async fn start(&self) {
         let relays = self
             .db
-            .read_blocking(|r| Ok(super::targets::own_relays(r)?))
+            .read_blocking(|r| Ok(super::targets::listening_relays(r)?))
             .expect("relays");
         let token = CancellationToken::new();
         let old = std::mem::replace(

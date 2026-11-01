@@ -59,13 +59,13 @@ the vault session from the same hooks as sync (`instances/open.rs:149-174`, `cre
 under the vault gate's tracker and cancel token. It:
 
 - connects to the vault's effective Nostr-Relays (`ServerConfig::effective_nostr_relays`,
-  servers.rs:91) for receiving;
+  servers.rs:91) and the stored contacts' Nostr-Relays for receiving; listening to contacts' relays
+  makes the fallback to a sender's own relays work when the recipient card names none, and card
+  changes update subscriptions on catch-up;
 - subscribes `{"kinds":[1059],"#p":[own device key]}` with `since` = last seen `created_at` − 48 h
   per relay (kept in `chat_relay_cursors_no_sync`);
-- adds a contact's Nostr-Relays (from `contacts::card::received::addresses`, received.rs:180, or from a
-  group member's stored card) as write-only relays on demand and publishes with `send_event_to`;
-  idle write-only relays are removed after 10 minutes (`ponytail:` fixed idle timeout, upgrade:
-  LRU with a cap);
+- publishes to a contact's Nostr-Relays (from `contacts::card::received::addresses`, received.rs:180,
+  or from a group member's stored card) with `send_event_to`;
 - reacts to `wakeups.relays` / `network` (spec 043 app resume) by reconnecting and resubscribing;
   the waiting outbox rows are tried again at once;
 - reads the client's notifications in a task of its own that hands wraps on through an unbounded
