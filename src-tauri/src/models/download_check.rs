@@ -19,6 +19,8 @@ pub enum DownloadTarget {
     Catalog { id: String },
     /// A speech recognition model of its catalog.
     Stt { id: String },
+    /// A speech model of the assistant's catalog (spec 066).
+    Tts { id: String },
     /// A file whose size its source names (the HuggingFace file picker); absent when it names none.
     #[serde(rename_all = "camelCase")]
     File {
@@ -73,6 +75,7 @@ fn size_of(target: &DownloadTarget) -> Result<Option<u64>> {
         DownloadTarget::Stt { id } => crate::stt::catalog::get(id)?
             .map(|entry| Some(entry.approx_size_bytes))
             .ok_or_else(|| HolziError::CatalogEntryNotFound { id: id.clone() }),
+        DownloadTarget::Tts { id } => Ok(Some(crate::tts::catalog::get(id)?.approx_size_bytes)),
         DownloadTarget::File { size_bytes } => Ok(*size_bytes),
     }
 }

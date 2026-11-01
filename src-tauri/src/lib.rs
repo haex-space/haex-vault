@@ -213,7 +213,8 @@ use stt::commands::{
 };
 use tauri::{Emitter, Manager};
 use tts::commands::{
-    download_tts_voice, list_installed_tts_voices, list_tts_catalog, tts_voices_list,
+    assistant_tts_preview, download_tts_voice, list_installed_tts_voices, list_tts_catalog,
+    tts_voices_list,
 };
 use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
@@ -853,6 +854,7 @@ pub fn run() {
             list_tts_catalog,
             list_installed_tts_voices,
             tts_voices_list,
+            assistant_tts_preview,
             download_tts_voice,
             assistant::assets::assistant_readiness,
             assistant::assets::download_assistant_assets,

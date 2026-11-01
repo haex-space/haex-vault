@@ -28,10 +28,7 @@ use crate::vault_gate::VaultGate;
 use super::files;
 use super::TtsError;
 
-/// Range and default of the device preference `assistant.speechRate` (data-model.md).
-pub const RATE_MIN: f32 = 0.75;
-pub const RATE_MAX: f32 = 1.5;
-pub const RATE_DEFAULT: f32 = 1.0;
+pub use super::{RATE_DEFAULT, RATE_MAX, RATE_MIN};
 /// Reference embeddings sherpa keeps, one per voice used recently.
 const VOICE_CACHE: i32 = 8;
 /// Pocket samples its output; 0.7 is Kyutai's default and what the spike measured.

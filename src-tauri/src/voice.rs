@@ -23,6 +23,7 @@ mod imp {
     use tauri::{AppHandle, Emitter, Manager, State};
     use tokio::sync::watch;
     use tokio::sync::Mutex as AsyncMutex;
+    use tokio_util::sync::CancellationToken;
 
     use crate::audio::stream::StreamSlot;
     use crate::error::{HolziError, Result};
@@ -61,6 +62,11 @@ mod imp {
         adapter: AsyncMutex<Option<Arc<dyn crate::stt::SttAdapter>>>,
         /// The assistant's continuous audio stream while it runs (spec 066 T020).
         stream: StreamSlot,
+        /// The speech model last spoken with and its catalog id (spec 066 T028), kept warm like
+        /// the STT adapter: loading it takes about a second.
+        speech: AsyncMutex<Option<(String, Arc<crate::tts::local::PocketModel>)>>,
+        /// Stops the voice sample that is playing, if any.
+        preview: Mutex<Option<CancellationToken>>,
     }
 
     impl VoiceState {
@@ -69,7 +75,51 @@ mod imp {
                 slot: Mutex::new(VoiceSlot::Idle),
                 adapter: AsyncMutex::new(None),
                 stream: StreamSlot::default(),
+                speech: AsyncMutex::new(None),
+                preview: Mutex::new(None),
             }
+        }
+
+        /// The speech model `id` in `dir`, loaded on first use and kept until another model is
+        /// asked for or the vault closes.
+        pub(crate) async fn speech_model(
+            &self,
+            id: &str,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<crate::tts::local::PocketModel>> {
+            let mut slot = self.speech.lock().await;
+            if let Some((loaded, model)) = &*slot {
+                if loaded == id {
+                    return Ok(Arc::clone(model));
+                }
+            }
+            // Free the old model before the new one takes its memory.
+            *slot = None;
+            let model = gate
+                .spawn_blocking(move || crate::tts::local::PocketModel::load(&dir))?
+                .await
+                .map_err(|e| HolziError::SpeechFailed {
+                    reason: format!("load the speech model: {e}"),
+                })??;
+            let model = Arc::new(model);
+            *slot = Some((id.to_owned(), Arc::clone(&model)));
+            Ok(model)
+        }
+
+        /// Stops the voice sample that is playing and returns the token of the next one, a child
+        /// of `closing` so a vault close stops it too.
+        pub(crate) fn begin_preview(&self, closing: &CancellationToken) -> CancellationToken {
+            let token = closing.child_token();
+            let previous = self
+                .preview
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .replace(token.clone());
+            if let Some(previous) = previous {
+                previous.cancel();
+            }
+            token
         }
 
         /// Clears the cached STT adapter so the next
@@ -98,6 +148,7 @@ mod imp {
             self.cancel_recording();
             self.stream.stop();
             self.invalidate_stt_cache().await;
+            *self.speech.lock().await = None;
         }
 
         /// Cancels an active capture synchronously during close phase 1, so no microphone stream

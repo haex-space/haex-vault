@@ -591,7 +591,7 @@
     "groups": {
       "chat": "Chat-Modell",
       "local": "Lokale Modelle",
-      "speech": "Spracheingabe",
+      "speech": "Sprache",
       "agents": "Agenten-Rechte"
     },
     "locations": {
@@ -655,7 +655,12 @@
         "speech": {
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
-          "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT"
+          "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT",
+          "voice": {
+            "title": "Stimme",
+            "description": "Wie der Sprachassistent klingt, für jede Sprache.",
+            "keywords": "Stimme Sprachausgabe Vorlesen Sprachassistent TTS Sprechgeschwindigkeit Probe anhören"
+          }
         },
         "providers": {
           "title": "Abo verbinden",
@@ -1454,6 +1459,42 @@
       "depth": "Läufe je Regel",
       "hint": "Wie viele Läufe das Protokoll jeder Sync-Regel auf diesem Gerät behält, 0 bis 100. Bei 0 gibt es kein Protokoll.",
       "invalid": "Eine ganze Zahl von 0 bis 100."
+    },
+    "assistant": {
+      "labels": {
+        "enabled": "Sprachassistent",
+        "muted": "Stummgeschaltet",
+        "wakeWord": "Wake Word",
+        "wakeWordCustom": "Eigenes Wake Word",
+        "sensitivity": "Empfindlichkeit",
+        "pauseMs": "Pause bis zur Antwort",
+        "followUpSecs": "Zeit für Rückfragen",
+        "continueMins": "Gespräch fortsetzen",
+        "modelId": "Modell für Gespräche",
+        "voice": "Stimme",
+        "speechRate": "Sprechgeschwindigkeit",
+        "ttsProvider": "Sprachdienst",
+        "tonesEnabled": "Töne",
+        "tonesVolume": "Lautstärke der Töne",
+        "headphones": "Kopfhörer",
+        "bubblePosition": "Position der Blase",
+        "noticeShown": "Hinweis gezeigt"
+      }
+    },
+    "voice": {
+      "rateValue": "{rate}×",
+      "default": "Standardstimme",
+      "preview": "Probe",
+      "previewOf": "Probe von {name}",
+      "previewFailed": "Probe fehlgeschlagen: {reason}",
+      "saved": "Gespeichert.",
+      "saveFailed": "Nicht gespeichert: {reason}",
+      "model": {
+        "installed": "Stimmenmodell geladen.",
+        "missing": "Stimmenmodell noch nicht geladen · {size} · {fit}",
+        "downloading": "Lade Stimmenmodell …",
+        "name": "Stimmenmodell {language}"
+      }
     }
   },
   "models": {

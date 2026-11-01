@@ -3,4 +3,4 @@
 /**
  * The model a download would load.
  */
-export type DownloadTarget = { "kind": "catalog", id: string, } | { "kind": "stt", id: string, } | { "kind": "file", sizeBytes: number | null, };
+export type DownloadTarget = { "kind": "catalog", id: string, } | { "kind": "stt", id: string, } | { "kind": "tts", id: string, } | { "kind": "file", sizeBytes: number | null, };

@@ -4,9 +4,10 @@ use std::collections::HashSet;
 
 use super::commands::{voice_options, VoiceKind};
 use super::voices::{
-    audio, audio_files, builtin, decode_wav, default_voice, resolve, VoiceLicense, VoiceRef,
+    audio, audio_files, builtin, decode_wav, default_voice, preview_voice, resolve, VoiceLicense,
+    VoiceRef,
 };
-use super::LANGUAGES;
+use super::{checked_rate, TtsError, LANGUAGES, RATE_DEFAULT, RATE_MAX, RATE_MIN};
 use crate::hardware::{Backend, HardwareInfo};
 
 const README: &str = include_str!("voices/README.md");
@@ -179,6 +180,34 @@ fn a_preference_resolves_to_its_voice_or_the_language_default() {
 }
 
 #[test]
+fn a_sample_is_asked_for_a_listed_voice_at_a_speaking_rate() {
+    let lena = preview_voice("builtin:de-lena").expect("listed voice");
+    assert_eq!(lena.language, "de");
+    for unknown in ["builtin:gone", "garbage", "", "builtin:"] {
+        assert!(
+            matches!(preview_voice(unknown), Err(TtsError::Invalid { .. })),
+            "{unknown:?}"
+        );
+    }
+    for later in ["clone:7f3a", "model:vctk#p225"] {
+        assert!(
+            matches!(preview_voice(later), Err(TtsError::Unavailable { .. })),
+            "{later}"
+        );
+    }
+
+    for rate in [RATE_MIN, RATE_DEFAULT, RATE_MAX] {
+        assert_eq!(checked_rate(rate).expect("in range"), rate);
+    }
+    for rate in [0.5, 1.51, 0.0, -1.0, f32::NAN, f32::INFINITY] {
+        assert!(
+            matches!(checked_rate(rate), Err(TtsError::Invalid { .. })),
+            "{rate}"
+        );
+    }
+}
+
+#[test]
 fn every_voice_is_offered_with_the_model_it_needs() {
     let all = builtin().expect("parses");
     let installed = vec!["pocket-de".to_owned()];
@@ -215,45 +244,20 @@ fn every_voice_is_offered_with_the_model_it_needs() {
     assert_eq!(wire["kind"], "builtin");
 }
 
-/// Listening check after changing the voices: every built-in voice says two assistant sentences
-/// with the model of its language. `HOLZI_TTS_MODELS` holds one model folder per language
+/// Listening check after changing the voices: every built-in voice says its sample (the sentences
+/// of the settings page's "Probe") with the model of its language. `HOLZI_TTS_MODELS` holds one model folder per language
 /// (`de`, `en`, `fr`, …, files as `tts::files` names them); the WAVs go to `HOLZI_TTS_SAVE_DIR`.
 #[cfg(feature = "voice")]
 #[test]
 #[ignore = "needs the six speech models; listening check"]
 fn builtin_voices_speak() {
     use super::local::{Engine, PocketModel};
+    use super::preview::sample;
     use super::voices::reference;
     use std::path::PathBuf;
 
     let var = |key: &str| PathBuf::from(std::env::var(key).expect(key));
     let (models, save) = (var("HOLZI_TTS_MODELS"), var("HOLZI_TTS_SAVE_DIR"));
-    let sentences = |language: &str| match language {
-        "de" => [
-            "Du hast morgen um halb zehn einen Termin beim Zahnarzt.",
-            "Soll ich dich eine Stunde vorher erinnern?",
-        ],
-        "en" => [
-            "You have a dentist appointment tomorrow at half past nine.",
-            "Should I remind you an hour before?",
-        ],
-        "fr" => [
-            "Tu as rendez-vous chez le dentiste demain à neuf heures et demie.",
-            "Veux-tu que je te le rappelle une heure avant ?",
-        ],
-        "es" => [
-            "Mañana a las nueve y media tienes cita con el dentista.",
-            "¿Quieres que te lo recuerde una hora antes?",
-        ],
-        "it" => [
-            "Domani alle nove e mezza hai un appuntamento dal dentista.",
-            "Vuoi che te lo ricordi un'ora prima?",
-        ],
-        _ => [
-            "Amanhã às nove e meia você tem consulta no dentista.",
-            "Quer que eu te lembre uma hora antes?",
-        ],
-    };
     for language in LANGUAGES {
         let model = PocketModel::load(&models.join(language)).expect("model loads");
         for voice in builtin()
@@ -263,7 +267,7 @@ fn builtin_voices_speak() {
         {
             let reference = reference(voice).expect("reference");
             let mut samples = Vec::new();
-            for sentence in sentences(language) {
+            for sentence in sample(language) {
                 samples.extend(model.generate(sentence, &reference, 1.0).expect("speaks"));
                 samples.extend(std::iter::repeat_n(
                     0.0,
