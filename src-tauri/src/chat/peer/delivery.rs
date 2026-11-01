@@ -16,7 +16,7 @@ use nostr::filter::Filter;
 use nostr::types::Timestamp;
 use nostr_sdk::client::{Client, ClientNotification};
 use nostr_sdk::relay::RelayCapabilities;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 
 use super::outbox::{self, Attempt, Entry, FailReason};
@@ -43,6 +43,8 @@ const NOTIFICATION_CHANNEL: NonZeroUsize = match NonZeroUsize::new(16_384) {
     Some(size) => size,
     None => unreachable!(),
 };
+/// New messages the notifications may fall behind by before they skip some.
+const ARRIVALS: usize = 256;
 /// The milliseconds since the Unix epoch.
 pub fn now_ms() -> i64 {
     crate::passwords::clock::unix_millis(std::time::SystemTime::now())
@@ -59,6 +61,8 @@ pub struct Delivery {
     receipts: Mutex<BTreeMap<String, Vec<String>>>,
     /// The vault closes: no further step starts.
     closing: CancellationToken,
+    /// New messages from other vaults, for the notifications (FR-023).
+    arrived: broadcast::Sender<receive::Stored>,
 }
 
 impl Delivery {
@@ -93,6 +97,7 @@ impl Delivery {
             client,
             receipts: Mutex::new(BTreeMap::new()),
             closing,
+            arrived: broadcast::channel(ARRIVALS).0,
         });
         // Attach the notification reader before subscribing: relays may send stored wraps as soon
         // as the subscription is created, and Client::notifications() does not replay earlier ones.
@@ -131,6 +136,11 @@ impl Delivery {
             }
         });
         (receiver, forward)
+    }
+
+    /// New messages from other vaults from now on.
+    pub fn arrivals(&self) -> broadcast::Receiver<receive::Stored> {
+        self.arrived.subscribe()
     }
 
     /// The wraps to this device since the oldest cursor of the listening Nostr-Relays, 48 h
@@ -340,6 +350,8 @@ impl Delivery {
                 .entry(stored.peer.clone())
                 .or_default()
                 .push(event_id);
+            // Nobody listening (tests, notifications not started) is fine.
+            let _ = self.arrived.send(stored.clone());
         }
         Ok(Some(stored))
     }

@@ -158,3 +158,22 @@ pub async fn chat_conversation_read(
     }
     Ok(())
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewingArgs {
+    /// An id the view makes once, so two open chat tabs do not overwrite each other.
+    pub view_id: String,
+    /// The conversation the view shows while it is the active tab of a focused window.
+    pub thread_id: Option<String>,
+}
+
+/// Which conversation a view shows in a focused window: no notification for it then (FR-023).
+#[tauri::command]
+pub fn chat_conversation_viewing(app: AppHandle, args: ViewingArgs) -> Result<()> {
+    let _ = app.manage(Arc::new(PeerRegistry::default()));
+    if let Some(registry) = app.try_state::<Arc<PeerRegistry>>() {
+        registry.set_viewing(args.view_id, args.thread_id);
+    }
+    Ok(())
+}

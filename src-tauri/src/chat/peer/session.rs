@@ -1,6 +1,7 @@
 //! Who this device is in the chat with contacts while a vault is open, and the signals between the
 //! commands and the delivery service (spec 072 research R3).
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use tokio::sync::Notify;
@@ -64,6 +65,9 @@ impl Session {
 #[derive(Debug, Default)]
 pub struct PeerRegistry {
     session: Mutex<Option<Arc<Session>>>,
+    /// The conversation each view shows while it is the active tab of a focused window (FR-023):
+    /// view id → thread id.
+    viewing: Mutex<HashMap<String, String>>,
 }
 
 impl PeerRegistry {
@@ -83,6 +87,24 @@ impl PeerRegistry {
         self.get().ok_or_else(|| HolziError::NotFound {
             name: "chat session".into(),
         })
+    }
+
+    /// `view` shows `thread_id` in a focused window, or nothing (`None`: closed, hidden, blurred).
+    pub fn set_viewing(&self, view: String, thread_id: Option<String>) {
+        let mut viewing = self.viewing.lock().unwrap_or_else(PoisonError::into_inner);
+        match thread_id {
+            Some(thread_id) => viewing.insert(view, thread_id),
+            None => viewing.remove(&view),
+        };
+    }
+
+    /// Whether a focused window shows `thread_id`: no notification for it then.
+    pub fn is_viewing(&self, thread_id: &str) -> bool {
+        self.viewing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .any(|viewed| viewed == thread_id)
     }
 
     /// Wakes the delivery after the app came back or the network changed.

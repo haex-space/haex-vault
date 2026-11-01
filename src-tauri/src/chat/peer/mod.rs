@@ -11,6 +11,7 @@ pub mod delivery;
 pub mod envelope;
 pub mod ids;
 pub mod messages;
+pub mod notify;
 pub mod outbox;
 pub mod receive;
 pub mod send;
