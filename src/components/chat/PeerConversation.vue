@@ -19,6 +19,12 @@ const { t } = useI18n()
 const draft = ref('')
 const confirmDelete = ref(false)
 
+function deleteConversation() {
+  const threadId = props.conversation?.id
+  confirmDelete.value = false
+  if (threadId) emit('delete', threadId)
+}
+
 watch(
   () => props.conversation?.id,
   () => {
@@ -133,10 +139,7 @@ watch(
             type="button"
             variant="destructive"
             data-testid="chat-peer-delete-confirm"
-            @click="
-              confirmDelete = false
-              emit('delete', conversation.id)
-            "
+            @click="deleteConversation"
           >
             {{ t('chat.peer.deleteButton') }}
           </UiButton>
