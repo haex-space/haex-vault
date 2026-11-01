@@ -106,6 +106,13 @@ impl BrowserEnv for Env {
     }
 }
 
+impl Env {
+    /// The websites the user's answers remembered.
+    pub fn remembered(&self) -> Vec<(String, SiteLevel)> {
+        self.remembered.lock().unwrap().clone()
+    }
+}
+
 pub struct Scene {
     pub env: Arc<Env>,
     pub tools: BrowserTools,

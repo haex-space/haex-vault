@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kauf</title>
+  </head>
+  <body>
+    <form method="post" action="/api/frame">
+      <input name="menge" value="50" />
+    </form>
+    <script>
+      if (!sessionStorage.getItem(location.pathname)) {
+        sessionStorage.setItem(location.pathname, '1')
+        document.forms[0].submit()
+      }
+    </script>
+  </body>
+</html>

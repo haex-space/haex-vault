@@ -2,7 +2,9 @@
 //! loopback that serves `tests/fixtures/agent_browser/site/` and records every request with its
 //! host and method. The same server is two websites: `http://127.0.0.1:<port>` and
 //! `http://localhost:<port>` (the partner), so the website check sees a second origin without a
-//! second server. `/hang` answers only after a minute; a `POST` answers with a short page.
+//! second server. `/hang` answers only after a minute; any method but `GET` answers with a short
+//! page. `/injection/<n>` serves `tests/fixtures/agent_browser/injection/<n>.html`, the pages with
+//! injected instructions (T047).
 //!
 //! [`start`] serves plain HTTP: a website over `http` may be read (research R9). [`start_tls`]
 //! serves HTTPS with the test certificate of `tests/fixtures/agent_browser/tls/`, for the tools
@@ -151,8 +153,12 @@ async fn answer(
     }
     let file = if file == "/" { "/index.html" } else { file };
     let name = file.trim_start_matches('/');
+    let file_path = match name.strip_prefix("injection/") {
+        Some(page) => dir().join("injection").join(format!("{page}.html")),
+        None => dir().join("site").join(name),
+    };
     let found = if method == "GET" {
-        std::fs::read_to_string(dir().join("site").join(name)).ok()
+        std::fs::read_to_string(file_path).ok()
     } else {
         Some(format!(
             "<!doctype html><title>Gesendet</title><main>{method} {file} angekommen</main>"
