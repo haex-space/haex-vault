@@ -12,7 +12,8 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grants::{browser_from_rows, browser_rows, OperateLevel, PasswordRights, Rights};
+use super::grant_rows::{rights_of, rows_of, GrantRow};
+use super::grants::Rights;
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
@@ -21,20 +22,6 @@ pub const MAX_CLIENT_NAME_CHARS: usize = 64;
 
 /// Namespace of the row ids of `haex_mcp_agent_grants`.
 const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_c021);
-
-/// The rights group of [`Rights::operate`] in `grant_group`.
-const GROUP_OPERATE: &str = "operate";
-/// The rights group of [`Rights::browser`] (spec 065).
-const GROUP_BROWSER: &str = "browser";
-/// The rights group of [`Rights::passwords`]: one row with an empty key; its scope tags are a JSON
-/// array of tag names, none for every entry.
-const GROUP_PASSWORDS: &str = "passwords";
-/// The rights group of [`Rights::extensions`]: one row per extension, keyed by its id.
-const GROUP_EXTENSION: &str = "extension";
-/// The rights group of [`Rights::commands`]: one row with an empty key when it is on.
-const GROUP_COMMANDS: &str = "commands";
-/// The level of a row of [`GROUP_EXTENSION`] and [`GROUP_COMMANDS`].
-const ON: &str = "on";
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -400,38 +387,15 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
          WHERE vault_device_uuid = ?1 AND agent_id = ?2",
         params![device.to_string(), agent.to_string()],
         |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Option<String>>(3)?,
-            ))
+            Ok(GrantRow {
+                group: row.get(0)?,
+                key: row.get(1)?,
+                level: row.get(2)?,
+                tags: row.get(3)?,
+            })
         },
     )?;
-    let mut rights = Rights::default();
-    let mut browser = Vec::new();
-    for (group, key, level, tags) in rows {
-        match group.as_str() {
-            GROUP_OPERATE => {
-                if let Some(level) = OperateLevel::parse(&level) {
-                    rights.operate.insert(key, level);
-                }
-            }
-            GROUP_BROWSER => browser.push((key, level, tags)),
-            GROUP_PASSWORDS => {
-                rights.passwords = PasswordRights::from_row(&level, tags.as_deref());
-            }
-            GROUP_EXTENSION if level == ON => {
-                if let Ok(id) = Uuid::parse_str(&key) {
-                    rights.extensions.insert(id);
-                }
-            }
-            GROUP_COMMANDS => rights.commands = level == ON,
-            _ => {}
-        }
-    }
-    rights.browser = browser_from_rows(&browser);
-    Ok(rights)
+    Ok(rights_of(rows))
 }
 
 /// Replaces the rights of `agent`. The caller has validated them (`grants::validate`).
@@ -445,47 +409,18 @@ pub fn save_rights(
         "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
         params![device.to_string(), agent.to_string()],
     )?;
-    let operate = rights.operate.iter().map(|(scope, level)| {
-        (
-            GROUP_OPERATE,
-            scope.clone(),
-            level.as_str().to_owned(),
-            None,
-        )
-    });
-    let browser = rights
-        .browser
-        .iter()
-        .flat_map(browser_rows)
-        .map(|(key, level, tags)| (GROUP_BROWSER, key, level, tags));
-    let extensions = rights
-        .extensions
-        .iter()
-        .map(|id| (GROUP_EXTENSION, id.to_string(), ON.to_owned(), None));
-    let commands = rights
-        .commands
-        .then(|| (GROUP_COMMANDS, String::new(), ON.to_owned(), None));
-    let passwords = rights.passwords.iter().map(|passwords| {
-        let (level, tags) = passwords.row();
-        (GROUP_PASSWORDS, String::new(), level, tags)
-    });
-    for (group, key, level, tags) in operate
-        .chain(browser)
-        .chain(extensions)
-        .chain(passwords)
-        .chain(commands)
-    {
+    for row in rows_of(rights) {
         tx.execute(
             "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
              grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
-                grant_id(device, agent, group, &key),
+                grant_id(device, agent, &row.group, &row.key),
                 device.to_string(),
                 agent.to_string(),
-                group,
-                key,
-                level,
-                tags,
+                row.group,
+                row.key,
+                row.level,
+                row.tags,
             ],
         )?;
     }

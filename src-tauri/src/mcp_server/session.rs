@@ -21,6 +21,7 @@ use super::extension_tools;
 use super::grants::{self, Rights};
 use super::live::Link;
 use super::registry::AgentMode;
+use super::results;
 use super::server::Core;
 
 /// What a registered agent reads in `initialize` (contracts/mcp-surface.md, "Server").
@@ -176,7 +177,7 @@ impl ServerHandler for Session {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let Some(agent) = self.agent() else {
-            return Ok(dispatch::not_allowed().into());
+            return Ok(results::not_allowed().into());
         };
         // A call ends when the agent cancels it, holzi ends the connection or the server stops.
         let cancel = self.link.close.child_token();

@@ -10,9 +10,9 @@ use rmcp::model::CallToolResult;
 use serde_json::json;
 
 use super::agent_log::Outcome;
-use super::dispatch::{error_result, unavailable};
 use super::grants::Rights;
 use super::prompts::CallTitles;
+use super::results::{error_result, unavailable};
 use crate::chat::tools::cli::CliTool;
 use crate::chat::tools::{Tool, ToolResult};
 use crate::vault_gate::ChildRegistry;

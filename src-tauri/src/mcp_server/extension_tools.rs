@@ -5,7 +5,7 @@ use rmcp::model::{CallToolResult, Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
 use super::agent_log::Outcome;
-use super::dispatch::{error_result, unavailable};
+use super::results::{error_result, unavailable};
 use crate::chat::tools::action_bridge::ACTION_FAILED_MESSAGE;
 use crate::chat::tools::{RiskClass, Tool as ChatTool, ToolResult};
 
