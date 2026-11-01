@@ -147,5 +147,5 @@ Never to a blocked vault; `read` never for an unaccepted request or with read re
 
 ## Receiving
 
-- Subscribe `{"kinds":[1059], "#p":[<own device key>], "since": <cursor − 48 h>}` on the own Nostr-Relays.
+- Subscribe `{"kinds":[1059], "#p":[<own device key>], "since": <cursor − 48 h>}` on the own Nostr-Relays and the stored contacts' Nostr-Relays. The latter lets a contact without relays receive wraps sent over the sender's own relays; changes to stored cards update the subscriptions on catch-up.
 - Store the wrap id in `chat_wraps_seen_no_sync`; advance the relay cursor to the newest `created_at` seen.

@@ -1,16 +1,14 @@
 //! The delivery service of the chat with contacts (spec 072 research R3, R4, R6): its own Nostr
-//! client per vault session. It listens for kind 1059 wraps to this device on the own Nostr-Relays,
-//! stores what passes the receiver checks, answers new messages with batched delivery receipts and
-//! publishes the outbox with back-off.
+//! client per vault session. It listens for kind 1059 wraps to this device on the own and stored
+//! contacts' Nostr-Relays, stores what passes the receiver checks, answers new messages with
+//! batched delivery receipts and publishes the outbox with back-off.
 //!
-//! The Nostr-Relays of contacts are added as write-only relays when a wrap goes there and removed
-//! again after [`WRITE_RELAY_IDLE`] without use (`ponytail:` a fixed idle time; upgrade: an LRU
-//! with a cap). A change of the own Nostr-Relays applies on the next vault open, as for presence.
+//! Contact relay changes are picked up on catch-up; own relay changes apply on catch-up as well.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use haex_crdt::rusqlite::params;
 use nostr::event::{Event, Kind};
@@ -44,9 +42,6 @@ const NOTIFICATION_CHANNEL: NonZeroUsize = match NonZeroUsize::new(16_384) {
     Some(size) => size,
     None => unreachable!(),
 };
-/// A write-only Nostr-Relay of a contact is dropped after this long without a wrap.
-const WRITE_RELAY_IDLE: Duration = Duration::from_secs(10 * 60);
-
 /// The milliseconds since the Unix epoch.
 pub fn now_ms() -> i64 {
     crate::passwords::clock::unix_millis(std::time::SystemTime::now())
@@ -56,9 +51,9 @@ pub fn now_ms() -> i64 {
 pub struct Delivery {
     db: VaultDb,
     me: Me,
-    own_relays: Vec<String>,
+    /// The own relays and the stored contacts' relays used to receive wraps.
+    read_relays: Mutex<Vec<String>>,
     client: Client,
-    write_relays: Mutex<HashMap<String, Instant>>,
     /// Delivery receipts still to queue: other vault → its event ids.
     receipts: Mutex<BTreeMap<String, Vec<String>>>,
     /// The vault closes: no further step starts.
@@ -66,45 +61,50 @@ pub struct Delivery {
 }
 
 impl Delivery {
-    /// Connects to the own Nostr-Relays and subscribes to the wraps for this device; `closing` ends
-    /// it with the vault session.
+    /// Connects to the listening Nostr-Relays and subscribes to the wraps for this device;
+    /// `closing` ends it with the vault session.
     pub async fn connect(
         db: VaultDb,
         me: Me,
-        own_relays: Vec<String>,
+        read_relays: Vec<String>,
         closing: CancellationToken,
     ) -> Result<Arc<Self>> {
         crate::sync::presence::ensure_crypto_provider();
         let client = Client::builder()
             .notification_channel_size(NOTIFICATION_CHANNEL)
             .build();
-        for url in &own_relays {
-            if let Err(error) = client.add_relay(url.as_str()).await {
-                log::warn!("chat: Nostr-Relay {url} is not a valid URL: {error}");
+        let mut active_read_relays = Vec::new();
+        for url in &read_relays {
+            match client.add_relay(url.as_str()).await {
+                Ok(_) => active_read_relays.push(url.clone()),
+                Err(error) => log::warn!("chat: Nostr-Relay {url} is not a valid URL: {error}"),
             }
         }
         client.connect().and_wait(CONNECT_TIMEOUT).await;
         let delivery = Arc::new(Self {
             db,
             me,
-            own_relays,
+            read_relays: Mutex::new(active_read_relays),
             client,
-            write_relays: Mutex::new(HashMap::new()),
             receipts: Mutex::new(BTreeMap::new()),
             closing,
         });
         // Without a reachable Nostr-Relay the outbox still runs and marks failures; the
         // subscription is made again on the next wake.
         if let Err(error) = delivery.subscribe().await {
-            log::warn!("chat: not subscribed to the own Nostr-Relays: {error}");
+            log::warn!("chat: not subscribed to the listening Nostr-Relays: {error}");
         }
         Ok(delivery)
     }
 
-    /// The wraps to this device since the oldest cursor of the own Nostr-Relays, 48 h earlier for
-    /// the backdated `created_at` (contracts/nostr-chat.md "Receiving").
+    /// The wraps to this device since the oldest cursor of the listening Nostr-Relays, 48 h
+    /// earlier for the backdated `created_at` (contracts/nostr-chat.md "Receiving").
     async fn filter(&self) -> Result<Filter> {
-        let relays = self.own_relays.clone();
+        let relays = self
+            .read_relays
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let since = self
             .db
             .read(move |r| {
@@ -135,7 +135,7 @@ impl Delivery {
         Ok(filter)
     }
 
-    /// Subscribes to [`Self::filter`] on the own Nostr-Relays.
+    /// Subscribes to [`Self::filter`] on the listening Nostr-Relays.
     async fn subscribe(&self) -> Result<()> {
         let filter = self.filter().await?;
         let _ = self.client.unsubscribe_all().await;
@@ -149,6 +149,7 @@ impl Delivery {
     /// Fetches the stored wraps of [`Self::filter`] once more and stores the ones not seen yet: the
     /// net under a live event a Nostr-Relay or the notification channel dropped under load.
     async fn catch_up(&self) -> Result<()> {
+        self.refresh_read_relays().await?;
         let filter = self.filter().await?;
         let events = self
             .client
@@ -162,9 +163,63 @@ impl Delivery {
         Ok(())
     }
 
+    /// Tracks cards added or removed while the vault stayed open, so the fallback route can be
+    /// received even when the contact's own card lists no Nostr-Relays.
+    async fn refresh_read_relays(&self) -> Result<()> {
+        let desired = self
+            .db
+            .read(|r| Ok(targets::listening_relays(r)?))
+            .await?;
+        let current = self
+            .read_relays
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let added: Vec<String> = desired
+            .iter()
+            .filter(|url| !current.contains(url))
+            .cloned()
+            .collect();
+        let removed: Vec<String> = current
+            .iter()
+            .filter(|url| !desired.contains(url))
+            .cloned()
+            .collect();
+        let mut next = current;
+        let mut changed = false;
+        for url in &added {
+            if let Err(error) = self.client.add_relay(url.as_str()).await {
+                log::warn!("chat: Nostr-Relay {url} is not a valid URL: {error}");
+                continue;
+            }
+            let _ = self
+                .client
+                .try_connect_relay(url.as_str(), CONNECT_TIMEOUT)
+                .await;
+            next.push(url.clone());
+            changed = true;
+        }
+        for url in &removed {
+            if let Err(error) = self.client.remove_relay(url.as_str()).force().await {
+                log::debug!("chat: no longer listening to Nostr-Relay {url}: {error}");
+            }
+            next.retain(|known| known != url);
+            changed = true;
+        }
+        if changed {
+            *self
+                .read_relays
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = next.clone();
+            self.subscribe().await?;
+        }
+        Ok(())
+    }
+
     /// New connections and a new subscription, after the app came back or the network changed;
     /// the outbox is tried again at once.
     pub async fn reconnect(&self) -> Result<()> {
+        self.refresh_read_relays().await?;
         self.client.disconnect().await;
         self.client.connect().and_wait(CONNECT_TIMEOUT).await;
         self.subscribe().await?;
@@ -359,22 +414,24 @@ impl Delivery {
         }
     }
 
-    /// Adds the Nostr-Relays of a contact as write-only relays and notes their use.
+    /// Ensures the target relays are available for publishing and receiving.
     async fn use_relays(&self, relays: &[String]) {
-        for url in relays.iter().filter(|url| !self.own_relays.contains(url)) {
-            let known = self
-                .write_relays
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(url.clone(), Instant::now())
-                .is_some();
-            if known {
-                continue;
-            }
+        let mut read_relays = self
+            .read_relays
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let new_relays: Vec<String> = relays
+            .iter()
+            .filter(|url| !read_relays.contains(url))
+            .cloned()
+            .collect();
+        let mut added_for_reading = false;
+        for url in new_relays {
             if let Err(error) = self
                 .client
                 .add_relay(url.as_str())
-                .capabilities(RelayCapabilities::WRITE)
+                .capabilities(RelayCapabilities::READ_WRITE)
                 .await
             {
                 log::warn!("chat: Nostr-Relay {url} is not a valid URL: {error}");
@@ -384,26 +441,17 @@ impl Delivery {
                 .client
                 .try_connect_relay(url.as_str(), CONNECT_TIMEOUT)
                 .await;
+            read_relays.push(url);
+            added_for_reading = true;
         }
-    }
-
-    /// Drops write-only Nostr-Relays unused for [`WRITE_RELAY_IDLE`].
-    async fn drop_idle_relays(&self) {
-        let idle: Vec<String> = {
-            let mut relays = self
-                .write_relays
+        if added_for_reading {
+            *self
+                .read_relays
                 .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            let idle = relays
-                .iter()
-                .filter(|(_, used)| used.elapsed() >= WRITE_RELAY_IDLE)
-                .map(|(url, _)| url.clone())
-                .collect::<Vec<_>>();
-            relays.retain(|url, _| !idle.contains(url));
-            idle
-        };
-        for url in idle {
-            let _ = self.client.remove_relay(url.as_str()).force().await;
+                .unwrap_or_else(PoisonError::into_inner) = read_relays;
+            if let Err(error) = self.subscribe().await {
+                log::warn!("chat: not subscribed after adding contact relays: {error}");
+            }
         }
     }
 }

@@ -49,7 +49,7 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
                 let keys = keys::load_device_keys(r, installation)?;
                 let vault = keys::vault_pubkey(r)?;
                 let device = known_devices::get_vault_device_uuid(r, installation)?;
-                Ok((keys, vault, device, targets::own_relays(r)?))
+                Ok((keys, vault, device, targets::listening_relays(r)?))
             })
             .await;
         let (keys, vault, device, relays) = match found {

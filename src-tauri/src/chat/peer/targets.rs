@@ -19,11 +19,28 @@ pub struct Target {
     pub own_relays_instead: bool,
 }
 
-/// The Nostr-Relays this device listens on: the ones on the own card (FR-082).
+/// The Nostr-Relays on this device's own card.
 pub fn own_relays(q: &mut impl Query) -> Result<Vec<String>> {
     Ok(own_card::addresses(q)?
         .map(|addresses| addresses.nostr_relays)
         .unwrap_or_default())
+}
+
+/// Relays this vault reads for incoming wraps: its own, plus the stored contacts' relays. The
+/// latter are needed when a sender falls back to its own relays because this card names none.
+pub fn listening_relays(q: &mut impl Query) -> Result<Vec<String>> {
+    let mut relays = own_relays(q)?;
+    for contact in received::with_cards(q)? {
+        let Some((_, card)) = received::stored_of_contact(q, &contact)? else {
+            continue;
+        };
+        for relay in received::addresses(q, &card.card.vault)?.nostr_relays {
+            if !relays.contains(&relay) {
+                relays.push(relay);
+            }
+        }
+    }
+    Ok(relays)
 }
 
 /// The target of `vault` (hex) for `me`.
