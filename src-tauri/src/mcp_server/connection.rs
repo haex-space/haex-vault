@@ -20,7 +20,7 @@ use super::live::Link;
 use super::manage;
 use super::prompts::GateTicket;
 use super::registration::{self, Previous, RegistrationContext};
-use super::registry::{self, AgentStatus};
+use super::registry::{self, AgentStatus, Transport};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
 use rmcp::ServiceExt;
@@ -254,10 +254,10 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
 async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previous>) -> Admission {
     let device = core.device;
     let slug = greeting.slug.clone();
-    let blocked = core.declined(&slug)
+    let blocked = core.declined(&slug, Transport::Ipc)
         || core
             .db
-            .read(move |q| registry::is_blocked(q, device, &slug))
+            .read(move |q| registry::is_blocked(q, device, &slug, Transport::Ipc))
             .await
             .unwrap_or(true);
     if blocked {

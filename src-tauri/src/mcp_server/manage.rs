@@ -178,16 +178,23 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
     Ok(removed > 0)
 }
 
-/// Lifts a block and returns the slug to clear from the server's session-local declines; `None`
-/// when no blocked agent has the id.
-pub fn unblock(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<Option<String>> {
-    let slug = tx.query_row(
-        "SELECT slug FROM haex_mcp_agents \
+/// Lifts a block and returns its transport and slug to clear from the server's session-local
+/// declines; `None` when no blocked agent has the id.
+pub fn unblock(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    id: Uuid,
+) -> Result<Option<(String, Transport)>> {
+    let blocked = tx.query_row(
+        "SELECT slug, transport FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
         params![device.to_string(), id.to_string()],
-        |row| row.get::<_, String>(0),
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )?;
-    let Some(slug) = slug else {
+    let Some((slug, transport)) = blocked else {
+        return Ok(None);
+    };
+    let Some(transport) = Transport::parse(&transport) else {
         return Ok(None);
     };
     tx.execute(
@@ -195,7 +202,7 @@ pub fn unblock(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<O
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
         params![device.to_string(), id.to_string()],
     )?;
-    Ok(Some(slug))
+    Ok(Some((slug, transport)))
 }
 
 /// Every agent of `device` with its rights, newest first.

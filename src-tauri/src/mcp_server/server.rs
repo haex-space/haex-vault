@@ -22,6 +22,7 @@ use super::http;
 use super::live::Live;
 use super::oauth::OAuthState;
 use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
+use super::registry::Transport;
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::native_action::NativeExecutors;
@@ -128,31 +129,31 @@ pub struct Core {
     pub limits: Limits,
     pub token: CancellationToken,
     /// Agents the user declined without remembering it; until the vault closes.
-    declined: Mutex<HashSet<String>>,
+    declined: Mutex<HashSet<(Transport, String)>>,
     closing: Mutex<CloseReason>,
 }
 
 impl Core {
-    pub fn declined(&self, slug: &str) -> bool {
+    pub fn declined(&self, slug: &str, transport: Transport) -> bool {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .contains(slug)
+            .contains(&(transport, slug.to_owned()))
     }
 
-    pub fn decline(&self, slug: &str) {
+    pub fn decline(&self, slug: &str, transport: Transport) {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(slug.to_owned());
+            .insert((transport, slug.to_owned()));
     }
 
     /// Allows an agent the user unblocked to ask again during this vault session.
-    pub fn undecline(&self, slug: &str) {
+    pub fn undecline(&self, slug: &str, transport: Transport) {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(slug);
+            .remove(&(transport, slug.to_owned()));
     }
 
     /// Why the connections end once [`Self::token`] fired.

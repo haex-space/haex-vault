@@ -39,7 +39,7 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
     let slug = oauth_rows::slug_of(client.name.as_deref());
     let client_name = client.name.clone().unwrap_or_else(|| slug.clone());
     let device = core.device;
-    if core.declined(&slug) {
+    if core.declined(&slug, Transport::Http) {
         return None;
     }
     let lookup = slug.clone();
@@ -47,7 +47,7 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         .db
         .read(move |q| {
             Ok((
-                registry::is_blocked(q, device, &lookup)?,
+                registry::is_blocked(q, device, &lookup, Transport::Http)?,
                 oauth_rows::previous(q, device, &lookup)?,
             ))
         })
@@ -90,7 +90,7 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
     let answer = match answer {
         Ok(answer) => answer,
         Err(PromptEnd::Expired | PromptEnd::NoWindow) => {
-            core.decline(&slug);
+            core.decline(&slug, Transport::Http);
             return None;
         }
         Err(PromptEnd::Cancelled) => return None,
@@ -100,13 +100,15 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
             let (blocked_slug, name, now) = (slug.clone(), client_name.clone(), now_millis());
             if let Err(error) = core
                 .db
-                .write(move |tx| registry::block(tx, device, &blocked_slug, &name, now))
+                .write(move |tx| {
+                    registry::block(tx, device, &blocked_slug, &name, Transport::Http, now)
+                })
                 .await
             {
                 log::warn!("mcp server: could not remember a block: {error}");
             }
         }
-        core.decline(&slug);
+        core.decline(&slug, Transport::Http);
         (core.notify)(Notice::Changed);
         return None;
     }

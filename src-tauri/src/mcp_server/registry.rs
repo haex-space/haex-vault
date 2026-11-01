@@ -54,7 +54,7 @@ impl AgentKind {
 }
 
 /// How the agent reaches holzi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum Transport {
@@ -71,7 +71,7 @@ impl Transport {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(super) fn parse(value: &str) -> Option<Self> {
         match value {
             "ipc" => Some(Self::Ipc),
             "http" => Some(Self::Http),
@@ -249,12 +249,17 @@ pub fn find_by_credential(
     .flatten())
 }
 
-/// Whether the user blocked the agent of `slug` on `device`.
-pub fn is_blocked(q: &mut impl Query, device: Uuid, slug: &str) -> Result<bool> {
+/// Whether the user blocked the agent of `slug` on `device` through `transport`.
+pub fn is_blocked(
+    q: &mut impl Query,
+    device: Uuid,
+    slug: &str,
+    transport: Transport,
+) -> Result<bool> {
     Ok(q.query_row(
         "SELECT COUNT(*) FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND slug = ?2 \
-         AND status = 'blocked'",
-        params![device.to_string(), slug],
+         AND transport = ?3 AND status = 'blocked'",
+        params![device.to_string(), slug, transport.as_str()],
         |row| row.get::<_, i64>(0),
     )?
     .unwrap_or(0)
@@ -391,18 +396,20 @@ pub fn block(
     device: Uuid,
     slug: &str,
     client_name: &str,
+    transport: Transport,
     now: i64,
 ) -> Result<()> {
     tx.execute(
         "INSERT INTO haex_mcp_agents (id, vault_device_uuid, kind, slug, client_name, \
          client_version, transport, oauth_client_id, token_hash, status, permission_mode, \
          registered_at, last_seen_at) \
-         VALUES (?1, ?2, 'external', ?3, ?4, NULL, 'ipc', NULL, NULL, 'blocked', 'manual', ?5, NULL)",
+         VALUES (?1, ?2, 'external', ?3, ?4, NULL, ?5, NULL, NULL, 'blocked', 'manual', ?6, NULL)",
         params![
             Uuid::new_v4().to_string(),
             device.to_string(),
             slug,
             kept_name(client_name),
+            transport.as_str(),
             now,
         ],
     )?;

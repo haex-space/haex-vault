@@ -57,12 +57,19 @@ impl SessionCount {
 
     /// One more session, or `None` at `max`.
     fn take(&self, max: usize) -> Option<SessionSlot> {
-        self.0
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |open| {
-                (open < max).then_some(open + 1)
-            })
-            .ok()
-            .map(|_| SessionSlot(Arc::clone(&self.0)))
+        let mut open = self.0.load(Ordering::SeqCst);
+        loop {
+            if open >= max {
+                return None;
+            }
+            match self
+                .0
+                .compare_exchange(open, open + 1, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => return Some(SessionSlot(Arc::clone(&self.0))),
+                Err(now) => open = now,
+            }
+        }
     }
 }
 

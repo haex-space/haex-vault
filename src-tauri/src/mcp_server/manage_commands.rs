@@ -12,7 +12,7 @@ use super::commands::open_device;
 use super::grants::{self, Rights};
 use super::hello::CloseReason;
 use super::manage::{self, AgentView};
-use super::registry::{self, AgentMode};
+use super::registry::{self, AgentMode, Transport};
 use super::server::{Core, Notice};
 use super::McpServer;
 use crate::error::{HolziError, Result};
@@ -265,12 +265,12 @@ pub async fn mcp_agent_unblock<R: Runtime>(
 
 /// Lifts a persisted and session-local block, so the agent can ask for registration again.
 pub async fn unblock(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) -> Result<()> {
-    let slug = db
+    let (slug, transport) = db
         .write(move |tx| manage::unblock(tx, device, id))
         .await?
         .ok_or_else(unknown_agent)?;
     if let Some(core) = core {
-        core.undecline(&slug);
+        core.undecline(&slug, transport);
     }
     Ok(())
 }
