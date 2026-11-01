@@ -104,6 +104,11 @@ impl Sentences {
             };
             let raw_piece = self.buf[..end].to_owned();
             let piece = raw_piece.trim().to_owned();
+            let opener = if self.in_fence.is_none() {
+                fence_opener(&raw_piece)
+            } else {
+                None
+            };
             self.buf = self.buf[rest..].trim_start_matches([' ', '\t']).to_owned();
             if self
                 .in_fence
@@ -111,9 +116,7 @@ impl Sentences {
             {
                 self.in_fence = None;
                 out.push(raw_piece);
-            } else if self.in_fence.is_none()
-                && let Some(fence) = fence_opener(&raw_piece)
-            {
+            } else if let Some(fence) = opener {
                 self.in_fence = Some(fence);
                 out.push(raw_piece);
             } else if !piece.is_empty() {
