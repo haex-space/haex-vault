@@ -15,7 +15,7 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 | `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise            |
 | `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                            |
 | `last_read_at` | INTEGER NULL                     | everything with `sort_at` ≤ this is read (FR-022)                 |
-| `picture`      | BLOB NULL                        | group picture, ≤ 64 KiB JPEG/PNG thumbnail                        |
+| `picture`      | BLOB NULL                        | group picture, ≤ 12 KiB JPEG/PNG thumbnail (fits the wrap, R2)    |
 | `meta_at`      | INTEGER NULL                     | group: sender time of the last rename/picture op (R9)             |
 | `meta_op`      | TEXT NULL                        | group: its op id (tie-break)                                      |
 

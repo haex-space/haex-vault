@@ -13,7 +13,7 @@ device, including the sender's own other devices.
 | `pubkey`     | one-time key                                                           |
 | `created_at` | now − random(0 … 48 h)                                                 |
 | tags         | `["p", <recipient device key hex>]`, `["expiration", <now + 30 days>]` |
-| size         | ≤ 60 KiB serialized; rumor content ≤ 32 KiB                            |
+| size         | ≤ 60 KiB serialized; rumor content ≤ 24 KiB                            |
 
 ## Rumor kinds
 
@@ -84,7 +84,7 @@ own vault (direct) or a group where `from` is a `member` at `at` (except `group.
   "member": "<vault hex>",            // add, remove
   "memberCard": "holzi:card:…",       // add: the added vault's card (from the adder's address book)
   "name": "Familie",                  // rename
-  "picture": "<base64 ≤ 48 KiB>" }    // picture (empty = remove)
+  "picture": "<base64 ≤ 16 KiB>" }    // picture (empty = remove)
 ```
 
 Sent to every `member` and every `invited` vault of the group plus the affected vault. Applied with the
