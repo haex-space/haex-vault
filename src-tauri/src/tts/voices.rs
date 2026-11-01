@@ -182,6 +182,23 @@ pub fn resolve(
     }
 }
 
+/// The built-in voice a sample is asked for (`assistant_tts_preview`). Unlike [`resolve`] nothing
+/// falls back: the settings page asks for a voice it listed. Own voices and imported models arrive
+/// with PR K.
+pub fn preview_voice(voice: &str) -> Result<&'static BuiltinVoice, TtsError> {
+    let invalid = |reason: String| TtsError::Invalid { reason };
+    match VoiceRef::parse(voice) {
+        Some(VoiceRef::Builtin(id)) => builtin()?
+            .iter()
+            .find(|v| v.id == id)
+            .ok_or_else(|| invalid(format!("no built-in voice {id}"))),
+        Some(other) => Err(TtsError::Unavailable {
+            reason: format!("voice {other} is not available yet"),
+        }),
+        None => Err(invalid(format!("{voice:?} is not a voice"))),
+    }
+}
+
 /// A decoded reference recording.
 #[derive(Debug, Clone)]
 pub struct Pcm {

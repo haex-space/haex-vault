@@ -215,6 +215,16 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'speech',
     overviewRow: true,
   }),
+  // Spec 066 US8: the assistant's voice per language and its speaking rate.
+  subView('ai.speech.voice', 'ai/speech/voice', 'ai', {
+    icon: 'lucide:audio-lines',
+    group: 'speech',
+    overviewRow: true,
+    settingKeys: [
+      'settings.assistant.labels.voice',
+      'settings.assistant.labels.speechRate',
+    ],
+  }),
   subView('ai.autonomy', 'ai/autonomy', 'ai', {
     icon: 'lucide:shield',
     group: 'agents',

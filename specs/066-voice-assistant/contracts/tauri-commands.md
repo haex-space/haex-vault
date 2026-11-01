@@ -41,6 +41,13 @@ Sprachen, sonst Englisch). `download_assistant_assets` lädt, was haex selbst la
 Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Das Standard-Wake-Word meldet
 `assistant_readiness` als fehlend, bis PR D sein Modell liefert.
 
+`assistant_tts_preview` spricht zwei Beispielsätze in der Sprache der Stimme mit `rate` (0.75–1.5)
+und kehrt zurück, wenn sie gespielt sind. Fehlt das Stimmenmodell der Sprache, lädt es den Download
+vorher (Fortschritt als `assistant-download-progress`); die Oberfläche fragt davor nach (043
+FR-028, `model_download_check` mit `{kind: "tts", id: modelId}`). Läuft der Assistent, spielt die
+Probe über seinen Stream, sonst über einen Stream nur mit Lautsprecher, nie mit Mikrofon. Eine
+neue Probe beendet die laufende. Bis PR K nimmt der Befehl nur `builtin:`-Stimmen an.
+
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
 `PrefScope::Device`; der Assistent beobachtet die Schlüssel und übernimmt Änderungen ohne Neustart
 (FR-030).

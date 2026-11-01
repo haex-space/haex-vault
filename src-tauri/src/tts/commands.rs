@@ -134,6 +134,35 @@ pub async fn tts_voices_list(app: AppHandle) -> Result<Vec<VoiceOption>> {
     Ok(voice_options(voices::builtin()?, &installed, &hw)?)
 }
 
+/// Speaks a short sample with `voice` (a `VoiceRef` of `tts_voices_list`) at `rate` (spec 066
+/// T028, FR-030), downloading the speech model of its language first. A newer sample stops this
+/// one. Resolves when the sample has played or was stopped.
+#[tauri::command]
+pub async fn assistant_tts_preview(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    voice: String,
+    rate: f32,
+) -> Result<()> {
+    let voice = voices::preview_voice(&voice)?;
+    let rate = super::checked_rate(rate)?;
+    #[cfg(feature = "voice")]
+    {
+        state
+            .gate()
+            .run(super::preview::run(&app, &state, voice, rate))
+            .await?
+    }
+    #[cfg(not(feature = "voice"))]
+    {
+        let _ = (app, state, voice, rate);
+        Err(TtsError::Unavailable {
+            reason: "speech output is not enabled in this build".to_owned(),
+        }
+        .into())
+    }
+}
+
 /// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as
 /// [`EVENT_DOWNLOAD_PROGRESS`]. Idempotent.
 #[tauri::command]

@@ -591,7 +591,7 @@
     "groups": {
       "chat": "Chat model",
       "local": "Local models",
-      "speech": "Speech input",
+      "speech": "Speech",
       "agents": "Agent permissions"
     },
     "locations": {
@@ -655,7 +655,12 @@
         "speech": {
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
-          "keywords": "speech recognition voice input Whisper microphone dictation STT"
+          "keywords": "speech recognition voice input Whisper microphone dictation STT",
+          "voice": {
+            "title": "Voice",
+            "description": "How the voice assistant sounds, for each language.",
+            "keywords": "voice speech output read aloud voice assistant TTS speaking rate sample listen"
+          }
         },
         "providers": {
           "title": "Connect a subscription",
@@ -1454,6 +1459,42 @@
       "depth": "Runs per rule",
       "hint": "How many runs the log of each sync rule keeps on this device, 0 to 100. At 0 there is no log.",
       "invalid": "A whole number from 0 to 100."
+    },
+    "assistant": {
+      "labels": {
+        "enabled": "Voice assistant",
+        "muted": "Muted",
+        "wakeWord": "Wake word",
+        "wakeWordCustom": "Custom wake word",
+        "sensitivity": "Sensitivity",
+        "pauseMs": "Pause before answering",
+        "followUpSecs": "Time for follow-ups",
+        "continueMins": "Continue the conversation",
+        "modelId": "Model for conversations",
+        "voice": "Voice",
+        "speechRate": "Speaking rate",
+        "ttsProvider": "Speech service",
+        "tonesEnabled": "Tones",
+        "tonesVolume": "Tone volume",
+        "headphones": "Headphones",
+        "bubblePosition": "Bubble position",
+        "noticeShown": "Notice shown"
+      }
+    },
+    "voice": {
+      "rateValue": "{rate}×",
+      "default": "Default voice",
+      "preview": "Sample",
+      "previewOf": "Sample of {name}",
+      "previewFailed": "Sample failed: {reason}",
+      "saved": "Saved.",
+      "saveFailed": "Not saved: {reason}",
+      "model": {
+        "installed": "Speech model downloaded.",
+        "missing": "Speech model not downloaded yet · {size} · {fit}",
+        "downloading": "Downloading speech model …",
+        "name": "Speech model {language}"
+      }
     }
   },
   "models": {
