@@ -130,7 +130,15 @@ impl HttpSession {
             .and_then(|value| value.to_str().ok())
             .map(Into::into);
         let peer = context.peer;
-        let live = attach::join(&self.core, &self.session, &peer, &self.link, Some(agent), None).await;
+        let live = attach::join(
+            &self.core,
+            &self.session,
+            &peer,
+            &self.link,
+            Some(agent),
+            None,
+        )
+        .await;
         let watcher = tokio::spawn(attach::tell_catalog_changes(
             Arc::clone(&self.core),
             self.session.clone(),
