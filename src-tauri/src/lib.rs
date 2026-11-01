@@ -77,6 +77,9 @@ use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
     chat_conversations_list,
 };
+use chat::peer::commands::messages::{
+    chat_conversation_read, chat_peer_messages_list, chat_peer_resend, chat_peer_send,
+};
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -774,6 +777,10 @@ pub fn run() {
             chat_conversation_open_direct,
             chat_conversation_mute,
             chat_conversation_delete,
+            chat_peer_send,
+            chat_peer_resend,
+            chat_peer_messages_list,
+            chat_conversation_read,
             current_device_info,
             update_device_alias,
             list_vault_devices,

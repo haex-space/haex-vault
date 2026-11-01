@@ -154,6 +154,8 @@ pub async fn open_instance(
     crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     crate::sync::start_for_active_instance(&app, &state).await;
+    // Spec 072: the chat with contacts receives and sends over Nostr-Relays while the vault is open.
+    crate::chat::peer::service::start_for_active_instance(&app, &state);
     // Spec 061: sync rules run on this device while the vault is open; other own devices are
     // reached through the sync just started.
     crate::file_sync::service::start_for_active_instance(&app, &state);

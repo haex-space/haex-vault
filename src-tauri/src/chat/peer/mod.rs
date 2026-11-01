@@ -7,5 +7,32 @@
 //! requests, files, groups and agent access in later slices.
 
 pub mod commands;
+pub mod delivery;
+pub mod envelope;
 pub mod ids;
+pub mod messages;
+pub mod outbox;
+pub mod receive;
+pub mod send;
+pub mod service;
+pub mod session;
+pub mod settings;
 pub mod store;
+pub mod targets;
+pub mod verify;
+pub mod wrap;
+
+#[cfg(test)]
+pub(crate) mod test_support;
+
+#[cfg(test)]
+#[path = "two_vaults_tests.rs"]
+mod two_vaults_tests;
+
+#[cfg(test)]
+#[path = "own_devices_tests.rs"]
+mod own_devices_tests;
+
+#[cfg(test)]
+#[path = "soak_tests.rs"]
+mod soak_tests;

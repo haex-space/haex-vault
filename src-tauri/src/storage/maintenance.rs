@@ -58,6 +58,7 @@ pub const VAULT_PREFERENCE_KEYS: &[&str] = &[
     "chat.autonomy_mode",
     "chat.permission_mode",
     "cli_delegate.deny_rules",
+    "chat.receipts.read",
 ];
 
 /// Key prefixes of vault preferences with one key per model.
@@ -67,7 +68,7 @@ pub const VAULT_PREFERENCE_PREFIXES: &[&str] = &["chat.reasoning_option."];
 pub const DELETE_MARKER_RETENTION_DAYS: u32 = 90;
 
 /// Preferences that apply to one device only: the model files live there.
-pub const DEVICE_PREFERENCE_KEYS: &[&str] = &["chat.default_model_id"];
+pub const DEVICE_PREFERENCE_KEYS: &[&str] = &["chat.default_model_id", "chat.notifications"];
 
 fn is_vault_preference(key: &str) -> bool {
     VAULT_PREFERENCE_KEYS.contains(&key)

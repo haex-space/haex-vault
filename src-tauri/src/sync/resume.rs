@@ -78,6 +78,10 @@ pub fn wake_app<R: Runtime>(app: &AppHandle<R>, wake: Wake) {
     if wake_registry(&registry, wake) {
         log::info!("sync: {wake:?}, catching up");
     }
+    // Spec 072: the chat's own Nostr connections may be dead just the same.
+    if let Some(chat) = app.try_state::<Arc<crate::chat::peer::session::PeerRegistry>>() {
+        chat.wake();
+    }
 }
 
 /// Wakes the sync on every network change the platform reports; on a desktop none is reported,
