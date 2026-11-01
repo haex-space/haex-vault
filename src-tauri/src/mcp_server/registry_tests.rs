@@ -204,6 +204,11 @@ async fn a_block_is_remembered_by_slug_and_a_touch_moves_last_seen() {
         .expect("read"));
 
     let device = v.device;
+    assert!(!v
+        .db
+        .read(move |q| is_blocked(q, device, "codex", Transport::Http))
+        .await
+        .expect("HTTP read"));
     v.db.write(move |tx| block(tx, device, "codex", "codex", Transport::Http, 6))
         .await
         .expect("HTTP block");
@@ -212,7 +217,7 @@ async fn a_block_is_remembered_by_slug_and_a_touch_moves_last_seen() {
         .read(move |q| is_blocked(q, device, "codex", Transport::Http))
         .await
         .expect("HTTP read"));
-    assert!(!v
+    assert!(v
         .db
         .read(move |q| is_blocked(q, device, "codex", Transport::Ipc))
         .await
