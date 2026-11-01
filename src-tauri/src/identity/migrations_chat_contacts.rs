@@ -49,6 +49,7 @@ CREATE TABLE chat_peer_messages (
   id TEXT PRIMARY KEY NOT NULL,
   thread_id TEXT NOT NULL,
   event_id TEXT NOT NULL,
+  idempotency_key TEXT,
   sender_vault TEXT NOT NULL,
   sender_device TEXT NOT NULL,
   kind TEXT NOT NULL,
@@ -118,7 +119,9 @@ CREATE TABLE chat_relay_cursors_no_sync (
 CREATE TABLE chat_blobs_no_sync (
   blob_sha256 TEXT PRIMARY KEY NOT NULL,
   server TEXT NOT NULL,
-  upload_secret BLOB NOT NULL,
+  signer TEXT NOT NULL,
+  upload_secret BLOB,
+  key_entry_id TEXT,
   attachment_id TEXT NOT NULL,
   pending_devices TEXT NOT NULL,
   uploaded_at INTEGER NOT NULL
