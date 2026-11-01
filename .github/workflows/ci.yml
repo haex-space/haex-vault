@@ -343,6 +343,14 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
         run: node scripts/fetch-sherpa-onnx.ts
 
+      - name: Prepare sherpa-onnx Linux libraries
+        if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
+
       # Formatting does not depend on features, so it runs on one leg only.
       - name: Check formatting
         if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
@@ -606,6 +614,13 @@ jobs:
       # `SHERPA_ONNX_ARCHIVE_DIR` and never downloads them itself.
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts
+
+      - name: Prepare sherpa-onnx Linux libraries
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
 
       # tauri-driver is a global `cargo install`, outside the workspace the
       # cache step above covers; cached separately by its pinned version so
@@ -978,6 +993,13 @@ jobs:
       # `voice` feature, so it needs the checked sherpa-onnx archive like every other build.
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts
+
+      - name: Prepare sherpa-onnx Linux libraries
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
 
       - name: Cache tauri-driver
         id: cache-tauri-driver
