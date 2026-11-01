@@ -18,7 +18,8 @@ Nostr-Relays), exactly the layers of spec 051's contract
 
 The wrap is built with the existing `sync::presence::wrap_payload` / `unwrap_rumor` (presence.rs:225-305)
 after generalising them: wrap kind and `created_at` tweak become parameters (presence keeps 21059 and
-the real time), and the size limit becomes an argument (presence keeps 16 KiB).
+the real time), and the size limit becomes an argument (presence keeps 16 KiB). Built in PR C1 as
+`sync::gift_wrap` (`WrapShape`, `wrap_shaped`, `unwrap_shaped`), which presence and the chat both call.
 
 **Rationale**: device keys exist on every device (`sync::keys::DeviceKeys`, keys.rs:64) and are valid
 Nostr keys; the vault identity's secret is only on main devices, so addressing the vault key would
@@ -36,10 +37,13 @@ implementation per rule"). nostr 0.45 is in the tree with `nip44` and `nip59` (C
 
 ## R2 Event size and text limit
 
-**Decision**: A gift wrap must be ≤ **60 KiB**. With two NIP-44 layers (base64 ≈ ×1.33 each) the rumor
-content may be ≤ **32 KiB**. Text is limited to **4,000 characters** (≤ 16 KiB UTF-8 worst case); the
-rest of the budget holds the sender's card (R5) and attachment metadata. A rumor that would exceed the
-budget is refused before sending (`chat.error.tooLarge`, FR-012). Group snapshots are split (R9).
+**Decision**: A gift wrap must be ≤ **60 KiB**. Two NIP-44 layers pad and base64 the payload twice
+(the padding rounds up to steps of 4 KiB and 8 KiB, base64 adds a third each), so the rumor content may
+be ≤ **24 KiB**; 32 KiB grows to about 76 KiB and does not fit (measured in PR C1). Text is limited to
+**4,000 characters** (≤ 16 KiB UTF-8 worst case); the rest of the budget holds the sender's card (R5)
+and attachment metadata. Sending wraps the rumor once on trial, so a rumor whose escaping still
+pushes the wrap over 60 KiB is refused before it is queued (`chat.error.tooLarge`, FR-012). Group
+snapshots are split (R9); a group picture travels as a thumbnail of ≤ 12 KiB (base64 ≤ 16 KiB).
 
 **Rationale**: common Nostr-Relays accept 64 KiB events (strfry's default `maxEventSize` is 65,536;
 others accept more). Presence's 16 KiB would leave ~8 KiB of rumor: too little for 4,000 non-ASCII
@@ -62,7 +66,14 @@ under the vault gate's tracker and cancel token. It:
   group member's stored card) as write-only relays on demand and publishes with `send_event_to`;
   idle write-only relays are removed after 10 minutes (`ponytail:` fixed idle timeout, upgrade:
   LRU with a cap);
-- reacts to `wakeups.relays` / `network` (spec 043 app resume) by reconnecting and resubscribing.
+- reacts to `wakeups.relays` / `network` (spec 043 app resume) by reconnecting and resubscribing;
+  the waiting outbox rows are tried again at once;
+- reads the client's notifications in a task of its own that hands wraps on through an unbounded
+  queue, because nostr-sdk silently skips notifications for a reader that falls behind (found by the
+  soak test of PR C1), and fetches the stored wraps since the cursor again every 10 minutes as a net
+  under events a Nostr-Relay dropped (`ponytail:` fixed interval);
+- treats a Nostr-Relay's rate limit (e.g. 60 events a minute per connection) like any refusal: the
+  outbox backs off and tries again.
 
 **Rationale**: presence's client calls `unsubscribe_all()` on every refresh (presence_loop.rs:221-226)
 and would kill the chat subscription; link host and join also run their own clients

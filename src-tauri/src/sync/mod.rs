@@ -13,6 +13,7 @@ pub mod envelopes;
 pub mod events;
 pub mod foreign_auth;
 pub mod genesis;
+pub mod gift_wrap;
 pub mod handshake;
 pub(crate) mod home_relay;
 pub mod inbound;

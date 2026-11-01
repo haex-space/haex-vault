@@ -31,20 +31,18 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use hkdf::Hkdf;
 use iroh::{EndpointAddr, RelayUrl, TransportAddr};
-use nostr::event::{
-    Event, EventBuilder, FinalizeEvent, FinalizeUnsignedEvent, Kind, Tag, UnsignedEvent,
-};
+use nostr::event::{Event, Kind};
 use nostr::key::{Keys, PublicKey, SecretKey};
-use nostr::nips::nip44;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use crate::storage::query::Query;
+use crate::sync::gift_wrap::{unwrap_shaped, wrap_shaped, WrapShape};
 use crate::sync::keys::{random_bytes, DeviceKeys};
 
 /// A presence meeting is never sent or kept over this size (contracts/
 /// nostr-events.md).
-const MAX_EVENT_BYTES: usize = 16 * 1024;
+pub(crate) const MAX_EVENT_BYTES: usize = 16 * 1024;
 /// How stale a meeting's `ts` may be.
 const MAX_AGE_MS: u64 = 150_000;
 /// How far into the future a meeting's `ts` may claim to be.
@@ -184,7 +182,7 @@ pub fn mailbox_keys(
 }
 
 /// A raw device secret as a Nostr secret key.
-fn nostr_secret(secret: &[u8; 32]) -> Result<SecretKey, PresenceError> {
+pub(crate) fn nostr_secret(secret: &[u8; 32]) -> Result<SecretKey, PresenceError> {
     SecretKey::from_slice(secret).map_err(|_| PresenceError::InvalidKey)
 }
 
@@ -228,38 +226,13 @@ pub(crate) fn wrap_payload(
     payload: &str,
     recipient: &PublicKey,
 ) -> Result<Event, PresenceError> {
-    let sender_secret = nostr_secret(sender_secret)?;
-    let sender_keys = Keys::new(sender_secret.clone());
-
-    let rumor: UnsignedEvent =
-        EventBuilder::new(inner_kind, payload).finalize_unsigned(sender_keys.public_key());
-    let rumor_json =
-        serde_json::to_string(&rumor).map_err(|e| PresenceError::Malformed(e.to_string()))?;
-    let sealed = nip44::encrypt(
-        &sender_secret,
+    wrap_shaped(
+        WrapShape::PRESENCE,
+        inner_kind,
+        sender_secret,
+        payload,
         recipient,
-        rumor_json.as_bytes(),
-        nip44::Version::V2,
     )
-    .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-    let seal: Event = EventBuilder::new(Kind::Seal, sealed)
-        .finalize(&sender_keys)
-        .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-
-    let seal_json =
-        serde_json::to_string(&seal).map_err(|e| PresenceError::Malformed(e.to_string()))?;
-    let onetime = Keys::generate();
-    let wrapped = nip44::encrypt(
-        onetime.secret_key(),
-        recipient,
-        seal_json.as_bytes(),
-        nip44::Version::V2,
-    )
-    .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-    EventBuilder::new(GIFT_WRAP_KIND, wrapped)
-        .tag(Tag::public_key(*recipient))
-        .finalize(&onetime)
-        .map_err(|e| PresenceError::Crypto(e.to_string()))
 }
 
 /// Opens a gift wrap made by [`wrap_payload`]: decrypts both layers with
@@ -284,24 +257,7 @@ pub(crate) fn unwrap_rumor(
     gift_wrap: &Event,
     mb_sk: &SecretKey,
 ) -> Result<([u8; 32], Kind, String), PresenceError> {
-    if gift_wrap.as_json().len() > MAX_EVENT_BYTES {
-        return Err(PresenceError::TooLarge);
-    }
-    let seal_json = nip44::decrypt_to_bytes(mb_sk, &gift_wrap.pubkey, &gift_wrap.content)
-        .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-    let seal: Event =
-        serde_json::from_slice(&seal_json).map_err(|e| PresenceError::Malformed(e.to_string()))?;
-    seal.verify()
-        .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-    if seal.kind != Kind::Seal {
-        return Err(PresenceError::WrongKind);
-    }
-
-    let rumor_json = nip44::decrypt_to_bytes(mb_sk, &seal.pubkey, &seal.content)
-        .map_err(|e| PresenceError::Crypto(e.to_string()))?;
-    let rumor: UnsignedEvent =
-        serde_json::from_slice(&rumor_json).map_err(|e| PresenceError::Malformed(e.to_string()))?;
-    Ok((seal.pubkey.to_bytes(), rumor.kind, rumor.content))
+    unwrap_shaped(gift_wrap, mb_sk, MAX_EVENT_BYTES)
 }
 
 /// Checks a device pubkey is a real secp256k1 key, for callers that only

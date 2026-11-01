@@ -13,7 +13,7 @@ device, including the sender's own other devices.
 | `pubkey`     | one-time key                                                           |
 | `created_at` | now − random(0 … 48 h)                                                 |
 | tags         | `["p", <recipient device key hex>]`, `["expiration", <now + 30 days>]` |
-| size         | ≤ 60 KiB serialized; rumor content ≤ 32 KiB                            |
+| size         | ≤ 60 KiB serialized; rumor content ≤ 24 KiB                            |
 
 ## Rumor kinds
 

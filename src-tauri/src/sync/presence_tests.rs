@@ -1,3 +1,5 @@
+use nostr::types::Timestamp;
+
 use super::*;
 use crate::sync::keys::DeviceKeys;
 
@@ -92,4 +94,26 @@ fn the_content_survives_the_json_roundtrip_with_hex_fields() {
 fn a_crypto_provider_is_installed_for_the_relay_websocket() {
     ensure_crypto_provider();
     assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+}
+
+#[test]
+fn presence_keeps_its_ephemeral_kind_real_time_and_16_kib_limit() {
+    // Spec 072 T023: the chat's own wrap shape leaves presence as it was.
+    let (mb_sk, mb_pk) = mailbox_keys(&[5u8; 32], 7).expect("mailbox keys");
+    let sender = DeviceKeys::generate();
+    let before = Timestamp::now().as_secs();
+    let event = wrap_payload(PRESENCE_KIND, &sender.device_secret, "{}", &mb_pk).expect("wrap");
+    assert_eq!(event.kind, GIFT_WRAP_KIND);
+    assert!(event.created_at.as_secs() >= before, "not backdated");
+    assert!(
+        event.tags.iter().all(|tag| tag.kind() != "expiration"),
+        "no expiration"
+    );
+    assert!(unwrap_rumor(&event, &mb_sk).is_ok());
+
+    let too_big = "x".repeat(MAX_EVENT_BYTES);
+    assert!(matches!(
+        wrap_payload(PRESENCE_KIND, &sender.device_secret, &too_big, &mb_pk),
+        Err(PresenceError::TooLarge)
+    ));
 }
