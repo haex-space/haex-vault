@@ -3,6 +3,7 @@
   "cairo",
   "cargo",
   "clippy",
+  "cmake",
   "corepack_22",
   "cudatoolkit",
   "curl",
