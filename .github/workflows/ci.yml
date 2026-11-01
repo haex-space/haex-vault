@@ -276,6 +276,7 @@ jobs:
       # `debuginfo=2`, and GitHub evicts caches over 10 GB per repository,
       # which would silently turn the cache below into a no-op.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         if: needs.changes.outputs.non_docs == 'true'
