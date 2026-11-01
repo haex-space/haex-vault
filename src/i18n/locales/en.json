@@ -359,7 +359,11 @@
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP."
+      "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP.",
+      "delegateUnregistered": "{name} has no rights in holzi yet, so it works without holzi's tools in this chat.",
+      "delegateExpired": "The rights of {name} in holzi expired because the delegate did not run for 90 days. Set them again so it gets holzi's tools back.",
+      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
+      "setRights": "Set rights"
     },
     "permission": {
       "modeLabel": "Approval",
@@ -1794,6 +1798,9 @@
           "unblock": "Lift the block of an external agent",
           "log": {
             "clear": "Empty the log of an external agent"
+          },
+          "delegate": {
+            "register": "Set the rights of a chat delegate in holzi"
           }
         }
       },
@@ -3839,10 +3846,11 @@
       "connection": "Connection",
       "rights": "What may the agent do?",
       "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
-      "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → Agents.",
+      "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → External agents.",
       "remember": "Remember the refusal",
       "register": "Register",
-      "deny": "Decline"
+      "deny": "Decline",
+      "delegateHint": "holzi hands this delegate its tools on every start in the chat; there is nothing to set up in the delegate. Questions appear in the chat."
     },
     "transport": {
       "ipc": "Program on this device",

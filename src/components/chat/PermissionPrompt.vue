@@ -14,6 +14,8 @@ const props = defineProps<{
    * pending at once (spec.md Edge Case: independent tool calls each get
    * their own request). */
   pendingPrompts: PendingPrompt[]
+  /** The open thread: its delegate's calls to holzi are asked here too (spec 021 US6). */
+  threadId?: string | null
 }>()
 
 /** The approval shown now: the oldest prompt, when it asks for one. */
@@ -112,6 +114,8 @@ function onUpdateOpen(open: boolean) {
     :disabled="disabled"
     @update:value="emit('update:mode', $event as 'manual' | 'auto' | 'plan')"
   />
+
+  <ChatDelegateCallPrompt :thread-id="threadId ?? null" :held="!!approval" />
 
   <UiDrawerModal
     v-if="approval"

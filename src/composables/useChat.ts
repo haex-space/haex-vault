@@ -12,6 +12,7 @@
  */
 import type { RiskClass } from '~/lib/chat/prompts'
 import type { ToolAvailability } from '~/lib/chat/toolNotice'
+import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -196,6 +197,8 @@ export interface ToolPermissionRequestEvent {
 export interface ToolAvailabilityEvent {
   threadId: string
   state: ToolAvailability
+  /** Which delegate runs, for a `delegate` turn (spec 021 US6). */
+  delegateKind?: AgentKind
 }
 
 /** Fires exactly once per `send_message` call, after that turn's last

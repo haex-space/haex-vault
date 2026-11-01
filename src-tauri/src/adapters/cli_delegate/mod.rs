@@ -327,4 +327,8 @@ impl ProviderAdapter for CliDelegateAdapter {
             }
         }
     }
+
+    fn delegate_vendor(&self) -> Option<DelegateVendor> {
+        Some(self.vendor)
+    }
 }
