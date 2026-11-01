@@ -17,4 +17,8 @@ input: Record<string, unknown>,
 /**
  * The answer hands a secret to the agent and its provider.
  */
-secret: boolean, };
+secret: boolean,
+/**
+ * A delegate's call: the chat thread that shows the prompt instead of the dialog (US6, R6).
+ */
+delegateThreadId?: string, };

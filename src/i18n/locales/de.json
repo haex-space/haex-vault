@@ -359,7 +359,11 @@
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
-      "delegate": "Dieser Assistent betreibt einen eigenen Agenten, deshalb bietet holzi ihm in diesem Chat keine Werkzeuge an. Er erreicht sie nur über MCP."
+      "delegate": "Dieser Assistent betreibt einen eigenen Agenten, deshalb bietet holzi ihm in diesem Chat keine Werkzeuge an. Er erreicht sie nur über MCP.",
+      "delegateUnregistered": "{name} hat noch keine Rechte in holzi und arbeitet in diesem Chat deshalb ohne holzi-Werkzeuge.",
+      "delegateExpired": "Die Rechte von {name} in holzi sind abgelaufen, weil der Delegate 90 Tage nicht lief. Lege sie neu fest, damit er wieder holzi-Werkzeuge bekommt.",
+      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein.",
+      "setRights": "Rechte festlegen"
     },
     "permission": {
       "modeLabel": "Freigabe",
@@ -1921,6 +1925,9 @@
           "unblock": "Sperre eines externen Agenten aufheben",
           "log": {
             "clear": "Protokoll eines externen Agenten leeren"
+          },
+          "delegate": {
+            "register": "Rechte eines Chat-Delegates in holzi festlegen"
           }
         }
       },
@@ -3969,7 +3976,8 @@
       "filesHint": "Dateien und Kontakte darf ein neuer Agent nicht. Das legst du nach der Registrierung auf seiner Seite unter KI → Agenten fest.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
-      "deny": "Ablehnen"
+      "deny": "Ablehnen",
+      "delegateHint": "holzi gibt diesem Delegate die Werkzeuge bei jedem Start im Chat selbst mit; du musst am Delegate nichts einrichten. Rückfragen erscheinen im Chat."
     },
     "transport": {
       "ipc": "Programm auf diesem Gerät",

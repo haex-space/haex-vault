@@ -40,11 +40,11 @@ Das Hilfsprogramm startet keine Tauri-Laufzeit, kein Fenster und keine Vault.
 
 3. Antwort lesen (eine Zeile JSON), `status`:
 
-   | `status`   | Bedeutung                                            | Hilfsprogramm                                                       |
-   | ---------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-   | `accepted` | Nachweis gültig                                      | durchreichen                                                        |
-   | `pending`  | Registrierungsdialog offen                           | durchreichen; der Nachweis kommt später als Steuerzeile (Schritt 4) |
-   | `rejected` | `reason`: `blocked`, `registration_busy`, `disabled` | auf `initialize` mit Fehler antworten, Exit-Code 3                  |
+   | `status`   | Bedeutung                                                                                                                   | Hilfsprogramm                                                       |
+   | ---------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+   | `accepted` | Nachweis gültig                                                                                                             | durchreichen                                                        |
+   | `pending`  | Registrierungsdialog offen                                                                                                  | durchreichen; der Nachweis kommt später als Steuerzeile (Schritt 4) |
+   | `rejected` | `reason`: `blocked`, `registration_busy`, `disabled`, `not_registered` (Delegate ohne gültigen Nachweis oder Registrierung) | auf `initialize` mit Fehler antworten, Exit-Code 3                  |
 
 4. Danach reicht das Hilfsprogramm MCP-Nachrichten zeilenweise durch (MCP über stdio ist
    zeilengetrenntes JSON). In Richtung App → Agent kann eine Zeile eine **Steuerzeile** sein:

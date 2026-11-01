@@ -63,10 +63,31 @@ fn the_event_has_the_documented_wire_shape() {
     let value = serde_json::to_value(ToolAvailabilityEvent {
         thread_id,
         state: ToolAvailability::OfferedUnverified,
+        delegate_kind: None,
     })
     .unwrap();
     assert_eq!(
         value,
         json!({ "threadId": thread_id.to_string(), "state": "offeredUnverified" })
+    );
+}
+
+/// Spec 021 US6: a delegate turn names its delegate, so the chat can ask for its MCP rights.
+#[test]
+fn a_delegate_turn_names_its_delegate() {
+    let thread_id = Uuid::new_v4();
+    let value = serde_json::to_value(ToolAvailabilityEvent {
+        thread_id,
+        state: ToolAvailability::Delegate,
+        delegate_kind: Some(crate::mcp_server::registry::AgentKind::CodexDelegate),
+    })
+    .unwrap();
+    assert_eq!(
+        value,
+        json!({
+            "threadId": thread_id.to_string(),
+            "state": "delegate",
+            "delegateKind": "codexDelegate",
+        })
     );
 }

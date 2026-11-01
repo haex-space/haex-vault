@@ -6,6 +6,8 @@
  * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
  * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
  * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering.
+ * For a chat delegate (US6, `question.delegate`) holzi names it itself, so the name is no claim,
+ * and declining is never remembered: "Rechte festlegen" asks again.
  * Rust checks the rights again; rights it refuses count as declining.
  */
 import {
@@ -45,11 +47,12 @@ watch(
 
 async function answerAsync(register: boolean) {
   const shown = store.shown
-  if (!shown || (register && !complete.value)) return
+  const asked = question.value
+  if (!shown || !asked || (register && !complete.value)) return
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
-      remember: register ? false : remember.value,
+      remember: register || asked.delegate ? false : remember.value,
       rights: register ? rightsOf(draft.value) : { operate: {} },
       mode: mode.value,
     })
@@ -78,7 +81,10 @@ function onUpdateOpen(open: boolean) {
           </dt>
           <dd class="min-w-0 break-words" data-testid="mcp-registration-name">
             {{ question.clientName }}
-            <span class="text-xs text-muted-foreground">
+            <span
+              v-if="!question.delegate"
+              class="text-xs text-muted-foreground"
+            >
               ({{ t('mcpAgents.registration.claimed') }})
             </span>
           </dd>
@@ -119,7 +125,14 @@ function onUpdateOpen(open: boolean) {
           />
         </SettingsGroup>
 
-        <label class="flex items-center gap-2 text-sm">
+        <p
+          v-if="question.delegate"
+          class="text-xs text-muted-foreground"
+          data-testid="mcp-registration-delegate"
+        >
+          {{ t('mcpAgents.registration.delegateHint') }}
+        </p>
+        <label v-else class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox
             v-model="remember"
             data-testid="mcp-registration-remember"

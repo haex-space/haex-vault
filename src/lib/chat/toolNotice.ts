@@ -1,5 +1,6 @@
 // The notice about a model's tool use, shown once per conversation and state (spec 032 US4,
 // FR-016/017/023, research R11). Pure, so the Node check scripts can load it.
+import type { DelegateStatus } from '../../types/bindings/DelegateStatus.ts'
 
 /** What the backend decided for a turn (`chat-tool-availability`). */
 export type ToolAvailability =
@@ -17,6 +18,25 @@ export function noticeKey(state: ToolAvailability): string | null {
     case 'offered':
       return null
   }
+}
+
+/** The notice of a delegate turn by its MCP status; a registered delegate needs none. */
+export function delegateNoticeKey(status: DelegateStatus): string | null {
+  switch (status) {
+    case 'off':
+      return 'chat.toolNotice.delegateOff'
+    case 'unregistered':
+      return 'chat.toolNotice.delegateUnregistered'
+    case 'expired':
+      return 'chat.toolNotice.delegateExpired'
+    case 'registered':
+      return null
+  }
+}
+
+/** Whether the notice of a delegate offers "Rechte festlegen". */
+export function canSetRights(status: DelegateStatus): boolean {
+  return status === 'unregistered' || status === 'expired'
 }
 
 /**

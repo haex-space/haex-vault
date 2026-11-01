@@ -61,6 +61,7 @@ EOF
             )),
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
+            holzi: None,
         }),
     );
 
@@ -136,6 +137,7 @@ sys.stdin.readline()
             )),
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
+            holzi: None,
         }),
     );
 

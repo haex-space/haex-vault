@@ -63,6 +63,14 @@ impl std::fmt::Debug for HelperArgs {
     }
 }
 
+/// The executable an agent starts: the AppImage itself when holzi runs as one, else this binary.
+pub fn executable() -> std::io::Result<String> {
+    if let Some(appimage) = std::env::var_os("APPIMAGE") {
+        return Ok(appimage.to_string_lossy().into_owned());
+    }
+    std::env::current_exe().map(|path| path.to_string_lossy().into_owned())
+}
+
 /// Reads `<slug> [--vault <id>] [--delegate-token <credential>]`.
 pub fn parse_args(mut args: impl Iterator<Item = String>) -> Result<HelperArgs, String> {
     let slug = args.next().ok_or("missing the agent's slug")?;
@@ -196,6 +204,7 @@ fn rejection_message(reason: RejectReason) -> String {
         RejectReason::RegistrationBusy => "holzi has too many open registrations; try again later",
         RejectReason::Disabled => "the MCP access of holzi is off",
         RejectReason::Malformed => "holzi could not read the greeting of this helper",
+        RejectReason::NotRegistered => "this delegate has no rights in holzi; set them in the chat",
     }
     .to_owned()
 }

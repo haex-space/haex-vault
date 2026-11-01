@@ -99,6 +99,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
+            holzi: None,
         }),
     );
 

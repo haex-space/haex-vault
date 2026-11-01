@@ -8,6 +8,7 @@ mod callee;
 pub mod command_tool;
 pub mod commands;
 pub mod connection;
+pub mod delegates;
 pub mod dispatch;
 pub mod endpoint;
 pub mod extension_tools;
@@ -66,6 +67,7 @@ use self::prompts::{
     EVENT_CALL_REQUEST, EVENT_PROMPT_CLOSED, EVENT_REGISTRATION_REQUEST, REGISTRATION_TIMEOUT,
 };
 use self::server::{Limits, Notice, Notifier, Running, StartArgs, StartError};
+use crate::adapters::cli_delegate::holzi_mcp::HolziAccess;
 use crate::chat::session::ChatState;
 use crate::state::AppState;
 
@@ -92,6 +94,7 @@ struct Slot {
 pub struct McpServer {
     prompts: RegistrationPrompts,
     calls: CallPrompts,
+    delegates: Arc<delegates::DelegateHub>,
     notify: Mutex<Option<Notifier>>,
     configuration: tokio::sync::Mutex<()>,
     slot: tokio::sync::Mutex<Slot>,
@@ -102,6 +105,7 @@ impl Default for McpServer {
         Self {
             prompts: new_registration_prompts(),
             calls: new_call_prompts(),
+            delegates: Arc::default(),
             notify: Mutex::new(None),
             configuration: tokio::sync::Mutex::new(()),
             slot: tokio::sync::Mutex::new(Slot::default()),
@@ -155,6 +159,11 @@ impl McpServer {
         &self.calls
     }
 
+    /// How a delegate in the chat reaches holzi (US6).
+    pub fn delegate_access(&self) -> Arc<dyn HolziAccess> {
+        Arc::clone(&self.delegates) as Arc<dyn HolziAccess>
+    }
+
     pub(super) fn notifier(&self) -> Notifier {
         self.notify
             .lock()
@@ -191,6 +200,7 @@ impl McpServer {
                         command_tool: command_tool::for_device(chat.children()),
                         prompts: self.prompts.clone(),
                         calls: self.calls.clone(),
+                        delegates: Arc::clone(&self.delegates),
                         notify: self.notifier(),
                         limits: Limits::default(),
                     };

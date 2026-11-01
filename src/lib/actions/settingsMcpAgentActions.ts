@@ -1,6 +1,6 @@
 // The settings actions of the MCP access for external agents (spec 021, FR-001, FR-016, FR-026 to
 // FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's rights,
-// approval mode, revocation, block and log. Guardrails: they decide which
+// approval mode, revocation, block and log, and the rights of a chat delegate (US6). Guardrails: they decide which
 // agents may reach holzi at all, which is the user's choice only, so no agent can call them. Listed in
 // `catalog.ts` (`settingsActions.ts` is at its size limit); the handlers are in `stores/settingsActionHandlers.ts`. Pure, relative `.ts`
 // imports only.
@@ -118,6 +118,25 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
       'Lift the block of an external agent; it may ask for a registration again. User only.',
     input: AGENT,
     ...GUARDRAIL,
+    effect: 'write',
+  },
+  {
+    id: 'settings.agents.mcp.delegate.register',
+    titleKey: 'actions.settings.agents.mcp.delegate.register',
+    description:
+      'Open the registration dialog for a delegate of the chat (Claude Code or Codex), so it gets holzi\'s tools over MCP with the rights chosen there (spec 021 US6). Answers "registered", "declined", "busy" or "off". User only.',
+    input: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['claudeCodeDelegate', 'codexDelegate'] },
+      },
+      required: ['kind'],
+    },
+    ...GUARDRAIL,
+    result: {
+      type: 'string',
+      enum: ['registered', 'declined', 'busy', 'off'],
+    },
     effect: 'write',
   },
   {

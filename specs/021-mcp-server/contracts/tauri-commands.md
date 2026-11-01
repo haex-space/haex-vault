@@ -4,16 +4,18 @@
 
 ## Commands (nur Fenster)
 
-| Command                   | Eingabe                                                                             | Ergebnis / Wirkung                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `mcp_status`              | –                                                                                   | an/aus, Wege, Endpunkt, HTTP-Port, verbundene Agenten                          |
-| `mcp_agents_list`         | –                                                                                   | Agenten mit Zustand, letzter Verbindung, Freigabestufe, Rechte-Zusammenfassung |
-| `mcp_agent_get`           | `agentId`                                                                           | Agent mit allen Rechten                                                        |
-| `mcp_agent_log`           | `agentId`, `before?`, `beforeId?`, `limit` (≤ 200)                                  | Protokolleinträge, neueste zuerst; `beforeId` bricht Zeitstempel-Gleichstände  |
-| `mcp_configure`           | `enabled`                                                                           | schaltet den Zugang dieses Geräts; nur über `settings.agents.mcp.enable`       |
-| `mcp_registration_answer` | `requestId`, `decision` (`register`/`deny`), `remember`, `grants`, `permissionMode` | beendet den Registrierungsdialog                                               |
-| `mcp_call_answer`         | `requestId`, `decision` (`allow`/`deny`)                                            | beendet eine Rückfrage                                                         |
-| `mcp_setup_snippet`       | `client` (`claude-code`, `codex`, `other`), `transport`                             | Text der Anleitung ohne Nachweis (FR-005)                                      |
+| Command                   | Eingabe                                                                             | Ergebnis / Wirkung                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp_status`              | –                                                                                   | an/aus, Wege, Endpunkt, HTTP-Port, verbundene Agenten                                                                               |
+| `mcp_agents_list`         | –                                                                                   | Agenten mit Zustand, letzter Verbindung, Freigabestufe, Rechte-Zusammenfassung                                                      |
+| `mcp_agent_get`           | `agentId`                                                                           | Agent mit allen Rechten                                                                                                             |
+| `mcp_agent_log`           | `agentId`, `before?`, `beforeId?`, `limit` (≤ 200)                                  | Protokolleinträge, neueste zuerst; `beforeId` bricht Zeitstempel-Gleichstände                                                       |
+| `mcp_configure`           | `enabled`                                                                           | schaltet den Zugang dieses Geräts; nur über `settings.agents.mcp.enable`                                                            |
+| `mcp_registration_answer` | `requestId`, `decision` (`register`/`deny`), `remember`, `grants`, `permissionMode` | beendet den Registrierungsdialog                                                                                                    |
+| `mcp_call_answer`         | `requestId`, `decision` (`allow`/`deny`)                                            | beendet eine Rückfrage                                                                                                              |
+| `mcp_setup_snippet`       | `client` (`claude-code`, `codex`, `other`), `transport`                             | Text der Anleitung ohne Nachweis (FR-005)                                                                                           |
+| `mcp_delegate_status`     | `kind` (`claudeCodeDelegate`, `codexDelegate`)                                      | `off`, `unregistered`, `expired`, `registered` (US6, FR-025)                                                                        |
+| `mcp_delegate_register`   | `kind`                                                                              | „Rechte festlegen“: Registrierungsdialog; `registered`, `declined`, `busy`, `off`; nur über `settings.agents.mcp.delegate.register` |
 
 Änderungen an Einstellungen und Rechten laufen über die Katalogaktionen unten (ein Weg für
 Oberfläche und Tests). Deren Handler rufen `mcp_agent_rights_set`, `mcp_agent_mode_set`,
@@ -29,7 +31,8 @@ bzw. `mode`); kein Agent erreicht sie.
 | `mcp-prompt-closed`        | `requestId`, Grund (`answered`, `timeout`, `cancelled`)                                                                                                                                         |
 | `mcp-agents-changed`       | –                                                                                                                                                                                               |
 
-Delegates: `mcp-call-request` mit `delegateTurnId` wird vom Chat als Freigabe-Zeile gezeigt statt
+Delegates: `mcp-call-request` mit `delegateThreadId` (der Chat-Thread des Delegate-Starts) wird vom
+Chat als Freigabe-Zeile gezeigt statt
 als Dialog (R6).
 
 `action-call-request` (vorhanden) bekommt das Feld `caller`: `{ "kind": "builtinAgent" }` oder

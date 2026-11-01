@@ -257,6 +257,7 @@ fn question(
         target,
         input: shown,
         secret,
+        delegate_thread_id: agent.delegate_thread.map(|thread| thread.to_string()),
     }
 }
 

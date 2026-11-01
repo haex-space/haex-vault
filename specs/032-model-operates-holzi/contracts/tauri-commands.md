@@ -62,12 +62,16 @@ Werkzeugfehler `action_timeout` ab. Ein Thread ist nicht Teil der Nutzlast:
 ### `chat-tool-availability`
 
 ```text
-{ threadId: Uuid, state: "offered" | "offeredUnverified" | "unsupported" | "delegate" }
+{ threadId: Uuid, state: "offered" | "offeredUnverified" | "unsupported" | "delegate",
+  delegateKind?: "claudeCodeDelegate" | "codexDelegate" }
 ```
 
 Einmal je Zug zu Beginn gesendet. Das Frontend zeigt für die drei Zustände
 außer `offered` einmal je Unterhaltung und Zustand pro App-Sitzung einen
-schließbaren Hinweis (`chat.toolNotice.*`).
+schließbaren Hinweis (`chat.toolNotice.*`). Seit Spec 021 US6 trägt ein
+`delegate`-Zug `delegateKind`; der Hinweis richtet sich dann nach
+`mcp_delegate_status` (registriert: keiner; sonst mit „Rechte festlegen“ bzw.
+dem Hinweis, dass der MCP-Zugang aus ist).
 
 ### `model-tool-use-updated`
 
