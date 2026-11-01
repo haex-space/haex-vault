@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import {
   createAndUnlock,
   invokeAfterBusyOperation,
+  invokeLong,
   unwrap,
 } from '../lib/flows.ts'
 import { pinnedModelFile, QWEN3_0_6B } from '../lib/local-model.ts'
@@ -31,26 +32,38 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
   // After the start: on Android it clears the app's data, where the staged file lies.
   const installed = unwrap<{ id: string }>(
     'import_model_from_file',
-    await invokeAfterBusyOperation(instance, 'import_model_from_file', {
-      args: {
-        id: model.id,
-        name: model.name,
-        sourcePath: onDevice(hostFile, instance),
-        tokenizerRepo: model.tokenizerRepo,
-        // Room for the chat's tools and a short answer, and little memory on the emulator.
-        contextWindow: 4096,
-        filename: model.filename,
+    // Copying and hashing the file, and the hash check before loading it, outlast the driver's
+    // 60 s script limit on the emulator.
+    await invokeLong(
+      instance,
+      ctx.waitFor,
+      'import_model_from_file',
+      {
+        args: {
+          id: model.id,
+          name: model.name,
+          sourcePath: onDevice(hostFile, instance),
+          tokenizerRepo: model.tokenizerRepo,
+          // Room for the chat's tools and a short answer, and little memory on the emulator.
+          contextWindow: 4096,
+          filename: model.filename,
+        },
       },
-    }),
+      240_000,
+    ),
   )
   assert.equal(installed.id, model.id)
   ctx.step('the model file is imported')
 
   const loaded = unwrap<{ modelId: string; engine: string | null }>(
     'load_model',
-    await invokeAfterBusyOperation(instance, 'load_model', {
-      modelId: model.id,
-    }),
+    await invokeLong(
+      instance,
+      ctx.waitFor,
+      'load_model',
+      { modelId: model.id },
+      240_000,
+    ),
   )
   assert.equal(loaded.modelId, model.id)
   assert.equal(loaded.engine, 'llama.cpp')
