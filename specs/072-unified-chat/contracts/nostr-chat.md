@@ -44,7 +44,8 @@ is a non-removed device of `card` → `from` equals the card's vault → `from` 
 own vault (direct) or a group where `from` is a `member` at `at` (except `group.invite`, `group.op` with
 `accept`/`decline` from an invited vault). For an own-device copy of a direct message, also accept when
 `from` is the own vault and `to.direct` is the peer vault; store it in the conversation with that peer.
-Then check `v` is known. Any failure: drop silently, no receipt.
+Reject a group op whose `at` is more than five minutes ahead of the receiver's current time (R9), then
+check `v` is known. Any failure: drop silently, no receipt.
 
 ### `type: "message"`
 

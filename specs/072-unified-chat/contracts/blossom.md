@@ -50,6 +50,7 @@ sweep (R13). A failed delete is retried at the next sweep.
 
 The Blossom request wrapper must reject every non-HTTPS URL before using the pinned client (the test
 server may use `http://127.0.0.1` only), disable redirects and proxies, and enforce 30 s connect / 5 min
-per-transfer timeouts even if the shared pinned client has no timeout. The plaintext cap is 100 MiB;
+per-transfer timeouts even if the shared pinned client has no timeout. The plaintext cap is 100,000,000
+bytes (100 MB);
 the ciphertext transfer cap includes the HXCF header and one 16-byte GCM tag per 1 MiB segment:
 `plaintext_bytes + 17 + 16 * ceil(plaintext_bytes / 1 MiB)`.

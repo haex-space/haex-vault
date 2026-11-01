@@ -222,10 +222,10 @@ gets nothing further (spec US4, quickstart A7, A8).
 
 ### Implementation for User Story 4
 
-- [ ] T077 [US4] `src-tauri/src/chat/peer/group.rs`: apply `group.op` with LWW per member on `(state_at, state_op)` and per meta on `(meta_at, meta_op)`; any member may add or remove (no admins); each applied op inserts a `note` message `{op, by, member?, name?}`
+- [ ] T077 [US4] `src-tauri/src/chat/peer/group.rs`: reject future `group.op` timestamps more than five minutes ahead; apply accepted ops with LWW per member on `(state_at, state_op)` and per meta on `(meta_at, meta_op)`; any member may add or remove (no admins); each applied op inserts a `note` message `{op, by, member?, name?}`
 - [ ] T078 [US4] Invitations: build `group.invite` in parts of ≤ 12 members (each with signed card, state, at, op, by), receive into `chat_group_parts_no_sync`, show once all `of` parts arrived, drop after 7 days
 - [ ] T079 [US4] Addressing in `src-tauri/src/chat/peer/delivery.rs`: group messages to every `member` at send time (and ops additionally to `invited` and the affected vault), verifying non-contact members against the member row's card (R5, R9); card updates from messages update the member row
-- [ ] T080 [US4] Commands `chat_group_create` (≥ 2 contacts, ≤ 31 others), `chat_group_add`, `chat_group_remove`, `chat_group_leave`, `chat_group_rename`, `chat_group_picture` (≤ 48 KiB base64 in the op, ≤ 64 KiB stored), `chat_invitation_answer` in `src-tauri/src/chat/peer/commands/groups.rs`
+- [ ] T080 [US4] Commands `chat_group_create` (≥ 2 contacts, ≤ 31 others), `chat_group_add`, `chat_group_remove`, `chat_group_leave`, `chat_group_rename`, `chat_group_picture` (≤ 12 KiB base64 in the op, ≤ 9 KiB stored), `chat_invitation_answer` in `src-tauri/src/chat/peer/commands/groups.rs`
 - [ ] T081 [US4] Leaving or being removed sets the thread `state = 'closed'` (readable, composer disabled); deleting a group thread leaves first (FR-008, FR-055)
 - [ ] T082 [P] [US4] `src/components/chat/GroupMembersPanel.vue`: members with state, "nicht in deinen Kontakten" + "Zu Kontakten hinzufügen" (060 preview with the member card), add from contacts, remove, leave, rename, picture
 - [ ] T083 [US4] Group creation in `NewConversationDialog.vue`; invitation prompt ("Annehmen"/"Ablehnen") in `PeerConversation.vue` / `RequestBanner.vue`; note messages rendered in `PeerMessageList.vue`; per-member delivery detail for own messages
