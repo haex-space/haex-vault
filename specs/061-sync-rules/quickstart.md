@@ -53,7 +53,7 @@ Rust-Zweige mit `cfg` zusätzlich für `aarch64-linux-android` linten.
    bleibt sie unberührt (SC-009).
 3. Regel → Protokoll: letzte Läufe mit Zählern; einen Lauf aufklappen: Pfad, Aktion, Seite. Einen
    gespiegelten Löscheintrag öffnen: führt in `.holzi-trash` oder nennt den Papierkorb des Systems.
-4. Einstellungen → „Sync-Protokoll“: Tiefe auf 2 setzen → ältere Läufe sind sofort weg; auf 0 → kein neues Protokoll.
+4. Dateibrowser → Sync-Regeln → „Einstellungen“ (neben „Neue Regel“): Tiefe auf 2 setzen → ältere Läufe sind sofort weg; auf 0 → kein neues Protokoll.
 
 ## 5. Agent (Story 5)
 

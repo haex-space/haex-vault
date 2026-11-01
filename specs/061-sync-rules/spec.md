@@ -51,8 +51,8 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   temporären Kopierdateien der Regel und Systemmüll (`.DS_Store`, `Thumbs.db`, `desktop.ini`).
 - **Lauf-Protokoll**: die Liste der letzten Abgleiche einer Regel. Je Lauf stehen dort Beginn, Dauer,
   Ergebnis, Zähler (kopiert, verschoben, gelöscht, Konflikte, Fehler) und je Datei Pfad, Aktion und Seite.
-  Wie viele Läufe je Regel erhalten bleiben, stellt der Nutzer in den Einstellungen ein
-  (**Protokolltiefe**, Vorgabe 10).
+  Wie viele Läufe je Regel erhalten bleiben, stellt der Nutzer im Bereich „Sync-Regeln“ des
+  Dateibrowsers unter „Einstellungen“ ein (**Protokolltiefe**, Vorgabe 10).
 - **Regelstatus**: der Zustand einer Regel: **aktiv**, **läuft**, **wartet** (ein Ort ist nicht
   erreichbar), **Fehler**, **pausiert** oder **holzi nicht aktiv**.
 
@@ -114,8 +114,9 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   nach dem Stand ab, egal wie alt er ist; der Schutz vor Massenlöschen bleibt bei FR-022 (leerer oder
   fehlender Ort) und beim Löschmodus „Nachfragen“.
 - Q: Wie nachvollziehbar ist, was ein Abgleich getan hat? → A: Zähler plus Dateiliste der letzten Läufe
-  je Regel (Lauf-Protokoll); ältere werden verworfen. Wie viele Läufe, stellt der Nutzer in einem
-  eigenen Menüpunkt der Einstellungen ein, Vorgabe 10. Aus einer gespiegelten Löschung führt ein Eintrag
+  je Regel (Lauf-Protokoll); ältere werden verworfen. Wie viele Läufe, stellt der Nutzer im Bereich
+  „Sync-Regeln“ des Dateibrowsers über die Schaltfläche „Einstellungen“ neben „Neue Regel“ ein,
+  Vorgabe 10 (geändert 2026-11-01: vorher ein Menüpunkt der Einstellungen). Aus einer gespiegelten Löschung führt ein Eintrag
   zum Papierkorb-Ort.
 - Q: Dürfen zwei Geräte Regeln für denselben Ort haben? → A: Ja, ohne Abstimmung. Regeln verschiedener
   Geräte sind unabhängig, Ketten wie Laptop↔Telefon und Telefon↔NAS sind möglich. Schutz bieten der
@@ -284,8 +285,9 @@ Orte und Stand prüfen.
     Seite.
 13. **Given** eine gespiegelte Löschung im Protokoll, **When** Anna den Eintrag öffnet, **Then**
     führt er zum Regel-Papierkorb, in dem die Datei liegt; beim Papierkorb des Systems nennt er diesen.
-14. **Given** die Einstellungen, **When** Anna den Menüpunkt „Sync-Protokoll“ öffnet, **Then** kann sie
-    die Protokolltiefe ändern; verkleinert sie sie, verwirft holzi die ältesten Läufe sofort, und bei 0
+14. **Given** der Bereich „Sync-Regeln“, **When** Anna neben „Neue Regel“ auf „Einstellungen“ klickt,
+    **Then** erklärt ein Dialog, was das Protokoll ist und was die Zahl bewirkt, und sie kann die
+    Protokolltiefe ändern; verkleinert sie sie, verwirft holzi die ältesten Läufe sofort, und bei 0
     führt holzi kein Protokoll.
 
 ---
@@ -502,7 +504,10 @@ löschen.
   Zähler und je Datei Pfad, Aktion (kopiert, verschoben, gelöscht, Konfliktkopie, übersprungen,
   Fehler) und Seite. Auch ein Lauf, der abbricht oder wartet, MUSS mit Grund erscheinen.
 - **FR-044**: Die Zahl der Läufe, die das Protokoll je Regel behält (Protokolltiefe), MUSS der Nutzer
-  in einem eigenen Menüpunkt „Sync-Protokoll“ der Einstellungen ändern können. Vorgabe ist 10, erlaubt
+  im Bereich „Sync-Regeln“ des Dateibrowsers über die Schaltfläche „Einstellungen“ neben „Neue Regel“
+  ändern können, nicht in den Einstellungen von holzi. Der Dialog MUSS erklären, was das Protokoll
+  enthält, was die Zahl bewirkt (ältere Läufe werden gelöscht, bei 0 gibt es kein Protokoll), dass mehr
+  Läufe mehr Speicher brauchen und dass die Einstellung für alle Regeln dieses Geräts gilt. Vorgabe ist 10, erlaubt
   sind 0 bis 100. Bei 0 führt holzi kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts
   und nur für dieses Gerät, und eine Verkleinerung MUSS die ältesten Läufe sofort verwerfen.
 - **FR-045**: Das Protokoll DARF nur auf dem ausführenden Gerät liegen, wird nicht synchronisiert und
