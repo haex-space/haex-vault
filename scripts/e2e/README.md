@@ -275,6 +275,9 @@ control's own data — never its displayed text).
 `E2E_TIME_SCALE`, `E2E_KEEP`, `HOLZI_E2E_RUN` (the run's process marker). `scripts/e2e/lib/scenario.ts`
 reads it once, in `readEnv()`. A scenario file is not meant to be run any other way.
 
+`local-model-answer` runs a real model (Qwen3 0.6B, about 480 MB): `lib/local-model.ts` fetches it once,
+pinned and checked by its SHA-256, into `~/.cache/holzi-e2e/models` (or `E2E_MODEL_CACHE`).
+
 ## The run directory
 
 `<CARGO_TARGET_DIR or src-tauri/target>/e2e/<run-id>/` (moved with `E2E_ARTIFACTS_DIR`; already outside

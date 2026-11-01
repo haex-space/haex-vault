@@ -173,6 +173,9 @@ F; US5 is G.
 - [ ] T040 Android emulator e2e (spec 043 rig): load Qwen3 0.6B through the new engine and answer one
       prompt; the scenario goes into `scripts/e2e/scenarios/`. Only if T043 picks llama.cpp (T036); it is
       then part of T044.
+      Progress: scenario `local-model-answer` (Linux and Android) imports the pinned Qwen3 0.6B
+      (`scripts/e2e/lib/local-model.ts`, cached in CI), checks that `load_model` reports the engine
+      `llama.cpp`, and waits for an answer. Ticked once it ran green on the emulator in CI.
 - [ ] T041 Documentation: `docs/` page on engines, which models each runs, how to build with the
       features; the quickstart is checked on a clean checkout.
       Progress (PR G): README "Local inference build" (engines, fallback, CUDA, NDK, `cmake` per system),

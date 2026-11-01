@@ -65,6 +65,8 @@ pub struct LoadedModelInfo {
     pub name: String,
     pub tokenizer_repo: String,
     pub context_window: Option<i64>,
+    /// The local engine that runs the model (spec 070); absent for a remote model.
+    pub engine: Option<&'static str>,
 }
 
 #[derive(Clone, Copy)]
@@ -230,6 +232,7 @@ pub(crate) async fn load_model_inner(
         name,
         tokenizer_repo: session.tokenizer_repo.clone(),
         context_window: session.context_window,
+        engine: session.engine,
     };
     *chat.session.lock().map_err(|e| HolziError::CrdtInit {
         reason: format!("chat.session mutex poisoned: {e}"),
@@ -428,6 +431,7 @@ pub(crate) async fn load_api_key_model(
         adapter: Arc::from(adapter),
         tokenizer_repo: String::new(),
         context_window: row.context_window,
+        engine: None,
     })
 }
 
@@ -606,7 +610,7 @@ async fn load_local_model_from_metadata(
 ) -> Result<ActiveSession> {
     // The engine follows from the file's own architecture (spec 070); a model no compiled engine
     // loads fails here with a message, not inside the engine.
-    let (adapter, _engine) = crate::llm::engine::load_local(
+    let (adapter, engine) = crate::llm::engine::load_local(
         &path,
         crate::llm::engine::LoadRequest {
             tokenizer_repo: Some(&tokenizer_repo),
@@ -625,6 +629,7 @@ async fn load_local_model_from_metadata(
         adapter,
         tokenizer_repo,
         context_window,
+        engine: Some(engine.name()),
     })
 }
 
@@ -719,5 +724,6 @@ pub async fn active_model_info(
         name,
         tokenizer_repo: session.tokenizer_repo,
         context_window: session.context_window,
+        engine: session.engine,
     }))
 }

@@ -183,8 +183,9 @@ export async function runScenario(
         waitOptions.fixed === true
           ? (waitOptions.timeoutMs ?? 10_000)
           : scaled(waitOptions.timeoutMs ?? 10_000)
-      // Never poll slower than every 50 ms: the promises under test are a second or a few.
-      const interval = Math.min(waitOptions.intervalMs ?? 50, 50)
+      // Keep a 50 ms minimum so callers cannot flood the app with polls, and honor longer
+      // intervals for slow work such as loading a local model.
+      const interval = Math.max(waitOptions.intervalMs ?? 50, 50)
       const end = performance.now() + limit
       for (;;) {
         if (controller.signal.aborted) {

@@ -58,6 +58,8 @@ export interface LoadedModelInfo {
   name: string
   tokenizerRepo: string
   contextWindow: number | null
+  /** The local engine running the model (`llama.cpp` or `mistralrs`, spec 070); null for a remote one. */
+  engine: string | null
 }
 
 export interface SendMessageArgs {

@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      e2e_scenario:
+        description: Run only scenarios whose names contain this text
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -271,6 +276,7 @@ jobs:
       # `debuginfo=2`, and GitHub evicts caches over 10 GB per repository,
       # which would silently turn the cache below into a no-op.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         if: needs.changes.outputs.non_docs == 'true'
@@ -337,6 +343,14 @@ jobs:
       - name: Fetch sherpa-onnx
         if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
         run: node scripts/fetch-sherpa-onnx.ts
+
+      - name: Prepare sherpa-onnx Linux libraries
+        if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
 
       # Formatting does not depend on features, so it runs on one leg only.
       - name: Check formatting
@@ -499,6 +513,9 @@ jobs:
       # Shares the Rust job's default-features cache entry below; the debug
       # build this job produces is that same feature set.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # The dev binary links sherpa-onnx dynamically; make the fetched native
+      # libraries visible when tauri-driver launches it.
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -599,6 +616,13 @@ jobs:
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts
 
+      - name: Prepare sherpa-onnx Linux libraries
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
+
       # tauri-driver is a global `cargo install`, outside the workspace the
       # cache step above covers; cached separately by its pinned version so
       # an ordinary run does not recompile it.
@@ -647,10 +671,23 @@ jobs:
       - name: Allow user namespaces for Chromium's sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # Spec 070 T040: the real model `local-model-answer` runs (scripts/e2e/lib/local-model.ts), fetched
+      # once and checked by its SHA-256; the key is that hash.
+      - name: Cache the e2e model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/holzi-e2e/models
+          key: e2e-model-qwen3-0.6b-9acfc1e001311f34
+
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite
-        run: corepack pnpm test:e2e --run-timeout 2700 --shard ${{ matrix.shard }}/2
+        env:
+          E2E_SCENARIO_FILTER: ${{ inputs.e2e_scenario }}
+        run: |
+          args=(--run-timeout 2700 --shard '${{ matrix.shard }}/2')
+          if [ -n "$E2E_SCENARIO_FILTER" ]; then args+=(--grep "$E2E_SCENARIO_FILTER"); fi
+          corepack pnpm test:e2e "${args[@]}"
 
       # The relaunch scenario only runs against a release build (`--app`),
       # so this ordinary run always reports it skipped — expected, not a
@@ -903,6 +940,8 @@ jobs:
       # The Nostr test relay is a binary of the holzi crate, built for this machine; it shares the
       # desktop jobs' cache entry.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # Android scenarios can start a Linux host app beside the emulator.
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -955,6 +994,13 @@ jobs:
       # `voice` feature, so it needs the checked sherpa-onnx archive like every other build.
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts
+
+      - name: Prepare sherpa-onnx Linux libraries
+        run: |
+          prebuilt=src-tauri/target/sherpa-onnx-prebuilt
+          rm -rf "$prebuilt"
+          mkdir -p "$prebuilt"
+          tar -xjf src-tauri/target/sherpa-onnx-archives/sherpa-onnx-v2.0.1-linux-x64-shared-lib.tar.bz2 -C "$prebuilt"
 
       - name: Cache tauri-driver
         id: cache-tauri-driver
@@ -1030,8 +1076,18 @@ jobs:
           disable-animations: false
           script: echo "snapshot created"
 
+      # Spec 070 T040: the real model `local-model-answer` runs (scripts/e2e/lib/local-model.ts), fetched
+      # once and checked by its SHA-256; the key is that hash.
+      - name: Cache the e2e model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/holzi-e2e/models
+          key: e2e-model-qwen3-0.6b-9acfc1e001311f34
+
       - name: Run the e2e suite on the emulator
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          E2E_SCENARIO_FILTER: ${{ inputs.e2e_scenario }}
         with:
           api-level: 35
           target: google_apis

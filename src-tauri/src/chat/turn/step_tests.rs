@@ -61,6 +61,7 @@ async fn initial_http_failures_use_the_same_bounded_retry_budget() {
             adapter: adapter.clone(),
             tokenizer_repo: String::new(),
             context_window: None,
+            engine: None,
         };
         let request = ChatRequest {
             sampling: Default::default(),
@@ -114,6 +115,7 @@ async fn initial_request_can_be_cancelled_before_response_headers() {
         adapter: adapter.clone(),
         tokenizer_repo: String::new(),
         context_window: None,
+        engine: None,
     };
     let chat = Arc::new(ChatState::new());
     let cancel = CancellationToken::new();
@@ -168,6 +170,7 @@ async fn an_untrusted_certificate_is_reported_as_such_and_never_retried() {
         adapter: adapter.clone(),
         tokenizer_repo: String::new(),
         context_window: None,
+        engine: None,
     };
     let request = ChatRequest {
         sampling: Default::default(),

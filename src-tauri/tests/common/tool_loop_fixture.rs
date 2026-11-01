@@ -252,6 +252,7 @@ pub async fn session_with(adapter: StubAdapter) -> ActiveSession {
         adapter: Arc::new(adapter),
         tokenizer_repo: String::new(),
         context_window: None,
+        engine: None,
     }
 }
 

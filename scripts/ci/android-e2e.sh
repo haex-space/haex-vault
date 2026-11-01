@@ -74,4 +74,6 @@ finish() {
 }
 trap 'finish || true' EXIT
 
-corepack pnpm test:e2e --platform android --apk "$apk" --shard "$shard/$shards"
+args=(--platform android --apk "$apk" --shard "$shard/$shards" --run-timeout 2700)
+if [[ -n "${E2E_SCENARIO_FILTER:-}" ]]; then args+=(--grep "$E2E_SCENARIO_FILTER"); fi
+corepack pnpm test:e2e "${args[@]}"
