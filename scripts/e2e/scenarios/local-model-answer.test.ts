@@ -73,8 +73,8 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
     'send_message',
     await invokeAfterBusyOperation(instance, 'send_message', {
       args: {
-        content: 'Antworte mit einem kurzen Satz: Welche Farbe hat der Himmel?',
-        maxNewTokens: 96,
+        content: 'Nenne nur eine Farbe: Welche Farbe hat der Himmel?',
+        maxNewTokens: 16,
         idempotencyKey: randomUUID(),
       },
     }),

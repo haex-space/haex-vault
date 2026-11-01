@@ -67,7 +67,9 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         let session = Session::new(me.clone());
         registry.set(Some(Arc::clone(&session)));
         match Delivery::connect(db, me, relays, token).await {
-            Ok(delivery) => delivery.run(Arc::clone(&session)).await,
+            Ok((delivery, incoming, forward)) => {
+                delivery.run(Arc::clone(&session), incoming, forward).await
+            }
             Err(error) => log::warn!("chat: the delivery did not connect: {error}"),
         }
         if registry
