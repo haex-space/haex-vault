@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { Fit } from '~/composables/useCatalog'
-import type { SpeechLanguage } from '~/lib/assistant/settings'
+import type { SpeechLanguage, ToneId } from '~/lib/assistant/settings'
 
 /** Where a voice comes from (spec 066 contracts/tauri-commands.md). */
 export type VoiceKind = 'builtin' | 'clone' | 'model'
@@ -19,6 +19,16 @@ export interface VoiceOption {
   isDefault: boolean
 }
 
+/** One entry of the page "Lizenzen" for voices and speech models (spec 066 T032). */
+export interface SpeechCredit {
+  kind: 'voice' | 'speechModel' | 'recognitionModel'
+  name: string
+  language: SpeechLanguage | null
+  license: string
+  attribution: string
+  source: string
+}
+
 /** `assistant-download-progress`: a speech model download of the assistant. */
 export interface AssistantDownloadProgress {
   id: string
@@ -28,7 +38,7 @@ export interface AssistantDownloadProgress {
 
 export const ASSISTANT_DOWNLOAD_PROGRESS = 'assistant-download-progress'
 
-/** The voices of the assistant and their sample (spec 066 T028/T029). */
+/** The voices and tones of the assistant, their samples and credits (spec 066 T028–T032). */
 export function useTtsVoices() {
   async function listAsync(): Promise<VoiceOption[]> {
     return await invoke<VoiceOption[]>('tts_voices_list')
@@ -40,5 +50,14 @@ export function useTtsVoices() {
     await invoke('assistant_tts_preview', { voice, rate })
   }
 
-  return { listAsync, previewAsync }
+  /** Plays `tone` once at `volume` (0–100), also while tones are switched off. */
+  async function tonePreviewAsync(tone: ToneId, volume: number): Promise<void> {
+    await invoke('assistant_tone_preview', { tone, volume })
+  }
+
+  async function creditsAsync(): Promise<SpeechCredit[]> {
+    return await invoke<SpeechCredit[]>('speech_credits')
+  }
+
+  return { listAsync, previewAsync, tonePreviewAsync, creditsAsync }
 }

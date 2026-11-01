@@ -89,6 +89,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.speech.voice': defineAsyncComponent(
     () => import('~/components/settings/assistant/VoiceSetting.vue'),
   ),
+  'ai.speech.tones': defineAsyncComponent(
+    () => import('~/components/settings/assistant/TonesSetting.vue'),
+  ),
   'ai.providers': defineAsyncComponent(
     () => import('~/components/settings/ConnectDelegateProvider.vue'),
   ),

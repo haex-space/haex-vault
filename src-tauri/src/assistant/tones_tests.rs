@@ -138,3 +138,45 @@ fn save_the_tones_for_listening() {
         RATE as i32
     ));
 }
+
+#[test]
+fn a_tone_sample_sounds_at_the_chosen_volume_and_waits_for_its_end() {
+    use crate::audio::mixer::mixer;
+    use tokio_util::sync::CancellationToken;
+
+    let (input, mut render_side) = mixer(RATE);
+    let started = std::time::Instant::now();
+    assert!(super::tones::sample(
+        &input,
+        ToneId::Done,
+        50,
+        &CancellationToken::new()
+    ));
+    assert!(started.elapsed() >= duration(ToneId::Done));
+
+    let mut out = vec![0.0; render(ToneId::Done, RATE).len()];
+    render_side.render(&mut out);
+    let full = render(ToneId::Done, RATE);
+    let peak = |s: &[f32]| s.iter().fold(0.0_f32, |m, x| m.max(x.abs()));
+    assert!((peak(&out) - peak(&full) * 0.5).abs() < 1e-3, "half volume");
+}
+
+#[test]
+fn a_newer_sample_ends_the_wait_for_a_tone() {
+    use crate::audio::mixer::mixer;
+    use tokio_util::sync::CancellationToken;
+
+    let (input, _render_side) = mixer(RATE);
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    assert!(!super::tones::sample(&input, ToneId::Done, 60, &cancel));
+}
+
+#[test]
+fn tones_arrive_from_the_window_by_their_wire_name() {
+    for tone in ToneId::ALL {
+        let wire = serde_json::to_value(tone).expect("serializes");
+        let back: ToneId = serde_json::from_value(wire).expect("deserializes");
+        assert_eq!(back, tone);
+    }
+}

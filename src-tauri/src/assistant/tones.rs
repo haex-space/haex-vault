@@ -5,16 +5,20 @@
 use std::f32::consts::TAU;
 use std::time::Duration;
 
-use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio_util::sync::CancellationToken;
 
 use crate::audio::mixer::MixerInput;
+use crate::error::{HolziError, Result};
+use crate::state::AppState;
+use crate::voice::VoiceState;
 
 /// Visible counterpart of every tone (FR-044).
 pub const EVENT_TONE: &str = "assistant-tone";
 
 /// `ToneId` of contracts/tauri-commands.md.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ToneId {
     Listening,
@@ -168,4 +172,57 @@ pub fn play(app: &AppHandle, mixer: &MixerInput, tone: ToneId, tones_enabled: bo
     if tones_enabled || always_audible(tone) {
         mixer.play_tone(&render(tone, mixer.sample_rate()));
     }
+}
+
+/// How often a tone sample looks for a newer sample while it waits.
+const SAMPLE_POLL: Duration = Duration::from_millis(20);
+
+/// Plays `tone` into `mixer` at `volume` percent and waits until it has sounded (the settings
+/// page's "Anhören", T030). Returns `false` when `cancel` fired first; a tone always plays to its
+/// end, so only the waiting stops. Sets the mixer's tone volume, which is the setting being tried.
+pub fn sample(mixer: &MixerInput, tone: ToneId, volume: u8, cancel: &CancellationToken) -> bool {
+    mixer.set_tone_volume(volume);
+    if !mixer.play_tone(&render(tone, mixer.sample_rate())) {
+        return false;
+    }
+    let ends_at = std::time::Instant::now() + duration(tone);
+    while std::time::Instant::now() < ends_at {
+        if cancel.is_cancelled() {
+            return false;
+        }
+        std::thread::sleep(SAMPLE_POLL);
+    }
+    true
+}
+
+/// Plays `tone` once at `volume` (0–100) for the settings page, also while tones are switched off.
+/// A newer sample (tone or voice) ends the wait for this one.
+#[tauri::command]
+pub async fn assistant_tone_preview(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tone: ToneId,
+    volume: u8,
+) -> Result<()> {
+    if volume > 100 {
+        return Err(HolziError::InvalidInput {
+            reason: format!("tone volume {volume} is above 100"),
+        });
+    }
+    let voice = app.state::<VoiceState>();
+    let cancel = voice.begin_preview(&state.gate().token());
+    let shared = voice.audio_stream().current();
+    let gate = state.gate().clone();
+    let work = state.gate().spawn_blocking(move || {
+        crate::tts::preview::on_speaker(&gate, shared, |mixer| {
+            Ok(sample(mixer, tone, volume, &cancel))
+        })
+    })?;
+    state
+        .gate()
+        .run(work)
+        .await?
+        .map_err(|e| HolziError::SpeechFailed {
+            reason: format!("tone sample: {e}"),
+        })?
 }

@@ -623,8 +623,8 @@
         },
         "licenses": {
           "title": "Licenses",
-          "description": "The licenses of the bundled icon sets.",
-          "keywords": "license licenses icons icon set author source Material Phosphor Lucide MIT"
+          "description": "The licences of the bundled icon sets, voices and speech models.",
+          "keywords": "license licenses icons icon set author source Material Phosphor Lucide MIT voice voices speech model speech recognition CC BY CC0"
         }
       },
       "ai": {
@@ -660,6 +660,11 @@
             "title": "Voice",
             "description": "How the voice assistant sounds, for each language.",
             "keywords": "voice speech output read aloud voice assistant TTS speaking rate sample listen"
+          },
+          "tones": {
+            "title": "Tones",
+            "description": "The voice assistant's notification tones and their volume.",
+            "keywords": "tones sounds signal volume voice assistant listen"
           }
         },
         "providers": {
@@ -801,7 +806,13 @@
       "author": "Author",
       "license": "License",
       "source": "Source",
-      "text": "License text"
+      "text": "License text",
+      "speechIntro": "holzi ships these voices and downloads the speech models when needed. Each is under a free licence and credited as its licence asks. The names of the voices in holzi are made up.",
+      "speech": {
+        "voice": "Voices",
+        "speechModel": "Speech models",
+        "recognitionModel": "Speech recognition"
+      }
     },
     "iconSet": {
       "label": "Icon set for files",
@@ -1494,6 +1505,51 @@
         "missing": "Speech model not downloaded yet · {size} · {fit}",
         "downloading": "Downloading speech model …",
         "name": "Speech model {language}"
+      }
+    },
+    "tones": {
+      "always": "Always sounds, even with tones off.",
+      "enabledHint": "Off: only “Listening” and “Secret” still sound.",
+      "volumeValue": "{volume} %",
+      "listLabel": "The tones",
+      "listen": "Listen",
+      "listenTo": "Listen to {name}",
+      "previewFailed": "Could not play: {reason}",
+      "saved": "Saved.",
+      "saveFailed": "Not saved: {reason}",
+      "names": {
+        "listening": "Listening",
+        "understood": "Understood",
+        "working": "Working",
+        "question": "Question",
+        "done": "Done",
+        "error": "Error",
+        "aborted": "Cancelled",
+        "notUnderstood": "Not understood",
+        "conversationEnd": "End of conversation",
+        "attention": "Attention",
+        "secret": "Secret",
+        "modeOn": "Mode on",
+        "modeOff": "Mode off",
+        "muted": "Muted",
+        "unmuted": "Unmuted"
+      },
+      "when": {
+        "listening": "Wake word heard or conversation started.",
+        "understood": "You finished speaking; haex works on it.",
+        "working": "Soft and repeating while an answer takes longer.",
+        "question": "haex has a question or needs your approval.",
+        "done": "A task is done.",
+        "error": "Something failed or haex cannot answer right now.",
+        "aborted": "A stop word cancelled the round or task.",
+        "notUnderstood": "Nothing, or nothing clear, was said.",
+        "conversationEnd": "The conversation ended; haex listens for the wake word again.",
+        "attention": "haex reports on a running task by itself.",
+        "secret": "haex is about to read out a secret.",
+        "modeOn": "The voice assistant was switched on.",
+        "modeOff": "The voice assistant was switched off.",
+        "muted": "The voice assistant is muted.",
+        "unmuted": "The voice assistant is no longer muted."
       }
     }
   },

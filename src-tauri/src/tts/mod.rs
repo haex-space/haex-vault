@@ -6,6 +6,9 @@ pub mod catalog;
 #[cfg(test)]
 mod catalog_tests;
 pub mod commands;
+pub mod credits;
+#[cfg(test)]
+mod credits_tests;
 pub mod files;
 #[cfg(test)]
 mod files_tests;

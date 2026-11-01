@@ -623,8 +623,8 @@
         },
         "licenses": {
           "title": "Lizenzen",
-          "description": "Die Lizenzen der mitgelieferten Icon-Sets.",
-          "keywords": "Lizenz Lizenzen Icons Icon-Set Urheber Quelle Material Phosphor Lucide MIT"
+          "description": "Die Lizenzen der mitgelieferten Icon-Sets, Stimmen und Sprachmodelle.",
+          "keywords": "Lizenz Lizenzen Icons Icon-Set Urheber Quelle Material Phosphor Lucide MIT Stimme Stimmen Sprachmodell Spracherkennung CC BY CC0"
         }
       },
       "ai": {
@@ -660,6 +660,11 @@
             "title": "Stimme",
             "description": "Wie der Sprachassistent klingt, für jede Sprache.",
             "keywords": "Stimme Sprachausgabe Vorlesen Sprachassistent TTS Sprechgeschwindigkeit Probe anhören"
+          },
+          "tones": {
+            "title": "Töne",
+            "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
+            "keywords": "Töne Hinweistöne Klang Lautstärke Signal Sprachassistent anhören"
           }
         },
         "providers": {
@@ -801,7 +806,13 @@
       "author": "Urheber",
       "license": "Lizenz",
       "source": "Quelle",
-      "text": "Lizenztext"
+      "text": "Lizenztext",
+      "speechIntro": "Diese Stimmen liefert holzi mit, die Sprachmodelle lädt es bei Bedarf. Jedes steht unter einer freien Lizenz und wird so genannt, wie die Lizenz es verlangt. Die Namen der Stimmen in holzi sind ausgedacht.",
+      "speech": {
+        "voice": "Stimmen",
+        "speechModel": "Sprachmodelle",
+        "recognitionModel": "Spracherkennung"
+      }
     },
     "iconSet": {
       "label": "Icon-Set für Dateien",
@@ -1494,6 +1505,51 @@
         "missing": "Stimmenmodell noch nicht geladen · {size} · {fit}",
         "downloading": "Lade Stimmenmodell …",
         "name": "Stimmenmodell {language}"
+      }
+    },
+    "tones": {
+      "always": "Klingt immer, auch wenn die Töne aus sind.",
+      "enabledHint": "Aus: nur „Hört zu“ und „Geheimnis“ klingen noch.",
+      "volumeValue": "{volume} %",
+      "listLabel": "Die Töne",
+      "listen": "Anhören",
+      "listenTo": "{name} anhören",
+      "previewFailed": "Anhören fehlgeschlagen: {reason}",
+      "saved": "Gespeichert.",
+      "saveFailed": "Nicht gespeichert: {reason}",
+      "names": {
+        "listening": "Hört zu",
+        "understood": "Verstanden",
+        "working": "Arbeitet",
+        "question": "Frage",
+        "done": "Fertig",
+        "error": "Fehler",
+        "aborted": "Abgebrochen",
+        "notUnderstood": "Nicht verstanden",
+        "conversationEnd": "Gesprächsende",
+        "attention": "Aufmerksamkeit",
+        "secret": "Geheimnis",
+        "modeOn": "Modus ein",
+        "modeOff": "Modus aus",
+        "muted": "Stumm",
+        "unmuted": "Stummschaltung aufgehoben"
+      },
+      "when": {
+        "listening": "Wake Word erkannt oder Gespräch begonnen.",
+        "understood": "Du hast zu Ende gesprochen; haex bearbeitet es.",
+        "working": "Leise und wiederkehrend, solange eine Antwort länger dauert.",
+        "question": "haex hat eine Rückfrage oder braucht deine Freigabe.",
+        "done": "Eine Aufgabe ist erledigt.",
+        "error": "Etwas ist fehlgeschlagen oder haex kann gerade nicht antworten.",
+        "aborted": "Ein Stopp-Wort hat die Runde oder Aufgabe abgebrochen.",
+        "notUnderstood": "Es war nichts oder nichts Verständliches zu hören.",
+        "conversationEnd": "Das Gespräch ist zu Ende; haex hört wieder nur auf das Wake Word.",
+        "attention": "haex meldet sich von selbst zu einer laufenden Aufgabe.",
+        "secret": "Gleich liest haex ein Geheimnis vor.",
+        "modeOn": "Der Sprachassistent wurde eingeschaltet.",
+        "modeOff": "Der Sprachassistent wurde ausgeschaltet.",
+        "muted": "Der Sprachassistent ist stummgeschaltet.",
+        "unmuted": "Die Stummschaltung ist aufgehoben."
       }
     }
   },

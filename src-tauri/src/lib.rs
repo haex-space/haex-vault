@@ -857,6 +857,8 @@ pub fn run() {
             assistant_tts_preview,
             download_tts_voice,
             assistant::assets::assistant_readiness,
+            assistant::tones::assistant_tone_preview,
+            tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).
             passwords_load_overview,

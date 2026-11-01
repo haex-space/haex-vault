@@ -20,3 +20,14 @@ pub mod assets {
         Err(voice_disabled())
     }
 }
+
+pub mod tones {
+    use crate::error::{HolziError, Result};
+
+    #[tauri::command]
+    pub async fn assistant_tone_preview(_tone: String, _volume: u8) -> Result<()> {
+        Err(HolziError::InvalidInput {
+            reason: "the voice assistant is not enabled in this build".into(),
+        })
+    }
+}

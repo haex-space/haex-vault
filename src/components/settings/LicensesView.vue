@@ -3,25 +3,46 @@
  * "Allgemein → Lizenzen" (spec 053, FR-017, US5): every bundled icon set with its author, its
  * license (an SPDX identifier), its source and the full license text. The marks and logos of
  * companies, products and tools that some Material images show belong to their owners (the note
- * the pack itself carries).
+ * the pack itself carries). Below them the built-in voices and the speech models the assistant
+ * loads, each with the credit its licence asks for (spec 066 T032).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { IconSetLicense } from '@bindings/IconSetLicense'
+import type { SpeechCredit } from '~/composables/useTtsVoices'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { errString } = useErrorString()
 
+const { creditsAsync } = useTtsVoices()
+
 const licenses = ref<IconSetLicense[]>([])
+const credits = ref<SpeechCredit[]>([])
 const error = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    licenses.value = await invoke<IconSetLicense[]>('file_icon_set_licenses')
+    ;[licenses.value, credits.value] = await Promise.all([
+      invoke<IconSetLicense[]>('file_icon_set_licenses'),
+      creditsAsync(),
+    ])
   } catch (cause) {
     error.value = errString(cause)
   }
 })
+
+const CREDIT_KINDS = ['voice', 'speechModel', 'recognitionModel'] as const
+
+function creditsOf(kind: SpeechCredit['kind']): SpeechCredit[] {
+  return credits.value.filter((credit) => credit.kind === kind)
+}
+
+/** A voice or speech model with its language ("Lena · Deutsch"). */
+function creditTitle(credit: SpeechCredit): string {
+  if (credit.kind !== 'voice' || !credit.language) return credit.name
+  const names = new Intl.DisplayNames([locale.value], { type: 'language' })
+  return `${credit.name} · ${names.of(credit.language) ?? credit.language}`
+}
 
 /** Only a web address is opened; anything else stays plain text. */
 function isWeb(source: string): boolean {
@@ -77,6 +98,44 @@ function isWeb(source: string): boolean {
         </details>
       </li>
     </SettingsGroup>
+
+    <template v-if="credits.length > 0">
+      <p class="mt-4 px-1 text-sm text-muted-foreground">
+        {{ t('settings.licenses.speechIntro') }}
+      </p>
+      <SettingsGroup
+        v-for="kind in CREDIT_KINDS"
+        :key="kind"
+        :label="t(`settings.licenses.speech.${kind}`)"
+        :data-testid="`settings-license-speech-${kind}`"
+      >
+        <li
+          v-for="credit in creditsOf(kind)"
+          :key="credit.name"
+          class="flex flex-col gap-1 px-4 py-3 text-sm"
+        >
+          <p class="font-medium">{{ creditTitle(credit) }}</p>
+          <p>{{ credit.attribution }}</p>
+          <p>
+            <span class="text-muted-foreground"
+              >{{ t('settings.licenses.license') }}:</span
+            >
+            {{ credit.license }}
+          </p>
+          <p class="break-all">
+            <span class="text-muted-foreground"
+              >{{ t('settings.licenses.source') }}:</span
+            >
+            <a
+              :href="credit.source"
+              class="underline"
+              @click.prevent="openUrl(credit.source)"
+              >{{ credit.source }}</a
+            >
+          </p>
+        </li>
+      </SettingsGroup>
+    </template>
 
     <p v-if="error" class="px-1 text-sm text-destructive" role="alert">
       {{ error }}
