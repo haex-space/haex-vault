@@ -89,7 +89,7 @@ async fn transcribes_german_fixture() {
     // tale text, but that's immaterial here: it's unambiguous German.
     // Added 2026-09-17 as a regression test for `detect_language`
     // misidentifying spoken German as English when scored against
-    // Whisper's full 99-language set (see `SUPPORTED_LANGUAGES` in
+    // Whisper's full 99-language set (see `supported_languages` in
     // `local.rs`).
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/stt/fixtures/de_sample.wav");
     let pcm = CanonicalPcm {
