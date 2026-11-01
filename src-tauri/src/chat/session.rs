@@ -121,6 +121,9 @@ pub struct ActiveSession {
     /// string because the vendor's server-side tokenizer handles it.
     pub tokenizer_repo: String,
     pub context_window: Option<i64>,
+    /// The local engine that runs the model (`llama.cpp` or `mistralrs`, spec 070); `None` for a
+    /// remote one.
+    pub engine: Option<&'static str>,
 }
 
 /// Tauri-managed state for the chat runtime. `session` is the loaded model.

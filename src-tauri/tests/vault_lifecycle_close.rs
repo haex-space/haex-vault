@@ -459,6 +459,7 @@ async fn a_database_handle_kept_by_the_loaded_model_does_not_hold_the_close_up()
         }),
         tokenizer_repo: String::new(),
         context_window: None,
+        engine: None,
     });
     let context = session.context(ClosePolicy::Exit);
     assert!(begin_close(&context));

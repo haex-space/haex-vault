@@ -42,7 +42,7 @@ function isOperationBusy(result: InvokeResult): boolean {
   )
 }
 
-async function invokeAfterBusyOperation(
+export async function invokeAfterBusyOperation(
   instance: FlowInstance,
   command: string,
   args: unknown,

@@ -125,6 +125,7 @@ fn fill_session(chat: &ChatState) -> (std::sync::Weak<IdleAdapter>, AdapterStrea
         adapter,
         tokenizer_repo: String::new(),
         context_window: None,
+        engine: None,
     });
 
     let (_tx, rx) = mpsc::unbounded_channel();

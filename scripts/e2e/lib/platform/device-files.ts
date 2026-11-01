@@ -3,6 +3,7 @@
 // app's own download folder, written and read with `adb push` and `adb pull`. Chromedriver cannot
 // work the system file picker, so scenarios hand the app such a path where a user would pick a file.
 import {
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -23,6 +24,9 @@ export interface DeviceFiles {
   /** Ensures `folder` exists before the app creates entries below it. */
   ensureFolder: () => void
   write: (name: string, content: string | Uint8Array) => void
+  /** Copies the file `hostPath` of this machine to `name`, without reading it into memory (a model
+   * of several hundred megabytes). */
+  copyIn: (name: string, hostPath: string) => void
   read: (name: string) => string
   readBytes: (name: string) => Buffer
   /** Deletes the file `name`; a missing one is fine. */
@@ -75,6 +79,10 @@ export function deviceFiles(
         mkdirSync(dirname(path(name)), { recursive: true })
         writeFileSync(path(name), content)
       },
+      copyIn: (name, hostPath) => {
+        mkdirSync(dirname(path(name)), { recursive: true })
+        copyFileSync(hostPath, path(name))
+      },
       read: (name) => readFileSync(path(name), 'utf8'),
       readBytes: (name) => readFileSync(path(name)),
       delete: (name) => rmSync(path(name), { force: true }),
@@ -114,6 +122,18 @@ export function deviceFiles(
       rmSync(dir, { recursive: true, force: true })
     }
   }
+  /** The shell user creates the file and its parent folders: open them up so the app may read,
+   * change and remove them. The app's own entries are not the shell's to change. */
+  const openUp = () =>
+    adb.shell(
+      `chmod a+rwx ${quote(ANDROID_FILES)} ${quote(ANDROID_DOWNLOADS)} 2>/dev/null;`,
+      `chmod -R a+rwX ${quote(folder)} 2>/dev/null; true`,
+    )
+  const push = (local: string, name: string) => {
+    adb.shell('mkdir', '-p', dirname(path(name)))
+    adb.push(local, path(name))
+    openUp()
+  }
   const pull = (name: string) =>
     throughLocal((local) => {
       adb.pull(path(name), local)
@@ -124,24 +144,14 @@ export function deviceFiles(
     path,
     ensureFolder: () => {
       adb.shell('mkdir', '-p', folder)
-      adb.shell(
-        `chmod a+rwx ${quote(ANDROID_FILES)} ${quote(ANDROID_DOWNLOADS)} 2>/dev/null;`,
-        `chmod -R a+rwX ${quote(folder)} 2>/dev/null; true`,
-      )
+      openUp()
     },
-    write: (name, content) => {
+    write: (name, content) =>
       throughLocal((local) => {
         writeFileSync(local, content)
-        adb.shell('mkdir', '-p', dirname(path(name)))
-        adb.push(local, path(name))
-      })
-      // The shell user creates the file and its parent folders: open them up so the app may read,
-      // change and remove them. The app's own entries are not the shell's to change.
-      adb.shell(
-        `chmod a+rwx ${quote(ANDROID_FILES)} ${quote(ANDROID_DOWNLOADS)} 2>/dev/null;`,
-        `chmod -R a+rwX ${quote(folder)} 2>/dev/null; true`,
-      )
-    },
+        push(local, name)
+      }),
+    copyIn: (name, hostPath) => push(hostPath, name),
     read: (name) => pull(name).toString(),
     readBytes: pull,
     delete: (name) => void adb.shell('rm', '-f', quote(path(name))),
@@ -202,6 +212,6 @@ export function onDevice(
   const onPhone = 'phone' in page && page.phone !== undefined
   if (!onPhone || androidAdb(env) === undefined) return hostPath
   const files = deviceFiles('e2e-staged-', env)
-  files.write(basename(hostPath), readFileSync(hostPath))
+  files.copyIn(basename(hostPath), hostPath)
   return files.path(basename(hostPath))
 }
