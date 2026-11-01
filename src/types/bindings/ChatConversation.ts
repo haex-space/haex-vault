@@ -21,7 +21,12 @@ peerContactId: string | null,
 /**
  * Direct: the name on the other vault's stored card, shown when there is no contact.
  */
-peerCardName: string | null, muted: boolean,
+peerCardName: string | null,
+/**
+ * Direct: the stored card names no Nostr-Relay, so messages go over the own ones (US2
+ * scenario 8, shown as a hint).
+ */
+peerWithoutRelays: boolean, muted: boolean,
 /**
  * Messages of others after `last_read_at` (FR-001, FR-022).
  */

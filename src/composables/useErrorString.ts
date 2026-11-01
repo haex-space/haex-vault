@@ -135,6 +135,8 @@ export function useErrorString() {
         return te(key) ? t(key) : t('errors.extensions.notReady')
       }
       if (kind === 'InvalidInput' && typeof reason === 'string') {
+        // Spec 072: the chat with contacts names its cause by a language key.
+        if (reason.startsWith('chat.error.') && te(reason)) return t(reason)
         if (reason.startsWith(AUTONOMY_UNAVAILABLE_PREFIX))
           return t('errors.autonomyUnavailable')
         // Generic across providers/chat/voice/device commands (see

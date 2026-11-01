@@ -66,6 +66,9 @@ const agentActions = useAgentActions()
 // Spec 017: installed extensions are apps; their tabs are restored with the session.
 const extensionHost = useExtensionHost()
 
+// Spec 072 FR-023: a tap on a chat notification opens the conversation.
+useChatNotifications()
+
 // Spec 020 (research R7, FR-020, FR-035): the webview history is never navigation state. Pages
 // reach this one with `replace`, so the top document's history stays flat, and every router
 // navigation away from it — a webview back, or an embedded document's `history.back()` — is

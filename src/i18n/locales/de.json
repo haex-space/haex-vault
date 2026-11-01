@@ -415,20 +415,46 @@
     "peer": {
       "unknownName": "Unbekannt",
       "noMessages": "Noch keine Nachrichten",
-      "sendingLater": "Nachrichten an Kontakte senden kommt mit dem nächsten Teil dieser Funktion.",
       "placeholder": "Nachricht schreiben",
       "mute": "Stummschalten",
       "unmute": "Stummschaltung aufheben",
       "delete": "Unterhaltung löschen",
       "deleteConfirm": "Möchtest du die Unterhaltung mit {name} wirklich löschen? Sie verschwindet mit allen Nachrichten und Dateien auf all deinen Geräten.",
       "deleteButton": "Löschen",
-      "missing": "Diese Unterhaltung gibt es nicht mehr."
+      "missing": "Diese Unterhaltung gibt es nicht mehr.",
+      "send": "Senden",
+      "counter": "{count} / {max} Zeichen",
+      "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays."
     },
     "newContact": {
       "title": "Mit Kontakt schreiben",
       "search": "Kontakt suchen",
       "empty": "Keiner deiner Kontakte hat eine Visitenkarte geteilt. Erst mit einer Visitenkarte kannst du einem Kontakt schreiben.",
       "noMatch": "Kein Kontakt passt zur Suche."
+    },
+    "delivery": {
+      "state": {
+        "waiting": "Wartet",
+        "sent": "Gesendet",
+        "delivered": "Zugestellt",
+        "read": "Gelesen",
+        "failed": "Nicht zugestellt"
+      },
+      "reason": {
+        "noRelay": "Kein Nostr-Relay hat die Nachricht angenommen.",
+        "noDevices": "Die Visitenkarte nennt kein Gerät.",
+        "tooLarge": "Die Nachricht ist zu groß.",
+        "unknown": "Die Zustellung ist fehlgeschlagen."
+      },
+      "resend": "Erneut senden"
+    },
+    "error": {
+      "tooLarge": "Die Nachricht ist zu lang (höchstens 4.000 Zeichen).",
+      "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut."
+    },
+    "notify": {
+      "request": "Neue Anfrage",
+      "open": "Öffnen"
     }
   },
   "settings": {
@@ -1751,6 +1777,10 @@
       "contact": {
         "open": "Unterhaltung mit Kontakten öffnen",
         "openDirect": "Unterhaltung mit Kontakt öffnen"
+      },
+      "peer": {
+        "send": "Nachricht an Kontakt senden",
+        "resend": "Nachricht erneut senden"
       }
     },
     "settings": {
