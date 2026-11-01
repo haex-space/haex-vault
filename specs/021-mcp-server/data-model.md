@@ -26,7 +26,9 @@ eindeutig ab.
 | `last_seen_at`      | INTEGER | Unix-ms der letzten angenommenen Verbindung                                                |
 
 Delegates: höchstens eine Zeile je `kind` und Gerät; die Kennung leitet sich aus Gerät und `kind`
-ab, damit zwei Geräte nie kollidieren.
+ab, damit zwei Geräte nie kollidieren. `token_hash` ist bei Delegates `NULL`: Ihr Nachweis gilt nur für
+einen Start und liegt nur im Speicher (research R7). `slug` ist `claude-code-delegate` bzw.
+`codex-delegate`.
 
 ### Zustände
 
