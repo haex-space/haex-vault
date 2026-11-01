@@ -148,7 +148,7 @@ and _delivered_ on A; answer from B (spec US2, quickstart A3, A4).
 - [x] T044 [US2] Wire sending in `src/components/chat/PeerConversation.vue` (text, 4,000-character counter, hints for card without Nostr-Relays); mark read on open
 - [x] T045 [P] [US2] i18n `chat.delivery.*`, `chat.error.*` in de/en; actions `chat.peer.send`, `chat.peer.resend` (not agent-callable) in `src/lib/actions/chatActions.ts`
 - [x] T046 [US2] Own-device addressing in `src-tauri/src/chat/peer/delivery.rs`: the own vault's current device list (the effective list used by `sync::foreign_auth` for `OwnVault`) minus this device, removed devices excluded; test in `delivery_tests.rs` that a removed own device gets no wraps and a newly linked one does
-- [ ] T047 [US2] Run quickstart A2–A4 and `pnpm check:chat-state`; record results in the PR
+- [x] T047 [US2] Run quickstart A2–A4 and `pnpm check:chat-state`; record results in the PR
 
 **Checkpoint**: PR C — text chat with contacts works offline and online, own devices complete.
 
