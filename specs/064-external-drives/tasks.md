@@ -534,13 +534,14 @@ the spikes.
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T074 [P] SC-001 check: in `files-drives.test.ts` measure the time from `udisksctl loop-setup` to the sidebar entry and assert ≤ 3 s, plus the runner tolerance the other timed scenarios use (grep for their tolerance constant first)
-- [ ] T075 [P] Update `docs/plans/2026-10-27-external-drives-design.md` with the deviations decided in planning:
+- [x] T074 [P] SC-001 check: in `files-drives.test.ts` measure the time from `udisksctl loop-setup` to the sidebar entry and assert ≤ 3 s, plus the runner tolerance the other timed scenarios use (grep for their tolerance constant first)
+  - Measured in Node from `udisksctl loop-setup` to the sidebar entry and logged as a step; the limit times `HARD_FACTOR = 2`, as `files-large-folder` and `files-split-large` allow the shared runner.
+- [x] T075 [P] Update `docs/plans/2026-10-27-external-drives-design.md` with the deviations decided in planning:
   - the visibility rule follows gvfs, not `HintSystem`
   - Windows: no unmount for internal drives and no letterless volumes; BitLocker uses the system dialog
   - macOS lists through `diskutil` behind a fingerprint gate
   - the nearest-folder jump is implemented here
-- [ ] T076 Set the status in `specs/064-external-drives/spec.md` to "Implemented" (or "Implemented, manual … open"), update the row in `plans/README.md`, and tick the checklist.
+- [x] T076 Set the status in `specs/064-external-drives/spec.md` to "Implemented" (or "Implemented, manual … open"), update the row in `plans/README.md`, and tick the checklist.
 - [ ] T077 Final run as in CI:
   - `pnpm lint:all`, `pnpm typecheck`, `pnpm typecheck:scripts`, all `pnpm check:*`
   - `cargo test -j 4` of the touched modules

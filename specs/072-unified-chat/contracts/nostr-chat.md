@@ -42,7 +42,10 @@ device, including the sender's own other devices.
 Receiver checks, in order (R5): wrap not seen → card valid and not older than the stored one → seal key
 is a non-removed device of `card` → `from` equals the card's vault → `from` not blocked → `to` names the
 own vault (direct) or a group where `from` is a `member` at `at` (except `group.invite`, `group.op` with
-`accept`/`decline` from an invited vault) → `v` known. Any failure: drop silently, no receipt.
+`accept`/`decline` from an invited vault). For an own-device copy of a direct message, also accept when
+`from` is the own vault and `to.direct` is the peer vault; store it in the conversation with that peer.
+Reject a group op whose `at` is more than five minutes ahead of the receiver's current time (R9), then
+check `v` is known. Any failure: drop silently, no receipt.
 
 ### `type: "message"`
 
@@ -84,7 +87,7 @@ own vault (direct) or a group where `from` is a `member` at `at` (except `group.
   "member": "<vault hex>",            // add, remove
   "memberCard": "holzi:card:…",       // add: the added vault's card (from the adder's address book)
   "name": "Familie",                  // rename
-  "picture": "<base64 ≤ 16 KiB>" }    // picture (empty = remove)
+  "picture": "<base64 ≤ 12 KiB>" }    // JPEG/PNG thumbnail (empty = remove)
 ```
 
 Sent to every `member` and every `invited` vault of the group plus the affected vault. Applied with the
@@ -96,7 +99,7 @@ per-member / per-meta LWW rule of R9; each applied op also inserts a `note` mess
 {
   "group": "<uuid>",
   "name": "Familie",
-  "picture": "<base64 or omitted>",
+  "picture": "<base64 ≤ 12 KiB or omitted>",
   "part": 1,
   "of": 3,
   "members": [
@@ -112,7 +115,8 @@ per-member / per-meta LWW rule of R9; each applied op also inserts a `note` mess
 }
 ```
 
-≤ 12 members per part; the invitee shows the invitation once all `of` parts arrived (R9).
+≤ 12 members per part; the invitee shows the invitation once all `of` parts arrived (R9). The complete
+rumor, including an optional picture, MUST remain ≤ 32 KiB; omit the picture if needed to fit.
 
 ## Receipt (`kind 24121`)
 
@@ -124,14 +128,15 @@ per-member / per-meta LWW rule of R9; each applied op also inserts a `note` mess
   "thread": { "direct": "<original sender vault hex>" } | { "group": "<uuid>" },
   "delivered": ["<event id>", …],
   "read": ["<event id>", …],
-  "files": ["<event id>:<attachment index>", …]
+  "files": [{ "event": "<event id>", "attachment": 0, "device": "<device key hex>" }, …]
 }
 ```
 
 Sent only to the original sender's devices (they share the result through own-device sync, and the
 uploading device needs `files` for R13). `delivered` and `read` come from one device per vault (the one
-that inserted the message, or where it was read); `files` comes from **every** device that stored the
-file, with an extra field `"device": "<device key hex>"`. Batched per conversation, at most every 2 s.
+that inserted the message, or where it was read); each `files` item identifies the event, attachment
+index and device key, and comes from **every** device that stored that file. Batched per conversation,
+at most every 2 s.
 Never to a blocked vault; `read` never for an unaccepted request or with read receipts off.
 
 ## Publishing

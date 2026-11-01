@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-27
 
-**Status**: Draft
+**Status**: Implemented (manual T036, T046, T053, T059, T065 on Linux, T069 on macOS and T073 on Windows open, including whether a USB stick ejects through its disk or its parent)
 
 **Input**: User description: "ich möchte im dateiexplorer auch gerne mounted devices sehen, wie externe
 festplatten, usb sticks etc" (Betreiber, 2026-10-27). Abgestimmtes Design:

@@ -8,16 +8,16 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 
 ## Changed: `chat_threads` (conversation)
 
-| Column         | Type                             | Notes                                                             |
-| -------------- | -------------------------------- | ----------------------------------------------------------------- |
-| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`; existing rows become `agent` (FR-003) |
-| `state`        | TEXT NOT NULL DEFAULT `'active'` | `active`, `request` (R10), `closed` (left/removed group)          |
-| `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise            |
-| `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                            |
-| `last_read_at` | INTEGER NULL                     | everything with `sort_at` ≤ this is read (FR-022)                 |
-| `picture`      | BLOB NULL                        | group picture, ≤ 12 KiB JPEG/PNG thumbnail (fits the wrap, R2)    |
-| `meta_at`      | INTEGER NULL                     | group: sender time of the last rename/picture op (R9)             |
-| `meta_op`      | TEXT NULL                        | group: its op id (tie-break)                                      |
+| Column         | Type                             | Notes                                                                         |
+| -------------- | -------------------------------- | ----------------------------------------------------------------------------- |
+| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`; existing rows become `agent` (FR-003)             |
+| `state`        | TEXT NOT NULL DEFAULT `'active'` | `active`, `request` (R10), `closed` (left/removed group)                      |
+| `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise                        |
+| `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                                        |
+| `last_read_at` | INTEGER NULL                     | everything with `sort_at` ≤ this is read (FR-022)                             |
+| `picture`      | BLOB NULL                        | group picture, ≤ 9 KiB JPEG/PNG thumbnail; fits the 12 KiB base64 event limit |
+| `meta_at`      | INTEGER NULL                     | group: sender time of the last rename/picture op (R9)                         |
+| `meta_op`      | TEXT NULL                        | group: its op id (tie-break)                                                  |
 
 `title` holds the group name; for direct conversations it is empty and the UI shows the contact's name
 (or the carried card's name for a request). Ids: direct = `UUIDv5(CHAT_NS, "direct" ‖ sorted(own vault,
@@ -55,20 +55,21 @@ Rename and picture use the same LWW rule on the thread row: an op whose `(at, op
 
 ## New: `chat_peer_messages` (direct and group messages, notes)
 
-| Column          | Type             | Notes                                                                      |
-| --------------- | ---------------- | -------------------------------------------------------------------------- |
-| `id`            | TEXT PK          | `UUIDv5(CHAT_NS, thread_id ‖ sender_vault ‖ event id)` (R4)                |
-| `thread_id`     | TEXT NOT NULL    | index `(thread_id, sort_at, id)`                                           |
-| `event_id`      | TEXT NOT NULL    | the rumor's `id` (hex, 128 bit)                                            |
-| `sender_vault`  | TEXT NOT NULL    | own vault for own messages                                                 |
-| `sender_device` | TEXT NOT NULL    | device key hex                                                             |
-| `kind`          | TEXT NOT NULL    | `text`, `note` (membership/rename), `contact` (060 share)                  |
-| `text`          | TEXT NULL        | ≤ 4,000 characters (R2)                                                    |
-| `note`          | TEXT NULL        | JSON for `kind = note`: `{op, by, member?, name?}`                         |
-| `sent_at`       | INTEGER NOT NULL | sender's time                                                              |
-| `received_at`   | INTEGER NOT NULL | arrival on the inserting device (own: = `sent_at`)                         |
-| `sort_at`       | INTEGER NOT NULL | `min(sent_at, received_at + 300000)` (R4)                                  |
-| `inserted_by`   | TEXT NOT NULL    | device uuid that inserted the row (R6: only it sends the delivery receipt) |
+| Column            | Type             | Notes                                                                      |
+| ----------------- | ---------------- | -------------------------------------------------------------------------- |
+| `id`              | TEXT PK          | `UUIDv5(CHAT_NS, thread_id ‖ sender_vault ‖ event id)` (R4)                |
+| `thread_id`       | TEXT NOT NULL    | index `(thread_id, sort_at, id)`                                           |
+| `event_id`        | TEXT NOT NULL    | the rumor's `id` (hex, 128 bit)                                            |
+| `idempotency_key` | TEXT NULL        | sender's request UUID; reused on retries to return the original message    |
+| `sender_vault`    | TEXT NOT NULL    | own vault for own messages                                                 |
+| `sender_device`   | TEXT NOT NULL    | device key hex                                                             |
+| `kind`            | TEXT NOT NULL    | `text`, `note` (membership/rename), `contact` (060 share)                  |
+| `text`            | TEXT NULL        | ≤ 4,000 characters (R2)                                                    |
+| `note`            | TEXT NULL        | JSON for `kind = note`: `{op, by, member?, name?}`                         |
+| `sent_at`         | INTEGER NOT NULL | sender's time                                                              |
+| `received_at`     | INTEGER NOT NULL | arrival on the inserting device (own: = `sent_at`)                         |
+| `sort_at`         | INTEGER NOT NULL | `min(sent_at, received_at + 300000)` (R4)                                  |
+| `inserted_by`     | TEXT NOT NULL    | device uuid that inserted the row (R6: only it sends the delivery receipt) |
 
 ## New: `chat_attachments`
 
@@ -127,10 +128,12 @@ Derived state: `failed` if `failed_at` and no later `sent_at`; else `read` > `de
 
 **`chat_relay_cursors_no_sync`** — `(relay TEXT PK, newest_created_at INTEGER)` for `since` (R3).
 
-**`chat_blobs_no_sync`** — uploads of this device: `(blob_sha256 TEXT PK, server TEXT, upload_secret
-BLOB, attachment_id TEXT, pending_devices TEXT, uploaded_at INTEGER)`; the secret is the per-blob key
-(R12); `pending_devices` is the JSON list of device keys whose `files` receipt is still missing; row
-removed after `DELETE` (R13).
+**`chat_blobs_no_sync`** — uploads of this device: `(blob_sha256 TEXT PK, server TEXT, signer TEXT,
+upload_secret BLOB NULL, key_entry_id TEXT NULL, attachment_id TEXT, pending_devices TEXT,
+uploaded_at INTEGER)`. `signer` is `per_blob` or `registered`; per-blob uploads keep their signing key in
+`upload_secret`, while registered-key uploads store only the password-manager entry id in
+`key_entry_id` (never the secret itself). `pending_devices` lists every recipient device at send time
+and the sender's other devices whose `files` receipt is still missing; row removed after `DELETE` (R13).
 
 **`chat_attachment_files_no_sync`** — files on this device: `(attachment_id TEXT PK, state TEXT
 (`pending`, `downloading`, `stored`, `failed`, `gone`), bytes_done INTEGER, error TEXT, updated_at
@@ -141,14 +144,14 @@ payload TEXT, received_at)`, PK `(group_id, part)`; dropped after 7 days or when
 
 ## Preferences (`preferences`, typed accessors in `chat::settings`)
 
-| Key                              | Scope  | Default      | Notes                                                 |
-| -------------------------------- | ------ | ------------ | ----------------------------------------------------- |
-| `chat.blossom.server`            | vault  | first preset | URL or `none` (FR-080)                                |
-| `chat.blossom.keyEntry`          | vault  | unset        | id of the password entry holding the upload key (R12) |
-| `chat.receipts.read`             | vault  | `true`       | FR-024                                                |
-| `chat.download.autoLimit`        | device | `25` (MB)    | FR-036                                                |
-| `chat.download.autoLimitMetered` | device | `5` (MB)     | Android on mobile data                                |
-| `chat.notifications`             | device | `true`       | FR-023                                                |
+| Key                              | Scope  | Default   | Notes                                                              |
+| -------------------------------- | ------ | --------- | ------------------------------------------------------------------ |
+| `chat.blossom.server`            | vault  | `none`    | URL or `none`; a preset is enabled only after T104 passes (FR-080) |
+| `chat.blossom.keyEntry`          | vault  | unset     | id of the password entry holding the upload key (R12)              |
+| `chat.receipts.read`             | vault  | `true`    | FR-024                                                             |
+| `chat.download.autoLimit`        | device | `25` (MB) | FR-036                                                             |
+| `chat.download.autoLimitMetered` | device | `5` (MB)  | Android on mobile data                                             |
+| `chat.notifications`             | device | `true`    | FR-023                                                             |
 
 Device-scoped keys are added to `DEVICE_PREFERENCE_KEYS` (storage/maintenance.rs:70). An invalid stored
 value reads as the default (pattern passwords/settings.rs:12-34).

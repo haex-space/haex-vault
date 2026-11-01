@@ -187,7 +187,9 @@ Nostr way for files (BUD-01/02, NIP-B7; nostr 0.45 ships `nips::nipb7`).
 
 - A group has a random id; its membership is a set of **member ops** `add`, `remove`, `leave`,
   `accept`, `decline` and **meta ops** `rename`, `picture`, each with `(op_id, at = sender time, by)`.
-- Every member applies every op it receives; per member the op with the greatest `(at, op_id)` wins;
+- Receivers reject an op whose `at` is more than five minutes ahead of their current time; this bounds
+  sender-controlled future timestamps while allowing normal clock skew. Every member applies each
+  accepted op it receives; per member the op with the greatest `(at, op_id)` wins;
   likewise per meta field. All members receive all ops (ops go to every current member plus the
   affected one), so they converge on the same list (FR-056) independent of arrival order.
 - Ops by a vault that is not a current member at `at` are ignored. Any member may add or remove
