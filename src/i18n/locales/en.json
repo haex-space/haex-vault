@@ -3320,7 +3320,7 @@
         "depth": "Runs per rule",
         "hint": "holzi keeps this many of the latest runs for each rule, from 0 to 100. Older runs are deleted. If you set a smaller number, the oldest runs disappear at once.",
         "cost": "More runs let you look further back but take more storage, especially for rules with many files. At 0 holzi keeps no log, and you cannot look up what happened to a file.",
-        "scope": "The setting applies to all sync rules on this device. The log stays on this device, is not synced to other devices and holds no file contents, only paths and actions.",
+        "scope": "The setting applies to all sync rules on this device. The log stays on this device and is not synced to other devices. It stores run metadata such as times, duration, trigger, outcome and counters, plus file paths, actions and error reasons. It never stores file contents.",
         "invalid": "A whole number from 0 to 100."
       },
       "create": {

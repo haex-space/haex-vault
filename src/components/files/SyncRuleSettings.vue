@@ -7,6 +7,7 @@
  * once. A value outside the bounds is refused and the stored one comes back.
  */
 import { parseLogDepth } from '~/lib/files/syncRules'
+import { toast } from 'vue-sonner'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -44,7 +45,9 @@ async function commitAsync() {
   try {
     await logDepthSetAsync(depth)
   } catch (error) {
-    failure.value = errString(error)
+    const message = errString(error)
+    failure.value = message
+    toast.error(message)
   } finally {
     busy.value = false
   }

@@ -3320,7 +3320,7 @@
         "depth": "Läufe je Regel",
         "hint": "So viele der letzten Abgleiche behält holzi für jede Regel, von 0 bis 100. Ältere Läufe werden gelöscht. Stellst du eine kleinere Zahl ein, verschwinden die ältesten Läufe sofort.",
         "cost": "Mehr Läufe heißen, dass du weiter zurückblicken kannst, brauchen aber mehr Speicherplatz, vor allem bei Regeln mit vielen Dateien. Bei 0 führt holzi kein Protokoll, und du kannst nicht nachsehen, was mit einer Datei geschehen ist.",
-        "scope": "Die Einstellung gilt für alle Sync-Regeln auf diesem Gerät. Das Protokoll bleibt auf diesem Gerät, wird nicht mit anderen Geräten abgeglichen und enthält keine Dateiinhalte, nur Pfade und Aktionen.",
+        "scope": "Die Einstellung gilt für alle Sync-Regeln auf diesem Gerät. Das Protokoll bleibt auf diesem Gerät und wird nicht mit anderen Geräten abgeglichen. Es speichert Lauf-Metadaten wie Zeitpunkte, Dauer, Auslöser, Ergebnis und Zähler sowie Dateipfade, Aktionen und Fehlergründe. Dateiinhalte speichert es nicht.",
         "invalid": "Eine ganze Zahl von 0 bis 100."
       },
       "create": {
