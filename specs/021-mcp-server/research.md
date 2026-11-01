@@ -149,7 +149,11 @@ abfragen (braucht für `tools/list` eine laufende Webview ohne Not).
   nur Claudes eigene Freigabe; holzi prüft seine Werkzeuge selbst.
 - Codex: `config.toml` im temporären `CODEX_HOME` mit `[mcp_servers.holzi]` (command, args).
 - Der Nachweis eines Delegates bleibt in der App (kein Token-File) und wird je Start als Argument
-  übergeben; die Gegenstelle ist das von holzi gestartete Kind.
+  übergeben; die Gegenstelle ist das von holzi gestartete Kind. Umsetzung (PR F): Jeder Start bekommt
+  einen eigenen Nachweis, der nur im Speicher des Prozesses liegt, Art und Chat-Thread nennt und mit
+  dem Start endet (`mcp_server/delegates.rs`). Die Zeile des Delegates hat keinen `token_hash`.
+- Claude fragt bei holzi-Werkzeugen nicht selbst nach (`--allowedTools mcp__holzi`), sonst gäbe es
+  zwei Rückfragen; holzi fragt nach der Freigabestufe des Delegates.
 
 **Begründung**: holzi startet die Delegates selbst und kennt sie; der Nutzer richtet nichts ein
 (SC-006).
