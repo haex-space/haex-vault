@@ -63,6 +63,8 @@ pub mod window_texts;
 pub use error::{HolziError, Result};
 pub use state::{ActiveInstanceHandle, AppState};
 
+use std::sync::Arc;
+
 use catalog::commands::catalog_recommend_tiers;
 use catalog::list_catalog;
 use chat::action_commands::{respond_action_call, set_agent_actions};
