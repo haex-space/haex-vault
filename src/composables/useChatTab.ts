@@ -61,6 +61,12 @@ export function useChatTab(deps: {
     openDirectAsync: (contactId: string) => Promise<{ threadId: string }>
     muteAsync: (threadId: string, muted: boolean) => Promise<unknown>
     deleteAsync: (threadId: string) => Promise<unknown>
+    sendAsync: (
+      threadId: string,
+      text: string,
+      idempotencyKey: string,
+    ) => Promise<{ messageId: string }>
+    resendAsync: (messageId: string) => Promise<unknown>
     refresh: () => Promise<void>
   }
 }) {
@@ -256,9 +262,28 @@ export function useChatTab(deps: {
     await peer.muteAsync(String(input.threadId), Boolean(input.muted))
     return done
   })
+  handle('chat.peer.send', (input) =>
+    peer.sendAsync(
+      String(input.threadId),
+      String(input.text),
+      String(input.idempotencyKey),
+    ),
+  )
+  handle('chat.peer.resend', async (input) => {
+    await peer.resendAsync(String(input.messageId))
+    return done
+  })
 
   const run = (id: string, input: Record<string, unknown> = {}) => {
     void runAction(id, { ...input }, { kind: 'user' }, wmTab.tabId)
+  }
+  /** Runs an action and answers its error text, or `null` when it went through. */
+  const attempt = async (id: string, input: Record<string, unknown>) => {
+    const outcome = await runAction(id, input, { kind: 'user' }, wmTab.tabId)
+    if (outcome.ok) return null
+    return outcome.error === undefined
+      ? outcome.message
+      : deps.errString(outcome.error)
   }
 
   return {
@@ -276,6 +301,10 @@ export function useChatTab(deps: {
         run('chat.conversation.mute', { threadId, muted }),
       deletePeer: (threadId: string) =>
         run('chat.conversation.delete', { threadId }),
+      sendPeer: (threadId: string, text: string, idempotencyKey: string) =>
+        attempt('chat.peer.send', { threadId, text, idempotencyKey }),
+      resendPeer: (messageId: string) =>
+        attempt('chat.peer.resend', { messageId }),
       saveTitle: () =>
         run('chat.conversation.rename', {
           threadId: state.editingThreadId.value ?? '',

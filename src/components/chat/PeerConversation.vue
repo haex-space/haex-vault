@@ -1,13 +1,26 @@
 <script setup lang="ts">
 /**
- * A contact or group conversation (spec 072 US1, FR-006): header with picture and name, the
- * messages and a composer with text and dictation, without any model, effort, permission or agent
- * control. Sending is wired with spec 072 US2; until then the composer explains that it comes next.
+ * A contact or group conversation (spec 072 US1, US2, FR-006): header with picture and name, the
+ * messages and a composer for text, without any model, effort, permission or agent control.
+ * Sending and sending again run their catalog actions (`chat.peer.send`, `chat.peer.resend`);
+ * the message appears at once as _waiting_ and moves on as the delivery goes.
  */
 import type { PeerConversationEntry } from '~/composables/useConversations'
+import {
+  MAX_TEXT_CHARS,
+  usePeerConversation,
+} from '~/composables/usePeerConversation'
 
 const props = defineProps<{
   conversation: PeerConversationEntry | null
+  /** Runs `chat.peer.send`; resolves with an error text when it failed. */
+  send: (
+    threadId: string,
+    text: string,
+    idempotencyKey: string,
+  ) => Promise<string | null>
+  /** Runs `chat.peer.resend`; resolves with an error text when it failed. */
+  resend: (messageId: string) => Promise<string | null>
 }>()
 
 const emit = defineEmits<{
@@ -16,19 +29,64 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { errString } = useErrorString()
 const draft = ref('')
 const confirmDelete = ref(false)
+const sending = ref(false)
+const sendError = ref<string | null>(null)
+/** One key per message: a retry of the same draft sends it once (contracts/ipc.md). */
+let idempotencyKey = crypto.randomUUID()
+
+const threadId = computed(() => props.conversation?.id ?? null)
+const peer = usePeerConversation(threadId, errString)
+
+const length = computed(() => [...draft.value].length)
+const tooLong = computed(() => length.value > MAX_TEXT_CHARS)
+const canSend = computed(
+  () =>
+    !sending.value &&
+    !tooLong.value &&
+    draft.value.trim().length > 0 &&
+    props.conversation !== null,
+)
+
+async function submit() {
+  const id = threadId.value
+  if (!id || !canSend.value) return
+  sending.value = true
+  const error = await props.send(id, draft.value, idempotencyKey)
+  sending.value = false
+  sendError.value = error
+  if (error === null && threadId.value === id) {
+    draft.value = ''
+    idempotencyKey = crypto.randomUUID()
+  }
+}
+
+function onKeydown(event: KeyboardEvent) {
+  // action-exempt: Enter submits the draft; Shift+Enter starts a new line.
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    void submit()
+  }
+}
+
+async function resendMessage(messageId: string) {
+  sendError.value = await props.resend(messageId)
+}
 
 function deleteConversation() {
-  const threadId = props.conversation?.id
+  const id = props.conversation?.id
   confirmDelete.value = false
-  if (threadId) emit('delete', threadId)
+  if (id) emit('delete', id)
 }
 
 watch(
   () => props.conversation?.id,
   () => {
     draft.value = ''
+    sendError.value = null
+    idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
   },
 )
@@ -91,23 +149,65 @@ watch(
       </header>
 
       <div
-        class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8"
+        class="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-6 md:px-8"
       >
-        <p class="m-auto text-sm text-muted-foreground">
+        <ChatPeerMessageList
+          v-if="peer.messages.value.length > 0"
+          :messages="peer.messages.value"
+          :peer-name="conversation.displayName"
+          :peer-photo="conversation.photo"
+          @resend="resendMessage"
+        />
+        <p v-else class="m-auto text-sm text-muted-foreground">
           {{ t('chat.peer.noMessages') }}
         </p>
       </div>
 
       <div class="border-t border-border px-4 py-3 md:px-8">
-        <UiTextarea
-          v-model="draft"
-          :placeholder="t('chat.peer.placeholder')"
-          :aria-label="t('chat.peer.placeholder')"
-          disabled
-          rows="2"
-        />
-        <p class="mt-2 text-xs text-muted-foreground">
-          {{ t('chat.peer.sendingLater') }}
+        <p
+          v-if="conversation.peerWithoutRelays"
+          class="mb-2 flex items-start gap-1 text-xs text-muted-foreground"
+          data-testid="chat-peer-relay-hint"
+        >
+          <Icon name="lucide:info" class="mt-0.5 h-3 w-3 shrink-0" />
+          {{ t('chat.peer.ownRelaysInstead') }}
+        </p>
+        <p
+          v-if="sendError ?? peer.error.value"
+          class="mb-2 text-xs text-destructive"
+          role="alert"
+          data-testid="chat-peer-error"
+        >
+          {{ sendError ?? peer.error.value }}
+        </p>
+        <form class="flex items-end gap-2" @submit.prevent="submit">
+          <UiTextarea
+            v-model="draft"
+            class="flex-1"
+            :placeholder="t('chat.peer.placeholder')"
+            :aria-label="t('chat.peer.placeholder')"
+            rows="2"
+            data-testid="chat-peer-input"
+            @keydown="onKeydown"
+          />
+          <UiButton
+            type="submit"
+            size="icon"
+            :disabled="!canSend"
+            :aria-label="t('chat.peer.send')"
+            :tooltip="t('chat.peer.send')"
+            data-testid="chat-peer-send"
+          >
+            <Icon name="lucide:send" class="h-4 w-4" />
+          </UiButton>
+        </form>
+        <p
+          v-if="length > MAX_TEXT_CHARS - 500"
+          class="mt-1 text-right text-xs"
+          :class="tooLong ? 'text-destructive' : 'text-muted-foreground'"
+          data-testid="chat-peer-counter"
+        >
+          {{ t('chat.peer.counter', { count: length, max: MAX_TEXT_CHARS }) }}
         </p>
       </div>
     </template>

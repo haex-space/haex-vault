@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ChatConversation } from '@bindings/ChatConversation'
 import type { ChatConversationKind } from '@bindings/ChatConversationKind'
 import type { ContactHeader } from '@bindings/ContactHeader'
+import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 
 /** A contact or group conversation with the name and photo the list shows (spec 072 US1). */
 export interface PeerConversationEntry extends ChatConversation {
@@ -27,6 +28,21 @@ export function useConversationCommands() {
       invoke<null>('chat_conversation_mute', { args: { threadId, muted } }),
     deleteAsync: (threadId: string) =>
       invoke<null>('chat_conversation_delete', { args: { threadId } }),
+    // Spec 072 US2: messages of contact conversations.
+    sendAsync: (threadId: string, text: string, idempotencyKey: string) =>
+      invoke<{ messageId: string }>('chat_peer_send', {
+        args: { threadId, text, idempotencyKey },
+      }),
+    resendAsync: (messageId: string) =>
+      invoke<null>('chat_peer_resend', { args: { messageId } }),
+    messagesAsync: (threadId: string, before?: number) =>
+      invoke<ChatPeerMessage[]>('chat_peer_messages_list', {
+        args: { threadId, before: before ?? null, limit: null },
+      }),
+    readAsync: (threadId: string) =>
+      invoke<null>('chat_conversation_read', { args: { threadId } }),
+    viewingAsync: (viewId: string, threadId: string | null) =>
+      invoke<null>('chat_conversation_viewing', { args: { viewId, threadId } }),
   }
 }
 

@@ -415,20 +415,46 @@
     "peer": {
       "unknownName": "Unknown",
       "noMessages": "No messages yet",
-      "sendingLater": "Sending messages to contacts comes with the next part of this feature.",
       "placeholder": "Write a message",
       "mute": "Mute",
       "unmute": "Unmute",
       "delete": "Delete conversation",
       "deleteConfirm": "Do you really want to delete the conversation with {name}? It disappears with all messages and files on all your devices.",
       "deleteButton": "Delete",
-      "missing": "This conversation no longer exists."
+      "missing": "This conversation no longer exists.",
+      "send": "Send",
+      "counter": "{count} / {max} characters",
+      "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
     },
     "newContact": {
       "title": "Write to a contact",
       "search": "Search contacts",
       "empty": "None of your contacts has shared a business card. You can write to a contact once it has shared one.",
       "noMatch": "No contact matches the search."
+    },
+    "delivery": {
+      "state": {
+        "waiting": "Waiting",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "read": "Read",
+        "failed": "Not delivered"
+      },
+      "reason": {
+        "noRelay": "No Nostr-Relay accepted the message.",
+        "noDevices": "The card names no device.",
+        "tooLarge": "The message is too large.",
+        "unknown": "The delivery failed."
+      },
+      "resend": "Send again"
+    },
+    "error": {
+      "tooLarge": "The message is too long (at most 4,000 characters).",
+      "resendElsewhere": "This message was written on another of your devices. Send it again from there."
+    },
+    "notify": {
+      "request": "New request",
+      "open": "Open"
     }
   },
   "settings": {
@@ -1751,6 +1777,10 @@
       "contact": {
         "open": "Open conversation with contacts",
         "openDirect": "Open conversation with contact"
+      },
+      "peer": {
+        "send": "Send message to contact",
+        "resend": "Send message again"
       }
     },
     "settings": {

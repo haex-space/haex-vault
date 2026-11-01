@@ -136,6 +136,45 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
     agentCallable: false,
   }),
+  // Spec 072 US2: messages to contacts. Locked for agents like the actions above: an agent sends
+  // only after the user confirmed it, which comes with spec 072 US7 (FR-071).
+  inChat({
+    id: 'chat.peer.send',
+    description: 'Send a text message in a conversation with contacts.',
+    input: {
+      type: 'object',
+      properties: {
+        threadId: THREAD_ID,
+        text: { type: 'string', description: 'At most 4,000 characters.' },
+        idempotencyKey: {
+          type: 'string',
+          description: 'A UUID made once per message; a retry sends it once.',
+        },
+      },
+      required: ['threadId', 'text', 'idempotencyKey'],
+    },
+    result: {
+      type: 'object',
+      properties: { messageId: { type: 'string' } },
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.peer.resend',
+    description: 'Send a message again whose delivery failed.',
+    input: {
+      type: 'object',
+      properties: {
+        messageId: { type: 'string', description: 'Message id.' },
+      },
+      required: ['messageId'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
   inChat({
     id: 'chat.conversations.list',
     description: 'List all conversations with id, title and creation time.',

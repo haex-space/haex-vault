@@ -397,6 +397,8 @@ onBeforeUnmount(() => {
     <ChatPeerConversation
       v-if="activePeerId !== null"
       :conversation="activePeer"
+      :send="ui.sendPeer"
+      :resend="ui.resendPeer"
       @mute="ui.mute"
       @delete="ui.deletePeer"
     />
