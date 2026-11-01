@@ -1,6 +1,6 @@
 # Qwen3 is the local model family, with platform-specific presets
 
-Status: accepted; superseded in part by [ADR-0010](0010-android-platform.md) (no native MLC backend on mobile)
+Status: accepted; superseded in part by [ADR-0010](0010-android-platform.md) (no native MLC backend on mobile); the desktop preset is Qwen3.5-4B since [ADR-0023](0023-second-local-inference-engine.md) (2026-10-31)
 Date: 2026-09-13
 
 ## Decision
@@ -42,3 +42,11 @@ mandatory for the host CLI tool.
   enough output tokens for a complete structured tool call.
 - Users can still import arbitrary GGUFs or provide other HuggingFace models;
   these presets are recommendations, not a hard allow-list.
+
+## Amendment 2026-10-31: Qwen3.5-4B on the desktop
+
+The desktop preset is Qwen3.5-4B Q4_K_M, the same family one generation on. It reaches 60 of the 83
+sentences of the spec 032 tool evaluation, against 55 for Qwen3-4B through the same engine, and loads
+only through llama.cpp, which is holzi's local engine since spec 070 (ADR-0023). The phone presets stay
+Qwen3-1.7B and Qwen3-0.6B, now through llama.cpp as well; Qwen3.5 has no phone size in the catalog. A
+build or processor without llama.cpp does not list Qwen3.5 and suggests by fit from the Qwen3 entries.

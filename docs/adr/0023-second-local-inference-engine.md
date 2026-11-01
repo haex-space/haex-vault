@@ -1,6 +1,6 @@
 # A second local inference engine (llama.cpp), chosen by the file
 
-Status: proposed
+Status: accepted (amended 2026-10-31: CPU kernels, one engine)
 Date: 2026-10-30
 
 ## Context
@@ -45,7 +45,7 @@ The spike of spec 070 (PRs #654 and #666, `specs/070-llama-cpp-engine/research.m
   `libcublasLt_static.a` and `stubs`. llama.cpp and mistralrs, each with its own CUDA runtime, run in one
   process (checked on one card, one OS; see `research.md`).
 - **The CPU kernel strategy is not decided here.** ggml is built without AVX2 by default. Spec 070 R3 settles
-  it and this ADR is amended with the outcome (task T038).
+  it and this ADR is amended with the outcome (task T038). See the amendments below.
 
 ## Consequences
 
@@ -71,3 +71,44 @@ The spike of spec 070 (PRs #654 and #666, `specs/070-llama-cpp-engine/research.m
 - **A `llama-server` sidecar, Ollama or LM Studio.** One binary per platform, impractical on a phone; the
   external servers already work as an API provider and stay an option for users who run them.
 - **candle, ONNX Runtime or Burn directly.** No better GGUF coverage than mistralrs.
+
+## Amendment 2026-10-31: CPU kernels (spec 070 R3)
+
+Without help, the sys crate builds ggml for SSE2 only, and its q4_K kernels fall back to plain C: on the CPU a
+4B model needed 46 to 94 s before its first word. Desktop builds now compile ggml for an AVX2 baseline
+(`GGML_AVX`, `GGML_AVX2`, `GGML_FMA`, `GGML_F16C`, `GGML_BMI2` in `.cargo/config.toml`), which answers 8 to 18
+times sooner. A processor without those extensions gets no llama.cpp, because it would stop at the first
+such instruction; `llm/llamacpp/cpu.rs` checks it before a load, and mistralrs runs there instead. Runtime
+dispatch (`dynamic-backends`, one library per CPU level next to the binary) was the alternative and was not
+taken. Threads default to the physical cores.
+
+## Amendment 2026-10-31: one engine (spec 070 US5)
+
+**holzi keeps one local engine, and it is llama.cpp.** The operator's rule: one engine, llama.cpp if it is
+better. Spec 070 T042 measured every catalog model through both engines in release builds (`research.md`,
+"Both engines on every catalog model"):
+
+- **Quality is the same** with the same model: 14 against 12 (Qwen3 0.6B), 48 against 48 (1.7B), 52 against 55
+  (4B) of 83 sentences, mistralrs first. Qwen3.5 4B reaches 60 and loads only through llama.cpp.
+- **On the measured x86 CPU llama.cpp starts answering 12 to 14 times sooner** (Qwen3 4B: 4 s against 52 s).
+  The benchmark did not obtain comparable throughput units for both engines, so it does not establish which
+  generates faster. Phone performance remains unmeasured on ARM.
+- **On the GPU** both start within a third of a second. The measured throughput rates use tokens/s for
+  llama.cpp and Delta chunks/s for mistralrs, so they do not establish which generates faster.
+- llama.cpp loads three to eight times faster.
+- Spec 055's vision test (Qwen3-VL 4B) ran 3 to 6 times faster through Ollama, which is llama.cpp, than
+  through mistralrs, and without its loops.
+
+Consequences:
+
+- **`llm-llamacpp` is a default feature**, and `engine_for` gives every architecture to llama.cpp where it is
+  compiled in and the processor runs it. mistralrs takes a file only where llama.cpp cannot run: a processor
+  without AVX2, and iOS, whose build has no llama.cpp yet.
+- **The desktop profile is Qwen3.5 4B.** The phone profiles stay Qwen3 1.7B and 0.6B, now through llama.cpp.
+- **mistralrs leaves only when every platform runs llama.cpp.** iOS needs a build on a Mac (Metal, a patch of
+  the sys crate's build script; spec 070 T037). The processors without AVX2 then get no local model, or a
+  runtime-dispatch build (R3), decided at that point.
+- **What still uses mistralrs or candle** keeps it until then: the multimodal spike of spec 055 (not in
+  production) and the local Whisper of spec 008 (candle, not mistralrs).
+- The builds need `cmake` everywhere: CI's runners have it, the devShell gets it from the atoms package.
+- The Mac app needs macOS 10.15 or newer (Tauri's default was 10.13): llama.cpp uses `std::filesystem`.

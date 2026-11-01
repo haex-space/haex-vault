@@ -1,9 +1,9 @@
 //! Which inference engine loads a GGUF (spec 070, plan D1) and the one entry point that loads it.
 //!
-//! The choice follows from `general.architecture` in the file's own header, not from a list in the
-//! catalog (FR-003): mistralrs keeps every architecture it knows, llama.cpp takes the rest where it is
-//! compiled in, and an architecture no compiled engine loads is refused at once (FR-004) instead of
-//! hanging inside mistralrs.
+//! holzi has one local engine, llama.cpp (spec 070 US5, ADR 0023). mistralrs stays only for where llama.cpp
+//! cannot run yet: a processor without the AVX2 baseline of the build, and iOS. There the choice follows
+//! from `general.architecture` in the file's own header, not from a list in the catalog (FR-003), and an
+//! architecture mistralrs does not know is refused at once (FR-004) instead of hanging inside mistralrs.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -49,19 +49,23 @@ pub enum EngineError {
     LlamaCpp(#[from] crate::llm::llamacpp::LoadError),
 }
 
-/// The engine for an architecture. mistralrs wins for everything it knows, so a model that loads today
-/// keeps its engine (until the decision of spec 070 US5).
+/// The engine for an architecture (spec 070 US5, ADR 0023): llama.cpp wherever it is compiled in and the
+/// processor runs it; mistralrs only where llama.cpp cannot run (a processor without AVX2, a build without
+/// the engine such as iOS), and there only for the architectures it knows.
 pub fn engine_for(architecture: &str) -> Result<Engine, EngineError> {
-    if GGUFArchitecture::from_value(architecture).is_ok() {
-        return Ok(Engine::Mistralrs);
-    }
-    beyond_mistralrs(architecture)
+    llama_cpp_here(architecture).or_else(|refusal| {
+        if GGUFArchitecture::from_value(architecture).is_ok() {
+            Ok(Engine::Mistralrs)
+        } else {
+            Err(refusal)
+        }
+    })
 }
 
-/// What takes an architecture mistralrs does not know: llama.cpp where it is compiled in and the processor
-/// runs it (spec 070 R3).
+/// llama.cpp, if it is compiled in and the processor runs the ggml of this build (spec 070 R3); otherwise
+/// why not.
 #[cfg(feature = "llm-llamacpp")]
-fn beyond_mistralrs(_architecture: &str) -> Result<Engine, EngineError> {
+fn llama_cpp_here(_architecture: &str) -> Result<Engine, EngineError> {
     let missing = crate::llm::llamacpp::cpu::missing_features();
     if !missing.is_empty() {
         return Err(crate::llm::llamacpp::LoadError::Cpu(missing).into());
@@ -70,7 +74,7 @@ fn beyond_mistralrs(_architecture: &str) -> Result<Engine, EngineError> {
 }
 
 #[cfg(not(feature = "llm-llamacpp"))]
-fn beyond_mistralrs(architecture: &str) -> Result<Engine, EngineError> {
+fn llama_cpp_here(architecture: &str) -> Result<Engine, EngineError> {
     Err(EngineError::UnsupportedArchitecture(
         architecture.to_owned(),
     ))

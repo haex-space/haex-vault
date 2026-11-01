@@ -27,11 +27,12 @@ required-features = ["e2e"]
 tauri-build = { version = "2.3.0", features = [] }
 
 [features]
-# Default enables local inference on CPU and voice control so a fresh
+# Default enables local inference (llama.cpp, spec 070 US5) and voice control so a fresh
 # `cargo build` yields a working Chat pipeline plus mic dictation out of the
-# box. Set `--no-default-features` to skip mistralrs/candle and cpal entirely
-# while iterating on unrelated code.
-default = ["llm-cpu", "voice"]
+# box. Set `--no-default-features` to skip the engines, candle and cpal entirely
+# while iterating on unrelated code. iOS builds `--no-default-features --features llm-cpu,voice`
+# until llama.cpp builds there (spec 070 T037).
+default = ["llm-llamacpp", "voice"]
 
 # Local inference via mistralrs 0.8.x (in-process, per plan §"Lokale Inferenz").
 # Also gates the local Whisper STT adapter (spec 008): it shares the same
@@ -48,15 +49,17 @@ llm-cpu = [
     "dep:candle-transformers",
     "dep:tokenizers",
 ]
-# CUDA build. Needs nvcc + CUDA toolkit >= 12.0 present at build time
-# (Etappe 0 finding #3). Not enabled by default; opt in via
-# `cargo build --features llm-cuda`.
+# mistralrs CUDA build. Needs nvcc + CUDA toolkit >= 12.0 present at build time
+# (Etappe 0 finding #3). It does not change the default engine; use
+# `llm-llamacpp-cuda` for the default llama.cpp path, or combine both features
+# when comparing the engines on CUDA.
 llm-cuda = ["llm-cpu", "mistralrs/cuda"]
 # Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
 llm-metal = ["llm-cpu", "mistralrs/metal"]
-# llama.cpp as a second local engine for the architectures mistralrs cannot load (spec 070, ADR 0023).
-# Opt-in: it needs `cmake` and a C++ toolchain at build time, and the default build stays as it is.
-# It rides on `llm-cpu` because the adapter types, the catalog and the evaluation are shared.
+# llama.cpp, holzi's local engine (spec 070, ADR 0023): it loads every model where it is compiled in and
+# the processor runs it; mistralrs (`llm-cpu`) is left for processors without AVX2 and for iOS. It needs
+# `cmake` and a C++ toolchain at build time. It rides on `llm-cpu` because the adapter types, the
+# catalog and the evaluation are shared.
 llm-llamacpp = [
     "llm-cpu",
     "dep:llama-cpp-2",
@@ -321,12 +324,6 @@ anyhow = "1"
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
-# Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
-# `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
-# scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`
-# (`.cargo/config.toml`), so a version bump means new digests there. Without features it links
-# statically on desktop and shared on Android and iOS (the only builds those have).
-sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 # Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
 # above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
 # mistralrs 0.8.1 already resolves to, so only one candle version tree
@@ -417,9 +414,11 @@ notify-debouncer-full = "0.5"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 trash = "5.2"
 
-# llama.cpp (spec 070). OpenMP only where the toolchain has it: Linux and Windows. Apple's clang has none.
+# llama.cpp (spec 070) without OpenMP: ggml's own thread pool, as on Android and the Mac. OpenMP would add
+# a runtime library the installers do not carry (`vcomp140.dll` beside Tauri's static VC runtime on
+# Windows, `libgomp.so.1` on Linux).
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
-llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["openmp"] }
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The plists of `diskutil` for the drives (spec 064 research R5).
@@ -427,6 +426,18 @@ plist = "1.10"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
+
+# Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by
+# `voice`. Exact pin: the native archives it links are pinned by SHA-256 in
+# scripts/lib/sherpaOnnxArchives.ts and handed over through `SHERPA_ONNX_ARCHIVE_DIR`
+# (`.cargo/config.toml`), so a version bump means new digests there. Linux links Sherpa as a shared
+# library: its static ONNX Runtime was built with GCC 11 headers, and mixing it into the executable
+# alongside llama.cpp built by a newer GCC corrupts `std::regex` during VAD initialization.
+[target.'cfg(target_os = "linux")'.dependencies]
+sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false, features = ["shared"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false }
 
 [dev-dependencies]
 # Mock runtime for IPC-level tests of the vault gateway (spec 013).

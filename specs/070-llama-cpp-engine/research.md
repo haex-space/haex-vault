@@ -144,6 +144,68 @@ there. One consequence worth knowing: on a roomy desktop the tier suggestion is 
 which in a build with llama.cpp is Qwen3.5 4B (3.0 GB) and not the Qwen3 4B profile. The profile itself
 stays Qwen3 4B until the decision of US5.
 
+## Both engines on every catalog model (T042, 2026-10-31)
+
+Release builds on the development machine (i7-12800HX, 16 cores and 24 threads; RTX A2000 8 GB laptop
+GPU), a quiet machine (load about 3), one run each, greedy decoding:
+
+- the GPU build `llm-cuda,llm-llamacpp-cuda`, and the CPU build `llm-llamacpp` (no CUDA, so mistralrs runs
+  on the CPU too; ggml with the AVX2 baseline of R3, threads = physical cores, still with OpenMP, which
+  R3's last paragraph drops);
+- the 83 sentences of spec 032 (set version 5) on the GPU, `model_tool_eval`;
+- the speed with `measures_the_speed` (now also through mistralrs, `HOLZI_TEST_ENGINE=mistralrs`): a prompt
+  of about 560 tokens, 128 new tokens, the second of two rounds. mistralrs provides no completion-token count
+  in its `Done` frame, so the benchmark reports Delta chunks/s for it. A chunk can contain multiple tokens
+  after UTF-8 buffering, so its chunk rate cannot be compared with llama.cpp tokens/s.
+
+Qwen3.5 4B runs only through llama.cpp (mistralrs 0.8.1 panics on `qwen35`).
+
+**Evaluation (GPU, pass of 83):**
+
+| Model      | mistralrs | llama.cpp | Reached (m / l) | Extra steps (m / l) | Spurious calls |
+| ---------- | --------- | --------- | --------------- | ------------------- | -------------- |
+| Qwen3 0.6B | 14        | 12        | 0.831 / 0.831   | 0 / 0               | 0 / 0          |
+| Qwen3 1.7B | 48        | 48        | 0.831 / 0.831   | 0 / 0               | 0 / 0          |
+| Qwen3 4B   | 52        | 55        | 0.857 / 0.844   | 4 / 3               | 0 / 0          |
+| Qwen3.5 4B | –         | 60        | – / 0.883       | – / 6               | – / 1          |
+
+**Speed, GPU** (each cell: time to first text; throughput (tokens/s for llama.cpp, Delta chunks/s for
+mistralrs; these rates are not comparable); load time; process peak resident memory, excluding weights in video
+memory):
+
+| Model      | mistralrs                             | llama.cpp                        |
+| ---------- | ------------------------------------- | -------------------------------- |
+| Qwen3 0.6B | 0.03 s, 155 chunks/s; 2.8 s; 1134 MiB | 0.05 s, 226 t/s; 0.4 s; 977 MiB  |
+| Qwen3 1.7B | 0.05 s, 100 chunks/s; 3.7 s; 1259 MiB | 0.10 s, 125 t/s; 0.4 s; 1739 MiB |
+| Qwen3 4B   | 0.10 s, 55 chunks/s; 1.7 s; 1319 MiB  | 0.22 s, 61 t/s; 0.6 s; 2897 MiB  |
+| Qwen3.5 4B | –                                     | 0.30 s, 51 t/s; 0.8 s; 3426 MiB  |
+
+**Speed, CPU only:**
+
+| Model      | mistralrs                             | llama.cpp                      |
+| ---------- | ------------------------------------- | ------------------------------ |
+| Qwen3 0.6B | 12.3 s, 21 chunks/s; 1.8 s; 1430 MiB  | 0.9 s, 27 t/s; 0.2 s; 864 MiB  |
+| Qwen3 1.7B | 22.0 s, 13 chunks/s; 2.5 s; 2714 MiB  | 1.6 s, 32 t/s; 0.3 s; 2085 MiB |
+| Qwen3 4B   | 51.6 s, 6.2 chunks/s; 2.1 s; 4420 MiB | 4.1 s, 16 t/s; 0.6 s; 4321 MiB |
+| Qwen3.5 4B | –                                     | 4.8 s, 13 t/s; 0.6 s; 4296 MiB |
+
+What the figures say:
+
+- **Quality:** the same model gives the same result through both engines within one or three sentences, in
+  both directions (0.6B: 14 against 12, 1.7B: equal, 4B: 52 against 55). Neither engine reads calls
+  better. The real gain is the model: Qwen3.5 4B reaches 60, and only llama.cpp loads it.
+- **GPU:** both engines start within a third of a second. The throughput rates use different units and do not
+  establish which engine generates faster. Loading is three to eight times faster through llama.cpp, on the CPU
+  as well.
+- **CPU:** on the measured x86 machine, llama.cpp starts answering 12 to 14 times sooner (4B: 4 s against
+  52 s). The throughput rates use different units and do not establish which engine generates faster. The phone
+  result is still unmeasured: the phone check belongs to the ARM validation in T040.
+- **Memory:** on the CPU about equal, llama.cpp lower with the small models. On the GPU llama.cpp's
+  resident memory is higher because the file is mapped into the process and counted there; it is page
+  cache, not a copy.
+- The CPU figures come from x86. Phones run ARM kernels in both engines, which this machine does not
+  measure; the phone check belongs to the switch (T040).
+
 ## R3 – CPU kernels (settled, 2026-10-31)
 
 Question: how does a release build get fast ggml kernels without being built for the build machine's CPU?
@@ -192,6 +254,19 @@ Two build traps found on the way: the sys crate prints `rerun-if-env-changed` on
 present at its last run, and CMake keeps an option in its cache once set. A target dir built before the
 switches keeps the C kernels until `cargo clean -p llama-cpp-sys-2`; the `llamacpp` CI leg got a new cache
 key for that reason, and the unit test fails on such a stale build instead of letting it pass slowly.
+
+**OpenMP (2026-10-31, PR G).** The R3 builds used OpenMP on Linux and Windows. With llama.cpp in the
+default features, OpenMP would add a runtime library the installers do not carry: `vcomp140.dll` next to
+Tauri's static VC runtime on Windows (the runners have Visual Studio and would not notice), `libgomp.so.1` on
+Linux. Without it ggml uses its own thread pool, as on Android and the Mac. The two release builds were
+measured in turns (CPU only, the R3 prompt, two rounds each, a machine at load 4 to 10):
+
+| Model      | With OpenMP              | Without OpenMP           |
+| ---------- | ------------------------ | ------------------------ |
+| Qwen3 1.7B | 1.5–1.6 s, 20–27 t/s     | 1.4–1.6 s, 38.5–38.6 t/s |
+| Qwen3 4B   | 3.7–3.9 s, 14.8–15.0 t/s | 4.2–4.4 s, 17.1–17.8 t/s |
+
+The prompt reads a little slower, the answer comes faster; OpenMP is off on every platform.
 
 ## R4 – Gemma 4 call syntax (settled, 2026-10-31)
 

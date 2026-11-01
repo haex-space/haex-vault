@@ -20,23 +20,47 @@ fn write_header_only_gguf(name: &str, architecture: &str) -> PathBuf {
     path
 }
 
+/// Spec 070 US5: llama.cpp takes every architecture on a processor that supports the compiled ggml;
+/// otherwise the known architectures fall back to mistralrs.
+#[cfg(feature = "llm-llamacpp")]
 #[test]
-fn every_architecture_mistralrs_knows_stays_with_mistralrs() {
+fn llama_cpp_takes_every_architecture_where_it_runs() {
+    let llama_cpp_runs = crate::llm::llamacpp::cpu::missing_features().is_empty();
+    let phone_architectures = ["llama", "qwen2", "qwen3", "phi3"];
+    for architecture in phone_architectures {
+        assert_eq!(
+            engine_for(architecture).unwrap(),
+            if llama_cpp_runs {
+                Engine::LlamaCpp
+            } else {
+                Engine::Mistralrs
+            },
+            "{architecture}"
+        );
+        assert!(is_loadable(architecture));
+    }
+
+    for architecture in ["qwen35", "gemma4"] {
+        if llama_cpp_runs {
+            assert_eq!(engine_for(architecture).unwrap(), Engine::LlamaCpp);
+            assert!(is_loadable(architecture));
+        } else {
+            assert!(engine_for(architecture).is_err(), "{architecture}");
+            assert!(!is_loadable(architecture), "{architecture}");
+        }
+    }
+}
+
+/// Without llama.cpp (iOS), mistralrs keeps every architecture it knows.
+#[cfg(not(feature = "llm-llamacpp"))]
+#[test]
+fn without_llama_cpp_mistralrs_keeps_what_it_knows() {
     for architecture in ["llama", "qwen2", "qwen3", "phi3", "starcoder2"] {
         assert_eq!(
             engine_for(architecture).unwrap(),
             Engine::Mistralrs,
             "{architecture}"
         );
-    }
-}
-
-#[cfg(feature = "llm-llamacpp")]
-#[test]
-fn the_rest_goes_to_llama_cpp_when_it_is_compiled_in() {
-    for architecture in ["qwen35", "gemma4"] {
-        assert_eq!(engine_for(architecture).unwrap(), Engine::LlamaCpp);
-        assert!(is_loadable(architecture));
     }
 }
 

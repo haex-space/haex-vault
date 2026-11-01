@@ -2,15 +2,17 @@
 //!
 //! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HOLZI_TEST_GGUF`, and its
 //! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
-//! (otherwise the engine's memory plan decides), `HOLZI_LLAMACPP_THREADS` the CPU threads.
+//! (otherwise the engine's memory plan decides), `HOLZI_LLAMACPP_THREADS` the CPU threads. The speed test
+//! also measures mistralrs (`HOLZI_TEST_ENGINE=mistralrs`).
 //!
 //! ```text
 //! HOLZI_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
-//!   --no-default-features --features llm-llamacpp --test llamacpp_inference -- --ignored --nocapture
+//!   --no-default-features --features llm-llamacpp --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 //! ```
 //!
-//! For a CUDA build use `--features llm-llamacpp-cuda`. The two-engines test also needs
-//! `llm-cpu` (the mistralrs path) and a model both engines load, such as Qwen3.
+//! For the default llama.cpp engine on CUDA use `--features llm-llamacpp-cuda`.
+//! A two-engine GPU comparison needs both `llm-cuda` and `llm-llamacpp-cuda`,
+//! plus a model both engines load, such as Qwen3.
 
 #![cfg(feature = "llm-llamacpp")]
 
@@ -223,12 +225,38 @@ async fn greedy_decoding_gives_the_same_answer_twice() {
     assert_eq!(answers[0], answers[1]);
 }
 
-/// Spec 070 R3: prompt and generation speed, for comparing builds and thread counts. It prints and does not
-/// judge; the figures go into `research.md`.
+/// The engine `measures_the_speed` runs: llama.cpp, or mistralrs with `HOLZI_TEST_ENGINE=mistralrs` (its
+/// tokenizer from `HOLZI_TEST_GGUF_TOKENIZER`).
+async fn speed_adapter() -> Box<dyn ProviderAdapter> {
+    if env::var("HOLZI_TEST_ENGINE").as_deref() == Ok("mistralrs") {
+        use holzi_lib::adapters::local::LocalAdapter;
+        use holzi_lib::llm::local::LocalModel;
+
+        let tokenizer = env::var("HOLZI_TEST_GGUF_TOKENIZER").expect("HOLZI_TEST_GGUF_TOKENIZER");
+        let model = LocalModel::load(&model_path(), Some(&tokenizer))
+            .await
+            .expect("mistralrs load");
+        return Box::new(LocalAdapter::new(model));
+    }
+    Box::new(load().await)
+}
+
+/// The process' peak resident memory in MiB, where the system tells it (Linux).
+fn peak_memory_mib() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("VmHWM:"))?;
+    let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kib / 1024)
+}
+
+/// Spec 070 R3 and T042: load time, prompt and generation speed, for comparing builds, thread counts and the
+/// two engines. It prints and does not judge; the figures go into `research.md`.
 #[tokio::test]
 #[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
 async fn measures_the_speed() {
-    let adapter = load().await;
+    let loading = Instant::now();
+    let adapter = speed_adapter().await;
+    println!("load: {:.2} s", loading.elapsed().as_secs_f64());
     let prompt = "Summarise the following notes in two sentences. ".repeat(40);
     for round in 0..2 {
         let started = Instant::now();
@@ -238,28 +266,51 @@ async fn measures_the_speed() {
             .expect("stream");
         let mut first = None;
         let mut out = Drained::default();
+        let mut delta_chunks = 0usize;
+        let mut saw_done = false;
         while let Some(chunk) = stream.next().await {
-            if first.is_none() && matches!(chunk, Ok(StreamChunk::Delta { .. })) {
-                first = Some(started.elapsed());
-            }
-            if let Ok(StreamChunk::Done {
-                completion_tokens, ..
-            }) = chunk
-            {
-                out.completion_tokens = completion_tokens;
+            match chunk.expect("stream error") {
+                StreamChunk::Delta { content, .. } => {
+                    delta_chunks += 1;
+                    if !content.is_empty() {
+                        first.get_or_insert_with(|| started.elapsed());
+                    }
+                }
+                StreamChunk::Done {
+                    completion_tokens, ..
+                } => {
+                    assert!(!saw_done, "stream emitted more than one Done frame");
+                    saw_done = true;
+                    out.completion_tokens = completion_tokens;
+                }
+                _ => {}
             }
         }
+        assert!(saw_done, "stream ended without a Done frame");
         let total = started.elapsed();
         let first = first.expect("no text");
-        let tokens = out.completion_tokens.expect("token count") as f64;
+        // mistralrs closes the stream at the token limit without its final frame and so without the count
+        // (`llm/local/stream.rs`). Do not infer token counts from text chunks: one chunk can hold several
+        // tokens after UTF-8 buffering. Report chunk throughput separately when the count is unavailable.
         // The first round warms the caches up; only the second counts.
         if round == 1 {
-            println!(
-                "speed: first text after {:.2} s, {:.1} tokens/s after it",
-                first.as_secs_f64(),
-                (tokens - 1.0) / (total - first).as_secs_f64()
-            );
+            let after_first = (total - first).as_secs_f64();
+            match out.completion_tokens.filter(|&tokens| tokens > 0) {
+                Some(tokens) => println!(
+                    "speed: first text after {:.2} s, {:.1} tokens/s after it",
+                    first.as_secs_f64(),
+                    (tokens.saturating_sub(1)) as f64 / after_first
+                ),
+                None => println!(
+                    "speed: first text after {:.2} s, completion token count unavailable; {:.1} delta chunks/s after it",
+                    first.as_secs_f64(),
+                    delta_chunks.saturating_sub(1) as f64 / after_first
+                ),
+            }
         }
+    }
+    if let Some(mib) = peak_memory_mib() {
+        println!("peak memory: {mib} MiB");
     }
 }
 
