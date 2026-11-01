@@ -17,7 +17,7 @@ use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage::EXPIRES_AFTER_MILLIS;
 use holzi_lib::mcp_server::manage_commands::{revoke, set_mode, set_rights, unblock};
-use holzi_lib::mcp_server::registry::{self, AgentMode, AgentStatus};
+use holzi_lib::mcp_server::registry::{self, AgentMode, AgentStatus, Transport};
 
 fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
     Rights {
@@ -189,11 +189,11 @@ async fn unblocking_clears_the_session_decline_and_allows_registration_again() {
 
     let id = fx.agent_id("blocked").await;
     let core = server.core();
-    assert!(core.declined("blocked"));
+    assert!(core.declined("blocked", Transport::Ipc));
     unblock(&fx.db, fx.device, Some(core), id)
         .await
         .expect("unblock");
-    assert!(!core.declined("blocked"));
+    assert!(!core.declined("blocked", Transport::Ipc));
 
     let (_again, helper) = fx.agent("blocked").await.expect("connected again");
     let (request, _) = fx.next_question().await;
