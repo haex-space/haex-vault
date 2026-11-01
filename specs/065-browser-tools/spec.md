@@ -33,7 +33,7 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
 - **Browser-Werkzeuge**: die Werkzeuge, mit denen ein Agent einen Browser bedient: Seite öffnen,
   Seite lesen (Text, Struktur der bedienbaren Elemente, Bildschirmfoto), klicken, tippen, Auswahl
   treffen, scrollen, zurück und vor, Tabs öffnen, wechseln und schließen, auf ein Ergebnis warten,
-  Datei herunterladen, Anmeldedaten eintragen lassen.
+  Datei herunterladen, Anmeldedaten oder andere Daten aus dem Passwortmanager eintragen lassen.
 - **Website**: ein Ursprung im Sinn des Webs (Schema, Host, Port), dem Nutzer als Adresse wie
   „shop.example.de“ gezeigt.
 - **Erlaubte Websites**: je Agent die Websites, die er im Browser öffnen und bedienen darf.
@@ -88,6 +88,20 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   Start gelöscht wird (FR-001, R3).
 - Q: Woher kommen Anmeldedaten im Agenten-Browser? → A: Immer aus dem Passwortmanager; neue
   Anmeldedaten speichert holzi dort, der Agenten-Browser speichert keine selbst (FR-002, FR-036).
+
+### Session 2026-11-01
+
+- Q: Was darf ein Agent auf einer Website mit „lesen“? → A: Seiten öffnen, navigieren (Adresse,
+  zurück, vor, neu laden), lesen, scrollen, Bildschirmfotos; nicht klicken, tippen, auswählen oder
+  einem Link per Klick folgen (FR-008). Navigieren ist trotzdem eine ändernde Handlung und fragt in
+  Manuell (FR-010).
+- Q: Welche Daten aus dem Passwortmanager trägt holzi in Formulare ein? → A: Neben Anmeldedaten
+  auch beliebige Felder eines Eintrags, etwa Bank- und Kartendaten; das Modell sieht sie nie, und
+  holzi fragt jedes Mal (US4, FR-037, FR-038).
+- Q: Kommt Stufe 2 (der Browser des Nutzers über die Erweiterung)? → A: Zurückgestellt. Die Ziele
+  (selbstständig recherchieren, Formulare mit Daten aus dem Passwortmanager ausfüllen und
+  absenden) deckt der Agenten-Browser. Ein Tauri-Webview als Agenten-Browser ist verworfen, weil
+  die Web-Engines der Plattformen die Schutzregeln nicht gleich tragen (R2).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -150,8 +164,9 @@ dem Öffnen; in Plan wird das Abschicken ohne Rückfrage abgelehnt.
    „Ablehnen“.
 4. **Given** ein Agent in Plan, **When** er navigieren, tippen, klicken oder absenden will, **Then**
    lehnt holzi das ohne Rückfrage ab; Lesen, Scrollen und Bildschirmfotos laufen.
-5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort navigieren, tippen oder klicken
-   will, **Then** lehnt holzi mit „nicht erlaubt“ ab.
+5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort klicken, tippen, eine Auswahl
+   treffen oder einem Link per Klick folgen will, **Then** lehnt holzi mit „nicht erlaubt“ ab;
+   eine Adresse öffnen, zurück, vor und neu laden laufen wie in Szenario 1 (FR-008).
 6. **Given** holzi kann bei einem Klick nicht sicher erkennen, ob er etwas absendet, **When** der
    Agent ihn ausführen will, **Then** behandelt holzi ihn als Absenden.
 
@@ -193,19 +208,27 @@ Agent bekommt „pausiert“, der Nutzer tippt selbst, „Zurückgeben“ setzt 
 
 ---
 
-### User Story 4 - Anmelden, ohne dass ein Modell das Passwort sieht (Priority: P2)
+### User Story 4 - Anmelden und Formulare mit Daten aus dem Passwortmanager ausfüllen, ohne dass ein Modell sie sieht (Priority: P2)
 
 Der Agent soll sich auf einer Website anmelden. Statt das Passwort zu kennen, bittet er holzi,
 die Anmeldedaten einzutragen. holzi wählt den passenden Eintrag aus dem Passwortmanager nach der
 Website, trägt Benutzername und Passwort (und einen Einmalcode, wenn der Eintrag einen hat) direkt
 in die Seite ein und meldet dem Agenten nur „eingetragen“ oder „kein passender Eintrag“.
 
-**Why this priority**: Viele nützliche Aufgaben brauchen eine Anmeldung; ohne diesen Weg müsste
-das Geheimnis durch das Modell und den Anbieter gehen.
+Genauso füllt der Agent Formulare, die andere Daten aus dem Passwortmanager brauchen, etwa eine
+IBAN in einem Lastschriftformular oder Kartendaten an einer Kasse. Der Agent nennt nur das
+Formular und wofür er die Daten braucht; der Nutzer wählt in der Rückfrage den Eintrag, sieht,
+welches Feld der Seite welches Feld des Eintrags bekommt, und gibt frei. Abgeschickt wird danach
+nur mit der Rückfrage vor dem Absenden (US2).
+
+**Why this priority**: Viele nützliche Aufgaben brauchen eine Anmeldung oder Zahlungsdaten; ohne
+diesen Weg müsste das Geheimnis durch das Modell und den Anbieter gehen.
 
 **Independent Test**: Einen Eintrag für eine Test-Website anlegen, den Agenten „Anmeldedaten
 eintragen“ aufrufen lassen; das Formular ist gefüllt, kein Werkzeugergebnis, kein Protokolleintrag
-und kein Bildschirmfoto für den Agenten enthält das Passwort.
+und kein Bildschirmfoto für den Agenten enthält das Passwort. Einen Eintrag mit einem eigenen Feld
+„IBAN“ anlegen und ein Zahlungsformular „Daten eintragen“ lassen; nach der Rückfrage steht die IBAN
+im Formular, und der Agent sieht sie nirgends.
 
 **Acceptance Scenarios**:
 
@@ -222,6 +245,16 @@ und kein Bildschirmfoto für den Agenten enthält das Passwort.
 5. **Given** der Agent legt auf einer Website ein Konto an, **When** er für das Passwortfeld
    „neue Anmeldedaten“ aufruft, **Then** erzeugt holzi ein Passwort, trägt es ein und speichert
    nach Rückfrage einen Eintrag im Passwortmanager; der Agent erfährt das Passwort nicht (FR-036).
+6. **Given** ein Zahlungsformular auf einer Website, die der Agent bedienen darf, **When** er
+   „Daten eintragen“ mit dem Zweck „Lastschrift für die Bestellung“ aufruft, **Then** zeigt holzi
+   eine Rückfrage mit der Website, dem Zweck (als Angabe des Agenten gekennzeichnet), einer Auswahl
+   der Einträge, die seine Rechtegruppe Passwörter erreicht, und der Zuordnung „Feld der Seite ←
+   Feld des Eintrags“ mit verdeckten Werten; nach „Eintragen“ füllt holzi nur die angehakten Felder,
+   und der Agent erfährt nur die Nummern der gefüllten Elemente (FR-037).
+7. **Given** dieselbe Lage in Auto, **When** der Agent ein zweites Mal „Daten eintragen“ aufruft,
+   **Then** fragt holzi wieder; „Daten eintragen“ wird nie gemerkt (FR-037).
+8. **Given** das Formular mit eingetragenen Daten, **When** der Agent es abschickt, **Then** fragt
+   holzi vor dem Absenden wie in US2 und zeigt die eingetragenen Werte als Platzhalter (FR-038).
 
 ---
 
@@ -249,7 +282,12 @@ abgelehnt.
 
 ---
 
-### User Story 6 - Den eigenen Browser des Nutzers steuern lassen (Priority: P3)
+### User Story 6 - Den eigenen Browser des Nutzers steuern lassen (Priority: P3, zurückgestellt)
+
+**Zurückgestellt am 2026-11-01**: Anmeldungen kommen aus dem Passwortmanager (US4), daher braucht
+keines der Ziele dieser Spec den Browser des Nutzers. Story, FR-033 bis FR-035 und
+[contracts/extension-tabs.md](./contracts/extension-tabs.md) bleiben als Entwurf stehen und werden
+erst mit einer eigenen Entscheidung wieder aufgenommen.
 
 Für Aufgaben, die die Anmeldungen des Nutzers brauchen, kann der Nutzer einem Agenten einzelne
 Tabs in seinem eigenen Browser übergeben. Die Browser-Erweiterung aus Spec 049 führt die
@@ -297,6 +335,12 @@ Steuerung.
   Zwischenablage): im Agenten-Browser immer abgelehnt; der Agent erfährt die Ablehnung.
 - **Datei-Auswahldialog**: öffnet sich nie für den Agenten; Hochladen geht nur über das Werkzeug
   aus US5.
+- **Zahlungsfelder in einem eingebetteten Rahmen** eines Zahlungsanbieters: holzi trägt dort nur
+  ein, wenn der Agent die Website des Rahmens bedienen darf; sonst fragt holzi wie bei jedem Rahmen
+  einer nicht erlaubten Website (FR-007), und ohne Erlaubnis bleiben die Felder leer.
+- **Kein Feld des Formulars passt** zu einem Feld des gewählten Eintrags: Die Rückfrage zeigt das,
+  holzi trägt nichts ein, und der Agent erfährt „nichts zugeordnet“. Der Nutzer kann dem Eintrag
+  Autofill-Aliase geben (036 FR-001a).
 - **Seite lädt nicht** oder hängt: Werkzeuge haben eine Zeitgrenze (FR-030) und melden „Seite
   antwortet nicht“; die Sitzung bleibt bestehen.
 - **Sehr große Seite**: Text und Elementliste werden gekürzt, der Agent erfährt, dass gekürzt wurde,
@@ -347,10 +391,11 @@ Steuerung.
 - **FR-007**: Eine Website außerhalb der erlaubten MUSS vor dem Laden eine Rückfrage auslösen mit
   „Einmal erlauben“ (bis zum Ende der Browser-Sitzung), „Immer erlauben (lesen)“, „Immer erlauben
   (bedienen)“ und „Ablehnen“. In Plan MUSS holzi stattdessen ablehnen.
-- **FR-008**: „lesen“ MUSS die aktuell geöffnete Seite lesen, Bildschirmfotos erstellen und scrollen
-  erlauben, aber keine Navigation, kein Tippen, keine Auswahl und kein Absenden. Navigation kann
-  auch per `GET` den Zustand einer Website ändern und erfordert daher „bedienen“ sowie die dafür
-  geltende Bestätigung.
+- **FR-008**: „lesen“ MUSS Seiten der Website öffnen und navigieren (Adresse, zurück, vor, neu
+  laden), lesen, scrollen und Bildschirmfotos erstellen erlauben, aber kein Klicken, kein Tippen,
+  keine Auswahl, kein Folgen eines Links per Klick und kein Absenden. Weil auch eine Navigation per
+  `GET` den Zustand einer Website ändern kann, bleibt sie eine ändernde Handlung (FR-010) und fragt
+  in Manuell.
 - **FR-009**: Interne Seiten des Browsers und Adressen mit den Schemata `file:`, `javascript:`,
   `data:` und Adressen mit eingebetteten Zugangsdaten MÜSSEN immer abgelehnt werden.
 
@@ -384,7 +429,7 @@ Steuerung.
 - **FR-018**: Ein Agent MUSS den Nutzer um Eingreifen bitten können; holzi zeigt die Bitte mit dem
   Text des Agenten (als dessen Angabe gekennzeichnet) und meldet dem Agenten das Zurückgeben.
 
-**Anmeldedaten**
+**Anmeldedaten und andere Daten aus dem Passwortmanager**
 
 - **FR-019**: „Anmeldedaten eintragen“ MUSS Benutzername, Passwort und Einmalcode aus dem
   Passwortmanager direkt in die Seite schreiben; kein Werkzeugergebnis, kein Bildschirmfoto, kein
@@ -397,14 +442,31 @@ Steuerung.
   (dort abgelehnt); die Rückfrage bietet „Für diese Website merken“. Gemerkt trägt holzi danach
   ohne Rückfrage ein, bis der Nutzer es in den Rechten des Agenten zurücknimmt; ohne Merken fragt
   holzi beim nächsten Mal wieder. Wechselt der Eintrag oder passen mehrere, fragt holzi immer.
-- **FR-022**: Felder, die holzi mit Anmeldedaten gefüllt hat, und alle Passwortfelder MÜSSEN beim
-  Lesen der Seite und auf Bildschirmfotos für den Agenten verdeckt sein.
+- **FR-022**: Felder, die holzi mit Anmeldedaten oder anderen Daten aus dem Passwortmanager gefüllt
+  hat, und alle Passwortfelder MÜSSEN beim Lesen der Seite und auf Bildschirmfotos für den Agenten
+  verdeckt sein.
 - **FR-036**: Braucht eine Website neue Anmeldedaten (Konto anlegen, Passwort ändern), MUSS holzi
   das Passwort selbst erzeugen, in die Seite eintragen und nach Zustimmung als Eintrag mit der
   Website über den gemeinsamen Passwortmanager-Dienst speichern. Dafür MUSS holzi den aufgelösten
   Caller und dessen Grants verwenden; die ReadWrite- und Tagbereich-Prüfungen aus Spec 034 gelten
   weiter und DÜRFEN nicht durch die Rückfrage ersetzt werden. Der Agent nennt nur den Benutzernamen
   und sieht das Passwort nie. In Plan abgelehnt.
+- **FR-037**: „Daten eintragen“ MUSS Felder eines Eintrags aus dem Passwortmanager (Benutzername,
+  Passwort, eigene Felder) in ein Formular des Agenten-Tabs schreiben. Der Agent gibt nur Tab,
+  Formular und einen Zweck (höchstens 200 Zeichen) an. holzi MUSS bei jedem Aufruf fragen, in
+  Manuell und Auto, ohne „Merken“; in Plan abgelehnt. Die Rückfrage MUSS die Website, den Zweck als
+  Angabe des Agenten, eine Auswahl aus den Einträgen, die die Rechtegruppe Passwörter (021) des
+  Agenten erreicht, und je Feld der Seite das zugeordnete Feld des Eintrags mit verdecktem Wert
+  zeigen; der Nutzer kann einzelne Zuordnungen abwählen. Die Zuordnung MUSS dieselbe Regel nutzen
+  wie das Ausfüllen der Browser-Erweiterung (049, mit den Autofill-Aliasen aus 036 FR-001a) und
+  zusätzlich die Standardnamen für Kartendaten (`autocomplete` `cc-*`). Eingetragen wird nur über
+  eine verschlüsselte Verbindung, in das Dokument des Tabs oder einen Rahmen, dessen Website der
+  Agent bedienen darf. Der Agent erfährt nur die Nummern der gefüllten Elemente, weder Eintrag noch
+  Feldnamen des Eintrags noch Werte.
+- **FR-038**: Für Daten aus FR-037 MÜSSEN dieselben Schutzregeln gelten wie für Anmeldedaten
+  (FR-019, FR-022, R7): kein Wert in Werkzeugergebnissen, Seitentext, Elementnamen, Protokoll oder
+  Bildschirmfotos; Bildschirmfotos bleiben für den Rest der Browser-Sitzung gesperrt. Das Absenden
+  MUSS nach FR-011 fragen und die eingetragenen Werte als Platzhalter zeigen.
 
 **Seiteninhalte**
 
@@ -432,7 +494,7 @@ Steuerung.
 - **FR-032**: Ergebnisse von „Seite lesen“ MÜSSEN auf eine feste Größe gekürzt werden; der Agent
   MUSS erfahren, dass gekürzt wurde, und Ausschnitte anfordern können.
 
-**Browser des Nutzers (Stufe 2)**
+**Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 
 - **FR-033**: Mit zugelassener Erweiterung aus 049 MUSS der Nutzer einem Agenten einen Tab
   übergeben und ihn zurücknehmen können; die Erweiterung MUSS den Tab wie FR-014 markieren.
@@ -465,8 +527,9 @@ Steuerung.
 - **SC-003**: In einer Testreihe aus 20 Formularen und Kauf- oder Lösch-Schaltflächen fragt holzi
   vor jedem Absenden in Manuell und Auto.
 - **SC-004**: „Stoppen“ beendet die Steuerung in unter einer Sekunde.
-- **SC-005**: Bei „Anmeldedaten eintragen“ enthält kein Werkzeugergebnis, kein Bildschirmfoto und
-  kein Protokolleintrag das Passwort (geprüft mit einem Erkennungswert im Passwort).
+- **SC-005**: Bei „Anmeldedaten eintragen“ und „Daten eintragen“ enthält kein Werkzeugergebnis,
+  kein Bildschirmfoto und kein Protokolleintrag einen eingetragenen Wert (geprüft mit einem
+  Erkennungswert im Passwort und in einem eigenen Feld „IBAN“).
 - **SC-006**: Der Nutzer erkennt in 9 von 10 Fällen auf den ersten Blick, welcher Agent welchen Tab
   steuert.
 - **SC-007**: Ein Agent ohne Rechtegruppe Browser sieht kein Browser-Werkzeug.
@@ -484,8 +547,9 @@ Steuerung.
 - Delegates bekommen die Werkzeuge erst mit 021 PR F (Registrierung als externer Agent).
 - Downloads liegen im Speicher der Vault wie andere Dateien von holzi; Lesen und Weitergeben
   regeln die Dateirechte aus 044.
-- Stufe 2 (US6) setzt eine neue Version der Browser-Erweiterung aus 049 voraus und folgt nach
-  Stufe 1.
+- Stufe 2 (US6) ist zurückgestellt (2026-11-01). Käme sie wieder, setzte sie eine neue Version
+  der Browser-Erweiterung aus 049 voraus.
 - Ein Browser-Tab in holzis eigener Oberfläche (eingebetteter Browser) ist nicht Teil dieser Spec.
 - Andere Rechtegruppen aus 021 (Dateien, Passwörter) werden durch diese Spec nicht erweitert,
-  außer um das Eintragen von Anmeldedaten (FR-019 bis FR-022).
+  außer um das Eintragen von Anmeldedaten und anderen Daten aus dem Passwortmanager (FR-019 bis
+  FR-022, FR-037, FR-038).

@@ -1,5 +1,7 @@
 # Contract: Übergebene Tabs im Browser des Nutzers (Stufe 2)
 
+> **Zurückgestellt am 2026-11-01** (spec US6, research R14). Entwurf, nicht in Arbeit.
+
 **Feature**: [../spec.md](../spec.md) | **Research**: R14 | Baut auf
 [049 contracts](../../049-external-bridge/contracts/) (Protokoll 3, Umschläge, Zulassung) auf.
 

@@ -16,6 +16,10 @@ steuert; Stufe 2 sind Tabs, die der Nutzer im eigenen Browser über die Erweiter
 - Anmeldedaten eintragen fragt einmal je Agent und Website, mit „Für diese Website merken“.
 - Im Browser des Nutzers nur übergebene Tabs; ein von einer Seite geöffneter Tab nach Rückfrage.
 
+Nachtrag 2026-11-01: Stufe 2 ist zurückgestellt. Dafür trägt holzi neben Anmeldedaten auch andere
+Daten aus dem Passwortmanager ein (Bank- und Kartendaten, FR-037, FR-038, R7a), mit der
+Zuordnungsregel der Erweiterung als gemeinsamer Crate `haex-autofill` im vault-sdk.
+
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md),
 Entscheidung über Steuerung, Isolation und Profil in
 [ADR-0019](../../docs/adr/0019-agent-browser-over-cdp-pipe.md)):
@@ -191,7 +195,8 @@ scripts/e2e/scenarios/agent-browser.test.ts
 
 Siehe research.md R15: A (dieser PR, Dokumente), B (Grundlage in 021 und Passwörtern), C
 (Agenten-Browser, Lesen, sichtbare Sitzung und Stoppen, US1/US3), D (Bedienen, Absenden und
-Eingreifen, US2/US3), E (Anmelden, Downloads, US4/US5), F (Browser des Nutzers, US6, mit Erweiterung).
+Eingreifen, US2/US3), E0 (`haex-autofill` im vault-sdk), E1 (Anmeldedaten und andere Daten aus dem
+Passwortmanager, US4), E2 (Downloads, US5), F (Browser des Nutzers, US6, zurückgestellt).
 
 ## Complexity Tracking
 

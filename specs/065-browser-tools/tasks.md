@@ -40,8 +40,10 @@ delivery is one PR from its own worktree off `main`.
 | PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                         |
 | PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`             |
 | PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                           |
-| PR E     | Phases 6–7 | US4, US5 (credentials, downloads, uploads)                                    |
-| PR F     | Phase 8    | US6 (the user's browser, with a release of the extension)                     |
+| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)    |
+| PR E1    | Phase 6    | US4 (credentials and other entry data such as bank and card data)             |
+| PR E2    | Phase 7    | US5 (downloads, uploads)                                                      |
+| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                   |
 | –        | Phase 9    | Polish, manual checks                                                         |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
@@ -55,6 +57,9 @@ Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 - PR B overlaps with 021 PR E (native actions over MCP with a caller). Whichever lands first
   carries T005–T010; the other drops them.
 - ADR-0019 changes from "proposed" to "accepted" in PR C.
+- 2026-11-01: stage 2 (US6, PR F) is deferred; US4 gains filling other entry data (FR-037,
+  FR-038, research R7a). The field mapping of the extension moves into the vault-sdk crate
+  `haex-autofill` first (PR E0), so holzi and the extension share one rule.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -194,12 +199,19 @@ agent until "Zurückgeben"; user input in a steered tab pauses it (spec US3).
 
 ---
 
-## Phase 6: User Story 4 - Anmelden, ohne dass ein Modell das Passwort sieht (Priority: P2) (PR E)
+## Phase 6: User Story 4 - Anmelden und Formulare mit Daten aus dem Passwortmanager ausfüllen (Priority: P2) (PR E0, E1)
 
-**Goal**: `browser.credentials.fill` fills logins from the password manager; nothing flows back.
+**Goal**: `browser.credentials.fill` fills logins and `browser.entry.fill` fills other entry data
+(bank and card data) from the password manager; nothing flows back.
 
-**Independent Test**: With a marker value in the password, no tool result, screenshot or log entry
-contains it (SC-005); the first fill per agent and website asks, a remembered one does not.
+**Independent Test**: With a marker value in the password and in a custom field `IBAN`, no tool
+result, screenshot or log entry contains it (SC-005); the first login fill per agent and website
+asks, a remembered one does not; every entry fill asks.
+
+### Shared field mapping (PR E0, vault-sdk)
+
+- [ ] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
+- [ ] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once
 
 ### Tests first
 
@@ -208,15 +220,23 @@ contains it (SC-005); the first fill per agent and website asks, a remembered on
 
 ### Implementation
 
-- [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
+- [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, the field mapping of `haex-autofill` (T081), writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
 - [ ] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
 - [ ] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
 - [ ] T079 [US4] Tests in src-tauri/src/agent_browser/credentials_tests.rs and src-tauri/tests/agent_browser_act.rs for `browser.credentials.create` (FR-036): the generated password fills the new field and its repeat field, never appears in a result, log or screenshot, is stored after "Speichern" as an entry with the tab's website, the fields are emptied after "Ablehnen", Plan refuses
 - [ ] T080 [US4] `browser.credentials.create` in src-tauri/src/agent_browser/credentials.rs (password generator in the password manager service, prompt kind `newCredentials` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue, catalog entry in src/lib/actions/browserActions.ts)
 
+### Other entry data (PR E1, FR-037, FR-038)
+
+- [ ] T082 [P] [US4] Unit tests in src-tauri/src/agent_browser/entry_fill_tests.rs: every call asks in Manuell and Auto and is never remembered, Plan refuses; the choice offers only entries the agent's password group reaches; `http` and a frame of a website the agent may not operate fill nothing; the reply holds only `filled` element numbers (no entry id, title, key or value); `nothing_mapped` and `no_matching_entry`; filled values are removed from text, names and replies and block screenshots for the rest of the session (as T061)
+- [ ] T083 [US4] Integration test in src-tauri/tests/agent_browser_entry_fill.rs with a checkout fixture over HTTPS (IBAN field, card fields with `autocomplete` `cc-*` in a frame of the partner website, a page that copies the values into visible text): the marker value never reaches the agent; deselected rows stay empty; submitting asks and shows `•••`; a second call asks again
+- [ ] T084 [US4] `browser.entry.fill` in src-tauri/src/agent_browser/entry_fill.rs: field facts from the reading script, mapping through `haex-autofill`, entries through a `Grant` of the agent's password group (034 checks), writing and marking in the isolated world as in T063, frames only on operable websites (research R7a)
+- [ ] T085 [US4] Prompt kind `entryFill` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue: website, purpose marked as the agent's statement, entry picker, one row per mapped field (page field ← entry key, value as `•••`) with a checkbox; texts in src/i18n/locales/de.json and src/i18n/locales/en.json
+- [ ] T086 [P] [US4] Catalog entry `browser.entry.fill` (write, `confirmsItself`) in src/lib/actions/browserActions.ts
+
 ---
 
-## Phase 7: User Story 5 - Herunterladen und Hochladen (Priority: P3) (PR E)
+## Phase 7: User Story 5 - Herunterladen und Hochladen (Priority: P3) (PR E2)
 
 **Goal**: Downloads into "Agenten-Downloads", uploads only from paths the file rights reach.
 
@@ -233,11 +253,14 @@ contains it (SC-005); the first fill per agent and website asks, a remembered on
 - [ ] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (R11), prompt kind `download`, the folder "Agenten-Downloads" in the instance's own storage reachable through 044
 - [ ] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
 
-**Checkpoint (end of PR E)**: quickstart M6, M7 pass.
+**Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M7 pass.
 
 ---
 
-## Phase 8: User Story 6 - Den eigenen Browser des Nutzers steuern lassen (Priority: P3) (PR F)
+## Phase 8: User Story 6 - Den eigenen Browser des Nutzers steuern lassen (Priority: P3) (PR F, deferred)
+
+**Deferred on 2026-11-01** (spec US6): logins and bank data come from the password manager, so no
+goal of this spec needs the user's browser. The tasks stay as a draft.
 
 **Goal**: Handed-over tabs in the user's browser, through the 049 extension, with the same rules.
 
@@ -276,9 +299,11 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - **US1 (Phase 3, PR C)** depends on PR B.
 - **US2 and US3 (Phases 4–5, PR D)** depend on PR C; they ship together because operating without
   stop and marker is not acceptable (spec US3 "Why this priority").
-- **US4, US5 (Phases 6–7, PR E)** depend on PR D.
-- **US6 (Phase 8, PR F)** depends on PR D and on a release of the extension.
-- **Polish (Phase 9)**: T075 after 021 PR F; the rest after PR E.
+- **US4 (Phase 6)**: PR E0 (T081 in vault-sdk) first; PR E1 depends on PR D and the pinned crate;
+  T087 in haextension follows T081.
+- **US5 (Phase 7, PR E2)** depends on PR D; it can go before or after E1.
+- **US6 (Phase 8, PR F)**: deferred.
+- **Polish (Phase 9)**: T075 after 021 PR F; the rest after PR E1 and E2.
 
 ### Within Each Story
 
@@ -290,7 +315,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 
 - T002–T004 in parallel; T005–T010 in parallel; T017, T018 next to the Rust tasks.
 - In US1: T019–T024 and T027 in parallel; T039–T041 next to T037.
-- US4 and US5 can be built in parallel inside PR E.
+- US5 (PR E2) can be built while PR E0 waits for review in vault-sdk.
 
 ---
 
@@ -318,5 +343,6 @@ Task: "Fixture site in src-tauri/tests/fixtures/agent_browser/site/"
 
 1. PR C → reading (MVP).
 2. PR D1 → operating with prompts before submitting; PR D2 → tabs a page opens ask first; PR D3 → take over and give back (marker and stop came with PR C3); PR D4 → the injection corpus.
-3. PR E → logins without the model seeing passwords, downloads and uploads.
-4. PR F → handed-over tabs in the user's browser.
+3. PR E0 → the shared field mapping in vault-sdk; PR E1 → logins and bank or card data without the
+   model seeing them; PR E2 → downloads and uploads.
+4. PR F → handed-over tabs in the user's browser (deferred).

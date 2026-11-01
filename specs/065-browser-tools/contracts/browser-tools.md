@@ -24,6 +24,7 @@ festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegrupp
 | `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                              |
 | `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                       |
 | `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`               | `created: true` oder `reason` (FR-036)             |
+| `browser.entry.fill`         | write       | `tab`, `form?` (Nummer), `purpose` (≤ 200 Zeichen)              | `filled`: Elementnummern (FR-037)                  |
 | `browser.download`           | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (Agenten-Downloads) |
 | `browser.upload`             | destructive | `tab`, `element`, `path`                                        | Seite                                              |
 | `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`           |
@@ -37,6 +38,10 @@ Browsers.
 `browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
 Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
 als auch das Wiederholungsfeld.
+
+`browser.entry.fill` fragt bei jedem Aufruf (R7a). Der Nutzer wählt den Eintrag und die Zuordnung
+in der Rückfrage; der Agent bekommt nur `filled` mit den Nummern der gefüllten Elemente, nie
+Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`.
 
 ## Seite
 
@@ -73,34 +78,38 @@ Stufe 1 aus R5 den Klick als Absenden einordnet.
 
 Wie 021 (`structuredContent.code`), zusätzlich:
 
-| `code`                | Wann                                                                         |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `site_not_allowed`    | Website nicht erlaubt und der Nutzer lehnte ab (oder Plan)                   |
-| `read_only_site`      | „lesen“ für die Website, Werkzeug bedient                                    |
-| `user_declined`       | Rückfrage (Absenden, Anmeldung, Download) abgelehnt                          |
-| `paused`              | der Nutzer bedient den Browser gerade                                        |
-| `stopped`             | der Nutzer hat die Sitzung gestoppt; gilt bis zu einer neuen Sitzung (\*)    |
-| `element_gone`        | Elementnummer gilt nicht mehr; Seite neu lesen                               |
-| `page_timeout`        | 30 s ohne Ergebnis                                                           |
-| `browser_unavailable` | kein Browser gefunden oder Start fehlgeschlagen; `hint` für den Nutzer       |
-| `screenshot_blocked`  | Tab enthält eingetragene Anmeldedaten (R7)                                   |
-| `no_matching_entry`   | `credentials.fill`: kein passender Eintrag oder kein Recht darauf            |
-| `too_many_tabs`       | mehr als 5 Agenten-Tabs                                                      |
-| `blocked_address`     | `file:`, `javascript:`, `data:`, interne Seiten, Zugangsdaten in der Adresse |
+| `code`                | Wann                                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `site_not_allowed`    | Website nicht erlaubt und der Nutzer lehnte ab (oder Plan)                                                                              |
+| `read_only_site`      | „lesen“ für die Website, Werkzeug bedient                                                                                               |
+| `user_declined`       | Rückfrage (Absenden, Anmeldung, Download) abgelehnt                                                                                     |
+| `paused`              | der Nutzer bedient den Browser gerade                                                                                                   |
+| `stopped`             | der Nutzer hat die Sitzung gestoppt; gilt bis zu einer neuen Sitzung (\*)                                                               |
+| `element_gone`        | Elementnummer gilt nicht mehr; Seite neu lesen                                                                                          |
+| `page_timeout`        | 30 s ohne Ergebnis                                                                                                                      |
+| `browser_unavailable` | kein Browser gefunden oder Start fehlgeschlagen; `hint` für den Nutzer                                                                  |
+| `screenshot_blocked`  | Sitzung enthält eingetragene Daten aus dem Passwortmanager (R7, R7a)                                                                    |
+| `no_matching_entry`   | kein passender Eintrag mit Recht darauf (`credentials.fill`) oder kein Eintrag, den die Rechtegruppe Passwörter erreicht (`entry.fill`) |
+| `nothing_mapped`      | `entry.fill`: kein Feld des Formulars passt zum gewählten Eintrag                                                                       |
+| `too_many_tabs`       | mehr als 5 Agenten-Tabs                                                                                                                 |
+| `blocked_address`     | `file:`, `javascript:`, `data:`, interne Seiten, Zugangsdaten in der Adresse                                                            |
 
 (\*) Eine neue Sitzung beginnt ein externer Agent mit einer neuen Verbindung, der eingebaute Agent
 mit der nächsten Chat-Nachricht des Nutzers.
 
 ## Freigabe
 
-| Werkzeug                      | Manuell                                            | Auto               | Plan                    |
-| ----------------------------- | -------------------------------------------------- | ------------------ | ----------------------- |
-| lesend, erlaubte Website      | läuft                                              | läuft              | läuft                   |
-| lesend, Website nicht erlaubt | Rückfrage Website                                  | Rückfrage Website  | `site_not_allowed`      |
-| ändernd ohne Absenden         | Rückfrage Handlung                                 | läuft              | abgelehnt (`plan_mode`) |
-| Absenden (R5 Stufe 1 oder 2)  | Rückfrage Absenden                                 | Rückfrage Absenden | abgelehnt               |
-| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt | wie Manuell        | abgelehnt               |
-| Browser des Nutzers, Absenden | Rückfrage                                          | Rückfrage          | abgelehnt               |
+| Werkzeug                      | Manuell                                            | Auto                | Plan                    |
+| ----------------------------- | -------------------------------------------------- | ------------------- | ----------------------- |
+| lesend, erlaubte Website      | läuft                                              | läuft               | läuft                   |
+| lesend, Website nicht erlaubt | Rückfrage Website                                  | Rückfrage Website   | `site_not_allowed`      |
+| ändernd ohne Absenden         | Rückfrage Handlung                                 | läuft               | abgelehnt (`plan_mode`) |
+| Absenden (R5 Stufe 1 oder 2)  | Rückfrage Absenden                                 | Rückfrage Absenden  | abgelehnt               |
+| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt | wie Manuell         | abgelehnt               |
+| `entry.fill`                  | Rückfrage jedes Mal                                | Rückfrage jedes Mal | abgelehnt               |
+| Browser des Nutzers, Absenden | Rückfrage                                          | Rückfrage           | abgelehnt               |
+
+Die Zeile „Browser des Nutzers“ gilt erst mit Stufe 2, die am 2026-11-01 zurückgestellt wurde.
 
 Eine Handlung fragt höchstens einmal: In Manuell ersetzt die Rückfrage „Absenden“ die Rückfrage
 „Handlung“.
