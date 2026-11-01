@@ -1,0 +1,148 @@
+{
+  "voices": [
+    {
+      "id": "de-lena",
+      "name": "Lena",
+      "language": "de",
+      "default": true,
+      "file": "de-lena.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts german/dev, speaker 8325, 8325_6882_000083.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 8325; trimmed"
+    },
+    {
+      "id": "de-jonas",
+      "name": "Jonas",
+      "language": "de",
+      "default": false,
+      "file": "de-jonas.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts german/dev, speaker 10870, 10870_10823_000099-0001.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 10870; trimmed"
+    },
+    {
+      "id": "en-caro",
+      "name": "Caro",
+      "language": "en",
+      "default": true,
+      "file": "en-caro.wav",
+      "source": "Voice-Zero (LibriVox recordings)",
+      "source_url": "https://github.com/OwenTyme/voice-zero",
+      "origin": "kyutai/tts-voices@323332d33f997de8394f24a193e1a76df720e01a voice-zero/caro_davy.wav",
+      "license": "CC0-1.0",
+      "attribution": "Caro Davy (LibriVox), via Voice-Zero (CC0)"
+    },
+    {
+      "id": "en-bill",
+      "name": "Bill",
+      "language": "en",
+      "default": false,
+      "file": "en-bill.wav",
+      "source": "Voice-Zero (LibriVox recordings)",
+      "source_url": "https://github.com/OwenTyme/voice-zero",
+      "origin": "kyutai/tts-voices@323332d33f997de8394f24a193e1a76df720e01a voice-zero/bill_boerst.wav",
+      "license": "CC0-1.0",
+      "attribution": "Bill Boerst (LibriVox), via Voice-Zero (CC0)"
+    },
+    {
+      "id": "fr-camille",
+      "name": "Camille",
+      "language": "fr",
+      "default": true,
+      "file": "fr-camille.wav",
+      "source": "Kyutai Unmute voices (own recordings)",
+      "source_url": "https://huggingface.co/kyutai/tts-voices",
+      "origin": "kyutai/tts-voices@323332d33f997de8394f24a193e1a76df720e01a unmute-prod-website/developpeuse-3.wav",
+      "license": "CC0-1.0",
+      "attribution": "Kyutai (CC0)"
+    },
+    {
+      "id": "fr-louis",
+      "name": "Louis",
+      "language": "fr",
+      "default": false,
+      "file": "fr-louis.wav",
+      "source": "Kyutai Unmute voices (own recordings)",
+      "source_url": "https://huggingface.co/kyutai/tts-voices",
+      "origin": "kyutai/tts-voices@323332d33f997de8394f24a193e1a76df720e01a unmute-prod-website/fabieng-enhanced-v2.wav",
+      "license": "CC0-1.0",
+      "attribution": "Kyutai (CC0)"
+    },
+    {
+      "id": "es-lucia",
+      "name": "Lucía",
+      "language": "es",
+      "default": true,
+      "file": "es-lucia.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts spanish/dev, speaker 3473, 3473_1378_000096.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 3473; trimmed"
+    },
+    {
+      "id": "es-diego",
+      "name": "Diego",
+      "language": "es",
+      "default": false,
+      "file": "es-diego.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts spanish/dev, speaker 4589, 4589_1378_000007-0001.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 4589; trimmed"
+    },
+    {
+      "id": "it-giulia",
+      "name": "Giulia",
+      "language": "it",
+      "default": true,
+      "file": "it-giulia.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts italian/dev, speaker 11247, 11247_8906_000026-0002.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 11247; trimmed"
+    },
+    {
+      "id": "it-marco",
+      "name": "Marco",
+      "language": "it",
+      "default": false,
+      "file": "it-marco.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts italian/dev, speaker 645, 645_529_000051-0001.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 645; trimmed"
+    },
+    {
+      "id": "pt-ana",
+      "name": "Ana",
+      "language": "pt",
+      "default": true,
+      "file": "pt-ana.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts portuguese/dev, speaker 9056, 9056_8708_000017-0001.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 9056; trimmed"
+    },
+    {
+      "id": "pt-pedro",
+      "name": "Pedro",
+      "language": "pt",
+      "default": false,
+      "file": "pt-pedro.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts portuguese/dev, speaker 5417, 5417_3702_000077.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 5417; trimmed"
+    }
+  ]
+}

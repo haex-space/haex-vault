@@ -13,6 +13,7 @@ use crate::state::AppState;
 
 use super::catalog::{self, TtsCatalogEntry, TtsCatalogEntryWithFit, TtsEngine};
 use super::files;
+use super::voices::{self, BuiltinVoice, VoiceRef};
 use super::TtsError;
 
 /// Progress of every download the assistant starts (speech models, assistant assets).
@@ -64,6 +65,73 @@ pub async fn list_installed_tts_voices(app: AppHandle) -> Result<Vec<String>> {
     .map_err(|e| HolziError::CrdtInit {
         reason: format!("scan installed speech models: {e}"),
     })
+}
+
+/// Where a voice comes from (contracts/tauri-commands.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VoiceKind {
+    Builtin,
+    Clone,
+    Model,
+}
+
+/// One voice the settings page offers. `installed`, `size_bytes` and `fit` describe the speech
+/// model the voice needs: a built-in voice is a recording, the model of its language does the
+/// speaking.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceOption {
+    #[serde(rename = "ref")]
+    pub voice_ref: String,
+    pub kind: VoiceKind,
+    pub name: String,
+    pub language: String,
+    /// Catalog entry of the speech model the voice needs.
+    pub model_id: String,
+    pub installed: bool,
+    pub size_bytes: u64,
+    pub fit: hardware::Fit,
+    pub is_default: bool,
+}
+
+/// The built-in voices as options, given which catalog entries are installed. Own voices and
+/// imported models join with PR K.
+pub fn voice_options(
+    builtin: &[BuiltinVoice],
+    installed: &[String],
+    hw: &hardware::HardwareInfo,
+) -> std::result::Result<Vec<VoiceOption>, TtsError> {
+    let models = catalog::entries_with_fit(hw)?;
+    builtin
+        .iter()
+        .map(|voice| {
+            let model = models
+                .iter()
+                .find(|m| m.is_default && m.entry.language == voice.language)
+                .ok_or_else(|| TtsError::Unavailable {
+                    reason: format!("no speech model speaks {}", voice.language),
+                })?;
+            Ok(VoiceOption {
+                voice_ref: VoiceRef::Builtin(voice.id.clone()).to_string(),
+                kind: VoiceKind::Builtin,
+                name: voice.name.clone(),
+                language: voice.language.clone(),
+                model_id: model.entry.id.clone(),
+                installed: installed.contains(&model.entry.id),
+                size_bytes: model.entry.approx_size_bytes,
+                fit: model.fit,
+                is_default: voice.default,
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn tts_voices_list(app: AppHandle) -> Result<Vec<VoiceOption>> {
+    let hw = hardware::probe_async().await;
+    let installed = list_installed_tts_voices(app).await?;
+    Ok(voice_options(voices::builtin()?, &installed, &hw)?)
 }
 
 /// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as

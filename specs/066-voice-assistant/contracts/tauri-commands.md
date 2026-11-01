@@ -59,7 +59,9 @@ AssistantStateWire {
 Missing = "sttModel"|"vadModel"|"wakeWordModel"|"voice"|"chatModel"|"microphone"
 VoiceRef = "builtin:<id>" | "clone:<id>" | "model:<id>" | "model:<id>#<sprecher>"   # data-model.md
 VoiceOption = { ref: VoiceRef, kind: "builtin"|"clone"|"model", name, language,
-                installed: bool, sizeBytes, fit, isDefault: bool }
+                modelId, installed: bool, sizeBytes, fit, isDefault: bool }
+# modelId, installed, sizeBytes, fit: the speech model the voice needs (tts_catalog.json);
+# download_tts_voice({voiceId: modelId}) fetches it
 CloneCheck = { sessionId, speechSecs, ok: bool,
                problems: ("tooShort"|"tooLong"|"tooQuiet"|"clipped"|"noisy")[] }
 ModelSource = { kind: "folder", path } | { kind: "archive", path } | { kind: "hf", repo, revision? }
