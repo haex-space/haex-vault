@@ -12,7 +12,7 @@ use super::commands::open_device;
 use super::grants::{self, Rights};
 use super::hello::CloseReason;
 use super::manage::{self, AgentView};
-use super::registry::{self, AgentMode, Transport};
+use super::registry::{self, AgentMode};
 use super::server::{Core, Notice};
 use super::McpServer;
 use crate::error::{HolziError, Result};
