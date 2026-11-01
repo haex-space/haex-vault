@@ -12,13 +12,13 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use rmcp::ServiceExt;
-use rmcp::transport::StreamableHttpClientTransport;
+use base64::Engine;
 use rmcp::transport::auth::{AuthClient, AuthorizationRequest, OAuthState as ClientOAuth};
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
-use serde_json::{Value, json};
+use rmcp::transport::StreamableHttpClientTransport;
+use rmcp::ServiceExt;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
@@ -325,12 +325,10 @@ async fn requests_from_web_pages_and_oversized_bodies_are_refused() {
         .read_to_end(&mut response)
         .await
         .expect("read oversized response");
-    assert!(
-        String::from_utf8_lossy(&response)
-            .lines()
-            .next()
-            .is_some_and(|status| status.contains(" 413 "))
-    );
+    assert!(String::from_utf8_lossy(&response)
+        .lines()
+        .next()
+        .is_some_and(|status| status.contains(" 413 ")));
 
     let metadata: Value = http()
         .get(format!("{base}/.well-known/oauth-authorization-server"))
