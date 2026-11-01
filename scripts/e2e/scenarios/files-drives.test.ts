@@ -31,6 +31,9 @@ import {
 // udisks2, so the scenario needs one the runner user may drive.
 
 const LABEL = 'E2EFOTOS'
+/** SC-001: a plugged-in drive shows in the sidebar within this time. */
+const APPEAR_LIMIT_MS = 3_000
+const HARD_FACTOR = 2
 
 /** The test id of the sidebar row labelled `label` (`files-drive-<id>-<label>`), or `null`. */
 const driveRow = (instance: FlowInstance, label: string) =>
@@ -81,16 +84,23 @@ scenario(
     })
     await instance.waitForDisplayed('files-sidebar')
 
-    // Plugged in with the window open: the stick appears on its own (SC-001: 3 s, scaled for the
-    // runner like every wait).
+    // Plugged in with the window open: the stick appears on its own within 3 s (SC-001). As in
+    // `files-large-folder`, the shared runner may take up to twice the limit.
     ctx.step('plug in', stick.file)
+    const plugged = performance.now()
     device = attach(stick.file)
     const row = await ctx.waitFor(
       'the stick in the sidebar',
       () => driveRow(instance, LABEL),
-      { timeoutMs: 3_000, intervalMs: 100 },
+      { timeoutMs: APPEAR_LIMIT_MS * HARD_FACTOR, intervalMs: 50, fixed: true },
     )
     assert.ok(row)
+    const appearedMs = Math.round(performance.now() - plugged)
+    assert.ok(
+      appearedMs <= APPEAR_LIMIT_MS * HARD_FACTOR,
+      `the stick took ${appearedMs} ms to appear`,
+    )
+    ctx.step('the stick in the sidebar', `${appearedMs} ms`)
 
     // One click mounts it and opens it (FR-006).
     ctx.step('open', row)
