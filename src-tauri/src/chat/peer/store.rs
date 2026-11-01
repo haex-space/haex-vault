@@ -101,6 +101,9 @@ pub struct Conversation {
     pub peer_contact_id: Option<String>,
     /// Direct: the name on the other vault's stored card, shown when there is no contact.
     pub peer_card_name: Option<String>,
+    /// Direct: the stored card names no Nostr-Relay, so messages go over the own ones (US2
+    /// scenario 8, shown as a hint).
+    pub peer_without_relays: bool,
     pub muted: bool,
     /// Messages of others after `last_read_at` (FR-001, FR-022).
     #[ts(type = "number")]
@@ -183,10 +186,12 @@ fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
 fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
     let mut peer_contact_id = None;
     let mut peer_card_name = None;
+    let mut peer_without_relays = false;
     if let Some(vault) = row.peer_vault.as_deref().and_then(vault_bytes) {
         if let Some((contact_id, card)) = received::stored(q, &vault)? {
             peer_contact_id = Some(contact_id);
             peer_card_name = Some(card.card.name);
+            peer_without_relays = received::addresses(q, &vault)?.nostr_relays.is_empty();
         }
     }
     Ok(Conversation {
@@ -197,6 +202,7 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
         peer_vault: row.peer_vault,
         peer_contact_id,
         peer_card_name,
+        peer_without_relays,
         muted: row.muted,
         unread: row.unread,
         last_text: row.last_text,
@@ -204,7 +210,7 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
     })
 }
 
-fn preview(text: &str) -> String {
+pub(crate) fn preview(text: &str) -> String {
     let line = text.lines().next().unwrap_or_default();
     match line.char_indices().nth(PREVIEW_CHARS) {
         Some((cut, _)) => format!("{}…", &line[..cut]),

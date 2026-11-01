@@ -43,6 +43,7 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         }
     };
     let token = state.gate().token();
+    let app = app.clone();
     let started = state.gate().spawn(async move {
         let found = db
             .read(move |r| {
@@ -66,9 +67,23 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         let me = Me::new(vault, keys, device.to_string());
         let session = Session::new(me.clone());
         registry.set(Some(Arc::clone(&session)));
-        match Delivery::connect(db, me, relays, token).await {
+        let device_uuid = uuid::Uuid::parse_str(&me.device_uuid).ok();
+        match Delivery::connect(db.clone(), me, relays, token.clone()).await {
             Ok((delivery, incoming, forward)) => {
-                delivery.run(Arc::clone(&session), incoming, forward).await
+                // Spec 072 FR-023: the notifications run beside the delivery, until the close.
+                if let Some(device) = device_uuid {
+                    tokio::spawn(super::notify::run(
+                        app.clone(),
+                        db,
+                        Arc::clone(&registry),
+                        device,
+                        delivery.arrivals(),
+                        token,
+                    ));
+                }
+                delivery
+                    .run(Arc::clone(&session), incoming, forward)
+                    .await;
             }
             Err(error) => log::warn!("chat: the delivery did not connect: {error}"),
         }
