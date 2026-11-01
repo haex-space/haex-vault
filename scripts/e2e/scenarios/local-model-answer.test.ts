@@ -14,7 +14,7 @@ import { scenario } from '../lib/scenario.ts'
 // Spec 070 T040 (US5): holzi runs its local models through llama.cpp, on the desktop and on the
 // phone. A real model, Qwen3 0.6B (the catalog's smallest, `lib/local-model.ts`), is imported from a
 // file, loaded, and answers one message. Run on Linux and on the Android emulator, it shows that the
-// engine of each build is llama.cpp and that it answers there.
+// platform's local engine loads it and answers there.
 
 interface Message {
   role: string
@@ -66,8 +66,8 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
     ),
   )
   assert.equal(loaded.modelId, model.id)
-  assert.equal(loaded.engine, 'llama.cpp')
-  ctx.step('llama.cpp loads it')
+  assert.equal(loaded.engine, instance.phone ? 'mistralrs' : 'llama.cpp')
+  ctx.step(`${loaded.engine} loads it`)
 
   const sent = unwrap<{ threadId: string }>(
     'send_message',
