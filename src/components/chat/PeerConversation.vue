@@ -117,7 +117,9 @@ watch(
             {{ t('chat.list.muted') }}
           </p>
         </div>
+        <!-- Notes never notify, so they have nothing to mute (FR-002b). -->
         <UiButton
+          v-if="conversation.kind !== 'note'"
           type="button"
           variant="ghost"
           size="icon"
@@ -159,7 +161,11 @@ watch(
           @resend="resendMessage"
         />
         <p v-else class="m-auto text-sm text-muted-foreground">
-          {{ t('chat.peer.noMessages') }}
+          {{
+            conversation.kind === 'note'
+              ? t('chat.notes.empty')
+              : t('chat.peer.noMessages')
+          }}
         </p>
       </div>
 

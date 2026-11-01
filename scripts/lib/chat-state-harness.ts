@@ -503,11 +503,19 @@ export function createChatState(
       const { ref } = nodeRequire('vue') as typeof import('vue')
       return {
         conversations: ref([]),
+        notes: ref({
+          id: '',
+          kind: 'note',
+          lastAt: 0,
+          displayName: 'Ich',
+          photo: null,
+        }),
         contacts: ref([]),
         error: ref(null),
         refresh: async () => {},
         listAsync: async () => [],
         openDirectAsync: async () => ({ threadId: '' }),
+        openNoteAsync: async () => ({ threadId: '' }),
         muteAsync: async () => {},
         deleteAsync: async () => {},
       }

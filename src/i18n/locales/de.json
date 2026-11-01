@@ -262,20 +262,20 @@
       "hide": "Seitenleiste ausblenden"
     },
     "threads": {
-      "title": "Verläufe",
-      "empty": "Noch keine Gespräche",
+      "title": "Verlauf",
+      "empty": "Noch keine Sitzungen",
       "duration": "{duration}",
       "openedAt": "Eröffnet am {date}",
       "openedAtUnknown": "Eröffnungszeit unbekannt",
       "editTitle": "Titel bearbeiten",
       "saveTitle": "Titel speichern",
       "cancelEdit": "Bearbeitung abbrechen",
-      "deleteTitle": "Verlauf löschen",
-      "deleteDialogTitle": "Verlauf löschen",
-      "deleteConfirm": "Möchtest du „{title}“ wirklich löschen? Alle Nachrichten dieses Verlaufs werden dauerhaft entfernt.",
+      "deleteTitle": "Sitzung löschen",
+      "deleteDialogTitle": "Sitzung löschen",
+      "deleteConfirm": "Möchtest du „{title}“ wirklich löschen? Alle Nachrichten dieser Sitzung werden dauerhaft entfernt.",
       "deleteConfirmButton": "Löschen",
-      "deleteFailed": "Der Verlauf konnte nicht gelöscht werden.",
-      "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Der Verlauf bleibt erhalten.",
+      "deleteFailed": "Die Sitzung konnte nicht gelöscht werden.",
+      "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Die Sitzung bleibt erhalten.",
       "renameFailed": "Der Titel konnte nicht gespeichert werden.",
       "titleRequired": "Bitte gib einen Titel ein.",
       "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten."
@@ -403,18 +403,10 @@
       }
     },
     "list": {
-      "filter": {
-        "label": "Unterhaltungen filtern",
-        "all": "Alle",
-        "agent": "Agent",
-        "contacts": "Kontakte",
-        "groups": "Gruppen"
-      },
       "title": "Unterhaltungen",
-      "writeContact": "Mit Kontakt schreiben",
-      "empty": "Noch keine Unterhaltungen",
       "muted": "Stummgeschaltet",
-      "unread": "{count} ungelesen"
+      "unread": "{count} ungelesen",
+      "newConversation": "Neue Unterhaltung"
     },
     "peer": {
       "unknownName": "Unbekannt",
@@ -459,6 +451,16 @@
     "notify": {
       "request": "Neue Anfrage",
       "open": "Öffnen"
+    },
+    "agent": {
+      "name": "Agent",
+      "newSession": "Neue Sitzung",
+      "history": "Verlauf",
+      "unnamedSession": "Neue Sitzung",
+      "noSession": "Noch keine Sitzung"
+    },
+    "notes": {
+      "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
     }
   },
   "settings": {

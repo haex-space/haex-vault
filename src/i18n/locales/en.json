@@ -262,20 +262,20 @@
       "hide": "Hide sidebar"
     },
     "threads": {
-      "title": "Conversations",
-      "empty": "No conversations yet",
+      "title": "History",
+      "empty": "No sessions yet",
       "duration": "{duration}",
       "openedAt": "Opened {date}",
       "openedAtUnknown": "Opening time unavailable",
       "editTitle": "Edit title",
       "saveTitle": "Save title",
       "cancelEdit": "Cancel editing",
-      "deleteTitle": "Delete conversation",
-      "deleteDialogTitle": "Delete conversation",
-      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this conversation will be permanently removed.",
+      "deleteTitle": "Delete session",
+      "deleteDialogTitle": "Delete session",
+      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this session will be permanently removed.",
       "deleteConfirmButton": "Delete",
-      "deleteFailed": "The conversation could not be deleted.",
-      "deleteCancelFailed": "The running turn could not be safely stopped. The conversation was kept.",
+      "deleteFailed": "The session could not be deleted.",
+      "deleteCancelFailed": "The running turn could not be safely stopped. The session was kept.",
       "renameFailed": "The title could not be saved.",
       "titleRequired": "Please enter a title.",
       "titleTooLong": "The title can contain at most 120 characters."
@@ -403,18 +403,10 @@
       }
     },
     "list": {
-      "filter": {
-        "label": "Filter conversations",
-        "all": "All",
-        "agent": "Agent",
-        "contacts": "Contacts",
-        "groups": "Groups"
-      },
       "title": "Conversations",
-      "writeContact": "Write to a contact",
-      "empty": "No conversations yet",
       "muted": "Muted",
-      "unread": "{count} unread"
+      "unread": "{count} unread",
+      "newConversation": "New conversation"
     },
     "peer": {
       "unknownName": "Unknown",
@@ -459,6 +451,16 @@
     "notify": {
       "request": "New request",
       "open": "Open"
+    },
+    "agent": {
+      "name": "Agent",
+      "newSession": "New session",
+      "history": "History",
+      "unnamedSession": "New session",
+      "noSession": "No session yet"
+    },
+    "notes": {
+      "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
     }
   },
   "settings": {
