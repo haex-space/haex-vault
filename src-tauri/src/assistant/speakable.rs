@@ -8,7 +8,7 @@
 //! sentences come from the word list.
 
 use super::lexicon::{self, FALLBACK_LANGUAGE};
-use super::sentences::Sentences;
+use super::sentences::{Fence, Sentences, fence_closer, fence_opener};
 
 /// Sentences an answer may have before it is cut.
 pub const MAX_SENTENCES: usize = 4;
@@ -192,7 +192,7 @@ impl Speech {
 pub struct Speakable {
     language: String,
     clock: Clock,
-    in_fence: bool,
+    in_fence: Option<Fence>,
     in_table: bool,
 }
 
@@ -206,7 +206,7 @@ impl Speakable {
         Self {
             language: language.to_owned(),
             clock,
-            in_fence: false,
+            in_fence: None,
             in_table: false,
         }
     }
@@ -214,18 +214,18 @@ impl Speakable {
     /// What to say for `piece`, or `None` when nothing is said for it (a code line, the rest of a
     /// table, a rule, an empty line).
     pub fn line(&mut self, piece: &str) -> Option<String> {
-        let piece = piece.trim();
-        if self.in_fence {
-            if piece.starts_with("```") {
-                self.in_fence = false;
+        if let Some(fence) = self.in_fence {
+            if fence_closer(piece, fence) {
+                self.in_fence = None;
             }
             return None;
         }
-        if piece.starts_with("```") {
-            self.in_fence = true;
+        if let Some(fence) = fence_opener(piece) {
+            self.in_fence = Some(fence);
             self.in_table = false;
             return Some(lexicon::say("say.pointer.code", &self.language, &[]));
         }
+        let piece = piece.trim();
         if piece.starts_with('|') {
             if self.in_table {
                 return None;

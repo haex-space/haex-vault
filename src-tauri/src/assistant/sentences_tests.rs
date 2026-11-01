@@ -62,7 +62,9 @@ fn questions_and_exclamations_go_out_at_the_space() {
 #[test]
 fn numbers_times_and_urls_are_not_cut() {
     assert_eq!(
-        both("Es kostet 3.5 Euro. Um 10:30 Uhr geht es los. Siehe https://example.com/a.b?x=1. Fertig."),
+        both(
+            "Es kostet 3.5 Euro. Um 10:30 Uhr geht es los. Siehe https://example.com/a.b?x=1. Fertig."
+        ),
         [
             "Es kostet 3.5 Euro.",
             "Um 10:30 Uhr geht es los.",
@@ -128,6 +130,21 @@ fn table_rows_and_code_lines_are_cut_only_at_line_breaks() {
             "Fertig.",
             "Ja."
         ]
+    );
+    assert_eq!(
+        both("````rust\nlet x = a. b;\n```\nstill. code\n````\nDone."),
+        [
+            "````rust",
+            "let x = a. b;",
+            "```",
+            "still. code",
+            "````",
+            "Done."
+        ]
+    );
+    assert_eq!(
+        both("~~~rust\nlet x = a. b;\n~~~\nDone."),
+        ["~~~rust", "let x = a. b;", "~~~", "Done."]
     );
 }
 

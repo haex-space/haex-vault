@@ -30,7 +30,47 @@ const MONTHS_DE: &[&str] = &[
 #[derive(Debug, Default)]
 pub struct Sentences {
     buf: String,
-    in_fence: bool,
+    in_fence: Option<Fence>,
+}
+
+/// The delimiter of a CommonMark fenced code block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Fence {
+    marker: char,
+    length: usize,
+}
+
+/// Whether a line opens a CommonMark fenced code block.
+pub(super) fn fence_opener(line: &str) -> Option<Fence> {
+    let (fence, info) = fence_run(line)?;
+    if fence.marker == '`' && info.contains('`') {
+        return None;
+    }
+    Some(fence)
+}
+
+/// Whether a line closes `fence`: same marker, at least its length, and whitespace after it.
+pub(super) fn fence_closer(line: &str, fence: Fence) -> bool {
+    fence_run(line).is_some_and(|(closing, tail)| {
+        closing.marker == fence.marker && closing.length >= fence.length && tail.trim().is_empty()
+    })
+}
+
+fn fence_run(line: &str) -> Option<(Fence, &str)> {
+    let indent = line.bytes().take_while(|byte| *byte == b' ').count();
+    if indent > 3 {
+        return None;
+    }
+    let rest = &line[indent..];
+    let marker = rest.chars().next()?;
+    if marker != '`' && marker != '~' {
+        return None;
+    }
+    let length = rest
+        .bytes()
+        .take_while(|byte| *byte == marker as u8)
+        .count();
+    (length >= 3).then_some((Fence { marker, length }, &rest[length..]))
 }
 
 impl Sentences {
@@ -52,20 +92,38 @@ impl Sentences {
     fn drain(&mut self, at_end: bool) -> Vec<String> {
         let mut out = Vec::new();
         loop {
-            let line_mode = self.in_fence || {
-                let start = self.buf.trim_start_matches([' ', '\t']);
-                start.starts_with('|') || start.starts_with("```")
-            };
+            let first_line = self.buf.split('\n').next().unwrap_or_default();
+            let start = first_line.trim_start_matches([' ', '\t']);
+            let opening = self.in_fence.is_none() && fence_opener(first_line).is_some();
+            let closing = self
+                .in_fence
+                .is_some_and(|fence| fence_closer(first_line, fence));
+            let line_mode = self.in_fence.is_some() || opening || closing || start.starts_with('|');
             let Some((end, rest)) = next_cut(&self.buf, line_mode, at_end) else {
                 break;
             };
-            let piece = self.buf[..end].trim().to_owned();
+            let raw_piece = self.buf[..end].to_owned();
+            let piece = raw_piece.trim().to_owned();
             self.buf = self.buf[rest..].trim_start_matches([' ', '\t']).to_owned();
-            if piece.starts_with("```") {
-                self.in_fence = !self.in_fence;
-            }
-            if !piece.is_empty() {
-                out.push(piece);
+            if self
+                .in_fence
+                .is_some_and(|fence| fence_closer(&raw_piece, fence))
+            {
+                self.in_fence = None;
+                out.push(raw_piece);
+            } else if self.in_fence.is_none()
+                && let Some(fence) = fence_opener(&raw_piece)
+            {
+                self.in_fence = Some(fence);
+                out.push(raw_piece);
+            } else if !piece.is_empty() {
+                if raw_piece.trim_start().starts_with("```")
+                    || raw_piece.trim_start().starts_with("~~~")
+                {
+                    out.push(raw_piece);
+                } else {
+                    out.push(piece);
+                }
             }
             if self.buf.is_empty() {
                 break;

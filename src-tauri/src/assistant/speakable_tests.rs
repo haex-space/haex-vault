@@ -2,7 +2,7 @@
 //! say dates and times as words and are cut when long.
 
 use super::speakable::{
-    cardinal, day_phrase, speak_all, time_phrase, Civil, Clock, Speakable, Speech,
+    Civil, Clock, Speakable, Speech, cardinal, day_phrase, speak_all, time_phrase,
 };
 
 /// Wednesday, 28 October 2026, 15:00, one hour ahead of UTC.
@@ -62,6 +62,14 @@ fn tables_code_and_links_point_to_the_chat() {
     );
     assert_eq!(
         say("en", "```bash\nrm -rf build\nls\n```\nDone."),
+        ["I've put the code in the chat.", "Done."]
+    );
+    assert_eq!(
+        say("en", "````bash\nrm -rf build\n```\nMore. code\n````\nDone."),
+        ["I've put the code in the chat.", "Done."]
+    );
+    assert_eq!(
+        say("en", "~~~bash\nrm -rf build\n~~~\nDone."),
         ["I've put the code in the chat.", "Done."]
     );
     assert_eq!(
