@@ -21,14 +21,15 @@ const credits = ref<SpeechCredit[]>([])
 const error = ref<string | null>(null)
 
 onMounted(async () => {
-  try {
-    ;[licenses.value, credits.value] = await Promise.all([
-      invoke<IconSetLicense[]>('file_icon_set_licenses'),
-      creditsAsync(),
-    ])
-  } catch (cause) {
-    error.value = errString(cause)
-  }
+  const [licensesResult, creditsResult] = await Promise.allSettled([
+    invoke<IconSetLicense[]>('file_icon_set_licenses'),
+    creditsAsync(),
+  ])
+  if (licensesResult.status === 'fulfilled')
+    licenses.value = licensesResult.value
+  else error.value = errString(licensesResult.reason)
+  if (creditsResult.status === 'fulfilled') credits.value = creditsResult.value
+  else error.value ??= errString(creditsResult.reason)
 })
 
 const CREDIT_KINDS = ['voice', 'speechModel', 'recognitionModel'] as const
