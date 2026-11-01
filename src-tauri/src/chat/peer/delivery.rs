@@ -428,7 +428,7 @@ impl Delivery {
             if let Err(error) = self
                 .client
                 .add_relay(url.as_str())
-                .capabilities(RelayCapabilities::READ_WRITE)
+                .capabilities(RelayCapabilities::READ | RelayCapabilities::WRITE)
                 .await
             {
                 log::warn!("chat: Nostr-Relay {url} is not a valid URL: {error}");

@@ -31,7 +31,7 @@ pub fn own_relays(q: &mut impl Query) -> Result<Vec<String>> {
 pub fn listening_relays(q: &mut impl Query) -> Result<Vec<String>> {
     let mut relays = own_relays(q)?;
     for contact in received::with_cards(q)? {
-        let Some((_, card)) = received::stored_of_contact(q, &contact)? else {
+        let Some(card) = received::stored_of_contact(q, &contact)? else {
             continue;
         };
         for relay in received::addresses(q, &card.card.vault)?.nostr_relays {
