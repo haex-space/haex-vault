@@ -84,7 +84,7 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
   )
   assert.ok(answer)
   assert.ok(
-    ['stop', 'length'].includes(answer.finishReason ?? ''),
+    answer.finishReason === 'complete',
     `finish reason ${answer.finishReason}: ${answer.content}`,
   )
   assert.ok(answer.content.trim().length > 0, 'an empty answer')
