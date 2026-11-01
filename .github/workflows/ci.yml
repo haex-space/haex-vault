@@ -504,6 +504,9 @@ jobs:
       # Shares the Rust job's default-features cache entry below; the debug
       # build this job produces is that same feature set.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # The dev binary links sherpa-onnx dynamically; make the fetched native
+      # libraries visible when tauri-driver launches it.
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -921,6 +924,8 @@ jobs:
       # The Nostr test relay is a binary of the holzi crate, built for this machine; it shares the
       # desktop jobs' cache entry.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # Android scenarios can start a Linux host app beside the emulator.
+      LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/sherpa-onnx-prebuilt/sherpa-onnx-v2.0.1-linux-x64-shared-lib/lib
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
