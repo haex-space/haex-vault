@@ -54,12 +54,23 @@ export function useChatTab(deps: {
   abort: () => Promise<void>
   newChat: () => Promise<void> | void
   updatePermissionMode: (mode: PermissionMode) => Promise<void> | void
+  /** Spec 072: contact and group conversations next to the agent's. */
+  peer: {
+    activePeerId: Ref<string | null>
+    conversations: Ref<{ id: string; displayName: string; muted: boolean }[]>
+    openDirectAsync: (contactId: string) => Promise<{ threadId: string }>
+    muteAsync: (threadId: string, muted: boolean) => Promise<unknown>
+    deleteAsync: (threadId: string) => Promise<unknown>
+    refresh: () => Promise<void>
+  }
 }) {
   const { wmTab, state, runAction } = deps
 
+  const { peer } = deps
   const {
     chatTitle,
     openConversation,
+    openPeerConversation,
     startNewConversation,
     syncFromLocation,
   } = useChatNavigation({
@@ -70,6 +81,9 @@ export function useChatTab(deps: {
     setTitle: wmTab.setTitle,
     selectThread: deps.selectThread,
     newChat: deps.newChat,
+    activePeerId: peer.activePeerId,
+    peerTitle: (id) =>
+      peer.conversations.value.find((c) => c.id === id)?.displayName ?? null,
   })
 
   async function respondToApproval(
@@ -140,15 +154,27 @@ export function useChatTab(deps: {
     if (state.editTitleError.value) throw new Error(state.editTitleError.value)
     return done
   })
-  handle('chat.conversation.delete', async (input) => {
-    const threadId = String(input.threadId)
-    const thread = state.threads.value.find((t) => t.id === threadId)
-    if (!thread) throw new Error(`no conversation ${threadId}`)
-    state.deleteCandidate.value = thread
-    await deps.confirmDelete()
-    if (state.deleteError.value) throw new Error(state.deleteError.value)
-    return done
-  })
+  wmTab.registerActionHandler(
+    'chat.conversation.delete',
+    async ({ input, caller }) => {
+      const threadId = String(input.threadId)
+      if (peer.conversations.value.some((c) => c.id === threadId)) {
+        // FR-072: agents never change contact conversations; to them it is not there.
+        if (caller.kind !== 'user')
+          throw new Error(`no conversation ${threadId}`)
+        await peer.deleteAsync(threadId)
+        await peer.refresh()
+        if (peer.activePeerId.value === threadId) startNewConversation()
+        return done
+      }
+      const thread = state.threads.value.find((t) => t.id === threadId)
+      if (!thread) throw new Error(`no conversation ${threadId}`)
+      state.deleteCandidate.value = thread
+      await deps.confirmDelete()
+      if (state.deleteError.value) throw new Error(state.deleteError.value)
+      return done
+    },
+  )
   handle('chat.conversations.list', () => ({
     conversations: state.threads.value.map((thread) => ({
       threadId: thread.id,
@@ -211,6 +237,26 @@ export function useChatTab(deps: {
     return done
   })
 
+  // Spec 072: contact and group conversations. Not callable by agents (FR-070: an agent reads them
+  // only through its own grant, which comes with spec 072 US7).
+  handle('chat.contact.open', (input) => {
+    const threadId = String(input.threadId)
+    if (!peer.conversations.value.some((c) => c.id === threadId))
+      throw new Error(`no conversation ${threadId}`)
+    openPeerConversation(threadId)
+    return done
+  })
+  handle('chat.contact.openDirect', async (input) => {
+    const { threadId } = await peer.openDirectAsync(String(input.contactId))
+    await peer.refresh()
+    openPeerConversation(threadId)
+    return done
+  })
+  handle('chat.conversation.mute', async (input) => {
+    await peer.muteAsync(String(input.threadId), Boolean(input.muted))
+    return done
+  })
+
   const run = (id: string, input: Record<string, unknown> = {}) => {
     void runAction(id, { ...input }, { kind: 'user' }, wmTab.tabId)
   }
@@ -222,6 +268,14 @@ export function useChatTab(deps: {
       newConversation: () => run('chat.conversation.new'),
       openConversation: (threadId: string) =>
         run('chat.conversation.open', { threadId }),
+      openPeerConversation: (threadId: string) =>
+        run('chat.contact.open', { threadId }),
+      openDirect: (contactId: string) =>
+        run('chat.contact.openDirect', { contactId }),
+      mute: (threadId: string, muted: boolean) =>
+        run('chat.conversation.mute', { threadId, muted }),
+      deletePeer: (threadId: string) =>
+        run('chat.conversation.delete', { threadId }),
       saveTitle: () =>
         run('chat.conversation.rename', {
           threadId: state.editingThreadId.value ?? '',

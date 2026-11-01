@@ -199,7 +199,8 @@
       "unknownLocation": "That view no longer exists. The app opened at its start."
     },
     "chat": {
-      "thread": "Conversation"
+      "thread": "Conversation",
+      "contact": "Conversation with contacts"
     },
     "passwords": {
       "list": "Passwords",
@@ -396,6 +397,38 @@
         "denied_by_deny_rule": "Denied by deny rule",
         "declined_by_user": "Question declined"
       }
+    },
+    "list": {
+      "filter": {
+        "label": "Filter conversations",
+        "all": "All",
+        "agent": "Agent",
+        "contacts": "Contacts",
+        "groups": "Groups"
+      },
+      "title": "Conversations",
+      "writeContact": "Write to a contact",
+      "empty": "No conversations yet",
+      "muted": "Muted",
+      "unread": "{count} unread"
+    },
+    "peer": {
+      "unknownName": "Unknown",
+      "noMessages": "No messages yet",
+      "sendingLater": "Sending messages to contacts comes with the next part of this feature.",
+      "placeholder": "Write a message",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "delete": "Delete conversation",
+      "deleteConfirm": "Do you really want to delete the conversation with {name}? It disappears with all messages and files on all your devices.",
+      "deleteButton": "Delete",
+      "missing": "This conversation no longer exists."
+    },
+    "newContact": {
+      "title": "Write to a contact",
+      "search": "Search contacts",
+      "empty": "None of your contacts has shared a business card. You can write to a contact once it has shared one.",
+      "noMatch": "No contact matches the search."
     }
   },
   "settings": {
@@ -1676,7 +1709,8 @@
         "new": "New conversation",
         "open": "Open conversation",
         "rename": "Rename conversation",
-        "delete": "Delete conversation"
+        "delete": "Delete conversation",
+        "mute": "Mute conversation"
       },
       "conversations": {
         "list": "List conversations"
@@ -1713,6 +1747,10 @@
       },
       "voice": {
         "setAutoSend": "Auto-send after dictation"
+      },
+      "contact": {
+        "open": "Open conversation with contacts",
+        "openDirect": "Open conversation with contact"
       }
     },
     "settings": {
@@ -3645,6 +3683,10 @@
       "revoke": "Revoke access to “{name}”",
       "affected": "The contact loses access to the file share {names}. | The contact loses access to the file shares {names}.",
       "lookupFailed": "The file shares could not be checked. Deletion remains disabled."
+    },
+    "message": {
+      "action": "Send message",
+      "needsCard": "To write, the contact first needs to share its business card with you."
     }
   },
   "mail": {

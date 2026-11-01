@@ -32,27 +32,6 @@ const chat = useChat()
 const { getPrefAsync, setPrefAsync } = usePreferences()
 const { currentDeviceInfoAsync } = useDevice()
 const { errString } = useErrorString()
-const modelStore = useModelsStore()
-const {
-  activeModel,
-  modelLoadPending,
-  loadingPhase,
-  loadingModelName,
-  loadErrorModelId,
-  loadingLabel,
-  noModelsInstalled,
-  displayModelId,
-  effortLevel,
-  providerList,
-  integrityDialog,
-  integrityBusy,
-  integrityActionError,
-  lastError: modelLastError,
-} = storeToRefs(modelStore)
-const { onIntegrityDialogOpenChange } = modelStore
-// Spec 020 FR-024: model retry and integrity decisions run their catalog actions.
-const retryLoad = useAction('chat.model.retryLoad')
-const decideIntegrity = useAction('chat.modelIntegrity.decide')
 
 const pendingPrompts = ref<PendingPrompt[]>([])
 const unlisteners: UnlistenFn[] = []
@@ -93,6 +72,45 @@ const {
   reloadAutonomyMode,
   initialize: initializePermissionMode,
 } = useChatPermissionMode(getPrefAsync, setPrefAsync, errString, lastError)
+
+const {
+  modelStore,
+  activeModel,
+  modelLoadPending,
+  loadingModelName,
+  loadErrorModelId,
+  loadingLabel,
+  displayModelId,
+  effortLevel,
+  providerList,
+  integrityDialog,
+  integrityBusy,
+  integrityActionError,
+  onIntegrityDialogOpenChange,
+  retryLoad,
+  decideIntegrity,
+  isDelegateModel,
+  composerInputDisabled,
+  sendDisabled,
+  displayedError,
+  dismissError,
+  showModelSelection,
+} = useAgentModelState({
+  busy,
+  streamingMessageId,
+  lastError,
+  autonomyPreferenceLoading,
+  autonomyPreferenceError,
+})
+
+// Spec 072: contact and group conversations share the list and the window with the agent's.
+const peers = useConversations(errString)
+const activePeerId = ref<string | null>(null)
+const activePeer = computed(
+  () =>
+    peers.conversations.value.find((c) => c.id === activePeerId.value) ?? null,
+)
+const newContactOpen = ref(false)
 
 const { attachments, addAttachments, removeAttachment } =
   useComposerAttachments(chat, displayModelId, errString, lastError)
@@ -182,37 +200,10 @@ const {
   selectThread,
 } = threadSidebar
 
-const composerInputDisabled = computed(
-  () =>
-    busy.value && !modelLoadPending.value && streamingMessageId.value === null,
-)
-const sendDisabled = computed(
-  () =>
-    !activeModel.value ||
-    busy.value ||
-    modelLoadPending.value ||
-    loadingPhase.value !== null ||
-    (isDelegateModel.value &&
-      (autonomyPreferenceLoading.value ||
-        autonomyPreferenceError.value !== null)),
-)
-
-// lastError and modelStore.lastError are separate refs (Pinia setup stores take no page-local params) — merged into one banner.
-const displayedError = computed(() => lastError.value || modelLastError.value)
-
-function dismissError() {
-  lastError.value = null
-  modelLastError.value = null
-}
-
 const activeMessages = computed<Message[]>(() => {
   if (!activeThreadId.value) return []
   return messagesByThread.value[activeThreadId.value] ?? []
 })
-
-// Only the message area falls back to the catalog-download state, and only when no model is
-// installed/configured anywhere (spec 002 §FR-014 covers picking among models that DO exist).
-const showModelSelection = computed(() => noModelsInstalled.value)
 
 /** Scrolls the message viewport to its newest item after rendering. */
 async function scrollToBottom() {
@@ -220,19 +211,6 @@ async function scrollToBottom() {
   const el = messagesScroll.value
   if (el) el.scrollTop = el.scrollHeight
 }
-
-/** Whether the active model resolves to a `cli_delegate` provider — the
- * same provider lookup `MessageList.vue`'s `delegateAnsweredByLabel` does
- * (spec 009-autonomous-delegate-mode: the autonomy control only makes
- * sense for a delegate backend). */
-const isDelegateModel = computed(() => {
-  const modelId = activeModel.value?.modelId ?? null
-  if (!modelId) return false
-  const [providerId] = modelId.split(':')
-  return providerList.value.some(
-    (p) => p.id === providerId && p.kind === 'cli_delegate',
-  )
-})
 
 const {
   send,
@@ -308,6 +286,7 @@ const { syncFromLocation, ui } = useChatTab({
   abort,
   newChat,
   updatePermissionMode,
+  peer: { ...peers, activePeerId },
 })
 
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
@@ -365,7 +344,7 @@ onMounted(async () => {
     if (unmounted) return
 
     await modelStore.initialize()
-    await refreshThreads()
+    await Promise.all([refreshThreads(), peers.refresh()])
     await syncFromLocation()
   } catch (e: unknown) {
     if (!unmounted) lastError.value = errString(e)
@@ -399,6 +378,8 @@ onBeforeUnmount(() => {
         :deleting-thread="deletingThread"
         :history-duration-label="historyDurationLabel"
         :opening-time-label="openingTimeLabel"
+        :peers="peers.conversations.value"
+        :active-peer-id="activePeerId"
         @update:draft-title="draftTitle = $event"
         @new-chat="run(ui.newConversation)"
         @select-thread="(id) => run(() => ui.openConversation(id))"
@@ -408,10 +389,19 @@ onBeforeUnmount(() => {
         @request-delete="requestDelete"
         @close-delete-dialog="closeDeleteDialog"
         @confirm-delete="ui.confirmDelete"
+        @select-peer="(id) => run(() => ui.openPeerConversation(id))"
+        @write-contact="newContactOpen = true"
       />
     </template>
 
-    <section class="min-h-0 min-w-0 flex-1 flex flex-col">
+    <ChatPeerConversation
+      v-if="activePeerId !== null"
+      :conversation="activePeer"
+      @mute="ui.mute"
+      @delete="ui.deletePeer"
+    />
+
+    <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
       <ChatStatusBanners
         :displayed-error="displayedError"
         :can-retry-send="!!pendingSend"
@@ -475,6 +465,16 @@ onBeforeUnmount(() => {
     </section>
 
     <template #dialogs>
+      <ChatNewContactDialog
+        v-model:open="newContactOpen"
+        :contacts="peers.contacts.value"
+        @select="
+          (id) => {
+            newContactOpen = false
+            ui.openDirect(id)
+          }
+        "
+      />
       <ModelsModelIntegrityDialog
         v-if="integrityDialog"
         :open="integrityDialog !== null"

@@ -191,12 +191,12 @@ const RETURN_STATEMENT = `
       handleToolPermissionRequest: chatTranscript.handleToolPermissionRequest,
       handleChoiceRequest: chatTranscript.handleChoiceRequest,
       threads, messagesByThread, activeThreadId,
-      input, busy, activeModel, loadingPhase, modelLoadPending, draftTitle,
+      input, busy, activeModel, modelLoadPending, draftTitle,
       editingThreadId, editTitleError, deleteCandidate, deleteError,
       composerInputDisabled, sendDisabled, pendingPrompts, streamingMessageId,
       streamingThreadId, lastError,
       updatePermissionMode, permissionMode, permissionModeSaving, syncFromLocation,
-      addAttachments, attachments };
+      addAttachments, attachments, activePeerId };
 `
 
 /** Resolves a store module name to its source file in this checkout. */
@@ -427,6 +427,8 @@ export function createChatState(
     'onVaultTablesChanged',
     'useModelsStore',
     'storeToRefs',
+    'useAgentModelState',
+    'useConversations',
     'navigateTo',
     'document',
     `${pageCode}\n${RETURN_STATEMENT}`,
@@ -486,6 +488,30 @@ export function createChatState(
     onVaultTablesChanged,
     () => modelStore,
     pinia.storeToRefs,
+    runComposable(composablePath('useAgentModelState'), req, {
+      useModelsStore: () => modelStore,
+      storeToRefs: pinia.storeToRefs,
+      useAction:
+        (id: string) =>
+        async (input: Record<string, unknown> = {}) => {
+          pageGlobals.actionLog?.push({ id, input })
+          return { ok: true, result: null }
+        },
+    }).useAgentModelState,
+    // Spec 072: no contact conversations in these cases; the list stays empty.
+    () => {
+      const { ref } = nodeRequire('vue') as typeof import('vue')
+      return {
+        conversations: ref([]),
+        contacts: ref([]),
+        error: ref(null),
+        refresh: async () => {},
+        listAsync: async () => [],
+        openDirectAsync: async () => ({ threadId: '' }),
+        muteAsync: async () => {},
+        deleteAsync: async () => {},
+      }
+    },
     pageGlobals.navigateTo ?? (() => {}),
     { querySelector: () => null },
   )

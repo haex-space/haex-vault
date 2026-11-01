@@ -73,6 +73,10 @@ use chat::default_model::{model_load_status, resolve_default_model};
 use chat::model_loading::{
     active_model_info, load_model, load_model_with_integrity_override, unload_local_model,
 };
+use chat::peer::commands::conversations::{
+    chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
+    chat_conversations_list,
+};
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -766,6 +770,10 @@ pub fn run() {
             list_messages,
             rename_thread,
             delete_thread,
+            chat_conversations_list,
+            chat_conversation_open_direct,
+            chat_conversation_mute,
+            chat_conversation_delete,
             current_device_info,
             update_device_alias,
             list_vault_devices,

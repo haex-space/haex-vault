@@ -94,6 +94,48 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
     scope: 'chat.write',
     effect: 'destructive',
   }),
+  // Spec 072: contact and group conversations. Locked for agents (`guardrails`): they never reach
+  // contact conversations through these actions; their own, confirmed access comes with spec 072
+  // US7 (FR-070, FR-071).
+  inChat({
+    id: 'chat.contact.open',
+    description: 'Open an existing conversation with contacts in the chat.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.contact.openDirect',
+    description:
+      'Open the conversation with a contact, starting it the first time.',
+    input: {
+      type: 'object',
+      properties: {
+        contactId: { type: 'string', description: 'Contact id.' },
+      },
+      required: ['contactId'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.conversation.mute',
+    description: 'Mute or unmute a conversation with contacts.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID, muted: { type: 'boolean' } },
+      required: ['threadId', 'muted'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
   inChat({
     id: 'chat.conversations.list',
     description: 'List all conversations with id, title and creation time.',
