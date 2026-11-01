@@ -265,7 +265,7 @@ pub fn open_note(tx: &mut CrdtTransaction<'_>, own_vault: &str, now: i64) -> Res
     }
     tx.execute(
         "INSERT INTO chat_threads (id, title, created_at, updated_at, kind, state) \
-         VALUES (?1, '', ?2, ?2, 'note', 'active')",
+         VALUES (?1, '', ?2, 0, 'note', 'active')",
         params![id.to_string(), now],
     )?;
     insert_member(tx, id, own_vault, own_vault, now)?;

@@ -1881,6 +1881,9 @@
         "open": "Open conversation with contacts",
         "openDirect": "Open conversation with contact"
       },
+      "notes": {
+        "open": "Open notes to self"
+      },
       "peer": {
         "send": "Send message to contact",
         "resend": "Send message again"

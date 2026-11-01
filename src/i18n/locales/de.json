@@ -1881,6 +1881,9 @@
         "open": "Unterhaltung mit Kontakten öffnen",
         "openDirect": "Unterhaltung mit Kontakt öffnen"
       },
+      "notes": {
+        "open": "Eigene Notizen öffnen"
+      },
       "peer": {
         "send": "Nachricht an Kontakt senden",
         "resend": "Nachricht erneut senden"

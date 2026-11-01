@@ -22,7 +22,8 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 `title` holds the group name; for direct conversations it is empty and the UI shows the contact's name
 (or the carried card's name for a request). Ids: direct = `UUIDv5(CHAT_NS, "direct" ‖ sorted(own vault,
 peer vault))`, so both sides and all devices derive the same id; group = random UUID from the creator;
-note = `UUIDv5(CHAT_NS, "note" ‖ own vault)`, so all own devices derive the same one (FR-002b). A note
+note = `UUIDv5(CHAT_NS, "note:" ‖ lowercase hex of own vault)`, so all own devices derive the same
+one (FR-002b). A note
 conversation has the own vault as its only member; its messages are `chat_peer_messages` rows with the
 own vault as sender and no `chat_deliveries` or outbox rows, so they reach the own devices only through
 the CRDT sync.

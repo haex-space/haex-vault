@@ -614,7 +614,7 @@ where her files go and what others see.
 
 ### Key Entities
 
-- **Conversation**: kind (agent, direct, group, notes), name (group, or the contact's name), picture, members,
+- **Conversation**: kind (`agent`, `direct`, `group`, `note`), name (group, or the contact's name), picture, members,
   created and last activity, mute, unread count, archived state of a left group. Agent conversations
   keep their existing data (title, model used).
 - **Member**: vault identity, last known Visitenkarte, state in the conversation (invited, member,

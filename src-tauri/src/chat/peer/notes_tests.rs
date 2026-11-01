@@ -53,6 +53,17 @@ fn the_notes_open_once_with_the_id_of_the_own_vault_and_only_the_own_vault_as_me
 fn a_note_is_stored_once_without_delivery_or_outbox_and_lists_as_notes() {
     let anna = ChatDevice::genesis(&[]);
     let thread = open(&anna, 1);
+    let own = anna.me.vault_hex.clone();
+    let before_first_note = anna
+        .db
+        .read_blocking(move |r| Ok(store::list(r, &own, ListFilter::default())?))
+        .expect("empty notes list");
+    let entry = before_first_note
+        .iter()
+        .find(|conversation| conversation.id == thread.to_string())
+        .expect("listed before the first note");
+    assert_eq!(entry.last_at, 0, "an empty notes thread has no activity");
+
     let first = note(&anna, thread, "n1", "  Reifen wechseln  ").expect("note");
     assert_eq!(
         note(&anna, thread, "n1", "Reifen wechseln").expect("retry"),
