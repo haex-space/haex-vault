@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      e2e_scenario:
+        description: Run only scenarios whose names contain this text
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -658,7 +663,12 @@ jobs:
       # The run limit (default 30 minutes) was reached by the suite as it grew:
       # the last scenarios were skipped on a run that had no failing scenario.
       - name: Run the end-to-end suite
-        run: corepack pnpm test:e2e --run-timeout 2700 --shard ${{ matrix.shard }}/2
+        env:
+          E2E_SCENARIO_FILTER: ${{ inputs.e2e_scenario }}
+        run: |
+          args=(--run-timeout 2700 --shard '${{ matrix.shard }}/2')
+          if [ -n "$E2E_SCENARIO_FILTER" ]; then args+=(--grep "$E2E_SCENARIO_FILTER"); fi
+          corepack pnpm test:e2e "${args[@]}"
 
       # The relaunch scenario only runs against a release build (`--app`),
       # so this ordinary run always reports it skipped — expected, not a
@@ -1048,6 +1058,8 @@ jobs:
 
       - name: Run the e2e suite on the emulator
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          E2E_SCENARIO_FILTER: ${{ inputs.e2e_scenario }}
         with:
           api-level: 35
           target: google_apis
