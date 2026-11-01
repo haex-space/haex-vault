@@ -73,7 +73,16 @@ einmal je Lieferung durchgeht.
 - holzi starten, Vault entsperren, `/account` öffnen lassen → noch angemeldet.
 - Dieselbe Vault auf einem zweiten Gerät: Agenten-Browser startet ohne Anmeldung.
 
-## M9 Eigener Browser (US6, nach Lieferung F)
+## M6a Daten aus einem Eintrag (US4, FR-037)
+
+- Eintrag „Girokonto“ mit eigenem Feld `IBAN` (Wert mit Erkennungswert), Agent mit der
+  Rechtegruppe Passwörter dafür und „bedienen“ für die Fixture-Website. „Bezahle die Bestellung
+  auf /checkout per Lastschrift.“
+- Erwartet: Rückfrage „Daten eintragen“ mit Zweck, Eintragsauswahl und Zuordnung `IBAN ← IBAN`
+  (Wert verdeckt); nach „Eintragen“ steht die IBAN im Formular; der Agent nennt nur gefüllte
+  Elemente; „Bestellen“ fragt vor dem Absenden und zeigt `•••`; ein zweiter Aufruf fragt wieder.
+
+## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 
 - Erweiterung nach 049 zugelassen, Recht „Browser des Nutzers“ an. Einen Tab in der Erweiterung
   „dem Agenten übergeben“ → der Agent liest ihn; einen anderen Tab sieht er nicht

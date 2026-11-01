@@ -50,6 +50,21 @@ Betriebssystem gleich).
 Firefox (CDP-Unterstützung entfernt, BiDi unvollständig); eingebauter Webview von Tauri (Spec
 schließt ihn aus; keine Trennung vom Fenster von holzi).
 
+**Nochmals geprüft am 2026-11-01** (Frage: Tauri-Webview statt Chromium, damit es auf jeder
+Plattform gleich läuft): verworfen. Tauri bringt keinen eigenen Browser mit, sondern nutzt die
+Web-Engine des Systems, und die trägt die Schutzregeln nicht überall:
+
+| Fähigkeit                                              | WebView2 (Windows) | WebKitGTK (Linux)            | WKWebView (macOS)          | Android WebView |
+| ------------------------------------------------------ | ------------------ | ---------------------------- | -------------------------- | --------------- |
+| Ändernde Anfragen vor dem Server anhalten (R5 Stufe 2) | ja                 | nur mit Modul im Web-Prozess | nein                       | ja              |
+| holzis Code in einer eigenen Welt (R4, R6)             | ja                 | ja                           | ja                         | nein            |
+| Echte Eingabe-Ereignisse (R4)                          | ja                 | nur über eigene Ereignisse   | nur über eigene Ereignisse | ja              |
+
+Dazu verweigern Google und manche Banken die Anmeldung in eingebetteten Webviews. Jede Engine
+bräuchte einen eigenen Ausführer, und wo eine Fähigkeit fehlt, müsste das Bedienen fehlen (wie
+FR-035). Der Agenten-Browser auf dem Desktop deckt die Ziele (Recherche, Formulare mit Daten aus
+dem Passwortmanager) ohne diese Lücken; Android bleibt ohne Agenten-Browser (R13).
+
 ## R3 Browser-Profil verschlüsselt auf dem Gerät
 
 **Entscheidung** (Betreiber, 2026-10-29): Was holzi verschlüsselt auf der Platte ablegt, liegt in
@@ -191,6 +206,40 @@ sichtbar macht; nach der Anmeldung wechselt die Seite fast immer.
 **Verworfen**: Passwort tippen lassen (das Modell sähe es); Schwärzen von Feldern im Bild
 (versagt, wenn die Seite den Wert anderswo anzeigt).
 
+## R7a Andere Daten aus einem Eintrag eintragen (FR-037, FR-038)
+
+**Entscheidung**: Ein eigenes Werkzeug `browser.entry.fill` mit `tab`, `form?` und `purpose`.
+Bank- und Kartendaten gehören zu keiner Website, daher sucht holzi nicht nach der Website wie in
+R7, sondern lässt den Nutzer in der Rückfrage (Art `entryFill`) einen Eintrag wählen, aus denen,
+die die Rechtegruppe Passwörter des Agenten erreicht (`Grant` wie in R7, Prüfungen aus 034). Die
+Rückfrage kommt jedes Mal und zeigt die Zuordnung „Feld der Seite ← Feld des Eintrags“ mit
+verdeckten Werten; der Nutzer kann Zeilen abwählen.
+
+Die **Zuordnung** ist eine Regel: genauer Name des Felds, Autofill-Aliase des Eintrags (036
+FR-001a), Standardaliase, Art des Felds, dazu `autocomplete`-Werte `cc-name`, `cc-number`,
+`cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`. Diese Regel steht heute nur in der Erweiterung
+(`apps/haex-pass-browser/src/contentScripts/autofill.ts`, `DEFAULT_ALIASES` und `fillAllFields`).
+Damit sie nur einmal existiert, wandert sie in eine Rust-Crate `haex-autofill` im vault-sdk (wie
+`haex-bundle`): holzi nutzt sie direkt (auch für `browser.credentials.fill`), die Erweiterung
+ihren WebAssembly-Build. Eingabe sind die Fakten der Felder, die das Leseskript ohnehin liefert
+(Name, `id`, `autocomplete`, Art, Formular, Rahmen), und die Schlüssel des Eintrags; Ausgabe ist
+die Zuordnung. Werte gehen nie durch die Regel.
+
+Eintragen und Schutz vor Rückfluss wie in R7: Schreiben aus holzis Welt, Felder als „gefüllt“
+gemerkt, Werte aus Text, Namen und Rückmeldungen entfernt, Bildschirmfotos für den Rest der
+Sitzung gesperrt. In einen Rahmen trägt holzi nur ein, wenn der Agent dessen Website bedienen
+darf (Zahlungsanbieter betten ihre Felder oft so ein). Die Rückfrage vor dem Absenden (R5) zeigt
+die Werte als `•••`, weil die Felder als „gefüllt“ gelten.
+
+**Begründung**: Der Nutzer sieht vor jeder Zahlung, welcher Eintrag wohin geht, und das Absenden
+fragt danach noch einmal. Kein Merken, weil sich Betrag und Empfänger mit jedem Formular ändern.
+Eine Regel für Erweiterung und Agenten-Browser verhindert, dass beide unterschiedlich ausfüllen.
+
+**Verworfen**: `credentials.fill` um eine Art erweitern (dort wird nach Website zugeordnet und
+gemerkt, beides passt nicht zu Zahlungsdaten); den Agenten Feldnamen des Eintrags wählen lassen
+(er sähe den Aufbau der Einträge); die Regel in holzi nachbauen (zwei Regeln, die
+auseinanderlaufen).
+
 ## R8 Rechte, Aufrufer und Rückfragen
 
 **Entscheidung**:
@@ -280,6 +329,10 @@ hängt an der Browser-Erweiterung aus 049, die es nur auf Desktop-Browsern gibt.
 
 ## R14 Stufe 2: Tabs im Browser des Nutzers
 
+**Zurückgestellt am 2026-11-01**: Die Ziele brauchen den Browser des Nutzers nicht, weil
+Anmeldungen und Zahlungsdaten aus dem Passwortmanager kommen (US4). Die Entscheidung unten bleibt
+als Entwurf.
+
 **Entscheidung**: Die Erweiterung aus 049 bekommt Protokollnachrichten für übergebene Tabs
 ([contracts/extension-tabs.md](./contracts/extension-tabs.md)): `agentTab.handOver`/`take back`
 (Nutzer in der Erweiterung), `agentTab.read`, `.click`, `.type`, `.select`, `.scroll`,
@@ -303,5 +356,8 @@ Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 | B   | Grundlage: `NativeCall` mit Aufrufer und Stufe, native Aktionen über MCP, `confirmsItself` im MCP-Zugang, Rechtegruppe `browser`, Passwort-Zuordnung als Dienst |
 | C   | Agenten-Browser: Finden, Start über Pipe, CDP-Client, Profil verschlüsselt, Lesen, Navigieren mit Website-Prüfung (US1)                                         |
 | D   | Bedienen, Absenden-Erkennung, Rückfragen, Markierung, Eingreifen, Stoppen, Sitzungsanzeige (US2, US3)                                                           |
-| E   | Anmeldedaten eintragen (US4), Downloads und Hochladen (US5)                                                                                                     |
-| F   | Tabs im Browser des Nutzers (US6), zusammen mit einer Version der Erweiterung                                                                                   |
+| E0  | vault-sdk: Crate `haex-autofill` mit der Zuordnungsregel der Erweiterung (R7a), eigener PR dort, in holzi gepinnt                                               |
+| E1  | Anmeldedaten und andere Daten aus dem Passwortmanager eintragen (US4, R7, R7a)                                                                                  |
+| E2  | Downloads und Hochladen (US5)                                                                                                                                   |
+| –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                              |
+| F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                  |
