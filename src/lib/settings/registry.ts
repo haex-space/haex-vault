@@ -225,6 +225,16 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.assistant.labels.speechRate',
     ],
   }),
+  // Spec 066 US8: the assistant's tones, their volume and a sample of each.
+  subView('ai.speech.tones', 'ai/speech/tones', 'ai', {
+    icon: 'lucide:bell-ring',
+    group: 'speech',
+    overviewRow: true,
+    settingKeys: [
+      'settings.assistant.labels.tonesEnabled',
+      'settings.assistant.labels.tonesVolume',
+    ],
+  }),
   subView('ai.autonomy', 'ai/autonomy', 'ai', {
     icon: 'lucide:shield',
     group: 'agents',

@@ -1,8 +1,9 @@
-//! The voice sample of the settings page (spec 066 T028, FR-030): two sentences in the voice's
-//! language at the chosen rate, through the assistant's mixer. While the assistant runs, its stream
-//! carries the sample; otherwise a stream with only the speaker opens for it, so a sample never
-//! turns the microphone on.
+//! The samples of the settings pages (spec 066 T028, T030): a voice says two sentences in its
+//! language at the chosen rate, a tone sounds at the chosen volume, through the assistant's mixer.
+//! While the assistant runs, its stream carries a sample; otherwise a stream with only the speaker
+//! opens for it, so a sample never turns the microphone on.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
@@ -14,6 +15,7 @@ use crate::audio::source::{Read, Source};
 use crate::audio::stream::{AudioStream, Output};
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
+use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
 use super::local::{Engine, Reference};
@@ -140,24 +142,36 @@ pub async fn run(
     let language = voice.language.as_str();
     state
         .gate()
-        .spawn_blocking(move || -> Result<()> {
-            if let Some(stream) = shared {
-                play(&*model, &reference, language, rate, stream.mixer(), &cancel)?;
-                return Ok(());
-            }
-            let stream =
-                AudioStream::start(&gate, Box::new(NoInput), Output::Device).map_err(|e| {
-                    log::warn!("open the speaker for a voice sample: {e}");
-                    HolziError::DeviceUnavailable
-                })?;
-            if play(&*model, &reference, language, rate, stream.mixer(), &cancel)? {
-                std::thread::sleep(TAIL);
-            }
-            stream.stop();
-            Ok(())
+        .spawn_blocking(move || {
+            on_speaker(&gate, shared, |mixer| {
+                Ok(play(&*model, &reference, language, rate, mixer, &cancel)?)
+            })
         })?
         .await
         .map_err(|e| HolziError::SpeechFailed {
             reason: format!("voice sample: {e}"),
         })?
+}
+
+/// Runs `sample` on the assistant's mixer while its stream runs (`shared`), otherwise on a stream
+/// with only the speaker, which stays open until the device has played what `sample` queued.
+/// `sample` returns whether it played to its end. Blocks; call it off the async runtime.
+pub fn on_speaker(
+    gate: &VaultGate,
+    shared: Option<Arc<AudioStream>>,
+    sample: impl FnOnce(&MixerInput) -> Result<bool>,
+) -> Result<()> {
+    if let Some(stream) = shared {
+        sample(stream.mixer())?;
+        return Ok(());
+    }
+    let stream = AudioStream::start(gate, Box::new(NoInput), Output::Device).map_err(|e| {
+        log::warn!("open the speaker for a sample: {e}");
+        HolziError::DeviceUnavailable
+    })?;
+    if sample(stream.mixer())? {
+        std::thread::sleep(TAIL);
+    }
+    stream.stop();
+    Ok(())
 }

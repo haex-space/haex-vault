@@ -163,10 +163,12 @@ without restart. Play every tone.
 - [x] T029 [US8] Settings page src/components/settings/assistant/VoiceSetting.vue under KI → Sprache: voices per language for all six languages from `tts_voices_list` (built-in now, own voices and imported models from PR K) with size and fit (OptionRow, pattern of SttModelSetting.vue), "Probe", rate slider; saved on selection as device preferences `assistant.voice.<sprache>` (a `VoiceRef`) and `assistant.speechRate`
   - Done 2026-11-01: route `ai/speech/voice` (row "Stimme" in the group "Sprache" of the KI overview). Size and fit belong to the speech model of a language, so the page shows them once under each language instead of on every voice. A sample of a voice whose model is missing asks before the download (043 FR-028).
 - [x] T136 [US8] STT model list in src/components/settings/SttModelSetting.vue shows the engine and, for Parakeet, "25 europäische Sprachen"; texts in de.json and en.json; selection saved as today
-- [ ] T030 [US8] Settings page src/components/settings/assistant/TonesSetting.vue: list of tones with "Anhören", on/off `assistant.tones.enabled`, volume `assistant.tones.volume`; note that "Hört zu" and "Geheimnis" always play (FR-045)
-- [ ] T031 [P] [US8] Register both pages in src/lib/settings/registry.ts and src/components/wm/appRoutes.ts below `ai.speech`; texts in src/i18n/locales/de.json and en.json under `assistant.*`
-  - Voice page registered with T029 (`ai.speech.voice`); its texts are under `settings.voice.*` and the labels of all assistant settings under `settings.assistant.labels.*`, like the other settings pages. The tone page follows with T030.
-- [ ] T032 [P] [US8] Credits for CC-BY voice weights in the app's licence view (where third-party licences are listed) from the `attribution` fields of `tts_catalog.json` and `tts/voices/voices.json`
+- [x] T030 [US8] Settings page src/components/settings/assistant/TonesSetting.vue: list of tones with "Anhören", on/off `assistant.tones.enabled`, volume `assistant.tones.volume`; note that "Hört zu" and "Geheimnis" always play (FR-045)
+  - Done 2026-11-01: route `ai/speech/tones`. "Anhören" is the new command `assistant_tone_preview {tone, volume}` (contract updated); it plays at the slider's volume, also with tones off, through the same speaker path as the voice sample.
+- [x] T031 [P] [US8] Register both pages in src/lib/settings/registry.ts and src/components/wm/appRoutes.ts below `ai.speech`; texts in src/i18n/locales/de.json and en.json under `assistant.*`
+  - Done 2026-11-01 with T029 and T030: `ai.speech.voice` and `ai.speech.tones`. The texts are under `settings.voice.*` and `settings.tones.*`, the labels of all assistant settings under `settings.assistant.labels.*`, like the other settings pages.
+- [x] T032 [P] [US8] Credits for CC-BY voice weights in the app's licence view (where third-party licences are listed) from the `attribution` fields of `tts_catalog.json` and `tts/voices/voices.json`
+  - Done 2026-11-01: command `speech_credits` (src-tauri/src/tts/credits.rs) lists every built-in voice, every speech model and the speech recognition models whose catalog entry carries an attribution (parakeet-primeline is CC BY too); "Allgemein → Lizenzen" shows them below the icon sets.
 
 **Checkpoint (PR B done)**: Voice and tone settings work; the assistant itself is still hidden.
 

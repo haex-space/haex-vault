@@ -20,6 +20,8 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `assistant_enroll_cancel`     | `{sessionId}`                                                   | –                                                    | FR-008         |
 | `assistant_wakeword_probe`    | `{active: bool}`                                                | –                                                    | US7            |
 | `assistant_tts_preview`       | `{voice: VoiceRef, rate}`                                       | –                                                    | FR-030         |
+| `assistant_tone_preview`      | `{tone: ToneId, volume}`                                        | –                                                    | FR-045         |
+| `speech_credits`              | –                                                               | `SpeechCredit[]`                                     | FR-046         |
 | `tts_voices_list`             | –                                                               | `VoiceOption[]`                                      | FR-029, FR-053 |
 | `list_tts_catalog`            | –                                                               | `TtsCatalogEntry[]` mit Eignung                      | FR-029         |
 | `list_installed_tts_voices`   | –                                                               | `string[]`                                           | FR-029         |
@@ -47,6 +49,9 @@ vorher (Fortschritt als `assistant-download-progress`); die Oberfläche fragt da
 FR-028, `model_download_check` mit `{kind: "tts", id: modelId}`). Läuft der Assistent, spielt die
 Probe über seinen Stream, sonst über einen Stream nur mit Lautsprecher, nie mit Mikrofon. Eine
 neue Probe beendet die laufende. Bis PR K nimmt der Befehl nur `builtin:`-Stimmen an.
+`assistant_tone_preview` spielt einen Ton einmal mit `volume` (0–100) auf demselben Weg, auch bei
+ausgeschalteten Tönen. `speech_credits` liefert für „Allgemein → Lizenzen“ jede mitgelieferte Stimme,
+jedes Stimmenmodell und die Spracherkennungsmodelle mit Namensnennung.
 
 Einstellungen, die nur gespeichert werden, laufen über die vorhandenen `set_pref`/`get_pref` mit
 `PrefScope::Device`; der Assistent beobachtet die Schlüssel und übernimmt Änderungen ohne Neustart
@@ -65,6 +70,8 @@ AssistantStateWire {
 }
 Missing = "sttModel"|"vadModel"|"wakeWordModel"|"voice"|"chatModel"|"microphone"
 VoiceRef = "builtin:<id>" | "clone:<id>" | "model:<id>" | "model:<id>#<sprecher>"   # data-model.md
+SpeechCredit = { kind: "voice"|"speechModel"|"recognitionModel", name, language: string|null,
+                 license, attribution, source }
 VoiceOption = { ref: VoiceRef, kind: "builtin"|"clone"|"model", name, language,
                 modelId, installed: bool, sizeBytes, fit, isDefault: bool }
 # modelId, installed, sizeBytes, fit: the speech model the voice needs (tts_catalog.json);
