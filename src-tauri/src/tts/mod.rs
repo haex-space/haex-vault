@@ -13,6 +13,9 @@ mod files_tests;
 pub mod local;
 #[cfg(all(test, feature = "voice"))]
 mod local_tests;
+pub mod voices;
+#[cfg(test)]
+mod voices_tests;
 
 /// The six languages haex speaks and parses (research R22).
 pub const LANGUAGES: [&str; 6] = ["de", "en", "fr", "es", "it", "pt"];
