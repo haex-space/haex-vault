@@ -9,13 +9,16 @@ mod mcp_fixture;
 use std::collections::HashMap;
 use std::time::Duration;
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use rmcp::ServiceExt;
+use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::transport::auth::{AuthClient, AuthorizationRequest, OAuthState as ClientOAuth};
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
-use rmcp::transport::StreamableHttpClientTransport;
-use rmcp::ServiceExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
@@ -302,13 +305,32 @@ async fn requests_from_web_pages_and_oversized_bodies_are_refused() {
         assert_eq!(scripted.status(), 403, "{path}");
     }
 
-    let huge = http()
-        .post(format!("{base}/oauth/register"))
-        .body(vec![b' '; 1024 * 1024 + 1])
-        .send()
+    // Announce an oversized body without sending it: the server should reject the headers
+    // immediately, and the test client must not race that response by writing a megabyte.
+    let mut oversized = TcpStream::connect(("127.0.0.1", port.parse::<u16>().expect("port")))
         .await
-        .expect("a response");
-    assert_eq!(huge.status(), 413);
+        .expect("connect to HTTP server");
+    oversized
+        .write_all(
+            format!(
+                "POST /oauth/register HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                1024 * 1024 + 1
+            )
+            .as_bytes(),
+        )
+        .await
+        .expect("send oversized content length");
+    let mut response = Vec::new();
+    oversized
+        .read_to_end(&mut response)
+        .await
+        .expect("read oversized response");
+    assert!(
+        String::from_utf8_lossy(&response)
+            .lines()
+            .next()
+            .is_some_and(|status| status.contains(" 413 "))
+    );
 
     let metadata: Value = http()
         .get(format!("{base}/.well-known/oauth-authorization-server"))
