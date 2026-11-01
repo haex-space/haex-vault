@@ -4,29 +4,29 @@
  * name, start of the last message, time, unread count and a muted mark.
  */
 import type { PeerConversationEntry } from '~/composables/useConversations'
+import { listTime } from '~/lib/chat/listTime'
 
 const props = defineProps<{
   peer: PeerConversationEntry
   active: boolean
+  /** The test hook; the "Ich" entry has its own. */
+  testId?: string
 }>()
 
 const emit = defineEmits<{ select: [] }>()
 
 const { t, d } = useI18n()
 
-const time = computed(() => {
-  const at = new Date(props.peer.lastAt)
-  const today = new Date().toDateString() === at.toDateString()
-  return today
-    ? d(at, { hour: '2-digit', minute: '2-digit' })
-    : d(at, { day: '2-digit', month: '2-digit' })
-})
+// The "Ich" entry before the first note has no time.
+const time = computed(() =>
+  props.peer.lastAt > 0 ? listTime(props.peer.lastAt, d) : '',
+)
 </script>
 
 <template>
   <button
     type="button"
-    data-testid="chat-peer"
+    :data-testid="testId ?? 'chat-peer'"
     class="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="{ 'bg-accent font-medium': active }"
     @click="emit('select')"

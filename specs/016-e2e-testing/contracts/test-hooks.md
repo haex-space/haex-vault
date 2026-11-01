@@ -23,15 +23,15 @@ They are part of this contract now: renaming one means updating the helpers in t
 
 ## Hooks to add
 
-| Hook                                                             | Element                                                               | File                                                     | Lines added |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------- | ----------- |
-| `data-testid="instance-entry"` and `data-instance-name="<name>"` | The button of each instance in the start list                         | `src/components/onboarding/InstancesList.vue` (44 lines) | 2           |
-| `data-testid="open-launcher"`                                    | The round button that opens the workspace app launcher                | `src/components/shell/ShellDesktop.vue`                  | 1           |
-| `data-testid="open-chat"`                                        | The Chat tile in the workspace app launcher                           | `src/components/shell/ShellLauncher.vue`                 | 1           |
-| `data-testid="lock-instance"`                                    | The lock tile in the app launcher (open it with `open-launcher`)      | `src/components/wm/Launcher.vue`                         | 1           |
-| `data-testid="link-submit"`                                      | The submit button of the form "Mit einer Vault verknüpfen" (spec 033) | `src/components/onboarding/LinkSheet.vue`                | 1           |
-| `data-testid="chat-input"`, `data-testid="chat-send"`            | The composer's text area and send button (spec 033)                   | `src/components/chat/Composer.vue`                       | 2           |
-| `data-testid="chat-new"`, `data-testid="chat-thread"`            | The new-chat button and each row of the thread list (spec 033)        | `src/components/chat/ThreadSidebar.vue`                  | 2           |
+| Hook                                                                                | Element                                                                                              | File                                                                                  | Lines added |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------- |
+| `data-testid="instance-entry"` and `data-instance-name="<name>"`                    | The button of each instance in the start list                                                        | `src/components/onboarding/InstancesList.vue` (44 lines)                              | 2           |
+| `data-testid="open-launcher"`                                                       | The round button that opens the workspace app launcher                                               | `src/components/shell/ShellDesktop.vue`                                               | 1           |
+| `data-testid="open-chat"`                                                           | The Chat tile in the workspace app launcher                                                          | `src/components/shell/ShellLauncher.vue`                                              | 1           |
+| `data-testid="lock-instance"`                                                       | The lock tile in the app launcher (open it with `open-launcher`)                                     | `src/components/wm/Launcher.vue`                                                      | 1           |
+| `data-testid="link-submit"`                                                         | The submit button of the form "Mit einer Vault verknüpfen" (spec 033)                                | `src/components/onboarding/LinkSheet.vue`                                             | 1           |
+| `data-testid="chat-input"`, `data-testid="chat-send"`                               | The composer's text area and send button (spec 033)                                                  | `src/components/chat/Composer.vue`                                                    | 2           |
+| `data-testid="chat-new"`, `data-testid="chat-history"`, `data-testid="chat-thread"` | "Neue Sitzung" and "Verlauf" of the agent and each session in "Verlauf" (spec 033, spec 072 FR-002a) | `src/components/chat/AgentHeader.vue`, `src/components/chat/AgentSessionsPopover.vue` | 2           |
 
 `data-instance-name` carries the instance's name, which is data, not interface text, so an entry can be
 found by name without reading what is displayed.

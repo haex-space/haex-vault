@@ -1,15 +1,9 @@
 <script setup lang="ts">
 /*
- * Split across `useChatTranscript`/`useThreadSidebar`/`useComposer`/
- * `useComposerAttachments` (composables) and `ThreadSidebar`/`MessageList`/
- * `Composer` (components, spec 015-workspace-shell T010-T013) — see their
- * own headers. What's left is orchestration: shared page-level state,
- * model-store wiring, permission/autonomy-mode persistence, `onMounted`
- * listener setup, and the window manager-app contract (`useWmTab`, T032).
- *
- * Moved from `pages/chat/[instance].vue` into a window manager app (T021): instance
- * name from `useInstancesStore()` (no route of its own anymore). Onboarding enforcement moved to
- * the window manager host page (T025).
+ * Orchestration of the chat window manager app (specs 015, 072): shared state, model-store wiring,
+ * permission/autonomy persistence, listener setup and the app contract (`useWmTab`). The parts live
+ * in their composables (`useChatTranscript`, `useThreadSidebar`, `useComposer`, …) and components
+ * (`ThreadSidebar`, `AgentHeader`, `MessageList`, `Composer`, `PeerConversation`).
  */
 import {
   computed,
@@ -306,8 +300,7 @@ onVaultTablesChanged(['chat_threads'], async () => {
 onVaultTablesChanged(['chat_messages'], async () => {
   if (turnSetupPending.value) return
   try {
-    // Keep the active thread untouched while its local turn runs, but do not let that
-    // suppress updates for other already-loaded threads.
+    // The active thread is left alone while its local turn runs; other loaded threads update.
     await refreshLoadedMessages(busy.value ? activeThreadId.value : undefined)
   } catch (e: unknown) {
     if (!unmounted) lastError.value = errString(e)
@@ -370,31 +363,15 @@ onBeforeUnmount(() => {
     <template #sidebar="{ run }">
       <ChatThreadSidebar
         :instance-name="instanceName"
-        :busy="busy"
         :threads="threads"
-        :active-thread-id="activeThreadId"
-        :editing-thread-id="editingThreadId"
-        :draft-title="draftTitle"
-        :edit-title-error="editTitleError"
-        :renaming-thread-id="renamingThreadId"
-        :delete-candidate="deleteCandidate"
-        :delete-error="deleteError"
-        :deleting-thread="deletingThread"
-        :history-duration-label="historyDurationLabel"
-        :opening-time-label="openingTimeLabel"
+        :agent-active="activePeerId === null"
         :peers="peers.conversations.value"
+        :notes="peers.notes.value"
         :active-peer-id="activePeerId"
-        @update:draft-title="draftTitle = $event"
-        @new-chat="run(ui.newConversation)"
-        @select-thread="(id) => run(() => ui.openConversation(id))"
-        @start-editing="startEditing"
-        @save-title="ui.saveTitle"
-        @cancel-editing="cancelEditing"
-        @request-delete="requestDelete"
-        @close-delete-dialog="closeDeleteDialog"
-        @confirm-delete="ui.confirmDelete"
+        @select-agent="run(ui.openAgent)"
+        @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
-        @write-contact="newContactOpen = true"
+        @new-conversation="newContactOpen = true"
       />
     </template>
 
@@ -408,6 +385,34 @@ onBeforeUnmount(() => {
     />
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
+      <ChatAgentHeader
+        :threads="threads"
+        :active-thread-id="activeThreadId"
+        :busy="busy"
+        @new-session="ui.newConversation"
+      >
+        <ChatAgentSessionsPopover
+          :threads="threads"
+          :active-thread-id="activeThreadId"
+          :editing-thread-id="editingThreadId"
+          :draft-title="draftTitle"
+          :edit-title-error="editTitleError"
+          :renaming-thread-id="renamingThreadId"
+          :delete-candidate="deleteCandidate"
+          :delete-error="deleteError"
+          :deleting-thread="deletingThread"
+          :history-duration-label="historyDurationLabel"
+          :opening-time-label="openingTimeLabel"
+          @update:draft-title="draftTitle = $event"
+          @select="ui.openConversation"
+          @start-editing="startEditing"
+          @save-title="ui.saveTitle"
+          @cancel-editing="cancelEditing"
+          @request-delete="requestDelete"
+          @close-delete-dialog="closeDeleteDialog"
+          @confirm-delete="ui.confirmDelete"
+        />
+      </ChatAgentHeader>
       <ChatStatusBanners
         :displayed-error="displayedError"
         :can-retry-send="!!pendingSend"

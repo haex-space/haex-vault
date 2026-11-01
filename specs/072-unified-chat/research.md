@@ -367,8 +367,15 @@ Anfrage"), no text. Android: permission requested on first use (desktop.rs:135-1
   (`useChatTab`); its model wiring moves into `useAgentModelState.ts` to stay below 500 lines
   (PR B). A contact or group conversation renders `chat/PeerConversation.vue` instead of the agent
   section (message list, composer without agent controls, members panel for groups).
-- `ThreadSidebar.vue` becomes the conversation list with kind filter; peer rows in
-  `PeerListItem.vue` with avatars (`ContactsAvatar`), unread badge (`ShadcnBadge`); "Anfragen" entry.
+- `ThreadSidebar.vue` becomes the conversation list; peer rows in `PeerListItem.vue` with avatars
+  (`ContactsAvatar`), unread badge (`ShadcnBadge`); "Anfragen" entry. _Revised 2026-11-01 (PR B2):_ no
+  kind filter; the agent is one entry (`AgentListItem.vue`) whose sessions are reached through
+  `AgentHeader.vue` ("Neue Sitzung") and `AgentSessionsPopover.vue` ("Verlauf"). The routes stay:
+  `thread/:id` still names the open agent session, so tab history and actions keep working. No
+  backend change for it: the "Agent" entry takes time and title from the newest row of `list_threads`
+  (already ordered by `updated_at`). The "Ich" entry is a conversation of kind `note` with an id
+  derived from the own vault: notes are `chat_peer_messages` rows without delivery or outbox rows, so
+  the CRDT sync of the own devices is their only way, and the delivery service never sees them.
 - Routes (appRoutes.ts:277-285): keep `''` and `thread/:id` for agent conversations, add
   `contact/:id` for contact and group conversations (it opens on top of the agent conversation,
   which keeps running) and `requests`.

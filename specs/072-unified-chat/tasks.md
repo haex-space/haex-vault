@@ -108,6 +108,34 @@ direct conversation from the address book and see it in the same list (spec US1)
 
 ---
 
+## Phase 3b: User Story 1 revision - The list as a messenger (Priority: P1) (PR B2)
+
+**Goal**: the list looks like a common messenger (clarification 2026-11-01): one entry per contact and
+group plus exactly one "Agent" and one "Ich" entry; agent sessions live behind "Neue Sitzung" and
+"Verlauf" in the agent's conversation view; "Ich" holds notes to oneself (FR-001, FR-002, FR-002a,
+FR-002b, FR-004).
+
+**Independent Test**: open the chat with several agent sessions and a contact conversation: the list
+shows "Agent", "Ich" and the contact once each; "Agent" opens the latest session, "Verlauf" lists every
+session, "Neue Sitzung" opens an empty one; a note written under "Ich" shows without delivery state and
+queues nothing for Nostr.
+
+- [x] T112 [P] [US1] New `src/components/chat/AgentListItem.vue`: the "Agent" entry with the agent icon, name `chat.agent.name`, the title of the latest session as preview and its time, styled like `PeerListItem.vue` (FR-001)
+- [x] T113 [US1] `src/components/chat/ThreadSidebar.vue` becomes the messenger list: drop the kind filters and the per-session rows, render the "Agent" entry (always, sorted by its latest session's `updatedAt`) among the peer rows by newest activity, one button "Neue Unterhaltung" that opens `NewContactDialog` (FR-001, FR-002, FR-004); the "Anfragen" entry still comes with PR D
+- [x] T114 [US1] New `src/components/chat/AgentSessionsPopover.vue` ("Verlauf"): every agent session with title and time, newest first, open, rename and delete with the confirmation dialog, moved from `ThreadSidebar.vue` (FR-002a)
+- [x] T115 [US1] New `src/components/chat/AgentHeader.vue` above the agent conversation in `src/components/apps/ChatApp.vue`: name, the open session's title, "Neue Sitzung" (`data-testid="chat-new"`) and "Verlauf" (`data-testid="chat-history"`); a click on the "Agent" entry opens the latest session, or a new one when there is none (FR-001, FR-002a)
+- [x] T116 [P] [US1] i18n `chat.agent.*`, `chat.list.newConversation`; drop `chat.list.filter.*` in `src/i18n/locales/de.json` and `en.json`
+- [x] T117 [P] [US1] E2E helpers in `scripts/e2e/lib/sync-ui.ts`: `chatTitles` reads the sessions from "Verlauf" (opens it when closed); update the hooks table in `specs/016-e2e-testing/contracts/test-hooks.md`
+- [x] T119 [P] [US1] Tests in `src-tauri/src/chat/peer/notes_tests.rs` for notes: `open_note` creates once with the id derived from the own vault and only the own vault as member, the list shows it with kind `note` and no unread count, a note is stored without `chat_deliveries` or outbox rows, a retry with the same key answers the first note, delete removes it (FR-002b)
+- [x] T120 [US1] `ConversationKind::Note` in `src-tauri/src/chat/peer/store.rs`, `ids::note_thread_id` in `ids.rs`, `store::open_note`; `send::message` stores a note without envelope, delivery or outbox rows (FR-002b)
+- [x] T121 [US1] Command `chat_conversation_open_note` in `src-tauri/src/chat/peer/commands/conversations.rs`, registered in `src-tauri/src/lib.rs`; regenerate the `ChatConversationKind` binding
+- [x] T122 [US1] "Ich" entry in the list (`src/components/chat/ThreadSidebar.vue`, name and photo of the own contact, `data-testid="chat-notes"`), opened through a tab action `chat.notes.open` in `src/composables/useChatTab.ts` and `src/lib/wm/chatActions.ts`; `PeerConversation.vue` shows notes without mute and relay hint (FR-002b)
+- [x] T118 [US1] Checks: `pnpm lint`, `pnpm typecheck`, `pnpm check:chat-state`, `pnpm check:wm-navigation`, `pnpm format:check`
+
+**Checkpoint**: the list reads like a messenger; agent sessions are reached only through the agent.
+
+---
+
 ## Phase 4: User Story 2 - Write with a contact, online or not (Priority: P1) (PR C1 + C2)
 
 **Goal**: text messages to a contact over stored Nostr gift wraps, with delivery states, own-device
@@ -308,6 +336,7 @@ confirm (sent) (spec US7, quickstart A10).
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).
+- **PR B2** (list revision) needs PR B; independent of C–I.
 - **US2 (PR C)** needs PR B. Everything after needs PR C (transport).
 - **US5 (PR D)**, **US3 (PR E)** need PR C; independent of each other.
 - **US4 (PR F)** needs PR C (group pictures go inline, ≤ 16 KiB base64 (R2)); file messages in groups work once PR E is merged.

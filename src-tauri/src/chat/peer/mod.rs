@@ -37,3 +37,7 @@ mod own_devices_tests;
 #[cfg(test)]
 #[path = "soak_tests.rs"]
 mod soak_tests;
+
+#[cfg(test)]
+#[path = "notes_tests.rs"]
+mod notes_tests;
