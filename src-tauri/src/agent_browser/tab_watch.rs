@@ -8,7 +8,7 @@ use futures::future::BoxFuture;
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use super::cdp::{fetch, runtime, target, Connection, Event};
+use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::submit;
@@ -71,10 +71,13 @@ pub(super) fn watch(
                         reports.clone(),
                     ));
                     let connection = Arc::clone(&connection);
+                    let texts = reports.texts.clone();
                     tokio::spawn(async move {
                         // The frame waits for holzi; its documents are held before it may go on.
                         let _ = fetch::hold_requests(&connection, &child).await;
                         let _ = target::attach_frames(&connection, &child).await;
+                        let _ = page::enable(&connection, &child).await;
+                        let _ = marker::install(&connection, &child, &texts).await;
                         let _ = runtime::run_if_waiting(&connection, &child).await;
                     });
                 }

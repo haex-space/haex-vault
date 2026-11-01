@@ -63,9 +63,9 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 - Der Nutzer greift ein mit „Eingreifen“ (Sitzungsleiste oder Markierung), auf Bitte des Agenten
   (`browser.takeover.request`, Rückfrage `takeover` mit dem Grund als Angabe des Agenten) oder
   durch eine eigene Eingabe im Tab: Die Markierung meldet jeden vertrauenswürdigen `pointerdown`
-  und `keydown` außerhalb der Leiste über die Bindung (`input`); in eingebetteten Frames meldet ein
-  eigener Listener diese Ereignisse, da sie nicht zum Hauptframe aufsteigen. holzi ignoriert die
-  Meldung während seiner eigenen `Input.*`-Aufrufe und 500 ms danach (R6).
+  und `keydown` außerhalb der Leiste über die Bindung (`input`); eingebettete Frames erhalten den
+  Listener auf ihrem Frame-Target, da ihre Ereignisse nicht zum Hauptframe aufsteigen. holzi
+  ignoriert die Meldung während seiner eigenen `Input.*`-Aufrufe und 500 ms danach (R6).
 - Während der Pause endet der laufende Aufruf innerhalb einer Sekunde mit `paused`, jeder weitere
   bekommt `paused`; nur `browser.takeover.request` wartet bis zum Zurückgeben (`returned: true`).
   Die Markierung zeigt „Zurückgeben“: im aktuellen Dokument über `Runtime.evaluate` in holzis Welt
