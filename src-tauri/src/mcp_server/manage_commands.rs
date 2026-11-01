@@ -265,12 +265,12 @@ pub async fn mcp_agent_unblock<R: Runtime>(
 
 /// Lifts a persisted and session-local block, so the agent can ask for registration again.
 pub async fn unblock(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) -> Result<()> {
-    let slug = db
+    let (slug, transport) = db
         .write(move |tx| manage::unblock(tx, device, id))
         .await?
         .ok_or_else(unknown_agent)?;
     if let Some(core) = core {
-        core.undecline(&slug);
+        core.undecline(&slug, transport);
     }
     Ok(())
 }

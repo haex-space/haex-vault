@@ -277,7 +277,16 @@ eventsource-stream = "0.2"
 # `server` (spec 021): holzi is also the MCP server external agents reach over a Unix socket or a
 # named pipe (`mcp_server/`, ADR-0005); it adds no crate the dev-dependency entry below did not
 # already build.
-rmcp = { version = "=3.5.0", default-features = false, features = ["client", "transport-child-process", "server"] }
+# `transport-streamable-http-server` (spec 021 PR G, research R1): the HTTP way for clients that
+# speak only HTTP and for Android/iOS. holzi is its own OAuth server (`mcp_server/oauth*.rs`); rmcp's
+# `auth` feature is client-only, so it is a dev-dependency feature below.
+rmcp = { version = "=3.5.0", default-features = false, features = ["client", "transport-child-process", "server", "transport-streamable-http-server"] }
+# The loopback listener of the HTTP way (spec 021 T092), no `axum`. Already in the tree through
+# reqwest and rmcp.
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+tower-service = "0.3"
 # The config and runtime directories of the `--mcp-agent` helper (spec 021, contracts/agent-helper.md),
 # which runs without Tauri's path resolver. Already in the lockfile through other crates.
 dirs = "7"
@@ -457,7 +466,8 @@ plist = "1.10"
 # `cli_delegate`'s own MCP server (permission_mcp_server.rs) does not use
 # this — it's a minimal hand-rolled stdio loop, not an rmcp `ServerHandler`
 # (Cargo.toml `[dependencies]` comment above).
-rmcp = { version = "=3.5.0", default-features = false, features = ["server"] }
+# Spec 021 T091: `auth` and the reqwest HTTP client drive a real MCP OAuth client against the HTTP way.
+rmcp = { version = "=3.5.0", default-features = false, features = ["server", "auth", "transport-streamable-http-client-reqwest", "reqwest"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "test-util"] }
 futures = "0.3"
 # HTTP mock server for adapter tests — spins a local listener on a
@@ -466,8 +476,6 @@ wiremock = "0.6"
 # Spec 050 (research R14): a WebDAV server in the test process with its files in memory, for the
 # stateful tests of the WebDAV store; served over `hyper` (already in the tree through reqwest).
 dav-server = { version = "0.11", default-features = false, features = ["memfs"] }
-hyper = { version = "1", features = ["server", "http1"] }
-hyper-util = { version = "0.1", features = ["tokio"] }
 # Spec 034 (spike T003, fixtures T079): writing a KDBX 4 file and generating an RSA key exist only
 # in tests, the shipped build reads KDBX and never writes it or generates keys.
 keepass = { version = "0.15", features = ["save_kdbx4"] }

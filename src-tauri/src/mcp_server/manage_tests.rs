@@ -212,7 +212,7 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
 async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
     let v = vault();
     let device = v.device;
-    v.db.write(move |tx| block(tx, device, "pest", "pest", NOW))
+    v.db.write(move |tx| block(tx, device, "pest", "pest", Transport::Ipc, NOW))
         .await
         .expect("block");
     let blocked =

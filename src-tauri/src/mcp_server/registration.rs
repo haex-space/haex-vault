@@ -105,7 +105,7 @@ pub(super) async fn register(context: RegistrationContext) {
         Ok(answer) => answer,
         // No window, no answer in time: as if declined once (US1 scenario 4).
         Err(PromptEnd::Expired | PromptEnd::NoWindow) => {
-            core.decline(&slug);
+            core.decline(&slug, Transport::Ipc);
             link.end(CloseReason::Denied);
             return;
         }
@@ -120,13 +120,22 @@ pub(super) async fn register(context: RegistrationContext) {
             let blocked_name = client_name.clone();
             if let Err(error) = core
                 .db
-                .write(move |tx| registry::block(tx, device, &blocked_slug, &blocked_name, now))
+                .write(move |tx| {
+                    registry::block(
+                        tx,
+                        device,
+                        &blocked_slug,
+                        &blocked_name,
+                        super::registry::Transport::Ipc,
+                        now,
+                    )
+                })
                 .await
             {
                 log::warn!("mcp server: could not remember a block: {error}");
             }
         }
-        core.decline(&slug);
+        core.decline(&slug, Transport::Ipc);
         (core.notify)(Notice::Changed);
         link.end(CloseReason::Denied);
         return;

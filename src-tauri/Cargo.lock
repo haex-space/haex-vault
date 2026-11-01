@@ -4793,6 +4793,7 @@ dependencies = [
  "haex-crdt",
  "hkdf",
  "hmac",
+ "http-body-util",
  "httpdate",
  "hyper",
  "hyper-util",
@@ -4864,6 +4865,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-tungstenite",
  "tokio-util",
+ "tower-service",
  "trash",
  "ts-rs",
  "unicode-normalization",
@@ -7579,6 +7581,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
+name = "oauth2"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
+dependencies = [
+ "base64 0.21.7",
+ "chrono",
+ "getrandom 0.2.17",
+ "http",
+ "rand 0.8.8",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9495,20 +9516,32 @@ version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fae7019994ae0fe4ada40b732f798f3ff26f0f04facb1477f1bf37eb4f18a2d3"
 dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
  "chrono",
  "futures",
+ "http",
+ "http-body",
+ "http-body-util",
  "indexmap 2.14.2",
+ "oauth2",
  "pastey 0.2.3",
  "pin-project-lite",
  "process-wrap",
+ "rand 0.10.3",
+ "reqwest 0.13.5",
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "sse-stream",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tower-service",
  "tracing",
+ "url",
  "uuid 1.26.1",
 ]
 
@@ -10331,6 +10364,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
 name = "serde_plain"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10889,6 +10933,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "sse-stream"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c25ac7aff0abd1dbc474536e40416e1102c7dd9bfba0b9861c6d357f835dcfb4"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "http-body",
+ "http-body-util",
+ "pin-project-lite",
 ]
 
 [[package]]

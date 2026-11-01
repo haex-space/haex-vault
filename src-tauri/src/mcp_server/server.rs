@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 use std::io::ErrorKind;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -17,8 +18,11 @@ use super::delegates::DelegateHub;
 use super::dispatch::CallSlots;
 use super::endpoint;
 use super::hello::CloseReason;
+use super::http;
 use super::live::Live;
+use super::oauth::OAuthState;
 use super::prompts::{CallPrompts, PromptClosed, RegistrationGate, RegistrationPrompts};
+use super::registry::Transport;
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use crate::chat::tools::native_action::NativeExecutors;
@@ -100,6 +104,9 @@ pub struct StartArgs {
     pub delegates: Arc<DelegateHub>,
     pub notify: Notifier,
     pub limits: Limits,
+    /// The port of the HTTP way (spec 021 PR G); `Some(0)` picks a free one, `None` serves only the
+    /// program way.
+    pub http_port: Option<u16>,
 }
 
 /// What every connection of one running server shares.
@@ -122,31 +129,31 @@ pub struct Core {
     pub limits: Limits,
     pub token: CancellationToken,
     /// Agents the user declined without remembering it; until the vault closes.
-    declined: Mutex<HashSet<String>>,
+    declined: Mutex<HashSet<(Transport, String)>>,
     closing: Mutex<CloseReason>,
 }
 
 impl Core {
-    pub fn declined(&self, slug: &str) -> bool {
+    pub fn declined(&self, slug: &str, transport: Transport) -> bool {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .contains(slug)
+            .contains(&(transport, slug.to_owned()))
     }
 
-    pub fn decline(&self, slug: &str) {
+    pub fn decline(&self, slug: &str, transport: Transport) {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(slug.to_owned());
+            .insert((transport, slug.to_owned()));
     }
 
     /// Allows an agent the user unblocked to ask again during this vault session.
-    pub fn undecline(&self, slug: &str) {
+    pub fn undecline(&self, slug: &str, transport: Transport) {
         self.declined
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(slug);
+            .remove(&(transport, slug.to_owned()));
     }
 
     /// Why the connections end once [`Self::token`] fired.
@@ -164,11 +171,17 @@ impl Core {
 pub struct Running {
     core: Arc<Core>,
     accept: JoinHandle<()>,
+    http: Option<(SocketAddr, JoinHandle<()>)>,
 }
 
 impl Running {
     pub fn core(&self) -> &Arc<Core> {
         &self.core
+    }
+
+    /// Where the HTTP way listens, when it runs.
+    pub fn http_address(&self) -> Option<SocketAddr> {
+        self.http.as_ref().map(|(address, _)| *address)
     }
 
     /// Ends every connection with `reason` and the open dialogs and prompts, and removes the
@@ -178,6 +191,9 @@ impl Running {
         self.core.prompts.cancel_all();
         self.core.calls.cancel_all();
         let _ = self.accept.await;
+        if let Some((_, http)) = self.http {
+            let _ = http.await;
+        }
     }
 }
 
@@ -189,6 +205,14 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
             ErrorKind::AddrInUse => StartError::InUse,
             _ => StartError::Io(error.to_string()),
         })?;
+    let http_listener = match args.http_port {
+        Some(port) => Some(
+            http::bind(port)
+                .await
+                .map_err(|error| StartError::Io(error.to_string()))?,
+        ),
+        None => None,
+    };
     let core = Arc::new(Core {
         db: args.db,
         device: args.device,
@@ -212,8 +236,19 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
     });
     core.delegates.attach(&core);
     let accept = tokio::spawn(accept_loop(Arc::clone(&core), listener));
+    let http = match http_listener {
+        Some(listener) => {
+            let address = listener
+                .local_addr()
+                .map_err(|error| StartError::Io(error.to_string()))?;
+            let oauth = Arc::new(OAuthState::default());
+            let serving = tokio::spawn(http::serve(Arc::clone(&core), oauth, listener));
+            Some((address, serving))
+        }
+        None => None,
+    };
     log::info!("mcp server: listening");
-    Ok(Running { core, accept })
+    Ok(Running { core, accept, http })
 }
 
 async fn accept_loop(core: Arc<Core>, mut listener: endpoint::Listener) {

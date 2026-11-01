@@ -186,22 +186,42 @@ async fn a_block_is_remembered_by_slug_and_a_touch_moves_last_seen() {
     let device = v.device;
     assert!(!v
         .db
-        .read(move |q| is_blocked(q, device, "codex"))
+        .read(move |q| is_blocked(q, device, "codex", Transport::Ipc))
         .await
         .expect("read"));
-    v.db.write(move |tx| block(tx, device, "codex", "codex", 5))
+    v.db.write(move |tx| block(tx, device, "codex", "codex", Transport::Ipc, 5))
         .await
         .expect("blocked");
     assert!(v
         .db
-        .read(move |q| is_blocked(q, device, "codex"))
+        .read(move |q| is_blocked(q, device, "codex", Transport::Ipc))
         .await
         .expect("read"));
     assert!(!v
         .db
-        .read(move |q| is_blocked(q, device, "claude-code"))
+        .read(move |q| is_blocked(q, device, "claude-code", Transport::Ipc))
         .await
         .expect("read"));
+
+    let device = v.device;
+    assert!(!v
+        .db
+        .read(move |q| is_blocked(q, device, "codex", Transport::Http))
+        .await
+        .expect("HTTP read"));
+    v.db.write(move |tx| block(tx, device, "codex", "codex", Transport::Http, 6))
+        .await
+        .expect("HTTP block");
+    assert!(v
+        .db
+        .read(move |q| is_blocked(q, device, "codex", Transport::Http))
+        .await
+        .expect("HTTP read"));
+    assert!(v
+        .db
+        .read(move |q| is_blocked(q, device, "codex", Transport::Ipc))
+        .await
+        .expect("IPC read"));
 
     let digest = hash("c");
     let agent =
