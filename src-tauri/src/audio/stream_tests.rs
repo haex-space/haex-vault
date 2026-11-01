@@ -147,7 +147,13 @@ fn push_to_talk_records_from_the_running_stream() {
     let rig = rig(SAMPLE_RATE_HZ);
     rig.say(ramp(0, 1_600));
     let capture = Capture::from_stream(&rig.stream);
+    // Register the barrier after capture so a receive here proves that the
+    // capture subscriber has already received the block as well.
+    let (_, capture_barrier) = rig.stream.subscribe(0.0);
     rig.say(ramp(1_600, 4_800));
+    capture_barrier
+        .recv_timeout(WAIT)
+        .expect("capture block published");
 
     assert!(!capture.has_capped());
     assert_eq!(capture.stop().samples, ramp(1_600, 4_800));
