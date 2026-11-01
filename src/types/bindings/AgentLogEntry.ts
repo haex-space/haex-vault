@@ -4,15 +4,15 @@ import type { Outcome } from "./Outcome";
 /**
  * One entry as the settings show it.
  */
-export type AgentLogEntry = { id: string, 
+export type AgentLogEntry = { id: string,
 /**
  * Unix milliseconds.
  */
-createdAt: number, tool: string, 
+createdAt: number, tool: string,
 /**
  * `read`, `write`, `destructive`, or empty for a tool holzi does not know.
  */
-effect: string, target: string | null, 
+effect: string, target: string | null,
 /**
  * The redacted inputs as JSON.
  */
