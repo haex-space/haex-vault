@@ -457,6 +457,11 @@ pub fn run() {
                         {
                             monitor.unsubscribe_all();
                         }
+                        if let Some(registry) =
+                            window.try_state::<Arc<chat::peer::session::PeerRegistry>>()
+                        {
+                            registry.clear_viewing();
+                        }
                     }
                 })
                 .on_web_resource_request(move |request, response| {

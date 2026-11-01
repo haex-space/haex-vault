@@ -98,6 +98,14 @@ impl PeerRegistry {
         };
     }
 
+    /// A webview reload invalidates its view ids, so none of its conversations remain visible.
+    pub fn clear_viewing(&self) {
+        self.viewing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+    }
+
     /// Whether a focused window shows `thread_id`: no notification for it then.
     pub fn is_viewing(&self, thread_id: &str) -> bool {
         self.viewing

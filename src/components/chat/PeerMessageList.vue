@@ -96,7 +96,7 @@ function reason(code: string | null) {
             v-if="message.own && message.delivery"
             :name="STATE_ICONS[message.delivery]"
             class="h-3.5 w-3.5"
-            :class="message.delivery === 'read' ? 'text-sky-300' : ''"
+            :class="message.delivery === 'read' ? 'text-primary' : ''"
             :aria-label="t(`chat.delivery.state.${message.delivery}`)"
             :title="t(`chat.delivery.state.${message.delivery}`)"
             data-testid="chat-peer-delivery"
