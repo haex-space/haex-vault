@@ -8,16 +8,16 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 
 ## Changed: `chat_threads` (conversation)
 
-| Column         | Type                             | Notes                                                             |
-| -------------- | -------------------------------- | ----------------------------------------------------------------- |
-| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`; existing rows become `agent` (FR-003) |
-| `state`        | TEXT NOT NULL DEFAULT `'active'` | `active`, `request` (R10), `closed` (left/removed group)          |
-| `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise            |
-| `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                            |
-| `last_read_at` | INTEGER NULL                     | everything with `sort_at` ≤ this is read (FR-022)                 |
-| `picture`      | BLOB NULL                        | group picture, ≤ 64 KiB JPEG/PNG thumbnail                        |
-| `meta_at`      | INTEGER NULL                     | group: sender time of the last rename/picture op (R9)             |
-| `meta_op`      | TEXT NULL                        | group: its op id (tie-break)                                      |
+| Column         | Type                             | Notes                                                                         |
+| -------------- | -------------------------------- | ----------------------------------------------------------------------------- |
+| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`; existing rows become `agent` (FR-003)             |
+| `state`        | TEXT NOT NULL DEFAULT `'active'` | `active`, `request` (R10), `closed` (left/removed group)                      |
+| `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise                        |
+| `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                                        |
+| `last_read_at` | INTEGER NULL                     | everything with `sort_at` ≤ this is read (FR-022)                             |
+| `picture`      | BLOB NULL                        | group picture, ≤ 9 KiB JPEG/PNG thumbnail; fits the 12 KiB base64 event limit |
+| `meta_at`      | INTEGER NULL                     | group: sender time of the last rename/picture op (R9)                         |
+| `meta_op`      | TEXT NULL                        | group: its op id (tie-break)                                                  |
 
 `title` holds the group name; for direct conversations it is empty and the UI shows the contact's name
 (or the carried card's name for a request). Ids: direct = `UUIDv5(CHAT_NS, "direct" ‖ sorted(own vault,
@@ -55,20 +55,21 @@ Rename and picture use the same LWW rule on the thread row: an op whose `(at, op
 
 ## New: `chat_peer_messages` (direct and group messages, notes)
 
-| Column          | Type             | Notes                                                                      |
-| --------------- | ---------------- | -------------------------------------------------------------------------- |
-| `id`            | TEXT PK          | `UUIDv5(CHAT_NS, thread_id ‖ sender_vault ‖ event id)` (R4)                |
-| `thread_id`     | TEXT NOT NULL    | index `(thread_id, sort_at, id)`                                           |
-| `event_id`      | TEXT NOT NULL    | the rumor's `id` (hex, 128 bit)                                            |
-| `sender_vault`  | TEXT NOT NULL    | own vault for own messages                                                 |
-| `sender_device` | TEXT NOT NULL    | device key hex                                                             |
-| `kind`          | TEXT NOT NULL    | `text`, `note` (membership/rename), `contact` (060 share)                  |
-| `text`          | TEXT NULL        | ≤ 4,000 characters (R2)                                                    |
-| `note`          | TEXT NULL        | JSON for `kind = note`: `{op, by, member?, name?}`                         |
-| `sent_at`       | INTEGER NOT NULL | sender's time                                                              |
-| `received_at`   | INTEGER NOT NULL | arrival on the inserting device (own: = `sent_at`)                         |
-| `sort_at`       | INTEGER NOT NULL | `min(sent_at, received_at + 300000)` (R4)                                  |
-| `inserted_by`   | TEXT NOT NULL    | device uuid that inserted the row (R6: only it sends the delivery receipt) |
+| Column            | Type             | Notes                                                                      |
+| ----------------- | ---------------- | -------------------------------------------------------------------------- |
+| `id`              | TEXT PK          | `UUIDv5(CHAT_NS, thread_id ‖ sender_vault ‖ event id)` (R4)                |
+| `thread_id`       | TEXT NOT NULL    | index `(thread_id, sort_at, id)`                                           |
+| `event_id`        | TEXT NOT NULL    | the rumor's `id` (hex, 128 bit)                                            |
+| `idempotency_key` | TEXT NULL        | sender's request UUID; reused on retries to return the original message    |
+| `sender_vault`    | TEXT NOT NULL    | own vault for own messages                                                 |
+| `sender_device`   | TEXT NOT NULL    | device key hex                                                             |
+| `kind`            | TEXT NOT NULL    | `text`, `note` (membership/rename), `contact` (060 share)                  |
+| `text`            | TEXT NULL        | ≤ 4,000 characters (R2)                                                    |
+| `note`            | TEXT NULL        | JSON for `kind = note`: `{op, by, member?, name?}`                         |
+| `sent_at`         | INTEGER NOT NULL | sender's time                                                              |
+| `received_at`     | INTEGER NOT NULL | arrival on the inserting device (own: = `sent_at`)                         |
+| `sort_at`         | INTEGER NOT NULL | `min(sent_at, received_at + 300000)` (R4)                                  |
+| `inserted_by`     | TEXT NOT NULL    | device uuid that inserted the row (R6: only it sends the delivery receipt) |
 
 ## New: `chat_attachments`
 
