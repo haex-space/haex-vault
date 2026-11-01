@@ -13,7 +13,19 @@
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziMarker(config) {
-  if (window !== window.top) return
+  if (window !== window.top) {
+    // Input in an embedded frame does not bubble to the main frame. Install only the input
+    // listener here: the visible marker and title belong to the main frame.
+    if (!globalThis.__holziInputListener) {
+      const noticed = (event) => {
+        if (event.isTrusted) globalThis.__holzi('input')
+      }
+      window.addEventListener('pointerdown', noticed, true)
+      window.addEventListener('keydown', noticed, true)
+      globalThis.__holziInputListener = noticed
+    }
+    return
+  }
   if (globalThis.__holziMarker) return globalThis.__holziMarker.update(config)
   const MAX_RESTORES = 20
   let restores = 0
