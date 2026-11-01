@@ -27,6 +27,7 @@ pub mod mcp_server;
 pub mod model_capabilities;
 pub mod model_jobs;
 pub mod models;
+pub mod notifications;
 pub mod openers;
 pub mod passwords;
 pub mod patch;
@@ -395,10 +396,16 @@ pub fn run() {
                     }),
                 ));
             // Spec 017 US8: what holzi does outside its window for extensions (browser, notifications).
+            // Spec 072 FR-023: one notifier routes every notification's click, the chat's too.
+            let notifier = std::sync::Arc::new(notifications::system::SystemNotifier::new(
+                app.handle().clone(),
+            ));
+            app.manage(std::sync::Arc::clone(&notifier));
             app.state::<AppState>()
                 .extensions()
                 .set_desktop(std::sync::Arc::new(extensions::desktop::AppDesktop::new(
                     app.handle().clone(),
+                    notifier,
                 )));
             // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
             #[cfg(feature = "llm-cpu")]

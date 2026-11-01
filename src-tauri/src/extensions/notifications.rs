@@ -56,41 +56,9 @@ const ICON_TYPES: &[(&str, &str)] = &[
     ("image/gif", "gif"),
 ];
 
-/// A button of a notification.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NotificationButton {
-    pub id: String,
-    pub label: String,
-}
-
-/// What the system is asked to show.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NotificationSpec {
-    pub title: String,
-    pub body: Option<String>,
-    /// The image and its file extension (`png`, `jpg`, …).
-    pub icon: Option<(Vec<u8>, &'static str)>,
-    pub buttons: Vec<NotificationButton>,
-}
-
-/// What the user did with a notification, as the system reports it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NotificationResponse {
-    /// A click on the notification itself.
-    Body,
-    /// A click on the button with this id.
-    Button(String),
-    /// Closed without a click (by the user, by timeout or by holzi).
-    Closed,
-}
-
-/// Called once with the response; from any thread.
-pub type Respond = Box<dyn FnOnce(NotificationResponse) + Send>;
-
-/// A notification the system shows; closing it removes it from the screen.
-pub trait ShownNotification: Send {
-    fn close(self: Box<Self>);
-}
+pub use crate::notifications::{
+    NotificationButton, NotificationResponse, NotificationSpec, Respond, ShownNotification,
+};
 
 /// Where a click leads, as the extension set it.
 #[derive(Debug, Clone, Default)]
