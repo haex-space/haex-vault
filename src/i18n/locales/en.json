@@ -4023,7 +4023,9 @@
       "other": "Other MCP client",
       "otherHint": "Add it to the client's MCP configuration",
       "copy": "Copy",
-      "copied": "Copied"
+      "copied": "Copied",
+      "httpTitle": "Connect over HTTP",
+      "httpHint": "holzi listens on 127.0.0.1:{port}. On its first connection the agent opens a page in the browser; then confirm it here in holzi."
     },
     "notification": {
       "title": "An agent wants to use holzi",

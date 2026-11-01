@@ -21,9 +21,9 @@ const DENIED = 1002
 // `extension-encrypted-device`): what a phone does not have is not offered and says so. The
 // capability table names it; an extension that reads a free path, picks a folder or watches one
 // hears "not available", and an encrypted folder on the device stays closed to it; developer mode
-// (a project folder) is left out of the extension settings, and the delegate settings, the
-// access for external agents (`mcp-agent`) and the agent browser (spec 065) say "not available on
-// this device".
+// (a project folder) is left out of the extension settings, and the delegate settings and the agent
+// browser (spec 065) say "not available on this device". The access for external agents has no
+// helper here but the HTTP way (`android-mcp-agent`).
 scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'phone-vault' })
@@ -158,16 +158,9 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   await instance.waitForDisplayed('settings-not-on-this-device')
   ctx.step('the delegate settings say they are not available here')
 
-  // The counter case of `mcp-agent` (spec 021 research R12): a phone has no `--mcp-agent` helper.
+  // The counter case of `mcp-agent` (spec 021 research R12): a phone has no `--mcp-agent` helper;
+  // external agents use the HTTP way instead (`android-mcp-agent`).
   assert.equal(table.mcpHelper, false)
-  const mcp = await runAction(instance, 'wm.app.open', {
-    appId: 'system.settings',
-    at: '/ai/agents',
-  })
-  assert.ok(mcp.ok, JSON.stringify(mcp))
-  await waitForLocation(instance, 'ai.agents')
-  await instance.waitForDisplayed('settings-not-on-this-device')
-  ctx.step('the agent access says it is not available here')
 
   // Spec 065 research R13: a phone has no agent browser; its settings say so, and the catalog it
   // pushes to Rust has no browser tool (`forDevice`, checked in check-agent-actions).

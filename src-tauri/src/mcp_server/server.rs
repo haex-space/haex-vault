@@ -107,6 +107,8 @@ pub struct StartArgs {
     /// The port of the HTTP way (spec 021 PR G); `Some(0)` picks a free one, `None` serves only the
     /// program way.
     pub http_port: Option<u16>,
+    /// The program way (`--mcp-agent` over a socket or pipe); a phone has none (research R12).
+    pub program_way: bool,
 }
 
 /// What every connection of one running server shares.
@@ -170,7 +172,7 @@ impl Core {
 /// A running server.
 pub struct Running {
     core: Arc<Core>,
-    accept: JoinHandle<()>,
+    accept: Option<JoinHandle<()>>,
     http: Option<(SocketAddr, JoinHandle<()>)>,
 }
 
@@ -190,7 +192,9 @@ impl Running {
         self.core.close(reason);
         self.core.prompts.cancel_all();
         self.core.calls.cancel_all();
-        let _ = self.accept.await;
+        if let Some(accept) = self.accept {
+            let _ = accept.await;
+        }
         if let Some((_, http)) = self.http {
             let _ = http.await;
         }
@@ -199,12 +203,18 @@ impl Running {
 
 /// Binds the endpoint and starts accepting.
 pub async fn start(args: StartArgs) -> Result<Running, StartError> {
-    let listener = endpoint::bind(&args.socket_dir, args.device)
-        .await
-        .map_err(|error| match error.kind() {
-            ErrorKind::AddrInUse => StartError::InUse,
-            _ => StartError::Io(error.to_string()),
-        })?;
+    let listener = if args.program_way {
+        Some(
+            endpoint::bind(&args.socket_dir, args.device)
+                .await
+                .map_err(|error| match error.kind() {
+                    ErrorKind::AddrInUse => StartError::InUse,
+                    _ => StartError::Io(error.to_string()),
+                })?,
+        )
+    } else {
+        None
+    };
     let http_listener = match args.http_port {
         Some(port) => Some(
             http::bind(port)
@@ -235,7 +245,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         closing: Mutex::new(CloseReason::VaultClosed),
     });
     core.delegates.attach(&core);
-    let accept = tokio::spawn(accept_loop(Arc::clone(&core), listener));
+    let accept = listener.map(|listener| tokio::spawn(accept_loop(Arc::clone(&core), listener)));
     let http = match http_listener {
         Some(listener) => {
             let address = listener

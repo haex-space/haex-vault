@@ -41,6 +41,8 @@ mod agent_log_tests;
 #[cfg(test)]
 mod command_tool_tests;
 #[cfg(test)]
+mod commands_tests;
+#[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
 mod endpoint_tests;
@@ -198,8 +200,16 @@ impl McpServer {
         if enabled {
             match state.database() {
                 Ok(db) => {
+                    let kept_port = db
+                        .read(move |q| settings::read_http_port(q, device))
+                        .await
+                        .unwrap_or_else(|error| {
+                            log::warn!("mcp server: could not read the HTTP port: {error}");
+                            None
+                        });
+                    let capabilities = crate::platform::capabilities();
                     let args = StartArgs {
-                        db,
+                        db: db.clone(),
                         device,
                         socket_dir: endpoint::default_socket_dir(),
                         parent: state.gate().token(),
@@ -214,11 +224,22 @@ impl McpServer {
                         delegates: Arc::clone(&self.delegates),
                         notify: self.notifier(),
                         limits: Limits::default(),
-                        // The HTTP way starts with PR G2 (T096).
-                        http_port: None,
+                        http_port: capabilities.mcp_http.then(|| kept_port.unwrap_or(0)),
+                        program_way: capabilities.mcp_helper,
                     };
                     match server::start(args).await {
-                        Ok(running) => slot.running = Some(running),
+                        Ok(running) => {
+                            let port = running.http_address().map(|address| address.port());
+                            if let Some(port) = port.filter(|port| Some(*port) != kept_port) {
+                                if let Err(error) = db
+                                    .write(move |tx| settings::write_http_port(tx, device, port))
+                                    .await
+                                {
+                                    log::warn!("mcp server: could not keep the HTTP port: {error}");
+                                }
+                            }
+                            slot.running = Some(running);
+                        }
                         Err(StartError::InUse) => slot.in_use = true,
                         Err(error) => log::warn!("mcp server: {error}"),
                     }
@@ -239,9 +260,19 @@ impl McpServer {
             .filter(|core| !core.token.is_cancelled())
     }
 
+    /// The port the HTTP way listens on now, while the access runs.
+    pub async fn http_port(&self) -> Option<u16> {
+        let slot = self.slot.lock().await;
+        slot.running
+            .as_ref()
+            .filter(|running| !running.core().token.is_cancelled())
+            .and_then(Running::http_address)
+            .map(|address| address.port())
+    }
+
     /// The state for the settings.
     pub async fn run_state(&self, vault_open: bool) -> McpRunState {
-        if !crate::platform::capabilities().mcp_helper {
+        if !settings::available() {
             return McpRunState::NotAvailable;
         }
         if !vault_open {
@@ -279,7 +310,7 @@ pub(crate) fn end_browser_session<R: Runtime>(app: &AppHandle<R>, agent: Uuid) {
 
 /// Starts the access for the vault that just opened, when this device turned it on (FR-001).
 pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
-    if !crate::platform::capabilities().mcp_helper {
+    if !settings::available() {
         return;
     }
     let app = app.clone();
