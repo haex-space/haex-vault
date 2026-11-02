@@ -55,9 +55,9 @@ pub(crate) struct LoginEntry {
     pub has_totp: bool,
 }
 
-pub(super) struct LoginSecrets {
-    pub(super) keys: EntryKeys,
-    pub(super) values: BTreeMap<String, Zeroizing<String>>,
+pub(crate) struct LoginSecrets {
+    pub(crate) keys: EntryKeys,
+    pub(crate) values: BTreeMap<String, Zeroizing<String>>,
 }
 
 impl LoginSecrets {
