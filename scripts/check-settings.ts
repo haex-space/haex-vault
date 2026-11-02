@@ -64,6 +64,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.download.search': '/ai/download/search',
   'ai.download.repo': '/ai/download/repo/Qwen/Qwen2.5-GGUF',
   'ai.speech': '/ai/speech',
+  'ai.speech.assistant': '/ai/speech/assistant',
   'ai.speech.voice': '/ai/speech/voice',
   'ai.speech.tones': '/ai/speech/tones',
   'ai.autonomy': '/ai/autonomy',
@@ -171,6 +172,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.installed',
     'ai.download',
     'ai.speech',
+    'ai.speech.assistant',
     'ai.speech.voice',
     'ai.speech.tones',
     'ai.autonomy',
@@ -194,7 +196,15 @@ test('the ai overview groups its rows by task, one heading each', () => {
     [
       ['chat', ['ai.default', 'ai.providers', 'ai.servers']],
       ['local', ['ai.installed', 'ai.download']],
-      ['speech', ['ai.speech', 'ai.speech.voice', 'ai.speech.tones']],
+      [
+        'speech',
+        [
+          'ai.speech',
+          'ai.speech.assistant',
+          'ai.speech.voice',
+          'ai.speech.tones',
+        ],
+      ],
       [
         'agents',
         ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],

@@ -678,6 +678,11 @@
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
             "keywords": "tones sounds signal volume voice assistant listen"
+          },
+          "assistant": {
+            "title": "Voice assistant",
+            "description": "Talk to haex before the wake word arrives: by shortcut or from the indicator.",
+            "keywords": "voice assistant conversation talk preview shortcut indicator transcript"
           }
         },
         "providers": {
@@ -1496,7 +1501,8 @@
         "headphones": "Headphones",
         "bubblePosition": "Bubble position",
         "noticeShown": "Notice shown",
-        "tonesCustom": "Own tones"
+        "tonesCustom": "Own tones",
+        "preview": "Voice assistant (preview)"
       }
     },
     "voice": {
@@ -1585,6 +1591,25 @@
         "tooLong": "The tone is longer than 3 seconds. Shorten it and try again.",
         "tooLongWorking": "A tone for “Working” may last at most 1 second because it repeats.",
         "unknownTone": "This tone no longer exists."
+      }
+    },
+    "assistantPage": {
+      "previewHint": "Shows the indicator on the desktop and enables the shortcut {keys}. The microphone is on only during a conversation.",
+      "saveFailed": "Could not save: {reason}",
+      "saved": "Saved",
+      "readiness": "Still missing",
+      "ready": "All set: you can start a conversation.",
+      "missing": {
+        "sttModel": "Speech recognition model",
+        "vadModel": "Pause detection",
+        "wakeWordModel": "Wake word (comes with a later version)",
+        "voice": "Voice model for this language",
+        "chatModel": "AI model",
+        "microphone": "Microphone"
+      },
+      "keys": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "⌘⇧Space"
       }
     }
   },
@@ -2117,6 +2142,16 @@
       "create": "Create sync rule",
       "update": "Change sync rule",
       "delete": "Delete sync rule"
+    },
+    "assistant": {
+      "talk": "Talk to the voice assistant",
+      "mute": {
+        "set": "Mute the voice assistant"
+      },
+      "conversation": {
+        "end": "End conversation",
+        "show": "Show conversation"
+      }
     }
   },
   "passwords": {
@@ -4293,6 +4328,44 @@
       "clear": "Remove profile",
       "cancel": "Cancel",
       "cleared": "Profile removed. The next start begins without logins."
+    }
+  },
+  "assistant": {
+    "phase": {
+      "off": "Voice assistant off",
+      "ready": "Ready",
+      "listening": "Listening",
+      "thinking": "Thinking",
+      "working": "Working",
+      "speaking": "Speaking",
+      "followUp": "Waiting for a follow-up",
+      "awaitingAnswer": "Waiting for your answer"
+    },
+    "muted": "Muted",
+    "speaker": {
+      "user": "You",
+      "haex": "haex"
+    },
+    "kind": {
+      "notUnderstood": "not understood",
+      "stop": "stop",
+      "closing": "closing",
+      "announcement": "announcement",
+      "approvalQuestion": "approval",
+      "approvalAnswer": "approval answer",
+      "choiceQuestion": "question",
+      "choiceAnswer": "answer to question"
+    },
+    "transcript": {
+      "title": "Conversation with haex",
+      "empty": "Nothing said yet. Press “Talk” and ask away."
+    },
+    "buttons": {
+      "talk": "Talk",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "show": "Show conversation",
+      "end": "End conversation"
     }
   }
 }

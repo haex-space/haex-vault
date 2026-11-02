@@ -28,6 +28,7 @@ bei Auswahl.
 | `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`          | `"auto"`                   | FR-016, R9     |
 | `assistant.bubble.position`                          | JSON `{x, y}` (Anteil 0–1 der Fläche)  | rechts unten               | FR-041         |
 | `assistant.noticeShown`                              | bool                                   | `false`                    | FR-037         |
+| `assistant.preview`                                  | bool                                   | `false`                    | T045           |
 
 `VoiceRef` (Text, unabhängig von der Technik, FR-029): `builtin:<id>` (mitgeliefert),
 `clone:<id>` (`haex_tts_voices`), `model:<id>` oder `model:<id>#<sprecher>` (importiert). Zeigt er

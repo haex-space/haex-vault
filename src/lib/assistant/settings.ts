@@ -25,6 +25,7 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.headphones',
   'assistant.bubble.position',
   'assistant.noticeShown',
+  'assistant.preview',
 ] as const
 export type AssistantSettingKey = (typeof ASSISTANT_SETTING_KEYS)[number]
 
@@ -108,4 +109,13 @@ export function parseTonesVolume(value: string | null): number {
     volume <= TONES_VOLUME.max
     ? volume
     : TONES_VOLUME.default
+}
+
+/** Until the wake word (PR D), conversations are reachable only with this switch: it shows the
+ * indicator and enables the talk shortcut (T045). */
+export const PREVIEW_KEY = 'assistant.preview'
+
+/** A stored switch: only `"true"` turns the preview on. */
+export function parsePreview(value: string | null): boolean {
+  return value === 'true'
 }
