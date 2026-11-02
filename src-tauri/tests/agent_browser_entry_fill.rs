@@ -108,6 +108,7 @@ async fn holzi_fills_bank_data_the_agent_never_sees() {
     *scene.env.passwords.lock().unwrap() = Some(PasswordRights {
         level: PasswordLevel::Read,
         tags: None,
+        default_tag: None,
     });
     *scene.allow.lock().unwrap() = true;
     let last_question = |scene: &Scene| {
