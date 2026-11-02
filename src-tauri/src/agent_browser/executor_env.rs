@@ -37,4 +37,8 @@ pub trait BrowserEnv: Send + Sync + 'static {
     fn passwords(&self) -> Option<PasswordsService>;
     /// "Für diese Website merken" of a fill: `site` fills without asking from now on (FR-021).
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String>;
+    /// Switches the rights group `browser` of `caller` on, without any website (FR-040).
+    async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
+        Err("the browser cannot be switched on here".to_owned())
+    }
 }

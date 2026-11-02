@@ -49,6 +49,9 @@ pub enum BrowserPromptKind {
     /// May holzi save the login it generated for this website (FR-036)? Declining empties the
     /// fields again.
     NewCredentials,
+    /// May the built-in agent use the browser at all (FR-040)? Allowing switches its rights group
+    /// `browser` on, without any website.
+    SwitchOn,
 }
 
 /// An entry the user can choose for a fill: an id that holds only for this question and the title,
