@@ -65,8 +65,13 @@ pub(crate) type EntryValues = BTreeMap<String, Zeroizing<String>>;
 /// The names of the fields of `item` that hold a value (the TOTP as its marker) and its own
 /// autofill aliases.
 pub(crate) fn keys_of(item: &SecretItem, has_totp: bool) -> EntryKeys {
+    let fields = fields_of(item);
     EntryKeys {
-        keys: fields_of(item).keys().cloned().collect(),
+        keys: fields
+            .iter()
+            .filter(|(_, value)| value.as_str().is_some_and(|text| !text.is_empty()))
+            .map(|(key, _)| key.clone())
+            .collect(),
         aliases: serde_json::from_value(aliases_of(item)).unwrap_or_default(),
         has_totp,
     }
@@ -77,7 +82,10 @@ pub(crate) fn values_of(item: &SecretItem) -> EntryValues {
     fields_of(item)
         .into_iter()
         .filter(|(key, _)| key.as_str() != OTP_MARKER)
-        .filter_map(|(key, value)| Some((key, Zeroizing::new(value.as_str()?.to_owned()))))
+        .filter_map(|(key, value)| {
+            let text = value.as_str().filter(|text| !text.is_empty())?;
+            Some((key, Zeroizing::new(text.to_owned())))
+        })
         .collect()
 }
 
@@ -316,11 +324,11 @@ impl Acting<'_> {
                 continue;
             }
             let form = if index == 0 { form } else { None };
-            let numbers = self.write_in(doc, form, facts, &here).await?;
-            if index == 0 {
-                filled = numbers;
-            } else {
-                in_frames += here.len();
+            match self.write_in(doc, form, facts, &here).await {
+                Ok(numbers) if index == 0 => filled = numbers,
+                Ok(numbers) => in_frames += numbers.len(),
+                Err(error) if index == 0 => return Err(error),
+                Err(_) => {}
             }
         }
         let mut reply = json!({ "tab": tab.id, "filled": filled });
@@ -352,6 +360,10 @@ impl Acting<'_> {
                 .map_err(|error| browser_error(BrowserError::Protocol(error.to_string())))?;
             if facts.gone && index == 0 {
                 return Err(element_gone());
+            }
+            if index > 0 && !self.frame_operable(&facts.url) {
+                all.push(FillFacts::default());
+                continue;
             }
             all.push(facts);
         }

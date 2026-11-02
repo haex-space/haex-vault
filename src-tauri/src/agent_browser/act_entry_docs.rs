@@ -87,11 +87,13 @@ impl Acting<'_> {
             if let Ok(inner) = page::frames(self.connection, &session).await {
                 // The frame's own document is its target; frames inside it may be in this process.
                 if let Some((own, own_url)) = inner.first() {
-                    list.push(Doc {
-                        session: session.clone(),
-                        frame: own.clone(),
-                        site: Some(site_of(own_url)),
-                    });
+                    if self.frame_operable(own_url) {
+                        list.push(Doc {
+                            session: session.clone(),
+                            frame: own.clone(),
+                            site: Some(site_of(own_url)),
+                        });
+                    }
                 }
                 docs_in(&session, &inner[1..], &mut list);
             }
@@ -101,7 +103,7 @@ impl Acting<'_> {
 
     /// Whether holzi may fill into a frame showing `url`: `https` on a website the agent may
     /// operate.
-    fn frame_operable(&self, url: &str) -> bool {
+    pub(super) fn frame_operable(&self, url: &str) -> bool {
         url.starts_with("https://")
             && may_operate(url, &self.rights.sites, &self.session.once_allowed_sites())
     }

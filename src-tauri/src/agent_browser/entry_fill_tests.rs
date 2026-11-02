@@ -4,7 +4,10 @@ use haex_autofill::{EntryKeys, FieldFacts};
 
 use zeroize::Zeroizing;
 
-use super::act::entry_fill::{kept_values, purpose_of, rows_for, EntryValues, MAX_PURPOSE};
+use super::act::entry_fill::{
+    kept_values, keys_of, purpose_of, rows_for, values_of, EntryValues, MAX_PURPOSE,
+};
+use crate::passwords::model::{SecretItem, SecretKeyValue};
 
 fn field(input_type: &str, name: &str, autocomplete: &str) -> FieldFacts {
     FieldFacts {
@@ -38,6 +41,47 @@ fn bank() -> EntryKeys {
         aliases: BTreeMap::new(),
         has_totp: true,
     }
+}
+
+#[test]
+fn empty_custom_fields_are_not_offered_or_filled() {
+    let item = SecretItem {
+        id: "entry".to_owned(),
+        title: Some("Entry".to_owned()),
+        username: None,
+        password: None,
+        note: None,
+        url: None,
+        icon: None,
+        color: None,
+        expires_at: None,
+        otp_secret: None,
+        otp_digits: None,
+        otp_period: None,
+        otp_algorithm: None,
+        autofill_aliases: None,
+        tags: Vec::new(),
+        key_values: vec![
+            SecretKeyValue {
+                id: "empty".to_owned(),
+                key: Some("empty field".to_owned()),
+                value: Some(String::new()),
+            },
+            SecretKeyValue {
+                id: "filled".to_owned(),
+                key: Some("card".to_owned()),
+                value: Some("4111111111111111".to_owned()),
+            },
+        ],
+        created_at: None,
+        updated_at: None,
+    };
+
+    let keys = keys_of(&item, false);
+    assert_eq!(keys.keys, vec!["card".to_owned()]);
+    let values = values_of(&item);
+    assert_eq!(values.len(), 1);
+    assert_eq!(values["card"].as_str(), Some("4111111111111111"));
 }
 
 fn checkout() -> (Vec<FieldFacts>, Vec<String>) {
