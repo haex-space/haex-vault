@@ -207,8 +207,11 @@ test('the pause range and default match data-model.md (FR-012)', () => {
   )
   assert.equal(parsePause(null), PAUSE_MS.default)
   assert.equal(parsePause('2200'), 2200)
-  assert.equal(parsePause('4000'), PAUSE_MS.default)
+  // Out of range is clamped, as the Rust side does, so the slider shows the pause in use.
+  assert.equal(parsePause('4000'), PAUSE_MS.max)
+  assert.equal(parsePause('300'), PAUSE_MS.min)
   assert.equal(parsePause('1,5'), PAUSE_MS.default)
+  assert.equal(parsePause(''), PAUSE_MS.default)
 })
 
 test('the page "Lizenzen" credits the voices and speech models (T032)', () => {

@@ -69,11 +69,13 @@ export const PAUSE_MS = {
   default: 1500,
 } as const
 
-/** A stored pause, or the default when it is missing or outside the range. */
+/** The pause the assistant uses for a stored value: the default when it is missing or no whole
+ * number, else clamped to the range, as `read_settings` and `PauseDetector::new` do. */
 export function parsePause(value: string | null): number {
-  const ms = value === null ? Number.NaN : Number(value)
-  return Number.isInteger(ms) && ms >= PAUSE_MS.min && ms <= PAUSE_MS.max
-    ? ms
+  const text = value?.trim() ?? ''
+  const ms = /^[+-]?\d+$/.test(text) ? Number(text) : Number.NaN
+  return Number.isSafeInteger(ms)
+    ? Math.min(Math.max(ms, PAUSE_MS.min), PAUSE_MS.max)
     : PAUSE_MS.default
 }
 
