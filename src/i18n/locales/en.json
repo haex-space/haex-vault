@@ -406,7 +406,8 @@
       "title": "Conversations",
       "muted": "Muted",
       "unread": "{count} unread",
-      "newConversation": "New conversation"
+      "newConversation": "New conversation",
+      "requests": "Requests"
     },
     "peer": {
       "unknownName": "Unknown",
@@ -450,6 +451,7 @@
     },
     "notify": {
       "request": "New request",
+      "quietChannel": "Quiet notifications",
       "open": "Open"
     },
     "agent": {
@@ -461,6 +463,16 @@
     },
     "notes": {
       "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
+    },
+    "request": {
+      "banner": "{name} is not in your address book. Accept the request to reply.",
+      "accept": "Accept",
+      "decline": "Decline",
+      "block": "Block",
+      "declineTitle": "Decline the request?",
+      "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
+      "blockTitle": "Block {name}?",
+      "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
     }
   },
   "settings": {
@@ -2063,7 +2075,9 @@
       "type": "Type into a field",
       "select": "Choose an option",
       "tabsClose": "Close an agent tab",
-      "takeoverRequest": "Ask the user to take over"
+      "takeoverRequest": "Ask the user to take over",
+      "download": "Download a file",
+      "upload": "Upload a file"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4023,7 +4037,9 @@
       "other": "Other MCP client",
       "otherHint": "Add it to the client's MCP configuration",
       "copy": "Copy",
-      "copied": "Copied"
+      "copied": "Copied",
+      "httpTitle": "Connect over HTTP",
+      "httpHint": "holzi listens on 127.0.0.1:{port}. On its first connection the agent opens a page in the browser; then confirm it here in holzi."
     },
     "notification": {
       "title": "An agent wants to use holzi",
@@ -4181,6 +4197,12 @@
         "hint": "With “Take over”, holzi brings the tab to the front and you use the browser yourself, for a captcha or a confirmation. The agent waits and learns nothing of what you do. Afterwards, give it back with “Give back” in holzi or in the tab.",
         "allow": "Take over",
         "reason": "Reason"
+      },
+      "download": {
+        "title": "Keep a large download?",
+        "hint": "The agent started a download over 100 MB. It goes on until you decide; the agent gets the file only once you allow it. Otherwise holzi cancels it and deletes what arrived.",
+        "allow": "Keep",
+        "size": "Size"
       },
       "address": "Address",
       "target": "Target",

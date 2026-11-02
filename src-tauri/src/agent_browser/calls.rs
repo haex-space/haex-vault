@@ -96,6 +96,14 @@ pub(super) struct Select {
     pub(super) value: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Upload {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) path: String,
+}
+
 pub(super) fn input<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, NativeError> {
     serde_json::from_value(value)
         .map_err(|error| NativeError::invalid_input(None, error.to_string()))

@@ -12,6 +12,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::ids;
+use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::received;
 use crate::error::{HolziError, Result};
 use crate::storage::chat_threads as agent_threads;
@@ -196,6 +197,12 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
             peer_contact_id = Some(contact_id);
             peer_card_name = Some(card.card.name);
             peer_without_relays = received::addresses(q, &vault)?.nostr_relays.is_empty();
+        } else if row.state == ConversationState::Request {
+            // A request shows the name on the card its sender carried (FR-040).
+            let id = Uuid::parse_str(&row.id).map_err(|_| HolziError::InvalidInput {
+                reason: "a conversation id is no UUID".into(),
+            })?;
+            peer_card_name = request_card(q, id)?.map(|card| card.card.name);
         }
     }
     Ok(Conversation {
@@ -254,6 +261,61 @@ pub fn open_direct(
         insert_member(tx, id, vault, own_vault, now)?;
     }
     Ok(id)
+}
+
+/// Marks the direct conversation `thread_id` a request (US5, FR-040) and keeps the card the sender
+/// `peer_vault` carried on its member row: the window shows its name, and accepting reads it in.
+pub fn mark_request(
+    tx: &mut CrdtTransaction<'_>,
+    thread_id: Uuid,
+    peer_vault: &str,
+    card: &SignedCard,
+) -> Result<()> {
+    let previous = request_card(tx, thread_id)?;
+    tx.execute(
+        "UPDATE chat_threads SET state = 'request' WHERE id = ?1 AND state <> 'request'",
+        params![thread_id.to_string()],
+    )?;
+    let is_newer = previous.is_none_or(|previous| {
+        (card.card.list_generation, card.card.issued_at)
+            >= (previous.card.list_generation, previous.card.issued_at)
+    });
+    if is_newer {
+        tx.execute(
+            "UPDATE chat_members SET card = ?2 WHERE id = ?1",
+            params![
+                ids::member_id(thread_id, peer_vault).to_string(),
+                card.bytes.as_slice()
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+/// The direct requests of `peer_vault` (hex) become normal conversations, because the vault is a
+/// confirmed contact now (FR-041). Runs wherever a card is stored, so accepting through spec 060's
+/// preview, an import on another own device and a card read in by hand all end a request the same
+/// way. Answers how many changed.
+pub fn accept_requests_of(tx: &mut CrdtTransaction<'_>, peer_vault: &str) -> Result<usize> {
+    Ok(tx.execute(
+        "UPDATE chat_threads SET state = 'active' \
+         WHERE kind = 'direct' AND state = 'request' AND peer_vault = ?1",
+        params![peer_vault],
+    )?)
+}
+
+/// The card the sender of the request `thread_id` carried, `None` when it is no direct request.
+pub fn request_card(q: &mut impl Query, thread_id: Uuid) -> Result<Option<SignedCard>> {
+    let bytes: Option<Option<Vec<u8>>> = q.query_row(
+        "SELECT m.card FROM chat_threads t \
+           JOIN chat_members m ON m.thread_id = t.id AND m.vault = t.peer_vault \
+         WHERE t.id = ?1 AND t.kind = 'direct' AND t.state = 'request'",
+        params![thread_id.to_string()],
+        |row| row.get(0),
+    )?;
+    Ok(bytes
+        .flatten()
+        .and_then(|bytes| format::from_bytes(bytes).ok()))
 }
 
 /// Opens the user's notes, creating them the first time with the id derived from the own vault, so

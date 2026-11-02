@@ -2,26 +2,31 @@
 /**
  * "KI → Agenten" (spec 021, US1, US7, FR-001, FR-005, FR-026): the state of the MCP access for
  * external agents, the registered and blocked agents of this device, and the setup snippets for
- * Claude Code, Codex and any other MCP client. The snippets carry the path of holzi and the vault,
- * never a credential. The switch and lifting a block go through guardrail actions
+ * Claude Code, Codex and any other MCP client: by starting holzi's helper (desktop) or over
+ * loopback HTTP, where the agent signs in through the registration dialog (PR G, the only way on a
+ * phone). The snippets carry the path of holzi and the vault or the HTTP address, never a
+ * credential. The switch and lifting a block go through guardrail actions
  * (`settings.agents.mcp.*`), which no agent can call.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
+import type { SnippetWay } from '~/types/bindings/SnippetWay'
 
 const CLIENTS: readonly SnippetClient[] = ['claudeCode', 'codex', 'other']
+type Snippets = Partial<Record<SnippetClient, string>>
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
 const setEnabled = useActionOrThrow('settings.agents.mcp.enable')
 const unblock = useActionOrThrow('settings.agents.mcp.unblock')
+const { capabilities, readyAsync } = useDeviceCapabilities()
 
 const status = ref<McpStatus | null>(null)
-const snippets = ref<Partial<Record<SnippetClient, string>>>({})
-const copied = ref<SnippetClient | null>(null)
+const snippets = ref<Snippets>({})
+const httpSnippets = ref<Snippets>({})
 const busy = ref(false)
 const failure = ref<string | null>(null)
 const agents = ref<AgentView[]>([])
@@ -45,19 +50,28 @@ async function reloadAsync() {
     if (status.value.state === 'noVault' || !available.value) return
     agents.value = await invoke<AgentView[]>('mcp_agents_list')
     now.value = Date.now()
-    const entries = await Promise.all(
-      CLIENTS.map(
-        async (client) =>
-          [
-            client,
-            await invoke<string>('mcp_setup_snippet', { args: { client } }),
-          ] as const,
-      ),
-    )
-    snippets.value = Object.fromEntries(entries)
+    await readyAsync()
+    snippets.value = capabilities.value?.mcpHelper
+      ? await snippetsOfAsync('program')
+      : {}
+    httpSnippets.value =
+      status.value.httpPort != null ? await snippetsOfAsync('http') : {}
   } catch (error: unknown) {
     failure.value = errString(error)
   }
+}
+
+async function snippetsOfAsync(way: SnippetWay): Promise<Snippets> {
+  const entries = await Promise.all(
+    CLIENTS.map(
+      async (client) =>
+        [
+          client,
+          await invoke<string>('mcp_setup_snippet', { args: { client, way } }),
+        ] as const,
+    ),
+  )
+  return Object.fromEntries(entries)
 }
 
 async function toggleAsync(enabled: boolean) {
@@ -80,17 +94,6 @@ async function unblockAsync(agent: AgentView) {
     failure.value = errString(error)
   }
   await reloadAsync()
-}
-
-async function copyAsync(client: SnippetClient) {
-  const text = snippets.value[client]
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    copied.value = client
-  } catch {
-    copied.value = null
-  }
 }
 
 onMounted(reloadAsync)
@@ -149,31 +152,18 @@ watch(() => store.changes, reloadAsync)
       />
     </SettingsGroup>
 
-    <SettingsGroup
-      v-if="available && Object.keys(snippets).length > 0"
+    <AgentsSetupSnippets
+      v-if="available"
+      :snippets="snippets"
       :label="t('mcpAgents.setup.title')"
-    >
-      <SettingsRow
-        v-for="client in CLIENTS"
-        :key="client"
-        :title="t(`mcpAgents.setup.${client}`)"
-        :description="t(`mcpAgents.setup.${client}Hint`)"
-      >
-        <UiButton
-          type="button"
-          size="sm"
-          variant="outline"
-          :data-testid="`mcp-copy-${client}`"
-          @click="copyAsync(client)"
-        >
-          {{
-            copied === client
-              ? t('mcpAgents.setup.copied')
-              : t('mcpAgents.setup.copy')
-          }}
-        </UiButton>
-      </SettingsRow>
-    </SettingsGroup>
+    />
+    <AgentsSetupSnippets
+      v-if="available && status?.httpPort != null"
+      :snippets="httpSnippets"
+      :label="t('mcpAgents.setup.httpTitle')"
+      :hint="t('mcpAgents.setup.httpHint', { port: status.httpPort })"
+      way="http"
+    />
 
     <p v-if="failure" class="px-1 text-xs text-destructive" role="alert">
       {{ failure }}

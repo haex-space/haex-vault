@@ -30,6 +30,7 @@ impl BrowserTools {
             label: Some(label),
             fields: Vec::new(),
             reason: None,
+            bytes: None,
         };
         self.ask(session, question, cancel).await
     }
@@ -38,25 +39,53 @@ impl BrowserTools {
     pub(in crate::agent_browser) async fn ask(
         &self,
         session: &Session,
-        mut question: BrowserQuestion,
+        question: BrowserQuestion,
         cancel: &CancellationToken,
     ) -> Result<(), NativeError> {
-        question.agent = self.env.agent_name(&session.caller).await;
-        match prompts::ask(&self.prompts, &self.closed, &question, cancel).await {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => Ok(()),
-            Ok(_) => Err(NativeError::new(
-                "user_declined",
-                "The user declined this action.",
-            )),
-            Err(PromptEnd::Expired) => Err(NativeError::new(
-                "no_answer",
-                "The user did not answer in time.",
-            )),
-            Err(_) => Err(NativeError::new(
-                "unavailable",
-                "Nobody could be asked; try again when holzi is open.",
-            )),
+        self.ask_later(session, question, cancel.clone()).await
+    }
+
+    /// [`Self::ask`] as a task of its own, for a question that runs while a download goes on.
+    pub(in crate::agent_browser) fn ask_later(
+        &self,
+        session: &Session,
+        mut question: BrowserQuestion,
+        cancel: CancellationToken,
+    ) -> impl std::future::Future<Output = Result<(), NativeError>> + Send + 'static {
+        let (env, prompts, closed, caller) = (
+            Arc::clone(&self.env),
+            self.prompts.clone(),
+            Arc::clone(&self.closed),
+            session.caller.clone(),
+        );
+        async move {
+            question.agent = env.agent_name(&caller).await;
+            match prompts::ask(&prompts, &closed, &question, &cancel).await {
+                Ok(answer) if answer.decision == BrowserDecision::Allow => Ok(()),
+                Ok(_) => Err(NativeError::new(
+                    "user_declined",
+                    "The user declined this action.",
+                )),
+                Err(PromptEnd::Expired) => Err(NativeError::new(
+                    "no_answer",
+                    "The user did not answer in time.",
+                )),
+                Err(_) => Err(NativeError::new(
+                    "unavailable",
+                    "Nobody could be asked; try again when holzi is open.",
+                )),
+            }
         }
+    }
+
+    /// Where the running browser puts its downloads (research R11).
+    pub(in crate::agent_browser) async fn browser_downloads(&self) -> Option<std::path::PathBuf> {
+        self.browser.downloads_dir().await
+    }
+
+    /// The app as the browser tools see it.
+    pub(in crate::agent_browser) fn env(&self) -> &Arc<dyn super::BrowserEnv> {
+        &self.env
     }
 
     /// After an action: waits for the new tabs it opened to join the session or close, then reads

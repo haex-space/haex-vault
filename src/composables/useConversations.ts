@@ -30,6 +30,11 @@ export function useConversationCommands() {
       invoke<null>('chat_conversation_mute', { args: { threadId, muted } }),
     deleteAsync: (threadId: string) =>
       invoke<null>('chat_conversation_delete', { args: { threadId } }),
+    // Spec 072 US5: requests of vaults that are no contact.
+    requestCardAsync: (threadId: string) =>
+      invoke<{ cardText: string }>('chat_request_card', { args: { threadId } }),
+    requestAnswerAsync: (threadId: string, answer: 'decline' | 'block') =>
+      invoke<null>('chat_request_answer', { args: { threadId, answer } }),
     // Spec 072 US2: messages of contact conversations.
     sendAsync: (threadId: string, text: string, idempotencyKey: string) =>
       invoke<{ messageId: string }>('chat_peer_send', {
@@ -49,8 +54,9 @@ export function useConversationCommands() {
 }
 
 /**
- * The contact and group conversations of the chat's list (spec 072 FR-001): agent conversations
- * stay with `useThreadSidebar`. Names and photos come from the address book; a vault without a
+ * The contact and group conversations of the chat's list (spec 072 FR-001), requests included
+ * (`state: 'request'`, FR-040; the list shows them apart): agent conversations stay with
+ * `useThreadSidebar`. Names and photos come from the address book; a vault without a
  * contact shows the name on its card. Refreshes whenever chat or contact rows change, here or on
  * another own device.
  */
@@ -111,13 +117,20 @@ export function useConversations(errString: (error: unknown) => string) {
       },
   )
 
+  /** The open contact or group conversation (`/contact/<id>`), set by the chat's navigation. */
+  const activePeerId = ref<string | null>(null)
+  const active = computed(
+    () => conversations.value.find((c) => c.id === activePeerId.value) ?? null,
+  )
+
   async function refresh() {
     try {
-      const [list, people] = await Promise.all([
+      const [list, requests, people] = await Promise.all([
         commands.listAsync(),
+        commands.listAsync({ requests: true }),
         contactsAsync(),
       ])
-      rows.value = list
+      rows.value = [...list, ...requests]
       contacts.value = people
       error.value = null
     } catch (e: unknown) {
@@ -136,5 +149,14 @@ export function useConversations(errString: (error: unknown) => string) {
     refresh,
   )
 
-  return { conversations, notes, contacts, error, refresh, ...commands }
+  return {
+    conversations,
+    notes,
+    contacts,
+    activePeerId,
+    active,
+    error,
+    refresh,
+    ...commands,
+  }
 }

@@ -189,14 +189,14 @@ and _delivered_ on A; answer from B (spec US2, quickstart A3, A4).
 **Independent Test**: B has A's card, A not B's; B writes; A sees a request; accept → contact; block →
 further messages dropped (spec US5, quickstart A9).
 
-- [ ] T048 [P] [US5] Integration test `src-tauri/tests/chat_requests.rs`: US5 scenarios 1–6 (no notification sound and no text for requests, accept creates the contact with the carried card, decline removes silently and a later message is a new request, block drops messages and invitations without receipt and appears in the blocked list, sender never sees _read_ before acceptance)
-- [ ] T049 [US5] In `src-tauri/src/chat/peer/receive.rs` create direct threads from vaults without a stored, non-blocked card with `state = 'request'` and store the carried card on the member row
-- [ ] T050 [US5] Command `chat_request_answer` (`accept` → spec 060 preview/merge with the carried card via `contacts/share/preview.rs` and `merge.rs`, `state = active`; `decline` → delete locally; `block` → `received::block` + delete) in `src-tauri/src/chat/peer/commands/requests.rs`
-- [ ] T051 [US5] Read receipts suppressed for `state = request` in `src-tauri/src/chat/peer/receipts.rs` (FR-043); notification for requests title-only "Neue Anfrage" in `notify.rs` (FR-040)
-- [ ] T052 [P] [US5] `src/components/chat/RequestBanner.vue` with "Annehmen", "Ablehnen", "Blockieren"; accept opens the existing 060 preview (`src/components/contacts/ShareDialog.vue` confirm mode or its preview component)
-- [ ] T053 [US5] Requests view at route `requests` in `src/components/apps/ChatApp.vue` / `ThreadSidebar.vue`
-- [ ] T054 [P] [US5] i18n `chat.request.*` de/en; actions `chat.request.accept|decline|block` (not agent-callable)
-- [ ] T055 [US5] Deleting a contact keeps its conversation; new messages from that vault show as a request (edge case) — test in `chat_requests.rs`
+- [x] T048 [P] [US5] Integration test `src-tauri/src/chat/peer/requests_tests.rs` (over a Nostr-Relay in the process, like `two_vaults_tests.rs`): US5 scenarios 1–6 (no notification sound and no text for requests, accept creates the contact with the carried card, decline removes silently and a later message is a new request, block drops messages and invitations without receipt and appears in the blocked list, sender never sees _read_ before acceptance)
+- [x] T049 [US5] In `src-tauri/src/chat/peer/receive.rs` create direct threads from vaults without a stored, non-blocked card with `state = 'request'` and store the carried card on the member row; `verify.rs` lets such messages pass (blocked first, receipts of unknown vaults dropped) and `targets.rs` sends delivery receipts to the carried card
+- [x] T050 [US5] Commands `chat_request_card` (the carried card for spec 060's preview: "Annehmen" parks it in the share inbox, the address book opens its preview, and `received::save` ends every request of that vault through `store::accept_requests_of`) and `chat_request_answer` (`decline` → delete locally; `block` → `received::block` + delete) in `src-tauri/src/chat/peer/commands/requests.rs` and `src-tauri/src/chat/peer/requests.rs`
+- [x] T051 [US5] Read receipts suppressed for `state = request` in `src-tauri/src/chat/peer/send.rs` `read_up_to` (FR-043); notification for requests title-only "Neue Anfrage" and without sound in `notify.rs` (FR-040: `NotificationSpec.quiet`, iOS silent, Android channel `holzi-quiet` of low importance; desktop notifications name no sound)
+- [x] T052 [P] [US5] `src/components/chat/RequestBanner.vue` with "Annehmen", "Ablehnen", "Blockieren" (the last two confirmed first); accept opens the existing 060 preview (`src/components/contacts/ShareImport.vue` through the share inbox)
+- [x] T053 [US5] Requests view in `ThreadSidebar.vue`: the entry "Anfragen" with the count switches the sidebar to the requests (no route of its own; a request opens at `contact/<id>` like any conversation)
+- [x] T054 [P] [US5] i18n `chat.request.*` de/en; actions `chat.request.accept|decline|block` (not agent-callable)
+- [x] T055 [US5] Deleting a contact keeps its conversation; new messages from that vault show as a request (edge case) — test in `requests_tests.rs`
 
 **Checkpoint**: PR D.
 

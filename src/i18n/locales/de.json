@@ -406,7 +406,8 @@
       "title": "Unterhaltungen",
       "muted": "Stummgeschaltet",
       "unread": "{count} ungelesen",
-      "newConversation": "Neue Unterhaltung"
+      "newConversation": "Neue Unterhaltung",
+      "requests": "Anfragen"
     },
     "peer": {
       "unknownName": "Unbekannt",
@@ -450,6 +451,7 @@
     },
     "notify": {
       "request": "Neue Anfrage",
+      "quietChannel": "Leise Benachrichtigungen",
       "open": "Öffnen"
     },
     "agent": {
@@ -461,6 +463,16 @@
     },
     "notes": {
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
+    },
+    "request": {
+      "banner": "{name} ist nicht in deinem Adressbuch. Nimm die Anfrage an, um zu antworten.",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "block": "Blockieren",
+      "declineTitle": "Anfrage ablehnen?",
+      "declineConfirm": "Die Unterhaltung mit {name} wird entfernt. {name} erfährt davon nichts; eine neue Nachricht kommt wieder als Anfrage.",
+      "blockTitle": "{name} blockieren?",
+      "blockConfirm": "Nachrichten von {name} werden ab jetzt verworfen, ohne Bestätigung. Die Unterhaltung wird entfernt. Aufheben kannst du das in den Einstellungen der Kontakte."
     }
   },
   "settings": {
@@ -2063,7 +2075,9 @@
       "type": "In ein Feld tippen",
       "select": "Option auswählen",
       "tabsClose": "Agenten-Tab schließen",
-      "takeoverRequest": "Um Eingreifen bitten"
+      "takeoverRequest": "Um Eingreifen bitten",
+      "download": "Datei herunterladen",
+      "upload": "Datei hochladen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -4023,7 +4037,9 @@
       "other": "Anderer MCP-Client",
       "otherHint": "In die MCP-Konfiguration des Clients eintragen",
       "copy": "Kopieren",
-      "copied": "Kopiert"
+      "copied": "Kopiert",
+      "httpTitle": "Über HTTP verbinden",
+      "httpHint": "holzi wartet auf 127.0.0.1:{port}. Beim ersten Verbinden öffnet der Agent eine Seite im Browser; bestätige ihn dann hier in holzi."
     },
     "notification": {
       "title": "Ein Agent möchte holzi nutzen",
@@ -4181,6 +4197,12 @@
         "hint": "Mit „Eingreifen“ holt holzi den Tab nach vorn, und du bedienst den Browser selbst, etwa für ein Captcha oder eine Bestätigung. Der Agent wartet und erfährt nichts von dem, was du tust. Gib danach mit „Zurückgeben“ in holzi oder im Tab zurück.",
         "allow": "Eingreifen",
         "reason": "Grund"
+      },
+      "download": {
+        "title": "Großen Download behalten?",
+        "hint": "Der Agent hat einen Download über 100 MB ausgelöst. Er lädt weiter, bis du entscheidest; der Agent bekommt die Datei erst mit deiner Zustimmung. Ohne Zustimmung bricht holzi ihn ab und löscht, was angekommen ist.",
+        "allow": "Behalten",
+        "size": "Größe"
       },
       "address": "Adresse",
       "target": "Ziel",

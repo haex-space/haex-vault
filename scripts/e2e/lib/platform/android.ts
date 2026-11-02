@@ -82,6 +82,10 @@ export function phoneControls(adb: Adb): PhoneControls {
   return {
     ...contactControls(adb),
     back: () => void adb.shell('input', 'keyevent', 'KEYCODE_BACK'),
+    reachAppPort: (port) => {
+      adb.forward(port)
+      return () => adb.unforward(port)
+    },
     // As the system does under memory pressure: no shutdown of the app's own. `am kill` does not
     // end a process that has only just gone to the background, so the app's own user ends it.
     killInBackground: () => {

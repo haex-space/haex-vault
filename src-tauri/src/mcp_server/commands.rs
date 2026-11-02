@@ -27,6 +27,8 @@ use crate::storage::wm_session_commands::current_device_uuid;
 pub struct McpStatus {
     pub enabled: bool,
     pub state: McpRunState,
+    /// The port of the HTTP way while it runs (spec 021 PR G).
+    pub http_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -81,6 +83,19 @@ pub enum SnippetClient {
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct McpSnippetArgs {
     pub client: SnippetClient,
+    /// The program way when left out.
+    #[serde(default)]
+    #[ts(optional)]
+    pub way: Option<SnippetWay>,
+}
+
+/// How the agent reaches holzi: by starting the helper, or over loopback HTTP with OAuth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum SnippetWay {
+    Program,
+    Http,
 }
 
 /// This device in the open vault.
@@ -113,6 +128,7 @@ async fn status<R: Runtime>(
     Ok(McpStatus {
         enabled,
         state: server.run_state(vault_open).await,
+        http_port: server.http_port().await,
     })
 }
 
@@ -134,7 +150,7 @@ pub async fn mcp_configure<R: Runtime>(
     server: State<'_, McpServer>,
     args: McpConfigureArgs,
 ) -> Result<McpStatus> {
-    if !crate::platform::capabilities().mcp_helper {
+    if !settings::available() {
         return Err(HolziError::InvalidInput {
             reason: "the MCP access is not available on this device".to_owned(),
         });
@@ -200,13 +216,51 @@ pub async fn mcp_agent_log<R: Runtime>(
 pub async fn mcp_setup_snippet<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
+    server: State<'_, McpServer>,
     args: McpSnippetArgs,
 ) -> Result<String> {
     let device = open_device(&app, &state).await?;
-    let executable = super::helper::executable().map_err(|error| HolziError::Io {
-        reason: format!("the path of holzi: {error}"),
-    })?;
-    Ok(snippet(args.client, &executable, device))
+    match args.way.unwrap_or(SnippetWay::Program) {
+        SnippetWay::Program if crate::platform::capabilities().mcp_helper => {
+            let executable = super::helper::executable().map_err(|error| HolziError::Io {
+                reason: format!("the path of holzi: {error}"),
+            })?;
+            Ok(snippet(args.client, &executable, device))
+        }
+        SnippetWay::Program => Err(HolziError::InvalidInput {
+            reason: "this device has no program way".to_owned(),
+        }),
+        SnippetWay::Http => {
+            let port = match server.http_port().await {
+                Some(port) => Some(port),
+                None => {
+                    state
+                        .database()?
+                        .read(move |q| settings::read_http_port(q, device))
+                        .await?
+                }
+            };
+            let port = port.ok_or_else(|| HolziError::InvalidInput {
+                reason: "the HTTP way has not run yet; turn the access on".to_owned(),
+            })?;
+            Ok(http_snippet(args.client, port))
+        }
+    }
+}
+
+/// The snippet for `client` on the HTTP way; the client signs in through holzi's dialog (OAuth).
+pub fn http_snippet(client: SnippetClient, port: u16) -> String {
+    let url = format!("http://127.0.0.1:{port}/mcp");
+    match client {
+        SnippetClient::ClaudeCode => format!("claude mcp add --transport http holzi {url}"),
+        SnippetClient::Codex => format!("codex mcp add holzi --url {url}"),
+        SnippetClient::Other => {
+            let config = serde_json::json!({
+                "mcpServers": { "holzi": { "type": "http", "url": url } }
+            });
+            serde_json::to_string_pretty(&config).unwrap_or_default()
+        }
+    }
 }
 
 /// The snippet for `client`.

@@ -238,20 +238,20 @@ asks, a remembered one does not; every entry fill asks.
 
 ## Phase 7: User Story 5 - Herunterladen und Hochladen (Priority: P3) (PR E2)
 
-**Goal**: Downloads into "Agenten-Downloads", uploads only from paths the file rights reach.
+**Goal**: Downloads into "HaexVault", uploads only from paths the file rights reach.
 
 **Independent Test**: A fixture download lands in the folder and in the log; a download over
 100 MB asks; an upload without a file right is refused (spec US5).
 
 ### Tests first
 
-- [ ] T066 [P] [US5] Unit tests in src-tauri/src/agent_browser/downloads_tests.rs: names are made safe and unique in the folder, the 100 MB limit from `Content-Length` and while running, an upload path outside the agent's file rights (044) is refused without saying whether it exists
-- [ ] T067 [US5] Integration test in src-tauri/tests/agent_browser_act.rs: `browser.download` of a fixture invoice, a 150 MB fixture asks, `browser.upload` asks as submitting and sets the file
+- [x] T066 [P] [US5] Unit tests in src-tauri/src/agent_browser/downloads_tests.rs: names are made safe and unique in the folder, the 100 MB limit from `Content-Length` and while running, an upload path outside the agent's file rights (044) is refused without saying whether it exists
+- [x] T067 [US5] Integration test in src-tauri/tests/agent_browser_files.rs (own file instead of agent_browser_act.rs): `browser.download` of a fixture invoice, a 150 MB fixture asks, `browser.upload` asks as submitting and sets the file
 
 ### Implementation
 
-- [ ] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (R11), prompt kind `download`, the folder "Agenten-Downloads" in the instance's own storage reachable through 044
-- [ ] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
+- [x] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (rules) and src-tauri/src/agent_browser/act_files.rs (the tools) (R11), prompt kind `download`, the folder `HaexVault/<Vault>` in the system's downloads folder, which the grant "files of the device" (044) reaches (decided 2026-11-01: holzi's own folders are closed to agents)
+- [x] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
 
 **Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M7 pass.
 

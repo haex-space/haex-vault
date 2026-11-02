@@ -112,7 +112,7 @@ async fn known_own_or_muted_messages_and_switched_off_notifications_show_nothing
 }
 
 #[tokio::test]
-async fn a_request_shows_no_name_and_no_text() {
+async fn a_request_shows_no_name_no_text_and_makes_no_sound() {
     let setup = setup().await;
     let thread = setup.thread.to_string();
     setup
@@ -130,6 +130,7 @@ async fn a_request_shows_no_name_and_no_text() {
     assert_eq!(notice.title, "Neue Anfrage");
     assert_eq!(notice.body, None);
     assert!(!notice.title.contains("Kontakt"));
+    assert!(notice.quiet, "FR-040: no sound for a request");
 }
 
 #[test]

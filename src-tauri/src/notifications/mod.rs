@@ -26,6 +26,10 @@ pub struct NotificationSpec {
     /// The image and its file extension (`png`, `jpg`, …).
     pub icon: Option<(Vec<u8>, &'static str)>,
     pub buttons: Vec<NotificationButton>,
+    /// Shown without a sound (spec 072 FR-040). Desktop notifications of holzi never name a sound,
+    /// so they are silent already (Windows marks such a toast silent); Android uses its own channel
+    /// without sound, iOS the silent presentation.
+    pub quiet: bool,
 }
 
 /// What the user did with a notification, as the system reports it.
