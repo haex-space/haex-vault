@@ -50,6 +50,9 @@ export function useComposer(
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
 ) {
+  let sendGeneration = 0
+  let sendInvocationStarted = false
+
   // Live sub-agent activity for the Claude Code delegate (spec
   // 011-composer-toolbar-parity Story 2) — reset at the start of every send
   // and when the current turn ends, so a stale count never survives into
@@ -84,6 +87,8 @@ export function useComposer(
     const retry = retryPending ? pendingSend.value : null
     const content = retry?.content ?? input.value.trim()
     if (!content || sendDisabled.value) return
+    const generation = ++sendGeneration
+    sendInvocationStarted = false
     if (!retry) input.value = ''
     busy.value = true
     lastError.value = null
@@ -104,6 +109,8 @@ export function useComposer(
       // A thread selection starts this load in the background. Await it again here so a fast
       // send cannot reserve the chat operation first and use the previously loaded model.
       await chat.useSessionModelAsync(request.threadId)
+      if (generation !== sendGeneration) return
+      sendInvocationStarted = true
       const result = await chat.sendMessageAsync(request)
       activeThreadId.value = result.threadId
       const queuedApprovals = pendingPromptsByThread.get(result.threadId)
@@ -226,6 +233,7 @@ export function useComposer(
       }
       await scrollToBottom()
     } catch (e: unknown) {
+      if (generation !== sendGeneration) return
       // The initial invoke may have been accepted even when its response was
       // lost. Keep the exact same key available for a safe retry; stream
       // errors are handled separately and deliberately do not retry.
@@ -249,6 +257,14 @@ export function useComposer(
 
   /** Requests cancellation of the active generation. */
   async function abort() {
+    if (turnSetupPending.value && !sendInvocationStarted) {
+      // The session model is still loading; there is no chat generation to abort yet. Prevent the
+      // pending preflight from starting a send after the page has been left.
+      sendGeneration++
+      busy.value = false
+      turnSetupPending.value = false
+      return
+    }
     try {
       await chat.abortAsync()
     } catch (e: unknown) {

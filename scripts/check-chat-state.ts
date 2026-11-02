@@ -512,6 +512,7 @@ test('a terminal event before the invoke response cannot leave the composer busy
   })
   state.input.value = 'Inspect'
   const sending = state.send()
+  await flush()
   await state.handleTurnComplete({
     threadId: 'a',
     assistantMessageId: null,
@@ -679,9 +680,34 @@ test('leaving while the initial request starts aborts before response IDs exist'
   })
   state.input.value = 'Inspect'
   const sending = state.send()
+  await flush()
   await state.unmount()
   await sending
   assert.equal(aborted, 1)
+  assert.equal(state.busy.value, false)
+})
+
+test('leaving while the session model loads does not send afterward', async () => {
+  let resolveModel!: () => void
+  let sends = 0
+  const state = createChatState({
+    useSessionModelAsync: () =>
+      new Promise<void>((resolve) => {
+        resolveModel = resolve
+      }),
+    sendMessageAsync: async () => {
+      sends++
+      return { threadId: 'a', userMessageId: 'u', assistantMessageId: 'answer' }
+    },
+  })
+  state.input.value = 'Inspect'
+  const sending = state.send()
+  await flush()
+  await state.unmount()
+  resolveModel()
+  await sending
+
+  assert.equal(sends, 0)
   assert.equal(state.busy.value, false)
 })
 
