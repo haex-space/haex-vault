@@ -36,6 +36,9 @@ pub mod commands;
 pub mod copy;
 #[cfg(test)]
 mod copy_tests;
+pub mod generator;
+#[cfg(test)]
+mod generator_tests;
 pub mod groups;
 #[cfg(test)]
 mod groups_tests;
