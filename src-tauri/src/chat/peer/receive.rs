@@ -7,7 +7,9 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::envelope::{Body, Envelope, Receipt, To};
+use super::verify::vault_bytes;
 use super::{ids, store};
+use crate::contacts::card::{format, received};
 use crate::error::Result;
 
 /// How far a sender's clock may run ahead before the arrival time orders the message (R4).
@@ -49,6 +51,9 @@ pub fn message(
     let incoming = envelope.from != me.vault;
     let peer = if incoming { &envelope.from } else { to };
     let thread_id = store::open_direct(tx, me.vault, peer, now)?;
+    if incoming {
+        sort_request(tx, thread_id, envelope)?;
+    }
     let message_id = ids::message_id(thread_id, &envelope.from, &envelope.id);
     let mut stored = Stored {
         thread_id,
@@ -85,6 +90,24 @@ pub fn message(
     }
     stored.new = true;
     Ok(Some(stored))
+}
+
+/// A message of a vault without a stored card makes its conversation a request with the carried
+/// card (US5); one of a confirmed contact ends a request that is still open on this device, for the
+/// case its card arrived through the sync before the conversation did.
+fn sort_request(tx: &mut CrdtTransaction<'_>, thread_id: Uuid, envelope: &Envelope) -> Result<()> {
+    let Some(from) = vault_bytes(&envelope.from) else {
+        return Ok(());
+    };
+    if received::stored(tx, &from)?.is_some() {
+        store::accept_requests_of(tx, &envelope.from)?;
+        return Ok(());
+    }
+    // The receiver checks parsed this card already; one that does not parse keeps no request card.
+    if let Ok(card) = format::parse(&envelope.card) {
+        store::mark_request(tx, thread_id, &envelope.from, &card.bytes)?;
+    }
+    Ok(())
 }
 
 /// The columns of a new message row.

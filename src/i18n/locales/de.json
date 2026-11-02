@@ -406,7 +406,8 @@
       "title": "Unterhaltungen",
       "muted": "Stummgeschaltet",
       "unread": "{count} ungelesen",
-      "newConversation": "Neue Unterhaltung"
+      "newConversation": "Neue Unterhaltung",
+      "requests": "Anfragen"
     },
     "peer": {
       "unknownName": "Unbekannt",
@@ -450,6 +451,7 @@
     },
     "notify": {
       "request": "Neue Anfrage",
+      "quietChannel": "Leise Benachrichtigungen",
       "open": "Öffnen"
     },
     "agent": {
@@ -461,6 +463,16 @@
     },
     "notes": {
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
+    },
+    "request": {
+      "banner": "{name} ist nicht in deinem Adressbuch. Nimm die Anfrage an, um zu antworten.",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "block": "Blockieren",
+      "declineTitle": "Anfrage ablehnen?",
+      "declineConfirm": "Die Unterhaltung mit {name} wird entfernt. {name} erfährt davon nichts; eine neue Nachricht kommt wieder als Anfrage.",
+      "blockTitle": "{name} blockieren?",
+      "blockConfirm": "Nachrichten von {name} werden ab jetzt verworfen, ohne Bestätigung. Die Unterhaltung wird entfernt. Aufheben kannst du das in den Einstellungen der Kontakte."
     }
   },
   "settings": {
