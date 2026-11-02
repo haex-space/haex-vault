@@ -256,12 +256,18 @@ pub fn samples_of(app: &AppHandle, tone: ToneId, rate: u32) -> Vec<f32> {
 }
 
 /// Shows `tone` and plays it into `mixer`, unless tones are off and it is not one that always
-/// sounds. The volume is the mixer's tone volume (`assistant.tones.volume`).
-pub fn play(app: &AppHandle, mixer: &MixerInput, tone: ToneId, tones_enabled: bool) {
+/// sounds. The volume is the mixer's tone volume (`assistant.tones.volume`). Returns how long it
+/// sounds: an own tone may be longer than the built-in one (up to three seconds), and the
+/// assistant listens only once it is over.
+pub fn play(app: &AppHandle, mixer: &MixerInput, tone: ToneId, tones_enabled: bool) -> Duration {
     let _ = app.emit(EVENT_TONE, ToneEvent { tone });
-    if tones_enabled || always_audible(tone) {
-        mixer.play_tone(&samples_of(app, tone, mixer.sample_rate()));
+    if !(tones_enabled || always_audible(tone)) {
+        return Duration::ZERO;
     }
+    let rate = mixer.sample_rate();
+    let samples = samples_of(app, tone, rate);
+    mixer.play_tone(&samples);
+    Duration::from_secs_f64(samples.len() as f64 / f64::from(rate.max(1)))
 }
 
 /// How often a tone sample looks for a newer sample while it waits.

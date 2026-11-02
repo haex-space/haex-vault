@@ -4533,7 +4533,7 @@ dependencies = [
 [[package]]
 name = "haex-passgen"
 version = "0.1.0"
-source = "git+https://github.com/haex-space/vault-sdk?rev=72c2190207fe30bb8707cfd390374fa3b62bf1c9#72c2190207fe30bb8707cfd390374fa3b62bf1c9"
+source = "git+https://github.com/haex-space/vault-sdk?rev=4f5294f60b75ba0a073a7818a93464d8d8ad7c68#4f5294f60b75ba0a073a7818a93464d8d8ad7c68"
 dependencies = [
  "getrandom 0.2.17",
  "serde",

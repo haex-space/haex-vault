@@ -12,24 +12,26 @@ Die Ansichten unter Einstellungen → KI drei Dinge ändern:
 
 ## Entscheidungen
 
-| Frage | Entscheidung |
-|---|---|
-| Kein gemerktes Modell | Der Chat startet ohne Modell, das Eingabefeld ist gesperrt, die Auswahl zeigt "Modell wählen". Kein stilles "erstes verfügbares". |
-| Name des Eintrags | "Anbieter" |
-| Bedeutung von "aktiv" | Das lokale Modell ist im Speicher geladen. Es hat mit der Modellwahl der Sitzung nichts zu tun. |
-| Wie viele aktiv | Höchstens ein lokales Modell. Heruntergeladen können beliebig viele sein. |
-| Lebensdauer | Das aktive Modell bleibt im Speicher, bis der Nutzer es in den Einstellungen entlädt. Der Chat kann weder laden noch entladen. |
-| Nach Neustart | Das aktive lokale Modell wird pro Gerät gemerkt und beim Öffnen der Vault wieder geladen (der bisherige Preload). |
-| Im Chat | Das aktive lokale Modell ist ein Modell neben Claude, Codex und den Modellen der Endpunkte. Nur das aktive lokale Modell erscheint dort. |
+| Frage                 | Entscheidung                                                                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Kein gemerktes Modell | Der Chat startet ohne Modell, das Eingabefeld ist gesperrt, die Auswahl zeigt "Modell wählen". Kein stilles "erstes verfügbares".        |
+| Name des Eintrags     | "Anbieter"                                                                                                                               |
+| Bedeutung von "aktiv" | Das lokale Modell ist im Speicher geladen. Es hat mit der Modellwahl der Sitzung nichts zu tun.                                          |
+| Wie viele aktiv       | Höchstens ein lokales Modell. Heruntergeladen können beliebig viele sein.                                                                |
+| Lebensdauer           | Das aktive Modell bleibt im Speicher, bis der Nutzer es in den Einstellungen entlädt. Der Chat kann weder laden noch entladen.           |
+| Nach Neustart         | Das aktive lokale Modell wird pro Gerät gemerkt und beim Öffnen der Vault wieder geladen (der bisherige Preload).                        |
+| Im Chat               | Das aktive lokale Modell ist ein Modell neben Claude, Codex und den Modellen der Endpunkte. Nur das aktive lokale Modell erscheint dort. |
 
 ## 1. Standardmodell entfällt
 
 **Frontend**
+
 - Entfällt: [DefaultModelSetting.vue](../../src/components/settings/DefaultModelSetting.vue), der Registry-Eintrag `ai.default`, die Route in `appRoutes.ts`, die Actions `settings.models.setDefault` und `settings.models.clearDefault`, die i18n-Texte unter `settings.locations.ai.default` und `settings.default`.
 - Onboarding ([\[instance\].vue](../../src/pages/onboarding/[instance].vue)): schreibt nach dem Download nicht mehr `chat.default_model_id`. Es lädt das heruntergeladene Modell als aktives lokales Modell (siehe Abschnitt 3). Offen: ob der Wizard zusätzlich `chat.last_active_model_id` setzt, damit der erste Chat das Modell übernimmt. Annahme: ja.
 - Ohne Modell: Auswahl "Modell wählen", Eingabefeld gesperrt.
 
 **Backend** ([default_model.rs](../../src-tauri/src/chat/default_model.rs))
+
 - Die Kette wird: Session → zuletzt gewählt → keins. `DefaultDevice`, `DefaultVault`, `FirstAvailable` und `PREF_DEFAULT_MODEL` entfallen.
 - Ein gemerktes lokales Modell, das nicht aktiv ist, zählt als "keins".
 - Sprachassistent, Modellaufträge und `send_admission` rufen `resolve_model` ebenfalls auf. Bei "keins" liefern sie eine klare Meldung "kein Modell gewählt". Wie sie sich heute bei `None` verhalten, ist im Plan zu prüfen.
@@ -59,6 +61,7 @@ Die Ansichten unter Einstellungen → KI drei Dinge ändern:
 Heute hat [ChatState](../../src-tauri/src/chat/session.rs) nur den Slot `session` für das geladene Modell, lokal oder API. Wählt man ein API-Modell, wird ein geladenes lokales verworfen ([model_loading.rs](../../src-tauri/src/chat/model_loading.rs), "If another model was already loaded, it is dropped"). Das passt nicht zum Zielbild.
 
 Neu:
+
 - `ChatState` bekommt neben `session` einen Slot für den geladenen lokalen Motor (Modell-ID, Adapter, Tokenizer-Repo, Kontextfenster, Engine).
 - Nur Aktivieren und Entladen auf der Seite "Lokale Modelle" verändern diesen Slot. Neue Befehle dafür; das Pref `ai.active_local_model_id` (Gerät) hält den Merker.
 - Wählt der Chat das aktive lokale Modell, baut er seine `session` aus dem Slot und lädt nichts. Wählt er ein API-Modell, bleibt der Slot unberührt.

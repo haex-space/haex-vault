@@ -62,6 +62,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.local.search': '/ai/local/search',
   'ai.local.repo': '/ai/local/repo/Qwen/Qwen2.5-GGUF',
   'ai.speech': '/ai/speech',
+  'ai.speech.assistant': '/ai/speech/assistant',
   'ai.speech.voice': '/ai/speech/voice',
   'ai.speech.tones': '/ai/speech/tones',
   'ai.autonomy': '/ai/autonomy',
@@ -167,6 +168,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.providers',
     'ai.local',
     'ai.speech',
+    'ai.speech.assistant',
     'ai.speech.voice',
     'ai.speech.tones',
     'ai.autonomy',
@@ -190,7 +192,15 @@ test('the ai overview groups its rows by task, one heading each', () => {
     [
       ['chat', ['ai.default', 'ai.providers']],
       ['local', ['ai.local']],
-      ['speech', ['ai.speech', 'ai.speech.voice', 'ai.speech.tones']],
+      [
+        'speech',
+        [
+          'ai.speech',
+          'ai.speech.assistant',
+          'ai.speech.voice',
+          'ai.speech.tones',
+        ],
+      ],
       [
         'agents',
         ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],
@@ -288,7 +298,10 @@ test('header back returns to the previous station in the same category', () => {
   const fromOverview = push(createHistory('/ai'), '/ai/local')
   assert.deepEqual(headerBack(fromOverview), { kind: 'back', path: '/ai' })
   // KI → Lokale Modelle → Suche: back to Lokale Modelle.
-  const lateral = push(push(createHistory('/ai'), '/ai/local'), '/ai/local/search')
+  const lateral = push(
+    push(createHistory('/ai'), '/ai/local'),
+    '/ai/local/search',
+  )
   assert.deepEqual(headerBack(lateral), {
     kind: 'back',
     path: '/ai/local',

@@ -134,7 +134,10 @@ tuple and resumes strictly after it. The server applies the limit before returni
 
 `TranscriptEntryWire` = `{threadId, seq, spokenAt, speaker ("user" oder "haex"), kind, text,
 spokenUntil?, outcome?, final}`; `final: false` für Text, der noch entsteht. Die gespeicherte
-Mitschrift liest `assistant_transcript_list {threadId}`.
+Mitschrift liest `assistant_transcript_list {threadId}`; den Befehl gibt es in jedem Build, auch ohne
+`voice`, weil Mitschriften auf alle Geräte synchronisiert werden. Vorerst sendet
+`assistant-transcript` jeden Eintrag erst, wenn er gespeichert ist (`final: true`); eine Antwort
+erscheint, wenn sie vorbei ist. Einträge eines Gesprächs ohne Thread werden nie gespeichert.
 
 Die vorhandenen Chat-Ereignisse (`chat-token`, `chat-tool-call`, `tool-permission-request`,
 `chat-choice-request`, `chat-turn-complete` …) gehen bei Sprachgesprächen unverändert an die

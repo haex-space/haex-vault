@@ -27,6 +27,7 @@
 ### Task 1: Registry und Routen
 
 **Files:**
+
 - Modify: `src/lib/settings/registry.ts:167-206`
 - Modify: `src/components/wm/appRoutes.ts:60-100`
 - Test: `scripts/check-settings.ts:46-72, 150-200`
@@ -44,19 +45,19 @@
 (die alte Zeile `'ai.providers': '/ai/providers'` darf nur einmal stehen). Im Test "overview rows of general (spec 042) and ai" die Liste ersetzen durch:
 
 ```ts
-  assert.deepEqual(rows('ai'), [
-    'ai.default',
-    'ai.providers',
-    'ai.local',
-    'ai.speech',
-    'ai.speech.voice',
-    'ai.speech.tones',
-    'ai.autonomy',
-    'ai.denyRules',
-    'ai.files',
-    'ai.agents',
-    'ai.browser',
-  ])
+assert.deepEqual(rows('ai'), [
+  'ai.default',
+  'ai.providers',
+  'ai.local',
+  'ai.speech',
+  'ai.speech.voice',
+  'ai.speech.tones',
+  'ai.autonomy',
+  'ai.denyRules',
+  'ai.files',
+  'ai.agents',
+  'ai.browser',
+])
 ```
 
 Im Test "the ai overview groups its rows by task" die ersten beiden Gruppen:
@@ -119,11 +120,12 @@ Den Kommentar `// Reached from "Standard-Modell" and the chat; …` über dem al
 ### Task 2: ProvidersView
 
 **Files:**
+
 - Create: `src/components/settings/ProvidersView.vue`
 - Modify: `src/components/settings/ModelServersView.vue:81, 118`
 - Modify: `src/components/settings/ModelServerView.vue:125`
 
-**Step 1: Pfade umziehen.** `` `/ai/servers/${added.providerId}` `` → `` `/ai/providers/${added.providerId}` `` (ModelServersView Zeile 81), `` :to="`/ai/servers/${server.id}`" `` → `` :to="`/ai/providers/${server.id}`" `` (Zeile 118), `router.push('/ai/servers')` → `router.push('/ai/providers')` (ModelServerView Zeile 125).
+**Step 1: Pfade umziehen.** `` `/ai/servers/${added.providerId}` `` → `` `/ai/providers/${added.providerId}` `` (ModelServersView Zeile 81), ``:to="`/ai/servers/${server.id}`"`` → ``:to="`/ai/providers/${server.id}`"`` (Zeile 118), `router.push('/ai/servers')` → `router.push('/ai/providers')` (ModelServerView Zeile 125).
 
 **Step 2: View anlegen.**
 
@@ -162,6 +164,7 @@ Der Komponentenname folgt Nuxts Auto-Import (`components/settings/X.vue` → `Se
 ### Task 3: LocalModelsView und die beiden Listen
 
 **Files:**
+
 - Create: `src/components/settings/LocalModelsView.vue`
 - Modify: `src/components/settings/InstalledModels.vue:195-203` (leerer Zustand) und Kopfkommentar
 - Modify: `src/components/settings/DownloadModels.vue:42-44, 82, 116-160`
@@ -201,11 +204,11 @@ const { t } = useI18n()
 **Step 2: Leerer Zustand der oberen Liste.** In `InstalledModels.vue` den `SettingsGroup`-Block mit `v-else-if="installed.length === 0"` (Zeilen 195–204) ersetzen durch einen Absatz; die Zeile zur Download-Seite entfällt, weil der Download darunter auf derselben Seite steht:
 
 ```vue
-    <p
-      v-else-if="installed.length === 0"
-      class="px-1 text-sm text-muted-foreground"
-      data-testid="settings-installed-empty"
-    >
+<p
+  v-else-if="installed.length === 0"
+  class="px-1 text-sm text-muted-foreground"
+  data-testid="settings-installed-empty"
+>
       {{ t('models.installed.empty') }}
     </p>
 ```
@@ -227,6 +230,7 @@ Im Template `v-if="catalogEntries.length > 0"` → `v-if="notInstalled.length > 
 ### Task 4: i18n
 
 **Files:**
+
 - Modify: `src/i18n/locales/de.json` (um Zeile 645–700 und `settings.modelServers` bei 1442)
 - Modify: `src/i18n/locales/en.json` (gleiche Struktur)
 
@@ -280,6 +284,7 @@ Falls `settings.providers` schon existiert: Schlüssel dort ergänzen, nicht dop
 ### Task 5: E2E-Szenarien nachziehen und committen
 
 **Files:**
+
 - Modify: `scripts/e2e/scenarios/models-download-confirm.test.ts:51`
 - Modify: `scripts/e2e/scenarios/settings-header-back.test.ts:11`
 - Modify: `scripts/e2e/scenarios/settings-categories.test.ts`, `settings-deep-links.test.ts`, `settings-search.test.ts`
@@ -306,6 +311,7 @@ Neuer Worktree `.worktrees/ai-settings-no-default` von `origin/main` nach dem Me
 ### Task 6: Backend-Kette verkürzen (Tests zuerst)
 
 **Files:**
+
 - Modify: `src-tauri/src/chat/default_model_tests.rs`
 - Modify: `src-tauri/src/chat/default_model.rs:31-190, 218-260`
 - Modify: `src-tauri/src/model_jobs/preflight.rs:25, 53-54, 139-148, 227-250`
@@ -424,6 +430,7 @@ mit einer DB-Lesung, die nur `last_active` liefert. Docstrings von `resolve_defa
 ### Task 7: Frontend – Standardmodell entfernen
 
 **Files:**
+
 - Delete: `src/components/settings/DefaultModelSetting.vue`
 - Modify: `src/lib/settings/registry.ts` (Eintrag `ai.default`)
 - Modify: `src/components/wm/appRoutes.ts` (Route `ai.default`)
@@ -443,19 +450,20 @@ mit einer DB-Lesung, die nur `last_active` liefert. Docstrings von `resolve_defa
 ### Task 8: Onboarding
 
 **Files:**
+
 - Modify: `src/pages/onboarding/[instance].vue:91-115`
 
 **Step 1:** Den Block ab `// Set device-scoped default model` ersetzen: der Wizard merkt das Modell als zuletzt gewähltes, weil es der Chat so übernimmt:
 
 ```ts
-    // The wizard's explicit choice is the model a new chat starts with: the last picked one
-    // (spec 002 FR-009 as amended 2026-11-02). There is no default model.
-    // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
-    await setPrefAsync(
-      { kind: 'device', uuid: info.vaultDeviceUuid },
-      'chat.last_active_model_id',
-      installed.id,
-    )
+// The wizard's explicit choice is the model a new chat starts with: the last picked one
+// (spec 002 FR-009 as amended 2026-11-02). There is no default model.
+// action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
+await setPrefAsync(
+  { kind: 'device', uuid: info.vaultDeviceUuid },
+  'chat.last_active_model_id',
+  installed.id,
+)
 ```
 
 **Step 2:** `pnpm typecheck && pnpm check:templates`; Spec-002-Text unten nachziehen (Task 9).
@@ -463,6 +471,7 @@ mit einer DB-Lesung, die nur `last_active` liefert. Docstrings von `resolve_defa
 ### Task 9: Chat ohne Modell prüfen, Spec nachziehen
 
 **Files:**
+
 - Verify: `src/components/chat/Composer.vue:68-70`, `src/stores/models.ts:350-390` (Kommentar zu `autoLoadFirstAvailableModel`)
 - Verify: `src-tauri/src/chat/send_admission.rs`, `src-tauri/src/assistant/turn.rs:331-340`
 - Modify: `specs/002-onboarding-model-prefs/spec.md` (FR-007, FR-009, FR-014)
@@ -482,10 +491,12 @@ mit einer DB-Lesung, die nur `last_active` liefert. Docstrings von `resolve_defa
 Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nach `executing-plans`-Muster. Die Aufgaben und ihre Reihenfolge stehen fest:
 
 ### Task 10: Slot in ChatState
+
 - `src-tauri/src/chat/session.rs`: Feld `local_model: Arc<Mutex<Option<ActiveSession>>>` neben `session` (Konstruktor, `Clone`, `reset_for_close`). Zugriffe nur über Methoden `local_model()` (Klon) und `set_local_model(Option<ActiveSession>)`. `session` bleibt unverändert, damit die rund 240 Zugriffe nicht angefasst werden.
 - Test (`session_tests.rs`, falls vorhanden, sonst neues `*_tests.rs`): Slot nach `reset_for_close` leer; Slot und `session` getrennt.
 
 ### Task 11: Befehle aktivieren und entladen
+
 - `src-tauri/src/chat/model_loading.rs`: `activate_local_model(model_id)`, `deactivate_local_model()`, `active_local_model_info()` als `#[tauri::command]`, registriert in `lib.rs` (Block bei `use_session_model`, Zeile ~808).
 - Aktivieren: `chat.cancel_preload_and_wait()`, `chat.acquire_operation()?` (schlägt fehl, solange eine Antwort läuft; das ist die Ablehnung "Modell wird gerade benutzt"), `resolve_local_model_metadata` + `load_local_model_from_metadata` (Integritätsprüfung bleibt), Slot setzen, Pref `ai.active_local_model_id` (Gerät, `preferences::insert_or_update`) schreiben, dieselben Load-Phasen-Ereignisse wie bisher (`publish_load_phase`, `set_model_ready`).
 - Das bisher aktive Modell wird erst nach erfolgreichem Laden ersetzt (wie heute bei `session`).
@@ -494,21 +505,25 @@ Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nac
 - Tests (`model_loading_tests.rs` oder neuer `local_slot_tests.rs`, mit dem vorhandenen Fake-`ProviderAdapter` der Session-Tests; `grep -rn "impl ProviderAdapter for" src-tauri/src --include=*_tests.rs`): Aktivieren ersetzt; Entladen leert und löscht das Pref; Aktivieren und Entladen werden abgelehnt, solange `operation_busy()` gilt.
 
 ### Task 12: Chat nutzt den Slot, lädt aber nichts
+
 - `load_model_inner`, lokaler Zweig (`model_loading.rs`, `else`-Zweig ab "#[cfg(feature = "llm-cpu")]"): statt `resolve_local_model_metadata`/`load_local_model_from_metadata` den Slot lesen. Ist `slot.model_id == model_id`: `session = slot.clone()` (der `Arc<dyn ProviderAdapter>` wird geteilt, kein zweiter Motor). Sonst `HolziError::InvalidInput { reason: "local model is not active" }`.
 - Die Tool-Prüfung im Hintergrund (`spawn_tool_use_check`) läuft weiter nur beim Laden in den Slot, nicht bei jedem Chat-Wechsel auf das lokale Modell.
 - `load_local_session` (Modellaufträge, spec 055 FR-033) bleibt unverändert. Falls das Job-Modell dem aktiven entspricht, könnte es den Slot teilen; das ist bewusst nicht Teil dieser Stufe.
 - Test: Chat wählt das aktive lokale Modell → `session.adapter` ist derselbe `Arc` wie im Slot (`Arc::ptr_eq`); wählt ein anderes lokales Modell → Fehler; wählt ein API-Modell → Slot unverändert.
 
 ### Task 13: Resolver und Preload
+
 - `resolve_model`: `loadable_local` ist `[slot.model_id]` oder leer (nicht mehr "Datei existiert"). Ein gemerktes lokales Modell, das nicht aktiv ist, zählt damit als "keins".
 - `start_default_model_preload` → `start_active_model_preload` (Aufrufstellen: `instances/open.rs:196`, `import.rs:237`, `create.rs:170`): liest `ai.active_local_model_id`, lädt in den Slot (`activate`-Logik ohne Operation-Mutex wie bisher, abbrechbar über das Token), setzt keine `session`. `resolve_default_local_model` entfällt.
 - Datei `default_model.rs` in `session_model.rs` umbenennen, wenn die Umbenennung klein bleibt; sonst Name lassen (Kommentar anpassen).
 
 ### Task 14: Löschen
+
 - `models/commands.rs::delete_installed_model` (Zeile ~658): ist die ID das aktive Modell → zuerst entladen (dieselbe Logik wie `deactivate_local_model`, ohne die Operation doppelt zu holen). `ChatState` ist dafür als `State` zusätzlich nötig; Signatur und `lib.rs`-Registrierung bleiben gleich.
 - Test: Löschen des aktiven Modells leert Slot und Pref.
 
 ### Task 15: Verifikation Stufe 3
+
 - `cargo test --lib -j 1 -- chat::`, `-- model_loading`, `-- models::`, `cargo clippy --all-targets -j 2` (Scope), Android-Clippy laut Memory `project-host-cargo-env-ndk-vars` (wegen cfg-Zweigen, `--no-default-features`).
 - `pnpm gen`-Äquivalent für ts-rs-Bindings: Whitespace am Zeilenende nach `cargo test` bereinigen (`sed -i -E "s/[[:space:]]+$//" src/types/bindings/*.ts`).
 
@@ -519,24 +534,29 @@ Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nac
 Neuer Worktree nach dem Merge von Stufe 3; **vor dem Start feinplanen**.
 
 ### Task 16: Composables und Actions
+
 - `src/composables/useChat.ts`: `activateLocalModelAsync(id)`, `deactivateLocalModelAsync()`, `activeLocalModelInfoAsync()` neben `activeModelInfoAsync` (Zeile ~443); `unloadLocalModel` ersetzen.
 - `src/lib/actions/settingsActions.ts` und `src/stores/settingsActionHandlers.ts`: Actions `settings.models.activate` (`modelId`) und `settings.models.deactivate`, Scope `settings.models`, Effekt `write`, Beschreibungen englisch wie die Nachbarn. Handler rufen den Store; `check:agent-actions` und `check:mcp-actions` laufen lassen.
 
 ### Task 17: Store
+
 - `src/stores/models.ts`: `activeLocalModelId` (Ref) und `refreshActiveLocalModel()`; in `initialize()` nach `refreshActiveModel()` laden und bei `ready`/`idle`-Statusereignissen aktualisieren. `activeModel` bleibt das Modell der Sitzung.
 - `modelGroups` (Chat-Auswahl, Quelle: `useModels`-Zusammenstellung, destrukturiert in `stores/models.ts:64`): die Gruppe der lokalen Modelle enthält nur das aktive. Das ist eine Filterung an der Stelle, die die Gruppen baut, mit einem Fall in `scripts/check-chat-model-search.ts` oder einem neuen `check-chat-model-groups.ts`.
 - Node-Sandbox-Regel beachten: keine DOM-Globals im Composable; danach alle `check:*`.
 
 ### Task 18: Lokale Modelle – Aktivieren, Entladen, Aktiv
+
 - `src/components/settings/InstalledModels.vue`: das Badge `models.installed.active` hängt an `activeLocalModelId === model.id` (nicht mehr an `activeModelId` der Sitzung). Der Button "Laden" wird "Aktivieren" (`settings.models.activate`); an der aktiven Zeile steht stattdessen "Entladen" (`settings.models.deactivate`). Fehler beim Aktivieren (Hardware reicht nicht) erscheinen in der Zeile, wie `loadErrorMessage` heute. Der Integritätsdialog bleibt; seine Entscheidungen laufen weiter über `chat.modelIntegrity.decide`, das im Store jetzt `activate` statt `selectModel` nutzt (`useModelIntegrity`, `onIntegrityLoadUntrusted`).
 - Löschen des aktiven Modells: `models.installed.deleteConfirm` ergänzen um den Satz "Das Modell wird dabei entladen."
 - i18n de/en: `models.installed.activate` "Aktivieren" / "Activate", `models.installed.unload` "Entladen" / "Unload"; `models.installed.load` entfällt. Beschreibung der Seite um einen Satz erweitern: "Aktiv ist das Modell, das im Speicher geladen ist." und der Hinweis aus dem Design: ein API-Modell im Chat ändert daran nichts.
 
 ### Task 19: Chat-Seite
+
 - `chat.model.select` für ein lokales Modell, das nicht aktiv ist, kann nicht mehr vorkommen (Liste gefiltert). Für ein verwaistes Auswahl-Pref (`chat.last_active_model_id` auf ein nicht aktives lokales Modell) greift "kein Modell" aus Stufe 2.
 - E2E-Szenarien unter `scripts/e2e/scenarios/`: neues `local-model-activate.test.ts`: Modell aktivieren → in der Chat-Auswahl wählbar → entladen → verschwindet aus der Auswahl; und `chat-no-model.test.ts`: ohne Modell ist das Eingabefeld gesperrt. Muster: bestehende `models-download-confirm.test.ts`. Vor dem Merge `gh workflow run ci.yml --ref <branch>`.
 
 ### Task 20: Specs
+
 - `specs/005-huggingface-model-discovery/spec.md`, `specs/012-unified-model-capabilities/spec.md`, `specs/023-settings-app/spec.md`, `specs/055-extension-model-access/spec.md` (US5): neue Namen und Pfade ("Anbieter", "Lokale Modelle", `/ai/providers`, `/ai/local`) und die Semantik "aktiv = geladen" mit je einem Satz "Geändert 2026-11-02".
 - Alle `check:*`, `pnpm lint`, `pnpm typecheck`; PR.
 
