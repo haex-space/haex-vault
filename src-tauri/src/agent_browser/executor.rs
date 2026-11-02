@@ -224,14 +224,15 @@ impl BrowserTools {
         if !crate::platform::capabilities().agent_browser {
             return Err(browser_error(BrowserError::Unsupported));
         }
-        if self.env.rights(&call.caller).await.is_none() {
-            self.ask_to_switch_on(&call.caller, cancel).await?;
-        }
+        // Plan refuses first: switching the browser on would not let this call run.
         if call.mode == PermissionMode::Plan && CHANGING.contains(&action_id) {
             return Err(NativeError::new(
                 "plan_mode",
                 "The approval mode of this agent only lets reading actions run.",
             ));
+        }
+        if self.env.rights(&call.caller).await.is_none() {
+            self.ask_to_switch_on(&call.caller, cancel).await?;
         }
         self.session(&call.caller).await
     }

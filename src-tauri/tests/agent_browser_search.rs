@@ -38,8 +38,21 @@ async fn a_search_opens_the_result_page_and_an_off_browser_asks_first() {
         "an allowed website asks nothing"
     );
 
-    // The built-in agent's browser is off: it asks; declining refuses and loads nothing.
+    // The built-in agent's browser is off: in Plan nothing could open a page, so it is not asked.
     *scene.env.off.lock().unwrap() = true;
+    let planned = scene
+        .call_as(
+            Caller::BuiltinAgent,
+            "browser.search",
+            json!({ "query": "x" }),
+            PermissionMode::Plan,
+        )
+        .await
+        .expect_err("refused in Plan");
+    assert_eq!(planned.code, "plan_mode");
+    assert!(scene.asked.lock().unwrap().is_empty(), "Plan asks nothing");
+
+    // Otherwise it asks; declining refuses and loads nothing.
     let declined = scene
         .call_as(
             Caller::BuiltinAgent,
