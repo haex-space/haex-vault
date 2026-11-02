@@ -306,6 +306,7 @@ fn parse(
         body: optional_text(options.get("body"), "body", MAX_BODY_CHARS)?,
         icon: icon(ctx, options.get("icon"))?,
         buttons,
+        quiet: false,
     };
     let tag = optional_text(options.get("tag"), "tag", MAX_TAG_CHARS)?;
     Ok((spec, links, tag))
