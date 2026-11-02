@@ -93,6 +93,7 @@ impl Session {
             fields: submit::fields_of(paused.body.as_deref()),
             reason: None,
             bytes: None,
+            entries: Vec::new(),
         };
         let answer = self.ask_for_page(&question).await;
         match answer {
@@ -108,8 +109,10 @@ impl Session {
         &self,
         question: &BrowserQuestion,
     ) -> Result<prompts::BrowserAnswer, PromptEnd> {
+        let mut question = question.clone();
+        crate::agent_browser::executor::hide_filled(&self.filled(), &mut question);
         self.questions.fetch_add(1, Ordering::SeqCst);
-        let answer = prompts::ask(&self.prompts, &self.closed, question, &self.cancel).await;
+        let answer = prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await;
         self.questions.fetch_sub(1, Ordering::SeqCst);
         answer
     }
@@ -162,10 +165,11 @@ impl Session {
             agent: self.env.agent_name(&self.caller).await,
             site: Some(site.to_string()),
             tool: None,
-            label: Some(url.to_owned()),
+            label: Some(self.filled().scrub(url)),
             fields: Vec::new(),
             reason: None,
             bytes: None,
+            entries: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {
@@ -191,7 +195,8 @@ impl Session {
             // `http` can only be read (research R9).
             Some(Remember::SiteOperate) if !site.is_plain_http() => Some(SiteLevel::Operate),
             Some(Remember::SiteOperate) => Some(SiteLevel::Read),
-            None => None,
+            // Remembering a fill is no answer to a website question.
+            Some(Remember::Fill) | None => None,
         };
         if let Some(level) = level {
             if let Err(error) = self.env.remember(&self.caller, site, level).await {

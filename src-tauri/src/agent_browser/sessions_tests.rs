@@ -76,6 +76,21 @@ impl BrowserEnv for Env {
     )> {
         None
     }
+
+    async fn password_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<crate::mcp_server::grants::PasswordRights> {
+        None
+    }
+
+    fn passwords(&self) -> Option<crate::passwords::service::PasswordsService> {
+        None
+    }
+
+    async fn remember_fill(&self, _: &Caller, _: &Site) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 fn agent() -> Caller {

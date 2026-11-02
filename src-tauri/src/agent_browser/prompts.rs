@@ -40,6 +40,19 @@ pub enum BrowserPromptKind {
     Takeover,
     /// May the agent keep a download larger than 100 MB (FR-031)?
     Download,
+    /// May holzi fill a login of the password manager into this website (FR-021)? With several
+    /// matching entries, which one.
+    Fill,
+}
+
+/// An entry the user can choose for a fill: an id that holds only for this question and the title,
+/// for the user only, never for the agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct BrowserEntryChoice {
+    pub id: String,
+    pub title: String,
 }
 
 /// What the dialog shows.
@@ -64,6 +77,8 @@ pub struct BrowserQuestion {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "number")]
     pub bytes: Option<u64>,
+    /// The entries the user chooses from ([`BrowserPromptKind::Fill`]); empty otherwise.
+    pub entries: Vec<BrowserEntryChoice>,
 }
 
 /// What a browser tool does, for the approval table.
@@ -112,9 +127,11 @@ pub enum BrowserDecision {
 pub enum Remember {
     SiteRead,
     SiteOperate,
+    /// "Für diese Website merken" of a fill (FR-021).
+    Fill,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct BrowserAnswer {
@@ -122,6 +139,10 @@ pub struct BrowserAnswer {
     #[serde(default)]
     #[ts(optional)]
     pub remember: Option<Remember>,
+    /// The chosen entry of a fill, by its id in the question.
+    #[serde(default)]
+    #[ts(optional)]
+    pub entry: Option<String>,
 }
 
 /// The payload of [`EVENT_PROMPT`].

@@ -23,14 +23,25 @@ use crate::files::access::AgentGrants;
 use crate::files::local::OwnPlaces;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::state::FilesState;
-use crate::mcp_server::grants::{validate, BrowserRights, Rights, SiteGrant, SiteLevel};
+use crate::mcp_server::grants::{
+    validate, BrowserRights, PasswordLevel, PasswordRights, Rights, SiteGrant, SiteLevel,
+};
 use crate::mcp_server::registry;
+use crate::passwords::service::PasswordsService;
+
+#[cfg(test)]
+#[path = "env_tests.rs"]
+mod tests;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 use crate::AppState;
 
 /// The device setting with the browser rights of the built-in agent (data-model.md); unset is off.
 pub const BUILTIN_KEY: &str = "agent_browser.builtin";
+
+/// The device setting with the password rights of the built-in agent for the agent browser
+/// (decided 2026-11-02): the entries its fills may use; unset is off.
+pub const BUILTIN_PASSWORDS_KEY: &str = "agent_browser.builtin_passwords";
 
 /// The table of the browser chosen on this device (migration 0047).
 const TABLE: &str = "haex_agent_browser_no_sync";
@@ -87,6 +98,59 @@ pub async fn set_builtin_rights<R: Runtime>(
         Ok(())
     })
     .await
+    .map_err(|error| error.to_string())
+}
+
+/// The built-in agent's password rights for fills on this device.
+pub async fn builtin_password_rights<R: Runtime>(app: &AppHandle<R>) -> Option<PasswordRights> {
+    let device = device(app).await.ok()?;
+    let db = app.state::<AppState>().database().ok()?;
+    let raw = db
+        .read(move |q| preferences::get(q, PrefScope::Device(device), BUILTIN_PASSWORDS_KEY))
+        .await
+        .ok()
+        .flatten()?;
+    serde_json::from_str(&raw).ok()
+}
+
+/// Sets (or, with `None`, switches off) the built-in agent's password rights for fills.
+pub async fn set_builtin_password_rights<R: Runtime>(
+    app: &AppHandle<R>,
+    rights: Option<PasswordRights>,
+) -> Result<(), String> {
+    validate_builtin_password_rights(rights.as_ref())?;
+    let device = device(app).await?;
+    let db = app
+        .state::<AppState>()
+        .database()
+        .map_err(|error| error.to_string())?;
+    let value = rights
+        .map(|rights| serde_json::to_string(&rights))
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    db.write(move |tx| {
+        let scope = PrefScope::Device(device);
+        match value {
+            Some(value) => preferences::insert_or_update(tx, scope, BUILTIN_PASSWORDS_KEY, &value)?,
+            None => preferences::delete(tx, scope, BUILTIN_PASSWORDS_KEY)?,
+        };
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+fn validate_builtin_password_rights(rights: Option<&PasswordRights>) -> Result<(), String> {
+    let Some(rights) = rights else {
+        return Ok(());
+    };
+    if rights.level != PasswordLevel::Read {
+        return Err("the built-in agent may only read password entries for fills".to_owned());
+    }
+    validate(&Rights {
+        passwords: Some(rights.clone()),
+        ..Default::default()
+    })
     .map_err(|error| error.to_string())
 }
 
@@ -270,6 +334,79 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             .await
             .ok()?;
         Some((own, grants))
+    }
+
+    async fn password_rights(&self, caller: &Caller) -> Option<PasswordRights> {
+        match caller {
+            Caller::BuiltinAgent => builtin_password_rights(&self.app).await,
+            Caller::ExternalAgent { id } => {
+                let agent = Uuid::parse_str(id).ok()?;
+                let device = device(&self.app).await.ok()?;
+                let db = self.app.state::<AppState>().database().ok()?;
+                db.read(move |q| registry::load_rights(q, device, agent))
+                    .await
+                    .ok()?
+                    .passwords
+            }
+            _ => None,
+        }
+    }
+
+    fn passwords(&self) -> Option<PasswordsService> {
+        let state = self.app.state::<AppState>();
+        let db = state.database().ok()?;
+        Some(PasswordsService::with_usage(db, state.usage()))
+    }
+
+    async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
+        let remembered = |rights: &mut BrowserRights| match rights.sites.get_mut(site) {
+            // Only a website the agent may operate keeps a fill (data-model.md).
+            Some(grant) if grant.level == SiteLevel::Operate => {
+                grant.fill_remembered = true;
+                true
+            }
+            _ => false,
+        };
+        match caller {
+            Caller::BuiltinAgent => {
+                let mut rights = builtin_rights(&self.app)
+                    .await
+                    .ok_or("the browser is off for the built-in agent")?;
+                if remembered(&mut rights) {
+                    set_builtin_rights(&self.app, Some(rights)).await?;
+                }
+                Ok(())
+            }
+            Caller::ExternalAgent { id } => {
+                let agent = Uuid::parse_str(id).map_err(|error| error.to_string())?;
+                let device = device(&self.app).await?;
+                let db = self
+                    .app
+                    .state::<AppState>()
+                    .database()
+                    .map_err(|error| error.to_string())?;
+                let site = site.clone();
+                db.write(move |tx| {
+                    let mut rights = registry::load_rights(tx, device, agent)?;
+                    if let Some(browser) = rights.browser.as_mut() {
+                        if let Some(grant) = browser.sites.get_mut(&site) {
+                            if grant.level == SiteLevel::Operate {
+                                grant.fill_remembered = true;
+                                registry::save_rights(tx, device, agent, &rights)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+                let _ = self
+                    .app
+                    .emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
+                Ok(())
+            }
+            _ => Err("not an agent".to_owned()),
+        }
     }
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {

@@ -9,7 +9,8 @@
  * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
  * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
  * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
- * declines.
+ * declines. A login fill (`fill`) shows the entries that match, by title, for the user only; the
+ * user picks one and may remember the website for later fills (FR-021).
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -31,8 +32,11 @@ const toolTitle = computed(() => {
   const def = BROWSER_ACTIONS.find((action) => action.id === tool)
   return def ? t(def.titleKey) : tool
 })
+const chosenEntry = ref<string | null>(null)
 const allowLabel = computed(() => {
   switch (question.value?.kind) {
+    case 'fill':
+      return t('agentBrowser.prompt.fill.allow')
     case 'site':
       return t('agentBrowser.prompt.allowOnce')
     case 'newTab':
@@ -53,14 +57,23 @@ watch(
   () => shown.value?.requestId,
   () => {
     failure.value = null
+    const entries = question.value?.entries ?? []
+    chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
   },
+  { immediate: true },
 )
 
 async function answerAsync(allow: boolean, remember?: Remember) {
   const asked = shown.value
   if (!asked) return
+  const entry = asked.question.kind === 'fill' ? chosenEntry.value : null
   try {
-    await store.answerAsync(asked.requestId, allow ? 'allow' : 'deny', remember)
+    await store.answerAsync(
+      asked.requestId,
+      allow ? 'allow' : 'deny',
+      remember,
+      entry ?? undefined,
+    )
   } catch (error) {
     failure.value = errString(error)
   }
@@ -149,6 +162,38 @@ function onUpdateOpen(open: boolean) {
             </dd>
           </template>
         </dl>
+        <fieldset
+          v-if="question.kind === 'fill' && (question.entries?.length ?? 0) > 1"
+          class="space-y-1"
+          data-testid="agent-browser-prompt-entries"
+        >
+          <legend class="text-sm font-medium">
+            {{ t('agentBrowser.prompt.fill.choose') }}
+          </legend>
+          <label
+            v-for="entry in question.entries"
+            :key="entry.id"
+            class="flex items-center gap-2 text-sm"
+          >
+            <input
+              v-model="chosenEntry"
+              type="radio"
+              name="agent-browser-entry"
+              :value="entry.id"
+            />
+            {{ entry.title || t('agentBrowser.prompt.fill.untitled') }}
+          </label>
+        </fieldset>
+        <p
+          v-else-if="question.kind === 'fill' && question.entries?.[0]"
+          class="text-sm"
+          data-testid="agent-browser-prompt-entry"
+        >
+          {{ t('agentBrowser.prompt.fill.entry') }}:
+          {{
+            question.entries[0].title || t('agentBrowser.prompt.fill.untitled')
+          }}
+        </p>
         <div v-if="question.fields.length > 0" class="space-y-1">
           <p class="text-sm font-medium">
             {{ t('agentBrowser.prompt.submit.fields') }}
@@ -207,8 +252,20 @@ function onUpdateOpen(open: boolean) {
           </UiButton>
         </template>
         <UiButton
+          v-if="question.kind === 'fill'"
           type="button"
           size="sm"
+          variant="outline"
+          :disabled="!chosenEntry"
+          data-testid="agent-browser-prompt-remember-fill"
+          @click="answerAsync(true, 'fill')"
+        >
+          {{ t('agentBrowser.prompt.fill.remember') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          size="sm"
+          :disabled="question.kind === 'fill' && !chosenEntry"
           data-testid="agent-browser-prompt-allow"
           @click="answerAsync(true)"
         >

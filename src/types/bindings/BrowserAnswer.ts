@@ -2,4 +2,8 @@
 import type { BrowserDecision } from "./BrowserDecision";
 import type { Remember } from "./Remember";
 
-export type BrowserAnswer = { decision: BrowserDecision, remember?: Remember, };
+export type BrowserAnswer = { decision: BrowserDecision, remember?: Remember,
+/**
+ * The chosen entry of a fill, by its id in the question.
+ */
+entry?: string, };

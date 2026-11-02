@@ -98,6 +98,13 @@ pub(super) struct Select {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(super) struct FillLogin {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct Upload {
     pub(super) tab: String,
     pub(super) element: u32,

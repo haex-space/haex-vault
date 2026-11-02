@@ -212,6 +212,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { rights: (input as { rights: unknown }).rights ?? null },
     }),
   )
+  on('settings.agentBrowser.builtinPasswords.set', async ({ input }) =>
+    invoke('agent_browser_builtin_passwords_set', {
+      args: { rights: (input as { rights: unknown }).rights ?? null },
+    }),
+  )
   on('settings.agentBrowser.path.set', async ({ input }) =>
     invoke('agent_browser_path_set', {
       args: { path: (input as { path: string | null }).path ?? null },

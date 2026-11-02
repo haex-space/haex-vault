@@ -23,6 +23,7 @@ pub mod profile;
 pub mod profile_store;
 pub mod prompts;
 pub mod read;
+pub mod redaction;
 pub mod session;
 pub mod sessions;
 pub mod sites;
@@ -390,6 +391,8 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
     store.save(&zip).await
 }
 
+#[cfg(test)]
+mod credentials_tests;
 #[cfg(test)]
 mod downloads_tests;
 #[cfg(test)]

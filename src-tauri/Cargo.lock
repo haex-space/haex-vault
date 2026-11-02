@@ -4490,6 +4490,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "haex-autofill"
+version = "0.1.0"
+source = "git+https://github.com/haex-space/vault-sdk?rev=ae3dfc73e71395c230c4c5bf95c5e850e345d7c3#ae3dfc73e71395c230c4c5bf95c5e850e345d7c3"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "haex-bundle"
 version = "0.1.0"
 source = "git+https://github.com/haex-space/vault-sdk?rev=517402a94c7c2b5f2093f38e3930f4019ddbba8d#517402a94c7c2b5f2093f38e3930f4019ddbba8d"
@@ -4798,6 +4806,7 @@ dependencies = [
  "frizbee",
  "futures",
  "getrandom 0.4.3",
+ "haex-autofill",
  "haex-bundle",
  "haex-crdt",
  "haex-passgen",

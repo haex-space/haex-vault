@@ -1994,7 +1994,8 @@
       "agentBrowser": {
         "builtinSet": "Browser-Rechte des eingebauten Agenten setzen",
         "pathSet": "Browser des Agenten-Browsers wählen",
-        "profileClear": "Profil des Agenten-Browsers löschen"
+        "profileClear": "Profil des Agenten-Browsers löschen",
+        "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen"
       }
     },
     "scopes": {
@@ -2082,7 +2083,8 @@
       "tabsClose": "Agenten-Tab schließen",
       "takeoverRequest": "Um Eingreifen bitten",
       "download": "Datei herunterladen",
-      "upload": "Datei hochladen"
+      "upload": "Datei hochladen",
+      "credentialsFill": "Anmeldedaten eintragen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -4132,7 +4134,9 @@
       "remove": "{site} entfernen",
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
-      "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
+      "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen.",
+      "forgetFill": "Anmeldung vergessen",
+      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder."
     },
     "extensions": {
       "title": "Erweiterungen",
@@ -4209,6 +4213,15 @@
         "allow": "Behalten",
         "size": "Größe"
       },
+      "fill": {
+        "title": "Anmeldedaten eintragen?",
+        "hint": "Der Agent möchte sich auf dieser Website anmelden. holzi trägt Benutzername, Passwort und gegebenenfalls den Einmalcode selbst ein; der Agent sieht keinen davon. Mit „Für diese Website merken“ trägt holzi hier künftig ohne Rückfrage ein, solange nur ein Eintrag passt.",
+        "allow": "Nur diesmal",
+        "remember": "Für diese Website merken",
+        "choose": "Welcher Eintrag?",
+        "entry": "Eintrag",
+        "untitled": "Ohne Titel"
+      },
       "address": "Adresse",
       "target": "Ziel",
       "more": "Danach warten noch {count} Fragen.",
@@ -4233,6 +4246,8 @@
       "pathReset": "Wieder suchen",
       "profileProblem": "Das gespeicherte Profil ließ sich nicht lesen; der Browser startete ohne Anmeldungen.",
       "builtin": "Eingebauter Agent",
+      "builtinPasswords": "Passwörter für den eingebauten Agenten",
+      "builtinPasswordsHint": "Aus diesen Einträgen darf holzi Anmeldedaten in Websites des Agenten-Browsers eintragen. Der eingebaute Agent sieht die Werte nie.",
       "profile": "Profil",
       "profileHint": "Anmeldungen auf Websites liegen verschlüsselt auf diesem Gerät.",
       "clear": "Profil löschen",

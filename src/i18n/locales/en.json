@@ -1994,7 +1994,8 @@
       "agentBrowser": {
         "builtinSet": "Set the browser rights of the built-in agent",
         "pathSet": "Choose the browser of the agent browser",
-        "profileClear": "Remove the profile of the agent browser"
+        "profileClear": "Remove the profile of the agent browser",
+        "builtinPasswordsSet": "Set the passwords of the built-in agent"
       }
     },
     "scopes": {
@@ -2082,7 +2083,8 @@
       "tabsClose": "Close an agent tab",
       "takeoverRequest": "Ask the user to take over",
       "download": "Download a file",
-      "upload": "Upload a file"
+      "upload": "Upload a file",
+      "credentialsFill": "Fill in login details"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4132,7 +4134,9 @@
       "remove": "Remove {site}",
       "removeShort": "Remove",
       "invalid": "This is not an https or http website.",
-      "hint": "A website over unencrypted http can only be read. Other websites ask before they open."
+      "hint": "A website over unencrypted http can only be read. Other websites ask before they open.",
+      "forgetFill": "Forget login",
+      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time."
     },
     "extensions": {
       "title": "Extensions",
@@ -4209,6 +4213,15 @@
         "allow": "Keep",
         "size": "Size"
       },
+      "fill": {
+        "title": "Fill in login details?",
+        "hint": "The agent wants to log in on this website. holzi fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” holzi fills here without asking from now on, as long as only one entry matches.",
+        "allow": "Only this time",
+        "remember": "Remember for this website",
+        "choose": "Which entry?",
+        "entry": "Entry",
+        "untitled": "Untitled"
+      },
       "address": "Address",
       "target": "Target",
       "more": "{count} more questions wait after this one.",
@@ -4233,6 +4246,8 @@
       "pathReset": "Search again",
       "profileProblem": "The saved profile could not be read; the browser started without logins.",
       "builtin": "Built-in agent",
+      "builtinPasswords": "Passwords for the built-in agent",
+      "builtinPasswordsHint": "holzi may fill logins from these entries into websites of the agent browser. The built-in agent never sees the values.",
       "profile": "Profile",
       "profileHint": "Logins on websites are stored encrypted on this device.",
       "clear": "Remove profile",
