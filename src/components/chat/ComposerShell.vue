@@ -41,9 +41,10 @@ function submit() {
   if (!voiceRecording.value) emit('send')
 }
 
-// Enter confirming an input method's composition is not a send.
+// Enter confirming an input method's composition is not a send. WebKit (the Linux webview) ends
+// the composition before that keydown, so only its keyCode 229 still tells it apart.
 function onEnter(event: KeyboardEvent) {
-  if (event.isComposing) return
+  if (event.isComposing || event.keyCode === 229) return
   event.preventDefault()
   submit()
 }
