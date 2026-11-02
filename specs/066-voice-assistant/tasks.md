@@ -509,6 +509,7 @@ it. A folder with a `.so` file is refused.
 - [ ] T122 Battery measurement on the reference phone (1 h "bereit", SC-010) and CPU on the reference desktop; record in research.md
 - [ ] T151 [P] Native speakers review the columns fr, es, it and pt of src-tauri/src/assistant/lexicon.json and the date and number rules in speakable.rs and judge the default voices (SC-017); record results in research.md R22
 - [ ] T152 [P] Clone test with 5 people for SC-016 (time to a saved voice, recognized in the sample)
+- [x] T161 Pause before answering (operator 2026-11-02: a thinking pause of 0.8 s ended what was said): `assistant.pauseMs` default 1500, range 500–3000 (data-model.md, src-tauri/src/assistant/commands.rs, vad.rs), slider in src/components/settings/assistant/AssistantSetting.vue, `parsePause` in src/lib/assistant/settings.ts, check in scripts/check-assistant-ui.ts
 - [ ] T123 Manual quickstart M1–M16 (specs/066-voice-assistant/quickstart.md); record results in the last PR description
 
 ---
