@@ -29,4 +29,8 @@ fields: Array<BrowserField>,
 /**
  * Why the agent asks the user to take over ([`BrowserPromptKind::Takeover`]), its own words.
  */
-reason: string | null, };
+reason: string | null,
+/**
+ * The size of a download in bytes, as far as known ([`BrowserPromptKind::Download`]).
+ */
+bytes?: number, };

@@ -147,6 +147,16 @@ async fn answer(
         path: path.clone(),
     });
     let file = path.split(['?', '#']).next().unwrap_or("/");
+    // A download of 150 MB that never finishes, for the question over 100 MB (spec 065 FR-031).
+    if file == "/big.bin" {
+        let head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n\
+                    Content-Disposition: attachment; filename=\"gross.bin\"\r\n\
+                    Content-Length: 150000000\r\nConnection: close\r\n\r\n";
+        let _ = stream.write_all(head.as_bytes()).await;
+        let _ = stream.write_all(&[0u8; 65536]).await;
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        return;
+    }
     // A page that never answers in time, for stopping a call that waits for it.
     if file == "/hang" {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;

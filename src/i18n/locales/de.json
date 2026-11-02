@@ -2069,7 +2069,9 @@
       "type": "In ein Feld tippen",
       "select": "Option auswählen",
       "tabsClose": "Agenten-Tab schließen",
-      "takeoverRequest": "Um Eingreifen bitten"
+      "takeoverRequest": "Um Eingreifen bitten",
+      "download": "Datei herunterladen",
+      "upload": "Datei hochladen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -4176,6 +4178,12 @@
         "hint": "Mit „Eingreifen“ holt holzi den Tab nach vorn, und du bedienst den Browser selbst, etwa für ein Captcha oder eine Bestätigung. Der Agent wartet und erfährt nichts von dem, was du tust. Gib danach mit „Zurückgeben“ in holzi oder im Tab zurück.",
         "allow": "Eingreifen",
         "reason": "Grund"
+      },
+      "download": {
+        "title": "Großen Download behalten?",
+        "hint": "Der Agent hat einen Download über 100 MB ausgelöst. Er lädt weiter, bis du entscheidest; der Agent bekommt die Datei erst mit deiner Zustimmung. Ohne Zustimmung bricht holzi ihn ab und löscht, was angekommen ist.",
+        "allow": "Behalten",
+        "size": "Größe"
       },
       "address": "Adresse",
       "target": "Ziel",

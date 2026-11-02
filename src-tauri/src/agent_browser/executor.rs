@@ -7,8 +7,8 @@
 //! over, and until the user gives back, every call gets `paused` (FR-017). Only
 //! `browser.takeover.request` ([`super::takeover`]) waits for that.
 //!
-//! Operating a page (clicking, typing, choosing) runs in [`super::act`]; those tools ask
-//! themselves, with the element's name and before anything is submitted.
+//! Operating a page (clicking, typing, choosing, downloading, uploading) runs in [`super::act`];
+//! those tools ask themselves, with the element's name and before anything is submitted.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -35,6 +35,8 @@ use super::{takeover, AgentBrowser, StartConfig};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
+use crate::files::access::AgentGrants;
+use crate::files::local::OwnPlaces;
 use crate::mcp_server::grants::{BrowserRights, SiteLevel};
 
 #[path = "executor_steps.rs"]
@@ -65,10 +67,28 @@ pub const CHANGING: &[&str] = &[
     "browser.type",
     "browser.select",
     "browser.tabs.close",
+    "browser.download",
+    "browser.upload",
 ];
 
-/// The changing tools that ask with the element they operate, not with their input.
-const OPERATING: &[&str] = &["browser.click", "browser.type", "browser.select"];
+/// The changing tools that operate an element: they ask with it, not with their input, and the
+/// page is read again after them.
+const OPERATING: &[&str] = &[
+    "browser.click",
+    "browser.type",
+    "browser.select",
+    "browser.upload",
+];
+
+/// The tools that ask with the element they operate; a download replies with its file, not with
+/// the page.
+const ASKS_WITH_ELEMENT: &[&str] = &[
+    "browser.click",
+    "browser.type",
+    "browser.select",
+    "browser.upload",
+    "browser.download",
+];
 
 pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.page.read",
@@ -85,6 +105,8 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.select",
     "browser.tabs.close",
     "browser.takeover.request",
+    "browser.download",
+    "browser.upload",
 ];
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
@@ -104,6 +126,12 @@ pub trait BrowserEnv: Send + Sync + 'static {
     fn locale(&self) -> String;
     /// How to start the browser now.
     async fn start_config(&self) -> Result<StartConfig, BrowserError>;
+    /// The folder downloads of agents land in: "Agenten-Downloads" of the open vault in the
+    /// system's downloads folder (research R11).
+    fn downloads_folder(&self) -> Result<std::path::PathBuf, String>;
+    /// What the file rights (044) of `caller` reach: holzi's own places and its grants; `None`
+    /// when they cannot be read.
+    async fn file_rights(&self, caller: &Caller) -> Option<(OwnPlaces, AgentGrants)>;
 }
 
 /// The executor of `browser.*`.
@@ -316,7 +344,8 @@ impl BrowserTools {
                 }
                 _ => {}
             }
-        } else if manual && CHANGING.contains(&action_id) && !OPERATING.contains(&action_id) {
+        } else if manual && CHANGING.contains(&action_id) && !ASKS_WITH_ELEMENT.contains(&action_id)
+        {
             self.confirm(session, action_id, input_value.to_string(), None, cancel)
                 .await?;
         }
@@ -429,7 +458,8 @@ impl BrowserTools {
                 }
                 read_tab(&connection, tab, 0, None).await?
             }
-            "browser.click" | "browser.type" | "browser.select" => {
+            "browser.click" | "browser.type" | "browser.select" | "browser.download"
+            | "browser.upload" => {
                 let acting = Acting {
                     tools: self,
                     connection: &connection,

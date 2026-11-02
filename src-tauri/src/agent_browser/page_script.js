@@ -233,6 +233,38 @@ function holziPage(args) {
     if (!el) return { gone: true }
     return { fields: fieldsOf(el), form: factsOf(el).form }
   }
+  // The file field of an element: the field itself, the field its label belongs to, one inside
+  // it, or the only one of its form (or page), since a styled button often opens a hidden field.
+  const fileFieldOf = (el) => {
+    const isFile = (node) =>
+      node &&
+      node.tagName &&
+      node.tagName.toLowerCase() === 'input' &&
+      (node.getAttribute('type') || '').toLowerCase() === 'file'
+    if (isFile(el)) return el
+    const label = el.closest && el.closest('label')
+    if (label && isFile(label.control)) return label.control
+    const inner = el.querySelector && el.querySelector('input[type="file" i]')
+    if (inner) return inner
+    const scope = el.form || (el.closest && el.closest('form')) || document
+    const all = scope.querySelectorAll('input[type="file" i]')
+    return all.length === 1 ? all[0] : null
+  }
+  if (args.fileOf !== undefined && args.fileOf !== null) {
+    const el = numbered(args.fileOf)
+    if (!el) return { gone: true }
+    const field = fileFieldOf(el)
+    if (!field) return { notFile: true }
+    return {
+      name: cut(nameOf(el) || nameOf(field), MAX_NAME),
+      field: cut(field.getAttribute('name') || '', MAX_NAME),
+      url: location.href,
+    }
+  }
+  if (args.fileElement !== undefined && args.fileElement !== null) {
+    const el = operable[args.fileElement - 1]
+    return el ? fileFieldOf(el) : null
+  }
   if (args.choose !== undefined && args.choose !== null) {
     const el = numbered(args.choose)
     if (!el) return { gone: true }
