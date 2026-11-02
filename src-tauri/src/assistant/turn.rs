@@ -7,9 +7,10 @@
 //! deltas into speakable sentences (`assistant::speakable`, FR-021, FR-022) and the turn's progress
 //! into events for `assistant::conversation`.
 //!
-//! The [`Bridge`] is pure and tested on its own; [`start`] adds what needs the app: the model of
-//! the assistant (`assistant.modelId`, FR-020), the wait for a chat turn that already runs (R12) and
-//! the call to `start_turn`.
+//! The [`Bridge`] is pure and tested on its own; [`start`] adds what needs the app: a loaded model,
+//! the wait for a chat turn that already runs (R12) and the call to `start_turn`. The model is
+//! chosen exactly as for a typed turn (FR-020): whether the agent is driven by text or by voice
+//! makes no difference, so there is no model setting of its own.
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -28,18 +29,12 @@ use crate::chat::model_loading::load_model;
 use crate::chat::send::{start_turn, SendMessageResult, StartTurn};
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
-use crate::state::AppState;
-use crate::state_utils::active_database;
 use crate::storage::chat_threads::ThreadOrigin;
-use crate::storage::preferences::{self, PrefScope};
 
 use super::conversation::{Event, OpenQuestion, QuestionKind};
 use super::phrases;
 use super::speakable::{Clock, Speech};
 
-/// Device preference: the model for spoken conversations; missing means the default chat model
-/// (FR-020, data-model.md "Modell-Id | null").
-pub const PREF_MODEL_ID: &str = "assistant.modelId";
 /// How long a round waits for a chat turn that already runs in a window (research R12).
 pub const BUSY_WAIT: Duration = Duration::from_secs(10);
 const BUSY_POLL: Duration = Duration::from_millis(200);
@@ -280,42 +275,25 @@ async fn wait_until_free(app: &AppHandle, language: &str, sink: &Sink) -> bool {
     false
 }
 
-/// Loads the model of the assistant when another one (or none) is loaded: `assistant.modelId`,
-/// otherwise the default chat model (FR-020). A loaded model stays loaded for the chat too.
+/// Makes sure a model is loaded. A loaded model is used as it is, as a typed turn would; with none
+/// loaded the last selected one is loaded (`resolve_default_model`, last active first), which then
+/// stays loaded for the chat too (FR-020).
 async fn ensure_model(app: &AppHandle) -> Result<()> {
-    let wanted = match assistant_model(app).await? {
-        Some(id) => id,
-        None => {
-            if loaded_model(app)?.is_some() {
-                return Ok(());
-            }
-            let resolved = resolve_default_model(app.clone(), app.state()).await?;
-            resolved.model_id.ok_or_else(|| HolziError::InvalidInput {
-                reason: "no model loaded".into(),
-            })?
-        }
-    };
-    if loaded_model(app)?.as_deref() == Some(wanted.as_str()) {
+    if loaded_model(app)? {
         return Ok(());
     }
-    load_model(app.clone(), app.state(), app.state(), wanted).await?;
+    let resolved = resolve_default_model(app.clone(), app.state()).await?;
+    let model_id = resolved.model_id.ok_or_else(|| HolziError::InvalidInput {
+        reason: "no model loaded".into(),
+    })?;
+    load_model(app.clone(), app.state(), app.state(), model_id).await?;
     Ok(())
 }
 
-fn loaded_model(app: &AppHandle) -> Result<Option<String>> {
+fn loaded_model(app: &AppHandle) -> Result<bool> {
     let chat = app.state::<ChatState>();
     let guard = chat.session.lock().map_err(|e| HolziError::CrdtInit {
         reason: format!("chat.session mutex poisoned: {e}"),
     })?;
-    Ok(guard.as_ref().map(|session| session.model_id.clone()))
-}
-
-async fn assistant_model(app: &AppHandle) -> Result<Option<String>> {
-    let state = app.state::<AppState>();
-    let db = active_database(&state)?;
-    let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
-    let value = db
-        .read(move |r| preferences::get(r, PrefScope::Device(device), PREF_MODEL_ID))
-        .await?;
-    Ok(value.filter(|id| !id.trim().is_empty() && id != "null"))
+    Ok(guard.is_some())
 }

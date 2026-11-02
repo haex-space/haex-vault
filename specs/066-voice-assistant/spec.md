@@ -64,6 +64,12 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   verschlüsselt über den Vault synchronisiert; importierte Modelldateien bleiben wegen ihrer Größe auf
   dem Gerät.
 
+### Session 2026-11-02
+
+- Q: Bekommen gesprochene Gespräche ein eigenes, einstellbares Modell? → A: Nein. Das Modell gehört
+  zur Sitzung des Agenten; eine neue Sitzung nimmt das zuletzt gewählte Modell, egal ob der Agent
+  per Text oder Sprache gesteuert wird (FR-020). Die Einstellung `assistant.modelId` entfällt.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -597,8 +603,10 @@ Modus aus.
 #### Agent und Antworten
 
 - **FR-020**: Gespräche MUST über den eingebauten Agenten laufen, mit denselben Werkzeugen,
-  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell für Gespräche MUST
-  einstellbar sein; Standard ist das Standard-Chatmodell des Geräts.
+  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell MUST wie im Chat
+  bestimmt werden: Eine neue Sitzung nimmt das zuletzt gewählte Modell. Ob der Agent per Text oder
+  per Sprache gesteuert wird, MUST NOT einen Unterschied machen; es gibt kein eigenes Modell für
+  Gespräche.
 - **FR-021**: Im Assistent-Modus MUST haex dem Modell mitteilen, dass es ein gesprochenes Gespräch
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
@@ -757,7 +765,7 @@ Modus aus.
 
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
   Empfindlichkeit, Lautstärke und An/Aus der Töne, Pausenlänge, Nachhörzeit, Fortsetzungszeit,
-  Modell für Gespräche, Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
+  Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
   Anzeige. Gilt nur auf diesem Gerät.
 - **Eigenes Wake Word**: das erlernte Muster eines vom Nutzer eingesprochenen Worts, mit Bezeichnung.
   Ohne Rohaufnahmen; gilt nur auf diesem Gerät.

@@ -19,7 +19,6 @@ bei Auswahl.
 | `assistant.pauseMs`                                  | int 500–2000                          | `800`                      | FR-012         |
 | `assistant.followUpSecs`                             | int 3–30                              | `8`                        | FR-013         |
 | `assistant.continueMins`                             | int 0–60                              | `5`                        | FR-015         |
-| `assistant.modelId`                                  | Modell-Id \| null                     | null = Standard-Chatmodell | FR-020         |
 | `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                    | Standardstimme der Sprache | FR-029, FR-053 |
 | `assistant.speechRate`                               | float 0.75–1.5                        | `1.0`                      | FR-030         |
 | `assistant.ttsProvider`                              | Anbieter-Id \| null                   | null = lokal               | FR-031         |
