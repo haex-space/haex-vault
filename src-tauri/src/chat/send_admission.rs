@@ -9,7 +9,7 @@
 use uuid::Uuid;
 
 use crate::storage::chat_messages::{self as msg_store, ChatMessage, FinishReason, MessageRole};
-use crate::storage::chat_threads::{self as thread_store, ChatThread};
+use crate::storage::chat_threads::{self as thread_store, ChatThread, ThreadOrigin};
 use crate::storage::query::Query;
 use haex_crdt::CrdtTransaction;
 
@@ -127,11 +127,16 @@ pub enum PersistedSend {
 /// the idempotency lookup and the unique-key insert. A concurrent loser
 /// therefore re-reads the committed winner and receives the same result
 /// instead of a primary-key/unique error.
+///
+/// `origin` is stored only on a thread this send creates (spec 066); an existing thread keeps its
+/// own.
+#[allow(clippy::too_many_arguments)]
 pub fn persist_send_transaction(
     tx: &mut CrdtTransaction<'_>,
     idempotency_key: &str,
     requested_thread_id: Option<Uuid>,
     content: &str,
+    origin: Option<ThreadOrigin>,
     provider_id: Option<Uuid>,
     model_id: &str,
     now: i64,
@@ -163,6 +168,7 @@ pub fn persist_send_transaction(
                         last_model_id: Some(model_id.to_string()),
                         created_at: now,
                         updated_at: now,
+                        origin,
                     },
                 )?,
                 // A named thread must already exist. `update_thread`

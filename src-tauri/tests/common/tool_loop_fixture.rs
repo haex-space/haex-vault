@@ -87,6 +87,7 @@ pub fn seed_thread(db: &Database, thread_id: Uuid, user_message_id: Uuid) {
                 last_model_id: None,
                 created_at: 0,
                 updated_at: 0,
+                origin: None,
             },
         )?;
         msg_store::insert_message(

@@ -59,6 +59,7 @@ use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
+use super::migrations_voice::VOICE_0050;
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -121,7 +122,9 @@ use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 /// - 30: `0048_marketplaces` (spec 069) added the CRDT-tracked `haex_marketplaces`.
 /// - 31: `0049_chat_contacts` (spec 072) added columns to the CRDT-tracked `chat_threads` and the
 ///   CRDT-tracked `chat_members`, `chat_peer_messages`, `chat_attachments` and `chat_deliveries`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 31;
+/// - 32: `0050_voice_conversations` (spec 066) added `origin` to the CRDT-tracked `chat_threads`
+///   and the CRDT-tracked `voice_transcript_entries`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 32;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -749,6 +752,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0049_chat_contacts"),
         CHAT_CONTACTS_0049.to_owned(),
+    );
+    // Spec 066: where a conversation started, and the full transcript of spoken conversations.
+    m.insert(
+        MigrationName::from("0050_voice_conversations"),
+        VOICE_0050.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
