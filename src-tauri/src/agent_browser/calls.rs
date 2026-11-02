@@ -103,6 +103,15 @@ pub(super) struct FillLogin {
     pub(super) form: Option<u32>,
 }
 
+/// `browser.credentials.create`: the new password field and the username the agent chose.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct NewLogin {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) username: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Upload {

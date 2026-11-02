@@ -2107,7 +2107,8 @@
       "takeoverRequest": "Um Eingreifen bitten",
       "download": "Datei herunterladen",
       "upload": "Datei hochladen",
-      "credentialsFill": "Anmeldedaten eintragen"
+      "credentialsFill": "Anmeldedaten eintragen",
+      "credentialsCreate": "Neue Anmeldedaten anlegen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -4244,6 +4245,12 @@
         "choose": "Welcher Eintrag?",
         "entry": "Eintrag",
         "untitled": "Ohne Titel"
+      },
+      "newCredentials": {
+        "title": "Neue Anmeldedaten speichern?",
+        "hint": "Der Agent legt auf dieser Website eine Anmeldung an. holzi hat ein Passwort erzeugt und selbst eingetragen; der Agent sieht es nicht. „Speichern“ legt einen Eintrag mit diesem Benutzernamen im Passwortmanager an, „Ablehnen“ leert die Passwortfelder wieder.",
+        "allow": "Speichern",
+        "username": "Benutzername"
       },
       "address": "Adresse",
       "target": "Ziel",

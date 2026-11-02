@@ -37,7 +37,11 @@ Browsers.
 
 `browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
 Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
-als auch das Wiederholungsfeld.
+als auch das Wiederholungsfeld. Ohne die Stufe „Lesen und Schreiben“ der Passwort-Rechte lautet der Fehler
+`no_write_rights`, bevor holzi etwas erzeugt; ist das Element kein Passwortfeld,
+`not_password_field`. Als Wiederholungsfeld gilt das nächste Passwortfeld desselben Formulars
+nach dem genannten, wenn es leer ist oder von holzi stammt; ein altes Passwort davor bleibt
+unberührt.
 
 `browser.entry.fill` fragt bei jedem Aufruf (R7a). Der Nutzer wählt den Eintrag und die Zuordnung
 in der Rückfrage; der Agent bekommt nur `filled` mit den Nummern der gefüllten Elemente, nie

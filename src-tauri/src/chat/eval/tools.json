@@ -1996,6 +1996,37 @@
     "confirmsItself": true
   },
   {
+    "toolName": "browser_credentials_create",
+    "actionId": "browser.credentials.create",
+    "description": "Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. holzi generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tab": {
+          "type": "string",
+          "description": "The agent tab, as holzi named it (t1, t2, …)."
+        },
+        "element": {
+          "type": "integer",
+          "description": "The element number of the new password field."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username or email address of the new login, at most 200 characters."
+        }
+      },
+      "required": ["tab", "element", "username"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": {
+      "de": "Neue Anmeldedaten anlegen",
+      "en": "Create new login details"
+    },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
     "toolName": "browser_download",
     "actionId": "browser.download",
     "description": "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder HaexVault/<vault> of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",

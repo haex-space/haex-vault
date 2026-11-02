@@ -231,6 +231,49 @@ test('the password editor emits restricted drafts and keeps empty tags editable'
   assert.deepEqual(editor.draft.value.tags, ['bank'])
 })
 
+test('writing within chosen tags needs the tag new entries get (065 FR-036)', async () => {
+  const updates: Array<PasswordRights | null> = []
+  const editor = loadScriptSetup<{
+    onDraft: (draft: GrantDraft) => void
+    draft: { value: GrantDraft }
+  }>('src/components/agents/PasswordRightsFields.vue', ['onDraft', 'draft'], {
+    props: { modelValue: { level: 'read', tags: null } },
+    imports: { '~/lib/browserBridgeGrant': { draftOf } },
+    emit: (_event, value) => updates.push(value as PasswordRights | null),
+  })
+  editor.onDraft({
+    ...draftOf('readWrite', ['dev', 'shop'], null),
+    defaultTag: '',
+  })
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: null,
+  })
+  assert.equal(passwordsComplete(updates.at(-1) ?? null), false)
+  editor.onDraft(draftOf('readWrite', ['dev', 'shop'], 'shop'))
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: 'shop',
+  })
+  assert.equal(passwordsComplete(updates.at(-1) ?? null), true)
+  assert.equal(
+    passwordsComplete({ level: 'readWrite', tags: ['dev'], defaultTag: 'x' }),
+    false,
+  )
+  assert.equal(passwordsComplete({ level: 'readWrite', tags: null }), true)
+  // Stored rights come back into the editor with their tag for new entries.
+  editor.props.modelValue = {
+    level: 'readWrite',
+    tags: ['bank'],
+    defaultTag: 'bank',
+  }
+  await nextTick()
+  assert.equal(editor.draft.value.access, 'readWrite')
+  assert.equal(editor.draft.value.defaultTag, 'bank')
+})
+
 test('registration cannot approve an incomplete password tag draft', async () => {
   const answers: unknown[] = []
   const dialog = loadScriptSetup<{

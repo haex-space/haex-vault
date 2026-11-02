@@ -6,8 +6,8 @@
 //! - `operate`: one row per scope of "holzi bedienen", keyed by the scope.
 //! - `browser` (spec 065): a switch row with an empty key, a row `user-browser` and one row per
 //!   website; a website whose credential fill is remembered carries the tags `["fill"]`.
-//! - `passwords`: one row with an empty key; its tags are a JSON array of tag names, none for every
-//!   entry.
+//! - `passwords`: one row keyed by the tag new entries get (empty for none); its tags are a JSON
+//!   array of tag names, none for every entry.
 //! - `extension`: one row per extension, keyed by its id.
 //! - `commands`: one row with an empty key when it is on.
 
@@ -152,7 +152,8 @@ fn password_row(passwords: &PasswordRights) -> GrantRow {
         .tags
         .as_ref()
         .map(|tags| serde_json::Value::from(tags.clone()).to_string());
-    GrantRow::new(GROUP_PASSWORDS, "", passwords.level.as_str()).tagged(tags)
+    let default_tag = passwords.default_tag.as_deref().unwrap_or("");
+    GrantRow::new(GROUP_PASSWORDS, default_tag, passwords.level.as_str()).tagged(tags)
 }
 
 /// The group `passwords`; unreadable tags must not widen it to every entry.
@@ -165,5 +166,6 @@ fn passwords_of(row: &GrantRow) -> Option<PasswordRights> {
     Some(PasswordRights {
         level: PasswordLevel::parse(&row.level)?,
         tags,
+        default_tag: Some(row.key.clone()).filter(|tag| !tag.is_empty()),
     })
 }

@@ -10,7 +10,9 @@
  * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
  * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
  * declines. A login fill (`fill`) shows the entries that match, by title, for the user only; the
- * user picks one and may remember the website for later fills (FR-021).
+ * user picks one and may remember the website for later fills (FR-021). A new login
+ * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
+ * holzi generated and already entered, "Ablehnen" empties the fields again.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -45,6 +47,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.takeover.allow')
     case 'download':
       return t('agentBrowser.prompt.download.allow')
+    case 'newCredentials':
+      return t('agentBrowser.prompt.newCredentials.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -129,7 +133,9 @@ function onUpdateOpen(open: boolean) {
               {{
                 question.kind === 'site' || question.kind === 'newTab'
                   ? t('agentBrowser.prompt.address')
-                  : t('agentBrowser.prompt.target')
+                  : question.kind === 'newCredentials'
+                    ? t('agentBrowser.prompt.newCredentials.username')
+                    : t('agentBrowser.prompt.target')
               }}
             </dt>
             <dd

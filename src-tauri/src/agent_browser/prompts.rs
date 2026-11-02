@@ -43,6 +43,9 @@ pub enum BrowserPromptKind {
     /// May holzi fill a login of the password manager into this website (FR-021)? With several
     /// matching entries, which one.
     Fill,
+    /// May holzi save the login it generated for this website (FR-036)? Declining empties the
+    /// fields again.
+    NewCredentials,
 }
 
 /// An entry the user can choose for a fill: an id that holds only for this question and the title,

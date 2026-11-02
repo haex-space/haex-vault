@@ -18,8 +18,8 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, FillLogin, Select,
-    TypeText, Upload,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, FillLogin, NewLogin,
+    Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -38,6 +38,8 @@ use crate::mcp_server::grants::BrowserRights;
 pub(super) mod credentials;
 #[path = "act_files.rs"]
 mod files;
+#[path = "act_new_login.rs"]
+pub(super) mod new_login;
 
 /// What the reading script reports about the element of a number.
 #[derive(Debug, Default, Deserialize)]
@@ -83,7 +85,8 @@ fn shown_fields(fields: &[(String, String, bool)]) -> Vec<BrowserField> {
 
 impl Acting<'_> {
     /// Runs `browser.click`, `browser.type`, `browser.select`, `browser.download`,
-    /// `browser.upload` or `browser.credentials.fill` on one of `tabs`.
+    /// `browser.upload`, `browser.credentials.fill` or `browser.credentials.create` on one of
+    /// `tabs`.
     pub async fn run(
         &self,
         action_id: &str,
@@ -115,6 +118,15 @@ impl Acting<'_> {
                 let FillLogin { tab, form } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 self.fill_credentials(tab, form).await
+            }
+            "browser.credentials.create" => {
+                let NewLogin {
+                    tab,
+                    element,
+                    username,
+                } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.create_credentials(tab, element, &username).await
             }
             "browser.upload" => {
                 let Upload { tab, element, path } = parsed(input_value)?;

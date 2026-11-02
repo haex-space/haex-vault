@@ -398,6 +398,8 @@ mod downloads_tests;
 #[cfg(test)]
 mod locate_tests;
 #[cfg(test)]
+mod new_login_tests;
+#[cfg(test)]
 mod new_tab_tests;
 #[cfg(test)]
 mod process_tests;

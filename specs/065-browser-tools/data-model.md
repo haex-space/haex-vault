@@ -31,8 +31,17 @@ gesetzt = aus. Leitplanke: nur über die Aktion `settings.agentBrowser.builtin.s
 kein Agent aufrufen kann.
 
 Geräteeinstellung `agent_browser.builtin_passwords` (JSON, Form wie `PasswordRights`: `level`,
-`tags`), ab Werk nicht gesetzt = aus: die Einträge, aus denen holzi für den eingebauten Agenten
-eintragen darf (2026-11-02). Leitplanke: nur über `settings.agentBrowser.builtinPasswords.set`.
+`tags`, `defaultTag`), ab Werk nicht gesetzt = aus: die Einträge, aus denen holzi für den
+eingebauten Agenten eintragen darf (2026-11-02). Leitplanke: nur über
+`settings.agentBrowser.builtinPasswords.set`.
+
+## `PasswordRights.defaultTag` (021, erweitert)
+
+Das Tag, das ein neuer Eintrag eines Agenten bekommt (`browser.credentials.create`, FR-036).
+Pflicht bei `level = readWrite` mit gewählten `tags` und dann eines davon (`InvalidRights::
+DefaultTag`); bei allen Einträgen frei wählbar. Gespeichert im `grant_key` der Zeile der Gruppe
+`passwords` in `haex_mcp_agent_grants` (leer = keines); ältere Builds lesen den Schlüssel dieser
+Gruppe nicht und sehen dieselben Rechte ohne Tag.
 
 ## `haex_agent_browser_no_sync` (neu, geräteeigen, ohne Sync)
 

@@ -18,6 +18,8 @@ export type BrowserRights = {
 export type PasswordRights = {
   level: 'read' | 'readWrite'
   tags: string[] | null
+  /** The tag new entries get (spec 065 FR-036); within chosen tags one of them. */
+  defaultTag?: string | null
 }
 
 /** `Rights` of the bindings. */
@@ -72,12 +74,15 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
   }
 }
 
-/** Whether the group `passwords` names what it reaches: off, every entry or at least one tag. */
+/** Whether the group `passwords` names what it reaches: off, every entry or at least one tag;
+ * writing within chosen tags also names the one of them new entries get. */
 export function passwordsComplete(passwords: PasswordRights | null): boolean {
+  if (!passwords || passwords.tags === null) return true
+  const tags = passwords.tags
+  if (!tags.some((tag) => tag.trim())) return false
   return (
-    !passwords ||
-    passwords.tags === null ||
-    passwords.tags.some((tag) => tag.trim())
+    passwords.level !== 'readWrite' ||
+    (!!passwords.defaultTag && tags.includes(passwords.defaultTag))
   )
 }
 
