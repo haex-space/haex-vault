@@ -420,7 +420,6 @@
       "deleteConfirm": "Do you really want to delete the conversation with {name}? It disappears with all messages and files on all your devices.",
       "deleteButton": "Delete",
       "missing": "This conversation no longer exists.",
-      "send": "Send",
       "counter": "{count} / {max} characters",
       "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
     },
