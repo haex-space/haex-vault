@@ -12,6 +12,7 @@ pub mod eval;
 pub mod events;
 pub mod model_loading;
 pub mod peer;
+pub mod send;
 pub mod send_admission;
 pub mod session;
 pub mod thread_commands;

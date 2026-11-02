@@ -201,6 +201,7 @@ async fn ungated_delegate_stream_never_produces_tool_call_rows() {
                 last_model_id: None,
                 created_at: 0,
                 updated_at: 0,
+                origin: None,
             },
         )
     })

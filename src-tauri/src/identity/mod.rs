@@ -75,6 +75,9 @@ mod migrations_sync_rules_decrypt;
 mod migrations_sync_rules_tests;
 #[cfg(test)]
 mod migrations_tests;
+mod migrations_voice;
+#[cfg(test)]
+mod migrations_voice_tests;
 
 pub use bootstrap::HolziBootstrap;
 pub use installation::{installation_id_path, read_or_mint_installation_uuid};
