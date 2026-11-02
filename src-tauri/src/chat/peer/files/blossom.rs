@@ -123,6 +123,11 @@ impl Server {
         Ok(Self { base, scope })
     }
 
+    /// The address as checked, ending with `/`.
+    pub fn address(&self) -> &str {
+        self.base.as_str()
+    }
+
     fn join(&self, path: &str) -> Result<Url> {
         self.base.join(path).map_err(|_| BlossomError::NotAllowed)
     }

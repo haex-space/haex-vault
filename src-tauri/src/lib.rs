@@ -81,6 +81,7 @@ use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
     chat_conversation_open_note, chat_conversations_list,
 };
+use chat::peer::commands::files::chat_attachment_download;
 use chat::peer::commands::messages::{
     chat_conversation_read, chat_conversation_viewing, chat_peer_messages_list, chat_peer_resend,
     chat_peer_send,
@@ -827,6 +828,7 @@ pub fn run() {
             chat_conversation_delete,
             chat_request_card,
             chat_request_answer,
+            chat_attachment_download,
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,
