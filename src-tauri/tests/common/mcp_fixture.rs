@@ -103,6 +103,8 @@ pub struct Fixture {
     pub delegates: Arc<DelegateHub>,
     /// `Some(0)` starts the HTTP way on a free port (spec 021 PR G).
     pub http_port: Option<u16>,
+    /// `false` is a phone: no socket for the helper (research R12).
+    pub program_way: bool,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -192,6 +194,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         command_tool: None,
         delegates: Arc::default(),
         http_port: None,
+        program_way: true,
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -259,6 +262,7 @@ impl Fixture {
             notify: Arc::new(move |notice| notices.lock().expect("notices").push(notice)),
             limits: self.limits,
             http_port: self.http_port,
+            program_way: self.program_way,
         })
         .await
         .expect("the server starts")

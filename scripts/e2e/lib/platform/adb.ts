@@ -41,6 +41,10 @@ export interface Adb {
   devtoolsOpen(pid: number): boolean
   /** Makes `port` on this machine reachable from the device as `127.0.0.1:port`. */
   reverse(port: number): void
+  /** Makes the device's `127.0.0.1:port` reachable on this machine at the same port; the reverse of `reverse`. */
+  forward(port: number): void
+  /** Ends a `forward` of `port`. */
+  unforward(port: number): void
   /** Runs `sh -c script` as the app (debug builds only) and returns its raw output. */
   runAs(pkg: string, script: string): Buffer
   /**
@@ -137,6 +141,12 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     },
     reverse(port) {
       adb(['reverse', `tcp:${port}`, `tcp:${port}`])
+    },
+    forward(port) {
+      adb(['forward', `tcp:${port}`, `tcp:${port}`])
+    },
+    unforward(port) {
+      adb(['forward', '--remove', `tcp:${port}`])
     },
     runAs(pkg, script) {
       return adb(['exec-out', 'run-as', pkg, 'sh', '-c', script])

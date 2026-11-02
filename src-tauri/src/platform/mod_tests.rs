@@ -46,6 +46,7 @@ fn android_has_none_of_the_desktop_facilities() {
             phone_contacts: true,
             browser_bridge: false,
             mcp_helper: false,
+            mcp_http: true,
             agent_browser: false,
         }
     );
@@ -102,4 +103,9 @@ fn only_desktop_systems_have_an_agent_browser() {
         [ANDROID, IOS].map(|table| table.agent_browser),
         [false, false]
     );
+}
+
+#[test]
+fn the_http_way_runs_on_desktop_too() {
+    assert!(desktop(PlatformName::Linux, true).mcp_http);
 }
