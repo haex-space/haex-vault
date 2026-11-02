@@ -128,3 +128,16 @@ fn generated_keys_differ_and_lengths_follow_the_contract() {
         MAX_PLAINTEXT + HEADER_LEN as u64 + TAG_LEN as u64 * MAX_PLAINTEXT.div_ceil(SEGMENT as u64)
     );
 }
+
+#[test]
+fn decryptor_rejects_ciphertext_over_the_plaintext_limit() {
+    let mut decryptor = Decryptor::new(key(), &sha256_hex(&[]));
+    decryptor.received = MAX_CIPHERTEXT;
+    assert!(decryptor.push(b"x").is_err());
+    assert!(decryptor.buffer.is_empty());
+}
+
+#[test]
+fn ciphertext_length_does_not_overflow_for_untrusted_sizes() {
+    assert_eq!(ciphertext_len(u64::MAX), u64::MAX);
+}

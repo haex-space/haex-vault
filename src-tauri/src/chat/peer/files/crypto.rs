@@ -23,6 +23,10 @@ pub const HEADER_LEN: usize = 4 + 1 + 4 + 8;
 pub const TAG_LEN: usize = 16;
 /// HaexVault's own cap of a file (FR-034); a lower limit of the server wins.
 pub const MAX_PLAINTEXT: u64 = 100_000_000;
+/// Largest valid HXCF object under the plaintext limit.
+const MAX_CIPHERTEXT: u64 = HEADER_LEN as u64
+    + MAX_PLAINTEXT
+    + TAG_LEN as u64 * ((MAX_PLAINTEXT + SEGMENT as u64 - 1) / SEGMENT as u64);
 
 /// The secret of one file: its key and nonce prefix travel only inside the encrypted message.
 #[derive(Clone, PartialEq, Eq)]
@@ -57,7 +61,10 @@ impl FileKey {
 pub fn ciphertext_len(plaintext_len: u64) -> u64 {
     let segment = SEGMENT as u64;
     let segments = plaintext_len.div_ceil(segment).max(1);
-    HEADER_LEN as u64 + plaintext_len + TAG_LEN as u64 * segments
+    (TAG_LEN as u64)
+        .saturating_mul(segments)
+        .saturating_add(HEADER_LEN as u64)
+        .saturating_add(plaintext_len)
 }
 
 /// SHA-256 as lowercase hex, the form messages and Blossom use.
@@ -127,6 +134,7 @@ pub struct Decryptor {
     index: u32,
     hasher: Sha256,
     expected_sha256: String,
+    received: u64,
 }
 
 impl Decryptor {
@@ -139,11 +147,18 @@ impl Decryptor {
             index: 0,
             hasher: Sha256::new(),
             expected_sha256: expected_sha256.to_ascii_lowercase(),
+            received: 0,
         }
     }
 
     /// Takes the next bytes; answers the plaintext of the segments they completed.
     pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<u8>> {
+        let received = self
+            .received
+            .checked_add(bytes.len() as u64)
+            .filter(|&len| len <= MAX_CIPHERTEXT)
+            .ok_or_else(too_big)?;
+        self.received = received;
         self.buffer.extend_from_slice(bytes);
         if !self.header_read {
             if self.buffer.len() < HEADER_LEN {
