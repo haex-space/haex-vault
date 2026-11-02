@@ -302,7 +302,7 @@ devices fetch from it (needs a direct device-to-device path, ruled out in R7).
 **Decision**: Received and sent files are kept in a vault-owned encrypted folder (spec 048) per
 device, modelled on `agent_browser::profile_store::ProfileStore` (profile_store.rs:30-121):
 `<app_local_data>/chat-files/<vault instance>/` holds an encrypted folder `Chat`, created if missing;
-files are written under `<conversation id>/<attachment id>` so equal names never clash. Whether this
+files are written under their attachment id, which is unique, so equal names never clash (PR E2a: no folder per conversation). Whether this
 device holds a file, and the state of its download, is device-local (`chat_attachment_files_no_sync`).
 
 `files::encrypted::transfer::put_file` seals a whole file in memory (transfer.rs:256). `ponytail:` chat
