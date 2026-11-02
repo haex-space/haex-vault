@@ -127,6 +127,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            mapping: Vec::new(),
         };
         let saved = match self
             .tools

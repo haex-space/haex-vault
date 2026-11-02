@@ -258,6 +258,15 @@ impl Session {
         Some(tab)
     }
 
+    /// The targets tab `tab` reported: its page and its frames in their own process.
+    pub(super) fn targets_of(&self, tab: &str) -> Vec<String> {
+        self.targets()
+            .iter()
+            .filter(|(_, owner)| owner.as_str() == tab)
+            .filter_map(|(target, _)| target.clone())
+            .collect()
+    }
+
     /// Forgets the targets of tab `tab`, which left the session.
     pub fn forget_targets(&self, tab: &str) {
         self.targets().retain(|_, owner| owner != tab);

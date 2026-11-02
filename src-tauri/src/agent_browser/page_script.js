@@ -313,6 +313,8 @@ function holziPage(args) {
         autocomplete: el.getAttribute('autocomplete') || '',
         placeholder: el.getAttribute('placeholder') || '',
       })),
+      // For the user's question only (entry fill); never part of the mapping.
+      labels: fields.map((el) => cut(nameOf(el), MAX_NAME)),
     }
   }
   if (args.fill !== undefined && args.fill !== null) {

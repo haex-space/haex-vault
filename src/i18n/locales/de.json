@@ -2108,6 +2108,7 @@
       "download": "Datei herunterladen",
       "upload": "Datei hochladen",
       "credentialsFill": "Anmeldedaten eintragen",
+      "entryFill": "Daten eintragen",
       "credentialsCreate": "Neue Anmeldedaten anlegen"
     },
     "syncRules": {
@@ -4245,6 +4246,15 @@
         "choose": "Welcher Eintrag?",
         "entry": "Eintrag",
         "untitled": "Ohne Titel"
+      },
+      "entryFill": {
+        "title": "Daten aus dem Passwortmanager eintragen?",
+        "hint": "holzi trägt die angehakten Felder des gewählten Eintrags selbst ein; der Agent sieht weder den Eintrag noch die Werte. Das Absenden des Formulars fragt danach noch einmal. Diese Rückfrage kommt bei jedem Aufruf.",
+        "allow": "Eintragen",
+        "purpose": "Zweck",
+        "rows": "Was eingetragen wird",
+        "otp": "Einmalcode",
+        "frame": "Rahmen von {site}"
       },
       "newCredentials": {
         "title": "Neue Anmeldedaten speichern?",

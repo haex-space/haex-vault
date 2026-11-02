@@ -73,6 +73,7 @@ pub const CHANGING: &[&str] = &[
     "browser.download",
     "browser.upload",
     "browser.credentials.fill",
+    "browser.entry.fill",
     "browser.credentials.create",
 ];
 
@@ -94,6 +95,7 @@ const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.upload",
     "browser.download",
     "browser.credentials.fill",
+    "browser.entry.fill",
     "browser.credentials.create",
 ];
 
@@ -115,6 +117,7 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.download",
     "browser.upload",
     "browser.credentials.fill",
+    "browser.entry.fill",
     "browser.credentials.create",
 ];
 
@@ -453,6 +456,7 @@ impl BrowserTools {
             | "browser.download"
             | "browser.upload"
             | "browser.credentials.fill"
+            | "browser.entry.fill"
             | "browser.credentials.create" => {
                 let acting = Acting {
                     tools: self,

@@ -6,4 +6,8 @@ export type BrowserAnswer = { decision: BrowserDecision, remember?: Remember,
 /**
  * The chosen entry of a fill, by its id in the question.
  */
-entry?: string, };
+entry?: string,
+/**
+ * The rows of an entry fill the user deselected, by their ids in the question.
+ */
+skip?: Array<string>, };

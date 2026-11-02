@@ -94,6 +94,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            mapping: Vec::new(),
         };
         let answer = self.ask_for_page(&question).await;
         match answer {
@@ -170,6 +171,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            mapping: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {

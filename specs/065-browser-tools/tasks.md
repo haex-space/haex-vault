@@ -29,24 +29,24 @@ description: 'Task list for spec 065-browser-tools'
 **Organization**: Grouped by user story and shipped in the deliveries of research R15. Each
 delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                                                       |
-| -------- | ---------- | ----------------------------------------------------------------------------- |
-| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                    |
-| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                 |
-| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)      |
-| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042) |
-| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
-| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)            |
-| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                         |
-| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`             |
-| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                           |
-| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)    |
-| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                              |
-| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                             |
-| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086)     |
-| PR E2    | Phase 7    | US5 (downloads, uploads)                                                      |
-| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                   |
-| –        | Phase 9    | Polish, manual checks                                                         |
+| Delivery | Phases     | Stories                                                                         |
+| -------- | ---------- | ------------------------------------------------------------------------------- |
+| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                      |
+| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                   |
+| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)        |
+| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042)   |
+| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                      |
+| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)              |
+| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                           |
+| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`               |
+| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                             |
+| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)      |
+| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                                |
+| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                               |
+| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086, T091) |
+| PR E2    | Phase 7    | US5 (downloads, uploads)                                                        |
+| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                     |
+| –        | Phase 9    | Polish, manual checks                                                           |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 
@@ -233,11 +233,12 @@ asks, a remembered one does not; every entry fill asks.
 
 ### Other entry data (PR E1, FR-037, FR-038)
 
-- [ ] T082 [P] [US4] Unit tests in src-tauri/src/agent_browser/entry_fill_tests.rs: every call asks in Manuell and Auto and is never remembered, Plan refuses; the choice offers only entries the agent's password group reaches; `http` and a frame of a website the agent may not operate fill nothing; the reply holds only `filled` element numbers (no entry id, title, key or value); `nothing_mapped` and `no_matching_entry`; filled values are removed from text, names and replies and block screenshots for the rest of the session (as T061)
-- [ ] T083 [US4] Integration test in src-tauri/tests/agent_browser_entry_fill.rs with a checkout fixture over HTTPS (IBAN field, card fields with `autocomplete` `cc-*` in a frame of the partner website, a page that copies the values into visible text): the marker value never reaches the agent; deselected rows stay empty; submitting asks and shows `•••`; a second call asks again
-- [ ] T084 [US4] `browser.entry.fill` in src-tauri/src/agent_browser/entry_fill.rs: field facts from the reading script, mapping through `haex-autofill`, entries through a `Grant` of the agent's password group (034 checks), writing and marking in the isolated world as in T063, frames only on operable websites (research R7a)
-- [ ] T085 [US4] Prompt kind `entryFill` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue: website, purpose marked as the agent's statement, entry picker, one row per mapped field (page field ← entry key, value as `•••`) with a checkbox; texts in src/i18n/locales/de.json and src/i18n/locales/en.json
-- [ ] T086 [P] [US4] Catalog entry `browser.entry.fill` (write, `confirmsItself`) in src/lib/actions/browserActions.ts
+- [x] T082 [P] [US4] Unit tests in src-tauri/src/agent_browser/entry_fill_tests.rs: every call asks in Manuell and Auto and is never remembered, Plan refuses; the choice offers only entries the agent's password group reaches; `http` and a frame of a website the agent may not operate fill nothing; the reply holds only `filled` element numbers (no entry id, title, key or value); `nothing_mapped` and `no_matching_entry`; filled values are removed from text, names and replies and block screenshots for the rest of the session (as T061)
+- [x] T083 [US4] Integration test in src-tauri/tests/agent_browser_entry_fill.rs with a checkout fixture over HTTPS (IBAN field, card fields with `autocomplete` `cc-*`, the card field in a frame of the partner website (T091), a page that copies the values into visible text): the marker value never reaches the agent; deselected rows stay empty; submitting asks and shows `•••`; a second call asks again
+- [x] T084 [US4] `browser.entry.fill` in src-tauri/src/agent_browser/act_entry_fill.rs (documents and frames in act_entry_docs.rs): field facts from the reading script, mapping through `haex-autofill`, entries through a `Grant` of the agent's password group (034 checks), writing and marking in the isolated world as in T063, frames only on operable websites (research R7a)
+- [x] T085 [US4] Prompt kind `entryFill` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue: website, purpose marked as the agent's statement, entry picker, one row per mapped field (page field ← entry key, value as `•••`) with a checkbox; texts in src/i18n/locales/de.json and src/i18n/locales/en.json
+- [x] T086 [P] [US4] Catalog entry `browser.entry.fill` (write, `confirmsItself`) in src/lib/actions/browserActions.ts
+- [x] T091 [US4] `browser.entry.fill` in frames: field facts and writing in every frame of the tab whose website the agent may operate, same-process frames through their own isolated world, out-of-process frames through their attached session; the rows name the frame's website; the checkout fixture of T083 moves its card fields into a frame of the partner website, and a frame of a website the agent may not operate fills nothing
 
 ---
 
