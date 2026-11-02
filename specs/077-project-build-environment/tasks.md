@@ -27,8 +27,8 @@ Independent acceptance: a fresh shell has no personal Android/CUDA build overrid
 
 ## Phase 5: Validation and handoff
 
-- [ ] T010 Run formatter, script static checks, Bash syntax and Cargo fmt/check/clippy/test; record results and unrelated failures in `specs/077-project-build-environment/quickstart.md`.
-- [ ] T011 Review final diff, stop test processes, and prepare topic-branch pull request with validation evidence.
+- [x] T010 Run formatter, script static checks, Bash syntax and Cargo fmt/check/clippy/test; record results and unrelated failures in `specs/077-project-build-environment/quickstart.md`.
+- [x] T011 Review final diff, stop test processes, and prepare topic-branch pull request with validation evidence.
 
 ## Dependencies and execution
 

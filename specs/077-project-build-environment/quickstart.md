@@ -56,3 +56,17 @@ Verify that the project environment still supplies Android SDK, NDK, Java, and a
 
 - Both repository Clippy variants passed with `--all-targets -- -D warnings`: default features and `--no-default-features`.
 - The development server was stopped after the repeated startup verification; port 3030 was free.
+
+## Full-suite resource limit
+
+The local full `cargo test` build was stopped before completion: this package has 92 integration-test executables, and the full-debug build had produced 26 executables totaling about 57 GiB, with only 86 GiB left on the filesystem. No full local integration-suite pass is claimed. The executables identified by this change's runtime paths were removed after stopping that build; application binaries and dependencies were retained.
+
+The already-built Nix unit-test executable passed separately with the sherpa library directory that Cargo normally supplies at runtime: 4,928 passed, 0 failed, 14 ignored, in 719 seconds. Its generated binding files differed only in trailing whitespace and were restored after the run. The complete test step passed in both the default and no-default-feature PR CI jobs. For a future local full-suite run, use the same reduced debug information as CI and one build job:
+
+```bash
+CARGO_PROFILE_DEV_DEBUG=line-tables-only nix develop --command \
+  scripts/with-nix-host-bridge.sh cargo test \
+  --manifest-path src-tauri/Cargo.toml --jobs 1
+```
+
+The initial PR CI passed documentation/script checks, the frontend build, the Android build, Android Clippy with default features, Rust checks without default features and the separate mistralrs check. The default Rust job completed its test step successfully and proceeded to Clippy. Android Clippy without default features failed during SDK installation because the NDK download was not a valid ZIP archive, before project compilation.
