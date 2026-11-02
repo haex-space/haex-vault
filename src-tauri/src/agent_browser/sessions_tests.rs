@@ -62,6 +62,20 @@ impl BrowserEnv for Env {
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
         std::future::pending().await
     }
+
+    fn downloads_folder(&self) -> Result<std::path::PathBuf, String> {
+        Err("no downloads in this test".to_owned())
+    }
+
+    async fn file_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<(
+        crate::files::local::OwnPlaces,
+        crate::files::access::AgentGrants,
+    )> {
+        None
+    }
 }
 
 fn agent() -> Caller {

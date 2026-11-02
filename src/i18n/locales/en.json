@@ -2063,7 +2063,9 @@
       "type": "Type into a field",
       "select": "Choose an option",
       "tabsClose": "Close an agent tab",
-      "takeoverRequest": "Ask the user to take over"
+      "takeoverRequest": "Ask the user to take over",
+      "download": "Download a file",
+      "upload": "Upload a file"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4181,6 +4183,12 @@
         "hint": "With “Take over”, holzi brings the tab to the front and you use the browser yourself, for a captcha or a confirmation. The agent waits and learns nothing of what you do. Afterwards, give it back with “Give back” in holzi or in the tab.",
         "allow": "Take over",
         "reason": "Reason"
+      },
+      "download": {
+        "title": "Keep a large download?",
+        "hint": "The agent started a download over 100 MB. It goes on until you decide; the agent gets the file only once you allow it. Otherwise holzi cancels it and deletes what arrived.",
+        "allow": "Keep",
+        "size": "Size"
       },
       "address": "Address",
       "target": "Target",

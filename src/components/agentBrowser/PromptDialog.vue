@@ -7,9 +7,12 @@
  * Before something is sent to a website (FR-011, FR-012), the dialog lists what would be sent,
  * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
  * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
- * over (`takeover`), with a reason in its own words. Closing the dialog declines.
+ * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
+ * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
+ * declines.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
+import { formatFileSize } from '~/lib/passwords/format'
 import type { Remember } from '~/types/bindings/Remember'
 
 const { t } = useI18n()
@@ -36,6 +39,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.newTab.allow')
     case 'takeover':
       return t('agentBrowser.prompt.takeover.allow')
+    case 'download':
+      return t('agentBrowser.prompt.download.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -119,6 +124,14 @@ function onUpdateOpen(open: boolean) {
               data-testid="agent-browser-prompt-label"
             >
               {{ question.label }}
+            </dd>
+          </template>
+          <template v-if="question.bytes !== undefined">
+            <dt class="text-muted-foreground">
+              {{ t('agentBrowser.prompt.download.size') }}
+            </dt>
+            <dd data-testid="agent-browser-prompt-size">
+              {{ formatFileSize(question.bytes) }}
             </dd>
           </template>
           <template v-if="question.reason">

@@ -102,6 +102,11 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   (selbstständig recherchieren, Formulare mit Daten aus dem Passwortmanager ausfüllen und
   absenden) deckt der Agenten-Browser. Ein Tauri-Webview als Agenten-Browser ist verworfen, weil
   die Web-Engines der Plattformen die Schutzregeln nicht gleich tragen (R2).
+- Q: Wo liegt der Ordner „Agenten-Downloads“? → A: Im Download-Ordner des Systems, je Vault ein
+  Unterordner (`Downloads/Agenten-Downloads/<Vault>`). holzis eigene Ordner sind für Agenten
+  gesperrt (044), dort könnte der Agent seine Downloads nicht lesen; im Download-Ordner erreicht
+  ihn das Dateirecht „Dateien des Geräts“, und der Nutzer findet die Dateien wie die eines
+  gewöhnlichen Browsers (FR-031, R11).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -274,7 +279,8 @@ abgelehnt.
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent löst einen Download aus, **When** er fertig ist, **Then** liegt die Datei
-   im Ordner „Agenten-Downloads“ der Vault, und der Agent erhält Name, Größe und Art.
+   im Ordner „Agenten-Downloads“ der Vault im Download-Ordner des Systems, und der Agent erhält
+   Name, Größe und Art.
 2. **Given** ein Download ist größer als die Grenze aus FR-031, **When** er beginnt, **Then** fragt
    holzi den Nutzer.
 3. **Given** ein Agent will eine Datei hochladen, für die er kein Dateirecht hat, **When** er
@@ -489,8 +495,9 @@ Steuerung.
 - **FR-029**: Ein Agent DARF höchstens 5 Agenten-Tabs zugleich offen haben.
 - **FR-030**: Jedes Browser-Werkzeug MUSS nach 30 Sekunden ohne Ergebnis mit „Seite antwortet
   nicht“ enden.
-- **FR-031**: Downloads MÜSSEN im Ordner „Agenten-Downloads“ der Vault landen; ein Download über
-  100 MB MUSS den Nutzer fragen.
+- **FR-031**: Downloads MÜSSEN im Ordner „Agenten-Downloads“ der Vault im Download-Ordner des
+  Systems landen; ein Download über 100 MB MUSS den Nutzer fragen, und der Agent DARF die Datei
+  erst nach der Zustimmung erhalten.
 - **FR-032**: Ergebnisse von „Seite lesen“ MÜSSEN auf eine feste Größe gekürzt werden; der Agent
   MUSS erfahren, dass gekürzt wurde, und Ausschnitte anfordern können.
 
@@ -545,8 +552,8 @@ Steuerung.
   externe Agenten erscheinen sie über den MCP-Zugang, für den eingebauten Agenten im Werkzeug-
   Ablauf des Chats.
 - Delegates bekommen die Werkzeuge erst mit 021 PR F (Registrierung als externer Agent).
-- Downloads liegen im Speicher der Vault wie andere Dateien von holzi; Lesen und Weitergeben
-  regeln die Dateirechte aus 044.
+- Downloads liegen im Download-Ordner des Systems (`Agenten-Downloads/<Vault>`), unverschlüsselt
+  wie die eines gewöhnlichen Browsers; Lesen und Weitergeben regeln die Dateirechte aus 044.
 - Stufe 2 (US6) ist zurückgestellt (2026-11-01). Käme sie wieder, setzte sie eine neue Version
   der Browser-Erweiterung aus 049 voraus.
 - Ein Browser-Tab in holzis eigener Oberfläche (eingebetteter Browser) ist nicht Teil dieser Spec.

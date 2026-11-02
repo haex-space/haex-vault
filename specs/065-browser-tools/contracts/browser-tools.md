@@ -92,6 +92,9 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `no_matching_entry`   | kein passender Eintrag mit Recht darauf (`credentials.fill`) oder kein Eintrag, den die Rechtegruppe Passwörter erreicht (`entry.fill`) |
 | `nothing_mapped`      | `entry.fill`: kein Feld des Formulars passt zum gewählten Eintrag                                                                       |
 | `too_many_tabs`       | mehr als 5 Agenten-Tabs                                                                                                                 |
+| `no_download`         | `download`: der Klick löste in 30 s keinen Download aus                                                                                 |
+| `download_failed`     | `download`: Website oder Browser brachen ab, oder die Datei ließ sich nicht ablegen                                                     |
+| `file_not_allowed`    | `upload`: die Dateirechte (044) erreichen den Pfad nicht, oder dort liegt keine Datei (dieselbe Antwort)                                |
 | `blocked_address`     | `file:`, `javascript:`, `data:`, interne Seiten, Zugangsdaten in der Adresse                                                            |
 
 (\*) Eine neue Sitzung beginnt ein externer Agent mit einer neuen Verbindung, der eingebaute Agent
