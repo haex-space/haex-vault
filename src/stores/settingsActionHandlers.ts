@@ -41,7 +41,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     updateDeviceAliasAsync,
     listVaultDevicesAsync,
   } = useDevice()
-  const { getPrefAsync, setPrefAsync, clearPrefAsync } = usePreferences()
+  const { getPrefAsync, setPrefAsync } = usePreferences()
   const models = useModels()
   const huggingFace = useHuggingFace()
   const providers = useProviders()
