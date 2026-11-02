@@ -365,9 +365,16 @@ impl Acting<'_> {
             if facts.gone && index == 0 {
                 return Err(element_gone());
             }
-            if index > 0 && !self.frame_operable(&facts.url) {
-                all.push(FillFacts::default());
-                continue;
+            if index > 0 {
+                let frame_site = site_of(&facts.url);
+                if !self.frame_operable(&facts.url)
+                    || docs[index].site.as_deref() != Some(frame_site.as_str())
+                {
+                    // The approval row names the discovery-time site. Do not use values in a
+                    // frame that navigated to a different site before its fields were read.
+                    all.push(FillFacts::default());
+                    continue;
+                }
             }
             all.push(facts);
         }
