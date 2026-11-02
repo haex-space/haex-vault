@@ -62,7 +62,8 @@ pub(crate) struct LoginSecrets {
 
 impl LoginSecrets {
     fn from_item(item: &SecretItem, has_totp: bool) -> Self {
-        let aliases = serde_json::from_value(aliases_of(item)).unwrap_or_default();
+        let aliases: BTreeMap<String, Vec<String>> =
+            serde_json::from_value(aliases_of(item)).unwrap_or_default();
         let aliases = aliases
             .into_iter()
             .filter(|(key, _)| matches!(key.as_str(), "username" | "password"))
