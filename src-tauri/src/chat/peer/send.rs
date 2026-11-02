@@ -6,7 +6,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{self, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{self, Attachment, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
 use super::outbox::{self, Rumor};
 use super::receive::{self, MessageRow};
 use super::session::Me;
@@ -14,6 +14,7 @@ use super::store::{self, ConversationKind};
 use super::{ids, settings};
 use crate::contacts::card::{own_card, received};
 use crate::error::{HolziError, Result};
+use crate::storage::query::Query;
 
 /// The own card as `holzi:card:` text: every rumor carries it (research R5).
 pub fn own_card_text(tx: &mut CrdtTransaction<'_>) -> Result<String> {
@@ -32,8 +33,8 @@ enum Target {
     Note,
 }
 
-fn target(tx: &mut CrdtTransaction<'_>, thread_id: Uuid) -> Result<Target> {
-    match store::kind_of(tx, thread_id)? {
+fn target(q: &mut impl Query, thread_id: Uuid) -> Result<Target> {
+    match store::kind_of(q, thread_id)? {
         Some(ConversationKind::Note) => return Ok(Target::Note),
         Some(ConversationKind::Direct) => {}
         _ => {
@@ -42,7 +43,7 @@ fn target(tx: &mut CrdtTransaction<'_>, thread_id: Uuid) -> Result<Target> {
             })
         }
     }
-    let row: Option<(Option<String>, String)> = tx.query_row(
+    let row: Option<(Option<String>, String)> = q.query_row(
         "SELECT peer_vault, state FROM chat_threads WHERE id = ?1",
         params![thread_id.to_string()],
         |row| Ok((row.get(0)?, row.get(1)?)),
@@ -55,35 +56,68 @@ fn target(tx: &mut CrdtTransaction<'_>, thread_id: Uuid) -> Result<Target> {
     }
 }
 
-/// Queues `text` to the direct conversation `thread_id`, or stores it as a note; answers the message
-/// id. A retry with the same `event_id` (from the command's idempotency key) answers the first
-/// message.
+/// The other vault of the direct conversation `thread_id` that takes messages; `None` for the
+/// notes. Files are checked against it before they are uploaded.
+pub fn direct_peer(q: &mut impl Query, thread_id: Uuid) -> Result<Option<String>> {
+    Ok(match target(q, thread_id)? {
+        Target::Direct(peer) => Some(peer),
+        Target::Note => None,
+    })
+}
+
+/// Whether the own message with `event_id` in `thread_id` was queued already (a retry).
+pub fn sent_already(
+    q: &mut impl Query,
+    me: &Me,
+    thread_id: Uuid,
+    event_id: &str,
+) -> Result<Option<Uuid>> {
+    let message_id = ids::message_id(thread_id, &me.vault_hex, event_id);
+    let present: Option<i64> = q.query_row(
+        "SELECT 1 FROM chat_peer_messages WHERE id = ?1",
+        params![message_id.to_string()],
+        |row| row.get(0),
+    )?;
+    Ok(present.map(|_| message_id))
+}
+
+/// Queues `text` and the uploaded `attachments` to the direct conversation `thread_id`, or stores a
+/// text as a note; answers the message id. A retry with the same `event_id` (from the command's
+/// idempotency key) answers the first message.
 pub fn message(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
     thread_id: Uuid,
     event_id: &str,
     text: &str,
+    attachments: Vec<Attachment>,
     now: i64,
 ) -> Result<Uuid> {
     let target = target(tx, thread_id)?;
-    let message_id = ids::message_id(thread_id, &me.vault_hex, event_id);
-    let present: Option<i64> = tx.query_row(
-        "SELECT 1 FROM chat_peer_messages WHERE id = ?1",
-        params![message_id.to_string()],
-        |row| row.get(0),
-    )?;
-    if present.is_some() {
+    if let Some(message_id) = sent_already(tx, me, thread_id, event_id)? {
         return Ok(message_id);
     }
+    let message_id = ids::message_id(thread_id, &me.vault_hex, event_id);
     let Target::Direct(peer) = target else {
+        if !attachments.is_empty() {
+            // `ponytail:` notes take text only; files in notes need no Blossom-Server, a later step.
+            return Err(HolziError::InvalidInput {
+                reason: "chat.file.notInNotes".into(),
+            });
+        }
         let text = envelope::checked_text(text)?;
         store_own(tx, me, message_id, thread_id, event_id, text, now)?;
         return Ok(message_id);
     };
     let card = own_card_text(tx)?;
-    let mut envelope =
-        envelope::message(text, &me.vault_hex, &card, To::Direct(peer.clone()), now)?;
+    let mut envelope = envelope::message(
+        text,
+        attachments,
+        &me.vault_hex,
+        &card,
+        To::Direct(peer.clone()),
+        now,
+    )?;
     envelope.id = event_id.to_owned();
     let content = envelope::encode(&envelope)?;
     // A trial wrap to this device: what the Nostr-Relays will see must fit (research R2).
@@ -95,6 +129,7 @@ pub fn message(
     )?;
     let envelope::Body::Message(body) = &envelope.body;
     store_own(tx, me, message_id, thread_id, event_id, &body.text, now)?;
+    receive::insert_attachments(tx, message_id, &body.attachments)?;
     receive::ensure_delivery(tx, message_id, &peer)?;
     outbox::enqueue(
         tx,

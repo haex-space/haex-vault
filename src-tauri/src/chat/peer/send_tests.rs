@@ -15,7 +15,7 @@ fn direct(anna: &ChatDevice) -> Uuid {
 fn send(anna: &ChatDevice, thread: Uuid, event: &str, text: &str) -> Result<Uuid> {
     let (me, event, text) = (anna.me.clone(), event.to_owned(), text.to_owned());
     anna.db
-        .write_blocking(move |tx| Ok(message(tx, &me, thread, &event, &text, 100)?))
+        .write_blocking(move |tx| Ok(message(tx, &me, thread, &event, &text, Vec::new(), 100)?))
 }
 
 fn outbox(anna: &ChatDevice) -> Vec<outbox::Entry> {

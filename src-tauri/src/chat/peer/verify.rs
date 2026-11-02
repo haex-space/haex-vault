@@ -12,7 +12,7 @@
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
-use super::envelope::{Envelope, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{Envelope, Receipt, To, CHAT_KIND, MAX_ATTACHMENTS, RECEIPT_KIND, VERSION};
 use super::wrap::Opened;
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::{own_card, received};
@@ -36,6 +36,7 @@ pub enum Drop {
     Blocked,
     UnknownSender,
     NotForUs,
+    TooManyAttachments,
 }
 
 impl Drop {
@@ -51,6 +52,7 @@ impl Drop {
             Self::Blocked => "blocked",
             Self::UnknownSender => "unknownSender",
             Self::NotForUs => "notForUs",
+            Self::TooManyAttachments => "tooManyAttachments",
         }
     }
 }
@@ -139,6 +141,10 @@ fn decode(opened: &Opened) -> std::result::Result<(String, String, Incoming), Dr
     }
     if opened.kind == CHAT_KIND {
         let envelope: Envelope = serde_json::from_value(json).map_err(|_| Drop::Malformed)?;
+        if matches!(&envelope.body, super::envelope::Body::Message(body) if body.attachments.len() > MAX_ATTACHMENTS)
+        {
+            return Err(Drop::TooManyAttachments);
+        }
         Ok((
             envelope.from.clone(),
             envelope.card.clone(),

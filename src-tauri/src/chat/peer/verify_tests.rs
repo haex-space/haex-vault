@@ -1,7 +1,9 @@
 //! Every receiver check of contracts/nostr-chat.md (spec 072 T025, research R5, quickstart A2).
 
 use super::*;
-use crate::chat::peer::envelope::{self, Envelope, MessageBody};
+use crate::chat::peer::envelope::{
+    self, Attachment, BlobRef, Body, Envelope, FileAttachment, MessageBody, MAX_ATTACHMENTS,
+};
 use crate::chat::peer::test_support::ChatDevice;
 use crate::contacts::card::format::{sign, CardDevice, ContactCard, VERSION as CARD_VERSION};
 use crate::sync::signing;
@@ -38,6 +40,7 @@ fn ben_card(issued_at: u64, devices: &[[u8; 32]]) -> SignedCard {
 fn from_ben(anna: &ChatDevice, card: &SignedCard) -> Envelope {
     envelope::message(
         "Hallo",
+        Vec::new(),
         &hex(&ben_vault()),
         &card.text(),
         To::Direct(anna.me.vault_hex.clone()),
@@ -101,6 +104,33 @@ async fn a_message_of_a_contact_passes_and_tells_the_sender() {
     assert_eq!(verified.from, hex(&ben_vault()));
     assert_eq!(verified.sender_device, hex(&BEN_DEVICE));
     assert!(matches!(verified.incoming, Incoming::Message(_)));
+}
+
+#[tokio::test]
+async fn a_message_with_too_many_attachments_is_dropped_before_storage() {
+    let anna = anna_knowing_ben(10).await;
+    let card = ben_card(10, &[BEN_DEVICE]);
+    let mut message = from_ben(&anna, &card);
+    let Body::Message(body) = &mut message.body;
+    body.attachments = vec![
+        Attachment::File(FileAttachment {
+            name: "file".into(),
+            mime: "application/octet-stream".into(),
+            size: 0,
+            sha256: "00".into(),
+            blossom: BlobRef {
+                url: "https://blossom.example/00".into(),
+                sha256: "00".into(),
+                key: "00".into(),
+            },
+        });
+        MAX_ATTACHMENTS + 1
+    ];
+
+    assert_eq!(
+        run(&anna, opened(&message, CHAT_KIND, BEN_DEVICE)),
+        Err(Drop::TooManyAttachments)
+    );
 }
 
 #[tokio::test]
@@ -289,9 +319,11 @@ fn an_own_message_passes_only_from_a_listed_own_device() {
     let message = Envelope {
         body: envelope::Body::Message(MessageBody {
             text: "an Ben".into(),
+            attachments: Vec::new(),
         }),
         ..envelope::message(
             "x",
+            Vec::new(),
             &anna.me.vault_hex,
             &own_card.text(),
             To::Direct(hex(&ben_vault())),

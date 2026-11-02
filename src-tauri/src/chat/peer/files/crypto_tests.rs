@@ -20,7 +20,7 @@ fn files_of_every_size_round_trip_and_have_the_announced_length() {
         let plain = bytes(len);
         let sealed = encrypt(&key(), &plain).expect("encrypt");
         assert_eq!(sealed.len() as u64, ciphertext_len(len as u64), "{len}");
-        let opened = decrypt(&key(), &sealed, &sha256_hex(&plain)).expect("decrypt");
+        let opened = decrypt(&key().key, &sealed, &sha256_hex(&plain)).expect("decrypt");
         assert_eq!(opened, plain, "{len}");
     }
 }
@@ -29,7 +29,7 @@ fn files_of_every_size_round_trip_and_have_the_announced_length() {
 fn bytes_arriving_in_small_pieces_decrypt_the_same() {
     let plain = bytes(2 * SEGMENT + 77);
     let sealed = encrypt(&key(), &plain).expect("encrypt");
-    let mut decryptor = Decryptor::new(key(), &sha256_hex(&plain));
+    let mut decryptor = Decryptor::new(&key().key, &sha256_hex(&plain));
     let mut opened = Vec::new();
     for piece in sealed.chunks(4093) {
         opened.extend(decryptor.push(piece).expect("push"));
@@ -45,9 +45,9 @@ fn a_cut_off_file_fails() {
     let hash = sha256_hex(&plain);
     // Without the last segment: the one before it is no last segment.
     let cut = &sealed[..HEADER_LEN + 2 * (SEGMENT + TAG_LEN)];
-    assert!(decrypt(&key(), cut, &hash).is_err());
-    assert!(decrypt(&key(), &sealed[..HEADER_LEN], &hash).is_err());
-    assert!(decrypt(&key(), &sealed[..5], &hash).is_err());
+    assert!(decrypt(&key().key, cut, &hash).is_err());
+    assert!(decrypt(&key().key, &sealed[..HEADER_LEN], &hash).is_err());
+    assert!(decrypt(&key().key, &sealed[..5], &hash).is_err());
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn swapped_segments_fail() {
     swapped.extend_from_slice(&sealed[second]);
     swapped.extend_from_slice(&sealed[first]);
     swapped.extend_from_slice(&sealed[HEADER_LEN + 2 * size..]);
-    assert!(decrypt(&key(), &swapped, &sha256_hex(&plain)).is_err());
+    assert!(decrypt(&key().key, &swapped, &sha256_hex(&plain)).is_err());
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn a_flipped_byte_fails_anywhere() {
     ] {
         let mut flipped = sealed.clone();
         flipped[at] ^= 1;
-        assert!(decrypt(&key(), &flipped, &hash).is_err(), "byte {at}");
+        assert!(decrypt(&key().key, &flipped, &hash).is_err(), "byte {at}");
     }
 }
 
@@ -101,19 +101,19 @@ fn a_last_segment_sealed_as_not_last_fails() {
         )
         .expect("seal");
     forged.extend_from_slice(&sealed);
-    assert!(decrypt(&file, &forged, &sha256_hex(&plain)).is_err());
+    assert!(decrypt(&file.key, &forged, &sha256_hex(&plain)).is_err());
 }
 
 #[test]
 fn another_plaintext_hash_or_another_key_fails() {
     let plain = bytes(1000);
     let sealed = encrypt(&key(), &plain).expect("encrypt");
-    assert!(decrypt(&key(), &sealed, &sha256_hex(b"other")).is_err());
+    assert!(decrypt(&key().key, &sealed, &sha256_hex(b"other")).is_err());
     let other = FileKey {
         key: [8; 32],
         nonce_prefix: [9; 8],
     };
-    assert!(decrypt(&other, &sealed, &sha256_hex(&plain)).is_err());
+    assert!(decrypt(&other.key, &sealed, &sha256_hex(&plain)).is_err());
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn generated_keys_differ_and_lengths_follow_the_contract() {
 
 #[test]
 fn decryptor_rejects_ciphertext_over_the_plaintext_limit() {
-    let mut decryptor = Decryptor::new(key(), &sha256_hex(&[]));
+    let mut decryptor = Decryptor::new(&key().key, &sha256_hex(&[]));
     decryptor.received = MAX_CIPHERTEXT;
     assert!(decryptor.push(b"x").is_err());
     assert!(decryptor.buffer.is_empty());

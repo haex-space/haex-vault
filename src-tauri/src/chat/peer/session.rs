@@ -49,6 +49,8 @@ pub struct Session {
     pub kick: Notify,
     /// The app came back or the network changed (spec 043): reconnect the Nostr-Relays.
     pub wake: Notify,
+    /// Files of this device (US3): set once the vault's file store is ready.
+    pub files: std::sync::OnceLock<Arc<super::files::transfers::ChatFiles>>,
 }
 
 impl Session {
@@ -57,6 +59,7 @@ impl Session {
             me,
             kick: Notify::new(),
             wake: Notify::new(),
+            files: std::sync::OnceLock::new(),
         })
     }
 }
