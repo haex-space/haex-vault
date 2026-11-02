@@ -9,7 +9,8 @@ import { runAction, waitForLocation } from '../lib/settings.ts'
 // on in Einstellungen → KI → Externe Agenten; then the settings show the HTTP snippets with holzi's
 // port and none for the program way. An MCP client in the test driver (through `adb forward`)
 // registers, opens the authorization page, the person registers it in holzi's dialog with the
-// preset rights (reading), and the client lists and calls a reading tool.
+// preset rights (reading) and the approval mode Auto (no prompt per call), and the client lists and
+// calls a reading tool.
 scenario(
   'android-mcp-agent',
   { needs: { phone: true }, timeoutMs: 240_000 },
@@ -63,6 +64,7 @@ scenario(
       'E2E Phone Agent',
       async () => {
         await instance.waitForDisplayed('mcp-registration')
+        await instance.click('mcp-mode-auto')
         await instance.click('mcp-registration-register')
       },
     )

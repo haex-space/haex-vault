@@ -3,16 +3,14 @@
  * The password generator (spec 034, US3, FR-013, FR-014): length, character classes, excluded
  * characters or a pattern, a live result, and saved presets with exactly one default that is
  * preselected. A choice that allows no output shows what to change instead of a value. Used in a
- * drawer of the editor (`embedded`, with "Übernehmen") and as the place `/generator`. The generated
- * password exists only in this component and, on "Übernehmen", in the draft of the editor.
+ * drawer of the editor (`embedded`, with "Übernehmen") and as the place `/generator`. The password
+ * comes from the crate haex-passgen in Rust (the one generator, shared with haex-pass-browser) and
+ * is kept only in this component and, on "Übernehmen", in the draft of the editor.
  */
 import { toast } from 'vue-sonner'
 import type { Preset } from '@bindings/Preset'
-import {
-  generatePassword,
-  MAX_LENGTH,
-  type GeneratorConfig,
-} from '~/lib/passwords/generator'
+import type { Generated } from '@bindings/Generated'
+import type { GeneratorSettings } from '@bindings/GeneratorSettings'
 
 defineProps<{
   /** Shown in a drawer of the editor: offers to use the result. */
@@ -26,12 +24,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const { errString } = useErrorString()
-const { presetListAsync, presetSaveAsync, presetDeleteAsync } = usePasswords()
+const { generateAsync, presetListAsync, presetSaveAsync, presetDeleteAsync } =
+  usePasswords()
 // Through Rust like every other copy, so the clipboard is cleared after the vault's delay.
 const { copyText } = usePasswordsCopy()
 
+/** The longest password outside pattern mode (haex-passgen `MAX_LENGTH`; longer ones are refused
+ * with `length_range`). */
+const MAX_LENGTH = 256
+
 /** Without a preset: length 20 and all four classes. */
-const DEFAULTS: GeneratorConfig = {
+const DEFAULTS: GeneratorSettings = {
   length: 20,
   uppercase: true,
   lowercase: true,
@@ -42,11 +45,11 @@ const DEFAULTS: GeneratorConfig = {
   pattern: '',
 }
 
-const config = reactive<GeneratorConfig>({ ...DEFAULTS })
+const config = reactive<GeneratorSettings>({ ...DEFAULTS })
 const presets = ref<Preset[]>([])
 const presetId = ref('')
 const presetName = ref('')
-const output = ref<{ value: string } | { error: string }>({ value: '' })
+const output = ref<Generated>({ value: '' })
 
 /** The select cannot hold an empty value, so "no preset" gets a placeholder value. */
 const NO_PRESET = '__none__'
@@ -64,8 +67,21 @@ const presetSelection = computed({
 })
 /** The editor shows the generator in a dialog (popover surface); the page has none. */
 
+/** Counts the requests, so an answer overtaken by a later change is dropped. */
+let generation = 0
+
+async function regenerateAsync() {
+  const mine = ++generation
+  try {
+    const result = await generateAsync({ ...config })
+    if (mine === generation) output.value = result
+  } catch (cause) {
+    if (mine === generation) toast.error(errString(cause))
+  }
+}
+
 function regenerate() {
-  output.value = generatePassword(config)
+  void regenerateAsync()
 }
 
 const errorText = computed(() =>
