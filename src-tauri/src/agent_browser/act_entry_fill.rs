@@ -37,7 +37,9 @@ use crate::agent_browser::tab::Tab;
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::passwords::access::Grant;
-use crate::passwords::autofill::{aliases_of, fields_of, OTP_MARKER};
+#[cfg(test)]
+use crate::passwords::autofill::aliases_of;
+use crate::passwords::autofill::{fields_of, OTP_MARKER};
 use crate::passwords::model::SecretItem;
 use crate::passwords::service::PasswordsService;
 
