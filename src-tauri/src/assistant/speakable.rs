@@ -93,6 +93,17 @@ pub struct Clock {
     pub utc_offset_minutes: i32,
 }
 
+impl Clock {
+    /// The clock at `unix_secs` on a device whose local time is `utc_offset_minutes` ahead of
+    /// UTC, as the window reports it.
+    pub fn at(unix_secs: i64, utc_offset_minutes: i32) -> Self {
+        Self {
+            now: Civil::from_minutes(unix_secs.div_euclid(60) + i64::from(utc_offset_minutes)),
+            utc_offset_minutes,
+        }
+    }
+}
+
 /// The sentences of a whole answer: what is spoken, and what "mehr vorlesen" would read.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Spoken {

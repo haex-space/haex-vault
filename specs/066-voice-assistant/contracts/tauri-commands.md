@@ -12,7 +12,7 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `assistant_readiness`         | `{language}`                                                    | `{missing: Missing[]}`                               | FR-005         |
 | `assistant_set_enabled`       | `{enabled: bool}`                                               | `AssistantStateWire`                                 | FR-001, FR-005 |
 | `assistant_set_muted`         | `{muted: bool}`                                                 | `AssistantStateWire`                                 | US9            |
-| `assistant_talk`              | –                                                               | –                                                    | FR-011         |
+| `assistant_talk`              | `{language, utcOffsetMinutes}`                                  | –                                                    | FR-011         |
 | `assistant_end_conversation`  | –                                                               | –                                                    | FR-014, FR-039 |
 | `assistant_enroll_start`      | `{label: string}`                                               | `{sessionId}`                                        | FR-008         |
 | `assistant_enroll_record`     | `{sessionId}`                                                   | `EnrollStep`                                         | FR-008         |
@@ -39,7 +39,17 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `download_assistant_assets`   | `{language}`                                                    | – (Fortschritt als Ereignis)                         | FR-005         |
 
 `language` ist die Sprache des Fensters; sie bestimmt, welche Stimme bereit sein muss (eine der sechs
-Sprachen, sonst Englisch). `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
+Sprachen, sonst Englisch). Bei `assistant_talk` ist sie auch die Sprache des Gesprächs, und
+`utcOffsetMinutes` ist der Abstand der Ortszeit des Fensters zu UTC, damit Daten und Uhrzeiten in
+Ortszeit gesprochen werden.
+
+`assistant_talk` lädt nichts herunter. Fehlt ein Modell, endet der Befehl mit dem Fehler, und die
+Einstellungen bieten den Download an (FR-005). Bis zum Wake Word (PR D) öffnet `assistant_talk`
+Mikrofon und Lautsprecher nur für die Dauer eines Gesprächs. Ist das Gespräch vorbei und haex
+still, schließt der Assistent beide wieder; die Modus-Töne bleiben dabei stumm. haex hört erst zu,
+wenn eigene Töne und Sätze verklungen sind. Bis zur Echo-Unterdrückung (PR G) unterbricht nur
+`assistant_talk` eine laufende Antwort (`echoMode: "keywordOnly"`). `assistant_set_muted` und
+`assistant_end_conversation` antworten, nachdem der Assistent die Änderung übernommen hat. `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
 Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Das Standard-Wake-Word meldet
 `assistant_readiness` als fehlend, bis PR D sein Modell liefert.
 

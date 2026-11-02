@@ -288,6 +288,7 @@ pub fn run() {
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(assistant::commands::AssistantDriver::default());
     let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
@@ -867,6 +868,10 @@ pub fn run() {
             assistant_tts_preview,
             download_tts_voice,
             assistant::assets::assistant_readiness,
+            assistant::commands::assistant_get_state,
+            assistant::commands::assistant_talk,
+            assistant::commands::assistant_end_conversation,
+            assistant::commands::assistant_set_muted,
             assistant::tones::assistant_tone_preview,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,

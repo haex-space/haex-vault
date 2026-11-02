@@ -163,6 +163,16 @@ mod imp {
             &self.stream
         }
 
+        /// The selected speech recognition model (Whisper or Parakeet), loaded on first use and
+        /// kept warm; push-to-talk and the voice assistant share this one instance (spec 066
+        /// T043), so there is never a second model in memory.
+        pub(crate) async fn stt_adapter(
+            &self,
+            app: &AppHandle,
+        ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
+            resolve_local_adapter(app, self).await
+        }
+
         /// Test-only: whether the STT adapter cache currently holds a
         /// loaded instance.
         #[cfg(test)]
@@ -179,7 +189,7 @@ mod imp {
 
     /// Asks for the microphone before a recording (spec 043 FR-029): on Android the system asks
     /// the person the first time and answers from then on; elsewhere it is always granted here.
-    async fn ensure_microphone(app: &AppHandle) -> Result<()> {
+    pub(crate) async fn ensure_microphone(app: &AppHandle) -> Result<()> {
         use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
         let app = app.clone();
         // The request blocks until the person answers the system's question.
@@ -490,12 +500,12 @@ mod imp {
 mod voice_tests;
 
 #[cfg(feature = "voice")]
-pub(crate) use imp::resolve_stt_catalog_entry;
-#[cfg(feature = "voice")]
 pub use imp::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording,
     stop_voice_recording, TranscriptionResultWire, VoiceState,
 };
+#[cfg(feature = "voice")]
+pub(crate) use imp::{ensure_microphone, resolve_stt_catalog_entry};
 
 #[cfg(not(feature = "voice"))]
 #[path = "voice_stub.rs"]

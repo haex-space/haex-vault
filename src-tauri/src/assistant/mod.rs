@@ -4,9 +4,13 @@
 pub mod assets;
 #[cfg(test)]
 mod assets_tests;
+pub mod commands;
 pub mod conversation;
 #[cfg(test)]
 mod conversation_tests;
+pub mod driver;
+#[cfg(test)]
+mod driver_tests;
 pub mod lexicon;
 #[cfg(test)]
 mod lexicon_tests;

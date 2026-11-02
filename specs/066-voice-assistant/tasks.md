@@ -216,8 +216,22 @@ conversation marked as voice.
   - Done 2026-11-01 (PR C part 1): rows `hear.stop`, `hear.end`, `hear.endExtra`, `hear.filler`, `hear.yes`, `hear.no`, `detect`, the `say.*` sentences PR C needs and `prompt.voice`; `spell.*` and `ordinal.*` come with PR F and PR E. Builds without `voice` compile the list through `assistant_stub.rs`. Stop words now match in all six languages, ignoring punctuation ("Stopp!").
 - [x] T042 [US2] Implement `assistant::phrases` (end phrases, request to repeat, busy, goodbye; all text from the word list, T154) in src-tauri/src/assistant/phrases.rs and stop words via `stt::interrupt` (finishes spec 008 US2 for the assistant; FR-017)
   - Done 2026-11-01 (PR C part 1): `phrases::{is_end, is_empty, stop, repeat, busy, busy_gave_up, goodbye}`. An end phrase ends only with nothing around it but the small additions of `hear.endExtra` ("danke", "erstmal"); "danke" alone does not end.
-- [ ] T043 [US2] Use the shared warm STT adapter of `VoiceState` (Whisper or Parakeet, whichever is selected, T134) for utterances in src-tauri/src/assistant/listen.rs (no second model in memory)
-- [ ] T044 [US2] Commands `assistant_get_state`, `assistant_talk`, `assistant_end_conversation`, `assistant_set_muted` and events `assistant-state`, `assistant-transcript` in src-tauri/src/assistant/commands.rs per contracts/tauri-commands.md
+- [x] T043 [US2] Use the shared warm STT adapter of `VoiceState` (Whisper or Parakeet, whichever is selected, T134) for utterances in src-tauri/src/assistant/listen.rs (no second model in memory)
+  - 2026-11-02 (PR C part 5): `listen::transcribe(app, utterance)` goes through `VoiceState::stt_adapter`, the warm adapter push-to-talk uses.
+- [x] T044 [US2] Commands `assistant_get_state`, `assistant_talk`, `assistant_end_conversation`, `assistant_set_muted` and events `assistant-state`, `assistant-transcript` in src-tauri/src/assistant/commands.rs per contracts/tauri-commands.md
+  - 2026-11-02 (PR C part 5):
+    - Pure core `assistant::driver::Core` behind a `Ports` trait, tests in driver_tests.rs:
+      - classifies utterances (`phrases`) and speaks the answer only while the conversation speaks it;
+      - listens only once haex is quiet (its tones and sentences are over), since without echo suppression (PR G) the microphone would hear haex;
+      - drops outputs of aborted rounds and utterances of stopped listeners.
+    - The runtime in commands.rs is one task per process with one inbox:
+      - `assistant_talk {language, utcOffsetMinutes}` loads the models of the conversation without downloading and opens the stream;
+      - until PR D the stream lives for one conversation and closes once haex is quiet; the mode tones stay silent.
+    - `tts::local::Speaker::start_reporting` reports every sentence once it has sounded or was stopped, in ticket order (two tests in local_tests.rs).
+    - `turn::Bridge` reports open questions as resolved once the turn goes on (`chat-tool-call`, `chat-tool-result`, `chat-token`) or ends, so a question answered in the window no longer leaves the conversation waiting.
+    - Errors go out as `assistant-error`, tones as `assistant-tone`.
+    - `assistant-transcript` follows with T125, since its entries carry the stored `seq`.
+    - Not yet: spoken answers to questions and the progress line (PR E), and repeating the `working` tone.
 - [ ] T045 [US2] Device setting `assistant.preview` (default off) in KI → Sprache that enables talk shortcut and indicator until PR D, in src/components/settings/assistant/AssistantSetting.vue
 - [ ] T046 [P] [US2] Store src/stores/assistant.ts: state from `assistant-state`, transcript from `assistant-transcript`, commands
 - [ ] T047 [US2] Floating indicator src/components/assistant/AssistantBubble.vue mounted in src/components/wm/Desktop.vue above windows and dock, below dialogs; draggable, position saved as `assistant.bubble.position` ("JSON {x, y} (Anteil 0–1 der Fläche)"); one look per phase (Lucide icons until sprites, T118) plus text for screen readers and tooltip (FR-041)

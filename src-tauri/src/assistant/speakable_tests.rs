@@ -266,3 +266,16 @@ fn an_unknown_language_speaks_english() {
         Some("I've put the table in the chat.")
     );
 }
+
+#[test]
+fn the_clock_is_local_time_from_unix_seconds_and_offset() {
+    // 2026-11-02 23:30 UTC.
+    let unix = 1_793_662_200;
+    assert_eq!(
+        Clock::at(unix, 60).now,
+        Civil::new(2026, 11, 3, 0, 30),
+        "Berlin is already on the next day"
+    );
+    assert_eq!(Clock::at(unix, -300).now, Civil::new(2026, 11, 2, 18, 30));
+    assert_eq!(Clock::at(unix, 0).utc_offset_minutes, 0);
+}
