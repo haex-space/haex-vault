@@ -283,6 +283,11 @@ impl ChatFiles {
         };
         let key: [u8; 32] = key.try_into().map_err(|_| invalid("chat.file.damaged"))?;
         let size = u64::try_from(size).unwrap_or(0);
+        if size > crypto::MAX_PLAINTEXT {
+            self.record(id, "failed", 0, size, Some("chat.file.tooLarge"))
+                .await?;
+            return Err(invalid("chat.file.tooLarge"));
+        }
         self.record(id, "downloading", 0, size, None).await?;
         let own = self.server().await.ok().flatten();
         let mut last = tokio::time::Instant::now();
@@ -321,7 +326,11 @@ impl ChatFiles {
                 return Err(error);
             }
         };
-        self.store.put(id, &plaintext).await?;
+        if let Err(error) = self.store.put(id, &plaintext).await {
+            self.record(id, "failed", 0, size, Some("chat.file.storeFailed"))
+                .await?;
+            return Err(error);
+        }
         self.record(id, "stored", size, size, None).await
     }
 

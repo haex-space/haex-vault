@@ -15,6 +15,9 @@ use crate::error::{HolziError, Result};
 use crate::files::kind::mime_for;
 use crate::files::picked::{self, PickedFile};
 
+/// Bound the plaintext retained while preparing one message, including on mobile devices.
+const MAX_MESSAGE_PLAINTEXT: u64 = MAX_PLAINTEXT;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadArgs {
@@ -43,16 +46,20 @@ fn chat_files(session: &Session) -> Result<Arc<ChatFiles>> {
 async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Picked>> {
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
+        let mut total = 0_u64;
         files
             .iter()
             .map(|file| {
                 let name = picked::display_name(&app, file);
-                let bytes = picked::read(&app, file, MAX_PLAINTEXT)?;
-                if bytes.len() as u64 > MAX_PLAINTEXT {
+                let remaining = remaining_message_limit(total)?;
+                let bytes = picked::read(&app, file, remaining)?;
+                let size = bytes.len() as u64;
+                if size > remaining {
                     return Err(HolziError::InvalidInput {
                         reason: "chat.file.tooLarge".into(),
                     });
                 }
+                total += size;
                 let mime = mime_for(&name)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
@@ -64,6 +71,14 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
     .map_err(|e| HolziError::InvalidInput {
         reason: e.to_string(),
     })?
+}
+
+fn remaining_message_limit(total: u64) -> Result<u64> {
+    MAX_MESSAGE_PLAINTEXT
+        .checked_sub(total)
+        .ok_or_else(|| HolziError::InvalidInput {
+            reason: "chat.file.tooLarge".into(),
+        })
 }
 
 /// Uploads the picked files and queues the message with them (FR-031).
@@ -93,3 +108,7 @@ pub async fn chat_attachment_download(app: AppHandle, args: DownloadArgs) -> Res
     let files = chat_files(&session)?;
     files.download(&id.to_string()).await
 }
+
+#[cfg(test)]
+#[path = "files_tests.rs"]
+mod tests;

@@ -238,6 +238,107 @@ async fn a_file_above_the_limit_waits_for_the_user_and_a_gone_one_says_so() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_oversized_attachment_is_rejected_before_downloading() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    let ben_files = ben.enable_files(&blossom.url, None);
+    let device = ben_files.device;
+    ben.db
+        .write_blocking(move |tx| Ok(settings::set_auto_limit(tx, device, 0)?))
+        .expect("limit");
+    anna.start().await;
+    ben.start().await;
+
+    send_file(&anna, &ben, "too large", PLAN)
+        .await
+        .expect("send");
+    let messages = ben
+        .wait_for(&anna, "pending attachment", |messages| {
+            file_state(messages).as_deref() == Some("pending")
+        })
+        .await;
+    let id = attachment_id(&messages);
+    let id_for_update = id.clone();
+    ben.db
+        .write_blocking(move |tx| {
+            tx.execute(
+                "UPDATE chat_attachments SET size = ?1 WHERE id = ?2",
+                params![(crypto::MAX_PLAINTEXT + 1) as i64, id_for_update],
+            )?;
+            Ok(())
+        })
+        .expect("tamper with the remote size");
+    let before = blossom.log().len();
+
+    let error = ben_files.download(&id).await.expect_err("over the limit");
+    assert!(error.to_string().contains("chat.file.tooLarge"));
+    assert_eq!(blossom.log().len(), before, "no download request is sent");
+    let failed = ben.messages_with(&anna);
+    let attachment = failed
+        .iter()
+        .flat_map(|message| &message.attachments)
+        .find(|attachment| attachment.id == id)
+        .expect("attachment remains visible");
+    assert_eq!(attachment.state.as_deref(), Some("failed"));
+    assert_eq!(attachment.error.as_deref(), Some("chat.file.tooLarge"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_store_failure_marks_the_attachment_failed() {
+    use crate::chat::peer::files::store::ChatFileStore;
+    use crate::chat::peer::files::transfers::ChatFiles;
+
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    let ben_files = ben.enable_files(&blossom.url, None);
+    let device = ben_files.device;
+    ben.db
+        .write_blocking(move |tx| Ok(settings::set_auto_limit(tx, device, 0)?))
+        .expect("limit");
+    anna.start().await;
+    ben.start().await;
+
+    send_file(&anna, &ben, "cannot store", PLAN)
+        .await
+        .expect("send");
+    let messages = ben
+        .wait_for(&anna, "pending attachment", |messages| {
+            file_state(messages).as_deref() == Some("pending")
+        })
+        .await;
+    let id = attachment_id(&messages);
+
+    // ChatFileStore creates this path as a directory; an existing file forces that operation to
+    // fail without relying on process-specific permissions.
+    let blocked_path = tempfile::NamedTempFile::new().expect("blocking file");
+    let db = ben.db.clone();
+    let store = ChatFileStore::new(blocked_path.path(), Arc::new(move || Ok(db.clone())))
+        .expect("store setup");
+    let files = ChatFiles {
+        db: ben.db.clone(),
+        store,
+        resolver: Arc::new(crate::remote_storage::address::SystemResolver),
+        progress: None,
+        wake: tokio::sync::Notify::new(),
+        device: ben_files.device,
+    };
+
+    assert!(files.download(&id).await.is_err(), "store write fails");
+    let failed = ben.messages_with(&anna);
+    let attachment = failed
+        .iter()
+        .flat_map(|message| &message.attachments)
+        .find(|attachment| attachment.id == id)
+        .expect("attachment remains visible");
+    assert_eq!(attachment.state.as_deref(), Some("failed"));
+    assert_eq!(attachment.error.as_deref(), Some("chat.file.storeFailed"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn without_a_server_or_over_its_limit_nothing_is_sent() {
     let blossom = BlossomTestServer::start().await;
     let (anna, ben) = two_vaults(&[]).await;
