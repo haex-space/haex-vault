@@ -432,6 +432,20 @@ fn a_stop_word_while_speaking_aborts_the_round_and_keeps_the_conversation() {
 }
 
 #[test]
+fn a_stop_word_without_a_running_round_resumes_listening() {
+    let mut run = Run::new();
+    run.send(Event::SwitchOn, 0);
+    run.send(Event::Wake, 100);
+
+    assert_eq!(
+        run.send(Event::Utterance(Utterance::Stop), 900),
+        [Effect::Listen]
+    );
+    assert_eq!(run.phase(), Phase::FollowUp);
+    assert_eq!(run.state.next_deadline(), Some(run.at(900 + FOLLOW_UP)));
+}
+
+#[test]
 fn a_stop_word_while_thinking_aborts_without_output() {
     let mut run = Run::asking(0);
     assert_eq!(
