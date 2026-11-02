@@ -50,13 +50,13 @@ Eintrag oder ist er ungültig, gilt `"default"` und die Einstellungen zeigen ein
 
 ### Chat-Unterhaltung (Spec 006)
 
-Migration mit der nächsten freien Nummer (bei Planung nach `0046_sync_rules_decrypt`):
+Migration mit der nächsten freien Nummer (bei Planung nach `0046_sync_rules_decrypt`; gebaut als `0050_voice_conversations`):
 
 ```sql
 ALTER TABLE chat_threads ADD COLUMN origin TEXT;  -- NULL = getippt, 'voice' = Sprachgespräch
 ```
 
-CRDT-Trigger kennen die neue Spalte; `HOLZI_TRIGGER_VERSION` 29 → 30. `chat_messages` bleibt der
+CRDT-Trigger kennen die neue Spalte; `HOLZI_TRIGGER_VERSION` 31 → 32 (bei Planung 29 → 30). `chat_messages` bleibt der
 Verlauf, den das Modell sieht (Fragen und Antworten); das Werkzeug-Ergebnis eines Vorlesens ist dort
 `{"spoken": true}`.
 
