@@ -3,7 +3,8 @@
  * A contact or group conversation (spec 072 US1, US2, FR-006): header with picture and name, the
  * messages and a composer for text, without any model, effort, permission or agent control.
  * Sending and sending again run their catalog actions (`chat.peer.send`, `chat.peer.resend`);
- * the message appears at once as _waiting_ and moves on as the delivery goes.
+ * the message appears at once as _waiting_ and moves on as the delivery goes. A request (US5) shows
+ * its answers in place of the composer: nothing is sent to its sender before it is accepted.
  */
 import type { PeerConversationEntry } from '~/composables/useConversations'
 import {
@@ -26,6 +27,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   mute: [threadId: string, muted: boolean]
   delete: [threadId: string]
+  answer: [threadId: string, answer: 'accept' | 'decline' | 'block']
 }>()
 
 const { t } = useI18n()
@@ -117,9 +119,11 @@ watch(
             {{ t('chat.list.muted') }}
           </p>
         </div>
-        <!-- Notes never notify, so they have nothing to mute (FR-002b). -->
+        <!-- Notes never notify, so they have nothing to mute (FR-002b); a request is answered. -->
         <UiButton
-          v-if="conversation.kind !== 'note'"
+          v-if="
+            conversation.kind !== 'note' && conversation.state !== 'request'
+          "
           type="button"
           variant="ghost"
           size="icon"
@@ -169,7 +173,18 @@ watch(
         </p>
       </div>
 
-      <div class="border-t border-border px-4 py-3 md:px-8">
+      <div
+        v-if="conversation.state === 'request'"
+        class="border-t border-border px-4 py-3 md:px-8"
+      >
+        <ChatRequestBanner
+          :name="conversation.displayName"
+          @accept="emit('answer', conversation.id, 'accept')"
+          @decline="emit('answer', conversation.id, 'decline')"
+          @block="emit('answer', conversation.id, 'block')"
+        />
+      </div>
+      <div v-else class="border-t border-border px-4 py-3 md:px-8">
         <p
           v-if="conversation.peerWithoutRelays"
           class="mb-2 flex items-start gap-1 text-xs text-muted-foreground"

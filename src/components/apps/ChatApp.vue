@@ -1,9 +1,7 @@
 <script setup lang="ts">
 /*
- * Orchestration of the chat window manager app (specs 015, 072): shared state, model-store wiring,
- * permission/autonomy persistence, listener setup and the app contract (`useWmTab`). The parts live
- * in their composables (`useChatTranscript`, `useThreadSidebar`, `useComposer`, …) and components
- * (`ThreadSidebar`, `AgentHeader`, `MessageList`, `Composer`, `PeerConversation`).
+ * Orchestration of the chat app (specs 015, 072): shared state, model store, permission mode,
+ * listeners and the app contract (`useWmTab`); the parts live in composables and components.
  */
 import {
   computed,
@@ -99,11 +97,7 @@ const {
 
 // Spec 072: contact and group conversations share the list and the window with the agent's.
 const peers = useConversations(errString)
-const activePeerId = ref<string | null>(null)
-const activePeer = computed(
-  () =>
-    peers.conversations.value.find((c) => c.id === activePeerId.value) ?? null,
-)
+const { activePeerId } = peers
 const newContactOpen = ref(false)
 
 const { attachments, addAttachments, removeAttachment } =
@@ -114,9 +108,7 @@ const composerRef = useTemplateRef<{ reset: () => Promise<void> } | null>(
   'composer',
 )
 const messagesScroll = useTemplateRef<HTMLElement>('messagesScroll')
-async function resetTextarea() {
-  await composerRef.value?.reset()
-}
+const resetTextarea = async () => composerRef.value?.reset()
 
 // chatTranscript/threadSidebar need each other's functions — resolved via a placeholder swapped for the real refreshThreads once threadSidebar exists.
 let refreshThreadsForTranscript = async () => {}
@@ -284,7 +276,7 @@ const { syncFromLocation, ui } = useChatTab({
   abort,
   newChat,
   updatePermissionMode,
-  peer: { ...peers, activePeerId },
+  peer: { ...peers, parkShare: useShareInboxStore().park },
 })
 
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
@@ -377,11 +369,12 @@ onBeforeUnmount(() => {
 
     <ChatPeerConversation
       v-if="activePeerId !== null"
-      :conversation="activePeer"
+      :conversation="peers.active.value"
       :send="ui.sendPeer"
       :resend="ui.resendPeer"
       @mute="ui.mute"
       @delete="ui.deletePeer"
+      @answer="ui.answerRequest"
     />
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">

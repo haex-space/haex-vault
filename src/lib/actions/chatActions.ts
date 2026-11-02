@@ -133,6 +133,46 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
     agentCallable: false,
   }),
+  // Spec 072 US5: requests of vaults that are no contact. Only the user answers them (FR-072).
+  inChat({
+    id: 'chat.request.accept',
+    description:
+      "Accept a request: open the preview of the sender's Visitenkarte in the address book.",
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.request.decline',
+    description:
+      'Decline a request: remove it without telling the sender; a later message is a new request.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'destructive',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.request.block',
+    description:
+      'Block the sender of a request and remove the request; further messages are dropped.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'destructive',
+    agentCallable: false,
+  }),
   inChat({
     id: 'chat.conversation.mute',
     description: 'Mute or unmute a conversation with contacts.',
