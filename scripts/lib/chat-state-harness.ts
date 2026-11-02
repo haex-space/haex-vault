@@ -429,6 +429,7 @@ export function createChatState(
     'storeToRefs',
     'useAgentModelState',
     'useConversations',
+    'useShareInboxStore',
     'navigateTo',
     'document',
     `${pageCode}\n${RETURN_STATEMENT}`,
@@ -518,8 +519,13 @@ export function createChatState(
         openNoteAsync: async () => ({ threadId: '' }),
         muteAsync: async () => {},
         deleteAsync: async () => {},
+        requestCardAsync: async () => ({ cardText: '' }),
+        requestAnswerAsync: async () => {},
+        activePeerId: ref(null),
+        active: ref(null),
       }
     },
+    () => ({ park: () => {} }),
     pageGlobals.navigateTo ?? (() => {}),
     { querySelector: () => null },
   )
