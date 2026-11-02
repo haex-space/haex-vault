@@ -238,7 +238,7 @@ asks, a remembered one does not; every entry fill asks.
 
 ## Phase 7: User Story 5 - Herunterladen und Hochladen (Priority: P3) (PR E2)
 
-**Goal**: Downloads into "Agenten-Downloads", uploads only from paths the file rights reach.
+**Goal**: Downloads into "HaexVault", uploads only from paths the file rights reach.
 
 **Independent Test**: A fixture download lands in the folder and in the log; a download over
 100 MB asks; an upload without a file right is refused (spec US5).
@@ -250,7 +250,7 @@ asks, a remembered one does not; every entry fill asks.
 
 ### Implementation
 
-- [x] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (rules) and src-tauri/src/agent_browser/act_files.rs (the tools) (R11), prompt kind `download`, the folder `Agenten-Downloads/<Vault>` in the system's downloads folder, which the grant "files of the device" (044) reaches (decided 2026-11-01: holzi's own folders are closed to agents)
+- [x] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (rules) and src-tauri/src/agent_browser/act_files.rs (the tools) (R11), prompt kind `download`, the folder `HaexVault/<Vault>` in the system's downloads folder, which the grant "files of the device" (044) reaches (decided 2026-11-01: holzi's own folders are closed to agents)
 - [x] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
 
 **Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M7 pass.

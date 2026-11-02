@@ -60,7 +60,7 @@ einmal je Lieferung durchgeht.
 
 ## M7 Download (US5)
 
-- „Lade die Rechnung von /invoice herunter.“ → Datei in `Downloads/Agenten-Downloads/<Vault>`;
+- „Lade die Rechnung von /invoice herunter.“ → Datei in `Downloads/HaexVault/<Vault>`;
   `/big` (150 MB) → Rückfrage „Großen Download behalten?“ mit Größe; „Ablehnen“ → keine Datei.
 - „Lade ~/Dokumente/Beleg.pdf in das Formular hoch.“ ohne Recht „Dateien des Geräts“ → abgelehnt,
   gleich ob die Datei existiert; mit Recht → Rückfrage wie Absenden, die Datei ist gewählt, gesendet

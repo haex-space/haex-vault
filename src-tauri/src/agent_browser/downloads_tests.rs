@@ -75,18 +75,18 @@ fn each_vault_has_its_own_folder_of_agent_downloads() {
     let downloads = Path::new("/home/anna/Downloads");
     assert_eq!(
         folder(downloads, "Privat"),
-        downloads.join("Agenten-Downloads").join("Privat")
+        downloads.join("HaexVault").join("Privat")
     );
     assert_eq!(
         folder(downloads, "../x"),
-        downloads.join("Agenten-Downloads").join("x")
+        downloads.join("HaexVault").join("x")
     );
 }
 
 #[test]
 fn a_download_moves_under_a_name_that_is_still_free() {
     let work = tempfile::tempdir().unwrap();
-    let target = work.path().join("Agenten-Downloads").join("Privat");
+    let target = work.path().join("HaexVault").join("Privat");
     for (guid, content) in [("g1", "first"), ("g2", "second!")] {
         std::fs::write(work.path().join(guid), content).unwrap();
     }
