@@ -84,6 +84,11 @@ test('every device setting has a German and an English label', () => {
 /** The assistant's pages, their views and the settings each one holds. */
 const PAGES = [
   {
+    id: 'ai.speech.assistant',
+    view: 'src/components/settings/assistant/AssistantSetting.vue',
+    prefs: ['assistant.preview', 'assistant.pauseMs'],
+  },
+  {
     id: 'ai.speech.voice',
     view: 'src/components/settings/assistant/VoiceSetting.vue',
     prefs: ['assistant.voice.<sprache>', 'assistant.speechRate'],
