@@ -56,18 +56,22 @@ const canSend = computed(
 async function submit() {
   const id = threadId.value
   if (!id || !canSend.value) return
+  const text = draft.value
   sending.value = true
-  const error = await props.send(id, draft.value, idempotencyKey)
+  const error = await props.send(id, text, idempotencyKey)
   sending.value = false
   sendError.value = error
-  if (error === null && threadId.value === id) {
-    draft.value = ''
-    idempotencyKey = crypto.randomUUID()
-  }
+  if (threadId.value !== id) return
+  // Text typed or dictated while the send ran is a new message: it stays in the field and gets
+  // its own key, so neither a success clears it nor a retry sends it under the old key.
+  const draftChanged = draft.value !== text
+  if (error === null && !draftChanged) draft.value = ''
+  if (error === null || draftChanged) idempotencyKey = crypto.randomUUID()
 }
 
 /** Dictation (072 FR-006, 076 FR-016): the text goes into the field and, with auto-send on, is sent
- * like typed text, so the same limits apply. */
+ * like typed text, so the same limits apply. The field is keyed by conversation: switching ends a
+ * running dictation, so its text cannot land in, or be sent to, the next conversation. */
 function onTranscript(text: string, autoSend: boolean) {
   draft.value = text
   if (autoSend) void submit()
@@ -186,6 +190,7 @@ watch(
       </div>
       <ChatComposerShell
         v-else
+        :key="conversation.id"
         v-model:input="draft"
         input-test-id="chat-peer-input"
         send-test-id="chat-peer-send"
