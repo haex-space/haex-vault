@@ -24,7 +24,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::state::FilesState;
 use crate::mcp_server::grants::{
-    validate, BrowserRights, PasswordRights, Rights, SiteGrant, SiteLevel,
+    validate, BrowserRights, PasswordLevel, PasswordRights, Rights, SiteGrant, SiteLevel,
 };
 use crate::mcp_server::registry;
 use crate::passwords::service::PasswordsService;
@@ -114,13 +114,7 @@ pub async fn set_builtin_password_rights<R: Runtime>(
     app: &AppHandle<R>,
     rights: Option<PasswordRights>,
 ) -> Result<(), String> {
-    if let Some(rights) = &rights {
-        validate(&Rights {
-            passwords: Some(rights.clone()),
-            ..Default::default()
-        })
-        .map_err(|error| error.to_string())?;
-    }
+    validate_builtin_password_rights(rights.as_ref())?;
     let device = device(app).await?;
     let db = app
         .state::<AppState>()
@@ -139,6 +133,20 @@ pub async fn set_builtin_password_rights<R: Runtime>(
         Ok(())
     })
     .await
+    .map_err(|error| error.to_string())
+}
+
+fn validate_builtin_password_rights(rights: Option<&PasswordRights>) -> Result<(), String> {
+    let Some(rights) = rights else {
+        return Ok(());
+    };
+    if rights.level != PasswordLevel::Read {
+        return Err("the built-in agent may only read password entries for fills".to_owned());
+    }
+    validate(&Rights {
+        passwords: Some(rights.clone()),
+        ..Default::default()
+    })
     .map_err(|error| error.to_string())
 }
 
@@ -208,6 +216,27 @@ pub struct TauriBrowserEnv<R: Runtime> {
 impl<R: Runtime> TauriBrowserEnv<R> {
     pub fn new(app: AppHandle<R>) -> Self {
         Self { app }
+    }
+}
+
+#[cfg(test)]
+mod builtin_password_rights_tests {
+    use super::validate_builtin_password_rights;
+    use crate::mcp_server::grants::{PasswordLevel, PasswordRights};
+
+    #[test]
+    fn built_in_password_rights_are_read_only() {
+        assert!(validate_builtin_password_rights(None).is_ok());
+        assert!(validate_builtin_password_rights(Some(&PasswordRights {
+            level: PasswordLevel::Read,
+            tags: None,
+        }))
+        .is_ok());
+        assert!(validate_builtin_password_rights(Some(&PasswordRights {
+            level: PasswordLevel::ReadWrite,
+            tags: None,
+        }))
+        .is_err());
     }
 }
 

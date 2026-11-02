@@ -151,6 +151,18 @@ fn the_totp_marker_is_never_typed() {
 }
 
 #[test]
+fn custom_entry_fields_and_card_fields_are_never_filled_by_login_fill() {
+    let mut entry = login(true);
+    entry.keys.keys.push("iban".to_owned());
+    entry
+        .values
+        .insert("iban".to_owned(), "DE89370400440532013000".to_owned());
+    let fields = [facts("text", "iban", ""), facts("text", "", "cc-number")];
+
+    assert!(values_for(&fields, &entry, Some("123456")).is_empty());
+}
+
+#[test]
 fn the_built_in_agent_reads_through_the_holzi_function() {
     assert_eq!(
         password_caller(&Caller::BuiltinAgent),

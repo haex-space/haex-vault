@@ -30,7 +30,7 @@ use crate::agent_browser::tab::Tab;
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::passwords::access::Grant;
-use crate::passwords::autofill::{aliases_of, fields_of, OTP_MARKER};
+use crate::passwords::autofill::{aliases_of, fields_of};
 use crate::passwords::service::PasswordsService;
 
 /// The holzi function the built-in agent's fills read entries through (034 FR-027: the built-in
@@ -89,10 +89,17 @@ pub(super) async fn login_entries(
             continue;
         };
         let fields = fields_of(&item);
-        let aliases = serde_json::from_value(aliases_of(&item)).unwrap_or_default();
-        let values: BTreeMap<String, String> = fields
-            .iter()
-            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
+        let mut aliases: BTreeMap<String, Vec<String>> =
+            serde_json::from_value(aliases_of(&item)).unwrap_or_default();
+        aliases.retain(|key, _| matches!(key.as_str(), "username" | "password"));
+        let values: BTreeMap<String, String> = ["username", "password"]
+            .into_iter()
+            .filter_map(|key| {
+                fields
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .map(|value| (key.to_owned(), value.to_owned()))
+            })
             .collect();
         entries.push(LoginEntry {
             id: item.id.clone(),
@@ -118,7 +125,7 @@ pub(crate) fn values_for(
         .into_iter()
         .enumerate()
         .filter_map(|(index, target)| match target? {
-            FieldTarget::Key(key) if key != OTP_MARKER => {
+            FieldTarget::Key(key) if matches!(key.as_str(), "username" | "password") => {
                 Some((index, entry.values.get(&key)?.clone()))
             }
             FieldTarget::Key(_) => None,
@@ -163,11 +170,17 @@ impl Acting<'_> {
         } else {
             None
         };
-        let values = values_for(&facts.fields, &entry, otp.as_deref());
+        let fresh = self.fill_facts(tab, form).await?;
+        self.operable(&fresh.url)?;
+        let current_page = Url::parse(&fresh.url).map_err(|_| no_matching_entry())?;
+        if current_page.scheme() != "https" || current_page.origin() != page.origin() {
+            return Err(no_matching_entry());
+        }
+        let values = values_for(&fresh.fields, &entry, otp.as_deref());
         if values.is_empty() {
             return Ok(json!({ "tab": tab.id, "filled": false, "reason": "no_fields" }).into());
         }
-        self.write(tab, form, &values).await?;
+        self.write(tab, form, &fresh, &values).await?;
         Ok(json!({ "tab": tab.id, "filled": true }).into())
     }
 
@@ -261,13 +274,31 @@ impl Acting<'_> {
         &self,
         tab: &Tab,
         form: Option<u32>,
+        facts: &FillFacts,
         values: &[(usize, String)],
     ) -> Result<Value, NativeError> {
         self.session
             .note_filled(values.iter().map(|(_, value)| value.as_str()));
-        let args = json!({ "fill": { "form": form, "values": values } });
-        read::script(self.connection, &tab.session, &args)
+        let args = json!({
+            "fill": {
+                "form": form,
+                "url": facts.url,
+                "fields": facts.fields,
+                "values": values
+            }
+        });
+        let reply = read::script(self.connection, &tab.session, &args)
             .await
-            .map_err(|_| browser_error(BrowserError::Protocol("fill failed".to_owned())))
+            .map_err(|_| browser_error(BrowserError::Protocol("fill failed".to_owned())))?;
+        if reply.get("changed").and_then(Value::as_bool) == Some(true) {
+            return Err(NativeError::new(
+                "page_changed",
+                "The page changed while the user decided; nothing was filled.",
+            ));
+        }
+        if reply.get("gone").and_then(Value::as_bool) == Some(true) {
+            return Err(element_gone());
+        }
+        Ok(reply)
     }
 }

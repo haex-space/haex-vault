@@ -316,8 +316,26 @@ function holziPage(args) {
     }
   }
   if (args.fill !== undefined && args.fill !== null) {
+    if (location.href !== args.fill.url) return { changed: true, url: location.href }
     const fields = fillable(args.fill.form)
     if (!fields) return { gone: true }
+    const factsOfFillable = (el) => ({
+      inputType: (el.getAttribute('type') || 'text').toLowerCase(),
+      name: el.getAttribute('name') || '',
+      id: el.id || '',
+      autocomplete: el.getAttribute('autocomplete') || '',
+      placeholder: el.getAttribute('placeholder') || '',
+    })
+    const currentFacts = fields.map(factsOfFillable)
+    const expectedFacts = args.fill.fields
+    if (
+      currentFacts.length !== expectedFacts.length ||
+      currentFacts.some((field, index) =>
+        Object.keys(field).some((key) => field[key] !== expectedFacts[index][key]),
+      )
+    ) {
+      return { changed: true, url: location.href }
+    }
     const setValue = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
