@@ -265,7 +265,8 @@ conversation marked as voice.
   - Until the wake word (PR D): switching on starts a conversation at once (its listening tone stands for the mode tone); after a pause the assistant switches itself off once quiet, without a second tone. Switching off plays "Modus aus".
   - Frontend: AssistantBubble.vue, CompactTranscript.vue and the four actions of T049 are removed. src/lib/assistant/indicator.ts holds the icon per phase for dock and launcher. src/plugins/assistant.client.ts shows assistant errors as toasts.
   - Superseded by T161: T047 and T048 entirely, T049 except its handler file, the transcript part of T046.
-- [ ] T051 [US2] Mark voice conversations in the chat history list (icon "Sprachgespräch") from `origin` in the chat sidebar components under src/components/chat/
+- [x] T051 [US2] Mark voice conversations in the chat history list (icon "Sprachgespräch") from `origin` in the chat sidebar components under src/components/chat/
+  - 2026-11-03 (PR C part 9): `list_threads` (`ThreadPayload`) carries `origin`; "Verlauf" (AgentSessionsPopover.vue) and the session header (AgentHeader.vue) show `VOICE_THREAD_ICON` (src/lib/chat/threadOrigin.ts, the listening icon) with the label "Sprachgespräch". Tests: thread_commands_tests.rs, check-assistant-ui.ts.
 - [ ] T052 [P] [US2] Tone and indicator for every turn step (FR-018): `listening`, `understood`, `notUnderstood`, `aborted`, `conversationEnd` from src-tauri/src/assistant/conversation.rs
 
 **Checkpoint**: Conversations by shortcut work end to end behind the preview setting.

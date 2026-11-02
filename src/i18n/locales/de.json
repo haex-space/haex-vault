@@ -266,6 +266,7 @@
     "threads": {
       "title": "Verlauf",
       "empty": "Noch keine Sitzungen",
+      "voice": "Sprachgespräch",
       "duration": "{duration}",
       "openedAt": "Eröffnet am {date}",
       "openedAtUnknown": "Eröffnungszeit unbekannt",

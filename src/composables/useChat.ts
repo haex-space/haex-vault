@@ -23,6 +23,8 @@ export interface Thread {
   lastModelId: string | null
   createdAt: number
   updatedAt: number
+  /** `'voice'` for a spoken conversation (spec 066 T051), `null` for a typed one. */
+  origin: 'voice' | null
 }
 
 export interface Message {
