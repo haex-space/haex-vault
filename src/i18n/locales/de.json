@@ -1488,7 +1488,6 @@
         "pauseMs": "Pause bis zur Antwort",
         "followUpSecs": "Zeit für Rückfragen",
         "continueMins": "Gespräch fortsetzen",
-        "modelId": "Modell für Gespräche",
         "voice": "Stimme",
         "speechRate": "Sprechgeschwindigkeit",
         "ttsProvider": "Sprachdienst",

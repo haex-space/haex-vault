@@ -1488,7 +1488,6 @@
         "pauseMs": "Pause before answering",
         "followUpSecs": "Time for follow-ups",
         "continueMins": "Continue the conversation",
-        "modelId": "Model for conversations",
         "voice": "Voice",
         "speechRate": "Speaking rate",
         "ttsProvider": "Speech service",
