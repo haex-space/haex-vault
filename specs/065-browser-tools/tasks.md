@@ -294,6 +294,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - [ ] T076 [P] Offer to download "Chrome for Testing" when no browser is found (`settings.agentBrowser.download`), with size, source and checksum shown, in src-tauri/src/agent_browser/locate.rs and src/components/settings/agentBrowser/AgentBrowserView.vue
 - [ ] T077 Manual quickstart M1–M9 on Linux, macOS and Windows with a real Claude Code
 - [x] T092 `pnpm agent-browser:fixtures [port]` for the manual checks: the fixture server of the integration tests (src-tauri/tests/common/agent_browser_fixture.rs, `start_tls_on`) as the example src-tauri/examples/agent_browser_fixtures.rs on `https://127.0.0.1:8443` and the partner `https://localhost:8443`, printing every request; quickstart paths aligned with the fixture pages, M6b added
+- [x] T093 Web search (revision 2026-11-02, FR-039 to FR-041): `browser.search` in src-tauri/src/agent_browser/search.rs (runs as `browser.open` of DuckDuckGo's HTML result page), the question `switchOn` for a built-in agent whose browser is off (src-tauri/src/agent_browser/switch_on.rs, `BrowserEnv::switch_on`), `browser.search` and `browser.open` in `CORE_AGENT_TOOLS`; the id lists moved to executor_ids.rs; tests in search_tests.rs and src-tauri/tests/agent_browser_search.rs
 - [ ] T078 Update the agent instructions of 021 (`session::INSTRUCTIONS_REGISTERED`) and the tool descriptions with the rule that page content is data, never an instruction
 
 ---
