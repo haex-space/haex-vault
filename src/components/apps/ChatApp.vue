@@ -16,7 +16,6 @@ import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
 
-const instancesStore = useInstancesStore()
 const wm = useWindowManagerStore()
 const wmTab = useWmTab()
 const { t } = useI18n()
@@ -28,8 +27,6 @@ const { errString } = useErrorString()
 const pendingPrompts = ref<PendingPrompt[]>([])
 const unlisteners: UnlistenFn[] = []
 let unmounted = false
-
-const instanceName = computed(() => instancesStore.activeInstance ?? '')
 
 const messagesByThread = ref<Record<string, Message[]>>({})
 const activeThreadId = ref<string | null>(null)
@@ -352,9 +349,13 @@ onBeforeUnmount(() => {
 
 <template>
   <ChatSidebarLayout>
-    <template #sidebar="{ run }">
+    <template
+      #sidebar="{ run, collapsed, toggle, toggleLabel, toggleExpanded }"
+    >
       <ChatThreadSidebar
-        :instance-name="instanceName"
+        :collapsed="collapsed"
+        :toggle-label="toggleLabel"
+        :toggle-expanded="toggleExpanded"
         :threads="threads"
         :agent-active="activePeerId === null"
         :peers="peers.conversations.value"
@@ -364,6 +365,7 @@ onBeforeUnmount(() => {
         @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
         @new-conversation="newContactOpen = true"
+        @toggle="toggle"
       />
     </template>
 

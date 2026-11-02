@@ -259,7 +259,8 @@
     "newChat": "Neuer Chat",
     "sidebar": {
       "show": "Seitenleiste einblenden",
-      "hide": "Seitenleiste ausblenden"
+      "hide": "Seitenleiste ausblenden",
+      "title": "Chats"
     },
     "threads": {
       "title": "Verlauf",
