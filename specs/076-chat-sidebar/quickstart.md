@@ -32,6 +32,6 @@ way on Pop!_OS). Use a vault with an agent session, two contacts, one group and 
 
 ## Automated
 
-`pnpm check:chat-state`, `pnpm check:chat-search`, `pnpm typecheck`, `pnpm typecheck:scripts`,
+`pnpm check:chat-state`, `pnpm typecheck`, `pnpm typecheck:scripts`,
 `pnpm lint`, `pnpm format:check`, `cargo test chat::search` (10 GB scope, `-j 1`), and for the branch
 `gh workflow run ci.yml --ref 076-chat-sidebar` (E2E runs on `main` only).

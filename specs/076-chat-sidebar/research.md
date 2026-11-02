@@ -31,24 +31,26 @@ not used for such flags in this codebase (only the extension host touches it).
 `menuOpen` and the search text reset on remount on purpose (a fresh chat opens without a covering
 overlay and without a stale search).
 
-## R3 — Search is a plain `LIKE`, no index
+## R3 — Search is a Unicode case-insensitive scan, no index
 
-**Decision**: `chat_search` runs two parameterized queries with `LIKE ?1 ESCAPE '\'` (the typed text
-with `\`, `%`, `_` escaped), joined to `chat_threads`, newest first, `LIMIT` 51 (one more than shown, to
-know whether there are more):
+**Decision**: `chat_search` runs two parameterized, read-only queries joined to `chat_threads`, ordered
+newest first. Rust filters each row using Unicode lowercase matching, so FR-011's case-insensitive
+contract applies to non-ASCII text too. It stops after finding 51 hits, then returns the newest 50 and
+sets `more`; a linear scan may inspect all rows when matches are sparse:
 
 - peer: `chat_peer_messages.text` of threads with `state <> 'request'`, `text IS NOT NULL`;
 - agent: `chat_messages.content` where `role IN ('user','assistant')` — tool calls, tool results and
   system rows are not conversation text.
 
-**Rationale**: SQLite `LIKE` on ASCII is case-insensitive; non-ASCII case folding is not. Spec 076 says
-"ignoring case"; for non-ASCII letters the match is exact-case until needed — recorded as a ponytail
-ceiling in the code (`ponytail:` comment: FTS5 or a lowered shadow column is the upgrade). 50,000
-messages scan in tens of milliseconds, inside SC-003. No FTS5: the tables are CRDT-tracked and a virtual
-table would need to join the sync story (`SYNCED_TABLES` tests); not worth it before measurements.
+**Rationale**: SQLite `LIKE` folds ASCII case only, which would violate FR-011 for non-ASCII letters.
+Filtering with Rust's Unicode lowercase conversion keeps the matching behavior explicit and does not
+require a database extension or schema/index change. The 50,000-message target must be measured in B2;
+if the scan misses SC-003, revisit an indexed normalized column. No FTS5 for now: the tables are
+CRDT-tracked and a virtual table would need to join the sync story (`SYNCED_TABLES` tests).
 
-**Alternatives**: FTS5 — rejected for now (above); filtering in the window over loaded messages —
-rejected: it would only see the open page of messages.
+**Alternatives**: SQLite `LIKE` — rejected because its default case folding is ASCII-only; FTS5 —
+rejected for now (above); filtering in the window over loaded messages — rejected because it would only
+see the open page of messages.
 
 ## R4 — Extract and hit shape
 

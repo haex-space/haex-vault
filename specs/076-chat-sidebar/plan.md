@@ -13,7 +13,8 @@ Three slices, one pull request each, in this order:
 2. **B1 (US3, FR-015…FR-018)**: contact and group conversations use the agent composer's shell
    (text, dictation, send) without agent controls. Front end only.
 3. **B2 (US2, FR-009…FR-014)**: a search field in the sidebar; names filter in the window, message
-   content is found by one new read-only command `chat_search` (plain `LIKE` over
+   content is found by one new read-only command `chat_search` (ordered read-only scan with Unicode
+   case-insensitive matching over
    `chat_peer_messages` and `chat_messages`).
 
 Real audio messages (the operator's second half of "Sprachnachrichten") are not planned here: they ride
@@ -29,8 +30,8 @@ no new dependency
 **Storage**: the vault database (SQLite, CRDT tables `chat_threads`, `chat_peer_messages`,
 `chat_messages`); no schema change, no index (R3)
 
-**Testing**: `check:*` node harness for composables and chat state (`pnpm check:chat-state`, plus new
-`check-chat-search`), Rust `*_tests.rs` beside the module (`cargo test` for `chat::search`), E2E scenario
+**Testing**: `check:*` node harness for composables and chat state (`pnpm check:chat-state`), Rust
+`*_tests.rs` beside the module (`cargo test` for `chat::search`), E2E scenario
 `chat-narrow-window` rewritten and a rail scenario added (E2E runs on `main` only; dispatch it for the
 branch before merging)
 
