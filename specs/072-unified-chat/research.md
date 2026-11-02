@@ -219,7 +219,9 @@ participant-set identity (no renames, no stable group).
 (`ContactsService::card_of_vault` → `Unknown`) is created with `state = request`. Group invitations
 from anyone are requests until accepted (US4/US5); from a non-contact they show under "Anfragen" without
 sound. Accepting a direct request runs spec 060's preview/merge with the carried card
-(contacts/share/preview.rs, merge.rs) and sets `state = active`. Declining deletes the conversation
+(contacts/share/preview.rs, merge.rs): the window hands the card to the address book's preview
+(share inbox), and storing a card of the vault (`received::save`) sets `state = active` for its
+requests, whichever route stored it and on whichever own device (revision 2026-11-02, PR D). Declining deletes the conversation
 locally (sender gets a delivery receipt only, never _read_). A later message from the same vault creates
 a new request.
 
