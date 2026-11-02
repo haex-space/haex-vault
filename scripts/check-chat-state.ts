@@ -75,28 +75,44 @@ test('model initialization preserves an active integrity action', async () => {
   assert.equal(state.modelStore.integrityActionError, 'action still running')
 })
 
-test('model initialization auto-loads the first available model when nothing is active yet (spec 002 FR-014)', async () => {
+test('model initialization restores the last picked model when nothing is active yet (spec 002 FR-014)', async () => {
   const state = createChatState(
     {
       activeModelInfoAsync: async () => null,
       loadModelAsync: async (modelId: string) => ({
         modelId,
-        name: 'Auto Picked',
+        name: 'Last Picked',
         tokenizerRepo: '',
         contextWindow: null,
       }),
     },
     {
       resolveDefaultModelAsync: async () => ({
-        modelId: 'auto-picked',
-        source: 'first_available',
+        modelId: 'last-picked',
+        source: 'last_active',
       }),
     },
   )
 
   await state.modelStore.initialize()
 
-  assert.equal(state.modelStore.activeModel?.modelId, 'auto-picked')
+  assert.equal(state.modelStore.activeModel?.modelId, 'last-picked')
+})
+
+test('model initialization loads nothing without a picked model: there is no default (spec 002 FR-014)', async () => {
+  let loadModelCalls = 0
+  const state = createChatState({
+    activeModelInfoAsync: async () => null,
+    loadModelAsync: async (modelId: string) => {
+      loadModelCalls++
+      return { modelId, name: modelId, tokenizerRepo: '', contextWindow: null }
+    },
+  })
+
+  await state.modelStore.initialize()
+
+  assert.equal(state.modelStore.activeModel, null)
+  assert.equal(loadModelCalls, 0)
 })
 
 test('model initialization skips the auto-load fallback when a model is already active', async () => {
