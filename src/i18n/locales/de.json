@@ -520,16 +520,6 @@
       "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden"
     },
-    "default": {
-      "modelGroup": {
-        "local": "Lokale Modelle"
-      },
-      "saved": "Standard gesetzt.",
-      "empty": "Es sind noch keine Modelle installiert oder Anbieter konfiguriert.",
-      "none": "Keins",
-      "unknownModel": "{id} (nicht mehr vorhanden)",
-      "label": "Modell"
-    },
     "sttModel": {
       "modelLabel": "Modell",
       "saved": "Gewechselt.",
@@ -642,11 +632,6 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Standard-Modell",
-          "description": "Welches Modell nach dem Öffnen der Vault geladen wird.",
-          "keywords": "Standard Chat Start laden"
-        },
         "remove": "Entfernen",
         "local": {
           "title": "Lokale Modelle",

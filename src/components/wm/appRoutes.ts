@@ -65,9 +65,6 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   ai: defineAsyncComponent(
     () => import('~/components/settings/OverviewView.vue'),
   ),
-  'ai.default': defineAsyncComponent(
-    () => import('~/components/settings/DefaultModelSetting.vue'),
-  ),
   'ai.local': defineAsyncComponent(
     () => import('~/components/settings/LocalModelsView.vue'),
   ),

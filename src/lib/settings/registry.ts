@@ -166,11 +166,6 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   }),
   // "KI" gathers the models and the agents, grouped by task in the overview.
   categoryLocation('ai'),
-  subView('ai.default', 'ai/default', 'ai', {
-    icon: 'lucide:star',
-    group: 'chat',
-    overviewRow: true,
-  }),
   // "Anbieter": Claude, Codex and OpenAI-compatible endpoints (spec 055 US5) on one page; an
   // endpoint's page is reached from its row, never searched for. An agent opens it with
   // `wm.app.open`.

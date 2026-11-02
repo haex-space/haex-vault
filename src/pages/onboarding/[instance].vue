@@ -98,12 +98,12 @@ async function completeWithModel(rec: TierRecommendation) {
   try {
     // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
     const installed = await downloadFromCatalogAsync(rec.entry.id)
-    // Set device-scoped default model — the wizard's explicit
-    // selection is a device standard (spec 002 §FR-007).
+    // The wizard's explicit choice is the model a new chat starts with: the last picked one
+    // (spec 002 FR-007, FR-009 as amended 2026-11-02). There is no default model.
     // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
     await setPrefAsync(
       { kind: 'device', uuid: info.vaultDeviceUuid },
-      'chat.default_model_id',
+      'chat.last_active_model_id',
       installed.id,
     )
     step.value = 'sttModel'

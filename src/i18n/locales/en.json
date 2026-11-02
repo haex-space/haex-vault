@@ -520,16 +520,6 @@
       "saved": "Saved.",
       "failed": "The setting could not be changed"
     },
-    "default": {
-      "modelGroup": {
-        "local": "Local models"
-      },
-      "saved": "Default set.",
-      "empty": "No installed models or configured providers yet.",
-      "none": "None",
-      "unknownModel": "{id} (no longer available)",
-      "label": "Model"
-    },
     "sttModel": {
       "modelLabel": "Model",
       "saved": "Switched.",
@@ -642,11 +632,6 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Default model",
-          "description": "Which model loads when the vault opens.",
-          "keywords": "default chat start load"
-        },
         "remove": "Remove",
         "local": {
           "title": "Local models",

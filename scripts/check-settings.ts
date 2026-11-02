@@ -55,7 +55,6 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
   'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
   'ai.browser': '/ai/browser',
-  'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
   'ai.providers.provider': '/ai/providers/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',
   'ai.local': '/ai/local',
@@ -164,7 +163,6 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
   const rows = (id: Parameters<typeof overviewRows>[0]) =>
     overviewRows(id).map((location) => location.id)
   assert.deepEqual(rows('ai'), [
-    'ai.default',
     'ai.providers',
     'ai.local',
     'ai.speech',
@@ -190,7 +188,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
   assert.deepEqual(
     overviewGroups('ai').map((g) => [g.group, g.rows.map((row) => row.id)]),
     [
-      ['chat', ['ai.default', 'ai.providers']],
+      ['chat', ['ai.providers']],
       ['local', ['ai.local']],
       [
         'speech',
@@ -366,7 +364,6 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(searchSettings('   ', t), [])
   assert.deepEqual(searchSettings('xyzzy', t), [])
 
-  assert.equal(first('standard')?.path, '/ai/default')
   assert.equal(first('whisper')?.path, '/ai/speech')
   assert.equal(first('dunkel')?.path, '/general/appearance')
 

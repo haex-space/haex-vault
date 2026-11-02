@@ -102,11 +102,6 @@ scenario('settings-categories', {}, async (ctx) => {
       'general.appearance',
       'settings-color-scheme',
     ],
-    [
-      ['settings-category-ai', 'settings-row-ai.default'],
-      'ai.default',
-      'settings-default-model',
-    ],
     [['settings-category-ai', 'settings-row-ai.speech'], 'ai.speech', null],
     [
       ['settings-category-ai', 'settings-row-ai.local'],

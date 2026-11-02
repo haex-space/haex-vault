@@ -344,24 +344,6 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
-    id: 'settings.models.setDefault',
-    description:
-      'Set the default chat model of this device (models are installed per device).',
-    input: {
-      type: 'object',
-      properties: { modelId: MODEL_ID },
-      required: ['modelId'],
-    },
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.models.clearDefault',
-    description: 'Remove the default chat model of this device.',
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
     id: 'settings.models.setStt',
     description:
       'Switch the speech-to-text model to a catalog entry, downloading it if needed.',
