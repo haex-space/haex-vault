@@ -611,6 +611,9 @@ impl AssistantState {
         let Some(c) = &mut self.conversation else {
             return;
         };
+        if !c.running_turn {
+            return;
+        }
         let first = c.open_questions.is_empty();
         c.open_questions.push_back(question);
         // Further questions wait for their turn; one asked while haex speaks comes after the

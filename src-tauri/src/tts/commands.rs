@@ -16,16 +16,6 @@ use super::files;
 use super::voices::{self, BuiltinVoice, VoiceRef};
 use super::TtsError;
 
-/// Progress of every download the assistant starts (speech models, assistant assets).
-pub const EVENT_DOWNLOAD_PROGRESS: &str = "assistant-download-progress";
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DownloadProgressWire<'a> {
-    pub id: &'a str,
-    pub received: u64,
-    pub total: u64,
-}
-
 /// Whether this build can speak with `engine`.
 fn engine_enabled(engine: TtsEngine) -> bool {
     match engine {
@@ -163,8 +153,9 @@ pub async fn assistant_tts_preview(
     }
 }
 
-/// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as
-/// [`EVENT_DOWNLOAD_PROGRESS`]. Idempotent.
+/// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as the shared
+/// `model-download-progress` of every model download, so the settings show it with the same
+/// components as chat and speech recognition models. Idempotent.
 #[tauri::command]
 pub async fn download_tts_voice(
     app: AppHandle,
@@ -203,11 +194,11 @@ pub(crate) async fn ensure_installed(
             })??;
     files::ensure_model_files(&dir, entry, |received, total| {
         let _ = app.emit(
-            EVENT_DOWNLOAD_PROGRESS,
-            DownloadProgressWire {
-                id: &entry.id,
-                received,
-                total,
+            crate::models::commands::EVENT_PROGRESS,
+            crate::models::commands::ProgressEvent {
+                model_id: entry.id.clone(),
+                bytes_downloaded: received,
+                bytes_total: Some(total),
             },
         );
     })
