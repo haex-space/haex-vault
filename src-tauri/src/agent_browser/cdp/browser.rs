@@ -62,3 +62,11 @@ pub async fn close(connection: &Connection) -> Result<()> {
         .await
         .map(drop)
 }
+
+/// `Browser.cancelDownload`: ends the download `guid`; the browser removes its partial file.
+pub async fn cancel_download(connection: &Connection, guid: &str) -> Result<()> {
+    connection
+        .call("Browser.cancelDownload", json!({ "guid": guid }), None)
+        .await
+        .map(drop)
+}

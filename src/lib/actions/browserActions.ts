@@ -217,6 +217,51 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.download',
+    titleKey: 'actions.browser.download',
+    description:
+      "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder Agenten-Downloads of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",
+    input: {
+      type: 'object',
+      properties: { tab: TAB, element: ELEMENT },
+      required: ['tab', 'element'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        name: { type: 'string' },
+        size: { type: 'integer' },
+        type: { type: 'string' },
+        path: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
+    id: 'browser.upload',
+    titleKey: 'actions.browser.upload',
+    description:
+      'Put a file of this device into a file field of the page, by the element number of the field or of the button that opens it, and read the page after it. Only files your file rights reach; uploading counts as sending and always asks the user first. Sending the form afterwards asks again.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: ELEMENT,
+        path: {
+          type: 'string',
+          description: 'The absolute path of the file on this device.',
+        },
+      },
+      required: ['tab', 'element', 'path'],
+    },
+    result: PAGE,
+    ...SHARED,
+    effect: 'destructive',
+    confirmsItself: true,
+  },
+  {
     id: 'browser.tabs.close',
     titleKey: 'actions.browser.tabsClose',
     description: 'Close an agent tab.',

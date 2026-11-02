@@ -42,6 +42,19 @@ pub async fn script(connection: &Connection, session: &str, args: &Value) -> Res
     runtime::evaluate(connection, session, context, &expression).await
 }
 
+/// Runs the page script like [`script`] and returns the element it yields as a remote object id
+/// (`{ fileElement }`); `None` when it yields none.
+pub async fn element(
+    connection: &Connection,
+    session: &str,
+    args: &Value,
+) -> Result<Option<String>> {
+    let (frame, _) = page::main_frame(connection, session).await?;
+    let context = page::isolated_world(connection, session, &frame).await?;
+    let expression = format!("({SCRIPT})({args})");
+    runtime::evaluate_object(connection, session, context, &expression).await
+}
+
 /// Reads the main frame of the tab in `session`; `section` limits it to the part of the page
 /// around that element.
 pub async fn raw(connection: &Connection, session: &str, section: Option<u32>) -> Result<Raw> {

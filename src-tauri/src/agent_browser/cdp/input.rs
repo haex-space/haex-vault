@@ -47,3 +47,21 @@ pub async fn enter(connection: &Connection, session: &str) -> Result<()> {
     }
     Ok(())
 }
+
+/// `DOM.setFileInputFiles`: puts the files at `paths` into the file field `object` (research R11);
+/// the page sees them as if the user had chosen them.
+pub async fn set_files(
+    connection: &Connection,
+    session: &str,
+    object: &str,
+    paths: &[String],
+) -> Result<()> {
+    connection
+        .call(
+            "DOM.setFileInputFiles",
+            json!({ "files": paths, "objectId": object }),
+            Some(session),
+        )
+        .await
+        .map(drop)
+}

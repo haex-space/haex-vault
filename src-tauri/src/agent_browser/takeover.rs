@@ -56,6 +56,7 @@ pub(super) async fn request(
             label: None,
             fields: Vec::new(),
             reason: Some(reason.clone()),
+            bytes: None,
         };
         tools.ask(session, question, cancel).await?;
         session

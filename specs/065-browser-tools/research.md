@@ -306,11 +306,25 @@ was es dann tun kann, schon. Die Tests prüfen genau das.
 ## R11 Downloads und Hochladen
 
 **Entscheidung**: `Browser.setDownloadBehavior` mit `allowAndName` in ein Arbeitsverzeichnis;
-fertige Dateien verschiebt holzi in den Ordner „Agenten-Downloads“ der Vault-Instanz (geräteeigener
-Speicher von holzi, wie andere Dateien von holzi aus 044 erreichbar). Über 100 MB (aus
-`Content-Length` bzw. beim Überschreiten) hält holzi den Download an und fragt. Hochladen setzt
-die Datei über `DOM.setFileInputFiles`, nur aus Pfaden, die die Dateirechte des Agenten (044)
-erreichen, und zählt als Absenden (FR-011).
+`browser.download` klickt das Element (Rückfragen wie ein Klick) und folgt dem Download, der in
+einem Rahmen dieses Tabs beginnt (`Browser.downloadWillBegin`, `Browser.downloadProgress`). Fertige
+Dateien verschiebt holzi unter einem sicheren, eindeutigen Namen in den Ordner
+`Agenten-Downloads/<Vault>` im Download-Ordner des Systems. Über 100 MB (aus `Content-Length` bzw.
+beim Überschreiten) fragt holzi; der Browser kann einen Download nicht anhalten, er läuft also
+weiter, bleibt aber im Arbeitsverzeichnis, bis der Nutzer zustimmt. Lehnt er ab, bricht holzi ab
+(`Browser.cancelDownload`) und löscht, was angekommen ist. Ein Aufruf, der vorher endet, bricht
+seinen Download ebenso ab. Hochladen setzt die Datei über `DOM.setFileInputFiles`, nur aus
+Pfaden, die die Dateirechte des Agenten (044) erreichen, und sagt für eine fehlende Datei
+dasselbe wie für eine, die der Agent nicht erreicht (`file_not_allowed`). Es fragt wie Absenden
+(FR-011), lässt aber keine Anfrage der Seite durch: das Absenden des Formulars fragt erneut. Das
+Element darf das Dateifeld selbst sein oder ein Element, zu dem es gehört (Beschriftung, Knopf im
+selben Formular), weil Seiten das Feld oft verstecken.
+
+**Nachtrag 2026-11-01**: Der Ordner lag zuerst im eigenen Speicher der Vault-Instanz. Die
+Dateirechte aus 044 sperren holzis eigene Ordner aber für jeden Agenten, der Agent hätte seine
+Downloads nicht lesen können. Der Download-Ordner des Systems erreicht das Recht „Dateien des
+Geräts“ ohne Ausnahme in der Regel, und der Nutzer findet die Dateien dort, wo ein Browser sie
+ablegt.
 
 ## R12 Grenzen
 

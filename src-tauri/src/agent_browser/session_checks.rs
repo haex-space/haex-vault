@@ -92,6 +92,7 @@ impl Session {
             label: Some(format!("{} {}", paused.method, paused.url)),
             fields: submit::fields_of(paused.body.as_deref()),
             reason: None,
+            bytes: None,
         };
         let answer = self.ask_for_page(&question).await;
         match answer {
@@ -164,6 +165,7 @@ impl Session {
             label: Some(url.to_owned()),
             fields: Vec::new(),
             reason: None,
+            bytes: None,
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {

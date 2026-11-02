@@ -1,7 +1,8 @@
 //! The agent browser's view of the app (spec 065, research R8, data-model.md): the rights of an
 //! external agent come from its grants (021), those of the built-in agent from the device setting
 //! [`BUILTIN_KEY`]; the browser starts with the open vault, its profile in the vault instance's
-//! folder and its process a child of the vault session.
+//! folder and its process a child of the vault session. Downloads land in the vault's folder of
+//! agent downloads in the system's downloads folder; uploads follow the agent's file rights (044).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,6 +19,10 @@ use super::profile_store::{self, ProfileStore};
 use super::sites::Site;
 use super::StartConfig;
 use crate::caller::Caller;
+use crate::files::access::AgentGrants;
+use crate::files::local::OwnPlaces;
+use crate::files::permissions::{self, BUILTIN_AGENT};
+use crate::files::state::FilesState;
 use crate::mcp_server::grants::{validate, BrowserRights, Rights, SiteGrant, SiteLevel};
 use crate::mcp_server::registry;
 use crate::storage::preferences::{self, PrefScope};
@@ -234,6 +239,37 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
 
     fn locale(&self) -> String {
         self.app.state::<AppState>().extensions().context().locale
+    }
+
+    fn downloads_folder(&self) -> Result<PathBuf, String> {
+        let vault = self
+            .app
+            .state::<AppState>()
+            .active_name()
+            .ok()
+            .flatten()
+            .ok_or("no open vault")?;
+        let downloads = self
+            .app
+            .path()
+            .download_dir()
+            .map_err(|error| error.to_string())?;
+        Ok(super::downloads::folder(&downloads, &vault))
+    }
+
+    async fn file_rights(&self, caller: &Caller) -> Option<(OwnPlaces, AgentGrants)> {
+        let agent_id = match caller {
+            Caller::BuiltinAgent => BUILTIN_AGENT.to_owned(),
+            Caller::ExternalAgent { id } => id.clone(),
+            _ => return None,
+        };
+        let own = self.app.state::<FilesState>().own.clone();
+        let db = self.app.state::<AppState>().database().ok()?;
+        let grants = db
+            .read(move |q| Ok(permissions::grants_of(q, &agent_id)?))
+            .await
+            .ok()?;
+        Some((own, grants))
     }
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
