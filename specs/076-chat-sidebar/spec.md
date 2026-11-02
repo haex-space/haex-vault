@@ -114,7 +114,7 @@ agent conversation behaves as before.
    or effort choice, no permission mode and no agent activity.
 2. **Given** dictation with "send directly" on, **When** the user finishes speaking, **Then** the text is
    sent as one message; with it off, the text is placed in the field to edit.
-3. **Given** a draft longer than the message limit (072 FR-010), **When** the user sends, **Then** it is
+3. **Given** a draft longer than the message limit (072 FR-010: at least 4,000 characters), **When** the user sends, **Then** it is
    refused with the counter as before.
 4. **Given** the agent conversation, **When** the user uses its field, **Then** everything behaves as
    before this change.
