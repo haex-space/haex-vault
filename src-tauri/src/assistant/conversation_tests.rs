@@ -282,6 +282,18 @@ fn questions_are_asked_in_order() {
 }
 
 #[test]
+fn resolving_a_queued_question_does_not_repeat_the_current_question() {
+    let mut run = Run::asking(0);
+    run.send(Event::Question(question("r1")), 1_000);
+    run.send(Event::Question(question("r2")), 1_100);
+
+    assert!(run
+        .send(Event::QuestionResolved("r2".to_owned()), 1_200)
+        .is_empty());
+    assert_eq!(run.state.open_question().map(|q| q.id.as_str()), Some("r1"));
+}
+
+#[test]
 fn a_question_answered_in_the_window_lets_the_turn_go_on() {
     let mut run = Run::asking(0);
     run.send(Event::Question(question("r1")), 1_000);
@@ -494,6 +506,17 @@ fn barging_in_stops_the_output_and_listens() {
         run.send(Event::BargeIn, 950).is_empty(),
         "only while speaking"
     );
+}
+
+#[test]
+fn barging_in_discards_questions_from_the_aborted_turn() {
+    let mut run = Run::asking(0);
+    run.send(Event::FirstWords, 500);
+    run.send(Event::Question(question("r1")), 600);
+
+    run.send(Event::BargeIn, 900);
+
+    assert_eq!(run.state.open_question(), None);
 }
 
 #[test]

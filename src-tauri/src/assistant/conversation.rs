@@ -486,6 +486,7 @@ impl AssistantState {
         if c.running_turn {
             out.push(Effect::AbortTurn);
             c.running_turn = false;
+            c.open_questions.clear();
         }
         c.phase = Phase::Listening;
         c.round_started = None;
@@ -632,12 +633,13 @@ impl AssistantState {
             return;
         };
         let before = c.open_questions.len();
+        let was_first = c.open_questions.front().is_some_and(|q| q.id == id);
         c.open_questions.retain(|q| q.id != id);
         if c.open_questions.len() == before || c.phase != Phase::AwaitingAnswer {
             return;
         }
         if !c.open_questions.is_empty() {
-            if listens {
+            if listens && was_first {
                 self.ask_first_question(now, out);
             }
         } else if c.running_turn {
