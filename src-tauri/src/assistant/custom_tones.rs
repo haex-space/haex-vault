@@ -26,7 +26,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 use uuid::Uuid;
 
 use crate::audio::resample::resample_linear;
@@ -374,7 +374,7 @@ impl ToneBank {
 }
 
 /// Reads this device's assignment and the assigned sounds into the [`ToneBank`].
-pub async fn refresh_bank(app: &AppHandle) -> Result<()> {
+pub async fn refresh_bank<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let state = app.state::<AppState>();
     let (assigned, _) = read_assigned(app, &state).await?;
     let db = active_database(&state)?;
@@ -401,7 +401,7 @@ pub async fn refresh_bank(app: &AppHandle) -> Result<()> {
 /// Loads and follows the assigned tones for the vault session that just opened. Assignments are
 /// device preferences and sounds are synced vault rows, so either table can change on another
 /// device while this vault is open. Forget the cached audio as soon as the vault closes.
-pub fn start_bank_feed(app: &AppHandle, state: &AppState) {
+pub fn start_bank_feed<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
     if app.try_state::<ToneBank>().is_none() {
         return;
     }
@@ -446,8 +446,8 @@ pub fn start_bank_feed(app: &AppHandle, state: &AppState) {
     }
 }
 
-async fn read_assigned(
-    app: &AppHandle,
+async fn read_assigned<R: Runtime>(
+    app: &AppHandle<R>,
     state: &State<'_, AppState>,
 ) -> Result<(HashMap<ToneId, Uuid>, PrefScope)> {
     let db = active_database(state)?;
