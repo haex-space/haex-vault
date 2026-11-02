@@ -49,7 +49,7 @@ const PREF_SPEECH_RATE: &str = "assistant.speechRate";
 const PREF_TONES_ENABLED: &str = "assistant.tones.enabled";
 const PREF_TONES_VOLUME: &str = "assistant.tones.volume";
 /// Defaults of data-model.md.
-const PAUSE_MS_DEFAULT: u32 = 800;
+const PAUSE_MS_DEFAULT: u32 = 1500;
 const TONES_VOLUME_DEFAULT: u8 = 60;
 
 /// The assistant of this process, as managed state.

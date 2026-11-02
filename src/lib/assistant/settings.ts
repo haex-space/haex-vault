@@ -59,6 +59,26 @@ export function parseSpeechRate(value: string | null): number {
     : SPEECH_RATE.default
 }
 
+/** How long a pause ends what was said (FR-012); 1.5 s since a thinking pause of 0.8 s ended it
+ * too early (operator 2026-11-02). */
+export const PAUSE_KEY = 'assistant.pauseMs'
+export const PAUSE_MS = {
+  min: 500,
+  max: 3000,
+  step: 100,
+  default: 1500,
+} as const
+
+/** The pause the assistant uses for a stored value: the default when it is missing or no whole
+ * number, else clamped to the range, as `read_settings` and `PauseDetector::new` do. */
+export function parsePause(value: string | null): number {
+  const text = value?.trim() ?? ''
+  const ms = /^[+-]?\d+$/.test(text) ? Number(text) : Number.NaN
+  return Number.isSafeInteger(ms)
+    ? Math.min(Math.max(ms, PAUSE_MS.min), PAUSE_MS.max)
+    : PAUSE_MS.default
+}
+
 /** `ToneId` of contracts/tauri-commands.md, in the order of FR-043. */
 export const TONE_IDS = [
   'listening',

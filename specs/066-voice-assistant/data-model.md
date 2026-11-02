@@ -16,7 +16,7 @@ bei Auswahl.
 | `assistant.wakeWord`                                 | `"default"` \| `"custom"`              | `"default"`                | FR-007, FR-008 |
 | `assistant.wakeWord.custom`                          | JSON `CustomWakeWord` (unten)          | –                          | FR-008         |
 | `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`      | `"medium"`                 | FR-009         |
-| `assistant.pauseMs`                                  | int 500–2000                           | `800`                      | FR-012         |
+| `assistant.pauseMs`                                  | int 500–3000                           | `1500`                     | FR-012         |
 | `assistant.followUpSecs`                             | int 3–30                               | `8`                        | FR-013         |
 | `assistant.continueMins`                             | int 0–60                               | `5`                        | FR-015         |
 | `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                     | Standardstimme der Sprache | FR-029, FR-053 |
