@@ -155,7 +155,7 @@ pub struct StateWire {
     pub open_question: Option<QuestionWire>,
 }
 
-/// How speech during output is taken (FR-016). Until PR G only "Sprechen" interrupts haex.
+/// How speech during output is taken (FR-016). Until PR G only switching off interrupts haex.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EchoMode {

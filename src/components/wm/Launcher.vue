@@ -13,7 +13,7 @@
  * the dock or unpins it (spec 045, FR-017). With the preview setting on, a tile switches the voice
  * assistant on or off (spec 066 T045, operator 2026-11-02).
  */
-import { PHASE_ICONS } from '~/lib/assistant/indicator'
+import { PHASE_ICONS, toggleShown } from '~/lib/assistant/indicator'
 
 const open = defineModel<boolean>('open', { default: false })
 
@@ -94,7 +94,7 @@ function launch(appId: string) {
           </ShadcnContextMenuContent>
         </ShadcnContextMenu>
         <button
-          v-if="assistant.preview"
+          v-if="toggleShown(assistant.preview, assistant.state.enabled)"
           type="button"
           class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm hover:bg-accent"
           :class="

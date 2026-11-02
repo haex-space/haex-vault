@@ -39,7 +39,7 @@ export const ASSISTANT_OFF: AssistantStateWire = {
   openQuestion: null,
 }
 
-/** The window's offset from UTC in minutes, as `assistant_talk` takes it. */
+/** The window's offset from UTC in minutes, as `assistant_set_enabled` takes it. */
 export function utcOffsetMinutes(date = new Date()): number {
   return -date.getTimezoneOffset()
 }

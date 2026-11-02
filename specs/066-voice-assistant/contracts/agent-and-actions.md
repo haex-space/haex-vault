@@ -47,13 +47,14 @@ gemessen (Release-Build).
 Alle im Bereich `guardrails` (`agentCallable: false`): Mikrofon und Zuhören steuert nur der Nutzer,
 weder der eingebaute noch ein externer Agent (021).
 
-| Aktion                        | Eingabe     | Binding | `defaultKeys`                                | Spec   |
-| ----------------------------- | ----------- | ------- | -------------------------------------------- | ------ |
-| `assistant.mode.set`          | `{enabled}` | global  | –                                            | FR-001 |
-| `assistant.mute.set`          | `{muted}`   | global  | –                                            | US9    |
-| `assistant.talk`              | –           | global  | `Ctrl+Shift+Space` (macOS `Cmd+Shift+Space`) | FR-011 |
-| `assistant.conversation.end`  | –           | global  | –                                            | FR-014 |
-| `assistant.conversation.show` | –           | global  | –                                            | FR-042 |
+| Aktion             | Eingabe | Ergebnis    | Binding | `defaultKeys` | Spec   |
+| ------------------ | ------- | ----------- | ------- | ------------- | ------ |
+| `assistant.toggle` | –       | `{enabled}` | global  | –             | FR-001 |
+
+`assistant.toggle` schaltet den Assistenten ein oder aus (Betreiber 2026-11-02). Weitere Aktionen
+(Sprechen, Stumm, Gespräch zeigen oder beenden) und ein Kürzel gibt es nicht (FR-001); die Aktionen
+`assistant.talk`, `assistant.mute.set`, `assistant.conversation.end` und `assistant.conversation.show`
+aus T049 entfallen (T161).
 
 Einstellungsaktionen für `assistant.*` folgen dem Helfer `setting({...})` in
 `settingsActions.ts`, ebenfalls `guardrails`.
@@ -61,5 +62,8 @@ Einstellungsaktionen für `assistant.*` folgen dem Helfer `setting({...})` in
 ## Launcher und Dock
 
 - Launcher: Kachel „Sprachassistent“ neben der Sperr-Kachel, Zustand an/aus, führt
-  `assistant.mode.set` aus.
-- Dock: neuer `DockControlId` `"assistant"`; anheftbar wie die anderen Steuer-Einträge (045).
+  `assistant.toggle` aus.
+- Dock: `DockControlId` `"assistant"`. Bis zum Wake Word (PR D) wird er nie in den synchronisierten
+  `dock.items` gespeichert: Dock und Launcher zeigen den Schalter, solange die Vorschau
+  (`assistant.preview`) auf diesem Gerät an ist oder der Assistent läuft, damit er sich immer
+  ausschalten lässt. Sein Kontextmenü ist das Platzierungsmenü.

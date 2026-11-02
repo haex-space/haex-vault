@@ -19,7 +19,11 @@ import {
   TONES_VOLUME,
   voicePrefKey,
 } from '../src/lib/assistant/settings.ts'
-import { PHASE_ICONS, SPINNING_PHASES } from '../src/lib/assistant/indicator.ts'
+import {
+  PHASE_ICONS,
+  SPINNING_PHASES,
+  toggleShown,
+} from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
@@ -263,6 +267,22 @@ test('the toggle sits in the dock and the launcher, not in a floating indicator'
     read('src/components/wm/Launcher.vue'),
     /useAction\('assistant.toggle'\)/,
   )
+})
+
+test('the toggle stays while the assistant is on, even with the preview turned off', () => {
+  assert.equal(toggleShown(false, false), false)
+  assert.equal(toggleShown(true, false), true)
+  assert.equal(toggleShown(false, true), true, 'it can always be switched off')
+  for (const file of [
+    'src/components/wm/Dock.vue',
+    'src/components/wm/Launcher.vue',
+  ]) {
+    assert.match(
+      read(file),
+      /toggleShown\(assistant\.preview, assistant\.state\.enabled\)/,
+      file,
+    )
+  }
 })
 
 test('the window gives its UTC offset', () => {

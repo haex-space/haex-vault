@@ -112,7 +112,7 @@ pub enum Event {
     SwitchOff,
     /// The vault locks or closes (FR-004).
     VaultClosed,
-    /// Wake word, "Sprechen" in the indicator or the shortcut (FR-011).
+    /// Wake word (FR-011); until the wake word (PR D), switching the assistant on.
     Wake,
     /// The end of an utterance was detected (FR-012).
     Utterance(Utterance),

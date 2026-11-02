@@ -20,3 +20,12 @@ export const SPINNING_PHASES: readonly AssistantPhase[] = [
   'thinking',
   'working',
 ]
+
+/**
+ * Whether dock and launcher show the toggle: with this device's preview setting on (T045), and
+ * always while the assistant is on, so that it can be switched off after the preview was turned
+ * off.
+ */
+export function toggleShown(preview: boolean, enabled: boolean): boolean {
+  return preview || enabled
+}
