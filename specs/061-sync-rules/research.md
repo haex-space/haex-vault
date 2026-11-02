@@ -107,8 +107,8 @@ und auf der anderen unverändert leer ist, wird nach dem Löschmodus behandelt w
 
 ## R4 — Stand: Größe und Zeit je Seite, Fortschreiben je Schritt
 
-**Entscheidung.** Tabelle mit Primärschlüssel `(rule_id, path)`: `a_size`, `a_mtime_ms`, `b_size`,
-`b_mtime_ms`, `kept`. Nach einem Kopieren misst der Motor das Ziel neu (`stat`) und speichert diese Werte, nicht
+**Entscheidung.** Tabelle mit Primärschlüssel `(rule_id, path)`: `source_size`, `source_mtime_ms`,
+`target_size`, `target_mtime_ms`, `kept`. Nach einem Kopieren misst der Motor das Ziel neu (`stat`) und speichert diese Werte, nicht
 die der Quelle, weil entfernte Ziele die Zeit selbst setzen und nur Werte derselben Seite verglichen werden
 (FR-008, Annahme der Spec). Eine Verschiebung benennt die Zeile um. Ein Schritt schreibt seine Zeile in einer
 Transaktion, nachdem er gelungen ist (FR-015).
