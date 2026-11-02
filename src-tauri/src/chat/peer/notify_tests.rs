@@ -48,6 +48,7 @@ async fn setup() -> Setup {
         peer: ben_hex,
         new: true,
         incoming: true,
+        attachments: false,
     };
     Setup {
         anna,
@@ -85,6 +86,7 @@ async fn known_own_or_muted_messages_and_switched_off_notifications_show_nothing
     assert_eq!(notice_of(&setup, &known), None, "already there");
     let own = Stored {
         incoming: false,
+        attachments: false,
         ..setup.stored.clone()
     };
     assert_eq!(notice_of(&setup, &own), None, "from an own device");

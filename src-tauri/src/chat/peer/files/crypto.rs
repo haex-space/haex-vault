@@ -27,7 +27,8 @@ pub const MAX_PLAINTEXT: u64 = 100_000_000;
 const MAX_CIPHERTEXT: u64 =
     HEADER_LEN as u64 + MAX_PLAINTEXT + TAG_LEN as u64 * MAX_PLAINTEXT.div_ceil(SEGMENT as u64);
 
-/// The secret of one file: its key and nonce prefix travel only inside the encrypted message.
+/// The secret of one file for sealing it. Only the key travels, inside the encrypted message; the
+/// nonce prefix is in the file's header.
 #[derive(Clone, PartialEq, Eq)]
 pub struct FileKey {
     pub key: [u8; 32],
@@ -51,8 +52,12 @@ impl FileKey {
     }
 
     fn cipher(&self) -> Aes256Gcm {
-        Aes256Gcm::new(&self.key.into())
+        cipher(&self.key)
     }
+}
+
+fn cipher(key: &[u8; 32]) -> Aes256Gcm {
+    Aes256Gcm::new(&(*key).into())
 }
 
 /// How many bytes the encrypted form of `plaintext_len` bytes has: the header and one tag per
@@ -126,8 +131,9 @@ pub fn encrypt(file: &FileKey, plaintext: &[u8]) -> Result<Vec<u8>> {
 /// segment that is complete and not the last one; [`Self::finish`] opens the last one and checks
 /// the plaintext against the SHA-256 the message named.
 pub struct Decryptor {
-    file: FileKey,
     cipher: Aes256Gcm,
+    /// From the header.
+    nonce_prefix: [u8; 8],
     buffer: Vec<u8>,
     header_read: bool,
     index: u32,
@@ -137,10 +143,10 @@ pub struct Decryptor {
 }
 
 impl Decryptor {
-    pub fn new(file: FileKey, expected_sha256: &str) -> Self {
+    pub fn new(key: &[u8; 32], expected_sha256: &str) -> Self {
         Self {
-            cipher: file.cipher(),
-            file,
+            cipher: cipher(key),
+            nonce_prefix: [0; 8],
             buffer: Vec::new(),
             header_read: false,
             index: 0,
@@ -194,13 +200,10 @@ impl Decryptor {
     fn read_header(&mut self) -> Result<()> {
         let header: Vec<u8> = self.buffer.drain(..HEADER_LEN).collect();
         let segment = u32::from_be_bytes([header[5], header[6], header[7], header[8]]);
-        if &header[..4] != MAGIC
-            || header[4] != VERSION
-            || segment as usize != SEGMENT
-            || header[9..] != self.file.nonce_prefix
-        {
+        if &header[..4] != MAGIC || header[4] != VERSION || segment as usize != SEGMENT {
             return Err(damaged());
         }
+        self.nonce_prefix.copy_from_slice(&header[9..]);
         self.header_read = true;
         Ok(())
     }
@@ -209,7 +212,7 @@ impl Decryptor {
         let plain = self
             .cipher
             .decrypt(
-                &Nonce::from(nonce(&self.file.nonce_prefix, self.index)),
+                &Nonce::from(nonce(&self.nonce_prefix, self.index)),
                 Payload {
                     msg: segment,
                     aad: &aad(last),
@@ -223,8 +226,8 @@ impl Decryptor {
 }
 
 /// Decrypts a whole encrypted file and checks it against `expected_sha256`.
-pub fn decrypt(file: &FileKey, ciphertext: &[u8], expected_sha256: &str) -> Result<Vec<u8>> {
-    let mut decryptor = Decryptor::new(file.clone(), expected_sha256);
+pub fn decrypt(key: &[u8; 32], ciphertext: &[u8], expected_sha256: &str) -> Result<Vec<u8>> {
+    let mut decryptor = Decryptor::new(key, expected_sha256);
     let mut plain = decryptor.push(ciphertext)?;
     plain.extend(decryptor.finish()?);
     Ok(plain)

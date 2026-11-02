@@ -18,8 +18,17 @@ fn open(anna: &ChatDevice, now: i64) -> Uuid {
 
 fn note(anna: &ChatDevice, thread: Uuid, event: &str, text: &str) -> crate::error::Result<Uuid> {
     let (me, event, text) = (anna.me.clone(), event.to_owned(), text.to_owned());
-    anna.db
-        .write_blocking(move |tx| Ok(send::message(tx, &me, thread, &event, &text, 500)?))
+    anna.db.write_blocking(move |tx| {
+        Ok(send::message(
+            tx,
+            &me,
+            thread,
+            &event,
+            &text,
+            Vec::new(),
+            500,
+        )?)
+    })
 }
 
 fn count(anna: &ChatDevice, sql: &'static str, thread: Uuid) -> i64 {

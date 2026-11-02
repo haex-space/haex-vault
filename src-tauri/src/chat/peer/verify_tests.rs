@@ -38,6 +38,7 @@ fn ben_card(issued_at: u64, devices: &[[u8; 32]]) -> SignedCard {
 fn from_ben(anna: &ChatDevice, card: &SignedCard) -> Envelope {
     envelope::message(
         "Hallo",
+        Vec::new(),
         &hex(&ben_vault()),
         &card.text(),
         To::Direct(anna.me.vault_hex.clone()),
@@ -289,9 +290,11 @@ fn an_own_message_passes_only_from_a_listed_own_device() {
     let message = Envelope {
         body: envelope::Body::Message(MessageBody {
             text: "an Ben".into(),
+            attachments: Vec::new(),
         }),
         ..envelope::message(
             "x",
+            Vec::new(),
             &anna.me.vault_hex,
             &own_card.text(),
             To::Direct(hex(&ben_vault())),

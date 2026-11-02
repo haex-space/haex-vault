@@ -6,11 +6,12 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{Body, Envelope, Receipt, To};
+use super::envelope::{Attachment, Body, Envelope, Receipt, To};
 use super::verify::vault_bytes;
 use super::{ids, store};
 use crate::contacts::card::{format, received};
 use crate::error::Result;
+use crate::sync::presence::decode_hex;
 
 /// How far a sender's clock may run ahead before the arrival time orders the message (R4).
 pub const CLOCK_SLACK_MS: i64 = 5 * 60 * 1000;
@@ -26,6 +27,8 @@ pub struct Stored {
     pub new: bool,
     /// The message came from the other vault (not from an own other device).
     pub incoming: bool,
+    /// The message has attachments for this device to download.
+    pub attachments: bool,
 }
 
 /// Who receives: the own vault (hex) and this device's `vault_device_uuid`.
@@ -61,6 +64,7 @@ pub fn message(
         peer: peer.clone(),
         new: false,
         incoming,
+        attachments: false,
     };
     let present: Option<i64> = tx.query_row(
         "SELECT 1 FROM chat_peer_messages WHERE id = ?1",
@@ -71,6 +75,7 @@ pub fn message(
         return Ok(Some(stored));
     }
     let Body::Message(body) = &envelope.body;
+    stored.attachments = !body.attachments.is_empty();
     insert_message(
         tx,
         &MessageRow {
@@ -85,6 +90,7 @@ pub fn message(
             inserted_by: me.device_uuid,
         },
     )?;
+    insert_attachments(tx, message_id, &body.attachments)?;
     if !incoming {
         ensure_delivery(tx, message_id, peer)?;
     }
@@ -143,6 +149,38 @@ pub fn insert_message(tx: &mut CrdtTransaction<'_>, row: &MessageRow<'_>) -> Res
             row.inserted_by
         ],
     )?;
+    Ok(())
+}
+
+/// The rows of a message's attachments; their ids follow from the message id and the index, so
+/// every device writes the same rows (research R4).
+pub fn insert_attachments(
+    tx: &mut CrdtTransaction<'_>,
+    message_id: Uuid,
+    attachments: &[Attachment],
+) -> Result<()> {
+    for (index, attachment) in attachments.iter().enumerate() {
+        let Attachment::File(file) = attachment;
+        let key = decode_hex(&file.blossom.key)
+            .ok()
+            .filter(|key| key.len() == 32);
+        tx.execute(
+            "INSERT INTO chat_attachments (id, message_id, kind, name, mime, size, sha256, \
+               blossom_url, blob_sha256, blob_key) \
+             VALUES (?1, ?2, 'file', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                ids::attachment_id(message_id, index).to_string(),
+                message_id.to_string(),
+                file.name,
+                file.mime,
+                i64::try_from(file.size).unwrap_or(i64::MAX),
+                file.sha256.to_ascii_lowercase(),
+                file.blossom.url,
+                file.blossom.sha256.to_ascii_lowercase(),
+                key
+            ],
+        )?;
+    }
     Ok(())
 }
 
