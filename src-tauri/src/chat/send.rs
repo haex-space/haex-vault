@@ -32,11 +32,9 @@ use crate::storage::chat_threads::ThreadOrigin;
 use crate::storage::providers::ProviderKind;
 use crate::storage::{
     chat_messages::{self as msg_store, ChatMessage, MessageRole},
-    chat_threads as thread_store, models as models_store, preferences,
-    preferences::PrefScope,
+    chat_threads as thread_store, models as models_store,
 };
 
-use super::commands::PREF_LAST_ACTIVE_MODEL;
 use super::send_admission::{
     persist_send_transaction, resolve_idempotent_send, IdempotentSend, PersistedSend,
 };
@@ -311,15 +309,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sessions.resume(&crate::caller::Caller::BuiltinAgent);
     }
 
-    // The thread and user message were persisted atomically above.
-    // Spec 002 §FR-009: `chat.last_active_model_id` is written
-    // EXCLUSIVELY here, never by `load_model` — the message is the user's
-    // intent signal, a picker-only click is not. The preference is
-    // committed after adapter startup succeeds so a failed send cannot
-    // roll back a newer overlapping send's value.
-    let session_model_id = session.model_id.clone();
-    let this_device = db.device_id();
-    let preference_model_id = session_model_id.clone();
+    // The thread and user message were persisted atomically above. Sending no longer writes
+    // `chat.last_active_model_id`: only a pick in the model menu does (`select_model`, spec 002
+    // FR-009 as amended 2026-11-02), so continuing a session with its own model does not change
+    // what a new session starts with.
     let is_new_thread = turn.thread_id.is_none();
 
     // Build the request from full history + the just-inserted user turn.
@@ -467,17 +460,6 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             });
         }
     };
-
-    db.write(move |tx| {
-        preferences::insert_or_update(
-            tx,
-            PrefScope::Device(this_device),
-            PREF_LAST_ACTIVE_MODEL,
-            &preference_model_id,
-        )
-        .map(|_| ())
-    })
-    .await?;
 
     if let Ok(payload) = serde_json::to_value(ToolAvailabilityEvent {
         thread_id,

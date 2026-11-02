@@ -72,9 +72,10 @@ use chat::choices::respond_choice;
 use chat::commands::{
     abort_current_generation, inspect_attachment, respond_tool_permission, send_message,
 };
-use chat::default_model::{model_load_status, resolve_default_model};
+use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
 use chat::model_loading::{
-    active_model_info, load_model, load_model_with_integrity_override, unload_local_model,
+    active_model_info, load_model, load_model_with_integrity_override, select_model,
+    unload_local_model,
 };
 use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
@@ -800,6 +801,8 @@ pub fn run() {
             active_model_info,
             model_load_status,
             resolve_default_model,
+            use_session_model,
+            select_model,
             send_message,
             inspect_attachment,
             abort_current_generation,

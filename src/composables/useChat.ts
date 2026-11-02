@@ -411,6 +411,22 @@ export function useChat() {
     })
   }
 
+  /**
+   * The person picked `modelId` in the model menu: loads it and remembers it as the model a new
+   * session starts with (spec 002 FR-009 as amended 2026-11-02).
+   */
+  async function selectModelAsync(modelId: string): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>('select_model', { modelId })
+  }
+
+  /**
+   * Loads the model of the session `threadId` when another one is loaded: a continued session
+   * keeps its model, a new one (`null`) starts with the last picked model (spec 006).
+   */
+  async function useSessionModelAsync(threadId: string | null): Promise<void> {
+    await invoke('use_session_model', { threadId })
+  }
+
   /** Unloads the model currently held by the chat session. */
   async function unloadModelAsync(): Promise<void> {
     await invoke('unload_local_model')
@@ -581,6 +597,8 @@ export function useChat() {
     inspectAttachmentAsync,
     respondToolPermissionAsync,
     loadModelAsync,
+    selectModelAsync,
+    useSessionModelAsync,
     loadModelWithIntegrityOverrideAsync,
     unloadModelAsync,
     activeModelInfoAsync,
