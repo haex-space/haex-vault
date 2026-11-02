@@ -406,7 +406,8 @@
       "title": "Conversations",
       "muted": "Muted",
       "unread": "{count} unread",
-      "newConversation": "New conversation"
+      "newConversation": "New conversation",
+      "requests": "Requests"
     },
     "peer": {
       "unknownName": "Unknown",
@@ -450,6 +451,7 @@
     },
     "notify": {
       "request": "New request",
+      "quietChannel": "Quiet notifications",
       "open": "Open"
     },
     "agent": {
@@ -461,6 +463,16 @@
     },
     "notes": {
       "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
+    },
+    "request": {
+      "banner": "{name} is not in your address book. Accept the request to reply.",
+      "accept": "Accept",
+      "decline": "Decline",
+      "block": "Block",
+      "declineTitle": "Decline the request?",
+      "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
+      "blockTitle": "Block {name}?",
+      "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
     }
   },
   "settings": {

@@ -248,6 +248,8 @@ pub fn save(tx: &mut CrdtTransaction<'_>, contact_id: &str, card: &SignedCard) -
             clock::now()
         ],
     )?;
+    // The vault is a confirmed contact now: a chat request of it ends (spec 072 FR-041).
+    crate::chat::peer::store::accept_requests_of(tx, &hex(&card.card.vault))?;
     Ok(true)
 }
 

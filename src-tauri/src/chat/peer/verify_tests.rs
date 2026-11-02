@@ -182,14 +182,26 @@ async fn a_blocked_vault_is_dropped() {
         &anna,
         opened(&from_ben(&anna, &card), CHAT_KIND, BEN_DEVICE),
     );
-    assert!(
-        matches!(verdict, Err(Drop::Blocked | Drop::UnknownSender)),
-        "{verdict:?}"
+    assert_eq!(verdict, Err(Drop::Blocked));
+
+    // A blocked vault without a stored card is dropped as blocked too, not taken as a request.
+    let stranger = ChatDevice::genesis(&[]);
+    let ben = hex(&ben_vault());
+    stranger
+        .db
+        .write_blocking(move |tx| Ok(received::block(tx, &ben)?))
+        .expect("block");
+    assert_eq!(
+        run(
+            &stranger,
+            opened(&from_ben(&stranger, &card), CHAT_KIND, BEN_DEVICE)
+        ),
+        Err(Drop::Blocked)
     );
 }
 
 #[tokio::test]
-async fn a_message_to_another_vault_or_from_a_stranger_is_dropped() {
+async fn a_message_to_another_vault_is_dropped() {
     let anna = anna_knowing_ben(10).await;
     let card = ben_card(10, &[BEN_DEVICE]);
     let mut message = from_ben(&anna, &card);
@@ -198,15 +210,30 @@ async fn a_message_to_another_vault_or_from_a_stranger_is_dropped() {
         run(&anna, opened(&message, CHAT_KIND, BEN_DEVICE)),
         Err(Drop::NotForUs)
     );
+}
 
+#[tokio::test]
+async fn a_message_of_a_stranger_passes_as_a_request_and_its_receipt_is_dropped() {
     let stranger = ChatDevice::genesis(&[]);
+    let card = ben_card(10, &[BEN_DEVICE]);
+    let verified = run(
+        &stranger,
+        opened(&from_ben(&stranger, &card), CHAT_KIND, BEN_DEVICE),
+    )
+    .expect("a message of a vault without a stored card passes (US5)");
+    assert_eq!(verified.from, hex(&ben_vault()));
+
+    let receipt = Receipt {
+        v: VERSION,
+        from: hex(&ben_vault()),
+        card: card.text(),
+        thread: To::Direct(stranger.me.vault_hex.clone()),
+        delivered: vec!["e1".into()],
+        read: vec![],
+    };
     assert_eq!(
-        run(
-            &stranger,
-            opened(&from_ben(&stranger, &card), CHAT_KIND, BEN_DEVICE)
-        ),
-        Err(Drop::UnknownSender),
-        "until US5 a vault without a stored card is dropped"
+        run(&stranger, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)),
+        Err(Drop::UnknownSender)
     );
 }
 
