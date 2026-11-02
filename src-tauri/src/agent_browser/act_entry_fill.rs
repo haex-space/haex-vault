@@ -64,6 +64,7 @@ pub(crate) type EntryValues = BTreeMap<String, Zeroizing<String>>;
 
 /// The names of the fields of `item` that hold a value (the TOTP as its marker) and its own
 /// autofill aliases.
+#[cfg(test)]
 pub(crate) fn keys_of(item: &SecretItem, has_totp: bool) -> EntryKeys {
     let fields = fields_of(item);
     EntryKeys {
