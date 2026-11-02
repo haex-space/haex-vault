@@ -66,6 +66,9 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 
 ### Session 2026-11-02
 
+- Betreiber: Die Töne für „Hört zu“, „Verstanden“ usw. sind schwer unterscheidbar, und sie lassen
+  sich nicht einstellen. → Das Klangset bekommt je Anlass eigene Klangfarbe und eigenen Verlauf
+  (FR-043), und Nutzer können pro Anlass einen eigenen Ton aus einer Audiodatei wählen (FR-045a).
 - Q: Bekommen gesprochene Gespräche ein eigenes, einstellbares Modell? → A: Nein. Das Modell gehört
   zur Sitzung des Agenten; eine neue Sitzung nimmt das zuletzt gewählte Modell, egal ob der Agent
   per Text oder Sprache gesteuert wird (FR-020). Die Einstellung `assistant.modelId` entfällt.
