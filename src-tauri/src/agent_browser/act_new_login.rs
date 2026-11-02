@@ -35,6 +35,7 @@ pub const MAX_USERNAME: usize = 200;
 struct NewPassword {
     gone: bool,
     not_password: bool,
+    changed: bool,
     url: String,
 }
 
@@ -83,7 +84,7 @@ impl Acting<'_> {
                 "Name a username of 1 to 200 characters.",
             ));
         }
-        let facts = self.new_password(tab, element, None).await?;
+        let facts = self.new_password(tab, element, None, None).await?;
         if facts.not_password {
             return Err(NativeError::new(
                 "not_password_field",
@@ -113,7 +114,8 @@ impl Acting<'_> {
             .await
             .map_err(|_| no_write_rights())?;
         self.session.note_filled([password.as_str()]);
-        self.new_password(tab, element, Some(&password)).await?;
+        self.new_password(tab, element, Some(&password), Some(&facts.url))
+            .await?;
 
         let question = BrowserQuestion {
             kind: BrowserPromptKind::NewCredentials,
@@ -131,16 +133,21 @@ impl Acting<'_> {
             .ask_for(self.session, question, self.cancel.clone())
             .await
         {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => service
-                .create_item(
-                    &caller,
-                    &grants,
-                    new_entry(&page, username, &password, tags),
-                    None,
-                )
-                .await
-                .map(|_| ())
-                .map_err(|_| no_write_rights()),
+            Ok(answer) if answer.decision == BrowserDecision::Allow => {
+                // Do not save credentials for a page that navigated while the user was deciding.
+                self.new_password(tab, element, None, Some(&facts.url))
+                    .await?;
+                service
+                    .create_item(
+                        &caller,
+                        &grants,
+                        new_entry(&page, username, &password, tags),
+                        None,
+                    )
+                    .await
+                    .map(|_| ())
+                    .map_err(|_| no_write_rights())
+            }
             Ok(_) => Err(NativeError::new(
                 "user_declined",
                 "The user did not save the new login; holzi emptied the fields.",
@@ -148,7 +155,10 @@ impl Acting<'_> {
             Err(error) => Err(error),
         };
         if let Err(error) = saved {
-            if let Err(cleared) = self.new_password(tab, element, Some("")).await {
+            if let Err(cleared) = self
+                .new_password(tab, element, Some(""), Some(&facts.url))
+                .await
+            {
                 log::warn!(
                     "agent browser: emptying a declined password: {}",
                     cleared.code
@@ -166,8 +176,15 @@ impl Acting<'_> {
         tab: &Tab,
         element: u32,
         value: Option<&str>,
+        expected_url: Option<&str>,
     ) -> Result<NewPassword, NativeError> {
-        let args = json!({ "newPassword": { "element": element, "value": value } });
+        let args = json!({
+            "newPassword": {
+                "element": element,
+                "value": value,
+                "url": expected_url,
+            }
+        });
         let reply = read::script(self.connection, &tab.session, &args)
             .await
             .map_err(browser_error)?;
@@ -175,6 +192,12 @@ impl Acting<'_> {
             .map_err(|error| browser_error(BrowserError::Protocol(error.to_string())))?;
         if facts.gone {
             return Err(element_gone());
+        }
+        if facts.changed {
+            return Err(NativeError::new(
+                "page_changed",
+                "The page changed while the user decided; nothing was saved.",
+            ));
         }
         Ok(facts)
     }

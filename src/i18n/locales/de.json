@@ -1495,7 +1495,8 @@
         "tonesVolume": "Lautstärke der Töne",
         "headphones": "Kopfhörer",
         "bubblePosition": "Position der Blase",
-        "noticeShown": "Hinweis gezeigt"
+        "noticeShown": "Hinweis gezeigt",
+        "tonesCustom": "Eigene Töne"
       }
     },
     "voice": {
@@ -1562,6 +1563,28 @@
         "modeOff": "Der Sprachassistent wurde ausgeschaltet.",
         "muted": "Der Sprachassistent ist stummgeschaltet.",
         "unmuted": "Die Stummschaltung ist aufgehoben."
+      },
+      "custom": "Eigene Töne",
+      "customHint": "Auf allen Geräten verfügbar. Welcher Ton für welchen Anlass gilt, stellst du pro Gerät ein.",
+      "builtIn": "Mitgeliefert",
+      "pickFile": "Eigene Datei …",
+      "addFile": "Datei hinzufügen …",
+      "fileTypes": "Audiodateien",
+      "noCustom": "Noch keine eigenen Töne. Füge eine MP3-, WAV-, OGG-, FLAC- oder M4A-Datei hinzu.",
+      "duration": "{seconds} s",
+      "soundFor": "Ton für {name}",
+      "delete": "Löschen",
+      "deleteConfirm": "Auf allen Geräten löschen",
+      "deleteOf": "{name} löschen",
+      "imported": "„{name}“ hinzugefügt.",
+      "importFailed": "Nicht hinzugefügt: {reason}",
+      "reasons": {
+        "tooLarge": "Die Datei ist größer als 20 MB.",
+        "unsupported": "In der Datei ist kein lesbarer Ton. Unterstützt sind MP3, WAV, OGG, FLAC und M4A.",
+        "silent": "Die Datei enthält nur Stille.",
+        "tooLong": "Der Ton ist länger als 3 Sekunden. Kürze ihn und versuche es erneut.",
+        "tooLongWorking": "Für „Arbeitet“ darf ein Ton höchstens 1 Sekunde lang sein, weil er sich wiederholt.",
+        "unknownTone": "Diesen Ton gibt es nicht mehr."
       }
     }
   },

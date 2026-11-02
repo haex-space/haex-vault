@@ -361,6 +361,12 @@ function holziPage(args) {
   // `element` and the next password field of its form, the repeat field, if it is empty or holzi's.
   // Without a value it only reports; an empty value empties both again.
   if (args.newPassword !== undefined && args.newPassword !== null) {
+    if (
+      args.newPassword.url !== undefined &&
+      args.newPassword.url !== null &&
+      location.href !== args.newPassword.url
+    )
+      return { changed: true, url: location.href }
     const el = operable[args.newPassword.element - 1]
     if (!el) return { gone: true }
     if (el.tagName.toLowerCase() !== 'input' || el.type !== 'password')
