@@ -237,16 +237,16 @@ impl Runner for TauriRunner {
             cancel: &cancel,
             progress: &progress,
         };
-        let (a, b) = match (
-            open_place(&self.app, &rule.place_a).await,
-            open_place(&self.app, &rule.place_b).await,
+        let (source, target) = match (
+            open_place(&self.app, &rule.source).await,
+            open_place(&self.app, &rule.target).await,
         ) {
-            (Ok(a), Ok(b)) => (a, b),
+            (Ok(source), Ok(target)) => (source, target),
             (Err(error), _) | (_, Err(error)) => {
                 return failed_open(&ctx, &rule, error, started).await;
             }
         };
-        run(&ctx, &rule, a.as_ref(), b.as_ref(), started).await
+        run(&ctx, &rule, source.as_ref(), target.as_ref(), started).await
     }
 
     fn changed(&self, rule_id: Option<String>) {
@@ -260,13 +260,13 @@ impl Runner for TauriRunner {
 
     fn watch(&self, rule: &SyncRule, notify: Arc<dyn Fn() + Send + Sync>) -> Option<Box<dyn Send>> {
         // A one-way rule changes when its source does, a two-way rule when either place does.
-        let a = watch_place(&rule.place_a, Arc::clone(&notify));
+        let source = watch_place(&rule.source, Arc::clone(&notify));
         if rule.direction != SyncRuleDirection::Both {
-            return a;
+            return source;
         }
-        match (a, watch_place(&rule.place_b, notify)) {
+        match (source, watch_place(&rule.target, notify)) {
             (None, None) => None,
-            (a, b) => Some(Box::new((a, b))),
+            (source, target) => Some(Box::new((source, target))),
         }
     }
 }
@@ -286,9 +286,9 @@ pub(super) async fn open_place_for(
     want: Want,
 ) -> Result<Box<dyn Place>, FilesError> {
     let (state, files) = (app.state::<AppState>(), app.state::<FilesState>());
-    match &place.source {
+    match &place.location {
         SourceRef::Device => {
-            match place_of(app, &state, &files, &place.source, &place.path, want).await? {
+            match place_of(app, &state, &files, &place.location, &place.path, want).await? {
                 WindowPlace::Device => Ok(Box::new(DevicePlace::new(&place.path))),
                 WindowPlace::Storage { files, path, .. } => {
                     Ok(Box::new(StoragePlace::new(Arc::new(files), path)))

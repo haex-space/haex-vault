@@ -3204,8 +3204,8 @@
       "title": "Sync rules",
       "empty": "No sync rule on this device yet.",
       "failed": "The sync rules could not be loaded or changed.",
-      "placeA": "Source",
-      "placeB": "Target",
+      "source": "Source",
+      "target": "Target",
       "name": "Name",
       "interval": "Sync remote places every … minutes",
       "cloudHint": "{place} is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
@@ -3335,7 +3335,7 @@
       },
       "direction": {
         "label": "Direction",
-        "aToB": "Source → target",
+        "sourceToTarget": "Source → target",
         "both": "Both ways"
       },
       "deleteMode": {

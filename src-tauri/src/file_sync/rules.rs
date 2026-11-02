@@ -79,17 +79,17 @@ pub fn validate(
             format!("the interval lies between {MIN_INTERVAL_SECS} and {MAX_INTERVAL_SECS} s"),
         ));
     }
-    let place_a = checked_place(draft.place_a, own)?;
-    let place_b = checked_place(draft.place_b, own)?;
-    if overlap(&place_a, &place_b) {
+    let source = checked_place(draft.source, own)?;
+    let target = checked_place(draft.target, own)?;
+    if overlap(&source, &target) {
         return Err(SyncRuleError::new(
             SyncRuleErrorCode::Overlap,
             "the two places of a rule overlap",
         ));
     }
     for other in others {
-        for mine in [&place_a, &place_b] {
-            if overlap(mine, &other.place_a) || overlap(mine, &other.place_b) {
+        for mine in [&source, &target] {
+            if overlap(mine, &other.source) || overlap(mine, &other.target) {
                 return Err(SyncRuleError::new(
                     SyncRuleErrorCode::Overlap,
                     format!("a place overlaps with the rule \"{}\"", other.name),
@@ -99,8 +99,8 @@ pub fn validate(
     }
     Ok(SyncRuleDraft {
         name,
-        place_a,
-        place_b,
+        source,
+        target,
         ..draft
     })
 }
@@ -109,13 +109,13 @@ pub fn validate(
 /// path as a window path (`/Fotos`, or `/` for the root).
 fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace, SyncRuleError> {
     let invalid = |reason: &str| SyncRuleError::new(SyncRuleErrorCode::InvalidPlace, reason);
-    if is_contact_share(&place.source) {
+    if is_contact_share(&place.location) {
         return Err(invalid("a contact's share cannot be a place of a rule"));
     }
     if place.path.split(['/', '\\']).any(|part| part == "..") {
         return Err(invalid("a place path has no \"..\""));
     }
-    let path = match &place.source {
+    let path = match &place.location {
         SourceRef::Device => {
             let path = Path::new(&place.path);
             if !path.is_absolute() {
@@ -139,17 +139,17 @@ fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace,
         }
     };
     Ok(SyncRulePlace {
-        source: place.source,
+        location: place.location,
         path,
     })
 }
 
 /// Whether two places are the same folder or one lies in the other.
 fn overlap(a: &SyncRulePlace, b: &SyncRulePlace) -> bool {
-    if a.source != b.source {
+    if a.location != b.location {
         return false;
     }
-    match a.source {
+    match a.location {
         SourceRef::Device => {
             let (a, b) = (Path::new(&a.path), Path::new(&b.path));
             a.starts_with(b) || b.starts_with(a)

@@ -91,15 +91,15 @@ impl Started {
     }
 }
 
-/// Runs `rule` between `a` and `b` and notes the result on the rule and in the log.
+/// Runs `rule` between `source` and `target` and notes the result on the rule and in the log.
 pub async fn run(
     ctx: &RunContext<'_>,
     rule: &SyncRule,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     started: Started,
 ) -> RunReport {
-    let report = run_inner(ctx, rule, a, b).await;
+    let report = run_inner(ctx, rule, source, target).await;
     note(ctx, rule, &report, started).await;
     report
 }
@@ -131,11 +131,11 @@ pub async fn note(ctx: &RunContext<'_>, rule: &SyncRule, report: &RunReport, sta
 async fn run_inner(
     ctx: &RunContext<'_>,
     rule: &SyncRule,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
 ) -> RunReport {
     ctx.progress.scanning();
-    let scanned = match scan(a, b, ctx.cancel).await {
+    let scanned = match scan(source, target, ctx.cancel).await {
         Ok(scanned) => scanned,
         Err(error) => {
             if ctx.cancel.is_cancelled() {
@@ -195,8 +195,8 @@ async fn run_inner(
         let mut failures_in_a_row = 0u32;
         for (side, path) in &plan.hash_reads {
             let place = match side {
-                SyncRuleSide::A => a,
-                SyncRuleSide::B => b,
+                SyncRuleSide::Source => source,
+                SyncRuleSide::Target => target,
             };
             match place.hash(path, ctx.cancel).await {
                 Ok(hash) => {
@@ -249,10 +249,10 @@ async fn run_inner(
             device: ctx.device,
             rule,
             run_id: ctx.run_id,
-            a,
-            b,
-            listing_a: &scanned.a,
-            listing_b: &scanned.b,
+            source,
+            target,
+            source_listing: &scanned.source,
+            target_listing: &scanned.target,
             state: &state,
             cancel: ctx.cancel,
             progress: ctx.progress,
@@ -277,10 +277,13 @@ async fn run_inner(
     } else {
         SyncRuleOutcome::Partial
     };
-    let mut skipped = scanned.a.skipped.clone();
-    skipped.extend(scanned.b.skipped.iter().cloned());
+    let mut skipped = scanned.source.skipped.clone();
+    skipped.extend(scanned.target.skipped.iter().cloned());
     items.extend(executed.items);
-    for (side, listing) in [(SyncRuleSide::A, &scanned.a), (SyncRuleSide::B, &scanned.b)] {
+    for (side, listing) in [
+        (SyncRuleSide::Source, &scanned.source),
+        (SyncRuleSide::Target, &scanned.target),
+    ] {
         for (path, reason) in &listing.skipped {
             items.push(
                 RunItem::new(SyncRuleRunAction::Skip, side, path.clone())
@@ -331,15 +334,15 @@ pub(super) fn plan_for(
     // A conflict copy may land on either side, so its name is free on both.
     let conflict_name = |path: &str, taken: &[String]| {
         conflict_path(path, device_name, today, &|candidate| {
-            scanned.a.files.contains_key(candidate)
-                || scanned.b.files.contains_key(candidate)
+            scanned.source.files.contains_key(candidate)
+                || scanned.target.files.contains_key(candidate)
                 || taken.iter().any(|name| name == candidate)
         })
     };
     build(&Inputs {
         rule,
-        a: &scanned.a,
-        b: &scanned.b,
+        source: &scanned.source,
+        target: &scanned.target,
         state,
         exclusions: &scanned.exclusions,
         hashes,
@@ -391,17 +394,20 @@ async fn drop_stale_pending(
 fn emptied(scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
     let mut known: BTreeMap<SyncRuleSide, bool> = BTreeMap::new();
     for row in state {
-        if row.a.is_some() {
-            known.insert(SyncRuleSide::A, true);
+        if row.source.is_some() {
+            known.insert(SyncRuleSide::Source, true);
         }
-        if row.b.is_some() {
-            known.insert(SyncRuleSide::B, true);
+        if row.target.is_some() {
+            known.insert(SyncRuleSide::Target, true);
         }
     }
-    [(SyncRuleSide::A, &scanned.a), (SyncRuleSide::B, &scanned.b)]
-        .into_iter()
-        .find(|(side, listing)| known.contains_key(side) && listing.files.is_empty())
-        .map(|(side, _)| side)
+    [
+        (SyncRuleSide::Source, &scanned.source),
+        (SyncRuleSide::Target, &scanned.target),
+    ]
+    .into_iter()
+    .find(|(side, listing)| known.contains_key(side) && listing.files.is_empty())
+    .map(|(side, _)| side)
 }
 
 /// The detail of a skipped file in the log; the window translates it.
@@ -415,8 +421,8 @@ fn skip_reason(reason: SkipReason) -> &'static str {
 
 fn name(side: SyncRuleSide) -> &'static str {
     match side {
-        SyncRuleSide::A => "source",
-        SyncRuleSide::B => "target",
+        SyncRuleSide::Source => "source",
+        SyncRuleSide::Target => "target",
     }
 }
 

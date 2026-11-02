@@ -13,7 +13,7 @@ import { asSyncRuleError } from '~/composables/useSyncRules'
 const props = defineProps<{
   view: SyncRuleView | null
   /** The names of both places. */
-  labels: { a: string; b: string }
+  labels: { source: string; target: string }
 }>()
 
 const open = defineModel<boolean>('open', { required: true })

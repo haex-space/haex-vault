@@ -282,8 +282,8 @@ async fn preview_rule(
             SyncRule {
                 id: id.unwrap_or("preview").to_owned(),
                 name: draft.name,
-                place_a: draft.place_a,
-                place_b: draft.place_b,
+                source: draft.source,
+                target: draft.target,
                 direction: draft.direction,
                 delete_mode: draft.delete_mode,
                 interval_secs: draft.interval_secs,
@@ -300,8 +300,8 @@ async fn preview_rule(
         (None, None) => return Err(not_found()),
     };
     let keeps_state = stored.as_ref().is_some_and(|stored| {
-        stored.place_a == rule.place_a
-            && stored.place_b == rule.place_b
+        stored.source == rule.source
+            && stored.target == rule.target
             && stored.direction == rule.direction
     });
     if !keeps_state {
@@ -454,16 +454,16 @@ pub async fn sync_rules_pending_resolve(
     });
     sync.cancel_and_wait(id.clone()).await;
     let result = async {
-        let a = open_place(&app, &rule.place_a).await.map_err(place_error)?;
-        let b = open_place(&app, &rule.place_b).await.map_err(place_error)?;
+        let source = open_place(&app, &rule.source).await.map_err(place_error)?;
+        let target = open_place(&app, &rule.target).await.map_err(place_error)?;
         let run_id = uuid::Uuid::new_v4().to_string();
         pending::resolve(
             &db,
             &device,
             &rule,
             &run_id,
-            a.as_ref(),
-            b.as_ref(),
+            source.as_ref(),
+            target.as_ref(),
             &paths,
             choice,
         )
@@ -528,21 +528,28 @@ pub async fn sync_rules_preview(
     let (db, device) = here(&app)?;
     let own = app.state::<FilesState>().own.clone();
     let (rule, state) = preview_rule(&db, &device, &own, id.as_deref(), draft).await?;
-    let a = open_place(&app, &rule.place_a).await.map_err(place_error)?;
-    let b = open_place(&app, &rule.place_b).await.map_err(place_error)?;
+    let source = open_place(&app, &rule.source).await.map_err(place_error)?;
+    let target = open_place(&app, &rule.target).await.map_err(place_error)?;
     let name = device_name(&db, &device).await;
     let today: String = clock::now().chars().take(10).collect();
-    manage::preview(&rule, a.as_ref(), b.as_ref(), &state, &name, &today)
-        .await
-        .map_err(scan_error)
+    manage::preview(
+        &rule,
+        source.as_ref(),
+        target.as_ref(),
+        &state,
+        &name,
+        &today,
+    )
+    .await
+    .map_err(scan_error)
 }
 
 /// Opens the source to write, or to read with the reason it cannot be written.
-async fn open_a(
+async fn open_source(
     app: &AppHandle,
     rule: &SyncRule,
 ) -> Result<(Box<dyn super::place::Place>, Option<String>), SyncRuleError> {
-    match open_place(app, &rule.place_a).await {
+    match open_place(app, &rule.source).await {
         Ok(place) => Ok((place, None)),
         Err(error)
             if matches!(
@@ -550,7 +557,7 @@ async fn open_a(
                 FilesErrorCode::ReadOnly | FilesErrorCode::NoAccess
             ) =>
         {
-            let place = open_place_for(app, &rule.place_a, Want::Read)
+            let place = open_place_for(app, &rule.source, Want::Read)
                 .await
                 .map_err(place_error)?;
             Ok((place, Some(error.message)))
@@ -560,11 +567,11 @@ async fn open_a(
 }
 
 async fn ignore_of(app: &AppHandle, rule: &SyncRule) -> Result<SyncRuleIgnore, SyncRuleError> {
-    let (a, read_only) = open_a(app, rule).await?;
-    let b = open_place_for(app, &rule.place_b, Want::Read)
+    let (source, read_only) = open_source(app, rule).await?;
+    let target = open_place_for(app, &rule.target, Want::Read)
         .await
         .map_err(place_error)?;
-    manage::ignore_get(a.as_ref(), b.as_ref(), read_only)
+    manage::ignore_get(source.as_ref(), target.as_ref(), read_only)
         .await
         .map_err(scan_error)
 }
@@ -588,11 +595,11 @@ pub async fn sync_rules_ignore_set(
 ) -> Result<SyncRuleIgnore, SyncRuleError> {
     let (db, device) = here(&app)?;
     let rule = rule_of(&db, &device, &id).await?;
-    let (a, read_only) = open_a(&app, &rule).await?;
+    let (source, read_only) = open_source(&app, &rule).await?;
     if let Some(reason) = read_only {
         return Err(SyncRuleError::new(SyncRuleErrorCode::ReadOnly, reason));
     }
-    manage::ignore_set(a.as_ref(), &content)
+    manage::ignore_set(source.as_ref(), &content)
         .await
         .map_err(|error| {
             if error.code == FilesErrorCode::NoAccess {

@@ -127,8 +127,8 @@ fn value_of<T: serde::Serialize>(value: &T) -> Result<Value, NativeError> {
 fn draft_of(rule: SyncRule) -> SyncRuleDraft {
     SyncRuleDraft {
         name: rule.name,
-        place_a: rule.place_a,
-        place_b: rule.place_b,
+        source: rule.source,
+        target: rule.target,
         direction: rule.direction,
         delete_mode: rule.delete_mode,
         interval_secs: rule.interval_secs,

@@ -26,7 +26,7 @@ import {
 
 test('a new rule mirrors both ways and keeps one way (FR-005)', () => {
   assert.equal(defaultDeleteMode('both'), 'mirror')
-  assert.equal(defaultDeleteMode('aToB'), 'keep')
+  assert.equal(defaultDeleteMode('sourceToTarget'), 'keep')
 })
 
 test('the interval stays between one minute and a day', () => {
@@ -53,8 +53,8 @@ test('the dialog asks for consent and points to encrypted folders', () => {
 })
 
 test('a two-way rule copies into both places (FR-011)', () => {
-  assert.deepEqual(targetSides('aToB'), ['b'])
-  assert.deepEqual(targetSides('both'), ['a', 'b'])
+  assert.deepEqual(targetSides('sourceToTarget'), ['target'])
+  assert.deepEqual(targetSides('both'), ['source', 'target'])
 })
 
 test('paths of the picker go up and down on every platform', () => {
@@ -75,15 +75,15 @@ test('paths of the picker go up and down on every platform', () => {
 test('the dialog saves only a complete rule', () => {
   const full = {
     name: 'Fotos',
-    hasA: true,
-    hasB: true,
+    hasSource: true,
+    hasTarget: true,
     needsConsent: false,
     consent: false,
   }
   assert.equal(canSave(full), true)
   assert.equal(canSave({ ...full, name: '  ' }), false)
   assert.equal(canSave({ ...full, name: 'x'.repeat(81) }), false)
-  assert.equal(canSave({ ...full, hasB: false }), false)
+  assert.equal(canSave({ ...full, hasTarget: false }), false)
   assert.equal(canSave({ ...full, needsConsent: true }), false)
   assert.equal(canSave({ ...full, needsConsent: true, consent: true }), true)
 })
@@ -210,12 +210,12 @@ test('a place shows the path on the device and the name of a storage or device',
     ],
   }
   const storage = (storageId: string, path: string) => ({
-    source: { kind: 'storage' as const, storageId },
+    location: { kind: 'storage' as const, storageId },
     path,
   })
   assert.equal(
     placeLabel(
-      { source: { kind: 'device' }, path: '/home/anna' },
+      { location: { kind: 'device' }, path: '/home/anna' },
       sources,
       '?',
     ),

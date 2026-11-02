@@ -92,9 +92,9 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
     )
     const draft = (ruleName: string) => ({
       name: ruleName,
-      placeA: { source: { kind: 'device' }, path: source.folder },
-      placeB: { source: { kind: 'device' }, path: target.folder },
-      direction: 'aToB',
+      source: { location: { kind: 'device' }, path: source.folder },
+      target: { location: { kind: 'device' }, path: target.folder },
+      direction: 'sourceToTarget',
       deleteMode: 'keep',
       intervalSecs: 900,
       enabled: true,
@@ -142,11 +142,11 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
 
     await instance.waitForDisplayed('files-sync-rule-confirm', 30_000)
     assert.equal(
-      await textOf(instance, 'files-sync-rule-confirm-placeA'),
+      await textOf(instance, 'files-sync-rule-confirm-source'),
       source.folder,
     )
     assert.equal(
-      await textOf(instance, 'files-sync-rule-confirm-placeB'),
+      await textOf(instance, 'files-sync-rule-confirm-target'),
       target.folder,
     )
     assert.match(

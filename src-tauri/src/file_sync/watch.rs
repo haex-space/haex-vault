@@ -11,7 +11,7 @@ pub fn watch_place(
     place: &SyncRulePlace,
     notify: Arc<dyn Fn() + Send + Sync>,
 ) -> Option<Box<dyn Send>> {
-    if place.source != SourceRef::Device {
+    if place.location != SourceRef::Device {
         return None;
     }
     #[cfg(not(target_os = "ios"))]
