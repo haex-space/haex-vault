@@ -29,15 +29,6 @@ export interface SpeechCredit {
   source: string
 }
 
-/** `assistant-download-progress`: a speech model download of the assistant. */
-export interface AssistantDownloadProgress {
-  id: string
-  received: number
-  total: number
-}
-
-export const ASSISTANT_DOWNLOAD_PROGRESS = 'assistant-download-progress'
-
 /** The voices and tones of the assistant, their samples and credits (spec 066 T028–T032). */
 export function useTtsVoices() {
   async function listAsync(): Promise<VoiceOption[]> {
@@ -55,9 +46,22 @@ export function useTtsVoices() {
     await invoke('assistant_tone_preview', { tone, volume })
   }
 
+  /** Downloads the speech model `modelId` (a voice's `modelId`). Progress arrives as the shared
+   * `model-download-progress`, so `useModelDownloadsStore` and the model download components
+   * show it. */
+  async function downloadModelAsync(modelId: string): Promise<void> {
+    await invoke('download_tts_voice', { voiceId: modelId })
+  }
+
   async function creditsAsync(): Promise<SpeechCredit[]> {
     return await invoke<SpeechCredit[]>('speech_credits')
   }
 
-  return { listAsync, previewAsync, tonePreviewAsync, creditsAsync }
+  return {
+    listAsync,
+    previewAsync,
+    downloadModelAsync,
+    tonePreviewAsync,
+    creditsAsync,
+  }
 }

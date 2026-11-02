@@ -1507,11 +1507,17 @@
       "saved": "Gespeichert.",
       "saveFailed": "Nicht gespeichert: {reason}",
       "model": {
-        "installed": "Stimmenmodell geladen.",
-        "missing": "Stimmenmodell noch nicht geladen · {size} · {fit}",
-        "downloading": "Lade Stimmenmodell …",
-        "name": "Stimmenmodell {language}"
-      }
+        "downloading": "Lädt …",
+        "name": "Stimmenmodell {language}",
+        "title": "Stimmenmodell",
+        "ready": "Geladen. Alle Stimmen dieser Sprache nutzen es.",
+        "available": "{size} · {fit}",
+        "download": "Laden",
+        "downloadFailed": "Laden fehlgeschlagen: {reason}"
+      },
+      "languages": "Sprachen",
+      "voicesLabel": "Stimmen",
+      "needsModel": "Für die Probe zuerst das Stimmenmodell laden."
     },
     "tones": {
       "always": "Klingt immer, auch wenn die Töne aus sind.",

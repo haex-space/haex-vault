@@ -129,7 +129,7 @@ update the plan before continuing.
 - [x] T019 Implement the duplex stream in src-tauri/src/audio/stream.rs: one cpal input stream feeding the ring buffer through the stateful resampler and one cpal output stream driven by src-tauri/src/audio/mixer.rs; start and stop through `VaultGate`; lock-free hand-over between callback and worker (e.g. an SPSC queue)
 - [x] T020 Let the push-to-talk recording of spec 008 read from the stream when it runs, and keep the current one-shot capture when it does not, in src-tauri/src/audio/mod.rs and src-tauri/src/voice.rs; existing voice tests stay green
 - [x] T021 Implement `assistant::listen` in src-tauri/src/assistant/listen.rs: Silero VAD through sherpa on the ring buffer, utterances with pre-roll, pause length from the device setting, maximum 60 s
-- [x] T022 Implement the voice catalog and download in src-tauri/src/tts/{catalog.rs,tts_catalog.json,commands.rs} reusing `models::download` and `models::paths::slug_dir`; commands `list_tts_catalog`, `list_installed_tts_voices`, `download_tts_voice` with `assistant-download-progress`
+- [x] T022 Implement the voice catalog and download in src-tauri/src/tts/{catalog.rs,tts_catalog.json,commands.rs} reusing `models::download` and `models::paths::slug_dir`; commands `list_tts_catalog`, `list_installed_tts_voices`, `download_tts_voice` with `assistant-download-progress` (since T160 the shared `model-download-progress`)
 - [x] T023 Implement local synthesis in src-tauri/src/tts/local.rs: sherpa `OfflineTts` per installed voice, sentence-wise synthesis on a dedicated thread, rate from `assistant.speechRate` ("float 0.75–1.5"), output into the mixer — Pocket ignores sherpa's `speed`, so the rate is a WSOLA time stretch in src-tauri/src/audio/stretch.rs (research R8)
 - [x] T024 [P] Implement `assistant::tones` in src-tauri/src/assistant/tones.rs (synthesized at runtime, research R16) and the event `assistant-tone`
 - [x] T025 Implement `assistant::assets` in src-tauri/src/assistant/{assets.rs,assets.json} with `download_assistant_assets` and `assistant_readiness` — both take `{language}` (contracts/tauri-commands.md); the VAD model ships in the binary, so `assets.json` starts with T061; readiness reports the wake word missing until then
@@ -173,6 +173,10 @@ without restart. Play every tone.
 **Checkpoint (PR B done)**: Voice and tone settings work; the assistant itself is still hidden.
 
 ---
+
+### Voice page: language tabs and the shared download (operator 2026-11-02)
+
+- [x] T160 [US8] Voice page src/components/settings/assistant/VoiceSetting.vue: speaking rate, then one tab per language (`ShadcnTabs`, opens on the interface language); per tab a speech model row with the shared model download components (`ModelsDownloadBar`, `ModelsDownloadStatus`, `ModelsDownloadConfirmStep`, `useModelDownloadsStore`) and an explicit "Laden", then the voices of that language with "Probe" (enabled once the model is here). Speech model downloads emit the shared `model-download-progress` instead of `assistant-download-progress` (src-tauri/src/tts/commands.rs)
 
 ## Phase 4: User Story 2 - Ganz normal weitersprechen (Priority: P1) (PR C)
 

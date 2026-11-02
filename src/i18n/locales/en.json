@@ -1507,11 +1507,17 @@
       "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "model": {
-        "installed": "Speech model downloaded.",
-        "missing": "Speech model not downloaded yet · {size} · {fit}",
-        "downloading": "Downloading speech model …",
-        "name": "Speech model {language}"
-      }
+        "downloading": "Downloading …",
+        "name": "Speech model {language}",
+        "title": "Speech model",
+        "ready": "Downloaded. Every voice of this language uses it.",
+        "available": "{size} · {fit}",
+        "download": "Download",
+        "downloadFailed": "Download failed: {reason}"
+      },
+      "languages": "Languages",
+      "voicesLabel": "Voices",
+      "needsModel": "Download the speech model first to hear a sample."
     },
     "tones": {
       "always": "Always sounds, even with tones off.",

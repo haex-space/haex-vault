@@ -136,7 +136,7 @@ pub async fn assistant_readiness(
 }
 
 /// Downloads what the assistant can fetch by itself: the selected speech recognition model and
-/// the voice of `language`. Progress of the voice arrives as `assistant-download-progress`.
+/// the voice of `language`. Progress of the voice arrives as the shared `model-download-progress`.
 #[tauri::command]
 pub async fn download_assistant_assets(
     app: AppHandle,
