@@ -1,5 +1,6 @@
-//! Generator preset commands (spec 034, US3, `contracts/tauri-commands.md` §Generator). The
-//! generating itself runs in the window (research R10).
+//! Generator commands (spec 034, US3, `contracts/tauri-commands.md` §Generator): the presets and
+//! the generating itself, which runs in the crate `haex-passgen` ([`crate::passwords::generator`])
+//! instead of the window since spec 065.
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -8,6 +9,7 @@ use ts_rs::TS;
 use super::service;
 use crate::error::Result;
 use crate::passwords::access::Caller;
+use crate::passwords::generator::{self, Generated, GeneratorSettings};
 use crate::passwords::model::{Preset, PresetInput};
 use crate::state::AppState;
 
@@ -30,6 +32,19 @@ pub struct PresetSaveResult {
 #[serde(rename_all = "camelCase")]
 pub struct PresetDeleteArgs {
     pub preset_id: String,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateArgs {
+    pub settings: GeneratorSettings,
+}
+
+/// A password for the generator's settings; needs no vault, since nothing is stored.
+#[tauri::command]
+pub fn passwords_generate(args: GenerateArgs) -> Generated {
+    generator::generate(args.settings)
 }
 
 #[tauri::command]

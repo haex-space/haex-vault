@@ -180,7 +180,7 @@ use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
 };
 use passwords::commands::presets::{
-    passwords_preset_delete, passwords_preset_list, passwords_preset_save,
+    passwords_generate, passwords_preset_delete, passwords_preset_list, passwords_preset_save,
 };
 use passwords::commands::read::{
     passwords_copy_field, passwords_copy_text, passwords_get_item, passwords_load_overview,
@@ -916,6 +916,7 @@ pub fn run() {
             passwords_rename_tag,
             passwords_set_tag_color,
             passwords_delete_tag,
+            passwords_generate,
             passwords_preset_list,
             passwords_preset_save,
             passwords_preset_delete,
