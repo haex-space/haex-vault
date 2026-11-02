@@ -124,6 +124,7 @@ async function savePauseAsync() {
   savedFlash.value = false
   opError.value = null
   try {
+    // action-exempt: how long the assistant waits is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, PAUSE_KEY, String(pauseMs.value))
     savedFlash.value = true
   } catch (e) {
