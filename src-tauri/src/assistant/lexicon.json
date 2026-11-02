@@ -414,6 +414,15 @@
       "pt": "A outra resposta ainda não terminou. Pergunte de novo daqui a pouco."
     },
     {
+      "id": "say.delegate",
+      "de": "Hinweis: Dieses Modell kann mit dir sprechen, aber keine Aufgaben in haex erledigen.",
+      "en": "Note: this model can talk with you, but it cannot do tasks in haex.",
+      "fr": "Remarque : ce modèle peut parler avec toi, mais il ne peut pas effectuer de tâches dans haex.",
+      "es": "Aviso: este modelo puede hablar contigo, pero no puede hacer tareas en haex.",
+      "it": "Nota: questo modello può parlare con te, ma non può svolgere attività in haex.",
+      "pt": "Aviso: este modelo pode conversar com você, mas não pode fazer tarefas no haex."
+    },
+    {
       "id": "say.goodbye",
       "de": "Bis später.",
       "en": "Talk to you later.",
