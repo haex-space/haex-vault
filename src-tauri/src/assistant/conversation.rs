@@ -500,9 +500,10 @@ impl AssistantState {
             return;
         };
         if !c.running_turn && !c.speaking {
-            if c.phase == Phase::Listening {
+            if matches!(c.phase, Phase::Listening | Phase::FollowUp) {
                 c.phase = Phase::FollowUp;
                 c.listen_until = Some(now + follow_up);
+                out.push(Effect::Listen);
             }
             return;
         }
