@@ -7,10 +7,11 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::conversation::{Event, OpenQuestion, Phase, QuestionKind, Timing};
-use super::driver::{Core, Input, Ports, StateWire};
+use super::driver::{Core, Input, Note, Ports, StateWire};
 use super::phrases;
 use super::tones::ToneId;
 use super::turn::Output;
+use crate::storage::voice_transcript::{EntryKind, Outcome, Speaker};
 
 const TONE: Duration = Duration::from_millis(300);
 
@@ -37,6 +38,7 @@ struct Fake {
     tickets: u64,
     published: Vec<StateWire>,
     tones_off: bool,
+    notes: Vec<(Uuid, Note)>,
 }
 
 impl Ports for Fake {
@@ -84,6 +86,9 @@ impl Ports for Fake {
     }
     fn close_audio(&mut self) {
         self.calls.push(Call::CloseAudio);
+    }
+    fn record(&mut self, thread_id: Uuid, note: Note) {
+        self.notes.push((thread_id, note));
     }
 }
 
@@ -439,4 +444,184 @@ fn ending_a_running_round_aborts_it() {
     );
     assert!(rig.core.state().conversation.is_none());
     assert_eq!(rig.wake_up(), [Call::CloseAudio]);
+}
+
+/// The notes as (thread, speaker, kind, text, spoken until).
+fn notes(rig: &Rig) -> Vec<(Uuid, Speaker, EntryKind, String, Option<i64>)> {
+    rig.ports
+        .notes
+        .iter()
+        .map(|(thread, n)| {
+            (
+                *thread,
+                n.speaker.clone(),
+                n.kind.clone(),
+                n.text.clone(),
+                n.spoken_until,
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn notes_wait_for_the_thread_and_keep_their_order() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "äh");
+    rig.on(Input::Played(1));
+    rig.wake_up();
+    rig.heard(2, "Wie wird das Wetter?");
+    assert!(rig.ports.notes.is_empty(), "no thread yet");
+    let thread = Uuid::new_v4();
+    rig.turn(1, Output::Event(Event::ThreadStarted(thread)));
+    rig.turn(1, FIRST);
+    rig.turn(1, say("Morgen regnet es."));
+    rig.turn(1, say("Nimm einen Schirm mit."));
+    rig.turn(1, ENDED);
+    assert_eq!(
+        rig.ports.notes.len(),
+        3,
+        "the answer is noted once it has sounded"
+    );
+    rig.on(Input::Played(3));
+    assert_eq!(
+        notes(&rig),
+        [
+            (
+                thread,
+                Speaker::User,
+                EntryKind::NotUnderstood,
+                "äh".to_owned(),
+                None
+            ),
+            (
+                thread,
+                Speaker::Haex,
+                EntryKind::Announcement,
+                phrases::repeat("de"),
+                None
+            ),
+            (
+                thread,
+                Speaker::User,
+                EntryKind::Utterance,
+                "Wie wird das Wetter?".to_owned(),
+                None
+            ),
+            (
+                thread,
+                Speaker::Haex,
+                EntryKind::Answer,
+                "Morgen regnet es. Nimm einen Schirm mit.".to_owned(),
+                None
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_conversation_without_a_request_leaves_no_transcript() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "");
+    rig.on(Input::Played(1));
+    rig.wake_up();
+    // The follow-up window runs out.
+    rig.wake_up();
+    rig.wake_up();
+    assert!(!rig.core.is_open());
+    assert!(rig.ports.notes.is_empty());
+
+    // The next conversation starts without the notes of the last one.
+    rig.talk();
+    rig.heard(3, "Hallo");
+    rig.turn(1, Output::Event(Event::ThreadStarted(Uuid::new_v4())));
+    assert_eq!(rig.ports.notes.len(), 1);
+}
+
+#[test]
+fn an_interrupted_answer_keeps_its_full_text_and_how_far_it_was_spoken() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Lies mir die Mail vor");
+    let thread = Uuid::new_v4();
+    rig.turn(1, Output::Event(Event::ThreadStarted(thread)));
+    rig.turn(1, FIRST);
+    rig.turn(1, say("Hallo Jonas."));
+    rig.turn(1, say("Das Treffen fällt aus."));
+    rig.on(Input::Played(1));
+    rig.on(Input::Talk);
+    let (_, answer) = rig.ports.notes.last().expect("answer noted");
+    assert_eq!(answer.kind, EntryKind::Answer);
+    assert_eq!(answer.text, "Hallo Jonas. Das Treffen fällt aus.");
+    assert_eq!(
+        answer.spoken_until,
+        Some("Hallo Jonas.".chars().count() as i64)
+    );
+}
+
+#[test]
+fn a_muted_answer_is_noted_as_not_spoken() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Was steht an?");
+    rig.turn(1, Output::Event(Event::ThreadStarted(Uuid::new_v4())));
+    rig.on(Input::Mute(true));
+    rig.turn(1, FIRST);
+    rig.turn(1, say("Zwei Termine."));
+    rig.turn(1, ENDED);
+    let (_, answer) = rig.ports.notes.last().expect("answer noted");
+    assert_eq!(answer.text, "Zwei Termine.");
+    assert_eq!(answer.spoken_until, Some(0));
+}
+
+#[test]
+fn the_closing_and_the_goodbye_go_to_the_thread_that_ended() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Wie spät ist es?");
+    let thread = Uuid::new_v4();
+    rig.turn(1, Output::Event(Event::ThreadStarted(thread)));
+    rig.turn(1, ENDED);
+    rig.wake_up();
+    rig.heard(2, "Danke, das war's");
+    let kinds: Vec<_> = notes(&rig)
+        .into_iter()
+        .map(|(t, speaker, kind, _, _)| (t, speaker, kind))
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            (thread, Speaker::User, EntryKind::Utterance),
+            (thread, Speaker::User, EntryKind::Closing),
+            (thread, Speaker::Haex, EntryKind::Announcement),
+        ]
+    );
+}
+
+#[test]
+fn a_spoken_question_and_its_answer_are_noted_with_their_id() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Schick die Mail");
+    rig.turn(1, Output::Event(Event::ThreadStarted(Uuid::new_v4())));
+    rig.turn(
+        1,
+        Output::Event(Event::Question(OpenQuestion {
+            id: "q1".to_owned(),
+            kind: QuestionKind::Approval,
+            text: "mail.send".to_owned(),
+        })),
+    );
+    rig.on(Input::Played(1));
+    rig.wake_up();
+    rig.heard(2, "Ja");
+    let asked = &rig.ports.notes[1].1;
+    assert_eq!(asked.kind, EntryKind::ApprovalQuestion);
+    assert_eq!(asked.outcome, Some(Outcome::Open));
+    assert_eq!(asked.ref_id.as_deref(), Some("q1"));
+    let answered = &rig.ports.notes[2].1;
+    assert_eq!(answered.kind, EntryKind::ApprovalAnswer);
+    assert_eq!(answered.text, "Ja");
+    assert_eq!(answered.ref_id.as_deref(), Some("q1"));
 }
