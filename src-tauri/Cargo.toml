@@ -78,7 +78,7 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
-voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
+voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue"]
 # Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
 # using the sound card, so e2e scenarios can speak to it. Never part of a release build.
 e2e-audio = ["voice"]
@@ -338,8 +338,6 @@ anyhow = "1"
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
-# Spec 066 FR-045a: reads the user's own tones (MP3, WAV, OGG/Vorbis, FLAC, M4A/AAC). Pure Rust.
-symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["mp3", "wav", "pcm", "flac", "ogg", "vorbis", "isomp4", "aac"] }
 # Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
 # above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
 # mistralrs 0.8.1 already resolves to, so only one candle version tree

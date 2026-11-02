@@ -63,9 +63,6 @@ pub struct VaultDataChanged {
 /// emits [`VAULT_DATA_CHANGED`] until the session ends. A failure is logged and the frontend
 /// then only sees its own changes (Constitution VII: never blocks the session).
 pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
-    #[cfg(feature = "voice")]
-    crate::assistant::custom_tones::start_bank_feed(app, state);
-
     let db = match state.database() {
         Ok(db) => db,
         Err(error) => {

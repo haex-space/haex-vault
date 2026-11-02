@@ -164,6 +164,7 @@ async fn rights_round_trip_and_are_replaced() {
         passwords: Some(super::grants::PasswordRights {
             level: super::grants::PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned(), "Büro".to_owned()]),
+            default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         commands: true,

@@ -106,6 +106,7 @@ fn dev_reader() -> Rights {
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned()]),
+            default_tag: None,
         }),
         ..default_rights()
     }

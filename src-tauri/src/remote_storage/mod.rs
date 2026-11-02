@@ -18,7 +18,7 @@ pub mod credentials;
 mod credentials_entry_tests;
 #[cfg(test)]
 mod credentials_tests;
-pub(crate) mod http;
+mod http;
 #[cfg(test)]
 mod http_tests;
 pub mod local;

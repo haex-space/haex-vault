@@ -1495,8 +1495,7 @@
         "tonesVolume": "Tone volume",
         "headphones": "Headphones",
         "bubblePosition": "Bubble position",
-        "noticeShown": "Notice shown",
-        "tonesCustom": "Own tones"
+        "noticeShown": "Notice shown"
       }
     },
     "voice": {
@@ -1563,28 +1562,6 @@
         "modeOff": "The voice assistant was switched off.",
         "muted": "The voice assistant is muted.",
         "unmuted": "The voice assistant is no longer muted."
-      },
-      "custom": "Own tones",
-      "customHint": "Available on all devices. Which tone plays for which occasion is set per device.",
-      "builtIn": "Built-in",
-      "pickFile": "Own file …",
-      "addFile": "Add file …",
-      "fileTypes": "Audio files",
-      "noCustom": "No own tones yet. Add an MP3, WAV, OGG, FLAC or M4A file.",
-      "duration": "{seconds} s",
-      "soundFor": "Tone for {name}",
-      "delete": "Delete",
-      "deleteConfirm": "Delete on all devices",
-      "deleteOf": "Delete {name}",
-      "imported": "Added “{name}”.",
-      "importFailed": "Not added: {reason}",
-      "reasons": {
-        "tooLarge": "The file is larger than 20 MB.",
-        "unsupported": "The file contains no readable sound. MP3, WAV, OGG, FLAC and M4A are supported.",
-        "silent": "The file contains only silence.",
-        "tooLong": "The tone is longer than 3 seconds. Shorten it and try again.",
-        "tooLongWorking": "A tone for “Working” may last at most 1 second because it repeats.",
-        "unknownTone": "This tone no longer exists."
       }
     }
   },
@@ -2107,7 +2084,8 @@
       "takeoverRequest": "Ask the user to take over",
       "download": "Download a file",
       "upload": "Upload a file",
-      "credentialsFill": "Fill in login details"
+      "credentialsFill": "Fill in login details",
+      "credentialsCreate": "Create new login details"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4244,6 +4222,12 @@
         "choose": "Which entry?",
         "entry": "Entry",
         "untitled": "Untitled"
+      },
+      "newCredentials": {
+        "title": "Save new login details?",
+        "hint": "The agent is creating a login on this website. holzi generated a password and entered it itself; the agent does not see it. “Save” creates an entry with this username in the password manager, “Decline” empties the password fields again.",
+        "allow": "Save",
+        "username": "Username"
       },
       "address": "Address",
       "target": "Target",

@@ -244,6 +244,37 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.credentials.create',
+    titleKey: 'actions.browser.credentialsCreate',
+    description:
+      'Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. holzi generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: {
+          type: 'integer',
+          description: 'The element number of the new password field.',
+        },
+        username: {
+          type: 'string',
+          description:
+            'The username or email address of the new login, at most 200 characters.',
+        },
+      },
+      required: ['tab', 'element', 'username'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        created: { type: 'boolean' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
     id: 'browser.download',
     titleKey: 'actions.browser.download',
     description:
