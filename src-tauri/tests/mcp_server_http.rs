@@ -412,3 +412,64 @@ async fn a_taken_port_moves_the_http_way() {
     );
     server.stop(CloseReason::Disabled).await;
 }
+
+/// One raw JSON-RPC message on `/mcp`; the answer's body and the session it names.
+async fn post_raw(
+    base: &str,
+    access: &str,
+    session: Option<&str>,
+    body: Value,
+) -> (String, Option<String>) {
+    let mut request = http()
+        .post(format!("{base}/mcp"))
+        .bearer_auth(access)
+        .header("accept", "application/json, text/event-stream")
+        .json(&body);
+    if let Some(session) = session {
+        request = request.header("mcp-session-id", session);
+    }
+    let response = request.send().await.expect("a response");
+    let session = response
+        .headers()
+        .get("mcp-session-id")
+        .map(|value| value.to_str().expect("text").to_owned());
+    let text = tokio::time::timeout(Duration::from_secs(10), response.text())
+        .await
+        .expect("the answer ends")
+        .expect("a body");
+    (text, session)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_that_lists_at_once_sees_its_tools() {
+    let mut fx = fixture();
+    let (server, base) = http_server(&mut fx).await;
+    let (_, tokens) = tokens_by_hand(&mut fx, &base).await;
+    let access = tokens["access_token"].as_str().expect("an access token");
+    let (_, session) = post_raw(
+        &base,
+        access,
+        None,
+        json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": { "name": "hand", "version": "1" }
+            }
+        }),
+    )
+    .await;
+    let session = session.expect("a session");
+    // rmcp answers `notifications/initialized` before holzi handled it; the list right after it
+    // must not overtake the join. Without the notification the order is certain.
+    let (listed, _) = post_raw(
+        &base,
+        access,
+        Some(&session),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+    )
+    .await;
+    assert!(listed.contains(WRITE_TOOL), "{listed}");
+    server.stop(CloseReason::Disabled).await;
+}

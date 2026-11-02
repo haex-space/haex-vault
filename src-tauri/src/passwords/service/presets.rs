@@ -5,6 +5,7 @@
 use super::{require_user, PasswordsService};
 use crate::error::Result;
 use crate::passwords::access::{authorize_any_grant, Caller, Grant};
+use crate::passwords::generator;
 use crate::passwords::model::{Preset, PresetInput};
 use crate::passwords::presets;
 
@@ -14,6 +15,17 @@ impl PasswordsService {
         self.db()
             .read(|q| presets::list(q).map_err(Into::into))
             .await
+    }
+
+    /// A password from the default preset, for a login the agent browser creates (spec 065
+    /// FR-036); like the list, for every caller with a password grant.
+    pub async fn generate_for_new_login(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+    ) -> Result<String> {
+        let presets = self.preset_list(caller, grants).await?;
+        Ok(generator::generate_default(&presets))
     }
 
     /// Saves a preset (an empty id creates one) and returns its id.

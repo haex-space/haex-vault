@@ -493,6 +493,13 @@ impl ChatState {
         })
     }
 
+    /// Whether a chat turn, model load or vault transition holds the operation lock right now. The
+    /// voice assistant waits on it before it starts a round (spec 066 research R12); the answer can
+    /// be stale a moment later, so `acquire_operation` stays the real check.
+    pub fn operation_busy(&self) -> bool {
+        self.operation.try_lock().is_err()
+    }
+
     /// Rebuilds the registry's MCP-sourced tools from a fresh `tools/list`
     /// against every server in `servers`, keeping the always-present
     /// host-CLI tool. Nothing calls this yet: configuring which MCP
