@@ -45,8 +45,12 @@ Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Das Standard-Wake-W
 
 `assistant_tts_preview` spricht zwei Beispielsätze in der Sprache der Stimme mit `rate` (0.75–1.5)
 und kehrt zurück, wenn sie gespielt sind. Fehlt das Stimmenmodell der Sprache, lädt es den Download
-vorher (Fortschritt als `assistant-download-progress`); die Oberfläche fragt davor nach (043
-FR-028, `model_download_check` mit `{kind: "tts", id: modelId}`). Läuft der Assistent, spielt die
+vorher. Die Einstellungsseite lädt das Modell aber vorher selbst über `download_tts_voice` und bietet
+die Probe erst danach an (2026-11-02); sie fragt vor dem Download nach (043 FR-028,
+`model_download_check` mit `{kind: "tts", id: modelId}`). Der Fortschritt aller Stimmenmodell- und
+Assistent-Downloads kommt als gemeinsames `model-download-progress` (`{modelId, bytesDownloaded,
+bytesTotal}`) wie bei Chat- und Spracherkennungsmodellen, damit dieselben Download-Komponenten ihn
+zeigen. Läuft der Assistent, spielt die
 Probe über seinen Stream, sonst über einen Stream nur mit Lautsprecher, nie mit Mikrofon. Eine
 neue Probe beendet die laufende. Bis PR K nimmt der Befehl nur `builtin:`-Stimmen an.
 `assistant_tone_preview` spielt einen Ton einmal mit `volume` (0–100) auf demselben Weg, auch bei
@@ -92,16 +96,15 @@ Duplex-Strom und nur, solange der Dialog offen ist.
 
 ## Ereignisse (Rust → Frontend)
 
-| Ereignis                      | Nutzlast                                  | Spec           |
-| ----------------------------- | ----------------------------------------- | -------------- |
-| `assistant-state`             | `AssistantStateWire`                      | FR-003, FR-041 |
-| `assistant-transcript`        | `TranscriptEntryWire` (unten)             | FR-042, FR-047 |
-| `assistant-tone`              | `{tone: ToneId}` (sichtbare Entsprechung) | FR-044         |
-| `assistant-error`             | `{kind, message}`                         | Edge Cases     |
-| `assistant-download-progress` | `{id, received, total}`                   | FR-005         |
-| `assistant-wakeword-probe`    | `{detected: bool, score}`                 | US7            |
-| `tts-clone-level`             | `{sessionId, level, speechSecs}`          | FR-049         |
-| `tts-voices-changed`          | –                                         | FR-050         |
+| Ereignis                   | Nutzlast                                  | Spec           |
+| -------------------------- | ----------------------------------------- | -------------- |
+| `assistant-state`          | `AssistantStateWire`                      | FR-003, FR-041 |
+| `assistant-transcript`     | `TranscriptEntryWire` (unten)             | FR-042, FR-047 |
+| `assistant-tone`           | `{tone: ToneId}` (sichtbare Entsprechung) | FR-044         |
+| `assistant-error`          | `{kind, message}`                         | Edge Cases     |
+| `assistant-wakeword-probe` | `{detected: bool, score}`                 | US7            |
+| `tts-clone-level`          | `{sessionId, level, speechSecs}`          | FR-049         |
+| `tts-voices-changed`       | –                                         | FR-050         |
 
 `ToneId` = `listening`, `understood`, `working`, `question`, `done`, `error`, `aborted`,
 `notUnderstood`, `conversationEnd`, `attention`, `secret`, `modeOn`, `modeOff`, `muted`, `unmuted`.
