@@ -24,9 +24,8 @@ pub const TAG_LEN: usize = 16;
 /// HaexVault's own cap of a file (FR-034); a lower limit of the server wins.
 pub const MAX_PLAINTEXT: u64 = 100_000_000;
 /// Largest valid HXCF object under the plaintext limit.
-const MAX_CIPHERTEXT: u64 = HEADER_LEN as u64
-    + MAX_PLAINTEXT
-    + TAG_LEN as u64 * ((MAX_PLAINTEXT + SEGMENT as u64 - 1) / SEGMENT as u64);
+const MAX_CIPHERTEXT: u64 =
+    HEADER_LEN as u64 + MAX_PLAINTEXT + TAG_LEN as u64 * MAX_PLAINTEXT.div_ceil(SEGMENT as u64);
 
 /// The secret of one file: its key and nonce prefix travel only inside the encrypted message.
 #[derive(Clone, PartialEq, Eq)]
