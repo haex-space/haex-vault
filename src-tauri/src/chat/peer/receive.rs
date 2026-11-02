@@ -105,7 +105,7 @@ fn sort_request(tx: &mut CrdtTransaction<'_>, thread_id: Uuid, envelope: &Envelo
     }
     // The receiver checks parsed this card already; one that does not parse keeps no request card.
     if let Ok(card) = format::parse(&envelope.card) {
-        store::mark_request(tx, thread_id, &envelope.from, &card.bytes)?;
+        store::mark_request(tx, thread_id, &envelope.from, &card)?;
     }
     Ok(())
 }

@@ -269,16 +269,26 @@ pub fn mark_request(
     tx: &mut CrdtTransaction<'_>,
     thread_id: Uuid,
     peer_vault: &str,
-    card: &[u8],
+    card: &SignedCard,
 ) -> Result<()> {
+    let previous = request_card(tx, thread_id)?;
     tx.execute(
         "UPDATE chat_threads SET state = 'request' WHERE id = ?1 AND state <> 'request'",
         params![thread_id.to_string()],
     )?;
-    tx.execute(
-        "UPDATE chat_members SET card = ?2 WHERE id = ?1",
-        params![ids::member_id(thread_id, peer_vault).to_string(), card],
-    )?;
+    let is_newer = previous.map_or(true, |previous| {
+        (card.card.list_generation, card.card.issued_at)
+            >= (previous.card.list_generation, previous.card.issued_at)
+    });
+    if is_newer {
+        tx.execute(
+            "UPDATE chat_members SET card = ?2 WHERE id = ?1",
+            params![
+                ids::member_id(thread_id, peer_vault).to_string(),
+                card.bytes.as_slice()
+            ],
+        )?;
+    }
     Ok(())
 }
 

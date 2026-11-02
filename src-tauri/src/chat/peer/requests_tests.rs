@@ -106,6 +106,25 @@ async fn a_message_of_a_stranger_is_a_request_that_shows_delivered_but_never_rea
     );
     assert!(list(&anna, false).is_empty(), "not in the list itself");
 
+    let older_card = ben.card();
+    let _second_device = ben.link();
+    let newer_card = ben.card();
+    let expected_newest = newer_card.clone();
+    let (thread, peer_vault) = (anna.thread_with(&ben), ben.me.vault_hex.clone());
+    anna.db
+        .write_blocking(move |tx| {
+            store::mark_request(tx, thread, &peer_vault, &newer_card)?;
+            store::mark_request(tx, thread, &peer_vault, &older_card)?;
+            Ok(())
+        })
+        .expect("keep the newest carried card");
+    let thread = anna.thread_with(&ben);
+    let saved_card = anna
+        .db
+        .read_blocking(move |r| Ok(store::request_card(r, thread)?))
+        .expect("read request card");
+    assert_eq!(saved_card, Some(expected_newest));
+
     ben.wait_for(&anna, "delivered", |m| {
         state_of(m, "Hallo, wir kennen uns vom Markt") == Some(DeliveryState::Delivered)
     })
