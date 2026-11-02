@@ -259,7 +259,8 @@
     "newChat": "New chat",
     "sidebar": {
       "show": "Show sidebar",
-      "hide": "Hide sidebar"
+      "hide": "Hide sidebar",
+      "title": "Chats"
     },
     "threads": {
       "title": "History",
