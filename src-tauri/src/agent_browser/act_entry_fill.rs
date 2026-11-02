@@ -39,7 +39,7 @@ use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::passwords::access::Grant;
 use crate::passwords::autofill::{aliases_of, fields_of, OTP_MARKER};
 use crate::passwords::model::SecretItem;
-use crate::passwords::service::{Headers, PasswordsService};
+use crate::passwords::service::PasswordsService;
 
 /// The longest purpose the agent may give.
 pub const MAX_PURPOSE: usize = 200;
@@ -89,31 +89,32 @@ pub(crate) fn values_of(item: &SecretItem) -> EntryValues {
         .collect()
 }
 
-/// Every entry `grants` reach, with the names of its fields; an entry gone or out of reach since
-/// the list is left out. The values read on the way are dropped at once.
+/// Every entry `grants` reach, with only the names of its fields; an entry gone or out of reach
+/// since the list is left out. Secret values are read only after the user chooses an entry.
 pub(super) async fn reachable_entries(
     service: &PasswordsService,
     caller: &Caller,
     grants: &[Grant],
 ) -> Vec<EntryShape> {
-    let Ok(Headers::Items(headers)) = service.list_headers(caller, grants).await else {
+    let Ok(shapes) = service.list_autofill_shapes(caller, grants).await else {
         return Vec::new();
     };
-    let mut entries = Vec::new();
-    for header in headers {
-        let Ok(item) = service
-            .read_secret_item(caller, grants, header.id.clone())
-            .await
-        else {
-            continue;
-        };
-        entries.push(EntryShape {
-            id: item.id.clone(),
-            title: item.title.clone().unwrap_or_default(),
-            keys: keys_of(&item, header.has_totp),
-        });
-    }
-    entries
+    shapes
+        .into_iter()
+        .map(|shape| EntryShape {
+            id: shape.id,
+            title: shape.title.unwrap_or_default(),
+            keys: EntryKeys {
+                keys: shape.keys,
+                aliases: shape
+                    .aliases
+                    .as_deref()
+                    .and_then(|text| serde_json::from_str(text).ok())
+                    .unwrap_or_default(),
+                has_totp: shape.has_totp,
+            },
+        })
+        .collect()
 }
 
 /// The rows of entry `choice` for the fields of document `doc` (in `frame`, a website, or the tab's
