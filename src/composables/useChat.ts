@@ -287,6 +287,8 @@ export interface ModelLoadErrorEvent {
  * `chat-message-complete`, `chat-message-error`).
  */
 export function useChat() {
+  let sessionModelQueue: Promise<void> = Promise.resolve()
+
   let latestVaultGeneration: number | null = null
   let latestLoadId = -1
 
@@ -424,7 +426,11 @@ export function useChat() {
    * keeps its model, a new one (`null`) starts with the last picked model (spec 006).
    */
   async function useSessionModelAsync(threadId: string | null): Promise<void> {
-    await invoke('use_session_model', { threadId })
+    const pending = sessionModelQueue.then(async () => {
+      await invoke('use_session_model', { threadId })
+    })
+    sessionModelQueue = pending.catch(() => {})
+    await pending
   }
 
   /** Unloads the model currently held by the chat session. */

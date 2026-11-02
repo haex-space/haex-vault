@@ -101,6 +101,9 @@ export function useComposer(
     if (!retry) attachments.value = []
     turnSetupPending.value = true
     try {
+      // A thread selection starts this load in the background. Await it again here so a fast
+      // send cannot reserve the chat operation first and use the previously loaded model.
+      await chat.useSessionModelAsync(request.threadId)
       const result = await chat.sendMessageAsync(request)
       activeThreadId.value = result.threadId
       const queuedApprovals = pendingPromptsByThread.get(result.threadId)
