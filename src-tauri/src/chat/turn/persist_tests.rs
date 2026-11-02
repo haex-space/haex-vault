@@ -32,7 +32,7 @@ async fn failed_thread_update_rolls_back_final_assistant_message() {
             db.write(|tx| {
                 thread_store::insert_thread(tx, &ChatThread {
                     id: thread_id, title: "Keep me".into(), last_provider_id: None,
-                    last_model_id: None, created_at: 0, updated_at: 0,
+                    last_model_id: None, created_at: 0, updated_at: 0, origin: None,
                 })
             }).unwrap();
             // A trigger is schema, which the CRDT write path does not create.

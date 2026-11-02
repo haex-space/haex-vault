@@ -3,8 +3,10 @@
 //! reservation/abort interaction, and tool-permission resolution.
 
 use super::*;
+use crate::adapters::types::ToolSpec;
+use crate::chat::send::{reasoning_requested_for, validated_reasoning_option};
 use crate::chat::thread_commands::validate_thread_title;
-use crate::model_capabilities::{ReasoningControl, ReasoningOption};
+use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 
 #[test]
 fn thread_title_validation_trims_and_enforces_visible_length() {

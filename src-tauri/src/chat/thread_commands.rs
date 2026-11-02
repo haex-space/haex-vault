@@ -60,6 +60,7 @@ pub async fn create_thread(
         last_model_id: None,
         created_at: now,
         updated_at: now,
+        origin: None,
     };
     let inserted = thread.clone();
     db.write(move |tx| {

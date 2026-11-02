@@ -163,6 +163,7 @@ fn thread(id: Uuid) -> ChatThread {
         last_model_id: None,
         created_at: 1,
         updated_at: 1,
+        origin: None,
     }
 }
 
@@ -418,9 +419,10 @@ fn chat_thread_and_message_writes() {
 #[test]
 fn a_send_is_one_transaction_group() {
     let v = open_vault();
-    let sent =
-        v.db.write(|tx| persist_send_transaction(tx, "compat-key", None, "hi", None, "model", 3))
-            .expect("persist send");
+    let sent = v
+        .db
+        .write(|tx| persist_send_transaction(tx, "compat-key", None, "hi", None, None, "model", 3))
+        .expect("persist send");
     let PersistedSend::Fresh {
         thread_id,
         user_message_id,
