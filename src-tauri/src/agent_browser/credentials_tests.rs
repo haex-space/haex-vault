@@ -1,7 +1,7 @@
 use haex_autofill::{EntryKeys, FieldFacts};
 use serde_json::json;
 
-use super::act::credentials::{password_caller, values_for, LoginEntry, FEATURE};
+use super::act::credentials::{password_caller, values_for, LoginSecrets, FEATURE};
 use super::executor::hide_filled;
 use super::prompts::{BrowserPromptKind, BrowserQuestion};
 use super::redaction::{spellings, Filled};
@@ -103,18 +103,13 @@ fn facts(input_type: &str, name: &str, autocomplete: &str) -> FieldFacts {
     }
 }
 
-fn login(has_totp: bool) -> LoginEntry {
-    let values: std::collections::BTreeMap<String, String> = [
-        ("username", "anna@example.org"),
-        ("password", SECRET),
-        ("otp", "TOTP"),
-    ]
-    .into_iter()
-    .map(|(k, v)| (k.to_owned(), v.to_owned()))
-    .collect();
-    LoginEntry {
-        id: "item-1".to_owned(),
-        title: "Shop".to_owned(),
+fn login(has_totp: bool) -> LoginSecrets {
+    let values: std::collections::BTreeMap<String, zeroize::Zeroizing<String>> =
+        [("username", "anna@example.org"), ("password", SECRET)]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), zeroize::Zeroizing::new(v.to_owned())))
+            .collect();
+    LoginSecrets {
         keys: EntryKeys {
             keys: values.keys().cloned().collect(),
             has_totp,
@@ -154,9 +149,10 @@ fn the_totp_marker_is_never_typed() {
 fn custom_entry_fields_and_card_fields_are_never_filled_by_login_fill() {
     let mut entry = login(true);
     entry.keys.keys.push("iban".to_owned());
-    entry
-        .values
-        .insert("iban".to_owned(), "DE89370400440532013000".to_owned());
+    entry.values.insert(
+        "iban".to_owned(),
+        zeroize::Zeroizing::new("DE89370400440532013000".to_owned()),
+    );
     let fields = [facts("text", "iban", ""), facts("text", "", "cc-number")];
 
     assert!(values_for(&fields, &entry, Some("123456")).is_empty());

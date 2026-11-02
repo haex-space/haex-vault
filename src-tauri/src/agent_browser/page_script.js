@@ -316,7 +316,8 @@ function holziPage(args) {
     }
   }
   if (args.fill !== undefined && args.fill !== null) {
-    if (location.href !== args.fill.url) return { changed: true, url: location.href }
+    if (location.href !== args.fill.url)
+      return { changed: true, url: location.href }
     const fields = fillable(args.fill.form)
     if (!fields) return { gone: true }
     const factsOfFillable = (el) => ({
@@ -331,7 +332,9 @@ function holziPage(args) {
     if (
       currentFacts.length !== expectedFacts.length ||
       currentFacts.some((field, index) =>
-        Object.keys(field).some((key) => field[key] !== expectedFacts[index][key]),
+        Object.keys(field).some(
+          (key) => field[key] !== expectedFacts[index][key],
+        ),
       )
     ) {
       return { changed: true, url: location.href }

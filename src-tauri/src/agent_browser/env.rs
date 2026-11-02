@@ -28,6 +28,10 @@ use crate::mcp_server::grants::{
 };
 use crate::mcp_server::registry;
 use crate::passwords::service::PasswordsService;
+
+#[cfg(test)]
+#[path = "env_tests.rs"]
+mod tests;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 use crate::AppState;
@@ -216,27 +220,6 @@ pub struct TauriBrowserEnv<R: Runtime> {
 impl<R: Runtime> TauriBrowserEnv<R> {
     pub fn new(app: AppHandle<R>) -> Self {
         Self { app }
-    }
-}
-
-#[cfg(test)]
-mod builtin_password_rights_tests {
-    use super::validate_builtin_password_rights;
-    use crate::mcp_server::grants::{PasswordLevel, PasswordRights};
-
-    #[test]
-    fn built_in_password_rights_are_read_only() {
-        assert!(validate_builtin_password_rights(None).is_ok());
-        assert!(validate_builtin_password_rights(Some(&PasswordRights {
-            level: PasswordLevel::Read,
-            tags: None,
-        }))
-        .is_ok());
-        assert!(validate_builtin_password_rights(Some(&PasswordRights {
-            level: PasswordLevel::ReadWrite,
-            tags: None,
-        }))
-        .is_err());
     }
 }
 

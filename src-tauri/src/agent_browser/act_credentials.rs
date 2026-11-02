@@ -17,6 +17,7 @@ use haex_autofill::{map_fields, EntryKeys, FieldFacts, Target as FieldTarget};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use url::Url;
+use zeroize::Zeroizing;
 
 use super::{element_gone, Acting};
 use crate::agent_browser::calls::{browser_error, site_of};
@@ -30,7 +31,8 @@ use crate::agent_browser::tab::Tab;
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::passwords::access::Grant;
-use crate::passwords::autofill::{aliases_of, fields_of};
+use crate::passwords::autofill::{aliases_of, OTP_MARKER};
+use crate::passwords::model::SecretItem;
 use crate::passwords::service::PasswordsService;
 
 /// The holzi function the built-in agent's fills read entries through (034 FR-027: the built-in
@@ -46,12 +48,45 @@ pub(super) struct FillFacts {
     fields: Vec<FieldFacts>,
 }
 
-/// An entry that matches the page, with its values; never leaves holzi.
+/// A matching entry shown in the choice prompt; it contains no secret values.
 pub(crate) struct LoginEntry {
     pub id: String,
     pub title: String,
-    pub keys: EntryKeys,
-    pub values: BTreeMap<String, String>,
+    pub has_totp: bool,
+}
+
+pub(super) struct LoginSecrets {
+    pub(super) keys: EntryKeys,
+    pub(super) values: BTreeMap<String, Zeroizing<String>>,
+}
+
+impl LoginSecrets {
+    fn from_item(item: &SecretItem, has_totp: bool) -> Self {
+        let aliases = serde_json::from_value(aliases_of(item)).unwrap_or_default();
+        let aliases = aliases
+            .into_iter()
+            .filter(|(key, _)| matches!(key.as_str(), "username" | "password"))
+            .collect();
+        let mut values = BTreeMap::new();
+        if let Some(value) = item.username.as_ref().filter(|value| !value.is_empty()) {
+            values.insert("username".to_owned(), Zeroizing::new(value.clone()));
+        }
+        if let Some(value) = item.password.as_ref().filter(|value| !value.is_empty()) {
+            values.insert("password".to_owned(), Zeroizing::new(value.clone()));
+        }
+        let mut keys: Vec<String> = values.keys().cloned().collect();
+        if has_totp {
+            keys.push(OTP_MARKER.to_owned());
+        }
+        Self {
+            keys: EntryKeys {
+                keys,
+                aliases,
+                has_totp,
+            },
+            values,
+        }
+    }
 }
 
 /// Who reads the entries for `caller`.
@@ -69,8 +104,7 @@ pub(super) fn no_matching_entry() -> NativeError {
     )
 }
 
-/// The entries of `grants` for `page`, each with its values; an entry gone or out of reach since
-/// the list is left out.
+/// The entries of `grants` for `page`, without reading their secret values.
 pub(super) async fn login_entries(
     service: &PasswordsService,
     caller: &Caller,
@@ -82,34 +116,10 @@ pub(super) async fn login_entries(
     };
     let mut entries = Vec::new();
     for header in headers {
-        let Ok(item) = service
-            .read_secret_item(caller, grants, header.id.clone())
-            .await
-        else {
-            continue;
-        };
-        let fields = fields_of(&item);
-        let mut aliases: BTreeMap<String, Vec<String>> =
-            serde_json::from_value(aliases_of(&item)).unwrap_or_default();
-        aliases.retain(|key, _| matches!(key.as_str(), "username" | "password"));
-        let values: BTreeMap<String, String> = ["username", "password"]
-            .into_iter()
-            .filter_map(|key| {
-                fields
-                    .get(key)
-                    .and_then(Value::as_str)
-                    .map(|value| (key.to_owned(), value.to_owned()))
-            })
-            .collect();
         entries.push(LoginEntry {
-            id: item.id.clone(),
-            title: item.title.clone().unwrap_or_default(),
-            keys: EntryKeys {
-                keys: fields.keys().cloned().collect(),
-                aliases,
-                has_totp: header.has_totp,
-            },
-            values,
+            id: header.id,
+            title: header.title.unwrap_or_default(),
+            has_totp: header.has_totp,
         });
     }
     entries
@@ -118,7 +128,7 @@ pub(super) async fn login_entries(
 /// The values for `fields` from `entry`, by field index; a one-time-code field gets `otp`.
 pub(crate) fn values_for(
     fields: &[FieldFacts],
-    entry: &LoginEntry,
+    entry: &LoginSecrets,
     otp: Option<&str>,
 ) -> Vec<(usize, String)> {
     map_fields(fields, &entry.keys)
@@ -126,7 +136,7 @@ pub(crate) fn values_for(
         .enumerate()
         .filter_map(|(index, target)| match target? {
             FieldTarget::Key(key) if matches!(key.as_str(), "username" | "password") => {
-                Some((index, entry.values.get(&key)?.clone()))
+                Some((index, entry.values.get(&key)?.as_str().to_owned()))
             }
             FieldTarget::Key(_) => None,
             FieldTarget::Otp => Some((index, otp?.to_owned())),
@@ -161,7 +171,12 @@ impl Acting<'_> {
             return Err(no_matching_entry());
         }
         let entry = self.choose(&facts.url, entries).await?;
-        let otp = if entry.keys.has_totp {
+        let item = service
+            .read_secret_item(&caller, &grants, entry.id.clone())
+            .await
+            .map_err(|_| no_matching_entry())?;
+        let secrets = LoginSecrets::from_item(&item, entry.has_totp);
+        let otp = if entry.has_totp {
             service
                 .totp_code(&caller, &grants, entry.id.clone())
                 .await
@@ -176,7 +191,7 @@ impl Acting<'_> {
         if current_page.scheme() != "https" || current_page.origin() != page.origin() {
             return Err(no_matching_entry());
         }
-        let values = values_for(&fresh.fields, &entry, otp.as_deref());
+        let values = values_for(&fresh.fields, &secrets, otp.as_deref());
         if values.is_empty() {
             return Ok(json!({ "tab": tab.id, "filled": false, "reason": "no_fields" }).into());
         }
