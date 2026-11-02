@@ -171,6 +171,10 @@ Vorlauf von etwa 0,5 s; eine geschnittene Äußerung ist deshalb rund 60,5 s lan
 liegt im Binary (`assistant/models/`) statt im Download-Katalog und wird beim ersten Gebrauch nach
 `models/silero-vad/` geschrieben. Die Pausenerkennung ist damit immer bereit.
 
+**Update after T161 (2026-11-02)**: a thinking pause of 0.8 s already ended what was said
+(operator). The default is now 1.5 s and the range 0.5–3.0 s (data-model.md); the pause is set
+with a slider on the assistant's settings page.
+
 **Alternativen**: Smart Turn v3 (BSD-2, erkennt Satzende auch bei Denkpausen) — später, falls feste
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.

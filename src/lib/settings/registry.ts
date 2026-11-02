@@ -196,12 +196,16 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'speech',
     overviewRow: true,
   }),
-  // Spec 066 T045: the preview switch that makes conversations reachable until the wake word.
+  // Spec 066 T045: the preview switch that makes conversations reachable until the wake word;
+  // T161: the pause that ends what was said.
   subView('ai.speech.assistant', 'ai/speech/assistant', 'ai', {
     icon: 'lucide:audio-waveform',
     group: 'speech',
     overviewRow: true,
-    settingKeys: ['settings.assistant.labels.preview'],
+    settingKeys: [
+      'settings.assistant.labels.preview',
+      'settings.assistant.labels.pauseMs',
+    ],
   }),
   // Spec 066 US8: the assistant's voice per language and its speaking rate.
   subView('ai.speech.voice', 'ai/speech/voice', 'ai', {

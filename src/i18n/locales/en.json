@@ -421,7 +421,6 @@
       "deleteConfirm": "Do you really want to delete the conversation with {name}? It disappears with all messages and files on all your devices.",
       "deleteButton": "Delete",
       "missing": "This conversation no longer exists.",
-      "send": "Send",
       "counter": "{count} / {max} characters",
       "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
     },
@@ -1604,7 +1603,9 @@
         "voice": "Voice model for this language",
         "chatModel": "AI model",
         "microphone": "Microphone"
-      }
+      },
+      "seconds": "{value} s",
+      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only."
     }
   },
   "models": {

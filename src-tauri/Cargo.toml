@@ -476,7 +476,7 @@ plist = "1.10"
 # (Cargo.toml `[dependencies]` comment above).
 # Spec 021 T091: `auth` and the reqwest HTTP client drive a real MCP OAuth client against the HTTP way.
 rmcp = { version = "=3.5.0", default-features = false, features = ["server", "auth", "transport-streamable-http-client-reqwest", "reqwest"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "test-util"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "test-util", "signal", "time"] }
 futures = "0.3"
 # HTTP mock server for adapter tests — spins a local listener on a
 # random port, allows scripted responses, and shuts down on Drop.

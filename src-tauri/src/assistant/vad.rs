@@ -13,7 +13,7 @@ pub const MIN_SPEECH_SECS: f32 = 0.25;
 pub const MAX_SPEECH_SECS: f32 = 60.0;
 /// Range of the device preference `assistant.pauseMs` (data-model.md).
 pub const PAUSE_MS_MIN: u32 = 500;
-pub const PAUSE_MS_MAX: u32 = 2000;
+pub const PAUSE_MS_MAX: u32 = 3000;
 
 const THRESHOLD: f32 = 0.5;
 /// Silero's window at 16 kHz.

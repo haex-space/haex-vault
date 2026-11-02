@@ -9,6 +9,8 @@ import {
   ALWAYS_AUDIBLE_TONES,
   ASSISTANT_SETTING_KEYS,
   assistantLabelKey,
+  PAUSE_MS,
+  parsePause,
   parsePreview,
   parseSpeechRate,
   parseTonesEnabled,
@@ -74,6 +76,11 @@ test('every device setting has a German and an English label', () => {
 
 /** The assistant's pages, their views and the settings each one holds. */
 const PAGES = [
+  {
+    id: 'ai.speech.assistant',
+    view: 'src/components/settings/assistant/AssistantSetting.vue',
+    prefs: ['assistant.preview', 'assistant.pauseMs'],
+  },
   {
     id: 'ai.speech.voice',
     view: 'src/components/settings/assistant/VoiceSetting.vue',
@@ -181,6 +188,23 @@ test('the stored tone settings fall back to the defaults of data-model.md', () =
       `\`assistant\\.tones\\.volume\`\\s*\\|\\s*int ${TONES_VOLUME.min}–${TONES_VOLUME.max}\\s*\\|\\s*\`${TONES_VOLUME.default}\``,
     ),
   )
+})
+
+test('the pause range and default match data-model.md (FR-012)', () => {
+  const doc = read('specs/066-voice-assistant/data-model.md')
+  assert.match(
+    doc,
+    new RegExp(
+      `\`assistant\\.pauseMs\`\\s*\\|\\s*int ${PAUSE_MS.min}–${PAUSE_MS.max}\\s*\\|\\s*\`${PAUSE_MS.default}\``,
+    ),
+  )
+  assert.equal(parsePause(null), PAUSE_MS.default)
+  assert.equal(parsePause('2200'), 2200)
+  // Out of range is clamped, as the Rust side does, so the slider shows the pause in use.
+  assert.equal(parsePause('4000'), PAUSE_MS.max)
+  assert.equal(parsePause('300'), PAUSE_MS.min)
+  assert.equal(parsePause('1,5'), PAUSE_MS.default)
+  assert.equal(parsePause(''), PAUSE_MS.default)
 })
 
 test('the page "Lizenzen" credits the voices and speech models (T032)', () => {
