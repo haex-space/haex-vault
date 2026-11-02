@@ -82,6 +82,10 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Check Nix host bridge
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:nix-host-bridge
+
       - name: Check chat state
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:chat-state

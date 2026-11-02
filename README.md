@@ -76,12 +76,36 @@ sudo dnf group install "c-development"
 
 `libasound`/`alsa-lib` is for microphone input (the default `voice` feature).
 
-Build with the host's toolchain, outside any Nix shell. Alternatively, the
-repository's Nix devShell (`nix develop`, or `direnv` via `.envrc`) provides
-the toolchain. WebKitGTK still comes from the host, and
-`scripts/with-nix-host-bridge.sh` points the build at it. The script assumes
-Arch paths (`/usr/lib/pkgconfig`, `/usr/lib/gbm`), so on other distributions
-build without the devShell.
+The repository's Nix devShell supplies the compiler, Java, Android SDK/NDK,
+and CUDA build environment. On x86-64 Linux it uses the host's WebKitGTK
+and GPU driver libraries through `scripts/with-nix-host-bridge.sh`. The bridge
+discovers standard and Debian/Ubuntu multiarch library directories and selects
+a matching libc and loader. Install the host development packages above first.
+
+```bash
+nix develop --command pnpm install --frozen-lockfile
+nix develop --command pnpm tauri:dev:cuda
+```
+
+Alternatively, enter `nix develop` once and run `pnpm tauri:dev:cuda` inside
+it. `direnv` with the repository's `.envrc` provides the same project environment.
+For a CPU build use `pnpm tauri:dev` inside that environment.
+
+Global Android compiler exports (`CC`, `CXX`, `AR`, and related tools) and
+personal CUDA library-path workarounds are unnecessary. Remove them from the
+shell startup configuration. Existing terminals retain old values; clear those
+values before entering the project shell, or start a fresh login session.
+The project's Android commands also obtain their SDK/NDK and Java from the
+devShell. Building with a separately installed host toolchain remains supported
+outside the devShell.
+
+When switching an existing build directory from the host toolchain to Nix,
+clear llama.cpp's cached compiler paths once:
+
+```bash
+nix develop --command scripts/with-nix-host-bridge.sh cargo clean \
+  --manifest-path src-tauri/Cargo.toml -p llama-cpp-sys-2
+```
 
 ### macOS
 
