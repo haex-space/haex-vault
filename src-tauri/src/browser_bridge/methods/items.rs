@@ -8,6 +8,7 @@ use serde_json::{json, Map, Value};
 
 use super::{service_of, to_code, BoxedOutcome, Call, Outcome};
 use crate::browser_bridge::protocol::ErrorCode;
+use crate::passwords::autofill::{aliases_of, fields_of};
 use crate::passwords::model::{ItemInput, Preset, SecretItem};
 use crate::passwords::site::parse_address;
 
@@ -93,42 +94,8 @@ async fn get_items_async(call: Call<'_>) -> Outcome {
     Ok(json!({ "entries": entries }))
 }
 
-/// Username, password, the custom fields and the marker `otp: "TOTP"`, all as text (FR-020). A
-/// custom field never replaces one of the three.
-fn fields_of(item: &SecretItem) -> Map<String, Value> {
-    let mut fields = Map::new();
-    for key_value in &item.key_values {
-        if let (Some(key), Some(value)) = (&key_value.key, &key_value.value) {
-            if !key.is_empty() {
-                fields.insert(key.clone(), Value::String(value.clone()));
-            }
-        }
-    }
-    for (name, value) in [("username", &item.username), ("password", &item.password)] {
-        match value {
-            Some(value) if !value.is_empty() => {
-                fields.insert(name.to_owned(), Value::String(value.clone()));
-            }
-            _ => {
-                fields.remove(name);
-            }
-        }
-    }
-    if item.otp_secret.is_some() {
-        fields.insert("otp".to_owned(), Value::String("TOTP".to_owned()));
-    } else {
-        fields.remove("otp");
-    }
-    fields
-}
-
 fn entry_of(item: SecretItem, fields: Map<String, Value>, has_totp: bool) -> Value {
-    let aliases = item
-        .autofill_aliases
-        .as_deref()
-        .and_then(|text| serde_json::from_str::<Value>(text).ok())
-        .filter(Value::is_object)
-        .unwrap_or(Value::Null);
+    let aliases = aliases_of(&item);
     json!({
         "id": item.id,
         "title": non_empty(item.title).unwrap_or_else(|| UNTITLED.to_owned()),

@@ -27,6 +27,7 @@ use super::cdp::Connection;
 use super::executor::BrowserEnv;
 use super::marker::{MarkerTexts, Signal};
 use super::prompts::{BrowserPrompts, ClosedNotice};
+use super::redaction::Filled;
 use super::sessions::{
     BrowserLastAction, BrowserPause, BrowserSessionView, BrowserTabView, SessionHooks,
 };
@@ -87,6 +88,8 @@ pub struct Session {
     own_input: Mutex<pause::OwnInput>,
     /// The last page each tab loaded while the user had the browser, perhaps still on its way.
     loaded_while_paused: Mutex<BTreeMap<String, String>>,
+    /// What holzi filled from the password manager; it never flows back (research R7).
+    filled: Mutex<Filled>,
 }
 
 #[derive(Default)]
@@ -145,7 +148,25 @@ impl Session {
             steering: Arc::default(),
             own_input: Mutex::default(),
             loaded_while_paused: Mutex::default(),
+            filled: Mutex::default(),
         })
+    }
+
+    /// Remembers `values` holzi filled into a page of this session: from now on they are removed
+    /// from every reply, and screenshots stay refused for the rest of the session (research R7).
+    pub fn note_filled<'a>(&self, values: impl IntoIterator<Item = &'a str>) {
+        let mut filled = self.filled.lock().unwrap_or_else(PoisonError::into_inner);
+        for value in values {
+            filled.add(value);
+        }
+    }
+
+    /// What this session filled so far.
+    pub fn filled(&self) -> Filled {
+        self.filled
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// The agent's name as it claims it; empty for the built-in agent.

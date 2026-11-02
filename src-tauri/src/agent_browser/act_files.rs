@@ -174,6 +174,7 @@ impl Acting<'_> {
                                 fields: Vec::new(),
                                 reason: None,
                                 bytes,
+                                entries: Vec::new(),
                             };
                             let asking = self.tools.ask_later(
                                 self.session,

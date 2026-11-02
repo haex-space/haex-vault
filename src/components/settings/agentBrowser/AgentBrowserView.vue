@@ -1,18 +1,22 @@
 <script setup lang="ts">
 /**
  * "KI → Browser" (spec 065, T040): whether this device has an agent browser, which browser it
- * starts and whether it runs, the browser rights of the built-in agent, and removing the browser's
- * profile. Changes apply on selection (023 FR-021); each runs a guardrail action
+ * starts and whether it runs, the browser rights of the built-in agent with the entries of the
+ * password manager its fills may use (decided 2026-11-02), and removing the browser's profile. Changes apply on selection (023 FR-021); each runs a guardrail action
  * (`settings.agentBrowser.*`), which no agent can call. The rights of external agents are on their
  * own pages under "Externe Agenten".
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentBrowserStatus } from '~/types/bindings/AgentBrowserStatus'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
+import type { PasswordRights } from '~/lib/agents/rights'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const setBuiltin = useActionOrThrow('settings.agentBrowser.builtin.set')
+const setBuiltinPasswords = useActionOrThrow(
+  'settings.agentBrowser.builtinPasswords.set',
+)
 const setPath = useActionOrThrow('settings.agentBrowser.path.set')
 const clearProfile = useActionOrThrow('settings.agentBrowser.profile.clear')
 
@@ -43,6 +47,10 @@ async function runAsync(action: () => Promise<unknown>) {
 
 function onBuiltin(rights: BrowserRights | null) {
   void runAsync(() => setBuiltin({ rights }))
+}
+
+function onBuiltinPasswords(rights: PasswordRights | null) {
+  void runAsync(() => setBuiltinPasswords({ rights }))
 }
 
 function savePath() {
@@ -130,6 +138,18 @@ onMounted(reloadAsync)
         :model-value="status.builtin"
         @update:model-value="onBuiltin"
       />
+      <template v-if="status.builtin">
+        <p class="px-1 text-sm font-medium">
+          {{ t('agentBrowser.settings.builtinPasswords') }}
+        </p>
+        <AgentsPasswordRightsFields
+          :model-value="status.builtinPasswords"
+          @update:model-value="onBuiltinPasswords"
+        />
+        <p class="px-1 text-xs text-muted-foreground">
+          {{ t('agentBrowser.settings.builtinPasswordsHint') }}
+        </p>
+      </template>
 
       <SettingsGroup :label="t('agentBrowser.settings.profile')">
         <div class="flex flex-wrap items-center justify-between gap-2 p-4">

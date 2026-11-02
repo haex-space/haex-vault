@@ -29,18 +29,21 @@ use super::prompts::{BrowserPrompts, ClosedNotice};
 use super::read;
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
-use super::sites::{check_document, may_operate, Site, Verdict};
+use super::sites::{check_document, may_operate, Verdict};
 use super::tab::TabError;
-use super::{takeover, AgentBrowser, StartConfig};
+use super::{takeover, AgentBrowser};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
-use crate::files::access::AgentGrants;
-use crate::files::local::OwnPlaces;
-use crate::mcp_server::grants::{BrowserRights, SiteLevel};
 
+#[path = "executor_env.rs"]
+mod env_trait;
 #[path = "executor_steps.rs"]
 mod steps;
+
+pub use env_trait::BrowserEnv;
+
+pub(in crate::agent_browser) use steps::hide_filled;
 
 /// The tools that only read.
 pub const READING: &[&str] = &[
@@ -69,6 +72,7 @@ pub const CHANGING: &[&str] = &[
     "browser.tabs.close",
     "browser.download",
     "browser.upload",
+    "browser.credentials.fill",
 ];
 
 /// The changing tools that operate an element: they ask with it, not with their input, and the
@@ -80,14 +84,15 @@ const OPERATING: &[&str] = &[
     "browser.upload",
 ];
 
-/// The tools that ask with the element they operate; a download replies with its file, not with
-/// the page.
+/// The tools that ask themselves, with the element they operate or the entries of a fill; a
+/// download and a fill reply with their result, not with the page.
 const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.click",
     "browser.type",
     "browser.select",
     "browser.upload",
     "browser.download",
+    "browser.credentials.fill",
 ];
 
 pub const BROWSER_ACTION_IDS: &[&str] = &[
@@ -107,32 +112,12 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.takeover.request",
     "browser.download",
     "browser.upload",
+    "browser.credentials.fill",
 ];
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
 /// whole stop within a second).
 const STOP_GRACE: Duration = Duration::from_millis(300);
-
-/// What the executor needs from the app.
-#[async_trait]
-pub trait BrowserEnv: Send + Sync + 'static {
-    /// The rights group `browser` of `caller` now; `None` when it is off.
-    async fn rights(&self, caller: &Caller) -> Option<BrowserRights>;
-    /// Adds `site` at `level` to the rights of `caller` ("Für diese Website merken").
-    async fn remember(&self, caller: &Caller, site: &Site, level: SiteLevel) -> Result<(), String>;
-    /// The name the dialogs show for `caller`.
-    async fn agent_name(&self, caller: &Caller) -> String;
-    /// The language of holzi's window, for the marker in the tabs.
-    fn locale(&self) -> String;
-    /// How to start the browser now.
-    async fn start_config(&self) -> Result<StartConfig, BrowserError>;
-    /// The folder downloads of agents land in: `HaexVault/<vault>` in the system's downloads
-    /// folder (research R11).
-    fn downloads_folder(&self) -> Result<std::path::PathBuf, String>;
-    /// What the file rights (044) of `caller` reach: holzi's own places and its grants; `None`
-    /// when they cannot be read.
-    async fn file_rights(&self, caller: &Caller) -> Option<(OwnPlaces, AgentGrants)>;
-}
 
 /// The executor of `browser.*`.
 pub struct BrowserTools {
@@ -268,7 +253,7 @@ impl NativeExecutor for BrowserTools {
             };
         }
         forward.abort();
-        outcome
+        session.filled().scrub_outcome(outcome)
     }
 }
 
@@ -375,6 +360,7 @@ impl BrowserTools {
                 read_tab(&connection, tab, from, section).await?
             }
             "browser.page.screenshot" => {
+                session.filled().allows_screenshots()?;
                 let OnTab { tab } = input(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 screenshot(&connection, tab).await?
@@ -458,8 +444,12 @@ impl BrowserTools {
                 }
                 read_tab(&connection, tab, 0, None).await?
             }
-            "browser.click" | "browser.type" | "browser.select" | "browser.download"
-            | "browser.upload" => {
+            "browser.click"
+            | "browser.type"
+            | "browser.select"
+            | "browser.download"
+            | "browser.upload"
+            | "browser.credentials.fill" => {
                 let acting = Acting {
                     tools: self,
                     connection: &connection,

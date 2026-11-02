@@ -105,8 +105,12 @@ function holziPage(args) {
     form: !!(el.form || el.closest('form')),
   })
 
+  // The fields holzi filled from the password manager in this document (research R7); this world
+  // keeps them, the page cannot see or change the set.
+  const filledFields = (globalThis.holziFilled ||= new WeakSet())
   const isSecret = (el) =>
-    el.tagName.toLowerCase() === 'input' && el.type === 'password'
+    (el.tagName.toLowerCase() === 'input' && el.type === 'password') ||
+    filledFields.has(el)
 
   // What a form would send, for the submit question: name, value, and whether it is secret.
   const formElements = Object.getOwnPropertyDescriptor(
@@ -264,6 +268,73 @@ function holziPage(args) {
   if (args.fileElement !== undefined && args.fileElement !== null) {
     const el = operable[args.fileElement - 1]
     return el ? fileFieldOf(el) : null
+  }
+  // The fields a fill may write: the inputs of a form that take text, in document order. `form`
+  // is the number of an element of the form; without one, the form with a password field, else the
+  // page.
+  const NOT_TEXT = [
+    'hidden',
+    'submit',
+    'button',
+    'reset',
+    'image',
+    'file',
+    'checkbox',
+    'radio',
+  ]
+  const fillable = (form) => {
+    let scope = null
+    if (form !== undefined && form !== null) {
+      const el = operable[form - 1]
+      if (!el) return null
+      scope = el.form || (el.closest && el.closest('form')) || document
+    } else {
+      const password = document.querySelector('input[type="password" i]')
+      scope =
+        (password && (password.form || password.closest('form'))) || document
+    }
+    return Array.from(scope.querySelectorAll('input'))
+      .filter(
+        (el) =>
+          !NOT_TEXT.includes((el.getAttribute('type') || '').toLowerCase()),
+      )
+      .filter((el) => rendered(el) && !el.disabled && !el.readOnly)
+      .slice(0, 50)
+  }
+  if (args.fillFields !== undefined) {
+    const fields = fillable(args.fillFields)
+    if (!fields) return { gone: true }
+    return {
+      url: location.href,
+      fields: fields.map((el) => ({
+        inputType: (el.getAttribute('type') || 'text').toLowerCase(),
+        name: el.getAttribute('name') || '',
+        id: el.id || '',
+        autocomplete: el.getAttribute('autocomplete') || '',
+        placeholder: el.getAttribute('placeholder') || '',
+      })),
+    }
+  }
+  if (args.fill !== undefined && args.fill !== null) {
+    const fields = fillable(args.fill.form)
+    if (!fields) return { gone: true }
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    ).set
+    const filled = []
+    for (const [index, value] of args.fill.values) {
+      const el = fields[index]
+      if (!el) continue
+      el.focus()
+      setValue.call(el, value)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+      filledFields.add(el)
+      const n = operable.indexOf(el)
+      if (n >= 0) filled.push(n + 1)
+    }
+    return { filled, url: location.href }
   }
   if (args.choose !== undefined && args.choose !== null) {
     const el = numbered(args.choose)

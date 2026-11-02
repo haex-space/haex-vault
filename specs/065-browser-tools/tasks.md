@@ -41,7 +41,9 @@ delivery is one PR from its own worktree off `main`.
 | PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`             |
 | PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                           |
 | PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)    |
-| PR E1    | Phase 6    | US4 (credentials and other entry data such as bank and card data)             |
+| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                              |
+| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                             |
+| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086)     |
 | PR E2    | Phase 7    | US5 (downloads, uploads)                                                      |
 | PR F     | Phase 8    | US6, deferred on 2026-11-01                                                   |
 | –        | Phase 9    | Polish, manual checks                                                         |
@@ -210,19 +212,20 @@ asks, a remembered one does not; every entry fill asks.
 
 ### Shared field mapping (PR E0, vault-sdk)
 
-- [ ] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
+- [x] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
 - [ ] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once
 
 ### Tests first
 
-- [ ] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots stay refused for the entire session after any credential is filled; `http` and a non-matching website fill nothing
-- [ ] T062 [US4] Integration test in src-tauri/tests/agent_browser_act.rs with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries expose only request-scoped opaque `entryId`s and ask every time; the agent needs the password group (021) for the selected entry
+- [x] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots stay refused for the entire session after any credential is filled; `http` and a non-matching website fill nothing
+- [x] T062 [US4] Integration test in src-tauri/tests/agent_browser_credentials.rs (own file) with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries expose only request-scoped opaque `entryId`s and ask every time; the agent needs the password group (021) for the selected entry
 
 ### Implementation
 
-- [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, the field mapping of `haex-autofill` (T081), writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
-- [ ] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
-- [ ] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
+- [x] T063 [US4] Fill in src-tauri/src/agent_browser/act_credentials.rs (the rule of removing values in redaction.rs) with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, the field mapping of `haex-autofill` (T081), writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
+- [x] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
+- [x] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
+- [x] T088 [US4] Password rights of the built-in agent (decided 2026-11-02): device setting `agent_browser.builtin_passwords`, guardrail action `settings.agentBrowser.builtinPasswords.set`, the fields in src/components/settings/agentBrowser/AgentBrowserView.vue; the built-in agent's fills read entries as the holzi function `agent_browser` (034 FR-027)
 - [ ] T079 [US4] Tests in src-tauri/src/agent_browser/credentials_tests.rs and src-tauri/tests/agent_browser_act.rs for `browser.credentials.create` (FR-036): the generated password fills the new field and its repeat field, never appears in a result, log or screenshot, is stored after "Speichern" as an entry with the tab's website, the fields are emptied after "Ablehnen", Plan refuses
 - [ ] T080 [US4] `browser.credentials.create` in src-tauri/src/agent_browser/credentials.rs (password generator in the password manager service, prompt kind `newCredentials` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue, catalog entry in src/lib/actions/browserActions.ts)
 

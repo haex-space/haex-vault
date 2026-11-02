@@ -30,6 +30,10 @@ Geräteeinstellung `agent_browser.builtin` (JSON, Form wie `BrowserRights`), ab 
 gesetzt = aus. Leitplanke: nur über die Aktion `settings.agentBrowser.builtin.set` änderbar, die
 kein Agent aufrufen kann.
 
+Geräteeinstellung `agent_browser.builtin_passwords` (JSON, Form wie `PasswordRights`: `level`,
+`tags`), ab Werk nicht gesetzt = aus: die Einträge, aus denen holzi für den eingebauten Agenten
+eintragen darf (2026-11-02). Leitplanke: nur über `settings.agentBrowser.builtinPasswords.set`.
+
 ## `haex_agent_browser_no_sync` (neu, geräteeigen, ohne Sync)
 
 | Spalte              | Typ     | Regel                             |

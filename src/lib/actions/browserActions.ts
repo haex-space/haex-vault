@@ -217,6 +217,33 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.credentials.fill',
+    titleKey: 'actions.browser.credentialsFill',
+    description:
+      'Log in on the page of an agent tab with an entry of the password manager: holzi fills in the username, the password and a one-time code itself; you never see them and get only filled: true, or filled: false with a reason (not_encrypted, no_fields). Name the form by the number of any of its elements, or leave it out for the login form. The first fill per website asks the user. Never type passwords yourself. Filled values are hidden from every later result, and screenshots stay off for the rest of the session.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        form: {
+          type: 'integer',
+          description:
+            'An element number of the form to fill; without it, the form with the password field.',
+        },
+      },
+      required: ['tab'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        filled: { type: 'boolean' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
     id: 'browser.download',
     titleKey: 'actions.browser.download',
     description:

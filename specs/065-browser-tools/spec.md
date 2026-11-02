@@ -102,6 +102,11 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   (selbstständig recherchieren, Formulare mit Daten aus dem Passwortmanager ausfüllen und
   absenden) deckt der Agenten-Browser. Ein Tauri-Webview als Agenten-Browser ist verworfen, weil
   die Web-Engines der Plattformen die Schutzregeln nicht gleich tragen (R2).
+- Q: Darf der eingebaute Agent Daten aus dem Passwortmanager eintragen lassen, obwohl er keine
+  Rechtegruppe Passwörter aus 021 hat? → A: Ja, mit eigenen Passwort-Rechten in „KI → Browser“
+  (aus, alle Einträge oder Einträge mit gewählten Tags; ab Werk aus). holzi liest die Einträge
+  dafür als eigene Funktion, der eingebaute Agent selbst liest nie ein Geheimnis (034 FR-027;
+  2026-11-02, FR-021).
 - Q: Wo landen die Downloads der Agenten? → A: Im Download-Ordner des Systems, im Ordner
   „HaexVault“ je Vault ein Unterordner (`Downloads/HaexVault/<Vault>`). holzis eigene Ordner sind für Agenten
   gesperrt (044), dort könnte der Agent seine Downloads nicht lesen; im Download-Ordner erreicht
@@ -443,7 +448,8 @@ Steuerung.
 - **FR-020**: Einträge MÜSSEN nach der Website des Tabs zugeordnet werden wie beim Ausfüllen in
   Spec 049; nur über eine verschlüsselte Verbindung und nur auf der Website, zu der der Eintrag
   passt.
-- **FR-021**: Das Eintragen MUSS die Rechtegruppe Passwörter (021) für den Eintrag voraussetzen.
+- **FR-021**: Das Eintragen MUSS die Rechtegruppe Passwörter (021) für den Eintrag voraussetzen,
+  beim eingebauten Agenten seine Passwort-Rechte in „KI → Browser“ (ab Werk aus).
   Beim ersten Eintragen je Agent und Website MUSS holzi fragen, in jeder Freigabestufe außer Plan
   (dort abgelehnt); die Rückfrage bietet „Für diese Website merken“. Gemerkt trägt holzi danach
   ohne Rückfrage ein, bis der Nutzer es in den Rechten des Agenten zurücknimmt; ohne Merken fragt
