@@ -373,18 +373,19 @@ function holziPage(args) {
       return { notPassword: true, url: location.href }
     const value = args.newPassword.value
     if (value === undefined || value === null) return { url: location.href }
-    const scope = el.form || el.closest('form') || document
-    const repeat = Array.from(
-      scope.querySelectorAll('input[type="password" i]'),
-    ).find(
-      (other) =>
-        other !== el &&
-        el.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING &&
-        rendered(other) &&
-        !other.disabled &&
-        !other.readOnly &&
-        (other.value === '' || filledFields.has(other)),
-    )
+    const scope = el.form || el.closest('form')
+    const repeat = scope
+      ? Array.from(scope.querySelectorAll('input[type="password" i]')).find(
+          (other) =>
+            other !== el &&
+            el.compareDocumentPosition(other) &
+              Node.DOCUMENT_POSITION_FOLLOWING &&
+            rendered(other) &&
+            !other.disabled &&
+            !other.readOnly &&
+            (other.value === '' || filledFields.has(other)),
+        )
+      : null
     const setValue = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
