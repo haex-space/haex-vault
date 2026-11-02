@@ -12,6 +12,7 @@ import {
   useTemplateRef,
 } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
@@ -299,6 +300,13 @@ const { syncFromLocation, ui } = useChatTab({
   peer: { ...peers, parkShare: useShareInboxStore().park },
 })
 
+/** A message hit of the sidebar's search (spec 076 FR-012): its conversation, for the agent the
+ * session holding the message. */
+function openHit(hit: ChatSearchHit) {
+  if (hit.kind === 'agent') ui.openConversation(hit.threadId)
+  else ui.openPeerConversation(hit.threadId)
+}
+
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
 // must appear here without reloading. While a turn runs here its own events and its turn-complete
 // reload keep the transcript current, so messages are left alone until it is over.
@@ -389,6 +397,7 @@ onBeforeUnmount(() => {
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
         @new-conversation="newContactOpen = true"
         @toggle="toggle"
+        @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
 

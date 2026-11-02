@@ -475,6 +475,14 @@
       "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
       "blockTitle": "Block {name}?",
       "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
+    },
+    "search": {
+      "placeholder": "Search chats",
+      "noNames": "No conversation found",
+      "messages": "Messages",
+      "noMessages": "No message found",
+      "more": "More hits – narrow the search",
+      "error": "The search failed: {error}"
     }
   },
   "settings": {

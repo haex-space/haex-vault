@@ -7,8 +7,11 @@
  * to them, as a list of its own in the sidebar.
  * Where the sidebar sits and how wide it is, the frame (`SidebarLayout.vue`) decides; it fills what
  * it is given. Spec 076: it has its own header (toggle, "Chats", new conversation) and, collapsed
- * (`collapsed`), shows only one avatar per entry, in the same order.
+ * (`collapsed`), shows only one avatar per entry, in the same order. Expanded, a search field
+ * (spec 076 US2) narrows the list by name at once and lists the messages that contain the text.
  */
+import { Search } from '@lucide/vue'
+import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Thread } from '~/composables/useChat'
 import type { PeerConversationEntry } from '~/composables/useConversations'
 
@@ -40,9 +43,15 @@ const emit = defineEmits<{
   selectPeer: [id: string]
   newConversation: []
   toggle: []
+  selectHit: [hit: ChatSearchHit]
 }>()
 
 const { t } = useI18n()
+const { errString } = useErrorString()
+const fieldLabels = useFieldLabels()
+// Lives with the sidebar, which stays mounted while it collapses: an expanded sidebar shows the
+// typed search again (spec US2 scenario 6).
+const search = useChatSearch(errString)
 
 const latestSession = computed(() => props.threads[0] ?? null)
 
@@ -76,6 +85,37 @@ const items = computed<Item[]>(() => {
   }
   return list.sort((a, b) => b.at - a.at)
 })
+
+const searching = computed(() => search.text.value.trim() !== '')
+
+function itemName(item: Item): string {
+  if (item.kind === 'agent') return t('chat.agent.name')
+  if (item.kind === 'notes') return props.notes.displayName
+  return item.peer.displayName
+}
+
+// FR-010: names narrow the list at once, ignoring case.
+const shownItems = computed(() => {
+  const needle = search.text.value.trim().toLocaleLowerCase()
+  if (!needle) return items.value
+  return items.value.filter((item) =>
+    itemName(item).toLocaleLowerCase().includes(needle),
+  )
+})
+
+/** Name and picture of a hit's conversation; agent hits belong to the agent entry. */
+function resolveHit(hit: ChatSearchHit) {
+  if (hit.kind === 'agent')
+    return { name: t('chat.agent.name'), photo: null, isAgent: true }
+  const peer =
+    props.peers.find((candidate) => candidate.id === hit.threadId) ??
+    (props.notes.id === hit.threadId ? props.notes : null)
+  return {
+    name: peer?.displayName ?? t('chat.peer.unknownName'),
+    photo: peer?.photo ?? null,
+    isAgent: false,
+  }
+}
 </script>
 
 <template>
@@ -188,8 +228,21 @@ const items = computed<Item[]>(() => {
     </div>
 
     <div v-else class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      <UiInput
+        v-model="search.text.value"
+        type="search"
+        :placeholder="t('chat.search.placeholder')"
+        :aria-label="t('chat.search.placeholder')"
+        :labels="fieldLabels.input.value"
+        :prepend-icon="Search"
+        clearable
+        class="shrink-0 [&_input::-webkit-search-cancel-button]:hidden"
+        data-testid="chat-sidebar-search"
+        @keydown.esc.prevent.stop="search.clear()"
+      />
+
       <button
-        v-if="requests.length > 0"
+        v-if="requests.length > 0 && !searching"
         type="button"
         class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-testid="chat-requests"
@@ -206,7 +259,7 @@ const items = computed<Item[]>(() => {
       </button>
 
       <div class="space-y-1" role="list" :aria-label="t('chat.list.title')">
-        <template v-for="item in items" :key="item.key">
+        <template v-for="item in shownItems" :key="item.key">
           <ChatAgentListItem
             v-if="item.kind === 'agent'"
             role="listitem"
@@ -231,6 +284,36 @@ const items = computed<Item[]>(() => {
           />
         </template>
       </div>
+      <p
+        v-if="searching && shownItems.length === 0"
+        class="px-2 text-xs text-muted-foreground"
+      >
+        {{ t('chat.search.noNames') }}
+      </p>
+
+      <template v-if="searching">
+        <p
+          v-if="search.error.value"
+          class="px-2 text-xs text-destructive"
+          role="alert"
+        >
+          {{ t('chat.search.error', { error: search.error.value }) }}
+        </p>
+        <ChatSearchHits
+          v-else-if="search.hits.value.length > 0"
+          :hits="search.hits.value"
+          :more="search.more.value"
+          :text="search.text.value"
+          :resolve="resolveHit"
+          @select="emit('selectHit', $event)"
+        />
+        <p
+          v-else-if="search.searched.value === search.text.value"
+          class="px-2 text-xs text-muted-foreground"
+        >
+          {{ t('chat.search.noMessages') }}
+        </p>
+      </template>
     </div>
   </aside>
 </template>

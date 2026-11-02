@@ -48,7 +48,7 @@ impl ConversationKind {
         }
     }
 
-    fn parse(raw: &str) -> haex_crdt::rusqlite::Result<Self> {
+    pub(crate) fn parse(raw: &str) -> haex_crdt::rusqlite::Result<Self> {
         match raw {
             "agent" => Ok(Self::Agent),
             "direct" => Ok(Self::Direct),

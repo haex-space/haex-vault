@@ -475,6 +475,14 @@
       "declineConfirm": "Die Unterhaltung mit {name} wird entfernt. {name} erfährt davon nichts; eine neue Nachricht kommt wieder als Anfrage.",
       "blockTitle": "{name} blockieren?",
       "blockConfirm": "Nachrichten von {name} werden ab jetzt verworfen, ohne Bestätigung. Die Unterhaltung wird entfernt. Aufheben kannst du das in den Einstellungen der Kontakte."
+    },
+    "search": {
+      "placeholder": "Chats durchsuchen",
+      "noNames": "Keine Unterhaltung gefunden",
+      "messages": "Nachrichten",
+      "noMessages": "Keine Nachricht gefunden",
+      "more": "Weitere Treffer vorhanden – Suchbegriff eingrenzen",
+      "error": "Die Suche ist fehlgeschlagen: {error}"
     }
   },
   "settings": {
