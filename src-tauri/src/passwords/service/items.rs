@@ -24,6 +24,7 @@ use crate::passwords::model::{
 use crate::passwords::references::{contains_reference, Field};
 use crate::passwords::references_db::{self, Reader};
 use crate::passwords::reveal::{self, Copied};
+use crate::storage::query::Query;
 
 /// What `list_headers` delivers: the headers of the entries in the scope, or the narrow headers of
 /// the built-in agent.

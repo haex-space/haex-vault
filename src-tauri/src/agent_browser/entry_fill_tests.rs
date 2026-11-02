@@ -81,7 +81,7 @@ fn empty_custom_fields_are_not_offered_or_filled() {
     assert_eq!(keys.keys, vec!["card".to_owned()]);
     let values = values_of(&item);
     assert_eq!(values.len(), 1);
-    assert_eq!(values["card"].as_str(), Some("4111111111111111"));
+    assert_eq!(values["card"].as_str(), "4111111111111111");
 }
 
 fn checkout() -> (Vec<FieldFacts>, Vec<String>) {
