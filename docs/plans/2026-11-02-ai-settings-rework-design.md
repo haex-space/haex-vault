@@ -1,6 +1,6 @@
 # KI-Einstellungen überarbeiten – Design
 
-Stand: 2026-11-02. Status: Entwurf, mit dem Operator abgestimmt; noch kein Umsetzungsplan.
+Stand: 2026-11-02. Status: Entwurf, mit dem Operator abgestimmt; die Umsetzungsschritte stehen im [Umsetzungsplan](2026-11-02-ai-settings-rework.md).
 
 ## Ziel
 
@@ -27,7 +27,7 @@ Die Ansichten unter Einstellungen → KI drei Dinge ändern:
 **Frontend**
 
 - Entfällt: [DefaultModelSetting.vue](../../src/components/settings/DefaultModelSetting.vue), der Registry-Eintrag `ai.default`, die Route in `appRoutes.ts`, die Actions `settings.models.setDefault` und `settings.models.clearDefault`, die i18n-Texte unter `settings.locations.ai.default` und `settings.default`.
-- Onboarding ([\[instance\].vue](../../src/pages/onboarding/[instance].vue)): schreibt nach dem Download nicht mehr `chat.default_model_id`. Es lädt das heruntergeladene Modell als aktives lokales Modell (siehe Abschnitt 3). Offen: ob der Wizard zusätzlich `chat.last_active_model_id` setzt, damit der erste Chat das Modell übernimmt. Annahme: ja.
+- Onboarding ([\[instance\].vue](../../src/pages/onboarding/[instance].vue)): schreibt nach dem Download nicht mehr `chat.default_model_id`. Es merkt das heruntergeladene Modell mit `ai.active_local_model_id` als aktives lokales Modell vor und setzt `chat.last_active_model_id`, damit der erste Chat es übernimmt. Der Preload lädt das aktive Modell beim Öffnen der Vault (siehe Abschnitt 3).
 - Ohne Modell: Auswahl "Modell wählen", Eingabefeld gesperrt.
 
 **Backend** ([default_model.rs](../../src-tauri/src/chat/default_model.rs))

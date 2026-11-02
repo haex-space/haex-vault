@@ -225,7 +225,7 @@ Im Template `v-if="catalogEntries.length > 0"` → `v-if="notInstalled.length > 
 
 **Step 4: Pfade.** `to="/ai/download/search"` → `to="/ai/local/search"` (DownloadModels), `` `/ai/download/repo/${…}` `` → `` `/ai/local/repo/${…}` `` (HuggingFaceSearch:200), `router.push('/ai/installed')` → `router.push('/ai/local')` und `to="/ai/download/search"` → `to="/ai/local/search"` (HuggingFaceFilePicker:133, 174). Die Kopfkommentare der vier Dateien, die `/ai/installed`, `/ai/download` nennen, auf `/ai/local` umstellen.
 
-**Step 5:** `grep -rn "ai/download\|ai/installed\|ai/servers" src --include=*.vue --include=*.ts` → keine Treffer mehr außer `ai/default`-Verweisen. Der Verweis `to="/ai/download"` in `DefaultModelSetting.vue:169` zeigt auf `/ai/local`; Task-5-Schritt unten.
+**Step 5:** `grep -rn "ai/download\\|ai/installed\\|ai/servers" src --include=*.vue --include=*.ts` should have only the expected old link in `DefaultModelSetting.vue:169` at this stage. Task 4, Step 3 updates that link; rerun the check then and expect no hits except `ai/default` references.
 
 ### Task 4: i18n
 
@@ -459,6 +459,11 @@ mit einer DB-Lesung, die nur `last_active` liefert. Docstrings von `resolve_defa
 // The wizard's explicit choice is the model a new chat starts with: the last picked one
 // (spec 002 FR-009 as amended 2026-11-02). There is no default model.
 // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
+await setPrefAsync(
+  { kind: 'device', uuid: info.vaultDeviceUuid },
+  'ai.active_local_model_id',
+  installed.id,
+)
 await setPrefAsync(
   { kind: 'device', uuid: info.vaultDeviceUuid },
   'chat.last_active_model_id',

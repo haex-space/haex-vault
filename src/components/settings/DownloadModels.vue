@@ -38,7 +38,12 @@ const otherDownloads = computed(() => {
 })
 
 function isInstalled(entry: CatalogEntryWithFit): boolean {
-  return installed.value.some((model) => model.id === entry.id)
+  return installed.value.some(
+    (model) =>
+      model.id === entry.id ||
+      (model.hfRepo === entry.hf_repo &&
+        model.hfFilename === entry.hf_filename),
+  )
 }
 
 /** An installed model is listed above, with the models on this device. */
