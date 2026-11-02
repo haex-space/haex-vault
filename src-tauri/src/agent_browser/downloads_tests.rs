@@ -57,6 +57,10 @@ fn names_avoid_the_device_names_of_windows_and_stay_short() {
     let cut = safe_name(&long);
     assert_eq!(cut.chars().count(), 150);
     assert!(cut.ends_with(".pdf"));
+
+    let unicode = safe_name(&format!("{}.pdf", "📄".repeat(150)));
+    assert!(unicode.len() <= 240);
+    assert!(unicode.ends_with(".pdf"));
 }
 
 #[test]

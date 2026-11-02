@@ -28,6 +28,8 @@ const FALLBACK_NAME: &str = "download";
 
 /// The most characters of a file name.
 const MAX_NAME_CHARS: usize = 150;
+/// Leave room for a numbered suffix on filesystems with a 255-byte component limit.
+const MAX_NAME_BYTES: usize = 240;
 
 /// Names Windows keeps for devices, with any extension.
 const RESERVED: &[&str] = &[
@@ -64,10 +66,26 @@ pub fn safe_name(suggested: &str) -> String {
     if RESERVED.contains(&stem.to_lowercase().as_str()) {
         name = format!("_{name}");
     }
-    if name.chars().count() > MAX_NAME_CHARS {
+    if name.chars().count() > MAX_NAME_CHARS || name.len() > MAX_NAME_BYTES {
         let (stem, extension) = split(&name);
-        let keep = MAX_NAME_CHARS.saturating_sub(extension.chars().count());
-        name = stem.chars().take(keep).collect::<String>() + extension;
+        let max_stem_chars = MAX_NAME_CHARS.saturating_sub(extension.chars().count());
+        let max_stem_bytes = MAX_NAME_BYTES.saturating_sub(extension.len());
+        let mut stem_chars = 0;
+        let mut stem_bytes = 0;
+        let shortened_stem: String = stem
+            .chars()
+            .take_while(|character| {
+                let next_chars = stem_chars + 1;
+                let next_bytes = stem_bytes + character.len_utf8();
+                if next_chars > max_stem_chars || next_bytes > max_stem_bytes {
+                    return false;
+                }
+                stem_chars = next_chars;
+                stem_bytes = next_bytes;
+                true
+            })
+            .collect();
+        name = shortened_stem + extension;
     }
     name
 }
