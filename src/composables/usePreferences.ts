@@ -12,6 +12,7 @@ export type PrefScope = { kind: 'vault' } | { kind: 'device'; uuid: string }
  * §FR-014.
  */
 export type ResolveSource =
+  | 'session'
   | 'last_active'
   | 'default_device'
   | 'default_vault'

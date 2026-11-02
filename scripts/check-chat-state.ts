@@ -1312,3 +1312,41 @@ test('the backend reason for an undetermined attachment reaches the composer unc
   assert.equal(state.attachments.value[0].info.usable, false)
   assert.equal(state.attachments.value[0].info.reason, reason)
 })
+
+test('opening a session asks for that session’s model (spec 006)', async () => {
+  const asked: (string | null)[] = []
+  const state = createChatState({
+    useSessionModelAsync: async (threadId: string | null) => {
+      asked.push(threadId)
+    },
+  })
+  await state.selectThread('b')
+  await state.selectThread('a')
+  assert.deepEqual(asked, ['b', 'a'])
+})
+
+test('only a pick in the model menu is remembered for new sessions (spec 002 FR-009, 2026-11-02)', async () => {
+  const picked: string[] = []
+  const loaded: string[] = []
+  const info = (modelId: string) => ({
+    modelId,
+    name: modelId,
+    tokenizerRepo: '',
+    contextWindow: null,
+  })
+  const state = createChatState({
+    selectModelAsync: async (modelId: string) => {
+      picked.push(modelId)
+      return info(modelId)
+    },
+    loadModelAsync: async (modelId: string) => {
+      loaded.push(modelId)
+      return info(modelId)
+    },
+  })
+  await state.modelStore.loadModel('qwen3-4b', { pick: true })
+  await state.modelStore.loadModel('retry-model')
+  assert.deepEqual(picked, ['qwen3-4b'])
+  assert.deepEqual(loaded, ['retry-model'])
+  assert.equal(state.modelStore.activeModel?.modelId, 'retry-model')
+})

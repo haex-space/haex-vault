@@ -290,6 +290,9 @@ export function useThreadSidebar(
       pendingPrompts.value = []
     }
     activeThreadId.value = id
+    // A continued session answers with the model it used before (spec 006). Fails quietly while
+    // another turn holds the chat; the session then sends with the loaded model.
+    void chat.useSessionModelAsync(id).catch(() => {})
     const existing = messagesByThread.value[id]
     if (!existing) {
       messagesByThread.value[id] = await chat.listMessagesAsync(id)

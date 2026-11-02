@@ -32,6 +32,13 @@ Chat-Einstieg, das Nachrichtenformat oder den Agent-Tool-Loop.
   gelöscht; bei fehlgeschlagenem oder nicht abgeschlossenem Abbruch bleibt er
   erhalten.
 
+### Session 2026-11-02
+
+- Q: Which model answers when a session is continued? → A: The session remembers its model and
+  uses it again: opening a session loads the model it used last, while that model can still load.
+  A new session starts with the model last picked in the model menu. Whether the agent is driven by
+  text or by voice (spec 066) makes no difference. (FR-021, FR-022)
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Eröffnungszeit eines Verlaufs erkennen (Priority: P1)
@@ -244,6 +251,15 @@ Der Eintrag und seine Nachrichten dürfen nicht mehr erscheinen.
   ausgeführt werden. Scheitert der Abbruch oder wird kein terminaler Zustand
   erreicht, MUSS der Thread erhalten bleiben und der Nutzer einen Fehler
   erhalten.
+- **FR-021** (2026-11-02): A session MUST remember its model (`chat_threads.last_model_id`) and
+  use it again: opening or continuing a session MUST load that model when another one is loaded.
+  If that model can no longer load (deleted, key gone), the session MUST fall back to the chain of
+  FR-022 without showing a load error. Picking another model in the menu while a session is open
+  changes that session's model from its next message on.
+- **FR-022** (2026-11-02): A new session MUST start with the model last picked in the model menu
+  (spec 002 FR-009 as amended), then the device default, the vault default and the first model
+  that loads (spec 002 FR-014). Text and voice (spec 066) follow the same rule; there is no model
+  of their own.
 
 ### Key Entities
 

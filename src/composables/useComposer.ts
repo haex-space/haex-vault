@@ -265,6 +265,8 @@ export function useComposer(
       pendingPrompts.value = []
     }
     activeThreadId.value = null
+    // A new session starts with the last model picked in the model menu (spec 006).
+    void chat.useSessionModelAsync(null).catch(() => {})
     input.value = ''
     attachments.value = []
     streamingMessageId.value = null

@@ -34,8 +34,10 @@ use crate::models::paths;
 use crate::providers::build_adapter;
 use crate::state::AppState;
 use crate::state_utils::active_database;
+use crate::storage::preferences::{self, PrefScope};
 use crate::storage::{models as models_store, providers as providers_store};
 
+use super::commands::PREF_LAST_ACTIVE_MODEL;
 use super::events::{emit_load_error, emit_load_progress, emit_model_load_status};
 use super::session::{ActiveSession, ChatState};
 use super::tools::selftest::spawn_tool_use_check;
@@ -283,6 +285,43 @@ pub async fn load_model(
     model_id: String,
 ) -> Result<LoadedModelInfo> {
     load_model_command(app, state, chat, model_id, false).await
+}
+
+/// `select_model`: the person picks a model in the model menu. Loads it like [`load_model`] and,
+/// once it is loaded, remembers it as the last picked model (`chat.last_active_model_id`), which a
+/// new session starts with (spec 002 FR-009 as amended 2026-11-02). Only this pick counts: a
+/// session that is continued with its own model, a retry, a download or the vault-open preload do
+/// not change it.
+#[tauri::command]
+pub async fn select_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    chat: State<'_, ChatState>,
+    model_id: String,
+) -> Result<LoadedModelInfo> {
+    let info = load_model_command(app, state.clone(), chat, model_id.clone(), false).await?;
+    remember_picked_model(&state, model_id).await?;
+    Ok(info)
+}
+
+/// Writes `model_id` as the last picked model of this device.
+pub(crate) async fn remember_picked_model(
+    state: &State<'_, AppState>,
+    model_id: String,
+) -> Result<()> {
+    let db = active_database(state)?;
+    let device = db.device_id();
+    db.write(move |tx| {
+        preferences::insert_or_update(
+            tx,
+            PrefScope::Device(device),
+            PREF_LAST_ACTIVE_MODEL,
+            &model_id,
+        )
+        .map(|_| ())
+    })
+    .await?;
+    Ok(())
 }
 
 /// Explicit, confirmation-gated bypass of the integrity check above

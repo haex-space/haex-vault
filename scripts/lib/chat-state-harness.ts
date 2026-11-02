@@ -182,6 +182,8 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
   // before ever calling this — only reached by a test that overrides
   // `active_model_info` to simulate nothing being active yet.
   resolve_default_model: () => ({ modelId: null, source: 'none' }),
+  // Opening a session or starting a new one loads that session's model (spec 006).
+  use_session_model: () => ({ modelId: 'model', source: 'session' }),
 }
 
 const RETURN_STATEMENT = `

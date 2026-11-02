@@ -210,14 +210,19 @@ export const useModelsStore = defineStore('models', () => {
     setError,
   })
 
-  /** Loads the selected model (local or api_key composite id). */
-  async function loadModel(id: string) {
+  /**
+   * Loads the selected model (local or api_key composite id). `pick`: the person chose it in the
+   * model menu, so a new session starts with it (spec 002 FR-009 as amended 2026-11-02).
+   */
+  async function loadModel(id: string, options: { pick?: boolean } = {}) {
     lastError.value = null
     loadErrorModelId.value = null
     modelLoadPending.value = true
     const loadToken = beginLoadingModel(id, findModelName(id))
     try {
-      activeModel.value = await chat.loadModelAsync(id)
+      activeModel.value = options.pick
+        ? await chat.selectModelAsync(id)
+        : await chat.loadModelAsync(id)
     } catch (e: unknown) {
       if (!openIntegrityDialog(id, e)) {
         lastError.value = errString(e)
