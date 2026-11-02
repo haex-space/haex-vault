@@ -420,7 +420,6 @@
       "deleteConfirm": "Möchtest du die Unterhaltung mit {name} wirklich löschen? Sie verschwindet mit allen Nachrichten und Dateien auf all deinen Geräten.",
       "deleteButton": "Löschen",
       "missing": "Diese Unterhaltung gibt es nicht mehr.",
-      "send": "Senden",
       "counter": "{count} / {max} Zeichen",
       "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays."
     },
