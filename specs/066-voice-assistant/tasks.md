@@ -174,6 +174,15 @@ without restart. Play every tone.
 
 ---
 
+### Tones: distinguishable and your own (operator 2026-11-02, FR-043, FR-045a)
+
+- [x] T155 [US8] Redesign the built-in tones in src-tauri/src/assistant/tones.rs: per tone its own colour (`Timbre`: bell, wood, soft, buzz, tick), glides between scale steps, two and a half octaves of the pentatonic; test in tones_tests.rs that no two tones share colours and direction; per-tone WAVs from the ignored listening test
+- [x] T156 [US8] Migration `0051_assistant_tones` (`haex_assistant_tones` exactly as data-model.md, CRDT-tracked, no UNIQUE) in a new src-tauri/src/identity/migrations_assistant_tones.rs; `HOLZI_TRIGGER_VERSION` +1; migration test
+- [x] T157 [US8] Import in a new src-tauri/src/assistant/custom_tones.rs: decode MP3/WAV/OGG/FLAC/M4A with symphonia, mix to mono, trim silence, limit 3 s, normalize the peak to the built-in tones, store as 16-bit WAV ≤ 48 kHz; tests in custom_tones_tests.rs (each format from a generated fixture, silent, too long, garbage)
+- [x] T158 [US8] Commands `assistant_tones_list`, `assistant_tone_import`, `assistant_tone_assign` (1 s limit for `working`), `assistant_tone_delete`, `customId` on `assistant_tone_preview`; device pref `assistant.tones.custom`; `tones::play` uses the assigned tone and falls back to the built-in one
+- [x] T159 [US8] Tones page src/components/settings/assistant/TonesSetting.vue: per tone a choice "Mitgeliefert" or an own tone with "Anhören", a group "Eigene Töne" with "Datei hinzufügen…" and delete; strings in de/en
+  - 2026-11-02: built in one PR. Own tones are a synced vault library (like the icon sets of 053), the choice per occasion is the device pref `assistant.tones.custom`; `custom_tones::ToneBank` (managed state) holds the assigned sounds for `tones::play` and is filled by `refresh_bank` after every change and before a preview. The driver (T044) also calls `refresh_bank` when the assistant starts. Fixtures in src-tauri/src/assistant/fixtures/tones/ are the new built-in "done" tone encoded by ffmpeg in five formats.
+
 ## Phase 4: User Story 2 - Ganz normal weitersprechen (Priority: P1) (PR C)
 
 **Goal**: A conversation started by shortcut or indicator runs over several turns with follow-up

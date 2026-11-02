@@ -9,25 +9,26 @@
 Alle Schlüssel gelten nur für das Gerät, dessen Zeile sie sind (FR-002, FR-038). Gespeichert wird
 bei Auswahl.
 
-| Schlüssel                                            | Typ                                   | Standard                   | Spec           |
-| ---------------------------------------------------- | ------------------------------------- | -------------------------- | -------------- |
-| `assistant.enabled`                                  | bool                                  | `false`                    | FR-001, FR-002 |
-| `assistant.muted`                                    | bool                                  | `false`                    | US9            |
-| `assistant.wakeWord`                                 | `"default"` \| `"custom"`             | `"default"`                | FR-007, FR-008 |
-| `assistant.wakeWord.custom`                          | JSON `CustomWakeWord` (unten)         | –                          | FR-008         |
-| `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`     | `"medium"`                 | FR-009         |
-| `assistant.pauseMs`                                  | int 500–2000                          | `800`                      | FR-012         |
-| `assistant.followUpSecs`                             | int 3–30                              | `8`                        | FR-013         |
-| `assistant.continueMins`                             | int 0–60                              | `5`                        | FR-015         |
-| `assistant.modelId`                                  | Modell-Id \| null                     | null = Standard-Chatmodell | FR-020         |
-| `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                    | Standardstimme der Sprache | FR-029, FR-053 |
-| `assistant.speechRate`                               | float 0.75–1.5                        | `1.0`                      | FR-030         |
-| `assistant.ttsProvider`                              | Anbieter-Id \| null                   | null = lokal               | FR-031         |
-| `assistant.tones.enabled`                            | bool                                  | `true`                     | FR-045         |
-| `assistant.tones.volume`                             | int 0–100                             | `60`                       | FR-045         |
-| `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`         | `"auto"`                   | FR-016, R9     |
-| `assistant.bubble.position`                          | JSON `{x, y}` (Anteil 0–1 der Fläche) | rechts unten               | FR-041         |
-| `assistant.noticeShown`                              | bool                                  | `false`                    | FR-037         |
+| Schlüssel                                            | Typ                                    | Standard                   | Spec           |
+| ---------------------------------------------------- | -------------------------------------- | -------------------------- | -------------- |
+| `assistant.enabled`                                  | bool                                   | `false`                    | FR-001, FR-002 |
+| `assistant.muted`                                    | bool                                   | `false`                    | US9            |
+| `assistant.wakeWord`                                 | `"default"` \| `"custom"`              | `"default"`                | FR-007, FR-008 |
+| `assistant.wakeWord.custom`                          | JSON `CustomWakeWord` (unten)          | –                          | FR-008         |
+| `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`      | `"medium"`                 | FR-009         |
+| `assistant.pauseMs`                                  | int 500–2000                           | `800`                      | FR-012         |
+| `assistant.followUpSecs`                             | int 3–30                               | `8`                        | FR-013         |
+| `assistant.continueMins`                             | int 0–60                               | `5`                        | FR-015         |
+| `assistant.modelId`                                  | Modell-Id \| null                      | null = Standard-Chatmodell | FR-020         |
+| `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                     | Standardstimme der Sprache | FR-029, FR-053 |
+| `assistant.speechRate`                               | float 0.75–1.5                         | `1.0`                      | FR-030         |
+| `assistant.ttsProvider`                              | Anbieter-Id \| null                    | null = lokal               | FR-031         |
+| `assistant.tones.enabled`                            | bool                                   | `true`                     | FR-045         |
+| `assistant.tones.volume`                             | int 0–100                              | `60`                       | FR-045         |
+| `assistant.tones.custom`                             | JSON `{ToneId: Id eines eigenen Tons}` | `{}` = alle mitgeliefert   | FR-045a        |
+| `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`          | `"auto"`                   | FR-016, R9     |
+| `assistant.bubble.position`                          | JSON `{x, y}` (Anteil 0–1 der Fläche)  | rechts unten               | FR-041         |
+| `assistant.noticeShown`                              | bool                                   | `false`                    | FR-037         |
 
 `VoiceRef` (Text, unabhängig von der Technik, FR-029): `builtin:<id>` (mitgeliefert),
 `clone:<id>` (`haex_tts_voices`), `model:<id>` oder `model:<id>#<sprecher>` (importiert). Zeigt er
@@ -94,6 +95,25 @@ danach den Thread, damit jeder Eintrag einen eigenen CRDT-Löschmarker erhält.
 `secretNote`. Ein Vorlese-Hinweis ist `kind = 'secretNote'` mit „Passwort von ‚<Titel>‘ vorgelesen“
 (Feldname je nach Feld). Ein `outcome = 'open'` wird beim Beantworten auf das Ergebnis aktualisiert.
 Gesucht wird in Rust mit der gemeinsamen Faltung (`passwords::ids::fold_for_search`) und Teilstring-Vergleich; einen Volltextindex gibt es im Projekt nicht (006 schließt ihn aus).
+
+### Eigene Töne (Migration `0051_assistant_tones`, Trigger-Version +1, FR-045a)
+
+```sql
+CREATE TABLE haex_assistant_tones (       -- CRDT, synchronisiert: auf allen Geräten wählbar
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,                     -- Dateiname ohne Endung, änderbar nur durch Neuimport
+  duration_ms INTEGER NOT NULL,           -- nach dem Abschneiden der Stille, höchstens 3000
+  sample_rate INTEGER NOT NULL,           -- höchstens 48000
+  sha256 TEXT NOT NULL,                   -- des gespeicherten Klangs
+  sound BLOB NOT NULL,                    -- WAV 16 bit Mono, Spitze auf die mitgelieferten Töne angeglichen
+  created_at INTEGER NOT NULL             -- Unix-ms
+);
+```
+
+Wie die Icon-Sets (053) ohne UNIQUE und unveränderlich: Ein Ton wird ersetzt, indem man einen neuen
+importiert und den alten löscht. Die Zuordnung steht in `assistant.tones.custom` des Geräts; zeigt
+sie auf einen Ton, den es nicht mehr gibt, gilt der mitgelieferte. Die Originaldatei wird nicht
+gespeichert.
 
 ### Eigene Stimmen (eigene Migration in PR K, nächste freie Nummer, Trigger-Version +1)
 

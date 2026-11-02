@@ -22,6 +22,7 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.ttsProvider',
   'assistant.tones.enabled',
   'assistant.tones.volume',
+  'assistant.tones.custom',
   'assistant.headphones',
   'assistant.bubble.position',
   'assistant.noticeShown',
@@ -84,6 +85,16 @@ export const ALWAYS_AUDIBLE_TONES: readonly ToneId[] = ['listening', 'secret']
 export const TONES_ENABLED_KEY = 'assistant.tones.enabled'
 export const TONES_VOLUME_KEY = 'assistant.tones.volume'
 export const TONES_VOLUME = { min: 0, max: 100, step: 5, default: 60 } as const
+/** Which own tone sounds for which occasion on this device (FR-045a); written by the backend. */
+export const TONES_CUSTOM_KEY = 'assistant.tones.custom'
+/** The file types an own tone can come from (FR-045a). */
+export const TONE_FILE_EXTENSIONS = [
+  'mp3',
+  'wav',
+  'ogg',
+  'flac',
+  'm4a',
+] as const
 
 /** A stored switch: only `"false"` turns the tones off. */
 export function parseTonesEnabled(value: string | null): boolean {

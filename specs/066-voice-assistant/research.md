@@ -435,6 +435,14 @@ ein bis drei Noten, höchstens 320 ms, Spitze 0,5. „Arbeitet“ ist eine leise
 klingen auch bei ausgeschalteten Tönen (FR-045). Jeder Ton geht zusätzlich als `assistant-tone` an die
 Oberfläche.
 
+**Neugestaltung (2026-11-02, Betreiber: „schwer unterscheidbar“)**: Dieselbe Klangfarbe, Tonlage und
+Länge für alle Töne machten „Hört zu“ und „Verstanden“ fast gleich. Jetzt hat jede Note eine
+Klangfarbe (`Timbre`: Glocke, Holz, weich, schnarrend, Tick) und darf zwischen zwei Stufen gleiten;
+die Skala reicht über zweieinhalb Oktaven (D4 bis A6). Kein Paar von Tönen teilt Klangfarben-Folge und
+Richtung (Test `every_tone_is_distinguishable`). „Hört zu“ gleitet als Glocke eine Oktave hinauf,
+„Verstanden“ sind zwei kurze Holzschläge aufwärts, „Nicht verstanden“ zweimal derselbe schnarrende
+Ton. Eigene Töne pro Anlass: FR-045a.
+
 **Alternativen**: Kenney „Interface Sounds“ (CC0) — passt nicht als Familie, nur als Platzhalter.
 
 ## R17 — Einstellungen und Daten

@@ -64,6 +64,12 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   verschlüsselt über den Vault synchronisiert; importierte Modelldateien bleiben wegen ihrer Größe auf
   dem Gerät.
 
+### Session 2026-11-02 (Töne)
+
+- Betreiber: Die Töne für „Hört zu“, „Verstanden“ usw. sind schwer unterscheidbar, und sie lassen
+  sich nicht einstellen. → Das Klangset bekommt je Anlass eigene Klangfarbe und eigenen Verlauf
+  (FR-043), und Nutzer können pro Anlass einen eigenen Ton aus einer Audiodatei wählen (FR-045a).
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -688,7 +694,8 @@ Modus aus.
 #### Töne
 
 - **FR-043**: haex MUST ein eigenes, mitgeliefertes Klangset mit je einem kurzen, unterscheidbaren
-  Ton für diese Anlässe haben:
+  Ton für diese Anlässe haben. Unterscheidbar heißt: Keine zwei Töne teilen Klangfarbe und Verlauf
+  (steigend, gleichbleibend, fallend); allein die Tonhöhe reicht nicht (2026-11-02):
   - **Hört zu**: Wake Word erkannt oder Gespräch per „Sprechen“ bzw. Tastenkürzel begonnen.
   - **Verstanden**: Ende einer Äußerung erkannt; haex nimmt sie entgegen und bearbeitet sie.
   - **Arbeitet**: ein leiser, wiederkehrender Ton, solange eine Runde länger als einige Sekunden ohne
@@ -711,6 +718,15 @@ Modus aus.
 - **FR-045**: Der Nutzer MUST die Lautstärke der Töne getrennt von der Sprachausgabe einstellen und
   die Töne ausschalten können; ausgenommen sind „Hört zu“ und „Geheimnis“, die immer erklingen,
   solange haex nicht stummgeschaltet ist. Bei Stummschaltung MUST haex keine Töne spielen.
+- **FR-045a** (2026-11-02): Der Nutzer MUST für jeden Anlass aus FR-043 statt des mitgelieferten Tons
+  einen eigenen Ton aus einer Audiodatei (MP3, WAV, OGG, FLAC, M4A) wählen und jederzeit auf den
+  mitgelieferten zurückstellen können. Eigene Töne liegen verschlüsselt im Vault und stehen auf allen
+  Geräten zur Auswahl; welcher Ton für welchen Anlass gilt, ist eine Geräteeinstellung (FR-038). Ein
+  eigener Ton MUST nach dem Abschneiden von Stille am Anfang und Ende höchstens 3 s lang sein
+  („Arbeitet“ höchstens 1 s, weil er sich wiederholt) und wird beim Import auf die Lautstärke der
+  mitgelieferten Töne angeglichen. Fehlt ein zugeordneter eigener Ton (auf einem anderen Gerät
+  gelöscht), MUST der mitgelieferte erklingen. FR-044 (Familie) und FR-046 (Lizenz) gelten nur für
+  die mitgelieferten Töne.
 - **FR-046**: Die Töne MUST unter einer Lizenz stehen, die die Weitergabe mit haex erlaubt, und ihre
   Herkunft MUST im Repository dokumentiert sein.
 
@@ -771,6 +787,8 @@ Modus aus.
   des Endes (für die Fortsetzungszeit) und den Runden als Mitschrift.
 - **Klangset**: die mitgelieferten Hinweistöne, je einer pro Anlass aus FR-043, als zusammengehörige
   Familie gestaltet. Lautstärke und An/Aus sind Teil der Assistent-Einstellungen.
+- **Eigener Ton**: ein vom Nutzer importierter Ton (Name, Länge, Klang), vault-weit verfügbar; pro
+  Gerät einem oder mehreren Anlässen zugeordnet (FR-045a).
 - **Mitschrift-Eintrag**: eine Zeile der vollständigen Mitschrift eines Gesprächs: Zeitpunkt,
   Sprecher (Nutzer oder haex), Art (Äußerung, Antwort, Ansage, Freigabe-Frage, Freigabe-Antwort,
   Antwort auf eine Rückfrage, Stopp, Schlusswendung, nicht verstanden, Vorlese-Hinweis) und Text; bei
