@@ -72,7 +72,7 @@ Ein Nutzer, der schon eingerichtet ist und regelmäßig chattet, will nach jedem
 
 ### User Story 3 - Expliziter Standard mit Gerät- oder Vault-Reichweite (Priority: P2)
 
-> **Amended 2026-11-02**: entfällt. Es gibt kein Standardmodell; ein neuer Chat nimmt das zuletzt im Modellmenü gewählte Modell, und ohne eines wählt der Nutzer.
+> **Amended 2026-11-02**: removed. There is no default model; a new chat starts with the last model picked in the model menu, and without one the person chooses.
 
 Ein Nutzer, der einen langfristigen Standardanker setzen will ("das ist MEIN Modell auf diesem Gerät" oder "auf allen Geräten dieses Vaults"), kann das explizit tun. Dieser Anker gilt als Fallback, wenn das zuletzt aktive Modell mal nicht ladbar ist, und beim ersten Öffnen einer Vault auf einem Gerät, bevor Story 2 greift.
 

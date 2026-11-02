@@ -67,7 +67,7 @@ pub const VAULT_PREFERENCE_PREFIXES: &[&str] = &["chat.reasoning_option."];
 /// How long a delete marker stays in `haex_deleted_rows` (research R20).
 pub const DELETE_MARKER_RETENTION_DAYS: u32 = 90;
 
-/// Preferences that apply to one device only: the model files live there.
+/// Preferences that apply to one device only.
 pub const DEVICE_PREFERENCE_KEYS: &[&str] = &["chat.notifications"];
 
 fn is_vault_preference(key: &str) -> bool {

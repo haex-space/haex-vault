@@ -136,6 +136,10 @@ ohne Namen hat kein `alias` (Schema-Subset ohne `null`).
 
 Beim Standardmodell ruft „Keins“ `settings.models.clearDefault`.
 
+> **Amended 2026-11-02**: `settings.models.setDefault`, `settings.models.clearDefault` and the
+> `defaultModel` field of `settings.get` are removed together with the default model (spec 002
+> FR-011).
+
 Alle anderen Einstellungen behalten ihre Aktionen (FR-019); nur die Bedienung
 ändert sich (research R5).
 

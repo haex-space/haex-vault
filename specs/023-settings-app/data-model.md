@@ -84,6 +84,9 @@ Nach der Übernahme ist der alte Wert dieses Geräts (bzw. beim Standard-Modell
 der alte Vault-Wert) gelöscht; Werte anderer Geräte übernimmt jedes Gerät beim
 eigenen Öffnen.
 
+> **Amended 2026-11-02**: `chat.default_model_id` is no longer folded; there is no default model
+> (spec 002 FR-011).
+
 ## Download-Fortschritt (Download-Store)
 
 In `stores/modelDownloads.ts` (R6), dazu `clearDownload(id)` und
