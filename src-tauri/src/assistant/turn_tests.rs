@@ -217,3 +217,37 @@ fn reasoning_only_chunks_and_other_events_say_nothing() {
         .is_empty());
     assert_eq!(b.answer(), "");
 }
+
+#[test]
+fn a_question_counts_as_answered_once_the_turn_goes_on() {
+    let request = Uuid::new_v4();
+    let approval = json!({
+        "requestId": request,
+        "threadId": Uuid::new_v4(),
+        "toolName": "mail.send",
+        "toolInput": {},
+        "riskClass": "change",
+        "toolSource": "action"
+    });
+    let resolved = Output::Event(Event::QuestionResolved(request.to_string()));
+
+    let mut b = bridge();
+    b.on_event("tool-permission-request", &approval);
+    let result = json!({ "callId": "c1", "output": "ok" });
+    assert_eq!(
+        b.on_event("chat-tool-result", &result),
+        std::slice::from_ref(&resolved)
+    );
+    assert!(
+        b.on_event("chat-tool-result", &result).is_empty(),
+        "resolved once"
+    );
+
+    // A turn that ends while the question is open takes it along.
+    let mut b = bridge();
+    b.on_event("tool-permission-request", &approval);
+    assert_eq!(
+        b.on_event("chat-turn-complete", &turn_complete()),
+        [resolved, Output::Event(Event::TurnEnded)]
+    );
+}

@@ -288,6 +288,7 @@ pub fn run() {
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(assistant::commands::AssistantDriver::default());
     // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
     #[cfg(feature = "voice")]
     let builder = builder.manage(assistant::custom_tones::ToneBank::default());
@@ -870,6 +871,10 @@ pub fn run() {
             assistant_tts_preview,
             download_tts_voice,
             assistant::assets::assistant_readiness,
+            assistant::commands::assistant_get_state,
+            assistant::commands::assistant_talk,
+            assistant::commands::assistant_end_conversation,
+            assistant::commands::assistant_set_muted,
             assistant::tones::assistant_tone_preview,
             assistant::custom_tones::assistant_tones_list,
             assistant::custom_tones::assistant_tone_import,

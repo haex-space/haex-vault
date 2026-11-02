@@ -6,11 +6,12 @@
 //! sherpa reports progress only at the end of a sentence; so stopping takes effect before the next
 //! sentence, and [`Speaker::stop`] also drops what the mixer still holds.
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::json;
 use sherpa_onnx::{
@@ -35,6 +36,9 @@ const VOICE_CACHE: i32 = 8;
 const TEMPERATURE: &str = "0.7";
 /// How often the worker looks for a close while it waits.
 const POLL: Duration = Duration::from_millis(50);
+/// The device still plays its own buffer after the mixer handed a sentence on; a sentence counts
+/// as played this much after its samples ran out.
+const PLAYOUT: Duration = Duration::from_millis(150);
 
 /// A voice's reference recording, mono at any rate.
 pub struct Reference {
@@ -167,14 +171,20 @@ pub struct Sentence {
 
 struct Job {
     generation: u64,
+    ticket: u64,
     sentence: Sentence,
 }
+
+/// Told the ticket of every sentence once it has sounded, was skipped by a stop or failed, in the
+/// order [`Speaker::speak`] handed the tickets out.
+pub type Played = Arc<dyn Fn(u64) + Send + Sync>;
 
 /// Speaks sentences in order on its own thread. Dropping it ends the thread after the sentence
 /// in progress; a vault close ends it too.
 pub struct Speaker {
     jobs: Sender<Job>,
     generation: Arc<AtomicU64>,
+    tickets: AtomicU64,
     out: Arc<dyn SpeechOut>,
     ended: Arc<AtomicBool>,
 }
@@ -187,6 +197,16 @@ impl Drop for Speaker {
 
 impl Speaker {
     pub fn start(gate: &VaultGate, out: Arc<dyn SpeechOut>) -> Result<Self, TtsError> {
+        Self::start_reporting(gate, out, Arc::new(|_| {}))
+    }
+
+    /// Like [`start`](Self::start), and tells `played` when each sentence is over, so the
+    /// assistant knows when haex has finished speaking (it listens only then).
+    pub fn start_reporting(
+        gate: &VaultGate,
+        out: Arc<dyn SpeechOut>,
+        played: Played,
+    ) -> Result<Self, TtsError> {
         let (jobs, queue) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
         let ended = Arc::new(AtomicBool::new(false));
@@ -196,6 +216,10 @@ impl Speaker {
             out: Arc::clone(&out),
             closing: gate.token(),
             ended: Arc::clone(&ended),
+            played,
+            sounding: VecDeque::new(),
+            sounds_until: Instant::now(),
+            sounds_generation: 0,
         };
         gate.spawn_blocking(move || worker.run())
             .map_err(|_| TtsError::Unavailable {
@@ -204,19 +228,24 @@ impl Speaker {
         Ok(Self {
             jobs,
             generation,
+            tickets: AtomicU64::new(0),
             out,
             ended,
         })
     }
 
-    /// Queues `sentence` behind the ones already queued.
-    pub fn speak(&self, sentence: Sentence) {
+    /// Queues `sentence` behind the ones already queued. Returns its ticket: 1 for the first
+    /// sentence of this speaker, one more for every further one.
+    pub fn speak(&self, sentence: Sentence) -> u64 {
         let generation = self.generation.load(Ordering::Acquire);
+        let ticket = self.tickets.fetch_add(1, Ordering::AcqRel) + 1;
         // A send fails only once the worker has ended (vault closing); nothing to speak then.
         let _ = self.jobs.send(Job {
             generation,
+            ticket,
             sentence,
         });
+        ticket
     }
 
     /// Silences speech: what the mixer holds is dropped at once, queued sentences are skipped, and
@@ -233,11 +262,19 @@ struct Worker {
     out: Arc<dyn SpeechOut>,
     closing: CancellationToken,
     ended: Arc<AtomicBool>,
+    played: Played,
+    /// Sentences handed to the mixer and not reported yet: ticket, generation, when it is over.
+    sounding: VecDeque<(u64, u64, Instant)>,
+    /// When the last queued sentence is over, and the generation it belongs to: a stop drops
+    /// what the mixer holds, so a newer generation starts from now.
+    sounds_until: Instant,
+    sounds_generation: u64,
 }
 
 impl Worker {
-    fn run(self) {
+    fn run(mut self) {
         loop {
+            self.report_played();
             if self.closing.is_cancelled() {
                 return;
             }
@@ -250,6 +287,7 @@ impl Worker {
                 return;
             }
             if self.is_stale(&job) {
+                self.silenced(&job);
                 continue;
             }
             let sentence = &job.sentence;
@@ -261,15 +299,20 @@ impl Worker {
                     Ok(samples) => samples,
                     Err(error) => {
                         log::warn!("speech synthesis failed: {error}");
+                        self.silenced(&job);
                         continue;
                     }
                 };
             if self.is_stale(&job) || self.closing.is_cancelled() {
+                self.silenced(&job);
                 continue;
             }
             let mixer = self.out.mixer();
             let samples =
                 resample_linear(&samples, sentence.engine.sample_rate(), mixer.sample_rate());
+            // Playback starts once what is queued before has played, at the earliest now; waiting
+            // for room in the mixer's queue does not delay it.
+            let queued_at = Instant::now();
             // Waits while the mixer's queue is full; returns early on a stop.
             mixer.queue_speech(&samples, || {
                 self.is_stale(&job) || self.closing.is_cancelled()
@@ -278,11 +321,52 @@ impl Worker {
             // queued a newer sentence yet, so this only drops the cancelled sentence.
             if self.is_stale(&job) || self.closing.is_cancelled() {
                 mixer.stop_speech();
+                self.silenced(&job);
+                continue;
             }
+            let length =
+                Duration::from_secs_f64(samples.len() as f64 / f64::from(mixer.sample_rate()));
+            self.sounds(&job, queued_at, length);
         }
     }
 
     fn is_stale(&self, job: &Job) -> bool {
         job.generation != self.generation.load(Ordering::Acquire)
+    }
+
+    /// Notes that `job`, handed to the mixer at `queued_at`, sounds for `length` after what is
+    /// queued before it.
+    fn sounds(&mut self, job: &Job, queued_at: Instant, length: Duration) {
+        if job.generation != self.sounds_generation {
+            self.sounds_generation = job.generation;
+            self.sounds_until = queued_at;
+        }
+        self.sounds_until = self.sounds_until.max(queued_at) + length;
+        self.sounding
+            .push_back((job.ticket, job.generation, self.sounds_until + PLAYOUT));
+        self.report_played();
+    }
+
+    /// Notes that `job` was skipped, failed or stopped: it is over with what is queued before it.
+    fn silenced(&mut self, job: &Job) {
+        let until = self
+            .sounding
+            .back()
+            .map_or_else(Instant::now, |(_, _, until)| *until);
+        self.sounding.push_back((job.ticket, job.generation, until));
+        self.report_played();
+    }
+
+    /// Reports, in order, the sentences that are over or were silenced by a stop.
+    fn report_played(&mut self) {
+        let now = Instant::now();
+        let current = self.generation.load(Ordering::Acquire);
+        while let Some(&(ticket, generation, until)) = self.sounding.front() {
+            if until > now && generation == current {
+                return;
+            }
+            self.sounding.pop_front();
+            (self.played)(ticket);
+        }
     }
 }

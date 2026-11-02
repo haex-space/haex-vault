@@ -24,7 +24,8 @@ use uuid::Uuid;
 use crate::chat::default_model::use_session_model;
 use crate::chat::events::{
     EVENT_CHAT_MESSAGE_COMPLETE, EVENT_CHAT_TOKEN, EVENT_CHAT_TOOL_AVAILABILITY,
-    EVENT_CHAT_TURN_COMPLETE, EVENT_CHOICE_REQUEST, EVENT_TOOL_PERMISSION_REQUEST,
+    EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT, EVENT_CHAT_TURN_COMPLETE, EVENT_CHOICE_REQUEST,
+    EVENT_TOOL_PERMISSION_REQUEST,
 };
 use crate::chat::send::{start_turn, SendMessageResult, StartTurn};
 use crate::chat::session::ChatState;
@@ -58,6 +59,8 @@ pub struct Bridge {
     answer: String,
     delegate_notice_due: bool,
     ended: bool,
+    /// Questions asked and not seen answered yet.
+    asked: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -97,6 +100,7 @@ impl Bridge {
             answer: String::new(),
             delegate_notice_due,
             ended: false,
+            asked: Vec::new(),
         }
     }
 
@@ -116,6 +120,22 @@ impl Bridge {
             return Vec::new();
         }
         let mut out = Vec::new();
+        // The turn goes on, or ends, only once its questions were answered: in the window until
+        // PR E answers them by voice, or by the end of the turn.
+        let goes_on = matches!(
+            name,
+            EVENT_CHAT_TOKEN
+                | EVENT_CHAT_TOOL_CALL
+                | EVENT_CHAT_TOOL_RESULT
+                | EVENT_CHAT_TURN_COMPLETE
+        );
+        if goes_on {
+            out.extend(
+                self.asked
+                    .drain(..)
+                    .map(|id| Output::Event(Event::QuestionResolved(id))),
+            );
+        }
         match name {
             EVENT_CHAT_TOOL_AVAILABILITY => {
                 let delegate =
@@ -142,6 +162,7 @@ impl Bridge {
             }
             EVENT_TOOL_PERMISSION_REQUEST => {
                 if let Some(approval) = parse::<Approval>(payload) {
+                    self.asked.push(approval.request_id.to_string());
                     out.push(Output::Event(Event::Question(OpenQuestion {
                         id: approval.request_id.to_string(),
                         kind: QuestionKind::Approval,
@@ -151,6 +172,7 @@ impl Bridge {
             }
             EVENT_CHOICE_REQUEST => {
                 if let Some(choice) = parse::<Choice>(payload) {
+                    self.asked.push(choice.request_id.to_string());
                     out.push(Output::Event(Event::Question(OpenQuestion {
                         id: choice.request_id.to_string(),
                         kind: QuestionKind::Choice,
