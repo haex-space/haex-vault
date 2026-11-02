@@ -109,17 +109,17 @@ scenario('settings-categories', {}, async (ctx) => {
     ],
     [['settings-category-ai', 'settings-row-ai.speech'], 'ai.speech', null],
     [
-      ['settings-category-ai', 'settings-row-ai.installed'],
-      'ai.installed',
+      ['settings-category-ai', 'settings-row-ai.local'],
+      'ai.local',
       'settings-installed-empty',
     ],
     [
       [
         'settings-category-ai',
-        'settings-row-ai.download',
-        'settings-row-ai.download.search',
+        'settings-row-ai.local',
+        'settings-row-ai.local.search',
       ],
-      'ai.download.search',
+      'ai.local.search',
       null,
     ],
     [

@@ -8,7 +8,7 @@ import {
   wmSnapshot,
 } from '../lib/settings.ts'
 
-const REPO = '/ai/download/repo/Qwen/Qwen2.5-0.5B-Instruct-GGUF'
+const REPO = '/ai/local/repo/Qwen/Qwen2.5-0.5B-Instruct-GGUF'
 
 // Spec 023-settings-app, quickstart S4–S7 and S22 (FR-008–FR-010): the arrow in the title row goes to
 // the previous place when that is in the same category, otherwise to the parent; the tab's back and
@@ -22,14 +22,14 @@ scenario('settings-header-back', {}, async (ctx) => {
   const [tab] = settingsTabs(await wmSnapshot(instance))
   if (!tab) throw new Error('no settings tab')
 
-  // S22: Modelle → Installierte Modelle → (none installed) Modelle herunterladen, then the arrow twice.
+  // S22: KI → Lokale Modelle → Suche, then the arrow twice.
   await instance.click('settings-category-ai')
-  await instance.click('settings-row-ai.installed')
-  await waitForLocation(instance, 'ai.installed')
-  await instance.click('settings-installed-empty')
-  await waitForLocation(instance, 'ai.download')
+  await instance.click('settings-row-ai.local')
+  await waitForLocation(instance, 'ai.local')
+  await instance.click('settings-row-ai.local.search')
+  await waitForLocation(instance, 'ai.local.search')
   await instance.click('settings-back')
-  await waitForLocation(instance, 'ai.installed')
+  await waitForLocation(instance, 'ai.local')
   await instance.click('settings-back')
   await waitForLocation(instance, 'ai')
   ctx.step('S22 arrow walks the places in the category')
@@ -38,40 +38,40 @@ scenario('settings-header-back', {}, async (ctx) => {
   await instance.click('settings-category-storage')
   await waitForLocation(instance, 'storage')
   await instance.click('settings-search-open')
-  await instance.type('settings-search', 'installierte')
+  await instance.type('settings-search', 'lokale')
   await instance.click(
-    '[data-testid="settings-search-hit"][data-location="ai.installed"]',
+    '[data-testid="settings-search-hit"][data-location="ai.local"]',
   )
-  await waitForLocation(instance, 'ai.installed')
+  await waitForLocation(instance, 'ai.local')
   await instance.click('settings-back')
   await waitForLocation(instance, 'ai')
   ctx.step('S22 arrow after a jump goes to the parent')
 
-  // S4: download → search → repo, the arrow twice, then forward twice.
-  await instance.click('settings-row-ai.download')
-  await instance.click('settings-row-ai.download.search')
-  await waitForLocation(instance, 'ai.download.search')
+  // S4: local models → search → repo, the arrow twice, then forward twice.
+  await instance.click('settings-row-ai.local')
+  await instance.click('settings-row-ai.local.search')
+  await waitForLocation(instance, 'ai.local.search')
   const pushed = await runAction(instance, 'wm.tab.navigate', {
     tabId: tab.tabId,
     to: REPO,
   })
   if (!pushed.ok) throw new Error(`wm.tab.navigate: ${JSON.stringify(pushed)}`)
-  await waitForLocation(instance, 'ai.download.repo')
+  await waitForLocation(instance, 'ai.local.repo')
   await instance.click('settings-back')
-  await waitForLocation(instance, 'ai.download.search')
+  await waitForLocation(instance, 'ai.local.search')
   await instance.click('settings-back')
-  await waitForLocation(instance, 'ai.download')
+  await waitForLocation(instance, 'ai.local')
   await runAction(instance, 'wm.tab.forward', { tabId: tab.tabId })
-  await waitForLocation(instance, 'ai.download.search')
+  await waitForLocation(instance, 'ai.local.search')
   await runAction(instance, 'wm.tab.forward', { tabId: tab.tabId })
-  await waitForLocation(instance, 'ai.download.repo')
+  await waitForLocation(instance, 'ai.local.repo')
   ctx.step('S4 arrow and forward')
 
   // S5: the tab's back walks the same places.
   await runAction(instance, 'wm.tab.back', { tabId: tab.tabId })
-  await waitForLocation(instance, 'ai.download.search')
+  await waitForLocation(instance, 'ai.local.search')
   await runAction(instance, 'wm.tab.back', { tabId: tab.tabId })
-  await waitForLocation(instance, 'ai.download')
+  await waitForLocation(instance, 'ai.local')
   ctx.step('S5 tab back')
 
   // S6: another category, then Modelle again starts at its overview.

@@ -647,14 +647,10 @@
           "keywords": "Standard Chat Start laden"
         },
         "remove": "Entfernen",
-        "installed": {
-          "title": "Installierte Modelle",
-          "description": "Modelle laden, aktualisieren und löschen.",
-          "keywords": "installiert laden aktualisieren Update löschen entfernen"
-        },
-        "download": {
-          "title": "Modelle herunterladen",
-          "description": "Empfohlene Modelle oder eine Suche auf HuggingFace.",
+        "local": {
+          "title": "Lokale Modelle",
+          "description": "Heruntergeladene Modelle verwalten und neue herunterladen.",
+          "keywords": "lokal installiert laden aktualisieren Update löschen entfernen herunterladen Download empfohlen HuggingFace GGUF",
           "search": {
             "title": "Auf HuggingFace suchen",
             "description": "GGUF-Modelle auf HuggingFace finden.",
@@ -662,8 +658,7 @@
           },
           "repo": {
             "title": "{owner}/{name}"
-          },
-          "keywords": "herunterladen Download empfohlen HuggingFace"
+          }
         },
         "speech": {
           "title": "Sprach-zu-Text-Modell",
@@ -681,16 +676,11 @@
           }
         },
         "providers": {
-          "title": "Abo verbinden",
-          "description": "Dein Claude-Code- oder Codex-Abo als Chat-Backend nutzen.",
-          "keywords": "Abo Anbieter verbinden Claude Code Codex CLI"
-        },
-        "servers": {
-          "title": "Modell-Server",
-          "description": "Eigene Server und Dienste mit OpenAI-kompatibler Schnittstelle.",
-          "keywords": "Server OpenAI kompatibel Ollama vLLM llama.cpp Schulserver Adresse Schlüssel API Bilder Aufwand",
-          "server": {
-            "title": "Modell-Server"
+          "title": "Anbieter",
+          "description": "Claude, Codex und OpenAI-kompatible Dienste als Chat-Backend verbinden.",
+          "keywords": "Anbieter Abo verbinden Claude Code Codex CLI OpenAI kompatibel OpenRouter Abacus Ollama vLLM llama.cpp Server Endpunkt Schulserver Adresse Schlüssel API Bilder Aufwand",
+          "provider": {
+            "title": "Endpunkt"
           }
         },
         "autonomy": {
@@ -1445,7 +1435,7 @@
       "add": "Server hinzufügen",
       "name": "Name",
       "address": "Adresse",
-      "addressHint": "Bis einschließlich /v1, etwa http://192.168.1.20:11434/v1.",
+      "addressHint": "Bis einschließlich /v1, etwa http://192.168.1.20:11434/v1 oder https://openrouter.ai/api/v1.",
       "addressProblem": {
         "empty": "Gib die Adresse des Servers an.",
         "invalid": "Das ist keine gültige Adresse.",
@@ -1477,6 +1467,14 @@
       "removeConfirm": "Server und seine Modelle entfernen?",
       "cancel": "Abbrechen",
       "remove": "Entfernen"
+    },
+    "providers": {
+      "subscriptions": "Abos",
+      "endpoints": "Endpunkte"
+    },
+    "localModels": {
+      "onDevice": "Auf diesem Gerät",
+      "download": "Herunterladen"
     },
     "assistant": {
       "labels": {

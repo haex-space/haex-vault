@@ -26,7 +26,7 @@ scenario('settings-search', {}, async (ctx) => {
   const cases: Array<[string, string]> = [
     ['whisper', 'ai.speech'],
     ['gerätename', 'general.basic'],
-    ['huggingface suchen', 'ai.download.search'],
+    ['huggingface suchen', 'ai.local.search'],
   ]
   for (const [query, location] of cases) {
     await instance.click('settings-search-open')

@@ -122,7 +122,7 @@ async function removeAsync() {
   failure.value = null
   try {
     await removeServer({ providerId: server.value.id })
-    await router.push('/ai/servers')
+    await router.push('/ai/providers')
   } catch (error) {
     failure.value = errString(error)
   }
