@@ -4,6 +4,9 @@
 pub mod assets;
 #[cfg(test)]
 mod assets_tests;
+pub mod conversation;
+#[cfg(test)]
+mod conversation_tests;
 pub mod lexicon;
 #[cfg(test)]
 mod lexicon_tests;
@@ -25,3 +28,5 @@ mod tones_tests;
 pub mod vad;
 #[cfg(test)]
 mod vad_tests;
+
+pub use conversation::AssistantState;
