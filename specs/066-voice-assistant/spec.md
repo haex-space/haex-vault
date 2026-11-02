@@ -604,9 +604,9 @@ Modus aus.
 
 - **FR-020**: Gespräche MUST über den eingebauten Agenten laufen, mit denselben Werkzeugen,
   Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell MUST wie im Chat
-  bestimmt werden: Eine neue Sitzung nimmt das zuletzt gewählte Modell. Ob der Agent per Text oder
-  per Sprache gesteuert wird, MUST NOT einen Unterschied machen; es gibt kein eigenes Modell für
-  Gespräche.
+  bestimmt werden: Eine fortgesetzte Sitzung nutzt ihr bisheriges Modell, eine neue Sitzung das
+  zuletzt gewählte. Ob der Agent per Text oder per Sprache gesteuert wird, MUST NOT einen
+  Unterschied machen; es gibt kein eigenes Modell für Gespräche.
 - **FR-021**: Im Assistent-Modus MUST haex dem Modell mitteilen, dass es ein gesprochenes Gespräch
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
