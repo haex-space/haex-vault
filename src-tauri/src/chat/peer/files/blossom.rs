@@ -25,6 +25,8 @@ use crate::remote_storage::http::pinned_client;
 use crate::remote_storage::EndpointScope;
 use crate::sync::keys::hex;
 
+use super::crypto::{ciphertext_len, MAX_PLAINTEXT};
+
 /// The kind of Blossom's authorization events.
 pub const AUTH_KIND: u16 = 24242;
 /// How long an authorization event is valid.
@@ -138,6 +140,7 @@ impl Server {
         size: u64,
         resolver: &dyn Resolver,
     ) -> Result<()> {
+        check_upload_size(size)?;
         let url = self.join("upload")?;
         let auth = authorization(signer, "upload", sha256, "Upload encrypted chat file")?;
         let response = send(
@@ -161,6 +164,7 @@ impl Server {
         blob: Vec<u8>,
         resolver: &dyn Resolver,
     ) -> Result<Descriptor> {
+        check_upload_size(blob.len() as u64)?;
         let sha256 = hex(&Sha256::digest(&blob));
         let size = blob.len() as u64;
         let url = self.join("upload")?;
@@ -221,6 +225,13 @@ impl Server {
             .map_err(|_| BlossomError::NotAllowed)?;
         Ok(client.request(method, url.clone()))
     }
+}
+
+fn check_upload_size(size: u64) -> Result<()> {
+    if size > ciphertext_len(MAX_PLAINTEXT) {
+        return Err(BlossomError::TooLarge);
+    }
+    Ok(())
 }
 
 /// Downloads the blob at `url` (from a message) and checks it is the one with hash `sha256` and at

@@ -6,6 +6,7 @@
 use nostr::key::Keys;
 
 use super::*;
+use crate::chat::peer::files::crypto::{ciphertext_len, MAX_PLAINTEXT};
 use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::remote_storage::address::SystemResolver;
 
@@ -19,6 +20,13 @@ async fn server() -> (BlossomTestServer, Server) {
 
 fn sha(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
+}
+
+#[test]
+fn uploads_respect_the_hxcf_ciphertext_cap() {
+    let max = ciphertext_len(MAX_PLAINTEXT);
+    assert_eq!(check_upload_size(max), Ok(()));
+    assert_eq!(check_upload_size(max + 1), Err(BlossomError::TooLarge));
 }
 
 #[tokio::test]
