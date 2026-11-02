@@ -16,7 +16,7 @@ use super::{EndpointScope, StorageError};
 
 /// A client that reaches the host of `url` only at its checked addresses; a refused address is
 /// [`StorageError::Network`].
-pub(super) async fn pinned_client(
+pub(crate) async fn pinned_client(
     url: &Url,
     scope: EndpointScope,
     resolver: &dyn Resolver,
