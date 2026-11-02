@@ -9,6 +9,7 @@
 pub mod commands;
 pub mod delivery;
 pub mod envelope;
+pub mod files;
 pub mod ids;
 pub mod messages;
 pub mod notify;

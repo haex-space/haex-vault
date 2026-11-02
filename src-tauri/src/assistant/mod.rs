@@ -8,6 +8,9 @@ pub mod commands;
 pub mod conversation;
 #[cfg(test)]
 mod conversation_tests;
+pub mod custom_tones;
+#[cfg(test)]
+mod custom_tones_tests;
 pub mod driver;
 #[cfg(test)]
 mod driver_tests;

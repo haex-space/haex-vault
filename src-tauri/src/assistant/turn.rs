@@ -21,13 +21,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::chat::default_model::resolve_default_model;
+use crate::chat::default_model::use_session_model;
 use crate::chat::events::{
     EVENT_CHAT_MESSAGE_COMPLETE, EVENT_CHAT_TOKEN, EVENT_CHAT_TOOL_AVAILABILITY,
     EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT, EVENT_CHAT_TURN_COMPLETE, EVENT_CHOICE_REQUEST,
     EVENT_TOOL_PERMISSION_REQUEST,
 };
-use crate::chat::model_loading::load_model;
 use crate::chat::send::{start_turn, SendMessageResult, StartTurn};
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
@@ -246,7 +245,7 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
     if turn.cancel.is_cancelled() {
         return Ok(Started::Cancelled);
     }
-    ensure_model(app).await?;
+    ensure_model(app, turn.thread_id).await?;
     if turn.cancel.is_cancelled() {
         return Ok(Started::Cancelled);
     }
@@ -328,25 +327,16 @@ async fn wait_until_free(
     WaitOutcome::GaveUp
 }
 
-/// Makes sure a model is loaded. A loaded model is used as it is, as a typed turn would; with none
-/// loaded the last selected one is loaded (`resolve_default_model`, last active first), which then
-/// stays loaded for the chat too (FR-020).
-async fn ensure_model(app: &AppHandle) -> Result<()> {
-    if loaded_model(app)? {
-        return Ok(());
+/// Makes sure the model of the conversation's session is loaded, by the same rule as the chat
+/// (`use_session_model`): a continued session answers with the model it used last, a new one with
+/// the model picked last in the model menu. Text or voice makes no difference (FR-020); the model
+/// stays loaded for the chat too.
+async fn ensure_model(app: &AppHandle, thread_id: Option<Uuid>) -> Result<()> {
+    let resolved = use_session_model(app.clone(), app.state(), app.state(), thread_id).await?;
+    if resolved.model_id.is_none() {
+        return Err(HolziError::InvalidInput {
+            reason: "no model loaded".into(),
+        });
     }
-    let resolved = resolve_default_model(app.clone(), app.state()).await?;
-    let model_id = resolved.model_id.ok_or_else(|| HolziError::InvalidInput {
-        reason: "no model loaded".into(),
-    })?;
-    load_model(app.clone(), app.state(), app.state(), model_id).await?;
     Ok(())
-}
-
-fn loaded_model(app: &AppHandle) -> Result<bool> {
-    let chat = app.state::<ChatState>();
-    let guard = chat.session.lock().map_err(|e| HolziError::CrdtInit {
-        reason: format!("chat.session mutex poisoned: {e}"),
-    })?;
-    Ok(guard.is_some())
 }

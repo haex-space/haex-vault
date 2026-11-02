@@ -28,13 +28,46 @@ pub mod assets {
 }
 
 pub mod tones {
-    use crate::error::{HolziError, Result};
+    use crate::error::Result;
 
     #[tauri::command]
-    pub async fn assistant_tone_preview(_tone: String, _volume: u8) -> Result<()> {
-        Err(HolziError::InvalidInput {
-            reason: "the voice assistant is not enabled in this build".into(),
-        })
+    pub async fn assistant_tone_preview(
+        _tone: String,
+        _volume: u8,
+        _custom_id: Option<String>,
+    ) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}
+
+pub mod custom_tones {
+    use crate::error::Result;
+    use crate::files::picked::PickedFile;
+
+    #[tauri::command]
+    pub async fn assistant_tones_list() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_import(_file: PickedFile) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_assign(_tone: String, _custom_id: Option<String>) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_delete(_custom_id: String) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}
+
+fn voice_disabled() -> crate::error::HolziError {
+    crate::error::HolziError::InvalidInput {
+        reason: "the voice assistant is not enabled in this build".into(),
     }
 }
 

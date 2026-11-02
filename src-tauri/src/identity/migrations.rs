@@ -38,6 +38,7 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
@@ -124,7 +125,8 @@ use super::migrations_voice::VOICE_0050;
 ///   CRDT-tracked `chat_members`, `chat_peer_messages`, `chat_attachments` and `chat_deliveries`.
 /// - 32: `0050_voice_conversations` (spec 066) added `origin` to the CRDT-tracked `chat_threads`
 ///   and the CRDT-tracked `voice_transcript_entries`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 32;
+/// - 33: `0051_assistant_tones` (spec 066 FR-045a) added the CRDT-tracked `haex_assistant_tones`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 33;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -757,6 +759,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0050_voice_conversations"),
         VOICE_0050.to_owned(),
+    );
+    // Spec 066 FR-045a: the user's own tones for the voice assistant.
+    m.insert(
+        MigrationName::from("0051_assistant_tones"),
+        ASSISTANT_TONES_0051.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

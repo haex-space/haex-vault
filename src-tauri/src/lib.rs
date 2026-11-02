@@ -289,6 +289,9 @@ pub fn run() {
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
     let builder = builder.manage(assistant::commands::AssistantDriver::default());
+    // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
+    #[cfg(feature = "voice")]
+    let builder = builder.manage(assistant::custom_tones::ToneBank::default());
     let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
@@ -873,6 +876,10 @@ pub fn run() {
             assistant::commands::assistant_end_conversation,
             assistant::commands::assistant_set_muted,
             assistant::tones::assistant_tone_preview,
+            assistant::custom_tones::assistant_tones_list,
+            assistant::custom_tones::assistant_tone_import,
+            assistant::custom_tones::assistant_tone_assign,
+            assistant::custom_tones::assistant_tone_delete,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).

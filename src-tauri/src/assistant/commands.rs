@@ -317,10 +317,6 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
         })?;
     let stream = Arc::new(stream);
     stream.mixer().set_tone_volume(settings.tones_volume);
-    voice_state
-        .audio_stream()
-        .replace(Some(Arc::clone(&stream)));
-
     ports.session += 1;
     let session = ports.session;
     let inbox = ports.inbox.clone();
@@ -331,6 +327,9 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             let _ = inbox.send(Msg::Played { session, ticket });
         }),
     )?;
+    voice_state
+        .audio_stream()
+        .replace(Some(Arc::clone(&stream)));
     Ok((
         Audio {
             stream,
@@ -349,6 +348,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
 struct RunningTurn {
     round: u64,
     cancel: CancellationToken,
+    abort_requested: Arc<std::sync::atomic::AtomicBool>,
 }
 
 struct RealPorts {
@@ -473,13 +473,17 @@ impl Ports for RealPorts {
         delegate_notice_due: bool,
     ) {
         let cancel = self.gate.token().child_token();
+        let abort_requested = Arc::new(std::sync::atomic::AtomicBool::new(false));
         self.turn = Some(RunningTurn {
             round,
             cancel: cancel.clone(),
+            abort_requested: Arc::clone(&abort_requested),
         });
         let app = self.app.clone();
         let inbox = self.inbox.clone();
         let chat_round = Arc::clone(&self.chat_round);
+        let requested = Arc::clone(&abort_requested);
+        let round_cancel = cancel.clone();
         let turn = VoiceTurn {
             thread_id,
             text,
@@ -494,7 +498,24 @@ impl Ports for RealPorts {
         });
         let spawned = self.gate.spawn(async move {
             match turn::start(&app, turn, sink).await {
-                Ok(Started::Running(_)) => chat_round.store(round, Ordering::Release),
+                Ok(Started::Running(_)) => {
+                    chat_round.store(round, Ordering::Release);
+                    // End can arrive after chat::start_turn creates its generation but before
+                    // this task publishes that fact to the actor. In that window abort_turn
+                    // cancels the VoiceTurn token but cannot yet safely abort the global chat
+                    // generation. Recheck here, claiming the abort once across both paths.
+                    if round_cancel.is_cancelled()
+                        && requested
+                            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                            .is_ok()
+                    {
+                        if let Err(error) =
+                            crate::chat::commands::abort_turn(&app.state::<ChatState>())
+                        {
+                            log::warn!("assistant: could not abort a just-started round: {error}");
+                        }
+                    }
+                }
                 Ok(Started::GaveUp | Started::Cancelled) => {}
                 Err(error) => {
                     log::warn!("assistant: the round could not start: {error}");
@@ -514,7 +535,12 @@ impl Ports for RealPorts {
             return;
         };
         turn.cancel.cancel();
-        if self.chat_round.load(Ordering::Acquire) == turn.round {
+        if self.chat_round.load(Ordering::Acquire) == turn.round
+            && turn
+                .abort_requested
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+        {
             if let Err(error) = crate::chat::commands::abort_turn(&self.app.state::<ChatState>()) {
                 self.report_error(&error);
             }
