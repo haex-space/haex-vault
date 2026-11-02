@@ -1,9 +1,9 @@
 //! Spec 065 T067 (US5) against a real Chromium and the fixture site over `https`: a download lands
-//! in "Agenten-Downloads" of the vault under the name the website gave it; one of 150 MB asks the
-//! user and, declined, is cancelled and never reaches the agent; an upload without file rights is
-//! refused alike for a file that is there and one that is not, and with them it asks like a submit,
-//! puts the file into the field and sends nothing by itself. Without a Chromium-based browser the
-//! test says so and stops.
+//! in `HaexVault/<vault>` of the downloads folder under the name the website gave it; one of 150 MB
+//! asks the user and, declined, is cancelled and never reaches the agent; an upload without file
+//! rights is refused alike for a file that is there and one that is not, and with them it asks like
+//! a submit, puts the file into the field and sends nothing by itself. Without a Chromium-based
+//! browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]
 #[allow(dead_code)]
@@ -48,12 +48,7 @@ async fn an_agent_downloads_and_uploads_within_its_rights() {
     };
     let page = files_page(&scene).await;
     let tab = page.result["tab"].as_str().unwrap().to_owned();
-    let folder = scene
-        .env
-        .downloads
-        .path()
-        .join("Agenten-Downloads")
-        .join("read");
+    let folder = scene.env.downloads.path().join("HaexVault").join("read");
 
     // A download: the file lands in the vault's folder under the website's name.
     let invoice = element(&page, "Rechnung herunterladen");

@@ -102,8 +102,8 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   (selbstständig recherchieren, Formulare mit Daten aus dem Passwortmanager ausfüllen und
   absenden) deckt der Agenten-Browser. Ein Tauri-Webview als Agenten-Browser ist verworfen, weil
   die Web-Engines der Plattformen die Schutzregeln nicht gleich tragen (R2).
-- Q: Wo liegt der Ordner „Agenten-Downloads“? → A: Im Download-Ordner des Systems, je Vault ein
-  Unterordner (`Downloads/Agenten-Downloads/<Vault>`). holzis eigene Ordner sind für Agenten
+- Q: Wo landen die Downloads der Agenten? → A: Im Download-Ordner des Systems, im Ordner
+  „HaexVault“ je Vault ein Unterordner (`Downloads/HaexVault/<Vault>`). holzis eigene Ordner sind für Agenten
   gesperrt (044), dort könnte der Agent seine Downloads nicht lesen; im Download-Ordner erreicht
   ihn das Dateirecht „Dateien des Geräts“, und der Nutzer findet die Dateien wie die eines
   gewöhnlichen Browsers (FR-031, R11).
@@ -279,7 +279,7 @@ abgelehnt.
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent löst einen Download aus, **When** er fertig ist, **Then** liegt die Datei
-   im Ordner „Agenten-Downloads“ der Vault im Download-Ordner des Systems, und der Agent erhält
+   im Ordner `HaexVault/<Vault>` im Download-Ordner des Systems, und der Agent erhält
    Name, Größe und Art.
 2. **Given** ein Download ist größer als die Grenze aus FR-031, **When** er beginnt, **Then** fragt
    holzi den Nutzer.
@@ -495,8 +495,8 @@ Steuerung.
 - **FR-029**: Ein Agent DARF höchstens 5 Agenten-Tabs zugleich offen haben.
 - **FR-030**: Jedes Browser-Werkzeug MUSS nach 30 Sekunden ohne Ergebnis mit „Seite antwortet
   nicht“ enden.
-- **FR-031**: Downloads MÜSSEN im Ordner „Agenten-Downloads“ der Vault im Download-Ordner des
-  Systems landen; ein Download über 100 MB MUSS den Nutzer fragen, und der Agent DARF die Datei
+- **FR-031**: Downloads MÜSSEN im Ordner `HaexVault/<Vault>` im Download-Ordner des Systems
+  landen; ein Download über 100 MB MUSS den Nutzer fragen, und der Agent DARF die Datei
   erst nach der Zustimmung erhalten.
 - **FR-032**: Ergebnisse von „Seite lesen“ MÜSSEN auf eine feste Größe gekürzt werden; der Agent
   MUSS erfahren, dass gekürzt wurde, und Ausschnitte anfordern können.
@@ -520,7 +520,7 @@ Steuerung.
 - **Browser-Profil**: Cookies, Anmeldungen, Verlauf und Speicher des Agenten-Browsers einer Vault.
 - **Browser-Sitzung**: Agent, Browser (Agenten-Browser oder Browser des Nutzers), Agenten-Tabs,
   Zustand (läuft, pausiert, beendet), letzte Handlung. Nur im Speicher.
-- **Agenten-Download**: Datei im Ordner „Agenten-Downloads“ mit Website, Zeit und Agent.
+- **Agenten-Download**: Datei im Ordner `HaexVault/<Vault>` mit Website, Zeit und Agent.
 
 ## Success Criteria _(mandatory)_
 
@@ -552,7 +552,7 @@ Steuerung.
   externe Agenten erscheinen sie über den MCP-Zugang, für den eingebauten Agenten im Werkzeug-
   Ablauf des Chats.
 - Delegates bekommen die Werkzeuge erst mit 021 PR F (Registrierung als externer Agent).
-- Downloads liegen im Download-Ordner des Systems (`Agenten-Downloads/<Vault>`), unverschlüsselt
+- Downloads liegen im Download-Ordner des Systems (`HaexVault/<Vault>`), unverschlüsselt
   wie die eines gewöhnlichen Browsers; Lesen und Weitergeben regeln die Dateirechte aus 044.
 - Stufe 2 (US6) ist zurückgestellt (2026-11-01). Käme sie wieder, setzte sie eine neue Version
   der Browser-Erweiterung aus 049 voraus.

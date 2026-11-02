@@ -309,7 +309,7 @@ was es dann tun kann, schon. Die Tests prüfen genau das.
 `browser.download` klickt das Element (Rückfragen wie ein Klick) und folgt dem Download, der in
 einem Rahmen dieses Tabs beginnt (`Browser.downloadWillBegin`, `Browser.downloadProgress`). Fertige
 Dateien verschiebt holzi unter einem sicheren, eindeutigen Namen in den Ordner
-`Agenten-Downloads/<Vault>` im Download-Ordner des Systems. Über 100 MB (aus `Content-Length` bzw.
+`HaexVault/<Vault>` im Download-Ordner des Systems. Über 100 MB (aus `Content-Length` bzw.
 beim Überschreiten) fragt holzi; der Browser kann einen Download nicht anhalten, er läuft also
 weiter, bleibt aber im Arbeitsverzeichnis, bis der Nutzer zustimmt. Lehnt er ab, bricht holzi ab
 (`Browser.cancelDownload`) und löscht, was angekommen ist. Ein Aufruf, der vorher endet, bricht

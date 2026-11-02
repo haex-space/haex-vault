@@ -220,7 +220,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.download',
     titleKey: 'actions.browser.download',
     description:
-      "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder Agenten-Downloads of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",
+      "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder HaexVault/<vault> of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",
     input: {
       type: 'object',
       properties: { tab: TAB, element: ELEMENT },

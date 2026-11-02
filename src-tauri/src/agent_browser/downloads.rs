@@ -1,7 +1,7 @@
 //! Downloads and uploads of the agent browser (spec 065 US5, FR-031, research R11): the rules,
 //! without a browser, so they have unit tests. The browser saves a download under its GUID in the
 //! working directory; holzi moves it, under a safe and unique name, into the folder
-//! "Agenten-Downloads" of the vault inside the system's downloads folder, where the agent's file
+//! `HaexVault/<vault>` inside the system's downloads folder, where the agent's file
 //! rights (044) reach it like any file of the device. A download over [`LIMIT`] is kept only after
 //! the user allowed it. An upload takes only a file the agent's file rights reach, and says the same
 //! for a file that is not there as for one it may not take.
@@ -21,7 +21,7 @@ use crate::files::local::{resolve, OwnPlaces};
 pub const LIMIT: u64 = 100 * 1000 * 1000;
 
 /// The folder in the system's downloads folder; one folder per vault inside it.
-pub const FOLDER: &str = "Agenten-Downloads";
+pub const FOLDER: &str = "HaexVault";
 
 /// The name of a download that brings none.
 const FALLBACK_NAME: &str = "download";

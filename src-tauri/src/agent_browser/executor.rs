@@ -126,8 +126,8 @@ pub trait BrowserEnv: Send + Sync + 'static {
     fn locale(&self) -> String;
     /// How to start the browser now.
     async fn start_config(&self) -> Result<StartConfig, BrowserError>;
-    /// The folder downloads of agents land in: "Agenten-Downloads" of the open vault in the
-    /// system's downloads folder (research R11).
+    /// The folder downloads of agents land in: `HaexVault/<vault>` in the system's downloads
+    /// folder (research R11).
     fn downloads_folder(&self) -> Result<std::path::PathBuf, String>;
     /// What the file rights (044) of `caller` reach: holzi's own places and its grants; `None`
     /// when they cannot be read.
