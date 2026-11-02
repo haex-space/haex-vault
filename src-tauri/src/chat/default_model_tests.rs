@@ -1,6 +1,7 @@
 //! Which model a session uses (spec 006, spec 002 FR-009 as amended 2026-11-02): a continued
 //! session keeps the model it used while that model can load; a new session starts with the last
-//! model picked in the model menu, then the defaults, then anything that loads.
+//! model picked in the model menu. There is no default and nothing is picked on the user's
+//! behalf: without a loadable pick there is no model.
 
 use super::{choose_model, ResolveSource};
 
@@ -15,7 +16,7 @@ fn some(id: &str) -> Option<String> {
 #[test]
 fn a_continued_session_keeps_its_model() {
     let chosen = choose_model(
-        [some("claude:sonnet"), some("qwen3-4b"), None, None],
+        [some("claude:sonnet"), some("qwen3-4b")],
         ids(&["qwen3-4b"]),
         ids(&["claude:sonnet"]),
     );
@@ -26,7 +27,7 @@ fn a_continued_session_keeps_its_model() {
 #[test]
 fn a_session_whose_model_is_gone_falls_back_to_the_last_pick() {
     let chosen = choose_model(
-        [some("deleted-model"), some("qwen3-4b"), None, None],
+        [some("deleted-model"), some("qwen3-4b")],
         ids(&["qwen3-4b"]),
         Vec::new(),
     );
@@ -37,7 +38,7 @@ fn a_session_whose_model_is_gone_falls_back_to_the_last_pick() {
 #[test]
 fn a_new_session_starts_with_the_last_pick() {
     let chosen = choose_model(
-        [None, some("codex:gpt"), some("qwen3-4b"), None],
+        [None, some("codex:gpt")],
         ids(&["qwen3-4b"]),
         ids(&["codex:gpt"]),
     );
@@ -46,38 +47,17 @@ fn a_new_session_starts_with_the_last_pick() {
 }
 
 #[test]
-fn defaults_follow_in_order() {
-    let device = choose_model(
-        [None, some("gone"), some("dev"), some("vault")],
-        ids(&["dev", "vault"]),
-        Vec::new(),
-    );
-    assert_eq!(device.source, ResolveSource::DefaultDevice);
-    let vault = choose_model(
-        [None, None, some("gone"), some("vault")],
-        ids(&["vault"]),
-        Vec::new(),
-    );
-    assert_eq!(vault.model_id.as_deref(), Some("vault"));
-    assert_eq!(vault.source, ResolveSource::DefaultVault);
-}
+fn without_a_loadable_pick_there_is_no_model() {
+    // A loadable model that nobody picked stays unused.
+    let chosen = choose_model([None, None], ids(&["qwen3-4b"]), ids(&["codex:gpt"]));
+    assert_eq!(chosen.model_id, None);
+    assert_eq!(chosen.source, ResolveSource::None);
 
-#[test]
-fn without_preferences_a_local_model_comes_before_an_api_model() {
-    let chosen = choose_model(
-        [None, None, None, None],
-        ids(&["local-a", "local-b"]),
-        ids(&["claude:sonnet"]),
-    );
-    assert_eq!(chosen.model_id.as_deref(), Some("local-a"));
-    assert_eq!(chosen.source, ResolveSource::FirstAvailable);
-    let api_only = choose_model(
-        [None, None, None, None],
+    let gone = choose_model(
+        [None, some("deleted-model")],
+        ids(&["qwen3-4b"]),
         Vec::new(),
-        ids(&["claude:sonnet"]),
     );
-    assert_eq!(api_only.model_id.as_deref(), Some("claude:sonnet"));
-    let nothing = choose_model([some("x"), None, None, None], Vec::new(), Vec::new());
-    assert_eq!(nothing.model_id, None);
-    assert_eq!(nothing.source, ResolveSource::None);
+    assert_eq!(gone.model_id, None);
+    assert_eq!(gone.source, ResolveSource::None);
 }

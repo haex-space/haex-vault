@@ -254,26 +254,26 @@ fn an_existing_vault_value_wins_and_the_device_value_is_dropped() {
 }
 
 #[test]
-fn the_vault_default_model_becomes_this_devices_when_it_has_none() {
-    let (_dir, db, device) = open_test_vault("fold-default-model");
-    set(&db, PrefScope::Vault, "chat.default_model_id", "qwen");
+fn a_vault_value_of_a_device_setting_becomes_this_devices_when_it_has_none() {
+    let (_dir, db, device) = open_test_vault("fold-device-setting");
+    set(&db, PrefScope::Vault, "chat.notifications", "off");
 
     fold(&db, device);
 
     assert_eq!(
-        get(&db, PrefScope::Device(device), "chat.default_model_id").as_deref(),
-        Some("qwen")
+        get(&db, PrefScope::Device(device), "chat.notifications").as_deref(),
+        Some("off")
     );
-    assert_eq!(get(&db, PrefScope::Vault, "chat.default_model_id"), None);
+    assert_eq!(get(&db, PrefScope::Vault, "chat.notifications"), None);
 
-    set(&db, PrefScope::Vault, "chat.default_model_id", "llama");
+    set(&db, PrefScope::Vault, "chat.notifications", "on");
     fold(&db, device);
     assert_eq!(
-        get(&db, PrefScope::Device(device), "chat.default_model_id").as_deref(),
-        Some("qwen"),
+        get(&db, PrefScope::Device(device), "chat.notifications").as_deref(),
+        Some("off"),
         "this device keeps its own value"
     );
-    assert_eq!(get(&db, PrefScope::Vault, "chat.default_model_id"), None);
+    assert_eq!(get(&db, PrefScope::Vault, "chat.notifications"), None);
 }
 
 #[test]
