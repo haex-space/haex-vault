@@ -398,6 +398,54 @@ pub async fn refresh_bank(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
+/// Loads and follows the assigned tones for the vault session that just opened. Assignments are
+/// device preferences and sounds are synced vault rows, so either table can change on another
+/// device while this vault is open. Forget the cached audio as soon as the vault closes.
+pub fn start_bank_feed(app: &AppHandle, state: &AppState) {
+    if app.try_state::<ToneBank>().is_none() {
+        return;
+    }
+    let changes = state.vault_changes().subscribe();
+    let token = state.gate().token();
+    let gate = state.gate().clone();
+    let app = app.clone();
+    if let Err(error) = gate.spawn(async move {
+        if let Err(error) = refresh_bank(&app).await {
+            log::warn!("assistant tones: could not load assigned tones: {error}");
+        }
+        let mut changes = changes;
+        loop {
+            tokio::select! {
+                () = token.cancelled() => {
+                    if let Some(bank) = app.try_state::<ToneBank>() {
+                        bank.clear();
+                    }
+                    return;
+                }
+                event = changes.recv() => match event {
+                    Ok(tables) if tables.iter().any(|table| {
+                        table == "haex_assistant_tones" || table == "preferences"
+                    }) => {
+                        if let Err(error) = refresh_bank(&app).await {
+                            log::warn!("assistant tones: could not refresh assigned tones: {error}");
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        // We may have skipped an assignment or tone write.
+                        if let Err(error) = refresh_bank(&app).await {
+                            log::warn!("assistant tones: could not refresh assigned tones: {error}");
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                }
+            }
+        }
+    }) {
+        log::warn!("assistant tones: the tone feed did not start: {error}");
+    }
+}
+
 async fn read_assigned(
     app: &AppHandle,
     state: &State<'_, AppState>,
