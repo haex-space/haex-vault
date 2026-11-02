@@ -19,8 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calls::{
     browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
-    NewLogin,
-    Select, TypeText, Upload,
+    NewLogin, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;

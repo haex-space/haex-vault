@@ -290,7 +290,8 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
         },
         purpose: {
           type: 'string',
-          description: 'What the data is for, shown to the user; at most 200 characters.',
+          description:
+            'What the data is for, shown to the user; at most 200 characters.',
         },
       },
       required: ['tab', 'purpose'],

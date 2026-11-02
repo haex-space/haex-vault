@@ -2002,15 +2002,27 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "tab": { "type": "string", "description": "The agent tab, as holzi named it (t1, t2, …)." },
-        "element": { "type": "integer", "description": "The element number of the new password field." },
-        "username": { "type": "string", "description": "The username or email address of the new login, at most 200 characters." }
+        "tab": {
+          "type": "string",
+          "description": "The agent tab, as holzi named it (t1, t2, …)."
+        },
+        "element": {
+          "type": "integer",
+          "description": "The element number of the new password field."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username or email address of the new login, at most 200 characters."
+        }
       },
       "required": ["tab", "element", "username"]
     },
     "effect": "write",
     "core": false,
-    "titles": { "de": "Neue Anmeldedaten anlegen", "en": "Create new login details" },
+    "titles": {
+      "de": "Neue Anmeldedaten anlegen",
+      "en": "Create new login details"
+    },
     "runner": "native",
     "confirmsItself": true
   },
@@ -2021,9 +2033,18 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "tab": { "type": "string", "description": "The agent tab, as holzi named it (t1, t2, …)." },
-        "form": { "type": "integer", "description": "An element number of the form to fill; without it, the form with a password field, else the page." },
-        "purpose": { "type": "string", "description": "What the data is for, shown to the user; at most 200 characters." }
+        "tab": {
+          "type": "string",
+          "description": "The agent tab, as holzi named it (t1, t2, …)."
+        },
+        "form": {
+          "type": "integer",
+          "description": "An element number of the form to fill; without it, the form with a password field, else the page."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "What the data is for, shown to the user; at most 200 characters."
+        }
       },
       "required": ["tab", "purpose"]
     },
