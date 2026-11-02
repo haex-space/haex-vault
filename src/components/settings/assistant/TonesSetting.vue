@@ -93,6 +93,17 @@ function alwaysAudible(tone: ToneId): boolean {
   return ALWAYS_AUDIBLE_TONES.includes(tone)
 }
 
+function isVoiceDisabledError(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'kind' in e &&
+    e.kind === 'InvalidInput' &&
+    'reason' in e &&
+    e.reason === 'the voice assistant is not enabled in this build'
+  )
+}
+
 function description(tone: ToneId): string {
   const when = t(`settings.tones.when.${tone}`)
   return alwaysAudible(tone) ? `${when} ${t('settings.tones.always')}` : when
@@ -103,15 +114,21 @@ async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
   loadError.value = null
   try {
-    const [storedEnabled, storedVolume, overview] = await Promise.all([
+    const [storedEnabled, storedVolume] = await Promise.all([
       getPrefAsync(scope.value, TONES_ENABLED_KEY),
       getPrefAsync(scope.value, TONES_VOLUME_KEY),
-      tonesListAsync(),
     ])
     enabled.value = parseTonesEnabled(storedEnabled)
     volume.value = parseTonesVolume(storedVolume)
-    custom.value = overview.custom
-    assigned.value = overview.assigned
+    try {
+      const overview = await tonesListAsync()
+      custom.value = overview.custom
+      assigned.value = overview.assigned
+    } catch (e) {
+      if (!isVoiceDisabledError(e)) throw e
+      custom.value = []
+      assigned.value = {}
+    }
   } catch (e) {
     loadError.value = errString(e)
   } finally {
