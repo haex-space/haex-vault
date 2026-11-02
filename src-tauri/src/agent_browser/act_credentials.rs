@@ -43,9 +43,11 @@ pub const FEATURE: &str = "agent_browser";
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(super) struct FillFacts {
-    gone: bool,
-    url: String,
-    fields: Vec<FieldFacts>,
+    pub(super) gone: bool,
+    pub(super) url: String,
+    pub(super) fields: Vec<FieldFacts>,
+    /// The fields' labels, for the user's question.
+    pub(super) labels: Vec<String>,
 }
 
 /// A matching entry shown in the choice prompt; it contains no secret values.
@@ -254,6 +256,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: choices,
+            mapping: Vec::new(),
         };
         let answer = self
             .tools

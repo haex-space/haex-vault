@@ -73,6 +73,7 @@ pub const CHANGING: &[&str] = &[
     "browser.download",
     "browser.upload",
     "browser.credentials.fill",
+    "browser.entry.fill",
 ];
 
 /// The changing tools that operate an element: they ask with it, not with their input, and the
@@ -93,6 +94,7 @@ const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.upload",
     "browser.download",
     "browser.credentials.fill",
+    "browser.entry.fill",
 ];
 
 pub const BROWSER_ACTION_IDS: &[&str] = &[
@@ -113,6 +115,7 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.download",
     "browser.upload",
     "browser.credentials.fill",
+    "browser.entry.fill",
 ];
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
@@ -449,7 +452,8 @@ impl BrowserTools {
             | "browser.select"
             | "browser.download"
             | "browser.upload"
-            | "browser.credentials.fill" => {
+            | "browser.credentials.fill"
+            | "browser.entry.fill" => {
                 let acting = Acting {
                     tools: self,
                     connection: &connection,

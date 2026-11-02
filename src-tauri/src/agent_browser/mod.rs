@@ -396,6 +396,8 @@ mod credentials_tests;
 #[cfg(test)]
 mod downloads_tests;
 #[cfg(test)]
+mod entry_fill_tests;
+#[cfg(test)]
 mod locate_tests;
 #[cfg(test)]
 mod new_tab_tests;

@@ -85,6 +85,7 @@ fn questions_show_filled_values_as_dots() {
         reason: None,
         bytes: None,
         entries: Vec::new(),
+        mapping: Vec::new(),
     };
 
     hide_filled(&filled(), &mut question);

@@ -41,7 +41,10 @@ als auch das Wiederholungsfeld.
 
 `browser.entry.fill` fragt bei jedem Aufruf (R7a). Der Nutzer wählt den Eintrag und die Zuordnung
 in der Rückfrage; der Agent bekommt nur `filled` mit den Nummern der gefüllten Elemente, nie
-Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`.
+Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`. Felder in
+Rahmen einer Website, die der Agent bedienen darf (etwa die Kartenfelder eines Zahlungsanbieters),
+füllt holzi mit; ihre Elemente haben für den Agenten keine Nummern, die Antwort zählt sie als
+`in_frames`. Rahmen anderer Websites bleiben leer.
 
 ## Seite
 

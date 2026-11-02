@@ -42,6 +42,18 @@ pub async fn script(connection: &Connection, session: &str, args: &Value) -> Res
     runtime::evaluate(connection, session, context, &expression).await
 }
 
+/// Runs the page script with `args` in holzi's world of `frame`, a frame of the page in `session`.
+pub async fn script_in(
+    connection: &Connection,
+    session: &str,
+    frame: &str,
+    args: &Value,
+) -> Result<Value> {
+    let context = page::isolated_world(connection, session, frame).await?;
+    let expression = format!("({SCRIPT})({args})");
+    runtime::evaluate(connection, session, context, &expression).await
+}
+
 /// Runs the page script like [`script`] and returns the element it yields as a remote object id
 /// (`{ fileElement }`); `None` when it yields none.
 pub async fn element(

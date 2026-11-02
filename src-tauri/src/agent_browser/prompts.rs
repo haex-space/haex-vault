@@ -43,6 +43,9 @@ pub enum BrowserPromptKind {
     /// May holzi fill a login of the password manager into this website (FR-021)? With several
     /// matching entries, which one.
     Fill,
+    /// May holzi fill data of an entry the user chooses (bank or card data) into this form
+    /// (FR-037)? With the agent's purpose and one row per mapped field, each to deselect.
+    EntryFill,
 }
 
 /// An entry the user can choose for a fill: an id that holds only for this question and the title,
@@ -53,6 +56,26 @@ pub enum BrowserPromptKind {
 pub struct BrowserEntryChoice {
     pub id: String,
     pub title: String,
+}
+
+/// One row of an entry fill (FR-037): which field of the page gets which field of entry `entry`.
+/// The value is never in the question; the dialog shows it as `•••`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct BrowserMappingRow {
+    /// Holds only for this question.
+    pub id: String,
+    /// The [`BrowserEntryChoice::id`] the row belongs to.
+    pub entry: String,
+    /// The page field's label, from the website.
+    pub field: String,
+    /// The entry's field: `username`, `password`, `otp` or the name of a custom field.
+    pub key: String,
+    /// The website of the frame the field is in; `None` for the tab's own page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub frame: Option<String>,
 }
 
 /// What the dialog shows.
@@ -77,8 +100,12 @@ pub struct BrowserQuestion {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "number")]
     pub bytes: Option<u64>,
-    /// The entries the user chooses from ([`BrowserPromptKind::Fill`]); empty otherwise.
+    /// The entries the user chooses from ([`BrowserPromptKind::Fill`],
+    /// [`BrowserPromptKind::EntryFill`]); empty otherwise.
     pub entries: Vec<BrowserEntryChoice>,
+    /// The rows of an entry fill, for every entry ([`BrowserPromptKind::EntryFill`]); empty
+    /// otherwise.
+    pub mapping: Vec<BrowserMappingRow>,
 }
 
 /// What a browser tool does, for the approval table.
@@ -143,6 +170,10 @@ pub struct BrowserAnswer {
     #[serde(default)]
     #[ts(optional)]
     pub entry: Option<String>,
+    /// The rows of an entry fill the user deselected, by their ids in the question.
+    #[serde(default)]
+    #[ts(optional)]
+    pub skip: Option<Vec<String>>,
 }
 
 /// The payload of [`EVENT_PROMPT`].

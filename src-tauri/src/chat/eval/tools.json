@@ -1996,6 +1996,34 @@
     "confirmsItself": true
   },
   {
+    "toolName": "browser_entry_fill",
+    "actionId": "browser.entry.fill",
+    "description": "Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers holzi filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tab": {
+          "type": "string",
+          "description": "The agent tab, as holzi named it (t1, t2, …)."
+        },
+        "form": {
+          "type": "integer",
+          "description": "An element number of the form to fill; without it, the form with a password field, else the page."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "What the data is for, shown to the user; at most 200 characters."
+        }
+      },
+      "required": ["tab", "purpose"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": { "de": "Daten eintragen", "en": "Fill in data" },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
     "toolName": "browser_download",
     "actionId": "browser.download",
     "description": "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder HaexVault/<vault> of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",

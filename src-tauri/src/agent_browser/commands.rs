@@ -30,6 +30,9 @@ pub struct AgentBrowserAnswerArgs {
     #[serde(default)]
     #[ts(optional)]
     pub entry: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub skip: Option<Vec<String>>,
 }
 
 /// The window's answer to a browser question. An unknown id (the question ended) is no error.
@@ -44,6 +47,7 @@ pub async fn agent_browser_prompt_answer(
             decision: args.decision,
             remember: args.remember,
             entry: args.entry,
+            skip: args.skip,
         },
     ))
 }

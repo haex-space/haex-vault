@@ -103,6 +103,15 @@ pub(super) struct FillLogin {
     pub(super) form: Option<u32>,
 }
 
+/// `browser.entry.fill`: the form and the agent's purpose, shown to the user as its statement.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct EntryFill {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+    pub(super) purpose: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Upload {

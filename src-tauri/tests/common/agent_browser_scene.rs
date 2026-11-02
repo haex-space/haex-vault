@@ -162,6 +162,8 @@ pub struct Scene {
     pub allow: Arc<Mutex<bool>>,
     /// What an allowed answer remembers (`"fill"`, `"site-read"`, …); nothing by default.
     pub remember: Arc<Mutex<Option<&'static str>>>,
+    /// More fields of the answer, such as `entry` and `skip` of an entry fill.
+    pub extra: Arc<Mutex<serde_json::Map<String, Value>>>,
 }
 
 /// The agent of the scene.
@@ -240,12 +242,14 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let allow = Arc::new(Mutex::new(false));
     let remember: Arc<Mutex<Option<&'static str>>> = Arc::default();
+    let extra: Arc<Mutex<serde_json::Map<String, Value>>> = Arc::default();
     {
-        let (asked, allow, answering, remembering) = (
+        let (asked, allow, answering, remembering, adding) = (
             Arc::clone(&asked),
             Arc::clone(&allow),
             prompts.clone(),
             Arc::clone(&remember),
+            Arc::clone(&extra),
         );
         prompts.set_emitter(Arc::new(move |id: &str, question: &BrowserQuestion| {
             asked.lock().unwrap().push(question.clone());
@@ -257,6 +261,9 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
             let mut answer = json!({ "decision": decision });
             if let Some(remember) = *remembering.lock().unwrap() {
                 answer["remember"] = json!(remember);
+            }
+            for (key, value) in adding.lock().unwrap().iter() {
+                answer[key] = value.clone();
             }
             let answer = serde_json::from_value(answer).unwrap();
             let (answering, id) = (answering.clone(), id.to_owned());
@@ -284,6 +291,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         asked,
         allow,
         remember,
+        extra,
     };
     if tls {
         // Starts the browser and lets it accept the test certificate.

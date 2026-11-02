@@ -2084,7 +2084,8 @@
       "takeoverRequest": "Ask the user to take over",
       "download": "Download a file",
       "upload": "Upload a file",
-      "credentialsFill": "Fill in login details"
+      "credentialsFill": "Fill in login details",
+      "entryFill": "Fill in data"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4221,6 +4222,15 @@
         "choose": "Which entry?",
         "entry": "Entry",
         "untitled": "Untitled"
+      },
+      "entryFill": {
+        "title": "Fill in data from the password manager?",
+        "hint": "holzi fills the checked fields of the chosen entry itself; the agent sees neither the entry nor the values. Sending the form asks again afterwards. This question comes with every call.",
+        "allow": "Fill in",
+        "purpose": "Purpose",
+        "rows": "What gets filled in",
+        "otp": "One-time code",
+        "frame": "frame of {site}"
       },
       "address": "Address",
       "target": "Target",

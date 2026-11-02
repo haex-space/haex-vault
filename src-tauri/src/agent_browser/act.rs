@@ -18,8 +18,8 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, FillLogin, Select,
-    TypeText, Upload,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
+    Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -36,6 +36,10 @@ use crate::mcp_server::grants::BrowserRights;
 
 #[path = "act_credentials.rs"]
 pub(super) mod credentials;
+#[path = "act_entry_docs.rs"]
+mod entry_docs;
+#[path = "act_entry_fill.rs"]
+pub(super) mod entry_fill;
 #[path = "act_files.rs"]
 mod files;
 
@@ -83,7 +87,7 @@ fn shown_fields(fields: &[(String, String, bool)]) -> Vec<BrowserField> {
 
 impl Acting<'_> {
     /// Runs `browser.click`, `browser.type`, `browser.select`, `browser.download`,
-    /// `browser.upload` or `browser.credentials.fill` on one of `tabs`.
+    /// `browser.upload`, `browser.credentials.fill` or `browser.entry.fill` on one of `tabs`.
     pub async fn run(
         &self,
         action_id: &str,
@@ -115,6 +119,11 @@ impl Acting<'_> {
                 let FillLogin { tab, form } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 self.fill_credentials(tab, form).await
+            }
+            "browser.entry.fill" => {
+                let EntryFill { tab, form, purpose } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.fill_entry(tab, form, &purpose).await
             }
             "browser.upload" => {
                 let Upload { tab, element, path } = parsed(input_value)?;
@@ -201,6 +210,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            mapping: Vec::new(),
         };
         self.tools.ask(self.session, question, self.cancel).await?;
         if arm && kind == BrowserPromptKind::Submit {

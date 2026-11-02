@@ -10,7 +10,9 @@
  * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
  * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
  * declines. A login fill (`fill`) shows the entries that match, by title, for the user only; the
- * user picks one and may remember the website for later fills (FR-021).
+ * user picks one and may remember the website for later fills (FR-021). An entry fill
+ * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
+ * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -33,6 +35,31 @@ const toolTitle = computed(() => {
   return def ? t(def.titleKey) : tool
 })
 const chosenEntry = ref<string | null>(null)
+/** The rows of an entry fill the user deselected. */
+const skipped = ref<Set<string>>(new Set())
+const choosesEntry = computed(
+  () => question.value?.kind === 'fill' || question.value?.kind === 'entryFill',
+)
+const chosenRows = computed(() =>
+  (question.value?.mapping ?? []).filter(
+    (row) => row.entry === chosenEntry.value,
+  ),
+)
+
+/** The entry's field as the user knows it: the standard fields by their names. */
+function keyLabel(key: string): string {
+  if (key === 'username' || key === 'password')
+    return t(`passwords.fields.${key}`)
+  if (key === 'otp') return t('agentBrowser.prompt.entryFill.otp')
+  return key
+}
+
+function toggleRow(id: string, keep: boolean) {
+  const next = new Set(skipped.value)
+  if (keep) next.delete(id)
+  else next.add(id)
+  skipped.value = next
+}
 const allowLabel = computed(() => {
   switch (question.value?.kind) {
     case 'fill':
@@ -45,6 +72,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.takeover.allow')
     case 'download':
       return t('agentBrowser.prompt.download.allow')
+    case 'entryFill':
+      return t('agentBrowser.prompt.entryFill.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -59,6 +88,7 @@ watch(
     failure.value = null
     const entries = question.value?.entries ?? []
     chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
+    skipped.value = new Set()
   },
   { immediate: true },
 )
@@ -66,13 +96,22 @@ watch(
 async function answerAsync(allow: boolean, remember?: Remember) {
   const asked = shown.value
   if (!asked) return
-  const entry = asked.question.kind === 'fill' ? chosenEntry.value : null
+  const kind = asked.question.kind
+  const entry =
+    kind === 'fill' || kind === 'entryFill' ? chosenEntry.value : null
+  const skip =
+    kind === 'entryFill'
+      ? chosenRows.value
+          .filter((row) => skipped.value.has(row.id))
+          .map((row) => row.id)
+      : undefined
   try {
     await store.answerAsync(
       asked.requestId,
       allow ? 'allow' : 'deny',
       remember,
       entry ?? undefined,
+      skip,
     )
   } catch (error) {
     failure.value = errString(error)
@@ -149,7 +188,11 @@ function onUpdateOpen(open: boolean) {
           </template>
           <template v-if="question.reason">
             <dt class="text-muted-foreground">
-              {{ t('agentBrowser.prompt.takeover.reason') }}
+              {{
+                question.kind === 'entryFill'
+                  ? t('agentBrowser.prompt.entryFill.purpose')
+                  : t('agentBrowser.prompt.takeover.reason')
+              }}
             </dt>
             <dd
               class="min-w-0 break-words"
@@ -163,7 +206,7 @@ function onUpdateOpen(open: boolean) {
           </template>
         </dl>
         <fieldset
-          v-if="question.kind === 'fill' && (question.entries?.length ?? 0) > 1"
+          v-if="choosesEntry && (question.entries?.length ?? 0) > 1"
           class="space-y-1"
           data-testid="agent-browser-prompt-entries"
         >
@@ -185,7 +228,7 @@ function onUpdateOpen(open: boolean) {
           </label>
         </fieldset>
         <p
-          v-else-if="question.kind === 'fill' && question.entries?.[0]"
+          v-else-if="choosesEntry && question.entries?.[0]"
           class="text-sm"
           data-testid="agent-browser-prompt-entry"
         >
@@ -194,6 +237,40 @@ function onUpdateOpen(open: boolean) {
             question.entries[0].title || t('agentBrowser.prompt.fill.untitled')
           }}
         </p>
+        <fieldset
+          v-if="question.kind === 'entryFill' && chosenRows.length > 0"
+          class="space-y-1"
+          data-testid="agent-browser-prompt-mapping"
+        >
+          <legend class="text-sm font-medium">
+            {{ t('agentBrowser.prompt.entryFill.rows') }}
+          </legend>
+          <label
+            v-for="row in chosenRows"
+            :key="row.id"
+            class="flex items-center gap-2 text-sm"
+            :data-testid="`agent-browser-prompt-row-${row.id}`"
+          >
+            <input
+              type="checkbox"
+              :checked="!skipped.has(row.id)"
+              @change="
+                toggleRow(row.id, ($event.target as HTMLInputElement).checked)
+              "
+            />
+            <span class="min-w-0 break-words">{{ row.field }}</span>
+            <span class="text-muted-foreground">←</span>
+            <span class="min-w-0 break-words">{{ keyLabel(row.key) }}</span>
+            <span
+              v-if="row.frame"
+              class="min-w-0 break-all text-xs text-muted-foreground"
+              >({{
+                t('agentBrowser.prompt.entryFill.frame', { site: row.frame })
+              }})</span
+            >
+            <span class="text-muted-foreground">•••</span>
+          </label>
+        </fieldset>
         <div v-if="question.fields.length > 0" class="space-y-1">
           <p class="text-sm font-medium">
             {{ t('agentBrowser.prompt.submit.fields') }}
@@ -265,7 +342,7 @@ function onUpdateOpen(open: boolean) {
         <UiButton
           type="button"
           size="sm"
-          :disabled="question.kind === 'fill' && !chosenEntry"
+          :disabled="choosesEntry && !chosenEntry"
           data-testid="agent-browser-prompt-allow"
           @click="answerAsync(true)"
         >

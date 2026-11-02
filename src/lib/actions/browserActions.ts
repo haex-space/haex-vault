@@ -244,6 +244,39 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.entry.fill',
+    titleKey: 'actions.browser.entryFill',
+    description:
+      'Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers holzi filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        form: {
+          type: 'integer',
+          description:
+            'An element number of the form to fill; without it, the form with a password field, else the page.',
+        },
+        purpose: {
+          type: 'string',
+          description:
+            'What the data is for, shown to the user; at most 200 characters.',
+        },
+      },
+      required: ['tab', 'purpose'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        filled: { type: 'array', items: { type: 'integer' } },
+        in_frames: { type: 'integer' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
     id: 'browser.download',
     titleKey: 'actions.browser.download',
     description:
