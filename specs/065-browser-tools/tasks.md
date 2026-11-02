@@ -213,7 +213,7 @@ asks, a remembered one does not; every entry fill asks.
 ### Shared field mapping (PR E0, vault-sdk)
 
 - [x] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
-- [ ] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once
+- [x] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once (haextension PR #175, `@haex-space/vault-sdk` 5.4.1 entries `/autofill` and `/passgen`; the popup generator uses `haex-passgen`)
 
 ### Tests first
 
