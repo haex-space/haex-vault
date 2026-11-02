@@ -15,7 +15,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
-import { isAtBottom } from '~/lib/chat/scrollFollow'
+import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
 const wm = useWindowManagerStore()
 const wmTab = useWmTab()
@@ -192,10 +192,14 @@ const activeMessages = computed<Message[]>(() => {
 /** Whether the viewport follows new content: true while the reader is at its end, false once
  * they scrolled up to read earlier messages. */
 let followsBottom = true
+/** The viewport's `scrollTop` at the previous scroll event, to tell a move up from a move down. */
+let lastScrollTop = 0
 
 function onMessagesScroll() {
   const el = messagesScroll.value
-  if (el) followsBottom = isAtBottom(el)
+  if (!el) return
+  followsBottom = followsAfterScroll(followsBottom, lastScrollTop, el)
+  lastScrollTop = el.scrollTop
 }
 
 /**

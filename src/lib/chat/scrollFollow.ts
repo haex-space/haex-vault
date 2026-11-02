@@ -21,3 +21,24 @@ export function isAtBottom(
     metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <= tolerance
   )
 }
+
+/**
+ * Whether the transcript follows new content after a scroll event. Only a move up stops following,
+ * however small: while a reply streams, every token pins the view to the end again, so a touchpad
+ * or an animated wheel step that stays within the tolerance would otherwise never get away from
+ * it. Reaching the end (within the tolerance) follows again. Any other scroll keeps the state, e.g.
+ * the late event of a programmatic jump to the end after more content arrived. A view clamped to
+ * its end because its content shrank also moves up, but lands on the end and keeps following.
+ */
+export function followsAfterScroll(
+  following: boolean,
+  previousScrollTop: number,
+  metrics: ScrollMetrics,
+  tolerance = BOTTOM_TOLERANCE_PX,
+): boolean {
+  const distance =
+    metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight
+  if (metrics.scrollTop < previousScrollTop && distance > 1) return false
+  if (isAtBottom(metrics, tolerance)) return true
+  return following
+}
