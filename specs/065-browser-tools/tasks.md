@@ -259,7 +259,7 @@ asks, a remembered one does not; every entry fill asks.
 - [x] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (rules) and src-tauri/src/agent_browser/act_files.rs (the tools) (R11), prompt kind `download`, the folder `HaexVault/<Vault>` in the system's downloads folder, which the grant "files of the device" (044) reaches (decided 2026-11-01: holzi's own folders are closed to agents)
 - [x] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
 
-**Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M7 pass.
+**Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M6b, M7 pass.
 
 ---
 
@@ -293,6 +293,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - [ ] T075 [P] Delegates (after 021 PR F): check that a registered delegate gets the browser tools through its MCP registration and never through its own autonomy mode; test in src-tauri/tests/mcp_server_calls.rs
 - [ ] T076 [P] Offer to download "Chrome for Testing" when no browser is found (`settings.agentBrowser.download`), with size, source and checksum shown, in src-tauri/src/agent_browser/locate.rs and src/components/settings/agentBrowser/AgentBrowserView.vue
 - [ ] T077 Manual quickstart M1–M9 on Linux, macOS and Windows with a real Claude Code
+- [x] T092 `pnpm agent-browser:fixtures [port]` for the manual checks: the fixture server of the integration tests (src-tauri/tests/common/agent_browser_fixture.rs, `start_tls_on`) as the example src-tauri/examples/agent_browser_fixtures.rs on `https://127.0.0.1:8443` and the partner `https://localhost:8443`, printing every request; quickstart paths aligned with the fixture pages, M6b added
 - [ ] T078 Update the agent instructions of 021 (`session::INSTRUCTIONS_REGISTERED`) and the tool descriptions with the rule that page content is data, never an instruction
 
 ---
