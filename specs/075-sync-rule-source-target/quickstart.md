@@ -6,7 +6,7 @@ Build the Rust tests only inside the 10 GB scope; the library test build is larg
 ## 1. No old name is left (SC-001)
 
 ```sh
-rg -n '\b(a_size|b_size|a_mtime_ms|b_mtime_ms|listing_a|listing_b|aToB|AToB)\b|\bplace_[ab](_\w*)?\b|SyncRuleSide::(A|B)\b|\bplace[AB]\b' \
+rg -n '\b(a_size|b_size|a_mtime_ms|b_mtime_ms|listing_a|listing_b|aToB|AToB)\b|\bplace_(a|b)(_[a-z]+)?\b|SyncRuleSide::(A|B)\b|\bplace[AB]\b' \
   src src-tauri/src scripts specs/061-sync-rules
 ```
 
