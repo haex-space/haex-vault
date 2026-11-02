@@ -13,6 +13,9 @@
  * user picks one and may remember the website for later fills (FR-021). An entry fill
  * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
  * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
+ * A new login
+ * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
+ * holzi generated and already entered, "Ablehnen" empties the fields again.
  */
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -74,6 +77,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.download.allow')
     case 'entryFill':
       return t('agentBrowser.prompt.entryFill.allow')
+    case 'newCredentials':
+      return t('agentBrowser.prompt.newCredentials.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -168,7 +173,9 @@ function onUpdateOpen(open: boolean) {
               {{
                 question.kind === 'site' || question.kind === 'newTab'
                   ? t('agentBrowser.prompt.address')
-                  : t('agentBrowser.prompt.target')
+                  : question.kind === 'newCredentials'
+                    ? t('agentBrowser.prompt.newCredentials.username')
+                    : t('agentBrowser.prompt.target')
               }}
             </dt>
             <dd

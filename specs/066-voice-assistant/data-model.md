@@ -9,24 +9,25 @@
 Alle Schlüssel gelten nur für das Gerät, dessen Zeile sie sind (FR-002, FR-038). Gespeichert wird
 bei Auswahl.
 
-| Schlüssel                                            | Typ                                   | Standard                   | Spec           |
-| ---------------------------------------------------- | ------------------------------------- | -------------------------- | -------------- |
-| `assistant.enabled`                                  | bool                                  | `false`                    | FR-001, FR-002 |
-| `assistant.muted`                                    | bool                                  | `false`                    | US9            |
-| `assistant.wakeWord`                                 | `"default"` \| `"custom"`             | `"default"`                | FR-007, FR-008 |
-| `assistant.wakeWord.custom`                          | JSON `CustomWakeWord` (unten)         | –                          | FR-008         |
-| `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`     | `"medium"`                 | FR-009         |
-| `assistant.pauseMs`                                  | int 500–2000                          | `800`                      | FR-012         |
-| `assistant.followUpSecs`                             | int 3–30                              | `8`                        | FR-013         |
-| `assistant.continueMins`                             | int 0–60                              | `5`                        | FR-015         |
-| `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                    | Standardstimme der Sprache | FR-029, FR-053 |
-| `assistant.speechRate`                               | float 0.75–1.5                        | `1.0`                      | FR-030         |
-| `assistant.ttsProvider`                              | Anbieter-Id \| null                   | null = lokal               | FR-031         |
-| `assistant.tones.enabled`                            | bool                                  | `true`                     | FR-045         |
-| `assistant.tones.volume`                             | int 0–100                             | `60`                       | FR-045         |
-| `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`         | `"auto"`                   | FR-016, R9     |
-| `assistant.bubble.position`                          | JSON `{x, y}` (Anteil 0–1 der Fläche) | rechts unten               | FR-041         |
-| `assistant.noticeShown`                              | bool                                  | `false`                    | FR-037         |
+| Schlüssel                                            | Typ                                    | Standard                   | Spec           |
+| ---------------------------------------------------- | -------------------------------------- | -------------------------- | -------------- |
+| `assistant.enabled`                                  | bool                                   | `false`                    | FR-001, FR-002 |
+| `assistant.muted`                                    | bool                                   | `false`                    | US9            |
+| `assistant.wakeWord`                                 | `"default"` \| `"custom"`              | `"default"`                | FR-007, FR-008 |
+| `assistant.wakeWord.custom`                          | JSON `CustomWakeWord` (unten)          | –                          | FR-008         |
+| `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`      | `"medium"`                 | FR-009         |
+| `assistant.pauseMs`                                  | int 500–2000                           | `800`                      | FR-012         |
+| `assistant.followUpSecs`                             | int 3–30                               | `8`                        | FR-013         |
+| `assistant.continueMins`                             | int 0–60                               | `5`                        | FR-015         |
+| `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                     | Standardstimme der Sprache | FR-029, FR-053 |
+| `assistant.speechRate`                               | float 0.75–1.5                         | `1.0`                      | FR-030         |
+| `assistant.ttsProvider`                              | Anbieter-Id \| null                    | null = lokal               | FR-031         |
+| `assistant.tones.enabled`                            | bool                                   | `true`                     | FR-045         |
+| `assistant.tones.volume`                             | int 0–100                              | `60`                       | FR-045         |
+| `assistant.tones.custom`                             | JSON `{ToneId: Id eines eigenen Tons}` | `{}` = alle mitgeliefert   | FR-045a        |
+| `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`          | `"auto"`                   | FR-016, R9     |
+| `assistant.bubble.position`                          | JSON `{x, y}` (Anteil 0–1 der Fläche)  | rechts unten               | FR-041         |
+| `assistant.noticeShown`                              | bool                                   | `false`                    | FR-037         |
 
 `VoiceRef` (Text, unabhängig von der Technik, FR-029): `builtin:<id>` (mitgeliefert),
 `clone:<id>` (`haex_tts_voices`), `model:<id>` oder `model:<id>#<sprecher>` (importiert). Zeigt er

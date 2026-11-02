@@ -19,6 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calls::{
     browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
+    NewLogin,
     Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
@@ -42,6 +43,8 @@ mod entry_docs;
 pub(super) mod entry_fill;
 #[path = "act_files.rs"]
 mod files;
+#[path = "act_new_login.rs"]
+pub(super) mod new_login;
 
 /// What the reading script reports about the element of a number.
 #[derive(Debug, Default, Deserialize)]
@@ -87,7 +90,8 @@ fn shown_fields(fields: &[(String, String, bool)]) -> Vec<BrowserField> {
 
 impl Acting<'_> {
     /// Runs `browser.click`, `browser.type`, `browser.select`, `browser.download`,
-    /// `browser.upload`, `browser.credentials.fill` or `browser.entry.fill` on one of `tabs`.
+    /// `browser.upload`, `browser.credentials.fill`, `browser.credentials.create` or
+    /// `browser.entry.fill` on one of `tabs`.
     pub async fn run(
         &self,
         action_id: &str,
@@ -124,6 +128,15 @@ impl Acting<'_> {
                 let EntryFill { tab, form, purpose } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 self.fill_entry(tab, form, &purpose).await
+            }
+            "browser.credentials.create" => {
+                let NewLogin {
+                    tab,
+                    element,
+                    username,
+                } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.create_credentials(tab, element, &username).await
             }
             "browser.upload" => {
                 let Upload { tab, element, path } = parsed(input_value)?;

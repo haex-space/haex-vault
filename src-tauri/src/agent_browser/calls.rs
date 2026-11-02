@@ -112,6 +112,15 @@ pub(super) struct EntryFill {
     pub(super) purpose: String,
 }
 
+/// `browser.credentials.create`: the new password field and the username the agent chose.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct NewLogin {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) username: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Upload {

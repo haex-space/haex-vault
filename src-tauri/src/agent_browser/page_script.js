@@ -359,6 +359,51 @@ function holziPage(args) {
     }
     return { filled, url: location.href }
   }
+  // A new password (browser.credentials.create, research R7): the password field of element
+  // `element` and the next password field of its form, the repeat field, if it is empty or holzi's.
+  // Without a value it only reports; an empty value empties both again.
+  if (args.newPassword !== undefined && args.newPassword !== null) {
+    if (
+      args.newPassword.url !== undefined &&
+      args.newPassword.url !== null &&
+      location.href !== args.newPassword.url
+    )
+      return { changed: true, url: location.href }
+    const el = operable[args.newPassword.element - 1]
+    if (!el) return { gone: true }
+    if (el.tagName.toLowerCase() !== 'input' || el.type !== 'password')
+      return { notPassword: true, url: location.href }
+    const value = args.newPassword.value
+    if (value === undefined || value === null) return { url: location.href }
+    const scope = el.form || el.closest('form')
+    const repeat = scope
+      ? Array.from(scope.querySelectorAll('input[type="password" i]')).find(
+          (other) =>
+            other !== el &&
+            el.compareDocumentPosition(other) &
+              Node.DOCUMENT_POSITION_FOLLOWING &&
+            rendered(other) &&
+            !other.disabled &&
+            !other.readOnly &&
+            (other.value === '' || filledFields.has(other)),
+        )
+      : null
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    ).set
+    const filled = []
+    for (const field of repeat ? [el, repeat] : [el]) {
+      field.focus()
+      setValue.call(field, value)
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      field.dispatchEvent(new Event('change', { bubbles: true }))
+      filledFields.add(field)
+      const n = operable.indexOf(field)
+      if (n >= 0) filled.push(n + 1)
+    }
+    return { filled, url: location.href }
+  }
   if (args.choose !== undefined && args.choose !== null) {
     const el = numbered(args.choose)
     if (!el) return { gone: true }

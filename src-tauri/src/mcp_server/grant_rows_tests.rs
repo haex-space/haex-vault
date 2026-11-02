@@ -49,6 +49,7 @@ fn every_group() -> Rights {
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned(), "Büro".to_owned()]),
+            default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         commands: true,
@@ -124,4 +125,25 @@ fn a_fill_tag_counts_only_on_an_operated_website() {
     ]);
     let sites = rights.browser.expect("on").sites;
     assert!(!sites[&site("https://shop.example.de")].fill_remembered);
+}
+
+/// Spec 065 FR-036: writing passwords keeps the tag new entries get in the row's key.
+#[test]
+fn writing_passwords_keeps_the_tag_for_new_entries() {
+    let rights = Rights {
+        passwords: Some(PasswordRights {
+            level: PasswordLevel::ReadWrite,
+            tags: Some(vec!["dev".to_owned(), "shop".to_owned()]),
+            default_tag: Some("shop".to_owned()),
+        }),
+        ..Rights::default()
+    };
+    let rows = rows_of(&rights);
+    assert!(rows.contains(&row(
+        "passwords",
+        "shop",
+        "read_write",
+        Some(r#"["dev","shop"]"#)
+    )));
+    assert_eq!(rights_of(rows), rights);
 }

@@ -24,7 +24,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::state::FilesState;
 use crate::mcp_server::grants::{
-    validate, BrowserRights, PasswordLevel, PasswordRights, Rights, SiteGrant, SiteLevel,
+    validate, BrowserRights, PasswordRights, Rights, SiteGrant, SiteLevel,
 };
 use crate::mcp_server::registry;
 use crate::passwords::service::PasswordsService;
@@ -140,13 +140,12 @@ pub async fn set_builtin_password_rights<R: Runtime>(
     .map_err(|error| error.to_string())
 }
 
+/// The built-in agent's password rights follow the rules of an external agent's: writing (to save
+/// new logins, spec 065 FR-036, operator 2026-11-02) needs the tag for new entries within tags.
 fn validate_builtin_password_rights(rights: Option<&PasswordRights>) -> Result<(), String> {
     let Some(rights) = rights else {
         return Ok(());
     };
-    if rights.level != PasswordLevel::Read {
-        return Err("the built-in agent may only read password entries for fills".to_owned());
-    }
     validate(&Rights {
         passwords: Some(rights.clone()),
         ..Default::default()

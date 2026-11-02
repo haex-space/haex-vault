@@ -332,3 +332,90 @@ fn pocket_speaks_and_follows_the_rate() {
         .expect("no panic")
         .is_empty());
 }
+
+fn reporting_rig() -> (Rig, mpsc::Receiver<u64>) {
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let gate = VaultGate::with_runtime(runtime.handle().clone());
+    let (input, render) = mixer(MIXER_RATE);
+    let input = Arc::new(input);
+    let out: Arc<dyn SpeechOut> = Arc::clone(&input) as Arc<dyn SpeechOut>;
+    let (report, played) = mpsc::channel();
+    let report = Mutex::new(report);
+    let speaker = Speaker::start_reporting(
+        &gate,
+        out,
+        Arc::new(move |ticket| {
+            let _ = report.lock().expect("report").send(ticket);
+        }),
+    )
+    .expect("speaker starts");
+    (
+        Rig {
+            speaker,
+            render,
+            input,
+            gate,
+            _runtime: runtime,
+        },
+        played,
+    )
+}
+
+#[test]
+fn every_sentence_is_reported_in_order_once_it_has_sounded() {
+    let (rig, played) = reporting_rig();
+    let engine = FakeEngine::new();
+    let started = Instant::now();
+    let tickets = [
+        rig.speaker.speak(sentence(&engine, "0.25")),
+        rig.speaker.speak(sentence(&engine, "not a level")),
+        rig.speaker.speak(sentence(&engine, "0.5")),
+    ];
+    assert_eq!(tickets, [1, 2, 3]);
+    let reported: Vec<u64> = (0..3)
+        .map(|_| played.recv_timeout(WAIT).expect("reported"))
+        .collect();
+    assert_eq!(reported, [1, 2, 3], "a failed sentence is reported too");
+    // "0.25" and "0.5" sound for 40 ms and 30 ms.
+    assert!(started.elapsed() >= Duration::from_millis(70));
+}
+
+#[test]
+fn a_stop_reports_what_it_silenced_at_once() {
+    let (rig, played) = reporting_rig();
+    // Only the renderer moves out: the rest of the rig drops speaker first, runtime last.
+    let mut render = rig.render;
+    let speaker = &rig.speaker;
+    // Plays like a device: the mixer drops stopped speech only while it renders.
+    let playing = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let still_playing = Arc::clone(&playing);
+    let device = std::thread::spawn(move || {
+        let mut block = vec![0.0; 1024];
+        while still_playing.load(Ordering::Acquire) {
+            render.render(&mut block);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    });
+    let engine = FakeEngine::new();
+    // 300 characters: three seconds of speech each.
+    let long = format!("0.5{}", "0".repeat(297));
+    speaker.speak(sentence(&engine, &long));
+    speaker.speak(sentence(&engine, &long));
+    std::thread::sleep(Duration::from_millis(200));
+    let stopped = Instant::now();
+    speaker.stop();
+    assert_eq!(played.recv_timeout(WAIT).expect("first"), 1);
+    assert_eq!(played.recv_timeout(WAIT).expect("second"), 2);
+    assert!(
+        stopped.elapsed() < Duration::from_secs(1),
+        "not after the three seconds the speech would have lasted"
+    );
+
+    // Speech after the stop is timed from now, not behind the silenced sentences.
+    let again = Instant::now();
+    assert_eq!(speaker.speak(sentence(&engine, "0.25")), 3);
+    assert_eq!(played.recv_timeout(WAIT).expect("third"), 3);
+    assert!(again.elapsed() < Duration::from_secs(1));
+    playing.store(false, Ordering::Release);
+    device.join().expect("device thread");
+}

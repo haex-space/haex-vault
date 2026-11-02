@@ -212,15 +212,15 @@ the blob is gone afterwards (spec US3, quickstart A6).
 
 ### Tests for User Story 3
 
-- [ ] T056 [P] [US3] In-process Blossom test server in `src-tauri/tests/support/blossom.rs` on `hyper` (dev-dependency): in-memory blobs, `HEAD /upload` with configurable max size and `X-Reason`, `PUT /upload` checking a kind 24242 auth event (`t=upload`, `x`, `expiration`), `GET /<sha256>`, `DELETE /<sha256>` only by the uploading key; request log for privacy assertions
-- [ ] T057 [P] [US3] Tests in `src-tauri/src/chat/peer/files/crypto_tests.rs`: HXCF round trip for 0 B, 1 B, 1 MiB, 1 MiB + 1, 10 MiB; truncated, reordered, flipped segment and wrong last flag rejected; plaintext hash mismatch rejected
-- [ ] T058 [P] [US3] Tests in `src-tauri/src/chat/peer/files/blossom_tests.rs` against the T056 server: `HEAD /upload` limits and `X-Reason`, upload auth event fields, descriptor hash check, `404` → gone, delete only with the uploading key
+- [x] T056 [P] [US3] In-process Blossom test server in `src-tauri/src/chat/peer/files/test_server.rs` (`cfg(test)`, on `hyper`, like the WebDAV test server of spec 050): in-memory blobs, `HEAD /upload` with configurable max size and `X-Reason`, `PUT /upload` checking a kind 24242 auth event (`t=upload`, `x`, `expiration`), `GET /<sha256>`, `DELETE /<sha256>` only by the uploading key; request log for privacy assertions
+- [x] T057 [P] [US3] Tests in `src-tauri/src/chat/peer/files/crypto_tests.rs`: HXCF round trip for 0 B, 1 B, 1 MiB, 1 MiB + 1, 10 MiB; truncated, reordered, flipped segment and wrong last flag rejected; plaintext hash mismatch rejected
+- [x] T058 [P] [US3] Tests in `src-tauri/src/chat/peer/files/blossom_tests.rs` against the T056 server: `HEAD /upload` limits and `X-Reason`, upload auth event fields, descriptor hash check, `404` → gone, delete only with the uploading key
 - [ ] T059 [P] [US3] Integration test `src-tauri/tests/chat_files.rs`: US3 scenarios 1–3, 5, 6, 8 (receiver open, receiver closed and sender closed by then, deletion after every recipient device and every other own device sent `files`, progress events, refused over 100 MB and over the server limit, second own device downloads itself) and the 30-day sweep with an injected clock
 
 ### Implementation for User Story 3
 
-- [ ] T060 [US3] `src-tauri/src/chat/peer/files/crypto.rs`: HXCF v1 per contracts/blossom.md (magic, version 1, segment size 1 MiB, 8-byte nonce prefix ‖ u32 BE index, AAD `"HXCF1" ‖ last_flag`), AES-256-GCM (`aes-gcm` 0.11), streaming over segments in `spawn_blocking`
-- [ ] T061 [US3] `src-tauri/src/chat/peer/files/blossom.rs`: `HEAD /upload` (BUD-06), streamed `PUT /upload` (`Body::wrap_stream`), `GET`, `DELETE` with kind 24242 auth events (`t`, `x`, `expiration` + 10 min), fresh key per blob; pinned client from `src-tauri/src/remote_storage/http.rs` (HTTPS only, `http://127.0.0.1` in tests, no redirects, no proxy, 30 s connect, 5 min per transfer)
+- [x] T060 [US3] `src-tauri/src/chat/peer/files/crypto.rs`: HXCF v1 per contracts/blossom.md (magic, version 1, segment size 1 MiB, 8-byte nonce prefix ‖ u32 BE index, AAD `"HXCF1" ‖ last_flag`), AES-256-GCM (`aes-gcm` 0.11), streaming over segments in `spawn_blocking`
+- [x] T061 [US3] `src-tauri/src/chat/peer/files/blossom.rs`: `HEAD /upload` (BUD-06), streamed `PUT /upload` (`Body::wrap_stream`), `GET`, `DELETE` with kind 24242 auth events (`t`, `x`, `expiration` + 10 min), fresh key per blob; pinned client from `src-tauri/src/remote_storage/http.rs` (HTTPS only, `http://127.0.0.1` in tests, no redirects, no proxy, 30 s connect, 5 min per transfer)
 - [ ] T062 [US3] `src-tauri/src/chat/peer/files/store.rs`: per-device encrypted folder `Chat` under `<app_local_data>/chat-files/<vault instance>/` created if missing (pattern `agent_browser::profile_store::ProfileStore`), files at `<conversation id>/<attachment id>`; writes through `files::encrypted::transfer::put_file` behind a semaphore of 1 (`ponytail:` whole file in memory, ≤ 100 MB, upgrade = streaming put); `chat_attachment_files_no_sync` states `pending`, `downloading`, `stored`, `failed`, `gone`
 - [ ] T063 [US3] `src-tauri/src/chat/peer/files/transfers.rs`: on send, encrypt and upload every file before queuing the message (refuse > 100 MB or > server limit, offer a 056 file share); on receive, download when size ≤ automatic limit (`chat.download.autoLimit` 25 MB, `chat.download.autoLimitMetered` 5 MB on Android mobile data) else `pending`; verify both hashes; `chat-transfer` events throttled 100 ms; resume/restart after reopening (FR-037)
 - [ ] T064 [US3] Metered-network detection for FR-036: `isActiveNetworkMetered` via `ConnectivityManager` in `src-tauri/plugins/holzi-android/android/src/main/java/space/haex/holzi/android/HolziAndroidPlugin.kt` (new command) and a Rust accessor `chat::peer::files::network::is_metered()` in `src-tauri/src/chat/peer/files/network.rs` that asks the plugin on Android and returns `false` on desktop; checked again before each automatic download; test the desktop branch in `network_tests.rs` and the Android branch in the emulator e2e (T108)
@@ -234,7 +234,7 @@ the blob is gone afterwards (spec US3, quickstart A6).
 - [ ] T072 [P] [US3] i18n `chat.file.*` de/en
 - [ ] T073 [US3] Privacy test `src-tauri/tests/chat_privacy.rs`: across a run with text, files and a group, the `MockRelay` store and the test Blossom request log contain no plaintext, file content, names, group names or vault identities (SC-005, quickstart A11)
 
-**Checkpoint**: PR E.
+**Checkpoint**: PR E, in three PRs (plan.md): E1 = T056–T058, T060, T061; E2 = T059, T062, T063, T065–T069; E3 = T064, T070–T073.
 
 ---
 

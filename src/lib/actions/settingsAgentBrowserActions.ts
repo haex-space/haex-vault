@@ -42,7 +42,7 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agentBrowser.builtinPasswords.set',
     titleKey: 'actions.settings.agentBrowser.builtinPasswordsSet',
     description:
-      'Set which entries of the password manager the built-in agent may have filled into websites of the agent browser: all of them or those with chosen tags; null switches it off. The agent never sees the values.',
+      'Set which entries of the password manager the built-in agent may have filled into websites of the agent browser: all of them or those with chosen tags, to read or also to save new logins (with the tag new entries get); null switches it off. The agent never sees the values.',
     input: {
       type: 'object',
       properties: {
@@ -50,8 +50,9 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
           type: 'object',
           nullable: true,
           properties: {
-            level: { type: 'string', enum: ['read'] },
+            level: { type: 'string', enum: ['read', 'readWrite'] },
             tags: { type: 'array', items: { type: 'string' }, nullable: true },
+            defaultTag: { type: 'string', nullable: true },
           },
         },
       },

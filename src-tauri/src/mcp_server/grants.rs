@@ -165,6 +165,11 @@ pub struct PasswordRights {
     /// The tag names whose entries it reaches; `None` reaches every entry.
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    /// The tag a new entry of the agent gets (spec 065 FR-036, like a browser extension's grant in
+    /// spec 049 FR-010); with [`PasswordLevel::ReadWrite`] and chosen tags it is one of them.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub default_tag: Option<String>,
 }
 
 impl PasswordRights {
@@ -233,6 +238,9 @@ pub enum InvalidRights {
     /// A tag scope of the passwords needs at least one tag.
     #[error("a tag scope needs at least one tag")]
     EmptyTags,
+    /// Writing within chosen tags needs one of them for new entries.
+    #[error("new entries need one of the chosen tags")]
+    DefaultTag,
 }
 
 /// Refuses a scope no agent may get, the guardrails above all (FR-016).
@@ -251,6 +259,16 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
             .is_some_and(|tags| tags.iter().all(|tag| tag.trim().is_empty()))
     }) {
         return Err(InvalidRights::EmptyTags);
+    }
+    if let Some(PasswordRights {
+        level: PasswordLevel::ReadWrite,
+        tags: Some(tags),
+        default_tag,
+    }) = &rights.passwords
+    {
+        if !default_tag.as_ref().is_some_and(|tag| tags.contains(tag)) {
+            return Err(InvalidRights::DefaultTag);
+        }
     }
     let sites = rights.browser.iter().flat_map(|browser| &browser.sites);
     for (site, grant) in sites {

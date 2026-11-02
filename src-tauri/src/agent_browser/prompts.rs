@@ -46,6 +46,9 @@ pub enum BrowserPromptKind {
     /// May holzi fill data of an entry the user chooses (bank or card data) into this form
     /// (FR-037)? With the agent's purpose and one row per mapped field, each to deselect.
     EntryFill,
+    /// May holzi save the login it generated for this website (FR-036)? Declining empties the
+    /// fields again.
+    NewCredentials,
 }
 
 /// An entry the user can choose for a fill: an id that holds only for this question and the title,

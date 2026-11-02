@@ -1996,24 +1996,34 @@
     "confirmsItself": true
   },
   {
+    "toolName": "browser_credentials_create",
+    "actionId": "browser.credentials.create",
+    "description": "Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. holzi generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tab": { "type": "string", "description": "The agent tab, as holzi named it (t1, t2, …)." },
+        "element": { "type": "integer", "description": "The element number of the new password field." },
+        "username": { "type": "string", "description": "The username or email address of the new login, at most 200 characters." }
+      },
+      "required": ["tab", "element", "username"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": { "de": "Neue Anmeldedaten anlegen", "en": "Create new login details" },
+    "runner": "native",
+    "confirmsItself": true
+  },
+  {
     "toolName": "browser_entry_fill",
     "actionId": "browser.entry.fill",
     "description": "Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers holzi filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "tab": {
-          "type": "string",
-          "description": "The agent tab, as holzi named it (t1, t2, …)."
-        },
-        "form": {
-          "type": "integer",
-          "description": "An element number of the form to fill; without it, the form with a password field, else the page."
-        },
-        "purpose": {
-          "type": "string",
-          "description": "What the data is for, shown to the user; at most 200 characters."
-        }
+        "tab": { "type": "string", "description": "The agent tab, as holzi named it (t1, t2, …)." },
+        "form": { "type": "integer", "description": "An element number of the form to fill; without it, the form with a password field, else the page." },
+        "purpose": { "type": "string", "description": "What the data is for, shown to the user; at most 200 characters." }
       },
       "required": ["tab", "purpose"]
     },

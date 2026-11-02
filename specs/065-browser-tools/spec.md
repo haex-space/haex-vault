@@ -107,6 +107,13 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   (aus, alle Einträge oder Einträge mit gewählten Tags; ab Werk aus). holzi liest die Einträge
   dafür als eigene Funktion, der eingebaute Agent selbst liest nie ein Geheimnis (034 FR-027;
   2026-11-02, FR-021).
+- Q: Woher kommt das Passwort für neue Anmeldedaten, und welche Rechte braucht es? → A: Aus dem
+  einen Generator im Crate `haex-passgen` der vault-sdk (Standardvorlage des Nutzers, sonst 20
+  Zeichen aller Klassen); das Fenster und haex-pass-browser nutzen denselben. Speichern braucht die
+  Stufe „Lesen und Schreiben“ der Passwort-Rechte; mit gewählten Tags bekommt der neue Eintrag das
+  dort gewählte Tag für neue Einträge, wie bei einer Browser-Erweiterung (049 FR-010; 2026-11-02,
+  FR-036). Das gilt auch für den eingebauten Agenten
+  (Entscheidung 2026-11-02).
 - Q: Wo landen die Downloads der Agenten? → A: Im Download-Ordner des Systems, im Ordner
   „HaexVault“ je Vault ein Unterordner (`Downloads/HaexVault/<Vault>`). holzis eigene Ordner sind für Agenten
   gesperrt (044), dort könnte der Agent seine Downloads nicht lesen; im Download-Ordner erreicht

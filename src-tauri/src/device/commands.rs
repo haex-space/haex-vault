@@ -7,7 +7,7 @@
 //! the settings-screen entry point and the wizard's final commit step.
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 use uuid::Uuid;
 
 use crate::error::{HolziError, Result};
@@ -97,7 +97,10 @@ pub async fn current_device_info(
 /// backend-internal callers (spec 010's `voice::resolve_local_adapter`)
 /// that need "this device"'s identity without a frontend-supplied UUID and
 /// don't need the alias/hostname `current_device_info` also returns.
-pub async fn resolve_vault_device_uuid(app: &AppHandle, db: &VaultDb) -> Result<Uuid> {
+pub async fn resolve_vault_device_uuid<R: Runtime>(
+    app: &AppHandle<R>,
+    db: &VaultDb,
+) -> Result<Uuid> {
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
             HolziError::PathResolution {

@@ -28,12 +28,81 @@ pub mod assets {
 }
 
 pub mod tones {
-    use crate::error::{HolziError, Result};
+    use crate::error::Result;
 
     #[tauri::command]
-    pub async fn assistant_tone_preview(_tone: String, _volume: u8) -> Result<()> {
-        Err(HolziError::InvalidInput {
+    pub async fn assistant_tone_preview(
+        _tone: String,
+        _volume: u8,
+        _custom_id: Option<String>,
+    ) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}
+
+pub mod custom_tones {
+    use crate::error::Result;
+    use crate::files::picked::PickedFile;
+
+    #[tauri::command]
+    pub async fn assistant_tones_list() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_import(_file: PickedFile) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_assign(_tone: String, _custom_id: Option<String>) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_tone_delete(_custom_id: String) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}
+
+fn voice_disabled() -> crate::error::HolziError {
+    crate::error::HolziError::InvalidInput {
+        reason: "the voice assistant is not enabled in this build".into(),
+    }
+}
+
+pub mod commands {
+    use crate::error::{HolziError, Result};
+
+    fn voice_disabled() -> HolziError {
+        HolziError::InvalidInput {
             reason: "the voice assistant is not enabled in this build".into(),
-        })
+        }
+    }
+
+    /// Managed either way so `lib.rs` registers it the same in every build.
+    #[derive(Default)]
+    pub struct AssistantDriver {
+        _private: (),
+    }
+
+    #[tauri::command]
+    pub async fn assistant_get_state() -> Result<()> {
+        Err(voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_talk(_language: String, _utc_offset_minutes: i32) -> Result<()> {
+        Err(voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_end_conversation() -> Result<()> {
+        Err(voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_set_muted(_muted: bool) -> Result<()> {
+        Err(voice_disabled())
     }
 }
