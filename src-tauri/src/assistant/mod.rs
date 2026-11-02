@@ -32,6 +32,7 @@ mod speakable_tests;
 pub mod tones;
 #[cfg(test)]
 mod tones_tests;
+pub mod transcript;
 pub mod turn;
 #[cfg(test)]
 mod turn_tests;

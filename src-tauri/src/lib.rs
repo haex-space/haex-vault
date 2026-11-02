@@ -875,6 +875,7 @@ pub fn run() {
             assistant::commands::assistant_talk,
             assistant::commands::assistant_end_conversation,
             assistant::commands::assistant_set_muted,
+            assistant::transcript::assistant_transcript_list,
             assistant::tones::assistant_tone_preview,
             assistant::custom_tones::assistant_tones_list,
             assistant::custom_tones::assistant_tone_import,

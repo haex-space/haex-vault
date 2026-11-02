@@ -7,6 +7,9 @@
 #[path = "assistant/lexicon.rs"]
 pub mod lexicon;
 
+#[path = "assistant/transcript.rs"]
+pub mod transcript;
+
 pub mod assets {
     use crate::error::{HolziError, Result};
 
