@@ -108,7 +108,7 @@ export function useComposer(
     try {
       // A thread selection starts this load in the background. Await it again here so a fast
       // send cannot reserve the chat operation first and use the previously loaded model.
-      await chat.useSessionModelAsync(request.threadId)
+      await chat.useSessionModelAsync(request.threadId ?? null)
       if (generation !== sendGeneration) return
       sendInvocationStarted = true
       const result = await chat.sendMessageAsync(request)
