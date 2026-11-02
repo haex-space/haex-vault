@@ -207,6 +207,9 @@ haex-crdt = { git = "https://github.com/haexmas/haex-crdt", rev = "928d06af1ef61
 # the `haex` tool of the vault-sdk (which uses its WebAssembly build). Pinned to the merge commit
 # of haex-space/vault-sdk#94, which checks the `openers` block (spec 063).
 haex-bundle = { git = "https://github.com/haex-space/vault-sdk", rev = "517402a94c7c2b5f2093f38e3930f4019ddbba8d" }
+# The password generator (spec 034 FR-013/FR-014, spec 065 FR-036): its one implementation, shared
+# with haex-pass-browser (which moves to its WebAssembly build). haex-space/vault-sdk#98.
+haex-passgen = { git = "https://github.com/haex-space/vault-sdk", rev = "72c2190207fe30bb8707cfd390374fa3b62bf1c9" }
 # Versions of bundles, compared as the format parses them (effective bundle = highest, R11).
 semver = "1"
 

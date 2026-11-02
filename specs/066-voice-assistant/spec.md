@@ -64,11 +64,14 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   verschlüsselt über den Vault synchronisiert; importierte Modelldateien bleiben wegen ihrer Größe auf
   dem Gerät.
 
-### Session 2026-11-02 (Töne)
+### Session 2026-11-02
 
 - Betreiber: Die Töne für „Hört zu“, „Verstanden“ usw. sind schwer unterscheidbar, und sie lassen
   sich nicht einstellen. → Das Klangset bekommt je Anlass eigene Klangfarbe und eigenen Verlauf
   (FR-043), und Nutzer können pro Anlass einen eigenen Ton aus einer Audiodatei wählen (FR-045a).
+- Q: Bekommen gesprochene Gespräche ein eigenes, einstellbares Modell? → A: Nein. Das Modell gehört
+  zur Sitzung des Agenten; eine neue Sitzung nimmt das zuletzt gewählte Modell, egal ob der Agent
+  per Text oder Sprache gesteuert wird (FR-020). Die Einstellung `assistant.modelId` entfällt.
 
 ## Begriffe
 
@@ -603,8 +606,10 @@ Modus aus.
 #### Agent und Antworten
 
 - **FR-020**: Gespräche MUST über den eingebauten Agenten laufen, mit denselben Werkzeugen,
-  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell für Gespräche MUST
-  einstellbar sein; Standard ist das Standard-Chatmodell des Geräts.
+  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell MUST wie im Chat
+  bestimmt werden: Eine neue Sitzung nimmt das zuletzt gewählte Modell. Ob der Agent per Text oder
+  per Sprache gesteuert wird, MUST NOT einen Unterschied machen; es gibt kein eigenes Modell für
+  Gespräche.
 - **FR-021**: Im Assistent-Modus MUST haex dem Modell mitteilen, dass es ein gesprochenes Gespräch
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
@@ -694,8 +699,7 @@ Modus aus.
 #### Töne
 
 - **FR-043**: haex MUST ein eigenes, mitgeliefertes Klangset mit je einem kurzen, unterscheidbaren
-  Ton für diese Anlässe haben. Unterscheidbar heißt: Keine zwei Töne teilen Klangfarbe und Verlauf
-  (steigend, gleichbleibend, fallend); allein die Tonhöhe reicht nicht (2026-11-02):
+  Ton für diese Anlässe haben:
   - **Hört zu**: Wake Word erkannt oder Gespräch per „Sprechen“ bzw. Tastenkürzel begonnen.
   - **Verstanden**: Ende einer Äußerung erkannt; haex nimmt sie entgegen und bearbeitet sie.
   - **Arbeitet**: ein leiser, wiederkehrender Ton, solange eine Runde länger als einige Sekunden ohne
@@ -718,15 +722,6 @@ Modus aus.
 - **FR-045**: Der Nutzer MUST die Lautstärke der Töne getrennt von der Sprachausgabe einstellen und
   die Töne ausschalten können; ausgenommen sind „Hört zu“ und „Geheimnis“, die immer erklingen,
   solange haex nicht stummgeschaltet ist. Bei Stummschaltung MUST haex keine Töne spielen.
-- **FR-045a** (2026-11-02): Der Nutzer MUST für jeden Anlass aus FR-043 statt des mitgelieferten Tons
-  einen eigenen Ton aus einer Audiodatei (MP3, WAV, OGG, FLAC, M4A) wählen und jederzeit auf den
-  mitgelieferten zurückstellen können. Eigene Töne liegen verschlüsselt im Vault und stehen auf allen
-  Geräten zur Auswahl; welcher Ton für welchen Anlass gilt, ist eine Geräteeinstellung (FR-038). Ein
-  eigener Ton MUST nach dem Abschneiden von Stille am Anfang und Ende höchstens 3 s lang sein
-  („Arbeitet“ höchstens 1 s, weil er sich wiederholt) und wird beim Import auf die Lautstärke der
-  mitgelieferten Töne angeglichen. Fehlt ein zugeordneter eigener Ton (auf einem anderen Gerät
-  gelöscht), MUST der mitgelieferte erklingen. FR-044 (Familie) und FR-046 (Lizenz) gelten nur für
-  die mitgelieferten Töne.
 - **FR-046**: Die Töne MUST unter einer Lizenz stehen, die die Weitergabe mit haex erlaubt, und ihre
   Herkunft MUST im Repository dokumentiert sein.
 
@@ -773,7 +768,7 @@ Modus aus.
 
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
   Empfindlichkeit, Lautstärke und An/Aus der Töne, Pausenlänge, Nachhörzeit, Fortsetzungszeit,
-  Modell für Gespräche, Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
+  Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
   Anzeige. Gilt nur auf diesem Gerät.
 - **Eigenes Wake Word**: das erlernte Muster eines vom Nutzer eingesprochenen Worts, mit Bezeichnung.
   Ohne Rohaufnahmen; gilt nur auf diesem Gerät.
@@ -787,8 +782,6 @@ Modus aus.
   des Endes (für die Fortsetzungszeit) und den Runden als Mitschrift.
 - **Klangset**: die mitgelieferten Hinweistöne, je einer pro Anlass aus FR-043, als zusammengehörige
   Familie gestaltet. Lautstärke und An/Aus sind Teil der Assistent-Einstellungen.
-- **Eigener Ton**: ein vom Nutzer importierter Ton (Name, Länge, Klang), vault-weit verfügbar; pro
-  Gerät einem oder mehreren Anlässen zugeordnet (FR-045a).
 - **Mitschrift-Eintrag**: eine Zeile der vollständigen Mitschrift eines Gesprächs: Zeitpunkt,
   Sprecher (Nutzer oder haex), Art (Äußerung, Antwort, Ansage, Freigabe-Frage, Freigabe-Antwort,
   Antwort auf eine Rückfrage, Stopp, Schlusswendung, nicht verstanden, Vorlese-Hinweis) und Text; bei

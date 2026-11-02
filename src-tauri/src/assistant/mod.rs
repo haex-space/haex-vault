@@ -28,6 +28,9 @@ mod speakable_tests;
 pub mod tones;
 #[cfg(test)]
 mod tones_tests;
+pub mod turn;
+#[cfg(test)]
+mod turn_tests;
 pub mod vad;
 #[cfg(test)]
 mod vad_tests;

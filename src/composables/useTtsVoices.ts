@@ -30,15 +30,6 @@ export interface SpeechCredit {
   source: string
 }
 
-/** `assistant-download-progress`: a speech model download of the assistant. */
-export interface AssistantDownloadProgress {
-  id: string
-  received: number
-  total: number
-}
-
-export const ASSISTANT_DOWNLOAD_PROGRESS = 'assistant-download-progress'
-
 /** An own tone of the vault (spec 066 FR-045a, `CustomTone`). */
 export interface CustomTone {
   id: string
@@ -62,6 +53,12 @@ export function useTtsVoices() {
    * or a newer sample replaced it. */
   async function previewAsync(voice: string, rate: number): Promise<void> {
     await invoke('assistant_tts_preview', { voice, rate })
+  }
+
+  /** Downloads the speech model `modelId` (a voice's `modelId`). Progress arrives as the shared
+   * `model-download-progress`, so the model download components can display it. */
+  async function downloadModelAsync(modelId: string): Promise<void> {
+    await invoke('download_tts_voice', { voiceId: modelId })
   }
 
   /** Plays `tone` once at `volume` (0–100), also while tones are switched off: the own tone
@@ -104,6 +101,7 @@ export function useTtsVoices() {
   return {
     listAsync,
     previewAsync,
+    downloadModelAsync,
     tonePreviewAsync,
     tonesListAsync,
     toneImportAsync,

@@ -294,6 +294,18 @@ fn resolving_a_queued_question_does_not_repeat_the_current_question() {
 }
 
 #[test]
+fn a_late_question_from_an_aborted_turn_is_ignored() {
+    let mut run = Run::asking(0);
+    run.send(Event::Stop, 900);
+
+    assert!(run
+        .send(Event::Question(question("stale")), 1_000)
+        .is_empty());
+    assert_eq!(run.state.open_question(), None);
+    assert_eq!(run.phase(), Phase::FollowUp);
+}
+
+#[test]
 fn a_question_answered_in_the_window_lets_the_turn_go_on() {
     let mut run = Run::asking(0);
     run.send(Event::Question(question("r1")), 1_000);

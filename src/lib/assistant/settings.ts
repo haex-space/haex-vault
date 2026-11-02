@@ -16,7 +16,6 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.pauseMs',
   'assistant.followUpSecs',
   'assistant.continueMins',
-  'assistant.modelId',
   'assistant.voice.<sprache>',
   'assistant.speechRate',
   'assistant.ttsProvider',
