@@ -16,7 +16,14 @@ import { resolveDockEntries, type DockEntry } from '~/lib/wm/dock'
 const wm = useWindowManagerStore()
 const dock = useDock()
 
-const entries = computed(() => resolveDockEntries(dock.items.value, wm.windows))
+const assistant = useAssistantStore()
+void assistant.start()
+// The assistant's toggle is there while this device's preview setting is on (spec 066 T045); it
+// is not stored in the synced dock entries.
+const entries = computed<DockEntry[]>(() => [
+  ...resolveDockEntries(dock.items.value, wm.windows),
+  ...(assistant.preview ? [{ kind: 'control', id: 'assistant' } as const] : []),
+])
 const placement = dock.effective
 const vertical = computed(
   () => placement.value.edge === 'left' || placement.value.edge === 'right',

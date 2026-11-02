@@ -5,8 +5,9 @@
 //! commands, the utterances of the listener, the outputs of the round and the speaker's reports.
 //! It ends with the vault (`VaultGate`), which releases microphone and speaker.
 //!
-//! Until the wake word (PR D) the microphone is open only during a conversation: "Sprechen"
-//! prepares the models and opens it, and the driver closes it after the conversation.
+//! The assistant is switched on and off by one toggle (`assistant_set_enabled`, operator
+//! 2026-11-02): on prepares the models and opens the microphone, off closes it. Until the wake word
+//! (PR D), on starts a conversation at once and the assistant switches itself off after a pause.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::assets;
-use super::conversation::{Timing, PREF_CONTINUE_MINS, PREF_FOLLOW_UP_SECS};
+use super::conversation::{Timing, PREF_CONTINUE_MINS};
 use super::driver::{Core, Input, Note, Ports, StateWire};
 use super::listen::{self, Start};
 use super::speakable::Clock;
@@ -60,7 +61,8 @@ pub struct AssistantDriver {
 }
 
 enum Msg {
-    Talk {
+    SetEnabled {
+        enabled: bool,
         language: String,
         clock: Clock,
         reply: oneshot::Sender<Result<()>>,
@@ -172,8 +174,13 @@ async fn run(
                     return;
                 };
                 match msg {
-                    Msg::Talk { language, clock, reply } => {
-                        let result = talk(&mut core, &mut ports, language, clock).await;
+                    Msg::SetEnabled { enabled, language, clock, reply } => {
+                        let result = if enabled {
+                            switch_on(&mut core, &mut ports, language, clock).await
+                        } else {
+                            core.on(Input::SwitchOff, Instant::now(), &mut ports);
+                            Ok(())
+                        };
                         let _ = reply.send(result);
                     }
                     Msg::Input(input) => core.on(input, Instant::now(), &mut ports),
@@ -192,9 +199,9 @@ async fn run(
     }
 }
 
-/// "Sprechen": opens microphone and speaker with the models of `language` if no conversation
-/// holds them yet, then wakes the conversation.
-async fn talk(
+/// Switching on: opens microphone and speaker with the models of `language` unless they are open,
+/// then switches the conversation on.
+async fn switch_on(
     core: &mut Core,
     ports: &mut RealPorts,
     language: String,
@@ -208,7 +215,7 @@ async fn talk(
         ports.language = language.clone();
         core.prepare(&language, timing);
     }
-    core.on(Input::Talk, Instant::now(), ports);
+    core.on(Input::SwitchOn, Instant::now(), ports);
     Ok(())
 }
 
@@ -240,7 +247,6 @@ async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
     let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
     let voice_key = format!("assistant.voice.{language}");
     let keys = [
-        PREF_FOLLOW_UP_SECS.to_owned(),
         PREF_CONTINUE_MINS.to_owned(),
         PREF_PAUSE_MS.to_owned(),
         PREF_SPEECH_RATE.to_owned(),
@@ -261,18 +267,18 @@ async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
             .and_then(|v| v.trim().parse::<i64>().ok())
     };
     Ok(Settings {
-        timing: Timing::from_prefs(int(0), int(1)),
-        pause_ms: int(2).map_or(PAUSE_MS_DEFAULT, |v| v.clamp(0, i64::from(u32::MAX)) as u32),
-        rate: values[3]
+        timing: Timing::from_prefs(int(0)),
+        pause_ms: int(1).map_or(PAUSE_MS_DEFAULT, |v| v.clamp(0, i64::from(u32::MAX)) as u32),
+        rate: values[2]
             .as_deref()
             .and_then(|v| v.trim().parse::<f32>().ok())
             .and_then(|v| tts::checked_rate(v).ok())
             .unwrap_or(tts::RATE_DEFAULT),
-        voice: values[4].clone(),
-        tones_enabled: values[5]
+        voice: values[3].clone(),
+        tones_enabled: values[4]
             .as_deref()
             .is_none_or(|v| !matches!(v.trim(), "false" | "0")),
-        tones_volume: int(6).map_or(TONES_VOLUME_DEFAULT, |v| v.clamp(0, 100) as u8),
+        tones_volume: int(5).map_or(TONES_VOLUME_DEFAULT, |v| v.clamp(0, 100) as u8),
     })
 }
 
@@ -657,28 +663,33 @@ pub async fn assistant_get_state(driver: State<'_, AssistantDriver>) -> Result<S
     Ok(driver.state())
 }
 
-/// "Sprechen" in the indicator or the shortcut (FR-011). `language` is the window's language,
-/// `utc_offset_minutes` its offset from UTC (dates and times are spoken in local time).
+/// The toggle of the assistant (FR-001, operator 2026-11-02). On loads the models of `language`
+/// (the window's language; nothing is downloaded) and opens the microphone; off ends a
+/// conversation, aborts a running round and closes the microphone. `utc_offset_minutes` is the
+/// window's offset from UTC, for dates and times spoken in local time.
 #[tauri::command]
-pub async fn assistant_talk(
+pub async fn assistant_set_enabled(
     app: AppHandle,
     state: State<'_, AppState>,
     driver: State<'_, AssistantDriver>,
+    enabled: bool,
     language: String,
     utc_offset_minutes: i32,
-) -> Result<()> {
+) -> Result<StateWire> {
     let gate = state.gate().clone();
     let (reply, replied) = oneshot::channel();
     driver.send(
         &app,
         &gate,
-        Msg::Talk {
+        Msg::SetEnabled {
+            enabled,
             language,
             clock: window_clock(utc_offset_minutes),
             reply,
         },
     )?;
-    gate.run(replied).await?.map_err(|_| closing())?
+    gate.run(replied).await?.map_err(|_| closing())??;
+    Ok(driver.state())
 }
 
 /// "Gespräch beenden" (FR-014, FR-039): ends the conversation, also a running round.

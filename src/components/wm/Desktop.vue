@@ -16,7 +16,7 @@
  *
  * Behind every workspace lies the vault's background image, if one is set (spec 042, FR-017).
  * While an agent steers the agent browser, the sessions bar lies over the windows (spec 065,
- * FR-015). The indicator of the voice assistant floats above windows and dock (spec 066, FR-041).
+ * FR-015).
  */
 import { computed, useTemplateRef, watch } from 'vue'
 
@@ -72,7 +72,6 @@ const backgroundStyle = computed(() =>
     </div>
 
     <WmDock />
-    <AssistantBubble />
 
     <WmLauncher v-model:open="wm.overlays.launcher" />
     <WmWindowOverview v-model:open="wm.overlays.windows" />

@@ -10,9 +10,8 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | ----------------------------- | --------------------------------------------------------------- | ---------------------------------------------------- | --------------- |
 | `assistant_get_state`         | –                                                               | `AssistantStateWire`                                 | FR-003          |
 | `assistant_readiness`         | `{language}`                                                    | `{missing: Missing[]}`                               | FR-005          |
-| `assistant_set_enabled`       | `{enabled: bool}`                                               | `AssistantStateWire`                                 | FR-001, FR-005  |
+| `assistant_set_enabled`       | `{enabled: bool, language, utcOffsetMinutes}`                   | `AssistantStateWire`                                 | FR-001, FR-005  |
 | `assistant_set_muted`         | `{muted: bool}`                                                 | `AssistantStateWire`                                 | US9             |
-| `assistant_talk`              | `{language, utcOffsetMinutes}`                                  | –                                                    | FR-011          |
 | `assistant_end_conversation`  | –                                                               | –                                                    | FR-014, FR-039  |
 | `assistant_enroll_start`      | `{label: string}`                                               | `{sessionId}`                                        | FR-008          |
 | `assistant_enroll_record`     | `{sessionId}`                                                   | `EnrollStep`                                         | FR-008          |
@@ -43,14 +42,17 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `download_assistant_assets`   | `{language}`                                                    | – (Fortschritt als Ereignis)                         | FR-005          |
 
 `language` ist die Sprache des Fensters; sie bestimmt, welche Stimme bereit sein muss (eine der sechs
-Sprachen, sonst Englisch). Bei `assistant_talk` ist sie auch die Sprache des Gesprächs, und
+Sprachen, sonst Englisch). Bei `assistant_set_enabled` ist sie auch die Sprache des Gesprächs, und
 `utcOffsetMinutes` ist der Abstand der Ortszeit des Fensters zu UTC, damit Daten und Uhrzeiten in
-Ortszeit gesprochen werden. `assistant_talk` lädt nichts herunter. Fehlt ein Modell, endet der Befehl
-mit dem Fehler, und die Einstellungen bieten den Download an (FR-005). Bis zum Wake Word (PR D)
-öffnet `assistant_talk` Mikrofon und Lautsprecher nur für die Dauer eines Gesprächs. Ist das Gespräch
-vorbei und haex still, schließt der Assistent beide wieder; die Modus-Töne bleiben dabei stumm. haex
-hört erst zu, wenn eigene Töne und Sätze verklungen sind. Bis zur Echo-Unterdrückung (PR G)
-unterbricht nur `assistant_talk` eine laufende Antwort (`echoMode: "keywordOnly"`).
+Ortszeit gesprochen werden. `assistant_set_enabled` ist der einzige Schalter des Assistenten (Dock
+und Launcher, Betreiber 2026-11-02). Einschalten lädt nichts herunter: Fehlt ein Modell, endet der
+Befehl mit dem Fehler, und die Einstellungen bieten den Download an (FR-005). Einschalten öffnet
+Mikrofon und Lautsprecher, Ausschalten beendet ein Gespräch, bricht eine laufende Runde ab und
+schließt beide nach dem Ton „Modus aus“. Ein Gespräch hört ohne Zeitlimit zu, bis der Nutzer „Pause“
+sagt. Bis zum Wake Word (PR D) beginnt das Einschalten selbst ein Gespräch, und nach „Pause“
+schaltet sich der Assistent aus, sobald haex still ist, ohne zweiten Ton. haex hört erst zu, wenn
+eigene Töne und Sätze verklungen sind; bis zur Echo-Unterdrückung (PR G) unterbricht nur das
+Ausschalten eine laufende Antwort (`echoMode: "keywordOnly"`).
 `assistant_set_muted` und `assistant_end_conversation` antworten, nachdem der Assistent die Änderung
 übernommen hat. `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
 Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Das Standard-Wake-Word meldet

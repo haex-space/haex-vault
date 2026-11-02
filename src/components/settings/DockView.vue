@@ -42,6 +42,7 @@ const CONTROL_ICONS: Record<DockControlId, string> = {
   launcher: 'lucide:layout-grid',
   workspaces: 'lucide:monitor',
   windows: 'lucide:copy',
+  assistant: 'lucide:mic',
 }
 
 function appOf(item: DockItemState) {

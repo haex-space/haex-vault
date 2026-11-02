@@ -14,7 +14,6 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.wakeWord.custom',
   'assistant.sensitivity',
   'assistant.pauseMs',
-  'assistant.followUpSecs',
   'assistant.continueMins',
   'assistant.voice.<sprache>',
   'assistant.speechRate',
@@ -23,7 +22,6 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.tones.volume',
   'assistant.tones.custom',
   'assistant.headphones',
-  'assistant.bubble.position',
   'assistant.noticeShown',
   'assistant.preview',
 ] as const

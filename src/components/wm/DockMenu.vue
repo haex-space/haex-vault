@@ -26,10 +26,15 @@ const app = computed(() => {
   return wm.apps().find((candidate) => candidate.id === entry.appId)
 })
 
+// The launcher cannot leave the dock; the assistant's toggle comes and goes with the preview
+// setting (spec 066 T045). Both show the placement menu instead.
 const ownMenu = computed(
   () =>
     props.entry !== null &&
-    !(props.entry.kind === 'control' && props.entry.id === 'launcher'),
+    !(
+      props.entry.kind === 'control' &&
+      (props.entry.id === 'launcher' || props.entry.id === 'assistant')
+    ),
 )
 
 function togglePin() {

@@ -142,7 +142,8 @@
       "controls": {
         "launcher": "Launcher",
         "workspaces": "Workspaces",
-        "windows": "Windows"
+        "windows": "Windows",
+        "assistant": "Voice assistant"
       }
     },
     "workspaces": {
@@ -1490,7 +1491,6 @@
         "wakeWordCustom": "Custom wake word",
         "sensitivity": "Sensitivity",
         "pauseMs": "Pause before answering",
-        "followUpSecs": "Time for follow-ups",
         "continueMins": "Continue the conversation",
         "voice": "Voice",
         "speechRate": "Speaking rate",
@@ -1498,7 +1498,6 @@
         "tonesEnabled": "Tones",
         "tonesVolume": "Tone volume",
         "headphones": "Headphones",
-        "bubblePosition": "Bubble position",
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
         "preview": "Voice assistant (preview)"
@@ -1593,7 +1592,7 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Shows the indicator on the desktop and enables the shortcut {keys}. The microphone is on only during a conversation.",
+      "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
       "saved": "Saved",
       "readiness": "Still missing",
@@ -1605,10 +1604,6 @@
         "voice": "Voice model for this language",
         "chatModel": "AI model",
         "microphone": "Microphone"
-      },
-      "keys": {
-        "default": "Ctrl+Shift+Space",
-        "mac": "⌘⇧Space"
       }
     }
   },
@@ -2143,14 +2138,7 @@
       "delete": "Delete sync rule"
     },
     "assistant": {
-      "talk": "Talk to the voice assistant",
-      "mute": {
-        "set": "Mute the voice assistant"
-      },
-      "conversation": {
-        "end": "End conversation",
-        "show": "Show conversation"
-      }
+      "toggle": "Switch the voice assistant on or off"
     }
   },
   "passwords": {
@@ -4340,31 +4328,9 @@
       "followUp": "Waiting for a follow-up",
       "awaitingAnswer": "Waiting for your answer"
     },
-    "muted": "Muted",
-    "speaker": {
-      "user": "You",
-      "haex": "haex"
-    },
-    "kind": {
-      "notUnderstood": "not understood",
-      "stop": "stop",
-      "closing": "closing",
-      "announcement": "announcement",
-      "approvalQuestion": "approval",
-      "approvalAnswer": "approval answer",
-      "choiceQuestion": "question",
-      "choiceAnswer": "answer to question"
-    },
-    "transcript": {
-      "title": "Conversation with haex",
-      "empty": "Nothing said yet. Press “Talk” and ask away."
-    },
-    "buttons": {
-      "talk": "Talk",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "show": "Show conversation",
-      "end": "End conversation"
-    }
+    "on": "Voice assistant: on",
+    "off": "Voice assistant: off",
+    "name": "Voice assistant",
+    "failed": "Voice assistant: {reason}"
   }
 }

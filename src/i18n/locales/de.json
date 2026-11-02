@@ -142,7 +142,8 @@
       "controls": {
         "launcher": "Launcher",
         "workspaces": "Arbeitsbereiche",
-        "windows": "Fenster"
+        "windows": "Fenster",
+        "assistant": "Sprachassistent"
       }
     },
     "workspaces": {
@@ -1490,7 +1491,6 @@
         "wakeWordCustom": "Eigenes Wake Word",
         "sensitivity": "Empfindlichkeit",
         "pauseMs": "Pause bis zur Antwort",
-        "followUpSecs": "Zeit für Rückfragen",
         "continueMins": "Gespräch fortsetzen",
         "voice": "Stimme",
         "speechRate": "Sprechgeschwindigkeit",
@@ -1498,7 +1498,6 @@
         "tonesEnabled": "Töne",
         "tonesVolume": "Lautstärke der Töne",
         "headphones": "Kopfhörer",
-        "bubblePosition": "Position der Blase",
         "noticeShown": "Hinweis gezeigt",
         "tonesCustom": "Eigene Töne",
         "preview": "Sprachassistent (Vorschau)"
@@ -1593,7 +1592,7 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Zeigt die Anzeige auf der Arbeitsfläche und schaltet das Kürzel {keys} frei. Das Mikrofon ist nur während eines Gesprächs an.",
+      "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
       "saveFailed": "Konnte nicht speichern: {reason}",
       "saved": "Gespeichert",
       "readiness": "Was noch fehlt",
@@ -1605,10 +1604,6 @@
         "voice": "Stimmenmodell dieser Sprache",
         "chatModel": "KI-Modell",
         "microphone": "Mikrofon"
-      },
-      "keys": {
-        "default": "Strg+Umschalt+Leertaste",
-        "mac": "⌘⇧Leertaste"
       }
     }
   },
@@ -2143,14 +2138,7 @@
       "delete": "Sync-Regel löschen"
     },
     "assistant": {
-      "talk": "Mit dem Sprachassistenten sprechen",
-      "mute": {
-        "set": "Sprachassistent stumm schalten"
-      },
-      "conversation": {
-        "end": "Gespräch beenden",
-        "show": "Gespräch zeigen"
-      }
+      "toggle": "Sprachassistent ein- oder ausschalten"
     }
   },
   "passwords": {
@@ -4340,31 +4328,9 @@
       "followUp": "Wartet auf Rückfrage",
       "awaitingAnswer": "Wartet auf deine Antwort"
     },
-    "muted": "Stumm",
-    "speaker": {
-      "user": "Du",
-      "haex": "haex"
-    },
-    "kind": {
-      "notUnderstood": "nicht verstanden",
-      "stop": "Stopp",
-      "closing": "Schluss",
-      "announcement": "Ansage",
-      "approvalQuestion": "Freigabe",
-      "approvalAnswer": "Antwort auf Freigabe",
-      "choiceQuestion": "Rückfrage",
-      "choiceAnswer": "Antwort auf Rückfrage"
-    },
-    "transcript": {
-      "title": "Gespräch mit haex",
-      "empty": "Noch nichts gesagt. Drück „Sprechen“ und frag los."
-    },
-    "buttons": {
-      "talk": "Sprechen",
-      "mute": "Stumm",
-      "unmute": "Ton an",
-      "show": "Gespräch zeigen",
-      "end": "Gespräch beenden"
-    }
+    "on": "Sprachassistent: an",
+    "off": "Sprachassistent: aus",
+    "name": "Sprachassistent",
+    "failed": "Sprachassistent: {reason}"
   }
 }

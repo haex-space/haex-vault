@@ -95,7 +95,11 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub async fn assistant_talk(_language: String, _utc_offset_minutes: i32) -> Result<()> {
+    pub async fn assistant_set_enabled(
+        _enabled: bool,
+        _language: String,
+        _utc_offset_minutes: i32,
+    ) -> Result<()> {
         Err(voice_disabled())
     }
 

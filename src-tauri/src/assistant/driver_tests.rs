@@ -1,6 +1,6 @@
 //! Spec 066 T044: the driver carries out the conversation's decisions, listens only once haex is
-//! quiet, drops what belongs to an aborted round or a stopped listener, and closes the microphone
-//! after the conversation until the wake word arrives.
+//! quiet, drops what belongs to an aborted round or a stopped listener, is switched on and off by
+//! one toggle, and until the wake word switches itself off after a pause (operator 2026-11-02).
 
 use std::time::{Duration, Instant};
 
@@ -135,9 +135,10 @@ impl Rig {
         self.core.state().phase()
     }
 
-    /// "Sprechen", the tone, and a listener once the tone has sounded; returns the listener.
+    /// The toggle on, the listening tone, and a listener once the tone has sounded; returns the
+    /// listener.
     fn talk(&mut self) -> u64 {
-        assert_eq!(self.on(Input::Talk), [Call::Tone(ToneId::Listening)]);
+        assert_eq!(self.on(Input::SwitchOn), [Call::Tone(ToneId::Listening)]);
         match self.wake_up().as_slice() {
             [Call::Listen(id)] => *id,
             other => panic!("expected one listener, got {other:?}"),
@@ -153,9 +154,10 @@ const FIRST: Output = Output::Event(Event::FirstWords);
 const ENDED: Output = Output::Event(Event::TurnEnded);
 
 #[test]
-fn talking_opens_without_mode_tone_and_listens_after_the_tone() {
+fn switching_on_starts_a_conversation_and_listens_after_the_tone() {
     let mut rig = Rig::new();
-    assert_eq!(rig.on(Input::Talk), [Call::Tone(ToneId::Listening)]);
+    // Until the wake word, the listening tone stands for the mode tone.
+    assert_eq!(rig.on(Input::SwitchOn), [Call::Tone(ToneId::Listening)]);
     assert!(rig.core.is_open());
     assert_eq!(rig.phase(), Phase::Listening);
     assert_eq!(
@@ -167,6 +169,34 @@ fn talking_opens_without_mode_tone_and_listens_after_the_tone() {
     let last = rig.ports.published.last().expect("published");
     assert!(last.enabled);
     assert_eq!(last.phase, Phase::Listening);
+    assert!(
+        rig.on(Input::SwitchOn).is_empty(),
+        "on again changes nothing"
+    );
+}
+
+#[test]
+fn switching_off_aborts_the_round_and_closes_after_the_mode_tone() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Erzähl mir was");
+    rig.turn(1, FIRST);
+    rig.turn(1, say("Es war einmal."));
+    assert_eq!(
+        rig.on(Input::SwitchOff),
+        [
+            Call::StopOutput,
+            Call::AbortTurn,
+            Call::Tone(ToneId::ModeOff),
+        ]
+    );
+    assert!(rig.core.is_open(), "the mode tone still sounds");
+    assert!(rig.turn(1, say("Ende.")).is_empty(), "the round is gone");
+    rig.on(Input::Played(1));
+    assert_eq!(rig.wake_up(), [Call::CloseAudio]);
+    let last = rig.ports.published.last().expect("published");
+    assert!(!last.enabled);
+    assert_eq!(last.phase, Phase::Off);
 }
 
 #[test]
@@ -251,29 +281,20 @@ fn utterances_of_a_stopped_listener_and_outputs_of_an_aborted_round_are_dropped(
     rig.turn(1, FIRST);
     rig.turn(1, say("Ich schreibe die Mail."));
 
-    // "Sprechen" while haex speaks interrupts it (keyword-only echo mode until PR G).
-    let calls = rig.on(Input::Talk);
-    assert_eq!(
-        calls,
-        [
-            Call::StopOutput,
-            Call::AbortTurn,
-            Call::Tone(ToneId::Listening),
-        ]
-    );
+    // "Gespräch beenden" aborts the round; what it still sends is dropped.
+    let calls = rig.on(Input::End);
+    assert!(calls.contains(&Call::AbortTurn));
+    assert!(calls.contains(&Call::StopOutput));
     assert!(rig.turn(1, say("An Jonas.")).is_empty());
     assert!(rig.turn(1, ENDED).is_empty());
-    assert_eq!(rig.phase(), Phase::Listening);
-    rig.on(Input::Played(1));
-    assert_eq!(rig.wake_up(), [Call::Listen(2)]);
 }
 
 #[test]
-fn an_end_phrase_says_goodbye_and_closes_once_quiet() {
+fn a_pause_says_goodbye_and_switches_off_once_quiet() {
     let mut rig = Rig::new();
     rig.talk();
     assert_eq!(
-        rig.heard(1, "Danke, das war's"),
+        rig.heard(1, "Mach Pause"),
         [
             Call::StopListening,
             Call::Say(phrases::goodbye("de")),
@@ -290,7 +311,7 @@ fn an_end_phrase_says_goodbye_and_closes_once_quiet() {
 }
 
 #[test]
-fn the_follow_up_window_ends_the_conversation_and_talking_again_continues_it() {
+fn haex_listens_without_a_time_limit_and_switching_on_after_a_pause_continues_the_thread() {
     let mut rig = Rig::new();
     rig.talk();
     rig.heard(1, "Wie spät ist es?");
@@ -302,15 +323,18 @@ fn the_follow_up_window_ends_the_conversation_and_talking_again_continues_it() {
     rig.on(Input::Played(1));
     assert_eq!(rig.wake_up(), [Call::Listen(2)]);
 
-    // Eight seconds of silence.
-    let calls = rig.wake_up();
-    assert_eq!(
-        calls,
-        [Call::StopListening, Call::Tone(ToneId::ConversationEnd)]
-    );
+    // An hour of silence ends nothing.
+    assert_eq!(rig.core.next_wakeup(), None);
+    rig.now += Duration::from_secs(3_600);
+    assert!(rig.on(Input::Tick).is_empty());
+    assert!(rig.core.is_open());
+
+    let calls = rig.heard(2, "Danke, das war's");
+    assert!(calls.contains(&Call::Tone(ToneId::ConversationEnd)));
+    rig.on(Input::Played(2));
     assert_eq!(rig.wake_up(), [Call::CloseAudio]);
 
-    // Within five minutes "Sprechen" continues the same thread.
+    // Switched on again within five minutes, the same thread goes on.
     rig.now += Duration::from_secs(60);
     let listener = rig.talk();
     assert_eq!(listener, 3);
@@ -423,7 +447,7 @@ fn a_stop_word_with_nothing_running_keeps_listening() {
     let mut rig = Rig::new();
     rig.ports.tones_off = true;
     assert_eq!(
-        rig.on(Input::Talk),
+        rig.on(Input::SwitchOn),
         [Call::Tone(ToneId::Listening), Call::Listen(1)]
     );
     assert_eq!(
@@ -526,8 +550,8 @@ fn a_conversation_without_a_request_leaves_no_transcript() {
     rig.heard(1, "");
     rig.on(Input::Played(1));
     rig.wake_up();
-    // The follow-up window runs out.
-    rig.wake_up();
+    rig.heard(2, "Pause");
+    rig.on(Input::Played(2));
     rig.wake_up();
     assert!(!rig.core.is_open());
     assert!(rig.ports.notes.is_empty());
@@ -550,7 +574,7 @@ fn an_interrupted_answer_keeps_its_full_text_and_how_far_it_was_spoken() {
     rig.turn(1, say("Hallo Jonas."));
     rig.turn(1, say("Das Treffen fällt aus."));
     rig.on(Input::Played(1));
-    rig.on(Input::Talk);
+    rig.on(Input::SwitchOff);
     let (_, answer) = rig.ports.notes.last().expect("answer noted");
     assert_eq!(answer.kind, EntryKind::Answer);
     assert_eq!(answer.text, "Hallo Jonas. Das Treffen fällt aus.");

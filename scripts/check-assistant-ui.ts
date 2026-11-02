@@ -19,19 +19,8 @@ import {
   TONES_VOLUME,
   voicePrefKey,
 } from '../src/lib/assistant/settings.ts'
-import {
-  BUBBLE_DEFAULT,
-  lastEntries,
-  parseBubblePosition,
-  PHASE_ICONS,
-  shareOf,
-  splitSpoken,
-} from '../src/lib/assistant/bubble.ts'
-import {
-  ASSISTANT_OFF,
-  sortEntries,
-  utcOffsetMinutes,
-} from '../src/lib/assistant/wire.ts'
+import { PHASE_ICONS, SPINNING_PHASES } from '../src/lib/assistant/indicator.ts'
+import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -237,7 +226,7 @@ test('the preview page sits under KI → Sprache with its label', () => {
   )
 })
 
-test('the indicator has a look for every phase and keeps its position on the desktop', () => {
+test('the toggle shows every phase with an icon and a text', () => {
   assert.equal(ASSISTANT_OFF.phase, 'off')
   const phases = Object.keys(PHASE_ICONS)
   assert.deepEqual(phases.sort(), [
@@ -256,45 +245,27 @@ test('the indicator has a look for every phase and keeps its position on the des
       assert.ok(typeof text === 'string' && text !== '', `${locale}: ${phase}`)
     }
   }
-  assert.deepEqual(parseBubblePosition('{"x":0.2,"y":0.4}'), { x: 0.2, y: 0.4 })
-  assert.deepEqual(parseBubblePosition('{"x":3,"y":-1}'), { x: 1, y: 0 })
-  assert.deepEqual(parseBubblePosition('nope'), BUBBLE_DEFAULT)
-  assert.deepEqual(parseBubblePosition(null), BUBBLE_DEFAULT)
-  assert.deepEqual(shareOf({ x: 50, y: 300 }, 100, 400), { x: 0.5, y: 0.75 })
-  assert.deepEqual(shareOf({ x: 50, y: 50 }, 0, 0), BUBBLE_DEFAULT)
+  assert.equal(PHASE_ICONS.off, 'lucide:mic-off', 'off is visibly off')
+  assert.deepEqual([...SPINNING_PHASES], ['thinking', 'working'])
 })
 
-test('an interrupted answer splits where haex stopped speaking', () => {
-  assert.deepEqual(splitSpoken('Hallo Jonas. Das fällt aus.', 12), {
-    spoken: 'Hallo Jonas.',
-    unspoken: ' Das fällt aus.',
-  })
-  assert.deepEqual(splitSpoken('Grüße', null), {
-    spoken: 'Grüße',
-    unspoken: '',
-  })
-  assert.deepEqual(splitSpoken('Grüße', 99), { spoken: 'Grüße', unspoken: '' })
-  assert.deepEqual(lastEntries([1, 2, 3, 4, 5, 6, 7, 8]), [3, 4, 5, 6, 7, 8])
-})
-
-test('transcript entries keep the backend order and the window gives its UTC offset', () => {
-  const entry = (id: string, seq: number) => ({
-    id,
-    threadId: 't',
-    seq,
-    spokenAt: 0,
-    speaker: 'user',
-    kind: 'utterance',
-    text: id,
-    spokenUntil: null,
-    outcome: null,
-    refId: null,
-    createdAt: 0,
-  })
-  assert.deepEqual(
-    sortEntries([entry('b', 2), entry('c', 1), entry('a', 2)]).map((e) => e.id),
-    ['c', 'a', 'b'],
+test('the toggle sits in the dock and the launcher, not in a floating indicator', () => {
+  assert.ok(
+    !existsSync(resolve(root, 'src/components/assistant/AssistantBubble.vue')),
   )
+  assert.ok(!read('src/components/wm/Desktop.vue').includes('AssistantBubble'))
+  assert.match(read('src/components/wm/Dock.vue'), /id: 'assistant'/)
+  assert.match(
+    read('src/components/wm/DockItem.vue'),
+    /useAction\('assistant.toggle'\)/,
+  )
+  assert.match(
+    read('src/components/wm/Launcher.vue'),
+    /useAction\('assistant.toggle'\)/,
+  )
+})
+
+test('the window gives its UTC offset', () => {
   // Berlin in winter is one hour ahead of UTC: getTimezoneOffset says -60.
   assert.equal(utcOffsetMinutes({ getTimezoneOffset: () => -60 } as Date), 60)
 })
