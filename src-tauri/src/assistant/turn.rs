@@ -18,6 +18,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::chat::default_model::resolve_default_model;
@@ -194,6 +195,8 @@ pub struct VoiceTurn {
     pub clock: Clock,
     /// The conversation has not said the delegate notice yet.
     pub delegate_notice_due: bool,
+    /// Cancels a pending start without aborting another chat operation.
+    pub cancel: CancellationToken,
 }
 
 /// Receives the [`Output`]s of a round, from any thread.
@@ -207,14 +210,24 @@ pub enum Started {
     /// A chat turn in a window did not finish within [`BUSY_WAIT`]; the round did not start and the
     /// sink got the notice and [`Event::TurnEnded`].
     GaveUp,
+    /// The round was cancelled before it could start.
+    Cancelled,
 }
 
 /// Starts a spoken round. On an error the sink gets nothing further; the caller ends the round.
 pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Started> {
-    if !wait_until_free(app, &turn.language, &sink).await {
-        return Ok(Started::GaveUp);
+    match wait_until_free(app, &turn.language, &sink, &turn.cancel).await {
+        WaitOutcome::GaveUp => return Ok(Started::GaveUp),
+        WaitOutcome::Cancelled => return Ok(Started::Cancelled),
+        WaitOutcome::Available => {}
+    }
+    if turn.cancel.is_cancelled() {
+        return Ok(Started::Cancelled);
     }
     ensure_model(app).await?;
+    if turn.cancel.is_cancelled() {
+        return Ok(Started::Cancelled);
+    }
 
     let bridge = Arc::new(Mutex::new(Bridge::new(
         &turn.language,
@@ -255,24 +268,42 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
 
 /// Waits while a chat turn runs in a window: says once that haex is busy, gives up after
 /// [`BUSY_WAIT`] (research R12). Returns whether the chat is free.
-async fn wait_until_free(app: &AppHandle, language: &str, sink: &Sink) -> bool {
+enum WaitOutcome {
+    Available,
+    GaveUp,
+    Cancelled,
+}
+
+async fn wait_until_free(
+    app: &AppHandle,
+    language: &str,
+    sink: &Sink,
+    cancel: &CancellationToken,
+) -> WaitOutcome {
+    if cancel.is_cancelled() {
+        return WaitOutcome::Cancelled;
+    }
     let chat = app.state::<ChatState>();
     if !chat.operation_busy() {
-        return true;
+        return WaitOutcome::Available;
     }
     sink(Output::Event(Event::FirstWords));
     sink(Output::Say(phrases::busy(language)));
     let mut waited = Duration::ZERO;
     while waited < BUSY_WAIT {
-        tokio::time::sleep(BUSY_POLL).await;
+        tokio::select! {
+            _ = cancel.cancelled() => return WaitOutcome::Cancelled,
+            _ = tokio::time::sleep(BUSY_POLL) => {}
+        }
         waited += BUSY_POLL;
         if !chat.operation_busy() {
-            return true;
+            return WaitOutcome::Available;
         }
     }
+    sink(Output::Event(Event::FirstWords));
     sink(Output::Say(phrases::busy_gave_up(language)));
     sink(Output::Event(Event::TurnEnded));
-    false
+    WaitOutcome::GaveUp
 }
 
 /// Makes sure a model is loaded. A loaded model is used as it is, as a typed turn would; with none
