@@ -276,7 +276,7 @@ pub fn mark_request(
         "UPDATE chat_threads SET state = 'request' WHERE id = ?1 AND state <> 'request'",
         params![thread_id.to_string()],
     )?;
-    let is_newer = previous.map_or(true, |previous| {
+    let is_newer = previous.is_none_or(|previous| {
         (card.card.list_generation, card.card.issued_at)
             >= (previous.card.list_generation, previous.card.issued_at)
     });
