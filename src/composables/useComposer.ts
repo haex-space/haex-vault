@@ -24,7 +24,7 @@ export function useComposer(
   chat: ReturnType<typeof useChat>,
   chatTranscript: ReturnType<typeof useChatTranscript>,
   refreshThreads: () => Promise<void>,
-  scrollToBottom: () => Promise<void>,
+  scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
   errString: (e: unknown) => string,
   resetTextarea: () => Promise<void>,
   input: Ref<string>,
@@ -231,7 +231,8 @@ export function useComposer(
           lastError.value = errString(e)
         })
       }
-      await scrollToBottom()
+      // The reader just sent this message: show it, wherever they had scrolled to.
+      await scrollToBottom({ force: true })
     } catch (e: unknown) {
       if (generation !== sendGeneration) return
       // The initial invoke may have been accepted even when its response was

@@ -38,7 +38,7 @@ export function useThreadSidebar(
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
   resetTextarea: () => Promise<void>,
-  scrollToBottom: () => Promise<void>,
+  scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
 ) {
   const {
     pendingStreamEvents,
@@ -321,7 +321,8 @@ export function useThreadSidebar(
         else handleToolResult(event, true)
       }
     }
-    await scrollToBottom()
+    // An opened thread starts at its newest message.
+    await scrollToBottom({ force: true })
   }
 
   return {

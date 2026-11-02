@@ -341,6 +341,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/toolNotice.ts'),
         req,
       )
+    // Pure TS shared with the check scripts (whether the transcript follows new content).
+    if (specifier === '~/lib/chat/scrollFollow')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/chat/scrollFollow.ts'),
+        req,
+      )
     // Marketplace error keys are a pure helper imported by useErrorString.
     if (specifier === '~/lib/marketplace/errors')
       return runComposable(
