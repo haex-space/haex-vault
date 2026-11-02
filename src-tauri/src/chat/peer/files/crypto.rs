@@ -168,11 +168,13 @@ impl Decryptor {
         let sealed = SEGMENT + TAG_LEN;
         let mut plain = Vec::new();
         // A full segment is the last one only when nothing follows it, so one stays buffered.
-        while self.buffer.len() > sealed {
-            let rest = self.buffer.split_off(sealed);
-            let segment = std::mem::replace(&mut self.buffer, rest);
-            plain.extend(self.open(&segment, false)?);
+        let buffer = std::mem::take(&mut self.buffer);
+        let mut start = 0;
+        while buffer.len() - start > sealed {
+            plain.extend(self.open(&buffer[start..start + sealed], false)?);
+            start += sealed;
         }
+        self.buffer = buffer[start..].to_vec();
         Ok(plain)
     }
 

@@ -115,6 +115,20 @@ async fn the_servers_limit_and_reason_refuse_before_and_at_the_upload() {
 async fn only_the_uploading_key_deletes_and_a_deleted_blob_is_gone() {
     let (test, server) = server().await;
     let uploader = Keys::generate();
+
+    for invalid in [
+        "https://attacker.example/blob",
+        "//attacker.example/blob",
+        "../outside",
+        "not-a-sha256",
+    ] {
+        assert_eq!(
+            server.delete(&uploader, invalid, &SystemResolver).await,
+            Err(BlossomError::NotAllowed),
+            "delete refuses {invalid:?} before constructing a URL"
+        );
+    }
+
     let blob = b"to be deleted".to_vec();
     let descriptor = server
         .upload(&uploader, blob.clone(), &SystemResolver)

@@ -190,6 +190,11 @@ impl Server {
             || descriptor.size != size
             || !names_blob(&named, &sha256)
             || !allowed_scheme(&named)
+            || (!self.same_origin(&named)
+                && !matches!(
+                    tokio::time::timeout(SHORT, address::scope_of(&named, resolver)).await,
+                    Ok(Ok(EndpointScope::Public))
+                ))
         {
             return Err(BlossomError::Mismatch);
         }
@@ -199,6 +204,9 @@ impl Server {
     /// Deletes the blob `sha256`, signed by the key that uploaded it; one that is gone already is
     /// no failure.
     pub async fn delete(&self, signer: &Keys, sha256: &str, resolver: &dyn Resolver) -> Result<()> {
+        if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(BlossomError::NotAllowed);
+        }
         let url = self.join(sha256)?;
         let auth = authorization(signer, "delete", sha256, "Delete expired chat file")?;
         let response = send(
@@ -220,9 +228,7 @@ impl Server {
         url: &Url,
         resolver: &dyn Resolver,
     ) -> Result<reqwest::RequestBuilder> {
-        let client = pinned_client(url, self.scope, resolver)
-            .await
-            .map_err(|_| BlossomError::NotAllowed)?;
+        let client = checked_client(url, self.scope, resolver).await?;
         Ok(client.request(method, url.clone()))
     }
 }
@@ -253,9 +259,7 @@ pub async fn download(
         Some(server) => server.scope,
         None => EndpointScope::Public,
     };
-    let client = pinned_client(&url, scope, resolver)
-        .await
-        .map_err(|_| BlossomError::NotAllowed)?;
+    let client = checked_client(&url, scope, resolver).await?;
     let deadline = Instant::now() + TRANSFER;
     let response = send(client.get(url), TRANSFER).await?;
     if response.status() == StatusCode::NOT_FOUND {
@@ -273,6 +277,18 @@ pub async fn download(
         return Err(BlossomError::Mismatch);
     }
     Ok(blob)
+}
+
+/// Resolves and pins an endpoint within the same 30-second connection allowance as the request.
+async fn checked_client(
+    url: &Url,
+    scope: EndpointScope,
+    resolver: &dyn Resolver,
+) -> Result<reqwest::Client> {
+    tokio::time::timeout(SHORT, pinned_client(url, scope, resolver))
+        .await
+        .map_err(|_| BlossomError::TimedOut)?
+        .map_err(|_| BlossomError::NotAllowed)
 }
 
 /// The last path segment of a blob address is its hash, with or without an extension (BUD-01).
