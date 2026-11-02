@@ -26,7 +26,7 @@ Die Ansichten unter Einstellungen → KI drei Dinge ändern:
 
 **Frontend**
 
-- Entfällt: [DefaultModelSetting.vue](../../src/components/settings/DefaultModelSetting.vue), der Registry-Eintrag `ai.default`, die Route in `appRoutes.ts`, die Actions `settings.models.setDefault` und `settings.models.clearDefault`, die i18n-Texte unter `settings.locations.ai.default` und `settings.default`.
+- Entfällt: `src/components/settings/DefaultModelSetting.vue`, der Registry-Eintrag `ai.default`, die Route in `appRoutes.ts`, die Actions `settings.models.setDefault` und `settings.models.clearDefault`, die i18n-Texte unter `settings.locations.ai.default` und `settings.default`.
 - Onboarding ([\[instance\].vue](../../src/pages/onboarding/[instance].vue)): schreibt nach dem Download nicht mehr `chat.default_model_id`. Es merkt das heruntergeladene Modell mit `ai.active_local_model_id` als aktives lokales Modell vor und setzt `chat.last_active_model_id`, damit der erste Chat es übernimmt. Der Preload lädt das aktive Modell beim Öffnen der Vault (siehe Abschnitt 3).
 - Ohne Modell: Auswahl "Modell wählen", Eingabefeld gesperrt.
 
