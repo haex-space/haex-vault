@@ -4,4 +4,8 @@ import type { McpRunState } from "./McpRunState";
 /**
  * What the settings show.
  */
-export type McpStatus = { enabled: boolean, state: McpRunState, };
+export type McpStatus = { enabled: boolean, state: McpRunState,
+/**
+ * The port of the HTTP way while it runs (spec 021 PR G).
+ */
+httpPort: number | null, };
