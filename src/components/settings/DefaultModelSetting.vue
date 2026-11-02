@@ -166,10 +166,10 @@ onVaultTablesChanged(['preferences', 'providers'], () => {
         data-testid="settings-default-empty"
       >
         <SettingsRow
-          to="/ai/download"
+          to="/ai/local"
           icon="lucide:download"
-          :title="t('settings.locations.ai.download.title')"
-          :description="t('settings.locations.ai.download.description')"
+          :title="t('settings.locations.ai.local.title')"
+          :description="t('settings.locations.ai.local.description')"
         />
         <SettingsRow
           to="/ai/providers"

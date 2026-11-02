@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Download models (spec 005, moved to `/ai/download` by spec 023, research R10): the
- * recommended catalog models with their download progress, and the way into the HuggingFace
- * search as a sub-view.
+ * Download models (spec 005; the lower part of the location `/ai/local`, spec 023 research R10):
+ * the recommended catalog models not installed yet with their download progress, and the way
+ * into the HuggingFace search as a sub-view.
  */
 import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 
@@ -38,8 +38,18 @@ const otherDownloads = computed(() => {
 })
 
 function isInstalled(entry: CatalogEntryWithFit): boolean {
-  return installed.value.some((model) => model.id === entry.id)
+  return installed.value.some(
+    (model) =>
+      model.id === entry.id ||
+      (model.hfRepo === entry.hf_repo &&
+        model.hfFilename === entry.hf_filename),
+  )
 }
+
+/** An installed model is listed above, with the models on this device. */
+const notInstalled = computed(() =>
+  catalogEntries.value.filter((entry) => !isInstalled(entry)),
+)
 
 /** The entry whose download waits for the confirmation (spec 043 FR-028). */
 const confirming = ref<CatalogEntryWithFit | null>(null)
@@ -79,11 +89,11 @@ onMounted(reloadAsync)
   <section class="flex flex-col gap-6">
     <SettingsGroup>
       <SettingsRow
-        to="/ai/download/search"
+        to="/ai/local/search"
         icon="lucide:search"
-        :title="t('settings.locations.ai.download.search.title')"
-        :description="t('settings.locations.ai.download.search.description')"
-        data-testid="settings-row-ai.download.search"
+        :title="t('settings.locations.ai.local.search.title')"
+        :description="t('settings.locations.ai.local.search.description')"
+        data-testid="settings-row-ai.local.search"
       />
     </SettingsGroup>
 
@@ -113,14 +123,14 @@ onMounted(reloadAsync)
     </div>
 
     <SettingsGroup
-      v-if="catalogEntries.length > 0"
+      v-if="notInstalled.length > 0"
       :label="
         otherDownloads.length > 0
           ? t('settings.downloadModels.recommended')
           : undefined
       "
     >
-      <SettingsRow v-for="entry in catalogEntries" :key="entry.id">
+      <SettingsRow v-for="entry in notInstalled" :key="entry.id">
         <template #backdrop>
           <ModelsDownloadBar :model-id="entry.id" />
         </template>
@@ -139,16 +149,11 @@ onMounted(reloadAsync)
         <UiButton
           type="button"
           size="sm"
-          :disabled="isInstalled(entry)"
           :loading="busyModelId === entry.id"
           :data-testid="`models-download-${entry.id}`"
           @click="confirming = entry"
         >
-          {{
-            isInstalled(entry)
-              ? t('models.installed.active')
-              : t('models.filePicker.install')
-          }}
+          {{ t('models.filePicker.install') }}
         </UiButton>
       </SettingsRow>
     </SettingsGroup>

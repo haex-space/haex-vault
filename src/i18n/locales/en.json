@@ -648,14 +648,10 @@
           "keywords": "default chat start load"
         },
         "remove": "Remove",
-        "installed": {
-          "title": "Installed models",
-          "description": "Load, update and delete models.",
-          "keywords": "installed load update delete remove"
-        },
-        "download": {
-          "title": "Download models",
-          "description": "Recommended models or a search on HuggingFace.",
+        "local": {
+          "title": "Local models",
+          "description": "Manage downloaded models and download new ones.",
+          "keywords": "local installed load update delete remove download recommended HuggingFace GGUF",
           "search": {
             "title": "Search HuggingFace",
             "description": "Find GGUF models on HuggingFace.",
@@ -663,8 +659,7 @@
           },
           "repo": {
             "title": "{owner}/{name}"
-          },
-          "keywords": "download recommended HuggingFace"
+          }
         },
         "speech": {
           "title": "Speech-to-text model",
@@ -687,16 +682,11 @@
           }
         },
         "providers": {
-          "title": "Connect a subscription",
-          "description": "Use your Claude Code or Codex subscription as a chat backend.",
-          "keywords": "subscription provider connect Claude Code Codex CLI"
-        },
-        "servers": {
-          "title": "Model servers",
-          "description": "Your own servers and services with an OpenAI-compatible API.",
-          "keywords": "server OpenAI compatible Ollama vLLM llama.cpp school server address key API images effort",
-          "server": {
-            "title": "Model server"
+          "title": "Providers",
+          "description": "Connect Claude, Codex and OpenAI-compatible services as chat backends.",
+          "keywords": "providers subscription connect Claude Code Codex CLI OpenAI compatible OpenRouter Abacus Ollama vLLM llama.cpp server endpoint school server address key API images effort",
+          "provider": {
+            "title": "Endpoint"
           }
         },
         "autonomy": {
@@ -1451,7 +1441,7 @@
       "add": "Add a server",
       "name": "Name",
       "address": "Address",
-      "addressHint": "Up to and including /v1, such as http://192.168.1.20:11434/v1.",
+      "addressHint": "Up to and including /v1, such as http://192.168.1.20:11434/v1 or https://openrouter.ai/api/v1.",
       "addressProblem": {
         "empty": "Enter the server's address.",
         "invalid": "This is not a valid address.",
@@ -1483,6 +1473,14 @@
       "removeConfirm": "Remove the server and its models?",
       "cancel": "Cancel",
       "remove": "Remove"
+    },
+    "providers": {
+      "subscriptions": "Subscriptions",
+      "endpoints": "Endpoints"
+    },
+    "localModels": {
+      "onDevice": "On this device",
+      "download": "Download"
     },
     "assistant": {
       "labels": {

@@ -78,7 +78,7 @@ async function addAsync() {
       readFailure.value = { name: addedName, reason: added.refreshError }
       await reloadAsync()
     } else {
-      await router.push(`/ai/servers/${added.providerId}`)
+      await router.push(`/ai/providers/${added.providerId}`)
     }
   } catch (error) {
     addError.value = errString(error)
@@ -115,7 +115,7 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
         icon="lucide:server"
         :title="server.name"
         :description="description(server)"
-        :to="`/ai/servers/${server.id}`"
+        :to="`/ai/providers/${server.id}`"
         data-testid="model-server-row"
       />
     </SettingsGroup>

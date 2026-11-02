@@ -47,7 +47,7 @@ const missing = ref<Missing[] | null>(null)
 const PAGE: Partial<Record<Missing, string>> = {
   sttModel: '/ai/speech',
   voice: '/ai/speech/voice',
-  chatModel: '/ai/download',
+  chatModel: '/ai/local',
 }
 
 const keys = computed(() =>

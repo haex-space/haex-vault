@@ -1,7 +1,6 @@
 <script setup lang="ts">
 /**
- * Installed models (spec 005, moved to the location `/ai/installed` by spec 023, research
- * R10): load, delete, check and install HuggingFace updates, and the integrity dialog. Lists, the
+ * Installed models (spec 005; the upper part of the location `/ai/local`, spec 023 research R10): load, delete, check and install HuggingFace updates, and the integrity dialog. Lists, the
  * active model and the integrity flow are `useModelsStore()` state shared with the chat.
  */
 import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
@@ -192,15 +191,13 @@ onMounted(async () => {
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('models.search.loading') }}
     </div>
-    <SettingsGroup v-else-if="installed.length === 0">
-      <SettingsRow
-        to="/ai/download"
-        icon="lucide:download"
-        :title="t('settings.locations.ai.download.title')"
-        :description="t('models.installed.empty')"
-        data-testid="settings-installed-empty"
-      />
-    </SettingsGroup>
+    <p
+      v-else-if="installed.length === 0"
+      class="px-1 text-sm text-muted-foreground"
+      data-testid="settings-installed-empty"
+    >
+      {{ t('models.installed.empty') }}
+    </p>
 
     <SettingsGroup v-if="installed.length > 0">
       <SettingsRow v-for="model in installed" :key="model.id">
