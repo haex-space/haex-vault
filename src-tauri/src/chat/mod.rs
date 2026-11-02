@@ -13,6 +13,7 @@ pub mod events;
 pub mod local_model;
 pub mod model_loading;
 pub mod peer;
+pub mod search;
 pub mod send;
 pub mod send_admission;
 pub mod session;

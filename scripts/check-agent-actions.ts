@@ -49,6 +49,23 @@ test('tool names match the provider pattern and are unique over the whole catalo
   assert.equal(new Set(names).size, names.length)
 })
 
+// Spec 076 R5: the sidebar's message search reads every conversation, so no action may reach it;
+// agents read contact conversations only through their own grant (spec 072 FR-071, SC-010).
+test('no action exposes the chat message search', () => {
+  for (const action of ALL_ACTIONS) {
+    assert.doesNotMatch(action.id, /chat\.search/, action.id)
+    assert.doesNotMatch(toToolName(action.id), /chat_search/, action.id)
+  }
+  for (const file of [
+    '../src/composables/useChatTab.ts',
+    '../src/stores/chatActionHandlers.ts',
+    '../src/lib/actions/chatActions.ts',
+  ]) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /chat_search/, file)
+  }
+})
+
 test('toToolName is reversible over the catalog', () => {
   for (const action of ALL_ACTIONS)
     assert.equal(fromToolName(toToolName(action.id), ALL_ACTIONS), action)

@@ -85,6 +85,7 @@ use chat::peer::commands::messages::{
     chat_peer_send,
 };
 use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
+use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -825,6 +826,7 @@ pub fn run() {
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,
+            chat_search,
             chat_conversation_read,
             chat_conversation_viewing,
             current_device_info,
