@@ -1609,7 +1609,9 @@
       "keys": {
         "default": "Ctrl+Shift+Space",
         "mac": "⌘⇧Space"
-      }
+      },
+      "seconds": "{value} s",
+      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only."
     }
   },
   "models": {
