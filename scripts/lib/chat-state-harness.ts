@@ -178,7 +178,7 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
   close_instance: () => {},
   current_device_info: () => ({ vaultDeviceUuid: 'device' }),
   // Inert by default: `active_model_info` above already returns a truthy
-  // model, so `models.ts`'s `autoLoadFirstAvailableModel()` short-circuits
+  // model, so `models.ts`'s `restoreLastModel()` short-circuits
   // before ever calling this — only reached by a test that overrides
   // `active_model_info` to simulate nothing being active yet.
   resolve_default_model: () => ({ modelId: null, source: 'none' }),

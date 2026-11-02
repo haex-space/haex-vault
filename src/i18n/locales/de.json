@@ -519,16 +519,6 @@
       "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden"
     },
-    "default": {
-      "modelGroup": {
-        "local": "Lokale Modelle"
-      },
-      "saved": "Standard gesetzt.",
-      "empty": "Es sind noch keine Modelle installiert oder Anbieter konfiguriert.",
-      "none": "Keins",
-      "unknownModel": "{id} (nicht mehr vorhanden)",
-      "label": "Modell"
-    },
     "sttModel": {
       "modelLabel": "Modell",
       "saved": "Gewechselt.",
@@ -641,11 +631,6 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Standard-Modell",
-          "description": "Welches Modell nach dem Öffnen der Vault geladen wird.",
-          "keywords": "Standard Chat Start laden"
-        },
         "remove": "Entfernen",
         "local": {
           "title": "Lokale Modelle",
@@ -1769,9 +1754,7 @@
     "weakPassphrase": "Passphrase erfüllt nicht die Richtlinie",
     "deviceInfoFailed": "Geräteinformationen konnten nicht geladen werden",
     "aliasSaveFailed": "Gerätename konnte nicht gespeichert werden",
-    "prefSaveFailed": "Standard-Modell konnte nicht gespeichert werden",
-    "prefClearFailed": "Standard-Modell konnte nicht gelöscht werden",
-    "prefLoadFailed": "Standard-Modell konnte nicht geladen werden",
+    "prefLoadFailed": "Die Einstellung konnte nicht geladen werden",
     "modelListFailed": "Modell-Liste konnte nicht geladen werden",
     "invalidInput": "Ungültige Eingabe.",
     "invalidIdempotencyKey": "Der Sendevorgang ist ungültig.",
@@ -1948,8 +1931,6 @@
       "models": {
         "list": "Installierte Modelle auflisten",
         "checkUpdates": "Modell-Updates prüfen",
-        "setDefault": "Standard-Modell setzen",
-        "clearDefault": "Standard-Modell entfernen",
         "setStt": "Spracherkennungsmodell wechseln",
         "downloadCatalog": "Modell aus dem Katalog herunterladen",
         "downloadFromHf": "Modell von HuggingFace herunterladen",

@@ -236,7 +236,7 @@ export const useModelsStore = defineStore('models', () => {
       // request in favor of a *different* load that's genuinely in
       // flight (the operation mutex, or the vault-open preload's own
       // generation counter racing this call — see
-      // `autoLoadFirstAvailableModel`). Re-read backend truth instead of
+      // `restoreLastModel`). Re-read backend truth instead of
       // guessing "nothing is active".
       await refreshActiveModel().catch(() => {})
     } finally {
@@ -343,14 +343,14 @@ export const useModelsStore = defineStore('models', () => {
     await refreshActiveModel()
     await refreshInstalledAndCatalog()
     await refreshProviders()
-    await autoLoadFirstAvailableModel()
+    await restoreLastModel()
   }
 
   /**
-   * Session-start fallback (spec 002 §FR-014's last step): once every list
-   * above is fresh, auto-loads whichever model the backend resolver picks
-   * — this device's last-active model, then its default, then the vault
-   * default, then simply the first available one. A newly-connected
+   * Session start (spec 002 §FR-014): once every list above is fresh,
+   * loads the model the backend resolver picks — the last model the person
+   * picked on this device, while it can load. There is no default model and
+   * nothing is picked on the person's behalf. A newly-connected
    * provider's models only exist in that resolver's view *after*
    * `refreshProviders()` has fetched and cached them once, which is why
    * this runs here rather than as part of the vault-open background
@@ -368,7 +368,7 @@ export const useModelsStore = defineStore('models', () => {
     )
   }
 
-  async function autoLoadFirstAvailableModel() {
+  async function restoreLastModel() {
     if (shouldSkipAutoLoad()) return
     let result: ResolveDefaultModelResult
     try {

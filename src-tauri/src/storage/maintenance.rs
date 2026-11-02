@@ -13,8 +13,8 @@
 //!    truncated.
 //! 4. Fold preferences into their scope (spec 023-settings-app, FR-024,
 //!    research R14): settings apply to the vault, so this device's value of
-//!    a vault setting becomes the vault value when the vault has none; the
-//!    default model applies to the device, so a vault value becomes this
+//!    a vault setting becomes the vault value when the vault has none; a
+//!    device setting applies to the device, so a vault value becomes this
 //!    device's when it has none. The old value is deleted either way.
 //!    Idempotent; other devices fold their own values when they open.
 //! 5. Remove delete markers older than [`DELETE_MARKER_RETENTION_DAYS`] from
@@ -67,8 +67,8 @@ pub const VAULT_PREFERENCE_PREFIXES: &[&str] = &["chat.reasoning_option."];
 /// How long a delete marker stays in `haex_deleted_rows` (research R20).
 pub const DELETE_MARKER_RETENTION_DAYS: u32 = 90;
 
-/// Preferences that apply to one device only: the model files live there.
-pub const DEVICE_PREFERENCE_KEYS: &[&str] = &["chat.default_model_id", "chat.notifications"];
+/// Preferences that apply to one device only.
+pub const DEVICE_PREFERENCE_KEYS: &[&str] = &["chat.notifications"];
 
 fn is_vault_preference(key: &str) -> bool {
     VAULT_PREFERENCE_KEYS.contains(&key)

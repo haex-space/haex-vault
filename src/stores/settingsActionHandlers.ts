@@ -25,7 +25,6 @@ import type { McpStatus } from '~/types/bindings/McpStatus'
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
 /** Preference keys the settings components read (specs 002, 008, 009). */
-const DEFAULT_MODEL_KEY = 'chat.default_model_id'
 const STT_MODEL_KEY = 'voice.stt_model_id'
 const AUTONOMY_KEY = 'chat.autonomy_mode'
 const DENY_RULES_KEY = 'cli_delegate.deny_rules'
@@ -42,7 +41,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     updateDeviceAliasAsync,
     listVaultDevicesAsync,
   } = useDevice()
-  const { getPrefAsync, setPrefAsync, clearPrefAsync } = usePreferences()
+  const { getPrefAsync, setPrefAsync } = usePreferences()
   const models = useModels()
   const huggingFace = useHuggingFace()
   const providers = useProviders()
@@ -60,27 +59,24 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const device = await currentDeviceInfoAsync()
     return { kind: 'device', uuid: device.vaultDeviceUuid }
   }
-  /** Settings apply to the vault; only the default and speech models to this device (spec 023,
+  /** Settings apply to the vault; only the speech model to this device (spec 023,
    * FR-024). */
   const VAULT: PrefScope = { kind: 'vault' }
 
   on('settings.get', async () => {
     const device = await currentDeviceInfoAsync()
     const scope: PrefScope = { kind: 'device', uuid: device.vaultDeviceUuid }
-    const [defaultModel, stt, autonomy, denyRules, sessionRestore] =
-      await Promise.all([
-        getPrefAsync(scope, DEFAULT_MODEL_KEY),
-        getPrefAsync(scope, STT_MODEL_KEY),
-        getPrefAsync(VAULT, AUTONOMY_KEY),
-        getPrefAsync(VAULT, DENY_RULES_KEY),
-        wm.getSessionRestore(),
-      ])
+    const [stt, autonomy, denyRules, sessionRestore] = await Promise.all([
+      getPrefAsync(scope, STT_MODEL_KEY),
+      getPrefAsync(VAULT, AUTONOMY_KEY),
+      getPrefAsync(VAULT, DENY_RULES_KEY),
+      wm.getSessionRestore(),
+    ])
     return {
       deviceAlias: device.alias,
       language: language.language.value,
       colorScheme: colorScheme.scheme.value,
       appearance: appearance.appearance.value,
-      ...(defaultModel ? { defaultModel } : {}),
       sttModel: stt,
       sessionRestore: sessionRestore.enabled,
       autonomyMode: autonomy,
@@ -271,18 +267,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const alias = String(input.alias).trim()
     if (!alias) throw new Error('the device name must not be empty')
     await updateDeviceAliasAsync(alias)
-    return done
-  })
-  on('settings.models.setDefault', async ({ input }) => {
-    await setPrefAsync(
-      await deviceScope(),
-      DEFAULT_MODEL_KEY,
-      String(input.modelId),
-    )
-    return done
-  })
-  on('settings.models.clearDefault', async () => {
-    await clearPrefAsync(await deviceScope(), DEFAULT_MODEL_KEY)
     return done
   })
   on('settings.models.setStt', async ({ input }) => {

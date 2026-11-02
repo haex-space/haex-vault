@@ -519,16 +519,6 @@
       "saved": "Saved.",
       "failed": "The setting could not be changed"
     },
-    "default": {
-      "modelGroup": {
-        "local": "Local models"
-      },
-      "saved": "Default set.",
-      "empty": "No installed models or configured providers yet.",
-      "none": "None",
-      "unknownModel": "{id} (no longer available)",
-      "label": "Model"
-    },
     "sttModel": {
       "modelLabel": "Model",
       "saved": "Switched.",
@@ -641,11 +631,6 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Default model",
-          "description": "Which model loads when the vault opens.",
-          "keywords": "default chat start load"
-        },
         "remove": "Remove",
         "local": {
           "title": "Local models",
@@ -1769,9 +1754,7 @@
     "weakPassphrase": "Passphrase does not meet policy",
     "deviceInfoFailed": "Failed to load device info",
     "aliasSaveFailed": "Failed to save device name",
-    "prefSaveFailed": "Failed to save default model",
-    "prefClearFailed": "Failed to clear default model",
-    "prefLoadFailed": "Failed to load default model",
+    "prefLoadFailed": "Failed to load the setting",
     "modelListFailed": "Failed to load model list",
     "invalidInput": "Invalid input.",
     "invalidIdempotencyKey": "The send request is invalid.",
@@ -1948,8 +1931,6 @@
       "models": {
         "list": "List installed models",
         "checkUpdates": "Check model updates",
-        "setDefault": "Set default model",
-        "clearDefault": "Clear default model",
         "setStt": "Switch speech model",
         "downloadCatalog": "Download catalog model",
         "downloadFromHf": "Download model from HuggingFace",

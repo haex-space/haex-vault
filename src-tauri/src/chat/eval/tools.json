@@ -800,33 +800,6 @@
     }
   },
   {
-    "toolName": "settings_models_setDefault",
-    "actionId": "settings.models.setDefault",
-    "description": "Set the default chat model of this device (models are installed per device).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "modelId": {
-          "type": "string",
-          "description": "Installed model id (see settings.models.list)."
-        }
-      },
-      "required": ["modelId"]
-    },
-    "effect": "write",
-    "core": false,
-    "titles": { "de": "Standard-Modell setzen", "en": "Set default model" }
-  },
-  {
-    "toolName": "settings_models_clearDefault",
-    "actionId": "settings.models.clearDefault",
-    "description": "Remove the default chat model of this device.",
-    "inputSchema": { "type": "object", "properties": {} },
-    "effect": "write",
-    "core": false,
-    "titles": { "de": "Standard-Modell entfernen", "en": "Clear default model" }
-  },
-  {
     "toolName": "settings_models_setStt",
     "actionId": "settings.models.setStt",
     "description": "Switch the speech-to-text model to a catalog entry, downloading it if needed.",
