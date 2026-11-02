@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use haex_crdt::rusqlite::params;
 use zeroize::Zeroizing;
 
 use super::{require_user, PasswordsService};
