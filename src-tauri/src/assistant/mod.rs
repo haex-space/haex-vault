@@ -4,9 +4,21 @@
 pub mod assets;
 #[cfg(test)]
 mod assets_tests;
+pub mod lexicon;
+#[cfg(test)]
+mod lexicon_tests;
 pub mod listen;
 #[cfg(test)]
 mod listen_tests;
+pub mod phrases;
+#[cfg(test)]
+mod phrases_tests;
+pub mod sentences;
+#[cfg(test)]
+mod sentences_tests;
+pub mod speakable;
+#[cfg(test)]
+mod speakable_tests;
 pub mod tones;
 #[cfg(test)]
 mod tones_tests;

@@ -203,23 +203,24 @@ pub(super) fn open_existing_database(
     db_path: &Path,
     installation_id_file: &Path,
 ) -> Result<Arc<Database>> {
-    let config = vault_config(passphrase, db_path, installation_id_file, false);
-    let opened = match Database::open(config) {
-        // Parallel branches renamed migrations 0035 and 0040. Older vaults have the original
-        // journal names; retry with a compatibility source whose SQL is identical but preserves
-        // the matching legacy name.
-        Err(CrdtError::MigrationMissingFromSource { name, .. })
-            if name == "0035_file_icon_sets" || name == "0040_contacts_card_display_name" =>
-        {
-            let mut legacy_config = vault_config(passphrase, db_path, installation_id_file, false);
-            legacy_config.migration_source = if name == "0035_file_icon_sets" {
-                crate::identity::holzi_migration_source_with_legacy_icon_set_name()
-            } else {
-                crate::identity::holzi_migration_source_with_legacy_contacts_display_name()
-            };
-            Database::open(legacy_config)
+    // Parallel branches renumbered some migrations, and a vault opened by such a branch keeps the
+    // old journal names. haex-crdt reports the first name its source lacks, so retry with each
+    // reported old name until the source matches the journal; the SQL is identical.
+    let mut legacy: Vec<String> = Vec::new();
+    let opened = loop {
+        let mut config = vault_config(passphrase, db_path, installation_id_file, false);
+        if !legacy.is_empty() {
+            config.migration_source =
+                crate::identity::holzi_migration_source_with_legacy_names(&legacy);
         }
-        other => other,
+        match Database::open(config) {
+            Err(CrdtError::MigrationMissingFromSource { name, .. })
+                if crate::identity::is_legacy_migration_name(&name) && !legacy.contains(&name) =>
+            {
+                legacy.push(name);
+            }
+            other => break other,
+        }
     };
 
     match opened {

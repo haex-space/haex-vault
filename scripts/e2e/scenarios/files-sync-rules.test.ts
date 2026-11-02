@@ -276,13 +276,11 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     await instance.waitForDisplayed('files-picker-b-root')
     await closeModal()
 
-    // The log depth from the settings: the older runs go at once.
-    await runAction(instance, 'wm.app.open', {
-      appId: 'system.settings',
-      at: '/general/sync-log',
-    })
+    // The log depth from the settings button of the panel: the older runs go at once.
+    await instance.click('files-sync-rules-settings')
+    await instance.waitForDisplayed('files-sync-rules-log-depth')
     await instance.type(
-      'settings-sync-log-depth',
+      'files-sync-rules-log-depth',
       // The field holds the default 10: clear it, type 2, save.
       `${KEY.backspace.repeat(3)}2${KEY.enter}`,
       15_000,

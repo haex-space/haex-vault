@@ -532,6 +532,10 @@ Tabellen.
 - **Inhalt**: Schlusswendungen, Stopp-Wörter, Bitte um Wiederholung, Zustimmung und Ablehnung
   (R11), Ordinalzahlen für Rückfragen, Buchstabiernamen (FR-026), alle gesprochenen Meldungen und die
   Gesprächsanweisung.
+- **Schlusswendungen** (gebaut 2026-11-01): `hear.end` beendet ein Gespräch nur, wenn um die Wendung
+  herum nichts steht außer kleinen Zusätzen aus `hear.endExtra` („danke“, „erstmal“, „okay“). So
+  endet „Danke, das war's erstmal“, aber nicht „Das war's noch nicht, schreib Jonas eine Mail“ und
+  nicht „danke“ allein. `hear.filler` („äh“, „hm“) macht eine Äußerung nicht verständlich (FR-019).
 - **Nicht in der Liste**: gesprochene Daten, Uhrzeiten und Zahlen (R10). Das sind Regeln mit
   Grammatik (Kasus, Zahlwortbildung), keine Wörter; sie bleiben Code in `speakable.rs` mit einem
   Zweig pro Sprache.

@@ -85,9 +85,8 @@ pub fn new_event_id() -> String {
     crate::sync::keys::hex(&*random_bytes::<16>())
 }
 
-/// A text message from `from` (hex) to the direct conversation with `to` (hex), checked against
-/// the limits of research R2.
-pub fn message(text: &str, from: &str, card: &str, to: To, at: i64) -> Result<Envelope> {
+/// The text of a message, trimmed, refused when empty or over [`MAX_TEXT_CHARS`] (research R2).
+pub fn checked_text(text: &str) -> Result<&str> {
     let text = text.trim();
     if text.is_empty() {
         return Err(HolziError::InvalidInput {
@@ -97,6 +96,13 @@ pub fn message(text: &str, from: &str, card: &str, to: To, at: i64) -> Result<En
     if text.chars().count() > MAX_TEXT_CHARS {
         return Err(too_large());
     }
+    Ok(text)
+}
+
+/// A text message from `from` (hex) to the direct conversation with `to` (hex), checked against
+/// the limits of research R2.
+pub fn message(text: &str, from: &str, card: &str, to: To, at: i64) -> Result<Envelope> {
+    let text = checked_text(text)?;
     Ok(Envelope {
         v: VERSION,
         id: new_event_id(),

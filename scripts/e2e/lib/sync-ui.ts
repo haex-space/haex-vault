@@ -190,8 +190,15 @@ export async function openLinkedVault(
   await waitForWorkspace(page)
 }
 
-/** The titles the chat's thread list shows (hook `chat-thread`), in the order shown. */
-export function chatTitles(page: FlowInstance): Promise<string[]> {
+/**
+ * The titles of the agent's sessions (hook `chat-thread`), in the order shown. They are listed in
+ * the agent's "Verlauf" (spec 072 FR-002a), which is opened first when it is closed.
+ */
+export async function chatTitles(page: FlowInstance): Promise<string[]> {
+  const open = await page.exec<boolean>(
+    `return document.querySelector('[data-testid="chat-history-panel"]') !== null`,
+  )
+  if (!open) await page.click('chat-history')
   return page.exec<string[]>(
     `return [...document.querySelectorAll('[data-testid="chat-thread"]')].map((row) => row.querySelector('span.truncate')?.textContent.trim() ?? '')`,
   )

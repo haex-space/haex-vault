@@ -261,7 +261,7 @@ Liste, keinen Code-Editor.
   für haex-ui); Ergebnis `{ source: SourceRef | storageId, path }`. Zeigt keine Orte fremder Vaults.
 - Ausnahmen-Editor: `UiTextarea` mit Zeilenzähler und der Zahl der ausgenommenen Dateien; feste Ausnahmen
   darunter, nicht änderbar.
-- Einstellungen: `general.syncLog` mit `UiInput type=number` und Muster von `ExtensionLimitsView.vue` (Speichern bei
+- Einstellungen: Dialog `SyncRuleSettings.vue` im Sync-Regeln-Bereich (Schaltfläche neben „Neue Regel“; vorher `general.syncLog`) mit `UiInput type=number` und Muster von `ExtensionLimitsView.vue` (Speichern bei
   Blur oder Enter, ungültige Eingabe fällt auf den gespeicherten Wert zurück).
 - Pinia-Speicher: jedes Feld beim Neumounten klassifizieren (offene Dialoge zurücksetzen, laufende Läufe bleiben).
 - Neue reine Helfer in `src/lib/files/syncRules.ts` ziehen keine Bindings mit verschachtelten Importen nach

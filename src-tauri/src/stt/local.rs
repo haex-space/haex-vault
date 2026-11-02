@@ -39,9 +39,8 @@ use super::files::{
     WHISPER_TOKENIZER as TOKENIZER_FILENAME, WHISPER_WEIGHTS as WEIGHTS_FILENAME,
 };
 
-/// Candidate languages for `detect_language`, restricted to the app's own
-/// supported UI locales (`nuxt.config.ts`'s `i18n.locales` — keep in sync if
-/// that list ever grows) instead of Whisper's full 99-language set.
+/// Candidate languages for `detect_language`: the spoken languages of the word list
+/// (`assistant::lexicon`, spec 066 research R22) instead of Whisper's full 99-language set.
 ///
 /// The `tiny` model's language-ID is weak on short, largely-silence-padded
 /// push-to-talk clips (verified 2026-09-17: a spoken German command was
@@ -49,8 +48,11 @@ use super::files::{
 /// ambiguous utterance 98 ways to lose to some other language by a small
 /// margin. Restricting the argmax to only the languages we actually care
 /// about can only help: it removes irrelevant distractors, never the
-/// correct answer, from the comparison.
-const SUPPORTED_LANGUAGES: [&str; 2] = ["de", "en"];
+/// correct answer, from the comparison. Six candidates instead of de and en
+/// cost no accuracy in `tests/stt_compare_eval.rs` (research R7, T130).
+fn supported_languages() -> Vec<String> {
+    crate::assistant::lexicon::languages().to_vec()
+}
 
 /// The bundled local STT adapter, resolved via
 /// `providers::local::ensure_local_transcription_provider`'s `"whisper-local"`
@@ -66,7 +68,7 @@ struct Inner {
     tokenizer: Tokenizer,
     mel_filters: Vec<f32>,
     device: Device,
-    /// Candidates for `detect_language`; [`SUPPORTED_LANGUAGES`] unless
+    /// Candidates for `detect_language`; [`supported_languages`] unless
     /// [`LocalWhisperAdapter::with_languages`] says otherwise.
     languages: Vec<String>,
 }
@@ -139,16 +141,13 @@ impl LocalWhisperAdapter {
                 tokenizer,
                 mel_filters,
                 device,
-                languages: SUPPORTED_LANGUAGES
-                    .iter()
-                    .map(|code| code.to_string())
-                    .collect(),
+                languages: supported_languages(),
             })),
         })
     }
 
     /// Restricts language detection to `codes` (Whisper language codes such
-    /// as `"de"`) instead of [`SUPPORTED_LANGUAGES`]. Spec 066 (research
+    /// as `"de"`) instead of [`supported_languages`]. Spec 066 (research
     /// R22) widens it to the six spoken languages; the comparison in
     /// `tests/stt_compare_eval.rs` measures what that costs.
     pub fn with_languages(self, codes: &[&str]) -> Self {

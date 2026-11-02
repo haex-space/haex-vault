@@ -175,7 +175,8 @@ src/
 │   ├── PeerMessageList.vue, AttachmentBubble.vue, ContactCardBubble.vue,
 │   │   GroupMembersPanel.vue, RequestBanner.vue, NewConversationDialog.vue,
 │   │   ConversationPicker.vue, SendConfirmDialog.vue   # NEW
-│   └── ThreadSidebar.vue                    # → conversation list with filter, avatars, unread, Anfragen
+│   ├── AgentListItem.vue, AgentHeader.vue, AgentSessionsPopover.vue  # NEW (PR B2)
+│   └── ThreadSidebar.vue                    # → messenger list: contacts, groups, one "Agent" entry, Anfragen
 ├── composables/useConversations.ts, usePeerConversation.ts, useChatTransfers.ts   # NEW
 ├── components/contacts/EntryPage.vue        # "Nachricht senden"
 ├── components/contacts/ShareDialog.vue      # "Im Chat senden"
@@ -195,17 +196,18 @@ app; agent and peer views are siblings under it.
 
 Each slice is mergeable and testable on its own; later ones build on earlier ones.
 
-| PR  | Content                                                                                                                                                                                       | Stories         |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| A   | docs: spec, plan, research, contracts, ADR 0024 (this PR #724)                                                                                                                                | –               |
-| B   | migration 0049, `chat::peer::{ids, store}`, `chat_conversations_list`, model wiring into useAgentModelState, conversation list with kinds/filter, "Nachricht senden" + empty PeerConversation | US1             |
-| C   | wrap generalisation, envelope, verify, outbox, delivery service, receive, receipts, direct send/receive, read state, notifications                                                            | US2, FR-023/024 |
-| D   | requests and blocking                                                                                                                                                                         | US5             |
-| E   | files: HXCF, Blossom client, test server, transfers, per-device store, sweep, viewer/save, download limits, chat settings (Blossom part)                                                      | US3, US8 (part) |
-| F   | groups: ops, invitations, members panel, notes                                                                                                                                                | US4             |
-| G   | contact share in chat                                                                                                                                                                         | US6             |
-| H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                               | US7             |
-| I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                    | US8, SC-011     |
+| PR  | Content                                                                                                                                                                                                                                                    | Stories         |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| A   | docs: spec, plan, research, contracts, ADR 0024 (this PR #724)                                                                                                                                                                                             | –               |
+| B   | migration 0049, `chat::peer::{ids, store}`, `chat_conversations_list`, model wiring into useAgentModelState, conversation list with kinds/filter, "Nachricht senden" + empty PeerConversation                                                              | US1             |
+| B2  | list revision 2026-11-01: messenger list (one entry per contact/group, one "Agent" entry), agent sessions behind "Neue Sitzung"/"Verlauf" in the agent header, no kind filters, "Ich" entry for notes (kind `note`, command `chat_conversation_open_note`) | US1             |
+| C   | wrap generalisation, envelope, verify, outbox, delivery service, receive, receipts, direct send/receive, read state, notifications                                                                                                                         | US2, FR-023/024 |
+| D   | requests and blocking                                                                                                                                                                                                                                      | US5             |
+| E   | files: HXCF, Blossom client, test server, transfers, per-device store, sweep, viewer/save, download limits, chat settings (Blossom part)                                                                                                                   | US3, US8 (part) |
+| F   | groups: ops, invitations, members panel, notes                                                                                                                                                                                                             | US4             |
+| G   | contact share in chat                                                                                                                                                                                                                                      | US6             |
+| H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                                                                                            | US7             |
+| I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                                                                                 | US8, SC-011     |
 
 ## Complexity Tracking
 

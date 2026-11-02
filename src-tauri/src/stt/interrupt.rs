@@ -8,6 +8,8 @@
 
 use serde::Serialize;
 
+use crate::assistant::lexicon;
+
 /// Wire representation matches exactly `"stop"` / `"halt"` / `"abbrechen"`
 /// (data-model.md §`InterruptCommand`) — never a Rust variant name — since
 /// `TranscriptionResult.interrupt` serializes this directly to the
@@ -20,15 +22,20 @@ pub enum InterruptCommand {
     Abbrechen,
 }
 
-/// Matches only when the *entire* (trimmed, lowercased) transcript equals
-/// one of the three interrupt words. A longer sentence merely containing
-/// one of them (e.g. "bitte nicht mehr stoppen mitten im Satz") must not
-/// match — no substring match (FR-009, SC-006).
+/// Matches only when the *entire* utterance is one of the stop words of the word list (row
+/// `hear.stop`, any spoken language), ignoring case and punctuation. A longer sentence merely
+/// containing one of them (e.g. "bitte nicht mehr stoppen mitten im Satz") must not match — no
+/// substring match (FR-009, SC-006). "halt" and "abbrechen" keep their own wire value; every other
+/// stop word is `stop`.
 pub fn match_interrupt(transcript: &str) -> Option<InterruptCommand> {
-    match transcript.trim().to_lowercase().as_str() {
-        "stop" => Some(InterruptCommand::Stop),
-        "halt" => Some(InterruptCommand::Halt),
-        "abbrechen" => Some(InterruptCommand::Abbrechen),
-        _ => None,
-    }
+    let lexicon = lexicon::lexicon();
+    let word = lexicon
+        .languages()
+        .iter()
+        .find_map(|language| lexicon.matched("hear.stop", language, transcript))?;
+    Some(match word {
+        [w] if w == "halt" => InterruptCommand::Halt,
+        [w] if w == "abbrechen" => InterruptCommand::Abbrechen,
+        _ => InterruptCommand::Stop,
+    })
 }

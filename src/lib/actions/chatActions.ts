@@ -125,6 +125,15 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
     agentCallable: false,
   }),
   inChat({
+    id: 'chat.notes.open',
+    description:
+      'Open the notes to oneself ("Ich"), starting them the first time.',
+    input: { type: 'object', properties: {} },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
     id: 'chat.conversation.mute',
     description: 'Mute or unmute a conversation with contacts.',
     input: {

@@ -24,6 +24,8 @@ export function useConversationCommands() {
       invoke<{ threadId: string }>('chat_conversation_open_direct', {
         args: { contactId },
       }),
+    openNoteAsync: () =>
+      invoke<{ threadId: string }>('chat_conversation_open_note'),
     muteAsync: (threadId: string, muted: boolean) =>
       invoke<null>('chat_conversation_mute', { args: { threadId, muted } }),
     deleteAsync: (threadId: string) =>
@@ -61,11 +63,20 @@ export function useConversations(errString: (error: unknown) => string) {
   const contacts = ref<ContactHeader[]>([])
   const error = ref<string | null>(null)
 
+  const self = computed(() => contacts.value.find((c) => c.isSelf) ?? null)
+
   const conversations = computed<PeerConversationEntry[]>(() => {
     const byId = new Map(contacts.value.map((c) => [c.id, c]))
     return rows.value
       .filter((row) => row.kind !== 'agent')
       .map((row) => {
+        // The notes read "Ich" with the own contact's picture, as in the address book (FR-002b).
+        if (row.kind === 'note')
+          return {
+            ...row,
+            displayName: t('contacts.self'),
+            photo: self.value?.photo ?? null,
+          }
         const contact = row.peerContactId ? byId.get(row.peerContactId) : null
         return {
           ...row,
@@ -78,6 +89,27 @@ export function useConversations(errString: (error: unknown) => string) {
         }
       })
   })
+
+  /** The "Ich" entry: the notes, or an entry without id before the first note (FR-002b). */
+  const notes = computed<PeerConversationEntry>(
+    () =>
+      conversations.value.find((c) => c.kind === 'note') ?? {
+        id: '',
+        kind: 'note',
+        state: 'active',
+        title: '',
+        peerVault: null,
+        peerContactId: null,
+        peerCardName: null,
+        peerWithoutRelays: false,
+        muted: false,
+        unread: 0,
+        lastText: null,
+        lastAt: 0,
+        displayName: t('contacts.self'),
+        photo: self.value?.photo ?? null,
+      },
+  )
 
   async function refresh() {
     try {
@@ -104,5 +136,5 @@ export function useConversations(errString: (error: unknown) => string) {
     refresh,
   )
 
-  return { conversations, contacts, error, refresh, ...commands }
+  return { conversations, notes, contacts, error, refresh, ...commands }
 }

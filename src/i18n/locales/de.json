@@ -262,20 +262,20 @@
       "hide": "Seitenleiste ausblenden"
     },
     "threads": {
-      "title": "Verläufe",
-      "empty": "Noch keine Gespräche",
+      "title": "Verlauf",
+      "empty": "Noch keine Sitzungen",
       "duration": "{duration}",
       "openedAt": "Eröffnet am {date}",
       "openedAtUnknown": "Eröffnungszeit unbekannt",
       "editTitle": "Titel bearbeiten",
       "saveTitle": "Titel speichern",
       "cancelEdit": "Bearbeitung abbrechen",
-      "deleteTitle": "Verlauf löschen",
-      "deleteDialogTitle": "Verlauf löschen",
-      "deleteConfirm": "Möchtest du „{title}“ wirklich löschen? Alle Nachrichten dieses Verlaufs werden dauerhaft entfernt.",
+      "deleteTitle": "Sitzung löschen",
+      "deleteDialogTitle": "Sitzung löschen",
+      "deleteConfirm": "Möchtest du „{title}“ wirklich löschen? Alle Nachrichten dieser Sitzung werden dauerhaft entfernt.",
       "deleteConfirmButton": "Löschen",
-      "deleteFailed": "Der Verlauf konnte nicht gelöscht werden.",
-      "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Der Verlauf bleibt erhalten.",
+      "deleteFailed": "Die Sitzung konnte nicht gelöscht werden.",
+      "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Die Sitzung bleibt erhalten.",
       "renameFailed": "Der Titel konnte nicht gespeichert werden.",
       "titleRequired": "Bitte gib einen Titel ein.",
       "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten."
@@ -403,18 +403,10 @@
       }
     },
     "list": {
-      "filter": {
-        "label": "Unterhaltungen filtern",
-        "all": "Alle",
-        "agent": "Agent",
-        "contacts": "Kontakte",
-        "groups": "Gruppen"
-      },
       "title": "Unterhaltungen",
-      "writeContact": "Mit Kontakt schreiben",
-      "empty": "Noch keine Unterhaltungen",
       "muted": "Stummgeschaltet",
-      "unread": "{count} ungelesen"
+      "unread": "{count} ungelesen",
+      "newConversation": "Neue Unterhaltung"
     },
     "peer": {
       "unknownName": "Unbekannt",
@@ -459,6 +451,16 @@
     "notify": {
       "request": "Neue Anfrage",
       "open": "Öffnen"
+    },
+    "agent": {
+      "name": "Agent",
+      "newSession": "Neue Sitzung",
+      "history": "Verlauf",
+      "unnamedSession": "Neue Sitzung",
+      "noSession": "Noch keine Sitzung"
+    },
+    "notes": {
+      "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
     }
   },
   "settings": {
@@ -619,11 +621,6 @@
           "title": "Dock",
           "description": "Position, Stil und Einträge des Docks.",
           "keywords": "Dock Leiste Taskleiste Rad anheften Position Kante Ecke automatisch ausblenden"
-        },
-        "syncLog": {
-          "title": "Sync-Protokoll",
-          "description": "Wie viele Läufe der Sync-Regeln gespeichert bleiben.",
-          "keywords": "Sync Regeln Protokoll Log Läufe Tiefe Verlauf Abgleich"
         },
         "licenses": {
           "title": "Lizenzen",
@@ -1469,12 +1466,6 @@
       "cancel": "Abbrechen",
       "remove": "Entfernen"
     },
-    "syncLog": {
-      "title": "Sync-Protokoll",
-      "depth": "Läufe je Regel",
-      "hint": "Wie viele Läufe das Protokoll jeder Sync-Regel auf diesem Gerät behält, 0 bis 100. Bei 0 gibt es kein Protokoll.",
-      "invalid": "Eine ganze Zahl von 0 bis 100."
-    },
     "assistant": {
       "labels": {
         "enabled": "Sprachassistent",
@@ -1878,6 +1869,9 @@
       "contact": {
         "open": "Unterhaltung mit Kontakten öffnen",
         "openDirect": "Unterhaltung mit Kontakt öffnen"
+      },
+      "notes": {
+        "open": "Eigene Notizen öffnen"
       },
       "peer": {
         "send": "Nachricht an Kontakt senden",
@@ -3322,6 +3316,17 @@
         "title": "Sync-Regel ändern",
         "save": "Speichern",
         "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+      },
+      "settings": {
+        "open": "Einstellungen",
+        "title": "Einstellungen der Sync-Regeln",
+        "logHeading": "Protokoll",
+        "logIntro": "Nach jedem Abgleich schreibt holzi auf, was geschehen ist: wann er lief, wie lange er dauerte, wie er ausging und welche Dateien er kopiert, verschoben, gelöscht oder als Konfliktkopie angelegt hat. Das Protokoll einer Regel öffnest du in ihrem Menü. Dort siehst du auch, wohin eine gespiegelte Löschung die Datei gelegt hat.",
+        "depth": "Läufe je Regel",
+        "hint": "So viele der letzten Abgleiche behält holzi für jede Regel, von 0 bis 100. Ältere Läufe werden gelöscht. Stellst du eine kleinere Zahl ein, verschwinden die ältesten Läufe sofort.",
+        "cost": "Mehr Läufe heißen, dass du weiter zurückblicken kannst, brauchen aber mehr Speicherplatz, vor allem bei Regeln mit vielen Dateien. Bei 0 führt holzi kein Protokoll, und du kannst nicht nachsehen, was mit einer Datei geschehen ist.",
+        "scope": "Die Einstellung gilt für alle Sync-Regeln auf diesem Gerät. Das Protokoll bleibt auf diesem Gerät und wird nicht mit anderen Geräten abgeglichen. Es speichert Lauf-Metadaten wie Zeitpunkte, Dauer, Auslöser, Ergebnis und Zähler sowie Dateipfade, Aktionen und Fehlergründe. Dateiinhalte speichert es nicht.",
+        "invalid": "Eine ganze Zahl von 0 bis 100."
       },
       "create": {
         "open": "Neue Regel",

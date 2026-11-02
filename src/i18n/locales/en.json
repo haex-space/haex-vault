@@ -262,20 +262,20 @@
       "hide": "Hide sidebar"
     },
     "threads": {
-      "title": "Conversations",
-      "empty": "No conversations yet",
+      "title": "History",
+      "empty": "No sessions yet",
       "duration": "{duration}",
       "openedAt": "Opened {date}",
       "openedAtUnknown": "Opening time unavailable",
       "editTitle": "Edit title",
       "saveTitle": "Save title",
       "cancelEdit": "Cancel editing",
-      "deleteTitle": "Delete conversation",
-      "deleteDialogTitle": "Delete conversation",
-      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this conversation will be permanently removed.",
+      "deleteTitle": "Delete session",
+      "deleteDialogTitle": "Delete session",
+      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this session will be permanently removed.",
       "deleteConfirmButton": "Delete",
-      "deleteFailed": "The conversation could not be deleted.",
-      "deleteCancelFailed": "The running turn could not be safely stopped. The conversation was kept.",
+      "deleteFailed": "The session could not be deleted.",
+      "deleteCancelFailed": "The running turn could not be safely stopped. The session was kept.",
       "renameFailed": "The title could not be saved.",
       "titleRequired": "Please enter a title.",
       "titleTooLong": "The title can contain at most 120 characters."
@@ -403,18 +403,10 @@
       }
     },
     "list": {
-      "filter": {
-        "label": "Filter conversations",
-        "all": "All",
-        "agent": "Agent",
-        "contacts": "Contacts",
-        "groups": "Groups"
-      },
       "title": "Conversations",
-      "writeContact": "Write to a contact",
-      "empty": "No conversations yet",
       "muted": "Muted",
-      "unread": "{count} unread"
+      "unread": "{count} unread",
+      "newConversation": "New conversation"
     },
     "peer": {
       "unknownName": "Unknown",
@@ -459,6 +451,16 @@
     "notify": {
       "request": "New request",
       "open": "Open"
+    },
+    "agent": {
+      "name": "Agent",
+      "newSession": "New session",
+      "history": "History",
+      "unnamedSession": "New session",
+      "noSession": "No session yet"
+    },
+    "notes": {
+      "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
     }
   },
   "settings": {
@@ -619,11 +621,6 @@
           "title": "Dock",
           "description": "Position, style and entries of the dock.",
           "keywords": "dock bar taskbar wheel pin position edge corner auto hide"
-        },
-        "syncLog": {
-          "title": "Sync log",
-          "description": "How many runs of the sync rules are kept.",
-          "keywords": "sync rules log runs depth history"
         },
         "licenses": {
           "title": "Licenses",
@@ -1469,12 +1466,6 @@
       "cancel": "Cancel",
       "remove": "Remove"
     },
-    "syncLog": {
-      "title": "Sync log",
-      "depth": "Runs per rule",
-      "hint": "How many runs the log of each sync rule keeps on this device, 0 to 100. At 0 there is no log.",
-      "invalid": "A whole number from 0 to 100."
-    },
     "assistant": {
       "labels": {
         "enabled": "Voice assistant",
@@ -1878,6 +1869,9 @@
       "contact": {
         "open": "Open conversation with contacts",
         "openDirect": "Open conversation with contact"
+      },
+      "notes": {
+        "open": "Open notes to self"
       },
       "peer": {
         "send": "Send message to contact",
@@ -3322,6 +3316,17 @@
         "title": "Change sync rule",
         "save": "Save",
         "stored": "Currently: {place}. Pick another folder below to change it."
+      },
+      "settings": {
+        "open": "Settings",
+        "title": "Sync rule settings",
+        "logHeading": "Log",
+        "logIntro": "After each run holzi writes down what happened: when it ran, how long it took, how it ended and which files it copied, moved, deleted or saved as a conflict copy. You open the log of a rule in its menu. There you also see where a mirrored deletion put the file.",
+        "depth": "Runs per rule",
+        "hint": "holzi keeps this many of the latest runs for each rule, from 0 to 100. Older runs are deleted. If you set a smaller number, the oldest runs disappear at once.",
+        "cost": "More runs let you look further back but take more storage, especially for rules with many files. At 0 holzi keeps no log, and you cannot look up what happened to a file.",
+        "scope": "The setting applies to all sync rules on this device. The log stays on this device and is not synced to other devices. It stores run metadata such as times, duration, trigger, outcome and counters, plus file paths, actions and error reasons. It never stores file contents.",
+        "invalid": "A whole number from 0 to 100."
       },
       "create": {
         "open": "New rule",

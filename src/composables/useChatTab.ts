@@ -59,6 +59,7 @@ export function useChatTab(deps: {
     activePeerId: Ref<string | null>
     conversations: Ref<{ id: string; displayName: string; muted: boolean }[]>
     openDirectAsync: (contactId: string) => Promise<{ threadId: string }>
+    openNoteAsync: () => Promise<{ threadId: string }>
     muteAsync: (threadId: string, muted: boolean) => Promise<unknown>
     deleteAsync: (threadId: string) => Promise<unknown>
     sendAsync: (
@@ -258,6 +259,12 @@ export function useChatTab(deps: {
     openPeerConversation(threadId)
     return done
   })
+  handle('chat.notes.open', async () => {
+    const { threadId } = await peer.openNoteAsync()
+    await peer.refresh()
+    openPeerConversation(threadId)
+    return done
+  })
   handle('chat.conversation.mute', async (input) => {
     await peer.muteAsync(String(input.threadId), Boolean(input.muted))
     return done
@@ -297,6 +304,14 @@ export function useChatTab(deps: {
         run('chat.contact.open', { threadId }),
       openDirect: (contactId: string) =>
         run('chat.contact.openDirect', { contactId }),
+      openNotes: () => run('chat.notes.open'),
+      /** The "Agent" entry: its latest session, or a new one when there is none (FR-001). */
+      openAgent: () => {
+        const latest = state.threads.value[0]
+        return latest
+          ? run('chat.conversation.open', { threadId: latest.id })
+          : run('chat.conversation.new')
+      },
       mute: (threadId: string, muted: boolean) =>
         run('chat.conversation.mute', { threadId, muted }),
       deletePeer: (threadId: string) =>

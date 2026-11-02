@@ -753,37 +753,3 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
 
     Arc::new(StaticMigrationSource(m))
 }
-
-/// Returns the current migration set with the pre-renumbering icon-set journal name.
-///
-/// The SQL is unchanged; only its journal name moved from `0035_file_icon_sets` to
-/// `0036_file_icon_sets` when the chat-message tool-origin migration landed first.
-pub fn holzi_migration_source_with_legacy_icon_set_name() -> Arc<StaticMigrationSource> {
-    let current = holzi_migration_source();
-    let mut migrations = current.0.clone();
-    let icon_sets = migrations
-        .remove(&MigrationName::from("0036_file_icon_sets"))
-        .expect("current migration source contains 0036_file_icon_sets");
-    migrations.insert(MigrationName::from("0035_file_icon_sets"), icon_sets);
-
-    Arc::new(StaticMigrationSource(migrations))
-}
-
-/// Returns the current migration set with the pre-renumbering contacts journal name.
-///
-/// The SQL is unchanged; only its journal name moved from `0040_contacts_card_display_name` to
-/// `0041_contacts_card_display_name` when the peer schema migration took the `0040` slot.
-pub fn holzi_migration_source_with_legacy_contacts_display_name() -> Arc<StaticMigrationSource> {
-    let current = holzi_migration_source();
-    let mut migrations = current.0.clone();
-    let card_display_name = migrations
-        .get(&MigrationName::from("0041_contacts_card_display_name"))
-        .cloned()
-        .expect("current migration source contains 0041_contacts_card_display_name");
-    migrations.insert(
-        MigrationName::from("0040_contacts_card_display_name"),
-        card_display_name,
-    );
-
-    Arc::new(StaticMigrationSource(migrations))
-}

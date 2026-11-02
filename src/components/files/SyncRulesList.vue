@@ -3,7 +3,8 @@
  * "Sync-Regeln" (spec 061 US4, FR-025, FR-032, FR-040): the rules of this device as a list in the
  * panel of the file browser, laid out like a folder: a header to sort by, one row per rule with its
  * places, state, progress or last run, and the actions; a menu opens the preview, the exclusions,
- * the log and the dialog to change the rule; a click opens the details of a row. A filter narrows
+ * the log and the dialog to change the rule; a button next to "New rule" opens the settings of
+ * all rules (how long the log is); a click opens the details of a row. A filter narrows
  * many rules down. Deleting a rule leaves the files of both places alone (FR-006).
  */
 import type { Sources } from '@bindings/Sources'
@@ -32,6 +33,7 @@ const store = useSyncRulesStore()
 const { setEnabledAsync, deleteAsync, runNowAsync } = useSyncRules()
 
 const creating = ref(false)
+const configuring = ref(false)
 const busy = ref<string | null>(null)
 const deleting = ref<SyncRuleView | null>(null)
 /** The rule the dialog changes; `null` for a new one. */
@@ -185,6 +187,17 @@ async function confirmDeleteAsync() {
           </ShadcnInputGroupAddon>
         </template>
       </UiInput>
+      <UiButton
+        type="button"
+        size="sm"
+        variant="outline"
+        class="shrink-0"
+        data-testid="files-sync-rules-settings"
+        @click="configuring = true"
+      >
+        <Icon name="lucide:settings" class="size-4" />
+        {{ t('files.syncRules.settings.open') }}
+      </UiButton>
       <UiButton
         type="button"
         size="sm"
@@ -467,6 +480,7 @@ async function confirmDeleteAsync() {
       :labels="labelsOf(editing)"
       @saved="store.loadAsync()"
     />
+    <FilesSyncRuleSettings v-model:open="configuring" />
     <FilesSyncRulePlan
       v-model:open="previewing"
       :target="shown ? { id: shown.rule.id } : null"

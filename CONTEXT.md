@@ -583,8 +583,8 @@ patterns of either side match it; the rules UI edits the file, which is the only
 _Avoid_: ignore list, filter (as a stored rule setting).
 
 **Lauf-Protokoll / Protokolltiefe** (run log, log depth):
-The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (setting
-"Sync-Protokoll", default 10, 0 to 100) says how many runs per rule this device keeps.
+The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (set under "Einstellungen" next to
+"Neue Regel" in the sync rules panel, default 10, 0 to 100) says how many runs per rule this device keeps.
 
 ### Internationalisierung (i18n)
 

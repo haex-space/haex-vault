@@ -159,12 +159,6 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.dock.items',
     ],
   }),
-  // Spec 061: how many runs the log of each sync rule keeps on this device.
-  subView('general.syncLog', 'general/sync-log', 'general', {
-    icon: 'lucide:history',
-    overviewRow: true,
-    settingKeys: ['settings.syncLog.depth'],
-  }),
   // Spec 053: the licenses of the bundled icon sets.
   subView('general.licenses', 'general/licenses', 'general', {
     icon: 'lucide:scale',
