@@ -283,7 +283,7 @@ function holziPage(args) {
     'radio',
   ]
   const fillable = (form) => {
-    let scope = null
+    let scope
     if (form !== undefined && form !== null) {
       const el = operable[form - 1]
       if (!el) return null
