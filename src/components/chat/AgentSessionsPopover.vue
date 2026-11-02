@@ -12,6 +12,7 @@ import {
   type ComponentPublicInstance,
 } from 'vue'
 import type { Thread } from '~/composables/useChat'
+import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
 
 const props = defineProps<{
   threads: Thread[]
@@ -160,6 +161,14 @@ watch(
             class="min-w-0 flex-1 truncate px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             @click="select(thread.id)"
           >
+            <Icon
+              v-if="thread.origin === 'voice'"
+              :name="VOICE_THREAD_ICON"
+              class="mr-1.5 inline h-3.5 w-3.5 align-[-2px] text-muted-foreground"
+              data-testid="chat-thread-voice"
+              :title="t('chat.threads.voice')"
+              :aria-label="t('chat.threads.voice')"
+            />
             <span class="truncate">{{ thread.title }}</span>
           </button>
           <div

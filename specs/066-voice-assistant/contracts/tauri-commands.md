@@ -115,6 +115,10 @@ keine Aktionen und für Agenten (eingebaut, 021, Erweiterungen) nicht aufrufbar,
 Einwilligung bzw. ein Nutzungsrecht bestätigen (FR-050, FR-051). Die Aufnahme läuft über den
 Duplex-Strom und nur, solange der Dialog offen ist.
 
+Der bestehende Chat-Command `list_threads` (und `create_thread`, `rename_thread`) liefert pro
+Sitzung zusätzlich `origin: "voice" | null`; daran markieren „Verlauf“ und der Sitzungskopf ein
+Sprachgespräch (T051).
+
 ## Ereignisse (Rust → Frontend)
 
 | Ereignis                   | Nutzlast                                  | Spec           |

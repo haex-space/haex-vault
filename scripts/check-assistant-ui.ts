@@ -27,6 +27,7 @@ import {
   toggleShown,
 } from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
+import { VOICE_THREAD_ICON } from '../src/lib/chat/threadOrigin.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -312,4 +313,28 @@ test('the toggle stays while the assistant is on, even with the preview turned o
 test('the window gives its UTC offset', () => {
   // Berlin in winter is one hour ahead of UTC: getTimezoneOffset says -60.
   assert.equal(utcOffsetMinutes({ getTimezoneOffset: () => -60 } as Date), 60)
+})
+
+test('a spoken conversation is marked in "Verlauf" and in the session header (T051)', () => {
+  assert.match(
+    read('src-tauri/src/chat/thread_commands.rs'),
+    /pub origin: Option<ThreadOrigin>/,
+    'list_threads hands the origin to the window',
+  )
+  assert.match(read('src/composables/useChat.ts'), /origin: 'voice' \| null/)
+  assert.match(VOICE_THREAD_ICON, /^lucide:/)
+  for (const [file, guard] of [
+    [
+      'src/components/chat/AgentSessionsPopover.vue',
+      "thread.origin === 'voice'",
+    ],
+    ['src/components/chat/AgentHeader.vue', "session?.origin === 'voice'"],
+  ] as const) {
+    const source = read(file)
+    assert.ok(source.includes(`v-if="${guard}"`), file)
+    assert.ok(source.includes(':name="VOICE_THREAD_ICON"'), file)
+    assert.ok(source.includes(':aria-label="t(\'chat.threads.voice\')"'), file)
+  }
+  assert.equal(localeText('de', 'chat.threads.voice'), 'Sprachgespräch')
+  assert.equal(localeText('en', 'chat.threads.voice'), 'Voice conversation')
 })

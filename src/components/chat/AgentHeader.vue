@@ -5,6 +5,7 @@
  * sessions; contact conversations have one history each.
  */
 import type { Thread } from '~/composables/useChat'
+import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
 
 const props = defineProps<{
   threads: Thread[]
@@ -17,9 +18,8 @@ const emit = defineEmits<{ newSession: [] }>()
 
 const { t } = useI18n()
 
-const sessionTitle = computed(
-  () =>
-    props.threads.find((thread) => thread.id === props.activeThreadId)?.title,
+const session = computed(() =>
+  props.threads.find((thread) => thread.id === props.activeThreadId),
 )
 </script>
 
@@ -42,7 +42,15 @@ const sessionTitle = computed(
         class="truncate text-xs text-muted-foreground"
         data-testid="chat-agent-session"
       >
-        {{ sessionTitle ?? t('chat.agent.unnamedSession') }}
+        <Icon
+          v-if="session?.origin === 'voice'"
+          :name="VOICE_THREAD_ICON"
+          class="mr-1 inline h-3 w-3 align-[-2px]"
+          data-testid="chat-agent-session-voice"
+          :title="t('chat.threads.voice')"
+          :aria-label="t('chat.threads.voice')"
+        />
+        {{ session?.title ?? t('chat.agent.unnamedSession') }}
       </div>
     </div>
     <UiButton

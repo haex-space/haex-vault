@@ -266,6 +266,7 @@
     "threads": {
       "title": "History",
       "empty": "No sessions yet",
+      "voice": "Voice conversation",
       "duration": "{duration}",
       "openedAt": "Opened {date}",
       "openedAtUnknown": "Opening time unavailable",
