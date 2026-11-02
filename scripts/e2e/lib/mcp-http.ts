@@ -107,10 +107,12 @@ export async function connectOverHttp(
       accept: 'application/json, text/event-stream',
     }
     if (session !== null) headers['mcp-session-id'] = session
+    // A call holzi holds (an unanswered prompt) fails here instead of at the scenario's deadline.
     const response = await fetch(`${base}/mcp`, {
       method: 'POST',
       headers,
       body: JSON.stringify(message),
+      signal: AbortSignal.timeout(30_000),
     })
     session = response.headers.get('mcp-session-id') ?? session
     return response
