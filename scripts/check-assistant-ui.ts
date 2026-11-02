@@ -9,6 +9,7 @@ import {
   ALWAYS_AUDIBLE_TONES,
   ASSISTANT_SETTING_KEYS,
   assistantLabelKey,
+  parsePreview,
   parseSpeechRate,
   parseTonesEnabled,
   parseTonesVolume,
@@ -18,6 +19,19 @@ import {
   TONES_VOLUME,
   voicePrefKey,
 } from '../src/lib/assistant/settings.ts'
+import {
+  BUBBLE_DEFAULT,
+  lastEntries,
+  parseBubblePosition,
+  PHASE_ICONS,
+  shareOf,
+  splitSpoken,
+} from '../src/lib/assistant/bubble.ts'
+import {
+  ASSISTANT_OFF,
+  sortEntries,
+  utcOffsetMinutes,
+} from '../src/lib/assistant/wire.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -205,4 +219,82 @@ test('the voice preferences and the rate range match data-model.md', () => {
   assert.equal(parseSpeechRate('1.25'), 1.25)
   assert.equal(parseSpeechRate('2'), SPEECH_RATE.default)
   assert.equal(parseSpeechRate('schnell'), SPEECH_RATE.default)
+})
+
+test('the preview page sits under KI → Sprache with its label', () => {
+  const location = SETTINGS_LOCATIONS.find(
+    (l) => l.id === 'ai.speech.assistant',
+  )
+  assert.ok(location, 'ai.speech.assistant')
+  assert.equal(location.pattern, 'ai/speech/assistant')
+  assert.equal(parsePreview('true'), true)
+  assert.equal(parsePreview('false'), false)
+  assert.equal(parsePreview(null), false, 'off by default')
+  assert.ok(
+    read('src/components/wm/appRoutes.ts').includes(
+      'components/settings/assistant/AssistantSetting.vue',
+    ),
+  )
+})
+
+test('the indicator has a look for every phase and keeps its position on the desktop', () => {
+  assert.equal(ASSISTANT_OFF.phase, 'off')
+  const phases = Object.keys(PHASE_ICONS)
+  assert.deepEqual(phases.sort(), [
+    'awaitingAnswer',
+    'followUp',
+    'listening',
+    'off',
+    'ready',
+    'speaking',
+    'thinking',
+    'working',
+  ])
+  for (const phase of phases) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `assistant.phase.${phase}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${phase}`)
+    }
+  }
+  assert.deepEqual(parseBubblePosition('{"x":0.2,"y":0.4}'), { x: 0.2, y: 0.4 })
+  assert.deepEqual(parseBubblePosition('{"x":3,"y":-1}'), { x: 1, y: 0 })
+  assert.deepEqual(parseBubblePosition('nope'), BUBBLE_DEFAULT)
+  assert.deepEqual(parseBubblePosition(null), BUBBLE_DEFAULT)
+  assert.deepEqual(shareOf({ x: 50, y: 300 }, 100, 400), { x: 0.5, y: 0.75 })
+  assert.deepEqual(shareOf({ x: 50, y: 50 }, 0, 0), BUBBLE_DEFAULT)
+})
+
+test('an interrupted answer splits where haex stopped speaking', () => {
+  assert.deepEqual(splitSpoken('Hallo Jonas. Das fällt aus.', 12), {
+    spoken: 'Hallo Jonas.',
+    unspoken: ' Das fällt aus.',
+  })
+  assert.deepEqual(splitSpoken('Grüße', null), {
+    spoken: 'Grüße',
+    unspoken: '',
+  })
+  assert.deepEqual(splitSpoken('Grüße', 99), { spoken: 'Grüße', unspoken: '' })
+  assert.deepEqual(lastEntries([1, 2, 3, 4, 5, 6, 7, 8]), [3, 4, 5, 6, 7, 8])
+})
+
+test('transcript entries keep the backend order and the window gives its UTC offset', () => {
+  const entry = (id: string, seq: number) => ({
+    id,
+    threadId: 't',
+    seq,
+    spokenAt: 0,
+    speaker: 'user',
+    kind: 'utterance',
+    text: id,
+    spokenUntil: null,
+    outcome: null,
+    refId: null,
+    createdAt: 0,
+  })
+  assert.deepEqual(
+    sortEntries([entry('b', 2), entry('c', 1), entry('a', 2)]).map((e) => e.id),
+    ['c', 'a', 'b'],
+  )
+  // Berlin in winter is one hour ahead of UTC: getTimezoneOffset says -60.
+  assert.equal(utcOffsetMinutes({ getTimezoneOffset: () => -60 } as Date), 60)
 })

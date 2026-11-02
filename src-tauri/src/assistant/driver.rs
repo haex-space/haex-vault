@@ -13,6 +13,10 @@
 //! - Until the wake word (PR D), the microphone is open only during a conversation: "Sprechen"
 //!   opens it, and once the conversation is over and haex is quiet, it closes again. The mode
 //!   tones stay silent for that, since the user never switched a mode.
+//! - Every utterance and every output becomes a transcript [`Note`] (T125, FR-047). Notes wait
+//!   until the conversation has a thread; a conversation without one leaves none (FR-019). An
+//!   answer is noted once it is over, with the full text and, when it was cut off, how far haex
+//!   spoke.
 //!
 //! The runtime ([`super::commands`]) owns a `Core`, implements `Ports` with the audio stream,
 //! the speaker, the listener and `assistant::turn`, and sends [`Input::Tick`] at
@@ -29,6 +33,7 @@ use super::conversation::{
 use super::phrases;
 use super::tones::ToneId;
 use super::turn::Output;
+use crate::storage::voice_transcript::{EntryKind, Outcome, Speaker};
 
 /// What the driver does in the world.
 pub trait Ports {
@@ -59,6 +64,46 @@ pub trait Ports {
     fn publish(&mut self, state: &StateWire);
     /// Releases microphone and speaker.
     fn close_audio(&mut self);
+    /// Writes `note` to the transcript of `thread_id`, in the order of the calls.
+    fn record(&mut self, thread_id: Uuid, note: Note);
+}
+
+/// A transcript entry (`voice_transcript_entries`) as the driver sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note {
+    /// When the utterance or output began.
+    pub at: Instant,
+    pub speaker: Speaker,
+    pub kind: EntryKind,
+    pub text: String,
+    /// Characters of `text` spoken before the output was cut off.
+    pub spoken_until: Option<i64>,
+    pub outcome: Option<Outcome>,
+    /// The id of the question it asks or answers.
+    pub ref_id: Option<String>,
+}
+
+impl Note {
+    fn new(at: Instant, speaker: Speaker, kind: EntryKind, text: String) -> Self {
+        Self {
+            at,
+            speaker,
+            kind,
+            text,
+            spoken_until: None,
+            outcome: None,
+            ref_id: None,
+        }
+    }
+}
+
+/// The answer of a round while it is spoken: its sentences, each with its speaker ticket (0 when
+/// not spoken) and where it ends in `text`.
+struct Answer {
+    at: Instant,
+    text: String,
+    sentences: Vec<(u64, usize)>,
+    turn_ended: bool,
 }
 
 /// What moves the driver.
@@ -167,6 +212,12 @@ pub struct Core {
     /// The conversation ended; close the audio once haex is quiet.
     close_when_quiet: bool,
     published: Option<StateWire>,
+    /// The answer being spoken, noted once it is over.
+    answer: Option<Answer>,
+    /// Notes waiting for the conversation's thread.
+    pending_notes: Vec<Note>,
+    /// The thread of the conversation that just ended, for what haex says after the end.
+    ended_thread: Option<Uuid>,
 }
 
 impl Core {
@@ -185,6 +236,9 @@ impl Core {
             tones_until: now,
             close_when_quiet: false,
             published: None,
+            answer: None,
+            pending_notes: Vec::new(),
+            ended_thread: None,
         }
     }
 
@@ -221,6 +275,11 @@ impl Core {
     pub fn on(&mut self, input: Input, now: Instant, ports: &mut dyn Ports) {
         match input {
             Input::Talk => {
+                if self.state.conversation.is_none() {
+                    // A new conversation: notes of the last one are gone.
+                    self.pending_notes.clear();
+                    self.ended_thread = None;
+                }
                 if !self.open {
                     self.open = true;
                     self.drive(Event::SwitchOn, now, ports);
@@ -232,7 +291,8 @@ impl Core {
             Input::Mute(on) => self.drive(Event::Mute(on), now, ports),
             Input::Heard { listener, text } => {
                 if listener != 0 && listener == self.listener {
-                    let utterance = self.classify(text);
+                    let utterance = self.classify(text.clone());
+                    self.note_utterance(&utterance, text, now, ports);
                     self.drive(Event::Utterance(utterance), now, ports);
                 }
             }
@@ -250,6 +310,7 @@ impl Core {
             }
             Input::Played(ticket) => {
                 self.played = self.played.max(ticket);
+                self.answer_over_if_done(ports);
                 if self.played >= self.said {
                     self.drive(Event::OutputDone, now, ports);
                 }
@@ -260,6 +321,7 @@ impl Core {
                 self.close(ports);
             }
         }
+        self.flush_notes(ports);
         self.settle(now, ports);
     }
 
@@ -278,9 +340,30 @@ impl Core {
     fn turn_output(&mut self, output: Output, now: Instant, ports: &mut dyn Ports) {
         match output {
             Output::Say(sentence) => {
-                if self.speak_answer {
-                    self.said = ports.say(sentence);
+                let ticket = if self.speak_answer {
+                    self.said = ports.say(sentence.clone());
+                    self.said
+                } else {
+                    0
+                };
+                let answer = self.answer.get_or_insert_with(|| Answer {
+                    at: now,
+                    text: String::new(),
+                    sentences: Vec::new(),
+                    turn_ended: false,
+                });
+                if !answer.text.is_empty() {
+                    answer.text.push(' ');
                 }
+                answer.text.push_str(&sentence);
+                answer.sentences.push((ticket, answer.text.chars().count()));
+            }
+            Output::Event(Event::TurnEnded) => {
+                if let Some(answer) = &mut self.answer {
+                    answer.turn_ended = true;
+                }
+                self.answer_over_if_done(ports);
+                self.drive(Event::TurnEnded, now, ports);
             }
             Output::Event(event) => self.drive(event, now, ports),
             Output::SpokeDelegateNotice => {
@@ -316,6 +399,7 @@ impl Core {
                 self.stop_listener(ports);
             }
             Effect::StartTurn { thread_id, text } => {
+                self.answer_over(ports);
                 self.round += 1;
                 self.speak_answer = false;
                 let due = self
@@ -330,22 +414,34 @@ impl Core {
                 log::info!("assistant: spoken answer to question {id} is left to the window");
             }
             Effect::AskQuestion(id) => {
-                let text = self
+                // What was said before the question is over.
+                self.answer_over(ports);
+                let question = self
                     .state
                     .conversation
                     .as_ref()
                     .and_then(|c| c.open_questions.iter().find(|q| q.id == id))
-                    .map(|q| q.text.clone());
-                if let Some(text) = text {
-                    self.said = ports.say(text);
+                    .map(|q| (q.text.clone(), q.kind));
+                if let Some((text, kind)) = question {
+                    self.said = ports.say(text.clone());
+                    let kind = match kind {
+                        QuestionKind::Approval => EntryKind::ApprovalQuestion,
+                        QuestionKind::Choice | QuestionKind::Screen => EntryKind::ChoiceQuestion,
+                    };
+                    let mut note = Note::new(now, Speaker::Haex, kind, text);
+                    note.outcome = Some(Outcome::Open);
+                    note.ref_id = Some(id);
+                    self.note(note, ports);
                 }
             }
             Effect::AbortTurn => {
+                self.answer_over(ports);
                 ports.abort_turn();
                 self.round += 1;
                 self.speak_answer = false;
             }
             Effect::StopOutput => {
+                self.answer_over(ports);
                 ports.stop_output();
                 self.speak_answer = false;
             }
@@ -359,14 +455,114 @@ impl Core {
                     Line::Progress | Line::DoneSoFar => None,
                 };
                 if let Some(text) = text {
-                    self.said = ports.say(text);
+                    self.said = ports.say(text.clone());
+                    let note = Note::new(now, Speaker::Haex, EntryKind::Announcement, text);
+                    self.note(note, ports);
                 }
             }
-            Effect::Ended { .. } => {
+            Effect::Ended { thread_id } => {
+                self.answer_over(ports);
+                self.ended_thread = thread_id;
+                match thread_id {
+                    Some(thread_id) => {
+                        for note in std::mem::take(&mut self.pending_notes) {
+                            ports.record(thread_id, note);
+                        }
+                    }
+                    // Nothing understandable was said: no thread, no transcript (FR-019).
+                    None => self.pending_notes.clear(),
+                }
                 self.listen_wanted = false;
                 self.close_when_quiet = true;
             }
         }
+    }
+
+    /// The thread notes go to: the conversation's, or the one that just ended.
+    fn notes_thread(&self) -> Option<Uuid> {
+        match &self.state.conversation {
+            Some(c) => c.thread_id,
+            None => self.ended_thread,
+        }
+    }
+
+    fn note(&mut self, note: Note, ports: &mut dyn Ports) {
+        match self.notes_thread() {
+            Some(thread_id) => ports.record(thread_id, note),
+            None => self.pending_notes.push(note),
+        }
+    }
+
+    fn flush_notes(&mut self, ports: &mut dyn Ports) {
+        if self.pending_notes.is_empty() {
+            return;
+        }
+        if let Some(thread_id) = self.notes_thread() {
+            for note in std::mem::take(&mut self.pending_notes) {
+                ports.record(thread_id, note);
+            }
+        }
+    }
+
+    fn note_utterance(
+        &mut self,
+        utterance: &Utterance,
+        text: String,
+        now: Instant,
+        ports: &mut dyn Ports,
+    ) {
+        let question = self
+            .state
+            .open_question()
+            .filter(|_| self.state.phase() == Phase::AwaitingAnswer)
+            .map(|q| (q.id.clone(), q.kind));
+        let (kind, ref_id) = match (utterance, question) {
+            (Utterance::Request(_), Some((id, QuestionKind::Approval))) => {
+                (EntryKind::ApprovalAnswer, Some(id))
+            }
+            (Utterance::Request(_), Some((id, _))) => (EntryKind::ChoiceAnswer, Some(id)),
+            (Utterance::Request(_), None) => (EntryKind::Utterance, None),
+            (Utterance::Empty, _) => (EntryKind::NotUnderstood, None),
+            (Utterance::End, _) => (EntryKind::Closing, None),
+            (Utterance::Stop, _) => (EntryKind::Stop, None),
+        };
+        let mut note = Note::new(now, Speaker::User, kind, text);
+        note.ref_id = ref_id;
+        self.note(note, ports);
+    }
+
+    /// Notes the answer once its turn ended and everything spoken of it has sounded.
+    fn answer_over_if_done(&mut self, ports: &mut dyn Ports) {
+        let done = self.answer.as_ref().is_some_and(|a| {
+            a.turn_ended
+                && a.sentences
+                    .iter()
+                    .all(|(ticket, _)| *ticket == 0 || *ticket <= self.played)
+        });
+        if done {
+            self.answer_over(ports);
+        }
+    }
+
+    /// Notes the answer so far: its full text and, unless all of it sounded, how far haex spoke.
+    fn answer_over(&mut self, ports: &mut dyn Ports) {
+        let Some(answer) = self.answer.take() else {
+            return;
+        };
+        if answer.text.is_empty() {
+            return;
+        }
+        let played = self.played;
+        let spoken = answer
+            .sentences
+            .iter()
+            .take_while(|(ticket, _)| *ticket != 0 && *ticket <= played)
+            .last()
+            .map_or(0, |(_, end)| *end);
+        let all = answer.sentences.last().map_or(0, |(_, end)| *end);
+        let mut note = Note::new(answer.at, Speaker::Haex, EntryKind::Answer, answer.text);
+        note.spoken_until = (spoken < all).then_some(spoken as i64);
+        self.note(note, ports);
     }
 
     fn stop_listener(&mut self, ports: &mut dyn Ports) {

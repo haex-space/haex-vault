@@ -671,7 +671,8 @@ where her files go and what others see.
   servers may remove earlier.
 - Default limits (4,000 characters, 100 MB per file, 25 MB / 5 MB automatic download, 32 group members,
   30 days on the Blossom-Server) are first values the plan may adjust with a reason.
-- Message edit, "delete for everyone", reactions, replies to a single message, voice messages, calls,
-  stickers and message search are not part of this spec.
+- Message edit, "delete for everyone", reactions, replies to a single message, voice messages, calls
+  and stickers are not part of this spec. _Changed 2026-11-02 (operator):_ message search is now part of
+  [spec 076](../076-chat-sidebar/spec.md); real voice messages stay out until the file transfer (US3) is in.
 - Received files are kept in an encrypted folder (spec 048) per the rule that data kept encrypted on disk
   goes there; their plain copies exist only where the user saves them.

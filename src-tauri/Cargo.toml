@@ -210,8 +210,9 @@ haex-bundle = { git = "https://github.com/haex-space/vault-sdk", rev = "517402a9
 # The autofill rule shared with haex-pass-browser (spec 065 research R7a, vault-sdk PR #96).
 haex-autofill = { git = "https://github.com/haex-space/vault-sdk", rev = "ae3dfc73e71395c230c4c5bf95c5e850e345d7c3" }
 # The password generator (spec 034 FR-013/FR-014, spec 065 FR-036): its one implementation, shared
-# with haex-pass-browser (which moves to its WebAssembly build). haex-space/vault-sdk#98.
-haex-passgen = { git = "https://github.com/haex-space/vault-sdk", rev = "72c2190207fe30bb8707cfd390374fa3b62bf1c9" }
+# with haex-pass-browser (which moves to its WebAssembly build). Pinned to the merge commit of
+# haex-space/vault-sdk#98.
+haex-passgen = { git = "https://github.com/haex-space/vault-sdk", rev = "4f5294f60b75ba0a073a7818a93464d8d8ad7c68" }
 # Versions of bundles, compared as the format parses them (effective bundle = highest, R11).
 semver = "1"
 

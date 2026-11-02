@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::assets;
 use super::conversation::{Timing, PREF_CONTINUE_MINS, PREF_FOLLOW_UP_SECS};
-use super::driver::{Core, Input, Ports, StateWire};
+use super::driver::{Core, Input, Note, Ports, StateWire};
 use super::listen::{self, Start};
 use super::speakable::Clock;
 use super::tones::{self, ToneId};
@@ -31,6 +31,7 @@ use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
+use crate::storage::voice_transcript::{self, NewEntry, TranscriptEntry};
 use crate::tts::local::{Engine, Reference, Sentence, Speaker, SpeechOut};
 use crate::tts::{self, catalog, voices};
 use crate::vault_gate::VaultGate;
@@ -40,6 +41,8 @@ use crate::voice::VoiceState;
 pub const EVENT_STATE: &str = "assistant-state";
 /// Event when something keeps the assistant from working (`{kind, message}`).
 pub const EVENT_ERROR: &str = "assistant-error";
+/// Event with every transcript entry once it is stored (`TranscriptEntryWire`).
+pub const EVENT_TRANSCRIPT: &str = "assistant-transcript";
 
 const PREF_PAUSE_MS: &str = "assistant.pauseMs";
 const PREF_SPEECH_RATE: &str = "assistant.speechRate";
@@ -93,10 +96,13 @@ impl AssistantDriver {
             return Ok(inbox.clone());
         }
         let (inbox, messages) = mpsc::unbounded_channel();
+        let (notes, to_write) = mpsc::unbounded_channel();
+        gate.spawn(write_notes(app.clone(), to_write))?;
         let ports = RealPorts {
             app: app.clone(),
             gate: gate.clone(),
             inbox: inbox.clone(),
+            notes,
             shared: Arc::clone(&self.state),
             session: 0,
             audio: None,
@@ -355,6 +361,8 @@ struct RealPorts {
     app: AppHandle,
     gate: VaultGate,
     inbox: mpsc::UnboundedSender<Msg>,
+    /// Transcript entries for [`write_notes`], in order.
+    notes: mpsc::UnboundedSender<NewEntry>,
     shared: Arc<Mutex<Option<StateWire>>>,
     /// Counts audio sessions; reports of an earlier speaker are dropped.
     session: u64,
@@ -398,12 +406,7 @@ impl Ports for RealPorts {
         let Some(audio) = &self.audio else {
             return Duration::ZERO;
         };
-        tones::play(&self.app, audio.stream.mixer(), tone, audio.tones_enabled);
-        if audio.tones_enabled || tones::always_audible(tone) {
-            tones::duration(tone)
-        } else {
-            Duration::ZERO
-        }
+        tones::play(&self.app, audio.stream.mixer(), tone, audio.tones_enabled)
     }
 
     fn listen(&mut self, id: u64) {
@@ -570,12 +573,73 @@ impl Ports for RealPorts {
         let _ = self.app.emit(EVENT_STATE, state);
     }
 
+    fn record(&mut self, thread_id: Uuid, note: Note) {
+        let _ = self.notes.send(NewEntry {
+            thread_id,
+            spoken_at: unix_ms(note.at),
+            speaker: note.speaker,
+            kind: note.kind,
+            text: note.text,
+            spoken_until: note.spoken_until,
+            outcome: note.outcome,
+            ref_id: note.ref_id,
+        });
+    }
+
     fn close_audio(&mut self) {
         self.stop_listening();
         if let Some(audio) = self.audio.take() {
             audio.speaker.stop();
             self.app.state::<VoiceState>().audio_stream().stop();
             audio.stream.stop();
+        }
+    }
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64)
+}
+
+/// `at` as Unix milliseconds.
+fn unix_ms(at: Instant) -> i64 {
+    now_ms() - Instant::now().saturating_duration_since(at).as_millis() as i64
+}
+
+/// `TranscriptEntryWire` of contracts/tauri-commands.md: a stored entry; `final` is always true
+/// for now, text that is still being spoken is not sent yet.
+#[derive(Clone, serde::Serialize)]
+struct TranscriptEntryWire {
+    #[serde(flatten)]
+    entry: TranscriptEntry,
+    #[serde(rename = "final")]
+    is_final: bool,
+}
+
+/// Stores transcript entries one after the other, so `seq` follows the order of the
+/// conversation, and shows each to the window.
+async fn write_notes(app: AppHandle, mut notes: mpsc::UnboundedReceiver<NewEntry>) {
+    while let Some(entry) = notes.recv().await {
+        let state = app.state::<AppState>();
+        let stored = async {
+            let db = crate::state_utils::active_database(&state)?;
+            let now = now_ms();
+            db.write(move |tx| voice_transcript::append(tx, entry, now))
+                .await
+        }
+        .await;
+        match stored {
+            Ok(entry) => {
+                let _ = app.emit(
+                    EVENT_TRANSCRIPT,
+                    TranscriptEntryWire {
+                        entry,
+                        is_final: true,
+                    },
+                );
+            }
+            Err(error) => log::warn!("assistant: could not store a transcript entry: {error}"),
         }
     }
 }
