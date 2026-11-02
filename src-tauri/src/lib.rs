@@ -222,19 +222,10 @@ use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
 };
 
-/// Undoes, for this process's children only, the Nix devShell's
-/// `LD_LIBRARY_PATH` export (flake.nix's shellHook) — present only when
-/// `build.rs`'s `configure_nix_devshell_linker` also overrode this binary's
-/// own dynamic-linker interpreter to the host's, which is when that variable
-/// is actually needed (to resolve the Nix-provided GTK stack the interpreter
-/// override doesn't cover) and, unmodified, would otherwise leak into every
-/// child process GTK/WebKit forks (WebKitWebProcess, WebKitNetworkProcess,
-/// Mesa's GBM driver loader) — all built against the *host's* glibc, not
-/// Nix's, so they'd hit the same `GLIBC_PRIVATE` symbol clash the interpreter
-/// override exists to avoid on this binary. Safe to clear this late: the
-/// dynamic linker already consulted it to resolve this process's own NEEDED
-/// libraries before `main` ever ran; removing it from the environment now
-/// only stops it from propagating to processes spawned from here on.
+/// Prevents host WebKit children from inheriting the devShell's Nix libraries.
+/// The bridge selects either the host or Nix interpreter with its matching libc
+/// and runtime paths. Those paths resolve this process's libraries before main;
+/// clearing the environment here protects subsequently spawned host processes.
 fn clear_inherited_nix_library_path() {
     if option_env!("HOLZI_NIX_DEVSHELL_LINKER").is_some() {
         std::env::remove_var("LD_LIBRARY_PATH");
