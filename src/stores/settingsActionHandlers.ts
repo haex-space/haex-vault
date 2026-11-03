@@ -319,9 +319,17 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const store = useModelsStore()
     store.lastError = null
     store.integrityActionError = null
-    await store.activateLocalModel(String(input.modelId))
+    const modelId = String(input.modelId)
+    await store.activateLocalModel(modelId)
     const error = store.lastError ?? store.integrityActionError
     if (error) throw new Error(error)
+    // A failed integrity check opens the decision dialog and sets no error: the model is not
+    // active yet, and only the person decides there.
+    if (store.integrityDialog?.modelId === modelId) {
+      throw new Error(
+        'The integrity check of the model failed; the person has to decide in the integrity dialog.',
+      )
+    }
     return done
   })
   on('settings.models.deactivate', async () => {
