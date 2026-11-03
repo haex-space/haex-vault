@@ -9,6 +9,7 @@
  * operator 2026-11-03: a voice that is not here shows its own download).
  * Saved on selection (spec 023 FR-021).
  */
+import { toast } from 'vue-sonner'
 import {
   assistantLabelKey,
   CONVERSATION_LANGUAGE_KEY,
@@ -69,8 +70,6 @@ const pauseLabel = computed(() =>
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
@@ -94,15 +93,14 @@ async function reloadAsync(quiet = false) {
 async function toggleAsync(next: boolean) {
   preview.value = next
   saving.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await assistant.setPreviewAsync(next)
-    savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.assistantPage.saveFailed', {
-      reason: errString(e),
-    })
+    toast.error(
+      t('settings.assistantPage.saveFailed', {
+        reason: errString(e),
+      }),
+    )
   } finally {
     saving.value = false
   }
@@ -110,16 +108,15 @@ async function toggleAsync(next: boolean) {
 
 async function savePauseAsync() {
   saving.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: how long the assistant waits is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, PAUSE_KEY, String(pauseMs.value))
-    savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.assistantPage.saveFailed', {
-      reason: errString(e),
-    })
+    toast.error(
+      t('settings.assistantPage.saveFailed', {
+        reason: errString(e),
+      }),
+    )
   } finally {
     saving.value = false
   }
@@ -128,8 +125,6 @@ async function savePauseAsync() {
 async function saveLanguageAsync(value: string) {
   conversationLanguage.value = parseConversationLanguage(value)
   saving.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: the language of this device's spoken conversations is the user's own choice on the assistant page; spec 066 gives agents no action for it.
     await setPrefAsync(
@@ -137,11 +132,12 @@ async function saveLanguageAsync(value: string) {
       CONVERSATION_LANGUAGE_KEY,
       conversationLanguage.value,
     )
-    savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.assistantPage.saveFailed', {
-      reason: errString(e),
-    })
+    toast.error(
+      t('settings.assistantPage.saveFailed', {
+        reason: errString(e),
+      }),
+    )
   } finally {
     saving.value = false
   }
@@ -216,13 +212,6 @@ onVaultTablesChanged(['preferences'], () => {
           </span>
         </SettingsRow>
       </SettingsGroup>
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.assistantPage.saved') }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ opError }}
-      </p>
 
       <SettingsAssistantVoiceSetting
         :language="spokenLanguage(conversationLanguage, locale)"
