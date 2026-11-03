@@ -5,7 +5,7 @@ const { t } = useI18n()
  * Presentational integrity decision dialog (contracts/tauri-commands.md
  * §"load_model und lokale Integritätsprüfung"). The three emitted actions
  * map 1:1 to the backend's documented options — `loadUntrusted` calls
- * `load_model_with_integrity_override`, `repairSource` re-runs the
+ * `activate_local_model_with_integrity_override`, `repairSource` re-runs the
  * model's stored HF download or local import, `chooseOther` opens the
  * model picker. This component owns none of that logic; the container
  * that opens it does, since only it knows the model's stored source.

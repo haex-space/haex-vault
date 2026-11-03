@@ -416,7 +416,7 @@ export const useModelsStore = defineStore('models', () => {
    * provider's models only exist in that resolver's view *after*
    * `refreshProviders()` has fetched and cached them once, which is why
    * this runs here rather than as part of the vault-open background
-   * preload (`start_default_model_preload`, Rust) — that one only sees
+   * preload (`start_active_model_preload`, Rust) — that one only sees
    * whatever was already cached before this page ever mounted. A `null`
    * result (`source: 'none'`) means nothing is loadable yet, so this is a
    * no-op; the composer's own model control remains the only place to
