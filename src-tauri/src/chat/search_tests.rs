@@ -275,3 +275,32 @@ fn whitespace_in_the_text_reads_as_in_the_message() {
         vec![hit.as_str()]
     );
 }
+
+#[test]
+fn an_old_match_behind_many_newer_rows_is_found() {
+    let vault = test_vault();
+    let direct = thread(&vault, "direct", "active");
+    let old = peer_message(&vault, direct, "der alte Treffpunkt", 0);
+    let thread_id = direct.to_string();
+    vault
+        .db
+        .write_blocking(move |tx| {
+            for n in 1..=1_200_i64 {
+                tx.execute(
+                    "INSERT INTO chat_peer_messages (id, thread_id, event_id, sender_vault, \
+                       sender_device, kind, text, sent_at, received_at, sort_at, inserted_by) \
+                     VALUES (?1, ?2, ?3, 'peer', 'dev', 'text', 'nichts', ?4, ?4, ?4, 'me')",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        thread_id,
+                        Uuid::new_v4().simple().to_string(),
+                        n
+                    ],
+                )?;
+            }
+            Ok(())
+        })
+        .expect("newer messages");
+
+    assert_eq!(ids(&find(&vault, "treffpunkt")), [old.as_str()]);
+}
