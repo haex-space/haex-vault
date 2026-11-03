@@ -173,3 +173,34 @@ fn the_request_checks_limit_and_cursor() {
     assert_eq!(Cursor::decode(&cursor.encode()), Some(cursor));
     assert_eq!(Cursor::decode(&format!("{}:x", cursor.encode())), None);
 }
+
+#[test]
+fn the_scan_reads_past_a_batch_and_stops_after_the_page() {
+    let (_dir, db) = open_test_vault();
+    let thread = Uuid::new_v4();
+    let total = BATCH as i64 + 20;
+    db.write(|tx| {
+        for seq in 1..=total {
+            let text = if seq == 3 || seq == total - 5 {
+                "Budget"
+            } else {
+                "etwas anderes"
+            };
+            append(tx, said(thread, text), seq)?;
+        }
+        Ok(())
+    })
+    .expect("append");
+
+    let first = page(&db, "budget", None, Some(1));
+    assert_eq!(first.entries.iter().map(|h| h.seq).collect::<Vec<_>>(), [3]);
+    let next = first
+        .next_cursor
+        .expect("the second hit lies in the next batch");
+    let second = page(&db, "budget", Some(&next), Some(1));
+    assert_eq!(
+        second.entries.iter().map(|h| h.seq).collect::<Vec<_>>(),
+        [total - 5]
+    );
+    assert_eq!(second.next_cursor, None);
+}

@@ -20,6 +20,8 @@ pub const DEFAULT_LIMIT: usize = 50;
 pub const MAX_LIMIT: usize = 100;
 /// Characters of context on each side of the match in a snippet.
 const CONTEXT_CHARS: usize = 40;
+/// Rows read per query while scanning.
+const BATCH: usize = 500;
 
 /// Where the last page ended: `(thread_id, seq, id)` of its last entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,6 +101,9 @@ pub struct SearchPage {
 }
 
 /// The entries whose text contains the query, at most `limit` of them, after the cursor.
+///
+/// Rows are read [`BATCH`] at a time in the order of the index, so the scan ends as soon as one
+/// hit more than the page is found instead of stepping through the whole table.
 pub fn search(q: &mut impl Query, request: &SearchRequest) -> haex_crdt::Result<SearchPage> {
     if request.folded.is_empty() {
         return Ok(SearchPage {
@@ -106,48 +111,25 @@ pub fn search(q: &mut impl Query, request: &SearchRequest) -> haex_crdt::Result<
             next_cursor: None,
         });
     }
-    // Row values compare as tuples, in the order of the index (thread_id, seq, id).
-    let (sql, after) = match &request.after {
-        None => (
-            "SELECT thread_id, seq, id, text FROM voice_transcript_entries \
-             ORDER BY thread_id, seq, id",
-            None,
-        ),
-        Some(cursor) => (
-            "SELECT thread_id, seq, id, text FROM voice_transcript_entries \
-             WHERE (thread_id, seq, id) > (?1, ?2, ?3) ORDER BY thread_id, seq, id",
-            Some((
-                cursor.thread_id.to_string(),
-                cursor.seq,
-                cursor.id.to_string(),
-            )),
-        ),
-    };
-    let mut found = 0usize;
-    let mut map = |row: &haex_crdt::rusqlite::Row<'_>| {
-        // One more than the page tells whether a next page exists; later rows are not folded.
-        if found > request.limit {
-            return Ok(None);
+    let mut hits: Vec<(Cursor, String)> = Vec::new();
+    let mut position = request.after;
+    'scan: loop {
+        let rows = read_batch(q, position)?;
+        let exhausted = rows.len() < BATCH;
+        position = rows.last().map(|(cursor, _)| *cursor).or(position);
+        for (cursor, text) in rows {
+            if let Some(snippet) = snippet(&text, &request.folded) {
+                hits.push((cursor, snippet));
+                // One more than the page tells whether a next page exists.
+                if hits.len() > request.limit {
+                    break 'scan;
+                }
+            }
         }
-        let text: String = row.get(3)?;
-        let Some(snippet) = snippet(&text, &request.folded) else {
-            return Ok(None);
-        };
-        found += 1;
-        Ok(Some((
-            Cursor {
-                thread_id: uuid::from_row(row, 0)?,
-                seq: row.get(1)?,
-                id: uuid::from_row(row, 2)?,
-            },
-            snippet,
-        )))
-    };
-    let rows = match &after {
-        None => q.query_map(sql, params![], &mut map)?,
-        Some((thread, seq, id)) => q.query_map(sql, params![thread, seq, id], &mut map)?,
-    };
-    let mut hits: Vec<(Cursor, String)> = rows.into_iter().flatten().collect();
+        if exhausted {
+            break;
+        }
+    }
     let more = hits.len() > request.limit;
     hits.truncate(request.limit);
     let next_cursor = more
@@ -165,6 +147,44 @@ pub fn search(q: &mut impl Query, request: &SearchRequest) -> haex_crdt::Result<
             .collect(),
         next_cursor,
     })
+}
+
+/// Up to [`BATCH`] rows strictly after `after`, in the order of the index `(thread_id, seq, id)`;
+/// row values compare as tuples.
+fn read_batch(
+    q: &mut impl Query,
+    after: Option<Cursor>,
+) -> haex_crdt::Result<Vec<(Cursor, String)>> {
+    let map = |row: &haex_crdt::rusqlite::Row<'_>| {
+        Ok((
+            Cursor {
+                thread_id: uuid::from_row(row, 0)?,
+                seq: row.get(1)?,
+                id: uuid::from_row(row, 2)?,
+            },
+            row.get::<_, String>(3)?,
+        ))
+    };
+    let batch = BATCH as i64;
+    match after {
+        None => q.query_map(
+            "SELECT thread_id, seq, id, text FROM voice_transcript_entries \
+             ORDER BY thread_id, seq, id LIMIT ?1",
+            params![batch],
+            map,
+        ),
+        Some(cursor) => q.query_map(
+            "SELECT thread_id, seq, id, text FROM voice_transcript_entries \
+             WHERE (thread_id, seq, id) > (?1, ?2, ?3) ORDER BY thread_id, seq, id LIMIT ?4",
+            params![
+                cursor.thread_id.to_string(),
+                cursor.seq,
+                cursor.id.to_string(),
+                batch
+            ],
+            map,
+        ),
+    }
 }
 
 /// Folds `text` one character at a time, so every folded character points back to the character
