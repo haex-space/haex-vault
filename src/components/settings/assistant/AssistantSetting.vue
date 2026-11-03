@@ -5,7 +5,8 @@
  * 2026-11-02). Below it, what the assistant still needs on this device (`assistant_readiness`); a
  * model haex can fetch links to its page, which asks before the download and shows its progress
  * (spec 043 FR-028). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here
- * too, and the language of spoken conversations (`assistant.language`, FR-002a): the interface
+ * too, and the language of spoken conversations; below, the voice of each language and the
+ * speaking rate (`VoiceSetting`, one page with it since operator 2026-11-03), and (`assistant.language`, FR-002a): the interface
  * language unless the user picks another one, for example to practise it. Saved on selection
  * (spec 023 FR-021).
  */
@@ -87,7 +88,6 @@ const missing = ref<Missing[] | null>(null)
 /** The page that fetches a missing piece. */
 const PAGE: Partial<Record<Missing, string>> = {
   sttModel: '/ai/speech',
-  voice: '/ai/speech/voice',
   chatModel: '/ai/local',
 }
 
@@ -267,6 +267,12 @@ onVaultTablesChanged(['preferences'], () => {
       <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
         {{ t('settings.assistantPage.saved') }}
       </p>
+      <h2 class="px-1 text-sm font-semibold">
+        {{ t('settings.assistantPage.voiceHeading') }}
+      </h2>
+      <SettingsAssistantVoiceSetting
+        :language="spokenLanguage(conversationLanguage, locale)"
+      />
     </template>
   </section>
 </template>
