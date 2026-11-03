@@ -2,7 +2,7 @@
 /**
  * The confirmation before an agent shares a contact (spec 060 FR-029 to FR-032, research R8): the
  * share dialog opens with the agent's proposal, the person may change the choice, and only what
- * they leave chosen goes to the agent, as a text. "Ablehnen" or closing it gives the agent nothing.
+ * they leave chosen goes to the agent, as a text. "Ablehnen" gives the agent nothing.
  * Every call asks, there is nothing to remember, and without an answer in 120 s Rust refuses.
  * Requests that arrive together wait in line.
  */
@@ -17,7 +17,8 @@ const CONFIRM_TIMEOUT_MS = 120_000
 const timeouts = new Map<string, ReturnType<typeof setTimeout>>()
 let unlisten: UnlistenFn | undefined
 
-// Closing the dialog any other way than with its buttons (Escape, the backdrop) is a "no".
+// Only the dialog's buttons close it (spec 065 FR-042); should it close any other way, that is a
+// "no".
 const open = computed({
   get: () => current.value !== undefined,
   set: (value: boolean) => {
