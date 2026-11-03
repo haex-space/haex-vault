@@ -170,33 +170,70 @@ pub fn shown(name: &str, value: &str, secret: bool) -> BrowserField {
     }
 }
 
-/// The fields of a held request's body: form fields, the top level of a JSON object, or nothing
-/// when the body is something else.
+/// `value` with every secret hidden, to show it whole: a member named like a secret becomes `•••`,
+/// strings lose the credentials they carry.
+fn hide_secrets(value: &Value) -> Value {
+    match value {
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .map(|(name, value)| {
+                    let shown = if secret_name(name) {
+                        Value::String(SECRET_PLACEHOLDER.to_owned())
+                    } else {
+                        hide_secrets(value)
+                    };
+                    (name.clone(), shown)
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(hide_secrets).collect()),
+        Value::String(text) => Value::String(redact_text(text)),
+        other => other.clone(),
+    }
+}
+
+/// A JSON member as the dialog shows it: text as it is, anything nested as compact JSON with its
+/// secrets hidden, cut to length.
+fn json_field(name: &str, value: &Value) -> BrowserField {
+    match value {
+        Value::String(text) => shown(name, text, false),
+        Value::Object(_) | Value::Array(_) => shown(name, &hide_secrets(value).to_string(), false),
+        other => shown(name, &other.to_string(), false),
+    }
+}
+
+/// Whether `body` is text a person can read: no control characters but line breaks and tabs.
+fn readable(body: &str) -> bool {
+    !body
+        .chars()
+        .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
+}
+
+/// The fields of a held request's body: form fields, the top level of a JSON object, a JSON list
+/// or any other text as one field without a name (the dialog names it); nothing when the body is
+/// not text.
 pub fn fields_of(body: Option<&str>) -> Vec<BrowserField> {
     let Some(body) = body.map(str::trim).filter(|body| !body.is_empty()) else {
         return Vec::new();
     };
-    let fields: Vec<BrowserField> = if body.starts_with('{') {
-        match serde_json::from_str::<Value>(body) {
-            Ok(Value::Object(object)) => object
-                .iter()
-                .map(|(name, value)| {
-                    let value = match value {
-                        Value::String(text) => text.clone(),
-                        Value::Array(_) | Value::Object(_) => SECRET_PLACEHOLDER.to_owned(),
-                        other => other.to_string(),
-                    };
-                    shown(name, &value, false)
-                })
-                .collect(),
-            _ => Vec::new(),
+    if !readable(body) {
+        return Vec::new();
+    }
+    let fields: Vec<BrowserField> = match serde_json::from_str::<Value>(body) {
+        Ok(Value::Object(object)) => object
+            .iter()
+            .map(|(name, value)| json_field(name, value))
+            .collect(),
+        Ok(list @ Value::Array(_)) => vec![json_field("", &list)],
+        _ if body.contains('=') && !body.contains('\n') && !body.starts_with('{') => {
+            url::form_urlencoded::parse(body.as_bytes())
+                .map(|(name, value)| shown(&name, &value, false))
+                .collect()
         }
-    } else if body.contains('=') && !body.contains('\n') {
-        url::form_urlencoded::parse(body.as_bytes())
-            .map(|(name, value)| shown(&name, &value, false))
-            .collect()
-    } else {
-        Vec::new()
+        // Text of no known shape may carry a secret anywhere: shown only when nothing in it is named
+        // like one.
+        _ => vec![shown("", body, secret_name(body))],
     };
     fields.into_iter().take(MAX_FIELDS).collect()
 }
