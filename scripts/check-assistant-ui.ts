@@ -34,6 +34,7 @@ import {
   SPEAKERS,
   compareEntries,
   mergeEntry,
+  mergeStored,
   splitSpoken,
   type TranscriptEntry,
 } from '../src/lib/assistant/transcript.ts'
@@ -436,6 +437,20 @@ test('live entries join the stored ones in the order of the table', () => {
     ['1a:neu', '2b:b', '2c:c'],
   )
   assert.equal(compareEntries(entry('x', 3), entry('y', 3)) < 0, true)
+
+  // A fresh read wins for its ids; an entry that arrived live while reading stays.
+  const shown = [entry('a', 1, 'alt'), entry('live', 3)]
+  const stored = [entry('b', 2), entry('a', 1, 'gelesen')]
+  assert.deepEqual(
+    mergeStored(shown, stored).map((e) => `${e.seq}${e.id}:${e.text}`),
+    ['1a:gelesen', '2b:b', '3live:live'],
+  )
+  assert.ok(
+    read('src/components/chat/VoiceTranscript.vue').includes(
+      'mergeStored(entries.value, stored)',
+    ),
+    'the view merges a read in one pass',
+  )
 })
 
 test('the chat shows the transcript of a spoken session and searches transcripts (T127)', () => {

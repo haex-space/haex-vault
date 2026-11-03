@@ -14,6 +14,7 @@ import {
   watch,
   type ComponentPublicInstance,
 } from 'vue'
+import { toast } from 'vue-sonner'
 import type { Thread } from '~/composables/useChat'
 import type { TranscriptHit } from '~/lib/assistant/transcript'
 import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
@@ -52,6 +53,10 @@ const searchActive = computed(() => search.query.value.trim() !== '')
 // A spoken entry stored while the popover was closed shows up when it opens again.
 watch(open, (isOpen) => {
   if (isOpen && searchActive.value) void search.refreshAsync()
+})
+// Errors are toasts, never inline text.
+watch(search.error, (failure) => {
+  if (failure !== null) toast.error(errString(failure))
 })
 
 function threadTitle(threadId: string): string {
@@ -153,14 +158,11 @@ watch(
           <span class="line-clamp-2 break-words">{{ hit.snippet }}</span>
         </button>
         <p
-          v-if="search.error.value"
-          class="px-2 py-1 text-xs text-destructive"
-          role="alert"
-        >
-          {{ errString(search.error.value) }}
-        </p>
-        <p
-          v-else-if="!search.searching.value && search.hits.value.length === 0"
+          v-if="
+            !search.error.value &&
+            !search.searching.value &&
+            search.hits.value.length === 0
+          "
           class="px-3 py-2 text-xs text-muted-foreground"
         >
           {{ t('chat.threads.noHits') }}
