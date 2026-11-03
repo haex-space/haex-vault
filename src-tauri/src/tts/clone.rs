@@ -151,18 +151,26 @@ pub fn analyse(samples: &[f32], sample_rate: u32) -> Analysis {
 }
 
 /// Where a recording kept from `start` ends: at `natural_end` when that is within
-/// [`MAX_REFERENCE_SECS`], else after the last pause of [`PAUSE_FRAMES`] that fits, else at the
-/// limit itself (speech without any pause).
+/// [`MAX_REFERENCE_SECS`], else after the last pause of [`PAUSE_FRAMES`] that fits and keeps at
+/// least [`MIN_SPEECH_SECS`] of speech, else at the limit itself (speech without such a pause: a
+/// cut in a word is better than a voice refused as too short).
 fn cut_at_pause(is_speech: &[bool], first: usize, start: usize, natural_end: usize) -> usize {
     let limit = start + (MAX_REFERENCE_SECS / FRAME_SECS).round() as usize;
     if natural_end <= limit {
         return natural_end;
     }
+    let min_speech = (MIN_SPEECH_SECS / FRAME_SECS).round() as usize;
     let mut silent = 0;
+    let mut speech_frames = 0;
     let mut best = None;
     for (index, speech) in is_speech.iter().enumerate().take(limit).skip(first) {
-        silent = if *speech { 0 } else { silent + 1 };
-        if silent >= PAUSE_FRAMES {
+        if *speech {
+            silent = 0;
+            speech_frames += 1;
+        } else {
+            silent += 1;
+        }
+        if silent >= PAUSE_FRAMES && speech_frames >= min_speech {
             best = Some(index + 1);
         }
     }
