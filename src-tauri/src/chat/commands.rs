@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
@@ -127,12 +127,20 @@ pub async fn inspect_attachment(
     Ok(info)
 }
 
+/// How long a typed message waits for a chat that is still busy before it fails.
+pub const SEND_WAIT_WHEN_BUSY: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Persists a typed user message, spawns a streaming generation, returns
 /// both message ids so the frontend can subscribe. The assistant
 /// message is inserted on completion. The work is [`start_turn`], shared
 /// with the voice assistant (spec 066 T038).
 #[tauri::command]
 pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendMessageResult> {
+    // A spoken round, a model load or the end of the last turn may still hold the chat for a
+    // moment; the voice assistant waits the same time the other way round (spec 066 R12).
+    app.state::<ChatState>()
+        .wait_until_free(SEND_WAIT_WHEN_BUSY)
+        .await;
     let emitter = app.clone();
     start_turn(
         &app,

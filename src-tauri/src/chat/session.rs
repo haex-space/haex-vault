@@ -500,6 +500,18 @@ impl ChatState {
         self.operation.try_lock().is_err()
     }
 
+    /// Waits until nothing holds the operation lock, at most `max`. A typed message sent while a
+    /// spoken round or a model load ends waits instead of failing (operator 2026-11-03);
+    /// `acquire_operation` afterwards stays the real check.
+    pub async fn wait_until_free(&self, max: std::time::Duration) {
+        const POLL: std::time::Duration = std::time::Duration::from_millis(100);
+        let mut waited = std::time::Duration::ZERO;
+        while self.operation_busy() && waited < max {
+            tokio::time::sleep(POLL).await;
+            waited += POLL;
+        }
+    }
+
     /// Rebuilds the registry's MCP-sourced tools from a fresh `tools/list`
     /// against every server in `servers`, keeping the always-present
     /// host-CLI tool. Nothing calls this yet: configuring which MCP

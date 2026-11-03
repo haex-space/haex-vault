@@ -1803,7 +1803,8 @@
       "notFound": "Die Erweiterung gibt es nicht (mehr).",
       "disabled": "Die Erweiterung ist deaktiviert.",
       "notReady": "Die Erweiterung ist auf diesem Gerät noch nicht bereit."
-    }
+    },
+    "operationBusy": "haex ist noch mit einer anderen Anfrage beschäftigt. Versuch es gleich noch einmal."
   },
   "actions": {
     "wm": {

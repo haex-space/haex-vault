@@ -233,3 +233,24 @@ fn late_permission_reply_after_cancellation_is_a_noop_but_unknown_id_is_rejected
         Err(HolziError::InvalidInput { .. })
     ));
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_send_waits_for_a_busy_chat_but_not_forever() {
+    let chat = std::sync::Arc::new(ChatState::new());
+    let operation = chat.acquire_operation().unwrap();
+    let release = tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        drop(operation);
+    });
+    let started = tokio::time::Instant::now();
+    chat.wait_until_free(SEND_WAIT_WHEN_BUSY).await;
+    assert!(!chat.operation_busy(), "the turn that ended frees the chat");
+    assert!(started.elapsed() < SEND_WAIT_WHEN_BUSY);
+    release.await.unwrap();
+
+    let _held = chat.acquire_operation().unwrap();
+    let started = tokio::time::Instant::now();
+    chat.wait_until_free(SEND_WAIT_WHEN_BUSY).await;
+    assert!(chat.operation_busy(), "a turn that runs on keeps the chat");
+    assert!(started.elapsed() >= SEND_WAIT_WHEN_BUSY);
+}
