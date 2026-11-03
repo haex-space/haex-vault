@@ -18,9 +18,12 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 
+// A total of 0 says nothing about the share either: the ring stays neutral then too, instead of
+// showing a drive that holds nothing as entirely free.
+const shareKnown = computed(() => props.total !== null && props.total > 0)
 // The ring is 100 units long (`pathLength`), so the used arc is its percentage.
 const usedLength = computed(() =>
-  props.total === null ? 0 : usedShare(props.used, props.total) * 100,
+  shareKnown.value ? usedShare(props.used, props.total!) * 100 : 0,
 )
 </script>
 
@@ -41,9 +44,7 @@ const usedLength = computed(() =>
             fill="none"
             stroke-width="4"
             pathLength="100"
-            :class="
-              total === null ? 'stroke-muted-foreground' : 'stroke-success'
-            "
+            :class="shareKnown ? 'stroke-success' : 'stroke-muted-foreground'"
           />
           <circle
             v-if="usedLength > 0"
