@@ -493,6 +493,8 @@ await setPrefAsync(
 
 # Stufe 3: Eigener Slot für das aktive lokale Modell (Backend)
 
+> **Stand 2026-11-03:** umgesetzt, mit zwei Abweichungen vom Plan unten. (1) Stufe 3 enthält das minimale Frontend (Aktivieren, Entladen und das Badge "Aktiv" in der bestehenden Liste, die gefilterte Chat-Auswahl, der Wizard), weil der Chat ein lokales Modell sonst nicht mehr laden könnte. (2) `load_model_inner` bekommt `LoadOptions { mode, integrity_override }` (`LoadMode::Chat` übernimmt den Motor aus dem Slot, `LoadMode::Activate` lädt in den Slot); ein Chat-Laden bricht den Preload nicht mehr ab, eine Aktivierung wird nur von einem geschlossenen Vault überholt. Der Befehl `load_model_with_integrity_override` heißt jetzt `activate_local_model_with_integrity_override`, `unload_local_model` ist `deactivate_local_model`. Die Modellaufträge (`model_jobs/chat_slot.rs`) leihen sich das aktive lokale Modell statt der Chat-Sitzung.
+
 Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nach `executing-plans`-Muster. Die Aufgaben und ihre Reihenfolge stehen fest:
 
 ### Task 10: Slot in ChatState
@@ -534,7 +536,12 @@ Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nac
 
 ---
 
-# Stufe 4: Frontend-Anbindung
+# Stufe 4: Dropdown statt Liste
+
+> **Geändert 2026-11-03:** Die Aufgaben 16 bis 19 unten sind mit Stufe 3 erledigt. Stufe 4 ist jetzt die Oberfläche "Auf diesem Gerät" als **Dropdown**: Es listet die heruntergeladenen Modelle mit Badges ("Aktiv", "Update verfügbar") und wählt das Modell, mit dem man arbeitet; die Knöpfe rechts daneben wirken auf das gewählte Modell: Aktivieren (beim aktiven Modell Entladen), Aktualisieren (nur bei einem Update, läuft es: Abbrechen) und Löschen. Unter dem Dropdown stehen die Details des gewählten Modells (Quelle, Integrität, Größe, Update-Status). Beim Öffnen ist das aktive Modell vorgewählt. Offen: Badges im geschlossenen Dropdown brauchen einen Erweiterungspunkt in haex-ui (`SettingsSelect` zeigt nur ein `label`).
+
+(Ursprüngliche Planung der Frontend-Anbindung, erledigt mit Stufe 3:)
+
 
 Neuer Worktree nach dem Merge von Stufe 3; **vor dem Start feinplanen**.
 
