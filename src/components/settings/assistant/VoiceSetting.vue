@@ -96,8 +96,12 @@ function voiceLine(voice: VoiceOption): string {
   return parts.join(' · ')
 }
 
+/** Counts reloads, so an answer overtaken by a newer reload is dropped. */
+let reloads = 0
+
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
+  const current = ++reloads
   if (!quiet) loading.value = true
   loadFailed.value = false
   try {
@@ -108,6 +112,7 @@ async function reloadAsync(quiet = false) {
         getPrefAsync(scope.value, voicePrefKey(language)),
       ),
     ])
+    if (current !== reloads) return
     voices.value = list
     rate.value = parseSpeechRate(storedRate)
     chosen.value = Object.fromEntries(
@@ -121,30 +126,40 @@ async function reloadAsync(quiet = false) {
       }),
     )
   } catch (e) {
-    loadFailed.value = true
-    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
+    if (current === reloads) {
+      loadFailed.value = true
+      toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
+    }
   } finally {
-    loading.value = false
+    if (current === reloads) loading.value = false
   }
 }
 
-async function saveAsync(key: string, value: string) {
+/** Saves a preference; `false` when it failed (shown as a toast). */
+async function saveAsync(key: string, value: string): Promise<boolean> {
   saving.value = true
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
+    return true
   } catch (e) {
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
+    return false
   } finally {
     saving.value = false
   }
 }
 
-/** Choosing a voice that is not here yet also asks to download it. */
+/** Choosing a voice that is not here yet also asks to download it. A failed save shows the voice
+ * that is still stored. */
 async function chooseVoiceAsync(language: SpeechLanguage, ref: string) {
-  if (chosen.value[language] === ref) return
+  const previous = chosen.value[language]
+  if (previous === ref) return
   chosen.value = { ...chosen.value, [language]: ref }
-  await saveAsync(voicePrefKey(language), ref)
+  if (!(await saveAsync(voicePrefKey(language), ref))) {
+    chosen.value = { ...chosen.value, [language]: previous }
+    return
+  }
   const voice = voices.value.find((candidate) => candidate.ref === ref)
   if (voice && !voice.installed && downloadingId.value === null)
     confirming.value = voice
@@ -209,19 +224,17 @@ async function clonedAsync(voice: VoiceOption) {
 /** The own voice whose delete waits for the question. */
 const deleteCandidate = ref<VoiceOption | null>(null)
 const deleting = ref(false)
-const deleteError = ref<string | null>(null)
 
 async function confirmDeleteAsync() {
   const voice = deleteCandidate.value
   if (!voice) return
   deleting.value = true
-  deleteError.value = null
   try {
     await voiceDeleteAsync(voice.ref)
     deleteCandidate.value = null
     await reloadAsync(true)
   } catch (e) {
-    deleteError.value = errString(e)
+    toast.error(t('settings.voice.deleteFailed', { reason: errString(e) }))
   } finally {
     deleting.value = false
   }
@@ -371,7 +384,9 @@ onVaultTablesChanged(['preferences'], () => {
         v-if="deleteCandidate"
         :open="deleteCandidate !== null"
         :title="t('settings.voice.deleteTitle')"
-        @update:open="(isOpen) => (isOpen ? null : (deleteCandidate = null))"
+        @update:open="
+          (isOpen) => (isOpen || deleting ? null : (deleteCandidate = null))
+        "
       >
         <template #content>
           <div class="space-y-3 px-6 py-2">
@@ -381,9 +396,6 @@ onVaultTablesChanged(['preferences'], () => {
                   name: deleteCandidate.name,
                 })
               }}
-            </p>
-            <p v-if="deleteError" class="text-sm text-destructive" role="alert">
-              {{ deleteError }}
             </p>
           </div>
         </template>

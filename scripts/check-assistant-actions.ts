@@ -73,6 +73,9 @@ function sources(dir: string): string[] {
 
 /** The commands only the user may run, from the settings page (FR-050, FR-051). */
 const USER_ONLY = /tts_clone_|tts_voice_delete|tts_model_import/
+/** Their wrappers in `useTtsVoices`, which the window reaches them through. */
+const USER_ONLY_WRAPPERS =
+  /\bclone\w*Async\b|\bvoiceDeleteAsync\b|\bmodelImportAsync\b/
 
 test('no action, agent tool or extension API makes, imports or deletes a voice (T144)', () => {
   const guarded = [
@@ -85,13 +88,20 @@ test('no action, agent tool or extension API makes, imports or deletes a voice (
   ].flatMap(sources)
   assert.ok(guarded.length > 50, 'the guarded places were read')
   for (const file of guarded) {
-    assert.doesNotMatch(
-      read(file),
-      USER_ONLY,
-      relative(root, resolve(root, file)),
-    )
+    const name = relative(root, resolve(root, file))
+    assert.doesNotMatch(read(file), USER_ONLY, name)
+    assert.doesNotMatch(read(file), USER_ONLY_WRAPPERS, name)
   }
-  // In the window only the voices composable calls them, which the settings page uses.
+  // In the window only the voices composable calls them, and only the settings page uses its
+  // wrappers.
   const callers = sources('src').filter((file) => USER_ONLY.test(read(file)))
   assert.deepEqual(callers, ['src/composables/useTtsVoices.ts'])
+  const wrapperCallers = sources('src').filter((file) =>
+    USER_ONLY_WRAPPERS.test(read(file)),
+  )
+  assert.deepEqual(wrapperCallers.sort(), [
+    'src/components/settings/assistant/VoiceCloneDialog.vue',
+    'src/components/settings/assistant/VoiceSetting.vue',
+    'src/composables/useTtsVoices.ts',
+  ])
 })

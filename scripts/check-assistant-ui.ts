@@ -600,11 +600,17 @@ test('the assistant pages save silently and show failures as toasts (operator 20
     'src/components/settings/assistant/AssistantSetting.vue',
     'src/components/settings/assistant/VoiceSetting.vue',
     'src/components/settings/assistant/TonesSetting.vue',
+    'src/components/settings/assistant/VoiceCloneDialog.vue',
   ]) {
     const source = read(file)
     assert.doesNotMatch(source, /savedFlash|role="status"/, file)
     assert.match(source, /toast\.error\(/, file)
   }
+  // The dialog has no page to load: none of its failures stays in it.
+  assert.doesNotMatch(
+    read('src/components/settings/assistant/VoiceCloneDialog.vue'),
+    /role="alert"/,
+  )
 })
 
 test('an own voice offers a text to read aloud in every language (operator 2026-11-03)', () => {
