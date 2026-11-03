@@ -32,8 +32,8 @@ einmal je Lieferung durchgeht.
 
 - „Öffne https://localhost:8443/partner.html.“ (eine zweite Website) oder `/framed.html`, das einen
   Rahmen dieser Website enthält
-- Erwartet: Rückfrage vor dem Laden mit „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer
-  erlauben (bedienen)“, „Ablehnen“; „Ablehnen“ → der Agent meldet `site_not_allowed`, die Seite
+- Erwartet: Rückfrage vor dem Laden mit „Erlauben“, „Ablehnen“ und dem Häkchen „Für diese
+  Website merken“ (mit Wahl „Lesen“ oder „Bedienen“); „Ablehnen“ → der Agent meldet `site_not_allowed`, die Seite
   lädt nicht.
 
 ## M3 Formular und Absenden (US2)
