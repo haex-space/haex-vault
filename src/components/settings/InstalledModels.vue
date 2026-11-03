@@ -8,6 +8,7 @@ import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
 const { t } = useI18n()
 const checkUpdates = useActionOrThrow('settings.models.checkUpdates')
 const installUpdate = useActionOrThrow('settings.models.installUpdate')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const deleteModel = useActionOrThrow('settings.models.delete')
 const selectModel = useAction('chat.model.select')
 const decideIntegrity = useAction('chat.modelIntegrity.decide')
@@ -106,11 +107,23 @@ async function installUpdateForAsync(modelId: string) {
     await reloadAsync()
     await checkUpdatesNowAsync()
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    // A cancelled update is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) {
+      updateErrorKey.value = hfErrorKey(e)
+      updateErrorDetail.value = hfErrorDetail(e)
+    }
   } finally {
     installingUpdateId.value = null
     downloads.clearDownload(modelId)
+  }
+}
+
+async function cancelUpdateAsync(modelId: string) {
+  try {
+    await cancelDownload({ modelId })
+  } catch (e) {
+    updateErrorKey.value = hfErrorKey(e)
+    updateErrorDetail.value = hfErrorDetail(e)
   }
 }
 
@@ -271,16 +284,27 @@ onMounted(async () => {
         >
           {{ t('models.installed.load') }}
         </UiButton>
-        <UiButton
-          v-if="updateStatuses[model.id]?.updateAvailable"
-          type="button"
-          size="sm"
-          variant="outline"
-          :loading="installingUpdateId === model.id"
-          @click="confirmingUpdate = model"
-        >
-          {{ t('models.update.install') }}
-        </UiButton>
+        <template v-if="updateStatuses[model.id]?.updateAvailable">
+          <UiButton
+            v-if="installingUpdateId === model.id"
+            type="button"
+            size="sm"
+            variant="outline"
+            :data-testid="`models-cancel-update-${model.id}`"
+            @click="cancelUpdateAsync(model.id)"
+          >
+            {{ t('models.filePicker.cancel') }}
+          </UiButton>
+          <UiButton
+            v-else
+            type="button"
+            size="sm"
+            variant="outline"
+            @click="confirmingUpdate = model"
+          >
+            {{ t('models.update.install') }}
+          </UiButton>
+        </template>
         <UiButton
           type="button"
           size="sm"

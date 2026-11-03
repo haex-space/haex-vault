@@ -283,6 +283,10 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await models.downloadFromCatalogAsync(String(input.entryId))
     return done
   })
+  on('settings.models.cancelDownload', async ({ input }) => {
+    await models.cancelDownloadAsync(String(input.modelId))
+    return done
+  })
   on('settings.models.downloadFromHf', async ({ input }) =>
     models.downloadFromHfAsync({
       repoId: String(input.repoId),
