@@ -259,6 +259,7 @@ function renderMarkdown(content: string): string {
               "
             />
             <!-- eslint-enable vue/no-v-html -->
+            <template v-else>{{ m.content }}</template>
           </div>
         </template>
         <ChatReasoningAccordion
