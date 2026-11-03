@@ -1,7 +1,10 @@
 <script setup lang="ts">
 /**
- * Installed models (spec 005; the upper part of the location `/ai/local`, spec 023 research R10): load, delete, check and install HuggingFace updates, and the integrity dialog. Lists, the
- * active model and the integrity flow are `useModelsStore()` state shared with the chat.
+ * Installed models (spec 005; the upper part of the location `/ai/local`, spec 023 research R10):
+ * activate (load into memory), unload, delete, check and install HuggingFace updates, and the
+ * integrity dialog. Of the installed models at most one is active; it is the only local model
+ * the chat offers. Lists, the active model and the integrity flow are `useModelsStore()` state
+ * shared with the chat.
  */
 import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
 
@@ -10,21 +13,22 @@ const checkUpdates = useActionOrThrow('settings.models.checkUpdates')
 const installUpdate = useActionOrThrow('settings.models.installUpdate')
 const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const deleteModel = useActionOrThrow('settings.models.delete')
-const selectModel = useAction('chat.model.select')
+const activate = useAction('settings.models.activate')
+const deactivate = useAction('settings.models.deactivate')
 const decideIntegrity = useAction('chat.modelIntegrity.decide')
 const downloads = useModelDownloadsStore()
 
 const modelStore = useModelsStore()
 const {
   installedModels: installed,
-  activeModelId,
+  activeLocalModelId,
   integrityDialog,
   integrityBusy,
   integrityActionError,
 } = storeToRefs(modelStore)
 const {
   refreshInstalledAndCatalog,
-  refreshActiveModel,
+  refreshActiveLocalModel,
   onIntegrityDialogOpenChange,
 } = modelStore
 
@@ -41,7 +45,7 @@ const installingUpdateId = ref<string | null>(null)
 // The row of a running load or delete, and which of the two it is: only the button that was
 // pressed spins, the other one of the row waits disabled.
 const busyModelId = ref<string | null>(null)
-const busyAction = ref<'load' | 'delete' | null>(null)
+const busyAction = ref<'activate' | 'unload' | 'delete' | null>(null)
 const deleteErrorKey = ref<string | null>(null)
 // The store's `lastError` is already display-ready (unlike the i18n keys above):
 // `chat.model.select` runs the store's `loadModel`, so its failure reads like the chat's.
@@ -52,7 +56,7 @@ async function reloadAsync() {
   listErrorKey.value = null
   listErrorDetail.value = null
   try {
-    await Promise.all([refreshInstalledAndCatalog(), refreshActiveModel()])
+    await Promise.all([refreshInstalledAndCatalog(), refreshActiveLocalModel()])
   } catch (e) {
     listErrorKey.value = hfErrorKey(e)
     listErrorDetail.value = hfErrorDetail(e)
@@ -143,17 +147,31 @@ async function deleteModelAsync(id: string) {
   }
 }
 
-/** The load and any integrity failure are handled by the store's `loadModel`, which never
- * throws; it sets `integrityDialog` (the dialog below) or `lastError`. */
-async function loadModelHereAsync(id: string) {
+/** The activation and any integrity failure are handled by the store's `activateLocalModel`,
+ * which never throws; it sets `integrityDialog` (the dialog below) or `lastError`. A model that
+ * does not fit the hardware fails here, and the row says so. */
+async function activateAsync(id: string) {
   busyModelId.value = id
-  busyAction.value = 'load'
+  busyAction.value = 'activate'
   loadErrorMessage.value = null
   try {
-    await selectModel({ modelId: id })
-    if (!integrityDialog.value && modelStore.lastError) {
-      loadErrorMessage.value = modelStore.lastError
-    }
+    await activate({ modelId: id })
+  } catch (e) {
+    loadErrorMessage.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    busyModelId.value = null
+    busyAction.value = null
+  }
+}
+
+async function unloadAsync(id: string) {
+  busyModelId.value = id
+  busyAction.value = 'unload'
+  loadErrorMessage.value = null
+  try {
+    await deactivate({})
+  } catch (e) {
+    loadErrorMessage.value = e instanceof Error ? e.message : String(e)
   } finally {
     busyModelId.value = null
     busyAction.value = null
@@ -228,7 +246,7 @@ onMounted(async () => {
           <span class="flex flex-wrap items-center gap-2">
             <span class="font-medium">{{ model.name }}</span>
             <span
-              v-if="activeModelId === model.id"
+              v-if="activeLocalModelId === model.id"
               class="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success"
             >
               {{ t('models.installed.active') }}
@@ -276,13 +294,25 @@ onMounted(async () => {
           </span>
         </template>
         <UiButton
+          v-if="activeLocalModelId === model.id"
           type="button"
           size="sm"
-          :disabled="activeModelId === model.id || busyModelId === model.id"
-          :loading="busyModelId === model.id && busyAction === 'load'"
-          @click="loadModelHereAsync(model.id)"
+          variant="outline"
+          :disabled="busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'unload'"
+          @click="unloadAsync(model.id)"
         >
-          {{ t('models.installed.load') }}
+          {{ t('models.installed.unload') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
+          :disabled="busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'activate'"
+          @click="activateAsync(model.id)"
+        >
+          {{ t('models.installed.activate') }}
         </UiButton>
         <template v-if="updateStatuses[model.id]?.updateAvailable">
           <UiButton

@@ -20,6 +20,7 @@ const { downloadFromCatalogAsync } = useModels()
 const { recommendTiersAsync: recommendSttTiersAsync } = useSttCatalog()
 const { downloadFromCatalogAsync: downloadSttFromCatalogAsync } = useSttModels()
 const { setPrefAsync } = usePreferences()
+const { activateLocalModelAsync } = useChat()
 
 const instanceName = computed(() => {
   const raw = route.params.instance
@@ -106,6 +107,12 @@ async function completeWithModel(rec: TierRecommendation) {
       'chat.last_active_model_id',
       installed.id,
     )
+    // The model goes into memory in the background and stays there as the active local model, so
+    // the first chat can use it. A failure holds nothing up: the settings activate it again.
+    // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
+    void activateLocalModelAsync(installed.id).catch((e: unknown) => {
+      console.error('[onboarding] activating the model failed', e)
+    })
     step.value = 'sttModel'
   } catch (e) {
     downloadError.value = errString(e)

@@ -44,6 +44,12 @@ export const useModelsStore = defineStore('models', () => {
   const { errString } = useErrorString()
 
   const activeModel = ref<LoadedModelInfo | null>(null)
+  // The local model held in memory, apart from the chat session's model above: it stays loaded
+  // until the person unloads it in the settings, whatever the chat chooses.
+  const activeLocalModel = ref<LoadedModelInfo | null>(null)
+  const activeLocalModelId = computed(
+    () => activeLocalModel.value?.modelId ?? null,
+  )
   const modelLoadPending = ref(false)
   const lastError = ref<string | null>(null)
   const setError = (message: string) => {
@@ -74,6 +80,7 @@ export const useModelsStore = defineStore('models', () => {
     errString,
     setError,
     cliDelegates: () => deviceCapabilities.value?.cliDelegates ?? true,
+    activeLocalModelId: () => activeLocalModelId.value,
   })
 
   const downloadingId = ref<string | null>(null)
@@ -163,6 +170,11 @@ export const useModelsStore = defineStore('models', () => {
     activeModel.value = await chat.activeModelInfoAsync()
   }
 
+  /** Refreshes the snapshot of the active local model. */
+  async function refreshActiveLocalModel() {
+    activeLocalModel.value = await chat.activeLocalModelInfoAsync()
+  }
+
   function beginLoadingModel(id: string, name: string): number {
     loadingModelToken += 1
     loadingModelId.value = id
@@ -179,11 +191,15 @@ export const useModelsStore = defineStore('models', () => {
 
   async function finishLoadingModel(token: number) {
     try {
-      await refreshActiveModel()
+      await Promise.all([refreshActiveModel(), refreshActiveLocalModel()])
       clearLoadingModel(token)
     } catch (e: unknown) {
       lastError.value = errString(e)
+      return
     }
+    // The vault-open preload that loads the active local model ends here without a call of ours:
+    // a last pick on that model is the chat's model again once it is in memory.
+    await restoreLastModel()
   }
 
   const {
@@ -201,7 +217,7 @@ export const useModelsStore = defineStore('models', () => {
     t,
     errString,
     installedModels,
-    activeModel,
+    activeLocalModel,
     modelLoadPending,
     findModelName,
     beginLoadingModel,
@@ -245,7 +261,49 @@ export const useModelsStore = defineStore('models', () => {
     }
   }
 
-  /** Downloads a catalog model, refreshes the lists, and loads the result. */
+  /**
+   * Loads the installed local model into memory and makes it the active one; the one that was
+   * active is unloaded. Apart from the chat session: it stays loaded until it is unloaded here,
+   * whatever the chat chooses. A failed integrity check opens the integrity dialog.
+   */
+  async function activateLocalModel(id: string) {
+    lastError.value = null
+    loadErrorModelId.value = null
+    modelLoadPending.value = true
+    const loadToken = beginLoadingModel(id, findModelName(id))
+    try {
+      activeLocalModel.value = await chat.activateLocalModelAsync(id)
+    } catch (e: unknown) {
+      if (!openIntegrityDialog(id, e)) {
+        lastError.value = errString(e)
+      }
+      loadingPhase.value = null
+      // The backend keeps the model that was active unless this activation fully succeeds.
+      await refreshActiveLocalModel().catch(() => {})
+    } finally {
+      modelLoadPending.value = false
+      clearLoadingModel(loadToken)
+    }
+    // A chat session that ran the old local model ended with it.
+    await refreshActiveModel().catch(() => {})
+  }
+
+  /** Unloads the active local model; a chat session that ran it ends with it. */
+  async function deactivateLocalModel() {
+    lastError.value = null
+    try {
+      await chat.deactivateLocalModelAsync()
+      activeLocalModel.value = null
+    } catch (e: unknown) {
+      lastError.value = errString(e)
+    }
+    await refreshActiveModel().catch(() => {})
+  }
+
+  /**
+   * Downloads a catalog model, refreshes the lists, activates it and makes it the chat's model:
+   * whoever downloads from the chat wants to chat with it.
+   */
   async function downloadCatalogEntry(entry: CatalogEntryWithFit) {
     lastError.value = null
     downloadingId.value = entry.id
@@ -254,7 +312,10 @@ export const useModelsStore = defineStore('models', () => {
     try {
       await models.downloadFromCatalogAsync(entry.id)
       await refreshInstalledAndCatalog()
-      await loadModel(entry.id)
+      await activateLocalModel(entry.id)
+      if (activeLocalModelId.value === entry.id) {
+        await loadModel(entry.id, { pick: true })
+      }
     } catch (e: unknown) {
       lastError.value = errString(e)
     } finally {
@@ -341,6 +402,7 @@ export const useModelsStore = defineStore('models', () => {
     const status = await chat.modelLoadStatusAsync()
     if (status) applyLoadStatus(status)
     await refreshActiveModel()
+    await refreshActiveLocalModel()
     await refreshInstalledAndCatalog()
     await refreshProviders()
     await restoreLastModel()
@@ -481,6 +543,8 @@ export const useModelsStore = defineStore('models', () => {
     integrityActionError,
     noModelsInstalled,
     activeModelId,
+    activeLocalModel,
+    activeLocalModelId,
     displayModelId,
     displayModelName,
     displayModelCapabilities,
@@ -493,7 +557,10 @@ export const useModelsStore = defineStore('models', () => {
     refreshInstalledAndCatalog,
     refreshProviders,
     refreshActiveModel,
+    refreshActiveLocalModel,
     loadModel,
+    activateLocalModel,
+    deactivateLocalModel,
     onIntegrityLoadUntrusted,
     onIntegrityRepairSource,
     onIntegrityChooseOther,
