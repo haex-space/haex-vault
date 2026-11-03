@@ -1,8 +1,11 @@
 <script setup lang="ts">
 /**
  * This device's name (spec 002 US3). Saved when the field loses focus or on Enter, without a
- * save button (spec 023 FR-021); an empty name is not saved and the field says why.
+ * save button (spec 023 FR-021); an empty name is not saved and the field says why. A failed save
+ * shows as a toast.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
@@ -19,8 +22,6 @@ const emit = defineEmits<{
 const localValue = ref(props.currentAlias)
 const showRequired = ref(false)
 const busy = ref(false)
-const savedFlash = ref(false)
-const saveError = ref<string | null>(null)
 
 watch(
   () => props.currentAlias,
@@ -29,18 +30,9 @@ watch(
   },
 )
 
-/**
- * Clears the three transient field states as soon as the operator types.
- *
- * A named handler rather than a multi-statement template expression: Vue
- * collapses a template attribute's newlines before parsing it, so the
- * inline form needs `;` separators that Prettier's `semi: false` strips,
- * leaving markup the SFC compiler rejects.
- */
+/** Hides the "required" hint as soon as the operator types. */
 function onInput() {
   showRequired.value = false
-  savedFlash.value = false
-  saveError.value = null
 }
 
 async function commitAsync() {
@@ -51,15 +43,12 @@ async function commitAsync() {
   }
   if (trimmed === props.currentAlias || busy.value) return
   busy.value = true
-  savedFlash.value = false
-  saveError.value = null
   try {
     await setAlias({ alias: trimmed })
     localValue.value = trimmed
-    savedFlash.value = true
     emit('saved', trimmed)
   } catch (e) {
-    saveError.value = errString(e)
+    toast.error(`${t('errors.aliasSaveFailed')}: ${errString(e)}`)
   } finally {
     busy.value = false
   }
@@ -90,14 +79,6 @@ async function commitAsync() {
           @keydown.enter.prevent="commitAsync"
         />
       </div>
-      <template v-if="savedFlash || saveError" #below>
-        <span v-if="savedFlash" class="text-xs text-success" role="status">
-          {{ t('settings.alias.saved') }}
-        </span>
-        <span v-if="saveError" class="text-xs text-destructive" role="alert">
-          {{ t('errors.aliasSaveFailed') }}: {{ saveError }}
-        </span>
-      </template>
     </SettingsRow>
   </SettingsGroup>
 </template>
