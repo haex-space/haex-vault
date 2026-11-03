@@ -52,7 +52,6 @@ const { listVaultDevicesAsync } = useDevice()
 const options = ref<ContactShareOptions | null>(null)
 const selection = ref<ShareSelection | null>(null)
 const output = ref<ContactShareOutput | null>(null)
-const error = ref<string | null>(null)
 const devices = ref<VaultDevice[]>([])
 let generation = 0
 
@@ -72,7 +71,6 @@ watch(
     options.value = null
     selection.value = null
     output.value = null
-    error.value = null
     if (!isOpen) return
     const mine = generation
     try {
@@ -90,7 +88,7 @@ watch(
           ? toArgs(props.proposed)
           : selectAll(loaded)
     } catch (cause) {
-      if (mine === generation) error.value = errString(cause)
+      if (mine === generation) toast.error(errString(cause))
     }
   },
   { immediate: true },
@@ -115,7 +113,6 @@ watch(
     generation += 1
     const mine = generation
     output.value = null
-    error.value = null
     if (!buildable.value) return
     try {
       const built = await shareBuildAsync(
@@ -124,7 +121,7 @@ watch(
       )
       if (mine === generation) output.value = built
     } catch (cause) {
-      if (mine === generation) error.value = errString(cause)
+      if (mine === generation) toast.error(errString(cause))
     }
   },
   { deep: true },
@@ -214,15 +211,6 @@ async function copyAsync() {
             {{ t('contacts.share.nothing') }}
           </p>
         </template>
-
-        <p
-          v-if="error"
-          class="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-          role="alert"
-          data-testid="contacts-share-error"
-        >
-          {{ error }}
-        </p>
 
         <div
           v-if="output"

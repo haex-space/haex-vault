@@ -30,7 +30,8 @@ const activeId = ref('')
 
 const loading = ref(true)
 const busyId = ref<string | null>(null)
-const loadError = ref<string | null>(null)
+/** The last read failed (its error went out as a toast); the lists stay hidden then. */
+const loadFailed = ref(false)
 
 const installed = computed(() =>
   catalog.value.filter((entry) => installedIds.value.has(entry.id)),
@@ -61,7 +62,7 @@ function engineLabel(entry: SttCatalogEntry): string {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [entries, installedModels, pref] = await Promise.all([
       listSttCatalogAsync(),
@@ -78,7 +79,8 @@ async function reloadAsync(quiet = false) {
         ? pref
         : (entries.find((entry) => entry.isDefault)?.id ?? '')
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -129,11 +131,7 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup v-if="installed.length > 0">
         <SettingsRow
           :title="t('settings.sttModel.modelLabel')"

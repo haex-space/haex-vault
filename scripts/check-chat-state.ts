@@ -334,7 +334,7 @@ test('rename failures keep the previous title and edit mode available', async ()
   await state.saveThreadTitle()
   assert.equal(state.threads.value[0].title, 'Keep me')
   assert.equal(state.editingThreadId.value, 'a')
-  assert.equal(state.editTitleError.value, 'chat.threads.renameFailed')
+  assert.equal(state.renameError.value, 'chat.threads.renameFailed')
 })
 
 test('delete failures keep the history entry and its confirmation target', async () => {

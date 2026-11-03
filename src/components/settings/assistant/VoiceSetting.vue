@@ -9,6 +9,7 @@
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
  * rate.
  */
+import { toast } from 'vue-sonner'
 import {
   assistantLabelKey,
   parseSpeechRate,
@@ -45,10 +46,10 @@ const tab = ref<SpeechLanguage>(
 )
 
 const loading = ref(true)
-const loadError = ref<string | null>(null)
+/** The settings could not be read (shown as a toast); the page then shows no controls. */
+const loadFailed = ref(false)
 const saving = ref(false)
 const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 /** The voice whose sample is being prepared or plays. */
 const previewing = ref<string | null>(null)
 /** The speech model being downloaded from this page. */
@@ -93,7 +94,7 @@ function availableLine(entry: VoiceOption): string {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [list, storedRate, ...stored] = await Promise.all([
       listAsync(),
@@ -115,7 +116,8 @@ async function reloadAsync(quiet = false) {
       }),
     )
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -124,13 +126,12 @@ async function reloadAsync(quiet = false) {
 async function saveAsync(key: string, value: string) {
   saving.value = true
   savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
     savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.voice.saveFailed', { reason: errString(e) })
+    toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
   } finally {
     saving.value = false
   }
@@ -148,11 +149,10 @@ async function saveRateAsync() {
 
 async function playAsync(voice: VoiceOption) {
   previewing.value = voice.ref
-  opError.value = null
   try {
     await previewAsync(voice.ref, rate.value)
   } catch (e) {
-    opError.value = t('settings.voice.previewFailed', { reason: errString(e) })
+    toast.error(t('settings.voice.previewFailed', { reason: errString(e) }))
   } finally {
     if (previewing.value === voice.ref) previewing.value = null
   }
@@ -169,14 +169,13 @@ const confirmOpen = computed({
 
 async function fetchModelAsync(entry: VoiceOption) {
   downloadingId.value = entry.modelId
-  opError.value = null
   try {
     await downloadModelAsync(entry.modelId)
     await reloadAsync(true)
   } catch (e) {
-    opError.value = t('settings.voice.model.downloadFailed', {
-      reason: errString(e),
-    })
+    toast.error(
+      t('settings.voice.model.downloadFailed', { reason: errString(e) }),
+    )
   } finally {
     downloadingId.value = null
     downloads.clearDownload(entry.modelId)
@@ -204,11 +203,7 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.speechRate'))"
@@ -357,9 +352,6 @@ onVaultTablesChanged(['preferences'], () => {
 
       <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
         {{ t('settings.voice.saved') }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ opError }}
       </p>
     </template>
   </section>

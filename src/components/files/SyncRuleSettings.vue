@@ -18,14 +18,15 @@ const { logDepthGetAsync, logDepthSetAsync } = useSyncRules()
 
 const stored = ref<number | null>(null)
 const draft = ref('')
-const failure = ref<string | null>(null)
+/** Whether the last value typed was out of bounds; a failed load or save goes out as a toast. */
+const invalid = ref(false)
 const busy = ref(false)
 
 async function loadAsync() {
   try {
     stored.value = await logDepthGetAsync()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   draft.value = stored.value === null ? '' : String(stored.value)
 }
@@ -36,18 +37,16 @@ async function commitAsync() {
   const depth = parseLogDepth(String(draft.value))
   if (depth === null) {
     draft.value = String(current)
-    failure.value = t('files.syncRules.settings.invalid')
+    invalid.value = true
     return
   }
-  failure.value = null
+  invalid.value = false
   if (depth === current) return
   busy.value = true
   try {
     await logDepthSetAsync(depth)
   } catch (error) {
-    const message = errString(error)
-    failure.value = message
-    toast.error(message)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -56,7 +55,7 @@ async function commitAsync() {
 
 watch(open, (isOpen) => {
   if (!isOpen) return
-  failure.value = null
+  invalid.value = false
   stored.value = null
   void loadAsync()
 })
@@ -97,8 +96,8 @@ watch(open, (isOpen) => {
         <p class="text-xs text-muted-foreground">
           {{ t('files.syncRules.settings.scope') }}
         </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
+        <p v-if="invalid" class="text-sm text-destructive" role="alert">
+          {{ t('files.syncRules.settings.invalid') }}
         </p>
       </div>
     </template>

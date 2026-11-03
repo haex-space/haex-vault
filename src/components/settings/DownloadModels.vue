@@ -4,6 +4,7 @@
  * the recommended catalog models not installed yet with their download progress, and the way
  * into the HuggingFace search as a sub-view.
  */
+import { toast } from 'vue-sonner'
 import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 
 const { t } = useI18n()
@@ -15,18 +16,18 @@ const { installedModels: installed, catalogEntries } = storeToRefs(modelStore)
 
 const loading = ref(true)
 const busyModelId = ref<string | null>(null)
-const errorKey = ref<string | null>(null)
-const errorDetail = ref<string | null>(null)
+
+/** A HuggingFace failure: its i18n message, with the raw reason underneath when there is one. */
+function toastHfError(e: unknown) {
+  toast.error(t(hfErrorKey(e)), { description: hfErrorDetail(e) ?? undefined })
+}
 
 async function reloadAsync() {
   loading.value = true
-  errorKey.value = null
-  errorDetail.value = null
   try {
     await modelStore.refreshInstalledAndCatalog()
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
-    errorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     loading.value = false
   }
@@ -69,17 +70,12 @@ function confirmed() {
 
 async function downloadAsync(entry: CatalogEntryWithFit) {
   busyModelId.value = entry.id
-  errorKey.value = null
-  errorDetail.value = null
   try {
     await downloadCatalog({ entryId: entry.id })
     await reloadAsync()
   } catch (e) {
     // A cancelled download is what the person asked for, not an error.
-    if (!isDownloadCancelled(e)) {
-      errorKey.value = hfErrorKey(e)
-      errorDetail.value = hfErrorDetail(e)
-    }
+    if (!isDownloadCancelled(e)) toastHfError(e)
   } finally {
     busyModelId.value = null
     downloads.clearDownload(entry.id)
@@ -90,8 +86,7 @@ async function cancelAsync(entry: CatalogEntryWithFit) {
   try {
     await cancelDownload({ modelId: entry.id })
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
-    errorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   }
 }
 
@@ -127,10 +122,6 @@ onMounted(reloadAsync)
       </SettingsRow>
     </SettingsGroup>
 
-    <p v-if="errorKey" class="text-sm text-destructive" role="alert">
-      {{ t(errorKey) }}
-      <span v-if="errorDetail" class="block text-xs">{{ errorDetail }}</span>
-    </p>
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('models.search.loading') }}
     </div>

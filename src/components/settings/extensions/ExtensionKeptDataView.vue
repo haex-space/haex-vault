@@ -5,6 +5,7 @@
  * then.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { ExtensionSummary } from '@bindings/ExtensionSummary'
 import { formatFileSize } from '~/lib/passwords/format'
 
@@ -15,7 +16,6 @@ const tabRouter = useTabRouter()
 
 const confirming = ref(false)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 async function purgeAsync() {
   if (busy.value) return
@@ -27,7 +27,7 @@ async function purgeAsync() {
     confirming.value = false
     tabRouter.replace('/extensions')
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -54,9 +54,6 @@ async function purgeAsync() {
         {{ t('settings.extensions.deleteData') }}
       </UiButton>
     </SettingsRow>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </li>
   </SettingsGroup>
 
   <ShadcnAlertDialog v-model:open="confirming">

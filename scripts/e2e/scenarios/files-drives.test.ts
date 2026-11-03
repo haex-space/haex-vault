@@ -24,6 +24,7 @@ import {
   unmount,
   writeOnDrive,
 } from '../lib/udisks.ts'
+import { ERROR_TOAST } from '../lib/toasts.ts'
 
 // Spec 064 US1 (T035), quickstart Linux 1: a stick plugged in while the file browser is open shows
 // up in the sidebar without a reload, opens with one click (mounted first), and a tab on it moves to
@@ -321,11 +322,13 @@ scenario(
       await instance.waitForDisplayed('files-entry-sicherung.txt', 30_000)
     }
 
-    // US3: a wrong password keeps the dialog open with the system's text; the field is emptied.
+    // US3: a wrong password keeps the dialog open and shows the system's text as an error toast;
+    // the field is emptied.
     await instance.click(locked)
     await instance.type('#files-drive-unlock-password', 'falsch')
     await instance.click('files-drive-unlock-submit')
-    await instance.waitForDisplayed('files-drive-unlock-error', 30_000)
+    await instance.waitForDisplayed(ERROR_TOAST, 30_000)
+    await instance.waitForDisplayed('files-drive-unlock-form')
     assert.equal(cleartextOf(stick.device), null)
     assert.equal(
       await instance.exec<string>(

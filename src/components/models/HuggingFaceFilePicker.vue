@@ -5,6 +5,7 @@
  * matched the search filters; without it (a deep link) every GGUF file is offered. Progress comes
  * from the download store, so it survives leaving the view.
  */
+import { toast } from 'vue-sonner'
 import type {
   HuggingFaceFileCandidate,
   HuggingFaceModelResult,
@@ -30,20 +31,18 @@ const allowedFilenames = computed(() => {
 })
 
 const details = ref<HuggingFaceModelResult | null>(null)
-const detailsErrorKey = ref<string | null>(null)
+/** Whether loading the repository failed; its message went out as a toast. */
+const detailsFailed = ref(false)
 const loadingDetails = ref(false)
 
 const selectedFile = ref<HuggingFaceFileCandidate | null>(null)
 const preview = ref<InstallPreview | null>(null)
-const previewErrorKey = ref<string | null>(null)
 const loadingPreview = ref(false)
 
 const tokenizerRepoInput = ref('')
 const tooBigConfirmed = ref(false)
 
 const installing = ref(false)
-const installErrorKey = ref<string | null>(null)
-const installErrorDetail = ref<string | null>(null)
 
 const visibleFiles = computed(() => {
   if (!details.value) return []
@@ -54,11 +53,12 @@ const visibleFiles = computed(() => {
 
 async function loadDetailsAsync() {
   loadingDetails.value = true
-  detailsErrorKey.value = null
+  detailsFailed.value = false
   try {
     details.value = await detailsAsync(repoId.value)
   } catch (e) {
-    detailsErrorKey.value = hfErrorKey(e)
+    detailsFailed.value = true
+    toast.error(t(hfErrorKey(e)))
   } finally {
     loadingDetails.value = false
   }
@@ -73,7 +73,6 @@ function selectFileByName(filename: unknown) {
 async function selectFileAsync(file: HuggingFaceFileCandidate) {
   selectedFile.value = file
   preview.value = null
-  previewErrorKey.value = null
   tokenizerRepoInput.value = ''
   tooBigConfirmed.value = false
   loadingPreview.value = true
@@ -87,7 +86,7 @@ async function selectFileAsync(file: HuggingFaceFileCandidate) {
       revision: file.revisionRef ?? undefined,
     })
   } catch (e) {
-    previewErrorKey.value = hfErrorKey(e)
+    toast.error(t(hfErrorKey(e)))
   } finally {
     loadingPreview.value = false
   }
@@ -113,11 +112,14 @@ const downloadModelId = computed(() => preview.value?.modelId ?? '')
 /** The question before the download (spec 043 FR-028). */
 const confirmOpen = ref(false)
 
+function showInstallError(e: unknown) {
+  const detail = hfErrorDetail(e)
+  toast.error(t(hfErrorKey(e)), detail ? { description: detail } : undefined)
+}
+
 async function installAsync() {
   if (!preview.value || !selectedFile.value || !canInstall.value) return
   installing.value = true
-  installErrorKey.value = null
-  installErrorDetail.value = null
   try {
     const model = (await downloadFromHf({
       repoId: selectedFile.value.repoId,
@@ -135,10 +137,7 @@ async function installAsync() {
   } catch (e) {
     downloads.clearDownload(downloadModelId.value)
     // A cancelled download is what the person asked for, not an error.
-    if (!isDownloadCancelled(e)) {
-      installErrorKey.value = hfErrorKey(e)
-      installErrorDetail.value = hfErrorDetail(e)
-    }
+    if (!isDownloadCancelled(e)) showInstallError(e)
   } finally {
     installing.value = false
   }
@@ -148,8 +147,7 @@ async function cancelAsync() {
   try {
     await cancelDownload({ modelId: downloadModelId.value })
   } catch (e) {
-    installErrorKey.value = hfErrorKey(e)
-    installErrorDetail.value = hfErrorDetail(e)
+    showInstallError(e)
   }
 }
 
@@ -180,7 +178,7 @@ onMounted(loadDetailsAsync)
       {{ t('models.search.loading') }}
     </p>
     <SettingsGroup
-      v-if="detailsErrorKey || (details && details.files.length === 0)"
+      v-if="detailsFailed || (details && details.files.length === 0)"
       data-testid="settings-repo-missing"
     >
       <SettingsRow
@@ -188,17 +186,8 @@ onMounted(loadDetailsAsync)
         icon="lucide:search"
         :title="t('settings.locations.ai.local.search.title')"
       >
-        <template #description>
-          <span
-            :class="detailsErrorKey ? 'text-destructive' : ''"
-            :role="detailsErrorKey ? 'alert' : undefined"
-          >
-            {{
-              detailsErrorKey
-                ? t(detailsErrorKey)
-                : t('models.result.noGgufFiles')
-            }}
-          </span>
+        <template v-if="!detailsFailed" #description>
+          {{ t('models.result.noGgufFiles') }}
         </template>
       </SettingsRow>
     </SettingsGroup>
@@ -238,10 +227,6 @@ onMounted(loadDetailsAsync)
         >
           {{ t('models.search.loading') }}
         </p>
-        <p v-if="previewErrorKey" class="text-sm text-destructive" role="alert">
-          {{ t(previewErrorKey) }}
-        </p>
-
         <template v-if="preview">
           <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
             <dt class="text-muted-foreground">
@@ -303,16 +288,6 @@ onMounted(loadDetailsAsync)
             </label>
           </div>
 
-          <p
-            v-if="installErrorKey"
-            class="text-sm text-destructive"
-            role="alert"
-          >
-            {{ t(installErrorKey) }}
-            <span v-if="installErrorDetail" class="block text-xs">{{
-              installErrorDetail
-            }}</span>
-          </p>
           <ModelsDownloadStatus :model-id="downloadModelId" />
 
           <UiButton

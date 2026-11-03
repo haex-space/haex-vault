@@ -7,6 +7,7 @@
  * as well. A contact's share is never offered (FR-002). It tells whether the chosen folder lies in an encrypted folder, for the
  * hints of the rule dialog (FR-030a, FR-031).
  */
+import { toast } from 'vue-sonner'
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
@@ -105,7 +106,7 @@ const browsing = ref(true)
 /** The folders from the start down to the open one, each with whether it is encrypted. */
 const trail = ref<{ path: string; encrypted: boolean }[]>([])
 const folders = ref<Entry[]>([])
-const error = ref<string | null>(null)
+const loadFailed = ref(false)
 const loading = ref(false)
 let generation = 0
 
@@ -136,7 +137,7 @@ async function loadAsync() {
   const mine = ++generation
   if (!current || !at) {
     folders.value = []
-    error.value = null
+    loadFailed.value = false
     loading.value = false
     return
   }
@@ -147,12 +148,13 @@ async function loadAsync() {
     folders.value = entries.filter(
       (entry) => entry.kind === 'dir' && !entry.symlink && !entry.holziOwned,
     )
-    error.value = null
+    loadFailed.value = false
   } catch (cause) {
     if (mine !== generation) return
     folders.value = []
     const code = asFilesError(cause)?.code
-    error.value = code ? t(`files.error.${code}`) : t('files.syncRules.failed')
+    loadFailed.value = true
+    toast.error(code ? t(`files.error.${code}`) : t('files.syncRules.failed'))
   } finally {
     if (mine === generation) loading.value = false
   }
@@ -264,11 +266,8 @@ const canGoUp = computed(
           >{{ here?.path ?? t('files.syncRules.picker.chooseFolder') }}</span
         >
       </div>
-      <p v-if="error" class="text-sm text-destructive" role="alert">
-        {{ error }}
-      </p>
       <p
-        v-else-if="!loading && rows.length === 0"
+        v-if="!loadFailed && !loading && rows.length === 0"
         class="px-2 text-xs text-muted-foreground"
       >
         {{ t('files.syncRules.picker.empty') }}

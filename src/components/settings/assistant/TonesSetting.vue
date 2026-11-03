@@ -8,6 +8,7 @@
  * `assistant.tones.custom`, saved on selection (spec 023 FR-021). "Hört zu" and "Geheimnis" sound
  * even with tones off; the page says so at both.
  */
+import { toast } from 'vue-sonner'
 import {
   ALWAYS_AUDIBLE_TONES,
   assistantLabelKey,
@@ -44,10 +45,10 @@ const scope = computed(() => ({
 const enabled = ref(true)
 const volume = ref<number>(TONES_VOLUME.default)
 const loading = ref(true)
-const loadError = ref<string | null>(null)
+/** The settings could not be read (shown as a toast); the page then shows no controls. */
+const loadFailed = ref(false)
 const saving = ref(false)
 const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 /** The tone (or own tone id) whose sample sounds. */
 const playing = ref<string | null>(null)
 const custom = ref<CustomTone[]>([])
@@ -112,7 +113,7 @@ function description(tone: ToneId): string {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [storedEnabled, storedVolume] = await Promise.all([
       getPrefAsync(scope.value, TONES_ENABLED_KEY),
@@ -130,7 +131,8 @@ async function reloadAsync(quiet = false) {
       assigned.value = {}
     }
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -139,13 +141,12 @@ async function reloadAsync(quiet = false) {
 async function saveAsync(key: string, value: string) {
   saving.value = true
   savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
     savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.tones.saveFailed', { reason: errString(e) })
+    toast.error(t('settings.tones.saveFailed', { reason: errString(e) }))
   } finally {
     saving.value = false
   }
@@ -163,11 +164,10 @@ async function saveVolumeAsync() {
 async function playAsync(tone: ToneId, customId: string | null = null) {
   const key = customId ?? tone
   playing.value = key
-  opError.value = null
   try {
     await tonePreviewAsync(tone, volume.value, customId)
   } catch (e) {
-    opError.value = t('settings.tones.previewFailed', { reason: errString(e) })
+    toast.error(t('settings.tones.previewFailed', { reason: errString(e) }))
   } finally {
     if (playing.value === key) playing.value = null
   }
@@ -176,7 +176,6 @@ async function playAsync(tone: ToneId, customId: string | null = null) {
 /** Picks an audio file and imports it; returns the new tone, or `null` when nothing was added. */
 async function importAsync(): Promise<CustomTone | null> {
   importNote.value = null
-  opError.value = null
   const file = await pickOneAsync([
     {
       name: t('settings.tones.fileTypes'),
@@ -193,7 +192,7 @@ async function importAsync(): Promise<CustomTone | null> {
     importNote.value = t('settings.tones.imported', { name: tone.name })
     return tone
   } catch (e) {
-    opError.value = t('settings.tones.importFailed', { reason: reasonText(e) })
+    toast.error(t('settings.tones.importFailed', { reason: reasonText(e) }))
     return null
   } finally {
     importing.value = false
@@ -209,7 +208,6 @@ async function chooseAsync(tone: ToneId, value: string) {
   }
   saving.value = true
   savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await toneAssignAsync(tone, customId)
@@ -219,9 +217,7 @@ async function chooseAsync(tone: ToneId, value: string) {
     assigned.value = customId ? { ...rest, [tone]: customId } : rest
     savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.tones.saveFailed', {
-      reason: reasonText(e, tone),
-    })
+    toast.error(t('settings.tones.saveFailed', { reason: reasonText(e, tone) }))
   } finally {
     saving.value = false
   }
@@ -233,7 +229,6 @@ async function removeToneAsync(tone: CustomTone) {
     return
   }
   confirmingDelete.value = null
-  opError.value = null
   try {
     // action-exempt: removing an own tone is a settings-page choice; spec 066 gives agents no action for it.
     await toneDeleteAsync(tone.id)
@@ -242,7 +237,7 @@ async function removeToneAsync(tone: CustomTone) {
       Object.entries(assigned.value).filter(([, id]) => id !== tone.id),
     )
   } catch (e) {
-    opError.value = t('settings.tones.saveFailed', { reason: reasonText(e) })
+    toast.error(t('settings.tones.saveFailed', { reason: reasonText(e) }))
   }
 }
 
@@ -258,11 +253,7 @@ onVaultTablesChanged(['preferences', 'haex_assistant_tones'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.tones.enabled'))"
@@ -403,9 +394,6 @@ onVaultTablesChanged(['preferences', 'haex_assistant_tones'], () => {
       </p>
       <p v-if="importNote" class="px-1 text-xs text-success" role="status">
         {{ importNote }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ opError }}
       </p>
     </template>
   </section>

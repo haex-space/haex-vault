@@ -33,7 +33,6 @@ const text = ref('')
 const preview = ref<ContactSharePreview | null>(null)
 const decisions = ref<Decisions>(new Map())
 const previewedText = ref('')
-const error = ref<string | null>(null)
 const busy = ref(false)
 let previewSeq = 0
 
@@ -78,7 +77,6 @@ const vaultLocked = computed(
 )
 
 async function previewAsync(target?: ContactShareTarget) {
-  error.value = null
   busy.value = true
   const seq = ++previewSeq
   const source = text.value.trim()
@@ -91,7 +89,7 @@ async function previewAsync(target?: ContactShareTarget) {
   } catch (cause) {
     if (seq !== previewSeq) return
     preview.value = null
-    error.value = errString(cause)
+    toast.error(errString(cause))
   } finally {
     if (seq === previewSeq) busy.value = false
   }
@@ -163,7 +161,7 @@ async function acceptAsync() {
       toast.warning(t('contacts.import.stale'))
       await previewAsync(shown.target)
     } else {
-      error.value = errString(cause)
+      toast.error(errString(cause))
     }
   } finally {
     busy.value = false
@@ -240,15 +238,6 @@ function onReplace(itemId: number, valueId: string) {
         </UiButton>
       </div>
     </form>
-
-    <p
-      v-if="error"
-      class="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-      role="alert"
-      data-testid="contacts-import-error"
-    >
-      {{ error }}
-    </p>
 
     <template v-if="preview">
       <SettingsGroup

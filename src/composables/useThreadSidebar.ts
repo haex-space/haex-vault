@@ -56,6 +56,8 @@ export function useThreadSidebar(
   const editingThreadId = ref<string | null>(null)
   const draftTitle = ref('')
   const editTitleError = ref<string | null>(null)
+  /** A rename that failed after the title passed its checks; shown as a toast. */
+  const renameError = ref<string | null>(null)
   const renamingThreadId = ref<string | null>(null)
   const deleteCandidate = ref<Thread | null>(null)
   const deleteError = ref<string | null>(null)
@@ -196,6 +198,7 @@ export function useThreadSidebar(
     }
     renamingThreadId.value = threadId
     editTitleError.value = null
+    renameError.value = null
     try {
       const updated = await chat.renameThreadAsync(threadId, title)
       threads.value = threads.value.map((thread) =>
@@ -203,7 +206,7 @@ export function useThreadSidebar(
       )
       cancelEditing()
     } catch {
-      editTitleError.value = t('chat.threads.renameFailed')
+      renameError.value = t('chat.threads.renameFailed')
     } finally {
       renamingThreadId.value = null
     }
@@ -331,6 +334,7 @@ export function useThreadSidebar(
     editingThreadId,
     draftTitle,
     editTitleError,
+    renameError,
     renamingThreadId,
     deleteCandidate,
     deleteError,

@@ -13,6 +13,7 @@
  * over the content (`useSidebarFrame`). Sidebar and search state are local to the open tab, nothing
  * is kept.
  */
+import { toast } from 'vue-sonner'
 import type { DeviceInfo } from '~/composables/useDevice'
 import { SETTINGS_DEVICE_KEY } from '~/components/settings/deviceContext'
 import {
@@ -99,14 +100,15 @@ function selectFirstHit() {
 }
 
 const deviceInfo = ref<DeviceInfo | null>(null)
-const loadError = ref<string | null>(null)
+const loadFailed = ref(false)
 
 async function reloadDeviceInfoAsync() {
-  loadError.value = null
+  loadFailed.value = false
   try {
     deviceInfo.value = await currentDeviceInfoAsync()
   } catch (error) {
-    loadError.value = errString(error)
+    loadFailed.value = true
+    toast.error(`${t('errors.deviceInfoFailed')}: ${errString(error)}`)
   }
 }
 
@@ -213,10 +215,7 @@ onMounted(() => {
           :style="{ scrollPaddingBottom: '4rem' }"
         >
           <div class="mx-auto w-full max-w-3xl">
-            <p v-if="loadError" class="text-sm text-destructive" role="alert">
-              {{ t('errors.deviceInfoFailed') }}: {{ loadError }}
-            </p>
-            <WmRouterView v-else-if="deviceInfo" />
+            <WmRouterView v-if="!loadFailed && deviceInfo" />
           </div>
         </div>
       </main>

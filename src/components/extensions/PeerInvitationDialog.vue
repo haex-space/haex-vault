@@ -16,25 +16,16 @@ const { errString } = useErrorString()
 const store = useExtensionPeerInvitationsStore()
 
 const busy = ref(false)
-const failure = ref<string | null>(null)
-
-watch(
-  () => store.shown?.inviteId,
-  () => {
-    failure.value = null
-  },
-)
 
 async function answerAsync(accept: boolean) {
   const invitation = store.shown
   if (!invitation || busy.value) return
   busy.value = true
-  failure.value = null
   try {
     const result = await store.answerAsync(invitation.inviteId, accept)
     if (result === 'gone') toast.info(t('extensions.peers.invitation.gone'))
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     // Stays set until the dialog of the next invitation is drawn, so a close the dialog reports
     // while the answered one leaves cannot decline the next.
@@ -56,16 +47,6 @@ async function answerAsync(accept: boolean) {
     "
     :dismissible="false"
   >
-    <template #content>
-      <p
-        v-if="failure"
-        class="text-sm text-destructive"
-        role="alert"
-        data-testid="extension-peer-invitation-failure"
-      >
-        {{ failure }}
-      </p>
-    </template>
     <template #footer>
       <div class="flex justify-end gap-2">
         <UiButton

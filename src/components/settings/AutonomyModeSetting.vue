@@ -28,7 +28,6 @@ const selected = ref<AutonomyMode>(DEFAULT_MODE)
 const stored = ref<AutonomyMode>(DEFAULT_MODE)
 const loading = ref(true)
 const busy = ref(false)
-const loadError = ref<string | null>(null)
 
 /**
  * Reloads the vault-scoped autonomy default, falling back to 'ungated'. A `quiet` reload (after
@@ -36,13 +35,12 @@ const loadError = ref<string | null>(null)
  */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
   try {
     const raw = await getPrefAsync({ kind: 'vault' }, PREF_KEY)
     stored.value = isAutonomyMode(raw) ? raw : DEFAULT_MODE
     selected.value = stored.value
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('settings.autonomyMode.loadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -80,10 +78,6 @@ onVaultTablesChanged(['preferences'], () => {
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
-
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('settings.autonomyMode.loadFailed') }}: {{ loadError }}
-    </p>
 
     <fieldset
       v-if="!loading"

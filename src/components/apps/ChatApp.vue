@@ -165,6 +165,7 @@ const {
   editingThreadId,
   draftTitle,
   editTitleError,
+  renameError,
   renamingThreadId,
   deleteCandidate,
   deleteError,
@@ -462,6 +463,7 @@ onBeforeUnmount(() => {
           :editing-thread-id="editingThreadId"
           :draft-title="draftTitle"
           :edit-title-error="editTitleError"
+          :rename-error="renameError"
           :renaming-thread-id="renamingThreadId"
           :delete-candidate="deleteCandidate"
           :delete-error="deleteError"
