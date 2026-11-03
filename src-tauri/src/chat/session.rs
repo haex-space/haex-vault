@@ -455,6 +455,16 @@ impl ChatState {
         }
     }
 
+    /// Whether the vault-open preload is still loading its model.
+    pub fn preload_running(&self) -> bool {
+        self.model_load
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .preload
+            .as_ref()
+            .is_some_and(|preload| !preload.join.is_finished())
+    }
+
     /// Cancels an active preload and waits for all of its child work to terminate.
     pub async fn cancel_preload_and_wait(&self) {
         let handle = self
