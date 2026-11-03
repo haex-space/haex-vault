@@ -3,6 +3,7 @@
 //! full measurement (`tests/model_tool_eval.rs`) both go through here. Needs no vault and never
 //! runs an action (FR-021, FR-022).
 
+pub mod everyday;
 pub mod runner;
 pub mod scoring;
 
@@ -54,7 +55,7 @@ struct Fixture {
 }
 
 #[derive(Deserialize)]
-struct FixtureExtension {
+pub(crate) struct FixtureExtension {
     name: String,
     title: String,
     tools: Vec<FixtureTool>,
@@ -92,8 +93,13 @@ fn effect_action(effect: ToolEffect) -> &'static str {
 pub fn embedded_extension_tools() -> Vec<ExtensionToolDef> {
     let fixture: Fixture = serde_json::from_str(EXTENSION_TOOLS_JSON)
         .expect("the embedded extension_tools.json is valid");
-    let sources = fixture
-        .extensions
+    extension_defs(fixture.extensions)
+}
+
+/// The tools of `extensions`, declared as in their manifests, as the app would offer them with
+/// every tool confirmed.
+pub(crate) fn extension_defs(extensions: Vec<FixtureExtension>) -> Vec<ExtensionToolDef> {
+    let sources = extensions
         .into_iter()
         .enumerate()
         .map(|(index, extension)| {
