@@ -427,6 +427,24 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'destructive',
   }),
   setting({
+    id: 'settings.models.activate',
+    description:
+      'Load an installed local model into memory and make it the active one; the model that was active is unloaded. A large model takes about a minute.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+  }),
+  setting({
+    id: 'settings.models.deactivate',
+    description: 'Unload the active local model and free its memory.',
+    scope: 'settings.models',
+    effect: 'write',
+  }),
+  setting({
     id: 'settings.delegate.refreshModels',
     description: "Refresh a connected delegate provider's model list.",
     input: {

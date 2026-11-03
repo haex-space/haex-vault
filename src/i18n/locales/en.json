@@ -1672,9 +1672,10 @@
         "unknown": "Unchecked"
       },
       "delete": "Remove",
-      "deleteConfirm": "Really remove this model? Only the local file is deleted.",
+      "deleteConfirm": "Really remove this model? Only the local file is deleted. If it is active, it is unloaded first.",
       "deleteFailed": "Failed to remove.",
-      "load": "Load",
+      "activate": "Activate",
+      "unload": "Unload",
       "active": "Active",
       "catalogLink": "View catalog entry"
     },

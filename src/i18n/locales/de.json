@@ -1672,9 +1672,10 @@
         "unknown": "Ungeprüft"
       },
       "delete": "Entfernen",
-      "deleteConfirm": "Dieses Modell wirklich entfernen? Nur die lokale Datei wird gelöscht.",
+      "deleteConfirm": "Dieses Modell wirklich entfernen? Nur die lokale Datei wird gelöscht. Ist es aktiv, wird es dabei entladen.",
       "deleteFailed": "Entfernen fehlgeschlagen.",
-      "load": "Laden",
+      "activate": "Aktivieren",
+      "unload": "Entladen",
       "active": "Aktiv",
       "catalogLink": "Katalogeintrag anzeigen"
     },

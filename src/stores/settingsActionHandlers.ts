@@ -313,6 +313,24 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await models.deleteAsync(String(input.modelId))
     return done
   })
+  // The models store calls `useI18n()` in its setup, which only works inside a component setup:
+  // resolve it per call (the workspace page has created it by then), never at registration.
+  on('settings.models.activate', async ({ input }) => {
+    const store = useModelsStore()
+    store.lastError = null
+    store.integrityActionError = null
+    await store.activateLocalModel(String(input.modelId))
+    const error = store.lastError ?? store.integrityActionError
+    if (error) throw new Error(error)
+    return done
+  })
+  on('settings.models.deactivate', async () => {
+    const store = useModelsStore()
+    store.lastError = null
+    await store.deactivateLocalModel()
+    if (store.lastError) throw new Error(store.lastError)
+    return done
+  })
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
     return done

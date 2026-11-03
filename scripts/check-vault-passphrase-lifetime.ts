@@ -296,6 +296,7 @@ test('modelStore.initialize() completes and refreshes providers despite an activ
         modelId: 'model',
         modelName: 'Model',
       }),
+      activeLocalModelInfoAsync: async () => null,
       activeModelInfoAsync: async () => {
         reads += 1
         if (reads === 1) await firstReadGate // the slow, still-in-flight first read
