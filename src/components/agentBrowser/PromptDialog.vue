@@ -8,8 +8,8 @@
  * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
  * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
  * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
- * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
- * declines. A login fill (`fill`) shows the entries that match, by title, for the user only; the
+ * gets it (`download`, FR-031), with its name from the website and its size. Only the dialog's
+ * buttons answer (FR-042). A login fill (`fill`) shows the entries that match, by title, for the user only; the
  * user picks one and may remember the website for later fills (FR-021). An entry fill
  * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
  * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
@@ -134,7 +134,7 @@ watch(
   { immediate: true },
 )
 
-/** Closing the dialog declines and remembers nothing; only its buttons answer with the checkbox. */
+/** Answers with the dialog's buttons; the checkbox says what the answer remembers. */
 async function answerAsync(allow: boolean, remembering?: Remember) {
   const asked = shown.value
   if (!asked) return
