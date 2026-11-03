@@ -35,7 +35,10 @@ const levelOptions = computed(() =>
 )
 
 function toggle(on: boolean) {
-  emit('update:modelValue', on ? { userBrowser: false, sites: {} } : null)
+  emit(
+    'update:modelValue',
+    on ? { userBrowser: false, sites: {}, requests: {} } : null,
+  )
 }
 
 function change(next: Partial<BrowserRights>) {
@@ -63,6 +66,17 @@ function forgetFill(site: string) {
       [site]: { ...current, fillRemembered: false },
     },
   })
+}
+
+const requests = computed(() =>
+  Object.entries(props.modelValue?.requests ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  ),
+)
+
+function forgetRequest(site: string) {
+  const { [site]: _removed, ...rest } = props.modelValue?.requests ?? {}
+  change({ requests: rest })
 }
 
 function remove(site: string) {
@@ -149,6 +163,30 @@ function plain(site: string): boolean {
         v-if="sites.length === 0"
         :title="t('mcpAgents.browser.none')"
       />
+      <SettingsRow
+        v-for="[site, rule] in requests"
+        :key="`request:${site}`"
+        :title="t('mcpAgents.browser.requestRule', { site })"
+        :description="t('mcpAgents.browser.requestHint')"
+        data-testid="mcp-browser-request-rule"
+        :data-site="site"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm">
+            {{ t(`mcpAgents.browser.request.${rule}`) }}
+          </span>
+          <UiButton
+            type="button"
+            size="sm"
+            variant="outline"
+            :disabled="disabled"
+            :data-testid="`mcp-browser-forget-request-${site}`"
+            @click="forgetRequest(site)"
+          >
+            {{ t('mcpAgents.browser.removeShort') }}
+          </UiButton>
+        </div>
+      </SettingsRow>
       <div class="flex flex-col gap-1 p-4">
         <div class="flex items-end gap-2">
           <UiInput

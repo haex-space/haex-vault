@@ -8,7 +8,7 @@ use crate::agent_browser::StartConfig;
 use crate::caller::Caller;
 use crate::files::access::AgentGrants;
 use crate::files::local::OwnPlaces;
-use crate::mcp_server::grants::{BrowserRights, PasswordRights, SiteLevel};
+use crate::mcp_server::grants::{BrowserRights, PasswordRights, RequestRule, SiteLevel};
 use crate::passwords::service::PasswordsService;
 
 /// What the executor needs from the app.
@@ -37,6 +37,14 @@ pub trait BrowserEnv: Send + Sync + 'static {
     fn passwords(&self) -> Option<PasswordsService>;
     /// "Für diese Website merken" of a fill: `site` fills without asking from now on (FR-021).
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String>;
+    /// "Für diese Website merken" of a page request: requests the pages send to `site` follow
+    /// `rule` from now on, without asking (FR-044).
+    async fn remember_request(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        rule: RequestRule,
+    ) -> Result<(), String>;
     /// Switches the rights group `browser` of `caller` on, without any website (FR-040).
     async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
         Err("the browser cannot be switched on here".to_owned())

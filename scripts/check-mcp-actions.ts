@@ -122,6 +122,7 @@ test('a website is written as Rust writes it, and no website is refused (spec 06
 test('changing a scope keeps the browser rights, and an off group is left out (spec 065)', () => {
   const browser = {
     userBrowser: false,
+    requests: {},
     sites: {
       'https://shop.example.de': {
         level: 'operate' as const,

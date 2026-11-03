@@ -139,6 +139,20 @@ impl BrowserEnv for Env {
         Some(PasswordsService::new(self.db.clone()))
     }
 
+    async fn remember_request(
+        &self,
+        _caller: &Caller,
+        site: &Site,
+        rule: holzi_lib::mcp_server::grants::RequestRule,
+    ) -> Result<(), String> {
+        self.rights
+            .lock()
+            .unwrap()
+            .requests
+            .insert(site.clone(), rule);
+        Ok(())
+    }
+
     async fn remember_fill(&self, _caller: &Caller, site: &Site) -> Result<(), String> {
         if let Some(grant) = self.rights.lock().unwrap().sites.get_mut(site) {
             grant.fill_remembered = true;
@@ -249,6 +263,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         )]
         .into_iter()
         .collect(),
+        ..Default::default()
     };
     let env = Arc::new(Env {
         os,

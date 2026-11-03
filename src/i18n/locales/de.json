@@ -4168,7 +4168,13 @@
       "invalid": "Das ist keine Website mit https oder http.",
       "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen.",
       "forgetFill": "Anmeldung vergessen",
-      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder."
+      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
+      "requestRule": "Anfragen an {site}",
+      "requestHint": "Anfragen der Seiten an diese Website, ohne Rückfrage.",
+      "request": {
+        "allow": "Wird gesendet",
+        "deny": "Wird abgelehnt"
+      }
     },
     "extensions": {
       "title": "Erweiterungen",
@@ -4227,6 +4233,11 @@
         "title": "An die Website senden?",
         "hint": "Der Agent möchte etwas an die Website schicken, zum Beispiel ein Formular, eine Bestellung oder eine Löschung. Ohne deine Zustimmung wird nichts gesendet.",
         "fields": "Was gesendet würde"
+      },
+      "request": {
+        "title": "Anfrage der Seite senden?",
+        "hint": "Die Seite selbst möchte etwas an diese Website schicken, zum Beispiel eine Messung oder ein Formular. Das ist keine Handlung des Agenten. Ohne deine Zustimmung wird nichts gesendet.",
+        "remember": "Für diese Website merken"
       },
       "newTab": {
         "title": "Neuen Tab öffnen?",

@@ -44,6 +44,7 @@ impl BrowserEnv for Env {
             )]
             .into_iter()
             .collect(),
+            ..Default::default()
         })
     }
 
@@ -86,6 +87,15 @@ impl BrowserEnv for Env {
 
     fn passwords(&self) -> Option<crate::passwords::service::PasswordsService> {
         None
+    }
+
+    async fn remember_request(
+        &self,
+        _: &Caller,
+        _: &Site,
+        _: crate::mcp_server::grants::RequestRule,
+    ) -> Result<(), String> {
+        Ok(())
     }
 
     async fn remember_fill(&self, _: &Caller, _: &Site) -> Result<(), String> {
