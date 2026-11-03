@@ -259,6 +259,9 @@ export const useModelsStore = defineStore('models', () => {
       modelLoadPending.value = false
       clearLoadingModel(loadToken)
     }
+    // The vault-open preload may have put the active local model in memory meanwhile; its `Ready`
+    // is not sent while this load holds the status.
+    await refreshActiveLocalModel().catch(() => {})
   }
 
   /**
