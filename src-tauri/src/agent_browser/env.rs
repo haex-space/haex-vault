@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
 
 use super::error::BrowserError;
@@ -245,12 +245,40 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             level,
             fill_remembered: false,
         };
-        let site = site.clone();
-        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            rights.sites.insert(site, grant);
-            true
-        })
-        .await
+        match caller {
+            Caller::BuiltinAgent => {
+                let mut rights = builtin_rights(&self.app)
+                    .await
+                    .ok_or("the browser is off for the built-in agent")?;
+                rights.sites.insert(site.clone(), grant);
+                set_builtin_rights(&self.app, Some(rights)).await
+            }
+            Caller::ExternalAgent { id } => {
+                let agent = Uuid::parse_str(id).map_err(|error| error.to_string())?;
+                let device = device(&self.app).await?;
+                let db = self
+                    .app
+                    .state::<AppState>()
+                    .database()
+                    .map_err(|error| error.to_string())?;
+                let site = site.clone();
+                db.write(move |tx| {
+                    let mut rights = registry::load_rights(tx, device, agent)?;
+                    if let Some(browser) = rights.browser.as_mut() {
+                        browser.sites.insert(site, grant);
+                        registry::save_rights(tx, device, agent, &rights)?;
+                    }
+                    Ok(())
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+                let _ = self
+                    .app
+                    .emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
+                Ok(())
+            }
+            _ => Err("not an agent".to_owned()),
+        }
     }
 
     async fn agent_name(&self, caller: &Caller) -> String {
@@ -341,18 +369,54 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
     }
 
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
-        let site = site.clone();
-        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            match rights.sites.get_mut(&site) {
-                // Only a website the agent may operate keeps a fill (data-model.md).
-                Some(grant) if grant.level == SiteLevel::Operate => {
-                    grant.fill_remembered = true;
-                    true
-                }
-                _ => false,
+        let remembered = |rights: &mut BrowserRights| match rights.sites.get_mut(site) {
+            // Only a website the agent may operate keeps a fill (data-model.md).
+            Some(grant) if grant.level == SiteLevel::Operate => {
+                grant.fill_remembered = true;
+                true
             }
-        })
-        .await
+            _ => false,
+        };
+        match caller {
+            Caller::BuiltinAgent => {
+                let mut rights = builtin_rights(&self.app)
+                    .await
+                    .ok_or("the browser is off for the built-in agent")?;
+                if remembered(&mut rights) {
+                    set_builtin_rights(&self.app, Some(rights)).await?;
+                }
+                Ok(())
+            }
+            Caller::ExternalAgent { id } => {
+                let agent = Uuid::parse_str(id).map_err(|error| error.to_string())?;
+                let device = device(&self.app).await?;
+                let db = self
+                    .app
+                    .state::<AppState>()
+                    .database()
+                    .map_err(|error| error.to_string())?;
+                let site = site.clone();
+                db.write(move |tx| {
+                    let mut rights = registry::load_rights(tx, device, agent)?;
+                    if let Some(browser) = rights.browser.as_mut() {
+                        if let Some(grant) = browser.sites.get_mut(&site) {
+                            if grant.level == SiteLevel::Operate {
+                                grant.fill_remembered = true;
+                                registry::save_rights(tx, device, agent, &rights)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+                let _ = self
+                    .app
+                    .emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
+                Ok(())
+            }
+            _ => Err("not an agent".to_owned()),
+        }
     }
 
     async fn remember_request(
