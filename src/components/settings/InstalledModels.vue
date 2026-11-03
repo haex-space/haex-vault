@@ -37,7 +37,10 @@ const updateErrorKey = ref<string | null>(null)
 const updateErrorDetail = ref<string | null>(null)
 const installingUpdateId = ref<string | null>(null)
 
+// The row of a running load or delete, and which of the two it is: only the button that was
+// pressed spins, the other one of the row waits disabled.
 const busyModelId = ref<string | null>(null)
+const busyAction = ref<'load' | 'delete' | null>(null)
 const deleteErrorKey = ref<string | null>(null)
 // The store's `lastError` is already display-ready (unlike the i18n keys above):
 // `chat.model.select` runs the store's `loadModel`, so its failure reads like the chat's.
@@ -114,6 +117,7 @@ async function installUpdateForAsync(modelId: string) {
 async function deleteModelAsync(id: string) {
   if (!confirm(t('models.installed.deleteConfirm'))) return
   busyModelId.value = id
+  busyAction.value = 'delete'
   deleteErrorKey.value = null
   try {
     await deleteModel({ modelId: id })
@@ -122,6 +126,7 @@ async function deleteModelAsync(id: string) {
     deleteErrorKey.value = hfErrorKey(e)
   } finally {
     busyModelId.value = null
+    busyAction.value = null
   }
 }
 
@@ -129,6 +134,7 @@ async function deleteModelAsync(id: string) {
  * throws; it sets `integrityDialog` (the dialog below) or `lastError`. */
 async function loadModelHereAsync(id: string) {
   busyModelId.value = id
+  busyAction.value = 'load'
   loadErrorMessage.value = null
   try {
     await selectModel({ modelId: id })
@@ -137,6 +143,7 @@ async function loadModelHereAsync(id: string) {
     }
   } finally {
     busyModelId.value = null
+    busyAction.value = null
   }
 }
 
@@ -258,8 +265,8 @@ onMounted(async () => {
         <UiButton
           type="button"
           size="sm"
-          :disabled="activeModelId === model.id"
-          :loading="busyModelId === model.id"
+          :disabled="activeModelId === model.id || busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'load'"
           @click="loadModelHereAsync(model.id)"
         >
           {{ t('models.installed.load') }}
@@ -280,7 +287,8 @@ onMounted(async () => {
           variant="ghost"
           :aria-label="`${t('models.installed.delete')}: ${model.name}`"
           :tooltip="t('models.installed.delete')"
-          :loading="busyModelId === model.id"
+          :disabled="busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'delete'"
           @click="deleteModelAsync(model.id)"
         >
           <Icon name="lucide:trash-2" class="size-4" />
