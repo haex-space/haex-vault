@@ -264,3 +264,14 @@ fn a_short_text_has_no_ellipses() {
     );
     assert_eq!(snippet("Hallo Welt", &fold("mond")), None);
 }
+
+#[test]
+fn whitespace_in_the_text_reads_as_in_the_message() {
+    let vault = test_vault();
+    let direct = thread(&vault, "direct", "active");
+    let hit = peer_message(&vault, direct, "Treffen\nam  Montag", 10);
+    assert_eq!(
+        ids(&find(&vault, "treffen  am\tmontag")),
+        vec![hit.as_str()]
+    );
+}

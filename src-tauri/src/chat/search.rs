@@ -79,7 +79,7 @@ pub async fn chat_search(state: State<'_, AppState>, args: SearchArgs) -> Result
 /// ASCII case only (R3); stops per family after one hit more than shown. Upgrade when a vault
 /// misses SC-003: an indexed, lowercased shadow column.
 pub fn search(q: &mut impl Query, text: &str) -> Result<SearchResult> {
-    let needle = fold(text.trim());
+    let needle = fold(&one_line(text));
     if needle.len() < MIN_CHARS {
         return Ok(SearchResult::default());
     }
@@ -145,6 +145,12 @@ fn scan(q: &mut impl Query, sql: &str, needle: &[char]) -> Result<Vec<SearchHit>
     }
 }
 
+/// Whitespace runs read as one space, the way [`snippet`] reads a message, so a text typed with two
+/// spaces still finds the words it was typed from.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// `text` lowercased per character, the way [`snippet`] compares.
 fn fold(text: &str) -> Vec<char> {
     text.chars().flat_map(char::to_lowercase).collect()
@@ -153,12 +159,7 @@ fn fold(text: &str) -> Vec<char> {
 /// The text around the first match of `needle` on one line, or `None` without a match. Whitespace
 /// runs read as one space; the cut keeps characters whole.
 fn snippet(body: &str, needle: &[char]) -> Option<String> {
-    let line: Vec<char> = body
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .collect();
+    let line: Vec<char> = one_line(body).chars().collect();
     // Each lowercased character remembers the original character it came from.
     let folded: Vec<(char, usize)> = line
         .iter()
