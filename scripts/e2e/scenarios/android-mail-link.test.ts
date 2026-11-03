@@ -31,8 +31,6 @@ const text = (page: Page, testid: string) =>
     [testid],
   )
 
-/** How many error toasts are on screen. */
-
 const shown = (page: Page, testid: string) =>
   page.exec<number>(
     `return document.querySelectorAll('[data-testid="' + arguments[0] + '"]').length`,

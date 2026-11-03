@@ -18,8 +18,6 @@ import { errorToasts } from '../lib/toasts.ts'
 const USERS_BUCKET = 'holzi-ext-e2e'
 const PROPOSED_BUCKET = 'holzi-ext-two'
 
-/** The texts of the error toasts on screen. */
-
 /** Starts a bridge request in the probe without waiting; `answer` reads its answer later. */
 async function begin(
   page: Page,

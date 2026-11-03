@@ -11,11 +11,11 @@ import { toast } from 'vue-sonner'
 const { t } = useI18n()
 
 const store = useContactsStore()
-// A failed (quiet) reload of the store shows as a toast.
+// A failed (quiet) reload of the store shows as a toast, once for all open contacts tabs.
 watch(
   () => store.lastError,
   (message) => {
-    if (message) toast.error(message)
+    if (message) toast.error(message, { id: 'contacts-load-failed' })
   },
 )
 onMounted(() => {

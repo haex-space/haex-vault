@@ -6,9 +6,9 @@
  * Speicher with fields for credentials; they go to Rust (`storage_dialog_resolve`), are tested
  * there and stored in the password manager, and never reach the extension. The window stays open
  * while holzi tests them; a failed test says why in a toast, as in the settings, and the user
- * corrects them or cancels. Closing cancels. WebDAV and SFTP ask for a login, SFTP also by key (spec 050); when its
- * folder is missing the user may say here to make it, and an SFTP server's host key is shown here
- * to compare and confirm before holzi sends any credentials (research R5).
+ * corrects them or cancels. Closing cancels. WebDAV and SFTP ask for a login, SFTP also by key
+ * (spec 050); when its folder is missing the user may say here to make it, and an SFTP server's
+ * host key is shown here to compare and confirm before holzi sends any credentials (research R5).
  */
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { TestOutcome } from '@bindings/TestOutcome'

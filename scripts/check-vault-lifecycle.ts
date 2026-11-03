@@ -205,6 +205,7 @@ function loadIndexPage(
     onUnlocked: (name: string) => Promise<void>
     onCreated: (name: string) => Promise<void>
   }>('src/pages/index.vue', ['onSelect', 'onUnlocked', 'onCreated'], {
+    imports: { 'vue-sonner': { toast: { error: () => {} } } },
     useInstancesStore: () => store,
     useColorScheme: () => colorScheme,
     useInstance: () => ({
