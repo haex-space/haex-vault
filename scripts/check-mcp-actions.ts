@@ -190,6 +190,7 @@ test('the agent page can save every rights group through its action (spec 021 FR
           sites: {
             'https://example.org': { level: 'read', fillRemembered: false },
           },
+          requests: { 'https://tracker.example.org': 'deny' },
         },
         passwords: { level: 'readWrite', tags: ['dev'], defaultTag: 'dev' },
         extensions: ['0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'],
