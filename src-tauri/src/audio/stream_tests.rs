@@ -178,6 +178,19 @@ fn a_recording_from_the_stream_shows_its_tail_while_it_runs() {
 }
 
 #[test]
+fn a_recording_from_the_device_shows_its_last_frames_mixed_to_mono() {
+    // Two channels at 10 Hz: frames (0, 2), (2, 4), … so frame `i` mixes to `2i + 1`.
+    let buf: Vec<f32> = (0..20)
+        .flat_map(|i| [2.0 * i as f32, 2.0 * i as f32 + 2.0])
+        .collect();
+    let (tail, recorded) = super::interleaved_tail(&buf, 10, 2, 0.3);
+    assert_eq!(tail, vec![35.0, 37.0, 39.0], "the last three frames");
+    assert!((recorded - 2.0).abs() < 1e-9, "{recorded}");
+    let (all, _) = super::interleaved_tail(&buf[..4], 10, 2, 1.0);
+    assert_eq!(all, vec![1.0, 3.0], "a short buffer gives what it has");
+}
+
+#[test]
 fn push_to_talk_from_the_stream_stops_at_the_cap() {
     let rig = rig(SAMPLE_RATE_HZ);
     let capture = Capture::from_stream(&rig.stream);

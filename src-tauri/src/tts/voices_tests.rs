@@ -319,6 +319,25 @@ fn an_own_voice_speaks_while_it_is_in_the_vault_and_in_its_language() {
     ));
 }
 
+#[cfg(feature = "voice")]
+#[test]
+fn an_own_voice_speaks_with_its_own_recording() {
+    use super::voices::{choose, Chosen};
+    use crate::assistant::custom_tones::{encode_wav, Sound};
+    let wav = encode_wav(&Sound {
+        samples: vec![0.0, 0.5, -0.5, 0.25],
+        sample_rate: 24_000,
+    });
+    let chosen = choose(Some("clone:anna"), "de", Some(("de".to_owned(), wav))).expect("chosen");
+    assert!(matches!(chosen, Chosen::Own { .. }));
+    let reference = chosen.reference().expect("reference");
+    assert_eq!(reference.sample_rate, 24_000);
+    assert_eq!(reference.samples.len(), 4);
+    for (got, want) in reference.samples.iter().zip([0.0, 0.5, -0.5, 0.25]) {
+        assert!((got - want).abs() < 1e-3, "{got} vs {want}");
+    }
+}
+
 #[test]
 fn own_voices_follow_the_built_in_ones_with_the_model_of_their_language() {
     use crate::storage::tts_voices::OwnVoice;
