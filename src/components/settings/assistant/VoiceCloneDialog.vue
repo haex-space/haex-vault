@@ -4,7 +4,9 @@
  * 10–30 seconds or chooses an audio file, haex checks it and names what is wrong in plain words,
  * plays a sample, and keeps the voice with a name, a language and the confirmation that it is the
  * user's own voice or the speaker consented. Without that confirmation nothing is saved. The
- * microphone runs only while recording here; closing the dialog ends a recording.
+ * microphone runs only while recording here; closing the dialog ends a recording. The language
+ * comes first; for a recording the dialog offers a text in that language to read aloud, about
+ * 20–30 seconds long, and another one on request (operator 2026-11-03).
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
@@ -12,6 +14,7 @@ import {
   VOICE_FILE_EXTENSIONS,
   type SpeechLanguage,
 } from '~/lib/assistant/settings'
+import { nextReadAloud, READ_ALOUD_TEXTS } from '~/lib/assistant/readAloud'
 import type {
   CloneCheck,
   CloneLevel,
@@ -49,6 +52,18 @@ const name = ref('')
 const voiceLanguage = ref<SpeechLanguage>(props.language)
 const consent = ref(false)
 const failure = ref<string | null>(null)
+/** The text offered for reading aloud, an index into the texts of `voiceLanguage`. */
+const textIndex = ref(nextReadAloud(props.language, null))
+const readAloudText = computed(
+  () => READ_ALOUD_TEXTS[voiceLanguage.value][textIndex.value] ?? '',
+)
+function otherText() {
+  textIndex.value = nextReadAloud(voiceLanguage.value, textIndex.value)
+}
+// Another language offers a text of its own.
+watch(voiceLanguage, (language) => {
+  textIndex.value = nextReadAloud(language, null)
+})
 
 const canSave = computed(
   () =>
@@ -98,6 +113,7 @@ function reset() {
   check.value = null
   name.value = ''
   voiceLanguage.value = props.language
+  textIndex.value = nextReadAloud(props.language, null)
   consent.value = false
   failure.value = null
 }
@@ -214,6 +230,42 @@ onBeforeUnmount(() => {
   >
     <template #content>
       <div class="flex flex-col gap-4 px-6 py-2" data-testid="voice-clone">
+        <label class="flex flex-col gap-1 text-sm" for="voice-clone-language">
+          {{ t('settings.voice.clone.language') }}
+          <SettingsSelect
+            id="voice-clone-language"
+            v-model="voiceLanguage"
+            class="w-full"
+            :options="languageOptions"
+            data-testid="voice-clone-language"
+          />
+        </label>
+
+        <figure
+          class="flex flex-col gap-2 rounded-lg border bg-muted/40 p-4"
+          data-testid="voice-clone-text"
+        >
+          <figcaption
+            class="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+          >
+            <span>{{ t('settings.voice.clone.readAloud') }}</span>
+            <UiButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              :disabled="recordingId !== null"
+              data-testid="voice-clone-other-text"
+              @click="otherText"
+            >
+              <Icon name="lucide:shuffle" class="h-4 w-4" :aria-hidden="true" />
+              {{ t('settings.voice.clone.otherText') }}
+            </UiButton>
+          </figcaption>
+          <blockquote class="text-base leading-7" :lang="voiceLanguage">
+            {{ readAloudText }}
+          </blockquote>
+        </figure>
+
         <div class="flex flex-wrap gap-2">
           <UiButton
             v-if="recordingId === null"
@@ -330,16 +382,6 @@ onBeforeUnmount(() => {
             v-model="name"
             :maxlength="80"
             data-testid="voice-clone-name"
-          />
-        </label>
-        <label class="flex flex-col gap-1 text-sm" for="voice-clone-language">
-          {{ t('settings.voice.clone.language') }}
-          <SettingsSelect
-            id="voice-clone-language"
-            v-model="voiceLanguage"
-            class="w-full"
-            :options="languageOptions"
-            data-testid="voice-clone-language"
           />
         </label>
         <label class="flex items-start gap-2 text-sm">

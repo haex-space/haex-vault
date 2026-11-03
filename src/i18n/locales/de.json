@@ -1508,14 +1508,14 @@
       "clone": {
         "open": "Eigene Stimme anlegen",
         "title": "Eigene Stimme anlegen",
-        "description": "Sprich 10 bis 30 Sekunden ein oder wähle eine Audiodatei. haex bildet die Stimme auf diesem Gerät nach und speichert sie verschlüsselt im Vault.",
+        "description": "Nimm deine Stimme mit dem Vorlesetext auf oder wähle eine Audiodatei mit 10 bis 30 Sekunden Sprache. haex bildet die Stimme auf diesem Gerät nach und speichert sie verschlüsselt im Vault.",
         "record": "Aufnehmen",
         "stop": "Aufnahme beenden",
         "chooseFile": "Audiodatei wählen",
         "fileTypes": "Audiodateien",
         "level": "Pegel",
         "heard": "Etwa {seconds} s Sprache",
-        "recordHint": "Sprich ruhig und deutlich, etwa einen kurzen Absatz vorlesen. Mindestens 10 Sekunden.",
+        "recordHint": "Lies den Text oben vor. Mindestens 10 Sekunden Sprache.",
         "checking": "Die Aufnahme wird geprüft …",
         "ok": "Die Aufnahme passt: {seconds} s Sprache.",
         "again": "Bitte nimm noch einmal auf:",
@@ -1540,7 +1540,9 @@
           "unknownLanguage": "Diese Sprache spricht haex nicht.",
           "checkFailed": "Die Aufnahme hat die Prüfung nicht bestanden.",
           "unknownSession": "Die Aufnahme ist nicht mehr da. Nimm bitte neu auf."
-        }
+        },
+        "readAloud": "Lies diesen Text ruhig und deutlich vor, etwa 20 bis 30 Sekunden.",
+        "otherText": "Anderer Text"
       }
     },
     "tones": {

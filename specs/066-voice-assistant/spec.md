@@ -90,6 +90,11 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   „Sprachassistent“ pro Gerät eine andere Sprache wählen, etwa um eine Sprache zu üben; haex hört,
   versteht und antwortet dann in dieser Sprache (FR-002a). Getippte Chats bleiben bei der Sprache
   der Oberfläche.
+- Q: Wie hilft haex beim Aufnehmen einer eigenen Stimme? → A: Der Dialog zeigt einen kurzen,
+  lockeren Vorlesetext in der gewählten Sprache (etwa 20–30 Sekunden), auf Wunsch einen anderen;
+  wer nicht aufnehmen will, wählt eine Audiodatei (FR-049).
+- Q: Braucht es den Import von Sprachmodellen, etwa aus Hugging Face (FR-051)? → A: Vorerst nicht:
+  Eine Aufnahme von 10–30 Sekunden reicht für eine eigene Stimme. FR-051 ist zurückgestellt.
 
 ## Begriffe
 
@@ -762,7 +767,9 @@ Modus aus.
 #### Eigene Stimmen und Sprachen
 
 - **FR-049**: Der Nutzer MUST eine Stimme aus einer Aufnahme in haex oder einer Audiodatei
-  (10–30 Sekunden) nachbilden können, mit Name und Sprache. haex MUST die Aufnahme vor dem Speichern
+  (10–30 Sekunden) nachbilden können, mit Name und Sprache. Für die Aufnahme MUST haex einen
+  Vorlesetext in der gewählten Sprache anbieten, der etwa 20–30 Sekunden dauert, und auf Wunsch einen
+  anderen. haex MUST die Aufnahme vor dem Speichern
   prüfen (Länge, Lautstärke, Übersteuerung, Rauschen) und eine Probe abspielen. Die Nachbildung MUST
   ganz auf dem Gerät geschehen.
 - **FR-050**: Vor dem Speichern MUST der Nutzer bestätigen, dass es seine eigene Stimme ist oder die
@@ -770,7 +777,7 @@ Modus aus.
   Nachgebildete Stimmen MUST verschlüsselt im Vault liegen, mit ihm synchronisiert werden und sich
   löschen lassen; das Löschen MUST auf allen Geräten wirken, die dann auf die Standardstimme der
   Sprache zurückfallen.
-- **FR-051**: Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
+- **FR-051** (zurückgestellt, Betreiber 2026-11-03): Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
   Modell-Repository importieren können. haex MUST die Modellart an den Dateien erkennen und nicht
   unterstützte Dateien mit Grund ablehnen. Name, Sprachen und Lizenzangabe MUST angegeben und das
   Nutzungsrecht bestätigt werden. Importierte Modelle MUST nur auf diesem Gerät liegen, MUST keinen

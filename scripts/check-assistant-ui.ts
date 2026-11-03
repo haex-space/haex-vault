@@ -31,6 +31,11 @@ import {
   toggleShown,
 } from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
+import {
+  nextReadAloud,
+  READ_ALOUD_TEXTS,
+  READ_ALOUD_WORDS,
+} from '../src/lib/assistant/readAloud.ts'
 import { VOICE_THREAD_ICON } from '../src/lib/chat/threadOrigin.ts'
 import {
   LABELLED_KINDS,
@@ -600,4 +605,42 @@ test('the assistant pages save silently and show failures as toasts (operator 20
     assert.doesNotMatch(source, /savedFlash|role="status"/, file)
     assert.match(source, /toast\.error\(/, file)
   }
+})
+
+test('an own voice offers a text to read aloud in every language (operator 2026-11-03)', () => {
+  for (const language of SPEECH_LANGUAGES) {
+    const texts = READ_ALOUD_TEXTS[language]
+    assert.ok(texts.length >= 5, `${language}: at least five texts`)
+    assert.equal(
+      new Set(texts).size,
+      texts.length,
+      `${language}: no text twice`,
+    )
+    for (const text of texts) {
+      const words = text.split(/\s+/).filter(Boolean).length
+      assert.ok(
+        words >= READ_ALOUD_WORDS.min && words <= READ_ALOUD_WORDS.max,
+        `${language}: ${words} words in "${text.slice(0, 30)}…"`,
+      )
+    }
+  }
+  // "Anderer Text" never offers the same text again.
+  for (let current = 0; current < 5; current++)
+    for (const draw of [0, 0.3, 0.6, 0.99])
+      assert.notEqual(
+        nextReadAloud('de', current, () => draw),
+        current,
+      )
+  assert.equal(
+    nextReadAloud('de', null, () => 0.99),
+    4,
+  )
+  const dialog = read('src/components/settings/assistant/VoiceCloneDialog.vue')
+  assert.ok(
+    dialog.indexOf('data-testid="voice-clone-language"') <
+      dialog.indexOf('data-testid="voice-clone-text"') &&
+      dialog.indexOf('data-testid="voice-clone-text"') <
+        dialog.indexOf('data-testid="voice-clone-record"'),
+    'language, then the text, then recording',
+  )
 })
