@@ -16,6 +16,7 @@ import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { utcOffsetMinutes } from '~/lib/assistant/wire'
 
 export interface Thread {
   id: string
@@ -354,7 +355,8 @@ export function useChat() {
     const result = await invoke<Omit<SendMessageResult, 'idempotencyKey'>>(
       'send_message',
       {
-        args: { ...args, idempotencyKey },
+        // The model is told the user's local date and time.
+        args: { ...args, idempotencyKey, utcOffsetMinutes: utcOffsetMinutes() },
       },
     )
     return { ...result, idempotencyKey }

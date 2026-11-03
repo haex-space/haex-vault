@@ -33,6 +33,9 @@ pub struct SendMessageArgs {
     /// Optional system prompt applied for this generation. Not
     /// persisted; a persistent system prompt is a later slice.
     pub system_prompt: Option<String>,
+    /// The window's offset from UTC in minutes (`-Date.getTimezoneOffset()`), so the model knows
+    /// the user's local date and time. `None` gives it UTC.
+    pub utc_offset_minutes: Option<i32>,
     /// Cap on generated tokens. `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
     /// Stable across every retry of the same user send (contract
@@ -139,6 +142,7 @@ pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendM
             origin: None,
             idempotency_key: args.idempotency_key,
             system_prompt: args.system_prompt,
+            utc_offset_minutes: args.utc_offset_minutes,
             max_new_tokens: args.max_new_tokens,
             autonomy_mode: args.autonomy_mode,
             reasoning_option: args.reasoning_option,

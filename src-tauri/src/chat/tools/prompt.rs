@@ -4,6 +4,7 @@
 //! for a tool outside the core offer and answered in text instead of calling a core tool.
 
 use crate::adapters::types::ToolSpec;
+use crate::local_time::Clock;
 
 /// What the model is told about the tools holzi offers. English works best for the models that
 /// run locally; the model answers in the language of the person.
@@ -23,11 +24,57 @@ For questions that have nothing to do with holzi, just answer.";
 /// instruction they cannot map is impossible.
 const ASK_USER_INSTRUCTION: &str = "If you cannot carry out an instruction unambiguously, call ask_user with the possible options instead of refusing.";
 
-/// The system prompt of a turn: what the caller passed, plus the tool instruction when the turn
-/// offers tools. A turn without tools gets nothing added.
-pub fn system_prompt(given: Option<&str>, tools: &[ToolSpec]) -> Option<String> {
+/// What the model is told about now: without it, a model knows neither the day nor the time.
+pub fn now_line(clock: Clock) -> String {
+    const WEEKDAYS: [&str; 7] = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ];
+    let now = clock.now;
+    let offset = clock.utc_offset_minutes;
+    let sign = if offset < 0 { '-' } else { '+' };
+    format!(
+        "The user's local date and time now: {}, {:04}-{:02}-{:02} {:02}:{:02} (UTC{sign}{:02}:{:02}).",
+        WEEKDAYS[now.weekday()],
+        now.year,
+        now.month,
+        now.day,
+        now.hour,
+        now.minute,
+        offset.abs() / 60,
+        offset.abs() % 60,
+    )
+}
+
+/// The system prompt of a turn: what the caller passed, the tool instruction when the turn offers
+/// tools, and the date and time when the caller knows the clock.
+pub fn system_prompt(
+    given: Option<&str>,
+    tools: &[ToolSpec],
+    clock: Option<Clock>,
+) -> Option<String> {
+    let parts: Vec<String> = [
+        given
+            .filter(|given| !given.trim().is_empty())
+            .map(str::to_owned),
+        tool_instruction(tools),
+        clock.map(now_line),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
+/// The instruction for the tools of a turn; nothing for a turn without tools.
+fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
     if tools.is_empty() {
-        return given.map(str::to_owned);
+        return None;
     }
     let instruction = if tools
         .iter()
@@ -37,16 +84,14 @@ pub fn system_prompt(given: Option<&str>, tools: &[ToolSpec]) -> Option<String> 
     } else {
         TOOL_INSTRUCTION_WITHOUT_SEARCH
     };
-    let instruction = if tools
-        .iter()
-        .any(|tool| tool.name == crate::chat::tools::ask_user::ASK_USER_TOOL_NAME)
-    {
-        format!("{instruction} {ASK_USER_INSTRUCTION}")
-    } else {
-        instruction.to_owned()
-    };
-    Some(match given {
-        Some(given) if !given.trim().is_empty() => format!("{given}\n\n{instruction}"),
-        _ => instruction,
-    })
+    Some(
+        if tools
+            .iter()
+            .any(|tool| tool.name == crate::chat::tools::ask_user::ASK_USER_TOOL_NAME)
+        {
+            format!("{instruction} {ASK_USER_INSTRUCTION}")
+        } else {
+            instruction.to_owned()
+        },
+    )
 }

@@ -353,6 +353,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/marketplace/errors.ts'),
         req,
       )
+    // The window's offset from UTC that `useChat` sends with a message: pure, runs as it is.
+    if (specifier === '~/lib/assistant/wire')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/assistant/wire.ts'),
+        req,
+      )
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.
     if (specifier === '~/lib/actions/agentTools')
       return { agentSafeMessages: () => ({ messages: [] }) }

@@ -23,13 +23,13 @@ use super::assets;
 use super::conversation::{Timing, PREF_CONTINUE_MINS};
 use super::driver::{Core, Input, Note, Ports, StateWire};
 use super::listen::{self, Start};
-use super::speakable::Clock;
 use super::tones::{self, ToneId};
 use super::turn::{self, Started, VoiceTurn};
 use super::vad::Utterance;
 use crate::audio::stream::AudioStream;
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
+use crate::local_time::Clock;
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::voice_transcript::{self, NewEntry, TranscriptEntry};
@@ -650,14 +650,6 @@ async fn write_notes(app: AppHandle, mut notes: mpsc::UnboundedReceiver<NewEntry
     }
 }
 
-/// The local time of the window: now, `utc_offset_minutes` ahead of UTC.
-fn window_clock(utc_offset_minutes: i32) -> Clock {
-    let unix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64);
-    Clock::at(unix, utc_offset_minutes.clamp(-14 * 60, 14 * 60))
-}
-
 #[tauri::command]
 pub async fn assistant_get_state(driver: State<'_, AssistantDriver>) -> Result<StateWire> {
     Ok(driver.state())
@@ -684,7 +676,7 @@ pub async fn assistant_set_enabled(
         Msg::SetEnabled {
             enabled,
             language,
-            clock: window_clock(utc_offset_minutes),
+            clock: Clock::now(utc_offset_minutes),
             reply,
         },
     )?;
