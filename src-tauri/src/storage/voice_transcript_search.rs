@@ -83,6 +83,8 @@ impl SearchRequest {
 pub struct SearchHit {
     pub thread_id: Uuid,
     pub seq: i64,
+    /// The entry itself: after a sync two entries of a thread can share a `seq`.
+    pub id: Uuid,
     /// The match with up to 40 characters on each side, "…" where the text goes on.
     pub snippet: String,
 }
@@ -157,6 +159,7 @@ pub fn search(q: &mut impl Query, request: &SearchRequest) -> haex_crdt::Result<
             .map(|(cursor, snippet)| SearchHit {
                 thread_id: cursor.thread_id,
                 seq: cursor.seq,
+                id: cursor.id,
                 snippet,
             })
             .collect(),

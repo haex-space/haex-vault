@@ -21,7 +21,13 @@ export type TranscriptEntry = {
 }
 
 /** One hit of `assistant_transcript_search`. */
-export type TranscriptHit = { threadId: string; seq: number; snippet: string }
+export type TranscriptHit = {
+  threadId: string
+  seq: number
+  /** The entry itself: two entries of a thread can share a `seq` after a sync. */
+  id: string
+  snippet: string
+}
 
 /** A page of `assistant_transcript_search`. */
 export type TranscriptSearchPage = {
