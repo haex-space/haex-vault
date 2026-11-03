@@ -98,20 +98,21 @@ test('useErrorString maps VaultAlreadyOpenElsewhere, VaultAlreadyActive and Vaul
 // UnlockSheet: every open failure keeps its typed discriminator at the UI boundary, so the operator
 // can distinguish a bad passphrase, a missing vault and an unreadable/incompatible vault file.
 
+/** Loads the sheet; the error toasts it shows land in `errors`. */
 function loadUnlockSheet(openAsync: () => Promise<{ name: string }>) {
-  return loadScriptSetup<{
+  const errors: string[] = []
+  const sheet = loadScriptSetup<{
     onSubmit: () => Promise<void>
-    error: { value: string | null }
     passphrase: { value: string }
-  }>(
-    'src/components/onboarding/UnlockSheet.vue',
-    ['onSubmit', 'error', 'passphrase'],
-    {
-      useInstance: () => ({ openAsync }),
-      useFieldLabels: () => ({ password: { value: {} } }),
-      props: { open: true, name: 'vault' },
+  }>('src/components/onboarding/UnlockSheet.vue', ['onSubmit', 'passphrase'], {
+    imports: {
+      'vue-sonner': { toast: { error: (m: string) => errors.push(m) } },
     },
-  )
+    useInstance: () => ({ openAsync }),
+    useFieldLabels: () => ({ password: { value: {} } }),
+    props: { open: true, name: 'vault' },
+  })
+  return { ...sheet, errors }
 }
 
 for (const [kind, expected] of [
@@ -126,26 +127,26 @@ for (const [kind, expected] of [
   ['MigrationMissingFromSource', 'errors.vaultNewerVersion'],
 ] as const) {
   test(`UnlockSheet maps ${kind} to a distinct open error`, async () => {
-    const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
+    const { onSubmit, errors, passphrase } = loadUnlockSheet(() => {
       throw { kind }
     })
     passphrase.value = 'some-passphrase'
 
     await onSubmit()
 
-    assert.equal(error.value, expected)
+    assert.deepEqual(errors, [expected])
   })
 }
 
 test('UnlockSheet maps a JSON-serialized backend error to its distinct open error', async () => {
-  const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
+  const { onSubmit, errors, passphrase } = loadUnlockSheet(() => {
     throw JSON.stringify({ kind: 'WrongPassphrase' })
   })
   passphrase.value = 'some-passphrase'
 
   await onSubmit()
 
-  assert.equal(error.value, 'errors.wrongPassphrase')
+  assert.deepEqual(errors, ['errors.wrongPassphrase'])
 })
 
 // pages/index.vue (T075): re-syncs the vault list on window focus, on document visibilitychange

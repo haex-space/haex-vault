@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 
 /**
@@ -17,7 +19,7 @@ const props = defineProps<{
   expectedSha256: string | null
   actualSha256: string | null
   busy?: boolean
-  /** Already-localized text — callers resolve their own error key via `t()`. */
+  /** Already-localized text — callers resolve their own error key via `t()`; shown as a toast. */
   actionError?: string | null
 }>()
 
@@ -27,6 +29,13 @@ const emit = defineEmits<{
   repairSource: []
   chooseOther: []
 }>()
+
+watch(
+  () => props.actionError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
 
 const descriptionKey = computed(() => {
   switch (props.errorKind) {
@@ -72,9 +81,6 @@ const descriptionKey = computed(() => {
             </dd>
           </template>
         </dl>
-        <p v-if="actionError" class="text-sm text-destructive" role="alert">
-          {{ actionError }}
-        </p>
       </div>
     </template>
     <template #footer>

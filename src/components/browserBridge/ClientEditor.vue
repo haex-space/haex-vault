@@ -5,6 +5,7 @@
  * once through the guardrail action `settings.browserBridge.client.update`, without a save button,
  * and holds from the extension's next request on. Revoking asks first, in the settings view.
  */
+import { toast } from 'vue-sonner'
 import type { BridgeClientView } from '~/types/bindings/BridgeClientView'
 import {
   draftOf,
@@ -29,7 +30,6 @@ const updateClient = useActionOrThrow('settings.browserBridge.client.update')
 const draft = ref<GrantDraft>(draftOf('read', null, null))
 /** The grant last saved, to skip saving what did not change. */
 let saved = ''
-const failure = ref<string | null>(null)
 
 const fingerprint = computed(
   () => props.client?.clientId.match(/.{1,4}/g)?.join(' ') ?? '',
@@ -39,7 +39,6 @@ watch(
   () => props.client?.clientId,
   () => {
     const client = props.client
-    failure.value = null
     if (!client?.access) return
     draft.value = draftOf(client.access, client.scopeTags, client.defaultTag)
     saved = JSON.stringify(grantOf(draft.value))
@@ -61,10 +60,9 @@ watch(draft, async (next) => {
       ...(grant.scopeTags ? { scopeTags: grant.scopeTags } : {}),
       ...(grant.defaultTag ? { defaultTag: grant.defaultTag } : {}),
     })
-    failure.value = null
   } catch (error: unknown) {
     saved = ''
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 })
 
@@ -123,9 +121,6 @@ function onUpdateOpen(open: boolean) {
               : t('browserBridge.approval.sessionHint')
           }}
           {{ t('browserBridge.clients.savedHint') }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import type { DeviceInfo } from '~/composables/useDevice'
 import type { TierRecommendation } from '~/composables/useCatalog'
 import type { SttCatalogEntry } from '~/composables/useSttCatalog'
@@ -40,7 +41,8 @@ const downloadError = ref<string | null>(null)
 const sttTiers = ref<TierRecommendation<SttCatalogEntry>[]>([])
 const sttDownloadingId = ref<string | null>(null)
 const sttDownloadError = ref<string | null>(null)
-const loadError = ref<string | null>(null)
+/** The device info could not be read (its error went out as a toast); no loading notice then. */
+const loadFailed = ref(false)
 
 onMounted(async () => {
   try {
@@ -50,7 +52,8 @@ onMounted(async () => {
       deviceInfo.value?.hostname ??
       t('onboarding.alias.defaultPlaceholder')
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.deviceInfoFailed')}: ${errString(e)}`)
     return
   }
   try {
@@ -81,7 +84,7 @@ async function finishOnboardingAsync() {
   try {
     await finalizeAliasAsync()
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('errors.deviceInfoFailed')}: ${errString(e)}`)
     return
   }
   await navigateTo(`/workspace/${encodeURIComponent(instanceName.value)}`, {
@@ -161,12 +164,8 @@ async function completeSttWithModel(rec: TierRecommendation<SttCatalogEntry>) {
         </p>
       </div>
 
-      <p v-if="loadError" class="text-sm text-destructive" role="alert">
-        {{ t('errors.deviceInfoFailed') }}: {{ loadError }}
-      </p>
-
       <div
-        v-if="!deviceInfo && !loadError"
+        v-if="!deviceInfo && !loadFailed"
         class="text-sm text-muted-foreground"
       >
         {{ t('onboarding.wizard.loadingDeviceInfo') }}

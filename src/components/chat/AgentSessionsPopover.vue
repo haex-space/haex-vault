@@ -25,6 +25,7 @@ const props = defineProps<{
   editingThreadId: string | null
   draftTitle: string
   editTitleError: string | null
+  renameError: string | null
   renamingThreadId: string | null
   deleteCandidate: Thread | null
   deleteError: string | null
@@ -70,6 +71,20 @@ function openHit(hit: TranscriptHit) {
   open.value = false
   emit('openTranscript', { threadId: hit.threadId, id: hit.id })
 }
+
+// A failed rename or delete shows as a toast; the title checks stay at the title field.
+watch(
+  () => props.renameError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
+watch(
+  () => props.deleteError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
 
 function select(id: string) {
   open.value = false
@@ -297,9 +312,6 @@ watch(
           {{
             t('chat.threads.deleteConfirm', { title: deleteCandidate.title })
           }}
-        </p>
-        <p v-if="deleteError" class="text-sm text-destructive" role="alert">
-          {{ deleteError }}
         </p>
       </div>
     </template>

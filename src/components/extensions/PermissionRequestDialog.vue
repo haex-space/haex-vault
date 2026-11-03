@@ -10,6 +10,7 @@
  * consent to send a job outside this device (US4) names the provider, its host and place and what
  * would be sent.
  */
+import { toast } from 'vue-sonner'
 import { MODEL_DESTINATION_KIND } from '~/lib/extensions/modelConsent'
 import { MODEL_KIND, startingEffort } from '~/lib/extensions/modelGrants'
 
@@ -20,7 +21,6 @@ const store = useExtensionPermissionsStore()
 /** Whether "remember" starts ticked: not for an encrypted folder (spec 048 FR-036). */
 const rememberByDefault = () => store.shown?.kind !== 'encryptedFolder'
 const remember = ref(rememberByDefault())
-const failure = ref<string | null>(null)
 const folderKind = computed(() => store.shown?.kind === 'encryptedFolder')
 const modelKind = computed(() => store.shown?.kind === MODEL_KIND)
 const destinationKind = computed(
@@ -39,7 +39,6 @@ watch(
   () => store.shown?.requestId,
   () => {
     remember.value = rememberByDefault()
-    failure.value = null
     modelId.value = store.shown?.target ?? ''
     effort.value = effortOf(modelId.value)
   },
@@ -59,7 +58,7 @@ async function answerAsync(decision: 'allow' | 'deny') {
       : undefined
     await store.answerAsync(question.requestId, decision, remember.value, model)
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 </script>
@@ -146,9 +145,6 @@ async function answerAsync(decision: 'allow' | 'deny') {
               ? t('extensions.permissionRequest.scopeDevice')
               : t('extensions.permissionRequest.scopeVault')
           }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>

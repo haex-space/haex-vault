@@ -10,6 +10,7 @@
 import type { Sources } from '@bindings/Sources'
 import type { SyncRulePlace } from '@bindings/SyncRulePlace'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import {
   filterRules,
@@ -46,6 +47,14 @@ const logging = ref(false)
 const expanded = ref(new Set<string>())
 const filter = ref('')
 const sort = ref<RuleSort>({ key: 'name', ascending: true })
+
+// A failed load of the list goes out as a toast.
+watch(
+  () => store.error,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
 
 onMounted(() => {
   store.initialize()
@@ -153,9 +162,9 @@ async function act(view: SyncRuleView, work: () => Promise<unknown>) {
     await store.loadAsync()
   } catch (cause) {
     const code = asSyncRuleError(cause)?.code
-    store.error = code
-      ? t(`files.syncRules.error.${code}`)
-      : t('files.syncRules.failed')
+    toast.error(
+      code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+    )
   } finally {
     busy.value = null
   }
@@ -209,14 +218,6 @@ async function confirmDeleteAsync() {
         {{ t('files.syncRules.create.open') }}
       </UiButton>
     </div>
-    <p
-      v-if="store.error"
-      class="px-3 pb-2 text-sm text-destructive"
-      role="alert"
-      data-testid="files-sync-rules-error"
-    >
-      {{ store.error }}
-    </p>
     <div
       v-if="!store.loading && store.rules.length === 0"
       class="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground"

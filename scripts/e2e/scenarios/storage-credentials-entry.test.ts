@@ -15,8 +15,11 @@ import {
   waitForLocation,
 } from '../lib/settings.ts'
 import { startWebdav } from '../lib/webdav.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const FOLDER = 'Ablage'
+
+/** The texts of the error toasts on screen. */
 
 type Overview = {
   connections: Array<{
@@ -82,9 +85,9 @@ scenario(
     await laptop
       .waitForDisplayed('storage-create-folder', 20_000)
       .catch(async (error: Error) => {
-        const shown = await textOf(laptop, 'storage-failure').catch(() => '')
+        const shown = (await errorToasts(laptop).catch(() => [])).join(' | ')
         throw new Error(
-          `${error.message}; the form says: ${shown || 'nothing'}`,
+          `${error.message}; the toasts say: ${shown || 'nothing'}`,
         )
       })
     await laptop.click('storage-create-folder')

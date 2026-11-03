@@ -196,7 +196,7 @@ const RETURN_STATEMENT = `
       handleChoiceRequest: chatTranscript.handleChoiceRequest,
       threads, messagesByThread, activeThreadId,
       input, busy, activeModel, modelLoadPending, draftTitle,
-      editingThreadId, editTitleError, deleteCandidate, deleteError,
+      editingThreadId, editTitleError, renameError, deleteCandidate, deleteError,
       composerInputDisabled, sendDisabled, pendingPrompts, streamingMessageId,
       streamingThreadId, lastError,
       updatePermissionMode, permissionMode, permissionModeSaving, syncFromLocation,

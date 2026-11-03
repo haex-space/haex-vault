@@ -14,14 +14,12 @@ const setProtection = useActionOrThrow('settings.privacy.screenCapture.set')
 
 const enabled = ref<boolean | null>(null)
 const busy = ref(false)
-const loadError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
     enabled.value = await invoke<boolean>('screen_capture_protection_get')
-    loadError.value = null
   } catch (error: unknown) {
-    loadError.value = errString(error)
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(error)}`)
   }
 }
 
@@ -46,10 +44,6 @@ onMounted(reloadAsync)
 
 <template>
   <section class="flex flex-col gap-2">
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
     <SettingsGroup v-if="enabled !== null">
       <SettingsRow
         :title="t('settings.screenCapture.title')"

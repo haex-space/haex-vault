@@ -5,6 +5,7 @@
  * `fit`, replaced in place), so back from a repository returns to the same results. A result opens
  * its repository as a new location, passing the files that matched the filters.
  */
+import { toast } from 'vue-sonner'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import type {
   HardwareFit,
@@ -21,7 +22,8 @@ const initial = router.route.query
 const query = ref(initial.q ?? '')
 const results = ref<HuggingFaceModelResult[]>([])
 const loading = ref(false)
-const errorKey = ref<string | null>(null)
+/** Whether the last search failed; its message went out as a toast with "retry". */
+const failed = ref(false)
 const hasSearched = ref(false)
 const quantizationFilter = ref(initial.quant ?? 'all')
 const sizeLimitFilter = ref(initial.size ?? 'all')
@@ -48,7 +50,7 @@ async function loadResultsAsync(searchQuery?: string) {
     return
   }
   loading.value = true
-  errorKey.value = null
+  failed.value = false
   try {
     const searchResults = await searchAsync(searchQuery)
     // The search endpoint intentionally stays cheap and returns repository
@@ -72,7 +74,10 @@ async function loadResultsAsync(searchQuery?: string) {
     rememberSearchResults(key, results.value)
     hasSearched.value = true
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
+    failed.value = true
+    toast.error(t(hfErrorKey(e)), {
+      action: { label: t('models.search.retry'), onClick: retryAsync },
+    })
   } finally {
     loading.value = false
   }
@@ -233,23 +238,12 @@ onMounted(() => {
       {{ t('models.search.tooShort') }}
     </p>
 
-    <p
-      v-if="errorKey"
-      class="flex items-center gap-2 text-sm text-destructive"
-      role="alert"
-    >
-      {{ t(errorKey) }}
-      <button type="button" class="underline" @click="retryAsync">
-        {{ t('models.search.retry') }}
-      </button>
-    </p>
-
     <p v-if="loading" class="text-sm text-muted-foreground" role="status">
       {{ t('models.search.loading') }}
     </p>
 
     <p
-      v-if="hasSearched && trimmedQuery.length === 0 && !errorKey"
+      v-if="hasSearched && trimmedQuery.length === 0 && !failed"
       class="text-sm text-muted-foreground"
     >
       {{ t('models.search.top') }}
@@ -289,7 +283,7 @@ onMounted(() => {
     </div>
 
     <p
-      v-else-if="hasSearched && results.length === 0 && !errorKey"
+      v-else-if="hasSearched && results.length === 0 && !failed"
       class="text-sm text-muted-foreground"
     >
       {{ t('models.search.empty') }}

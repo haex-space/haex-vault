@@ -27,7 +27,6 @@ const VALID_CATEGORIES = new Set<string>(CATEGORIES)
 const selected = ref<Set<string>>(new Set())
 const loading = ref(true)
 const busy = ref(false)
-const loadError = ref<string | null>(null)
 
 /**
  * Reloads and validates the vault's deny-rule selection (spec 023 FR-024). A `quiet` reload
@@ -35,7 +34,6 @@ const loadError = ref<string | null>(null)
  */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
   try {
     const raw = await getPrefAsync({ kind: 'vault' }, PREF_KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : []
@@ -47,7 +45,7 @@ async function reloadAsync(quiet = false) {
       : []
     selected.value = new Set(validItems)
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('settings.denyRules.loadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -83,10 +81,6 @@ onVaultTablesChanged(['preferences'], () => {
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
-
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('settings.denyRules.loadFailed') }}: {{ loadError }}
-    </p>
 
     <template v-if="!loading">
       <fieldset :aria-label="t('settings.locations.ai.denyRules.title')">

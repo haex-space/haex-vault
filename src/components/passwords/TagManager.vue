@@ -34,11 +34,11 @@ async function renameAsync(tag: TagRow) {
     error.value = null
     await store.quietReloadAsync()
   } catch (cause) {
+    // A refused name belongs to the name field; any other failure is a toast.
     const reason = (cause as { reason?: string }).reason
-    error.value =
-      reason === 'exists' || reason === 'empty' || reason === 'too_long'
-        ? t(`passwords.tags.errors.${reason}`)
-        : errString(cause)
+    if (reason === 'exists' || reason === 'empty' || reason === 'too_long')
+      error.value = t(`passwords.tags.errors.${reason}`)
+    else toast.error(errString(cause))
   }
 }
 

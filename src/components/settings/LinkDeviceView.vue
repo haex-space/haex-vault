@@ -10,6 +10,7 @@
  * new device.
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { toast } from 'vue-sonner'
 import type { LinkCodeInfo } from '@bindings/LinkCodeInfo'
 import type { LinkingStatus } from '@bindings/LinkingStatus'
 
@@ -38,7 +39,6 @@ const code = ref<LinkCodeInfo | null>(null)
 const newDeviceName = ref('')
 const asMain = ref(false)
 const busy = ref(false)
-const error = ref<string | null>(null)
 const now = ref(Date.now())
 const copied = ref(false)
 let devicesChanged = false
@@ -96,15 +96,15 @@ function onStatus(status: LinkingStatus | null) {
 
 async function onShowCode() {
   busy.value = true
-  error.value = null
   try {
     code.value = await createCodeAsync()
     copied.value = false
     phase.value = 'code'
   } catch (e) {
     const kind = (e as { kind?: string })?.kind
-    error.value =
-      kind === 'NotMainDevice' ? t('settings.link.notMain') : errString(e)
+    toast.error(
+      kind === 'NotMainDevice' ? t('settings.link.notMain') : errString(e),
+    )
   } finally {
     busy.value = false
   }
@@ -116,20 +116,19 @@ async function onCancel() {
   try {
     await cancelCodeAsync()
   } catch (e) {
-    error.value = errString(e)
+    toast.error(errString(e))
   }
 }
 
 async function onConfirm() {
   busy.value = true
-  error.value = null
   devicesChanged = false
   phase.value = 'sending'
   try {
     await confirmAsync(asMain.value)
   } catch (e) {
     if (phase.value === 'sending') phase.value = 'confirm'
-    error.value = errString(e)
+    toast.error(errString(e))
   } finally {
     busy.value = false
   }
@@ -141,7 +140,7 @@ async function onReject() {
     await rejectAsync()
     phase.value = 'declined'
   } catch (e) {
-    error.value = errString(e)
+    toast.error(errString(e))
   } finally {
     busy.value = false
   }
@@ -160,16 +159,11 @@ async function onCopy() {
 function onAgain() {
   phase.value = 'idle'
   code.value = null
-  error.value = null
 }
 </script>
 
 <template>
   <section class="flex flex-col gap-3" data-testid="link-device-view">
-    <p v-if="error" class="text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
-
     <SettingsGroup v-if="phase === 'idle'">
       <SettingsRow
         icon="lucide:qr-code"

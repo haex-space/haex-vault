@@ -15,14 +15,12 @@ const setRestore = useActionOrThrow('settings.sessionRestore.set')
 
 const restore = ref<RestoreState | null>(null)
 const busy = ref(false)
-const loadError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
     restore.value = await wm.getSessionRestore()
-    loadError.value = null
   } catch (error: unknown) {
-    loadError.value = errString(error)
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(error)}`)
   }
 }
 
@@ -47,10 +45,6 @@ onVaultTablesChanged(['preferences'], () => {
 
 <template>
   <section class="flex flex-col gap-2">
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
     <SettingsGroup v-if="restore">
       <SettingsRow
         :title="t('settings.sessionRestore.title')"

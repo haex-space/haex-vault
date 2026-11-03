@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat, openLauncher } from '../lib/flows.ts'
 import { PROCESS_END_LIMIT_MS } from '../lib/close-promises.ts'
+import { ERROR_TOAST } from '../lib/toasts.ts'
 
-const ALERT_SCRIPT =
-  'return document.querySelector(\'[role="alert"]\') !== null'
+// An error shows as a toast; an inline alert still counts in case one is left somewhere.
+const ALERT_SCRIPT = `return document.querySelector('[role="alert"], ${ERROR_TOAST}') !== null`
 const AFTER_END_WATCH_MS = 5_000
 
 const sleep = (ms: number) =>

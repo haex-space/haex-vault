@@ -8,11 +8,16 @@
  * and an unencrypted one are marked. Follows changes from every
  * writer and device (`useStorageOverview`).
  */
+import { toast } from 'vue-sonner'
 import type { ConnectionView } from '@bindings/ConnectionView'
 import type { StorageView } from '@bindings/StorageView'
 
 const { t } = useI18n()
 const { overview, failure } = useStorageOverview()
+
+watch(failure, (message) => {
+  if (message) toast.error(message)
+})
 
 const storagesOf = (connectionId: string): StorageView[] =>
   overview.value?.storages.filter((s) => s.connectionId === connectionId) ?? []
@@ -68,11 +73,8 @@ function storageDescription(storage: StorageView): string {
       />
     </SettingsGroup>
 
-    <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </p>
     <p
-      v-else-if="overview && overview.connections.length === 0"
+      v-if="!failure && overview && overview.connections.length === 0"
       class="px-1 text-sm text-muted-foreground"
     >
       {{ t('settings.storage.none') }}

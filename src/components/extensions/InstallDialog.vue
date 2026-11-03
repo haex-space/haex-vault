@@ -23,6 +23,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { open as openFile } from '@tauri-apps/plugin-dialog'
+import { toast } from 'vue-sonner'
 import type { DeclaredPermissionView } from '@bindings/DeclaredPermissionView'
 import type { InstallPreview } from '@bindings/InstallPreview'
 import type { PermissionChoice } from '@bindings/PermissionChoice'
@@ -53,7 +54,6 @@ const preview = ref<InstallPreview | null>(null)
 const choices = ref<Record<string, { granted: boolean }>>({})
 const confirmed = ref(false)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 const key = (p: DeclaredPermissionView) => `${p.kind}|${p.action}|${p.target}`
 const grantedCount = (rows: readonly DeclaredPermissionView[]) =>
@@ -94,7 +94,6 @@ function reset() {
   preview.value = null
   choices.value = {}
   confirmed.value = false
-  failure.value = null
 }
 
 /** The source the host reads the bytes from: the chosen file or the downloaded bundle. */
@@ -132,7 +131,7 @@ async function chooseAsync() {
     for (const permission of shown.value)
       choices.value[key(permission)] = { granted: true }
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -141,7 +140,6 @@ async function chooseAsync() {
 async function installAsync() {
   if (!path.value || blocked.value) return
   busy.value = true
-  failure.value = null
   try {
     const accepted: PermissionChoice[] = shown.value.map((p) => ({
       kind: p.kind,
@@ -164,7 +162,7 @@ async function installAsync() {
       })
     open.value = false
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -400,10 +398,6 @@ watch(open, (isOpen) => {
             }}
           </p>
         </template>
-
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
 
         <div class="flex justify-end gap-2">
           <UiButton

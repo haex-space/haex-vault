@@ -18,6 +18,7 @@
  * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
  * holzi generated and already entered, "Ablehnen" empties the fields again.
  */
+import { toast } from 'vue-sonner'
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
 import type { Remember } from '~/types/bindings/Remember'
@@ -28,7 +29,6 @@ const store = useAgentBrowserStore()
 
 const shown = computed(() => store.shown)
 const question = computed(() => shown.value?.question ?? null)
-const failure = ref<string | null>(null)
 const waiting = computed(() => Math.max(store.prompts.length - 1, 0))
 const plainHttp = computed(
   () => question.value?.site?.startsWith('http://') === true,
@@ -124,7 +124,6 @@ const agentName = computed(
 watch(
   () => shown.value?.requestId,
   () => {
-    failure.value = null
     const entries = question.value?.entries ?? []
     chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
     skipped.value = new Set()
@@ -156,7 +155,7 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
       skip,
     )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 </script>
@@ -362,9 +361,6 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
         </p>
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('agentBrowser.prompt.more', { count: waiting }) }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>
