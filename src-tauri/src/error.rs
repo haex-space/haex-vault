@@ -101,6 +101,9 @@ pub enum HolziError {
     #[error("Model download failed: {reason}")]
     ModelDownload { reason: String },
 
+    #[error("Model download cancelled")]
+    ModelDownloadCancelled,
+
     #[error("Model import failed: {reason}")]
     ModelImport { reason: String },
 
