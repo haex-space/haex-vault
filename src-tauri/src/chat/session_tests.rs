@@ -328,16 +328,33 @@ fn replacing_the_active_model_ends_a_session_that_ran_the_old_one() {
 }
 
 #[test]
-fn replacing_the_active_model_with_itself_keeps_the_session() {
+fn installing_the_very_engine_again_keeps_the_session() {
     let chat = ChatState::new();
     let (_weak, local) = model("qwen3-4b", true);
     chat.replace_local_model(Some(local));
     *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
-    let (_again, same) = model("qwen3-4b", true);
+    let same = chat.local_model();
 
-    chat.replace_local_model(Some(same));
+    chat.replace_local_model(same);
 
     assert!(chat.session.lock().unwrap().is_some());
+}
+
+#[test]
+fn a_new_engine_of_the_same_model_ends_the_session_on_the_old_one() {
+    let chat = ChatState::new();
+    let (old, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+    *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
+    let (_again, same_id) = model("qwen3-4b", true);
+
+    chat.replace_local_model(Some(same_id));
+
+    assert!(
+        chat.session.lock().unwrap().is_none(),
+        "the session would keep running the old engine"
+    );
+    assert!(old.upgrade().is_none(), "no second engine stays in memory");
 }
 
 #[test]
