@@ -124,10 +124,6 @@ async function answerAsync(allow: boolean, remember?: Remember) {
     failure.value = errString(error)
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
-}
 </script>
 
 <template>
@@ -135,7 +131,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t(`agentBrowser.prompt.${question.kind}.title`)"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div

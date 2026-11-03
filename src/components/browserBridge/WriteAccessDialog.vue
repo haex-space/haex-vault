@@ -45,10 +45,6 @@ async function answerAsync(allow: boolean) {
     failure.value = errString(error)
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
-}
 </script>
 
 <template>
@@ -56,7 +52,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('browserBridge.write.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-4" data-testid="bridge-write">
