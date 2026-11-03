@@ -133,10 +133,9 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
 - Q: A click that only brings holzi to the front closed a permission dialog and declined it. What
   should close such a dialog? → A: Only its own buttons. A click outside, Escape, losing and
   regaining the window's focus and the dialog's close button do nothing (operator, FR-042).
-- Q: What does a dialog for a request the page itself sends (a tracking call, a form the agent did
-  not submit) offer? → A: Two buttons, "Erlauben" and "Ablehnen", and one checkbox "Für diese
+- Q: What does a dialog for a request a page sends (a tracking call, a form) offer? → A: Two buttons, "Erlauben" and "Ablehnen", and one checkbox "Für diese
   Website merken", as every other dialog of holzi; the checkbox stores the answer as a rule for
-  the website the request goes to. The dialog says the page sends, not the agent (operator,
+  the website the request goes to. The dialog names the page's request and the website it goes to (operator,
   FR-044).
 - Q: Which websites may an agent open once it may use the browser? → A: All of them. A new rights
   group starts with "all websites: operate" (plain `http` read); single websites stay as
@@ -208,8 +207,8 @@ dem Öffnen; in Plan wird das Abschicken ohne Rückfrage abgelehnt.
 3. **Given** ein Agent ohne `bank.example.de` in seinen erlaubten Websites und ohne Stufe für alle
    Websites (FR-043), **When** er sie öffnen
    will oder ein Link oder eine Weiterleitung dorthin führt, **Then** hält holzi vor dem Laden an
-   und fragt: „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer erlauben (bedienen)“,
-   „Ablehnen“.
+   und fragt mit „Erlauben“ und „Ablehnen“ und der Auswahl „Für diese Website merken“ (dann
+   „Lesen“ oder „Bedienen“); ohne Häkchen gilt „Erlauben“ bis zum Ende der Browser-Sitzung.
 4. **Given** ein Agent in Plan, **When** er navigieren, tippen, klicken oder absenden will, **Then**
    lehnt holzi das ohne Rückfrage ab; Lesen, Scrollen und Bildschirmfotos laufen.
 5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort klicken, tippen, eine Auswahl
@@ -440,8 +439,9 @@ Steuerung.
 - **FR-006**: Der eingebaute Agent MUSS dieselbe Rechtegruppe in „KI → Browser“ haben, ab Werk aus.
 - **FR-007**: Eine Website außerhalb der erlaubten, für die auch keine Stufe „alle Websites“
   gilt (FR-043), MUSS vor dem Laden eine Rückfrage auslösen mit
-  „Einmal erlauben“ (bis zum Ende der Browser-Sitzung), „Immer erlauben (lesen)“, „Immer erlauben
-  (bedienen)“ und „Ablehnen“. In Plan MUSS holzi stattdessen ablehnen.
+  „Erlauben“ (bis zum Ende der Browser-Sitzung) und „Ablehnen“ und der Auswahl „Für diese Website
+  merken“, die dazu „Lesen“ oder „Bedienen“ wählen lässt und nur beim Erlauben wirkt. In Plan MUSS
+  holzi stattdessen ablehnen.
 - **FR-008**: „lesen“ MUSS Seiten der Website öffnen und navigieren (Adresse, zurück, vor, neu
   laden), lesen, scrollen und Bildschirmfotos erstellen erlauben, aber kein Klicken, kein Tippen,
   keine Auswahl, kein Folgen eines Links per Klick und kein Absenden. Weil auch eine Navigation per
@@ -572,16 +572,18 @@ Steuerung.
   level for all. `http` websites never get more than `read` (R9). Everything else of FR-008 to
   FR-013 stays: Manuell still asks before a changing action and every submit still asks (FR-011).
   The user sets the level in "KI → Agenten" and "KI → Browser".
-- **FR-044**: A held request the page itself sends (R5 step 2 of FR-011, not an action of the agent)
-  MUST ask with its own kind `request`. The dialog states that the page sends it, shows the
+- **FR-044**: A held request a page sends (R5 step 2 of FR-011) MUST ask with its own kind
+  `request`. The dialog shows the
   website the request goes to, the request's address and what it would send (nested JSON as
   compact text with secrets hidden, other text as one field, FR-012), and offers the buttons
   "Erlauben" and "Ablehnen" with a checkbox "Für diese Website merken". Checked, the answer
   becomes a rule for the website the request goes to: `allow` sends such requests without asking
   (never in Plan, FR-011), `deny` refuses them without asking. Rules belong to the agent's rights
   group Browser; the user sees them, with the website, and removes them in "KI → Agenten" and
-  "KI → Browser". The submit question of an agent's own action (R5 step 1 of FR-011) has no such
-  checkbox.
+  "KI → Browser". The submit question of an agent's own click or Enter (R5 step 1 of FR-011) has
+  no such checkbox. The same checkbox "Für diese Website merken" replaces the extra buttons of the
+  website question (FR-007) and of the login fill (FR-021): two buttons and one checkbox, in
+  every dialog of the agent browser.
 - **FR-045**: holzi MUST block requests of the agent browser's pages that filter lists block, as
   uBlock Origin does, before FR-011 holds or asks, so a blocked tracker never raises a question.
   The default lists are those uBlock Origin enables: uBlock filters (with its badware, privacy,
