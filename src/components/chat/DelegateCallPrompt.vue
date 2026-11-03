@@ -55,19 +55,10 @@ async function answerAsync(allow: boolean) {
     failure.value = errString(error)
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
-}
 </script>
 
 <template>
-  <UiDrawerModal
-    v-if="call"
-    :open="true"
-    :title="title"
-    @update:open="onUpdateOpen"
-  >
+  <UiDrawerModal v-if="call" :open="true" :title="title" :dismissible="false">
     <template #content>
       <AgentsCallQuestionDetails
         :question="call.question"

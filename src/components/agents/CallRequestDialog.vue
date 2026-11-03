@@ -33,10 +33,6 @@ async function answerAsync(allow: boolean) {
     failure.value = errString(error)
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
-}
 </script>
 
 <template>
@@ -44,7 +40,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('mcpAgents.call.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <AgentsCallQuestionDetails
