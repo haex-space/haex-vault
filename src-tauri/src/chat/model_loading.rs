@@ -392,12 +392,13 @@ pub(super) async fn load_model_command(
     integrity_override: bool,
     mode: LoadMode,
 ) -> Result<LoadedModelInfo> {
-    // An activation replaces the preload; a chat load leaves it running.
+    let _operation = chat.acquire_operation()?;
+    // An activation replaces the preload; a chat load leaves it running. The lock comes first: a
+    // refused activation must not have cancelled the preload.
     if mode == LoadMode::Activate {
         chat.cancel_preload_and_wait().await;
         emit_model_load_status(&app, &chat);
     }
-    let _operation = chat.acquire_operation()?;
     let (vault_generation, load_id) = chat.begin_model_load();
     let identity = LoadIdentity {
         vault_generation,
