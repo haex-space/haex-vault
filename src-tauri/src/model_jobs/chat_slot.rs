@@ -57,6 +57,12 @@ impl LocalSlot for ChatSlot {
         let chat = self.app.state::<ChatState>();
         let state = self.app.state::<AppState>();
 
+        // The vault-open preload fills the empty slot with the active model: a job that looked
+        // meanwhile would load a second engine next to it. The operation lock is not held while
+        // waiting, the chat stays usable.
+        while chat.preload_running() {
+            tokio::time::sleep(RETRY).await;
+        }
         // The local adapter is shared with the chat. Keep the operation slot until the job's
         // stream ends so a chat turn cannot use it concurrently, even when it is the same model.
         let operation = loop {
