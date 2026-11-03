@@ -1668,6 +1668,7 @@
       "revisionRef": "Tracked branch/tag",
       "install": "Install",
       "installing": "Installing …",
+      "cancel": "Cancel",
       "downloadProgress": "{done} of {total}",
       "installFailed": "Installation failed."
     },

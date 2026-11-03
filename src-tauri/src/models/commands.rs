@@ -30,6 +30,7 @@ use crate::state_utils::active_database;
 use crate::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
 use crate::vault_gate::VaultDb;
 
+use super::cancel::DownloadRegistry;
 use super::{download, hash, huggingface, import, paths};
 
 pub(crate) const EVENT_PROGRESS: &str = "model-download-progress";
@@ -212,6 +213,7 @@ pub async fn download_model_from_catalog(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     catalog_id: String,
 ) -> Result<InstalledModelPayload> {
     let entry =
@@ -234,7 +236,16 @@ pub async fn download_model_from_catalog(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(app, state, chat, args, SourceKind::Catalog, false).await
+    download_from_hf_inner(
+        app,
+        state,
+        chat,
+        downloads,
+        args,
+        SourceKind::Catalog,
+        false,
+    )
+    .await
 }
 
 /// Downloads a model from an arbitrary HuggingFace repo/filename pair
@@ -248,6 +259,7 @@ pub async fn download_model_from_hf(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
 ) -> Result<InstalledModelPayload> {
     huggingface::validate_repo_id(&args.hf_repo)?;
@@ -267,7 +279,16 @@ pub async fn download_model_from_hf(
             reason: "id does not match the id derived from hfRepo/hfFilename".into(),
         });
     }
-    download_from_hf_inner(app, state, chat, args, SourceKind::Huggingface, true).await
+    download_from_hf_inner(
+        app,
+        state,
+        chat,
+        downloads,
+        args,
+        SourceKind::Huggingface,
+        true,
+    )
+    .await
 }
 
 /// Installs the latest checked update for an already-installed free HF
@@ -281,6 +302,7 @@ pub async fn install_huggingface_update(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     model_id: String,
 ) -> Result<InstalledModelPayload> {
     let db = active_database(&state)?;
@@ -322,7 +344,16 @@ pub async fn install_huggingface_update(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(app, state, chat, args, SourceKind::Huggingface, false).await
+    download_from_hf_inner(
+        app,
+        state,
+        chat,
+        downloads,
+        args,
+        SourceKind::Huggingface,
+        false,
+    )
+    .await
 }
 
 /// `check_huggingface_model_updates` (contracts/tauri-commands.md). Only
@@ -391,11 +422,14 @@ async fn download_from_hf_inner(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
     source_kind: SourceKind,
     enforce_too_big: bool,
 ) -> Result<InstalledModelPayload> {
     let _operation = chat.acquire_operation()?;
+    // From here on the person can cancel this download (`cancel_model_download`).
+    let download_slot = downloads.begin(&args.id);
     let db = active_database(&state)?;
     let _publication_lock =
         paths::acquire_model_publication_lock(&app, &args.id, &state.gate().token()).await?;
@@ -462,8 +496,14 @@ async fn download_from_hf_inner(
         &args.hf_filename,
     )?;
 
+    // A cancel during the checks above ends the download before it starts.
+    if download_slot.token().is_cancelled() {
+        return Err(HolziError::ModelDownloadCancelled);
+    }
+
     let app_for_progress = app.clone();
     let model_id_for_progress = args.id.clone();
+    let staging_for_cleanup = staging.clone();
 
     let transfer = download::download_to_file(&url, staging, move |p| {
         let _ = app_for_progress.emit(
@@ -475,7 +515,15 @@ async fn download_from_hf_inner(
             },
         );
     });
-    let downloaded = state.gate().run(transfer).await??;
+    // Cancelling drops the transfer, which stops the request; its partial file goes with it. The
+    // installed file of an update stays as it was: the transfer only wrote to the staging path.
+    let downloaded = tokio::select! {
+        () = download_slot.token().cancelled() => {
+            download::discard_partial(&staging_for_cleanup).await;
+            return Err(HolziError::ModelDownloadCancelled);
+        }
+        result = state.gate().run(transfer) => result??,
+    };
 
     let payload = register_downloaded(RegisterDownloadedArgs {
         db,
@@ -497,6 +545,14 @@ async fn download_from_hf_inner(
 
     let _ = app.emit(EVENT_COMPLETE, &payload);
     Ok(payload)
+}
+
+/// Cancels the running download of `model_id` (catalog, HuggingFace or update): its partial file
+/// is removed and the command that started it ends with `ModelDownloadCancelled`. `false` when no
+/// download of that model runs.
+#[tauri::command]
+pub fn cancel_model_download(downloads: State<'_, DownloadRegistry>, model_id: String) -> bool {
+    downloads.cancel(&model_id)
 }
 
 /// Imports a GGUF the operator chose in the file dialog.

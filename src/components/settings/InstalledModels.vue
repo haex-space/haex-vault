@@ -8,6 +8,7 @@ import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
 const { t } = useI18n()
 const checkUpdates = useActionOrThrow('settings.models.checkUpdates')
 const installUpdate = useActionOrThrow('settings.models.installUpdate')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const deleteModel = useActionOrThrow('settings.models.delete')
 const selectModel = useAction('chat.model.select')
 const decideIntegrity = useAction('chat.modelIntegrity.decide')
@@ -37,7 +38,10 @@ const updateErrorKey = ref<string | null>(null)
 const updateErrorDetail = ref<string | null>(null)
 const installingUpdateId = ref<string | null>(null)
 
+// The row of a running load or delete, and which of the two it is: only the button that was
+// pressed spins, the other one of the row waits disabled.
 const busyModelId = ref<string | null>(null)
+const busyAction = ref<'load' | 'delete' | null>(null)
 const deleteErrorKey = ref<string | null>(null)
 // The store's `lastError` is already display-ready (unlike the i18n keys above):
 // `chat.model.select` runs the store's `loadModel`, so its failure reads like the chat's.
@@ -103,17 +107,30 @@ async function installUpdateForAsync(modelId: string) {
     await reloadAsync()
     await checkUpdatesNowAsync()
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    // A cancelled update is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) {
+      updateErrorKey.value = hfErrorKey(e)
+      updateErrorDetail.value = hfErrorDetail(e)
+    }
   } finally {
     installingUpdateId.value = null
     downloads.clearDownload(modelId)
   }
 }
 
+async function cancelUpdateAsync(modelId: string) {
+  try {
+    await cancelDownload({ modelId })
+  } catch (e) {
+    updateErrorKey.value = hfErrorKey(e)
+    updateErrorDetail.value = hfErrorDetail(e)
+  }
+}
+
 async function deleteModelAsync(id: string) {
   if (!confirm(t('models.installed.deleteConfirm'))) return
   busyModelId.value = id
+  busyAction.value = 'delete'
   deleteErrorKey.value = null
   try {
     await deleteModel({ modelId: id })
@@ -122,6 +139,7 @@ async function deleteModelAsync(id: string) {
     deleteErrorKey.value = hfErrorKey(e)
   } finally {
     busyModelId.value = null
+    busyAction.value = null
   }
 }
 
@@ -129,6 +147,7 @@ async function deleteModelAsync(id: string) {
  * throws; it sets `integrityDialog` (the dialog below) or `lastError`. */
 async function loadModelHereAsync(id: string) {
   busyModelId.value = id
+  busyAction.value = 'load'
   loadErrorMessage.value = null
   try {
     await selectModel({ modelId: id })
@@ -137,6 +156,7 @@ async function loadModelHereAsync(id: string) {
     }
   } finally {
     busyModelId.value = null
+    busyAction.value = null
   }
 }
 
@@ -258,29 +278,41 @@ onMounted(async () => {
         <UiButton
           type="button"
           size="sm"
-          :disabled="activeModelId === model.id"
-          :loading="busyModelId === model.id"
+          :disabled="activeModelId === model.id || busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'load'"
           @click="loadModelHereAsync(model.id)"
         >
           {{ t('models.installed.load') }}
         </UiButton>
-        <UiButton
-          v-if="updateStatuses[model.id]?.updateAvailable"
-          type="button"
-          size="sm"
-          variant="outline"
-          :loading="installingUpdateId === model.id"
-          @click="confirmingUpdate = model"
-        >
-          {{ t('models.update.install') }}
-        </UiButton>
+        <template v-if="updateStatuses[model.id]?.updateAvailable">
+          <UiButton
+            v-if="installingUpdateId === model.id"
+            type="button"
+            size="sm"
+            variant="outline"
+            :data-testid="`models-cancel-update-${model.id}`"
+            @click="cancelUpdateAsync(model.id)"
+          >
+            {{ t('models.filePicker.cancel') }}
+          </UiButton>
+          <UiButton
+            v-else
+            type="button"
+            size="sm"
+            variant="outline"
+            @click="confirmingUpdate = model"
+          >
+            {{ t('models.update.install') }}
+          </UiButton>
+        </template>
         <UiButton
           type="button"
           size="sm"
           variant="ghost"
           :aria-label="`${t('models.installed.delete')}: ${model.name}`"
           :tooltip="t('models.installed.delete')"
-          :loading="busyModelId === model.id"
+          :disabled="busyModelId === model.id"
+          :loading="busyModelId === model.id && busyAction === 'delete'"
           @click="deleteModelAsync(model.id)"
         >
           <Icon name="lucide:trash-2" class="size-4" />

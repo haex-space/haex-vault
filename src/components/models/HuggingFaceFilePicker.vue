@@ -18,6 +18,7 @@ const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 const { detailsAsync, previewInstallAsync } = useHuggingFace()
 const downloadFromHf = useActionOrThrow('settings.models.downloadFromHf')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const downloads = useModelDownloadsStore()
 
 const repoId = computed(
@@ -133,10 +134,22 @@ async function installAsync() {
     router.push('/ai/local')
   } catch (e) {
     downloads.clearDownload(downloadModelId.value)
-    installErrorKey.value = hfErrorKey(e)
-    installErrorDetail.value = hfErrorDetail(e)
+    // A cancelled download is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) {
+      installErrorKey.value = hfErrorKey(e)
+      installErrorDetail.value = hfErrorDetail(e)
+    }
   } finally {
     installing.value = false
+  }
+}
+
+async function cancelAsync() {
+  try {
+    await cancelDownload({ modelId: downloadModelId.value })
+  } catch (e) {
+    installErrorKey.value = hfErrorKey(e)
+    installErrorDetail.value = hfErrorDetail(e)
   }
 }
 
@@ -303,9 +316,18 @@ onMounted(loadDetailsAsync)
           <ModelsDownloadStatus :model-id="downloadModelId" />
 
           <UiButton
+            v-if="installing"
+            type="button"
+            variant="outline"
+            data-testid="models-cancel-download"
+            @click="cancelAsync"
+          >
+            {{ t('models.filePicker.cancel') }}
+          </UiButton>
+          <UiButton
+            v-else
             type="button"
             :disabled="!canInstall"
-            :loading="installing"
             @click="confirmOpen = true"
           >
             {{ t('models.filePicker.install') }}

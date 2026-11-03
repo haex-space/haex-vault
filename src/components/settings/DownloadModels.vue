@@ -8,6 +8,7 @@ import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 
 const { t } = useI18n()
 const downloadCatalog = useActionOrThrow('settings.models.downloadCatalog')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const downloads = useModelDownloadsStore()
 const modelStore = useModelsStore()
 const { installedModels: installed, catalogEntries } = storeToRefs(modelStore)
@@ -74,11 +75,23 @@ async function downloadAsync(entry: CatalogEntryWithFit) {
     await downloadCatalog({ entryId: entry.id })
     await reloadAsync()
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
-    errorDetail.value = hfErrorDetail(e)
+    // A cancelled download is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) {
+      errorKey.value = hfErrorKey(e)
+      errorDetail.value = hfErrorDetail(e)
+    }
   } finally {
     busyModelId.value = null
     downloads.clearDownload(entry.id)
+  }
+}
+
+async function cancelAsync(entry: CatalogEntryWithFit) {
+  try {
+    await cancelDownload({ modelId: entry.id })
+  } catch (e) {
+    errorKey.value = hfErrorKey(e)
+    errorDetail.value = hfErrorDetail(e)
   }
 }
 
@@ -147,9 +160,19 @@ onMounted(reloadAsync)
           </span>
         </template>
         <UiButton
+          v-if="busyModelId === entry.id"
           type="button"
           size="sm"
-          :loading="busyModelId === entry.id"
+          variant="outline"
+          :data-testid="`models-cancel-${entry.id}`"
+          @click="cancelAsync(entry)"
+        >
+          {{ t('models.filePicker.cancel') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
           :data-testid="`models-download-${entry.id}`"
           @click="confirming = entry"
         >

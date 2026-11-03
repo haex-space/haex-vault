@@ -371,6 +371,18 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
+    id: 'settings.models.cancelDownload',
+    description:
+      'Cancel the running download of a chat model; its partial file is removed.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+  }),
+  setting({
     id: 'settings.models.downloadFromHf',
     description:
       'Download a GGUF file from a HuggingFace repository as a model.',
