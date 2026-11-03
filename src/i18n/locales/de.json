@@ -4227,7 +4227,10 @@
       "agent": "Agent",
       "site": {
         "title": "Website öffnen?",
-        "hint": "Diese Website ist für den Agenten nicht erlaubt. Ohne deine Zustimmung lädt der Browser nichts von ihr. Inhalte von Webseiten können versuchen, den Agenten zu lenken."
+        "hint": "Diese Website ist für den Agenten nicht erlaubt. Ohne deine Zustimmung lädt der Browser nichts von ihr. Inhalte von Webseiten können versuchen, den Agenten zu lenken.",
+        "remember": "Für diese Website merken",
+        "site-operate": "Bedienen erlauben",
+        "site-read": "Nur lesen"
       },
       "action": {
         "title": "Handlung im Browser erlauben?",
@@ -4264,7 +4267,6 @@
       "fill": {
         "title": "Anmeldedaten eintragen?",
         "hint": "Der Agent möchte sich auf dieser Website anmelden. holzi trägt Benutzername, Passwort und gegebenenfalls den Einmalcode selbst ein; der Agent sieht keinen davon. Mit „Für diese Website merken“ trägt holzi hier künftig ohne Rückfrage ein, solange nur ein Eintrag passt.",
-        "allow": "Nur diesmal",
         "remember": "Für diese Website merken",
         "choose": "Welcher Eintrag?",
         "entry": "Eintrag",
@@ -4290,9 +4292,6 @@
       "more": "Danach warten noch {count} Fragen.",
       "deny": "Ablehnen",
       "allow": "Erlauben",
-      "allowOnce": "Nur diesmal",
-      "rememberRead": "Merken: lesen",
-      "rememberOperate": "Merken: bedienen",
       "siteLabel": "Website",
       "actionLabel": "Handlung",
       "switchOn": {

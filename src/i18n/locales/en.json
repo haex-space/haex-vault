@@ -4227,7 +4227,10 @@
       "agent": "Agent",
       "site": {
         "title": "Open this website?",
-        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent."
+        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent.",
+        "remember": "Remember for this website",
+        "site-operate": "Allow operating",
+        "site-read": "Read only"
       },
       "action": {
         "title": "Allow this browser action?",
@@ -4264,7 +4267,6 @@
       "fill": {
         "title": "Fill in login details?",
         "hint": "The agent wants to log in on this website. holzi fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” holzi fills here without asking from now on, as long as only one entry matches.",
-        "allow": "Only this time",
         "remember": "Remember for this website",
         "choose": "Which entry?",
         "entry": "Entry",
@@ -4290,9 +4292,6 @@
       "more": "{count} more questions wait after this one.",
       "deny": "Decline",
       "allow": "Allow",
-      "allowOnce": "Only this time",
-      "rememberRead": "Remember: read",
-      "rememberOperate": "Remember: operate",
       "siteLabel": "Website",
       "actionLabel": "Action",
       "switchOn": {
