@@ -2,16 +2,13 @@
 /**
  * "Sprachassistent" under KI → Sprache (spec 066 T045): until the wake word (PR D), the preview
  * switch `assistant.preview` shows the assistant's toggle in the dock and the launcher (operator
- * 2026-11-02). Below it, what the assistant still needs on this device (`assistant_readiness`); a
- * model haex can fetch links to its page, which asks before the download and shows its progress
- * (spec 043 FR-028). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here
- * too, and the language of spoken conversations (`assistant.language`, FR-002a): the interface
- * language unless the user picks another one, for example to practise it. Below, the voice of each
- * language and the speaking rate (`VoiceSetting`, one page with it since operator 2026-11-03).
+ * 2026-11-02). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here too, and
+ * the language of spoken conversations (`assistant.language`, FR-002a): the interface language
+ * unless the user picks another one, for example to practise it. Below, the voices of that language
+ * and the speaking rate (`VoiceSetting`; one page with it and no list of what is missing since
+ * operator 2026-11-03: a voice that is not here shows its own download).
  * Saved on selection (spec 023 FR-021).
  */
-import { invoke } from '@tauri-apps/api/core'
-import { toast } from 'vue-sonner'
 import {
   assistantLabelKey,
   CONVERSATION_LANGUAGE_KEY,
@@ -26,14 +23,6 @@ import {
   PREVIEW_KEY,
 } from '~/lib/assistant/settings'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
-
-type Missing =
-  | 'sttModel'
-  | 'vadModel'
-  | 'wakeWordModel'
-  | 'voice'
-  | 'chatModel'
-  | 'microphone'
 
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
@@ -78,35 +67,14 @@ const pauseLabel = computed(() =>
   }),
 )
 const loading = ref(true)
-/** The settings could not be read (shown as a toast); the page then shows no controls. */
-const loadFailed = ref(false)
+const loadError = ref<string | null>(null)
 const saving = ref(false)
 const savedFlash = ref(false)
-/** What is missing; the wake word is left out, the preview does without it. */
-const missing = ref<Missing[] | null>(null)
-
-/** The page that fetches a missing piece. */
-const PAGE: Partial<Record<Missing, string>> = {
-  sttModel: '/ai/speech',
-  chatModel: '/ai/local',
-}
-
-async function loadReadinessAsync() {
-  try {
-    const readiness = await invoke<{ missing: Missing[] }>(
-      'assistant_readiness',
-      { language: spokenLanguage(conversationLanguage.value, locale.value) },
-    )
-    missing.value = readiness.missing.filter((m) => m !== 'wakeWordModel')
-  } catch {
-    // Builds without `voice` have no assistant to get ready.
-    missing.value = null
-  }
-}
+const opError = ref<string | null>(null)
 
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadFailed.value = false
+  loadError.value = null
   try {
     const [shown, pause, language] = await Promise.all([
       getPrefAsync(scope.value, PREVIEW_KEY),
@@ -116,10 +84,8 @@ async function reloadAsync(quiet = false) {
     preview.value = parsePreview(shown)
     pauseMs.value = parsePause(pause)
     conversationLanguage.value = parseConversationLanguage(language)
-    await loadReadinessAsync()
   } catch (e) {
-    loadFailed.value = true
-    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
+    loadError.value = errString(e)
   } finally {
     loading.value = false
   }
@@ -129,13 +95,14 @@ async function toggleAsync(next: boolean) {
   preview.value = next
   saving.value = true
   savedFlash.value = false
+  opError.value = null
   try {
     await assistant.setPreviewAsync(next)
     savedFlash.value = true
   } catch (e) {
-    toast.error(
-      t('settings.assistantPage.saveFailed', { reason: errString(e) }),
-    )
+    opError.value = t('settings.assistantPage.saveFailed', {
+      reason: errString(e),
+    })
   } finally {
     saving.value = false
   }
@@ -144,14 +111,15 @@ async function toggleAsync(next: boolean) {
 async function savePauseAsync() {
   saving.value = true
   savedFlash.value = false
+  opError.value = null
   try {
     // action-exempt: how long the assistant waits is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, PAUSE_KEY, String(pauseMs.value))
     savedFlash.value = true
   } catch (e) {
-    toast.error(
-      t('settings.assistantPage.saveFailed', { reason: errString(e) }),
-    )
+    opError.value = t('settings.assistantPage.saveFailed', {
+      reason: errString(e),
+    })
   } finally {
     saving.value = false
   }
@@ -170,7 +138,6 @@ async function saveLanguageAsync(value: string) {
       conversationLanguage.value,
     )
     savedFlash.value = true
-    await loadReadinessAsync()
   } catch (e) {
     opError.value = t('settings.assistantPage.saveFailed', {
       reason: errString(e),
@@ -192,7 +159,11 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <template v-if="!loading && !loadFailed">
+    <p v-if="loadError" class="text-sm text-destructive" role="alert">
+      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
+    </p>
+
+    <template v-if="!loading && !loadError">
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.preview'))"
@@ -246,30 +217,13 @@ onVaultTablesChanged(['preferences'], () => {
         </SettingsRow>
       </SettingsGroup>
 
-      <SettingsGroup
-        v-if="missing !== null"
-        :label="t('settings.assistantPage.readiness')"
-      >
-        <SettingsRow
-          v-if="missing.length === 0"
-          :title="t('settings.assistantPage.ready')"
-          data-testid="settings-assistant-ready"
-        />
-        <SettingsRow
-          v-for="item in missing"
-          :key="item"
-          :title="t(`settings.assistantPage.missing.${item}`)"
-          :to="PAGE[item]"
-          :data-testid="`settings-assistant-missing-${item}`"
-        />
-      </SettingsGroup>
-
       <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
         {{ t('settings.assistantPage.saved') }}
       </p>
-      <h2 class="px-1 text-sm font-semibold">
-        {{ t('settings.assistantPage.voiceHeading') }}
-      </h2>
+      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
+        {{ opError }}
+      </p>
+
       <SettingsAssistantVoiceSetting
         :language="spokenLanguage(conversationLanguage, locale)"
       />

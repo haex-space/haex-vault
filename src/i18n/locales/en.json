@@ -1573,21 +1573,10 @@
       "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
       "saved": "Saved",
-      "readiness": "Still missing",
-      "ready": "All set: you can start a conversation.",
-      "missing": {
-        "sttModel": "Speech recognition model",
-        "vadModel": "Pause detection",
-        "wakeWordModel": "Wake word (comes with a later version)",
-        "voice": "Voice model for this language",
-        "chatModel": "AI model",
-        "microphone": "Microphone"
-      },
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
       "languageUi": "Same as the interface ({language})",
-      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
-      "voiceHeading": "Voice"
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language."
     }
   },
   "models": {
