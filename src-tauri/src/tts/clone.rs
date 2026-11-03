@@ -139,11 +139,10 @@ pub fn analyse(samples: &[f32], sample_rate: u32) -> Analysis {
     if near_full as f64 > CLIP_SHARE * kept.len() as f64 {
         problems.push(Problem::Clipped);
     }
-    let mut pauses: Vec<f32> = levels
-        .iter()
-        .zip(&is_speech)
-        .filter(|(_, speech)| !**speech)
-        .map(|(level, _)| *level)
+    // Only the pauses of the kept part: noise after a cut does not reach the voice.
+    let mut pauses: Vec<f32> = (start_frame..end_frame)
+        .filter(|i| !is_speech[*i])
+        .map(|i| levels[i])
         .collect();
     if pauses.len() as f64 * FRAME_SECS >= MIN_PAUSE_SECS
         && speech_level - median(&mut pauses) < MIN_SNR_DB

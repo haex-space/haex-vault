@@ -109,6 +109,18 @@ fn noisy_pauses_are_noisy() {
 }
 
 #[test]
+fn noise_after_the_kept_speech_does_not_make_it_noisy() {
+    // Clean speech, then minutes of noise of about −16 dBFS that is cut off with the silent end.
+    let mut samples = recording(&spoken(10, 1.5), 0.6, 0.001);
+    let clean = samples.len();
+    let mut source = Noise(11);
+    samples.extend((0..RATE as usize * 220).map(|_| source.next(0.274)));
+    let analysis = analyse(&samples, RATE);
+    assert!(analysis.keep.end <= clean, "{:?}", analysis.keep);
+    assert!(analysis.ok(), "{:?}", analysis.problems);
+}
+
+#[test]
 fn silence_has_no_speech() {
     let analysis = analyse(&vec![0.0; RATE as usize * 5], RATE);
     assert_eq!(analysis.problems, vec![Problem::TooShort]);

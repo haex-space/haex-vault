@@ -125,6 +125,8 @@ mod imp {
 
     enum Stage {
         Recording(SharedCapture),
+        /// A file is read and checked; it holds the slot so an older import cannot take it.
+        Reading,
         Ready {
             samples: Vec<f32>,
             sample_rate: u32,
@@ -145,6 +147,38 @@ mod imp {
         fn lock(&self) -> std::sync::MutexGuard<'_, Option<Session>> {
             self.0.lock().unwrap_or_else(|e| e.into_inner())
         }
+
+        /// Makes `next` the one session. A recording it replaces ends here: its microphone goes
+        /// at once and its level task stops at the next tick.
+        fn replace(&self, next: Session) {
+            let previous = self.lock().replace(next);
+            release(previous);
+        }
+
+        /// Ends session `id` unless a newer one replaced it.
+        fn end(&self, id: Uuid) {
+            let ended = {
+                let mut sessions = self.lock();
+                if sessions.as_ref().is_some_and(|s| s.id == id) {
+                    sessions.take()
+                } else {
+                    None
+                }
+            };
+            release(ended);
+        }
+    }
+
+    /// Drops the capture of a recording session. Takes the capture's lock only after the
+    /// registry's is released, as the level task does.
+    fn release(session: Option<Session>) {
+        if let Some(Session {
+            stage: Stage::Recording(shared),
+            ..
+        }) = session
+        {
+            drop(shared.lock().unwrap_or_else(|e| e.into_inner()).take());
+        }
     }
 
     fn not_a_session() -> HolziError {
@@ -162,15 +196,17 @@ mod imp {
         };
         let id = Uuid::new_v4();
         let shared: SharedCapture = Arc::new(Mutex::new(Some(capture)));
-        // A session that was still recording ends here: its capture is dropped with it.
-        *app.state::<CloneSessions>().lock() = Some(Session {
+        // A session that was still recording ends here, its microphone with it.
+        app.state::<CloneSessions>().replace(Session {
             id,
             stage: Stage::Recording(shared.clone()),
         });
         let token = state.gate().token();
-        let app = app.clone();
-        state.gate().spawn(async move {
+        let handle = app.clone();
+        let started = state.gate().spawn(async move {
+            let app = handle;
             let mut speech_secs = 0.0;
+            let mut last_recorded = 0.0;
             loop {
                 tokio::select! {
                     () = token.cancelled() => {
@@ -180,14 +216,21 @@ mod imp {
                     }
                     () = tokio::time::sleep(LEVEL_EVERY) => {}
                 }
-                let tail = {
+                let (tail, recorded) = {
                     let guard = shared.lock().unwrap_or_else(|e| e.into_inner());
                     match &*guard {
-                        Some(capture) => capture.tail(LEVEL_EVERY.as_secs_f32()).0,
+                        Some(capture) => capture.tail(LEVEL_EVERY.as_secs_f32()),
                         None => return,
                     }
                 };
-                let (level, speech) = live_level(&tail);
+                // Past the recording cap nothing new arrives: no level, no more speech.
+                let grew = recorded > last_recorded;
+                last_recorded = recorded;
+                let (level, speech) = if grew {
+                    live_level(&tail)
+                } else {
+                    (0.0, false)
+                };
                 if speech {
                     speech_secs += LEVEL_EVERY.as_secs_f64();
                 }
@@ -200,7 +243,12 @@ mod imp {
                     },
                 );
             }
-        })?;
+        });
+        if let Err(error) = started {
+            // The vault closes: the recording ends before it began.
+            app.state::<CloneSessions>().end(id);
+            return Err(error);
+        }
         Ok(id)
     }
 
@@ -231,7 +279,7 @@ mod imp {
         let registry = app.state::<CloneSessions>();
         let mut sessions = registry.lock();
         // A newer session may have started meanwhile; this one is then gone.
-        if sessions.as_ref().is_none_or(|s| s.id == id) {
+        if sessions.as_ref().is_some_and(|s| s.id == id) {
             *sessions = Some(Session {
                 id,
                 stage: Stage::Ready {
@@ -279,16 +327,30 @@ mod imp {
     ) -> Result<CloneCheck> {
         use crate::assistant::custom_tones::decode;
         let id = Uuid::new_v4();
-        // A recording that still runs ends: one session at a time.
-        *app.state::<CloneSessions>().lock() = None;
-        let sound = state
+        // A recording that still runs ends: one session at a time. The slot names this import, so
+        // an older one that finishes later cannot take it.
+        let registry = app.state::<CloneSessions>();
+        registry.replace(Session {
+            id,
+            stage: Stage::Reading,
+        });
+        let decoded = match state
             .gate()
-            .spawn_blocking(move || decode(bytes, extension.as_deref()))?
-            .await
-            .map_err(|e| HolziError::SpeechFailed {
+            .spawn_blocking(move || decode(bytes, extension.as_deref()))
+        {
+            Ok(task) => task.await.map_err(|e| HolziError::SpeechFailed {
                 reason: format!("read the audio file: {e}"),
-            })?
-            .map_err(|_| super::invalid("unsupported"))?;
+            }),
+            Err(error) => Err(error),
+        }
+        .and_then(|decoded| decoded.map_err(|_| super::invalid("unsupported")));
+        let sound = match decoded {
+            Ok(sound) => sound,
+            Err(error) => {
+                registry.end(id);
+                return Err(error);
+            }
+        };
         let (samples, rate) = if sound.sample_rate > super::STORED_RATE_MAX {
             (
                 crate::audio::resample::resample_linear(
@@ -331,11 +393,7 @@ mod imp {
 
     /// Ends session `id` once its voice is kept.
     pub fn end(app: &AppHandle, id: Uuid) {
-        let registry = app.state::<CloneSessions>();
-        let mut sessions = registry.lock();
-        if sessions.as_ref().is_some_and(|s| s.id == id) {
-            *sessions = None;
-        }
+        app.state::<CloneSessions>().end(id);
     }
 }
 

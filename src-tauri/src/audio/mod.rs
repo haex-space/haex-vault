@@ -165,6 +165,22 @@ pub fn has_input_device() -> bool {
     cpal::default_host().default_input_device().is_some()
 }
 
+/// The last `secs` of an interleaved device buffer at `rate` with `channels`, mixed to mono, and
+/// how many seconds it holds ([`Capture::tail`]).
+pub(crate) fn interleaved_tail(
+    buf: &[f32],
+    rate: u32,
+    channels: u16,
+    secs: f32,
+) -> (Vec<f32>, f64) {
+    let width = usize::from(channels.max(1));
+    let rate = rate.max(1);
+    let want = (secs * rate as f32) as usize * width;
+    let tail = &buf[buf.len().saturating_sub(want)..];
+    let recorded = (buf.len() / width) as f64 / f64::from(rate);
+    (downmix_to_mono(tail, channels), recorded)
+}
+
 impl Capture {
     /// Starts microphone capture immediately on the default input device.
     /// Returns once the stream is confirmed playing (or failed); capture
@@ -248,13 +264,8 @@ impl Capture {
     pub fn tail(&self, secs: f32) -> (Vec<f32>, f64) {
         match &self.kind {
             CaptureKind::Device(device) => {
-                let channels = usize::from(device.channels.max(1));
-                let rate = device.input_rate.max(1);
                 let buf = device.raw_buffer.lock().unwrap_or_else(|e| e.into_inner());
-                let want = (secs * rate as f32) as usize * channels;
-                let tail = &buf[buf.len().saturating_sub(want)..];
-                let recorded = (buf.len() / channels) as f64 / f64::from(rate);
-                (downmix_to_mono(tail, device.channels), recorded)
+                interleaved_tail(&buf, device.input_rate, device.channels, secs)
             }
             CaptureKind::Stream(stream) => {
                 stream.collect();
