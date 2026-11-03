@@ -81,12 +81,15 @@ pub(crate) async fn deactivate(
     state: &State<'_, AppState>,
     chat: &ChatState,
 ) -> Result<()> {
+    // The guard and the stored choice come first: a refused call, or a failed write, leaves the
+    // preload, the tool check and the loaded model as they were.
+    let _operation = chat.acquire_operation()?;
+    remember_active_local_model(state, None).await?;
     chat.cancel_tool_check();
     chat.cancel_preload_and_wait().await;
     emit_model_load_status(app, chat);
-    let _operation = chat.acquire_operation()?;
     chat.replace_local_model(None);
-    remember_active_local_model(state, None).await
+    Ok(())
 }
 
 /// The active local model, `None` when no local model is loaded.
