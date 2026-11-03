@@ -49,7 +49,8 @@ const rate = ref<number>(SPEECH_RATE.default)
 const shownVoices = computed(() => voicesOf(props.language))
 
 const loading = ref(true)
-const loadError = ref<string | null>(null)
+/** The settings could not be read (shown as a toast); the page then shows no controls. */
+const loadFailed = ref(false)
 const saving = ref(false)
 /** The voice whose sample is being prepared or plays. */
 const previewing = ref<string | null>(null)
@@ -93,7 +94,7 @@ function voiceLine(voice: VoiceOption): string {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [list, storedRate, ...stored] = await Promise.all([
       listAsync(),
@@ -115,7 +116,8 @@ async function reloadAsync(quiet = false) {
       }),
     )
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -205,11 +207,7 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup
         radio
         :label="

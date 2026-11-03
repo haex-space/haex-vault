@@ -68,12 +68,13 @@ const pauseLabel = computed(() =>
   }),
 )
 const loading = ref(true)
-const loadError = ref<string | null>(null)
+/** The settings could not be read (shown as a toast); the page then shows no controls. */
+const loadFailed = ref(false)
 const saving = ref(false)
 
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [shown, pause, language] = await Promise.all([
       getPrefAsync(scope.value, PREVIEW_KEY),
@@ -84,7 +85,8 @@ async function reloadAsync(quiet = false) {
     pauseMs.value = parsePause(pause)
     conversationLanguage.value = parseConversationLanguage(language)
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -158,11 +160,7 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.preview'))"

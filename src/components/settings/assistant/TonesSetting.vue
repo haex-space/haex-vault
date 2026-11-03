@@ -45,7 +45,8 @@ const scope = computed(() => ({
 const enabled = ref(true)
 const volume = ref<number>(TONES_VOLUME.default)
 const loading = ref(true)
-const loadError = ref<string | null>(null)
+/** The settings could not be read (shown as a toast); the page then shows no controls. */
+const loadFailed = ref(false)
 const saving = ref(false)
 /** The tone (or own tone id) whose sample sounds. */
 const playing = ref<string | null>(null)
@@ -110,7 +111,7 @@ function description(tone: ToneId): string {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
+  loadFailed.value = false
   try {
     const [storedEnabled, storedVolume] = await Promise.all([
       getPrefAsync(scope.value, TONES_ENABLED_KEY),
@@ -128,7 +129,8 @@ async function reloadAsync(quiet = false) {
       assigned.value = {}
     }
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -247,11 +249,7 @@ onVaultTablesChanged(['preferences', 'haex_assistant_tones'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
-    <template v-if="!loading && !loadError">
+    <template v-if="!loading && !loadFailed">
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.tones.enabled'))"
