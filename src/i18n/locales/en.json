@@ -4172,7 +4172,13 @@
       "invalid": "This is not an https or http website.",
       "hint": "A website over unencrypted http can only be read. Other websites ask before they open.",
       "forgetFill": "Forget login",
-      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time."
+      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time.",
+      "requestRule": "Requests to {site}",
+      "requestHint": "Requests the pages send to this website, without asking.",
+      "request": {
+        "allow": "Sent",
+        "deny": "Refused"
+      }
     },
     "extensions": {
       "title": "Extensions",
@@ -4232,6 +4238,11 @@
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
         "fields": "What would be sent",
         "body": "Content"
+      },
+      "request": {
+        "title": "Send the page's request?",
+        "hint": "The page itself wants to send something to this website, such as a measurement or a form. This is not an action of the agent. Nothing is sent without your consent.",
+        "remember": "Remember for this website"
       },
       "newTab": {
         "title": "Open a new tab?",

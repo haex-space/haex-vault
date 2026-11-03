@@ -13,7 +13,8 @@
  * user picks one and may remember the website for later fills (FR-021). An entry fill
  * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
  * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
- * A new login
+ * A request the page itself sends (`request`, FR-044) says so, shows the website it goes to and
+ * what it sends; one checkbox "Für diese Website merken" turns the answer into a rule. A new login
  * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
  * holzi generated and already entered, "Ablehnen" empties the fields again.
  */
@@ -38,6 +39,14 @@ const toolTitle = computed(() => {
   return def ? t(def.titleKey) : tool
 })
 const chosenEntry = ref<string | null>(null)
+/** "Für diese Website merken" of a page request (FR-044). */
+const rememberRequest = ref(false)
+/** What an answer remembers: only a page request has the checkbox. */
+function remembered(): Remember | undefined {
+  return question.value?.kind === 'request' && rememberRequest.value
+    ? 'request'
+    : undefined
+}
 /** The rows of an entry fill the user deselected. */
 const skipped = ref<Set<string>>(new Set())
 const choosesEntry = computed(
@@ -96,11 +105,15 @@ watch(
     const entries = question.value?.entries ?? []
     chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
     skipped.value = new Set()
+    rememberRequest.value = false
   },
   { immediate: true },
 )
 
-async function answerAsync(allow: boolean, remember?: Remember) {
+async function answerAsync(
+  allow: boolean,
+  remember: Remember | undefined = remembered(),
+) {
   const asked = shown.value
   if (!asked) return
   const kind = asked.question.kind
@@ -294,6 +307,16 @@ async function answerAsync(allow: boolean, remember?: Remember) {
             </template>
           </dl>
         </div>
+        <label
+          v-if="question.kind === 'request'"
+          class="flex items-center gap-2 text-sm"
+        >
+          <ShadcnCheckbox
+            v-model="rememberRequest"
+            data-testid="agent-browser-prompt-remember-request"
+          />
+          {{ t('agentBrowser.prompt.request.remember') }}
+        </label>
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
         </p>

@@ -24,7 +24,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::state::FilesState;
 use crate::mcp_server::grants::{
-    validate, BrowserRights, PasswordRights, Rights, SiteGrant, SiteLevel,
+    validate, BrowserRights, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
 };
 use crate::mcp_server::registry;
 use crate::passwords::service::PasswordsService;
@@ -47,7 +47,7 @@ pub const BUILTIN_PASSWORDS_KEY: &str = "agent_browser.builtin_passwords";
 const TABLE: &str = "haex_agent_browser_no_sync";
 
 /// The open vault's device.
-async fn device<R: Runtime>(app: &AppHandle<R>) -> Result<Uuid, String> {
+pub(super) async fn device<R: Runtime>(app: &AppHandle<R>) -> Result<Uuid, String> {
     let state = app.state::<AppState>();
     crate::mcp_server::commands::open_device(app, &state)
         .await
@@ -417,6 +417,20 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             }
             _ => Err("not an agent".to_owned()),
         }
+    }
+
+    async fn remember_request(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        rule: RequestRule,
+    ) -> Result<(), String> {
+        let site = site.clone();
+        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
+            rights.requests.insert(site, rule);
+            true
+        })
+        .await
     }
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {

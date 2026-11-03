@@ -102,6 +102,35 @@ impl SiteLevel {
     }
 }
 
+/// What an agent's browser does with a request a page sends to a website, without asking
+/// (spec 065 FR-044): the user's "Für diese Website merken".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum RequestRule {
+    /// Send it.
+    Allow,
+    /// Refuse it.
+    Deny,
+}
+
+impl RequestRule {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny => "deny",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "allow" => Some(Self::Allow),
+            "deny" => Some(Self::Deny),
+            _ => None,
+        }
+    }
+}
+
 /// One allowed website.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -124,6 +153,10 @@ pub struct BrowserRights {
     #[serde(default)]
     #[ts(as = "BTreeMap<String, SiteGrant>")]
     pub sites: BTreeMap<Site, SiteGrant>,
+    /// Rules for the requests a page sends to a website (FR-044), by the website they go to.
+    #[serde(default)]
+    #[ts(as = "BTreeMap<String, RequestRule>")]
+    pub requests: BTreeMap<Site, RequestRule>,
 }
 
 /// The scopes of the group `passwords`: the search and the single secret.

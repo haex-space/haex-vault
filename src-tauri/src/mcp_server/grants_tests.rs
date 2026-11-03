@@ -208,6 +208,7 @@ fn browser(sites: &[(&str, SiteLevel)]) -> BrowserRights {
                 )
             })
             .collect(),
+        ..Default::default()
     }
 }
 

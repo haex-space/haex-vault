@@ -160,6 +160,7 @@ async fn rights_round_trip_and_are_replaced() {
             )]
             .into_iter()
             .collect(),
+            ..Default::default()
         }),
         passwords: Some(super::grants::PasswordRights {
             level: super::grants::PasswordLevel::Read,
