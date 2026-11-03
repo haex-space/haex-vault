@@ -8,6 +8,7 @@
  * credential. The switch and lifting a block go through guardrail actions
  * (`settings.agents.mcp.*`), which no agent can call.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
@@ -28,7 +29,6 @@ const status = ref<McpStatus | null>(null)
 const snippets = ref<Snippets>({})
 const httpSnippets = ref<Snippets>({})
 const busy = ref(false)
-const failure = ref<string | null>(null)
 const agents = ref<AgentView[]>([])
 const now = ref(Date.now())
 const ticker = setInterval(() => {
@@ -46,7 +46,6 @@ const available = computed(() => status.value?.state !== 'notAvailable')
 async function reloadAsync() {
   try {
     status.value = await invoke<McpStatus>('mcp_status')
-    failure.value = null
     if (status.value.state === 'noVault' || !available.value) return
     agents.value = await invoke<AgentView[]>('mcp_agents_list')
     now.value = Date.now()
@@ -57,7 +56,7 @@ async function reloadAsync() {
     httpSnippets.value =
       status.value.httpPort != null ? await snippetsOfAsync('http') : {}
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -80,7 +79,7 @@ async function toggleAsync(enabled: boolean) {
   try {
     status.value = (await setEnabled({ enabled })) as McpStatus
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     await reloadAsync()
   } finally {
     busy.value = false
@@ -91,7 +90,7 @@ async function unblockAsync(agent: AgentView) {
   try {
     await unblock({ agentId: agent.id })
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
 }
@@ -164,9 +163,5 @@ watch(() => store.changes, reloadAsync)
       :hint="t('mcpAgents.setup.httpHint', { port: status.httpPort })"
       way="http"
     />
-
-    <p v-if="failure" class="px-1 text-xs text-destructive" role="alert">
-      {{ failure }}
-    </p>
   </section>
 </template>

@@ -10,6 +10,7 @@
  * and declining is never remembered: "Rechte festlegen" asks again.
  * Rust checks the rights again; rights it refuses count as declining.
  */
+import { toast } from 'vue-sonner'
 import {
   passwordsComplete,
   rightsDraftOf,
@@ -30,13 +31,11 @@ const draft = ref<RightsDraft>(rightsDraftOf(null))
 const complete = computed(() => passwordsComplete(draft.value.passwords))
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
-const failure = ref<string | null>(null)
 
 watch(
   () => store.shown?.requestId,
   () => {
     const asked = question.value
-    failure.value = null
     remember.value = false
     if (!asked) return
     draft.value = rightsDraftOf(asked.rights)
@@ -57,7 +56,7 @@ async function answerAsync(register: boolean) {
       mode: mode.value,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -139,9 +138,6 @@ function onUpdateOpen(open: boolean) {
           />
           {{ t('mcpAgents.registration.remember') }}
         </label>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </div>
     </template>
     <template #footer>

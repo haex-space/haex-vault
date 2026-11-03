@@ -77,6 +77,22 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
               description:
                 'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } } }.',
             },
+            passwords: {
+              type: 'object',
+              nullable: true,
+              description:
+                'The rights group "passwords": { level: "read" | "readWrite", tags: null for every entry or the tag names, defaultTag }.',
+            },
+            extensions: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'The ids of the installed extensions whose tools the agent sees.',
+            },
+            commands: {
+              type: 'boolean',
+              description: 'The rights group "Befehle ausführen".',
+            },
           },
           required: ['operate'],
         },

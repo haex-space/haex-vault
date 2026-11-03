@@ -13,6 +13,7 @@ import {
   type TitleOf,
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
+import { validate } from '../src/lib/actions/schema.ts'
 import { ACTION_SCOPE_IDS } from '../src/lib/actions/scopes.ts'
 import {
   passwordsComplete,
@@ -26,6 +27,11 @@ import { draftOf, type GrantDraft } from '../src/lib/browserBridgeGrant.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
+
+/** `vue-sonner` for a page under test: each error toast lands in `errors`. */
+function toastDouble(errors: string[]) {
+  return { toast: { error: (message: string) => errors.push(message) } }
+}
 
 /** A draft of `operate`, with the other groups changed as given. */
 function draft(
@@ -169,6 +175,36 @@ test('the group commands is kept with the other rights, and off is left out (spe
   assert.deepEqual(rightsOf(draft({}, { commands: false })), { operate: {} })
 })
 
+test('the agent page can save every rights group through its action (spec 021 FR-008)', () => {
+  const action = ALL_ACTIONS.find(
+    (a) => a.id === 'settings.agents.mcp.grants.set',
+  )
+  assert.ok(action, 'settings.agents.mcp.grants.set is in the catalog')
+  const rights = rightsOf(
+    draft(
+      { 'wm.read': 'read' },
+      {
+        browser: {
+          userBrowser: true,
+          sites: {
+            'https://example.org': { level: 'read', fillRemembered: false },
+          },
+        },
+        passwords: { level: 'readWrite', tags: ['dev'], defaultTag: 'dev' },
+        extensions: ['0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'],
+        commands: true,
+      },
+    ),
+  )
+  assert.deepEqual(
+    validate(action.input, {
+      agentId: '1f6a2b3c-0d4e-4f5a-8b6c-7d8e9f0a1b2c',
+      rights,
+    }),
+    { ok: true },
+  )
+})
+
 test('an incomplete password tag selection revokes access instead of retaining all entries', () => {
   for (const tags of [[], [' ', '\t']]) {
     const passwords = { level: 'read' as const, tags }
@@ -286,6 +322,7 @@ test('registration cannot approve an incomplete password tag draft', async () =>
     {
       imports: {
         '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        'vue-sonner': toastDouble([]),
       },
       useErrorString: () => ({ errString: String }),
       useMcpAgentsStore: () => ({
@@ -322,6 +359,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
   }
   let failSave = false
   const route = reactive({ params: { agentId: 'agent' } })
+  const toasts: string[] = []
   const detail = loadScriptSetup<{
     draft: { value: RightsDraft }
     onDraft: (draft: RightsDraft) => void
@@ -336,6 +374,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
         '@tauri-apps/api/core': {
           invoke: async () => ({ id: route.params.agentId, rights: saved }),
         },
+        'vue-sonner': toastDouble(toasts),
       },
       useErrorString: () => ({ errString: String }),
       useTabRouter: () => ({ route }),
@@ -380,6 +419,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
     ['bank'],
     'a failed revocation restores the actual grant',
   )
+  assert.deepEqual(toasts, ['Error: save failed'], 'the failure is a toast')
   failSave = false
   onPasswords({ level: 'read', tags: [] })
   await detail.settled()
