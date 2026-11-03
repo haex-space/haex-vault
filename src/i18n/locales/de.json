@@ -1010,7 +1010,6 @@
       "exportFile": "Exportieren",
       "imported": "Darstellung importiert.",
       "exported": "Darstellung gespeichert.",
-      "saved": "Gespeichert.",
       "invalid": "Ungültige Auswahl: {field}",
       "failed": "Die Darstellung konnte nicht gespeichert werden.",
       "import": {
