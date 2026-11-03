@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
  * The voice part of "Sprachassistent" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030;
- * one page since operator 2026-11-03): the speaking rate, then one tab per language, opened at the
- * language of conversations (`language`). A tab shows the speech model of that language, with the same download row as
- * the chat and speech recognition models (button, question before the download, progress behind
- * the row, "x of y" line), and below it the voices of the language with a sample each. A sample
- * needs the speech model, so it waits until the model is here; downloading is its own action
- * (clarification 2026-09-26 of spec 023). Both choices are device preferences, saved on selection
+ * one page since operator 2026-11-03): the speaking rate, then the voices of the language of
+ * conversations (`language`), each its own row (operator 2026-11-03: no tabs, no separate speech
+ * model row). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
+ * and "Laden", with the same question before the download and the progress behind its row as the
+ * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
+ * sharing a speech model are ready together. Both choices are device preferences, saved on selection
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
  * rate.
  */
@@ -25,7 +25,7 @@ import type { VoiceOption } from '~/composables/useTtsVoices'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
 const props = defineProps<{
-  /** The language of conversations; its tab opens and follows a new choice. */
+  /** The language of conversations, whose voices are shown. */
   language: SpeechLanguage
 }>()
 
@@ -45,14 +45,8 @@ const voices = ref<VoiceOption[]>([])
 /** The chosen `VoiceRef` per language; a missing or unknown preference shows the default. */
 const chosen = ref<Partial<Record<SpeechLanguage, string>>>({})
 const rate = ref<number>(SPEECH_RATE.default)
-/** The open tab: the language of conversations; the other tabs stay reachable. */
-const tab = ref<SpeechLanguage>(props.language)
-watch(
-  () => props.language,
-  (language) => {
-    tab.value = language
-  },
-)
+/** The voices shown: those of the language of conversations. */
+const shownVoices = computed(() => voicesOf(props.language))
 
 const loading = ref(true)
 /** The settings could not be read (shown as a toast); the page then shows no controls. */
@@ -67,14 +61,6 @@ const downloadingId = ref<string | null>(null)
 function voicesOf(language: SpeechLanguage): VoiceOption[] {
   return voices.value.filter((voice) => voice.language === language)
 }
-
-/** The speech model of a language, as its voices describe it (they all share one). */
-function modelOf(language: SpeechLanguage): VoiceOption | undefined {
-  return voicesOf(language)[0]
-}
-
-/** The speech model of the open tab. */
-const model = computed(() => modelOf(tab.value))
 
 /** The language in the words of the interface language ("Französisch", "French"). */
 function languageName(language: SpeechLanguage): string {
@@ -92,12 +78,18 @@ const rateLabel = computed(() =>
   }),
 )
 
-/** Size and fit of a speech model that is not here yet. */
-function availableLine(entry: VoiceOption): string {
-  return t('settings.voice.model.available', {
-    size: humanBytes(entry.sizeBytes),
-    fit: t(`models.filePicker.fit.${entry.fit}`),
-  })
+/** What a voice row says under its name: default or not, and size and fit while it is not here. */
+function voiceLine(voice: VoiceOption): string {
+  const parts: string[] = []
+  if (voice.isDefault) parts.push(t('settings.voice.default'))
+  if (!voice.installed)
+    parts.push(
+      t('settings.voice.model.available', {
+        size: humanBytes(voice.sizeBytes),
+        fit: t(`models.filePicker.fit.${voice.fit}`),
+      }),
+    )
+  return parts.join(' · ')
 }
 
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
@@ -239,119 +231,75 @@ onVaultTablesChanged(['preferences'], () => {
         </SettingsRow>
       </SettingsGroup>
 
-      <ShadcnTabs
-        :model-value="tab"
-        @update:model-value="tab = $event as SpeechLanguage"
+      <SettingsGroup
+        radio
+        :label="
+          t('settings.voice.voicesOf', { language: languageName(language) })
+        "
+        :model-value="chosen[language]"
+        :disabled="saving"
+        :data-testid="`settings-voice-${language}`"
+        @update:model-value="chooseVoiceAsync(language, String($event))"
       >
-        <div class="overflow-x-auto">
-          <ShadcnTabsList :aria-label="t('settings.voice.languages')">
-            <ShadcnTabsTrigger
-              v-for="tabLanguage in SPEECH_LANGUAGES"
-              :key="tabLanguage"
-              :value="tabLanguage"
-              :data-testid="`settings-voice-tab-${tabLanguage}`"
-            >
-              {{ languageName(tabLanguage) }}
-            </ShadcnTabsTrigger>
-          </ShadcnTabsList>
-        </div>
-      </ShadcnTabs>
-
-      <div
-        v-if="model"
-        :key="tab"
-        class="flex flex-col gap-6"
-        :data-testid="`settings-voice-${tab}`"
-      >
-        <SettingsGroup>
-          <SettingsRow
-            :title="t('settings.voice.model.title')"
-            :data-testid="`settings-voice-model-${tab}`"
-          >
-            <template #backdrop>
-              <ModelsDownloadBar :model-id="model.modelId" />
-            </template>
-            <template #description>
-              <span class="flex flex-col">
-                <span>
-                  {{
-                    model.installed
-                      ? t('settings.voice.model.ready')
-                      : availableLine(model)
-                  }}
-                </span>
-                <ModelsDownloadStatus :model-id="model.modelId" />
-              </span>
-            </template>
+        <SettingsOptionRow
+          v-for="voice in shownVoices"
+          :key="voice.ref"
+          type="radio"
+          :value="voice.ref"
+          :title="voice.name"
+          :disabled="!voice.installed"
+          :data-testid="`settings-voice-option-${voice.ref}`"
+        >
+          <template #backdrop>
+            <ModelsDownloadBar :model-id="voice.modelId" />
+          </template>
+          <template #description>
+            <span class="flex flex-col">
+              <span v-if="voiceLine(voice)">{{ voiceLine(voice) }}</span>
+              <ModelsDownloadStatus :model-id="voice.modelId" />
+            </span>
+          </template>
+          <template #trailing>
             <UiButton
-              v-if="!model.installed"
+              v-if="voice.installed"
               type="button"
               variant="outline"
               size="sm"
-              :loading="downloadingId === model.modelId"
+              :loading="previewing === voice.ref"
+              :aria-label="t('settings.voice.previewOf', { name: voice.name })"
+              :data-testid="`settings-voice-preview-${voice.ref}`"
+              @click.stop.prevent="playAsync(voice)"
+            >
+              {{ t('settings.voice.preview') }}
+            </UiButton>
+            <UiButton
+              v-else
+              type="button"
+              variant="outline"
+              size="sm"
+              :loading="downloadingId === voice.modelId"
               :disabled="downloadingId !== null"
-              :data-testid="`settings-voice-download-${tab}`"
-              @click="confirming = model"
+              :aria-label="t('settings.voice.downloadOf', { name: voice.name })"
+              :data-testid="`settings-voice-download-${voice.ref}`"
+              @click.stop.prevent="confirming = voice"
             >
               {{
-                downloadingId === model.modelId
+                downloadingId === voice.modelId
                   ? t('settings.voice.model.downloading')
                   : t('settings.voice.model.download')
               }}
             </UiButton>
-          </SettingsRow>
-        </SettingsGroup>
-
-        <SettingsGroup
-          radio
-          :label="t('settings.voice.voicesLabel')"
-          :model-value="chosen[tab]"
-          :disabled="saving"
-          @update:model-value="chooseVoiceAsync(tab, String($event))"
-        >
-          <SettingsOptionRow
-            v-for="voice in voicesOf(tab)"
-            :key="voice.ref"
-            type="radio"
-            :value="voice.ref"
-            :title="voice.name"
-            :description="
-              voice.isDefault ? t('settings.voice.default') : undefined
-            "
-            :data-testid="`settings-voice-option-${voice.ref}`"
-          >
-            <template #trailing>
-              <UiButton
-                type="button"
-                variant="outline"
-                size="sm"
-                :loading="previewing === voice.ref"
-                :disabled="!voice.installed"
-                :title="
-                  voice.installed ? undefined : t('settings.voice.needsModel')
-                "
-                :aria-label="
-                  t('settings.voice.previewOf', { name: voice.name })
-                "
-                :data-testid="`settings-voice-preview-${voice.ref}`"
-                @click.stop.prevent="playAsync(voice)"
-              >
-                {{ t('settings.voice.preview') }}
-              </UiButton>
-            </template>
-          </SettingsOptionRow>
-        </SettingsGroup>
-        <p v-if="!model.installed" class="px-1 text-xs text-muted-foreground">
-          {{ t('settings.voice.needsModel') }}
-        </p>
-      </div>
+          </template>
+        </SettingsOptionRow>
+      </SettingsGroup>
 
       <ModelsDownloadConfirmStep
         v-model:open="confirmOpen"
         :target="confirming && { kind: 'tts', id: confirming.modelId }"
         :name="
           confirming
-            ? t('settings.voice.model.name', {
+            ? t('settings.voice.downloadName', {
+                name: confirming.name,
                 language: languageName(confirming.language),
               })
             : ''
