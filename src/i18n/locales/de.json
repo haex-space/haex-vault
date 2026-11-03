@@ -654,11 +654,6 @@
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
           "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT",
-          "voice": {
-            "title": "Stimme",
-            "description": "Wie der Sprachassistent klingt, für jede Sprache.",
-            "keywords": "Stimme Sprachausgabe Vorlesen Sprachassistent TTS Sprechgeschwindigkeit Probe anhören"
-          },
           "tones": {
             "title": "Töne",
             "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
@@ -666,8 +661,8 @@
           },
           "assistant": {
             "title": "Sprachassistent",
-            "description": "Mit haex sprechen, bis das Wake Word kommt: per Kürzel oder über die Anzeige.",
-            "keywords": "Sprachassistent Gespräch sprechen Vorschau Kürzel Anzeige Mitschrift"
+            "description": "Mit haex sprechen: Vorschau, Sprache der Gespräche, Pause und Stimme.",
+            "keywords": "Sprachassistent Gespräch sprechen Vorschau Sprache Pause Stimme Sprachausgabe Vorlesen TTS Sprechgeschwindigkeit Probe anhören Mitschrift"
           }
         },
         "providers": {
@@ -1594,7 +1589,8 @@
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
       "languageUi": "Wie die Oberfläche ({language})",
-      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche."
+      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche.",
+      "voiceHeading": "Stimme"
     }
   },
   "models": {

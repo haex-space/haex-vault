@@ -654,11 +654,6 @@
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
           "keywords": "speech recognition voice input Whisper microphone dictation STT",
-          "voice": {
-            "title": "Voice",
-            "description": "How the voice assistant sounds, for each language.",
-            "keywords": "voice speech output read aloud voice assistant TTS speaking rate sample listen"
-          },
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
@@ -666,8 +661,8 @@
           },
           "assistant": {
             "title": "Voice assistant",
-            "description": "Talk to haex before the wake word arrives: by shortcut or from the indicator.",
-            "keywords": "voice assistant conversation talk preview shortcut indicator transcript"
+            "description": "Talk to haex: preview, conversation language, pause and voice.",
+            "keywords": "voice assistant conversation talk preview language pause voice speech output read aloud TTS speaking rate sample transcript"
           }
         },
         "providers": {
@@ -1594,7 +1589,8 @@
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
       "languageUi": "Same as the interface ({language})",
-      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language."
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
+      "voiceHeading": "Voice"
     }
   },
   "models": {

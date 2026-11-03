@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * "Stimme" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030): the speaking rate, then one
- * tab per language. A tab shows the speech model of that language, with the same download row as
+ * The voice part of "Sprachassistent" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030;
+ * one page since operator 2026-11-03): the speaking rate, then one tab per language, opened at the
+ * language of conversations (`language`). A tab shows the speech model of that language, with the same download row as
  * the chat and speech recognition models (button, question before the download, progress behind
  * the row, "x of y" line), and below it the voices of the language with a sample each. A sample
  * needs the speech model, so it waits until the model is here; downloading is its own action
@@ -23,6 +24,11 @@ import { humanBytes } from '~/lib/models/format'
 import type { VoiceOption } from '~/composables/useTtsVoices'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
+const props = defineProps<{
+  /** The language of conversations; its tab opens and follows a new choice. */
+  language: SpeechLanguage
+}>()
+
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { getPrefAsync, setPrefAsync } = usePreferences()
@@ -39,10 +45,13 @@ const voices = ref<VoiceOption[]>([])
 /** The chosen `VoiceRef` per language; a missing or unknown preference shows the default. */
 const chosen = ref<Partial<Record<SpeechLanguage, string>>>({})
 const rate = ref<number>(SPEECH_RATE.default)
-/** The open tab: the interface language when haex speaks it, otherwise the first language. */
-const tab = ref<SpeechLanguage>(
-  SPEECH_LANGUAGES.find((l) => locale.value.startsWith(l)) ??
-    SPEECH_LANGUAGES[0],
+/** The open tab: the language of conversations; the other tabs stay reachable. */
+const tab = ref<SpeechLanguage>(props.language)
+watch(
+  () => props.language,
+  (language) => {
+    tab.value = language
+  },
 )
 
 const loading = ref(true)
@@ -237,12 +246,12 @@ onVaultTablesChanged(['preferences'], () => {
         <div class="overflow-x-auto">
           <ShadcnTabsList :aria-label="t('settings.voice.languages')">
             <ShadcnTabsTrigger
-              v-for="language in SPEECH_LANGUAGES"
-              :key="language"
-              :value="language"
-              :data-testid="`settings-voice-tab-${language}`"
+              v-for="tabLanguage in SPEECH_LANGUAGES"
+              :key="tabLanguage"
+              :value="tabLanguage"
+              :data-testid="`settings-voice-tab-${tabLanguage}`"
             >
-              {{ languageName(language) }}
+              {{ languageName(tabLanguage) }}
             </ShadcnTabsTrigger>
           </ShadcnTabsList>
         </div>

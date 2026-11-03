@@ -94,12 +94,13 @@ const PAGES = [
   {
     id: 'ai.speech.assistant',
     view: 'src/components/settings/assistant/AssistantSetting.vue',
-    prefs: ['assistant.preview', 'assistant.language', 'assistant.pauseMs'],
-  },
-  {
-    id: 'ai.speech.voice',
-    view: 'src/components/settings/assistant/VoiceSetting.vue',
-    prefs: ['assistant.voice.<sprache>', 'assistant.speechRate'],
+    prefs: [
+      'assistant.preview',
+      'assistant.language',
+      'assistant.pauseMs',
+      'assistant.voice.<sprache>',
+      'assistant.speechRate',
+    ],
   },
   {
     id: 'ai.speech.tones',
@@ -137,7 +138,13 @@ test('the pages save on selection, as device settings, without a save button', (
     assert.match(view, /kind: 'device'/, page.view)
     assert.doesNotMatch(view, /common\.save|\.save'\)/, page.view)
   }
+  // "Stimme" is part of the assistant page (operator 2026-11-03), opened at the conversation language.
+  assert.match(
+    read('src/components/settings/assistant/AssistantSetting.vue'),
+    /<SettingsAssistantVoiceSetting\s+:language="spokenLanguage\(conversationLanguage, locale\)"/,
+  )
   const voice = read('src/components/settings/assistant/VoiceSetting.vue')
+  assert.match(voice, /kind: 'device'/)
   assert.match(voice, /voicePrefKey\(language\)/)
   assert.match(voice, /SPEECH_RATE_KEY/)
   const assistantPage = read(
