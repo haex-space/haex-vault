@@ -431,3 +431,64 @@ test('instant password saves revoke access and keep the empty draft across reloa
     'a different agent does not inherit the incomplete draft',
   )
 })
+
+test('revoking an agent shows no error toast for the reload its change event starts', async () => {
+  const route = reactive({ params: { agentId: 'agent' } })
+  const toasts: string[] = []
+  const pushed: string[] = []
+  let gone = false
+  let failRevoke = false
+  let changeReload: Promise<void> = Promise.resolve()
+  const detail = loadScriptSetup<{
+    revokeAsync: () => Promise<void>
+    reloadAsync: () => Promise<void>
+  }>(
+    'src/components/settings/agents/AgentDetailView.vue',
+    ['revokeAsync', 'reloadAsync'],
+    {
+      imports: {
+        '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        '@tauri-apps/api/core': {
+          invoke: async () => {
+            if (gone) throw new Error('no such agent')
+            return { id: route.params.agentId, rights: { operate: {} } }
+          },
+        },
+        'vue-sonner': toastDouble(toasts),
+      },
+      useErrorString: () => ({ errString: String }),
+      useTabRouter: () => ({
+        route,
+        push: async (path: string) => {
+          pushed.push(path)
+        },
+      }),
+      useMcpAgentsStore: () => ({ changes: 0 }),
+      useActionOrThrow: (id: string) => async () => {
+        if (id !== 'settings.agents.mcp.revoke') return
+        if (failRevoke) throw new Error('revoke failed')
+        gone = true
+        // Rust sends `mcp-agents-changed` before the command answers.
+        changeReload = detail.reloadAsync()
+      },
+    },
+  )
+  await detail.mount()
+  failRevoke = true
+  await detail.revokeAsync()
+  assert.deepEqual(
+    toasts,
+    ['Error: revoke failed'],
+    'a failed revocation is a toast',
+  )
+  assert.deepEqual(pushed, [])
+  failRevoke = false
+  await detail.revokeAsync()
+  await changeReload
+  assert.deepEqual(pushed, ['/ai/agents'])
+  assert.deepEqual(
+    toasts,
+    ['Error: revoke failed'],
+    'the gone agent is no new toast',
+  )
+})

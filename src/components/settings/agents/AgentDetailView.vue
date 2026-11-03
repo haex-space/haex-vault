@@ -29,6 +29,11 @@ const agent = ref<AgentView | null>(null)
 const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
 const confirmRevoke = ref(false)
+/**
+ * Set from revoking on: the revocation's change event reloads an agent that is gone by then, and
+ * that failure is no error worth a toast.
+ */
+let leaving = false
 let rightsSaveQueue = Promise.resolve()
 let pendingRights = 0
 
@@ -51,7 +56,7 @@ async function reloadAsync() {
       : stored
   } catch (error) {
     agent.value = null
-    toast.error(errString(error))
+    if (!leaving) toast.error(errString(error))
   } finally {
     loaded.value = true
   }
@@ -88,15 +93,21 @@ function onMode(mode: AgentMode) {
 }
 
 async function revokeAsync() {
+  leaving = true
   try {
     await revoke({ agentId: agentId.value })
-    await router.push('/ai/agents')
   } catch (error) {
+    leaving = false
     toast.error(errString(error))
+    return
   }
+  router.push('/ai/agents')
 }
 
 onMounted(reloadAsync)
+onBeforeUnmount(() => {
+  leaving = true
+})
 watch(agentId, reloadAsync)
 watch(() => store.changes, reloadAsync)
 </script>
