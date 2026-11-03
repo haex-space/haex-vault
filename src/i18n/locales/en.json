@@ -1815,7 +1815,8 @@
       "notFound": "The extension does not exist (anymore).",
       "disabled": "The extension is disabled.",
       "notReady": "The extension is not ready on this device yet."
-    }
+    },
+    "operationBusy": "haex is still busy with another request. Try again in a moment."
   },
   "actions": {
     "wm": {
