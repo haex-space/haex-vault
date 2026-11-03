@@ -1665,6 +1665,7 @@
       "revisionRef": "Verfolgter Branch/Tag",
       "install": "Installieren",
       "installing": "Wird installiert …",
+      "cancel": "Abbrechen",
       "downloadProgress": "{done} von {total}",
       "installFailed": "Installation fehlgeschlagen."
     },

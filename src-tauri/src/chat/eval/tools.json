@@ -832,6 +832,27 @@
     }
   },
   {
+    "toolName": "settings_models_cancelDownload",
+    "actionId": "settings.models.cancelDownload",
+    "description": "Cancel the running download of a chat model; its partial file is removed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string",
+          "description": "Installed model id (see settings.models.list)."
+        }
+      },
+      "required": ["modelId"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": {
+      "de": "actions.settings.models.cancelDownload",
+      "en": "actions.settings.models.cancelDownload"
+    }
+  },
+  {
     "toolName": "settings_models_downloadFromHf",
     "actionId": "settings.models.downloadFromHf",
     "description": "Download a GGUF file from a HuggingFace repository as a model.",

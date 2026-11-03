@@ -240,6 +240,11 @@ export function useModels() {
     await invoke('delete_installed_model', { id })
   }
 
+  /** Cancels the running download of a model; `false` when none runs. */
+  async function cancelDownloadAsync(id: string): Promise<boolean> {
+    return await invoke<boolean>('cancel_model_download', { modelId: id })
+  }
+
   /**
    * Subscribes to per-chunk progress events. Returns the unlisten
    * function — callers MUST call it on component unmount to avoid a
@@ -281,6 +286,7 @@ export function useModels() {
     downloadFromHfAsync,
     importFromFileAsync,
     deleteAsync,
+    cancelDownloadAsync,
     onDownloadProgress,
     onDownloadComplete,
     onToolUseUpdated,
