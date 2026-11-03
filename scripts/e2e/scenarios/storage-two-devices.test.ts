@@ -7,8 +7,6 @@ import { errorToasts } from '../lib/toasts.ts'
 
 const BUCKET = 'holzi-e2e'
 
-/** The texts of the error toasts on screen. */
-
 type Overview = {
   connections: Array<{
     id: string

@@ -48,11 +48,11 @@ const expanded = ref(new Set<string>())
 const filter = ref('')
 const sort = ref<RuleSort>({ key: 'name', ascending: true })
 
-// A failed load of the list goes out as a toast.
+// A failed load of the list goes out as a toast, once for all open lists.
 watch(
   () => store.error,
   (message) => {
-    if (message) toast.error(message)
+    if (message) toast.error(message, { id: 'sync-rules-load-failed' })
   },
 )
 

@@ -27,11 +27,11 @@ import {
 const { t } = useI18n()
 const router = useTabRouter()
 const store = usePasswordsStore()
-// A failed (quiet) reload of the overview shows as a toast.
+// A failed (quiet) reload of the overview shows as a toast, once for all open lists.
 watch(
   () => store.lastError,
   (message) => {
-    if (message) toast.error(message)
+    if (message) toast.error(message, { id: 'passwords-load-failed' })
   },
 )
 const selection = usePasswordsSelectionStore()

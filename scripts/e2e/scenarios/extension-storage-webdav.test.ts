@@ -37,8 +37,6 @@ function answer(page: Page, probe: InstalledExtension): Promise<BridgeAnswer> {
   return inFrame<BridgeAnswer>(page, probe, `return window.answer`)
 }
 
-/** The texts of the error toasts on screen. */
-
 async function replaceText(page: Page, hook: string, text: string) {
   await page.type(hook, `${KEY.control}a${KEY.release}${KEY.backspace}`)
   await page.type(hook, text)

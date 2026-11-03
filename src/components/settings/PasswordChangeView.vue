@@ -36,8 +36,8 @@ const canSubmit = computed(
     repeat.value === next.value,
 )
 
-// Typing again clears the success notice of the last attempt. Synchronous, so the fields emptied after a
-// success (still busy) do not clear its message.
+// Typing again clears the success notice of the last attempt. Synchronous, so the fields emptied
+// after a success (still busy) do not clear its message.
 watch(
   [current, next, repeat],
   () => {

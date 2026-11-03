@@ -8,8 +8,6 @@ import { errorToasts } from '../lib/toasts.ts'
 
 const FOLDER = 'Fotos'
 
-/** The texts of the error toasts on screen. */
-
 type Overview = {
   connections: Array<{
     id: string

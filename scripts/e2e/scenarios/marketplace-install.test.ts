@@ -21,8 +21,6 @@ const installed = async (instance: FlowInstance): Promise<string[]> =>
     .map((extension) => extension.name)
     .sort()
 
-/** The texts of the error toasts on screen. */
-
 // Spec 069, US2 (quickstart M4, M5, M6): a bundle goes from the marketplace through the host into
 // the one install preview of spec 017. The signed bundle installs after the preview names its
 // marketplace and the tile says "Installiert"; closing the preview installs nothing; a bundle
