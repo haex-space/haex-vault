@@ -46,6 +46,7 @@ fn case_and_accents_do_not_matter() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].thread_id, thread);
     assert_eq!(hits[0].seq, 1);
+    assert_ne!(hits[0].id, Uuid::nil(), "a hit names its entry");
     assert_eq!(hits[0].snippet, "Wie wird das Wetter in Köln?");
     assert!(page(&db, "  ", None, None).entries.is_empty());
     assert!(page(&db, "Urlaub", None, None).entries.is_empty());

@@ -4,7 +4,7 @@
  * answers of older ones.
  */
 import { invoke } from '@tauri-apps/api/core'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type {
   TranscriptHit,
   TranscriptSearchPage,
@@ -45,6 +45,13 @@ export function useTranscriptSearch() {
     }
   }
 
+  // The previous query's cursor and answers end at once, not after the debounce: "Weitere Treffer"
+  // must not send the new text with the old cursor, nor an old answer replace the hits.
+  watch(query, () => {
+    generation++
+    nextCursor.value = null
+  })
+
   watchDebounced(query, () => fetchAsync(null), { debounce: 250 })
 
   return {
@@ -53,6 +60,8 @@ export function useTranscriptSearch() {
     nextCursor,
     searching,
     error,
+    /** Runs the current query again from its first page. */
+    refreshAsync: () => fetchAsync(null),
     /** The next page of the current query. */
     moreAsync: () =>
       nextCursor.value === null

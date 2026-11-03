@@ -195,8 +195,10 @@ const activeMessages = computed<Message[]>(() => {
 // in "Verlauf" opens the session with the transcript at that entry; another session starts with
 // its messages.
 const transcriptOpen = ref(false)
-const transcriptFocusSeq = ref<number | null>(null)
-let pendingTranscript: { threadId: string; seq: number } | null = null
+// `request` counts the selections, so choosing the same hit again scrolls to it again.
+const transcriptFocus = ref<{ id: string; request: number } | null>(null)
+let focusRequests = 0
+let pendingTranscript: { threadId: string; id: string } | null = null
 const activeIsVoice = computed(
   () =>
     threads.value.find((thread) => thread.id === activeThreadId.value)
@@ -207,12 +209,12 @@ watch(activeThreadId, (threadId) => {
   pendingTranscript = null
   const hit = pending?.threadId === threadId ? pending : null
   transcriptOpen.value = hit !== null
-  transcriptFocusSeq.value = hit?.seq ?? null
+  transcriptFocus.value = hit ? { id: hit.id, request: ++focusRequests } : null
 })
-function openTranscript(hit: { threadId: string; seq: number }) {
+function openTranscript(hit: { threadId: string; id: string }) {
   if (hit.threadId === activeThreadId.value) {
     transcriptOpen.value = true
-    transcriptFocusSeq.value = hit.seq
+    transcriptFocus.value = { id: hit.id, request: ++focusRequests }
     return
   }
   pendingTranscript = hit
@@ -497,7 +499,7 @@ onBeforeUnmount(() => {
           <ChatVoiceTranscript
             v-if="transcriptOpen && activeIsVoice && activeThreadId"
             :thread-id="activeThreadId"
-            :focus-seq="transcriptFocusSeq"
+            :focus="transcriptFocus"
           />
           <ChatMessageList
             v-else

@@ -4,7 +4,7 @@
  * both directions with its time, speaker and kind, answers that were interrupted greyed from where
  * haex stopped. Shown instead of the messages while "Mitschrift" is on in the session header.
  * Reads `assistant_transcript_list`, adds entries from `assistant-transcript` as they are stored,
- * and reads again when a synced change arrives. `focusSeq` scrolls to a search hit.
+ * and reads again when a synced change arrives. `focus` scrolls to a search hit.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -21,8 +21,9 @@ import {
 
 const props = defineProps<{
   threadId: string
-  /** The entry to scroll to and mark, from a search hit. */
-  focusSeq: number | null
+  /** The entry to scroll to and mark, from a search hit; `request` changes with every selection,
+   * so the same entry can be asked for again. */
+  focus: { id: string; request: number } | null
 }>()
 
 const { t, locale } = useI18n()
@@ -80,13 +81,13 @@ onBeforeUnmount(() => {
 })
 
 async function scrollToFocusAsync() {
-  if (props.focusSeq === null) return
+  if (props.focus === null) return
   await nextTick()
   root.value
-    ?.querySelector(`[data-seq="${props.focusSeq}"]`)
+    ?.querySelector(`[data-id="${CSS.escape(props.focus.id)}"]`)
     ?.scrollIntoView({ block: 'center' })
 }
-watch(() => props.focusSeq, scrollToFocusAsync)
+watch(() => props.focus, scrollToFocusAsync)
 
 function speakerName(speaker: string): string {
   return SPEAKERS.includes(speaker)
@@ -133,9 +134,9 @@ function fullTime(at: number): string {
         class="flex flex-col gap-1 rounded-lg px-3 py-2"
         :class="[
           entry.speaker === 'user' ? 'bg-muted/60' : '',
-          entry.seq === focusSeq ? 'ring-2 ring-primary' : '',
+          entry.id === focus?.id ? 'ring-2 ring-primary' : '',
         ]"
-        :data-seq="entry.seq"
+        :data-id="entry.id"
         :data-testid="`voice-transcript-entry-${entry.kind}`"
       >
         <div

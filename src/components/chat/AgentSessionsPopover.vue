@@ -41,7 +41,7 @@ const emit = defineEmits<{
   requestDelete: [thread: Thread]
   closeDeleteDialog: [open: boolean]
   confirmDelete: []
-  openTranscript: [hit: { threadId: string; seq: number }]
+  openTranscript: [hit: { threadId: string; id: string }]
 }>()
 
 const { t } = useI18n()
@@ -49,6 +49,10 @@ const { errString } = useErrorString()
 const open = ref(false)
 const search = useTranscriptSearch()
 const searchActive = computed(() => search.query.value.trim() !== '')
+// A spoken entry stored while the popover was closed shows up when it opens again.
+watch(open, (isOpen) => {
+  if (isOpen && searchActive.value) void search.refreshAsync()
+})
 
 function threadTitle(threadId: string): string {
   return (
@@ -59,7 +63,7 @@ function threadTitle(threadId: string): string {
 
 function openHit(hit: TranscriptHit) {
   open.value = false
-  emit('openTranscript', { threadId: hit.threadId, seq: hit.seq })
+  emit('openTranscript', { threadId: hit.threadId, id: hit.id })
 }
 
 function select(id: string) {
@@ -137,7 +141,7 @@ watch(
       <template v-if="searchActive">
         <button
           v-for="hit in search.hits.value"
-          :key="`${hit.threadId}:${hit.seq}`"
+          :key="hit.id"
           type="button"
           class="flex w-full min-w-0 flex-col gap-0.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="chat-transcript-hit"
