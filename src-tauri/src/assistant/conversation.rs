@@ -26,12 +26,9 @@ use super::tones::ToneId;
 /// announcement (FR-023).
 pub const WORKING_AFTER: Duration = Duration::from_secs(4);
 
-/// Device preference: follow-up window in seconds (FR-013, data-model.md "int 3–30", default 8).
-pub const PREF_FOLLOW_UP_SECS: &str = "assistant.followUpSecs";
 /// Device preference: continuation window in minutes (FR-015, data-model.md "int 0–60", default 5).
 pub const PREF_CONTINUE_MINS: &str = "assistant.continueMins";
 
-const FOLLOW_UP_SECS: (i64, i64, i64) = (3, 30, 8);
 const CONTINUE_MINS: (i64, i64, i64) = (0, 60, 5);
 
 /// The phase shown by the indicator and sent as `phase` of `assistant-state`.
@@ -48,31 +45,28 @@ pub enum Phase {
     AwaitingAnswer,
 }
 
-/// The two windows of the conversation, read from the device preferences.
+/// The continuation window of the conversation, read from the device preferences. A conversation
+/// itself has no time limit: haex listens until the user sends it to pause (operator 2026-11-02).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Timing {
-    /// How long haex keeps listening without wake word after an answer (FR-013).
-    pub follow_up: Duration,
     /// How long after its end a wake word continues the same conversation (FR-015); zero never.
     pub continue_for: Duration,
 }
 
 impl Default for Timing {
     fn default() -> Self {
-        Self::from_prefs(None, None)
+        Self::from_prefs(None)
     }
 }
 
 impl Timing {
-    /// Builds the windows from the stored values; a missing value takes the default, a value out
-    /// of range is clamped to it.
-    pub fn from_prefs(follow_up_secs: Option<i64>, continue_mins: Option<i64>) -> Self {
-        let pick = |value: Option<i64>, (min, max, default): (i64, i64, i64)| {
-            value.map_or(default, |v| v.clamp(min, max)) as u64
-        };
+    /// Builds the window from the stored value; a missing value takes the default, a value out of
+    /// range is clamped to it.
+    pub fn from_prefs(continue_mins: Option<i64>) -> Self {
+        let (min, max, default) = CONTINUE_MINS;
+        let mins = continue_mins.map_or(default, |v| v.clamp(min, max)) as u64;
         Self {
-            follow_up: Duration::from_secs(pick(follow_up_secs, FOLLOW_UP_SECS)),
-            continue_for: Duration::from_secs(pick(continue_mins, CONTINUE_MINS) * 60),
+            continue_for: Duration::from_secs(mins * 60),
         }
     }
 }
@@ -118,7 +112,7 @@ pub enum Event {
     SwitchOff,
     /// The vault locks or closes (FR-004).
     VaultClosed,
-    /// Wake word, "Sprechen" in the indicator or the shortcut (FR-011).
+    /// Wake word (FR-011); until the wake word (PR D), switching the assistant on.
     Wake,
     /// The end of an utterance was detected (FR-012).
     Utterance(Utterance),
@@ -212,9 +206,6 @@ pub struct Conversation {
     speaking: bool,
     /// When the running round started, until its first words are ready.
     round_started: Option<Instant>,
-    /// Until when haex listens without wake word. In `FollowUp` its end ends the conversation; in
-    /// `AwaitingAnswer` it only stops listening and the question waits for the next wake word.
-    listen_until: Option<Instant>,
 }
 
 impl Conversation {
@@ -228,7 +219,6 @@ impl Conversation {
             spoke_tts_fallback_notice: false,
             speaking: false,
             round_started: None,
-            listen_until: None,
         }
     }
 }
@@ -292,7 +282,6 @@ impl AssistantState {
         let c = self.conversation.as_ref()?;
         match c.phase {
             Phase::Thinking => c.round_started.map(|at| at + WORKING_AFTER),
-            Phase::FollowUp | Phase::AwaitingAnswer => c.listen_until,
             _ => None,
         }
     }
@@ -321,7 +310,7 @@ impl AssistantState {
             Event::Wake => self.wake(now, &mut out),
             Event::Utterance(utterance) => self.utterance(utterance, now, &mut out),
             Event::BargeIn => self.barge_in(&mut out),
-            Event::Stop => self.stop(now, &mut out),
+            Event::Stop => self.stop(&mut out),
             Event::EndConversation => {
                 if let Some(c) = &self.conversation {
                     let summarize = c.running_turn;
@@ -338,12 +327,12 @@ impl AssistantState {
                 }
             }
             Event::FirstWords => self.first_words(&mut out),
-            Event::TurnEnded => self.turn_ended(now, &mut out),
-            Event::OutputDone => self.output_done(now, &mut out),
-            Event::Question(question) => self.question(question, now, &mut out),
+            Event::TurnEnded => self.turn_ended(&mut out),
+            Event::OutputDone => self.output_done(&mut out),
+            Event::Question(question) => self.question(question, &mut out),
             Event::QuestionResolved(id) => self.question_resolved(&id, now, &mut out),
             Event::Mute(on) => self.mute(on, now, &mut out),
-            Event::Pause(on) => self.pause(on, now, &mut out),
+            Event::Pause(on) => self.pause(on, &mut out),
             Event::Tick => self.tick(now, &mut out),
         }
         out
@@ -371,11 +360,10 @@ impl AssistantState {
         };
         match phase {
             // An open question is asked again first (FR-040).
-            Phase::AwaitingAnswer => self.ask_first_question(now, out),
+            Phase::AwaitingAnswer => self.ask_first_question(out),
             Phase::FollowUp => {
                 if let Some(c) = &mut self.conversation {
                     c.phase = Phase::Listening;
-                    c.listen_until = None;
                 }
                 out.extend([Effect::Tone(ToneId::Listening), Effect::Listen]);
             }
@@ -385,10 +373,9 @@ impl AssistantState {
         }
     }
 
-    /// Speaks the first open question and listens for the answer for one follow-up window.
-    fn ask_first_question(&mut self, now: Instant, out: &mut Vec<Effect>) {
-        let follow_up = self.timing.follow_up;
-        let Some(c) = &mut self.conversation else {
+    /// Speaks the first open question and listens for the answer.
+    fn ask_first_question(&mut self, out: &mut Vec<Effect>) {
+        let Some(c) = &self.conversation else {
             return;
         };
         let Some(q) = c.open_questions.front() else {
@@ -399,19 +386,16 @@ impl AssistantState {
             Effect::AskQuestion(q.id.clone()),
             Effect::Listen,
         ]);
-        c.listen_until = Some(now + follow_up);
     }
 
     fn utterance(&mut self, utterance: Utterance, now: Instant, out: &mut Vec<Effect>) {
-        let follow_up = self.timing.follow_up;
         let Some(c) = &mut self.conversation else {
             return;
         };
-        let accepts = match c.phase {
-            Phase::Listening | Phase::FollowUp => true,
-            Phase::AwaitingAnswer => c.listen_until.is_some(),
-            _ => false,
-        };
+        let accepts = matches!(
+            c.phase,
+            Phase::Listening | Phase::FollowUp | Phase::AwaitingAnswer
+        );
         if !accepts {
             return;
         }
@@ -425,21 +409,19 @@ impl AssistantState {
                     Effect::StopListening,
                     Effect::AnswerQuestion { id: q.id, text },
                 ]);
-                c.listen_until = None;
                 if !c.open_questions.is_empty() {
-                    self.ask_first_question(now, out);
+                    self.ask_first_question(out);
                 } else if c.running_turn {
                     c.phase = Phase::Thinking;
                     c.round_started = Some(now);
                 } else {
-                    self.after_round(now, out);
+                    self.after_round(out);
                 }
             }
             Utterance::Request(text) => {
                 c.phase = Phase::Thinking;
                 c.running_turn = true;
                 c.round_started = Some(now);
-                c.listen_until = None;
                 out.extend([
                     Effect::Tone(ToneId::Understood),
                     Effect::StopListening,
@@ -453,7 +435,6 @@ impl AssistantState {
                 if c.phase == Phase::Listening {
                     c.phase = Phase::FollowUp;
                 }
-                c.listen_until = Some(now + follow_up);
                 out.extend([
                     Effect::Tone(ToneId::NotUnderstood),
                     Effect::Say(Line::Repeat),
@@ -467,7 +448,7 @@ impl AssistantState {
                     Effect::Tone(ToneId::ConversationEnd),
                 ]);
             }
-            Utterance::Stop => self.stop(now, out),
+            Utterance::Stop => self.stop(out),
         }
     }
 
@@ -495,15 +476,13 @@ impl AssistantState {
 
     /// A stop word: aborts the round with its output and tool calls, the conversation stays open
     /// (FR-017). Questions of the aborted round go with it.
-    fn stop(&mut self, now: Instant, out: &mut Vec<Effect>) {
-        let follow_up = self.timing.follow_up;
+    fn stop(&mut self, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
         if !c.running_turn && !c.speaking {
             if matches!(c.phase, Phase::Listening | Phase::FollowUp) {
                 c.phase = Phase::FollowUp;
-                c.listen_until = Some(now + follow_up);
                 out.push(Effect::Listen);
             }
             return;
@@ -519,7 +498,7 @@ impl AssistantState {
         }
         out.push(Effect::Tone(ToneId::Aborted));
         c.round_started = None;
-        self.after_round(now, out);
+        self.after_round(out);
     }
 
     /// Words are ready to speak: the first of the answer, or more after the output ran dry.
@@ -543,14 +522,13 @@ impl AssistantState {
             // The answer arrives while haex waits for something else (FR-040).
             _ => {
                 out.extend([Effect::StopListening, Effect::Tone(ToneId::Attention)]);
-                c.listen_until = None;
             }
         }
         c.phase = Phase::Speaking;
         out.push(Effect::SpeakAnswer);
     }
 
-    fn turn_ended(&mut self, now: Instant, out: &mut Vec<Effect>) {
+    fn turn_ended(&mut self, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
@@ -566,47 +544,43 @@ impl AssistantState {
             _ => false,
         };
         if over {
-            self.after_round(now, out);
+            self.after_round(out);
         }
     }
 
-    fn output_done(&mut self, now: Instant, out: &mut Vec<Effect>) {
+    fn output_done(&mut self, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
         c.speaking = false;
         // Over once the turn ended, or when the turn waits for a question asked while speaking.
         if c.phase == Phase::Speaking && (!c.running_turn || !c.open_questions.is_empty()) {
-            self.after_round(now, out);
+            self.after_round(out);
         }
     }
 
-    /// The round is over: ask the next open question, or wait for the next utterance.
-    fn after_round(&mut self, now: Instant, out: &mut Vec<Effect>) {
+    /// The round is over: ask the next open question, or listen for the next utterance until the
+    /// user sends haex to pause.
+    fn after_round(&mut self, out: &mut Vec<Effect>) {
         let listens = self.listens();
-        let follow_up = self.timing.follow_up;
         let Some(c) = &mut self.conversation else {
             return;
         };
         if !c.open_questions.is_empty() {
             c.phase = Phase::AwaitingAnswer;
-            c.listen_until = None;
             if listens {
-                self.ask_first_question(now, out);
+                self.ask_first_question(out);
             }
             return;
         }
         c.phase = Phase::FollowUp;
+        // Muted or paused, haex listens again once that ends (FR-040).
         if listens {
-            c.listen_until = Some(now + follow_up);
             out.push(Effect::Listen);
-        } else {
-            // Muted or paused: the window starts only once haex listens again (FR-040).
-            c.listen_until = None;
         }
     }
 
-    fn question(&mut self, question: OpenQuestion, now: Instant, out: &mut Vec<Effect>) {
+    fn question(&mut self, question: OpenQuestion, out: &mut Vec<Effect>) {
         let listens = self.listens();
         let Some(c) = &mut self.conversation else {
             return;
@@ -623,10 +597,9 @@ impl AssistantState {
         }
         c.phase = Phase::AwaitingAnswer;
         c.round_started = None;
-        c.listen_until = None;
         if listens {
             out.push(Effect::StopListening);
-            self.ask_first_question(now, out);
+            self.ask_first_question(out);
         }
     }
 
@@ -643,15 +616,14 @@ impl AssistantState {
         }
         if !c.open_questions.is_empty() {
             if listens && was_first {
-                self.ask_first_question(now, out);
+                self.ask_first_question(out);
             }
         } else if c.running_turn {
             c.phase = Phase::Thinking;
             c.round_started = Some(now);
-            c.listen_until = None;
             out.push(Effect::StopListening);
         } else {
-            self.after_round(now, out);
+            self.after_round(out);
         }
     }
 
@@ -665,7 +637,7 @@ impl AssistantState {
         self.mode = Mode::On { muted: on, paused };
         if !on {
             out.push(Effect::Tone(ToneId::Unmuted));
-            self.resume_listening(now, out);
+            self.resume_listening(out);
             return;
         }
         out.push(Effect::Tone(ToneId::Muted));
@@ -682,7 +654,7 @@ impl AssistantState {
         }
     }
 
-    fn pause(&mut self, on: bool, now: Instant, out: &mut Vec<Effect>) {
+    fn pause(&mut self, on: bool, out: &mut Vec<Effect>) {
         let Mode::On { muted, paused } = self.mode else {
             return;
         };
@@ -694,7 +666,7 @@ impl AssistantState {
             out.push(Effect::StopListening);
             self.hold(out);
         } else {
-            self.resume_listening(now, out);
+            self.resume_listening(out);
         }
     }
 
@@ -718,21 +690,18 @@ impl AssistantState {
             }
             other => other,
         };
-        c.listen_until = None;
     }
 
-    /// After mute or pause ends: listen again for one fresh window (FR-040). An open question is
-    /// not repeated on its own; the next wake word asks it.
-    fn resume_listening(&mut self, now: Instant, out: &mut Vec<Effect>) {
+    /// After mute or pause ends: listen again (FR-040). An open question is not repeated on its
+    /// own; the next wake word asks it.
+    fn resume_listening(&mut self, out: &mut Vec<Effect>) {
         if !self.listens() {
             return;
         }
-        let follow_up = self.timing.follow_up;
-        let Some(c) = &mut self.conversation else {
+        let Some(c) = &self.conversation else {
             return;
         };
         if matches!(c.phase, Phase::FollowUp | Phase::AwaitingAnswer) {
-            c.listen_until = Some(now + follow_up);
             out.push(Effect::Listen);
         }
     }
@@ -742,31 +711,18 @@ impl AssistantState {
         let Some(c) = &mut self.conversation else {
             return;
         };
-        let expired = c.listen_until.is_some_and(|until| now >= until);
-        match c.phase {
-            Phase::Thinking => {
-                let late = c
-                    .round_started
-                    .is_some_and(|at| now.saturating_duration_since(at) >= WORKING_AFTER);
-                if late {
-                    c.phase = Phase::Working;
-                    out.push(Effect::Tone(ToneId::Working));
-                    if listens {
-                        out.push(Effect::Say(Line::Progress));
-                    }
-                }
+        if c.phase != Phase::Thinking {
+            return;
+        }
+        let late = c
+            .round_started
+            .is_some_and(|at| now.saturating_duration_since(at) >= WORKING_AFTER);
+        if late {
+            c.phase = Phase::Working;
+            out.push(Effect::Tone(ToneId::Working));
+            if listens {
+                out.push(Effect::Say(Line::Progress));
             }
-            // The window ends the conversation only when no round runs and no question is open
-            // (FR-014).
-            Phase::FollowUp if expired && !c.running_turn && c.open_questions.is_empty() => {
-                self.end(now, out);
-                out.push(Effect::Tone(ToneId::ConversationEnd));
-            }
-            Phase::AwaitingAnswer if expired => {
-                c.listen_until = None;
-                out.push(Effect::StopListening);
-            }
-            _ => {}
         }
     }
 

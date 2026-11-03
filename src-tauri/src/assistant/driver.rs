@@ -10,9 +10,10 @@
 //! - haex listens only once it is quiet: after its own tones and speech. Until echo suppression
 //!   (PR G) the microphone would otherwise hear haex itself.
 //! - Outputs of an aborted round and utterances of a stopped listener are dropped.
-//! - Until the wake word (PR D), the microphone is open only during a conversation: "Sprechen"
-//!   opens it, and once the conversation is over and haex is quiet, it closes again. The mode
-//!   tones stay silent for that, since the user never switched a mode.
+//! - The assistant is switched on and off by one toggle (operator 2026-11-02). Until the wake word
+//!   (PR D) there is nothing to wait for, so switching on starts a conversation at once (its
+//!   listening tone stands for the mode tone), and once the user sends haex to pause and it is
+//!   quiet, the assistant switches itself off again, without a second tone.
 //! - Every utterance and every output becomes a transcript [`Note`] (T125, FR-047). Notes wait
 //!   until the conversation has a thread; a conversation without one leaves none (FR-019). An
 //!   answer is noted once it is over, with the full text and, when it was cut off, how far haex
@@ -109,9 +110,12 @@ struct Answer {
 /// What moves the driver.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Input {
-    /// "Sprechen" in the indicator or the shortcut; the audio is open and the models are ready.
-    Talk,
-    /// "Gespräch beenden".
+    /// The toggle is switched on; the audio is open and the models are ready.
+    SwitchOn,
+    /// The toggle is switched off: the conversation ends, a round is aborted, the audio closes
+    /// once the mode tone has sounded.
+    SwitchOff,
+    /// "Gespräch beenden" (FR-039).
     End,
     Mute(bool),
     /// Listener `listener` heard `text` (empty when nothing was understood).
@@ -151,7 +155,7 @@ pub struct StateWire {
     pub open_question: Option<QuestionWire>,
 }
 
-/// How speech during output is taken (FR-016). Until PR G only "Sprechen" interrupts haex.
+/// How speech during output is taken (FR-016). Until PR G only switching off interrupts haex.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EchoMode {
@@ -247,7 +251,7 @@ impl Core {
         &self.state
     }
 
-    /// Whether microphone and speaker are open; the runtime opens them before [`Input::Talk`].
+    /// Whether microphone and speaker are open; the runtime opens them before [`Input::SwitchOn`].
     pub fn is_open(&self) -> bool {
         self.open
     }
@@ -274,18 +278,25 @@ impl Core {
 
     pub fn on(&mut self, input: Input, now: Instant, ports: &mut dyn Ports) {
         match input {
-            Input::Talk => {
+            Input::SwitchOn => {
+                self.open = true;
+                self.close_when_quiet = false;
+                if self.state.mode == Mode::Off {
+                    self.drive(Event::SwitchOn, now, ports);
+                }
                 if self.state.conversation.is_none() {
                     // A new conversation: notes of the last one are gone.
                     self.pending_notes.clear();
                     self.ended_thread = None;
+                    // Until the wake word (PR D), switching on is the wake word.
+                    self.drive(Event::Wake, now, ports);
                 }
-                if !self.open {
-                    self.open = true;
-                    self.drive(Event::SwitchOn, now, ports);
+            }
+            Input::SwitchOff => {
+                if self.open {
+                    self.drive(Event::SwitchOff, now, ports);
+                    self.close_when_quiet = true;
                 }
-                self.close_when_quiet = false;
-                self.drive(Event::Wake, now, ports);
             }
             Input::End => self.drive(Event::EndConversation, now, ports),
             Input::Mute(on) => self.drive(Event::Mute(on), now, ports),
@@ -383,8 +394,9 @@ impl Core {
 
     fn apply(&mut self, effect: Effect, now: Instant, ports: &mut dyn Ports) {
         match effect {
-            // Nobody switched a mode before the wake word arrives (PR D).
-            Effect::Tone(ToneId::ModeOn | ToneId::ModeOff) => {}
+            // Until the wake word (PR D) the listening tone of the conversation that starts at once
+            // says that haex is on.
+            Effect::Tone(ToneId::ModeOn) => {}
             Effect::Tone(tone) => {
                 let length = ports.tone(tone);
                 self.tones_until = self.tones_until.max(now) + length;
@@ -586,7 +598,12 @@ impl Core {
                 ports.listen(self.listener);
             } else if self.close_when_quiet && self.state.conversation.is_none() {
                 self.close_when_quiet = false;
-                self.drive(Event::SwitchOff, now, ports);
+                // After a pause the conversation-end tone has said it all: no mode tone too.
+                for effect in self.state.handle(Event::SwitchOff, now) {
+                    if effect != Effect::Tone(ToneId::ModeOff) {
+                        self.apply(effect, now, ports);
+                    }
+                }
                 self.close(ports);
             }
         }

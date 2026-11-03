@@ -27,22 +27,6 @@ export type AssistantStateWire = {
   } | null
 }
 
-/** A stored transcript entry (`TranscriptEntryWire`, FR-047). */
-export type TranscriptEntry = {
-  id: string
-  threadId: string
-  seq: number
-  spokenAt: number
-  speaker: string
-  kind: string
-  text: string
-  spokenUntil: number | null
-  outcome: string | null
-  refId: string | null
-  createdAt: number
-  final?: boolean
-}
-
 export const ASSISTANT_OFF: AssistantStateWire = {
   enabled: false,
   muted: false,
@@ -55,14 +39,7 @@ export const ASSISTANT_OFF: AssistantStateWire = {
   openQuestion: null,
 }
 
-/** Entries in transcript order: `(seq, id)` as the backend reads them. */
-export function sortEntries(entries: TranscriptEntry[]): TranscriptEntry[] {
-  return [...entries].sort((a, b) =>
-    a.seq !== b.seq ? a.seq - b.seq : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-  )
-}
-
-/** The window's offset from UTC in minutes, as `assistant_talk` takes it. */
+/** The window's offset from UTC in minutes, as `assistant_set_enabled` takes it. */
 export function utcOffsetMinutes(date = new Date()): number {
   return -date.getTimezoneOffset()
 }

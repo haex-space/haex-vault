@@ -10,8 +10,11 @@
  * T041, T050. Installed extensions are apps too (spec 017); one that cannot open on this
  * device is a disabled tile with the reason (T080). The last tile locks the vault (`useVaultLock`) — the one place
  * to lock now that the chat has no lock button. Right click or a long press on an app pins it to
- * the dock or unpins it (spec 045, FR-017).
+ * the dock or unpins it (spec 045, FR-017). With the preview setting on, a tile switches the voice
+ * assistant on or off (spec 066 T045, operator 2026-11-02).
  */
+import { PHASE_ICONS, toggleShown } from '~/lib/assistant/indicator'
+
 const open = defineModel<boolean>('open', { default: false })
 
 const wm = useWindowManagerStore()
@@ -20,6 +23,9 @@ const { t } = useI18n()
 const openApp = useAction('wm.app.open')
 const { lock } = useVaultLock()
 const dock = useDock()
+const assistant = useAssistantStore()
+const toggleAssistant = useAction('assistant.toggle')
+void assistant.start()
 
 function togglePin(appId: string) {
   void (dock.isPinned(appId) ? dock.unpinAsync(appId) : dock.pinAsync(appId))
@@ -87,6 +93,28 @@ function launch(appId: string) {
             </ShadcnContextMenuItem>
           </ShadcnContextMenuContent>
         </ShadcnContextMenu>
+        <button
+          v-if="toggleShown(assistant.preview, assistant.state.enabled)"
+          type="button"
+          class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm hover:bg-accent"
+          :class="
+            assistant.state.enabled
+              ? 'bg-primary/10 text-primary'
+              : 'text-foreground'
+          "
+          :aria-pressed="assistant.state.enabled"
+          data-testid="launcher-assistant-toggle"
+          @click="toggleAssistant({})"
+        >
+          <Icon
+            :name="PHASE_ICONS[assistant.state.phase]"
+            class="h-6 w-6"
+            :aria-hidden="true"
+          />
+          <span class="truncate">{{
+            t(assistant.state.enabled ? 'assistant.on' : 'assistant.off')
+          }}</span>
+        </button>
         <button
           type="button"
           class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm text-foreground hover:bg-accent"

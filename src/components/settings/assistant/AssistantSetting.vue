@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * "Sprachassistent" under KI → Sprache (spec 066 T045): until the wake word (PR D), the preview
- * switch `assistant.preview` makes conversations reachable through the indicator and the talk
- * shortcut. Below it, what the assistant still needs on this device (`assistant_readiness`); a
+ * switch `assistant.preview` shows the assistant's toggle in the dock and the launcher (operator
+ * 2026-11-02). Below it, what the assistant still needs on this device (`assistant_readiness`); a
  * model haex can fetch links to its page, which asks before the download and shows its progress
  * (spec 043 FR-028). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here
  * too. Saved on selection (spec 023 FR-021).
@@ -16,7 +16,6 @@ import {
   PAUSE_MS,
   PREVIEW_KEY,
 } from '~/lib/assistant/settings'
-import { detectPlatform } from '~/lib/wm/keybindings'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
 type Missing =
@@ -62,14 +61,6 @@ const PAGE: Partial<Record<Missing, string>> = {
   voice: '/ai/speech/voice',
   chatModel: '/ai/local',
 }
-
-const keys = computed(() =>
-  detectPlatform(
-    navigator as Navigator & { userAgentData?: { platform?: string } },
-  ) === 'mac'
-    ? t('settings.assistantPage.keys.mac')
-    : t('settings.assistantPage.keys.default'),
-)
 
 async function loadReadinessAsync() {
   try {
@@ -156,7 +147,7 @@ onVaultTablesChanged(['preferences'], () => {
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.preview'))"
-          :description="t('settings.assistantPage.previewHint', { keys })"
+          :description="t('settings.assistantPage.previewHint')"
           label-for="settings-assistant-preview"
         >
           <ShadcnSwitch

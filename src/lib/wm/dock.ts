@@ -9,7 +9,9 @@ export const DOCK_ITEMS_KEY = 'dock.items'
 /** Device preference, never synced (FR-036): style and position. */
 export const DOCK_PLACEMENT_KEY = 'dock.placement'
 
-export type DockControlId = 'launcher' | 'workspaces' | 'windows'
+/** `assistant` is the toggle of the voice assistant (spec 066). Until the wake word it is never
+ * stored: the dock shows it while this device's preview setting is on (`CONTROL_IDS` leaves it out). */
+export type DockControlId = 'launcher' | 'workspaces' | 'windows' | 'assistant'
 
 export type DockItem =
   { kind: 'control'; id: DockControlId } | { kind: 'app'; appId: string }

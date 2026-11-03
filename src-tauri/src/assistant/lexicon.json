@@ -38,7 +38,12 @@
         "gespräch beenden",
         "ende",
         "schluss",
-        "nichts weiter"
+        "nichts weiter",
+        "pause",
+        "mach pause",
+        "mach mal pause",
+        "mach eine pause",
+        "pause machen"
       ],
       "en": [
         "that's all",
@@ -52,7 +57,10 @@
         "end conversation",
         "we're done",
         "i'm done",
-        "nothing else"
+        "nothing else",
+        "pause",
+        "take a break",
+        "pause now"
       ],
       "fr": [
         "c'est tout",
@@ -62,7 +70,10 @@
         "à plus",
         "fin de la conversation",
         "terminé",
-        "rien d'autre"
+        "rien d'autre",
+        "pause",
+        "fais une pause",
+        "fais pause"
       ],
       "es": [
         "eso es todo",
@@ -71,7 +82,10 @@
         "hasta luego",
         "terminar conversación",
         "fin",
-        "ya está"
+        "ya está",
+        "pausa",
+        "haz una pausa",
+        "pausa ahora"
       ],
       "it": [
         "è tutto",
@@ -82,7 +96,10 @@
         "a dopo",
         "fine conversazione",
         "fine",
-        "nient'altro"
+        "nient'altro",
+        "pausa",
+        "fai una pausa",
+        "pausa adesso"
       ],
       "pt": [
         "é tudo",
@@ -93,7 +110,10 @@
         "até mais",
         "encerrar conversa",
         "fim",
-        "mais nada"
+        "mais nada",
+        "pausa",
+        "faz uma pausa",
+        "faça uma pausa"
       ]
     },
     {
@@ -113,6 +133,7 @@
         "super",
         "prima",
         "alles klar",
+        "bitte",
         "haex",
         "hey haex"
       ],
@@ -127,6 +148,7 @@
         "alright",
         "all right",
         "cool",
+        "please",
         "haex",
         "hey haex"
       ],

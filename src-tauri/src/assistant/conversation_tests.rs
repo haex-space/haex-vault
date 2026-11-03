@@ -1,6 +1,6 @@
 //! Spec 066 T033: the conversation state machine with an injected clock: every transition of the
-//! diagram in data-model.md, the follow-up window (runs only when no round runs and no question is
-//! open), the continuation window and mute/pause as cross states.
+//! diagram in data-model.md, listening without a time limit until the user sends haex to pause
+//! (operator 2026-11-02), the continuation window and mute/pause as cross states.
 
 use std::time::{Duration, Instant};
 
@@ -12,7 +12,7 @@ use super::conversation::{
 };
 use super::tones::ToneId;
 
-/// A machine with the default windows (8 s follow-up, 5 min continuation) and a clock at `t0`.
+/// A machine with the default continuation window (5 min) and a clock at `t0`.
 struct Run {
     state: AssistantState,
     t0: Instant,
@@ -76,7 +76,12 @@ fn question(id: &str) -> OpenQuestion {
     }
 }
 
-const FOLLOW_UP: u64 = 8_000;
+/// An hour: silence this long ends nothing.
+const HOUR: u64 = 3_600_000;
+
+fn pause() -> Event {
+    Event::Utterance(Utterance::End)
+}
 
 #[test]
 fn switching_on_and_off() {
@@ -97,7 +102,7 @@ fn switching_on_and_off() {
 }
 
 #[test]
-fn a_round_goes_through_listening_thinking_speaking_and_follow_up() {
+fn a_round_goes_through_listening_thinking_speaking_and_follow_up_until_paused() {
     let mut run = Run::new();
     run.send(Event::SwitchOn, 0);
     assert_eq!(
@@ -135,16 +140,21 @@ fn a_round_goes_through_listening_thinking_speaking_and_follow_up() {
 
     assert_eq!(run.send(Event::OutputDone, 5_000), [Effect::Listen]);
     assert_eq!(run.phase(), Phase::FollowUp);
-    assert_eq!(run.state.next_deadline(), Some(run.at(5_000 + FOLLOW_UP)));
+    assert_eq!(run.state.next_deadline(), None, "no time limit");
+    assert!(
+        run.send(Event::Tick, HOUR).is_empty(),
+        "silence ends nothing"
+    );
+    assert_eq!(run.phase(), Phase::FollowUp);
 
-    assert!(run.send(Event::Tick, 5_000 + FOLLOW_UP - 1).is_empty());
     assert_eq!(
-        run.send(Event::Tick, 5_000 + FOLLOW_UP),
+        run.send(pause(), HOUR + 1),
         [
             Effect::StopListening,
             Effect::Ended {
                 thread_id: Some(thread)
             },
+            Effect::Say(Line::Goodbye),
             Effect::Tone(ToneId::ConversationEnd),
         ]
     );
@@ -152,9 +162,9 @@ fn a_round_goes_through_listening_thinking_speaking_and_follow_up() {
 }
 
 #[test]
-fn an_utterance_in_the_follow_up_window_is_the_next_round_of_the_same_thread() {
+fn an_utterance_after_any_silence_is_the_next_round_of_the_same_thread() {
     let (mut run, thread) = Run::answered(1_000);
-    let effects = run.send(request("Und am Wochenende?"), 1_000 + FOLLOW_UP - 1);
+    let effects = run.send(request("Und am Wochenende?"), HOUR);
     assert!(effects.contains(&Effect::StartTurn {
         thread_id: Some(thread),
         text: "Und am Wochenende?".to_owned()
@@ -162,12 +172,12 @@ fn an_utterance_in_the_follow_up_window_is_the_next_round_of_the_same_thread() {
     assert_eq!(run.phase(), Phase::Thinking);
     assert_eq!(
         run.state.next_deadline(),
-        Some(run.at(1_000 + FOLLOW_UP - 1) + WORKING_AFTER)
+        Some(run.at(HOUR) + WORKING_AFTER)
     );
 }
 
 #[test]
-fn a_wake_word_in_the_follow_up_window_listens_again() {
+fn a_wake_word_while_following_up_listens_again() {
     let (mut run, _) = Run::answered(1_000);
     assert_eq!(
         run.send(Event::Wake, 2_000),
@@ -218,20 +228,18 @@ fn output_that_ran_dry_before_the_turn_ended_closes_the_round_at_the_end() {
 }
 
 #[test]
-fn the_follow_up_window_does_not_end_a_conversation_while_a_question_is_open() {
+fn an_open_question_keeps_listening_for_its_answer() {
     let mut run = Run::asking(0);
     run.send(Event::Question(question("r1")), 1_000);
     assert_eq!(run.phase(), Phase::AwaitingAnswer);
-    // Its listening window ends, the conversation does not.
-    assert_eq!(
-        run.send(Event::Tick, 1_000 + FOLLOW_UP),
-        [Effect::StopListening]
-    );
-    assert!(run.send(Event::Tick, 600_000).is_empty());
-    assert_eq!(run.phase(), Phase::AwaitingAnswer);
+    assert_eq!(run.state.next_deadline(), None);
+    assert!(run.send(Event::Tick, HOUR).is_empty());
     assert_eq!(run.state.open_question().map(|q| q.id.as_str()), Some("r1"));
-    // Without wake word nothing is heard any more.
-    assert!(run.send(request("ja"), 600_001).is_empty());
+    let effects = run.send(request("ja"), HOUR + 1);
+    assert!(effects.contains(&Effect::AnswerQuestion {
+        id: "r1".to_owned(),
+        text: "ja".to_owned()
+    }));
 }
 
 #[test]
@@ -246,8 +254,6 @@ fn an_open_question_is_asked_first_on_the_next_wake_word_and_answered_by_voice()
             Effect::Listen,
         ]
     );
-    run.send(Event::Tick, 1_000 + FOLLOW_UP);
-
     assert_eq!(
         run.send(Event::Wake, 60_000),
         [
@@ -339,8 +345,8 @@ fn a_question_asked_while_speaking_comes_after_the_answer_so_far() {
 #[test]
 fn continuation_reuses_the_thread_within_the_window() {
     let (mut run, thread) = Run::answered(1_000);
-    let ended = 1_000 + FOLLOW_UP;
-    run.send(Event::Tick, ended);
+    let ended = 9_000;
+    run.send(pause(), ended);
     assert_eq!(run.phase(), Phase::Ready);
 
     run.send(Event::Wake, ended + 5 * 60_000);
@@ -354,8 +360,8 @@ fn continuation_reuses_the_thread_within_the_window() {
 #[test]
 fn after_the_continuation_window_a_new_conversation_begins() {
     let (mut run, _) = Run::answered(1_000);
-    let ended = 1_000 + FOLLOW_UP;
-    run.send(Event::Tick, ended);
+    let ended = 9_000;
+    run.send(pause(), ended);
     run.send(Event::Wake, ended + 5 * 60_000 + 1);
     let effects = run.send(request("Und morgen?"), ended + 5 * 60_000 + 1);
     assert!(effects.contains(&Effect::StartTurn {
@@ -366,7 +372,7 @@ fn after_the_continuation_window_a_new_conversation_begins() {
 
 #[test]
 fn a_continuation_window_of_zero_never_continues() {
-    let mut run = Run::with(Timing::from_prefs(None, Some(0)));
+    let mut run = Run::with(Timing::from_prefs(Some(0)));
     run.send(Event::SwitchOn, 0);
     run.send(Event::Wake, 0);
     run.send(request("Hallo"), 0);
@@ -382,14 +388,12 @@ fn a_continuation_window_of_zero_never_continues() {
 #[test]
 fn timing_takes_defaults_and_clamps() {
     let default = Timing::default();
-    assert_eq!(default.follow_up, Duration::from_secs(8));
     assert_eq!(default.continue_for, Duration::from_secs(5 * 60));
-    let low = Timing::from_prefs(Some(1), Some(-4));
-    assert_eq!(low.follow_up, Duration::from_secs(3));
-    assert_eq!(low.continue_for, Duration::ZERO);
-    let high = Timing::from_prefs(Some(99), Some(999));
-    assert_eq!(high.follow_up, Duration::from_secs(30));
-    assert_eq!(high.continue_for, Duration::from_secs(60 * 60));
+    assert_eq!(Timing::from_prefs(Some(-4)).continue_for, Duration::ZERO);
+    assert_eq!(
+        Timing::from_prefs(Some(999)).continue_for,
+        Duration::from_secs(60 * 60)
+    );
 }
 
 #[test]
@@ -406,11 +410,13 @@ fn an_empty_utterance_asks_to_repeat_and_leaves_no_thread() {
         ]
     );
     assert_eq!(run.phase(), Phase::FollowUp);
+    assert!(run.send(Event::Tick, HOUR).is_empty());
     assert_eq!(
-        run.send(Event::Tick, 3_000 + FOLLOW_UP),
+        run.send(pause(), HOUR + 1),
         [
             Effect::StopListening,
             Effect::Ended { thread_id: None },
+            Effect::Say(Line::Goodbye),
             Effect::Tone(ToneId::ConversationEnd),
         ]
     );
@@ -466,7 +472,7 @@ fn a_stop_word_without_a_running_round_resumes_listening() {
         [Effect::Listen]
     );
     assert_eq!(run.phase(), Phase::FollowUp);
-    assert_eq!(run.state.next_deadline(), Some(run.at(900 + FOLLOW_UP)));
+    assert_eq!(run.state.next_deadline(), None);
 }
 
 #[test]
@@ -570,23 +576,22 @@ fn muting_without_a_round_ends_the_conversation() {
 }
 
 #[test]
-fn muted_with_a_round_shows_the_answer_and_starts_the_window_only_after_unmuting() {
+fn muted_with_a_round_shows_the_answer_and_listens_again_after_unmuting() {
     let mut run = Run::asking(0);
     run.send(Event::Mute(true), 500);
     assert_eq!(run.phase(), Phase::Thinking, "the round goes on");
     assert_eq!(run.send(Event::FirstWords, 1_000), [Effect::ShowAnswer]);
     assert!(run.send(Event::TurnEnded, 2_000).is_empty());
     assert_eq!(run.phase(), Phase::FollowUp);
-    assert_eq!(run.state.next_deadline(), None, "no window while muted");
     assert!(run.send(Event::Tick, 600_000).is_empty());
 
     assert_eq!(
         run.send(Event::Mute(false), 600_000),
         [Effect::Tone(ToneId::Unmuted), Effect::Listen]
     );
-    assert_eq!(run.state.next_deadline(), Some(run.at(600_000 + FOLLOW_UP)));
-    let effects = run.send(Event::Tick, 600_000 + FOLLOW_UP);
-    assert!(effects.contains(&Effect::Tone(ToneId::ConversationEnd)));
+    assert_eq!(run.state.next_deadline(), None);
+    assert!(run.send(Event::Tick, HOUR).is_empty());
+    assert_eq!(run.phase(), Phase::FollowUp);
 }
 
 #[test]
@@ -604,12 +609,11 @@ fn a_question_while_muted_is_only_shown_and_asked_on_the_next_wake_word() {
     run.send(Event::Mute(true), 500);
     assert!(run.send(Event::Question(question("r1")), 1_000).is_empty());
     assert_eq!(run.phase(), Phase::AwaitingAnswer);
-    // Unmuting listens for one window but does not repeat the question on its own.
+    // Unmuting listens again but does not repeat the question on its own.
     assert_eq!(
         run.send(Event::Mute(false), 5_000),
         [Effect::Tone(ToneId::Unmuted), Effect::Listen]
     );
-    run.send(Event::Tick, 5_000 + FOLLOW_UP);
     let effects = run.send(Event::Wake, 20_000);
     assert!(effects.contains(&Effect::AskQuestion("r1".to_owned())));
 }
