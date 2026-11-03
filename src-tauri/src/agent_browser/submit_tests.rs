@@ -133,6 +133,23 @@ fn nested_json_and_other_text_are_shown_not_hidden() {
         )]
     );
 
+    // A name/value pair (a form sent as JSON) names its secret in a value: its value is hidden.
+    assert_eq!(
+        pairs(r#"[{"name":"email","value":"a@b.de"},{"name":"password","value":"geheim"}]"#),
+        [(
+            String::new(),
+            r#"[{"name":"email","value":"a@b.de"},{"name":"password","value":"•••"}]"#.to_owned()
+        )]
+    );
+    assert_eq!(
+        pairs(r#"{"field":"card_number","value":"4111","page":"/kasse"}"#),
+        [
+            ("field".to_owned(), "card_number".to_owned()),
+            ("value".to_owned(), "•••".to_owned()),
+            ("page".to_owned(), "•••".to_owned()),
+        ]
+    );
+
     // A JSON list and plain text are one field without a name.
     assert_eq!(
         pairs(r#"[{"a":1},{"a":2}]"#),
