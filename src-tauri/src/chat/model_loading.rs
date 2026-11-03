@@ -302,21 +302,24 @@ pub(crate) async fn load_model_inner(
             chat.replace_local_model(Some(session));
         }
     }
-    chat.set_model_ready(
+    // An activation goes on when a chat load takes over the status meanwhile (`superseded`); its
+    // `Ready` would then report the chat load as done while that one still runs.
+    if chat.set_model_ready(
         identity.vault_generation,
         identity.load_id,
         info.model_id.clone(),
         info.name.clone(),
-    );
-    emit_load_progress(
-        app,
-        identity.vault_generation,
-        identity.load_id,
-        model_id,
-        &info.name,
-        LoadPhase::Ready,
-        None,
-    );
+    ) {
+        emit_load_progress(
+            app,
+            identity.vault_generation,
+            identity.load_id,
+            model_id,
+            &info.name,
+            LoadPhase::Ready,
+            None,
+        );
+    }
     if let Some(adapter) = local_adapter {
         let token = chat.begin_tool_check();
         spawn_tool_use_check(app, info.model_id.clone(), adapter, token);
