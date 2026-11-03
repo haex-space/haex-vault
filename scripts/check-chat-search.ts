@@ -12,7 +12,8 @@ import {
   type SearchResult,
 } from '../src/composables/useChatSearch.ts'
 
-const errString = (e: unknown) => `error: ${String(e)}`
+const errors: unknown[] = []
+const onError = (e: unknown) => errors.push(e)
 
 function hit(messageId: string) {
   return {
@@ -40,7 +41,7 @@ test.afterEach(() => mock.timers.reset())
 
 test('one character does not search; two do', async () => {
   const asked: string[] = []
-  const search = useChatSearch(errString, async (text) => {
+  const search = useChatSearch(onError, async (text) => {
     asked.push(text)
     return result('m1')
   })
@@ -65,7 +66,7 @@ test('one character does not search; two do', async () => {
 
 test('a burst of keys searches once, after the debounce', async () => {
   const asked: string[] = []
-  const search = useChatSearch(errString, async (text) => {
+  const search = useChatSearch(onError, async (text) => {
     asked.push(text)
     return result()
   })
@@ -83,7 +84,7 @@ test('a burst of keys searches once, after the debounce', async () => {
 test('a late result of an older text never replaces a newer one', async () => {
   const pending = new Map<string, (value: SearchResult) => void>()
   const search = useChatSearch(
-    errString,
+    onError,
     (text) => new Promise((resolve) => pending.set(text, resolve)),
   )
 
@@ -107,7 +108,7 @@ test('a late result of an older text never replaces a newer one', async () => {
 test('a result for a text the user already changed is not shown', async () => {
   let answer: ((value: SearchResult) => void) | undefined
   const search = useChatSearch(
-    errString,
+    onError,
     () => new Promise((resolve) => (answer = resolve)),
   )
 
@@ -123,7 +124,7 @@ test('a result for a text the user already changed is not shown', async () => {
 
 test('clearing empties the hits and drops a running search', async () => {
   let answer: ((value: SearchResult) => void) | undefined
-  const search = useChatSearch(errString, async (text) =>
+  const search = useChatSearch(onError, async (text) =>
     text === 'eins'
       ? result('m1')
       : new Promise((resolve) => (answer = resolve)),
@@ -144,15 +145,36 @@ test('clearing empties the hits and drops a running search', async () => {
   assert.equal(search.more.value, false)
 })
 
-test('an error is shown and the hits stay empty', async () => {
-  const search = useChatSearch(errString, async () => {
+test('an error is reported once and the hits stay empty', async () => {
+  errors.length = 0
+  const search = useChatSearch(onError, async () => {
     throw 'locked'
   })
 
   search.text.value = 'abc'
   await settle()
 
-  assert.equal(search.error.value, 'error: locked')
+  assert.deepEqual(errors, ['locked'])
+  assert.equal(search.failed.value, true)
   assert.equal(search.hits.value.length, 0)
   assert.equal(search.searching.value, false)
+})
+
+test('an error of a text the user already changed is not reported', async () => {
+  errors.length = 0
+  let fail: ((reason: unknown) => void) | undefined
+  const search = useChatSearch(
+    onError,
+    () => new Promise((_, reject) => (fail = reject)),
+  )
+
+  search.text.value = 'alt'
+  await settle()
+  search.text.value = 'altx'
+  await nextTick()
+  fail!('locked')
+  for (let i = 0; i < 5; i++) await Promise.resolve()
+
+  assert.deepEqual(errors, [])
+  assert.equal(search.failed.value, false)
 })

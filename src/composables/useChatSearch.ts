@@ -24,10 +24,12 @@ export const SEARCH_DEBOUNCE_MS = 250
  * The message search of the chat sidebar (spec 076 US2): `text` is the search field; 250 ms after
  * the last key, from two characters on, `chat_search` runs and `hits` show its result. A result
  * that comes back after the text changed is dropped (spec Edge Cases). Names are filtered by the
- * sidebar itself, at once. `searchAsync` is the command, replaceable in `check:chat-state`.
+ * sidebar itself, at once. A failed search of the current text goes to `onError` (the sidebar
+ * shows it as a toast) and sets `failed`. `searchAsync` is the command, replaceable in
+ * `check:chat-state`.
  */
 export function useChatSearch(
-  errString: (error: unknown) => string,
+  onError: (error: unknown) => void,
   searchAsync: (text: string) => Promise<SearchResult> = (text) =>
     invoke<SearchResult>('chat_search', { args: { text } }),
 ) {
@@ -35,7 +37,7 @@ export function useChatSearch(
   const hits = ref<SearchHit[]>([])
   const more = ref(false)
   const searching = ref(false)
-  const error = ref<string | null>(null)
+  const failed = ref(false)
   /** The text the shown result is for; `''` without one. */
   const searched = ref('')
   let request = 0
@@ -44,7 +46,7 @@ export function useChatSearch(
     hits.value = []
     more.value = false
     searching.value = false
-    error.value = null
+    failed.value = false
     searched.value = ''
   }
 
@@ -61,14 +63,15 @@ export function useChatSearch(
       if (!current()) return
       hits.value = result.hits
       more.value = result.more
-      error.value = null
+      failed.value = false
       searched.value = value
     } catch (e: unknown) {
       if (!current()) return
       hits.value = []
       more.value = false
-      error.value = errString(e)
+      failed.value = true
       searched.value = value
+      onError(e)
     } finally {
       if (id === request) searching.value = false
     }
@@ -82,5 +85,5 @@ export function useChatSearch(
     reset()
   }
 
-  return { text, hits, more, searching, error, searched, clear }
+  return { text, hits, more, searching, failed, searched, clear }
 }
