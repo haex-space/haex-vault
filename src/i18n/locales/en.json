@@ -2115,7 +2115,8 @@
       "upload": "Upload a file",
       "credentialsFill": "Fill in login details",
       "entryFill": "Fill in data",
-      "credentialsCreate": "Create new login details"
+      "credentialsCreate": "Create new login details",
+      "search": "Search the web"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -4287,7 +4288,12 @@
       "rememberRead": "Remember: read",
       "rememberOperate": "Remember: operate",
       "siteLabel": "Website",
-      "actionLabel": "Action"
+      "actionLabel": "Action",
+      "switchOn": {
+        "title": "Switch the browser on for the agent?",
+        "hint": "The built-in agent wants to search the web or open a page. With “Switch on” it may use the agent browser; every website still asks on its first visit. You can switch it off under Settings → AI → Browser.",
+        "allow": "Switch on"
+      }
     },
     "settings": {
       "browser": "Browser",

@@ -31,95 +31,23 @@ use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
 use super::sites::{check_document, may_operate, Verdict};
 use super::tab::TabError;
-use super::{takeover, AgentBrowser};
+use super::{search, takeover, AgentBrowser};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
 
 #[path = "executor_env.rs"]
 mod env_trait;
+#[path = "executor_ids.rs"]
+mod ids;
 #[path = "executor_steps.rs"]
 mod steps;
 
 pub use env_trait::BrowserEnv;
+use ids::{ASKS_WITH_ELEMENT, OPERATING, TAKEOVER};
+pub use ids::{BROWSER_ACTION_IDS, CHANGING, READING};
 
 pub(in crate::agent_browser) use steps::hide_filled;
-
-/// The tools that only read.
-pub const READING: &[&str] = &[
-    "browser.page.read",
-    "browser.page.screenshot",
-    "browser.scroll",
-    "browser.tabs.list",
-    "browser.wait",
-    "browser.takeover.request",
-];
-
-/// Asks the user to take over and waits for the browser back; reading, since it changes nothing on
-/// a website.
-const TAKEOVER: &str = "browser.takeover.request";
-
-/// The tools that change something (every navigation counts, contracts/browser-tools.md); they ask
-/// the user themselves.
-pub const CHANGING: &[&str] = &[
-    "browser.open",
-    "browser.tabs.open",
-    "browser.navigate",
-    "browser.follow_link",
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.tabs.close",
-    "browser.download",
-    "browser.upload",
-    "browser.credentials.fill",
-    "browser.entry.fill",
-    "browser.credentials.create",
-];
-
-/// The changing tools that operate an element: they ask with it, not with their input, and the
-/// page is read again after them.
-const OPERATING: &[&str] = &[
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.upload",
-];
-
-/// The tools that ask themselves, with the element they operate or the entries of a fill; a
-/// download and a fill reply with their result, not with the page.
-const ASKS_WITH_ELEMENT: &[&str] = &[
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.upload",
-    "browser.download",
-    "browser.credentials.fill",
-    "browser.entry.fill",
-    "browser.credentials.create",
-];
-
-pub const BROWSER_ACTION_IDS: &[&str] = &[
-    "browser.page.read",
-    "browser.page.screenshot",
-    "browser.scroll",
-    "browser.tabs.list",
-    "browser.wait",
-    "browser.open",
-    "browser.tabs.open",
-    "browser.navigate",
-    "browser.follow_link",
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.tabs.close",
-    "browser.takeover.request",
-    "browser.download",
-    "browser.upload",
-    "browser.credentials.fill",
-    "browser.entry.fill",
-    "browser.credentials.create",
-];
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
 /// whole stop within a second).
@@ -132,6 +60,8 @@ pub struct BrowserTools {
     prompts: BrowserPrompts,
     closed: ClosedNotice,
     sessions: BrowserSessions,
+    /// The result page of `browser.search`, the encoded query following ([`search`]).
+    search_engine: String,
 }
 
 impl BrowserTools {
@@ -149,7 +79,18 @@ impl BrowserTools {
             prompts,
             closed,
             sessions,
+            search_engine: search::DEFAULT_ENGINE.to_owned(),
         }
+    }
+
+    /// The same tools with another search engine's result page (tests: the fixture site).
+    pub fn with_search_engine(mut self, result_page: &str) -> Self {
+        self.search_engine = result_page.to_owned();
+        self
+    }
+
+    pub(super) fn prompt_channels(&self) -> (&BrowserPrompts, &ClosedNotice) {
+        (&self.prompts, &self.closed)
     }
 
     async fn session(&self, caller: &Caller) -> Result<Arc<Session>, NativeError> {
@@ -212,7 +153,16 @@ impl NativeExecutor for BrowserTools {
         call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
-        let session = self.session_for(action_id, call).await?;
+        // A search is the opening of the engine's result page (FR-039).
+        let (action_id, input_value) = if action_id == search::SEARCH {
+            (
+                "browser.open",
+                search::as_open(&self.search_engine, input_value)?,
+            )
+        } else {
+            (action_id, input_value)
+        };
+        let session = self.session_for(action_id, call, cancel).await?;
         // Asking to take over waits for the pause; nothing else runs in it.
         let pauses = action_id != TAKEOVER;
         if pauses && session.is_paused() {
@@ -269,18 +219,20 @@ impl BrowserTools {
         &self,
         action_id: &str,
         call: &NativeCall,
+        cancel: &CancellationToken,
     ) -> Result<Arc<Session>, NativeError> {
         if !crate::platform::capabilities().agent_browser {
             return Err(browser_error(BrowserError::Unsupported));
         }
-        if self.env.rights(&call.caller).await.is_none() {
-            return Err(not_allowed());
-        }
+        // Plan refuses first: switching the browser on would not let this call run.
         if call.mode == PermissionMode::Plan && CHANGING.contains(&action_id) {
             return Err(NativeError::new(
                 "plan_mode",
                 "The approval mode of this agent only lets reading actions run.",
             ));
+        }
+        if self.env.rights(&call.caller).await.is_none() {
+            self.ask_to_switch_on(&call.caller, cancel).await?;
         }
         self.session(&call.caller).await
     }

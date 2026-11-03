@@ -79,6 +79,8 @@ const allowLabel = computed(() => {
       return t('agentBrowser.prompt.entryFill.allow')
     case 'newCredentials':
       return t('agentBrowser.prompt.newCredentials.allow')
+    case 'switchOn':
+      return t('agentBrowser.prompt.switchOn.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }

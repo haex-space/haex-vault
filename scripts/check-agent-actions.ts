@@ -114,8 +114,8 @@ test('toAgentActionDef passes the action through unchanged and adds localized ti
 
 test('the core offer names existing, built-in-callable actions and leaves room for find_actions and ask_user', () => {
   assert.ok(
-    CORE_AGENT_TOOLS.length <= 9,
-    'core plus find_actions and ask_user is at most 11',
+    CORE_AGENT_TOOLS.length <= 11,
+    'core plus find_actions and ask_user is at most 13',
   )
   assert.equal(new Set(CORE_AGENT_TOOLS).size, CORE_AGENT_TOOLS.length)
   for (const id of CORE_AGENT_TOOLS) {
@@ -163,7 +163,7 @@ function nativeExecutorIds(): string[] {
     ...ids('passwords/agent_actions.rs', 'PASSWORD_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
-    ...ids('agent_browser/executor.rs', 'BROWSER_ACTION_IDS'),
+    ...ids('agent_browser/executor_ids.rs', 'BROWSER_ACTION_IDS'),
   ]
 }
 
@@ -178,7 +178,9 @@ test('every native action has its Rust executor and every executor its action (A
     if (action.id !== 'passwords.secret.get')
       assert.ok(isBuiltinAgentAction(action), action.id)
     assert.ok(action.agentCallable, action.id)
-    assert.ok(!CORE_AGENT_TOOLS.includes(action.id), action.id)
+    // Only the web search and opening a page are core (spec 065 revision 2026-11-02).
+    if (!['browser.search', 'browser.open'].includes(action.id))
+      assert.ok(!CORE_AGENT_TOOLS.includes(action.id), action.id)
     assert.equal(toAgentActionDef(action, titleOf).runner, 'native', action.id)
   }
   const show = ALL_ACTIONS.find((a) => a.id === 'files.show')
@@ -612,7 +614,7 @@ test('every browser tool runs in Rust and asks itself when it changes a page (sp
 
 test('the browser tools that ask themselves are those the executor asks for (spec 065 R8)', () => {
   const source = readFileSync(
-    new URL('../src-tauri/src/agent_browser/executor.rs', import.meta.url),
+    new URL('../src-tauri/src/agent_browser/executor_ids.rs', import.meta.url),
     'utf8',
   )
   const changing = /CHANGING: &\[&str\] = &\[([^\]]*)\]/.exec(source)?.[1] ?? ''

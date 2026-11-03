@@ -357,6 +357,17 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         Some(PasswordsService::with_usage(db, state.usage()))
     }
 
+    async fn switch_on(&self, caller: &Caller) -> Result<(), String> {
+        match caller {
+            // Already on (another call allowed it meanwhile): keep its websites.
+            Caller::BuiltinAgent if builtin_rights(&self.app).await.is_some() => Ok(()),
+            Caller::BuiltinAgent => {
+                set_builtin_rights(&self.app, Some(BrowserRights::default())).await
+            }
+            _ => Err("only the built-in agent is switched on from the chat".to_owned()),
+        }
+    }
+
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
         let remembered = |rights: &mut BrowserRights| match rights.sites.get_mut(site) {
             // Only a website the agent may operate keeps a fill (data-model.md).

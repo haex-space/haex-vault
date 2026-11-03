@@ -59,6 +59,25 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.search',
+    titleKey: 'actions.browser.search',
+    description:
+      "Search the web for current or outside information (news, prices, opening hours, facts you do not know): opens the search engine's result page for the query in the agent browser and reads it. Then open the results that fit with browser.open or browser.follow_link and answer from them." +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search words, at most 500 characters.',
+        },
+      },
+      required: ['query'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
     id: 'browser.tabs.open',
     titleKey: 'actions.browser.tabsOpen',
     description:

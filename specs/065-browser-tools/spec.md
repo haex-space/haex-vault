@@ -120,6 +120,14 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   ihn das Dateirecht „Dateien des Geräts“, und der Nutzer findet die Dateien wie die eines
   gewöhnlichen Browsers (FR-031, R11).
 
+### Session 2026-11-02 (revision: web search)
+
+- Q: The built-in agent refused web research; what is missing? → A: Its browser is off by default,
+  the browser tools were only reachable through `find_actions`, which small models rarely call, and
+  there was no search tool. holzi gets a search tool, the search and opening a page are offered to
+  every model from the start, and a built-in agent whose browser is off asks the user to switch it
+  on instead of refusing silently (operator, FR-039 to FR-041).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Ein Agent erledigt eine Recherche im Agenten-Browser (Priority: P1)
@@ -513,6 +521,19 @@ Steuerung.
   erst nach der Zustimmung erhalten.
 - **FR-032**: Ergebnisse von „Seite lesen“ MÜSSEN auf eine feste Größe gekürzt werden; der Agent
   MUSS erfahren, dass gekürzt wurde, und Ausschnitte anfordern können.
+
+**Web search (revision 2026-11-02)**
+
+- **FR-039**: An agent MUST be able to search the web with one tool (`browser.search`): it opens the
+  search engine's result page for the query in an agent tab and reads it, with every rule of
+  opening a page (FR-005 to FR-010). The engine is DuckDuckGo's HTML page; its website asks on the
+  first visit like any other.
+- **FR-040**: When the built-in agent calls a browser tool while its rights group "Browser" is off,
+  holzi MUST ask the user whether to switch it on instead of refusing. Allowing switches the group on
+  without any website (every website still asks on its first visit); declining refuses the tool.
+  External agents keep their rights from the MCP settings and are refused as before.
+- **FR-041**: `browser.search` and `browser.open` MUST be part of the tools every model sees from
+  the start (spec 032 core offer), on devices that have the agent browser.
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 

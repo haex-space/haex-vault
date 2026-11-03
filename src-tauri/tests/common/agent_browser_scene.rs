@@ -68,12 +68,22 @@ pub struct Env {
     pub files: Mutex<AgentGrants>,
     /// The agent's rights group "Passwörter"; off until a test switches it on.
     pub passwords: Mutex<Option<PasswordRights>>,
+    /// The rights group `browser` is off until a question switches it on (FR-040).
+    pub off: Mutex<bool>,
 }
 
 #[async_trait]
 impl BrowserEnv for Env {
     async fn rights(&self, _caller: &Caller) -> Option<BrowserRights> {
+        if *self.off.lock().unwrap() {
+            return None;
+        }
         Some(self.rights.lock().unwrap().clone())
+    }
+
+    async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
+        *self.off.lock().unwrap() = false;
+        Ok(())
     }
 
     async fn remember(
@@ -189,6 +199,20 @@ impl Scene {
             .await
     }
 
+    /// A call of `caller` (the built-in agent instead of the scene's external one).
+    pub async fn call_as(
+        &self,
+        caller: Caller,
+        tool: &str,
+        input: Value,
+        mode: PermissionMode,
+    ) -> Result<NativeReply, NativeError> {
+        let call = NativeCall { caller, mode };
+        self.tools
+            .run(tool, input, &call, &CancellationToken::new())
+            .await
+    }
+
     pub async fn auto(&self, tool: &str, input: Value) -> Result<NativeReply, NativeError> {
         self.call(tool, input, PermissionMode::Auto).await
     }
@@ -237,6 +261,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         downloads: tempfile::tempdir().unwrap(),
         files: Mutex::default(),
         passwords: Mutex::default(),
+        off: Mutex::new(false),
     });
     let prompts: BrowserPrompts = new_browser_prompts();
     let asked = Arc::new(Mutex::new(Vec::new()));
@@ -281,7 +306,9 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         prompts,
         Arc::new(|_| {}),
         sessions.clone(),
-    );
+    )
+    // `browser.search` lands on the fixture site's front page with the query.
+    .with_search_engine(&site.url("/?q="));
     let scene = Scene {
         env,
         tools,

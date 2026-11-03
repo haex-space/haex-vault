@@ -2115,7 +2115,8 @@
       "upload": "Datei hochladen",
       "credentialsFill": "Anmeldedaten eintragen",
       "entryFill": "Daten eintragen",
-      "credentialsCreate": "Neue Anmeldedaten anlegen"
+      "credentialsCreate": "Neue Anmeldedaten anlegen",
+      "search": "Im Web suchen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -4287,7 +4288,12 @@
       "rememberRead": "Merken: lesen",
       "rememberOperate": "Merken: bedienen",
       "siteLabel": "Website",
-      "actionLabel": "Handlung"
+      "actionLabel": "Handlung",
+      "switchOn": {
+        "title": "Browser für den Agenten einschalten?",
+        "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen; jede Website fragt beim ersten Besuch trotzdem einzeln. Ausschalten kannst du ihn unter Einstellungen → KI → Browser.",
+        "allow": "Einschalten"
+      }
     },
     "settings": {
       "browser": "Browser",
