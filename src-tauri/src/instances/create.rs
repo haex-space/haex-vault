@@ -143,24 +143,7 @@ pub async fn create_instance(
     if let Ok(db) = state.database() {
         crate::privacy::screen_capture::apply_for_vault(&app, &db).await;
     }
-    // Spec 024: the sync service runs as tracked session work and ends with the close.
-    crate::vault_events::start_for_active_instance(&app, &state);
-    crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
-    // Spec 057: channels end when their permission or the other vault's standing goes.
-    crate::extensions::peers::watch::start_for_active_instance(&app, &state);
-    crate::extensions::sql::changes::start_for_active_instance(&app, &state);
-    // Spec 051 (FR-021): changes of contacts reach the phone's address book.
-    crate::contacts::phone::trigger::watch(&app);
-    crate::sync::start_for_active_instance(&app, &state).await;
-    // Spec 072: the chat with contacts receives and sends over Nostr-Relays while the vault is open.
-    crate::chat::peer::service::start_for_active_instance(&app, &state);
-    // Spec 061: sync rules run on this device while the vault is open; other own devices are
-    // reached through the sync just started.
-    crate::file_sync::service::start_for_active_instance(&app, &state);
-    // Spec 049: the External Bridge, when this device turned it on.
-    crate::browser_bridge::start_for_active_instance(&app, &state);
-    // Spec 021: the MCP access for external agents, when this device turned it on.
-    crate::mcp_server::start_for_active_instance(&app, &state);
+    super::session_services::start(&app, &state, &chat).await;
 
     *chat.session.lock().unwrap_or_else(|e| e.into_inner()) = None;
     voice.invalidate_stt_cache().await;
