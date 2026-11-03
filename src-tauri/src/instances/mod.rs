@@ -24,6 +24,7 @@ mod open;
 mod passphrase_change;
 #[cfg(test)]
 mod passphrase_change_tests;
+mod session_services;
 
 pub use close::{close_instance, start_close, take_over_exit};
 pub use create::{create_instance, create_instance_core, CreateInstanceArgs, CreateInstanceResult};
