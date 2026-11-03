@@ -542,7 +542,6 @@ Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nac
 
 (Ursprüngliche Planung der Frontend-Anbindung, erledigt mit Stufe 3:)
 
-
 Neuer Worktree nach dem Merge von Stufe 3; **vor dem Start feinplanen**.
 
 ### Task 16: Composables und Actions
