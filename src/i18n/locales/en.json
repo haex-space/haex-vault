@@ -1465,7 +1465,8 @@
     },
     "localModels": {
       "onDevice": "On this device",
-      "download": "Download"
+      "download": "Download",
+      "model": "Model"
     },
     "assistant": {
       "labels": {

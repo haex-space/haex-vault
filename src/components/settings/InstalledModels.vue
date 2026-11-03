@@ -1,12 +1,16 @@
 <script setup lang="ts">
 /**
  * Installed models (spec 005; the upper part of the location `/ai/local`, spec 023 research R10):
- * activate (load into memory), unload, delete, check and install HuggingFace updates, and the
- * integrity dialog. Of the installed models at most one is active; it is the only local model
- * the chat offers. Lists, the active model and the integrity flow are `useModelsStore()` state
- * shared with the chat.
+ * one select over the models on this device, with badges for the active one and for an update,
+ * and the buttons next to it that act on the chosen model: activate (load into memory) or
+ * unload, install an update, delete. Below it the details of the chosen model. Choosing a model
+ * activates nothing: of the installed models at most one is active, and it is the only local
+ * model the chat offers. The list, the active model and the integrity flow are
+ * `useModelsStore()` state shared with the chat.
  */
 import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
+import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import { humanBytes } from '~/lib/models/format'
 
 const { t } = useI18n()
 const checkUpdates = useActionOrThrow('settings.models.checkUpdates')
@@ -37,6 +41,51 @@ const listErrorKey = ref<string | null>(null)
 const listErrorDetail = ref<string | null>(null)
 
 const updateStatuses = ref<Record<string, HuggingFaceUpdateStatus>>({})
+
+/** The model the buttons act on: the one chosen in the select, at first the active one. */
+const selectedId = ref('')
+const pickedByPerson = ref(false)
+const selected = computed(
+  () => installed.value.find((model) => model.id === selectedId.value) ?? null,
+)
+
+function pick(id: string) {
+  selectedId.value = id
+  pickedByPerson.value = true
+}
+
+// A model that went away (deleted) leaves the choice on the active one, else the first.
+watch(
+  installed,
+  (list) => {
+    if (list.some((model) => model.id === selectedId.value)) return
+    selectedId.value =
+      list.find((model) => model.id === activeLocalModelId.value)?.id ??
+      list[0]?.id ??
+      ''
+  },
+  { immediate: true },
+)
+// The active model may be loaded after this view opened (the vault-open preload): until the
+// person chose something, the select follows it.
+watch(activeLocalModelId, (id) => {
+  if (id && !pickedByPerson.value) selectedId.value = id
+})
+
+const options = computed<SettingsSelectOption[]>(() =>
+  installed.value.map((model) => ({
+    value: model.id,
+    label: model.name,
+    badges: [
+      ...(activeLocalModelId.value === model.id
+        ? [{ text: t('models.installed.active'), tone: 'success' as const }]
+        : []),
+      ...(updateStatuses.value[model.id]?.updateAvailable
+        ? [{ text: t('models.update.available'), tone: 'warning' as const }]
+        : []),
+    ],
+  })),
+)
 const checkingUpdates = ref(false)
 const updateErrorKey = ref<string | null>(null)
 const updateErrorDetail = ref<string | null>(null)
@@ -237,70 +286,30 @@ onMounted(async () => {
       {{ t('models.installed.empty') }}
     </p>
 
-    <SettingsGroup v-if="installed.length > 0">
-      <SettingsRow v-for="model in installed" :key="model.id">
+    <SettingsGroup v-if="selected">
+      <SettingsRow
+        :title="t('settings.localModels.model')"
+        label-for="local-model-select"
+      >
         <template #backdrop>
-          <ModelsDownloadBar :model-id="model.id" />
+          <ModelsDownloadBar :model-id="selected.id" />
         </template>
-        <template #title>
-          <span class="flex flex-wrap items-center gap-2">
-            <span class="font-medium">{{ model.name }}</span>
-            <span
-              v-if="activeLocalModelId === model.id"
-              class="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success"
-            >
-              {{ t('models.installed.active') }}
-            </span>
-          </span>
-        </template>
-        <template #description>
-          <span class="flex flex-col gap-0.5 text-xs">
-            <span class="flex flex-wrap gap-x-3 gap-y-0.5">
-              <span>{{
-                t(`models.installed.source.${model.sourceKind}`)
-              }}</span>
-              <span>{{
-                t(`models.installed.integrity.${model.integrityStatus}`)
-              }}</span>
-            </span>
-            <ModelsDownloadStatus :model-id="model.id" />
-            <span v-if="model.hfRevisionRef && updateStatuses[model.id]">
-              <span
-                v-if="updateStatuses[model.id]?.errorCode"
-                class="text-destructive"
-              >
-                {{ t('models.update.error') }}
-              </span>
-              <span
-                v-else-if="updateStatuses[model.id]?.updateAvailable"
-                class="text-warning"
-              >
-                {{ t('models.update.available') }} ({{
-                  t('models.update.oldRevision')
-                }}:
-                {{ updateStatuses[model.id]?.installedRevision.slice(0, 8) }} →
-                {{ t('models.update.newRevision') }}:
-                {{ updateStatuses[model.id]?.latestRevision?.slice(0, 8) }})
-              </span>
-              <span v-else>{{ t('models.update.upToDate') }}</span>
-            </span>
-            <span
-              v-else-if="
-                model.sourceKind === 'huggingface' && !model.hfRevisionRef
-              "
-            >
-              {{ t('models.update.notTrackable') }}
-            </span>
-          </span>
-        </template>
+        <SettingsSelect
+          id="local-model-select"
+          class="w-72 md:w-96"
+          :model-value="selectedId"
+          :options="options"
+          data-testid="settings-local-model-select"
+          @update:model-value="pick"
+        />
         <UiButton
-          v-if="activeLocalModelId === model.id"
+          v-if="activeLocalModelId === selected.id"
           type="button"
           size="sm"
           variant="outline"
-          :disabled="busyModelId === model.id"
-          :loading="busyModelId === model.id && busyAction === 'unload'"
-          @click="unloadAsync(model.id)"
+          :disabled="busyModelId === selected.id"
+          :loading="busyModelId === selected.id && busyAction === 'unload'"
+          @click="unloadAsync(selected.id)"
         >
           {{ t('models.installed.unload') }}
         </UiButton>
@@ -308,45 +317,87 @@ onMounted(async () => {
           v-else
           type="button"
           size="sm"
-          :disabled="busyModelId === model.id"
-          :loading="busyModelId === model.id && busyAction === 'activate'"
-          @click="activateAsync(model.id)"
+          :disabled="busyModelId === selected.id"
+          :loading="busyModelId === selected.id && busyAction === 'activate'"
+          @click="activateAsync(selected.id)"
         >
           {{ t('models.installed.activate') }}
         </UiButton>
-        <template v-if="updateStatuses[model.id]?.updateAvailable">
-          <UiButton
-            v-if="installingUpdateId === model.id"
-            type="button"
-            size="sm"
-            variant="outline"
-            :data-testid="`models-cancel-update-${model.id}`"
-            @click="cancelUpdateAsync(model.id)"
-          >
-            {{ t('models.filePicker.cancel') }}
-          </UiButton>
-          <UiButton
-            v-else
-            type="button"
-            size="sm"
-            variant="outline"
-            @click="confirmingUpdate = model"
-          >
-            {{ t('models.update.install') }}
-          </UiButton>
-        </template>
+        <UiButton
+          v-if="installingUpdateId === selected.id"
+          type="button"
+          size="sm"
+          variant="outline"
+          :data-testid="`models-cancel-update-${selected.id}`"
+          @click="cancelUpdateAsync(selected.id)"
+        >
+          {{ t('models.filePicker.cancel') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
+          variant="outline"
+          :disabled="!updateStatuses[selected.id]?.updateAvailable"
+          @click="confirmingUpdate = selected"
+        >
+          {{ t('models.update.install') }}
+        </UiButton>
         <UiButton
           type="button"
           size="sm"
           variant="ghost"
-          :aria-label="`${t('models.installed.delete')}: ${model.name}`"
+          :aria-label="`${t('models.installed.delete')}: ${selected.name}`"
           :tooltip="t('models.installed.delete')"
-          :disabled="busyModelId === model.id"
-          :loading="busyModelId === model.id && busyAction === 'delete'"
-          @click="deleteModelAsync(model.id)"
+          :disabled="busyModelId === selected.id"
+          :loading="busyModelId === selected.id && busyAction === 'delete'"
+          @click="deleteModelAsync(selected.id)"
         >
           <Icon name="lucide:trash-2" class="size-4" />
         </UiButton>
+      </SettingsRow>
+      <SettingsRow>
+        <template #description>
+          <span class="flex flex-col gap-0.5 text-xs">
+            <span class="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>{{
+                t(`models.installed.source.${selected.sourceKind}`)
+              }}</span>
+              <span>{{
+                t(`models.installed.integrity.${selected.integrityStatus}`)
+              }}</span>
+              <span>{{ humanBytes(selected.sizeBytes) }}</span>
+            </span>
+            <ModelsDownloadStatus :model-id="selected.id" />
+            <span v-if="selected.hfRevisionRef && updateStatuses[selected.id]">
+              <span
+                v-if="updateStatuses[selected.id]?.errorCode"
+                class="text-destructive"
+              >
+                {{ t('models.update.error') }}
+              </span>
+              <span
+                v-else-if="updateStatuses[selected.id]?.updateAvailable"
+                class="text-warning"
+              >
+                {{ t('models.update.available') }} ({{
+                  t('models.update.oldRevision')
+                }}:
+                {{ updateStatuses[selected.id]?.installedRevision.slice(0, 8) }}
+                → {{ t('models.update.newRevision') }}:
+                {{ updateStatuses[selected.id]?.latestRevision?.slice(0, 8) }})
+              </span>
+              <span v-else>{{ t('models.update.upToDate') }}</span>
+            </span>
+            <span
+              v-else-if="
+                selected.sourceKind === 'huggingface' && !selected.hfRevisionRef
+              "
+            >
+              {{ t('models.update.notTrackable') }}
+            </span>
+          </span>
+        </template>
       </SettingsRow>
     </SettingsGroup>
 
