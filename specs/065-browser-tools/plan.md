@@ -57,6 +57,12 @@ Abhängigkeit nur für Windows (steht schon im Lockfile über Tauri), Funktion `
 `agent_browser.builtin`, neue Tabelle `haex_agent_browser_no_sync`, Profil als `profile.zip` im
 verschlüsselten Ordner unter `<AppLocalData>/agent-browser/<Instanz>/` (data-model.md).
 
+**Revision 2026-11-03** (FR-042 to FR-046): one new crate, Brave's `adblock` (MPL-2.0, network
+filters only, R16), since the filter lists' syntax with exceptions and `$third-party` rules cannot be
+matched by a host list; the device setting `agent_browser.trackers` and the list cache
+`<AppLocalData>/agent-browser/filters/`; the rows `*` and `request:<Website>` in the existing group
+`browser` of `haex_mcp_agent_grants`, no new table (data-model.md). Cookies go through CDP (R17).
+
 **Testing**: `cargo test` (Einheiten in `*_tests.rs`), Integrationstests in `src-tauri/tests/`
 gegen einen echten Chromium mit einem lokalen Testserver (`agent_browser_*.rs`, nur wo ein Browser
 gefunden wird; CI installiert Chromium), Prüfskripte (`check:agent-actions`, `check:mcp-actions`),
@@ -99,7 +105,7 @@ Geprüft gegen `.specify/memory/constitution.md` und die spaex-Constitution
 | ADR bei prinzipienrelevanter Entscheidung         | ✅     | ADR-0019 (Steuerung, Isolation, Profil) als „proposed“, „accepted“ mit Lieferung C         |
 | Test-Code in separaten Dateien                    | ✅     | `*_tests.rs`, `src-tauri/tests/`                                                           |
 | Async nicht blockieren                            | ✅     | Siehe Constraints                                                                          |
-| Keine neue Crate ohne Not                         | ✅     | Eigener CDP-Client statt `chromiumoxide` (R1)                                              |
+| Keine neue Crate ohne Not                         | ✅     | Eigener CDP-Client statt `chromiumoxide` (R1); revision: `adblock` for filter lists (R16)  |
 | 500-LoC-Grenze                                    | ✅     | Ein Modul je CDP-Domäne und je Regel (Struktur unten)                                      |
 | Graphify vor neuen benannten Artefakten           | ✅     | Kandidaten unten                                                                           |
 | `ponytail:`-Kommentar bei bewusster Vereinfachung | ✅     | Geplant an: Wortliste für Absenden (R5), gesperrte Bildschirmfotos nach dem Eintragen (R7) |
@@ -169,6 +175,8 @@ src-tauri/src/
 │   ├── downloads.rs      # Downloads, Hochladen (R11)
 │   ├── executor.rs       # NativeExecutor für browser.*
 │   ├── commands.rs       # Tauri-Commands
+│   ├── filters.rs  filter_lists.rs  # tracker filters and their lists (revision, R16)
+│   ├── cookies.rs        # profile view through CDP (revision, R17)
 │   └── *_tests.rs
 ├── chat/tools/native_action.rs   # NativeCall { caller, mode } (Lieferung B)
 ├── mcp_server/grants.rs          # Gruppe browser (Lieferung B)
@@ -177,12 +185,14 @@ src-tauri/src/
 └── identity/migrations_agent_browser.rs  # 0047, haex_agent_browser_no_sync
 src-tauri/tests/
 ├── agent_browser_read.rs  agent_browser_act.rs  agent_browser_profile.rs  agent_browser_injection.rs
+├── agent_browser_requests.rs  # page requests and their rules (revision, FR-044)
 └── fixtures/agent_browser/{site,injection}/
 src/
 ├── lib/actions/browserActions.ts           # browser.* (native)
 ├── lib/actions/settingsAgentBrowserActions.ts
 ├── components/agentBrowser/PromptDialog.vue  SessionsBar.vue
 ├── components/settings/agentBrowser/AgentBrowserView.vue   # KI → Browser
+├── components/settings/agentBrowser/ProfileCookies.vue     # profile view (revision, FR-046)
 └── components/agents/BrowserRightsFields.vue                # Rechtegruppe Browser je Agent
 scripts/e2e/scenarios/agent-browser.test.ts
 ```
@@ -197,6 +207,8 @@ Siehe research.md R15: A (dieser PR, Dokumente), B (Grundlage in 021 und Passwö
 (Agenten-Browser, Lesen, sichtbare Sitzung und Stoppen, US1/US3), D (Bedienen, Absenden und
 Eingreifen, US2/US3), E0 (`haex-autofill` im vault-sdk), E1 (Anmeldedaten und andere Daten aus dem
 Passwortmanager, US4), E2 (Downloads, US5), F (Browser des Nutzers, US6, zurückgestellt).
+Revision 2026-11-03: G (dialogs, FR-042), H (all websites, FR-043), I (page requests, FR-044), J
+(trackers, FR-045), K (profile view, FR-046).
 
 ## Complexity Tracking
 

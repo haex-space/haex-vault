@@ -483,8 +483,7 @@
       "description": "An image behind every workspace, on all devices of the vault.",
       "choose": "Choose image …",
       "remove": "Remove",
-      "failed": "Could not set the background",
-      "saved": "Saved."
+      "failed": "Could not set the background"
     },
     "password": {
       "current": "Current password",
@@ -501,29 +500,24 @@
     },
     "language": {
       "label": "Language",
-      "saved": "Saved.",
       "failed": "Could not save the language"
     },
     "alias": {
       "label": "Device name",
-      "saved": "Saved.",
       "required": "Please enter a name."
     },
     "sessionRestore": {
       "title": "Restore session",
-      "saved": "Saved.",
       "failed": "The setting could not be changed",
       "description": "Bring back open windows and tabs when the vault opens"
     },
     "screenCapture": {
       "title": "Screen protection",
       "description": "No screenshots or recordings, an empty preview among the recent apps",
-      "saved": "Saved.",
       "failed": "The setting could not be changed"
     },
     "sttModel": {
       "modelLabel": "Model",
-      "saved": "Switched.",
       "downloading": "Downloading…",
       "downloadFailed": "Download failed",
       "notInstalled": "Default (not installed)",
@@ -556,7 +550,6 @@
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
       "ungatedDescription": "The delegate runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
       "gated_permissiveDescription": "The delegate can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
-      "saved": "Saved.",
       "saveFailed": "Failed to save the autonomy default.",
       "loadFailed": "Failed to load the autonomy default."
     },
@@ -567,7 +560,6 @@
       "network_accessDescription": "Block actions that reach the network.",
       "credential_paths": "Credential paths",
       "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …).",
-      "saved": "Saved.",
       "saveFailed": "Failed to save deny rules.",
       "loadFailed": "Failed to load deny rules."
     },
@@ -812,7 +804,6 @@
     "iconSet": {
       "label": "Icon set for files",
       "description": "Applies to the folders and files in the file browser, on every device of this vault.",
-      "saved": "Saved.",
       "failed": "The icon set could not be saved",
       "reset": "Reset",
       "states": {
@@ -854,7 +845,6 @@
       "light": "Light",
       "dark": "Dark",
       "system": "System",
-      "saved": "Saved.",
       "failed": "The color scheme could not be saved"
     },
     "deviceOnly": "Applies to this device only",
@@ -914,7 +904,6 @@
       "deviceAccess": {
         "title": "File access from devices",
         "description": "The other devices of this vault may open this device's files. Shares to contacts keep working.",
-        "saved": "Saved.",
         "failed": "The setting could not be changed"
       }
     },
@@ -1021,7 +1010,6 @@
       "exportFile": "Export",
       "imported": "Appearance imported.",
       "exported": "Appearance saved.",
-      "saved": "Saved.",
       "invalid": "Invalid choice: {field}",
       "failed": "The appearance could not be saved.",
       "import": {

@@ -49,10 +49,12 @@ scenario('settings-save-on-selection', {}, async (ctx) => {
     'the name to be saved',
     async () => (await alias()) === renamed,
   )
-  await ctx.waitFor('the saved notice at the name', () =>
-    instance.exec<boolean>(
+  assert.equal(
+    await instance.exec<boolean>(
       'return document.querySelector(\'ul:has([data-testid="settings-alias"]) [role="status"]\') !== null',
     ),
+    false,
+    'the name shows a saved notice, but settings save silently',
   )
   await clearAlias(instance)
   await instance.type('settings-alias', KEY.enter)

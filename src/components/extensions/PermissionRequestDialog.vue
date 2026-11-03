@@ -62,10 +62,6 @@ async function answerAsync(decision: 'allow' | 'deny') {
     failure.value = errString(error)
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open && store.shown) store.cancel(store.shown.requestId)
-}
 </script>
 
 <template>
@@ -77,7 +73,7 @@ function onUpdateOpen(open: boolean) {
         name: store.shown.displayName,
       })
     "
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-3" data-testid="extension-permission-request">

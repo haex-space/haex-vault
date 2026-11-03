@@ -483,8 +483,7 @@
       "description": "Ein Bild hinter allen Workspaces, auf allen Geräten der Vault.",
       "choose": "Bild wählen …",
       "remove": "Entfernen",
-      "failed": "Hintergrund konnte nicht gesetzt werden",
-      "saved": "Gespeichert."
+      "failed": "Hintergrund konnte nicht gesetzt werden"
     },
     "password": {
       "current": "Aktuelles Passwort",
@@ -501,29 +500,24 @@
     },
     "language": {
       "label": "Sprache",
-      "saved": "Gespeichert.",
       "failed": "Sprache konnte nicht gespeichert werden"
     },
     "alias": {
       "label": "Gerätename",
-      "saved": "Gespeichert.",
       "required": "Bitte einen Namen eingeben."
     },
     "sessionRestore": {
       "title": "Sitzung wiederherstellen",
-      "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden",
       "description": "Offene Fenster und Tabs beim Öffnen der Vault zurückholen"
     },
     "screenCapture": {
       "title": "Bildschirmschutz",
       "description": "Keine Bildschirmfotos und Aufnahmen, leere Vorschau in der App-Übersicht",
-      "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden"
     },
     "sttModel": {
       "modelLabel": "Modell",
-      "saved": "Gewechselt.",
       "downloading": "Lade herunter…",
       "downloadFailed": "Download fehlgeschlagen",
       "notInstalled": "Standard (nicht installiert)",
@@ -556,7 +550,6 @@
       "standardDescription": "Tool-Aufrufe durchlaufen dieselbe Freigabe-Regel wie bei allen anderen Modellen (Manuell/Automatisch/Plan, im Chat einstellbar).",
       "ungatedDescription": "Der Delegat läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — Holzi greift nicht ein und fragt nicht nach.",
       "gated_permissiveDescription": "Der Delegat darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
-      "saved": "Gespeichert.",
       "saveFailed": "Autonomie-Voreinstellung konnte nicht gespeichert werden.",
       "loadFailed": "Autonomie-Voreinstellung konnte nicht geladen werden."
     },
@@ -567,7 +560,6 @@
       "network_accessDescription": "Aktionen blockieren, die auf das Netzwerk zugreifen.",
       "credential_paths": "Zugangsdaten-Pfade",
       "credential_pathsDescription": "Zugriff auf übliche Zugangsdaten-/Geheimnis-Dateipfade blockieren (.ssh, .aws, .env, …).",
-      "saved": "Gespeichert.",
       "saveFailed": "Verbotsregeln konnten nicht gespeichert werden.",
       "loadFailed": "Verbotsregeln konnten nicht geladen werden."
     },
@@ -812,7 +804,6 @@
     "iconSet": {
       "label": "Icon-Set für Dateien",
       "description": "Gilt für die Ordner und Dateien im Dateibrowser, auf allen Geräten dieser Vault.",
-      "saved": "Gespeichert.",
       "failed": "Das Icon-Set konnte nicht gespeichert werden",
       "reset": "Zurücksetzen",
       "states": {
@@ -854,7 +845,6 @@
       "light": "Hell",
       "dark": "Dunkel",
       "system": "System",
-      "saved": "Gespeichert.",
       "failed": "Das Farbschema konnte nicht gespeichert werden"
     },
     "deviceOnly": "Gilt nur für dieses Gerät",
@@ -914,7 +904,6 @@
       "deviceAccess": {
         "title": "Geräte-Dateizugriff",
         "description": "Andere Geräte dieser Vault dürfen die Dateien dieses Geräts öffnen. Freigaben an Kontakte gelten weiter.",
-        "saved": "Gespeichert.",
         "failed": "Die Einstellung konnte nicht geändert werden"
       }
     },
@@ -1021,7 +1010,6 @@
       "exportFile": "Exportieren",
       "imported": "Darstellung importiert.",
       "exported": "Darstellung gespeichert.",
-      "saved": "Gespeichert.",
       "invalid": "Ungültige Auswahl: {field}",
       "failed": "Die Darstellung konnte nicht gespeichert werden.",
       "import": {

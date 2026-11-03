@@ -5,6 +5,7 @@
  * because a download is an action, not a value (clarification 2026-09-26). Its row shows the
  * download progress like the chat model downloads do.
  */
+import { toast } from 'vue-sonner'
 import type {
   SttCatalogEntry,
   SttCatalogEntryWithFit,
@@ -29,8 +30,6 @@ const activeId = ref('')
 
 const loading = ref(true)
 const busyId = ref<string | null>(null)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 const loadError = ref<string | null>(null)
 
 const installed = computed(() =>
@@ -92,15 +91,12 @@ async function activateAsync(catalogId: string) {
     catalogId === activeId.value && installedIds.value.has(catalogId)
   if (alreadyActive || busyId.value) return
   busyId.value = catalogId
-  savedFlash.value = false
-  opError.value = null
   try {
     const { modelId } = (await setStt({ catalogId })) as { modelId: string }
     activeId.value = modelId
     installedIds.value = new Set([...installedIds.value, modelId])
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.sttModel.downloadFailed')}: ${errString(e)}`)
   } finally {
     busyId.value = null
   }
@@ -199,13 +195,6 @@ onVaultTablesChanged(['preferences'], () => {
         :name="confirming?.name ?? ''"
         @confirm="confirmed"
       />
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.sttModel.saved') }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ t('settings.sttModel.downloadFailed') }}: {{ opError }}
-      </p>
     </template>
   </section>
 </template>

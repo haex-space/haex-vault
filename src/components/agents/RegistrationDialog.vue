@@ -5,11 +5,13 @@
  * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
  * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
  * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
- * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering.
+ * Preset: reading everywhere, Manuell. It closes only through its own buttons (spec 065 FR-042):
+ * "Ablehnen" declines once, without remembering.
  * For a chat delegate (US6, `question.delegate`) holzi names it itself, so the name is no claim,
  * and declining is never remembered: "Rechte festlegen" asks again.
  * Rust checks the rights again; rights it refuses count as declining.
  */
+import { toast } from 'vue-sonner'
 import {
   passwordsComplete,
   rightsDraftOf,
@@ -30,13 +32,11 @@ const draft = ref<RightsDraft>(rightsDraftOf(null))
 const complete = computed(() => passwordsComplete(draft.value.passwords))
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
-const failure = ref<string | null>(null)
 
 watch(
   () => store.shown?.requestId,
   () => {
     const asked = question.value
-    failure.value = null
     remember.value = false
     if (!asked) return
     draft.value = rightsDraftOf(asked.rights)
@@ -57,12 +57,8 @@ async function answerAsync(register: boolean) {
       mode: mode.value,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -71,7 +67,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('mcpAgents.registration.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-4" data-testid="mcp-registration">
@@ -139,9 +135,6 @@ function onUpdateOpen(open: boolean) {
           />
           {{ t('mcpAgents.registration.remember') }}
         </label>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </div>
     </template>
     <template #footer>

@@ -3,7 +3,8 @@
  * The confirmation before an agent gives files away (spec 056 FR-045, research R17): a new share, a
  * contact added or a level raised names the folder or file, the device that serves it and each
  * contact with its level. Only "Freigeben" lets it through; there is nothing to remember, and
- * without an answer in 120 s Rust refuses. Confirmations that arrive together wait in line.
+ * without an answer in 120 s Rust refuses. Confirmations that arrive together wait in line. Only
+ * its buttons answer it; Escape does nothing (spec 065 FR-042).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -64,7 +65,11 @@ async function answerAsync(confirmed: boolean) {
     :open="current !== undefined"
     @update:open="(open: boolean) => !open && answerAsync(false)"
   >
-    <ShadcnAlertDialogContent v-if="current" data-testid="files-share-confirm">
+    <ShadcnAlertDialogContent
+      v-if="current"
+      data-testid="files-share-confirm"
+      @escape-key-down.prevent
+    >
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>
           {{

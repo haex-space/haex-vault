@@ -3,24 +3,21 @@
  * "Allgemein → Grundeinstellung" (spec 042, FR-003, FR-010): the interface language of the vault,
  * saved on selection through `settings.general.setLanguage` and applied at once on every device.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { language, options } = useLanguage()
 const { errString } = useErrorString()
 const setLanguage = useActionOrThrow('settings.general.setLanguage')
 
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 
 async function chooseAsync(value: string) {
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await setLanguage({ language: value })
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.language.failed')}: ${errString(e)}`)
   } finally {
     busy.value = false
   }
@@ -44,12 +41,5 @@ async function chooseAsync(value: string) {
         />
       </SettingsRow>
     </SettingsGroup>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.language.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.language.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>
