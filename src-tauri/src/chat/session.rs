@@ -265,11 +265,11 @@ impl ChatState {
         self.local_model().filter(|m| m.model_id == model_id)
     }
 
-    /// Makes `model` the active local model, or none. A chat session that ran another local model
-    /// ends with it: its adapter would keep the old engine in memory. A session on a provider's
-    /// model, and one on the new active model, stay.
+    /// Makes `model` the active local model, or none. A chat session that ran another local
+    /// engine ends with it, even one of the same model id: its adapter would keep the old engine
+    /// in memory. A session on a provider's model, and one on the new active engine, stay.
     pub fn replace_local_model(&self, model: Option<ActiveSession>) {
-        let new_id = model.as_ref().map(|m| m.model_id.clone());
+        let new_adapter = model.as_ref().map(|m| Arc::clone(&m.adapter));
         let previous = std::mem::replace(
             &mut *self.local_model.lock().unwrap_or_else(|e| e.into_inner()),
             model,
@@ -277,9 +277,12 @@ impl ChatState {
         // Dropped after the guards are gone, so no drop of an adapter runs while a lock is held.
         let ended = {
             let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
-            let ends = session
-                .as_ref()
-                .is_some_and(|s| s.provider_id.is_none() && Some(&s.model_id) != new_id.as_ref());
+            let ends = session.as_ref().is_some_and(|s| {
+                s.provider_id.is_none()
+                    && !new_adapter
+                        .as_ref()
+                        .is_some_and(|adapter| Arc::ptr_eq(adapter, &s.adapter))
+            });
             if ends {
                 session.take()
             } else {
