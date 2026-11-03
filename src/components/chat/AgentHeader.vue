@@ -2,7 +2,8 @@
 /**
  * The header of the agent's conversation (spec 072 FR-002a): the agent's name, the open session's
  * title, "Neue Sitzung" and, in the slot, "Verlauf" (`AgentSessionsPopover`). Only the agent has
- * sessions; contact conversations have one history each.
+ * sessions; contact conversations have one history each. A spoken session also gets
+ * "Mitschrift" (spec 066 T127), which shows its transcript instead of its messages.
  */
 import type { Thread } from '~/composables/useChat'
 import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
@@ -15,6 +16,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ newSession: [] }>()
+/** Whether the transcript of a spoken session is shown instead of its messages (T127). */
+const transcript = defineModel<boolean>('transcript', { default: false })
 
 const { t } = useI18n()
 
@@ -53,6 +56,22 @@ const session = computed(() =>
         {{ session?.title ?? t('chat.agent.unnamedSession') }}
       </div>
     </div>
+    <UiButton
+      v-if="session?.origin === 'voice'"
+      variant="ghost"
+      size="sm"
+      class="gap-2"
+      :class="{ 'bg-accent': transcript }"
+      :aria-pressed="transcript"
+      data-testid="chat-agent-transcript"
+      :aria-label="t('assistant.transcript.title')"
+      @click="transcript = !transcript"
+    >
+      <Icon name="lucide:scroll-text" class="h-4 w-4" />
+      <span class="hidden @md:inline">{{
+        t('assistant.transcript.title')
+      }}</span>
+    </UiButton>
     <UiButton
       variant="ghost"
       size="sm"
