@@ -141,6 +141,9 @@ export const TONE_FILE_EXTENSIONS = [
   'm4a',
 ] as const
 
+/** The file types an own voice can come from (FR-049): the same decoder as the own tones. */
+export const VOICE_FILE_EXTENSIONS = TONE_FILE_EXTENSIONS
+
 /** A stored switch: only `"false"` turns the tones off. */
 export function parseTonesEnabled(value: string | null): boolean {
   return value !== 'false'

@@ -8,9 +8,12 @@
  * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
  * sharing a speech model are ready together. Both choices are device preferences, saved on selection
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
- * rate.
+ * rate. "Eigene Stimme anlegen" opens `VoiceCloneDialog` (FR-049); own voices are rows like the
+ * others, with a delete that asks first and works on every device (FR-050). The list follows
+ * `tts-voices-changed`, so a voice made or deleted on another device shows up at once.
  */
 import { toast } from 'vue-sonner'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
   assistantLabelKey,
   parseSpeechRate,
@@ -32,7 +35,8 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { getPrefAsync, setPrefAsync } = usePreferences()
-const { listAsync, previewAsync, downloadModelAsync } = useTtsVoices()
+const { listAsync, previewAsync, downloadModelAsync, voiceDeleteAsync } =
+  useTtsVoices()
 const downloads = useModelDownloadsStore()
 const device = useSettingsDevice()
 
@@ -81,6 +85,7 @@ const rateLabel = computed(() =>
 function voiceLine(voice: VoiceOption): string {
   const parts: string[] = []
   if (voice.isDefault) parts.push(t('settings.voice.default'))
+  if (voice.kind === 'clone') parts.push(t('settings.voice.own'))
   if (!voice.installed)
     parts.push(
       t('settings.voice.model.available', {
@@ -192,6 +197,47 @@ function confirmed() {
   if (entry) void fetchModelAsync(entry)
 }
 
+/** "Eigene Stimme anlegen" is open. */
+const cloneOpen = ref(false)
+
+/** A new own voice becomes the voice of its language on this device. */
+async function clonedAsync(voice: VoiceOption) {
+  await reloadAsync(true)
+  await chooseVoiceAsync(voice.language, voice.ref)
+}
+
+/** The own voice whose delete waits for the question. */
+const deleteCandidate = ref<VoiceOption | null>(null)
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
+
+async function confirmDeleteAsync() {
+  const voice = deleteCandidate.value
+  if (!voice) return
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await voiceDeleteAsync(voice.ref)
+    deleteCandidate.value = null
+    await reloadAsync(true)
+  } catch (e) {
+    deleteError.value = errString(e)
+  } finally {
+    deleting.value = false
+  }
+}
+
+let unlistenVoices: UnlistenFn | null = null
+let disposed = false
+void listen('tts-voices-changed', () => reloadAsync(true)).then((stop) => {
+  if (disposed) stop()
+  else unlistenVoices = stop
+})
+onBeforeUnmount(() => {
+  disposed = true
+  unlistenVoices?.()
+})
+
 onMounted(async () => {
   await downloads.watchDownloads()
   await reloadAsync()
@@ -237,6 +283,18 @@ onVaultTablesChanged(['preferences'], () => {
           </template>
           <template #trailing>
             <UiButton
+              v-if="voice.kind === 'clone'"
+              type="button"
+              variant="ghost"
+              size="icon"
+              :aria-label="t('settings.voice.deleteOf', { name: voice.name })"
+              :title="t('settings.voice.deleteOf', { name: voice.name })"
+              :data-testid="`settings-voice-delete-${voice.ref}`"
+              @click.stop.prevent="deleteCandidate = voice"
+            >
+              <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
+            </UiButton>
+            <UiButton
               v-if="voice.installed"
               type="button"
               variant="outline"
@@ -267,6 +325,13 @@ onVaultTablesChanged(['preferences'], () => {
             </UiButton>
           </template>
         </SettingsOptionRow>
+        <SettingsRow
+          :title="t('settings.voice.clone.open')"
+          icon="lucide:plus"
+          navigates
+          data-testid="settings-voice-clone"
+          @select="cloneOpen = true"
+        />
       </SettingsGroup>
 
       <SettingsGroup>
@@ -294,6 +359,56 @@ onVaultTablesChanged(['preferences'], () => {
           </span>
         </SettingsRow>
       </SettingsGroup>
+
+      <SettingsAssistantVoiceCloneDialog
+        v-model:open="cloneOpen"
+        :language="language"
+        :rate="rate"
+        @saved="clonedAsync"
+      />
+
+      <UiDrawerModal
+        v-if="deleteCandidate"
+        :open="deleteCandidate !== null"
+        :title="t('settings.voice.deleteTitle')"
+        @update:open="(isOpen) => (isOpen ? null : (deleteCandidate = null))"
+      >
+        <template #content>
+          <div class="space-y-3 px-6 py-2">
+            <p class="text-sm">
+              {{
+                t('settings.voice.deleteConfirm', {
+                  name: deleteCandidate.name,
+                })
+              }}
+            </p>
+            <p v-if="deleteError" class="text-sm text-destructive" role="alert">
+              {{ deleteError }}
+            </p>
+          </div>
+        </template>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UiButton
+              type="button"
+              variant="outline"
+              :disabled="deleting"
+              @click="deleteCandidate = null"
+            >
+              {{ t('settings.voice.clone.cancel') }}
+            </UiButton>
+            <UiButton
+              type="button"
+              variant="destructive"
+              :loading="deleting"
+              data-testid="settings-voice-delete-confirm"
+              @click="confirmDeleteAsync"
+            >
+              {{ t('settings.voice.deleteButton') }}
+            </UiButton>
+          </div>
+        </template>
+      </UiDrawerModal>
 
       <ModelsDownloadConfirmStep
         v-model:open="confirmOpen"

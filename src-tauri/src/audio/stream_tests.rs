@@ -160,6 +160,24 @@ fn push_to_talk_records_from_the_running_stream() {
 }
 
 #[test]
+fn a_recording_from_the_stream_shows_its_tail_while_it_runs() {
+    let rig = rig(SAMPLE_RATE_HZ);
+    let capture = Capture::from_stream(&rig.stream);
+    let (_, barrier) = rig.stream.subscribe(0.0);
+    rig.say(ramp(0, 4_800));
+    barrier.recv_timeout(WAIT).expect("block published");
+
+    let (tail, recorded) = capture.tail(0.1);
+    assert_eq!(tail, ramp(3_200, 4_800), "the last 100 ms");
+    assert!((recorded - 0.3).abs() < 1e-9, "{recorded}");
+    assert_eq!(
+        capture.stop().samples,
+        ramp(0, 4_800),
+        "tail takes nothing away"
+    );
+}
+
+#[test]
 fn push_to_talk_from_the_stream_stops_at_the_cap() {
     let rig = rig(SAMPLE_RATE_HZ);
     let capture = Capture::from_stream(&rig.stream);

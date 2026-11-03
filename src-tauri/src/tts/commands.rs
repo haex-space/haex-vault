@@ -15,6 +15,7 @@ use super::catalog::{self, TtsCatalogEntry, TtsCatalogEntryWithFit, TtsEngine};
 use super::files;
 use super::voices::{self, BuiltinVoice, VoiceRef};
 use super::TtsError;
+use crate::storage::tts_voices::{self, OwnVoice};
 
 /// Whether this build can speak with `engine`.
 fn engine_enabled(engine: TtsEngine) -> bool {
@@ -85,43 +86,87 @@ pub struct VoiceOption {
     pub is_default: bool,
 }
 
-/// The built-in voices as options, given which catalog entries are installed. Own voices and
-/// imported models join with PR K.
+/// The built-in voices, then the own voices of the vault (spec 066 FR-049), as options, given
+/// which catalog entries are installed. An own voice speaks through the speech model of its
+/// language like a built-in one. Imported models join with PR K part 2.
 pub fn voice_options(
     builtin: &[BuiltinVoice],
+    own: &[OwnVoice],
     installed: &[String],
     hw: &hardware::HardwareInfo,
 ) -> std::result::Result<Vec<VoiceOption>, TtsError> {
     let models = catalog::entries_with_fit(hw)?;
-    builtin
-        .iter()
-        .map(|voice| {
-            let model = models
-                .iter()
-                .find(|m| m.is_default && m.entry.language == voice.language)
-                .ok_or_else(|| TtsError::Unavailable {
-                    reason: format!("no speech model speaks {}", voice.language),
-                })?;
-            Ok(VoiceOption {
-                voice_ref: VoiceRef::Builtin(voice.id.clone()).to_string(),
-                kind: VoiceKind::Builtin,
-                name: voice.name.clone(),
-                language: voice.language.clone(),
-                model_id: model.entry.id.clone(),
-                installed: installed.contains(&model.entry.id),
-                size_bytes: model.entry.approx_size_bytes,
-                fit: model.fit,
-                is_default: voice.default,
-            })
+    let option = |voice_ref: VoiceRef,
+                  kind: VoiceKind,
+                  name: &str,
+                  language: &str,
+                  is_default: bool|
+     -> std::result::Result<VoiceOption, TtsError> {
+        let model = models
+            .iter()
+            .find(|m| m.is_default && m.entry.language == language)
+            .ok_or_else(|| TtsError::Unavailable {
+                reason: format!("no speech model speaks {language}"),
+            })?;
+        Ok(VoiceOption {
+            voice_ref: voice_ref.to_string(),
+            kind,
+            name: name.to_owned(),
+            language: language.to_owned(),
+            model_id: model.entry.id.clone(),
+            installed: installed.contains(&model.entry.id),
+            size_bytes: model.entry.approx_size_bytes,
+            fit: model.fit,
+            is_default,
         })
-        .collect()
+    };
+    let builtin = builtin.iter().map(|voice| {
+        option(
+            VoiceRef::Builtin(voice.id.clone()),
+            VoiceKind::Builtin,
+            &voice.name,
+            &voice.language,
+            voice.default,
+        )
+    });
+    // A voice of a language this build does not speak (a newer device's) is left out.
+    let own = own
+        .iter()
+        .filter(|voice| super::LANGUAGES.contains(&voice.language.as_str()))
+        .map(|voice| {
+            option(
+                VoiceRef::Clone(voice.id.to_string()),
+                VoiceKind::Clone,
+                &voice.name,
+                &voice.language,
+                false,
+            )
+        });
+    builtin.chain(own).collect()
 }
 
 #[tauri::command]
-pub async fn tts_voices_list(app: AppHandle) -> Result<Vec<VoiceOption>> {
+pub async fn tts_voices_list(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<VoiceOption>> {
     let hw = hardware::probe_async().await;
+    let db = crate::state_utils::active_database(&state)?;
+    let own = db.read(|r| tts_voices::list(r)).await?;
     let installed = list_installed_tts_voices(app).await?;
-    Ok(voice_options(voices::builtin()?, &installed, &hw)?)
+    Ok(voice_options(voices::builtin()?, &own, &installed, &hw)?)
+}
+
+/// The recording of the own voice `preference` names, if it is one and still in the vault.
+pub async fn own_recording(
+    state: &AppState,
+    preference: Option<&str>,
+) -> Result<Option<voices::OwnRecording>> {
+    let Some(id) = voices::own_id(preference) else {
+        return Ok(None);
+    };
+    let db = state.database()?;
+    db.read(move |r| tts_voices::recording(r, &id)).await
 }
 
 /// Speaks a short sample with `voice` (a `VoiceRef` of `tts_voices_list`) at `rate` (spec 066
@@ -134,7 +179,8 @@ pub async fn assistant_tts_preview(
     voice: String,
     rate: f32,
 ) -> Result<()> {
-    let voice = voices::preview_voice(&voice)?;
+    let own = own_recording(&state, Some(&voice)).await?;
+    let voice = voices::preview_choice(&voice, own)?;
     let rate = super::checked_rate(rate)?;
     #[cfg(feature = "voice")]
     {

@@ -311,8 +311,12 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let engine: Arc<dyn Engine> = voice_state
         .speech_model(&entry.id, dir, &ports.gate)
         .await?;
-    let voice = voices::resolve(settings.voice.as_deref(), language)?;
-    let reference = Arc::new(voices::reference(voice)?);
+    // An own voice (spec 066 FR-049) speaks while it is in the vault; otherwise the built-in
+    // default of the language.
+    let own =
+        tts::commands::own_recording(&app.state::<AppState>(), settings.voice.as_deref()).await?;
+    let voice = voices::choose(settings.voice.as_deref(), language, own)?;
+    let reference = Arc::new(voice.reference()?);
 
     crate::voice::ensure_microphone(&app).await?;
     let gate = ports.gate.clone();

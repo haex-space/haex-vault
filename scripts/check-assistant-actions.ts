@@ -1,9 +1,10 @@
 // Spec 066 T050 (operator 2026-11-02: one toggle, no further buttons or shortcut): the voice
 // assistant has exactly one action, a guardrail no agent can call, without default keys, with a
-// title in German and English and a global handler.
+// title in German and English and a global handler. T144: making, importing and deleting own
+// voices is no action, agent tool or extension API (FR-050, FR-051).
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { test } from 'node:test'
 
 import { ASSISTANT_ACTIONS } from '../src/lib/actions/assistantActions.ts'
@@ -57,4 +58,40 @@ test('the toggle has a German and an English title and a global handler', () => 
     read('src/plugins/actions.client.ts'),
     /registerAssistantActionHandlers\(/,
   )
+})
+
+/** Every `.ts`, `.vue` and `.rs` file below `dir`, relative to the repository. */
+function sources(dir: string): string[] {
+  const out: string[] = []
+  for (const name of readdirSync(resolve(root, dir))) {
+    const path = join(dir, name)
+    if (statSync(resolve(root, path)).isDirectory()) out.push(...sources(path))
+    else if (/\.(ts|vue|rs)$/.test(name)) out.push(path)
+  }
+  return out
+}
+
+/** The commands only the user may run, from the settings page (FR-050, FR-051). */
+const USER_ONLY = /tts_clone_|tts_voice_delete|tts_model_import/
+
+test('no action, agent tool or extension API makes, imports or deletes a voice (T144)', () => {
+  const guarded = [
+    'src/lib/actions',
+    'src/stores',
+    'src-tauri/src/chat',
+    'src-tauri/src/mcp_server',
+    'src-tauri/src/extensions',
+    'src-tauri/src/agent_browser',
+  ].flatMap(sources)
+  assert.ok(guarded.length > 50, 'the guarded places were read')
+  for (const file of guarded) {
+    assert.doesNotMatch(
+      read(file),
+      USER_ONLY,
+      relative(root, resolve(root, file)),
+    )
+  }
+  // In the window only the voices composable calls them, which the settings page uses.
+  const callers = sources('src').filter((file) => USER_ONLY.test(read(file)))
+  assert.deepEqual(callers, ['src/composables/useTtsVoices.ts'])
 })

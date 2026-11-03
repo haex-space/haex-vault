@@ -1499,7 +1499,49 @@
       },
       "voicesOf": "Voices · {language}",
       "downloadOf": "Download {name}",
-      "downloadName": "Voice {name} ({language})"
+      "downloadName": "Voice {name} ({language})",
+      "own": "Own voice",
+      "deleteOf": "Delete {name}",
+      "deleteTitle": "Delete own voice",
+      "deleteConfirm": "Delete “{name}” on all devices? Where it is chosen, haex then speaks with the default voice of the language.",
+      "deleteButton": "Delete",
+      "clone": {
+        "open": "Create own voice",
+        "title": "Create own voice",
+        "description": "Speak for 10 to 30 seconds or choose an audio file. haex imitates the voice on this device and stores it encrypted in the vault.",
+        "record": "Record",
+        "stop": "Stop recording",
+        "chooseFile": "Choose audio file",
+        "fileTypes": "Audio files",
+        "level": "Level",
+        "heard": "About {seconds} s of speech",
+        "recordHint": "Speak calmly and clearly, for example read a short paragraph aloud. At least 10 seconds.",
+        "checking": "Checking the recording …",
+        "ok": "The recording fits: {seconds} s of speech.",
+        "again": "Please record again:",
+        "problems": {
+          "tooShort": "Too little speech ({seconds} s). It needs at least 10 seconds.",
+          "tooLong": "The recording is too long. At most 30 seconds count.",
+          "tooQuiet": "Too quiet. Speak louder or closer to the microphone.",
+          "clipped": "Distorted. Speak a little more quietly or further from the microphone.",
+          "noisy": "Too much background noise. Record in a quieter place."
+        },
+        "name": "Name",
+        "language": "Language",
+        "consent": "This is my voice or the person has consented",
+        "cancel": "Cancel",
+        "save": "Save",
+        "errors": {
+          "unsupported": "This file cannot be read. Choose an MP3, WAV, OGG, FLAC or M4A file.",
+          "tooLarge": "The file is too large (at most 50 MB).",
+          "consentRequired": "First confirm that it is your voice or that the person has consented.",
+          "nameMissing": "Give the voice a name.",
+          "nameTooLong": "The name can have at most 80 characters.",
+          "unknownLanguage": "haex does not speak this language.",
+          "checkFailed": "The recording did not pass the check.",
+          "unknownSession": "The recording is gone. Please record again."
+        }
+      }
     },
     "tones": {
       "always": "Always sounds, even with tones off.",

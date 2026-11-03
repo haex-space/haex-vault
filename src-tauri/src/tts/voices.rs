@@ -160,10 +160,10 @@ impl fmt::Display for VoiceRef {
     }
 }
 
-/// The voice `language` speaks with when its preference is `preference`. Anything that does not
-/// name a built-in voice of that language falls back to the language's default: an unknown or
-/// malformed ref, a voice of another language, and for now own voices and imported models, which
-/// PR K brings.
+/// The built-in voice `language` speaks with when its preference is `preference`. Anything that
+/// does not name a built-in voice of that language falls back to the language's default: an
+/// unknown or malformed ref, a voice of another language, an own voice that is gone, and for now
+/// imported models (PR K part 2). Own voices go through [`choose`].
 pub fn resolve(
     preference: Option<&str>,
     language: &str,
@@ -183,8 +183,8 @@ pub fn resolve(
 }
 
 /// The built-in voice a sample is asked for (`assistant_tts_preview`). Unlike [`resolve`] nothing
-/// falls back: the settings page asks for a voice it listed. Own voices and imported models arrive
-/// with PR K.
+/// falls back: the settings page asks for a voice it listed. Own voices go through
+/// [`preview_choice`]; imported models arrive with PR K part 2.
 pub fn preview_voice(voice: &str) -> Result<&'static BuiltinVoice, TtsError> {
     let invalid = |reason: String| TtsError::Invalid { reason };
     match VoiceRef::parse(voice) {
@@ -196,6 +196,89 @@ pub fn preview_voice(voice: &str) -> Result<&'static BuiltinVoice, TtsError> {
             reason: format!("voice {other} is not available yet"),
         }),
         None => Err(invalid(format!("{voice:?} is not a voice"))),
+    }
+}
+
+/// The recording of an own voice as the caller read it from the vault (`storage::tts_voices`):
+/// its language and the WAV.
+pub type OwnRecording = (String, Vec<u8>);
+
+/// What a voice speaks with: a built-in recording, or the recording of an own voice (spec 066
+/// FR-049, research R20), which the engine imitates the same way.
+#[derive(Debug, Clone)]
+pub enum Chosen {
+    Builtin(&'static BuiltinVoice),
+    Own {
+        id: String,
+        language: String,
+        wav: Vec<u8>,
+    },
+}
+
+impl Chosen {
+    pub fn language(&self) -> &str {
+        match self {
+            Self::Builtin(voice) => &voice.language,
+            Self::Own { language, .. } => language,
+        }
+    }
+
+    /// The reference Pocket imitates.
+    #[cfg(feature = "voice")]
+    pub fn reference(&self) -> Result<super::local::Reference, TtsError> {
+        match self {
+            Self::Builtin(voice) => reference(voice),
+            Self::Own { wav, .. } => {
+                let pcm = decode_wav(wav)?;
+                Ok(super::local::Reference {
+                    samples: pcm.samples,
+                    sample_rate: pcm.sample_rate,
+                })
+            }
+        }
+    }
+}
+
+/// The id of the own voice `preference` names, so the caller knows which recording to read.
+pub fn own_id(preference: Option<&str>) -> Option<String> {
+    match preference.and_then(VoiceRef::parse) {
+        Some(VoiceRef::Clone(id)) => Some(id),
+        _ => None,
+    }
+}
+
+/// The voice `language` speaks with when its preference is `preference` and `own` is the
+/// recording of the own voice it names ([`own_id`]), if that is still in the vault. An own voice
+/// of another language, or one that was deleted (on any device), leaves the built-in default of
+/// the language (FR-050).
+pub fn choose(
+    preference: Option<&str>,
+    language: &str,
+    own: Option<OwnRecording>,
+) -> Result<Chosen, TtsError> {
+    if let (Some(id), Some((own_language, wav))) = (own_id(preference), own) {
+        if own_language == language {
+            return Ok(Chosen::Own {
+                id,
+                language: own_language,
+                wav,
+            });
+        }
+    }
+    resolve(preference, language).map(Chosen::Builtin)
+}
+
+/// The voice a sample is asked for: a built-in one ([`preview_voice`]) or an own one, whose
+/// recording `own` the caller read. Nothing falls back.
+pub fn preview_choice(voice: &str, own: Option<OwnRecording>) -> Result<Chosen, TtsError> {
+    match VoiceRef::parse(voice) {
+        Some(VoiceRef::Clone(id)) => match own {
+            Some((language, wav)) => Ok(Chosen::Own { id, language, wav }),
+            None => Err(TtsError::Invalid {
+                reason: format!("no own voice {id}"),
+            }),
+        },
+        _ => preview_voice(voice).map(Chosen::Builtin),
     }
 }
 

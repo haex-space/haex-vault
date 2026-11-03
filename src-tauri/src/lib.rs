@@ -284,6 +284,9 @@ pub fn run() {
     // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
     #[cfg(feature = "voice")]
     let builder = builder.manage(assistant::custom_tones::ToneBank::default());
+    // Spec 066 FR-049: the one recording session of an own voice.
+    #[cfg(feature = "voice")]
+    let builder = builder.manage(tts::clone_commands::CloneSessions::default());
     let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
@@ -867,6 +870,12 @@ pub fn run() {
             tts_voices_list,
             assistant_tts_preview,
             download_tts_voice,
+            tts::clone_commands::tts_clone_record_start,
+            tts::clone_commands::tts_clone_record_stop,
+            tts::clone_commands::tts_clone_from_file,
+            tts::clone_commands::tts_clone_preview,
+            tts::clone_commands::tts_clone_save,
+            tts::clone_commands::tts_voice_delete,
             assistant::assets::assistant_readiness,
             assistant::commands::assistant_get_state,
             assistant::commands::assistant_set_enabled,
