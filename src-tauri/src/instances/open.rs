@@ -15,7 +15,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
-use crate::chat::default_model::start_default_model_preload;
+use crate::chat::default_model::start_active_model_preload;
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
@@ -193,7 +193,7 @@ pub async fn open_instance(
             .unwrap_or(0),
     };
     emit_instance_list_changed(&app, "opened", Some(name));
-    start_default_model_preload(app.clone(), chat.inner().clone());
+    start_active_model_preload(app.clone(), chat.inner().clone());
     Ok(info)
 }
 

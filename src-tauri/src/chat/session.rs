@@ -163,6 +163,10 @@ pub struct ChatState {
     /// Held across a model load, vault transition, or entire accepted turn.
     operation: Arc<tokio::sync::Mutex<()>>,
     pub session: Arc<Mutex<Option<ActiveSession>>>,
+    /// The active local model: loaded in memory until the person unloads it in the settings, and
+    /// whatever the chat chooses. A chat session on that model shares its engine, see
+    /// [`ChatState::session_for_local_model`].
+    local_model: Arc<Mutex<Option<ActiveSession>>>,
     pub current_generation: Arc<Mutex<Option<AbortHandle>>>,
     pub tool_registry: Arc<Mutex<ToolRegistry>>,
     /// The round trip to the action runner in the webview (spec 032, ADR-0006).
@@ -191,6 +195,7 @@ impl Clone for ChatState {
         Self {
             operation: Arc::clone(&self.operation),
             session: Arc::clone(&self.session),
+            local_model: Arc::clone(&self.local_model),
             current_generation: Arc::clone(&self.current_generation),
             tool_registry: Arc::clone(&self.tool_registry),
             action_bridge: self.action_bridge.clone(),
@@ -222,6 +227,7 @@ impl ChatState {
         Self {
             operation: Arc::new(tokio::sync::Mutex::new(())),
             session: Arc::new(Mutex::new(None)),
+            local_model: Arc::new(Mutex::new(None)),
             current_generation: Arc::new(Mutex::new(None)),
             tool_registry: Arc::new(Mutex::new(registry)),
             action_bridge: ActionBridge::default(),
@@ -243,6 +249,44 @@ impl ChatState {
             })),
             children,
         }
+    }
+
+    /// The active local model, if one is loaded.
+    pub fn local_model(&self) -> Option<ActiveSession> {
+        self.local_model
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// A chat session on the active local model `model_id`, sharing its engine; `None` when that
+    /// model is not the active one. The chat never loads a local model itself.
+    pub fn session_for_local_model(&self, model_id: &str) -> Option<ActiveSession> {
+        self.local_model().filter(|m| m.model_id == model_id)
+    }
+
+    /// Makes `model` the active local model, or none. A chat session that ran another local model
+    /// ends with it: its adapter would keep the old engine in memory. A session on a provider's
+    /// model, and one on the new active model, stay.
+    pub fn replace_local_model(&self, model: Option<ActiveSession>) {
+        let new_id = model.as_ref().map(|m| m.model_id.clone());
+        let previous = std::mem::replace(
+            &mut *self.local_model.lock().unwrap_or_else(|e| e.into_inner()),
+            model,
+        );
+        // Dropped after the guards are gone, so no drop of an adapter runs while a lock is held.
+        let ended = {
+            let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
+            let ends = session
+                .as_ref()
+                .is_some_and(|s| s.provider_id.is_none() && Some(&s.model_id) != new_id.as_ref());
+            if ends {
+                session.take()
+            } else {
+                None
+            }
+        };
+        drop((previous, ended));
     }
 
     /// Starts the check of a model's tool use: ends the one still running and hands out the
@@ -442,6 +486,11 @@ impl ChatState {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take();
+        let local_model = self
+            .local_model
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         let generation = self
             .current_generation
             .lock()
@@ -475,6 +524,7 @@ impl ChatState {
         self.action_bridge.drop_pending();
         drop((
             session,
+            local_model,
             generation,
             cancellation,
             pending,
