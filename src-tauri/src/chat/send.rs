@@ -22,6 +22,7 @@ use uuid::Uuid;
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
+use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
 use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
@@ -59,6 +60,9 @@ pub struct StartTurn {
     /// The window's offset from UTC in minutes, so the model is told the user's local date and
     /// time; `None` tells it the time in UTC.
     pub utc_offset_minutes: Option<i32>,
+    /// The language a spoken turn is answered in: the one its conversation is held in. `None`
+    /// takes the interface language (spec 066 FR-002a).
+    pub reply_language: Option<ReplyLanguage>,
     /// Cap on generated tokens; `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
     /// Autonomy posture for a `cli_delegate` backend (spec 009); ignored by other adapters.
@@ -194,23 +198,6 @@ pub(crate) fn validated_reasoning_option(
 
 /// Persists the user message, starts the first step and spawns the rest of the turn; returns the
 /// ids the caller follows the turn by. The assistant message is inserted on completion.
-/// The interface language for a typed turn; for a spoken one the language chosen for
-/// conversations on this device.
-async fn read_reply_language(
-    app: &AppHandle,
-    db: &crate::vault_gate::VaultDb,
-    origin: Option<ThreadOrigin>,
-) -> Result<Option<crate::chat::reply_language::ReplyLanguage>> {
-    use crate::chat::reply_language::{read_spoken, read_typed};
-    match origin {
-        Some(ThreadOrigin::Voice) => {
-            let device = crate::device::commands::resolve_vault_device_uuid(app, db).await?;
-            db.read(move |r| read_spoken(r, device)).await
-        }
-        None => db.read(|r| read_typed(r)).await,
-    }
-}
-
 pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageResult> {
     if turn.idempotency_key.trim().is_empty() {
         return Err(HolziError::InvalidIdempotencyKey);
@@ -421,14 +408,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         current_turn_message.attachments = read_attachments;
     }
 
-    // The language the agent answers in (spec 066 FR-002a); without it the model follows the
-    // user, so a failed read must not stop the turn.
-    let reply_language = read_reply_language(app, &db, turn.origin)
-        .await
-        .unwrap_or_else(|error| {
+    // The language the agent answers in (spec 066 FR-002a): a spoken turn brings the language its
+    // conversation is held in, a typed one takes the interface language. Without one the model
+    // follows the user, so a failed read must not stop the turn.
+    let reply_language = match turn.reply_language {
+        Some(language) => Some(language),
+        None => db.read(|r| read_typed(r)).await.unwrap_or_else(|error| {
             log::warn!("chat: could not read the reply language: {error}");
             None
-        });
+        }),
+    };
     let request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,

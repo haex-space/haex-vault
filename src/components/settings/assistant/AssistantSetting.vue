@@ -5,10 +5,10 @@
  * 2026-11-02). Below it, what the assistant still needs on this device (`assistant_readiness`); a
  * model haex can fetch links to its page, which asks before the download and shows its progress
  * (spec 043 FR-028). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here
- * too, and the language of spoken conversations; below, the voice of each language and the
- * speaking rate (`VoiceSetting`, one page with it since operator 2026-11-03), and (`assistant.language`, FR-002a): the interface
- * language unless the user picks another one, for example to practise it. Saved on selection
- * (spec 023 FR-021).
+ * too, and the language of spoken conversations (`assistant.language`, FR-002a): the interface
+ * language unless the user picks another one, for example to practise it. Below, the voice of each
+ * language and the speaking rate (`VoiceSetting`, one page with it since operator 2026-11-03).
+ * Saved on selection (spec 023 FR-021).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'vue-sonner'
