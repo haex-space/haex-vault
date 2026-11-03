@@ -391,8 +391,9 @@ impl RealPorts {
     fn transcribe(&self, listener: u64, utterance: Utterance) {
         let app = self.app.clone();
         let inbox = self.inbox.clone();
+        let language = self.language.clone();
         let spawned = self.gate.spawn(async move {
-            let text = match listen::transcribe(&app, utterance).await {
+            let text = match listen::transcribe(&app, utterance, &language).await {
                 Ok(text) => text,
                 Err(error) => {
                     log::warn!("assistant: transcription failed: {error}");

@@ -88,6 +88,18 @@ pub enum SttError {
 #[async_trait]
 pub trait SttAdapter: Send + Sync {
     async fn transcribe(&self, audio: &CanonicalPcm) -> Result<String, SttError>;
+
+    /// Transcribes `audio` as speech in `language` (a Whisper code such as `"de"`) instead of
+    /// detecting the language (spec 066 FR-002a: the assistant is held in the language chosen on
+    /// its page). An adapter that cannot be told the language falls back to [`Self::transcribe`].
+    async fn transcribe_in(
+        &self,
+        audio: &CanonicalPcm,
+        language: &str,
+    ) -> Result<String, SttError> {
+        let _ = language;
+        self.transcribe(audio).await
+    }
 }
 
 impl From<SttError> for crate::error::HolziError {
