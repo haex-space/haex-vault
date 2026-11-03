@@ -139,104 +139,128 @@ function renderMarkdown(content: string): string {
         class="min-w-0 max-w-[min(90%,48rem)]"
         :class="m.role === 'user' ? 'order-first' : ''"
       >
-        <div class="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-          <template v-if="m.role === 'tool_call'">
-            {{ t('chat.tool.call', { name: toolLabel(m) }) }}
-            <WmDevBadge v-if="m.toolOrigin?.dev" />
-          </template>
-          <template v-else-if="m.role === 'tool_result'">
-            {{
-              m.toolIsError ? t('chat.tool.resultError') : t('chat.tool.result')
-            }}
-          </template>
-          <template v-else>
-            {{
-              m.role === 'user'
-                ? t('chat.sender.user')
-                : m.role === 'assistant'
-                  ? t('chat.sender.assistant')
-                  : t('chat.sender.system')
-            }}
-            <span
-              v-if="m.role === 'assistant' && m.completionTokens"
-              class="ml-2"
-            >
-              {{ t('chat.tokens', { count: m.completionTokens }) }}
-            </span>
-            <span
-              v-if="
-                m.role === 'assistant' && delegateAnsweredByLabel(m.modelId)
-              "
-              class="ml-2"
-            >
-              {{ delegateAnsweredByLabel(m.modelId) }}
-            </span>
-            <span v-if="m.role === 'assistant' && m.autonomyMode" class="ml-2">
-              {{ t(`chat.autonomy.${m.autonomyMode}`) }}
-            </span>
-            <span
-              v-if="m.finishReason === 'error'"
-              class="ml-2 text-destructive"
-            >
-              {{ t('chat.errorLabel') }}
-            </span>
-            <span
-              v-if="m.finishReason === 'cancelled'"
-              class="ml-2 text-muted-foreground"
-            >
-              {{ t('chat.cancelledLabel') }}
-            </span>
-            <span
-              v-if="m.finishReason === 'tool_limit_reached'"
-              class="ml-2 text-warning"
-            >
-              {{ t('chat.tool.limitReached') }}
-            </span>
-            <span
-              v-if="retryingMessageId === m.id"
-              class="ml-2 text-muted-foreground italic"
-            >
-              {{ t('chat.retrying') }}
-            </span>
-          </template>
-        </div>
-        <div
-          class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm [overflow-wrap:anywhere]"
-          :class="{
-            'whitespace-pre-wrap':
-              m.role === 'user' ||
-              m.role === 'tool_call' ||
-              m.role === 'tool_result',
-            'bg-foreground text-background': m.role === 'user',
-            'border border-border bg-background':
-              m.role === 'assistant' || m.role === 'system',
-            'rounded-lg bg-muted/30 font-mono text-xs leading-5':
-              m.role === 'tool_call' ||
-              (m.role === 'tool_result' && !m.toolIsError),
-            'rounded-lg bg-destructive/10 text-destructive font-mono text-xs leading-5':
-              m.role === 'tool_result' && m.toolIsError,
-            'max-h-96 overflow-y-auto':
-              m.role === 'tool_call' || m.role === 'tool_result',
-          }"
-        >
-          <template v-if="m.role === 'tool_call'">{{
-            prettyToolText(m.toolInput ?? '')
-          }}</template>
-          <!-- eslint-disable vue/no-v-html -->
-          <div
-            v-else-if="m.role === 'assistant' || m.role === 'system'"
-            class="chat-markdown"
-            v-html="
-              renderMarkdown(
-                m.content || (streamingMessageId === m.id ? '…' : ''),
-              )
+        <!-- A tool result is folded: it is long, and a reader wants the answer, not the plumbing. -->
+        <details v-if="m.role === 'tool_result'" class="text-xs">
+          <summary
+            class="cursor-pointer list-none outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            :class="
+              m.toolIsError ? 'text-destructive' : 'text-muted-foreground'
             "
+          >
+            <span class="inline-flex items-center gap-1 rounded px-1 py-0.5">
+              {{
+                m.toolIsError
+                  ? t('chat.tool.resultError')
+                  : t('chat.tool.result')
+              }}
+              <Icon
+                name="lucide:chevron-down"
+                class="h-3.5 w-3.5"
+                :aria-hidden="true"
+              />
+            </span>
+          </summary>
+          <div
+            class="mt-1 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg px-4 py-3 font-mono text-xs leading-5 shadow-sm [overflow-wrap:anywhere]"
+            :class="
+              m.toolIsError
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-muted/30'
+            "
+            v-text="prettyToolText(toolResultContentLabel(m))"
           />
-          <!-- eslint-enable vue/no-v-html -->
-          <template v-else>{{
-            prettyToolText(toolResultContentLabel(m))
-          }}</template>
-        </div>
+        </details>
+        <template v-else>
+          <div
+            class="mb-1 flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            <template v-if="m.role === 'tool_call'">
+              {{ t('chat.tool.call', { name: toolLabel(m) }) }}
+              <WmDevBadge v-if="m.toolOrigin?.dev" />
+            </template>
+            <template v-else>
+              {{
+                m.role === 'user'
+                  ? t('chat.sender.user')
+                  : m.role === 'assistant'
+                    ? t('chat.sender.assistant')
+                    : t('chat.sender.system')
+              }}
+              <span
+                v-if="m.role === 'assistant' && m.completionTokens"
+                class="ml-2"
+              >
+                {{ t('chat.tokens', { count: m.completionTokens }) }}
+              </span>
+              <span
+                v-if="
+                  m.role === 'assistant' && delegateAnsweredByLabel(m.modelId)
+                "
+                class="ml-2"
+              >
+                {{ delegateAnsweredByLabel(m.modelId) }}
+              </span>
+              <span
+                v-if="m.role === 'assistant' && m.autonomyMode"
+                class="ml-2"
+              >
+                {{ t(`chat.autonomy.${m.autonomyMode}`) }}
+              </span>
+              <span
+                v-if="m.finishReason === 'error'"
+                class="ml-2 text-destructive"
+              >
+                {{ t('chat.errorLabel') }}
+              </span>
+              <span
+                v-if="m.finishReason === 'cancelled'"
+                class="ml-2 text-muted-foreground"
+              >
+                {{ t('chat.cancelledLabel') }}
+              </span>
+              <span
+                v-if="m.finishReason === 'tool_limit_reached'"
+                class="ml-2 text-warning"
+              >
+                {{ t('chat.tool.limitReached') }}
+              </span>
+              <span
+                v-if="retryingMessageId === m.id"
+                class="ml-2 text-muted-foreground italic"
+              >
+                {{ t('chat.retrying') }}
+              </span>
+            </template>
+          </div>
+          <div
+            class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm [overflow-wrap:anywhere]"
+            :class="{
+              'whitespace-pre-wrap':
+                m.role === 'user' || m.role === 'tool_call',
+              'bg-foreground text-background': m.role === 'user',
+              'border border-border bg-background':
+                m.role === 'assistant' || m.role === 'system',
+              'rounded-lg bg-muted/30 font-mono text-xs leading-5':
+                m.role === 'tool_call',
+              'max-h-96 overflow-y-auto': m.role === 'tool_call',
+            }"
+          >
+            <template v-if="m.role === 'tool_call'">{{
+              prettyToolText(m.toolInput ?? '')
+            }}</template>
+            <!-- eslint-disable vue/no-v-html -->
+            <div
+              v-else-if="m.role === 'assistant' || m.role === 'system'"
+              class="chat-markdown"
+              v-html="
+                renderMarkdown(
+                  m.content || (streamingMessageId === m.id ? '…' : ''),
+                )
+              "
+            />
+            <!-- eslint-enable vue/no-v-html -->
+          </div>
+        </template>
         <ChatReasoningAccordion
           v-if="m.role === 'assistant' && reasoningFor(m.id)"
           :reasoning="reasoningFor(m.id)"

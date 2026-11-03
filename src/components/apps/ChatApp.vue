@@ -15,6 +15,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
+import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
 const wm = useWindowManagerStore()
 const wmTab = useWmTab()
@@ -188,11 +189,33 @@ const activeMessages = computed<Message[]>(() => {
   return messagesByThread.value[activeThreadId.value] ?? []
 })
 
-/** Scrolls the message viewport to its newest item after rendering. */
-async function scrollToBottom() {
+/** Whether the viewport follows new content: true while the reader is at its end, false once
+ * they scrolled up to read earlier messages. */
+let followsBottom = true
+/** The viewport's `scrollTop` at the previous scroll event, to tell a move up from a move down. */
+let lastScrollTop = 0
+
+function onMessagesScroll() {
+  const el = messagesScroll.value
+  if (!el) return
+  followsBottom = followsAfterScroll(followsBottom, lastScrollTop, el)
+  lastScrollTop = el.scrollTop
+}
+
+/**
+ * Scrolls the message viewport to its newest item after rendering, but only while the reader is
+ * at the end: a reply that is being written must not pull them away from what they scrolled up to
+ * read. `force` is for what the reader just did themselves, sending a message or opening a thread.
+ */
+async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
+  if (!force && !followsBottom) return
   await nextTick()
   const el = messagesScroll.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  // The reader may have scrolled up while the render was pending.
+  if (!force && !followsBottom) return
+  el.scrollTop = el.scrollHeight
+  followsBottom = true
 }
 
 const {
@@ -429,6 +452,7 @@ onBeforeUnmount(() => {
           ref="messagesScroll"
           data-messages-scroll
           class="flex-1 min-h-0 overflow-y-auto px-4 py-6 md:px-8"
+          @scroll.passive="onMessagesScroll"
         >
           <ChatMessageList
             :active-messages="activeMessages"
