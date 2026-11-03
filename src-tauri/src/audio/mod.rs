@@ -241,6 +241,31 @@ impl Capture {
         }
     }
 
+    /// The last `secs` of what was recorded so far, mixed to mono at the
+    /// capture's own rate, and how many seconds were recorded: for a level
+    /// meter while recording (spec 066 `tts-clone-level`). Copies only the
+    /// tail, so it stays cheap at any recording length.
+    pub fn tail(&self, secs: f32) -> (Vec<f32>, f64) {
+        match &self.kind {
+            CaptureKind::Device(device) => {
+                let channels = usize::from(device.channels.max(1));
+                let rate = device.input_rate.max(1);
+                let buf = device.raw_buffer.lock().unwrap_or_else(|e| e.into_inner());
+                let want = (secs * rate as f32) as usize * channels;
+                let tail = &buf[buf.len().saturating_sub(want)..];
+                let recorded = (buf.len() / channels) as f64 / f64::from(rate);
+                (downmix_to_mono(tail, device.channels), recorded)
+            }
+            CaptureKind::Stream(stream) => {
+                stream.collect();
+                let recorded = stream.recorded.lock().unwrap_or_else(|e| e.into_inner());
+                let want = (secs * SAMPLE_RATE_HZ as f32) as usize;
+                let tail = recorded[recorded.len().saturating_sub(want)..].to_vec();
+                (tail, recorded.len() as f64 / f64::from(SAMPLE_RATE_HZ))
+            }
+        }
+    }
+
     /// Stops capture (dropping the stream halts the device callback) and
     /// converts whatever was captured to the canonical 16 kHz mono
     /// contract.

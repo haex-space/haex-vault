@@ -5,6 +5,8 @@
 pub mod catalog;
 #[cfg(test)]
 mod catalog_tests;
+pub mod clone;
+pub mod clone_commands;
 pub mod commands;
 pub mod credits;
 #[cfg(test)]
@@ -23,6 +25,9 @@ mod preview_tests;
 pub mod voices;
 #[cfg(test)]
 mod voices_tests;
+
+/// Event when the own voices of the vault changed, here or on another device (spec 066 FR-050).
+pub const EVENT_VOICES_CHANGED: &str = "tts-voices-changed";
 
 /// The six languages haex speaks and parses (research R22).
 pub const LANGUAGES: [&str; 6] = ["de", "en", "fr", "es", "it", "pt"];

@@ -19,7 +19,7 @@ use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
 use super::local::{Engine, Reference};
-use super::voices::{self, BuiltinVoice};
+use super::voices::Chosen;
 use super::{catalog, commands, files, TtsError};
 
 /// Silence between the two sentences.
@@ -114,18 +114,15 @@ pub fn play(
     Ok(true)
 }
 
-/// `assistant_tts_preview`: downloads the speech model of `voice`'s language if it is missing,
-/// then plays the sample. A newer sample stops this one; both calls resolve.
-pub async fn run(
-    app: &AppHandle,
-    state: &AppState,
-    voice: &'static BuiltinVoice,
-    rate: f32,
-) -> Result<()> {
+/// `assistant_tts_preview` and `tts_clone_preview`: downloads the speech model of `voice`'s
+/// language if it is missing, then plays the sample with the built-in or own recording. A newer
+/// sample stops this one; both calls resolve.
+pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) -> Result<()> {
     let speech = app.state::<VoiceState>();
     let cancel = speech.begin_preview(&state.gate().token());
-    let entry = catalog::default_for(&voice.language)?.ok_or_else(|| TtsError::Unavailable {
-        reason: format!("no speech model speaks {}", voice.language),
+    let language = voice.language().to_owned();
+    let entry = catalog::default_for(&language)?.ok_or_else(|| TtsError::Unavailable {
+        reason: format!("no speech model speaks {language}"),
     })?;
     commands::ensure_installed(app, state, entry).await?;
     let app_for_dir = app.clone();
@@ -136,15 +133,14 @@ pub async fn run(
                 reason: format!("resolve speech model directory: {e}"),
             })??;
     let model = speech.speech_model(&entry.id, dir, state.gate()).await?;
-    let reference = voices::reference(voice)?;
+    let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();
-    let language = voice.language.as_str();
     state
         .gate()
         .spawn_blocking(move || {
             on_speaker(&gate, shared, |mixer| {
-                Ok(play(&*model, &reference, language, rate, mixer, &cancel)?)
+                Ok(play(&*model, &reference, &language, rate, mixer, &cancel)?)
             })
         })?
         .await

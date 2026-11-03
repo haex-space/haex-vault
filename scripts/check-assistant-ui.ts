@@ -538,6 +538,58 @@ test('conversations take the interface language unless this device picks another
   }
 })
 
+test('own voices are made, heard and deleted on the assistant page (T149)', () => {
+  const voice = read('src/components/settings/assistant/VoiceSetting.vue')
+  assert.match(voice, /<SettingsAssistantVoiceCloneDialog/)
+  assert.match(voice, /data-testid="settings-voice-clone"/)
+  assert.match(voice, /listen\('tts-voices-changed'/)
+  assert.match(voice, /v-if="voice\.kind === 'clone'"/)
+  const dialog = read('src/components/settings/assistant/VoiceCloneDialog.vue')
+  // Saving needs a passed check, the consent and a name (FR-050).
+  assert.match(
+    dialog,
+    /check\.value\?\.ok === true &&\s+consent\.value &&\s+name\.value\.trim\(\) !== ''/,
+  )
+  assert.match(dialog, /data-testid="voice-clone-consent"/)
+  assert.match(dialog, /'tts-clone-level'/)
+  const rust = read('src-tauri/src/tts/clone.rs')
+  const problems = [...rust.matchAll(/^\s{4}(Too\w+|Clipped|Noisy),$/gm)].map(
+    (m) => m[1]!.charAt(0).toLowerCase() + m[1]!.slice(1),
+  )
+  assert.deepEqual(problems, [
+    'tooShort',
+    'tooLong',
+    'tooQuiet',
+    'clipped',
+    'noisy',
+  ])
+  const reasons = [
+    ...read('src-tauri/src/tts/clone_commands.rs').matchAll(
+      /(?:invalid\(|Err\()"([a-z][A-Za-z]+)"\)/g,
+    ),
+  ].map((m) => m[1]!)
+  assert.ok(
+    reasons.includes('consentRequired'),
+    'reasons read from the commands',
+  )
+  for (const locale of ['de', 'en'] as const) {
+    for (const problem of problems)
+      assert.equal(
+        typeof localeText(locale, `settings.voice.clone.problems.${problem}`),
+        'string',
+        `${locale} ${problem}`,
+      )
+    for (const reason of reasons.filter(
+      (r) => r !== 'builtinVoice' && r !== 'unknownVoice',
+    ))
+      assert.equal(
+        typeof localeText(locale, `settings.voice.clone.errors.${reason}`),
+        'string',
+        `${locale} ${reason}`,
+      )
+  }
+})
+
 test('the assistant pages save silently and show failures as toasts (operator 2026-11-03)', () => {
   for (const file of [
     'src/components/settings/assistant/AssistantSetting.vue',

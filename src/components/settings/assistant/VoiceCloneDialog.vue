@@ -1,0 +1,372 @@
+<script setup lang="ts">
+/**
+ * "Eigene Stimme anlegen" (spec 066 FR-049, FR-050, US8 scenarios 6 and 7, T149): the user records
+ * 10–30 seconds or chooses an audio file, haex checks it and names what is wrong in plain words,
+ * plays a sample, and keeps the voice with a name, a language and the confirmation that it is the
+ * user's own voice or the speaker consented. Without that confirmation nothing is saved. The
+ * microphone runs only while recording here; closing the dialog ends a recording.
+ */
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import {
+  SPEECH_LANGUAGES,
+  VOICE_FILE_EXTENSIONS,
+  type SpeechLanguage,
+} from '~/lib/assistant/settings'
+import type {
+  CloneCheck,
+  CloneLevel,
+  VoiceOption,
+} from '~/composables/useTtsVoices'
+
+const props = defineProps<{
+  /** The language of conversations, preset for the new voice. */
+  language: SpeechLanguage
+  /** The speaking rate of this device, for the sample. */
+  rate: number
+}>()
+const open = defineModel<boolean>('open', { default: false })
+const emit = defineEmits<{ saved: [voice: VoiceOption] }>()
+
+const { t, te, locale } = useI18n()
+const { errString } = useErrorString()
+const { pickOneAsync } = usePickedFile()
+const {
+  cloneRecordStartAsync,
+  cloneRecordStopAsync,
+  cloneFromFileAsync,
+  clonePreviewAsync,
+  cloneSaveAsync,
+} = useTtsVoices()
+
+const recordingId = ref<string | null>(null)
+const level = ref(0)
+const heardSecs = ref(0)
+const checking = ref(false)
+const check = ref<CloneCheck | null>(null)
+const previewing = ref(false)
+const saving = ref(false)
+const name = ref('')
+const voiceLanguage = ref<SpeechLanguage>(props.language)
+const consent = ref(false)
+const failure = ref<string | null>(null)
+
+const canSave = computed(
+  () =>
+    check.value?.ok === true &&
+    consent.value &&
+    name.value.trim() !== '' &&
+    !saving.value,
+)
+
+function languageName(language: SpeechLanguage): string {
+  const label =
+    new Intl.DisplayNames([locale.value], { type: 'language' }).of(language) ??
+    language
+  return label.charAt(0).toLocaleUpperCase(locale.value) + label.slice(1)
+}
+
+const languageOptions = computed(() =>
+  SPEECH_LANGUAGES.map((value) => ({ value, label: languageName(value) })),
+)
+
+function seconds(value: number): string {
+  return value.toLocaleString(locale.value, { maximumFractionDigits: 0 })
+}
+
+/** A backend refusal in words: the known reasons have a text, anything else its message. */
+function failureText(error: unknown): string {
+  const reason = (error as { reason?: unknown } | null)?.reason
+  const key = `settings.voice.clone.errors.${String(reason)}`
+  return typeof reason === 'string' && te(key) ? t(key) : errString(error)
+}
+
+let unlisten: UnlistenFn | null = null
+let disposed = false
+void listen<CloneLevel>('tts-clone-level', (event) => {
+  if (event.payload.sessionId !== recordingId.value) return
+  level.value = event.payload.level
+  heardSecs.value = event.payload.speechSecs
+}).then((stop) => {
+  if (disposed) stop()
+  else unlisten = stop
+})
+
+function reset() {
+  recordingId.value = null
+  level.value = 0
+  heardSecs.value = 0
+  check.value = null
+  name.value = ''
+  voiceLanguage.value = props.language
+  consent.value = false
+  failure.value = null
+}
+
+async function startAsync() {
+  failure.value = null
+  check.value = null
+  heardSecs.value = 0
+  try {
+    recordingId.value = await cloneRecordStartAsync()
+  } catch (error) {
+    failure.value = failureText(error)
+  }
+}
+
+async function stopAsync() {
+  const id = recordingId.value
+  if (!id) return
+  recordingId.value = null
+  level.value = 0
+  checking.value = true
+  try {
+    check.value = await cloneRecordStopAsync(id)
+  } catch (error) {
+    failure.value = failureText(error)
+  } finally {
+    checking.value = false
+  }
+}
+
+async function chooseFileAsync() {
+  failure.value = null
+  const file = await pickOneAsync([
+    {
+      name: t('settings.voice.clone.fileTypes'),
+      extensions: [...VOICE_FILE_EXTENSIONS],
+    },
+  ])
+  if (!file) return
+  if (recordingId.value) await stopAsync()
+  checking.value = true
+  check.value = null
+  try {
+    check.value = await cloneFromFileAsync(file)
+  } catch (error) {
+    failure.value = failureText(error)
+  } finally {
+    checking.value = false
+  }
+}
+
+async function previewAsync() {
+  if (!check.value) return
+  previewing.value = true
+  failure.value = null
+  try {
+    await clonePreviewAsync(
+      check.value.sessionId,
+      voiceLanguage.value,
+      props.rate,
+    )
+  } catch (error) {
+    failure.value = t('settings.voice.previewFailed', {
+      reason: failureText(error),
+    })
+  } finally {
+    previewing.value = false
+  }
+}
+
+async function saveAsync() {
+  if (!check.value || !canSave.value) return
+  saving.value = true
+  failure.value = null
+  try {
+    const voice = await cloneSaveAsync(
+      check.value.sessionId,
+      name.value.trim(),
+      voiceLanguage.value,
+      consent.value,
+    )
+    emit('saved', voice)
+    open.value = false
+  } catch (error) {
+    failure.value = failureText(error)
+  } finally {
+    saving.value = false
+  }
+}
+
+// Closing ends a recording that still runs; opening starts from scratch.
+watch(open, (isOpen) => {
+  if (isOpen) {
+    reset()
+    return
+  }
+  const id = recordingId.value
+  recordingId.value = null
+  if (id) void cloneRecordStopAsync(id).catch(() => {})
+})
+onBeforeUnmount(() => {
+  disposed = true
+  unlisten?.()
+  const id = recordingId.value
+  if (id) void cloneRecordStopAsync(id).catch(() => {})
+})
+</script>
+
+<template>
+  <UiDrawerModal
+    v-model:open="open"
+    :title="t('settings.voice.clone.title')"
+    :description="t('settings.voice.clone.description')"
+  >
+    <template #content>
+      <div class="flex flex-col gap-4 px-6 py-2" data-testid="voice-clone">
+        <div class="flex flex-wrap gap-2">
+          <UiButton
+            v-if="recordingId === null"
+            type="button"
+            variant="outline"
+            :disabled="checking"
+            data-testid="voice-clone-record"
+            @click="startAsync"
+          >
+            <Icon name="lucide:mic" class="h-4 w-4" :aria-hidden="true" />
+            {{ t('settings.voice.clone.record') }}
+          </UiButton>
+          <UiButton
+            v-else
+            type="button"
+            data-testid="voice-clone-stop"
+            @click="stopAsync"
+          >
+            <Icon name="lucide:square" class="h-4 w-4" :aria-hidden="true" />
+            {{ t('settings.voice.clone.stop') }}
+          </UiButton>
+          <UiButton
+            type="button"
+            variant="outline"
+            :disabled="checking || recordingId !== null"
+            data-testid="voice-clone-file"
+            @click="chooseFileAsync"
+          >
+            <Icon
+              name="lucide:file-audio"
+              class="h-4 w-4"
+              :aria-hidden="true"
+            />
+            {{ t('settings.voice.clone.chooseFile') }}
+          </UiButton>
+        </div>
+
+        <div
+          v-if="recordingId !== null"
+          class="flex flex-col gap-1"
+          data-testid="voice-clone-level"
+        >
+          <UiProgress
+            :value="Math.round(level * 100)"
+            :label="t('settings.voice.clone.level')"
+          />
+          <p class="text-xs text-muted-foreground" aria-live="polite">
+            {{
+              t('settings.voice.clone.heard', { seconds: seconds(heardSecs) })
+            }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.voice.clone.recordHint') }}
+          </p>
+        </div>
+
+        <p v-if="checking" class="text-sm text-muted-foreground">
+          {{ t('settings.voice.clone.checking') }}
+        </p>
+
+        <div
+          v-if="check"
+          class="flex flex-col gap-2"
+          data-testid="voice-clone-check"
+        >
+          <p
+            v-if="check.ok"
+            class="text-sm text-success"
+            data-testid="voice-clone-ok"
+          >
+            {{
+              t('settings.voice.clone.ok', {
+                seconds: seconds(check.speechSecs),
+              })
+            }}
+          </p>
+          <template v-else>
+            <p class="text-sm text-destructive">
+              {{ t('settings.voice.clone.again') }}
+            </p>
+            <ul class="list-disc pl-5 text-sm text-destructive">
+              <li
+                v-for="problem in check.problems"
+                :key="problem"
+                :data-testid="`voice-clone-problem-${problem}`"
+              >
+                {{
+                  t(`settings.voice.clone.problems.${problem}`, {
+                    seconds: seconds(check.speechSecs),
+                  })
+                }}
+              </li>
+            </ul>
+          </template>
+          <div>
+            <UiButton
+              type="button"
+              variant="outline"
+              size="sm"
+              :loading="previewing"
+              :disabled="check.speechSecs === 0"
+              data-testid="voice-clone-preview"
+              @click="previewAsync"
+            >
+              {{ t('settings.voice.preview') }}
+            </UiButton>
+          </div>
+        </div>
+
+        <label class="flex flex-col gap-1 text-sm" for="voice-clone-name">
+          {{ t('settings.voice.clone.name') }}
+          <UiInput
+            id="voice-clone-name"
+            v-model="name"
+            :maxlength="80"
+            data-testid="voice-clone-name"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-sm" for="voice-clone-language">
+          {{ t('settings.voice.clone.language') }}
+          <SettingsSelect
+            id="voice-clone-language"
+            v-model="voiceLanguage"
+            class="w-full"
+            :options="languageOptions"
+            data-testid="voice-clone-language"
+          />
+        </label>
+        <label class="flex items-start gap-2 text-sm">
+          <ShadcnCheckbox v-model="consent" data-testid="voice-clone-consent" />
+          {{ t('settings.voice.clone.consent') }}
+        </label>
+
+        <p v-if="failure" class="text-sm text-destructive" role="alert">
+          {{ failure }}
+        </p>
+      </div>
+    </template>
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <UiButton type="button" variant="outline" @click="open = false">
+          {{ t('settings.voice.clone.cancel') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          :disabled="!canSave"
+          :loading="saving"
+          data-testid="voice-clone-save"
+          @click="saveAsync"
+        >
+          {{ t('settings.voice.clone.save') }}
+        </UiButton>
+      </div>
+    </template>
+  </UiDrawerModal>
+</template>

@@ -152,6 +152,8 @@ pub async fn open_instance(
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.
     crate::contacts::maintenance::start_after_open(&state);
+    // Spec 066 FR-050: recordings of deleted own voices go after a week.
+    crate::tts::clone_commands::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
     // Spec 060 (research R9): links other holzi processes got for this vault.

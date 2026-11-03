@@ -1499,7 +1499,49 @@
       },
       "voicesOf": "Stimmen · {language}",
       "downloadOf": "{name} laden",
-      "downloadName": "Stimme {name} ({language})"
+      "downloadName": "Stimme {name} ({language})",
+      "own": "Eigene Stimme",
+      "deleteOf": "{name} löschen",
+      "deleteTitle": "Eigene Stimme löschen",
+      "deleteConfirm": "„{name}“ auf allen Geräten löschen? Wo sie gewählt ist, spricht haex danach mit der Standardstimme der Sprache.",
+      "deleteButton": "Löschen",
+      "clone": {
+        "open": "Eigene Stimme anlegen",
+        "title": "Eigene Stimme anlegen",
+        "description": "Sprich 10 bis 30 Sekunden ein oder wähle eine Audiodatei. haex bildet die Stimme auf diesem Gerät nach und speichert sie verschlüsselt im Vault.",
+        "record": "Aufnehmen",
+        "stop": "Aufnahme beenden",
+        "chooseFile": "Audiodatei wählen",
+        "fileTypes": "Audiodateien",
+        "level": "Pegel",
+        "heard": "Etwa {seconds} s Sprache",
+        "recordHint": "Sprich ruhig und deutlich, etwa einen kurzen Absatz vorlesen. Mindestens 10 Sekunden.",
+        "checking": "Die Aufnahme wird geprüft …",
+        "ok": "Die Aufnahme passt: {seconds} s Sprache.",
+        "again": "Bitte nimm noch einmal auf:",
+        "problems": {
+          "tooShort": "Zu wenig Sprache ({seconds} s). Es braucht mindestens 10 Sekunden.",
+          "tooLong": "Die Aufnahme ist zu lang. Es zählen höchstens 30 Sekunden.",
+          "tooQuiet": "Zu leise. Sprich lauter oder näher am Mikrofon.",
+          "clipped": "Übersteuert. Sprich etwas leiser oder weiter weg vom Mikrofon.",
+          "noisy": "Zu viel Hintergrundgeräusch. Nimm an einem ruhigeren Ort auf."
+        },
+        "name": "Name",
+        "language": "Sprache",
+        "consent": "Das ist meine Stimme oder die Person hat eingewilligt",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "errors": {
+          "unsupported": "Diese Datei lässt sich nicht lesen. Wähle eine MP3-, WAV-, OGG-, FLAC- oder M4A-Datei.",
+          "tooLarge": "Die Datei ist zu groß (höchstens 50 MB).",
+          "consentRequired": "Bestätige zuerst, dass es deine Stimme ist oder die Person eingewilligt hat.",
+          "nameMissing": "Gib der Stimme einen Namen.",
+          "nameTooLong": "Der Name darf höchstens 80 Zeichen haben.",
+          "unknownLanguage": "Diese Sprache spricht haex nicht.",
+          "checkFailed": "Die Aufnahme hat die Prüfung nicht bestanden.",
+          "unknownSession": "Die Aufnahme ist nicht mehr da. Nimm bitte neu auf."
+        }
+      }
     },
     "tones": {
       "always": "Klingt immer, auch wenn die Töne aus sind.",
