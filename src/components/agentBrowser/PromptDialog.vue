@@ -42,15 +42,18 @@ const toolTitle = computed(() => {
 const remember = ref(false)
 /** What a remembered website may do (FR-007); `http` can only be read (research R9). */
 const rememberLevel = ref<'site-read' | 'site-operate'>('site-operate')
-const canRemember = computed(() =>
-  ['site', 'fill', 'request'].includes(question.value?.kind ?? ''),
+/** Only a question with its website can remember anything for that website. */
+const canRemember = computed(
+  () =>
+    !!question.value?.site &&
+    ['site', 'fill', 'request'].includes(question.value.kind),
 )
 /**
  * What an answer remembers. A website and a login fill remember only an allowance; a page request
  * remembers either answer as a rule for the website it goes to.
  */
 function remembered(allow: boolean): Remember | undefined {
-  if (!remember.value) return undefined
+  if (!canRemember.value || !remember.value) return undefined
   switch (question.value?.kind) {
     case 'request':
       return 'request'
@@ -131,7 +134,6 @@ watch(
   { immediate: true },
 )
 
-/** Closing the dialog declines and remembers nothing; only its buttons answer with the checkbox. */
 /** Closing the dialog declines and remembers nothing; only its buttons answer with the checkbox. */
 async function answerAsync(allow: boolean, remembering?: Remember) {
   const asked = shown.value
