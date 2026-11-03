@@ -4230,7 +4230,8 @@
       "submit": {
         "title": "Send to the website?",
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
-        "fields": "What would be sent"
+        "fields": "What would be sent",
+        "body": "Content"
       },
       "newTab": {
         "title": "Open a new tab?",

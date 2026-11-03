@@ -107,3 +107,51 @@ fn the_dialog_shows_form_and_json_fields_with_secrets_hidden() {
         "the page says so"
     );
 }
+
+#[test]
+fn nested_json_and_other_text_are_shown_not_hidden() {
+    let pairs = |body: &str| -> Vec<(String, String)> {
+        fields_of(Some(body))
+            .into_iter()
+            .map(|field| (field.name, field.value))
+            .collect()
+    };
+
+    // A list in a member (a tracker's batch) is shown, only what is named like a secret is not.
+    assert_eq!(
+        pairs(r#"{"xhr":[{"params":{"page":"/wetter","token":"geheim"},"start":12}]}"#),
+        [(
+            "xhr".to_owned(),
+            r#"[{"params":{"page":"/wetter","token":"•••"},"start":12}]"#.to_owned()
+        )]
+    );
+    assert_eq!(
+        pairs(r#"{"user":{"password":"x","name":"anna"}}"#),
+        [(
+            "user".to_owned(),
+            r#"{"password":"•••","name":"anna"}"#.to_owned()
+        )]
+    );
+
+    // A JSON list and plain text are one field without a name.
+    assert_eq!(
+        pairs(r#"[{"a":1},{"a":2}]"#),
+        [(String::new(), r#"[{"a":1},{"a":2}]"#.to_owned())]
+    );
+    assert_eq!(
+        pairs("{\"a\":1}\n{\"a\":2}"),
+        [(String::new(), "{\"a\":1}\n{\"a\":2}".to_owned())]
+    );
+    assert_eq!(pairs("ping"), [(String::new(), "ping".to_owned())]);
+
+    // Text that mentions a secret is not shown at all.
+    assert_eq!(
+        pairs("--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\ngeheim"),
+        [(String::new(), "•••".to_owned())]
+    );
+
+    // A long value is cut, binary data is left out.
+    let long = format!(r#"{{"list":[{}]}}"#, "1,".repeat(300) + "1");
+    assert!(pairs(&long)[0].1.ends_with('…'));
+    assert!(fields_of(Some("a\u{1}b")).is_empty());
+}

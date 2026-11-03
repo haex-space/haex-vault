@@ -285,8 +285,12 @@ async function answerAsync(allow: boolean, remember?: Remember) {
             data-testid="agent-browser-prompt-fields"
           >
             <template v-for="(field, index) in question.fields" :key="index">
-              <dt class="break-all text-muted-foreground">{{ field.name }}</dt>
-              <dd class="min-w-0 break-all">{{ field.value }}</dd>
+              <dt class="break-all text-muted-foreground">
+                {{ field.name || t('agentBrowser.prompt.submit.body') }}
+              </dt>
+              <dd class="min-w-0 whitespace-pre-wrap break-all">
+                {{ field.value }}
+              </dd>
             </template>
           </dl>
         </div>
