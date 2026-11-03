@@ -4,6 +4,7 @@
 //! for a tool outside the core offer and answered in text instead of calling a core tool.
 
 use crate::adapters::types::ToolSpec;
+use crate::chat::reply_language::ReplyLanguage;
 use crate::local_time::Clock;
 
 /// What the model is told about the tools holzi offers. English works best for the models that
@@ -51,18 +52,38 @@ pub fn now_line(clock: Clock) -> String {
     )
 }
 
+/// What the model is told about the language of its answers when the vault fixes one (operator
+/// 2026-11-03): the interface language or the one chosen in the settings, whatever language the
+/// user writes or speaks in.
+pub fn language_line(language: ReplyLanguage) -> String {
+    format!(
+        "Always reply in {}, even when the user writes in another language.",
+        language.english_name()
+    )
+}
+
 /// The system prompt of a turn: what the caller passed, the tool instruction when the turn offers
-/// tools, and the date and time when the caller knows the clock.
+/// tools, the reply language when the vault fixes one, and the date and time when the caller knows
+/// the clock. Without a reply language the tool instruction lets the model follow the user.
 pub fn system_prompt(
     given: Option<&str>,
     tools: &[ToolSpec],
     clock: Option<Clock>,
+    language: Option<ReplyLanguage>,
 ) -> Option<String> {
     let parts: Vec<String> = [
         given
             .filter(|given| !given.trim().is_empty())
             .map(str::to_owned),
-        tool_instruction(tools),
+        tool_instruction(tools).map(|instruction| match language {
+            // The fixed language replaces "the user's language" instead of contradicting it.
+            Some(language) => instruction.replace(
+                "Reply in the user's language and name",
+                &format!("Reply in {} and name", language.english_name()),
+            ),
+            None => instruction,
+        }),
+        language.map(language_line),
         clock.map(now_line),
     ]
     .into_iter()

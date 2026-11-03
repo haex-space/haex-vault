@@ -1485,7 +1485,8 @@
         "headphones": "Kopfhörer",
         "noticeShown": "Hinweis gezeigt",
         "tonesCustom": "Eigene Töne",
-        "preview": "Sprachassistent (Vorschau)"
+        "preview": "Sprachassistent (Vorschau)",
+        "language": "Sprache der Gespräche"
       }
     },
     "voice": {
@@ -1591,7 +1592,9 @@
         "microphone": "Mikrofon"
       },
       "seconds": "{value} s",
-      "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät."
+      "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
+      "languageUi": "Wie die Oberfläche ({language})",
+      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche."
     }
   },
   "models": {

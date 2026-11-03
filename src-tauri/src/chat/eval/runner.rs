@@ -123,7 +123,7 @@ fn request(
         model_id: model.to_owned(),
         thread_id: None,
         // The instruction a chat turn with tools carries, so the run measures what the app does.
-        system_prompt: system_prompt(None, &tools, None),
+        system_prompt: system_prompt(None, &tools, None, None),
         messages,
         reasoning_requested: false,
         max_new_tokens: Some(MAX_NEW_TOKENS),

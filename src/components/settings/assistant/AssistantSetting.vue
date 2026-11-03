@@ -5,12 +5,19 @@
  * 2026-11-02). Below it, what the assistant still needs on this device (`assistant_readiness`); a
  * model haex can fetch links to its page, which asks before the download and shows its progress
  * (spec 043 FR-028). The pause that ends what was said (`assistant.pauseMs`, FR-012) is set here
- * too. Saved on selection (spec 023 FR-021).
+ * too, and the language of spoken conversations (`assistant.language`, FR-002a): the interface
+ * language unless the user picks another one, for example to practise it. Saved on selection
+ * (spec 023 FR-021).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'vue-sonner'
 import {
   assistantLabelKey,
+  CONVERSATION_LANGUAGE_KEY,
+  CONVERSATION_LANGUAGES,
+  parseConversationLanguage,
+  spokenLanguage,
+  type ConversationLanguage,
   parsePause,
   parsePreview,
   PAUSE_KEY,
@@ -39,6 +46,27 @@ const scope = computed(() => ({
 }))
 
 const preview = ref(false)
+const conversationLanguage = ref<ConversationLanguage>('ui')
+
+function languageName(language: string): string {
+  const name =
+    new Intl.DisplayNames([locale.value], { type: 'language' }).of(language) ??
+    language
+  return name.charAt(0).toLocaleUpperCase(locale.value) + name.slice(1)
+}
+
+/** "Wie die Oberfläche (Deutsch)", then each language in the interface's words. */
+const languageOptions = computed(() =>
+  CONVERSATION_LANGUAGES.map((value) => ({
+    value,
+    label:
+      value === 'ui'
+        ? t('settings.assistantPage.languageUi', {
+            language: languageName(spokenLanguage('ui', locale.value)),
+          })
+        : languageName(value),
+  })),
+)
 const pauseMs = ref<number>(PAUSE_MS.default)
 const pauseLabel = computed(() =>
   t('settings.assistantPage.seconds', {
@@ -67,7 +95,7 @@ async function loadReadinessAsync() {
   try {
     const readiness = await invoke<{ missing: Missing[] }>(
       'assistant_readiness',
-      { language: locale.value },
+      { language: spokenLanguage(conversationLanguage.value, locale.value) },
     )
     missing.value = readiness.missing.filter((m) => m !== 'wakeWordModel')
   } catch {
@@ -80,12 +108,14 @@ async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
   loadFailed.value = false
   try {
-    const [shown, pause] = await Promise.all([
+    const [shown, pause, language] = await Promise.all([
       getPrefAsync(scope.value, PREVIEW_KEY),
       getPrefAsync(scope.value, PAUSE_KEY),
+      getPrefAsync(scope.value, CONVERSATION_LANGUAGE_KEY),
     ])
     preview.value = parsePreview(shown)
     pauseMs.value = parsePause(pause)
+    conversationLanguage.value = parseConversationLanguage(language)
     await loadReadinessAsync()
   } catch (e) {
     loadFailed.value = true
@@ -127,6 +157,29 @@ async function savePauseAsync() {
   }
 }
 
+async function saveLanguageAsync(value: string) {
+  conversationLanguage.value = parseConversationLanguage(value)
+  saving.value = true
+  savedFlash.value = false
+  opError.value = null
+  try {
+    // action-exempt: the language of this device's spoken conversations is the user's own choice on the assistant page; spec 066 gives agents no action for it.
+    await setPrefAsync(
+      scope.value,
+      CONVERSATION_LANGUAGE_KEY,
+      conversationLanguage.value,
+    )
+    savedFlash.value = true
+    await loadReadinessAsync()
+  } catch (e) {
+    opError.value = t('settings.assistantPage.saveFailed', {
+      reason: errString(e),
+    })
+  } finally {
+    saving.value = false
+  }
+}
+
 onMounted(() => reloadAsync())
 onVaultTablesChanged(['preferences'], () => {
   if (!saving.value) return reloadAsync(true)
@@ -152,6 +205,20 @@ onVaultTablesChanged(['preferences'], () => {
             :disabled="saving"
             data-testid="settings-assistant-preview"
             @update:model-value="toggleAsync($event === true)"
+          />
+        </SettingsRow>
+        <SettingsRow
+          :title="t(assistantLabelKey('assistant.language'))"
+          :description="t('settings.assistantPage.languageHint')"
+          label-for="settings-assistant-language"
+        >
+          <SettingsSelect
+            id="settings-assistant-language"
+            :model-value="conversationLanguage"
+            :options="languageOptions"
+            :disabled="saving"
+            data-testid="settings-assistant-language"
+            @update:model-value="saveLanguageAsync"
           />
         </SettingsRow>
         <SettingsRow

@@ -655,10 +655,12 @@ pub async fn assistant_get_state(driver: State<'_, AssistantDriver>) -> Result<S
     Ok(driver.state())
 }
 
-/// The toggle of the assistant (FR-001, operator 2026-11-02). On loads the models of `language`
-/// (the window's language; nothing is downloaded) and opens the microphone; off ends a
-/// conversation, aborts a running round and closes the microphone. `utc_offset_minutes` is the
-/// window's offset from UTC, for dates and times spoken in local time.
+/// The toggle of the assistant (FR-001, operator 2026-11-02). On loads the models of the
+/// conversation language (FR-002a: the one chosen on this device's assistant page, else the
+/// vault's interface language; `language`, the window's, only when neither is known; nothing is
+/// downloaded) and opens the microphone;
+/// off ends a conversation, aborts a running round and closes the microphone.
+/// `utc_offset_minutes` is the window's offset from UTC, for dates and times spoken in local time.
 #[tauri::command]
 pub async fn assistant_set_enabled(
     app: AppHandle,
@@ -669,6 +671,15 @@ pub async fn assistant_set_enabled(
     utc_offset_minutes: i32,
 ) -> Result<StateWire> {
     let gate = state.gate().clone();
+    let language = if enabled {
+        let db = crate::state_utils::active_database(&state)?;
+        let device = crate::device::commands::resolve_vault_device_uuid(&app, &db).await?;
+        db.read(move |r| crate::chat::reply_language::read_spoken(r, device))
+            .await?
+            .map_or(language, |fixed| fixed.code().to_owned())
+    } else {
+        language
+    };
     let (reply, replied) = oneshot::channel();
     driver.send(
         &app,
