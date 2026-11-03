@@ -105,7 +105,12 @@ impl Acting<'_> {
     /// operate.
     pub(super) fn frame_operable(&self, url: &str) -> bool {
         url.starts_with("https://")
-            && may_operate(url, &self.rights.sites, &self.session.once_allowed_sites())
+            && may_operate(
+                url,
+                &self.rights.sites,
+                self.rights.all,
+                &self.session.once_allowed_sites(),
+            )
     }
 
     /// Runs the page script with `args` in `doc`.

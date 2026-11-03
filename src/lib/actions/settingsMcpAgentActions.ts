@@ -75,7 +75,7 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
               type: 'object',
               nullable: true,
               description:
-                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } }, requests: { "<https://host>": "allow" | "deny" } }.',
+                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } }, requests: { "<https://host>": "allow" | "deny" }, all: "read" | "operate" | null (the level for every website not listed) }.',
             },
             passwords: {
               type: 'object',

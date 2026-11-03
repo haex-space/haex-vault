@@ -30,6 +30,13 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
           properties: {
             userBrowser: { type: 'boolean' },
             sites: { type: 'object' },
+            all: {
+              type: 'string',
+              enum: ['read', 'operate'],
+              nullable: true,
+              description:
+                'The level for every website that is not listed; null is none.',
+            },
           },
         },
       },

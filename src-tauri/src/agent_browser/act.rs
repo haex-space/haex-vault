@@ -168,7 +168,12 @@ impl Acting<'_> {
 
     /// Refuses a page of a website the agent may only read.
     fn operable(&self, url: &str) -> Result<(), NativeError> {
-        if may_operate(url, &self.rights.sites, &self.session.once_allowed_sites()) {
+        if may_operate(
+            url,
+            &self.rights.sites,
+            self.rights.all,
+            &self.session.once_allowed_sites(),
+        ) {
             Ok(())
         } else {
             Err(NativeError::new(

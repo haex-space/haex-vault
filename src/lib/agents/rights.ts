@@ -14,6 +14,8 @@ export type BrowserRights = {
   sites: { [site in string]: { level: SiteLevel; fillRemembered: boolean } }
   /** Rules for the requests a page sends to a website (spec 065 FR-044). */
   requests: { [site in string]: 'allow' | 'deny' }
+  /** What the agent may do on every website not listed (spec 065 FR-043); none when absent. */
+  all?: SiteLevel | null
 }
 
 /** `PasswordRights` of the bindings; `tags: null` reaches every entry. */

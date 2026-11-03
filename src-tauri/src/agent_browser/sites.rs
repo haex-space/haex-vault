@@ -100,11 +100,13 @@ pub enum Verdict {
 const BLANK: [&str; 2] = ["about:blank", "about:srcdoc"];
 
 /// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
-/// `sites`, or one allowed once in this session, loads; any other website asks, or is refused in
-/// Plan (`ask` false); other schemes, internal pages and addresses with user info never load.
+/// `sites`, one allowed once in this session, or any website when `all` allows reading or
+/// operating (FR-043) loads; any other website asks, or is refused in Plan (`ask` false); other
+/// schemes, internal pages and addresses with user info never load.
 pub fn check_document(
     address: &str,
     sites: &BTreeMap<Site, SiteGrant>,
+    all: Option<SiteLevel>,
     once: &BTreeSet<Site>,
     ask: bool,
 ) -> Verdict {
@@ -118,7 +120,7 @@ pub fn check_document(
         Ok(site) => site,
         Err(_) => return Verdict::Refuse("blocked_address"),
     };
-    if sites.contains_key(&site) || once.contains(&site) {
+    if sites.contains_key(&site) || once.contains(&site) || all.is_some() {
         Verdict::Go
     } else if ask {
         Verdict::Ask(site)
@@ -128,10 +130,13 @@ pub fn check_document(
 }
 
 /// Whether an agent may operate the page at `address` (FR-008): its website is allowed for
-/// operating, or allowed once in this session; a website over `http` is only ever read (R9).
+/// operating, or allowed once in this session, or it is not listed and `all` allows operating
+/// (FR-043); a website over `http` is only ever read (R9). A listed website is an exception: its
+/// own level counts, whatever `all` says.
 pub fn may_operate(
     address: &str,
     sites: &BTreeMap<Site, SiteGrant>,
+    all: Option<SiteLevel>,
     once: &BTreeSet<Site>,
 ) -> bool {
     let Ok(site) = Site::parse(address) else {
@@ -142,6 +147,6 @@ pub fn may_operate(
     }
     match sites.get(&site) {
         Some(grant) => grant.level == SiteLevel::Operate,
-        None => once.contains(&site),
+        None => once.contains(&site) || all == Some(SiteLevel::Operate),
     }
 }

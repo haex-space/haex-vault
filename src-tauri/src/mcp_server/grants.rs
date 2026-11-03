@@ -157,6 +157,22 @@ pub struct BrowserRights {
     #[serde(default)]
     #[ts(as = "BTreeMap<String, RequestRule>")]
     pub requests: BTreeMap<Site, RequestRule>,
+    /// What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing.
+    /// A website of `sites` is an exception and wins; `http` never gets more than reading (R9).
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub all: Option<SiteLevel>,
+}
+
+impl BrowserRights {
+    /// A group switched on from now on: every website may be operated (FR-043). A group stored
+    /// before has no level for all websites and keeps `None`.
+    pub fn switched_on() -> Self {
+        Self {
+            all: Some(SiteLevel::Operate),
+            ..Self::default()
+        }
+    }
 }
 
 /// The scopes of the group `passwords`: the search and the single secret.

@@ -51,6 +51,7 @@ fn every_group() -> Rights {
             ]
             .into_iter()
             .collect(),
+            all: Some(SiteLevel::Read),
         }),
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
@@ -87,6 +88,7 @@ fn every_group_round_trips_through_its_rows() {
         "allow",
         None
     )));
+    assert!(rows.contains(&row("browser", "*", "read", None)));
     assert!(rows.contains(&row("passwords", "", "read", Some(r#"["dev","Büro"]"#))));
     assert!(rows.contains(&row("commands", "", "on", None)));
 }
@@ -119,6 +121,7 @@ fn a_row_this_build_cannot_read_is_no_right() {
         row("browser", "", "on", None),
         row("browser", "https://shop.example.de", "drive", None),
         row("browser", "not a site", "read", None),
+        row("browser", "*", "everything", None),
         row("browser", "request:not a site", "allow", None),
         row("browser", "request:https://shop.example.de", "maybe", None),
         row("a-later-group", "", "on", None),
@@ -166,4 +169,18 @@ fn writing_passwords_keeps_the_tag_for_new_entries() {
         Some(r#"["dev","shop"]"#)
     )));
     assert_eq!(rights_of(rows), rights);
+}
+
+/// FR-043: a group stored before the level for all websites existed has none; a new group
+/// starts with operating.
+#[test]
+fn only_a_group_switched_on_from_now_on_may_operate_every_website() {
+    let stored = rights_of([row("browser", "", "on", None)]);
+    assert_eq!(stored.browser.expect("on").all, None);
+    assert_eq!(BrowserRights::switched_on().all, Some(SiteLevel::Operate));
+    let rows = rows_of(&Rights {
+        browser: Some(BrowserRights::switched_on()),
+        ..Rights::default()
+    });
+    assert!(rows.contains(&row("browser", "*", "operate", None)));
 }

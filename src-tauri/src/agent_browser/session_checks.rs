@@ -239,6 +239,7 @@ impl Session {
         check_document(
             url,
             &rights.sites,
+            rights.all,
             &self.once_allowed_sites(),
             self.mode() != PermissionMode::Plan,
         )
