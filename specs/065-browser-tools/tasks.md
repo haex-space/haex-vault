@@ -299,6 +299,21 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 
 ---
 
+## Phase 10: Revision 2026-11-03 (dialogs, defaults, trackers, profile)
+
+- [ ] T094 [P] Dialogs close only through their own buttons (FR-042): `dismissible` for `UiDrawerModal` in haextension (PR #177), pin bump in holzi, `:dismissible="false"` and no close handler in src/components/agentBrowser/PromptDialog.vue, src/components/chat/PermissionPrompt.vue, DelegateCallPrompt.vue and ChoicePrompt.vue (their own buttons answer)
+- [x] T095 [P] The send dialog shows what is sent: nested JSON as compact text, other text as one field named "Inhalt", secrets hidden, in src-tauri/src/agent_browser/submit.rs (PR #789)
+- [ ] T096 Level for all websites (FR-043): `BrowserRights.all`, the row `*` in src-tauri/src/mcp_server/grant_rows.rs, `check_document` in src-tauri/src/agent_browser/sites.rs, the default of a switched-on group and of `switch_on`, the field in src/components/agents/BrowserRightsFields.vue and "KI → Browser"; tests in sites_tests.rs and grant_rows_tests.rs
+- [ ] T097 Page requests (FR-044): prompt kind `request` and `Remember::Request` in src-tauri/src/agent_browser/prompts.rs, rules `BrowserRights.requests` with the row `request:<Website>`, `check_send` consults them (never past Plan), `BrowserEnv::remember_request`, checkbox "Für diese Website merken" in PromptDialog.vue, rules listed and removable in BrowserRightsFields.vue; integration test in src-tauri/tests/agent_browser_requests.rs
+- [ ] T098 Filter engine (R16, FR-045): src-tauri/src/agent_browser/filters.rs (engine from the `adblock` crate, network filters only), the lists and their cache in filter_lists.rs, blocking in the `Fetch` handler before `check_send`; tests with a local list in filters_tests.rs
+- [ ] T099 Filter list settings (FR-045): default lists of uBlock Origin in code, user lists by `https` address, switch per list and for all, state and last error in "KI → Browser" (`agent_browser_trackers`, `settings.agentBrowser.trackers.set`), notice when the first download did not finish; check-agent-actions.ts
+- [ ] T100 Profile view (R17, FR-046): src-tauri/src/agent_browser/cookies.rs (`Network.getAllCookies`/`setCookie`/`deleteCookies`), the commands of contracts/tauri-commands.md, src/components/settings/agentBrowser/ProfileCookies.vue with value on click, delete and change; tests in cookies_tests.rs and src-tauri/tests/agent_browser_profile.rs
+- [ ] T101 Quickstart M10–M13 (this revision) on Linux with a real Claude Code
+
+**Checkpoint (end of revision)**: quickstart M10 to M13 pass.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

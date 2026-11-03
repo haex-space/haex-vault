@@ -360,6 +360,39 @@ Fähigkeiten fehlen dort (FR-035).
 **Begründung**: Eine Regel an einer Stelle (holzi), die Erweiterung als dünner Ausführer. Die
 Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 
+## R16 Tracker blocken (revision 2026-11-03)
+
+**Entscheidung**: The agent browser asks CDP to hold every request (`Fetch.enable`, which R5
+already uses for FR-011); before the submit check, each request goes through a filter engine and
+a match fails with `BlockedByClient`. The engine is Brave's `adblock` crate (Rust, MPL-2.0), which
+reads the Adblock Plus and uBlock Origin list syntax; only network filters are loaded, so
+cosmetic filters, scriptlets and redirect resources never run. The lists are downloaded over
+`https` (the default ones from their publishers, the user's own by their address), cached as
+files, refreshed after seven days and compiled when the browser starts; a list that fails keeps
+its last good copy. The default set is what uBlock Origin enables. A request carries the tab's
+website as its source, so third-party rules (`$third-party`) work as in uBlock.
+
+**Begründung**: One engine with the syntax the lists are written in, instead of a domain list
+that blocks less. Downloading keeps the lists current without a holzi update and keeps their
+licences (EasyList: GPLv3 / CC BY-SA 3.0) with their publishers instead of in our binary.
+
+**Verworfen**: A snapshot built into the app (stale with every release, licence text to carry); a
+plain host list (misses path rules and exceptions).
+
+## R17 Profil ansehen und ändern (revision 2026-11-03)
+
+**Entscheidung**: The profile view reads and writes cookies through the running agent browser:
+`Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` on the browser's own
+target, so the values come as the browser holds them and no database file is parsed. "KI →
+Browser" starts the browser for it when it is not running (the profile is unlocked then, R3) and
+ends it again after 15 minutes without use like any other run (FR-003). The window shows names
+and flags, a value only on a click; the commands are window-only and no catalog action an agent can
+call (FR-046). Changes are part of the profile and are saved when the browser ends, like cookies
+a page set.
+
+**Begründung**: Chromium encrypts cookie values in its files with a key of the operating system;
+reading them through the protocol works on every device and needs no second implementation.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:
@@ -375,3 +408,8 @@ Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 | E2  | Downloads und Hochladen (US5)                                                                                                                                   |
 | –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                              |
 | F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                  |
+| G   | Revision 2026-11-03: dialogs close only through their own buttons (haex-ui `dismissible`, then used in holzi), the dialog shows what is sent (FR-042)           |
+| H   | all websites level (FR-043)                                                                                                                                     |
+| I   | page request dialog with remembered rules (FR-044)                                                                                                              |
+| J   | tracker filters with default and own lists (FR-045, R16)                                                                                                        |
+| K   | profile view and editing (FR-046, R17)                                                                                                                          |

@@ -108,6 +108,36 @@ einmal je Lieferung durchgeht.
   ihre Zeile. Mit „bedienen“ für den Partner erscheint sie mit „(Rahmen von https://localhost:8443)“;
   nach „Eintragen“ meldet die Seite „Karte: gefüllt“, der Agent bekommt `in_frames: 1`.
 
+## M10 Dialoge bleiben offen (FR-042)
+
+- Eine Rückfrage des Agenten-Browsers öffnen (M3), holzi in den Hintergrund legen, zurückholen mit
+  einem Klick ins Fenster, neben den Dialog klicken, Escape drücken: der Dialog bleibt, nichts wird
+  abgelehnt. Es gibt kein X; nur „Erlauben“ und „Ablehnen“ antworten. Dasselbe mit einer
+  Berechtigungsfrage im Chat.
+
+## M11 Alle Websites und Anfragen der Seite (FR-043, FR-044)
+
+- Browser-Recht neu einschalten: „Alle Websites: Bedienen“ steht, eine beliebige Website öffnet
+  ohne Rückfrage. Eine Bank mit „Lesen“ als Ausnahme: dort kein Klicken.
+- Eine Seite, die selbst etwas sendet (`/xhr.html` der Testseiten, Anfrage an die Partnerseite):
+  Rückfrage „Anfrage der Seite“ mit dem Inhalt (verschachteltes JSON als Text, `password` als
+  `•••`). „Ablehnen“ mit „Für diese Website merken“: dieselbe Anfrage wird nicht mehr gefragt,
+  sondern abgelehnt; die Regel steht in „KI → Browser“ und lässt sich entfernen.
+
+## M12 Tracker (FR-045)
+
+- Erster Start mit leerem Cache: der Browser wartet höchstens 10 Sekunden auf die Listen. Eine
+  Seite mit bekanntem Tracker (zum Beispiel `https://bam.nr-data.net`) lädt, der Tracker wird
+  geblockt und fragt nie. In „KI → Browser“: die Standardlisten von uBlock Origin mit Zeitpunkt und
+  Zahl der Regeln; eine eigene Liste per Adresse hinzufügen, abschalten, entfernen. Eine Liste mit
+  Adresse ohne `https` wird abgelehnt.
+
+## M13 Profil ansehen (FR-046)
+
+- „KI → Browser → Profil“ nach einer Anmeldung auf einer Testseite: die Website mit ihren Cookies,
+  der Wert erst nach Klick. Wert und Ablauf ändern, ein Cookie und dann eine ganze Website löschen,
+  dann die Seite neu laden lassen: die Änderung gilt. Der Agent sieht davon nichts.
+
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 
 - Erweiterung nach 049 zugelassen, Recht „Browser des Nutzers“ an. Einen Tab in der Erweiterung
