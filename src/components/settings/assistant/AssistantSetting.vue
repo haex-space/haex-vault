@@ -123,6 +123,7 @@ async function savePauseAsync() {
 }
 
 async function saveLanguageAsync(value: string) {
+  const previous = conversationLanguage.value
   conversationLanguage.value = parseConversationLanguage(value)
   saving.value = true
   try {
@@ -133,6 +134,8 @@ async function saveLanguageAsync(value: string) {
       conversationLanguage.value,
     )
   } catch (e) {
+    // The select shows what is stored, not a choice that was never saved.
+    conversationLanguage.value = previous
     toast.error(
       t('settings.assistantPage.saveFailed', {
         reason: errString(e),

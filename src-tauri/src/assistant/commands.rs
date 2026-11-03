@@ -675,9 +675,18 @@ pub async fn assistant_set_enabled(
     let language = if enabled {
         let db = crate::state_utils::active_database(&state)?;
         let device = crate::device::commands::resolve_vault_device_uuid(&app, &db).await?;
-        db.read(move |r| crate::chat::reply_language::read_spoken(r, device))
-            .await?
-            .map_or(language, |fixed| fixed.code().to_owned())
+        // A failed read falls back to the window's language like a typed turn does
+        // (`chat::send`), so it never keeps the assistant from starting.
+        match db
+            .read(move |r| crate::chat::reply_language::read_spoken(r, device))
+            .await
+        {
+            Ok(fixed) => fixed.map_or(language, |fixed| fixed.code().to_owned()),
+            Err(error) => {
+                log::warn!("assistant: could not read the conversation language: {error}");
+                language
+            }
+        }
     } else {
         language
     };

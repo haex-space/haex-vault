@@ -81,8 +81,11 @@ pub fn read_typed(q: &mut impl Query) -> haex_crdt::Result<Option<ReplyLanguage>
 /// interface language.
 pub fn read_spoken(q: &mut impl Query, device: Uuid) -> haex_crdt::Result<Option<ReplyLanguage>> {
     let conversation = preferences::get(q, PrefScope::Device(device), PREF_CONVERSATION_LANGUAGE)?;
+    if let Some(language) = conversation.as_deref().and_then(ReplyLanguage::from_code) {
+        return Ok(Some(language));
+    }
     let ui = preferences::get(q, PrefScope::Vault, PREF_UI_LANGUAGE)?;
-    Ok(resolve(conversation.as_deref(), ui.as_deref()))
+    Ok(resolve(None, ui.as_deref()))
 }
 
 #[cfg(test)]
