@@ -152,10 +152,10 @@ use marketplace::manage::{
     marketplace_set_enabled, marketplace_test,
 };
 use models::commands::{
-    check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
-    download_model_from_hf, get_huggingface_model_details, import_model_from_file,
-    install_huggingface_update, list_installed_models, preview_huggingface_install,
-    search_huggingface_models,
+    cancel_model_download, check_huggingface_model_updates, delete_installed_model,
+    download_model_from_catalog, download_model_from_hf, get_huggingface_model_details,
+    import_model_from_file, install_huggingface_update, list_installed_models,
+    preview_huggingface_install, search_huggingface_models,
 };
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
@@ -280,6 +280,7 @@ pub fn run() {
     let builder = builder.manage(gate.clone());
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
+    let builder = builder.manage(models::cancel::DownloadRegistry::default());
     let builder = builder.manage(voice::VoiceState::new());
     let builder = builder.manage(assistant::commands::AssistantDriver::default());
     // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
@@ -782,6 +783,7 @@ pub fn run() {
             set_model_user_capabilities,
             list_provider_models,
             download_model_from_catalog,
+            cancel_model_download,
             model_download_check,
             e2e_stand_in_models,
             download_model_from_hf,
