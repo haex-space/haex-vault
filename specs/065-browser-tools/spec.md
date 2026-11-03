@@ -133,10 +133,10 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
 - Q: A click that only brings holzi to the front closed a permission dialog and declined it. What
   should close such a dialog? → A: Only its own buttons. A click outside, Escape, losing and
   regaining the window's focus and the dialog's close button do nothing (operator, FR-042).
-- Q: What does a dialog for a request a page sends (a tracking call, a form) offer? → A: Two buttons, "Erlauben" and "Ablehnen", and one checkbox "Für diese
-  Website merken", as every other dialog of holzi; the checkbox stores the answer as a rule for
-  the website the request goes to. The dialog names the page's request and the website it goes to (operator,
-  FR-044).
+- Q: What does a dialog for a request a page sends (a tracking call, a form) offer? → A: Two
+  buttons, "Erlauben" and "Ablehnen", and one checkbox "Für diese Website merken", as every other
+  dialog of holzi; the checkbox stores the answer as a rule for the website the request goes to.
+  The dialog names the page's request and the website it goes to (operator, FR-044).
 - Q: Which websites may an agent open once it may use the browser? → A: All of them. A new rights
   group starts with "all websites: operate" (plain `http` read); single websites stay as
   exceptions, for example "read" for a bank. Rights stored before keep their list (operator,
@@ -562,8 +562,9 @@ Steuerung.
 
 **Dialogs, defaults, trackers and profile (revision 2026-11-03)**
 
-- **FR-042**: A question that waits for the user's answer (every dialog of the agent browser and
-  the permission questions of agents) MUST close only through its own buttons. A click outside it,
+- **FR-042**: A question that waits for the user's answer (every dialog of the agent browser, the
+  permission and confirmation questions of agents and extensions, and the approvals of the browser
+  extension of 049) MUST close only through its own buttons. A click outside it,
   Escape, losing or regaining the window's focus and any close button of the dialog MUST NOT
   decline or dismiss it; it waits until it is answered, withdrawn or its time is up.
 - **FR-043**: The rights group Browser MUST hold a level for all websites not listed:
