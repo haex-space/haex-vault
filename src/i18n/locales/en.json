@@ -1516,7 +1516,7 @@
         "fileTypes": "Audio files",
         "level": "Level",
         "heard": "About {seconds} s of speech",
-        "recordHint": "Read the text above. At least 10 seconds of speech.",
+        "recordHint": "Read the text above in a quiet room, close to the microphone: the voice takes on the sound of the recording too. At least 10 seconds of speech.",
         "checking": "Checking the recording …",
         "ok": "The recording fits: {seconds} s of speech.",
         "again": "Please record again:",

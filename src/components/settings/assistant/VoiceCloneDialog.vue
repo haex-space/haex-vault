@@ -335,6 +335,10 @@ onBeforeUnmount(() => {
           </UiButton>
         </div>
 
+        <p class="text-xs text-muted-foreground">
+          {{ t('settings.voice.clone.recordHint') }}
+        </p>
+
         <div
           v-if="recordingId !== null"
           class="flex flex-col gap-1"
@@ -348,9 +352,6 @@ onBeforeUnmount(() => {
             {{
               t('settings.voice.clone.heard', { seconds: seconds(heardSecs) })
             }}
-          </p>
-          <p class="text-xs text-muted-foreground">
-            {{ t('settings.voice.clone.recordHint') }}
           </p>
         </div>
 

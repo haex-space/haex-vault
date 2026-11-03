@@ -295,6 +295,36 @@ impl Capture {
         }
     }
 
+    /// Stops capture and returns what was recorded as mono at the rate it
+    /// was recorded at: the device's own rate for a device capture, 16 kHz
+    /// for a capture of the running stream. For audio that is heard again,
+    /// an own voice's reference (spec 066 FR-049), where [`Capture::stop`]'s
+    /// 16 kHz would lose everything above 8 kHz.
+    pub fn stop_native(self) -> (Vec<f32>, u32) {
+        match self.kind {
+            CaptureKind::Device(device) => {
+                drop(device.stream);
+                let interleaved = std::mem::take(
+                    &mut *device.raw_buffer.lock().unwrap_or_else(|e| e.into_inner()),
+                );
+                (
+                    downmix_to_mono(&interleaved, device.channels),
+                    device.input_rate,
+                )
+            }
+            CaptureKind::Stream(stream) => {
+                stream.collect();
+                (
+                    stream
+                        .recorded
+                        .into_inner()
+                        .unwrap_or_else(|e| e.into_inner()),
+                    SAMPLE_RATE_HZ,
+                )
+            }
+        }
+    }
+
     /// Stops capture and discards whatever was captured (cancel path,
     /// FR-016).
     pub fn cancel(self) {

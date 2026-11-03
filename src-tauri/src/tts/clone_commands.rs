@@ -32,8 +32,24 @@ pub const EVENT_CLONE_LEVEL: &str = "tts-clone-level";
 pub const MAX_NAME_CHARS: usize = 80;
 /// The largest audio file read for a voice.
 pub const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024;
-/// Stored recordings have at most this rate (research R20: 30 s at 24 kHz ≈ 1.4 MB).
+/// Stored recordings have at most this rate, the speech model's own (research R20: 30 s at
+/// 24 kHz ≈ 1.4 MB).
 pub const STORED_RATE_MAX: u32 = 24_000;
+
+/// The kept part of a recording as it is stored: above [`STORED_RATE_MAX`] brought down to it
+/// through a low-pass (the speech model imitates the sound of its reference, folded-back highs
+/// included), at or below it as it is; the speech model converts a lower rate itself.
+#[cfg(feature = "voice")]
+pub fn stored_reference(kept: &[f32], rate: u32) -> (Vec<f32>, u32) {
+    if rate > STORED_RATE_MAX {
+        (
+            crate::audio::resample::resample_filtered(kept, rate, STORED_RATE_MAX),
+            STORED_RATE_MAX,
+        )
+    } else {
+        (kept.to_vec(), rate)
+    }
+}
 
 /// The answer of `tts_clone_record_stop` and `tts_clone_from_file`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -187,12 +203,21 @@ mod imp {
 
     pub async fn record_start(app: &AppHandle, state: &AppState) -> Result<Uuid> {
         crate::voice::ensure_microphone(app).await?;
-        let capture = match app.state::<VoiceState>().audio_stream().current() {
-            Some(stream) => Capture::from_stream(&stream),
-            None => Capture::start().map_err(|e| {
-                log::warn!("own voice: open the microphone: {e}");
-                HolziError::DeviceUnavailable
-            })?,
+        // The device itself at its own rate, even while the assistant listens: its stream carries
+        // 16 kHz, and the speech model would imitate the missing highs. Only a device that cannot
+        // be opened twice falls back to that stream.
+        let capture = match Capture::start() {
+            Ok(capture) => capture,
+            Err(e) => match app.state::<VoiceState>().audio_stream().current() {
+                Some(stream) => {
+                    log::info!("own voice: record from the running stream: {e}");
+                    Capture::from_stream(&stream)
+                }
+                None => {
+                    log::warn!("own voice: open the microphone: {e}");
+                    return Err(HolziError::DeviceUnavailable);
+                }
+            },
         };
         let id = Uuid::new_v4();
         let shared: SharedCapture = Arc::new(Mutex::new(Some(capture)));
@@ -260,11 +285,12 @@ mod imp {
         samples: Vec<f32>,
         sample_rate: u32,
     ) -> Result<CloneCheck> {
-        let (samples, analysis) = state
+        let ((samples, stored_rate), analysis) = state
             .gate()
             .spawn_blocking(move || {
                 let analysis = analyse(&samples, sample_rate);
-                (samples[analysis.keep.clone()].to_vec(), analysis)
+                let kept = &samples[analysis.keep.clone()];
+                (super::stored_reference(kept, sample_rate), analysis)
             })?
             .await
             .map_err(|e| HolziError::SpeechFailed {
@@ -284,7 +310,7 @@ mod imp {
                 id,
                 stage: Stage::Ready {
                     samples,
-                    sample_rate,
+                    sample_rate: stored_rate,
                     ok: check.ok,
                 },
             });
@@ -309,14 +335,14 @@ mod imp {
             .unwrap_or_else(|e| e.into_inner())
             .take()
             .ok_or_else(not_a_session)?;
-        let pcm = state
+        let (samples, rate) = state
             .gate()
-            .spawn_blocking(move || capture.stop())?
+            .spawn_blocking(move || capture.stop_native())?
             .await
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("stop the recording: {e}"),
             })?;
-        finish(app, state, id, pcm.samples, crate::stt::SAMPLE_RATE_HZ).await
+        finish(app, state, id, samples, rate).await
     }
 
     pub async fn from_file(
@@ -351,19 +377,7 @@ mod imp {
                 return Err(error);
             }
         };
-        let (samples, rate) = if sound.sample_rate > super::STORED_RATE_MAX {
-            (
-                crate::audio::resample::resample_linear(
-                    &sound.samples,
-                    sound.sample_rate,
-                    super::STORED_RATE_MAX,
-                ),
-                super::STORED_RATE_MAX,
-            )
-        } else {
-            (sound.samples, sound.sample_rate)
-        };
-        finish(app, state, id, samples, rate).await
+        finish(app, state, id, sound.samples, sound.sample_rate).await
     }
 
     /// The checked recording of session `id` as a WAV, and whether its check passed.

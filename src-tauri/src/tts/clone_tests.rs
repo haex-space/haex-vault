@@ -1,5 +1,5 @@
 //! Spec 066 T142: the check of a recording for an own voice (US8 scenario 7). The recordings are
-//! made up of tones for speech and quiet noise for pauses, at 16 kHz like the microphone path.
+//! made up of tones for speech and quiet noise for pauses, at 16 kHz.
 
 use super::*;
 
@@ -69,15 +69,47 @@ fn less_than_ten_seconds_of_speech_is_too_short() {
 }
 
 #[test]
-fn speech_beyond_thirty_seconds_is_cut_off() {
+fn a_long_recording_is_cut_at_its_last_pause_before_thirty_seconds() {
+    // 20 blocks of 2 s speech and 0.5 s pause after a second of pause; the kept part starts at
+    // 0.8 s, so the limit lies at 30.8 s, inside the pause from 30.5 s to 31 s.
     let samples = recording(&spoken(20, 2.0), 0.3, 0.001);
     let analysis = analyse(&samples, RATE);
     assert!(analysis.ok(), "{:?}", analysis.problems);
-    assert!((analysis.speech_secs - MAX_SPEECH_SECS).abs() < 1e-9);
-    // 15 blocks of 2 s speech and their pauses: about 38 s after the leading pause.
     let kept = analysis.keep.len() as f64 / f64::from(RATE);
-    assert!(kept < 38.5 && kept > 36.0, "{kept}");
+    assert!(kept <= MAX_REFERENCE_SECS + 1e-9 && kept > 29.5, "{kept}");
+    let end = analysis.keep.end as f64 / f64::from(RATE);
+    assert!(end > 30.7 && end <= 30.8 + 1e-9, "{end}");
+    // Twelve blocks of speech are in it.
+    assert!(
+        (analysis.speech_secs - 24.0).abs() < 0.1,
+        "{}",
+        analysis.speech_secs
+    );
     assert!(!analysis.problems.contains(&Problem::TooLong));
+}
+
+#[test]
+fn the_cut_of_a_long_recording_never_falls_into_speech() {
+    // The limit at 30.8 s lies in the middle of speech (blocks of 3 s and 0.5 s pauses: speech
+    // from 29.0 s to 32.0 s), so the cut goes back to the pause before it.
+    let samples = recording(&spoken(12, 3.0), 0.3, 0.001);
+    let analysis = analyse(&samples, RATE);
+    let end = analysis.keep.end as f64 / f64::from(RATE);
+    assert!(end > 28.7 && end <= 29.0 + 1e-9, "{end}");
+    assert!(
+        (analysis.speech_secs - 24.0).abs() < 0.1,
+        "{}",
+        analysis.speech_secs
+    );
+}
+
+#[test]
+fn speech_without_any_pause_is_cut_at_thirty_seconds() {
+    // Enough pause around it that the quietest tenth of the frames is the noise.
+    let samples = recording(&[(5.0, false), (40.0, true), (1.0, false)], 0.3, 0.001);
+    let analysis = analyse(&samples, RATE);
+    let kept = analysis.keep.len() as f64 / f64::from(RATE);
+    assert!((kept - MAX_REFERENCE_SECS).abs() < 0.03, "{kept}");
 }
 
 #[test]
