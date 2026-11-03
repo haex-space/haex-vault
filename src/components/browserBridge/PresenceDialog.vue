@@ -4,7 +4,7 @@
  * ADR-0015). Shows the extension (its name as its own claim), the site, the origin and the account;
  * for a new passkey the entry it goes to ("Neuer Eintrag" first), for a sign-in the passkey when
  * several fit. A site that requires user verification also gets the vault password. There is no
- * "remember": every ceremony asks again. Closing the dialog declines.
+ * "remember": every ceremony asks again. It closes only through its own buttons (spec 065 FR-042).
  */
 import type { PresenceChoice } from '~/types/bindings/PresenceChoice'
 import type { PresenceQuestion } from '~/types/bindings/PresenceQuestion'
@@ -79,10 +79,6 @@ async function answerAsync(confirm: boolean) {
     passphrase.value = ''
   }
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
-}
 </script>
 
 <template>
@@ -90,7 +86,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t(`browserBridge.presence.title.${question.ceremony}`)"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <form

@@ -7,8 +7,8 @@
  *
  * In `confirm` mode (spec 060 FR-029 to FR-032) an agent wants to share the contact: the dialog opens
  * with the agent's proposal chosen and the options it was given, shows no text, and answers with the
- * choice the person left standing ("Freigeben") or none ("Ablehnen"). The owner of the request
- * closes the dialog by dropping the request; closing it any other way is its to treat as a "no".
+ * choice the person left standing ("Freigeben") or none ("Ablehnen"). Only these buttons close it
+ * (spec 065 FR-042); the owner of the request closes the dialog by dropping the request.
  */
 import { toast } from 'vue-sonner'
 import type { ContactShareOptions } from '@bindings/ContactShareOptions'
@@ -150,6 +150,7 @@ async function copyAsync() {
 <template>
   <UiDrawerModal
     v-model:open="open"
+    :dismissible="!confirming"
     :title="
       confirming ? t('contacts.share.confirm.title') : t('contacts.share.title')
     "
