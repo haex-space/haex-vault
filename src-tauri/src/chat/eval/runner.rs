@@ -35,7 +35,7 @@ use super::scoring::{
 };
 
 /// Cap on a model's answer per step: enough for any call, bounded for a model that rambles.
-const MAX_NEW_TOKENS: usize = 1024;
+pub(crate) const MAX_NEW_TOKENS: usize = 1024;
 
 /// Which sentences of the set to ask.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +66,7 @@ fn spec_of(def: &AgentActionDef) -> ToolSpec {
 
 /// What a chat turn offers first, whatever the message: the core tools, the search, `ask_user` and
 /// `run_command`, which every chat turn offers too and which spec 018 SC-003 watches.
-fn core_offer(tools: &[AgentActionDef]) -> Vec<ToolSpec> {
+pub(crate) fn core_offer(tools: &[AgentActionDef]) -> Vec<ToolSpec> {
     let mut offer: Vec<ToolSpec> = tools.iter().filter(|d| d.core).map(spec_of).collect();
     offer.push(tool_spec(&FindActionsTool::new(tools.to_vec())));
     offer.push(tool_spec(&AskUserTool));
@@ -86,7 +86,7 @@ impl Links for NoLinks {
 
 /// The registry the chat turn would hold for `extensions`, so the matched offer and the search
 /// read the same texts as in the app.
-fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry>> {
+pub(crate) fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry>> {
     let links: Arc<dyn Links> = Arc::new(NoLinks);
     let mut registry = ToolRegistry::new();
     for def in extensions {
@@ -99,7 +99,7 @@ fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry
 }
 
 /// Whether a tool is the one that runs a command on the device.
-fn is_command(name: &str) -> bool {
+pub(crate) fn is_command(name: &str) -> bool {
     name == CliTool::default().name()
 }
 
