@@ -1,6 +1,6 @@
 //! Reading and searching the transcripts of spoken conversations (spec 066 FR-048,
-//! contracts/tauri-commands.md `assistant_transcript_list`, `assistant_transcript_search`). Compiled in every build: transcripts sync to devices without the
-//! `voice` feature too.
+//! contracts/tauri-commands.md `assistant_transcript_list`, `assistant_transcript_search`).
+//! Compiled in every build: transcripts sync to devices without the `voice` feature too.
 
 use tauri::State;
 use uuid::Uuid;
