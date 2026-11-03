@@ -154,6 +154,7 @@ pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendM
             idempotency_key: args.idempotency_key,
             system_prompt: args.system_prompt,
             utc_offset_minutes: args.utc_offset_minutes,
+            reply_language: None,
             max_new_tokens: args.max_new_tokens,
             autonomy_mode: args.autonomy_mode,
             reasoning_option: args.reasoning_option,
