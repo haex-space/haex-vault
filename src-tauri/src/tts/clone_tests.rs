@@ -113,6 +113,31 @@ fn speech_without_any_pause_is_cut_at_thirty_seconds() {
 }
 
 #[test]
+fn an_early_pause_does_not_cut_a_long_recording_down_to_too_little_speech() {
+    // One pause after 5 s of speech, then 40 s of speech without any: the pause would keep only
+    // 5 s, so the cut goes to the limit and the voice keeps its speech.
+    let samples = recording(
+        &[
+            (5.0, false),
+            (5.0, true),
+            (0.5, false),
+            (40.0, true),
+            (1.0, false),
+        ],
+        0.3,
+        0.001,
+    );
+    let analysis = analyse(&samples, RATE);
+    let kept = analysis.keep.len() as f64 / f64::from(RATE);
+    assert!((kept - MAX_REFERENCE_SECS).abs() < 0.03, "{kept}");
+    assert!(
+        !analysis.problems.contains(&Problem::TooShort),
+        "{:?}",
+        analysis.problems
+    );
+}
+
+#[test]
 fn a_quiet_recording_is_too_quiet() {
     // A tone of 0.02 is about −37 dBFS.
     let analysis = analyse(&recording(&spoken(8, 1.5), 0.02, 0.0002), RATE);
