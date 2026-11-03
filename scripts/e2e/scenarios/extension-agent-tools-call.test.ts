@@ -1,0 +1,113 @@
+import assert from 'node:assert/strict'
+import { join } from 'node:path'
+import { scenario } from '../lib/scenario.ts'
+import { createAndUnlock, unwrap } from '../lib/flows.ts'
+import { startMcpAgent } from '../lib/mcp-agent.ts'
+import { openSettings, waitForLocation } from '../lib/settings.ts'
+import {
+  fixture,
+  inFrame,
+  openFromLauncher,
+  type InstalledExtension,
+} from '../lib/extensions.ts'
+
+// Spec 018 (T042 path) and spec 021 US4: a tool of an extension is called in holzi's real window,
+// through the extension's frame and its bundled vault-sdk. The harness runs no model, so an external
+// agent makes the call over holzi's MCP server; holzi then opens its MCP connection to the frame
+// exactly as for the built-in agent (`WindowLinks`). Called twice: once with the extension's tab
+// closed (holzi opens a frame) and once with it open.
+scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
+  const instance = await ctx.startInstance()
+  await createAndUnlock(instance, { name: 'e2e-agent-tools-call' })
+
+  const file = fixture('e2e', 'agent-tools')
+  const preview = unwrap<{
+    declared: Array<{ kind: string; action: string; target: string }>
+  }>(
+    'extension_install_preview',
+    await instance.invoke('extension_install_preview', {
+      source: { kind: 'file', file },
+    }),
+  )
+  const accepted = preview.declared.map((row) => ({
+    kind: row.kind,
+    action: row.action,
+    target: row.target,
+    granted:
+      row.kind === 'database' ||
+      (row.kind === 'agentTool' && row.target === 'count_entries'),
+  }))
+  const extension = unwrap<InstalledExtension>(
+    'extension_install',
+    await instance.invoke('extension_install', {
+      args: { source: { kind: 'file', file }, accepted, confirmed: false },
+    }),
+  )
+  ctx.step('installed with count_entries for the agent')
+
+  await openSettings(instance)
+  await instance.click('settings-category-ai')
+  await waitForLocation(instance, 'ai')
+  await instance.click('settings-row-ai.agents')
+  await waitForLocation(instance, 'ai.agents')
+  await instance.click('mcp-switch')
+  await instance.waitForDisplayed(
+    '[data-testid="mcp-state"][data-state="running"]',
+    30_000,
+  )
+  const agent = startMcpAgent({
+    app: ctx.app.path,
+    slug: 'e2e-tools-agent',
+    root: instance.root,
+    marker: instance.marker,
+    logFile: join(
+      process.env.E2E_RUN_DIR ?? '.',
+      'extension-agent-tools-call',
+      'agent.log',
+    ),
+  })
+  ctx.onTeardown(() => agent.stop())
+  await agent.initialize()
+  await instance.waitForDisplayed('mcp-registration')
+  await instance.click(
+    `[data-testid="mcp-extension-switch"][data-extension="${extension.id}"]`,
+  )
+  await instance.click('mcp-mode-auto')
+  await instance.click('mcp-registration-register')
+  await agent.notified('notifications/tools/list_changed')
+  const listed = await agent.request<{ tools: Array<{ name: string }> }>(
+    'tools/list',
+  )
+  const tool = 'x_agenttools_count_entries'
+  assert.ok(
+    listed.tools.some((t) => t.name === tool),
+    `${tool} in ${listed.tools.map((t) => t.name).join(', ')}`,
+  )
+  ctx.step('the agent sees the extension tool')
+
+  const started = Date.now()
+  const first = await agent.callTool(tool)
+  assert.notEqual(first.isError, true, JSON.stringify(first))
+  assert.equal(
+    JSON.stringify(first.structuredContent ?? first).includes('"entries"'),
+    true,
+    JSON.stringify(first),
+  )
+  ctx.step(`called with no open tab in ${Date.now() - started} ms`)
+
+  await openFromLauncher(instance, extension)
+  await ctx.waitFor(
+    'the extension to count its entries in its tab',
+    async () =>
+      (await inFrame<string>(
+        instance,
+        extension,
+        `return document.getElementById('count').textContent`,
+      )) === '0',
+    { timeoutMs: 20_000 },
+  )
+  const again = Date.now()
+  const second = await agent.callTool(tool)
+  assert.notEqual(second.isError, true, JSON.stringify(second))
+  ctx.step(`called with the tab open in ${Date.now() - again} ms`)
+})
