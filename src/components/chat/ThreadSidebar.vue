@@ -11,6 +11,7 @@
  * (spec 076 US2) narrows the list by name at once and lists the messages that contain the text.
  */
 import { Search } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Thread } from '~/composables/useChat'
 import type { PeerConversationEntry } from '~/composables/useConversations'
@@ -50,8 +51,10 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
 // Lives with the sidebar, which stays mounted while it collapses: an expanded sidebar shows the
-// typed search again (spec US2 scenario 6).
-const search = useChatSearch(errString)
+// typed search again (spec US2 scenario 6). A failed search shows as a toast.
+const search = useChatSearch((cause) =>
+  toast.error(t('chat.search.error', { error: errString(cause) })),
+)
 
 const latestSession = computed(() => props.threads[0] ?? null)
 
@@ -301,15 +304,8 @@ function resolveHit(hit: ChatSearchHit) {
       </p>
 
       <template v-if="searching">
-        <p
-          v-if="search.error.value"
-          class="px-2 text-xs text-destructive"
-          role="alert"
-        >
-          {{ t('chat.search.error', { error: search.error.value }) }}
-        </p>
         <ChatSearchHits
-          v-else-if="search.hits.value.length > 0"
+          v-if="search.hits.value.length > 0"
           :hits="search.hits.value"
           :more="search.more.value"
           :text="search.text.value"
@@ -317,7 +313,9 @@ function resolveHit(hit: ChatSearchHit) {
           @select="emit('selectHit', $event)"
         />
         <p
-          v-else-if="search.searched.value === search.text.value"
+          v-else-if="
+            !search.failed.value && search.searched.value === search.text.value
+          "
           class="px-2 text-xs text-muted-foreground"
         >
           {{ t('chat.search.noMessages') }}
