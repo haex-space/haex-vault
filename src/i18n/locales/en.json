@@ -1505,6 +1505,7 @@
       "deleteTitle": "Delete own voice",
       "deleteConfirm": "Delete “{name}” on all devices? Where it is chosen, haex then speaks with the default voice of the language.",
       "deleteButton": "Delete",
+      "deleteFailed": "Not deleted: {reason}",
       "clone": {
         "open": "Create own voice",
         "title": "Create own voice",

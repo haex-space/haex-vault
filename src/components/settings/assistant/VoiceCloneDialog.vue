@@ -6,8 +6,11 @@
  * user's own voice or the speaker consented. Without that confirmation nothing is saved. The
  * microphone runs only while recording here; closing the dialog ends a recording. The language
  * comes first; for a recording the dialog offers a text in that language to read aloud, about
- * 20–30 seconds long, and another one on request (operator 2026-11-03).
+ * 20–30 seconds long, and another one on request (operator 2026-11-03). Failures show as toasts;
+ * the check's findings stay in the dialog. A start, stop or file check that answers after the
+ * dialog was closed or opened again is dropped, and a recording it started is stopped.
  */
+import { toast } from 'vue-sonner'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
   SPEECH_LANGUAGES,
@@ -42,6 +45,8 @@ const {
 } = useTtsVoices()
 
 const recordingId = ref<string | null>(null)
+/** A recording is being started. */
+const starting = ref(false)
 const level = ref(0)
 const heardSecs = ref(0)
 const checking = ref(false)
@@ -51,7 +56,8 @@ const saving = ref(false)
 const name = ref('')
 const voiceLanguage = ref<SpeechLanguage>(props.language)
 const consent = ref(false)
-const failure = ref<string | null>(null)
+/** Counts openings and closings, so an answer for an earlier opening is recognised. */
+let opening = 0
 /** The text offered for reading aloud, an index into the texts of `voiceLanguage`. */
 const textIndex = ref(nextReadAloud(props.language, null))
 const readAloudText = computed(
@@ -95,6 +101,10 @@ function failureText(error: unknown): string {
   return typeof reason === 'string' && te(key) ? t(key) : errString(error)
 }
 
+function fail(error: unknown) {
+  toast.error(failureText(error))
+}
+
 let unlisten: UnlistenFn | null = null
 let disposed = false
 void listen<CloneLevel>('tts-clone-level', (event) => {
@@ -115,60 +125,81 @@ function reset() {
   voiceLanguage.value = props.language
   textIndex.value = nextReadAloud(props.language, null)
   consent.value = false
-  failure.value = null
+  starting.value = false
+  checking.value = false
+}
+
+/** Ends a recording nobody waits for any more. */
+function stopQuietly(id: string) {
+  void cloneRecordStopAsync(id).catch(() => {})
 }
 
 async function startAsync() {
-  failure.value = null
+  if (starting.value) return
+  const current = opening
+  starting.value = true
   check.value = null
   heardSecs.value = 0
   try {
-    recordingId.value = await cloneRecordStartAsync()
+    const id = await cloneRecordStartAsync()
+    // Closed or opened again meanwhile: this recording belongs to nobody.
+    if (disposed || current !== opening) stopQuietly(id)
+    else recordingId.value = id
   } catch (error) {
-    failure.value = failureText(error)
+    if (!disposed && current === opening) fail(error)
+  } finally {
+    if (current === opening) starting.value = false
   }
 }
 
 async function stopAsync() {
   const id = recordingId.value
   if (!id) return
+  const current = opening
   recordingId.value = null
   level.value = 0
   checking.value = true
   try {
-    check.value = await cloneRecordStopAsync(id)
+    const result = await cloneRecordStopAsync(id)
+    if (current === opening) check.value = result
   } catch (error) {
-    failure.value = failureText(error)
+    if (current === opening) fail(error)
   } finally {
-    checking.value = false
+    if (current === opening) checking.value = false
   }
 }
 
 async function chooseFileAsync() {
-  failure.value = null
-  const file = await pickOneAsync([
-    {
-      name: t('settings.voice.clone.fileTypes'),
-      extensions: [...VOICE_FILE_EXTENSIONS],
-    },
-  ])
-  if (!file) return
+  const current = opening
+  let file: Awaited<ReturnType<typeof pickOneAsync>>
+  try {
+    file = await pickOneAsync([
+      {
+        name: t('settings.voice.clone.fileTypes'),
+        extensions: [...VOICE_FILE_EXTENSIONS],
+      },
+    ])
+  } catch (error) {
+    if (current === opening) fail(error)
+    return
+  }
+  if (!file || current !== opening) return
   if (recordingId.value) await stopAsync()
   checking.value = true
   check.value = null
   try {
-    check.value = await cloneFromFileAsync(file)
+    const result = await cloneFromFileAsync(file)
+    if (current === opening) check.value = result
   } catch (error) {
-    failure.value = failureText(error)
+    if (current === opening) fail(error)
   } finally {
-    checking.value = false
+    if (current === opening) checking.value = false
   }
 }
 
 async function previewAsync() {
   if (!check.value) return
   previewing.value = true
-  failure.value = null
   try {
     await clonePreviewAsync(
       check.value.sessionId,
@@ -176,9 +207,9 @@ async function previewAsync() {
       props.rate,
     )
   } catch (error) {
-    failure.value = t('settings.voice.previewFailed', {
-      reason: failureText(error),
-    })
+    toast.error(
+      t('settings.voice.previewFailed', { reason: failureText(error) }),
+    )
   } finally {
     previewing.value = false
   }
@@ -187,7 +218,6 @@ async function previewAsync() {
 async function saveAsync() {
   if (!check.value || !canSave.value) return
   saving.value = true
-  failure.value = null
   try {
     const voice = await cloneSaveAsync(
       check.value.sessionId,
@@ -198,7 +228,7 @@ async function saveAsync() {
     emit('saved', voice)
     open.value = false
   } catch (error) {
-    failure.value = failureText(error)
+    fail(error)
   } finally {
     saving.value = false
   }
@@ -206,19 +236,20 @@ async function saveAsync() {
 
 // Closing ends a recording that still runs; opening starts from scratch.
 watch(open, (isOpen) => {
+  opening += 1
   if (isOpen) {
     reset()
     return
   }
   const id = recordingId.value
   recordingId.value = null
-  if (id) void cloneRecordStopAsync(id).catch(() => {})
+  if (id) stopQuietly(id)
 })
 onBeforeUnmount(() => {
   disposed = true
   unlisten?.()
   const id = recordingId.value
-  if (id) void cloneRecordStopAsync(id).catch(() => {})
+  if (id) stopQuietly(id)
 })
 </script>
 
@@ -272,6 +303,7 @@ onBeforeUnmount(() => {
             type="button"
             variant="outline"
             :disabled="checking"
+            :loading="starting"
             data-testid="voice-clone-record"
             @click="startAsync"
           >
@@ -290,7 +322,7 @@ onBeforeUnmount(() => {
           <UiButton
             type="button"
             variant="outline"
-            :disabled="checking || recordingId !== null"
+            :disabled="checking || starting || recordingId !== null"
             data-testid="voice-clone-file"
             @click="chooseFileAsync"
           >
@@ -388,10 +420,6 @@ onBeforeUnmount(() => {
           <ShadcnCheckbox v-model="consent" data-testid="voice-clone-consent" />
           {{ t('settings.voice.clone.consent') }}
         </label>
-
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </div>
     </template>
     <template #footer>
