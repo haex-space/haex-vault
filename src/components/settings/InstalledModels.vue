@@ -8,6 +8,8 @@
  * model the chat offers. The list, the active model and the integrity flow are
  * `useModelsStore()` state shared with the chat.
  */
+import { toast } from 'vue-sonner'
+
 import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import { humanBytes } from '~/lib/models/format'
@@ -37,8 +39,12 @@ const {
 } = modelStore
 
 const loading = ref(true)
-const listErrorKey = ref<string | null>(null)
-const listErrorDetail = ref<string | null>(null)
+
+/** Errors show as a toast: the reason, and the detail of a HuggingFace or file error under it. */
+function toastHfError(e: unknown) {
+  const detail = hfErrorDetail(e)
+  toast.error(t(hfErrorKey(e)), detail ? { description: detail } : undefined)
+}
 
 const updateStatuses = ref<Record<string, HuggingFaceUpdateStatus>>({})
 
@@ -87,28 +93,20 @@ const options = computed<SettingsSelectOption[]>(() =>
   })),
 )
 const checkingUpdates = ref(false)
-const updateErrorKey = ref<string | null>(null)
-const updateErrorDetail = ref<string | null>(null)
 const installingUpdateId = ref<string | null>(null)
 
-// The row of a running load or delete, and which of the two it is: only the button that was
-// pressed spins, the other one of the row waits disabled.
+// The model of a running activation, unload or delete, and which of them it is: only the button
+// that was pressed spins. The others wait disabled, for every model: the chat holds one load at a
+// time, and choosing another model meanwhile must not start a second one.
 const busyModelId = ref<string | null>(null)
 const busyAction = ref<'activate' | 'unload' | 'delete' | null>(null)
-const deleteErrorKey = ref<string | null>(null)
-// The store's `lastError` is already display-ready (unlike the i18n keys above):
-// `chat.model.select` runs the store's `loadModel`, so its failure reads like the chat's.
-const loadErrorMessage = ref<string | null>(null)
 
 async function reloadAsync() {
   loading.value = true
-  listErrorKey.value = null
-  listErrorDetail.value = null
   try {
     await Promise.all([refreshInstalledAndCatalog(), refreshActiveLocalModel()])
   } catch (e) {
-    listErrorKey.value = hfErrorKey(e)
-    listErrorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     loading.value = false
   }
@@ -116,8 +114,6 @@ async function reloadAsync() {
 
 async function checkUpdatesNowAsync() {
   checkingUpdates.value = true
-  updateErrorKey.value = null
-  updateErrorDetail.value = null
   try {
     const { statuses } = (await checkUpdates()) as {
       statuses: HuggingFaceUpdateStatus[]
@@ -126,8 +122,7 @@ async function checkUpdatesNowAsync() {
       statuses.map((s) => [s.modelId, s]),
     )
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     checkingUpdates.value = false
   }
@@ -153,18 +148,13 @@ function updateConfirmed() {
 
 async function installUpdateForAsync(modelId: string) {
   installingUpdateId.value = modelId
-  updateErrorKey.value = null
-  updateErrorDetail.value = null
   try {
     await installUpdate({ modelId })
     await reloadAsync()
     await checkUpdatesNowAsync()
   } catch (e) {
     // A cancelled update is what the person asked for, not an error.
-    if (!isDownloadCancelled(e)) {
-      updateErrorKey.value = hfErrorKey(e)
-      updateErrorDetail.value = hfErrorDetail(e)
-    }
+    if (!isDownloadCancelled(e)) toastHfError(e)
   } finally {
     installingUpdateId.value = null
     downloads.clearDownload(modelId)
@@ -175,8 +165,7 @@ async function cancelUpdateAsync(modelId: string) {
   try {
     await cancelDownload({ modelId })
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   }
 }
 
@@ -184,29 +173,32 @@ async function deleteModelAsync(id: string) {
   if (!confirm(t('models.installed.deleteConfirm'))) return
   busyModelId.value = id
   busyAction.value = 'delete'
-  deleteErrorKey.value = null
   try {
     await deleteModel({ modelId: id })
     await reloadAsync()
   } catch (e) {
-    deleteErrorKey.value = hfErrorKey(e)
+    toast.error(t(hfErrorKey(e)))
   } finally {
     busyModelId.value = null
     busyAction.value = null
   }
 }
 
-/** The activation and any integrity failure are handled by the store's `activateLocalModel`,
- * which never throws; it sets `integrityDialog` (the dialog below) or `lastError`. A model that
- * does not fit the hardware fails here, and the row says so. */
+/** The activation and any integrity failure are handled by the store's `activateLocalModel`; a
+ * failed integrity check opens the dialog below, any other failure (such as a model that does not
+ * fit the hardware) comes back from the action as an error, already display-ready, and is
+ * toasted. */
 async function activateAsync(id: string) {
   busyModelId.value = id
   busyAction.value = 'activate'
-  loadErrorMessage.value = null
   try {
     await activate({ modelId: id })
   } catch (e) {
-    loadErrorMessage.value = e instanceof Error ? e.message : String(e)
+    // The integrity dialog is the answer to a failed check; the action reports it as a failure
+    // to its other callers.
+    if (!integrityDialog.value) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
   } finally {
     busyModelId.value = null
     busyAction.value = null
@@ -216,11 +208,10 @@ async function activateAsync(id: string) {
 async function unloadAsync(id: string) {
   busyModelId.value = id
   busyAction.value = 'unload'
-  loadErrorMessage.value = null
   try {
     await deactivate({})
   } catch (e) {
-    loadErrorMessage.value = e instanceof Error ? e.message : String(e)
+    toast.error(e instanceof Error ? e.message : String(e))
   } finally {
     busyModelId.value = null
     busyAction.value = null
@@ -256,25 +247,6 @@ onMounted(async () => {
       </UiButton>
     </div>
 
-    <p v-if="listErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(listErrorKey) }}
-      <span v-if="listErrorDetail" class="block text-xs">{{
-        listErrorDetail
-      }}</span>
-    </p>
-    <p v-if="updateErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(updateErrorKey) }}
-      <span v-if="updateErrorDetail" class="block text-xs">{{
-        updateErrorDetail
-      }}</span>
-    </p>
-    <p v-if="loadErrorMessage" class="text-sm text-destructive" role="alert">
-      {{ loadErrorMessage }}
-    </p>
-    <p v-if="deleteErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(deleteErrorKey) }}
-    </p>
-
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('models.search.loading') }}
     </div>
@@ -307,7 +279,7 @@ onMounted(async () => {
           type="button"
           size="sm"
           variant="outline"
-          :disabled="busyModelId === selected.id"
+          :disabled="busyModelId !== null"
           :loading="busyModelId === selected.id && busyAction === 'unload'"
           @click="unloadAsync(selected.id)"
         >
@@ -317,7 +289,7 @@ onMounted(async () => {
           v-else
           type="button"
           size="sm"
-          :disabled="busyModelId === selected.id"
+          :disabled="busyModelId !== null"
           :loading="busyModelId === selected.id && busyAction === 'activate'"
           @click="activateAsync(selected.id)"
         >
@@ -349,7 +321,7 @@ onMounted(async () => {
           variant="ghost"
           :aria-label="`${t('models.installed.delete')}: ${selected.name}`"
           :tooltip="t('models.installed.delete')"
-          :disabled="busyModelId === selected.id"
+          :disabled="busyModelId !== null"
           :loading="busyModelId === selected.id && busyAction === 'delete'"
           @click="deleteModelAsync(selected.id)"
         >

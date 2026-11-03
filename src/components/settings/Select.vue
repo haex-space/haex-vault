@@ -4,9 +4,9 @@
  * is readable in both color schemes. Reka's items cannot carry `''`, so an empty value ("Keins",
  * "Wie alle Geräte") travels as a sentinel inside and as `''` outside. An option may carry badges
  * (a state such as "Aktiv"), shown after its label in the list and in the closed select; the
- * closed select shows the text of its option only, so it draws the badged option itself. Attributes such as `id` and
- * `data-testid` go to the trigger, which a row's `<label for>` then names; a `class` replaces the
- * trigger's default width.
+ * closed select shows the text of its option only, so it draws the badged option itself.
+ * Attributes such as `id` and `data-testid` go to the trigger, which a row's `<label for>` then
+ * names; a `class` replaces the trigger's default width.
  */
 defineOptions({ inheritAttrs: false })
 
