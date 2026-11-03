@@ -4236,7 +4236,7 @@
       },
       "request": {
         "title": "Anfrage der Seite senden?",
-        "hint": "Die Seite selbst möchte etwas an diese Website schicken, zum Beispiel eine Messung oder ein Formular. Das ist keine Handlung des Agenten. Ohne deine Zustimmung wird nichts gesendet.",
+        "hint": "Die Seite selbst möchte etwas an diese Website schicken, zum Beispiel eine Messung oder ein Formular. Ohne deine Zustimmung wird nichts gesendet.",
         "remember": "Für diese Website merken"
       },
       "newTab": {
