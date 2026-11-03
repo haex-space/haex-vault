@@ -90,7 +90,7 @@ const MODEL_ID: JsonSchema = {
 }
 
 type Spec = Pick<ActionDefinition, 'id' | 'description' | 'scope' | 'effect'> &
-  Partial<Pick<ActionDefinition, 'input' | 'result'>>
+  Partial<Pick<ActionDefinition, 'input' | 'result' | 'builtinAgentCallable'>>
 
 function setting(spec: Spec): ActionDefinition {
   return {
@@ -437,12 +437,14 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     },
     scope: 'settings.models',
     effect: 'write',
+    builtinAgentCallable: false,
   }),
   setting({
     id: 'settings.models.deactivate',
     description: 'Unload the active local model and free its memory.',
     scope: 'settings.models',
     effect: 'write',
+    builtinAgentCallable: false,
   }),
   setting({
     id: 'settings.delegate.refreshModels',

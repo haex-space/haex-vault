@@ -65,6 +65,8 @@ test('the push carries the built-in agent share unchanged', () => {
     'chat.message.send',
     'chat.reply.cancel',
     'passwords.secret.get',
+    'settings.models.activate',
+    'settings.models.deactivate',
   ])
 })
 

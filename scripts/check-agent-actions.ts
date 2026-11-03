@@ -29,11 +29,16 @@ import { TARGET_FIELD, catalogRunner, sample } from './lib/actions-harness.ts'
 const BUILTIN: ActionCaller = { kind: 'builtinAgent' }
 const EXTERNAL: ActionCaller = { kind: 'externalAgent', agentId: 'agent-1' }
 
-/** Withheld from the built-in agent: they would re-enter the running chat turn (ADR-0006). */
+/**
+ * Withheld from the built-in agent: they would re-enter the running chat turn (ADR-0006), or need
+ * the operation lock that the running turn holds (the activation of a local model).
+ */
 const WITHHELD_FROM_BUILTIN = [
   'chat.message.send',
   'chat.message.retry',
   'chat.reply.cancel',
+  'settings.models.activate',
+  'settings.models.deactivate',
 ]
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -66,7 +71,7 @@ test('the built-in agent is offered no guardrail action (FR-003)', () => {
   }
 })
 
-test('the three self-triggering chat actions and the password secret are withheld from the built-in agent', () => {
+test('the self-triggering chat actions, the model activation and the password secret are withheld from the built-in agent', () => {
   const withheld = ALL_ACTIONS.filter(
     (a) => a.builtinAgentCallable === false,
   ).map((a) => a.id)
