@@ -193,11 +193,6 @@ pub(crate) async fn load_model_inner(
     if cancelled(cancel) || superseded(chat, identity, mode) {
         return Ok(LoadOutcome::Cancelled);
     }
-    // Another local model is about to be the active one: the check of the last one is moot.
-    if mode == LoadMode::Activate {
-        chat.cancel_tool_check();
-    }
-
     let name = resolve_display_name(state, model_id)
         .await
         .unwrap_or_else(|| model_id.to_string());
@@ -300,7 +295,12 @@ pub(crate) async fn load_model_inner(
                 reason: format!("chat.session mutex poisoned: {e}"),
             })? = Some(session);
         }
-        LoadMode::Activate => chat.replace_local_model(Some(session)),
+        LoadMode::Activate => {
+            // Another local model becomes the active one: the check of the last one is moot. Only
+            // now, so a failed load leaves the check of the retained model running.
+            chat.cancel_tool_check();
+            chat.replace_local_model(Some(session));
+        }
     }
     chat.set_model_ready(
         identity.vault_generation,
