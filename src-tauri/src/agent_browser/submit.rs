@@ -170,35 +170,45 @@ pub fn shown(name: &str, value: &str, secret: bool) -> BrowserField {
     }
 }
 
+/// Whether `value` is a word that names a secret, as the name of a name/value pair does
+/// (`{"name": "password", "value": "…"}`, a form sent as JSON).
+fn names_secret(value: &Value) -> bool {
+    matches!(value, Value::String(text)
+        if !text.contains(|c: char| c.is_whitespace() || c == '/') && secret_name(text))
+}
+
 /// `value` with every secret hidden, to show it whole: a member named like a secret becomes `•••`,
+/// and so does every other member of an object that names a secret in a value (a name/value pair);
 /// strings lose the credentials they carry.
 fn hide_secrets(value: &Value) -> Value {
     match value {
-        Value::Object(object) => Value::Object(
-            object
-                .iter()
-                .map(|(name, value)| {
-                    let shown = if secret_name(name) {
-                        Value::String(SECRET_PLACEHOLDER.to_owned())
-                    } else {
-                        hide_secrets(value)
-                    };
-                    (name.clone(), shown)
-                })
-                .collect(),
-        ),
+        Value::Object(object) => {
+            let pair = object.values().any(names_secret);
+            Value::Object(
+                object
+                    .iter()
+                    .map(|(name, value)| {
+                        let shown = if secret_name(name) || (pair && !names_secret(value)) {
+                            Value::String(SECRET_PLACEHOLDER.to_owned())
+                        } else {
+                            hide_secrets(value)
+                        };
+                        (name.clone(), shown)
+                    })
+                    .collect(),
+            )
+        }
         Value::Array(items) => Value::Array(items.iter().map(hide_secrets).collect()),
         Value::String(text) => Value::String(redact_text(text)),
         other => other.clone(),
     }
 }
 
-/// A JSON member as the dialog shows it: text as it is, anything nested as compact JSON with its
-/// secrets hidden, cut to length.
+/// A member of a JSON body whose secrets are hidden, as the dialog shows it: text as it is,
+/// anything nested as compact JSON, cut to length.
 fn json_field(name: &str, value: &Value) -> BrowserField {
     match value {
         Value::String(text) => shown(name, text, false),
-        Value::Object(_) | Value::Array(_) => shown(name, &hide_secrets(value).to_string(), false),
         other => shown(name, &other.to_string(), false),
     }
 }
@@ -221,11 +231,14 @@ pub fn fields_of(body: Option<&str>) -> Vec<BrowserField> {
         return Vec::new();
     }
     let fields: Vec<BrowserField> = match serde_json::from_str::<Value>(body) {
-        Ok(Value::Object(object)) => object
-            .iter()
-            .map(|(name, value)| json_field(name, value))
-            .collect(),
-        Ok(list @ Value::Array(_)) => vec![json_field("", &list)],
+        Ok(object @ Value::Object(_)) => match hide_secrets(&object) {
+            Value::Object(hidden) => hidden
+                .iter()
+                .map(|(name, value)| json_field(name, value))
+                .collect(),
+            _ => Vec::new(),
+        },
+        Ok(list @ Value::Array(_)) => vec![json_field("", &hide_secrets(&list))],
         _ if body.contains('=') && !body.contains('\n') && !body.starts_with('{') => {
             url::form_urlencoded::parse(body.as_bytes())
                 .map(|(name, value)| shown(&name, &value, false))
