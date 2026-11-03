@@ -22,6 +22,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod local_time;
 pub mod marketplace;
 pub mod mcp_server;
 pub mod model_capabilities;

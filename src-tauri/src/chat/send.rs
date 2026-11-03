@@ -26,6 +26,7 @@ use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
 use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
 use crate::error::{HolziError, Result};
+use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::storage::chat_threads::ThreadOrigin;
@@ -55,6 +56,9 @@ pub struct StartTurn {
     pub idempotency_key: String,
     /// System prompt for this generation only; not persisted.
     pub system_prompt: Option<String>,
+    /// The window's offset from UTC in minutes, so the model is told the user's local date and
+    /// time; `None` tells it the time in UTC.
+    pub utc_offset_minutes: Option<i32>,
     /// Cap on generated tokens; `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
     /// Autonomy posture for a `cli_delegate` backend (spec 009); ignored by other adapters.
@@ -404,7 +408,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
-        system_prompt: system_prompt(turn.system_prompt.as_deref(), &tools),
+        system_prompt: system_prompt(
+            turn.system_prompt.as_deref(),
+            &tools,
+            Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
+        ),
         messages,
         reasoning_requested,
         max_new_tokens: turn.max_new_tokens,

@@ -275,6 +275,7 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
             origin: Some(ThreadOrigin::Voice),
             idempotency_key: Uuid::new_v4().to_string(),
             system_prompt: None,
+            utc_offset_minutes: Some(turn.clock.utc_offset_minutes),
             max_new_tokens: None,
             autonomy_mode: None,
             reasoning_option: None,
