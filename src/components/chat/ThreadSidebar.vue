@@ -88,6 +88,15 @@ const items = computed<Item[]>(() => {
 
 const searching = computed(() => search.text.value.trim() !== '')
 
+/** Escape clears the typed search; with nothing typed it goes on to the frame, which closes an
+ * overlaying sidebar. */
+function onSearchEscape(event: KeyboardEvent) {
+  if (search.text.value === '') return
+  event.preventDefault()
+  event.stopPropagation()
+  search.clear()
+}
+
 function itemName(item: Item): string {
   if (item.kind === 'agent') return t('chat.agent.name')
   if (item.kind === 'notes') return props.notes.displayName
@@ -238,7 +247,7 @@ function resolveHit(hit: ChatSearchHit) {
         clearable
         class="shrink-0 [&_input::-webkit-search-cancel-button]:hidden"
         data-testid="chat-sidebar-search"
-        @keydown.esc.prevent.stop="search.clear()"
+        @keydown.esc="onSearchEscape"
       />
 
       <button
