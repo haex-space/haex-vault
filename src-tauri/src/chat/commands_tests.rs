@@ -254,3 +254,28 @@ async fn a_send_waits_for_a_busy_chat_but_not_forever() {
     assert!(chat.operation_busy(), "a turn that runs on keeps the chat");
     assert!(started.elapsed() >= SEND_WAIT_WHEN_BUSY);
 }
+
+#[test]
+fn only_a_fresh_send_waits_for_a_busy_chat() {
+    let fresh = IdempotentSend::Fresh {
+        user_message_id: Uuid::nil(),
+        assistant_message_id: Uuid::nil(),
+    };
+    let stored = IdempotentSend::Duplicate {
+        thread_id: Uuid::nil(),
+        user_message_id: Uuid::nil(),
+        assistant_message_id: Uuid::nil(),
+    };
+    // A retry of an accepted send gets its ids back while its own turn still holds the chat.
+    assert!(answered_without_the_chat("key", Some(stored)));
+    assert!(answered_without_the_chat(
+        "key",
+        Some(IdempotentSend::Mismatch)
+    ));
+    assert!(answered_without_the_chat(" ", None));
+    assert!(!answered_without_the_chat("key", Some(fresh)));
+    assert!(
+        !answered_without_the_chat("key", None),
+        "an unread admission waits"
+    );
+}

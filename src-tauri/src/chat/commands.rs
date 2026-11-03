@@ -20,6 +20,7 @@ use crate::storage::models as models_store;
 
 pub use super::send::SendMessageResult;
 use super::send::{start_turn, StartTurn};
+use super::send_admission::{resolve_idempotent_send, IdempotentSend};
 use super::session::ChatState;
 
 pub(crate) const PREF_LAST_ACTIVE_MODEL: &str = "chat.last_active_model_id";
@@ -137,10 +138,12 @@ pub const SEND_WAIT_WHEN_BUSY: std::time::Duration = std::time::Duration::from_s
 #[tauri::command]
 pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendMessageResult> {
     // A spoken round, a model load or the end of the last turn may still hold the chat for a
-    // moment; the voice assistant waits the same time the other way round (spec 066 R12).
-    app.state::<ChatState>()
-        .wait_until_free(SEND_WAIT_WHEN_BUSY)
-        .await;
+    // moment; the voice assistant waits the same time the other way round (spec 066 R12). A retry
+    // of a send that was already accepted gets its ids back at once, even while its own turn runs.
+    let chat = app.state::<ChatState>();
+    if chat.operation_busy() && !is_replay(&app, &args).await {
+        chat.wait_until_free(SEND_WAIT_WHEN_BUSY).await;
+    }
     let emitter = app.clone();
     start_turn(
         &app,
@@ -161,6 +164,36 @@ pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendM
         },
     )
     .await
+}
+
+/// Whether `args` repeats a send that is already stored, or is refused before the chat is needed:
+/// [`start_turn`] answers those without the operation lock, so they need not wait for it.
+async fn is_replay(app: &AppHandle, args: &SendMessageArgs) -> bool {
+    let Ok(db) = app.state::<AppState>().database() else {
+        return false;
+    };
+    let key = args.idempotency_key.clone();
+    let thread_id = args.thread_id;
+    let content = args.content.clone();
+    let admission = db
+        .read(move |r| resolve_idempotent_send(r, &key, thread_id, &content))
+        .await
+        .ok();
+    answered_without_the_chat(&args.idempotency_key, admission)
+}
+
+/// An empty key, a stored send (`Duplicate`) or a key reused for other text (`Mismatch`) is
+/// answered before `start_turn` needs the operation lock. A fresh send, or one whose admission
+/// could not be read (`None`; `start_turn` reads again and reports the error), needs the chat.
+pub(crate) fn answered_without_the_chat(
+    idempotency_key: &str,
+    admission: Option<IdempotentSend>,
+) -> bool {
+    idempotency_key.trim().is_empty()
+        || matches!(
+            admission,
+            Some(IdempotentSend::Duplicate { .. } | IdempotentSend::Mismatch)
+        )
 }
 
 /// Cancels the in-flight generation, if any. Idempotent — safe to
