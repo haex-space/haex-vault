@@ -4,7 +4,6 @@
 //! route reaches it (research R5), so agents keep reading contact conversations only with their
 //! own grant (072 FR-071).
 
-use haex_crdt::rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use ts_rs::TS;
@@ -19,8 +18,6 @@ use crate::storage::query::Query;
 pub const MAX_HITS: usize = 50;
 /// Characters (Unicode scalar values) a text needs before messages are searched (FR-011).
 const MIN_CHARS: usize = 2;
-/// Rows read per query while scanning.
-const PAGE: i64 = 500;
 /// Characters of context kept before and after the start of the match (R4).
 const BEFORE: usize = 40;
 const AFTER: usize = 80;
@@ -75,9 +72,9 @@ pub async fn chat_search(state: State<'_, AppState>, args: SearchArgs) -> Result
 
 /// The newest [`MAX_HITS`] messages whose text contains `text`, and whether there are more.
 ///
-/// ponytail: a linear scan over every message row, filtered in Rust because SQLite's `LIKE` folds
-/// ASCII case only (R3); stops per family after one hit more than shown. Upgrade when a vault
-/// misses SC-003: an indexed, lowercased shadow column.
+/// ponytail: one pass over every message row per family, filtered in Rust because SQLite's `LIKE`
+/// folds ASCII case only (R3); after one hit more than shown the remaining rows are only stepped
+/// over. Upgrade when a vault misses SC-003: an indexed, lowercased shadow column.
 pub fn search(q: &mut impl Query, text: &str) -> Result<SearchResult> {
     let needle = fold(&one_line(text));
     if needle.len() < MIN_CHARS {
@@ -88,14 +85,14 @@ pub fn search(q: &mut impl Query, text: &str) -> Result<SearchResult> {
         "SELECT m.id, m.thread_id, m.text, m.sort_at, t.kind \
          FROM chat_peer_messages m JOIN chat_threads t ON t.id = m.thread_id \
          WHERE t.state <> 'request' AND m.text IS NOT NULL \
-         ORDER BY m.sort_at DESC, m.id DESC LIMIT ?1 OFFSET ?2",
+         ORDER BY m.sort_at DESC, m.id DESC",
         &needle,
     )?;
     hits.extend(scan(
         q,
         "SELECT id, thread_id, content, created_at, 'agent' FROM chat_messages \
          WHERE role IN ('user', 'assistant') \
-         ORDER BY created_at DESC, id DESC LIMIT ?1 OFFSET ?2",
+         ORDER BY created_at DESC, id DESC",
         &needle,
     )?);
     hits.sort_by(|a, b| {
@@ -107,42 +104,30 @@ pub fn search(q: &mut impl Query, text: &str) -> Result<SearchResult> {
     Ok(SearchResult { hits, more })
 }
 
-/// Reads `sql` page by page (columns: id, thread id, text, time, kind) until one hit more than
-/// [`MAX_HITS`] is found or the rows run out.
+/// Reads `sql` (columns: id, thread id, text, time, kind; newest first) in one pass and keeps the
+/// first hits up to one more than [`MAX_HITS`]. One statement, not pages with `OFFSET`: no index
+/// orders the messages globally, so every page would read and sort all rows again.
 fn scan(q: &mut impl Query, sql: &str, needle: &[char]) -> Result<Vec<SearchHit>> {
     let mut hits = Vec::new();
-    let mut offset = 0;
-    loop {
-        let rows = q.query_map(sql, params![PAGE, offset], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)?,
-                ConversationKind::parse(&row.get::<_, String>(4)?)?,
-            ))
-        })?;
-        let read = rows.len() as i64;
-        for (message_id, thread_id, body, at, kind) in rows {
-            let Some(snippet) = snippet(&body, needle) else {
-                continue;
-            };
-            hits.push(SearchHit {
-                thread_id,
-                kind,
-                message_id,
-                at,
-                snippet,
-            });
-            if hits.len() > MAX_HITS {
-                return Ok(hits);
-            }
+    // Each row maps to `()`, so the rows themselves are not collected.
+    q.query_map(sql, &[], |row| {
+        if hits.len() > MAX_HITS {
+            return Ok(());
         }
-        if read < PAGE {
-            return Ok(hits);
-        }
-        offset += PAGE;
-    }
+        let body: String = row.get(2)?;
+        let Some(snippet) = snippet(&body, needle) else {
+            return Ok(());
+        };
+        hits.push(SearchHit {
+            thread_id: row.get(1)?,
+            kind: ConversationKind::parse(&row.get::<_, String>(4)?)?,
+            message_id: row.get(0)?,
+            at: row.get(3)?,
+            snippet,
+        });
+        Ok(())
+    })?;
+    Ok(hits)
 }
 
 /// Whitespace runs read as one space, the way [`snippet`] reads a message, so a text typed with two
