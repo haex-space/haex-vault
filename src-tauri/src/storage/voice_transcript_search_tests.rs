@@ -2,6 +2,7 @@
 //! order that a cursor resumes strictly after.
 
 use ::uuid::Uuid;
+use haex_crdt::rusqlite::params;
 
 use super::*;
 use crate::passwords::test_support::open_test_vault;
@@ -106,6 +107,35 @@ fn pages_follow_thread_seq_and_id_and_resume_after_the_cursor() {
         .flat_map(|thread| (1..=3).map(move |seq| (*thread, seq)))
         .collect();
     assert_eq!(seen, expected, "every hit once, in (thread, seq) order");
+}
+
+#[test]
+fn entries_sharing_a_seq_are_told_apart_by_id_and_paged_by_it() {
+    let (_dir, db) = open_test_vault();
+    let thread = Uuid::new_v4();
+    let mut ids = [Uuid::new_v4(), Uuid::new_v4()];
+    ids.sort_by_key(|id| id.to_string());
+    // Two devices that wrote at the same time: same thread, same `seq`.
+    db.write(|tx| {
+        for id in ids {
+            tx.execute(
+                "INSERT INTO voice_transcript_entries \
+                   (id, thread_id, seq, spoken_at, speaker, kind, text, created_at) \
+                 VALUES (?1, ?2, 1, 0, 'user', 'utterance', 'Budget', 0)",
+                params![id.to_string(), thread.to_string()],
+            )?;
+        }
+        Ok(())
+    })
+    .expect("insert");
+
+    let first = page(&db, "budget", None, Some(1));
+    assert_eq!(first.entries.len(), 1);
+    assert_eq!((first.entries[0].seq, first.entries[0].id), (1, ids[0]));
+    let second = page(&db, "budget", first.next_cursor.as_deref(), Some(1));
+    assert_eq!(second.entries.len(), 1);
+    assert_eq!((second.entries[0].seq, second.entries[0].id), (1, ids[1]));
+    assert_eq!(second.next_cursor, None);
 }
 
 #[test]
