@@ -334,7 +334,7 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             // Already on (another call allowed it meanwhile): keep its websites.
             Caller::BuiltinAgent if builtin_rights(&self.app).await.is_some() => Ok(()),
             Caller::BuiltinAgent => {
-                set_builtin_rights(&self.app, Some(BrowserRights::default())).await
+                set_builtin_rights(&self.app, Some(BrowserRights::switched_on())).await
             }
             _ => Err("only the built-in agent is switched on from the chat".to_owned()),
         }

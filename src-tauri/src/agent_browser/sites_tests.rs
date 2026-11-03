@@ -71,7 +71,7 @@ fn a_website_reads_back_from_json_and_refuses_a_bad_one() {
 mod documents {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use super::super::sites::{check_document, Site, Verdict};
+    use super::super::sites::{check_document, may_operate, Site, Verdict};
     use crate::mcp_server::grants::{SiteGrant, SiteLevel};
 
     fn site(address: &str) -> Site {
@@ -107,10 +107,13 @@ mod documents {
             "https://news.example/artikel?id=3#oben",
             "http://intranet.example/plan",
         ] {
-            assert_eq!(check_document(address, &rights(), &none, true), Verdict::Go);
+            assert_eq!(
+                check_document(address, &rights(), None, &none, true),
+                Verdict::Go
+            );
         }
         assert_eq!(
-            check_document("https://news.example:8443/", &rights(), &none, true),
+            check_document("https://news.example:8443/", &rights(), None, &none, true),
             Verdict::Ask(site("https://news.example:8443")),
             "another port is another website"
         );
@@ -120,16 +123,16 @@ mod documents {
     fn an_unapproved_website_asks_or_is_refused_in_plan() {
         let none = BTreeSet::new();
         assert_eq!(
-            check_document("https://partner.example/x", &rights(), &none, true),
+            check_document("https://partner.example/x", &rights(), None, &none, true),
             Verdict::Ask(site("https://partner.example"))
         );
         assert_eq!(
-            check_document("https://partner.example/x", &rights(), &none, false),
+            check_document("https://partner.example/x", &rights(), None, &none, false),
             Verdict::Refuse("site_not_allowed")
         );
         let once: BTreeSet<Site> = [site("https://partner.example")].into_iter().collect();
         assert_eq!(
-            check_document("https://partner.example/y", &rights(), &once, false),
+            check_document("https://partner.example/y", &rights(), None, &once, false),
             Verdict::Go,
             "allowed once in this session"
         );
@@ -153,14 +156,81 @@ mod documents {
             "not an address",
         ] {
             assert_eq!(
-                check_document(address, &rights(), &none, true),
+                check_document(address, &rights(), None, &none, true),
                 Verdict::Refuse("blocked_address"),
                 "{address}"
             );
         }
         assert_eq!(
-            check_document("about:blank", &rights(), &none, false),
+            check_document("about:blank", &rights(), None, &none, false),
             Verdict::Go
         );
+    }
+
+    /// FR-043: the level for all websites decides for every website that is not listed.
+    #[test]
+    fn the_level_for_all_websites_loads_every_website_that_is_not_listed() {
+        let none = BTreeSet::new();
+        for all in [SiteLevel::Read, SiteLevel::Operate] {
+            for address in ["https://partner.example/x", "http://other.example/"] {
+                assert_eq!(
+                    check_document(address, &rights(), Some(all), &none, false),
+                    Verdict::Go,
+                    "{address} with {all:?} for all"
+                );
+            }
+        }
+        // Blocked addresses stay blocked, whatever the level.
+        assert_eq!(
+            check_document(
+                "file:///etc/passwd",
+                &rights(),
+                Some(SiteLevel::Operate),
+                &none,
+                true
+            ),
+            Verdict::Refuse("blocked_address")
+        );
+    }
+
+    #[test]
+    fn a_listed_website_is_an_exception_to_the_level_for_all() {
+        let none = BTreeSet::new();
+        // news.example is listed for reading only: operating stays refused although all may operate.
+        assert!(!may_operate(
+            "https://news.example/",
+            &rights(),
+            Some(SiteLevel::Operate),
+            &none
+        ));
+        assert!(may_operate(
+            "https://partner.example/",
+            &rights(),
+            Some(SiteLevel::Operate),
+            &none
+        ));
+        assert!(!may_operate(
+            "https://partner.example/",
+            &rights(),
+            Some(SiteLevel::Read),
+            &none
+        ));
+        assert!(!may_operate(
+            "https://partner.example/",
+            &rights(),
+            None,
+            &none
+        ));
+    }
+
+    #[test]
+    fn an_http_website_is_never_operated_whatever_the_level_for_all() {
+        let none = BTreeSet::new();
+        assert!(!may_operate(
+            "http://other.example/",
+            &rights(),
+            Some(SiteLevel::Operate),
+            &none
+        ));
     }
 }

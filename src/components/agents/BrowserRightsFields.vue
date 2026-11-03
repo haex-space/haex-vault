@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The rights group "Browser" of an agent (spec 065 FR-005, data-model.md): off by default; when on,
- * the websites the agent may open, each with "Lesen" or "Bedienen". A website over plain http can
+ * the level for all websites not listed (FR-043) and the websites that are exceptions, each with
+ * "Lesen" or "Bedienen". A website over plain http can
  * only be read (research R9). A website where the user chose "Für diese Website merken" for a
  * login fill shows it and can forget it (FR-021). Rust checks every change again.
  */
@@ -34,11 +35,21 @@ const levelOptions = computed(() =>
   })),
 )
 
+const allOptions = computed(() => [
+  { value: 'none', label: t('mcpAgents.browser.levelNone') },
+  ...levelOptions.value,
+])
+
+/** A group switched on now may operate every website (FR-043). */
 function toggle(on: boolean) {
   emit(
     'update:modelValue',
-    on ? { userBrowser: false, sites: {}, requests: {} } : null,
+    on ? { userBrowser: false, sites: {}, requests: {}, all: 'operate' } : null,
   )
+}
+
+function setAll(level: string) {
+  change({ all: level === 'none' ? null : (level as SiteLevel) })
 }
 
 function change(next: Partial<BrowserRights>) {
@@ -119,6 +130,20 @@ function plain(site: string): boolean {
       />
     </SettingsRow>
     <template v-if="modelValue">
+      <SettingsRow
+        :title="t('mcpAgents.browser.allTitle')"
+        :description="t('mcpAgents.browser.allHint')"
+        data-testid="mcp-browser-all"
+      >
+        <SettingsSelect
+          :model-value="modelValue.all ?? 'none'"
+          class="w-40"
+          :options="allOptions"
+          :disabled="disabled"
+          data-testid="mcp-browser-all-level"
+          @update:model-value="setAll($event)"
+        />
+      </SettingsRow>
       <SettingsRow
         v-for="[site, grant] in sites"
         :key="site"
