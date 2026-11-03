@@ -480,6 +480,18 @@ Sprache (Pausenerkennung R6 entfernt Stille am Rand). Prüfung vor dem Speichern
 ≥ 10 s, Pegel, Übersteuerung (Anteil Samples nahe Vollausschlag), Rauschabstand grob aus den Pausen.
 Danach eine Probe mit einem festen Satz der Sprache.
 
+**Update 2026-11-03 (operator: own voices did not sound convincing)**: three losses on the way to the
+model, all fixed. (1) The microphone path stored the 16 kHz signal of speech recognition, so
+everything above 8 kHz was missing, and the linear conversion folded the rest back; the clone now
+opens the device at its own rate (falling back to the assistant's 16 kHz stream only where the
+device cannot be opened twice) and brings it down to 24 kHz through a windowed-sinc low-pass
+(`audio::resample::resample_filtered`), as for files. (2) sherpa-onnx reads only the first 10 s of a
+reference (`max_reference_audio_len`, default 10) and cuts mid-word; Kyutai's own code reads up to
+30 s and lets the prompt end on a pause (`end_on_pause`). haex now passes 30 s, and a kept recording
+is at most 30 s in total, cut after the last pause of at least 0.2 s before that limit. (3) The
+built-in voices of 12–15 s were cut at 10 s as well and are now read whole. Kyutai: "the audio
+quality of the sample is also reproduced", so a quiet room and a close microphone still matter most.
+
 Gespeichert in der CRDT-Tabelle `haex_tts_voices`, die Aufnahme in `haex_tts_voices_binaries`
 (Muster `haex_passwords_binaries`, unter 25 MiB: 30 s 16 bit Mono 24 kHz ≈ 1,4 MB) und dem Zeitpunkt der bestätigten
 Einwilligung. Synchronisiert wie alle Vault-Daten; die Einbettung wird auf jedem Gerät neu berechnet

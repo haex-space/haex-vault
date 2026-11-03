@@ -6,7 +6,8 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::local::{
-    speakable_text, Engine, PocketModel, Reference, Sentence, Speaker, SpeechOut, RATE_DEFAULT,
+    speakable_text, Engine, PocketModel, Reference, Sentence, Speaker, SpeechOut,
+    MAX_REFERENCE_LEN, RATE_DEFAULT,
 };
 use super::TtsError;
 use crate::audio::mixer::{mixer, MixerInput, MixerRender};
@@ -418,4 +419,11 @@ fn a_stop_reports_what_it_silenced_at_once() {
     assert!(again.elapsed() < Duration::from_secs(1));
     playing.store(false, Ordering::Release);
     device.join().expect("device thread");
+}
+
+#[test]
+fn sherpa_reads_every_reference_a_voice_keeps() {
+    // An own voice keeps up to 30 s ending on a pause; sherpa would cut it at 10 s, mid-word.
+    let len: f64 = MAX_REFERENCE_LEN.parse().expect("a number");
+    assert!((len - super::clone::MAX_REFERENCE_SECS).abs() < 1e-9);
 }

@@ -771,7 +771,10 @@ Modus aus.
   Vorlesetext in der gewählten Sprache anbieten, der etwa 20–30 Sekunden dauert, und auf Wunsch einen
   anderen. haex MUST die Aufnahme vor dem Speichern
   prüfen (Länge, Lautstärke, Übersteuerung, Rauschen) und eine Probe abspielen. Die Nachbildung MUST
-  ganz auf dem Gerät geschehen.
+  ganz auf dem Gerät geschehen. Das Sprachmodell ahmt auch den Klang der Referenz nach; sie MUST
+  deshalb ohne Verlust ankommen: aufgenommen mit der Abtastrate des Mikrofons, nur mit Tiefpass
+  heruntergerechnet, höchstens 30 Sekunden lang und am Ende in einer Sprechpause abgeschnitten,
+  und das Sprachmodell MUST die ganze Referenz lesen (Betreiber 2026-11-03).
 - **FR-050**: Vor dem Speichern MUST der Nutzer bestätigen, dass es seine eigene Stimme ist oder die
   sprechende Person eingewilligt hat; der Zeitpunkt der Bestätigung MUST gespeichert werden.
   Nachgebildete Stimmen MUST verschlüsselt im Vault liegen, mit ihm synchronisiert werden und sich

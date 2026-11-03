@@ -45,3 +45,16 @@ fn the_check_has_the_shape_of_the_contract() {
     assert_eq!(level["sessionId"], Uuid::nil().to_string());
     assert_eq!(level["level"], 0.5);
 }
+
+#[cfg(feature = "voice")]
+#[test]
+fn a_recording_is_stored_at_the_rate_of_the_speech_model_at_most() {
+    let second = |rate: u32| vec![0.1f32; rate as usize];
+    let (samples, rate) = stored_reference(&second(48_000), 48_000);
+    assert_eq!((samples.len(), rate), (24_000, STORED_RATE_MAX));
+    let (samples, rate) = stored_reference(&second(44_100), 44_100);
+    assert_eq!((samples.len(), rate), (24_000, STORED_RATE_MAX));
+    // Lower rates stay as they are; the speech model converts them itself.
+    let (samples, rate) = stored_reference(&second(16_000), 16_000);
+    assert_eq!((samples.len(), rate), (16_000, 16_000));
+}

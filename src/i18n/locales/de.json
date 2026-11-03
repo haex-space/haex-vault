@@ -1516,7 +1516,7 @@
         "fileTypes": "Audiodateien",
         "level": "Pegel",
         "heard": "Etwa {seconds} s Sprache",
-        "recordHint": "Lies den Text oben vor. Mindestens 10 Sekunden Sprache.",
+        "recordHint": "Lies den Text oben vor, in einem ruhigen Raum und nah am Mikrofon: Die Stimme übernimmt auch den Klang der Aufnahme. Mindestens 10 Sekunden Sprache.",
         "checking": "Die Aufnahme wird geprüft …",
         "ok": "Die Aufnahme passt: {seconds} s Sprache.",
         "again": "Bitte nimm noch einmal auf:",
