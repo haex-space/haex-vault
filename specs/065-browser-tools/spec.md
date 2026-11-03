@@ -205,7 +205,8 @@ dem Öffnen; in Plan wird das Abschicken ohne Rückfrage abgelehnt.
    abschickt, **Then** zeigt holzi eine Rückfrage mit Website, beschrifteter Schaltfläche und den
    Feldern, die abgeschickt würden (Geheimnisse als Platzhalter), und führt nur nach „Erlauben“
    aus.
-3. **Given** ein Agent ohne `bank.example.de` in seinen erlaubten Websites, **When** er sie öffnen
+3. **Given** ein Agent ohne `bank.example.de` in seinen erlaubten Websites und ohne Stufe für alle
+   Websites (FR-043), **When** er sie öffnen
    will oder ein Link oder eine Weiterleitung dorthin führt, **Then** hält holzi vor dem Laden an
    und fragt: „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer erlauben (bedienen)“,
    „Ablehnen“.
@@ -425,8 +426,9 @@ Steuerung.
   (FR-019, FR-036); das Speichern und automatische Ausfüllen von Passwörtern des Browsers MUSS
   aus sein.
 - **FR-003**: holzi MUSS den Agenten-Browser erst starten, wenn ein Agent mit der Rechtegruppe
-  Browser das erste Browser-Werkzeug aufruft, und MUSS ihn beenden, wenn die Vault schließt, der
-  Nutzer ihn schließt oder 15 Minuten lang keine Browser-Sitzung läuft.
+  Browser das erste Browser-Werkzeug aufruft oder der Nutzer in „KI → Browser“ das Profil ansieht
+  (FR-046), und MUSS ihn beenden, wenn die Vault schließt, der Nutzer ihn schließt oder 15 Minuten
+  lang keine Browser-Sitzung läuft.
 - **FR-004**: Nur holzi DARF den Agenten-Browser steuern; andere Programme auf dem Gerät DÜRFEN ihn
   nicht erreichen.
 
@@ -549,8 +551,8 @@ Steuerung.
 
 - **FR-039**: An agent MUST be able to search the web with one tool (`browser.search`): it opens the
   search engine's result page for the query in an agent tab and reads it, with every rule of
-  opening a page (FR-005 to FR-010). The engine is DuckDuckGo's HTML page; its website asks on the
-  first visit like any other.
+  opening a page (FR-005 to FR-010). The engine is DuckDuckGo's HTML page; its website is checked
+  like any other (FR-007, FR-043).
 - **FR-040**: When the built-in agent calls a browser tool while its rights group "Browser" is off,
   holzi MUST ask the user whether to switch it on instead of refusing. Allowing switches the group on
   with "all websites: operate" (FR-043); declining refuses the tool.
@@ -570,7 +572,7 @@ Steuerung.
   level for all. `http` websites never get more than `read` (R9). Everything else of FR-008 to
   FR-013 stays: Manuell still asks before a changing action and every submit still asks (FR-011).
   The user sets the level in "KI → Agenten" and "KI → Browser".
-- **FR-044**: A held request the page itself sends (FR-011 step 2, not an action of the agent)
+- **FR-044**: A held request the page itself sends (R5 step 2 of FR-011, not an action of the agent)
   MUST ask with its own kind `request`. The dialog states that the page sends it, shows the
   website the request goes to, the request's address and what it would send (nested JSON as
   compact text with secrets hidden, other text as one field, FR-012), and offers the buttons
@@ -578,7 +580,7 @@ Steuerung.
   becomes a rule for the website the request goes to: `allow` sends such requests without asking
   (never in Plan, FR-011), `deny` refuses them without asking. Rules belong to the agent's rights
   group Browser; the user sees them, with the website, and removes them in "KI → Agenten" and
-  "KI → Browser". The submit question of an agent's own action (FR-011 step 1) has no such
+  "KI → Browser". The submit question of an agent's own action (R5 step 1 of FR-011) has no such
   checkbox.
 - **FR-045**: holzi MUST block requests of the agent browser's pages that filter lists block, as
   uBlock Origin does, before FR-011 holds or asks, so a blocked tracker never raises a question.

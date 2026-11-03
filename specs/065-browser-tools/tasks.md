@@ -24,7 +24,7 @@ description: 'Task list for spec 065-browser-tools'
 - Catalog rules go in `scripts/check-agent-actions.ts` and `scripts/check-mcp-actions.ts`.
 - e2e scenarios go in `scripts/e2e/scenarios/`.
 - Tests come first inside each story and fail before the code exists.
-- Real Claude Code and the user's own browser are manual (quickstart M1–M9).
+- Real Claude Code and the user's own browser are manual (quickstart M1–M13).
 
 **Organization**: Grouped by user story and shipped in the deliveries of research R15. Each
 delivery is one PR from its own worktree off `main`.
@@ -47,6 +47,7 @@ delivery is one PR from its own worktree off `main`.
 | PR E2    | Phase 7    | US5 (downloads, uploads)                                                        |
 | PR F     | Phase 8    | US6, deferred on 2026-11-01                                                     |
 | –        | Phase 9    | Polish, manual checks                                                           |
+| PR G–K   | Phase 10   | Revision 2026-11-03, research R15 rows G to K (T094–T100), manual checks T101   |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 
@@ -301,7 +302,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 
 ## Phase 10: Revision 2026-11-03 (dialogs, defaults, trackers, profile)
 
-- [ ] T094 [P] Dialogs close only through their own buttons (FR-042): `dismissible` for `UiDrawerModal` in haextension (PR #177), pin bump in holzi, `:dismissible="false"` and no close handler in src/components/agentBrowser/PromptDialog.vue, src/components/chat/PermissionPrompt.vue, DelegateCallPrompt.vue and ChoicePrompt.vue (their own buttons answer)
+- [ ] T094 [P] Dialogs close only through their own buttons (FR-042): `dismissible` for `UiDrawerModal` in haextension (PR #177), pin bump in holzi, `:dismissible="false"` and no close handler in src/components/agentBrowser/PromptDialog.vue, src/components/chat/PermissionPrompt.vue, DelegateCallPrompt.vue and ChoicePrompt.vue and src/components/agents/CallRequestDialog.vue (their own buttons answer)
 - [x] T095 [P] The send dialog shows what is sent: nested JSON as compact text, other text as one field named "Inhalt", secrets hidden, in src-tauri/src/agent_browser/submit.rs (PR #789)
 - [ ] T096 Level for all websites (FR-043): `BrowserRights.all`, the row `*` in src-tauri/src/mcp_server/grant_rows.rs, `check_document` in src-tauri/src/agent_browser/sites.rs, the default of a switched-on group and of `switch_on`, the field in src/components/agents/BrowserRightsFields.vue and "KI → Browser"; tests in sites_tests.rs and grant_rows_tests.rs
 - [ ] T097 Page requests (FR-044): prompt kind `request` and `Remember::Request` in src-tauri/src/agent_browser/prompts.rs, rules `BrowserRights.requests` with the row `request:<Website>`, `check_send` consults them (never past Plan), `BrowserEnv::remember_request`, checkbox "Für diese Website merken" in PromptDialog.vue, rules listed and removable in BrowserRightsFields.vue; integration test in src-tauri/tests/agent_browser_requests.rs

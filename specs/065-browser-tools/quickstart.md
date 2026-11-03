@@ -19,7 +19,8 @@ einmal je Lieferung durchgeht.
    zeigt der Agenten-Browser eine Warnung: mit „Eingreifen“ den Tab übernehmen, „Erweitert → Weiter
    zu …“ wählen und zurückgeben. Das Zertifikat nicht als Zertifizierungsstelle importieren: sein
    Schlüssel liegt im Repository.
-4. In KI → Agenten → Claude Code: Rechtegruppe Browser an, `https://127.0.0.1:8443` mit „bedienen“.
+4. In KI → Agenten → Claude Code: Rechtegruppe Browser an, „Alle Websites“ auf „Keine“ (M2 braucht
+   die Rückfrage, FR-043), `https://127.0.0.1:8443` mit „bedienen“.
 
 ## M1 Lesen (US1)
 

@@ -362,9 +362,10 @@ Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 
 ## R16 Tracker blocken (revision 2026-11-03)
 
-**Entscheidung**: The agent browser asks CDP to hold every request (`Fetch.enable`, which R5
-already uses for FR-011); before the submit check, each request goes through a filter engine and
-a match fails with `BlockedByClient`. The engine is Brave's `adblock` crate (Rust, MPL-2.0), which
+**Entscheidung**: The agent browser asks CDP to hold every request of every resource type
+(`Fetch.enable`; R5 holds only documents and requests that may change something, so the patterns
+widen to images, styles, scripts, fonts and media); before the submit check, each request goes
+through a filter engine and a match fails with `BlockedByClient`. The engine is Brave's `adblock` crate (Rust, MPL-2.0), which
 reads the Adblock Plus and uBlock Origin list syntax; only network filters are loaded, so
 cosmetic filters, scriptlets and redirect resources never run. The lists are downloaded over
 `https` (the default ones from their publishers, the user's own by their address), cached as
@@ -382,8 +383,9 @@ plain host list (misses path rules and exceptions).
 ## R17 Profil ansehen und ändern (revision 2026-11-03)
 
 **Entscheidung**: The profile view reads and writes cookies through the running agent browser:
-`Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` on the browser's own
-target, so the values come as the browser holds them and no database file is parsed. "KI →
+`Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` in a session of a page
+target (the `Network` domain does not exist on the browser's own target; holzi opens a blank tab
+for it when none is open), so the values come as the browser holds them and no database file is parsed. "KI →
 Browser" starts the browser for it when it is not running (the profile is unlocked then, R3) and
 ends it again after 15 minutes without use like any other run (FR-003). The window shows names
 and flags, a value only on a click; the commands are window-only and no catalog action an agent can
