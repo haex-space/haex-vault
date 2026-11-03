@@ -26,7 +26,9 @@ const { t, d } = useI18n()
 
 /** The extract split around the first match, compared per character as the core does. */
 function parts(snippet: string): [string, string, string] {
-  const needle = [...props.text.trim()].flatMap((c) => [...c.toLowerCase()])
+  const needle = [...props.text.trim().split(/\s+/).join(' ')].flatMap((c) => [
+    ...c.toLowerCase(),
+  ])
   const chars = [...snippet]
   const folded = chars.flatMap((c, at) =>
     [...c.toLowerCase()].map((l) => ({ l, at })),
