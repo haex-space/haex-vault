@@ -1010,7 +1010,6 @@
       "exportFile": "Export",
       "imported": "Appearance imported.",
       "exported": "Appearance saved.",
-      "saved": "Saved.",
       "invalid": "Invalid choice: {field}",
       "failed": "The appearance could not be saved.",
       "import": {
