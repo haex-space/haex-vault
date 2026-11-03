@@ -150,12 +150,21 @@ test('the pages save on selection, as device settings, without a save button', (
   assert.match(voice, /v-for="voice in shownVoices"/)
   assert.match(voice, /settings-voice-download-\$\{voice\.ref\}/)
   assert.match(voice, /<ModelsDownloadBar :model-id="voice\.modelId" \/>/)
+  // The voices stand where the list of what is missing was; that list is gone (operator
+  // 2026-11-03), and a voice that is not here stays choosable, asking for its download.
+  assert.ok(
+    voice.indexOf('v-for="voice in shownVoices"') <
+      voice.indexOf("assistantLabelKey('assistant.speechRate')"),
+    'the voices come before the speaking rate',
+  )
+  assert.doesNotMatch(voice, /:disabled="!voice\.installed"/)
   assert.match(voice, /voicePrefKey\(language\)/)
   assert.match(voice, /SPEECH_RATE_KEY/)
   const assistantPage = read(
     'src/components/settings/assistant/AssistantSetting.vue',
   )
   assert.match(assistantPage, /CONVERSATION_LANGUAGE_KEY/)
+  assert.doesNotMatch(assistantPage, /assistant_readiness/)
   const tones = read('src/components/settings/assistant/TonesSetting.vue')
   assert.match(tones, /TONES_ENABLED_KEY/)
   assert.match(tones, /TONES_VOLUME_KEY/)

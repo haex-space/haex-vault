@@ -1573,21 +1573,10 @@
       "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
       "saveFailed": "Konnte nicht speichern: {reason}",
       "saved": "Gespeichert",
-      "readiness": "Was noch fehlt",
-      "ready": "Alles da: Du kannst ein Gespräch beginnen.",
-      "missing": {
-        "sttModel": "Spracherkennungsmodell",
-        "vadModel": "Pausenerkennung",
-        "wakeWordModel": "Wake Word (kommt mit einer späteren Version)",
-        "voice": "Stimmenmodell dieser Sprache",
-        "chatModel": "KI-Modell",
-        "microphone": "Mikrofon"
-      },
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
       "languageUi": "Wie die Oberfläche ({language})",
-      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche.",
-      "voiceHeading": "Stimme"
+      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche."
     }
   },
   "models": {
