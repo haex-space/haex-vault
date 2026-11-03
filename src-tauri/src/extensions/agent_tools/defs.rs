@@ -2,7 +2,7 @@
 //! Werkzeug"): from the manifests of installed, enabled extensions and their `agentTool` rows,
 //! without starting any extension.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use uuid::Uuid;
 
@@ -20,7 +20,8 @@ pub struct ExtensionToolDef {
     /// The extension's title (manifest `displayName`, else its name), shown with every call.
     pub extension_title: String,
     pub tool: ManifestTool,
-    /// The name the model calls: `x_<slug>_<tool>` (research R8).
+    /// The name the model calls: `x_<slug>_<tool>`, with a key suffix after the slug for a later
+    /// extension of the same slug (research R8).
     pub model_name: String,
     /// Confirmed with "ask": every call needs the user's consent, in every mode.
     pub always_ask: bool,
@@ -40,8 +41,12 @@ pub struct ToolRow {
 #[derive(Debug, Clone)]
 pub struct ExtensionSource {
     pub id: Uuid,
+    /// The signer's public key (hex), the stable part of the extension's identity.
+    pub public_key: String,
     /// The manifest `name`.
     pub name: String,
+    /// When the extension was installed (ms); `None` for a development version.
+    pub installed_at: Option<i64>,
     pub title: String,
     pub tools: Vec<ManifestTool>,
     pub rows: Vec<ToolRow>,
@@ -53,6 +58,48 @@ const AGENT_TOOL: &str = "agentTool";
 /// model-facing name stays within 64 characters.
 const MAX_SLUG: usize = 20;
 const SUFFIX: usize = 6;
+
+/// Which source keeps the bare slug among those sharing it: installed before development
+/// versions, then the earliest installed, then the public key, so the result does not depend on
+/// the order the sources were read in.
+fn seniority(source: &ExtensionSource) -> (bool, i64, &str, Uuid) {
+    (
+        source.installed_at.is_none(),
+        source.installed_at.unwrap_or(i64::MAX),
+        source.public_key.as_str(),
+        source.id,
+    )
+}
+
+/// The model-facing prefix of every source (research R8): its slug, and for all but the senior
+/// source of a slug the first characters of its public key. The names of an extension stay as
+/// they are when another one with the same slug is installed later. A suffix that is still taken
+/// (a development version signed with the same key as an installed one, say) falls back to the
+/// first characters of the extension id.
+fn prefixes(sources: &[ExtensionSource]) -> HashMap<Uuid, String> {
+    let mut order: Vec<&ExtensionSource> = sources.iter().collect();
+    order.sort_by(|a, b| seniority(a).cmp(&seniority(b)));
+    let mut taken = HashSet::new();
+    let mut prefixes = HashMap::new();
+    for source in order {
+        let slug = slug(&source.name);
+        let key: String = source
+            .public_key
+            .chars()
+            .filter(|c| c.is_ascii_hexdigit())
+            .map(|c| c.to_ascii_lowercase())
+            .take(SUFFIX)
+            .collect();
+        let id = source.id.simple().to_string()[..SUFFIX].to_owned();
+        let prefix = [slug.clone(), format!("{slug}{key}"), format!("{slug}{id}")]
+            .into_iter()
+            .find(|candidate| !taken.contains(candidate))
+            .unwrap_or_else(|| format!("{slug}{id}"));
+        taken.insert(prefix.clone());
+        prefixes.insert(source.id, prefix);
+    }
+    prefixes
+}
 
 fn effect_action(effect: ToolEffect) -> &'static str {
     match effect {
@@ -93,10 +140,7 @@ fn confirmation(tool: &ManifestTool, rows: &[ToolRow]) -> Option<bool> {
 
 /// The offerable tools of `sources`, in their order and manifest order.
 pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
-    let mut per_slug: HashMap<String, usize> = HashMap::new();
-    for source in &sources {
-        *per_slug.entry(slug(&source.name)).or_default() += 1;
-    }
+    let prefixes = prefixes(&sources);
     let mut defs = Vec::new();
     for source in sources {
         if source
@@ -106,10 +150,7 @@ pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
         {
             continue;
         }
-        let mut prefix = slug(&source.name);
-        if per_slug.get(&prefix).copied().unwrap_or(0) > 1 {
-            prefix.push_str(&source.id.simple().to_string()[..SUFFIX]);
-        }
+        let prefix = &prefixes[&source.id];
         for tool in &source.tools {
             let Some(always_ask) = confirmation(tool, &source.rows) else {
                 continue;
@@ -166,7 +207,9 @@ fn dev_sources(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSource>>
         }
         sources.push(ExtensionSource {
             id: registration.id,
+            public_key: registration.prefix.public_key.as_str().to_owned(),
             name: manifest.name.as_str().to_owned(),
+            installed_at: None,
             title: manifest.title().to_owned(),
             rows: tool_rows(q, registration.id)?,
             tools: manifest.tools,
@@ -179,18 +222,24 @@ fn dev_sources(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSource>>
 /// The offerable tools of the vault on `device`: installed, enabled extensions whose state here
 /// lets them start (not yet started, or ready), and the development versions of this device.
 pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
-    let ids = q.query_map(
-        "SELECT e.id FROM extensions e \
+    let rows = q.query_map(
+        "SELECT e.id, e.public_key, e.installed_at FROM extensions e \
          LEFT JOIN extension_device_status s \
            ON s.extension_id = e.id AND s.vault_device_uuid = ?1 \
          WHERE e.state = 'installed' AND e.enabled = 1 \
            AND (s.status IS NULL OR s.status = 'ready') \
          ORDER BY e.name",
         &[&device.to_string()],
-        |r| r.get::<_, String>(0),
+        |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        },
     )?;
     let mut sources = Vec::new();
-    for id in ids {
+    for (id, public_key, installed_at) in rows {
         let Ok(id) = Uuid::parse_str(&id) else {
             continue;
         };
@@ -202,7 +251,9 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
         }
         sources.push(ExtensionSource {
             id,
+            public_key,
             name: manifest.name.as_str().to_owned(),
+            installed_at: Some(installed_at),
             title: manifest.title().to_owned(),
             rows: tool_rows(q, id)?,
             tools: manifest.tools,

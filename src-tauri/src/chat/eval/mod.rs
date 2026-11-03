@@ -123,7 +123,9 @@ pub fn embedded_extension_tools() -> Vec<ExtensionToolDef> {
                 .collect();
             ExtensionSource {
                 id: Uuid::from_u128(index as u128 + 1),
+                public_key: format!("{:064x}", index + 1),
                 name: extension.name,
+                installed_at: Some(index as i64),
                 title: extension.title,
                 tools,
                 rows,
