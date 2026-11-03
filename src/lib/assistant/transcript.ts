@@ -77,6 +77,17 @@ export function mergeEntry(
   )
 }
 
+/** Joins a freshly read list with the entries already shown, in one pass: the read wins for an id
+ * it has, entries that arrived while reading stay. */
+export function mergeStored(
+  shown: readonly TranscriptEntry[],
+  stored: readonly TranscriptEntry[],
+): TranscriptEntry[] {
+  const byId = new Map(shown.map((entry) => [entry.id, entry]))
+  for (const entry of stored) byId.set(entry.id, entry)
+  return [...byId.values()].sort(compareEntries)
+}
+
 /** An answer split at `spokenUntil` (characters): what haex said, and what it did not get to. */
 export function splitSpoken(
   text: string,

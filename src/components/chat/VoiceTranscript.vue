@@ -9,12 +9,14 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
 import {
   LABELLED_KINDS,
   OUTCOMES,
   SPEAKERS,
   mergeEntry,
+  mergeStored,
   splitSpoken,
   type TranscriptEntry,
 } from '~/lib/assistant/transcript'
@@ -31,7 +33,6 @@ const { errString } = useErrorString()
 
 const entries = ref<TranscriptEntry[]>([])
 const loading = ref(true)
-const loadError = ref<string | null>(null)
 const root = useTemplateRef<HTMLElement>('root')
 
 let generation = 0
@@ -44,11 +45,12 @@ async function loadAsync() {
       { threadId: thread },
     )
     if (mine !== generation) return
-    // Entries that arrived while reading stay.
-    entries.value = stored.reduce(mergeEntry, entries.value)
-    loadError.value = null
+    entries.value = mergeStored(entries.value, stored)
   } catch (error) {
-    if (mine === generation) loadError.value = errString(error)
+    if (mine === generation)
+      toast.error(
+        t('assistant.transcript.loadFailed', { reason: errString(error) }),
+      )
   } finally {
     if (mine === generation) loading.value = false
   }
@@ -125,11 +127,8 @@ function fullTime(at: number): string {
     data-testid="voice-transcript"
     :aria-label="t('assistant.transcript.title')"
   >
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('assistant.transcript.loadFailed', { reason: loadError }) }}
-    </p>
     <p
-      v-else-if="!loading && entries.length === 0"
+      v-if="!loading && entries.length === 0"
       class="text-sm text-muted-foreground"
     >
       {{ t('assistant.transcript.empty') }}
