@@ -5,6 +5,7 @@
  * back on; shares to contacts work either way. Writes go through the catalog action, which no agent
  * may call (a guardrail).
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 
 const { t } = useI18n()
@@ -13,9 +14,7 @@ const setAccess = useActionOrThrow('settings.files.deviceAccess.set')
 
 const enabled = ref<boolean | null>(null)
 const busy = ref(false)
-const savedFlash = ref(false)
 const loadError = ref<string | null>(null)
-const opError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
@@ -29,14 +28,13 @@ async function reloadAsync() {
 async function toggleAsync(next: boolean) {
   if (enabled.value === null || busy.value) return
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     const result = (await setAccess({ enabled: next })) as { enabled: boolean }
     enabled.value = result.enabled
-    savedFlash.value = true
   } catch (error: unknown) {
-    opError.value = errString(error)
+    toast.error(
+      `${t('settings.federation.deviceAccess.failed')}: ${errString(error)}`,
+    )
     await reloadAsync()
   } finally {
     busy.value = false
@@ -69,13 +67,6 @@ onMounted(reloadAsync)
     </SettingsGroup>
     <p v-if="enabled !== null" class="px-1 text-xs text-muted-foreground">
       {{ t('settings.deviceOnly') }}
-    </p>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.federation.deviceAccess.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.federation.deviceAccess.failed') }}: {{ opError }}
     </p>
   </section>
 </template>

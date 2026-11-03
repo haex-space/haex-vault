@@ -5,6 +5,7 @@
  * a save button. Turning it off deletes the saved session. Writes go through the catalog action
  * (spec 020 FR-024).
  */
+import { toast } from 'vue-sonner'
 import type { RestoreState } from '~/lib/wm/sessionSync'
 
 const { t } = useI18n()
@@ -14,9 +15,7 @@ const setRestore = useActionOrThrow('settings.sessionRestore.set')
 
 const restore = ref<RestoreState | null>(null)
 const busy = ref(false)
-const savedFlash = ref(false)
 const loadError = ref<string | null>(null)
-const opError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
@@ -30,13 +29,10 @@ async function reloadAsync() {
 async function toggleAsync(enabled: boolean) {
   if (!restore.value || busy.value) return
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     restore.value = (await setRestore({ enabled })) as RestoreState
-    savedFlash.value = true
   } catch (error: unknown) {
-    opError.value = errString(error)
+    toast.error(`${t('settings.sessionRestore.failed')}: ${errString(error)}`)
     await reloadAsync()
   } finally {
     busy.value = false
@@ -70,12 +66,5 @@ onVaultTablesChanged(['preferences'], () => {
         />
       </SettingsRow>
     </SettingsGroup>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.sessionRestore.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.sessionRestore.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>

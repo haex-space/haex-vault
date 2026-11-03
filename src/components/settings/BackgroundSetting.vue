@@ -5,6 +5,8 @@
  * chosen file); it is scaled down and stored for the whole vault. Removing goes through
  * `settings.appearance.removeBackground`, which an agent can call too.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { errString } = useErrorString()
 const { background, setFromFileAsync } = useWorkspaceBackground()
@@ -14,18 +16,13 @@ const removeBackground = useActionOrThrow(
 
 const input = useTemplateRef<HTMLInputElement>('input')
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 
 async function runAsync(work: () => Promise<unknown>) {
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await work()
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.background.failed')}: ${errString(e)}`)
   } finally {
     busy.value = false
   }
@@ -84,17 +81,5 @@ async function removeAsync() {
         </div>
       </SettingsRow>
     </SettingsGroup>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.background.saved') }}
-    </p>
-    <p
-      v-if="opError"
-      class="px-1 text-xs text-destructive"
-      role="alert"
-      data-testid="settings-background-error"
-    >
-      {{ t('settings.background.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>
