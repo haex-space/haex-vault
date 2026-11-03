@@ -537,3 +537,15 @@ test('conversations take the interface language unless this device picks another
     )
   }
 })
+
+test('the assistant pages save silently and show failures as toasts (operator 2026-11-03)', () => {
+  for (const file of [
+    'src/components/settings/assistant/AssistantSetting.vue',
+    'src/components/settings/assistant/VoiceSetting.vue',
+    'src/components/settings/assistant/TonesSetting.vue',
+  ]) {
+    const source = read(file)
+    assert.doesNotMatch(source, /savedFlash|role="status"/, file)
+    assert.match(source, /toast\.error\(/, file)
+  }
+})

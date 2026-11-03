@@ -1490,7 +1490,6 @@
       "preview": "Probe",
       "previewOf": "Probe von {name}",
       "previewFailed": "Probe fehlgeschlagen: {reason}",
-      "saved": "Gespeichert.",
       "saveFailed": "Nicht gespeichert: {reason}",
       "model": {
         "downloading": "Lädt …",
@@ -1510,7 +1509,6 @@
       "listen": "Anhören",
       "listenTo": "{name} anhören",
       "previewFailed": "Anhören fehlgeschlagen: {reason}",
-      "saved": "Gespeichert.",
       "saveFailed": "Nicht gespeichert: {reason}",
       "names": {
         "listening": "Hört zu",
@@ -1558,7 +1556,6 @@
       "delete": "Löschen",
       "deleteConfirm": "Auf allen Geräten löschen",
       "deleteOf": "{name} löschen",
-      "imported": "„{name}“ hinzugefügt.",
       "importFailed": "Nicht hinzugefügt: {reason}",
       "reasons": {
         "tooLarge": "Die Datei ist größer als 20 MB.",
@@ -1572,7 +1569,6 @@
     "assistantPage": {
       "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
       "saveFailed": "Konnte nicht speichern: {reason}",
-      "saved": "Gespeichert",
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
       "languageUi": "Wie die Oberfläche ({language})",

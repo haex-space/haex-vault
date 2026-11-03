@@ -10,6 +10,7 @@
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
  * rate.
  */
+import { toast } from 'vue-sonner'
 import {
   assistantLabelKey,
   parseSpeechRate,
@@ -50,8 +51,6 @@ const shownVoices = computed(() => voicesOf(props.language))
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 /** The voice whose sample is being prepared or plays. */
 const previewing = ref<string | null>(null)
 /** The speech model being downloaded from this page. */
@@ -124,14 +123,11 @@ async function reloadAsync(quiet = false) {
 
 async function saveAsync(key: string, value: string) {
   saving.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
-    savedFlash.value = true
   } catch (e) {
-    opError.value = t('settings.voice.saveFailed', { reason: errString(e) })
+    toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
   } finally {
     saving.value = false
   }
@@ -153,11 +149,10 @@ async function saveRateAsync() {
 
 async function playAsync(voice: VoiceOption) {
   previewing.value = voice.ref
-  opError.value = null
   try {
     await previewAsync(voice.ref, rate.value)
   } catch (e) {
-    opError.value = t('settings.voice.previewFailed', { reason: errString(e) })
+    toast.error(t('settings.voice.previewFailed', { reason: errString(e) }))
   } finally {
     if (previewing.value === voice.ref) previewing.value = null
   }
@@ -174,14 +169,15 @@ const confirmOpen = computed({
 
 async function fetchModelAsync(entry: VoiceOption) {
   downloadingId.value = entry.modelId
-  opError.value = null
   try {
     await downloadModelAsync(entry.modelId)
     await reloadAsync(true)
   } catch (e) {
-    opError.value = t('settings.voice.model.downloadFailed', {
-      reason: errString(e),
-    })
+    toast.error(
+      t('settings.voice.model.downloadFailed', {
+        reason: errString(e),
+      }),
+    )
   } finally {
     downloadingId.value = null
     downloads.clearDownload(entry.modelId)
@@ -314,13 +310,6 @@ onVaultTablesChanged(['preferences'], () => {
         "
         @confirm="confirmed"
       />
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.voice.saved') }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ opError }}
-      </p>
     </template>
   </section>
 </template>

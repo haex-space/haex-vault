@@ -1490,7 +1490,6 @@
       "preview": "Sample",
       "previewOf": "Sample of {name}",
       "previewFailed": "Sample failed: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "model": {
         "downloading": "Downloading …",
@@ -1510,7 +1509,6 @@
       "listen": "Listen",
       "listenTo": "Listen to {name}",
       "previewFailed": "Could not play: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "names": {
         "listening": "Listening",
@@ -1558,7 +1556,6 @@
       "delete": "Delete",
       "deleteConfirm": "Delete on all devices",
       "deleteOf": "Delete {name}",
-      "imported": "Added “{name}”.",
       "importFailed": "Not added: {reason}",
       "reasons": {
         "tooLarge": "The file is larger than 20 MB.",
@@ -1572,7 +1569,6 @@
     "assistantPage": {
       "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
-      "saved": "Saved",
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
       "languageUi": "Same as the interface ({language})",
