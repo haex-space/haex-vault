@@ -1485,7 +1485,8 @@
         "headphones": "Headphones",
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
-        "preview": "Voice assistant (preview)"
+        "preview": "Voice assistant (preview)",
+        "language": "Conversation language"
       }
     },
     "voice": {
@@ -1591,7 +1592,9 @@
         "microphone": "Microphone"
       },
       "seconds": "{value} s",
-      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only."
+      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
+      "languageUi": "Same as the interface ({language})",
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language."
     }
   },
   "models": {

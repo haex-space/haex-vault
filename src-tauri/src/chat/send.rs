@@ -194,6 +194,23 @@ pub(crate) fn validated_reasoning_option(
 
 /// Persists the user message, starts the first step and spawns the rest of the turn; returns the
 /// ids the caller follows the turn by. The assistant message is inserted on completion.
+/// The interface language for a typed turn; for a spoken one the language chosen for
+/// conversations on this device.
+async fn read_reply_language(
+    app: &AppHandle,
+    db: &crate::vault_gate::VaultDb,
+    origin: Option<ThreadOrigin>,
+) -> Result<Option<crate::chat::reply_language::ReplyLanguage>> {
+    use crate::chat::reply_language::{read_spoken, read_typed};
+    match origin {
+        Some(ThreadOrigin::Voice) => {
+            let device = crate::device::commands::resolve_vault_device_uuid(app, db).await?;
+            db.read(move |r| read_spoken(r, device)).await
+        }
+        None => db.read(|r| read_typed(r)).await,
+    }
+}
+
 pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageResult> {
     if turn.idempotency_key.trim().is_empty() {
         return Err(HolziError::InvalidIdempotencyKey);
@@ -404,6 +421,14 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         current_turn_message.attachments = read_attachments;
     }
 
+    // The language the agent answers in (spec 066 FR-002a); without it the model follows the
+    // user, so a failed read must not stop the turn.
+    let reply_language = read_reply_language(app, &db, turn.origin)
+        .await
+        .unwrap_or_else(|error| {
+            log::warn!("chat: could not read the reply language: {error}");
+            None
+        });
     let request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,
@@ -412,6 +437,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             turn.system_prompt.as_deref(),
             &tools,
             Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
+            reply_language,
         ),
         messages,
         reasoning_requested,

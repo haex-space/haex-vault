@@ -9,6 +9,10 @@ import {
   ALWAYS_AUDIBLE_TONES,
   ASSISTANT_SETTING_KEYS,
   assistantLabelKey,
+  CONVERSATION_LANGUAGE_KEY,
+  CONVERSATION_LANGUAGES,
+  parseConversationLanguage,
+  spokenLanguage,
   PAUSE_MS,
   parsePause,
   parsePreview,
@@ -90,7 +94,7 @@ const PAGES = [
   {
     id: 'ai.speech.assistant',
     view: 'src/components/settings/assistant/AssistantSetting.vue',
-    prefs: ['assistant.preview', 'assistant.pauseMs'],
+    prefs: ['assistant.preview', 'assistant.language', 'assistant.pauseMs'],
   },
   {
     id: 'ai.speech.voice',
@@ -136,6 +140,10 @@ test('the pages save on selection, as device settings, without a save button', (
   const voice = read('src/components/settings/assistant/VoiceSetting.vue')
   assert.match(voice, /voicePrefKey\(language\)/)
   assert.match(voice, /SPEECH_RATE_KEY/)
+  const assistantPage = read(
+    'src/components/settings/assistant/AssistantSetting.vue',
+  )
+  assert.match(assistantPage, /CONVERSATION_LANGUAGE_KEY/)
   const tones = read('src/components/settings/assistant/TonesSetting.vue')
   assert.match(tones, /TONES_ENABLED_KEY/)
   assert.match(tones, /TONES_VOLUME_KEY/)
@@ -482,4 +490,29 @@ test('the chat shows the transcript of a spoken session and searches transcripts
       'useTranscriptSearch()',
     ),
   )
+})
+
+test('conversations take the interface language unless this device picks another (FR-002a)', () => {
+  assert.deepEqual([...CONVERSATION_LANGUAGES], ['ui', ...SPEECH_LANGUAGES])
+  assert.equal(parseConversationLanguage(null), 'ui')
+  assert.equal(parseConversationLanguage('klingonisch'), 'ui')
+  assert.equal(parseConversationLanguage('fr'), 'fr')
+  assert.equal(spokenLanguage('ui', 'de'), 'de')
+  assert.equal(spokenLanguage('ui', 'en-US'), 'en')
+  assert.equal(spokenLanguage('fr', 'de'), 'fr')
+  // The Rust side reads the same key and the same codes.
+  const rust = read('src-tauri/src/chat/reply_language.rs')
+  assert.ok(rust.includes(`"${CONVERSATION_LANGUAGE_KEY}"`))
+  for (const code of SPEECH_LANGUAGES)
+    assert.ok(rust.includes(`"${code}" => Self::`), code)
+  for (const locale of ['de', 'en'] as const) {
+    assert.equal(
+      typeof localeText(locale, 'settings.assistantPage.languageUi'),
+      'string',
+    )
+    assert.equal(
+      typeof localeText(locale, 'settings.assistantPage.languageHint'),
+      'string',
+    )
+  }
 })

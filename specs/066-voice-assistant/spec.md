@@ -83,6 +83,14 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   setzt die letzte fort (FR-015). Die Nachhörzeit (`assistant.followUpSecs`) und die Position der
   Anzeige (`assistant.bubble.position`) entfallen.
 
+### Session 2026-11-03
+
+- Q: In welcher Sprache antwortet der Agent? → A: Standardmäßig in der Sprache der Oberfläche, egal
+  in welcher Sprache der Nutzer schreibt oder spricht. Für Gespräche lässt sich auf der Seite
+  „Sprachassistent“ pro Gerät eine andere Sprache wählen, etwa um eine Sprache zu üben; haex hört,
+  versteht und antwortet dann in dieser Sprache (FR-002a). Getippte Chats bleiben bei der Sprache
+  der Oberfläche.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -539,8 +547,11 @@ Modus aus.
   Plan erstellt hat.
 - **Kopfhörer**: Mit Kopfhörern hört das Mikrofon die eigene Stimme nicht; Dazwischenreden
   funktioniert genauso.
-- **Andere Sprache als die Oberfläche**: Erkennung und Antwort folgen der Sprache, in der der Nutzer
-  spricht, sofern es dafür eine Stimme gibt; sonst antwortet haex in der Sprache der Oberfläche.
+- **Andere Sprache als die Oberfläche**: Spricht der Nutzer eine andere Sprache als die des
+  Gesprächs, erkennt haex sie schlechter und antwortet trotzdem in der Sprache des Gesprächs
+  (FR-002a); wer in einer anderen Sprache sprechen will, stellt sie auf der Seite „Sprachassistent“
+  ein. Fehlt für die gewählte Sprache ein Modell oder eine Stimme, nennt die Seite das wie bei der
+  Oberflächensprache.
 
 ## Requirements _(mandatory)_
 
@@ -554,6 +565,12 @@ Modus aus.
   Sprache.
 - **FR-002**: Der Modus MUST pro Gerät gelten und MUST nach einem Neustart und Entsperren auf diesem
   Gerät wieder so stehen, wie der Nutzer ihn verlassen hat. Andere Geräte MUST NOT ihn übernehmen.
+- **FR-002a**: Der Agent MUST in der Sprache der Oberfläche antworten, auch wenn der Nutzer in einer
+  anderen schreibt oder spricht. Für Gespräche MUST sich auf der Seite „Sprachassistent“ pro Gerät
+  eine andere der Sprachen wählen lassen, die haex spricht (Deutsch, Englisch, Französisch, Spanisch,
+  Italienisch, Portugiesisch), Standard „Wie die Oberfläche“; Erkennung, Wortliste, Stimme und
+  Antwort eines Gesprächs MUST dieser Sprache folgen. Getippte Chats MUST bei der Sprache der
+  Oberfläche bleiben.
 - **FR-003**: Solange der Modus an ist, MUST der Schalter im Dock den Zustand zeigen (bereit, hört
   zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich
