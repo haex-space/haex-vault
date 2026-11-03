@@ -80,12 +80,19 @@ onBeforeUnmount(() => {
   unlisten?.()
 })
 
+// Each selection scrolls once, when its entry is on the page: a read after a synced change must
+// not pull the reader back from where they scrolled to.
+let scrolledRequest = -1
 async function scrollToFocusAsync() {
-  if (props.focus === null) return
+  const focus = props.focus
+  if (focus === null || focus.request === scrolledRequest) return
   await nextTick()
-  root.value
-    ?.querySelector(`[data-id="${CSS.escape(props.focus.id)}"]`)
-    ?.scrollIntoView({ block: 'center' })
+  const target = root.value?.querySelector(
+    `[data-id="${CSS.escape(focus.id)}"]`,
+  )
+  if (!target) return
+  scrolledRequest = focus.request
+  target.scrollIntoView({ block: 'center' })
 }
 watch(() => props.focus, scrollToFocusAsync)
 

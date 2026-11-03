@@ -211,6 +211,10 @@ watch(activeThreadId, (threadId) => {
   transcriptOpen.value = hit !== null
   transcriptFocus.value = hit ? { id: hit.id, request: ++focusRequests } : null
 })
+// Closing the transcript returns to the newest message.
+watch(transcriptOpen, (isOpen) => {
+  if (!isOpen) void scrollToBottom({ force: true })
+})
 function openTranscript(hit: { threadId: string; id: string }) {
   if (hit.threadId === activeThreadId.value) {
     transcriptOpen.value = true
@@ -240,6 +244,8 @@ function onMessagesScroll() {
  * read. `force` is for what the reader just did themselves, sending a message or opening a thread.
  */
 async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
+  // The transcript shares this viewport; it must stay where a search hit scrolled it.
+  if (transcriptOpen.value && activeIsVoice.value) return
   if (!force && !followsBottom) return
   await nextTick()
   const el = messagesScroll.value
