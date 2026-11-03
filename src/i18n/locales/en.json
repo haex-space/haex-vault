@@ -281,7 +281,10 @@
       "deleteCancelFailed": "The running turn could not be safely stopped. The session was kept.",
       "renameFailed": "The title could not be saved.",
       "titleRequired": "Please enter a title.",
-      "titleTooLong": "The title can contain at most 120 characters."
+      "titleTooLong": "The title can contain at most 120 characters.",
+      "searchTranscripts": "Search transcripts",
+      "noHits": "Nothing found",
+      "moreHits": "More results"
     },
     "close": "Close",
     "send": "Send",
@@ -4322,6 +4325,35 @@
     "on": "Voice assistant: on",
     "off": "Voice assistant: off",
     "name": "Voice assistant",
-    "failed": "Voice assistant: {reason}"
+    "failed": "Voice assistant: {reason}",
+    "transcript": {
+      "title": "Transcript",
+      "empty": "Nothing has been said in this session yet.",
+      "unspoken": "not read out",
+      "loadFailed": "Could not load the transcript: {reason}"
+    },
+    "speaker": {
+      "user": "You",
+      "haex": "haex"
+    },
+    "kind": {
+      "announcement": "Announcement",
+      "progress": "Progress",
+      "report": "Report",
+      "approvalQuestion": "Approval",
+      "approvalAnswer": "Approval answer",
+      "choiceQuestion": "Question",
+      "choiceAnswer": "Answer to question",
+      "stop": "Stop",
+      "closing": "Closing",
+      "notUnderstood": "not understood",
+      "secretNote": "read out"
+    },
+    "outcome": {
+      "approved": "approved",
+      "declined": "declined",
+      "open": "open",
+      "cancelled": "cancelled"
+    }
   }
 }

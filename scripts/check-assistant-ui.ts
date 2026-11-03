@@ -28,6 +28,15 @@ import {
 } from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
 import { VOICE_THREAD_ICON } from '../src/lib/chat/threadOrigin.ts'
+import {
+  LABELLED_KINDS,
+  OUTCOMES,
+  SPEAKERS,
+  compareEntries,
+  mergeEntry,
+  splitSpoken,
+  type TranscriptEntry,
+} from '../src/lib/assistant/transcript.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -337,4 +346,125 @@ test('a spoken conversation is marked in "Verlauf" and in the session header (T0
   }
   assert.equal(localeText('de', 'chat.threads.voice'), 'Sprachgespräch')
   assert.equal(localeText('en', 'chat.threads.voice'), 'Voice conversation')
+})
+
+function rustTextEnum(name: string): string[] {
+  const source = read('src-tauri/src/storage/voice_transcript.rs')
+  const block = source.slice(source.indexOf(`    ${name} {`))
+  const body = block.slice(0, block.indexOf('\n    }\n'))
+  return [...body.matchAll(/=> "([a-zA-Z]+)",/g)].map((match) => match[1]!)
+}
+
+test('every kind, outcome and speaker of the transcript has a text (T127)', () => {
+  const kinds = rustTextEnum('EntryKind')
+  assert.ok(kinds.length >= 13, 'kinds read from voice_transcript.rs')
+  assert.deepEqual(
+    [...kinds].sort(),
+    [...LABELLED_KINDS, 'utterance', 'answer'].sort(),
+    'every kind is labelled except plain utterances and answers',
+  )
+  assert.deepEqual(rustTextEnum('Outcome'), [...OUTCOMES])
+  assert.deepEqual(rustTextEnum('Speaker'), [...SPEAKERS])
+  for (const locale of ['de', 'en'] as const) {
+    for (const kind of LABELLED_KINDS)
+      assert.equal(
+        typeof localeText(locale, `assistant.kind.${kind}`),
+        'string',
+        `${locale} ${kind}`,
+      )
+    for (const outcome of OUTCOMES)
+      assert.equal(
+        typeof localeText(locale, `assistant.outcome.${outcome}`),
+        'string',
+        `${locale} ${outcome}`,
+      )
+    for (const speaker of SPEAKERS)
+      assert.equal(
+        typeof localeText(locale, `assistant.speaker.${speaker}`),
+        'string',
+        `${locale} ${speaker}`,
+      )
+    for (const key of ['title', 'empty', 'unspoken', 'loadFailed'])
+      assert.equal(
+        typeof localeText(locale, `assistant.transcript.${key}`),
+        'string',
+        `${locale} ${key}`,
+      )
+    for (const key of ['searchTranscripts', 'noHits', 'moreHits'])
+      assert.equal(
+        typeof localeText(locale, `chat.threads.${key}`),
+        'string',
+        `${locale} ${key}`,
+      )
+  }
+})
+
+test('an interrupted answer splits where haex stopped, by characters', () => {
+  assert.deepEqual(splitSpoken('Morgen regnet es.', null), {
+    spoken: 'Morgen regnet es.',
+    unspoken: '',
+  })
+  assert.deepEqual(splitSpoken('Grüße 👋 dich', 7), {
+    spoken: 'Grüße 👋',
+    unspoken: ' dich',
+  })
+  assert.deepEqual(splitSpoken('kurz', 99), { spoken: 'kurz', unspoken: '' })
+})
+
+test('live entries join the stored ones in the order of the table', () => {
+  const entry = (id: string, seq: number, text = id): TranscriptEntry => ({
+    id,
+    threadId: 't',
+    seq,
+    spokenAt: 0,
+    speaker: 'user',
+    kind: 'utterance',
+    text,
+    spokenUntil: null,
+    outcome: null,
+    refId: null,
+    createdAt: 0,
+  })
+  let entries = [entry('b', 2), entry('a', 1)].reduce<TranscriptEntry[]>(
+    mergeEntry,
+    [],
+  )
+  entries = mergeEntry(entries, entry('c', 2))
+  entries = mergeEntry(entries, entry('a', 1, 'neu'))
+  assert.deepEqual(
+    entries.map((e) => `${e.seq}${e.id}:${e.text}`),
+    ['1a:neu', '2b:b', '2c:c'],
+  )
+  assert.equal(compareEntries(entry('x', 3), entry('y', 3)) < 0, true)
+})
+
+test('the chat shows the transcript of a spoken session and searches transcripts (T127)', () => {
+  assert.match(
+    read('src-tauri/src/lib.rs'),
+    /assistant::transcript::assistant_transcript_search,/,
+  )
+  const app = read('src/components/apps/ChatApp.vue')
+  assert.ok(
+    app.includes('v-if="transcriptOpen && activeIsVoice && activeThreadId"'),
+    'only a spoken session shows a transcript',
+  )
+  assert.ok(app.includes('v-model:transcript="transcriptOpen"'))
+  assert.ok(app.includes('@open-transcript="openTranscript"'))
+  const header = read('src/components/chat/AgentHeader.vue')
+  assert.match(header, /v-if="session\?\.origin === 'voice'"\s+variant="ghost"/)
+  assert.match(header, /:aria-pressed="transcript"/)
+  const view = read('src/components/chat/VoiceTranscript.vue')
+  assert.ok(view.includes("'assistant_transcript_list'"))
+  assert.ok(view.includes("'assistant-transcript'"))
+  assert.ok(view.includes("onVaultTablesChanged(['voice_transcript_entries']"))
+  assert.ok(
+    read('src/composables/useTranscriptSearch.ts').includes(
+      "'assistant_transcript_search'",
+    ),
+  )
+  assert.ok(
+    read('src/components/chat/AgentSessionsPopover.vue').includes(
+      'useTranscriptSearch()',
+    ),
+  )
 })

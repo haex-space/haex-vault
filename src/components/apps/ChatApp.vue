@@ -10,6 +10,7 @@ import {
   ref,
   nextTick,
   useTemplateRef,
+  watch,
 } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ChatSearchHit } from '@bindings/ChatSearchHit'
@@ -189,6 +190,34 @@ const activeMessages = computed<Message[]>(() => {
   if (!activeThreadId.value) return []
   return messagesByThread.value[activeThreadId.value] ?? []
 })
+
+// Spec 066 T127: a spoken session can show its transcript instead of its messages. A search hit
+// in "Verlauf" opens the session with the transcript at that entry; another session starts with
+// its messages.
+const transcriptOpen = ref(false)
+const transcriptFocusSeq = ref<number | null>(null)
+let pendingTranscript: { threadId: string; seq: number } | null = null
+const activeIsVoice = computed(
+  () =>
+    threads.value.find((thread) => thread.id === activeThreadId.value)
+      ?.origin === 'voice',
+)
+watch(activeThreadId, (threadId) => {
+  const pending = pendingTranscript
+  pendingTranscript = null
+  const hit = pending?.threadId === threadId ? pending : null
+  transcriptOpen.value = hit !== null
+  transcriptFocusSeq.value = hit?.seq ?? null
+})
+function openTranscript(hit: { threadId: string; seq: number }) {
+  if (hit.threadId === activeThreadId.value) {
+    transcriptOpen.value = true
+    transcriptFocusSeq.value = hit.seq
+    return
+  }
+  pendingTranscript = hit
+  void ui.openConversation(hit.threadId)
+}
 
 /** Whether the viewport follows new content: true while the reader is at its end, false once
  * they scrolled up to read earlier messages. */
@@ -413,6 +442,7 @@ onBeforeUnmount(() => {
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
       <ChatAgentHeader
+        v-model:transcript="transcriptOpen"
         :threads="threads"
         :active-thread-id="activeThreadId"
         :busy="busy"
@@ -438,6 +468,7 @@ onBeforeUnmount(() => {
           @request-delete="requestDelete"
           @close-delete-dialog="closeDeleteDialog"
           @confirm-delete="ui.confirmDelete"
+          @open-transcript="openTranscript"
         />
       </ChatAgentHeader>
       <ChatStatusBanners
@@ -463,7 +494,13 @@ onBeforeUnmount(() => {
           class="flex-1 min-h-0 overflow-y-auto px-4 py-6 md:px-8"
           @scroll.passive="onMessagesScroll"
         >
+          <ChatVoiceTranscript
+            v-if="transcriptOpen && activeIsVoice && activeThreadId"
+            :thread-id="activeThreadId"
+            :focus-seq="transcriptFocusSeq"
+          />
           <ChatMessageList
+            v-else
             :active-messages="activeMessages"
             :show-model-selection="showModelSelection"
             :active-model-name="activeModel?.name"

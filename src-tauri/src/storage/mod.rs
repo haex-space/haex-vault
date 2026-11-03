@@ -35,6 +35,7 @@ pub mod providers;
 pub mod query;
 pub mod uuid;
 pub mod voice_transcript;
+pub mod voice_transcript_search;
 #[cfg(test)]
 mod voice_transcript_tests;
 pub mod wm_session;

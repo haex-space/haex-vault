@@ -3,8 +3,11 @@
  * "Verlauf" of the agent (spec 072 FR-002a): every agent session with its title and age, newest
  * first; open, rename and delete with confirmation. Presentational: the state and the actions live
  * in `useThreadSidebar` and the tab actions (`useChatTab`), as before in the thread sidebar.
+ * Its search field searches the transcripts of spoken sessions (spec 066 T127); a hit opens the
+ * session's transcript at that entry.
  */
 import {
+  computed,
   nextTick,
   ref,
   shallowRef,
@@ -12,6 +15,7 @@ import {
   type ComponentPublicInstance,
 } from 'vue'
 import type { Thread } from '~/composables/useChat'
+import type { TranscriptHit } from '~/lib/assistant/transcript'
 import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
 
 const props = defineProps<{
@@ -37,10 +41,26 @@ const emit = defineEmits<{
   requestDelete: [thread: Thread]
   closeDeleteDialog: [open: boolean]
   confirmDelete: []
+  openTranscript: [hit: { threadId: string; seq: number }]
 }>()
 
 const { t } = useI18n()
+const { errString } = useErrorString()
 const open = ref(false)
+const search = useTranscriptSearch()
+const searchActive = computed(() => search.query.value.trim() !== '')
+
+function threadTitle(threadId: string): string {
+  return (
+    props.threads.find((thread) => thread.id === threadId)?.title ??
+    t('chat.agent.unnamedSession')
+  )
+}
+
+function openHit(hit: TranscriptHit) {
+  open.value = false
+  emit('openTranscript', { threadId: hit.threadId, seq: hit.seq })
+}
 
 function select(id: string) {
   open.value = false
@@ -106,8 +126,55 @@ watch(
           threads.length
         }}</span>
       </div>
+      <UiInput
+        v-model="search.query.value"
+        type="search"
+        class="mb-1"
+        data-testid="chat-transcript-search"
+        :placeholder="t('chat.threads.searchTranscripts')"
+        :aria-label="t('chat.threads.searchTranscripts')"
+      />
+      <template v-if="searchActive">
+        <button
+          v-for="hit in search.hits.value"
+          :key="`${hit.threadId}:${hit.seq}`"
+          type="button"
+          class="flex w-full min-w-0 flex-col gap-0.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="chat-transcript-hit"
+          @click="openHit(hit)"
+        >
+          <span class="truncate text-xs font-medium text-muted-foreground">
+            {{ threadTitle(hit.threadId) }}
+          </span>
+          <span class="line-clamp-2 break-words">{{ hit.snippet }}</span>
+        </button>
+        <p
+          v-if="search.error.value"
+          class="px-2 py-1 text-xs text-destructive"
+          role="alert"
+        >
+          {{ errString(search.error.value) }}
+        </p>
+        <p
+          v-else-if="!search.searching.value && search.hits.value.length === 0"
+          class="px-3 py-2 text-xs text-muted-foreground"
+        >
+          {{ t('chat.threads.noHits') }}
+        </p>
+        <UiButton
+          v-if="search.nextCursor.value"
+          type="button"
+          variant="ghost"
+          size="sm"
+          :loading="search.searching.value"
+          data-testid="chat-transcript-more"
+          @click="search.moreAsync()"
+        >
+          {{ t('chat.threads.moreHits') }}
+        </UiButton>
+      </template>
       <div
-        v-for="thread in threads"
+        v-for="thread in searchActive ? [] : threads"
         :key="thread.id"
         data-testid="chat-thread"
         class="group flex w-full min-w-0 items-center gap-1 rounded-lg text-sm transition-colors hover:bg-accent focus-within:bg-accent"
@@ -204,7 +271,7 @@ watch(
         </template>
       </div>
       <div
-        v-if="threads.length === 0"
+        v-if="!searchActive && threads.length === 0"
         class="px-3 py-2 text-xs text-muted-foreground"
       >
         {{ t('chat.threads.empty') }}

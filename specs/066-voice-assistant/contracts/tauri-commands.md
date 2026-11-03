@@ -137,6 +137,9 @@ Sprachgespräch (T051).
 `assistant_transcript_search` defaults to 50 entries and accepts `limit` from 1 to 100. Results
 have a stable ascending order by `(threadId, seq, id)`; the opaque `nextCursor` carries the last
 tuple and resumes strictly after it. The server applies the limit before returning entries.
+A `snippet` is the matching part of the entry with up to 40 characters on each side, "…" where
+the text goes on. Query and text are compared after `fold_for_search` (case and accents do not
+matter); a blank query returns no entries.
 
 `TranscriptEntryWire` = `{threadId, seq, spokenAt, speaker ("user" oder "haex"), kind, text,
 spokenUntil?, outcome?, final}`; `final: false` für Text, der noch entsteht. Die gespeicherte

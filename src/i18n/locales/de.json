@@ -281,7 +281,10 @@
       "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Die Sitzung bleibt erhalten.",
       "renameFailed": "Der Titel konnte nicht gespeichert werden.",
       "titleRequired": "Bitte gib einen Titel ein.",
-      "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten."
+      "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten.",
+      "searchTranscripts": "In Mitschriften suchen",
+      "noHits": "Nichts gefunden",
+      "moreHits": "Weitere Treffer"
     },
     "close": "Schließen",
     "send": "Senden",
@@ -4322,6 +4325,35 @@
     "on": "Sprachassistent: an",
     "off": "Sprachassistent: aus",
     "name": "Sprachassistent",
-    "failed": "Sprachassistent: {reason}"
+    "failed": "Sprachassistent: {reason}",
+    "transcript": {
+      "title": "Mitschrift",
+      "empty": "In dieser Sitzung wurde noch nichts gesprochen.",
+      "unspoken": "nicht vorgelesen",
+      "loadFailed": "Die Mitschrift ließ sich nicht laden: {reason}"
+    },
+    "speaker": {
+      "user": "Du",
+      "haex": "haex"
+    },
+    "kind": {
+      "announcement": "Ansage",
+      "progress": "Fortschritt",
+      "report": "Meldung",
+      "approvalQuestion": "Freigabe",
+      "approvalAnswer": "Antwort auf Freigabe",
+      "choiceQuestion": "Rückfrage",
+      "choiceAnswer": "Antwort auf Rückfrage",
+      "stop": "Stopp",
+      "closing": "Schluss",
+      "notUnderstood": "nicht verstanden",
+      "secretNote": "vorgelesen"
+    },
+    "outcome": {
+      "approved": "bestätigt",
+      "declined": "abgelehnt",
+      "open": "offen",
+      "cancelled": "abgebrochen"
+    }
   }
 }
