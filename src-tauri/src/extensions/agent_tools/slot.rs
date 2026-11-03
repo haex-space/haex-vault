@@ -71,7 +71,10 @@ impl McpSlot {
             Some(inbound) => {
                 let _ = inbound.unbounded_send(message);
             }
-            None => log::debug!("agent tools: dropped a message for a frame without a connection"),
+            None => log::warn!(
+                "agent tools: dropped {} for a frame without a connection",
+                super::commands::summary(&message)
+            ),
         }
     }
 
