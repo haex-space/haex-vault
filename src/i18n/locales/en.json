@@ -4241,7 +4241,7 @@
       },
       "request": {
         "title": "Send the page's request?",
-        "hint": "The page itself wants to send something to this website, such as a measurement or a form. This is not an action of the agent. Nothing is sent without your consent.",
+        "hint": "The page itself wants to send something to this website, such as a measurement or a form. Nothing is sent without your consent.",
         "remember": "Remember for this website"
       },
       "newTab": {
