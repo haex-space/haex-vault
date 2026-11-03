@@ -41,13 +41,9 @@ const toolTitle = computed(() => {
 const chosenEntry = ref<string | null>(null)
 /** "Für diese Website merken" of a page request (FR-044). */
 const rememberRequest = ref(false)
-/** Whether the dialog offers "Für diese Website merken": a page request with its website. */
-const offersRememberRequest = computed(
-  () => question.value?.kind === 'request' && !!question.value.site,
-)
-/** What a button's answer remembers: only a page request has the checkbox. */
+/** What an answer remembers: only a page request has the checkbox. */
 function remembered(): Remember | undefined {
-  return offersRememberRequest.value && rememberRequest.value
+  return question.value?.kind === 'request' && rememberRequest.value
     ? 'request'
     : undefined
 }
@@ -114,8 +110,10 @@ watch(
   { immediate: true },
 )
 
-/** Closing the dialog declines and remembers nothing; only its buttons answer with the checkbox. */
-async function answerAsync(allow: boolean, remember?: Remember) {
+async function answerAsync(
+  allow: boolean,
+  remember: Remember | undefined = remembered(),
+) {
   const asked = shown.value
   if (!asked) return
   const kind = asked.question.kind
@@ -310,7 +308,7 @@ function onUpdateOpen(open: boolean) {
           </dl>
         </div>
         <label
-          v-if="offersRememberRequest"
+          v-if="question.kind === 'request'"
           class="flex items-center gap-2 text-sm"
         >
           <ShadcnCheckbox
@@ -337,7 +335,7 @@ function onUpdateOpen(open: boolean) {
           size="sm"
           variant="outline"
           data-testid="agent-browser-prompt-deny"
-          @click="answerAsync(false, remembered())"
+          @click="answerAsync(false)"
         >
           {{ t('agentBrowser.prompt.deny') }}
         </UiButton>
@@ -378,7 +376,7 @@ function onUpdateOpen(open: boolean) {
           size="sm"
           :disabled="choosesEntry && !chosenEntry"
           data-testid="agent-browser-prompt-allow"
-          @click="answerAsync(true, remembered())"
+          @click="answerAsync(true)"
         >
           {{ allowLabel }}
         </UiButton>
