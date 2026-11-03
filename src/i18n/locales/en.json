@@ -1508,14 +1508,14 @@
       "clone": {
         "open": "Create own voice",
         "title": "Create own voice",
-        "description": "Speak for 10 to 30 seconds or choose an audio file. haex imitates the voice on this device and stores it encrypted in the vault.",
+        "description": "Record your voice reading the text, or choose an audio file with 10 to 30 seconds of speech. haex recreates the voice on this device and keeps it encrypted in the vault.",
         "record": "Record",
         "stop": "Stop recording",
         "chooseFile": "Choose audio file",
         "fileTypes": "Audio files",
         "level": "Level",
         "heard": "About {seconds} s of speech",
-        "recordHint": "Speak calmly and clearly, for example read a short paragraph aloud. At least 10 seconds.",
+        "recordHint": "Read the text above. At least 10 seconds of speech.",
         "checking": "Checking the recording …",
         "ok": "The recording fits: {seconds} s of speech.",
         "again": "Please record again:",
@@ -1540,7 +1540,9 @@
           "unknownLanguage": "haex does not speak this language.",
           "checkFailed": "The recording did not pass the check.",
           "unknownSession": "The recording is gone. Please record again."
-        }
+        },
+        "readAloud": "Read this text calmly and clearly, about 20 to 30 seconds.",
+        "otherText": "Another text"
       }
     },
     "tones": {
