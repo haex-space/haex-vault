@@ -10,6 +10,7 @@ pub mod commands;
 pub mod default_model;
 pub mod eval;
 pub mod events;
+pub mod local_model;
 pub mod model_loading;
 pub mod peer;
 pub mod send;
