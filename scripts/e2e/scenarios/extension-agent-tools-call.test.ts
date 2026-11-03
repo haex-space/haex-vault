@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { startMcpAgent } from '../lib/mcp-agent.ts'
+import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
 import { openSettings, waitForLocation } from '../lib/settings.ts'
 import {
   fixture,
@@ -10,6 +10,15 @@ import {
   openFromLauncher,
   type InstalledExtension,
 } from '../lib/extensions.ts'
+
+/** The count the test extension answered: holzi passes the extension's text on as `data`
+ * (`{"extension": "Test-Erweiterung", "data": "{\"entries\":0}"}`). */
+function entriesOf(result: ToolResult): number | undefined {
+  const data = result.structuredContent?.data
+  if (typeof data !== 'string') return undefined
+  const parsed = JSON.parse(data) as { entries?: unknown }
+  return typeof parsed.entries === 'number' ? parsed.entries : undefined
+}
 
 // Spec 018 (T042 path) and spec 021 US4: a tool of an extension is called in holzi's real window,
 // through the extension's frame and its bundled vault-sdk. The harness runs no model, so an external
@@ -88,11 +97,7 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   const started = Date.now()
   const first = await agent.callTool(tool)
   assert.notEqual(first.isError, true, JSON.stringify(first))
-  assert.equal(
-    JSON.stringify(first.structuredContent ?? first).includes('"entries"'),
-    true,
-    JSON.stringify(first),
-  )
+  assert.equal(entriesOf(first), 0, JSON.stringify(first))
   ctx.step(`called with no open tab in ${Date.now() - started} ms`)
 
   await openFromLauncher(instance, extension)
@@ -109,5 +114,6 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   const again = Date.now()
   const second = await agent.callTool(tool)
   assert.notEqual(second.isError, true, JSON.stringify(second))
+  assert.equal(entriesOf(second), 0, JSON.stringify(second))
   ctx.step(`called with the tab open in ${Date.now() - again} ms`)
 })
