@@ -109,35 +109,36 @@ einmal je Lieferung durchgeht.
   ihre Zeile. Mit „bedienen“ für den Partner erscheint sie mit „(Rahmen von https://localhost:8443)“;
   nach „Eintragen“ meldet die Seite „Karte: gefüllt“, der Agent bekommt `in_frames: 1`.
 
-## M10 Dialoge bleiben offen (FR-042)
+## M10 Dialogs stay open (FR-042)
 
-- Eine Rückfrage des Agenten-Browsers öffnen (M3), holzi in den Hintergrund legen, zurückholen mit
-  einem Klick ins Fenster, neben den Dialog klicken, Escape drücken: der Dialog bleibt, nichts wird
-  abgelehnt. Es gibt kein X; nur „Erlauben“ und „Ablehnen“ antworten. Dasselbe mit einer
-  Berechtigungsfrage im Chat.
+- Open a question of the agent browser (M3), send holzi to the background, bring it back with a
+  click into the window, click next to the dialog, press Escape: the dialog stays and nothing is
+  declined. There is no X; only "Erlauben" and "Ablehnen" answer. The same with a permission
+  question in the chat, the registration of a new agent (Spec 021, quickstart M1) and an approval
+  of the browser extension (049).
 
-## M11 Alle Websites und Anfragen der Seite (FR-043, FR-044)
+## M11 All websites and page requests (FR-043, FR-044)
 
-- Browser-Recht neu einschalten: „Alle Websites: Bedienen“ steht, eine beliebige Website öffnet
-  ohne Rückfrage. Eine Bank mit „Lesen“ als Ausnahme: dort kein Klicken.
-- Eine Seite, die selbst etwas sendet (`/xhr.html` der Testseiten, Anfrage an die Partnerseite):
-  Rückfrage „Anfrage der Seite“ mit dem Inhalt (verschachteltes JSON als Text, `password` als
-  `•••`). „Ablehnen“ mit „Für diese Website merken“: dieselbe Anfrage wird nicht mehr gefragt,
-  sondern abgelehnt; die Regel steht in „KI → Browser“ und lässt sich entfernen.
+- Switch the browser rights group on anew: "Alle Websites: Bedienen" is set, any website opens
+  without a question. A bank with "Lesen" as an exception: no clicks there.
+- A page that sends something on its own ("Merken" on `/form.html` sends `POST /api`): the
+  question "Anfrage der Seite senden?" with the website, the request and its content (nested JSON
+  as text, secrets as `•••`). "Ablehnen" with
+  "Für diese Website merken": the same request is no longer asked but refused (`request_denied`);
+  the rule is listed in "KI → Browser" and can be removed.
 
-## M12 Tracker (FR-045)
+## M12 Trackers (FR-045)
 
-- Erster Start mit leerem Cache: der Browser wartet höchstens 10 Sekunden auf die Listen. Eine
-  Seite mit bekanntem Tracker (zum Beispiel `https://bam.nr-data.net`) lädt, der Tracker wird
-  geblockt und fragt nie. In „KI → Browser“: die Standardlisten von uBlock Origin mit Zeitpunkt und
-  Zahl der Regeln; eine eigene Liste per Adresse hinzufügen, abschalten, entfernen. Eine Liste mit
-  Adresse ohne `https` wird abgelehnt.
+- First start with an empty cache: the browser waits at most 10 seconds for the lists. A page with
+  a known tracker (for example `https://bam.nr-data.net`) loads, the tracker is blocked and never
+  asks. In "KI → Browser": the default lists of uBlock Origin with time and number of rules; add an
+  own list by address, switch it off, remove it. A list whose address is not `https` is refused.
 
-## M13 Profil ansehen (FR-046)
+## M13 Viewing the profile (FR-046)
 
-- „KI → Browser → Profil“ nach einer Anmeldung auf einer Testseite: die Website mit ihren Cookies,
-  der Wert erst nach Klick. Wert und Ablauf ändern, ein Cookie und dann eine ganze Website löschen,
-  dann die Seite neu laden lassen: die Änderung gilt. Der Agent sieht davon nichts.
+- "KI → Browser → Profil" after a login on a test page: the website with its cookies, the value
+  only after a click. Change value and expiry, delete one cookie and then a whole website, then
+  let the page reload: the change holds. The agent sees none of it.
 
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 

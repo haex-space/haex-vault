@@ -91,6 +91,7 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `site_not_allowed`    | Website nicht erlaubt und der Nutzer lehnte ab (oder Plan)                                                                              |
 | `read_only_site`      | „lesen“ für die Website, Werkzeug bedient                                                                                               |
 | `user_declined`       | Rückfrage (Absenden, Anmeldung, Download) abgelehnt                                                                                     |
+| `request_denied`      | a request the page sends goes to a website with the rule `deny` (FR-044); refused without a question                                    |
 | `paused`              | der Nutzer bedient den Browser gerade                                                                                                   |
 | `stopped`             | der Nutzer hat die Sitzung gestoppt; gilt bis zu einer neuen Sitzung (\*)                                                               |
 | `element_gone`        | Elementnummer gilt nicht mehr; Seite neu lesen                                                                                          |
@@ -110,15 +111,16 @@ mit der nächsten Chat-Nachricht des Nutzers.
 
 ## Freigabe
 
-| Werkzeug                      | Manuell                                            | Auto                | Plan                    |
-| ----------------------------- | -------------------------------------------------- | ------------------- | ----------------------- |
-| lesend, erlaubte Website      | läuft                                              | läuft               | läuft                   |
-| lesend, Website nicht erlaubt | Rückfrage Website                                  | Rückfrage Website   | `site_not_allowed`      |
-| ändernd ohne Absenden         | Rückfrage Handlung                                 | läuft               | abgelehnt (`plan_mode`) |
-| Absenden (R5 Stufe 1 oder 2)  | Rückfrage Absenden                                 | Rückfrage Absenden  | abgelehnt               |
-| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt | wie Manuell         | abgelehnt               |
-| `entry.fill`                  | Rückfrage jedes Mal                                | Rückfrage jedes Mal | abgelehnt               |
-| Browser des Nutzers, Absenden | Rückfrage                                          | Rückfrage           | abgelehnt               |
+| Werkzeug                      | Manuell                                                                         | Auto                | Plan                    |
+| ----------------------------- | ------------------------------------------------------------------------------- | ------------------- | ----------------------- |
+| lesend, erlaubte Website      | läuft                                                                           | läuft               | läuft                   |
+| lesend, Website nicht erlaubt | Rückfrage Website                                                               | Rückfrage Website   | `site_not_allowed`      |
+| ändernd ohne Absenden         | Rückfrage Handlung                                                              | läuft               | abgelehnt (`plan_mode`) |
+| Absenden (R5 Stufe 1)         | Rückfrage Absenden                                                              | Rückfrage Absenden  | abgelehnt               |
+| page request (R5 step 2)      | rule `allow`: runs, `deny`: `request_denied`, none: question `request` (FR-044) | as Manuell          | abgelehnt               |
+| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt                              | wie Manuell         | abgelehnt               |
+| `entry.fill`                  | Rückfrage jedes Mal                                                             | Rückfrage jedes Mal | abgelehnt               |
+| Browser des Nutzers, Absenden | Rückfrage                                                                       | Rückfrage           | abgelehnt               |
 
 Die Zeile „Browser des Nutzers“ gilt erst mit Stufe 2, die am 2026-11-01 zurückgestellt wurde.
 

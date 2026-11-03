@@ -10,9 +10,9 @@
 | `agent_browser_sessions`      | –                                                                                                                                   | laufende Sitzungen: Agent (angegebener Name), Browser, Tabs (Website, Titel), Zustand, letzte Handlung |
 | `agent_browser_prompt_answer` | `requestId`, `decision` (`allow`/`deny`), `remember?` (`site-read`, `site-operate`, `fill`, `request`), `entryId?` (nur bei `fill`) | beendet eine Browser-Rückfrage                                                                         |
 | `agent_browser_control`       | `sessionId`, `command` (`stop`, `takeover`, `return`)                                                                               | Stoppen, Eingreifen, Zurückgeben                                                                       |
-| `agent_browser_cookies`       | –                                                                                                                                   | die Cookies des Profils je Website, Werte ausgelassen (FR-046)                                         |
-| `agent_browser_trackers`      | –                                                                                                                                   | die Filterlisten mit Zustand: Zeitpunkt des letzten Abrufs, Fehler, Zahl der Regeln (FR-045)           |
-| `agent_browser_cookie_value`  | Cookie (Name, Website, Pfad)                                                                                                        | der Wert eines Cookies, nur für das Fenster                                                            |
+| `agent_browser_cookies`       | –                                                                                                                                   | the profile's cookies per website, without their values (FR-046)                                       |
+| `agent_browser_trackers`      | –                                                                                                                                   | the filter lists with their state: time of the last download, error, number of rules (FR-045)          |
+| `agent_browser_cookie_value`  | cookie (name, website, path)                                                                                                        | the value of one cookie, for the window only                                                           |
 
 Änderungen an Rechten und Einstellungen laufen über die Katalogaktionen unten.
 
