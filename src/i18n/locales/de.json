@@ -1494,16 +1494,13 @@
       "saveFailed": "Nicht gespeichert: {reason}",
       "model": {
         "downloading": "Lädt …",
-        "name": "Stimmenmodell {language}",
-        "title": "Stimmenmodell",
-        "ready": "Geladen. Alle Stimmen dieser Sprache nutzen es.",
         "available": "{size} · {fit}",
         "download": "Laden",
         "downloadFailed": "Laden fehlgeschlagen: {reason}"
       },
-      "languages": "Sprachen",
-      "voicesLabel": "Stimmen",
-      "needsModel": "Für die Probe zuerst das Stimmenmodell laden."
+      "voicesOf": "Stimmen · {language}",
+      "downloadOf": "{name} laden",
+      "downloadName": "Stimme {name} ({language})"
     },
     "tones": {
       "always": "Klingt immer, auch wenn die Töne aus sind.",

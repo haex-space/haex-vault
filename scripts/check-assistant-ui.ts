@@ -145,6 +145,11 @@ test('the pages save on selection, as device settings, without a save button', (
   )
   const voice = read('src/components/settings/assistant/VoiceSetting.vue')
   assert.match(voice, /kind: 'device'/)
+  // Each voice is its own row with its own download; no language tabs, no speech model row.
+  assert.doesNotMatch(voice, /ShadcnTabs/)
+  assert.match(voice, /v-for="voice in shownVoices"/)
+  assert.match(voice, /settings-voice-download-\$\{voice\.ref\}/)
+  assert.match(voice, /<ModelsDownloadBar :model-id="voice\.modelId" \/>/)
   assert.match(voice, /voicePrefKey\(language\)/)
   assert.match(voice, /SPEECH_RATE_KEY/)
   const assistantPage = read(
