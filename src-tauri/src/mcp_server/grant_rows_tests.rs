@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::{
-    default_rights, BrowserRights, OperateLevel, PasswordLevel, PasswordRights, Rights, SiteGrant,
-    SiteLevel,
+    default_rights, BrowserRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule,
+    Rights, SiteGrant, SiteLevel,
 };
 use crate::agent_browser::sites::Site;
 
@@ -45,10 +45,17 @@ fn every_group() -> Rights {
             ]
             .into_iter()
             .collect(),
+            requests: [
+                (site("https://tracker.example"), RequestRule::Deny),
+                (site("https://api.shop.example.de"), RequestRule::Allow),
+            ]
+            .into_iter()
+            .collect(),
         }),
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned(), "Büro".to_owned()]),
+            default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         commands: true,
@@ -67,6 +74,18 @@ fn every_group_round_trips_through_its_rows() {
         "https://shop.example.de",
         "operate",
         Some(r#"["fill"]"#)
+    )));
+    assert!(rows.contains(&row(
+        "browser",
+        "request:https://tracker.example",
+        "deny",
+        None
+    )));
+    assert!(rows.contains(&row(
+        "browser",
+        "request:https://api.shop.example.de",
+        "allow",
+        None
     )));
     assert!(rows.contains(&row("passwords", "", "read", Some(r#"["dev","Büro"]"#))));
     assert!(rows.contains(&row("commands", "", "on", None)));
@@ -100,6 +119,8 @@ fn a_row_this_build_cannot_read_is_no_right() {
         row("browser", "", "on", None),
         row("browser", "https://shop.example.de", "drive", None),
         row("browser", "not a site", "read", None),
+        row("browser", "request:not a site", "allow", None),
+        row("browser", "request:https://shop.example.de", "maybe", None),
         row("a-later-group", "", "on", None),
     ]);
     assert_eq!(
@@ -124,4 +145,25 @@ fn a_fill_tag_counts_only_on_an_operated_website() {
     ]);
     let sites = rights.browser.expect("on").sites;
     assert!(!sites[&site("https://shop.example.de")].fill_remembered);
+}
+
+/// Spec 065 FR-036: writing passwords keeps the tag new entries get in the row's key.
+#[test]
+fn writing_passwords_keeps_the_tag_for_new_entries() {
+    let rights = Rights {
+        passwords: Some(PasswordRights {
+            level: PasswordLevel::ReadWrite,
+            tags: Some(vec!["dev".to_owned(), "shop".to_owned()]),
+            default_tag: Some("shop".to_owned()),
+        }),
+        ..Rights::default()
+    };
+    let rows = rows_of(&rights);
+    assert!(rows.contains(&row(
+        "passwords",
+        "shop",
+        "read_write",
+        Some(r#"["dev","shop"]"#)
+    )));
+    assert_eq!(rights_of(rows), rights);
 }

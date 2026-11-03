@@ -4,6 +4,7 @@
  * time, message and metadata, filtered by level on selection, older ones on request.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { LogEntry } from '@bindings/LogEntry'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 
@@ -16,7 +17,6 @@ const PAGE = 50
 const entries = ref<LogEntry[]>([])
 const level = ref('all')
 const more = ref(false)
-const failure = ref<string | null>(null)
 
 const levelOptions = computed<SettingsSelectOption[]>(() =>
   ['all', 'error', 'warn', 'info', 'debug'].map((value) => ({
@@ -44,9 +44,8 @@ async function loadAsync() {
     if (read !== latest) return
     entries.value = first
     more.value = first.length === PAGE
-    failure.value = null
   } catch (error) {
-    if (read === latest) failure.value = errString(error)
+    if (read === latest) toast.error(errString(error))
   }
 }
 
@@ -60,7 +59,7 @@ async function loadOlderAsync() {
     entries.value = [...entries.value, ...older]
     more.value = older.length === PAGE
   } catch (error) {
-    if (read === latest) failure.value = errString(error)
+    if (read === latest) toast.error(errString(error))
   }
 }
 
@@ -114,9 +113,6 @@ onMounted(loadAsync)
       <UiButton size="sm" variant="outline" @click="loadOlderAsync">
         {{ t('settings.extensions.logs.older') }}
       </UiButton>
-    </li>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
     </li>
   </SettingsGroup>
 </template>

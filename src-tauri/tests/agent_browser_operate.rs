@@ -161,7 +161,7 @@ async fn an_agent_operates_and_every_submit_asks() {
     let until = Instant::now() + Duration::from_secs(10);
     while !asked(&scene)
         .iter()
-        .any(|(kind, label)| *kind == BrowserPromptKind::Submit && label.ends_with("/api"))
+        .any(|(kind, label)| *kind == BrowserPromptKind::Request && label.ends_with("/api"))
     {
         assert!(
             Instant::now() < until,

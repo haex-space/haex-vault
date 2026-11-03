@@ -13,6 +13,7 @@ import {
   type TitleOf,
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
+import { validate } from '../src/lib/actions/schema.ts'
 import { ACTION_SCOPE_IDS } from '../src/lib/actions/scopes.ts'
 import {
   passwordsComplete,
@@ -26,6 +27,11 @@ import { draftOf, type GrantDraft } from '../src/lib/browserBridgeGrant.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
+
+/** `vue-sonner` for a page under test: each error toast lands in `errors`. */
+function toastDouble(errors: string[]) {
+  return { toast: { error: (message: string) => errors.push(message) } }
+}
 
 /** A draft of `operate`, with the other groups changed as given. */
 function draft(
@@ -65,6 +71,8 @@ test('the push carries the built-in agent share unchanged', () => {
     'chat.message.send',
     'chat.reply.cancel',
     'passwords.secret.get',
+    'settings.models.activate',
+    'settings.models.deactivate',
   ])
 })
 
@@ -122,6 +130,7 @@ test('a website is written as Rust writes it, and no website is refused (spec 06
 test('changing a scope keeps the browser rights, and an off group is left out (spec 065)', () => {
   const browser = {
     userBrowser: false,
+    requests: {},
     sites: {
       'https://shop.example.de': {
         level: 'operate' as const,
@@ -167,6 +176,37 @@ test('the group commands is kept with the other rights, and off is left out (spe
     commands: true,
   })
   assert.deepEqual(rightsOf(draft({}, { commands: false })), { operate: {} })
+})
+
+test('the agent page can save every rights group through its action (spec 021 FR-008)', () => {
+  const action = ALL_ACTIONS.find(
+    (a) => a.id === 'settings.agents.mcp.grants.set',
+  )
+  assert.ok(action, 'settings.agents.mcp.grants.set is in the catalog')
+  const rights = rightsOf(
+    draft(
+      { 'wm.read': 'read' },
+      {
+        browser: {
+          userBrowser: true,
+          sites: {
+            'https://example.org': { level: 'read', fillRemembered: false },
+          },
+          requests: { 'https://tracker.example.org': 'deny' },
+        },
+        passwords: { level: 'readWrite', tags: ['dev'], defaultTag: 'dev' },
+        extensions: ['0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'],
+        commands: true,
+      },
+    ),
+  )
+  assert.deepEqual(
+    validate(action.input, {
+      agentId: '1f6a2b3c-0d4e-4f5a-8b6c-7d8e9f0a1b2c',
+      rights,
+    }),
+    { ok: true },
+  )
 })
 
 test('an incomplete password tag selection revokes access instead of retaining all entries', () => {
@@ -231,6 +271,49 @@ test('the password editor emits restricted drafts and keeps empty tags editable'
   assert.deepEqual(editor.draft.value.tags, ['bank'])
 })
 
+test('writing within chosen tags needs the tag new entries get (065 FR-036)', async () => {
+  const updates: Array<PasswordRights | null> = []
+  const editor = loadScriptSetup<{
+    onDraft: (draft: GrantDraft) => void
+    draft: { value: GrantDraft }
+  }>('src/components/agents/PasswordRightsFields.vue', ['onDraft', 'draft'], {
+    props: { modelValue: { level: 'read', tags: null } },
+    imports: { '~/lib/browserBridgeGrant': { draftOf } },
+    emit: (_event, value) => updates.push(value as PasswordRights | null),
+  })
+  editor.onDraft({
+    ...draftOf('readWrite', ['dev', 'shop'], null),
+    defaultTag: '',
+  })
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: null,
+  })
+  assert.equal(passwordsComplete(updates.at(-1) ?? null), false)
+  editor.onDraft(draftOf('readWrite', ['dev', 'shop'], 'shop'))
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: 'shop',
+  })
+  assert.equal(passwordsComplete(updates.at(-1) ?? null), true)
+  assert.equal(
+    passwordsComplete({ level: 'readWrite', tags: ['dev'], defaultTag: 'x' }),
+    false,
+  )
+  assert.equal(passwordsComplete({ level: 'readWrite', tags: null }), true)
+  // Stored rights come back into the editor with their tag for new entries.
+  editor.props.modelValue = {
+    level: 'readWrite',
+    tags: ['bank'],
+    defaultTag: 'bank',
+  }
+  await nextTick()
+  assert.equal(editor.draft.value.access, 'readWrite')
+  assert.equal(editor.draft.value.defaultTag, 'bank')
+})
+
 test('registration cannot approve an incomplete password tag draft', async () => {
   const answers: unknown[] = []
   const dialog = loadScriptSetup<{
@@ -243,6 +326,7 @@ test('registration cannot approve an incomplete password tag draft', async () =>
     {
       imports: {
         '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        'vue-sonner': toastDouble([]),
       },
       useErrorString: () => ({ errString: String }),
       useMcpAgentsStore: () => ({
@@ -279,6 +363,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
   }
   let failSave = false
   const route = reactive({ params: { agentId: 'agent' } })
+  const toasts: string[] = []
   const detail = loadScriptSetup<{
     draft: { value: RightsDraft }
     onDraft: (draft: RightsDraft) => void
@@ -293,6 +378,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
         '@tauri-apps/api/core': {
           invoke: async () => ({ id: route.params.agentId, rights: saved }),
         },
+        'vue-sonner': toastDouble(toasts),
       },
       useErrorString: () => ({ errString: String }),
       useTabRouter: () => ({ route }),
@@ -337,6 +423,7 @@ test('instant password saves revoke access and keep the empty draft across reloa
     ['bank'],
     'a failed revocation restores the actual grant',
   )
+  assert.deepEqual(toasts, ['Error: save failed'], 'the failure is a toast')
   failSave = false
   onPasswords({ level: 'read', tags: [] })
   await detail.settled()
@@ -346,5 +433,66 @@ test('instant password saves revoke access and keep the empty draft across reloa
     passwords(),
     null,
     'a different agent does not inherit the incomplete draft',
+  )
+})
+
+test('revoking an agent shows no error toast for the reload its change event starts', async () => {
+  const route = reactive({ params: { agentId: 'agent' } })
+  const toasts: string[] = []
+  const pushed: string[] = []
+  let gone = false
+  let failRevoke = false
+  let changeReload: Promise<void> = Promise.resolve()
+  const detail = loadScriptSetup<{
+    revokeAsync: () => Promise<void>
+    reloadAsync: () => Promise<void>
+  }>(
+    'src/components/settings/agents/AgentDetailView.vue',
+    ['revokeAsync', 'reloadAsync'],
+    {
+      imports: {
+        '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        '@tauri-apps/api/core': {
+          invoke: async () => {
+            if (gone) throw new Error('no such agent')
+            return { id: route.params.agentId, rights: { operate: {} } }
+          },
+        },
+        'vue-sonner': toastDouble(toasts),
+      },
+      useErrorString: () => ({ errString: String }),
+      useTabRouter: () => ({
+        route,
+        push: async (path: string) => {
+          pushed.push(path)
+        },
+      }),
+      useMcpAgentsStore: () => ({ changes: 0 }),
+      useActionOrThrow: (id: string) => async () => {
+        if (id !== 'settings.agents.mcp.revoke') return
+        if (failRevoke) throw new Error('revoke failed')
+        gone = true
+        // Rust sends `mcp-agents-changed` before the command answers.
+        changeReload = detail.reloadAsync()
+      },
+    },
+  )
+  await detail.mount()
+  failRevoke = true
+  await detail.revokeAsync()
+  assert.deepEqual(
+    toasts,
+    ['Error: revoke failed'],
+    'a failed revocation is a toast',
+  )
+  assert.deepEqual(pushed, [])
+  failRevoke = false
+  await detail.revokeAsync()
+  await changeReload
+  assert.deepEqual(pushed, ['/ai/agents'])
+  assert.deepEqual(
+    toasts,
+    ['Error: revoke failed'],
+    'the gone agent is no new toast',
   )
 })

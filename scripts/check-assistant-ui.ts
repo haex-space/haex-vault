@@ -9,6 +9,9 @@ import {
   ALWAYS_AUDIBLE_TONES,
   ASSISTANT_SETTING_KEYS,
   assistantLabelKey,
+  PAUSE_MS,
+  parsePause,
+  parsePreview,
   parseSpeechRate,
   parseTonesEnabled,
   parseTonesVolume,
@@ -18,6 +21,23 @@ import {
   TONES_VOLUME,
   voicePrefKey,
 } from '../src/lib/assistant/settings.ts'
+import {
+  PHASE_ICONS,
+  SPINNING_PHASES,
+  toggleShown,
+} from '../src/lib/assistant/indicator.ts'
+import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
+import { VOICE_THREAD_ICON } from '../src/lib/chat/threadOrigin.ts'
+import {
+  LABELLED_KINDS,
+  OUTCOMES,
+  SPEAKERS,
+  compareEntries,
+  mergeEntry,
+  mergeStored,
+  splitSpoken,
+  type TranscriptEntry,
+} from '../src/lib/assistant/transcript.ts'
 import { SETTINGS_LOCATIONS } from '../src/lib/settings/registry.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -67,6 +87,11 @@ test('every device setting has a German and an English label', () => {
 
 /** The assistant's pages, their views and the settings each one holds. */
 const PAGES = [
+  {
+    id: 'ai.speech.assistant',
+    view: 'src/components/settings/assistant/AssistantSetting.vue',
+    prefs: ['assistant.preview', 'assistant.pauseMs'],
+  },
   {
     id: 'ai.speech.voice',
     view: 'src/components/settings/assistant/VoiceSetting.vue',
@@ -176,6 +201,23 @@ test('the stored tone settings fall back to the defaults of data-model.md', () =
   )
 })
 
+test('the pause range and default match data-model.md (FR-012)', () => {
+  const doc = read('specs/066-voice-assistant/data-model.md')
+  assert.match(
+    doc,
+    new RegExp(
+      `\`assistant\\.pauseMs\`\\s*\\|\\s*int ${PAUSE_MS.min}–${PAUSE_MS.max}\\s*\\|\\s*\`${PAUSE_MS.default}\``,
+    ),
+  )
+  assert.equal(parsePause(null), PAUSE_MS.default)
+  assert.equal(parsePause('2200'), 2200)
+  // Out of range is clamped, as the Rust side does, so the slider shows the pause in use.
+  assert.equal(parsePause('4000'), PAUSE_MS.max)
+  assert.equal(parsePause('300'), PAUSE_MS.min)
+  assert.equal(parsePause('1,5'), PAUSE_MS.default)
+  assert.equal(parsePause(''), PAUSE_MS.default)
+})
+
 test('the page "Lizenzen" credits the voices and speech models (T032)', () => {
   const view = read('src/components/settings/LicensesView.vue')
   assert.match(view, /creditsAsync\(\)/)
@@ -205,4 +247,239 @@ test('the voice preferences and the rate range match data-model.md', () => {
   assert.equal(parseSpeechRate('1.25'), 1.25)
   assert.equal(parseSpeechRate('2'), SPEECH_RATE.default)
   assert.equal(parseSpeechRate('schnell'), SPEECH_RATE.default)
+})
+
+test('the preview page sits under KI → Sprache with its label', () => {
+  const location = SETTINGS_LOCATIONS.find(
+    (l) => l.id === 'ai.speech.assistant',
+  )
+  assert.ok(location, 'ai.speech.assistant')
+  assert.equal(location.pattern, 'ai/speech/assistant')
+  assert.equal(parsePreview('true'), true)
+  assert.equal(parsePreview('false'), false)
+  assert.equal(parsePreview(null), false, 'off by default')
+  assert.ok(
+    read('src/components/wm/appRoutes.ts').includes(
+      'components/settings/assistant/AssistantSetting.vue',
+    ),
+  )
+})
+
+test('the toggle shows every phase with an icon and a text', () => {
+  assert.equal(ASSISTANT_OFF.phase, 'off')
+  const phases = Object.keys(PHASE_ICONS)
+  assert.deepEqual(phases.sort(), [
+    'awaitingAnswer',
+    'followUp',
+    'listening',
+    'off',
+    'ready',
+    'speaking',
+    'thinking',
+    'working',
+  ])
+  for (const phase of phases) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `assistant.phase.${phase}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${phase}`)
+    }
+  }
+  assert.equal(PHASE_ICONS.off, 'lucide:mic-off', 'off is visibly off')
+  assert.deepEqual([...SPINNING_PHASES], ['thinking', 'working'])
+})
+
+test('the toggle sits in the dock and the launcher, not in a floating indicator', () => {
+  assert.ok(
+    !existsSync(resolve(root, 'src/components/assistant/AssistantBubble.vue')),
+  )
+  assert.ok(!read('src/components/wm/Desktop.vue').includes('AssistantBubble'))
+  assert.match(read('src/components/wm/Dock.vue'), /id: 'assistant'/)
+  assert.match(
+    read('src/components/wm/DockItem.vue'),
+    /useAction\('assistant.toggle'\)/,
+  )
+  assert.match(
+    read('src/components/wm/Launcher.vue'),
+    /useAction\('assistant.toggle'\)/,
+  )
+})
+
+test('the toggle stays while the assistant is on, even with the preview turned off', () => {
+  assert.equal(toggleShown(false, false), false)
+  assert.equal(toggleShown(true, false), true)
+  assert.equal(toggleShown(false, true), true, 'it can always be switched off')
+  for (const file of [
+    'src/components/wm/Dock.vue',
+    'src/components/wm/Launcher.vue',
+  ]) {
+    assert.match(
+      read(file),
+      /toggleShown\(assistant\.preview, assistant\.state\.enabled\)/,
+      file,
+    )
+  }
+})
+
+test('the window gives its UTC offset', () => {
+  // Berlin in winter is one hour ahead of UTC: getTimezoneOffset says -60.
+  assert.equal(utcOffsetMinutes({ getTimezoneOffset: () => -60 } as Date), 60)
+})
+
+test('a spoken conversation is marked in "Verlauf" and in the session header (T051)', () => {
+  assert.match(
+    read('src-tauri/src/chat/thread_commands.rs'),
+    /pub origin: Option<ThreadOrigin>/,
+    'list_threads hands the origin to the window',
+  )
+  assert.match(read('src/composables/useChat.ts'), /origin: 'voice' \| null/)
+  assert.match(VOICE_THREAD_ICON, /^lucide:/)
+  for (const [file, guard] of [
+    [
+      'src/components/chat/AgentSessionsPopover.vue',
+      "thread.origin === 'voice'",
+    ],
+    ['src/components/chat/AgentHeader.vue', "session?.origin === 'voice'"],
+  ] as const) {
+    const source = read(file)
+    assert.ok(source.includes(`v-if="${guard}"`), file)
+    assert.ok(source.includes(':name="VOICE_THREAD_ICON"'), file)
+    assert.ok(source.includes(':aria-label="t(\'chat.threads.voice\')"'), file)
+  }
+  assert.equal(localeText('de', 'chat.threads.voice'), 'Sprachgespräch')
+  assert.equal(localeText('en', 'chat.threads.voice'), 'Voice conversation')
+})
+
+function rustTextEnum(name: string): string[] {
+  const source = read('src-tauri/src/storage/voice_transcript.rs')
+  const block = source.slice(source.indexOf(`    ${name} {`))
+  const body = block.slice(0, block.indexOf('\n    }\n'))
+  return [...body.matchAll(/=> "([a-zA-Z]+)",/g)].map((match) => match[1]!)
+}
+
+test('every kind, outcome and speaker of the transcript has a text (T127)', () => {
+  const kinds = rustTextEnum('EntryKind')
+  assert.ok(kinds.length >= 13, 'kinds read from voice_transcript.rs')
+  assert.deepEqual(
+    [...kinds].sort(),
+    [...LABELLED_KINDS, 'utterance', 'answer'].sort(),
+    'every kind is labelled except plain utterances and answers',
+  )
+  assert.deepEqual(rustTextEnum('Outcome'), [...OUTCOMES])
+  assert.deepEqual(rustTextEnum('Speaker'), [...SPEAKERS])
+  for (const locale of ['de', 'en'] as const) {
+    for (const kind of LABELLED_KINDS)
+      assert.equal(
+        typeof localeText(locale, `assistant.kind.${kind}`),
+        'string',
+        `${locale} ${kind}`,
+      )
+    for (const outcome of OUTCOMES)
+      assert.equal(
+        typeof localeText(locale, `assistant.outcome.${outcome}`),
+        'string',
+        `${locale} ${outcome}`,
+      )
+    for (const speaker of SPEAKERS)
+      assert.equal(
+        typeof localeText(locale, `assistant.speaker.${speaker}`),
+        'string',
+        `${locale} ${speaker}`,
+      )
+    for (const key of ['title', 'empty', 'unspoken', 'loadFailed'])
+      assert.equal(
+        typeof localeText(locale, `assistant.transcript.${key}`),
+        'string',
+        `${locale} ${key}`,
+      )
+    for (const key of ['searchTranscripts', 'noHits', 'moreHits'])
+      assert.equal(
+        typeof localeText(locale, `chat.threads.${key}`),
+        'string',
+        `${locale} ${key}`,
+      )
+  }
+})
+
+test('an interrupted answer splits where haex stopped, by characters', () => {
+  assert.deepEqual(splitSpoken('Morgen regnet es.', null), {
+    spoken: 'Morgen regnet es.',
+    unspoken: '',
+  })
+  assert.deepEqual(splitSpoken('Grüße 👋 dich', 7), {
+    spoken: 'Grüße 👋',
+    unspoken: ' dich',
+  })
+  assert.deepEqual(splitSpoken('kurz', 99), { spoken: 'kurz', unspoken: '' })
+})
+
+test('live entries join the stored ones in the order of the table', () => {
+  const entry = (id: string, seq: number, text = id): TranscriptEntry => ({
+    id,
+    threadId: 't',
+    seq,
+    spokenAt: 0,
+    speaker: 'user',
+    kind: 'utterance',
+    text,
+    spokenUntil: null,
+    outcome: null,
+    refId: null,
+    createdAt: 0,
+  })
+  let entries = [entry('b', 2), entry('a', 1)].reduce<TranscriptEntry[]>(
+    mergeEntry,
+    [],
+  )
+  entries = mergeEntry(entries, entry('c', 2))
+  entries = mergeEntry(entries, entry('a', 1, 'neu'))
+  assert.deepEqual(
+    entries.map((e) => `${e.seq}${e.id}:${e.text}`),
+    ['1a:neu', '2b:b', '2c:c'],
+  )
+  assert.equal(compareEntries(entry('x', 3), entry('y', 3)) < 0, true)
+
+  // A fresh read wins for its ids; an entry that arrived live while reading stays.
+  const shown = [entry('a', 1, 'alt'), entry('live', 3)]
+  const stored = [entry('b', 2), entry('a', 1, 'gelesen')]
+  assert.deepEqual(
+    mergeStored(shown, stored).map((e) => `${e.seq}${e.id}:${e.text}`),
+    ['1a:gelesen', '2b:b', '3live:live'],
+  )
+  assert.ok(
+    read('src/components/chat/VoiceTranscript.vue').includes(
+      'mergeStored(entries.value, stored)',
+    ),
+    'the view merges a read in one pass',
+  )
+})
+
+test('the chat shows the transcript of a spoken session and searches transcripts (T127)', () => {
+  assert.match(
+    read('src-tauri/src/lib.rs'),
+    /assistant::transcript::assistant_transcript_search,/,
+  )
+  const app = read('src/components/apps/ChatApp.vue')
+  assert.ok(
+    app.includes('v-if="transcriptOpen && activeIsVoice && activeThreadId"'),
+    'only a spoken session shows a transcript',
+  )
+  assert.ok(app.includes('v-model:transcript="transcriptOpen"'))
+  assert.ok(app.includes('@open-transcript="openTranscript"'))
+  const header = read('src/components/chat/AgentHeader.vue')
+  assert.match(header, /v-if="session\?\.origin === 'voice'"\s+variant="ghost"/)
+  assert.match(header, /:aria-pressed="transcript"/)
+  const view = read('src/components/chat/VoiceTranscript.vue')
+  assert.ok(view.includes("'assistant_transcript_list'"))
+  assert.ok(view.includes("'assistant-transcript'"))
+  assert.ok(view.includes("onVaultTablesChanged(['voice_transcript_entries']"))
+  assert.ok(
+    read('src/composables/useTranscriptSearch.ts').includes(
+      "'assistant_transcript_search'",
+    ),
+  )
+  assert.ok(
+    read('src/components/chat/AgentSessionsPopover.vue').includes(
+      'useTranscriptSearch()',
+    ),
+  )
 })

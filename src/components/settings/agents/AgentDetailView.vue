@@ -5,6 +5,7 @@
  * reach a connected agent from its next call, its log, and revoking it. Every change runs a
  * guardrail action (`settings.agents.mcp.*`), which no agent can call.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import {
   passwordsComplete,
@@ -27,8 +28,12 @@ const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
 const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
-const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
+/**
+ * Set from revoking on: the revocation's change event reloads an agent that is gone by then, and
+ * that failure is no error worth a toast.
+ */
+let leaving = false
 let rightsSaveQueue = Promise.resolve()
 let pendingRights = 0
 
@@ -51,18 +56,17 @@ async function reloadAsync() {
       : stored
   } catch (error) {
     agent.value = null
-    failure.value = errString(error)
+    if (!leaving) toast.error(errString(error))
   } finally {
     loaded.value = true
   }
 }
 
 async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
 }
@@ -89,16 +93,21 @@ function onMode(mode: AgentMode) {
 }
 
 async function revokeAsync() {
-  failure.value = null
+  leaving = true
   try {
     await revoke({ agentId: agentId.value })
-    await router.push('/ai/agents')
   } catch (error) {
-    failure.value = errString(error)
+    leaving = false
+    toast.error(errString(error))
+    return
   }
+  router.push('/ai/agents')
 }
 
 onMounted(reloadAsync)
+onBeforeUnmount(() => {
+  leaving = true
+})
 watch(agentId, reloadAsync)
 watch(() => store.changes, reloadAsync)
 </script>
@@ -175,10 +184,6 @@ watch(() => store.changes, reloadAsync)
           data-testid="mcp-agent-log"
         />
       </SettingsGroup>
-
-      <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
 
       <SettingsGroup>
         <div class="flex flex-wrap items-center justify-end gap-2 p-4">

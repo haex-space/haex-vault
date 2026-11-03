@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { toast } from 'vue-sonner'
 import type { DelegateVendor, Provider } from '~/composables/useProviders'
 
 const { t } = useI18n()
@@ -17,7 +18,6 @@ const VENDORS: DelegateVendor[] = ['claude', 'codex']
 
 const providerList = ref<Provider[]>([])
 const loading = ref(true)
-const loadError = ref<string | null>(null)
 
 const connecting = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
@@ -39,10 +39,6 @@ const codeInput = reactive<Record<DelegateVendor, string>>({
   claude: '',
   codex: '',
 })
-const opError = reactive<Record<DelegateVendor, string | null>>({
-  claude: null,
-  codex: null,
-})
 const successFlash = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
@@ -57,12 +53,13 @@ const refreshed = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
 })
-const refreshError = reactive<Record<DelegateVendor, string | null>>({
-  claude: null,
-  codex: null,
-})
 
 let unlisten: UnlistenFn | null = null
+
+/** A connect step failed; shown as a toast. */
+function connectFailed(reason: string) {
+  toast.error(`${t('settings.cliDelegate.error')}: ${reason}`)
+}
 
 function vendorLabel(vendor: DelegateVendor): string {
   return t(`chat.model.delegate.${vendor}`)
@@ -77,11 +74,10 @@ function connectedProvider(vendor: DelegateVendor): Provider | undefined {
 /** A `quiet` reload (after a change from elsewhere) keeps the shown providers until the new ones are read. */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
   try {
     providerList.value = await listAsync()
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -92,10 +88,8 @@ function resetVendorState(vendor: DelegateVendor) {
   progressUrl[vendor] = null
   progressCode[vendor] = null
   codeInput[vendor] = ''
-  opError[vendor] = null
   successFlash[vendor] = false
   refreshed[vendor] = false
-  refreshError[vendor] = null
 }
 
 /**
@@ -108,13 +102,12 @@ async function onRefreshModels(vendor: DelegateVendor) {
   const provider = connectedProvider(vendor)
   if (!provider) return
   refreshed[vendor] = false
-  refreshError[vendor] = null
   refreshing[vendor] = true
   try {
     await refreshModels({ providerId: provider.id })
     refreshed[vendor] = true
   } catch (e) {
-    refreshError[vendor] = errString(e)
+    toast.error(`${t('settings.cliDelegate.refreshFailed')}: ${errString(e)}`)
   } finally {
     refreshing[vendor] = false
   }
@@ -135,14 +128,13 @@ async function onConnect(vendor: DelegateVendor) {
       connecting[vendor] = false
     }
   } catch (e) {
-    opError[vendor] = errString(e)
+    connectFailed(errString(e))
     connecting[vendor] = false
   }
 }
 
 async function onSubmitCode(vendor: DelegateVendor) {
   if (!codeInput[vendor].trim()) return
-  opError[vendor] = null
   try {
     await submitCode({ code: codeInput[vendor], name: vendorLabel(vendor) })
     await reloadAsync()
@@ -153,7 +145,7 @@ async function onSubmitCode(vendor: DelegateVendor) {
     // The backend keeps the flow open on failure (a rejected code commonly
     // re-prompts rather than exiting) — stay in the code-entry state so the
     // operator can retry without restarting the whole connect flow.
-    opError[vendor] = errString(e)
+    connectFailed(errString(e))
   }
 }
 
@@ -176,7 +168,7 @@ onMounted(async () => {
       successFlash[event.vendor] = true
     } else if (event.status === 'error') {
       awaitingCode[event.vendor] = false
-      opError[event.vendor] = event.message ?? null
+      if (event.message) connectFailed(event.message)
       connecting[event.vendor] = false
     }
   })
@@ -194,9 +186,7 @@ function hasDetails(vendor: DelegateVendor): boolean {
     awaitingCode[vendor] ||
     connecting[vendor] ||
     successFlash[vendor] ||
-    refreshed[vendor] ||
-    refreshError[vendor] ||
-    opError[vendor],
+    refreshed[vendor],
   )
 }
 </script>
@@ -207,10 +197,6 @@ function hasDetails(vendor: DelegateVendor): boolean {
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
-
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
 
     <SettingsGroup v-if="!loading">
       <SettingsRow
@@ -320,21 +306,6 @@ function hasDetails(vendor: DelegateVendor): boolean {
               role="status"
             >
               {{ t('settings.cliDelegate.refreshed') }}
-            </span>
-            <span
-              v-if="refreshError[vendor]"
-              class="text-xs text-destructive"
-              role="alert"
-            >
-              {{ t('settings.cliDelegate.refreshFailed') }}:
-              {{ refreshError[vendor] }}
-            </span>
-            <span
-              v-if="opError[vendor]"
-              class="text-xs text-destructive"
-              role="alert"
-            >
-              {{ t('settings.cliDelegate.error') }}: {{ opError[vendor] }}
             </span>
           </div>
         </template>

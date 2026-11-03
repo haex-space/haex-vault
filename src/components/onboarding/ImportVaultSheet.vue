@@ -2,8 +2,9 @@
 /**
  * "Vault-Datei öffnen" (spec 043 FR-002a, contract import-instance.md): the chosen vault file and
  * its passphrase. holzi copies the file into its own storage and opens the copy; the chosen file is
- * only read. Errors stay in the sheet, which stays open.
+ * only read. An error goes out as a toast; the sheet stays open.
  */
+import { toast } from 'vue-sonner'
 import type { PickedFile } from '@bindings/PickedFile'
 
 interface Props {
@@ -25,15 +26,11 @@ const { importAsync } = useInstance()
 
 const passphrase = ref('')
 const submitting = ref(false)
-const error = ref<string | null>(null)
 
 watch(
   () => props.open,
   (isOpen) => {
-    if (!isOpen) {
-      passphrase.value = ''
-      error.value = null
-    }
+    if (!isOpen) passphrase.value = ''
   },
 )
 
@@ -69,7 +66,6 @@ function message(cause: unknown): string {
 async function onSubmit() {
   if (!canSubmit.value || props.file == null) return
   submitting.value = true
-  error.value = null
   try {
     const result = await importAsync({
       file: props.file,
@@ -80,7 +76,7 @@ async function onSubmit() {
     emit('imported', result.info.name)
     emit('update:open', false)
   } catch (cause) {
-    error.value = message(cause)
+    toast.error(message(cause))
   } finally {
     submitting.value = false
   }
@@ -115,14 +111,6 @@ async function onSubmit() {
             autofocus
           />
         </div>
-        <p
-          v-if="error"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="import-vault-error"
-        >
-          {{ error }}
-        </p>
       </form>
     </template>
     <template #footer>

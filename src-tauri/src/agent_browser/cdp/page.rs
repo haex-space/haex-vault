@@ -56,6 +56,30 @@ pub async fn main_frame(connection: &Connection, session: &str) -> Result<(Strin
     }
 }
 
+/// Every frame of the page in `session` with the address of its document, the main frame first,
+/// then the frames inside it in document order. A frame of another process is listed too, but runs
+/// nothing through this session.
+pub async fn frames(connection: &Connection, session: &str) -> Result<Vec<(String, String)>> {
+    let tree = connection
+        .call("Page.getFrameTree", json!({}), Some(session))
+        .await?;
+    let mut frames = Vec::new();
+    let mut open = vec![&tree["frameTree"]];
+    while let Some(node) = open.pop() {
+        if let (Some(id), Some(url)) = (node["frame"]["id"].as_str(), node["frame"]["url"].as_str())
+        {
+            frames.push((id.to_owned(), url.to_owned()));
+        }
+        if let Some(children) = node["childFrames"].as_array() {
+            open.extend(children.iter().rev());
+        }
+    }
+    if frames.is_empty() {
+        return Err(BrowserError::Protocol("no main frame".to_owned()));
+    }
+    Ok(frames)
+}
+
 /// A fresh context of the world [`WORLD`] in `frame`.
 pub async fn isolated_world(connection: &Connection, session: &str, frame: &str) -> Result<i64> {
     let reply = connection

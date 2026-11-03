@@ -47,6 +47,12 @@ pub fn busy_gave_up(language: &str) -> String {
     lexicon::say("say.busyGaveUp", language, &[])
 }
 
+/// Said once per conversation when the model is a delegate: it talks but has no haex tools (spec
+/// Edge Cases, spec 032).
+pub fn delegate_notice(language: &str) -> String {
+    lexicon::say("say.delegate", language, &[])
+}
+
 /// What haex says when a conversation ends by an end phrase.
 pub fn goodbye(language: &str) -> String {
     lexicon::say("say.goodbye", language, &[])

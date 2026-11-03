@@ -6,6 +6,7 @@
  */
 import type { SyncRuleDraft } from '@bindings/SyncRuleDraft'
 import type { SyncRulePlan } from '@bindings/SyncRulePlan'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import { planGroups } from '~/lib/files/syncRules'
 
@@ -23,7 +24,6 @@ const { previewAsync } = useSyncRules()
 
 const plan = ref<SyncRulePlan | null>(null)
 const loading = ref(false)
-const error = ref<string | null>(null)
 
 let requestId = 0
 
@@ -34,7 +34,6 @@ watch([open, () => props.target], async ([isOpen, target]) => {
     return
   }
   plan.value = null
-  error.value = null
   loading.value = true
   try {
     const result = await previewAsync(target)
@@ -43,9 +42,9 @@ watch([open, () => props.target], async ([isOpen, target]) => {
   } catch (cause) {
     if (currentRequest !== requestId) return
     const code = asSyncRuleError(cause)?.code
-    error.value = code
-      ? t(`files.syncRules.error.${code}`)
-      : t('files.syncRules.failed')
+    toast.error(
+      code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+    )
   } finally {
     if (currentRequest === requestId) loading.value = false
   }
@@ -60,9 +59,6 @@ const groups = computed(() => planGroups(plan.value?.steps ?? []))
       <div class="flex flex-col gap-3" data-testid="files-sync-rule-plan">
         <p v-if="loading" class="text-sm text-muted-foreground">
           {{ t('files.syncRules.plan.loading') }}
-        </p>
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
         </p>
         <template v-if="plan">
           <p

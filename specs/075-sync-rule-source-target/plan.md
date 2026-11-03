@@ -9,7 +9,7 @@
 A pure rename. Everything that calls the two places of a sync rule "A" and "B" says "source" and "target":
 the rule and draft fields, the engine's sides and one-way direction, the stored columns and values, the
 generated types, the agent tool schema, the translation keys, the test ids and the checks. The storage
-reference inside a place, called `source` today, becomes `location`. One new migration, `0051_sync_rules_source_target`,
+reference inside a place, called `source` today, becomes `location`. One new migration, `0052_sync_rules_source_target`,
 renames the columns and rewrites the stored side and direction values so that existing vaults keep their rules,
 per-file state, pending deletions and run log. No alias for the old names anywhere else. Behaviour does not change;
 every test keeps its assertions and only its names move. The research (R1 to R7) found no open question.
@@ -78,7 +78,7 @@ specs/075-sync-rule-source-target/
 ├── data-model.md        # Phase 1: every old name and its new name
 ├── quickstart.md        # Phase 1: how to check the result
 ├── contracts/
-│   ├── storage-migration.md   # the migration 0051: SQL, order, test
+│   ├── storage-migration.md   # the migration 0052: SQL, order, test
 │   └── wire-names.md          # commands, events, generated types, agent tool schema
 └── tasks.md             # Phase 2 ($speckit-tasks, not created here)
 ```
@@ -95,10 +95,10 @@ src-tauri/src/
 │   └── *_tests.rs              # renamed with their module
 ├── identity/
 │   ├── migrations_sync_rules.rs            # untouched (0044)
-│   ├── migrations_sync_rules_tests.rs      # fill() gets the new names; the old ones stay as fill_before_0051
-│   ├── migrations_sync_rules_source_target.rs        # new: SQL of 0051
+│   ├── migrations_sync_rules_tests.rs      # fill() gets the new names; the old ones stay as fill_before_0052
+│   ├── migrations_sync_rules_source_target.rs        # new: SQL of 0052
 │   ├── migrations_sync_rules_source_target_tests.rs  # new: migration test
-│   └── migrations.rs                       # registers 0051
+│   └── migrations.rs                       # registers 0052
 └── chat/eval/tools.json        # regenerated, not edited
 
 src/

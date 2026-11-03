@@ -48,10 +48,10 @@ scenario('models-download-confirm', {}, async (ctx) => {
   )
   const opened = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
-    at: '/ai/download',
+    at: '/ai/local',
   })
   assert.ok(opened.ok, JSON.stringify(opened))
-  await waitForLocation(instance, 'ai.download')
+  await waitForLocation(instance, 'ai.local')
   await instance.waitForDisplayed(`models-download-${small.id}`)
 
   const text = (hook: string) =>

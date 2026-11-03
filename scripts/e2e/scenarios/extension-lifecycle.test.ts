@@ -17,6 +17,7 @@ import {
   probeRequest,
   type InstalledExtension,
 } from '../lib/extensions.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 // Spec 017, US7, T090 (quickstart §7 fourth bullet), through the settings as the user does it:
 // disabling closes the extension's tab and takes it out of the launcher, enabling brings it back;
@@ -148,9 +149,7 @@ scenario('extension-lifecycle', { timeoutMs: 300_000 }, async (ctx) => {
   )
   assert.equal(await maxRows(page, probe), 10_000)
   assert.equal(
-    await page.exec<number>(
-      `return document.querySelectorAll('[role="alert"]').length`,
-    ),
+    (await errorToasts(page)).length,
     0,
     'no refusal shown for an emptied field',
   )
@@ -161,10 +160,7 @@ scenario('extension-lifecycle', { timeoutMs: 300_000 }, async (ctx) => {
   )
   await ctx.waitFor(
     'the refusal to show',
-    async () =>
-      (await page.exec<number>(
-        `return document.querySelectorAll('[role="alert"]').length`,
-      )) === 1,
+    async () => (await errorToasts(page)).length === 1,
     { timeoutMs: 5_000 },
   )
   // The refusal shows before the stored value is read back into the field.

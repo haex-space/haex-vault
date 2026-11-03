@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
@@ -118,7 +118,7 @@ pub async fn assistant_readiness(
     .map_err(|e| HolziError::InvalidInput {
         reason: format!("check the assistant's models: {e}"),
     })?;
-    let chat_model = crate::chat::default_model::resolve_default_model(app.clone(), state)
+    let chat_model = crate::chat::default_model::resolve_default_model(state, app.state())
         .await
         .is_ok_and(|resolved| resolved.model_id.is_some());
     let facts = Facts {
@@ -136,7 +136,7 @@ pub async fn assistant_readiness(
 }
 
 /// Downloads what the assistant can fetch by itself: the selected speech recognition model and
-/// the voice of `language`. Progress of the voice arrives as `assistant-download-progress`.
+/// the voice of `language`. Progress of the voice arrives as the shared `model-download-progress`.
 #[tauri::command]
 pub async fn download_assistant_assets(
     app: AppHandle,

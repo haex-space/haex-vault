@@ -92,6 +92,7 @@ Nach Probe oder Selbsttest. Das Frontend lädt die Modelllisten neu
 | `chat-tool-call.toolSource`                      | neuer Wert `"action"` (vorher `"mcp" \| "cli"`); TS-Typ `ToolCallEvent.toolSource`                                      |
 | `list_installed_models` / `list_provider_models` | `capabilities.toolUse` (`{ support, basis } \| null`)                                                                   |
 | Werkzeug-Fehlertexte                             | neu: `action_timeout`, `action_unavailable`; bestehend: `denied_by_user`, `blocked_by_plan_mode`, `tool_call_cancelled` |
+| `send_message(args)`                             | new `utcOffsetMinutes: number \| null` (`-Date.getTimezoneOffset()`); null or omitted → UTC (FR-025)                    |
 
 ## Suchwerkzeug `find_actions` (für das Modell)
 

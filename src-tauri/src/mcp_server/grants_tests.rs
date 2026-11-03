@@ -208,6 +208,7 @@ fn browser(sites: &[(&str, SiteLevel)]) -> BrowserRights {
                 )
             })
             .collect(),
+        ..Default::default()
     }
 }
 
@@ -440,6 +441,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
     let dev = PasswordRights {
         level: PasswordLevel::Read,
         tags: Some(vec!["dev".to_owned()]),
+        default_tag: None,
     };
     let rights = Rights {
         passwords: Some(dev.clone()),
@@ -459,6 +461,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
     let every = PasswordRights {
         level: PasswordLevel::ReadWrite,
         tags: None,
+        default_tag: None,
     };
     assert_eq!(
         every.grants(),
@@ -471,6 +474,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec![" ".to_owned()]),
+            default_tag: None,
         }),
         ..default_rights()
     };

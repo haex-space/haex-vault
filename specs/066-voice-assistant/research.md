@@ -171,6 +171,10 @@ Vorlauf von etwa 0,5 s; eine geschnittene Äußerung ist deshalb rund 60,5 s lan
 liegt im Binary (`assistant/models/`) statt im Download-Katalog und wird beim ersten Gebrauch nach
 `models/silero-vad/` geschrieben. Die Pausenerkennung ist damit immer bereit.
 
+**Update after T161 (2026-11-02)**: a thinking pause of 0.8 s already ended what was said
+(operator). The default is now 1.5 s and the range 0.5–3.0 s (data-model.md); the pause is set
+with a slider on the assistant's settings page.
+
 **Alternativen**: Smart Turn v3 (BSD-2, erkennt Satzende auch bei Denkpausen) — später, falls feste
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.
@@ -434,6 +438,14 @@ ein bis drei Noten, höchstens 320 ms, Spitze 0,5. „Arbeitet“ ist eine leise
 `WORKING_REPEAT` = 2 s; wann er läuft, steuert der Gesprächskern (PR C). „Hört zu“ und „Geheimnis“
 klingen auch bei ausgeschalteten Tönen (FR-045). Jeder Ton geht zusätzlich als `assistant-tone` an die
 Oberfläche.
+
+**Neugestaltung (2026-11-02, Betreiber: „schwer unterscheidbar“)**: Dieselbe Klangfarbe, Tonlage und
+Länge für alle Töne machten „Hört zu“ und „Verstanden“ fast gleich. Jetzt hat jede Note eine
+Klangfarbe (`Timbre`: Glocke, Holz, weich, schnarrend, Tick) und darf zwischen zwei Stufen gleiten;
+die Skala reicht über zweieinhalb Oktaven (D4 bis A6). Kein Paar von Tönen teilt Klangfarben-Folge und
+Richtung (Test `every_tone_is_distinguishable`). „Hört zu“ gleitet als Glocke eine Oktave hinauf,
+„Verstanden“ sind zwei kurze Holzschläge aufwärts, „Nicht verstanden“ zweimal derselbe schnarrende
+Ton. Eigene Töne pro Anlass: FR-045a.
 
 **Alternativen**: Kenney „Interface Sounds“ (CC0) — passt nicht als Familie, nur als Platzhalter.
 

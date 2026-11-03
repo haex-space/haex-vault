@@ -11,12 +11,7 @@ export type PrefScope = { kind: 'vault' } | { kind: 'device'; uuid: string }
  * Which fallback branch the backend resolver picked. See spec 002
  * §FR-014.
  */
-export type ResolveSource =
-  | 'last_active'
-  | 'default_device'
-  | 'default_vault'
-  | 'first_available'
-  | 'none'
+export type ResolveSource = 'session' | 'last_active' | 'none'
 
 export interface ResolveDefaultModelResult {
   modelId: string | null
@@ -48,7 +43,7 @@ export function isAutonomyMode(value: unknown): value is AutonomyMode {
 /**
  * Namespaced key/value preferences per device or vault-wide, plus the
  * session-start resolver. Values are opaque strings — for model
- * defaults the value is a model-id (composite `<uuid>:<remote>` for
+ * choices the value is a model-id (composite `<uuid>:<remote>` for
  * api_key providers, catalog slug for local ones).
  */
 export function usePreferences() {

@@ -3,7 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
 
-use super::download_to_file;
+use super::{discard_partial, download_to_file, part_path};
 
 /// Reads a full request head. A single `read` can return a partial header
 /// block, which would make the Range assertions below flaky.
@@ -325,6 +325,50 @@ async fn a_download_dropped_mid_transfer_leaves_no_finalized_file() {
         !destination.exists(),
         "a dropped transfer must never leave a finalized file"
     );
+    release.send(()).expect("release the server");
+    server.join().expect("test server thread");
+}
+
+/// Cancelling stops the transfer by dropping it; the caller then discards the `.part` sidecar, so a
+/// cancelled download leaves nothing behind.
+#[tokio::test]
+async fn discarding_a_cancelled_download_removes_its_partial_file() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind test server");
+    let address = listener.local_addr().expect("test server address");
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let server = thread::spawn(move || {
+        let (mut request, _) = listener.accept().expect("request");
+        read_request_head(&mut request);
+        request
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"v1\"\r\nConnection: close\r\n\r\n0123",
+            )
+            .expect("write the first bytes");
+        let _ = released.recv();
+    });
+
+    let workspace = tempfile::tempdir().expect("tempdir");
+    let destination = workspace.path().join("model.gguf");
+    let outcome = tokio::time::timeout(
+        Duration::from_millis(300),
+        download_to_file(
+            &format!("http://{address}/model.gguf"),
+            destination.clone(),
+            |_| {},
+        ),
+    )
+    .await;
+    assert!(outcome.is_err(), "the transfer was cancelled mid-body");
+    assert!(
+        part_path(&destination).exists(),
+        "a transfer that stopped midway leaves its sidecar"
+    );
+
+    discard_partial(&destination).await;
+
+    assert!(!part_path(&destination).exists());
+    // Idempotent: a second discard of what is already gone is no error.
+    discard_partial(&destination).await;
     release.send(()).expect("release the server");
     server.join().expect("test server thread");
 }

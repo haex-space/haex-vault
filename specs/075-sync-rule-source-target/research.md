@@ -62,7 +62,7 @@ column of `rule.source.location` is `source_location`. Names stay short and grep
 
 ## R4 - Migration, not an edit of 0044
 
-**Decision**: A new migration `0051_sync_rules_source_target`. It was planned as `0050`; `origin/main` took that number for `0050_voice_conversations` (spec 066) on 2026-11-02, so this one follows it.
+**Decision**: A new migration `0052_sync_rules_source_target`. It was planned as `0050`; `origin/main` took that number for `0050_voice_conversations` (spec 066) on 2026-11-02, so this one followed it as `0051`. `0051_assistant_tones` (spec 066) took that on 2026-11-03, so this one is `0052`.
 It runs `ALTER TABLE … RENAME COLUMN` for the eight columns of R3 and three `UPDATE`s: `direction` `aToB` to
 `sourceToTarget` in the rules; `side` `a`/`b` to `source`/`target` in the pending deletions and in the run items.
 The `UPDATE`s use `CASE … ELSE side END`, so they never touch a value they do not know. Details in
@@ -84,7 +84,7 @@ Rust (leaves the old vocabulary in the stored data and in every query, against F
 
 **To check while implementing**: that the haex-crdt migration runner accepts `RENAME COLUMN` on a `_no_sync` table
 (SQLite 3.25 or newer; `0046` already runs `ALTER TABLE ADD COLUMN` there), and that no other open branch took the
-number `0051`; recheck before the merge.
+number `0052`; recheck before the merge.
 
 ## R5 - The agent tool schema and the eval fixture
 

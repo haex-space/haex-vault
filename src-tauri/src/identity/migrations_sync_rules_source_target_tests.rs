@@ -1,4 +1,4 @@
-//! Migration tests for `0051_sync_rules_source_target` (spec 075): a vault from before it keeps every row
+//! Migration tests for `0052_sync_rules_source_target` (spec 075): a vault from before it keeps every row
 //! of the five sync rule tables, with the old A as source and the old B as target, the direction and the
 //! sides under their new names, and the rows in their old order; the migration runs once; a fresh vault
 //! has the new columns only.
@@ -10,7 +10,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
 use super::migrations_sync_rules::TABLES;
-use super::migrations_sync_rules_tests::fill_before_0051;
+use super::migrations_sync_rules_tests::fill_before_0052;
 use super::migrations_tests::{column_names, device_of, migration_source_before, open};
 use crate::file_sync::ignore::Exclusions;
 use crate::file_sync::model::{SyncRuleDirection, SyncRulePlace, SyncRuleSide};
@@ -47,10 +47,10 @@ const ITEMS_ORDER: &str = "SELECT run_id || '/' || CAST(seq AS TEXT), side \
 const STATE_ORDER: &str =
     "SELECT rule_id || '/' || path, CAST(rowid AS TEXT) FROM haex_sync_rule_files_no_sync ORDER BY rowid";
 
-/// The rows of `fill_before_0051` plus a pending deletion and a run item on the old side `a`, and
+/// The rows of `fill_before_0052` plus a pending deletion and a run item on the old side `a`, and
 /// a pending deletion and a run item with a side no version wrote (`x`).
 fn fill_both_sides(db: &Database, device: &str) {
-    fill_before_0051(db, device);
+    fill_before_0052(db, device);
     db.with_connection(|conn| {
         conn.execute(
             "INSERT INTO haex_sync_rule_pending_no_sync (rule_id, vault_device_uuid, path, side, \
@@ -68,14 +68,14 @@ fn fill_both_sides(db: &Database, device: &str) {
 }
 
 #[tokio::test]
-async fn migration_0051_renames_the_columns_and_values_and_keeps_every_row() {
+async fn migration_0052_renames_the_columns_and_values_and_keeps_every_row() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let old = open(
             dir.path(),
             PASSPHRASE,
             true,
-            migration_source_before("0051_sync_rules_source_target"),
+            migration_source_before("0052_sync_rules_source_target"),
         );
         let device = device_of(&old, dir.path()).to_string();
         fill_both_sides(&old, &device);
@@ -157,7 +157,7 @@ async fn migration_0051_renames_the_columns_and_values_and_keeps_every_row() {
 }
 
 #[tokio::test]
-async fn migration_0051_gives_a_fresh_vault_the_new_columns_only() {
+async fn migration_0052_gives_a_fresh_vault_the_new_columns_only() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = open(
@@ -198,14 +198,14 @@ async fn migration_0051_gives_a_fresh_vault_the_new_columns_only() {
     .expect("join");
 }
 
-/// A vault from before `0051` with its rows, opened by the current version.
+/// A vault from before `0052` with its rows, opened by the current version.
 fn migrated_vault() -> (tempfile::TempDir, Database, String) {
     let dir = tempfile::tempdir().expect("tempdir");
     let old = open(
         dir.path(),
         PASSPHRASE,
         true,
-        migration_source_before("0051_sync_rules_source_target"),
+        migration_source_before("0052_sync_rules_source_target"),
     );
     let device = device_of(&old, dir.path()).to_string();
     fill_both_sides(&old, &device);

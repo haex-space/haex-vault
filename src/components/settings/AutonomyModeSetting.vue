@@ -3,6 +3,7 @@
  * Default autonomy mode for delegates on this device (spec 009). The options save on selection
  * (spec 023 FR-021); choosing a mode is the explicit opt-in spec 009 asks for.
  */
+import { toast } from 'vue-sonner'
 import {
   AUTONOMY_MODES,
   isAutonomyMode,
@@ -27,9 +28,6 @@ const selected = ref<AutonomyMode>(DEFAULT_MODE)
 const stored = ref<AutonomyMode>(DEFAULT_MODE)
 const loading = ref(true)
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
-const loadError = ref<string | null>(null)
 
 /**
  * Reloads the vault-scoped autonomy default, falling back to 'ungated'. A `quiet` reload (after
@@ -37,13 +35,12 @@ const loadError = ref<string | null>(null)
  */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
   try {
     const raw = await getPrefAsync({ kind: 'vault' }, PREF_KEY)
     stored.value = isAutonomyMode(raw) ? raw : DEFAULT_MODE
     selected.value = stored.value
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('settings.autonomyMode.loadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -52,14 +49,11 @@ async function reloadAsync(quiet = false) {
 /** Persists the chosen autonomy default for this device; a failure restores the stored one. */
 async function chooseAsync(mode: AutonomyMode) {
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await setMode({ mode })
     stored.value = mode
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.autonomyMode.saveFailed')}: ${errString(e)}`)
     selected.value = stored.value
   } finally {
     busy.value = false
@@ -85,10 +79,6 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('settings.autonomyMode.loadFailed') }}: {{ loadError }}
-    </p>
-
     <fieldset
       v-if="!loading"
       :aria-label="t('settings.locations.ai.autonomy.title')"
@@ -110,12 +100,5 @@ onVaultTablesChanged(['preferences'], () => {
         />
       </SettingsGroup>
     </fieldset>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.autonomyMode.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.autonomyMode.saveFailed') }}: {{ opError }}
-    </p>
   </section>
 </template>

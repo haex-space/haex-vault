@@ -42,9 +42,16 @@ pub(super) struct HttpContext {
     mcp: StreamableHttpService<HttpSession, LocalSessionManager>,
 }
 
-/// Binds the loopback listener; port 0 picks a free one.
+/// Binds the loopback listener on `port`; when another program holds it, on a free one (the
+/// caller keeps the new port). Port 0 picks a free one.
 pub async fn bind(port: u16) -> std::io::Result<TcpListener> {
-    TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await
+    match TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await {
+        Err(error) if port != 0 && error.kind() == std::io::ErrorKind::AddrInUse => {
+            log::warn!("mcp server: port {port} is taken, the HTTP way moves");
+            TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await
+        }
+        bound => bound,
+    }
 }
 
 /// Whether `host` names holzi's listener on the loopback (`Host`, RFC 9110 §7.2).

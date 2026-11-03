@@ -34,11 +34,14 @@ scenario('settings-federation', {}, async (ctx) => {
   await clearAlias(instance)
   await instance.type('settings-alias', renamed)
   await instance.type('settings-alias', KEY.enter)
-  await ctx.waitFor('the name to be saved', () =>
-    instance.exec<boolean>(
-      'return document.querySelector(\'ul:has([data-testid="settings-alias"]) [role="status"]\') !== null',
-    ),
-  )
+  // The name saves silently (no notice); wait until the device list reads it back.
+  await ctx.waitFor('the name to be saved', async () => {
+    const saved = await runAction(instance, 'settings.devices.list')
+    const devices = saved.ok
+      ? (saved.result as { devices: Array<{ alias?: string }> }).devices
+      : []
+    return devices[0]?.alias === renamed
+  })
 
   await instance.click('settings-category-federation')
   await waitForLocation(instance, 'federation')

@@ -22,6 +22,7 @@ pub mod hardware;
 pub mod identity;
 pub mod instances;
 pub mod llm;
+pub mod local_time;
 pub mod marketplace;
 pub mod mcp_server;
 pub mod model_capabilities;
@@ -72,18 +73,19 @@ use chat::choices::respond_choice;
 use chat::commands::{
     abort_current_generation, inspect_attachment, respond_tool_permission, send_message,
 };
-use chat::default_model::{model_load_status, resolve_default_model};
-use chat::model_loading::{
-    active_model_info, load_model, load_model_with_integrity_override, unload_local_model,
-};
+use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
+use chat::model_loading::{active_model_info, load_model, select_model};
 use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
     chat_conversation_open_note, chat_conversations_list,
 };
+use chat::peer::commands::files::chat_attachment_download;
 use chat::peer::commands::messages::{
     chat_conversation_read, chat_conversation_viewing, chat_peer_messages_list, chat_peer_resend,
     chat_peer_send,
 };
+use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
+use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -148,10 +150,10 @@ use marketplace::manage::{
     marketplace_set_enabled, marketplace_test,
 };
 use models::commands::{
-    check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
-    download_model_from_hf, get_huggingface_model_details, import_model_from_file,
-    install_huggingface_update, list_installed_models, preview_huggingface_install,
-    search_huggingface_models,
+    cancel_model_download, check_huggingface_model_updates, delete_installed_model,
+    download_model_from_catalog, download_model_from_hf, get_huggingface_model_details,
+    import_model_from_file, install_huggingface_update, list_installed_models,
+    preview_huggingface_install, search_huggingface_models,
 };
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
@@ -179,7 +181,7 @@ use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
 };
 use passwords::commands::presets::{
-    passwords_preset_delete, passwords_preset_list, passwords_preset_save,
+    passwords_generate, passwords_preset_delete, passwords_preset_list, passwords_preset_save,
 };
 use passwords::commands::read::{
     passwords_copy_field, passwords_copy_text, passwords_get_item, passwords_load_overview,
@@ -220,19 +222,10 @@ use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
 };
 
-/// Undoes, for this process's children only, the Nix devShell's
-/// `LD_LIBRARY_PATH` export (flake.nix's shellHook) — present only when
-/// `build.rs`'s `configure_nix_devshell_linker` also overrode this binary's
-/// own dynamic-linker interpreter to the host's, which is when that variable
-/// is actually needed (to resolve the Nix-provided GTK stack the interpreter
-/// override doesn't cover) and, unmodified, would otherwise leak into every
-/// child process GTK/WebKit forks (WebKitWebProcess, WebKitNetworkProcess,
-/// Mesa's GBM driver loader) — all built against the *host's* glibc, not
-/// Nix's, so they'd hit the same `GLIBC_PRIVATE` symbol clash the interpreter
-/// override exists to avoid on this binary. Safe to clear this late: the
-/// dynamic linker already consulted it to resolve this process's own NEEDED
-/// libraries before `main` ever ran; removing it from the environment now
-/// only stops it from propagating to processes spawned from here on.
+/// Prevents host WebKit children from inheriting the devShell's Nix libraries.
+/// The bridge selects either the host or Nix interpreter with its matching libc
+/// and runtime paths. Those paths resolve this process's libraries before main;
+/// clearing the environment here protects subsequently spawned host processes.
 fn clear_inherited_nix_library_path() {
     if option_env!("HOLZI_NIX_DEVSHELL_LINKER").is_some() {
         std::env::remove_var("LD_LIBRARY_PATH");
@@ -285,7 +278,12 @@ pub fn run() {
     let builder = builder.manage(gate.clone());
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
+    let builder = builder.manage(models::cancel::DownloadRegistry::default());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(assistant::commands::AssistantDriver::default());
+    // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
+    #[cfg(feature = "voice")]
+    let builder = builder.manage(assistant::custom_tones::ToneBank::default());
     let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
@@ -744,6 +742,7 @@ pub fn run() {
             agent_browser::commands::agent_browser_control,
             agent_browser::commands::agent_browser_status,
             agent_browser::commands::agent_browser_builtin_set,
+            agent_browser::commands::agent_browser_builtin_passwords_set,
             agent_browser::commands::agent_browser_path_set,
             agent_browser::commands::agent_browser_profile_clear,
             mcp_server::commands::mcp_agent_log,
@@ -782,6 +781,7 @@ pub fn run() {
             set_model_user_capabilities,
             list_provider_models,
             download_model_from_catalog,
+            cancel_model_download,
             model_download_check,
             e2e_stand_in_models,
             download_model_from_hf,
@@ -794,11 +794,15 @@ pub fn run() {
             install_huggingface_update,
             check_huggingface_model_updates,
             load_model,
-            load_model_with_integrity_override,
-            unload_local_model,
+            chat::local_model::activate_local_model,
+            chat::local_model::activate_local_model_with_integrity_override,
+            chat::local_model::deactivate_local_model,
+            chat::local_model::active_local_model_info,
             active_model_info,
             model_load_status,
             resolve_default_model,
+            use_session_model,
+            select_model,
             send_message,
             inspect_attachment,
             abort_current_generation,
@@ -816,9 +820,13 @@ pub fn run() {
             chat_conversation_open_note,
             chat_conversation_mute,
             chat_conversation_delete,
+            chat_request_card,
+            chat_request_answer,
+            chat_attachment_download,
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,
+            chat_search,
             chat_conversation_read,
             chat_conversation_viewing,
             current_device_info,
@@ -860,7 +868,17 @@ pub fn run() {
             assistant_tts_preview,
             download_tts_voice,
             assistant::assets::assistant_readiness,
+            assistant::commands::assistant_get_state,
+            assistant::commands::assistant_set_enabled,
+            assistant::commands::assistant_end_conversation,
+            assistant::commands::assistant_set_muted,
+            assistant::transcript::assistant_transcript_list,
+            assistant::transcript::assistant_transcript_search,
             assistant::tones::assistant_tone_preview,
+            assistant::custom_tones::assistant_tones_list,
+            assistant::custom_tones::assistant_tone_import,
+            assistant::custom_tones::assistant_tone_assign,
+            assistant::custom_tones::assistant_tone_delete,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).
@@ -913,6 +931,7 @@ pub fn run() {
             passwords_rename_tag,
             passwords_set_tag_color,
             passwords_delete_tag,
+            passwords_generate,
             passwords_preset_list,
             passwords_preset_save,
             passwords_preset_delete,

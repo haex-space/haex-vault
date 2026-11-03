@@ -89,10 +89,10 @@ Lesen. Kein Ergebnis, kein Dateiinhalt, kein Geheimnis (FR-028).
 
 ## Einstellungen (Geräteeinstellungen)
 
-| Schlüssel       | Wert           | Ab Werk                                       |
-| --------------- | -------------- | --------------------------------------------- |
-| `mcp.enabled`   | bool           | `false`                                       |
-| `mcp.http_port` | Port, zufällig | beim ersten Einschalten des HTTP-Wegs gewählt |
+| Schlüssel       | Wert           | Ab Werk                                                                                                                        |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `mcp.enabled`   | bool           | `false`                                                                                                                        |
+| `mcp.http_port` | Port, zufällig | beim ersten Einschalten des HTTP-Wegs gewählt; belegt ein anderes Programm ihn, wählt holzi einen freien und merkt sich diesen |
 
 Beide sind Leitplanken (für Agenten gesperrt, FR-001).
 

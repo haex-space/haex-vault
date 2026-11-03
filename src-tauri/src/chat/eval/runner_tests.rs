@@ -54,7 +54,7 @@ async fn a_found_tool_is_offered_in_the_second_step_with_the_search_result() {
     ));
     assert!(second.tools.iter().any(|t| t.name == "find_actions"));
     assert!(
-        second.tools.len() <= 17,
+        second.tools.len() <= 19,
         "core, search, ask_user and run_command plus at most five hits"
     );
     // Every first step offers the same core tools, the search, `ask_user` and `run_command`,
@@ -71,7 +71,7 @@ async fn a_found_tool_is_offered_in_the_second_step_with_the_search_result() {
         .fold(first_offers[0].clone(), |shared, offer| {
             shared.intersection(offer).cloned().collect()
         });
-    assert!(shared.len() <= 12, "{shared:?}");
+    assert!(shared.len() <= 14, "{shared:?}");
     assert!(shared.contains("run_command") && shared.contains("find_actions"));
     for offer in &first_offers {
         let extra: Vec<&String> = offer.difference(&shared).collect();

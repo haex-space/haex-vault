@@ -90,7 +90,7 @@ const MODEL_ID: JsonSchema = {
 }
 
 type Spec = Pick<ActionDefinition, 'id' | 'description' | 'scope' | 'effect'> &
-  Partial<Pick<ActionDefinition, 'input' | 'result'>>
+  Partial<Pick<ActionDefinition, 'input' | 'result' | 'builtinAgentCallable'>>
 
 function setting(spec: Spec): ActionDefinition {
   return {
@@ -344,24 +344,6 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
-    id: 'settings.models.setDefault',
-    description:
-      'Set the default chat model of this device (models are installed per device).',
-    input: {
-      type: 'object',
-      properties: { modelId: MODEL_ID },
-      required: ['modelId'],
-    },
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.models.clearDefault',
-    description: 'Remove the default chat model of this device.',
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
     id: 'settings.models.setStt',
     description:
       'Switch the speech-to-text model to a catalog entry, downloading it if needed.',
@@ -384,6 +366,18 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
       type: 'object',
       properties: { entryId: { type: 'string' } },
       required: ['entryId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+  }),
+  setting({
+    id: 'settings.models.cancelDownload',
+    description:
+      'Cancel the running download of a chat model; its partial file is removed.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
     },
     scope: 'settings.models',
     effect: 'write',
@@ -431,6 +425,26 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     },
     scope: 'settings.models',
     effect: 'destructive',
+  }),
+  setting({
+    id: 'settings.models.activate',
+    description:
+      'Load an installed local model into memory and make it the active one; the model that was active is unloaded. A large model takes about a minute.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+    builtinAgentCallable: false,
+  }),
+  setting({
+    id: 'settings.models.deactivate',
+    description: 'Unload the active local model and free its memory.',
+    scope: 'settings.models',
+    effect: 'write',
+    builtinAgentCallable: false,
   }),
   setting({
     id: 'settings.delegate.refreshModels',

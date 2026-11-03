@@ -6,6 +6,8 @@
  * comes back only by linking it again. For a main device it also says this only helps against an
  * honest device. The device comes from the location; this device itself is never offered.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
@@ -17,7 +19,6 @@ const device = computed(() =>
   store.devices.find((entry) => entry.devicePubkey === devicePubkey.value),
 )
 const busy = ref(false)
-const error = ref<string | null>(null)
 
 onMounted(async () => {
   await store.startListening()
@@ -35,19 +36,19 @@ const missing = computed(
 
 /**
  * Removes the selected device, ignoring calls while removal is pending.
- * Returns to the previous view on success or displays the removal error.
+ * Returns to the previous view on success or shows the removal error as a toast.
  */
 async function onRemove() {
   if (!device.value || busy.value) return
   busy.value = true
-  error.value = null
   try {
     await removeDevice({ devicePubkey: device.value.devicePubkey })
     router.back()
   } catch (e) {
     const kind = (e as { kind?: string })?.kind
-    error.value =
-      kind === 'NotMainDevice' ? t('settings.remove.notMain') : errString(e)
+    toast.error(
+      kind === 'NotMainDevice' ? t('settings.remove.notMain') : errString(e),
+    )
   } finally {
     busy.value = false
   }
@@ -90,9 +91,6 @@ async function onRemove() {
         data-testid="remove-device-main-warning"
       >
         {{ t('settings.remove.mainWarning') }}
-      </p>
-      <p v-if="error" class="px-1 text-sm text-destructive" role="alert">
-        {{ error }}
       </p>
       <div class="flex gap-2">
         <UiButton

@@ -232,6 +232,11 @@ export function hfErrorKey(e: unknown): string {
   }
 }
 
+/** Whether the person cancelled the download, which is no failure to show. */
+export function isDownloadCancelled(e: unknown): boolean {
+  return structuredHfError(e)?.kind === 'ModelDownloadCancelled'
+}
+
 /**
  * Returns the backend's technical reason when Tauri rejected with a
  * structured HolziError. Tauri can deliver that error either as an object or

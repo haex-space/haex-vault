@@ -27,28 +27,11 @@ fn embed_windows_manifest() {
     println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
 }
 
-/// Two Linux-only linker overrides needed only when the toolchain building
-/// this crate is itself Nix-provided (the `com.github.haexmas.atoms.holzi`
-/// devShell) — never on a native host toolchain (CI: ubuntu-24.04 via
-/// `apt-get`/rustup, no Nix involved at all), where they'd actively break
-/// things (wrong FHS `/lib64` path, no `lld` installed).
-///
-/// - `--dynamic-linker`/`-rpath`: this binary always links the *host's*
-///   webkit2gtk (WebKit's own helper-process binaries hardcode their nix
-///   store path internally, so a Nix-rebuilt WebKit would need a full
-///   from-source rebuild just to relink two `patchelf` calls — not worth
-///   it). A Nix-toolchain-built binary defaults to Nix's own glibc
-///   interpreter, which then loads a second, ABI-clashing glibc alongside
-///   the host's WebKit/driver libraries (`undefined symbol:
-///   __pointer_chk_guard, version GLIBC_PRIVATE`). Pointing the binary's
-///   own interpreter at the host's glibc (verified newer than Nix's here,
-///   so backward-compatible) makes the whole process consistently
-///   host-glibc-linked instead.
-/// - `-fuse-ld=lld`, llm-cuda only: cudarc's extra crates reshuffle Cargo's
-///   native-lib link-arg order enough to break GNU ld.bfd's order-sensitive
-///   symbol resolution against libgtk-3/libwebkit2gtk (verified live: fails
-///   with ld.bfd, succeeds with lld, on an otherwise-identical build).
+/// Applies the host bridge's matching libc/interpreter and ordered runtime paths.
+/// Native builds and non-Linux targets retain their toolchain defaults.
 fn configure_nix_devshell_linker() {
+    println!("cargo:rerun-if-env-changed=HOLZI_NIX_DYNAMIC_LINKER");
+    println!("cargo:rerun-if-env-changed=HOLZI_NIX_RUNTIME_LIBRARY_PATH");
     let is_linux = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux");
     if !is_linux || !is_nix_toolchain() {
         return;
@@ -65,12 +48,19 @@ fn configure_nix_devshell_linker() {
         "configure_nix_devshell_linker: no known host dynamic-linker path for \
          CARGO_CFG_TARGET_ARCH={target_arch:?} (only x86_64 is supported)"
     );
-    // FHS `/lib64` path (Arch/CachyOS/Fedora-style hosts, per Etappe-0
-    // finding #3's target machine); Debian/Ubuntu-style hosts use
-    // `/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2` instead — moot here since
-    // this whole function is gated on a Nix-provided rustc, which Debian/
-    // Ubuntu CI never uses.
-    println!("cargo:rustc-link-arg=-Wl,--dynamic-linker=/lib64/ld-linux-x86-64.so.2");
+    let dynamic_linker = std::env::var("HOLZI_NIX_DYNAMIC_LINKER")
+        .expect("run Nix builds through scripts/with-nix-host-bridge.sh");
+    let runtime_path = std::env::var("HOLZI_NIX_RUNTIME_LIBRARY_PATH")
+        .expect("host bridge must supply the selected libc and host library directories");
+    assert!(
+        std::path::Path::new(&dynamic_linker).is_absolute()
+            && !dynamic_linker.contains([',', '\n'])
+            && runtime_path.split(':').all(|path| {
+                std::path::Path::new(path).is_absolute() && !path.contains([',', '\n'])
+            }),
+        "host bridge supplied invalid linker paths"
+    );
+    println!("cargo:rustc-link-arg=-Wl,--dynamic-linker={dynamic_linker}");
     // `--disable-new-dtags` forces legacy DT_RPATH instead of DT_RUNPATH:
     // DT_RUNPATH only applies to resolving *this* binary's own direct
     // NEEDED entries, but DT_RPATH set on the main executable is also
@@ -82,17 +72,13 @@ fn configure_nix_devshell_linker() {
     // too, and now hits the same glibc clash pulling in a second libc.so.6
     // from the same directory).
     println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{runtime_path}");
 
     if std::env::var_os("CARGO_FEATURE_LLM_CUDA").is_some() {
         println!("cargo:rustc-link-arg=-fuse-ld=lld");
     }
 
-    // Tells `lib.rs` this binary needs the `LD_LIBRARY_PATH` the Nix devShell
-    // exports (flake.nix's shellHook) to resolve the Nix-provided GTK stack
-    // this interpreter override doesn't otherwise cover — and, precisely
-    // because it does, must scrub that variable from its own environment
-    // before Tauri/GTK/WebKit spawn any child process (see the call site).
+    // Host WebKit children must not inherit the devShell's Nix library path.
     println!("cargo:rustc-env=HOLZI_NIX_DEVSHELL_LINKER=1");
 }
 

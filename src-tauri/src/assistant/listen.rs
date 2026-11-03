@@ -2,7 +2,8 @@
 //! signal cuts what is said into utterances. Started on a trigger (the wake word), the last
 //! [`PREROLL_SECS`] from the ring buffer go in first, so "Hey Haex, wie viele …" said in one
 //! breath arrives whole. Pause length, minimum length and the 60 s cut come from
-//! [`PauseDetector`].
+//! [`PauseDetector`]. [`transcribe`] turns an utterance into text with the speech recognition
+//! model push-to-talk uses (T043).
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,10 +11,14 @@ use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
 use std::sync::Arc;
 use std::time::Duration;
 
+use tauri::{AppHandle, Manager};
+
 use super::vad::{PauseDetector, Utterance, VadError};
 use crate::audio::ring::PREROLL_SECS;
 use crate::audio::stream::AudioStream;
+use crate::stt::{CanonicalPcm, SttError};
 use crate::vault_gate::VaultGate;
+use crate::voice::VoiceState;
 
 /// How often a waiting listener checks whether it should stop.
 const POLL: Duration = Duration::from_millis(50);
@@ -103,4 +108,16 @@ pub fn listen(
     })
     .map_err(|_| ListenError::Closing)?;
     Ok(Listening { stop, utterances })
+}
+
+/// What `utterance` said, through the selected speech recognition model (Whisper or Parakeet).
+/// The model is the warm one of `VoiceState` that push-to-talk uses too, never a second copy.
+pub async fn transcribe(app: &AppHandle, utterance: Utterance) -> Result<String, SttError> {
+    let adapter = app.state::<VoiceState>().stt_adapter(app).await?;
+    let text = adapter
+        .transcribe(&CanonicalPcm {
+            samples: utterance.samples,
+        })
+        .await?;
+    Ok(text.trim().to_owned())
 }

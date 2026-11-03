@@ -25,7 +25,6 @@ import type { McpStatus } from '~/types/bindings/McpStatus'
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
 /** Preference keys the settings components read (specs 002, 008, 009). */
-const DEFAULT_MODEL_KEY = 'chat.default_model_id'
 const STT_MODEL_KEY = 'voice.stt_model_id'
 const AUTONOMY_KEY = 'chat.autonomy_mode'
 const DENY_RULES_KEY = 'cli_delegate.deny_rules'
@@ -42,7 +41,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     updateDeviceAliasAsync,
     listVaultDevicesAsync,
   } = useDevice()
-  const { getPrefAsync, setPrefAsync, clearPrefAsync } = usePreferences()
+  const { getPrefAsync, setPrefAsync } = usePreferences()
   const models = useModels()
   const huggingFace = useHuggingFace()
   const providers = useProviders()
@@ -60,27 +59,24 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const device = await currentDeviceInfoAsync()
     return { kind: 'device', uuid: device.vaultDeviceUuid }
   }
-  /** Settings apply to the vault; only the default and speech models to this device (spec 023,
+  /** Settings apply to the vault; only the speech model to this device (spec 023,
    * FR-024). */
   const VAULT: PrefScope = { kind: 'vault' }
 
   on('settings.get', async () => {
     const device = await currentDeviceInfoAsync()
     const scope: PrefScope = { kind: 'device', uuid: device.vaultDeviceUuid }
-    const [defaultModel, stt, autonomy, denyRules, sessionRestore] =
-      await Promise.all([
-        getPrefAsync(scope, DEFAULT_MODEL_KEY),
-        getPrefAsync(scope, STT_MODEL_KEY),
-        getPrefAsync(VAULT, AUTONOMY_KEY),
-        getPrefAsync(VAULT, DENY_RULES_KEY),
-        wm.getSessionRestore(),
-      ])
+    const [stt, autonomy, denyRules, sessionRestore] = await Promise.all([
+      getPrefAsync(scope, STT_MODEL_KEY),
+      getPrefAsync(VAULT, AUTONOMY_KEY),
+      getPrefAsync(VAULT, DENY_RULES_KEY),
+      wm.getSessionRestore(),
+    ])
     return {
       deviceAlias: device.alias,
       language: language.language.value,
       colorScheme: colorScheme.scheme.value,
       appearance: appearance.appearance.value,
-      ...(defaultModel ? { defaultModel } : {}),
       sttModel: stt,
       sessionRestore: sessionRestore.enabled,
       autonomyMode: autonomy,
@@ -212,6 +208,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { rights: (input as { rights: unknown }).rights ?? null },
     }),
   )
+  on('settings.agentBrowser.builtinPasswords.set', async ({ input }) =>
+    invoke('agent_browser_builtin_passwords_set', {
+      args: { rights: (input as { rights: unknown }).rights ?? null },
+    }),
+  )
   on('settings.agentBrowser.path.set', async ({ input }) =>
     invoke('agent_browser_path_set', {
       args: { path: (input as { path: string | null }).path ?? null },
@@ -268,18 +269,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await updateDeviceAliasAsync(alias)
     return done
   })
-  on('settings.models.setDefault', async ({ input }) => {
-    await setPrefAsync(
-      await deviceScope(),
-      DEFAULT_MODEL_KEY,
-      String(input.modelId),
-    )
-    return done
-  })
-  on('settings.models.clearDefault', async () => {
-    await clearPrefAsync(await deviceScope(), DEFAULT_MODEL_KEY)
-    return done
-  })
   on('settings.models.setStt', async ({ input }) => {
     const catalogId = String(input.catalogId)
     // The download reports progress to the shared store; forget it whoever started the action.
@@ -292,6 +281,10 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   })
   on('settings.models.downloadCatalog', async ({ input }) => {
     await models.downloadFromCatalogAsync(String(input.entryId))
+    return done
+  })
+  on('settings.models.cancelDownload', async ({ input }) => {
+    await models.cancelDownloadAsync(String(input.modelId))
     return done
   })
   on('settings.models.downloadFromHf', async ({ input }) =>
@@ -318,6 +311,32 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   })
   on('settings.models.delete', async ({ input }) => {
     await models.deleteAsync(String(input.modelId))
+    return done
+  })
+  // The models store calls `useI18n()` in its setup, which only works inside a component setup:
+  // resolve it per call (the workspace page has created it by then), never at registration.
+  on('settings.models.activate', async ({ input }) => {
+    const store = useModelsStore()
+    store.lastError = null
+    store.integrityActionError = null
+    const modelId = String(input.modelId)
+    await store.activateLocalModel(modelId)
+    const error = store.lastError ?? store.integrityActionError
+    if (error) throw new Error(error)
+    // A failed integrity check opens the decision dialog and sets no error: the model is not
+    // active yet, and only the person decides there.
+    if (store.integrityDialog?.modelId === modelId) {
+      throw new Error(
+        'The integrity check of the model failed; the person has to decide in the integrity dialog.',
+      )
+    }
+    return done
+  })
+  on('settings.models.deactivate', async () => {
+    const store = useModelsStore()
+    store.lastError = null
+    await store.deactivateLocalModel()
+    if (store.lastError) throw new Error(store.lastError)
     return done
   })
   on('settings.delegate.refreshModels', async ({ input }) => {

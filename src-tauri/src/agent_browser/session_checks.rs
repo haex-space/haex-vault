@@ -16,7 +16,7 @@ use crate::agent_browser::sites::{check_document, Site, Verdict};
 use crate::agent_browser::submit;
 use crate::agent_browser::tab::{Guard, Paused};
 use crate::chat::tools::permission::PermissionMode;
-use crate::mcp_server::grants::SiteLevel;
+use crate::mcp_server::grants::{RequestRule, SiteLevel};
 use crate::prompt_park::PromptEnd;
 
 impl Session {
@@ -84,21 +84,49 @@ impl Session {
         if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
             return Verdict::Refuse(code);
         }
+        let site = Site::parse(&paused.url).ok();
+        // A rule the user remembered answers before anything is asked (FR-044).
+        if let (Some(site), Some(rights)) = (&site, self.env.rights(&self.caller).await) {
+            match rights.requests.get(site) {
+                Some(RequestRule::Allow) => return Verdict::Go,
+                Some(RequestRule::Deny) => return Verdict::Refuse("request_denied"),
+                None => {}
+            }
+        }
         let question = BrowserQuestion {
-            kind: BrowserPromptKind::Submit,
+            kind: BrowserPromptKind::Request,
             agent: self.env.agent_name(&self.caller).await,
-            site: Site::parse(&paused.url).ok().map(|site| site.to_string()),
+            site: site.as_ref().map(ToString::to_string),
             tool: None,
             label: Some(format!("{} {}", paused.method, paused.url)),
             fields: submit::fields_of(paused.body.as_deref()),
             reason: None,
+            bytes: None,
+            entries: Vec::new(),
+            mapping: Vec::new(),
         };
-        let answer = self.ask_for_page(&question).await;
-        match answer {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => Verdict::Go,
-            Ok(_) => Verdict::Refuse("user_declined"),
-            Err(PromptEnd::Expired) => Verdict::Refuse("no_answer"),
-            Err(_) => Verdict::Refuse("stopped"),
+        let answer = match self.ask_for_page(&question).await {
+            Ok(answer) => answer,
+            Err(PromptEnd::Expired) => return Verdict::Refuse("no_answer"),
+            Err(_) => return Verdict::Refuse("stopped"),
+        };
+        let allowed = answer.decision == BrowserDecision::Allow;
+        if answer.remember == Some(Remember::Request) {
+            if let Some(site) = &site {
+                let rule = if allowed {
+                    RequestRule::Allow
+                } else {
+                    RequestRule::Deny
+                };
+                if let Err(error) = self.env.remember_request(&self.caller, site, rule).await {
+                    log::warn!("agent browser: could not remember a request rule: {error}");
+                }
+            }
+        }
+        if allowed {
+            Verdict::Go
+        } else {
+            Verdict::Refuse("user_declined")
         }
     }
 
@@ -107,8 +135,10 @@ impl Session {
         &self,
         question: &BrowserQuestion,
     ) -> Result<prompts::BrowserAnswer, PromptEnd> {
+        let mut question = question.clone();
+        crate::agent_browser::executor::hide_filled(&self.filled(), &mut question);
         self.questions.fetch_add(1, Ordering::SeqCst);
-        let answer = prompts::ask(&self.prompts, &self.closed, question, &self.cancel).await;
+        let answer = prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await;
         self.questions.fetch_sub(1, Ordering::SeqCst);
         answer
     }
@@ -161,9 +191,12 @@ impl Session {
             agent: self.env.agent_name(&self.caller).await,
             site: Some(site.to_string()),
             tool: None,
-            label: Some(url.to_owned()),
+            label: Some(self.filled().scrub(url)),
             fields: Vec::new(),
             reason: None,
+            bytes: None,
+            entries: Vec::new(),
+            mapping: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {
@@ -189,7 +222,8 @@ impl Session {
             // `http` can only be read (research R9).
             Some(Remember::SiteOperate) if !site.is_plain_http() => Some(SiteLevel::Operate),
             Some(Remember::SiteOperate) => Some(SiteLevel::Read),
-            None => None,
+            // Remembering a fill is no answer to a website question.
+            Some(Remember::Fill | Remember::Request) | None => None,
         };
         if let Some(level) = level {
             if let Err(error) = self.env.remember(&self.caller, site, level).await {

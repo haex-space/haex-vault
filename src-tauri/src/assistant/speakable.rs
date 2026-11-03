@@ -10,88 +10,12 @@
 use super::lexicon::{self, FALLBACK_LANGUAGE};
 use super::sentences::{fence_closer, fence_opener, Fence, Sentences};
 
+pub use crate::local_time::{Civil, Clock};
+
 /// Sentences an answer may have before it is cut.
 pub const MAX_SENTENCES: usize = 4;
 /// Sentences spoken before "Soll ich mehr vorlesen?" when it is cut.
 pub const SUMMARY_SENTENCES: usize = 3;
-
-/// A local calendar date and wall-clock time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Civil {
-    pub year: i32,
-    pub month: u32,
-    pub day: u32,
-    pub hour: u32,
-    pub minute: u32,
-}
-
-impl Civil {
-    pub fn new(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> Self {
-        Self {
-            year,
-            month,
-            day,
-            hour,
-            minute,
-        }
-    }
-
-    /// Days since 1970-01-01 of the date (H. Hinnant's `days_from_civil`).
-    fn days(&self) -> i64 {
-        let y = i64::from(self.year) - i64::from(self.month <= 2);
-        let era = y.div_euclid(400);
-        let yoe = y - era * 400;
-        let m = i64::from(self.month);
-        let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + i64::from(self.day) - 1;
-        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-        era * 146_097 + doe - 719_468
-    }
-
-    fn from_days(days: i64, hour: u32, minute: u32) -> Self {
-        let z = days + 719_468;
-        let era = z.div_euclid(146_097);
-        let doe = z - era * 146_097;
-        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-        let mp = (5 * doy + 2) / 153;
-        let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-        let month = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
-        let year = (yoe + era * 400 + i64::from(month <= 2)) as i32;
-        Self::new(year, month, day, hour, minute)
-    }
-
-    fn minutes(&self) -> i64 {
-        self.days() * 1440 + i64::from(self.hour) * 60 + i64::from(self.minute)
-    }
-
-    fn from_minutes(minutes: i64) -> Self {
-        let days = minutes.div_euclid(1440);
-        let rest = minutes.rem_euclid(1440);
-        Self::from_days(days, (rest / 60) as u32, (rest % 60) as u32)
-    }
-
-    /// Monday = 0.
-    fn weekday(&self) -> usize {
-        (self.days() + 3).rem_euclid(7) as usize
-    }
-
-    fn valid(&self) -> bool {
-        (1..=12).contains(&self.month)
-            && self.day >= 1
-            && self.day <= 31
-            && self.hour < 24
-            && self.minute < 60
-            && Self::from_days(self.days(), self.hour, self.minute) == *self
-    }
-}
-
-/// "Now" as the device sees it: local time and the offset of local time from UTC, so a time with
-/// an offset ("…Z", "…+02:00") is spoken in local time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Clock {
-    pub now: Civil,
-    pub utc_offset_minutes: i32,
-}
 
 /// The sentences of a whole answer: what is spoken, and what "mehr vorlesen" would read.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

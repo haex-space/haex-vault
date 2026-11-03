@@ -3,15 +3,21 @@
  * "Verlauf" of the agent (spec 072 FR-002a): every agent session with its title and age, newest
  * first; open, rename and delete with confirmation. Presentational: the state and the actions live
  * in `useThreadSidebar` and the tab actions (`useChatTab`), as before in the thread sidebar.
+ * Its search field searches the transcripts of spoken sessions (spec 066 T127); a hit opens the
+ * session's transcript at that entry.
  */
 import {
+  computed,
   nextTick,
   ref,
   shallowRef,
   watch,
   type ComponentPublicInstance,
 } from 'vue'
+import { toast } from 'vue-sonner'
 import type { Thread } from '~/composables/useChat'
+import type { TranscriptHit } from '~/lib/assistant/transcript'
+import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
 
 const props = defineProps<{
   threads: Thread[]
@@ -19,6 +25,7 @@ const props = defineProps<{
   editingThreadId: string | null
   draftTitle: string
   editTitleError: string | null
+  renameError: string | null
   renamingThreadId: string | null
   deleteCandidate: Thread | null
   deleteError: string | null
@@ -36,10 +43,48 @@ const emit = defineEmits<{
   requestDelete: [thread: Thread]
   closeDeleteDialog: [open: boolean]
   confirmDelete: []
+  openTranscript: [hit: { threadId: string; id: string }]
 }>()
 
 const { t } = useI18n()
+const { errString } = useErrorString()
 const open = ref(false)
+const search = useTranscriptSearch()
+const searchActive = computed(() => search.query.value.trim() !== '')
+// A spoken entry stored while the popover was closed shows up when it opens again.
+watch(open, (isOpen) => {
+  if (isOpen && searchActive.value) void search.refreshAsync()
+})
+// Errors are toasts, never inline text.
+watch(search.error, (failure) => {
+  if (failure !== null) toast.error(errString(failure))
+})
+
+function threadTitle(threadId: string): string {
+  return (
+    props.threads.find((thread) => thread.id === threadId)?.title ??
+    t('chat.agent.unnamedSession')
+  )
+}
+
+function openHit(hit: TranscriptHit) {
+  open.value = false
+  emit('openTranscript', { threadId: hit.threadId, id: hit.id })
+}
+
+// A failed rename or delete shows as a toast; the title checks stay at the title field.
+watch(
+  () => props.renameError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
+watch(
+  () => props.deleteError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
 
 function select(id: string) {
   open.value = false
@@ -105,8 +150,52 @@ watch(
           threads.length
         }}</span>
       </div>
+      <UiInput
+        v-model="search.query.value"
+        type="search"
+        class="mb-1"
+        data-testid="chat-transcript-search"
+        :placeholder="t('chat.threads.searchTranscripts')"
+        :aria-label="t('chat.threads.searchTranscripts')"
+      />
+      <template v-if="searchActive">
+        <button
+          v-for="hit in search.hits.value"
+          :key="hit.id"
+          type="button"
+          class="flex w-full min-w-0 flex-col gap-0.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="chat-transcript-hit"
+          @click="openHit(hit)"
+        >
+          <span class="truncate text-xs font-medium text-muted-foreground">
+            {{ threadTitle(hit.threadId) }}
+          </span>
+          <span class="line-clamp-2 break-words">{{ hit.snippet }}</span>
+        </button>
+        <p
+          v-if="
+            !search.error.value &&
+            !search.searching.value &&
+            search.hits.value.length === 0
+          "
+          class="px-3 py-2 text-xs text-muted-foreground"
+        >
+          {{ t('chat.threads.noHits') }}
+        </p>
+        <UiButton
+          v-if="search.nextCursor.value"
+          type="button"
+          variant="ghost"
+          size="sm"
+          :loading="search.searching.value"
+          data-testid="chat-transcript-more"
+          @click="search.moreAsync()"
+        >
+          {{ t('chat.threads.moreHits') }}
+        </UiButton>
+      </template>
       <div
-        v-for="thread in threads"
+        v-for="thread in searchActive ? [] : threads"
         :key="thread.id"
         data-testid="chat-thread"
         class="group flex w-full min-w-0 items-center gap-1 rounded-lg text-sm transition-colors hover:bg-accent focus-within:bg-accent"
@@ -160,6 +249,14 @@ watch(
             class="min-w-0 flex-1 truncate px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             @click="select(thread.id)"
           >
+            <Icon
+              v-if="thread.origin === 'voice'"
+              :name="VOICE_THREAD_ICON"
+              class="mr-1.5 inline h-3.5 w-3.5 align-[-2px] text-muted-foreground"
+              data-testid="chat-thread-voice"
+              :title="t('chat.threads.voice')"
+              :aria-label="t('chat.threads.voice')"
+            />
             <span class="truncate">{{ thread.title }}</span>
           </button>
           <div
@@ -195,7 +292,7 @@ watch(
         </template>
       </div>
       <div
-        v-if="threads.length === 0"
+        v-if="!searchActive && threads.length === 0"
         class="px-3 py-2 text-xs text-muted-foreground"
       >
         {{ t('chat.threads.empty') }}
@@ -215,9 +312,6 @@ watch(
           {{
             t('chat.threads.deleteConfirm', { title: deleteCandidate.title })
           }}
-        </p>
-        <p v-if="deleteError" class="text-sm text-destructive" role="alert">
-          {{ deleteError }}
         </p>
       </div>
     </template>

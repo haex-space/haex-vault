@@ -24,8 +24,11 @@ use holzi_lib::agent_browser::{AgentBrowser, StartConfig};
 use holzi_lib::caller::Caller;
 use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use holzi_lib::chat::tools::permission::PermissionMode;
+use holzi_lib::files::access::AgentGrants;
+use holzi_lib::files::local::OwnPlaces;
 use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
-use holzi_lib::mcp_server::grants::{BrowserRights, SiteGrant, SiteLevel};
+use holzi_lib::mcp_server::grants::{BrowserRights, PasswordRights, SiteGrant, SiteLevel};
+use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 use crate::agent_browser_fixture;
@@ -56,15 +59,31 @@ pub struct Env {
     executable: std::path::PathBuf,
     run_root: tempfile::TempDir,
     data: tempfile::TempDir,
-    db: VaultDb,
+    pub db: VaultDb,
     pub rights: Mutex<BrowserRights>,
     remembered: Mutex<Vec<(String, SiteLevel)>>,
+    /// The system's downloads folder of the test.
+    pub downloads: tempfile::TempDir,
+    /// The agent's file rights (044); none until a test grants some.
+    pub files: Mutex<AgentGrants>,
+    /// The agent's rights group "Passwörter"; off until a test switches it on.
+    pub passwords: Mutex<Option<PasswordRights>>,
+    /// The rights group `browser` is off until a question switches it on (FR-040).
+    pub off: Mutex<bool>,
 }
 
 #[async_trait]
 impl BrowserEnv for Env {
     async fn rights(&self, _caller: &Caller) -> Option<BrowserRights> {
+        if *self.off.lock().unwrap() {
+            return None;
+        }
         Some(self.rights.lock().unwrap().clone())
+    }
+
+    async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
+        *self.off.lock().unwrap() = false;
+        Ok(())
     }
 
     async fn remember(
@@ -104,6 +123,49 @@ impl BrowserEnv for Env {
             headless: cfg!(target_os = "linux"),
         })
     }
+
+    fn downloads_folder(&self) -> Result<std::path::PathBuf, String> {
+        Ok(holzi_lib::agent_browser::downloads::folder(
+            self.downloads.path(),
+            "read",
+        ))
+    }
+
+    async fn password_rights(&self, _caller: &Caller) -> Option<PasswordRights> {
+        self.passwords.lock().unwrap().clone()
+    }
+
+    fn passwords(&self) -> Option<PasswordsService> {
+        Some(PasswordsService::new(self.db.clone()))
+    }
+
+    async fn remember_request(
+        &self,
+        _caller: &Caller,
+        site: &Site,
+        rule: holzi_lib::mcp_server::grants::RequestRule,
+    ) -> Result<(), String> {
+        self.rights
+            .lock()
+            .unwrap()
+            .requests
+            .insert(site.clone(), rule);
+        Ok(())
+    }
+
+    async fn remember_fill(&self, _caller: &Caller, site: &Site) -> Result<(), String> {
+        if let Some(grant) = self.rights.lock().unwrap().sites.get_mut(site) {
+            grant.fill_remembered = true;
+        }
+        Ok(())
+    }
+
+    async fn file_rights(&self, _caller: &Caller) -> Option<(OwnPlaces, AgentGrants)> {
+        Some((
+            OwnPlaces::new(vec![self.data.path().to_path_buf()]),
+            self.files.lock().unwrap().clone(),
+        ))
+    }
 }
 
 impl Env {
@@ -122,6 +184,10 @@ pub struct Scene {
     pub asked: Arc<Mutex<Vec<BrowserQuestion>>>,
     /// What the next question is answered with.
     pub allow: Arc<Mutex<bool>>,
+    /// What an allowed answer remembers (`"fill"`, `"site-read"`, …); nothing by default.
+    pub remember: Arc<Mutex<Option<&'static str>>>,
+    /// More fields of the answer, such as `entry` and `skip` of an entry fill.
+    pub extra: Arc<Mutex<serde_json::Map<String, Value>>>,
 }
 
 /// The agent of the scene.
@@ -142,6 +208,20 @@ impl Scene {
             caller: agent(),
             mode,
         };
+        self.tools
+            .run(tool, input, &call, &CancellationToken::new())
+            .await
+    }
+
+    /// A call of `caller` (the built-in agent instead of the scene's external one).
+    pub async fn call_as(
+        &self,
+        caller: Caller,
+        tool: &str,
+        input: Value,
+        mode: PermissionMode,
+    ) -> Result<NativeReply, NativeError> {
+        let call = NativeCall { caller, mode };
         self.tools
             .run(tool, input, &call, &CancellationToken::new())
             .await
@@ -183,6 +263,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         )]
         .into_iter()
         .collect(),
+        ..Default::default()
     };
     let env = Arc::new(Env {
         os,
@@ -192,12 +273,24 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         db,
         rights: Mutex::new(rights),
         remembered: Mutex::default(),
+        downloads: tempfile::tempdir().unwrap(),
+        files: Mutex::default(),
+        passwords: Mutex::default(),
+        off: Mutex::new(false),
     });
     let prompts: BrowserPrompts = new_browser_prompts();
     let asked = Arc::new(Mutex::new(Vec::new()));
     let allow = Arc::new(Mutex::new(false));
+    let remember: Arc<Mutex<Option<&'static str>>> = Arc::default();
+    let extra: Arc<Mutex<serde_json::Map<String, Value>>> = Arc::default();
     {
-        let (asked, allow, answering) = (Arc::clone(&asked), Arc::clone(&allow), prompts.clone());
+        let (asked, allow, answering, remembering, adding) = (
+            Arc::clone(&asked),
+            Arc::clone(&allow),
+            prompts.clone(),
+            Arc::clone(&remember),
+            Arc::clone(&extra),
+        );
         prompts.set_emitter(Arc::new(move |id: &str, question: &BrowserQuestion| {
             asked.lock().unwrap().push(question.clone());
             let decision = if *allow.lock().unwrap() {
@@ -205,7 +298,14 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
             } else {
                 "deny"
             };
-            let answer = serde_json::from_value(json!({ "decision": decision })).unwrap();
+            let mut answer = json!({ "decision": decision });
+            if let Some(remember) = *remembering.lock().unwrap() {
+                answer["remember"] = json!(remember);
+            }
+            for (key, value) in adding.lock().unwrap().iter() {
+                answer[key] = value.clone();
+            }
+            let answer = serde_json::from_value(answer).unwrap();
             let (answering, id) = (answering.clone(), id.to_owned());
             tokio::spawn(async move {
                 answering.answer(&id, answer);
@@ -221,7 +321,9 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         prompts,
         Arc::new(|_| {}),
         sessions.clone(),
-    );
+    )
+    // `browser.search` lands on the fixture site's front page with the query.
+    .with_search_engine(&site.url("/?q="));
     let scene = Scene {
         env,
         tools,
@@ -230,6 +332,8 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         site,
         asked,
         allow,
+        remember,
+        extra,
     };
     if tls {
         // Starts the browser and lets it accept the test certificate.

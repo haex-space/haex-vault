@@ -2,6 +2,7 @@
 // list, for the runner, `wm.actions.list` and the catalog invariants in check-wm-actions.ts.
 // The per-area catalogs (wm, chat, settings) are added here as their stories land.
 import { WM_NAVIGATION_ACTIONS, WM_OPEN_ACTIONS } from './wmActions.ts'
+import { ASSISTANT_ACTIONS } from './assistantActions.ts'
 import { BROWSER_ACTIONS } from './browserActions.ts'
 import { AGENT_BROWSER_ACTIONS } from './settingsAgentBrowserActions.ts'
 import { WM_LAYOUT_ACTIONS, WM_READ_ACTIONS } from './wmLayoutActions.ts'
@@ -31,4 +32,5 @@ export const ALL_ACTIONS: readonly ActionDefinition[] = [
   ...SYNC_RULE_ACTIONS,
   ...CONTACTS_ACTIONS,
   ...BROWSER_ACTIONS,
+  ...ASSISTANT_ACTIONS,
 ]

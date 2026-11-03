@@ -166,48 +166,41 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   }),
   // "KI" gathers the models and the agents, grouped by task in the overview.
   categoryLocation('ai'),
-  subView('ai.default', 'ai/default', 'ai', {
-    icon: 'lucide:star',
-    group: 'chat',
-    overviewRow: true,
-  }),
-  // Reached from "Standard-Modell" and the chat; an agent opens it with `wm.app.open`.
+  // "Anbieter": Claude, Codex and OpenAI-compatible endpoints (spec 055 US5) on one page; an
+  // endpoint's page is reached from its row, never searched for. An agent opens it with
+  // `wm.app.open`.
   subView('ai.providers', 'ai/providers', 'ai', {
     icon: 'lucide:plug',
     group: 'chat',
     overviewRow: true,
   }),
-  // Spec 055 US5: OpenAI-compatible model servers (a GPU machine, a school server, a cloud API);
-  // a server's page is reached from its row, never searched for.
-  subView('ai.servers', 'ai/servers', 'ai', {
-    icon: 'lucide:server',
-    group: 'chat',
-    overviewRow: true,
-  }),
-  subView('ai.servers.server', 'ai/servers/:providerId', 'ai.servers'),
-  subView('ai.installed', 'ai/installed', 'ai', {
+  subView('ai.providers.provider', 'ai/providers/:providerId', 'ai.providers'),
+  // "Lokale Modelle": the models on this device and the way to get more.
+  subView('ai.local', 'ai/local', 'ai', {
     icon: 'lucide:hard-drive',
     group: 'local',
     overviewRow: true,
   }),
-  subView('ai.download', 'ai/download', 'ai', {
-    icon: 'lucide:download',
-    group: 'local',
-    overviewRow: true,
-  }),
-  subView('ai.download.search', 'ai/download/search', 'ai.download', {
+  subView('ai.local.search', 'ai/local/search', 'ai.local', {
     icon: 'lucide:search',
     row: true,
   }),
-  subView(
-    'ai.download.repo',
-    'ai/download/repo/:owner/:name',
-    'ai.download.search',
-  ),
+  subView('ai.local.repo', 'ai/local/repo/:owner/:name', 'ai.local.search'),
   subView('ai.speech', 'ai/speech', 'ai', {
     icon: 'lucide:mic',
     group: 'speech',
     overviewRow: true,
+  }),
+  // Spec 066 T045: the preview switch that makes conversations reachable until the wake word;
+  // T161: the pause that ends what was said.
+  subView('ai.speech.assistant', 'ai/speech/assistant', 'ai', {
+    icon: 'lucide:audio-waveform',
+    group: 'speech',
+    overviewRow: true,
+    settingKeys: [
+      'settings.assistant.labels.preview',
+      'settings.assistant.labels.pauseMs',
+    ],
   }),
   // Spec 066 US8: the assistant's voice per language and its speaking rate.
   subView('ai.speech.voice', 'ai/speech/voice', 'ai', {
@@ -387,8 +380,8 @@ export type HeaderBack =
   { kind: 'back'; path: string } | { kind: 'push'; path: string }
 
 /** FR-009: where the header arrow of the current location leads. Back to the previous station
- * when it lies in the same category (so Modelle → Installierte Modelle → Modelle herunterladen
- * returns to Installierte Modelle, and the search keeps its query), as a tab back without a
+ * when it lies in the same category (so KI → Lokale Modelle → Suche
+ * returns to Lokale Modelle, and the search keeps its query), as a tab back without a
  * second entry; otherwise — after a deep link, a sidebar or search jump from another category —
  * to the registry parent. `undefined` for a category start page, which has no arrow. */
 export function headerBack(history: TabHistory): HeaderBack | undefined {

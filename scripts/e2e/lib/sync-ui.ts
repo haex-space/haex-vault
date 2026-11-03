@@ -199,9 +199,27 @@ export async function chatTitles(page: FlowInstance): Promise<string[]> {
     `return document.querySelector('[data-testid="chat-history-panel"]') !== null`,
   )
   if (!open) await page.click('chat-history')
-  return page.exec<string[]>(
+  const titles = await page.exec<string[]>(
     `return [...document.querySelectorAll('[data-testid="chat-thread"]')].map((row) => row.querySelector('span.truncate')?.textContent.trim() ?? '')`,
   )
+  // The "Verlauf" opened here is closed again: it floats above every window, so left open it
+  // covers the window the scenario shows next (since its transcript search made it taller).
+  if (!open) await closeChatHistory(page)
+  return titles
+}
+
+/** Closes the agent's "Verlauf" through its own button and waits until it is gone. */
+async function closeChatHistory(page: FlowInstance): Promise<void> {
+  await page.click('chat-history')
+  const end = Date.now() + 5_000
+  while (
+    await page.exec<boolean>(
+      `return document.querySelector('[data-testid="chat-history-panel"]') !== null`,
+    )
+  ) {
+    if (Date.now() > end) throw new Error('the chat history stayed open')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
 }
 
 /** Starts a new chat and sends the text as its first message, through the composer. */

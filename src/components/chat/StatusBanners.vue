@@ -7,9 +7,10 @@
  * 500-line constitution limit). Presentational only. The tool-use notice of a delegate offers
  * "Rechte festlegen" (spec 021 US6).
  */
+import { toast } from 'vue-sonner'
 import type { ToolNotice } from '~/composables/useToolNotice'
 
-defineProps<{
+const props = defineProps<{
   displayedError: string | null
   canRetrySend: boolean
   loadErrorModelId: string | null
@@ -30,6 +31,19 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+// A failed "Rechte festlegen" shows as a toast. Each failure is a new notice object; the same
+// notice coming back with its conversation is not shown again.
+const toasted = new WeakSet<ToolNotice>()
+watch(
+  () => props.toolNotice,
+  (notice) => {
+    if (!notice?.failure || toasted.has(notice)) return
+    toasted.add(notice)
+    toast.error(notice.failure)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -83,15 +97,7 @@ const { t } = useI18n()
     role="status"
     data-testid="chat-tool-notice"
   >
-    <span class="space-y-1">
-      <span class="block">{{ t(toolNotice.key, toolNotice.params) }}</span>
-      <span
-        v-if="toolNotice.failure"
-        class="block text-destructive"
-        role="alert"
-        >{{ toolNotice.failure }}</span
-      >
-    </span>
+    <span>{{ t(toolNotice.key, toolNotice.params) }}</span>
     <span class="flex gap-2 shrink-0">
       <button
         v-if="toolNotice.setRights"

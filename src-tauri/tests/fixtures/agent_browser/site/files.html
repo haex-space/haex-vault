@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dateien</title>
+  </head>
+  <body>
+    <main>
+      <h1>Dateien</h1>
+      <a href="/invoice.txt" download="Rechnung 2026-11.txt"
+        >Rechnung herunterladen</a
+      >
+      <a href="/big.bin">Großen Download starten</a>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        <label for="beleg">Beleg</label>
+        <input id="beleg" type="file" name="beleg" />
+        <button>Hochladen</button>
+      </form>
+      <p id="chosen">keine Datei</p>
+    </main>
+    <script>
+      document.getElementById('beleg').addEventListener('change', (event) => {
+        document.getElementById('chosen').textContent =
+          'gewählt: ' + event.target.files[0].name
+      })
+    </script>
+  </body>
+</html>

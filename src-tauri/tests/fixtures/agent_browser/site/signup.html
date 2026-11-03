@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Konto anlegen</title>
+  </head>
+  <body>
+    <main>
+      <h1>Konto anlegen</h1>
+      <form method="post" action="/account">
+        <label for="email">E-Mail</label>
+        <input id="email" type="email" name="email" />
+        <label for="neu">Neues Passwort</label>
+        <input id="neu" type="password" name="neu" />
+        <label for="wiederholen">Passwort wiederholen</label>
+        <input id="wiederholen" type="password" name="wiederholen" />
+        <button>Konto anlegen</button>
+      </form>
+      <p id="echo">noch nichts</p>
+    </main>
+    <script>
+      // A page that shows the new password and whether both fields agree, to prove holzi hides the
+      // password from the agent and fills the repeat field.
+      const echo = () => {
+        const neu = document.getElementById('neu').value
+        const wiederholen = document.getElementById('wiederholen').value
+        document.getElementById('echo').textContent =
+          'Passwort: ' +
+          neu +
+          (neu === '' && wiederholen === ''
+            ? ' / leer'
+            : neu === wiederholen
+              ? ' / gleich'
+              : ' / verschieden')
+      }
+      document.getElementById('neu').addEventListener('input', echo)
+      document.getElementById('wiederholen').addEventListener('input', echo)
+    </script>
+  </body>
+</html>

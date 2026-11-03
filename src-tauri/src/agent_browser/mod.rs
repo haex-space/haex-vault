@@ -10,7 +10,9 @@ pub mod act;
 pub mod calls;
 pub mod cdp;
 pub mod commands;
+pub mod downloads;
 pub mod env;
+mod env_rights;
 pub mod error;
 pub mod executor;
 pub mod locate;
@@ -22,10 +24,13 @@ pub mod profile;
 pub mod profile_store;
 pub mod prompts;
 pub mod read;
+pub mod redaction;
+pub mod search;
 pub mod session;
 pub mod sessions;
 pub mod sites;
 pub mod submit;
+mod switch_on;
 pub mod tab;
 mod tab_watch;
 mod takeover;
@@ -174,6 +179,16 @@ impl AgentBrowser {
             .as_ref()
             .filter(|run| run.process.ended().is_none())
             .map(|run| run.product.clone())
+    }
+
+    /// Where the running browser puts its downloads under their GUID (research R11); `None` when
+    /// none runs.
+    pub async fn downloads_dir(&self) -> Option<std::path::PathBuf> {
+        let running = self.shared.running.lock().await;
+        running
+            .as_ref()
+            .filter(|run| run.process.ended().is_none())
+            .map(|run| run.workdir.downloads())
     }
 
     /// Sets who takes a new target of the browser before it goes on; called once when the browser
@@ -380,7 +395,15 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
 }
 
 #[cfg(test)]
+mod credentials_tests;
+#[cfg(test)]
+mod downloads_tests;
+#[cfg(test)]
+mod entry_fill_tests;
+#[cfg(test)]
 mod locate_tests;
+#[cfg(test)]
+mod new_login_tests;
 #[cfg(test)]
 mod new_tab_tests;
 #[cfg(test)]

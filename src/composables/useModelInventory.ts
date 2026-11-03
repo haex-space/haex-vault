@@ -39,6 +39,8 @@ export interface ModelInventoryDeps {
   setError: (message: string) => void
   /** Whether this device runs CLI delegates (spec 043 FR-016); without them the picker shows none. */
   cliDelegates?: () => boolean
+  /** The active local model: the only local one the picker offers. */
+  activeLocalModelId: () => string | null
 }
 
 /**
@@ -68,12 +70,17 @@ export function useModelInventory(deps: ModelInventoryDeps) {
 
   /** Groups selectable models by provider for the picker's <optgroup>. */
   const modelGroups = computed<ModelGroup[]>(() => {
+    // Of the installed local models only the active one is in memory, so only it is a choice;
+    // the settings activate another one.
+    const activeLocal = installedModels.value.filter(
+      (m) => m.id === deps.activeLocalModelId(),
+    )
     const localGroup: ModelGroup | null =
-      installedModels.value.length > 0
+      activeLocal.length > 0
         ? {
             providerId: 'local',
             providerName: t('chat.model.local'),
-            models: installedModels.value.map((m) => ({
+            models: activeLocal.map((m) => ({
               id: m.id,
               name: m.name,
             })),
@@ -145,7 +152,8 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       const found = group.models.find((m) => m.id === id)
       if (found) return found.name
     }
-    return id
+    // An installed local model that is not active is no choice in the picker, but has a name.
+    return installedModels.value.find((m) => m.id === id)?.name ?? id
   }
 
   /**

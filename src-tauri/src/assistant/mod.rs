@@ -4,6 +4,16 @@
 pub mod assets;
 #[cfg(test)]
 mod assets_tests;
+pub mod commands;
+pub mod conversation;
+#[cfg(test)]
+mod conversation_tests;
+pub mod custom_tones;
+#[cfg(test)]
+mod custom_tones_tests;
+pub mod driver;
+#[cfg(test)]
+mod driver_tests;
 pub mod lexicon;
 #[cfg(test)]
 mod lexicon_tests;
@@ -22,6 +32,12 @@ mod speakable_tests;
 pub mod tones;
 #[cfg(test)]
 mod tones_tests;
+pub mod transcript;
+pub mod turn;
+#[cfg(test)]
+mod turn_tests;
 pub mod vad;
 #[cfg(test)]
 mod vad_tests;
+
+pub use conversation::AssistantState;

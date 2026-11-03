@@ -2,9 +2,11 @@
 /**
  * The header of the agent's conversation (spec 072 FR-002a): the agent's name, the open session's
  * title, "Neue Sitzung" and, in the slot, "Verlauf" (`AgentSessionsPopover`). Only the agent has
- * sessions; contact conversations have one history each.
+ * sessions; contact conversations have one history each. A spoken session also gets
+ * "Mitschrift" (spec 066 T127), which shows its transcript instead of its messages.
  */
 import type { Thread } from '~/composables/useChat'
+import { VOICE_THREAD_ICON } from '~/lib/chat/threadOrigin'
 
 const props = defineProps<{
   threads: Thread[]
@@ -14,12 +16,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ newSession: [] }>()
+/** Whether the transcript of a spoken session is shown instead of its messages (T127). */
+const transcript = defineModel<boolean>('transcript', { default: false })
 
 const { t } = useI18n()
 
-const sessionTitle = computed(
-  () =>
-    props.threads.find((thread) => thread.id === props.activeThreadId)?.title,
+const session = computed(() =>
+  props.threads.find((thread) => thread.id === props.activeThreadId),
 )
 </script>
 
@@ -42,9 +45,33 @@ const sessionTitle = computed(
         class="truncate text-xs text-muted-foreground"
         data-testid="chat-agent-session"
       >
-        {{ sessionTitle ?? t('chat.agent.unnamedSession') }}
+        <Icon
+          v-if="session?.origin === 'voice'"
+          :name="VOICE_THREAD_ICON"
+          class="mr-1 inline h-3 w-3 align-[-2px]"
+          data-testid="chat-agent-session-voice"
+          :title="t('chat.threads.voice')"
+          :aria-label="t('chat.threads.voice')"
+        />
+        {{ session?.title ?? t('chat.agent.unnamedSession') }}
       </div>
     </div>
+    <UiButton
+      v-if="session?.origin === 'voice'"
+      variant="ghost"
+      size="sm"
+      class="gap-2"
+      :class="{ 'bg-accent': transcript }"
+      :aria-pressed="transcript"
+      data-testid="chat-agent-transcript"
+      :aria-label="t('assistant.transcript.title')"
+      @click="transcript = !transcript"
+    >
+      <Icon name="lucide:scroll-text" class="h-4 w-4" />
+      <span class="hidden @md:inline">{{
+        t('assistant.transcript.title')
+      }}</span>
+    </UiButton>
     <UiButton
       variant="ghost"
       size="sm"

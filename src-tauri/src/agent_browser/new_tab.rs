@@ -207,6 +207,9 @@ impl Session {
             label: Some(url.to_owned()),
             fields: Vec::new(),
             reason: None,
+            bytes: None,
+            entries: Vec::new(),
+            mapping: Vec::new(),
         };
         match self.ask_for_page(&question).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {

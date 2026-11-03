@@ -7,6 +7,7 @@
  * connection is saved and lands in the password manager (FR-008).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import { useClipboard } from '@vueuse/core'
 import type { GeneratedKey } from '@bindings/GeneratedKey'
 import type { Protocol } from '@bindings/Protocol'
@@ -20,7 +21,6 @@ const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
 const { copy, copied } = useClipboard({ legacy: true })
 const generating = ref(false)
-const failure = ref<string | null>(null)
 
 const methodOptions = computed<SettingsSelectOption[]>(() =>
   (['password', 'key'] as const).map((method) => ({
@@ -34,7 +34,6 @@ const withKey = computed(
 
 async function generateAsync() {
   generating.value = true
-  failure.value = null
   try {
     const key = await invoke<GeneratedKey>('storage_ssh_key_generate')
     draft.value.keyId = key.keyId
@@ -42,7 +41,7 @@ async function generateAsync() {
     draft.value.privateKey = ''
     draft.value.passphrase = ''
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
   } finally {
     generating.value = false
   }
@@ -171,9 +170,6 @@ function pasted(text: string) {
             }}
           </UiButton>
         </template>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </li>
       <li v-if="!draft.keyId" class="flex flex-col gap-2 px-4 py-3">
         <UiTextarea

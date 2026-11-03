@@ -219,7 +219,9 @@ participant-set identity (no renames, no stable group).
 (`ContactsService::card_of_vault` → `Unknown`) is created with `state = request`. Group invitations
 from anyone are requests until accepted (US4/US5); from a non-contact they show under "Anfragen" without
 sound. Accepting a direct request runs spec 060's preview/merge with the carried card
-(contacts/share/preview.rs, merge.rs) and sets `state = active`. Declining deletes the conversation
+(contacts/share/preview.rs, merge.rs): the window hands the card to the address book's preview
+(share inbox), and storing a card of the vault (`received::save`) sets `state = active` for its
+requests, whichever route stored it and on whichever own device (revision 2026-11-02, PR D). Declining deletes the conversation
 locally (sender gets a delivery receipt only, never _read_). A later message from the same vault creates
 a new request.
 
@@ -300,7 +302,7 @@ devices fetch from it (needs a direct device-to-device path, ruled out in R7).
 **Decision**: Received and sent files are kept in a vault-owned encrypted folder (spec 048) per
 device, modelled on `agent_browser::profile_store::ProfileStore` (profile_store.rs:30-121):
 `<app_local_data>/chat-files/<vault instance>/` holds an encrypted folder `Chat`, created if missing;
-files are written under `<conversation id>/<attachment id>` so equal names never clash. Whether this
+files are written under their attachment id, which is unique, so equal names never clash (PR E2a: no folder per conversation). Whether this
 device holds a file, and the state of its download, is device-local (`chat_attachment_files_no_sync`).
 
 `files::encrypted::transfer::put_file` seals a whole file in memory (transfer.rs:256). `ponytail:` chat

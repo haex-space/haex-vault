@@ -142,7 +142,8 @@
       "controls": {
         "launcher": "Launcher",
         "workspaces": "Arbeitsbereiche",
-        "windows": "Fenster"
+        "windows": "Fenster",
+        "assistant": "Sprachassistent"
       }
     },
     "workspaces": {
@@ -259,11 +260,13 @@
     "newChat": "Neuer Chat",
     "sidebar": {
       "show": "Seitenleiste einblenden",
-      "hide": "Seitenleiste ausblenden"
+      "hide": "Seitenleiste ausblenden",
+      "title": "Chats"
     },
     "threads": {
       "title": "Verlauf",
       "empty": "Noch keine Sitzungen",
+      "voice": "Sprachgespräch",
       "duration": "{duration}",
       "openedAt": "Eröffnet am {date}",
       "openedAtUnknown": "Eröffnungszeit unbekannt",
@@ -278,7 +281,10 @@
       "deleteCancelFailed": "Der laufende Turn konnte nicht sicher beendet werden. Die Sitzung bleibt erhalten.",
       "renameFailed": "Der Titel konnte nicht gespeichert werden.",
       "titleRequired": "Bitte gib einen Titel ein.",
-      "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten."
+      "titleTooLong": "Der Titel darf höchstens 120 Zeichen enthalten.",
+      "searchTranscripts": "In Mitschriften suchen",
+      "noHits": "Nichts gefunden",
+      "moreHits": "Weitere Treffer"
     },
     "close": "Schließen",
     "send": "Senden",
@@ -406,7 +412,8 @@
       "title": "Unterhaltungen",
       "muted": "Stummgeschaltet",
       "unread": "{count} ungelesen",
-      "newConversation": "Neue Unterhaltung"
+      "newConversation": "Neue Unterhaltung",
+      "requests": "Anfragen"
     },
     "peer": {
       "unknownName": "Unbekannt",
@@ -418,7 +425,6 @@
       "deleteConfirm": "Möchtest du die Unterhaltung mit {name} wirklich löschen? Sie verschwindet mit allen Nachrichten und Dateien auf all deinen Geräten.",
       "deleteButton": "Löschen",
       "missing": "Diese Unterhaltung gibt es nicht mehr.",
-      "send": "Senden",
       "counter": "{count} / {max} Zeichen",
       "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays."
     },
@@ -450,6 +456,7 @@
     },
     "notify": {
       "request": "Neue Anfrage",
+      "quietChannel": "Leise Benachrichtigungen",
       "open": "Öffnen"
     },
     "agent": {
@@ -461,6 +468,24 @@
     },
     "notes": {
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
+    },
+    "request": {
+      "banner": "{name} ist nicht in deinem Adressbuch. Nimm die Anfrage an, um zu antworten.",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "block": "Blockieren",
+      "declineTitle": "Anfrage ablehnen?",
+      "declineConfirm": "Die Unterhaltung mit {name} wird entfernt. {name} erfährt davon nichts; eine neue Nachricht kommt wieder als Anfrage.",
+      "blockTitle": "{name} blockieren?",
+      "blockConfirm": "Nachrichten von {name} werden ab jetzt verworfen, ohne Bestätigung. Die Unterhaltung wird entfernt. Aufheben kannst du das in den Einstellungen der Kontakte."
+    },
+    "search": {
+      "placeholder": "Chats durchsuchen",
+      "noNames": "Keine Unterhaltung gefunden",
+      "messages": "Nachrichten",
+      "noMessages": "Keine Nachricht gefunden",
+      "more": "Weitere Treffer vorhanden – Suchbegriff eingrenzen",
+      "error": "Die Suche ist fehlgeschlagen: {error}"
     }
   },
   "settings": {
@@ -469,8 +494,7 @@
       "description": "Ein Bild hinter allen Workspaces, auf allen Geräten der Vault.",
       "choose": "Bild wählen …",
       "remove": "Entfernen",
-      "failed": "Hintergrund konnte nicht gesetzt werden",
-      "saved": "Gespeichert."
+      "failed": "Hintergrund konnte nicht gesetzt werden"
     },
     "password": {
       "current": "Aktuelles Passwort",
@@ -487,39 +511,24 @@
     },
     "language": {
       "label": "Sprache",
-      "saved": "Gespeichert.",
       "failed": "Sprache konnte nicht gespeichert werden"
     },
     "alias": {
       "label": "Gerätename",
-      "saved": "Gespeichert.",
       "required": "Bitte einen Namen eingeben."
     },
     "sessionRestore": {
       "title": "Sitzung wiederherstellen",
-      "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden",
       "description": "Offene Fenster und Tabs beim Öffnen der Vault zurückholen"
     },
     "screenCapture": {
       "title": "Bildschirmschutz",
       "description": "Keine Bildschirmfotos und Aufnahmen, leere Vorschau in der App-Übersicht",
-      "saved": "Gespeichert.",
       "failed": "Die Einstellung konnte nicht geändert werden"
-    },
-    "default": {
-      "modelGroup": {
-        "local": "Lokale Modelle"
-      },
-      "saved": "Standard gesetzt.",
-      "empty": "Es sind noch keine Modelle installiert oder Anbieter konfiguriert.",
-      "none": "Keins",
-      "unknownModel": "{id} (nicht mehr vorhanden)",
-      "label": "Modell"
     },
     "sttModel": {
       "modelLabel": "Modell",
-      "saved": "Gewechselt.",
       "downloading": "Lade herunter…",
       "downloadFailed": "Download fehlgeschlagen",
       "notInstalled": "Standard (nicht installiert)",
@@ -552,7 +561,6 @@
       "standardDescription": "Tool-Aufrufe durchlaufen dieselbe Freigabe-Regel wie bei allen anderen Modellen (Manuell/Automatisch/Plan, im Chat einstellbar).",
       "ungatedDescription": "Der Delegat läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — Holzi greift nicht ein und fragt nicht nach.",
       "gated_permissiveDescription": "Der Delegat darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
-      "saved": "Gespeichert.",
       "saveFailed": "Autonomie-Voreinstellung konnte nicht gespeichert werden.",
       "loadFailed": "Autonomie-Voreinstellung konnte nicht geladen werden."
     },
@@ -563,7 +571,6 @@
       "network_accessDescription": "Aktionen blockieren, die auf das Netzwerk zugreifen.",
       "credential_paths": "Zugangsdaten-Pfade",
       "credential_pathsDescription": "Zugriff auf übliche Zugangsdaten-/Geheimnis-Dateipfade blockieren (.ssh, .aws, .env, …).",
-      "saved": "Gespeichert.",
       "saveFailed": "Verbotsregeln konnten nicht gespeichert werden.",
       "loadFailed": "Verbotsregeln konnten nicht geladen werden."
     },
@@ -629,20 +636,11 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Standard-Modell",
-          "description": "Welches Modell nach dem Öffnen der Vault geladen wird.",
-          "keywords": "Standard Chat Start laden"
-        },
         "remove": "Entfernen",
-        "installed": {
-          "title": "Installierte Modelle",
-          "description": "Modelle laden, aktualisieren und löschen.",
-          "keywords": "installiert laden aktualisieren Update löschen entfernen"
-        },
-        "download": {
-          "title": "Modelle herunterladen",
-          "description": "Empfohlene Modelle oder eine Suche auf HuggingFace.",
+        "local": {
+          "title": "Lokale Modelle",
+          "description": "Heruntergeladene Modelle verwalten und neue herunterladen.",
+          "keywords": "lokal installiert laden aktualisieren Update löschen entfernen herunterladen Download empfohlen HuggingFace GGUF",
           "search": {
             "title": "Auf HuggingFace suchen",
             "description": "GGUF-Modelle auf HuggingFace finden.",
@@ -650,8 +648,7 @@
           },
           "repo": {
             "title": "{owner}/{name}"
-          },
-          "keywords": "herunterladen Download empfohlen HuggingFace"
+          }
         },
         "speech": {
           "title": "Sprach-zu-Text-Modell",
@@ -666,19 +663,19 @@
             "title": "Töne",
             "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
             "keywords": "Töne Hinweistöne Klang Lautstärke Signal Sprachassistent anhören"
+          },
+          "assistant": {
+            "title": "Sprachassistent",
+            "description": "Mit haex sprechen, bis das Wake Word kommt: per Kürzel oder über die Anzeige.",
+            "keywords": "Sprachassistent Gespräch sprechen Vorschau Kürzel Anzeige Mitschrift"
           }
         },
         "providers": {
-          "title": "Abo verbinden",
-          "description": "Dein Claude-Code- oder Codex-Abo als Chat-Backend nutzen.",
-          "keywords": "Abo Anbieter verbinden Claude Code Codex CLI"
-        },
-        "servers": {
-          "title": "Modell-Server",
-          "description": "Eigene Server und Dienste mit OpenAI-kompatibler Schnittstelle.",
-          "keywords": "Server OpenAI kompatibel Ollama vLLM llama.cpp Schulserver Adresse Schlüssel API Bilder Aufwand",
-          "server": {
-            "title": "Modell-Server"
+          "title": "Anbieter",
+          "description": "Claude, Codex und OpenAI-kompatible Dienste als Chat-Backend verbinden.",
+          "keywords": "Anbieter Abo verbinden Claude Code Codex CLI OpenAI kompatibel OpenRouter Abacus Ollama vLLM llama.cpp Server Endpunkt Schulserver Adresse Schlüssel API Bilder Aufwand",
+          "provider": {
+            "title": "Endpunkt"
           }
         },
         "autonomy": {
@@ -818,7 +815,6 @@
     "iconSet": {
       "label": "Icon-Set für Dateien",
       "description": "Gilt für die Ordner und Dateien im Dateibrowser, auf allen Geräten dieser Vault.",
-      "saved": "Gespeichert.",
       "failed": "Das Icon-Set konnte nicht gespeichert werden",
       "reset": "Zurücksetzen",
       "states": {
@@ -860,7 +856,6 @@
       "light": "Hell",
       "dark": "Dunkel",
       "system": "System",
-      "saved": "Gespeichert.",
       "failed": "Das Farbschema konnte nicht gespeichert werden"
     },
     "deviceOnly": "Gilt nur für dieses Gerät",
@@ -920,7 +915,6 @@
       "deviceAccess": {
         "title": "Geräte-Dateizugriff",
         "description": "Andere Geräte dieser Vault dürfen die Dateien dieses Geräts öffnen. Freigaben an Kontakte gelten weiter.",
-        "saved": "Gespeichert.",
         "failed": "Die Einstellung konnte nicht geändert werden"
       }
     },
@@ -1027,7 +1021,6 @@
       "exportFile": "Exportieren",
       "imported": "Darstellung importiert.",
       "exported": "Darstellung gespeichert.",
-      "saved": "Gespeichert.",
       "invalid": "Ungültige Auswahl: {field}",
       "failed": "Die Darstellung konnte nicht gespeichert werden.",
       "import": {
@@ -1433,7 +1426,7 @@
       "add": "Server hinzufügen",
       "name": "Name",
       "address": "Adresse",
-      "addressHint": "Bis einschließlich /v1, etwa http://192.168.1.20:11434/v1.",
+      "addressHint": "Bis einschließlich /v1, etwa http://192.168.1.20:11434/v1 oder https://openrouter.ai/api/v1.",
       "addressProblem": {
         "empty": "Gib die Adresse des Servers an.",
         "invalid": "Das ist keine gültige Adresse.",
@@ -1466,6 +1459,15 @@
       "cancel": "Abbrechen",
       "remove": "Entfernen"
     },
+    "providers": {
+      "subscriptions": "Abos",
+      "endpoints": "Endpunkte"
+    },
+    "localModels": {
+      "onDevice": "Auf diesem Gerät",
+      "download": "Herunterladen",
+      "model": "Modell"
+    },
     "assistant": {
       "labels": {
         "enabled": "Sprachassistent",
@@ -1474,17 +1476,16 @@
         "wakeWordCustom": "Eigenes Wake Word",
         "sensitivity": "Empfindlichkeit",
         "pauseMs": "Pause bis zur Antwort",
-        "followUpSecs": "Zeit für Rückfragen",
         "continueMins": "Gespräch fortsetzen",
-        "modelId": "Modell für Gespräche",
         "voice": "Stimme",
         "speechRate": "Sprechgeschwindigkeit",
         "ttsProvider": "Sprachdienst",
         "tonesEnabled": "Töne",
         "tonesVolume": "Lautstärke der Töne",
         "headphones": "Kopfhörer",
-        "bubblePosition": "Position der Blase",
-        "noticeShown": "Hinweis gezeigt"
+        "noticeShown": "Hinweis gezeigt",
+        "tonesCustom": "Eigene Töne",
+        "preview": "Sprachassistent (Vorschau)"
       }
     },
     "voice": {
@@ -1496,11 +1497,17 @@
       "saved": "Gespeichert.",
       "saveFailed": "Nicht gespeichert: {reason}",
       "model": {
-        "installed": "Stimmenmodell geladen.",
-        "missing": "Stimmenmodell noch nicht geladen · {size} · {fit}",
-        "downloading": "Lade Stimmenmodell …",
-        "name": "Stimmenmodell {language}"
-      }
+        "downloading": "Lädt …",
+        "name": "Stimmenmodell {language}",
+        "title": "Stimmenmodell",
+        "ready": "Geladen. Alle Stimmen dieser Sprache nutzen es.",
+        "available": "{size} · {fit}",
+        "download": "Laden",
+        "downloadFailed": "Laden fehlgeschlagen: {reason}"
+      },
+      "languages": "Sprachen",
+      "voicesLabel": "Stimmen",
+      "needsModel": "Für die Probe zuerst das Stimmenmodell laden."
     },
     "tones": {
       "always": "Klingt immer, auch wenn die Töne aus sind.",
@@ -1545,7 +1552,46 @@
         "modeOff": "Der Sprachassistent wurde ausgeschaltet.",
         "muted": "Der Sprachassistent ist stummgeschaltet.",
         "unmuted": "Die Stummschaltung ist aufgehoben."
+      },
+      "custom": "Eigene Töne",
+      "customHint": "Auf allen Geräten verfügbar. Welcher Ton für welchen Anlass gilt, stellst du pro Gerät ein.",
+      "builtIn": "Mitgeliefert",
+      "pickFile": "Eigene Datei …",
+      "addFile": "Datei hinzufügen …",
+      "fileTypes": "Audiodateien",
+      "noCustom": "Noch keine eigenen Töne. Füge eine MP3-, WAV-, OGG-, FLAC- oder M4A-Datei hinzu.",
+      "duration": "{seconds} s",
+      "soundFor": "Ton für {name}",
+      "delete": "Löschen",
+      "deleteConfirm": "Auf allen Geräten löschen",
+      "deleteOf": "{name} löschen",
+      "imported": "„{name}“ hinzugefügt.",
+      "importFailed": "Nicht hinzugefügt: {reason}",
+      "reasons": {
+        "tooLarge": "Die Datei ist größer als 20 MB.",
+        "unsupported": "In der Datei ist kein lesbarer Ton. Unterstützt sind MP3, WAV, OGG, FLAC und M4A.",
+        "silent": "Die Datei enthält nur Stille.",
+        "tooLong": "Der Ton ist länger als 3 Sekunden. Kürze ihn und versuche es erneut.",
+        "tooLongWorking": "Für „Arbeitet“ darf ein Ton höchstens 1 Sekunde lang sein, weil er sich wiederholt.",
+        "unknownTone": "Diesen Ton gibt es nicht mehr."
       }
+    },
+    "assistantPage": {
+      "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
+      "saveFailed": "Konnte nicht speichern: {reason}",
+      "saved": "Gespeichert",
+      "readiness": "Was noch fehlt",
+      "ready": "Alles da: Du kannst ein Gespräch beginnen.",
+      "missing": {
+        "sttModel": "Spracherkennungsmodell",
+        "vadModel": "Pausenerkennung",
+        "wakeWordModel": "Wake Word (kommt mit einer späteren Version)",
+        "voice": "Stimmenmodell dieser Sprache",
+        "chatModel": "KI-Modell",
+        "microphone": "Mikrofon"
+      },
+      "seconds": "{value} s",
+      "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät."
     }
   },
   "models": {
@@ -1619,6 +1665,7 @@
       "revisionRef": "Verfolgter Branch/Tag",
       "install": "Installieren",
       "installing": "Wird installiert …",
+      "cancel": "Abbrechen",
       "downloadProgress": "{done} von {total}",
       "installFailed": "Installation fehlgeschlagen."
     },
@@ -1637,9 +1684,10 @@
         "unknown": "Ungeprüft"
       },
       "delete": "Entfernen",
-      "deleteConfirm": "Dieses Modell wirklich entfernen? Nur die lokale Datei wird gelöscht.",
+      "deleteConfirm": "Dieses Modell wirklich entfernen? Nur die lokale Datei wird gelöscht. Ist es aktiv, wird es dabei entladen.",
       "deleteFailed": "Entfernen fehlgeschlagen.",
-      "load": "Laden",
+      "activate": "Aktivieren",
+      "unload": "Entladen",
       "active": "Aktiv",
       "catalogLink": "Katalogeintrag anzeigen"
     },
@@ -1704,9 +1752,7 @@
     "weakPassphrase": "Passphrase erfüllt nicht die Richtlinie",
     "deviceInfoFailed": "Geräteinformationen konnten nicht geladen werden",
     "aliasSaveFailed": "Gerätename konnte nicht gespeichert werden",
-    "prefSaveFailed": "Standard-Modell konnte nicht gespeichert werden",
-    "prefClearFailed": "Standard-Modell konnte nicht gelöscht werden",
-    "prefLoadFailed": "Standard-Modell konnte nicht geladen werden",
+    "prefLoadFailed": "Die Einstellung konnte nicht geladen werden",
     "modelListFailed": "Modell-Liste konnte nicht geladen werden",
     "invalidInput": "Ungültige Eingabe.",
     "invalidIdempotencyKey": "Der Sendevorgang ist ungültig.",
@@ -1770,7 +1816,8 @@
       "notFound": "Die Erweiterung gibt es nicht (mehr).",
       "disabled": "Die Erweiterung ist deaktiviert.",
       "notReady": "Die Erweiterung ist auf diesem Gerät noch nicht bereit."
-    }
+    },
+    "operationBusy": "haex ist noch mit einer anderen Anfrage beschäftigt. Versuch es gleich noch einmal."
   },
   "actions": {
     "wm": {
@@ -1883,8 +1930,6 @@
       "models": {
         "list": "Installierte Modelle auflisten",
         "checkUpdates": "Modell-Updates prüfen",
-        "setDefault": "Standard-Modell setzen",
-        "clearDefault": "Standard-Modell entfernen",
         "setStt": "Spracherkennungsmodell wechseln",
         "downloadCatalog": "Modell aus dem Katalog herunterladen",
         "downloadFromHf": "Modell von HuggingFace herunterladen",
@@ -1977,7 +2022,8 @@
       "agentBrowser": {
         "builtinSet": "Browser-Rechte des eingebauten Agenten setzen",
         "pathSet": "Browser des Agenten-Browsers wählen",
-        "profileClear": "Profil des Agenten-Browsers löschen"
+        "profileClear": "Profil des Agenten-Browsers löschen",
+        "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen"
       }
     },
     "scopes": {
@@ -2063,7 +2109,13 @@
       "type": "In ein Feld tippen",
       "select": "Option auswählen",
       "tabsClose": "Agenten-Tab schließen",
-      "takeoverRequest": "Um Eingreifen bitten"
+      "takeoverRequest": "Um Eingreifen bitten",
+      "download": "Datei herunterladen",
+      "upload": "Datei hochladen",
+      "credentialsFill": "Anmeldedaten eintragen",
+      "entryFill": "Daten eintragen",
+      "credentialsCreate": "Neue Anmeldedaten anlegen",
+      "search": "Im Web suchen"
     },
     "syncRules": {
       "list": "Sync-Regeln auflisten",
@@ -2071,6 +2123,9 @@
       "create": "Sync-Regel anlegen",
       "update": "Sync-Regel ändern",
       "delete": "Sync-Regel löschen"
+    },
+    "assistant": {
+      "toggle": "Sprachassistent ein- oder ausschalten"
     }
   },
   "passwords": {
@@ -3021,7 +3076,10 @@
       "drives": "Laufwerke",
       "free": "{size} frei",
       "used": "{size} belegt",
-      "freeOf": "{free} frei von {total}",
+      "spaceOf": "Speicherplatz von {name}",
+      "spaceUsed": "Belegt",
+      "spaceFree": "Frei",
+      "spaceTotal": "Gesamt",
       "storages": "Cloud-Speicher",
       "addStorage": "Cloud-Speicher hinzufügen",
       "devices": "Meine Geräte",
@@ -4023,7 +4081,9 @@
       "other": "Anderer MCP-Client",
       "otherHint": "In die MCP-Konfiguration des Clients eintragen",
       "copy": "Kopieren",
-      "copied": "Kopiert"
+      "copied": "Kopiert",
+      "httpTitle": "Über HTTP verbinden",
+      "httpHint": "holzi wartet auf 127.0.0.1:{port}. Beim ersten Verbinden öffnet der Agent eine Seite im Browser; bestätige ihn dann hier in holzi."
     },
     "notification": {
       "title": "Ein Agent möchte holzi nutzen",
@@ -4111,7 +4171,15 @@
       "remove": "{site} entfernen",
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
-      "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen."
+      "hint": "Eine Website über http ohne Verschlüsselung kann der Agent nur lesen. Andere Websites fragen vor dem Öffnen.",
+      "forgetFill": "Anmeldung vergessen",
+      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
+      "requestRule": "Anfragen an {site}",
+      "requestHint": "Anfragen der Seiten an diese Website, ohne Rückfrage.",
+      "request": {
+        "allow": "Wird gesendet",
+        "deny": "Wird abgelehnt"
+      }
     },
     "extensions": {
       "title": "Erweiterungen",
@@ -4160,7 +4228,10 @@
       "agent": "Agent",
       "site": {
         "title": "Website öffnen?",
-        "hint": "Diese Website ist für den Agenten nicht erlaubt. Ohne deine Zustimmung lädt der Browser nichts von ihr. Inhalte von Webseiten können versuchen, den Agenten zu lenken."
+        "hint": "Diese Website ist für den Agenten nicht erlaubt. Ohne deine Zustimmung lädt der Browser nichts von ihr. Inhalte von Webseiten können versuchen, den Agenten zu lenken.",
+        "remember": "Für diese Website merken",
+        "site-operate": "Bedienen erlauben",
+        "site-read": "Nur lesen"
       },
       "action": {
         "title": "Handlung im Browser erlauben?",
@@ -4169,7 +4240,13 @@
       "submit": {
         "title": "An die Website senden?",
         "hint": "Der Agent möchte etwas an die Website schicken, zum Beispiel ein Formular, eine Bestellung oder eine Löschung. Ohne deine Zustimmung wird nichts gesendet.",
-        "fields": "Was gesendet würde"
+        "fields": "Was gesendet würde",
+        "body": "Inhalt"
+      },
+      "request": {
+        "title": "Anfrage der Seite senden?",
+        "hint": "Die Seite selbst möchte etwas an diese Website schicken, zum Beispiel eine Messung oder ein Formular. Ohne deine Zustimmung wird nichts gesendet.",
+        "remember": "Für diese Website merken"
       },
       "newTab": {
         "title": "Neuen Tab öffnen?",
@@ -4182,16 +4259,47 @@
         "allow": "Eingreifen",
         "reason": "Grund"
       },
+      "download": {
+        "title": "Großen Download behalten?",
+        "hint": "Der Agent hat einen Download über 100 MB ausgelöst. Er lädt weiter, bis du entscheidest; der Agent bekommt die Datei erst mit deiner Zustimmung. Ohne Zustimmung bricht holzi ihn ab und löscht, was angekommen ist.",
+        "allow": "Behalten",
+        "size": "Größe"
+      },
+      "fill": {
+        "title": "Anmeldedaten eintragen?",
+        "hint": "Der Agent möchte sich auf dieser Website anmelden. holzi trägt Benutzername, Passwort und gegebenenfalls den Einmalcode selbst ein; der Agent sieht keinen davon. Mit „Für diese Website merken“ trägt holzi hier künftig ohne Rückfrage ein, solange nur ein Eintrag passt.",
+        "remember": "Für diese Website merken",
+        "choose": "Welcher Eintrag?",
+        "entry": "Eintrag",
+        "untitled": "Ohne Titel"
+      },
+      "entryFill": {
+        "title": "Daten aus dem Passwortmanager eintragen?",
+        "hint": "holzi trägt die angehakten Felder des gewählten Eintrags selbst ein; der Agent sieht weder den Eintrag noch die Werte. Das Absenden des Formulars fragt danach noch einmal. Diese Rückfrage kommt bei jedem Aufruf.",
+        "allow": "Eintragen",
+        "purpose": "Zweck",
+        "rows": "Was eingetragen wird",
+        "otp": "Einmalcode",
+        "frame": "Rahmen von {site}"
+      },
+      "newCredentials": {
+        "title": "Neue Anmeldedaten speichern?",
+        "hint": "Der Agent legt auf dieser Website eine Anmeldung an. holzi hat ein Passwort erzeugt und selbst eingetragen; der Agent sieht es nicht. „Speichern“ legt einen Eintrag mit diesem Benutzernamen im Passwortmanager an, „Ablehnen“ leert die Passwortfelder wieder.",
+        "allow": "Speichern",
+        "username": "Benutzername"
+      },
       "address": "Adresse",
       "target": "Ziel",
       "more": "Danach warten noch {count} Fragen.",
       "deny": "Ablehnen",
       "allow": "Erlauben",
-      "allowOnce": "Nur diesmal",
-      "rememberRead": "Merken: lesen",
-      "rememberOperate": "Merken: bedienen",
       "siteLabel": "Website",
-      "actionLabel": "Handlung"
+      "actionLabel": "Handlung",
+      "switchOn": {
+        "title": "Browser für den Agenten einschalten?",
+        "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen; jede Website fragt beim ersten Besuch trotzdem einzeln. Ausschalten kannst du ihn unter Einstellungen → KI → Browser.",
+        "allow": "Einschalten"
+      }
     },
     "settings": {
       "browser": "Browser",
@@ -4206,11 +4314,58 @@
       "pathReset": "Wieder suchen",
       "profileProblem": "Das gespeicherte Profil ließ sich nicht lesen; der Browser startete ohne Anmeldungen.",
       "builtin": "Eingebauter Agent",
+      "builtinPasswords": "Passwörter für den eingebauten Agenten",
+      "builtinPasswordsHint": "Aus diesen Einträgen darf holzi Anmeldedaten in Websites des Agenten-Browsers eintragen. Der eingebaute Agent sieht die Werte nie.",
       "profile": "Profil",
       "profileHint": "Anmeldungen auf Websites liegen verschlüsselt auf diesem Gerät.",
       "clear": "Profil löschen",
       "cancel": "Abbrechen",
       "cleared": "Profil gelöscht. Der nächste Start beginnt ohne Anmeldungen."
+    }
+  },
+  "assistant": {
+    "phase": {
+      "off": "Sprachassistent aus",
+      "ready": "Bereit",
+      "listening": "Hört zu",
+      "thinking": "Denkt nach",
+      "working": "Arbeitet",
+      "speaking": "Spricht",
+      "followUp": "Wartet auf Rückfrage",
+      "awaitingAnswer": "Wartet auf deine Antwort"
+    },
+    "on": "Sprachassistent: an",
+    "off": "Sprachassistent: aus",
+    "name": "Sprachassistent",
+    "failed": "Sprachassistent: {reason}",
+    "transcript": {
+      "title": "Mitschrift",
+      "empty": "In dieser Sitzung wurde noch nichts gesprochen.",
+      "unspoken": "nicht vorgelesen",
+      "loadFailed": "Die Mitschrift ließ sich nicht laden: {reason}"
+    },
+    "speaker": {
+      "user": "Du",
+      "haex": "haex"
+    },
+    "kind": {
+      "announcement": "Ansage",
+      "progress": "Fortschritt",
+      "report": "Meldung",
+      "approvalQuestion": "Freigabe",
+      "approvalAnswer": "Antwort auf Freigabe",
+      "choiceQuestion": "Rückfrage",
+      "choiceAnswer": "Antwort auf Rückfrage",
+      "stop": "Stopp",
+      "closing": "Schluss",
+      "notUnderstood": "nicht verstanden",
+      "secretNote": "vorgelesen"
+    },
+    "outcome": {
+      "approved": "bestätigt",
+      "declined": "abgelehnt",
+      "open": "offen",
+      "cancelled": "abgebrochen"
     }
   }
 }

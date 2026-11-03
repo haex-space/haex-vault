@@ -1,4 +1,4 @@
-//! SQL of migration `0051_sync_rules_source_target` (spec 075): the two places of a sync rule are the
+//! SQL of migration `0052_sync_rules_source_target` (spec 075): the two places of a sync rule are the
 //! source and the target, not "A" and "B". It renames the stored columns of `0044_sync_rules` and
 //! rewrites the stored direction and side values, so rules, the per-file state, pending deletions and
 //! the run log of an existing vault keep their meaning.
@@ -7,9 +7,9 @@
 //! `UPDATE` changes only the old values (`CASE … ELSE side END`): a value it does not know stays as it
 //! is, and the readers keep ignoring such a row as they do for one a newer version wrote.
 
-/// The migration `0051_sync_rules_source_target`; registered in
+/// The migration `0052_sync_rules_source_target`; registered in
 /// [`super::migrations::holzi_migration_source`].
-pub const SYNC_RULES_SOURCE_TARGET_0051: &str = r#"ALTER TABLE haex_sync_rules_no_sync RENAME COLUMN place_a_source TO source_location;
+pub const SYNC_RULES_SOURCE_TARGET_0052: &str = r#"ALTER TABLE haex_sync_rules_no_sync RENAME COLUMN place_a_source TO source_location;
 --> statement-breakpoint
 ALTER TABLE haex_sync_rules_no_sync RENAME COLUMN place_a_path TO source_path;
 --> statement-breakpoint

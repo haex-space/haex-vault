@@ -18,8 +18,8 @@ use super::{Tool, ToolRegistry};
 
 pub const FIND_ACTIONS_TOOL_NAME: &str = "find_actions";
 pub const MAX_SEARCH_RESULTS: usize = 5;
-/// Core (at most 9), `find_actions`, `ask_user` and a full page of search hits.
-pub const MAX_ACTION_OFFER: usize = 16;
+/// Core (at most 11), `find_actions`, `ask_user` and a full page of search hits.
+pub const MAX_ACTION_OFFER: usize = 18;
 
 pub fn tool_spec(tool: &dyn Tool) -> ToolSpec {
     ToolSpec {
@@ -97,8 +97,8 @@ pub fn extend_offer(
 
     request_tools.retain(|tool| !searchable(&tool.name) || extensions.pinned.contains(&tool.name));
 
-    // One slot each stays for `find_actions` and `ask_user`.
-    let max_found = MAX_ACTION_OFFER.saturating_sub(core_names.len() + 2);
+    // One slot each stays for `find_actions` and `ask_user`; at most one page of hits.
+    let max_found = MAX_SEARCH_RESULTS.min(MAX_ACTION_OFFER.saturating_sub(core_names.len() + 2));
     let mut added = 0;
     for tool in found {
         if added >= max_found

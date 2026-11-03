@@ -96,6 +96,39 @@ pub(super) struct Select {
     pub(super) value: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FillLogin {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+}
+
+/// `browser.entry.fill`: the form and the agent's purpose, shown to the user as its statement.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct EntryFill {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+    pub(super) purpose: String,
+}
+
+/// `browser.credentials.create`: the new password field and the username the agent chose.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct NewLogin {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) username: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Upload {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) path: String,
+}
+
 pub(super) fn input<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, NativeError> {
     serde_json::from_value(value)
         .map_err(|error| NativeError::invalid_input(None, error.to_string()))

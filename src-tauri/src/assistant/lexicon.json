@@ -38,7 +38,12 @@
         "gespräch beenden",
         "ende",
         "schluss",
-        "nichts weiter"
+        "nichts weiter",
+        "pause",
+        "mach pause",
+        "mach mal pause",
+        "mach eine pause",
+        "pause machen"
       ],
       "en": [
         "that's all",
@@ -52,7 +57,10 @@
         "end conversation",
         "we're done",
         "i'm done",
-        "nothing else"
+        "nothing else",
+        "pause",
+        "take a break",
+        "pause now"
       ],
       "fr": [
         "c'est tout",
@@ -62,7 +70,10 @@
         "à plus",
         "fin de la conversation",
         "terminé",
-        "rien d'autre"
+        "rien d'autre",
+        "pause",
+        "fais une pause",
+        "fais pause"
       ],
       "es": [
         "eso es todo",
@@ -71,7 +82,10 @@
         "hasta luego",
         "terminar conversación",
         "fin",
-        "ya está"
+        "ya está",
+        "pausa",
+        "haz una pausa",
+        "pausa ahora"
       ],
       "it": [
         "è tutto",
@@ -82,7 +96,10 @@
         "a dopo",
         "fine conversazione",
         "fine",
-        "nient'altro"
+        "nient'altro",
+        "pausa",
+        "fai una pausa",
+        "pausa adesso"
       ],
       "pt": [
         "é tudo",
@@ -93,7 +110,10 @@
         "até mais",
         "encerrar conversa",
         "fim",
-        "mais nada"
+        "mais nada",
+        "pausa",
+        "faz uma pausa",
+        "faça uma pausa"
       ]
     },
     {
@@ -113,6 +133,7 @@
         "super",
         "prima",
         "alles klar",
+        "bitte",
         "haex",
         "hey haex"
       ],
@@ -127,6 +148,7 @@
         "alright",
         "all right",
         "cool",
+        "please",
         "haex",
         "hey haex"
       ],
@@ -412,6 +434,15 @@
       "es": "La otra respuesta todavía no ha terminado. Pregúntame de nuevo en un momento.",
       "it": "L'altra risposta non è ancora finita. Chiedimelo di nuovo tra poco.",
       "pt": "A outra resposta ainda não terminou. Pergunte de novo daqui a pouco."
+    },
+    {
+      "id": "say.delegate",
+      "de": "Hinweis: Dieses Modell kann mit dir sprechen, aber keine Aufgaben in haex erledigen.",
+      "en": "Note: this model can talk with you, but it cannot do tasks in haex.",
+      "fr": "Remarque : ce modèle peut parler avec toi, mais il ne peut pas effectuer de tâches dans haex.",
+      "es": "Aviso: este modelo puede hablar contigo, pero no puede hacer tareas en haex.",
+      "it": "Nota: questo modello può parlare con te, ma non può svolgere attività in haex.",
+      "pt": "Aviso: este modelo pode conversar com você, mas não pode fazer tarefas no haex."
     },
     {
       "id": "say.goodbye",

@@ -16,7 +16,7 @@ use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
 use super::AgentBrowser;
 use crate::caller::Caller;
 use crate::error::{HolziError, Result};
-use crate::mcp_server::grants::BrowserRights;
+use crate::mcp_server::grants::{BrowserRights, PasswordRights};
 
 #[derive(Debug, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +27,12 @@ pub struct AgentBrowserAnswerArgs {
     #[serde(default)]
     #[ts(optional)]
     pub remember: Option<Remember>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub entry: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub skip: Option<Vec<String>>,
 }
 
 /// The window's answer to a browser question. An unknown id (the question ended) is no error.
@@ -40,6 +46,8 @@ pub async fn agent_browser_prompt_answer(
         super::prompts::BrowserAnswer {
             decision: args.decision,
             remember: args.remember,
+            entry: args.entry,
+            skip: args.skip,
         },
     ))
 }
@@ -87,6 +95,8 @@ pub struct AgentBrowserStatus {
     pub profile_problem: Option<String>,
     /// The browser rights of the built-in agent; `None` is off.
     pub builtin: Option<BrowserRights>,
+    /// The entries the built-in agent's fills may use; `None` is off.
+    pub builtin_passwords: Option<PasswordRights>,
 }
 
 #[tauri::command]
@@ -103,6 +113,7 @@ pub async fn agent_browser_status<R: Runtime>(
             running: None,
             profile_problem: None,
             builtin: None,
+            builtin_passwords: None,
         });
     }
     let chosen = env::chosen_path(&app).await;
@@ -114,6 +125,7 @@ pub async fn agent_browser_status<R: Runtime>(
         running: browser.product().await,
         profile_problem: browser.profile_problem(),
         builtin: env::builtin_rights(&app).await,
+        builtin_passwords: env::builtin_password_rights(&app).await,
     })
 }
 
@@ -140,6 +152,25 @@ pub async fn agent_browser_builtin_set<R: Runtime>(
         sessions.end(&Caller::BuiltinAgent).await;
     }
     Ok(())
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserBuiltinPasswordsArgs {
+    /// `None` switches fills from the password manager off for the built-in agent.
+    pub rights: Option<PasswordRights>,
+}
+
+/// Behind `settings.agentBrowser.builtinPasswords.set` (decided 2026-11-02).
+#[tauri::command]
+pub async fn agent_browser_builtin_passwords_set<R: Runtime>(
+    app: AppHandle<R>,
+    args: AgentBrowserBuiltinPasswordsArgs,
+) -> Result<()> {
+    env::set_builtin_password_rights(&app, args.rights)
+        .await
+        .map_err(|reason| HolziError::InvalidInput { reason })
 }
 
 #[derive(Debug, Deserialize, TS)]

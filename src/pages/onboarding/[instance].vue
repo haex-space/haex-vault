@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import type { DeviceInfo } from '~/composables/useDevice'
 import type { TierRecommendation } from '~/composables/useCatalog'
 import type { SttCatalogEntry } from '~/composables/useSttCatalog'
@@ -20,6 +21,7 @@ const { downloadFromCatalogAsync } = useModels()
 const { recommendTiersAsync: recommendSttTiersAsync } = useSttCatalog()
 const { downloadFromCatalogAsync: downloadSttFromCatalogAsync } = useSttModels()
 const { setPrefAsync } = usePreferences()
+const { activateLocalModelAsync } = useChat()
 
 const instanceName = computed(() => {
   const raw = route.params.instance
@@ -39,7 +41,8 @@ const downloadError = ref<string | null>(null)
 const sttTiers = ref<TierRecommendation<SttCatalogEntry>[]>([])
 const sttDownloadingId = ref<string | null>(null)
 const sttDownloadError = ref<string | null>(null)
-const loadError = ref<string | null>(null)
+/** The device info could not be read (its error went out as a toast); no loading notice then. */
+const loadFailed = ref(false)
 
 onMounted(async () => {
   try {
@@ -49,7 +52,8 @@ onMounted(async () => {
       deviceInfo.value?.hostname ??
       t('onboarding.alias.defaultPlaceholder')
   } catch (e) {
-    loadError.value = errString(e)
+    loadFailed.value = true
+    toast.error(`${t('errors.deviceInfoFailed')}: ${errString(e)}`)
     return
   }
   try {
@@ -80,7 +84,7 @@ async function finishOnboardingAsync() {
   try {
     await finalizeAliasAsync()
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('errors.deviceInfoFailed')}: ${errString(e)}`)
     return
   }
   await navigateTo(`/workspace/${encodeURIComponent(instanceName.value)}`, {
@@ -98,14 +102,20 @@ async function completeWithModel(rec: TierRecommendation) {
   try {
     // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
     const installed = await downloadFromCatalogAsync(rec.entry.id)
-    // Set device-scoped default model — the wizard's explicit
-    // selection is a device standard (spec 002 §FR-007).
+    // The wizard's explicit choice is the model a new chat starts with: the last picked one
+    // (spec 002 FR-007, FR-009 as amended 2026-11-02). There is no default model.
     // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
     await setPrefAsync(
       { kind: 'device', uuid: info.vaultDeviceUuid },
-      'chat.default_model_id',
+      'chat.last_active_model_id',
       installed.id,
     )
+    // The model goes into memory in the background and stays there as the active local model, so
+    // the first chat can use it. A failure holds nothing up: the settings activate it again.
+    // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
+    void activateLocalModelAsync(installed.id).catch((e: unknown) => {
+      console.error('[onboarding] activating the model failed', e)
+    })
     step.value = 'sttModel'
   } catch (e) {
     downloadError.value = errString(e)
@@ -154,12 +164,8 @@ async function completeSttWithModel(rec: TierRecommendation<SttCatalogEntry>) {
         </p>
       </div>
 
-      <p v-if="loadError" class="text-sm text-destructive" role="alert">
-        {{ t('errors.deviceInfoFailed') }}: {{ loadError }}
-      </p>
-
       <div
-        v-if="!deviceInfo && !loadError"
+        v-if="!deviceInfo && !loadFailed"
         class="text-sm text-muted-foreground"
       >
         {{ t('onboarding.wizard.loadingDeviceInfo') }}

@@ -102,6 +102,35 @@ impl SiteLevel {
     }
 }
 
+/// What an agent's browser does with a request a page sends to a website, without asking
+/// (spec 065 FR-044): the user's "Für diese Website merken".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum RequestRule {
+    /// Send it.
+    Allow,
+    /// Refuse it.
+    Deny,
+}
+
+impl RequestRule {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny => "deny",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "allow" => Some(Self::Allow),
+            "deny" => Some(Self::Deny),
+            _ => None,
+        }
+    }
+}
+
 /// One allowed website.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -124,6 +153,10 @@ pub struct BrowserRights {
     #[serde(default)]
     #[ts(as = "BTreeMap<String, SiteGrant>")]
     pub sites: BTreeMap<Site, SiteGrant>,
+    /// Rules for the requests a page sends to a website (FR-044), by the website they go to.
+    #[serde(default)]
+    #[ts(as = "BTreeMap<String, RequestRule>")]
+    pub requests: BTreeMap<Site, RequestRule>,
 }
 
 /// The scopes of the group `passwords`: the search and the single secret.
@@ -165,6 +198,11 @@ pub struct PasswordRights {
     /// The tag names whose entries it reaches; `None` reaches every entry.
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    /// The tag a new entry of the agent gets (spec 065 FR-036, like a browser extension's grant in
+    /// spec 049 FR-010); with [`PasswordLevel::ReadWrite`] and chosen tags it is one of them.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub default_tag: Option<String>,
 }
 
 impl PasswordRights {
@@ -233,6 +271,9 @@ pub enum InvalidRights {
     /// A tag scope of the passwords needs at least one tag.
     #[error("a tag scope needs at least one tag")]
     EmptyTags,
+    /// Writing within chosen tags needs one of them for new entries.
+    #[error("new entries need one of the chosen tags")]
+    DefaultTag,
 }
 
 /// Refuses a scope no agent may get, the guardrails above all (FR-016).
@@ -251,6 +292,16 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
             .is_some_and(|tags| tags.iter().all(|tag| tag.trim().is_empty()))
     }) {
         return Err(InvalidRights::EmptyTags);
+    }
+    if let Some(PasswordRights {
+        level: PasswordLevel::ReadWrite,
+        tags: Some(tags),
+        default_tag,
+    }) = &rights.passwords
+    {
+        if !default_tag.as_ref().is_some_and(|tag| tags.contains(tag)) {
+            return Err(InvalidRights::DefaultTag);
+        }
     }
     let sites = rights.browser.iter().flat_map(|browser| &browser.sites);
     for (site, grant) in sites {

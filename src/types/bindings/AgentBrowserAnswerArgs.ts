@@ -2,4 +2,4 @@
 import type { BrowserDecision } from "./BrowserDecision";
 import type { Remember } from "./Remember";
 
-export type AgentBrowserAnswerArgs = { requestId: string, decision: BrowserDecision, remember?: Remember, };
+export type AgentBrowserAnswerArgs = { requestId: string, decision: BrowserDecision, remember?: Remember, entry?: string, skip?: Array<string>, };

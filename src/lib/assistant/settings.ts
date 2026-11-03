@@ -14,17 +14,16 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.wakeWord.custom',
   'assistant.sensitivity',
   'assistant.pauseMs',
-  'assistant.followUpSecs',
   'assistant.continueMins',
-  'assistant.modelId',
   'assistant.voice.<sprache>',
   'assistant.speechRate',
   'assistant.ttsProvider',
   'assistant.tones.enabled',
   'assistant.tones.volume',
+  'assistant.tones.custom',
   'assistant.headphones',
-  'assistant.bubble.position',
   'assistant.noticeShown',
+  'assistant.preview',
 ] as const
 export type AssistantSettingKey = (typeof ASSISTANT_SETTING_KEYS)[number]
 
@@ -58,6 +57,26 @@ export function parseSpeechRate(value: string | null): number {
     : SPEECH_RATE.default
 }
 
+/** How long a pause ends what was said (FR-012); 1.5 s since a thinking pause of 0.8 s ended it
+ * too early (operator 2026-11-02). */
+export const PAUSE_KEY = 'assistant.pauseMs'
+export const PAUSE_MS = {
+  min: 500,
+  max: 3000,
+  step: 100,
+  default: 1500,
+} as const
+
+/** The pause the assistant uses for a stored value: the default when it is missing or no whole
+ * number, else clamped to the range, as `read_settings` and `PauseDetector::new` do. */
+export function parsePause(value: string | null): number {
+  const text = value?.trim() ?? ''
+  const ms = /^[+-]?\d+$/.test(text) ? Number(text) : Number.NaN
+  return Number.isSafeInteger(ms)
+    ? Math.min(Math.max(ms, PAUSE_MS.min), PAUSE_MS.max)
+    : PAUSE_MS.default
+}
+
 /** `ToneId` of contracts/tauri-commands.md, in the order of FR-043. */
 export const TONE_IDS = [
   'listening',
@@ -84,6 +103,16 @@ export const ALWAYS_AUDIBLE_TONES: readonly ToneId[] = ['listening', 'secret']
 export const TONES_ENABLED_KEY = 'assistant.tones.enabled'
 export const TONES_VOLUME_KEY = 'assistant.tones.volume'
 export const TONES_VOLUME = { min: 0, max: 100, step: 5, default: 60 } as const
+/** Which own tone sounds for which occasion on this device (FR-045a); written by the backend. */
+export const TONES_CUSTOM_KEY = 'assistant.tones.custom'
+/** The file types an own tone can come from (FR-045a). */
+export const TONE_FILE_EXTENSIONS = [
+  'mp3',
+  'wav',
+  'ogg',
+  'flac',
+  'm4a',
+] as const
 
 /** A stored switch: only `"false"` turns the tones off. */
 export function parseTonesEnabled(value: string | null): boolean {
@@ -98,4 +127,13 @@ export function parseTonesVolume(value: string | null): number {
     volume <= TONES_VOLUME.max
     ? volume
     : TONES_VOLUME.default
+}
+
+/** Until the wake word (PR D), conversations are reachable only with this switch: it shows the
+ * indicator and enables the talk shortcut (T045). */
+export const PREVIEW_KEY = 'assistant.preview'
+
+/** A stored switch: only `"true"` turns the preview on. */
+export function parsePreview(value: string | null): boolean {
+  return value === 'true'
 }

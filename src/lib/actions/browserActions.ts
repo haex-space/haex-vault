@@ -59,6 +59,25 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...CHANGING,
   },
   {
+    id: 'browser.search',
+    titleKey: 'actions.browser.search',
+    description:
+      "Search the web for current or outside information (news, prices, opening hours, facts you do not know): opens the search engine's result page for the query in the agent browser and reads it. Then open the results that fit with browser.open or browser.follow_link and answer from them." +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search words, at most 500 characters.',
+        },
+      },
+      required: ['query'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
     id: 'browser.tabs.open',
     titleKey: 'actions.browser.tabsOpen',
     description:
@@ -215,6 +234,142 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     },
     result: PAGE,
     ...CHANGING,
+  },
+  {
+    id: 'browser.credentials.fill',
+    titleKey: 'actions.browser.credentialsFill',
+    description:
+      'Log in on the page of an agent tab with an entry of the password manager: holzi fills in the username, the password and a one-time code itself; you never see them and get only filled: true, or filled: false with a reason (not_encrypted, no_fields). Name the form by the number of any of its elements, or leave it out for the login form. The first fill per website asks the user. Never type passwords yourself. Filled values are hidden from every later result, and screenshots stay off for the rest of the session.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        form: {
+          type: 'integer',
+          description:
+            'An element number of the form to fill; without it, the form with the password field.',
+        },
+      },
+      required: ['tab'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        filled: { type: 'boolean' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
+    id: 'browser.credentials.create',
+    titleKey: 'actions.browser.credentialsCreate',
+    description:
+      'Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. holzi generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: {
+          type: 'integer',
+          description: 'The element number of the new password field.',
+        },
+        username: {
+          type: 'string',
+          description:
+            'The username or email address of the new login, at most 200 characters.',
+        },
+      },
+      required: ['tab', 'element', 'username'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        created: { type: 'boolean' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
+    id: 'browser.entry.fill',
+    titleKey: 'actions.browser.entryFill',
+    description:
+      'Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers holzi filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.',
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        form: {
+          type: 'integer',
+          description:
+            'An element number of the form to fill; without it, the form with a password field, else the page.',
+        },
+        purpose: {
+          type: 'string',
+          description:
+            'What the data is for, shown to the user; at most 200 characters.',
+        },
+      },
+      required: ['tab', 'purpose'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        filled: { type: 'array', items: { type: 'integer' } },
+        in_frames: { type: 'integer' },
+        reason: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
+    id: 'browser.download',
+    titleKey: 'actions.browser.download',
+    description:
+      "Click a link or button that downloads a file, by its element number, and keep the file. It lands in the folder HaexVault/<vault> of the system's downloads folder; you get its name, size, type and path, and read it only with the file tools where your file rights reach. A download over 100 MB asks the user first.",
+    input: {
+      type: 'object',
+      properties: { tab: TAB, element: ELEMENT },
+      required: ['tab', 'element'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string' },
+        name: { type: 'string' },
+        size: { type: 'integer' },
+        type: { type: 'string' },
+        path: { type: 'string' },
+      },
+    },
+    ...CHANGING,
+  },
+  {
+    id: 'browser.upload',
+    titleKey: 'actions.browser.upload',
+    description:
+      'Put a file of this device into a file field of the page, by the element number of the field or of the button that opens it, and read the page after it. Only files your file rights reach; uploading counts as sending and always asks the user first. Sending the form afterwards asks again.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: ELEMENT,
+        path: {
+          type: 'string',
+          description: 'The absolute path of the file on this device.',
+        },
+      },
+      required: ['tab', 'element', 'path'],
+    },
+    result: PAGE,
+    ...SHARED,
+    effect: 'destructive',
+    confirmsItself: true,
   },
   {
     id: 'browser.tabs.close',

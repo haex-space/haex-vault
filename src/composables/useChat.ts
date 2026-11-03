@@ -16,6 +16,7 @@ import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { utcOffsetMinutes } from '~/lib/assistant/wire'
 
 export interface Thread {
   id: string
@@ -23,6 +24,8 @@ export interface Thread {
   lastModelId: string | null
   createdAt: number
   updatedAt: number
+  /** `'voice'` for a spoken conversation (spec 066 T051), `null` for a typed one. */
+  origin: 'voice' | null
 }
 
 export interface Message {
@@ -287,6 +290,8 @@ export interface ModelLoadErrorEvent {
  * `chat-message-complete`, `chat-message-error`).
  */
 export function useChat() {
+  let sessionModelQueue: Promise<void> = Promise.resolve()
+
   let latestVaultGeneration: number | null = null
   let latestLoadId = -1
 
@@ -352,7 +357,8 @@ export function useChat() {
     const result = await invoke<Omit<SendMessageResult, 'idempotencyKey'>>(
       'send_message',
       {
-        args: { ...args, idempotencyKey },
+        // The model is told the user's local date and time.
+        args: { ...args, idempotencyKey, utcOffsetMinutes: utcOffsetMinutes() },
       },
     )
     return { ...result, idempotencyKey }
@@ -387,33 +393,67 @@ export function useChat() {
   }
 
   /**
-   * Loads a model into the chat session. Accepts either a local
-   * catalog id (`"llama-3.1-8b"`) or a composite api_key id
-   * (`"<provider_uuid>:claude-opus-5"`); the backend routes on the
-   * colon.
+   * Loads a model into the chat session. Accepts a composite api_key id
+   * (`"<provider_uuid>:claude-opus-5"`) or the id of the active local model, which is already in
+   * memory; the chat never loads a local model itself (`activateLocalModelAsync` does).
    */
   async function loadModelAsync(modelId: string): Promise<LoadedModelInfo> {
     return await invoke<LoadedModelInfo>('load_model', { modelId })
   }
 
   /**
-   * Explicit, confirmation-gated bypass of the pre-load integrity check
-   * (spec 005 §"load_model und lokale Integritätsprüfung") — the
-   * `load_untrusted` action of the integrity dialog. Marks the model
-   * `untrusted` and loads the file currently on disk as-is; never touches
-   * the expected `fileSha256`.
+   * Loads the installed local model into memory and makes it the active one; the one that was
+   * active is unloaded. Runs the pre-load integrity check (spec 005 §"load_model und lokale
+   * Integritätsprüfung"). Has nothing to do with the model the chat session uses.
    */
-  async function loadModelWithIntegrityOverrideAsync(
+  async function activateLocalModelAsync(
     modelId: string,
   ): Promise<LoadedModelInfo> {
-    return await invoke<LoadedModelInfo>('load_model_with_integrity_override', {
-      modelId,
-    })
+    return await invoke<LoadedModelInfo>('activate_local_model', { modelId })
   }
 
-  /** Unloads the model currently held by the chat session. */
-  async function unloadModelAsync(): Promise<void> {
-    await invoke('unload_local_model')
+  /**
+   * Explicit, confirmation-gated bypass of the pre-load integrity check — the `load_untrusted`
+   * action of the integrity dialog. Marks the model `untrusted` and activates the file currently
+   * on disk as-is; never touches the expected `fileSha256`.
+   */
+  async function activateLocalModelWithIntegrityOverrideAsync(
+    modelId: string,
+  ): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>(
+      'activate_local_model_with_integrity_override',
+      { modelId },
+    )
+  }
+
+  /** Unloads the active local model; a chat session that ran it ends with it. */
+  async function deactivateLocalModelAsync(): Promise<void> {
+    await invoke('deactivate_local_model')
+  }
+
+  /** The active local model, or `null` when none is loaded. */
+  async function activeLocalModelInfoAsync(): Promise<LoadedModelInfo | null> {
+    return await invoke<LoadedModelInfo | null>('active_local_model_info')
+  }
+
+  /**
+   * The person picked `modelId` in the model menu: loads it and remembers it as the model a new
+   * session starts with (spec 002 FR-009 as amended 2026-11-02).
+   */
+  async function selectModelAsync(modelId: string): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>('select_model', { modelId })
+  }
+
+  /**
+   * Loads the model of the session `threadId` when another one is loaded: a continued session
+   * keeps its model, a new one (`null`) starts with the last picked model (spec 006).
+   */
+  async function useSessionModelAsync(threadId: string | null): Promise<void> {
+    const pending = sessionModelQueue.then(async () => {
+      await invoke('use_session_model', { threadId })
+    })
+    sessionModelQueue = pending.catch(() => {})
+    await pending
   }
 
   /** Returns metadata for the loaded model, or `null` when none is loaded. */
@@ -581,8 +621,12 @@ export function useChat() {
     inspectAttachmentAsync,
     respondToolPermissionAsync,
     loadModelAsync,
-    loadModelWithIntegrityOverrideAsync,
-    unloadModelAsync,
+    selectModelAsync,
+    useSessionModelAsync,
+    activateLocalModelAsync,
+    activateLocalModelWithIntegrityOverrideAsync,
+    deactivateLocalModelAsync,
+    activeLocalModelInfoAsync,
     activeModelInfoAsync,
     onToken,
     onMessageComplete,

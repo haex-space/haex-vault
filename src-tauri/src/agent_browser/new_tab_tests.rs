@@ -37,6 +37,7 @@ impl BrowserEnv for Env {
             )]
             .into_iter()
             .collect(),
+            ..Default::default()
         })
     }
 
@@ -54,6 +55,44 @@ impl BrowserEnv for Env {
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
         std::future::pending().await
+    }
+
+    fn downloads_folder(&self) -> Result<std::path::PathBuf, String> {
+        Err("no downloads in this test".to_owned())
+    }
+
+    async fn file_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<(
+        crate::files::local::OwnPlaces,
+        crate::files::access::AgentGrants,
+    )> {
+        None
+    }
+
+    async fn password_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<crate::mcp_server::grants::PasswordRights> {
+        None
+    }
+
+    fn passwords(&self) -> Option<crate::passwords::service::PasswordsService> {
+        None
+    }
+
+    async fn remember_request(
+        &self,
+        _: &Caller,
+        _: &Site,
+        _: crate::mcp_server::grants::RequestRule,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn remember_fill(&self, _: &Caller, _: &Site) -> Result<(), String> {
+        Ok(())
     }
 }
 

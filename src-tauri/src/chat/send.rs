@@ -26,17 +26,16 @@ use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
 use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
 use crate::error::{HolziError, Result};
+use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::storage::chat_threads::ThreadOrigin;
 use crate::storage::providers::ProviderKind;
 use crate::storage::{
     chat_messages::{self as msg_store, ChatMessage, MessageRole},
-    chat_threads as thread_store, models as models_store, preferences,
-    preferences::PrefScope,
+    chat_threads as thread_store, models as models_store,
 };
 
-use super::commands::PREF_LAST_ACTIVE_MODEL;
 use super::send_admission::{
     persist_send_transaction, resolve_idempotent_send, IdempotentSend, PersistedSend,
 };
@@ -57,6 +56,9 @@ pub struct StartTurn {
     pub idempotency_key: String,
     /// System prompt for this generation only; not persisted.
     pub system_prompt: Option<String>,
+    /// The window's offset from UTC in minutes, so the model is told the user's local date and
+    /// time; `None` tells it the time in UTC.
+    pub utc_offset_minutes: Option<i32>,
     /// Cap on generated tokens; `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
     /// Autonomy posture for a `cli_delegate` backend (spec 009); ignored by other adapters.
@@ -311,15 +313,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sessions.resume(&crate::caller::Caller::BuiltinAgent);
     }
 
-    // The thread and user message were persisted atomically above.
-    // Spec 002 §FR-009: `chat.last_active_model_id` is written
-    // EXCLUSIVELY here, never by `load_model` — the message is the user's
-    // intent signal, a picker-only click is not. The preference is
-    // committed after adapter startup succeeds so a failed send cannot
-    // roll back a newer overlapping send's value.
-    let session_model_id = session.model_id.clone();
-    let this_device = db.device_id();
-    let preference_model_id = session_model_id.clone();
+    // The thread and user message were persisted atomically above. Sending no longer writes
+    // `chat.last_active_model_id`: only a pick in the model menu does (`select_model`, spec 002
+    // FR-009 as amended 2026-11-02), so continuing a session with its own model does not change
+    // what a new session starts with.
     let is_new_thread = turn.thread_id.is_none();
 
     // Build the request from full history + the just-inserted user turn.
@@ -411,7 +408,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
-        system_prompt: system_prompt(turn.system_prompt.as_deref(), &tools),
+        system_prompt: system_prompt(
+            turn.system_prompt.as_deref(),
+            &tools,
+            Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
+        ),
         messages,
         reasoning_requested,
         max_new_tokens: turn.max_new_tokens,
@@ -467,17 +468,6 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             });
         }
     };
-
-    db.write(move |tx| {
-        preferences::insert_or_update(
-            tx,
-            PrefScope::Device(this_device),
-            PREF_LAST_ACTIVE_MODEL,
-            &preference_model_id,
-        )
-        .map(|_| ())
-    })
-    .await?;
 
     if let Ok(payload) = serde_json::to_value(ToolAvailabilityEvent {
         thread_id,

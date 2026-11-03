@@ -78,7 +78,7 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
-voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue"]
+voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
 # Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
 # using the sound card, so e2e scenarios can speak to it. Never part of a release build.
 e2e-audio = ["voice"]
@@ -207,6 +207,12 @@ haex-crdt = { git = "https://github.com/haexmas/haex-crdt", rev = "928d06af1ef61
 # the `haex` tool of the vault-sdk (which uses its WebAssembly build). Pinned to the merge commit
 # of haex-space/vault-sdk#94, which checks the `openers` block (spec 063).
 haex-bundle = { git = "https://github.com/haex-space/vault-sdk", rev = "517402a94c7c2b5f2093f38e3930f4019ddbba8d" }
+# The autofill rule shared with haex-pass-browser (spec 065 research R7a, vault-sdk PR #96).
+haex-autofill = { git = "https://github.com/haex-space/vault-sdk", rev = "ae3dfc73e71395c230c4c5bf95c5e850e345d7c3" }
+# The password generator (spec 034 FR-013/FR-014, spec 065 FR-036): its one implementation, shared
+# with haex-pass-browser (which moves to its WebAssembly build). Pinned to the merge commit of
+# haex-space/vault-sdk#98.
+haex-passgen = { git = "https://github.com/haex-space/vault-sdk", rev = "4f5294f60b75ba0a073a7818a93464d8d8ad7c68" }
 # Versions of bundles, compared as the format parses them (effective bundle = highest, R11).
 semver = "1"
 
@@ -333,6 +339,8 @@ anyhow = "1"
 # the `voice` feature. Pure Rust, no separate cross-compile path for mobile.
 cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
+# Spec 066 FR-045a: reads the user's own tones (MP3, WAV, OGG/Vorbis, FLAC, M4A/AAC). Pure Rust.
+symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["mp3", "wav", "pcm", "flac", "ogg", "vorbis", "isomp4", "aac"] }
 # Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
 # above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
 # mistralrs 0.8.1 already resolves to, so only one candle version tree
@@ -468,7 +476,7 @@ plist = "1.10"
 # (Cargo.toml `[dependencies]` comment above).
 # Spec 021 T091: `auth` and the reqwest HTTP client drive a real MCP OAuth client against the HTTP way.
 rmcp = { version = "=3.5.0", default-features = false, features = ["server", "auth", "transport-streamable-http-client-reqwest", "reqwest"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "test-util"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "test-util", "signal", "time"] }
 futures = "0.3"
 # HTTP mock server for adapter tests — spins a local listener on a
 # random port, allows scripted responses, and shuts down on Drop.

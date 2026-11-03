@@ -2,7 +2,8 @@
 /**
  * The rights group "Browser" of an agent (spec 065 FR-005, data-model.md): off by default; when on,
  * the websites the agent may open, each with "Lesen" or "Bedienen". A website over plain http can
- * only be read (research R9). Rust checks every change again.
+ * only be read (research R9). A website where the user chose "Für diese Website merken" for a
+ * login fill shows it and can forget it (FR-021). Rust checks every change again.
  */
 import { siteOf } from '~/lib/agents/rights'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
@@ -34,7 +35,10 @@ const levelOptions = computed(() =>
 )
 
 function toggle(on: boolean) {
-  emit('update:modelValue', on ? { userBrowser: false, sites: {} } : null)
+  emit(
+    'update:modelValue',
+    on ? { userBrowser: false, sites: {}, requests: {} } : null,
+  )
 }
 
 function change(next: Partial<BrowserRights>) {
@@ -51,6 +55,28 @@ function setLevel(site: string, level: string) {
       [site]: { ...current, level: level as SiteLevel },
     },
   })
+}
+
+function forgetFill(site: string) {
+  const current = props.modelValue?.sites[site]
+  if (!current) return
+  change({
+    sites: {
+      ...props.modelValue?.sites,
+      [site]: { ...current, fillRemembered: false },
+    },
+  })
+}
+
+const requests = computed(() =>
+  Object.entries(props.modelValue?.requests ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  ),
+)
+
+function forgetRequest(site: string) {
+  const { [site]: _removed, ...rest } = props.modelValue?.requests ?? {}
+  change({ requests: rest })
 }
 
 function remove(site: string) {
@@ -100,7 +126,19 @@ function plain(site: string): boolean {
         data-testid="mcp-browser-site"
         :data-site="site"
       >
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <UiButton
+            v-if="grant.fillRemembered"
+            type="button"
+            size="sm"
+            variant="outline"
+            :disabled="disabled"
+            :title="t('mcpAgents.browser.fillRememberedHint')"
+            :data-testid="`mcp-browser-forget-fill-${site}`"
+            @click="forgetFill(site)"
+          >
+            {{ t('mcpAgents.browser.forgetFill') }}
+          </UiButton>
           <SettingsSelect
             :model-value="plain(site) ? 'read' : grant.level"
             class="w-40"
@@ -125,6 +163,30 @@ function plain(site: string): boolean {
         v-if="sites.length === 0"
         :title="t('mcpAgents.browser.none')"
       />
+      <SettingsRow
+        v-for="[site, rule] in requests"
+        :key="`request:${site}`"
+        :title="t('mcpAgents.browser.requestRule', { site })"
+        :description="t('mcpAgents.browser.requestHint')"
+        data-testid="mcp-browser-request-rule"
+        :data-site="site"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm">
+            {{ t(`mcpAgents.browser.request.${rule}`) }}
+          </span>
+          <UiButton
+            type="button"
+            size="sm"
+            variant="outline"
+            :disabled="disabled"
+            :data-testid="`mcp-browser-forget-request-${site}`"
+            @click="forgetRequest(site)"
+          >
+            {{ t('mcpAgents.browser.removeShort') }}
+          </UiButton>
+        </div>
+      </SettingsRow>
       <div class="flex flex-col gap-1 p-4">
         <div class="flex items-end gap-2">
           <UiInput

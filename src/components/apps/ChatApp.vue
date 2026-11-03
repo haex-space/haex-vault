@@ -1,9 +1,7 @@
 <script setup lang="ts">
 /*
- * Orchestration of the chat window manager app (specs 015, 072): shared state, model-store wiring,
- * permission/autonomy persistence, listener setup and the app contract (`useWmTab`). The parts live
- * in their composables (`useChatTranscript`, `useThreadSidebar`, `useComposer`, …) and components
- * (`ThreadSidebar`, `AgentHeader`, `MessageList`, `Composer`, `PeerConversation`).
+ * Orchestration of the chat app (specs 015, 072): shared state, model store, permission mode,
+ * listeners and the app contract (`useWmTab`); the parts live in composables and components.
  */
 import {
   computed,
@@ -12,13 +10,15 @@ import {
   ref,
   nextTick,
   useTemplateRef,
+  watch,
 } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
+import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
-const instancesStore = useInstancesStore()
 const wm = useWindowManagerStore()
 const wmTab = useWmTab()
 const { t } = useI18n()
@@ -30,8 +30,6 @@ const { errString } = useErrorString()
 const pendingPrompts = ref<PendingPrompt[]>([])
 const unlisteners: UnlistenFn[] = []
 let unmounted = false
-
-const instanceName = computed(() => instancesStore.activeInstance ?? '')
 
 const messagesByThread = ref<Record<string, Message[]>>({})
 const activeThreadId = ref<string | null>(null)
@@ -99,11 +97,7 @@ const {
 
 // Spec 072: contact and group conversations share the list and the window with the agent's.
 const peers = useConversations(errString)
-const activePeerId = ref<string | null>(null)
-const activePeer = computed(
-  () =>
-    peers.conversations.value.find((c) => c.id === activePeerId.value) ?? null,
-)
+const { activePeerId } = peers
 const newContactOpen = ref(false)
 
 const { attachments, addAttachments, removeAttachment } =
@@ -114,9 +108,7 @@ const composerRef = useTemplateRef<{ reset: () => Promise<void> } | null>(
   'composer',
 )
 const messagesScroll = useTemplateRef<HTMLElement>('messagesScroll')
-async function resetTextarea() {
-  await composerRef.value?.reset()
-}
+const resetTextarea = async () => composerRef.value?.reset()
 
 // chatTranscript/threadSidebar need each other's functions — resolved via a placeholder swapped for the real refreshThreads once threadSidebar exists.
 let refreshThreadsForTranscript = async () => {}
@@ -173,6 +165,7 @@ const {
   editingThreadId,
   draftTitle,
   editTitleError,
+  renameError,
   renamingThreadId,
   deleteCandidate,
   deleteError,
@@ -199,11 +192,69 @@ const activeMessages = computed<Message[]>(() => {
   return messagesByThread.value[activeThreadId.value] ?? []
 })
 
-/** Scrolls the message viewport to its newest item after rendering. */
-async function scrollToBottom() {
+// Spec 066 T127: a spoken session can show its transcript instead of its messages. A search hit
+// in "Verlauf" opens the session with the transcript at that entry; another session starts with
+// its messages.
+const transcriptOpen = ref(false)
+// `request` counts the selections, so choosing the same hit again scrolls to it again.
+const transcriptFocus = ref<{ id: string; request: number } | null>(null)
+let focusRequests = 0
+let pendingTranscript: { threadId: string; id: string } | null = null
+const activeIsVoice = computed(
+  () =>
+    threads.value.find((thread) => thread.id === activeThreadId.value)
+      ?.origin === 'voice',
+)
+watch(activeThreadId, (threadId) => {
+  const pending = pendingTranscript
+  pendingTranscript = null
+  const hit = pending?.threadId === threadId ? pending : null
+  transcriptOpen.value = hit !== null
+  transcriptFocus.value = hit ? { id: hit.id, request: ++focusRequests } : null
+})
+// Closing the transcript returns to the newest message.
+watch(transcriptOpen, (isOpen) => {
+  if (!isOpen) void scrollToBottom({ force: true })
+})
+function openTranscript(hit: { threadId: string; id: string }) {
+  if (hit.threadId === activeThreadId.value) {
+    transcriptOpen.value = true
+    transcriptFocus.value = { id: hit.id, request: ++focusRequests }
+    return
+  }
+  pendingTranscript = hit
+  void ui.openConversation(hit.threadId)
+}
+
+/** Whether the viewport follows new content: true while the reader is at its end, false once
+ * they scrolled up to read earlier messages. */
+let followsBottom = true
+/** The viewport's `scrollTop` at the previous scroll event, to tell a move up from a move down. */
+let lastScrollTop = 0
+
+function onMessagesScroll() {
+  const el = messagesScroll.value
+  if (!el) return
+  followsBottom = followsAfterScroll(followsBottom, lastScrollTop, el)
+  lastScrollTop = el.scrollTop
+}
+
+/**
+ * Scrolls the message viewport to its newest item after rendering, but only while the reader is
+ * at the end: a reply that is being written must not pull them away from what they scrolled up to
+ * read. `force` is for what the reader just did themselves, sending a message or opening a thread.
+ */
+async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
+  // The transcript shares this viewport; it must stay where a search hit scrolled it.
+  if (transcriptOpen.value && activeIsVoice.value) return
+  if (!force && !followsBottom) return
   await nextTick()
   const el = messagesScroll.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  // The reader may have scrolled up while the render was pending.
+  if (!force && !followsBottom) return
+  el.scrollTop = el.scrollHeight
+  followsBottom = true
 }
 
 const {
@@ -284,8 +335,15 @@ const { syncFromLocation, ui } = useChatTab({
   abort,
   newChat,
   updatePermissionMode,
-  peer: { ...peers, activePeerId },
+  peer: { ...peers, parkShare: useShareInboxStore().park },
 })
+
+/** A message hit of the sidebar's search (spec 076 FR-012): its conversation, for the agent the
+ * session holding the message. */
+function openHit(hit: ChatSearchHit) {
+  if (hit.kind === 'agent') ui.openConversation(hit.threadId)
+  else ui.openPeerConversation(hit.threadId)
+}
 
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
 // must appear here without reloading. While a turn runs here its own events and its turn-complete
@@ -360,9 +418,13 @@ onBeforeUnmount(() => {
 
 <template>
   <ChatSidebarLayout>
-    <template #sidebar="{ run }">
+    <template
+      #sidebar="{ run, collapsed, toggle, toggleLabel, toggleExpanded }"
+    >
       <ChatThreadSidebar
-        :instance-name="instanceName"
+        :collapsed="collapsed"
+        :toggle-label="toggleLabel"
+        :toggle-expanded="toggleExpanded"
         :threads="threads"
         :agent-active="activePeerId === null"
         :peers="peers.conversations.value"
@@ -372,20 +434,24 @@ onBeforeUnmount(() => {
         @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
         @new-conversation="newContactOpen = true"
+        @toggle="toggle"
+        @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
 
     <ChatPeerConversation
       v-if="activePeerId !== null"
-      :conversation="activePeer"
+      :conversation="peers.active.value"
       :send="ui.sendPeer"
       :resend="ui.resendPeer"
       @mute="ui.mute"
       @delete="ui.deletePeer"
+      @answer="ui.answerRequest"
     />
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
       <ChatAgentHeader
+        v-model:transcript="transcriptOpen"
         :threads="threads"
         :active-thread-id="activeThreadId"
         :busy="busy"
@@ -397,6 +463,7 @@ onBeforeUnmount(() => {
           :editing-thread-id="editingThreadId"
           :draft-title="draftTitle"
           :edit-title-error="editTitleError"
+          :rename-error="renameError"
           :renaming-thread-id="renamingThreadId"
           :delete-candidate="deleteCandidate"
           :delete-error="deleteError"
@@ -411,6 +478,7 @@ onBeforeUnmount(() => {
           @request-delete="requestDelete"
           @close-delete-dialog="closeDeleteDialog"
           @confirm-delete="ui.confirmDelete"
+          @open-transcript="openTranscript"
         />
       </ChatAgentHeader>
       <ChatStatusBanners
@@ -434,8 +502,15 @@ onBeforeUnmount(() => {
           ref="messagesScroll"
           data-messages-scroll
           class="flex-1 min-h-0 overflow-y-auto px-4 py-6 md:px-8"
+          @scroll.passive="onMessagesScroll"
         >
+          <ChatVoiceTranscript
+            v-if="transcriptOpen && activeIsVoice && activeThreadId"
+            :thread-id="activeThreadId"
+            :focus="transcriptFocus"
+          />
           <ChatMessageList
+            v-else
             :active-messages="activeMessages"
             :show-model-selection="showModelSelection"
             :active-model-name="activeModel?.name"

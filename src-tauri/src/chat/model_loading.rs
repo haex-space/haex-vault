@@ -34,8 +34,10 @@ use crate::models::paths;
 use crate::providers::build_adapter;
 use crate::state::AppState;
 use crate::state_utils::active_database;
+use crate::storage::preferences::{self, PrefScope};
 use crate::storage::{models as models_store, providers as providers_store};
 
+use super::commands::PREF_LAST_ACTIVE_MODEL;
 use super::events::{emit_load_error, emit_load_progress, emit_model_load_status};
 use super::session::{ActiveSession, ChatState};
 use super::tools::selftest::spawn_tool_use_check;
@@ -69,6 +71,34 @@ pub struct LoadedModelInfo {
     pub engine: Option<&'static str>,
 }
 
+/// What a load is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LoadMode {
+    /// The model of the chat session: a provider's model, or the active local model, which is
+    /// already in memory and is only picked up here. The chat never loads a local model itself.
+    Chat,
+    /// The active local model: loaded into memory, apart from the chat's session. Only the
+    /// settings and the vault-open preload do this.
+    Activate,
+}
+
+/// How a load runs: what it is for, and whether the failed integrity check of a local model is
+/// bypassed (only the explicit "load anyway" of the integrity dialog).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LoadOptions {
+    pub(crate) mode: LoadMode,
+    pub(crate) integrity_override: bool,
+}
+
+impl LoadOptions {
+    pub(crate) fn new(mode: LoadMode) -> Self {
+        Self {
+            mode,
+            integrity_override: false,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct LoadIdentity {
     pub(crate) vault_generation: u64,
@@ -88,6 +118,16 @@ impl LoadPhase {
             Self::CudaJitWarmup => "cuda-jit-warmup",
             Self::Ready => "ready",
         }
+    }
+}
+
+/// Whether a newer load or a closed vault has replaced this one. A chat load that starts while a
+/// local model is being activated does not replace the activation: the two are apart, and the
+/// active model stays loaded whatever the chat chooses; only a closed vault ends an activation.
+fn superseded(chat: &ChatState, identity: LoadIdentity, mode: LoadMode) -> bool {
+    match mode {
+        LoadMode::Chat => !chat.is_current_load(identity.vault_generation, identity.load_id),
+        LoadMode::Activate => chat.vault_generation() != identity.vault_generation,
     }
 }
 
@@ -136,17 +176,23 @@ pub(crate) async fn load_model_inner(
     model_id: &str,
     identity: LoadIdentity,
     cancel: Option<&CancellationToken>,
-    integrity_override: bool,
+    options: LoadOptions,
 ) -> Result<LoadOutcome> {
+    let LoadOptions {
+        mode,
+        integrity_override,
+    } = options;
     #[cfg(not(feature = "llm-cpu"))]
     let _ = integrity_override;
 
-    if cancelled(cancel) || !chat.is_current_load(identity.vault_generation, identity.load_id) {
+    if mode == LoadMode::Activate && model_id.contains(':') {
+        return Err(HolziError::InvalidInput {
+            reason: "only a local model can be activated".into(),
+        });
+    }
+    if cancelled(cancel) || superseded(chat, identity, mode) {
         return Ok(LoadOutcome::Cancelled);
     }
-    // Another model is about to be the active one: the check of the last one is moot.
-    chat.cancel_tool_check();
-
     let name = resolve_display_name(state, model_id)
         .await
         .unwrap_or_else(|| model_id.to_string());
@@ -183,11 +229,18 @@ pub(crate) async fn load_model_inner(
                 .map(|server| server.delegate_access()),
         });
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
+    } else if mode == LoadMode::Chat {
+        // Nothing to load: the chat takes the engine of the active local model.
+        chat.session_for_local_model(model_id)
+            .ok_or_else(|| HolziError::InvalidInput {
+                reason: "the local model is not active".into(),
+            })?
     } else {
         #[cfg(feature = "llm-cpu")]
         {
             let phase = local_load_phase();
-            if !publish_load_phase(
+            // A chat load that took over the status meanwhile is no reason to stop the activation.
+            publish_load_phase(
                 app,
                 chat,
                 LoadIdentity { ..identity },
@@ -195,8 +248,8 @@ pub(crate) async fn load_model_inner(
                 &name,
                 phase,
                 None,
-            ) || cancelled(cancel)
-            {
+            );
+            if cancelled(cancel) {
                 return Ok(LoadOutcome::Cancelled);
             }
             // Resolve all database metadata before entering the cancellable
@@ -221,15 +274,13 @@ pub(crate) async fn load_model_inner(
         }
     };
 
-    if cancelled(cancel) || !chat.is_current_load(identity.vault_generation, identity.load_id) {
+    if cancelled(cancel) || superseded(chat, identity, mode) {
         return Ok(LoadOutcome::Cancelled);
     }
 
-    // A local model nobody knows anything about is checked in the background (spec 032 FR-018b).
-    let local_adapter = session
-        .provider_id
-        .is_none()
-        .then(|| Arc::clone(&session.adapter));
+    // A local model nobody knows anything about is checked in the background (spec 032 FR-018b),
+    // once, when it is loaded.
+    let local_adapter = (mode == LoadMode::Activate).then(|| Arc::clone(&session.adapter));
 
     let info = LoadedModelInfo {
         model_id: session.model_id.clone(),
@@ -238,24 +289,37 @@ pub(crate) async fn load_model_inner(
         context_window: session.context_window,
         engine: session.engine,
     };
-    *chat.session.lock().map_err(|e| HolziError::CrdtInit {
-        reason: format!("chat.session mutex poisoned: {e}"),
-    })? = Some(session);
-    chat.set_model_ready(
+    match mode {
+        LoadMode::Chat => {
+            *chat.session.lock().map_err(|e| HolziError::CrdtInit {
+                reason: format!("chat.session mutex poisoned: {e}"),
+            })? = Some(session);
+        }
+        LoadMode::Activate => {
+            // Another local model becomes the active one: the check of the last one is moot. Only
+            // now, so a failed load leaves the check of the retained model running.
+            chat.cancel_tool_check();
+            chat.replace_local_model(Some(session));
+        }
+    }
+    // An activation goes on when a chat load takes over the status meanwhile (`superseded`); its
+    // `Ready` would then report the chat load as done while that one still runs.
+    if chat.set_model_ready(
         identity.vault_generation,
         identity.load_id,
         info.model_id.clone(),
         info.name.clone(),
-    );
-    emit_load_progress(
-        app,
-        identity.vault_generation,
-        identity.load_id,
-        model_id,
-        &info.name,
-        LoadPhase::Ready,
-        None,
-    );
+    ) {
+        emit_load_progress(
+            app,
+            identity.vault_generation,
+            identity.load_id,
+            model_id,
+            &info.name,
+            LoadPhase::Ready,
+            None,
+        );
+    }
     if let Some(adapter) = local_adapter {
         let token = chat.begin_tool_check();
         spawn_tool_use_check(app, info.model_id.clone(), adapter, token);
@@ -263,18 +327,11 @@ pub(crate) async fn load_model_inner(
     Ok(LoadOutcome::Loaded(info))
 }
 
-/// Loads a model (local catalog id or `<provider_id>:<remote_id>`) into
-/// the active session. If another model was already loaded, it is dropped
-/// first. The preload, when present, is cancelled before acquiring the
-/// serialised manual-operation guard.
-///
-/// For a local model this runs the mandatory pre-load integrity check
-/// (contracts/tauri-commands.md §"load_model und lokale Integritätsprüfung")
-/// — a hash mismatch, missing file, missing expected hash, or hashing
-/// error returns a structured `ModelIntegrity*` error instead of loading.
-/// The frontend renders that as a decision dialog; `load_untrusted` there
-/// calls [`load_model_with_integrity_override`] instead of retrying this
-/// command.
+/// Loads the model of the chat session: a provider's model (`<provider_id>:<remote_id>`), or the
+/// active local model, which is already in memory and only picked up here. A local model that is
+/// not active is refused: the chat never loads one, the settings activate it
+/// ([`super::local_model::activate_local_model`]). If another model was the session's, it is
+/// dropped first.
 #[tauri::command]
 pub async fn load_model(
     app: AppHandle,
@@ -282,34 +339,69 @@ pub async fn load_model(
     chat: State<'_, ChatState>,
     model_id: String,
 ) -> Result<LoadedModelInfo> {
-    load_model_command(app, state, chat, model_id, false).await
+    load_model_command(app, state, chat, model_id, false, LoadMode::Chat).await
 }
 
-/// Explicit, confirmation-gated bypass of the integrity check above
-/// (contracts/tauri-commands.md: the `load_untrusted` option of the
-/// integrity dialog). Loads whatever file is currently on disk and marks
-/// `integrityStatus = 'untrusted'`; `file_sha256` is left untouched, so
-/// the next normal `load_model` call will ask again.
+/// `select_model`: the person picks a model in the model menu. Loads it like [`load_model`] and,
+/// once it is loaded, remembers it as the last picked model (`chat.last_active_model_id`), which a
+/// new session starts with (spec 002 FR-009 as amended 2026-11-02). Only this pick counts: a
+/// session that is continued with its own model, a retry, a download or the vault-open preload do
+/// not change it.
 #[tauri::command]
-pub async fn load_model_with_integrity_override(
+pub async fn select_model(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
     model_id: String,
 ) -> Result<LoadedModelInfo> {
-    load_model_command(app, state, chat, model_id, true).await
+    let info = load_model_command(
+        app,
+        state.clone(),
+        chat,
+        model_id.clone(),
+        false,
+        LoadMode::Chat,
+    )
+    .await?;
+    remember_picked_model(&state, model_id).await?;
+    Ok(info)
 }
 
-async fn load_model_command(
+/// Writes `model_id` as the last picked model of this device.
+pub(crate) async fn remember_picked_model(
+    state: &State<'_, AppState>,
+    model_id: String,
+) -> Result<()> {
+    let db = active_database(state)?;
+    let device = db.device_id();
+    db.write(move |tx| {
+        preferences::insert_or_update(
+            tx,
+            PrefScope::Device(device),
+            PREF_LAST_ACTIVE_MODEL,
+            &model_id,
+        )
+        .map(|_| ())
+    })
+    .await?;
+    Ok(())
+}
+
+pub(super) async fn load_model_command(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
     model_id: String,
     integrity_override: bool,
+    mode: LoadMode,
 ) -> Result<LoadedModelInfo> {
-    chat.cancel_preload_and_wait().await;
-    emit_model_load_status(&app, &chat);
     let _operation = chat.acquire_operation()?;
+    // An activation replaces the preload; a chat load leaves it running. The lock comes first: a
+    // refused activation must not have cancelled the preload.
+    if mode == LoadMode::Activate {
+        chat.cancel_preload_and_wait().await;
+        emit_model_load_status(&app, &chat);
+    }
     let (vault_generation, load_id) = chat.begin_model_load();
     let identity = LoadIdentity {
         vault_generation,
@@ -322,7 +414,10 @@ async fn load_model_command(
         &model_id,
         identity,
         None,
-        integrity_override,
+        LoadOptions {
+            mode,
+            integrity_override,
+        },
     );
     match state.gate().run(load).await? {
         Ok(LoadOutcome::Loaded(info)) => Ok(info),
@@ -448,7 +543,7 @@ pub(crate) async fn load_api_key_model(
 /// synchronised `models` catalog row.
 ///
 /// `integrity_override` is `true` only for the explicit
-/// `load_model_with_integrity_override` path (contracts/tauri-commands.md
+/// `activate_local_model_with_integrity_override` path (contracts/tauri-commands.md
 /// §"load_model und lokale Integritätsprüfung"): it skips the blocking
 /// hash comparison and marks the row `untrusted` instead of `verified`,
 /// but never skips the file-existence check and never rewrites
@@ -679,20 +774,6 @@ pub(crate) async fn resolve_display_name(
     }
 }
 
-/// Drops the current session, if any. Idempotent.
-#[tauri::command]
-pub async fn unload_local_model(app: AppHandle, chat: State<'_, ChatState>) -> Result<()> {
-    chat.cancel_tool_check();
-    chat.cancel_preload_and_wait().await;
-    emit_model_load_status(&app, &chat);
-    let _operation = chat.acquire_operation()?;
-    let mut guard = chat.session.lock().map_err(|e| HolziError::CrdtInit {
-        reason: format!("chat.session mutex poisoned: {e}"),
-    })?;
-    *guard = None;
-    Ok(())
-}
-
 /// Introspection — `None` when no model is loaded. `name` is resolved the
 /// same way `load_model_inner` resolves it (`resolve_display_name`), not
 /// read off `ActiveSession` directly — that struct carries no display-name
@@ -720,14 +801,22 @@ pub async fn active_model_info(
     let Some(session) = session else {
         return Ok(None);
     };
-    let name = resolve_display_name(&state, &session.model_id)
+    Ok(Some(describe(&state, session).await))
+}
+
+/// What the frontend shows of a loaded model; `name` is resolved like [`load_model_inner`] does.
+pub(crate) async fn describe(
+    state: &State<'_, AppState>,
+    session: ActiveSession,
+) -> LoadedModelInfo {
+    let name = resolve_display_name(state, &session.model_id)
         .await
         .unwrap_or_else(|| session.model_id.clone());
-    Ok(Some(LoadedModelInfo {
+    LoadedModelInfo {
         model_id: session.model_id,
         name,
         tokenizer_repo: session.tokenizer_repo,
         context_window: session.context_window,
         engine: session.engine,
-    }))
+    }
 }

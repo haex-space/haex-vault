@@ -170,6 +170,8 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
     assistantMessageId: 'answer',
   }),
   active_model_info: () => ({ modelId: 'model' }),
+  // No local model is active by default; the chat's own model above is a provider's.
+  active_local_model_info: () => null,
   model_load_status: () => ({ status: 'idle', vaultGeneration: 0 }),
   get_pref: () => null,
   list_installed_models: () => [],
@@ -178,10 +180,12 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
   close_instance: () => {},
   current_device_info: () => ({ vaultDeviceUuid: 'device' }),
   // Inert by default: `active_model_info` above already returns a truthy
-  // model, so `models.ts`'s `autoLoadFirstAvailableModel()` short-circuits
+  // model, so `models.ts`'s `restoreLastModel()` short-circuits
   // before ever calling this — only reached by a test that overrides
   // `active_model_info` to simulate nothing being active yet.
   resolve_default_model: () => ({ modelId: null, source: 'none' }),
+  // Opening a session or starting a new one loads that session's model (spec 006).
+  use_session_model: () => ({ modelId: 'model', source: 'session' }),
 }
 
 const RETURN_STATEMENT = `
@@ -192,7 +196,7 @@ const RETURN_STATEMENT = `
       handleChoiceRequest: chatTranscript.handleChoiceRequest,
       threads, messagesByThread, activeThreadId,
       input, busy, activeModel, modelLoadPending, draftTitle,
-      editingThreadId, editTitleError, deleteCandidate, deleteError,
+      editingThreadId, editTitleError, renameError, deleteCandidate, deleteError,
       composerInputDisabled, sendDisabled, pendingPrompts, streamingMessageId,
       streamingThreadId, lastError,
       updatePermissionMode, permissionMode, permissionModeSaving, syncFromLocation,
@@ -339,10 +343,22 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/toolNotice.ts'),
         req,
       )
+    // Pure TS shared with the check scripts (whether the transcript follows new content).
+    if (specifier === '~/lib/chat/scrollFollow')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/chat/scrollFollow.ts'),
+        req,
+      )
     // Marketplace error keys are a pure helper imported by useErrorString.
     if (specifier === '~/lib/marketplace/errors')
       return runComposable(
         resolvePath(repoRoot, 'src/lib/marketplace/errors.ts'),
+        req,
+      )
+    // The window's offset from UTC that `useChat` sends with a message: pure, runs as it is.
+    if (specifier === '~/lib/assistant/wire')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/assistant/wire.ts'),
         req,
       )
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.
@@ -429,6 +445,7 @@ export function createChatState(
     'storeToRefs',
     'useAgentModelState',
     'useConversations',
+    'useShareInboxStore',
     'navigateTo',
     'document',
     `${pageCode}\n${RETURN_STATEMENT}`,
@@ -518,8 +535,13 @@ export function createChatState(
         openNoteAsync: async () => ({ threadId: '' }),
         muteAsync: async () => {},
         deleteAsync: async () => {},
+        requestCardAsync: async () => ({ cardText: '' }),
+        requestAnswerAsync: async () => {},
+        activePeerId: ref(null),
+        active: ref(null),
       }
     },
+    () => ({ park: () => {} }),
     pageGlobals.navigateTo ?? (() => {}),
     { querySelector: () => null },
   )

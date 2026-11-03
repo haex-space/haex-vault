@@ -58,7 +58,7 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.mcp.grants.set',
     titleKey: 'actions.settings.agents.mcp.grants.set',
     description:
-      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change, and the websites of the rights group "browser" (spec 065). A scope left out is nothing; without "browser" the group is off. User only.',
+      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change, and the rights groups "browser" (spec 065), "passwords", "extensions" and "commands". A scope left out is nothing; a group left out is off. User only.',
     input: {
       type: 'object',
       properties: {
@@ -75,7 +75,23 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
               type: 'object',
               nullable: true,
               description:
-                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } } }.',
+                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } }, requests: { "<https://host>": "allow" | "deny" } }.',
+            },
+            passwords: {
+              type: 'object',
+              nullable: true,
+              description:
+                'The rights group "passwords": { level: "read" | "readWrite", tags: null for every entry or the tag names, defaultTag }.',
+            },
+            extensions: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'The ids of the installed extensions whose tools the agent sees.',
+            },
+            commands: {
+              type: 'boolean',
+              description: 'The rights group "Befehle ausführen".',
             },
           },
           required: ['operate'],

@@ -9,11 +9,13 @@
 pub mod commands;
 pub mod delivery;
 pub mod envelope;
+pub mod files;
 pub mod ids;
 pub mod messages;
 pub mod notify;
 pub mod outbox;
 pub mod receive;
+pub mod requests;
 pub mod send;
 pub mod service;
 pub mod session;

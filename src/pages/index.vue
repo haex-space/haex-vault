@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PickedFile } from '@bindings/PickedFile'
+import { toast } from 'vue-sonner'
 
 const { t } = useI18n()
 const colorScheme = useColorScheme()
@@ -7,6 +8,13 @@ const language = useLanguage()
 const { language: activeLanguage, options: languageOptions } = language
 const store = useInstancesStore()
 const { activeNameAsync } = useInstance()
+// A failed read of the vault list shows as a toast.
+watch(
+  () => store.lastError,
+  (message) => {
+    if (message) toast.error(message)
+  },
+)
 
 const createSheetOpen = ref(false)
 const linkSheetOpen = ref(false)
@@ -172,10 +180,6 @@ async function onUnlocked(name: string) {
         :instances="store.instances"
         @select="onSelect"
       />
-
-      <p v-if="store.lastError" class="text-sm text-destructive" role="status">
-        {{ store.lastError }}
-      </p>
     </div>
 
     <OnboardingCreateSheet

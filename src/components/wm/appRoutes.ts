@@ -65,38 +65,32 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   ai: defineAsyncComponent(
     () => import('~/components/settings/OverviewView.vue'),
   ),
-  'ai.default': defineAsyncComponent(
-    () => import('~/components/settings/DefaultModelSetting.vue'),
+  'ai.local': defineAsyncComponent(
+    () => import('~/components/settings/LocalModelsView.vue'),
   ),
-  'ai.installed': defineAsyncComponent(
-    () => import('~/components/settings/InstalledModels.vue'),
-  ),
-  'ai.download': defineAsyncComponent(
-    () => import('~/components/settings/DownloadModels.vue'),
-  ),
-  'ai.download.search': defineAsyncComponent(
+  'ai.local.search': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceSearch.vue'),
   ),
-  'ai.download.repo': defineAsyncComponent(
+  'ai.local.repo': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceFilePicker.vue'),
+  ),
+  'ai.providers': defineAsyncComponent(
+    () => import('~/components/settings/ProvidersView.vue'),
+  ),
+  'ai.providers.provider': defineAsyncComponent(
+    () => import('~/components/settings/ModelServerView.vue'),
   ),
   'ai.speech': defineAsyncComponent(
     () => import('~/components/settings/SttModelSetting.vue'),
+  ),
+  'ai.speech.assistant': defineAsyncComponent(
+    () => import('~/components/settings/assistant/AssistantSetting.vue'),
   ),
   'ai.speech.voice': defineAsyncComponent(
     () => import('~/components/settings/assistant/VoiceSetting.vue'),
   ),
   'ai.speech.tones': defineAsyncComponent(
     () => import('~/components/settings/assistant/TonesSetting.vue'),
-  ),
-  'ai.providers': defineAsyncComponent(
-    () => import('~/components/settings/ConnectDelegateProvider.vue'),
-  ),
-  'ai.servers': defineAsyncComponent(
-    () => import('~/components/settings/ModelServersView.vue'),
-  ),
-  'ai.servers.server': defineAsyncComponent(
-    () => import('~/components/settings/ModelServerView.vue'),
   ),
   'ai.autonomy': defineAsyncComponent(
     () => import('~/components/settings/AutonomyModeSetting.vue'),

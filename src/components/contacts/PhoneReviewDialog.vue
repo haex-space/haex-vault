@@ -20,19 +20,17 @@ const review = shallowRef<ContactsPhoneReview | null>(null)
 const merge = ref<Record<string, boolean>>({})
 const loading = ref(false)
 const busy = ref(false)
-const error = ref<string | null>(null)
 
 watch(
   open,
   async (now) => {
     if (!now) return
     loading.value = true
-    error.value = null
     merge.value = {}
     try {
       review.value = await phone.reviewAsync()
     } catch (cause) {
-      error.value = errString(cause)
+      toast.error(errString(cause))
     } finally {
       loading.value = false
     }
@@ -66,7 +64,7 @@ async function confirmAsync() {
     open.value = false
     emit('done')
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   } finally {
     busy.value = false
   }
@@ -172,10 +170,6 @@ async function confirmAsync() {
           </ShadcnRadioGroup>
         </div>
       </section>
-
-      <p v-if="error" class="text-sm text-destructive" role="alert">
-        {{ error }}
-      </p>
 
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>{{
