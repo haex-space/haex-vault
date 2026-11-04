@@ -620,7 +620,10 @@ async fn resolve_local_model_metadata(
             reason: format!("tokenizer_repo missing for model {model_id}"),
         })?;
 
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let drafter = crate::models::drafter::for_load(paths::models_root(app)?, model_id).await;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let drafter = None;
     Ok((
         canonical.absolute_path,
         row.context_window,

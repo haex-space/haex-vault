@@ -14,8 +14,10 @@ use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOp
 use super::cpu::{default_threads, missing_features};
 use super::formats::{detect, ChatFormat};
 use super::memory::{
-    plan, DrafterShape, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
+    plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
 };
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use super::memory::DrafterShape;
 use crate::llm::local::gguf_header::read_summary;
 
 /// More layers than any model has: everything goes on the GPU.
@@ -77,7 +79,8 @@ pub struct LoadedModel {
     pub(super) bos: String,
     pub(super) eos: String,
     pub(super) placement: Placement,
-    /// Loaded only when `placement.drafter` is set.
+    /// Loaded only when `placement.drafter` is set on desktop targets.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) drafter: Option<LlamaModel>,
     pub(super) threads: u32,
     /// One generation at a time: a context is cheap to make but the weights and the device are shared.
@@ -100,12 +103,19 @@ impl LoadedModel {
         let params = LlamaModelParams::default().with_n_gpu_layers(placement.gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &params)
             .map_err(|e| LoadError::Load(e.to_string()))?;
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let drafter = match &options.drafter {
             Some(drafter) if placement.drafter => load_drafter(backend, drafter, &model),
             _ => None,
         };
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let placement = Placement {
             drafter: drafter.is_some(),
+            ..placement
+        };
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let placement = Placement {
+            drafter: false,
             ..placement
         };
         let template = model
@@ -124,6 +134,7 @@ impl LoadedModel {
             bos,
             eos,
             placement,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             drafter,
             threads: options.threads.unwrap_or_else(default_threads),
             gate: Arc::new(tokio::sync::Mutex::new(())),
@@ -144,6 +155,7 @@ impl LoadedModel {
 /// Loads the drafter whole onto the GPU and checks that it belongs to `model`: its architecture is the
 /// model's with `-assistant`, and it reads the model's embeddings (`n_embd_out`). Any failure is logged
 /// and the model runs without it (spec FR-008).
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn load_drafter(backend: &LlamaBackend, path: &Path, model: &LlamaModel) -> Option<LlamaModel> {
     let params = LlamaModelParams::default().with_n_gpu_layers(ALL_LAYERS);
     let drafter = match LlamaModel::load_from_file(backend, path, &params) {
@@ -177,6 +189,7 @@ fn load_drafter(backend: &LlamaBackend, path: &Path, model: &LlamaModel) -> Opti
 }
 
 /// The drafter's weights and cache for the plan; `None` (and no drafter) when its header is unreadable.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn drafter_shape(path: &Path) -> Option<DrafterShape> {
     let read = || -> std::io::Result<Option<DrafterShape>> {
         let summary = read_summary(&mut BufReader::new(File::open(path)?))?;
@@ -210,7 +223,10 @@ fn placement_for(path: &Path, options: &LoadOptions) -> Result<Placement, LoadEr
             drafter: false,
         });
     };
-    shape.drafter = options.drafter.as_deref().and_then(drafter_shape);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        shape.drafter = options.drafter.as_deref().and_then(drafter_shape);
+    }
     let mut placed = plan(&shape, free_memory(), options.context_window)?;
     if let Some(layers) = options.gpu_layers {
         // Whoever forces the layers decides about the drafter too, as the evaluation of a partly placed
