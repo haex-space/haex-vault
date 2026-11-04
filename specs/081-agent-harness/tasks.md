@@ -169,7 +169,7 @@ data; the first two never reach the user, and the third reaches the dialog.
 
 ### Tests for User Story 4
 
-- [ ] T020 [P] [US4] Write `chat/turn/guard_tests.rs`:
+- [x] T020 [P] [US4] Write `chat/turn/guard_tests.rs`:
   - An id found in an earlier tool result of the turn passes, and so does one found in the user's message.
   - An id found in the tool's schema (enum, description, examples) passes.
   - A made-up id is refused, on a `write` and on a `destructive` tool.
@@ -178,17 +178,19 @@ data; the first two never reach the user, and the third reaches the dialog.
   - Each property name rule is tested: `id`, `ids`, `messageId`, `messageIds`, and an id array with one unknown
     value.
   - An unknown tool name gets up to three offered names, ranked by shared words.
-- [ ] T021 [P] [US4] Add an expected-chains test to `chat/eval/everyday/runner_tests.rs` (research R6): play every
+- [x] T021 [P] [US4] Add an expected-chains test to `chat/eval/everyday/runner_tests.rs` (research R6): play every
       expected chain of `chat/eval/everyday/set.json` on the fixture world through the guard. No call is refused.
-- [ ] T022 [P] [US4] Extend the integration tests in `src-tauri/tests/chat_tool_loop_permissions.rs`:
+- [x] T022 [P] [US4] Extend the integration tests in `src-tauri/tests/chat_tool_loop_permissions.rs`:
   - A made-up id on a destructive action is refused without a `tool-permission-request` event, in Manual, Auto and
     Plan mode.
   - An unknown tool is refused with the closest names.
   - An asked-for risky call still raises the dialog in every mode (FR-013).
+  - Done in a new `src-tauri/tests/chat_tool_loop_guard.rs`: `chat_tool_loop_permissions.rs` is already past the
+    500-line rule (1116 lines).
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Create `chat/turn/guard.rs`:
+- [x] T023 [US4] Create `chat/turn/guard.rs`:
   - `SeenText`: the user's message plus the text of every tool result of the turn, kept on the turn state in
     `chat/turn/mod.rs`, with each result appended where `tool_round.rs` records it.
   - `check_ids(call, tool, seen) -> Option<Refusal>` per research R6. The effect comes from `AgentActionDef.effect`
@@ -197,16 +199,18 @@ data; the first two never reach the user, and the third reaches the dialog.
   - A refusal answer names the unknown ids and the reading tools of the same action prefix or extension that find
     the right ones.
   - Register the module.
-- [ ] T024 [US4] Call the guard in `chat/turn/plan_calls.rs`, after the tool lookup and before the permission
+- [x] T024 [US4] Call the guard in `chat/turn/plan_calls.rs`, after the tool lookup and before the permission
       decision:
   - A refused call becomes a new `ToolPlan::TurnedAway(reason)`, which `tool_round.rs` answers as an error result
     without executing and without an approval event.
   - `ToolPlan::Unknown` uses the closest names of `closest_tools`.
   - The persisted transcript shows a turned-away call like an unknown tool today. Check `chat/turn/persist.rs` and
     its tests.
-- [ ] T025 [US4] Use the same guard in the everyday runner (`chat/eval/everyday/runner.rs`): run `guard.rs` before
+  - Done: the row is an error result with the tool's own source and origin, as a call Plan mode blocks; `persist.rs`
+    needed no change.
+- [x] T025 [US4] Use the same guard in the everyday runner (`chat/eval/everyday/runner.rs`): run `guard.rs` before
       `consent.rs`, so that a refused call ends as `turnedAway` and the model gets the same answer as in the app.
-- [ ] T026 [US4] Run the lib tests, the `chat_tool_loop_*` integration tests and clippy for desktop and Android.
+- [x] T026 [US4] Run the lib tests, the `chat_tool_loop_*` integration tests and clippy for desktop and Android.
 
 **Checkpoint**: wrong calls never reach the user or the data, and the permission modes are unchanged.
 

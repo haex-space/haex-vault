@@ -122,6 +122,10 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   an earlier result of the turn, in the user's message, or in the tool's own schema (enum, description, examples).
   Otherwise the call is turned away with an answer that names the domain's reading tools to find the right one; the
   user is not asked.
+- **Where ids may come from** (implementation, 2026-11-04): every user message and every tool result the model sees,
+  the earlier turns of the conversation included, not only the current turn. "And delete it" in the next turn keeps
+  the id the earlier turn found; a made-up id is refused either way. The model's own text and calls do not count.
+  An id must occur as a whole token (`123` is not found in `msg-123`).
 - **Rationale**:
   - The safety errors of this kind were all made-up ids on marking, moving and deleting.
   - The window tools work on app and tab ids that are a small known set and change no user data; they stay outside.

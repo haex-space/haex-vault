@@ -25,7 +25,7 @@ use super::images;
 use super::persist::{
     empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
 };
-use super::plan_calls::{unknown_tool_answer, ToolPlan, DENIED_BY_USER};
+use super::plan_calls::{ToolPlan, DENIED_BY_USER};
 use super::step::StepResult;
 use super::TurnRunner;
 
@@ -208,11 +208,15 @@ impl TurnRunner<'_> {
                         ToolExecResult::error("blocked_by_plan_mode"),
                         CallSource::of(tool.as_ref()),
                     ),
-                    ToolPlan::Unknown => {
+                    ToolPlan::TurnedAway(tool, answer) => {
+                        // Refused before the dialog: it neither runs nor asks the user.
+                        let source = CallSource::of(tool.as_ref());
+                        (call, ToolExecResult::error(answer), source)
+                    }
+                    ToolPlan::Unknown(answer) => {
                         // The model named a tool no longer in the registry (e.g. its MCP
                         // server disconnected mid-conversation, spec.md Edge Cases) or one
                         // that never existed.
-                        let answer = unknown_tool_answer(&call.name);
                         (call, ToolExecResult::error(answer), CallSource::unknown())
                     }
                 }

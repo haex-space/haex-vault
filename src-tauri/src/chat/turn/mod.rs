@@ -18,6 +18,7 @@
 
 mod call_source;
 mod choices;
+pub mod guard;
 mod images;
 mod persist;
 mod plan_calls;

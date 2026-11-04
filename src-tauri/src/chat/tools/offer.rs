@@ -154,7 +154,7 @@ pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
 }
 
 /// Lowercase words, also split where camelCase turns upper; umlauts belong to the word ("Einträge").
-pub(super) fn words(text: &str) -> Vec<String> {
+pub(crate) fn words(text: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut word = String::new();
     let mut previous_lower = false;

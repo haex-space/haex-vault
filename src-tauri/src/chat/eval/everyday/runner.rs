@@ -28,6 +28,7 @@ use crate::chat::tools::offer::{first_offer, found_tools, widen_offer};
 use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::{RiskClass, ToolRegistry};
+use crate::chat::turn::guard::{check_ids, seen_text};
 use crate::chat::turn::{callable, unknown_tool_answer, DENIED_BY_USER, MAX_TOOL_ROUNDS};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
@@ -266,17 +267,27 @@ pub async fn run_everyday(
             let mut next = offer.clone();
             let mut results = Vec::new();
             let mut question = None;
+            let seen = seen_text(&history);
             for call in &step.calls {
-                // As `chat/turn/plan_calls.rs` plans a call: a tool the registry holds, and one of
-                // holzi's actions only when this step offered it.
-                let tool = registry
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .get(&call.name)
-                    .filter(|tool| callable(tool.as_ref(), &offer));
-                let Some(tool) = tool else {
+                // As `chat/turn/plan_calls.rs` plans a call: a tool the registry holds, one of
+                // holzi's actions only when this step offered it, and the guard before the dialog.
+                let (tool, refusal) = {
+                    let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    let tool = registry
+                        .get(&call.name)
+                        .filter(|tool| callable(tool.as_ref(), &offer));
+                    let refusal = match &tool {
+                        None => Some((unknown_tool_answer(&call.name, &offer), false)),
+                        Some(tool) => {
+                            check_ids(&call.input, tool.as_ref(), &seen, &registry, &offer)
+                                .map(|answer| (answer, tool.risk_class() == RiskClass::Risky))
+                        }
+                    };
+                    (tool, refusal)
+                };
+                if let Some((content, risky)) = refusal {
                     let answer = Answer {
-                        content: unknown_tool_answer(&call.name),
+                        content,
                         is_error: true,
                     };
                     trace.calls.push(TraceCall {
@@ -285,11 +296,12 @@ pub async fn run_everyday(
                         result: Some(answer.clone()),
                         ending: CallEnding::TurnedAway,
                         unasked: None,
-                        risky: false,
+                        risky,
                     });
                     results.push((call, answer));
                     continue;
-                };
+                }
+                let Some(tool) = tool else { continue };
                 let played = play(
                     item,
                     decide_call(PermissionMode::Auto, tool.as_ref()),

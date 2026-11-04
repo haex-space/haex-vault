@@ -1,14 +1,18 @@
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::consent::CallEnding;
-use super::runner::{run_everyday, Profile, MAX_STEPS};
+use super::runner::{app_registry, run_everyday, Profile, MAX_STEPS};
 use super::scoring::End;
 use super::test_support::{one_request, tool_results};
-use super::{embedded_mail_tools, embedded_world, load_set, MAIL_TOOLS_SOURCE};
-use crate::adapters::types::StreamChunk;
+use super::{
+    embedded_mail_tools, embedded_set, embedded_world, load_set, ArgMatch, Expectation,
+    MAIL_TOOLS_SOURCE,
+};
+use crate::adapters::types::{ChatMessage, ChatRole, StreamChunk};
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
+use crate::chat::turn::guard::{check_ids, seen_text};
 
 #[tokio::test]
 async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
@@ -201,10 +205,12 @@ async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
     .unwrap();
     let call = &runs[0].trace.calls[0];
     assert_eq!(call.ending, CallEnding::TurnedAway);
-    assert_eq!(
-        call.result.as_ref().unwrap().content,
-        "unknown tool: contacts_search"
-    );
+    assert!(call
+        .result
+        .as_ref()
+        .unwrap()
+        .content
+        .starts_with("unknown tool: contacts_search"));
 }
 
 #[tokio::test]
@@ -286,7 +292,7 @@ async fn an_unknown_tool_gets_the_chat_s_error_and_is_marked() {
     assert_eq!(call.ending, CallEnding::TurnedAway);
     let result = call.result.as_ref().unwrap();
     assert!(result.is_error);
-    assert_eq!(result.content, "unknown tool: x_alarm_set");
+    assert!(result.content.starts_with("unknown tool: x_alarm_set"));
 }
 
 struct Failing;
@@ -380,4 +386,80 @@ async fn a_model_error_ends_only_its_request() {
     assert_eq!(runs.len(), 2);
     assert!(runs.iter().all(|r| r.trace.end == End::Error));
     assert!(runs[0].trace.text.contains("does not fit the context"));
+}
+
+/// Concrete arguments for an expected call: the ids of `fromResult` from the messages the previous
+/// answer listed, the first alternative of `anyOf`; a relative day is left out (it names no id).
+fn concrete_args(args: &std::collections::BTreeMap<String, ArgMatch>, previous: &Value) -> Value {
+    let found: Vec<Value> = previous["messages"]
+        .as_array()
+        .map(|messages| messages.iter().map(|m| m["id"].clone()).collect())
+        .unwrap_or_default();
+    let mut out = Map::new();
+    for (key, matcher) in args {
+        let value = match matcher {
+            ArgMatch::Exact(value) => value.clone(),
+            ArgMatch::Contains { contains } => json!(contains),
+            ArgMatch::AnyOf { any_of } => any_of[0].clone(),
+            ArgMatch::RelativeDay { .. } => continue,
+            ArgMatch::FromResult { .. } if key == "messages" => {
+                json!(found
+                    .iter()
+                    .map(|id| json!({ "id": id }))
+                    .collect::<Vec<_>>())
+            }
+            ArgMatch::FromResult { .. } => json!(found),
+        };
+        out.insert(key.clone(), value);
+    }
+    Value::Object(out)
+}
+
+#[test]
+fn the_guard_refuses_no_call_of_an_expected_chain() {
+    // Research R6: every expected chain, played on the fixture world, passes the guard.
+    let world = embedded_world();
+    let registry = app_registry(&embedded_tools(), &embedded_mail_tools(), Profile::Desktop);
+    let registry = registry.lock().unwrap();
+    let mut checked = 0;
+    for request in embedded_set().requests {
+        let Expectation::Calls(chains) = &request.expect else {
+            continue;
+        };
+        for chain in chains {
+            let mut history = vec![ChatMessage {
+                role: ChatRole::User,
+                content: request.text.clone(),
+                attachments: Vec::new(),
+            }];
+            let mut previous = Value::Null;
+            for expected in chain {
+                if expected
+                    .args
+                    .values()
+                    .any(|m| matches!(m, ArgMatch::FromResult { .. }))
+                {
+                    let found = previous["messages"].as_array().map_or(0, Vec::len);
+                    assert!(found > 0, "{}: no ids to take", request.id);
+                }
+                let args = concrete_args(&expected.args, &previous);
+                let tool = registry.get(&expected.tool).expect("a registered tool");
+                let refusal = check_ids(&args, tool.as_ref(), &seen_text(&history), &registry, &[]);
+                assert_eq!(refusal, None, "{} {} {args}", request.id, expected.tool);
+                checked += 1;
+                let answer = world.answer(&expected.tool, &args);
+                previous = serde_json::from_str(&answer.content).unwrap_or(Value::Null);
+                history.push(ChatMessage {
+                    role: ChatRole::ToolResult {
+                        call_id: String::new(),
+                        content: answer.content,
+                        is_error: answer.is_error,
+                    },
+                    content: String::new(),
+                    attachments: Vec::new(),
+                });
+            }
+        }
+    }
+    assert!(checked > 30, "{checked} calls checked");
 }

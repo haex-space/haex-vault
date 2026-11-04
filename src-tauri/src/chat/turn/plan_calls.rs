@@ -1,5 +1,5 @@
-//! Plans the calls of one tool round: the tool lookup and the permission decision, made in order
-//! before any call waits or runs (moved out of `tool_round.rs`, spec 081 T004).
+//! Plans the calls of one tool round: the tool lookup, the guard and the permission decision, made in
+//! order before any call waits or runs (moved out of `tool_round.rs`, spec 081 T004).
 
 use std::sync::Arc;
 
@@ -13,14 +13,24 @@ use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::permission;
 use crate::chat::tools::{ApprovalDecision, Tool};
 
+use super::guard::{check_ids, closest_tools, seen_text};
 use super::TurnRunner;
 
 /// The answer to a call the user declined in the dialog; a fixed marker the frontend translates.
 pub const DENIED_BY_USER: &str = "denied_by_user";
 
-/// The answer to a call of a tool that is not [`callable`].
-pub fn unknown_tool_answer(name: &str) -> String {
-    format!("unknown tool: {name}")
+/// The answer to a call of a tool that is not [`callable`], with the offered tools whose names come
+/// closest (spec 081 FR-012).
+pub fn unknown_tool_answer(name: &str, offered: &[ToolSpec]) -> String {
+    let closest = closest_tools(name, offered);
+    if closest.is_empty() {
+        format!("unknown tool: {name}")
+    } else {
+        format!(
+            "unknown tool: {name}. The closest offered tools are {}.",
+            closest.join(", ")
+        )
+    }
 }
 
 /// Whether a registered `tool` may run for a call in a step that offered `offered`. The registry is
@@ -41,7 +51,10 @@ pub(super) enum ToolPlan {
         request_id: Uuid,
     },
     Deny(Arc<dyn Tool>),
-    Unknown,
+    /// The guard refused the call before the dialog (spec 081 FR-011); the answer says why.
+    TurnedAway(Arc<dyn Tool>, String),
+    /// No such tool, or one the step did not offer; the answer names the closest offered tools.
+    Unknown(String),
 }
 
 impl TurnRunner<'_> {
@@ -58,20 +71,38 @@ impl TurnRunner<'_> {
         tool_calls: Vec<LlmToolCall>,
     ) -> Vec<(LlmToolCall, ToolPlan)> {
         let mut plans: Vec<(LlmToolCall, ToolPlan)> = Vec::with_capacity(tool_calls.len());
+        // What the model saw before this round; a call cannot take an id from a sibling call.
+        let seen = seen_text(&self.request.messages);
         for call in tool_calls {
-            let tool = {
+            let (tool, turned_away) = {
                 let registry = self
                     .chat_state
                     .tool_registry
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                registry.get(&call.name)
+                let tool = registry
+                    .get(&call.name)
+                    .filter(|tool| callable(tool.as_ref(), &self.request.tools));
+                let turned_away = tool.as_ref().and_then(|tool| {
+                    check_ids(
+                        &call.input,
+                        tool.as_ref(),
+                        &seen,
+                        &registry,
+                        &self.request.tools,
+                    )
+                });
+                (tool, turned_away)
             };
-            let Some(tool) = tool.filter(|tool| callable(tool.as_ref(), &self.request.tools))
-            else {
-                plans.push((call, ToolPlan::Unknown));
+            let Some(tool) = tool else {
+                let answer = unknown_tool_answer(&call.name, &self.request.tools);
+                plans.push((call, ToolPlan::Unknown(answer)));
                 continue;
             };
+            if let Some(answer) = turned_away {
+                plans.push((call, ToolPlan::TurnedAway(tool, answer)));
+                continue;
+            }
             // Read fresh per call, not cached for the round: a mode
             // change must not retroactively affect a decision already
             // made for an earlier call, but the very next tool use

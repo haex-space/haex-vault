@@ -250,7 +250,7 @@ The same harness serves hosted models. They pass at least as many everyday reque
 
 **Calls**
 
-- **FR-011**: A call that names an id no earlier result of the turn and no part of the user's message contained MUST
+- **FR-011**: A call that names an id no earlier tool result and no user message of the conversation contained MUST
   be turned away before it runs, without asking the user, with an answer that says how to find the right id.
 - **FR-012**: A call of a tool that does not exist MUST be turned away with an answer that names the closest offered
   tools.
