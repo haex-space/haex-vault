@@ -16,7 +16,6 @@ const current = ref('')
 const next = ref('')
 const repeat = ref('')
 const busy = ref(false)
-const changed = ref(false)
 
 /** Why the change cannot be submitted yet, `null` when it can. */
 const problem = computed(() => {
@@ -36,17 +35,6 @@ const canSubmit = computed(
     repeat.value === next.value,
 )
 
-// Typing again clears the success notice of the last attempt. Synchronous, so the fields emptied
-// after a success (still busy) do not clear its message.
-watch(
-  [current, next, repeat],
-  () => {
-    if (busy.value) return
-    changed.value = false
-  },
-  { flush: 'sync' },
-)
-
 async function submitAsync() {
   if (!canSubmit.value) return
   busy.value = true
@@ -55,7 +43,8 @@ async function submitAsync() {
     current.value = ''
     next.value = ''
     repeat.value = ''
-    changed.value = true
+    // The emptied form shows nothing of the change, so its outcome is a toast.
+    toast.success(t('settings.password.changed'))
   } catch (e) {
     const kind =
       e && typeof e === 'object' && 'kind' in e
@@ -121,8 +110,5 @@ async function submitAsync() {
         {{ t('settings.password.submit') }}
       </UiButton>
     </div>
-    <p v-if="changed" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.password.changed') }}
-    </p>
   </form>
 </template>

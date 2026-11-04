@@ -551,11 +551,9 @@
       "enterCodePrompt": "Gib diesen Code auf der Seite ein:",
       "codeInputLabel": "Autorisierungscode",
       "submitCode": "Code einreichen",
-      "success": "Verbunden.",
       "error": "Verbindung fehlgeschlagen",
       "refreshModels": "Modelle aktualisieren",
       "refreshing": "Wird aktualisiert…",
-      "refreshed": "Modelle aktualisiert.",
       "refreshFailed": "Modelle konnten nicht aktualisiert werden"
     },
     "autonomyMode": {
@@ -1073,7 +1071,6 @@
           }
         },
         "test": {
-          "ok": "Erreichbar, {count} Erweiterungen.",
           "failed": "Nicht nutzbar: {cause}"
         },
         "testError": {
@@ -3355,7 +3352,6 @@
         "lineError": "Zeile {line} wird übersprungen: {text}",
         "ignoredNow": "Die Ausnahmen lassen gerade nichts aus. | Die Ausnahmen lassen gerade eine Datei oder einen Ordner aus. | Die Ausnahmen lassen gerade {count} Dateien und Ordner aus.",
         "fixed": "Feste Ausnahmen",
-        "saved": "Gespeichert. Die Regel gleicht gleich damit ab.",
         "save": "Speichern"
       },
       "log": {
