@@ -37,7 +37,7 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 - [x] T001 Query the graph (the worktree's fork-point snapshot, used as-is per the spaex graphify rule; no
       `graphify update` in a linked worktree) for the offer, the permission decision and the everyday runner;
       the call sites of plan.md are confirmed, no parallel candidates exist.
-- [ ] T002 Build the CUDA everyday binary per spec 078's quickstart and the memory notes (CUDAARCHS=86, CUDAFLAGS
+- [x] T002 Build the CUDA everyday binary per spec 078's quickstart and the memory notes (CUDAARCHS=86, CUDAFLAGS
       -fPIC, CMAKE_BUILD_PARALLEL_LEVEL=2, 10 GB scope): `cargo test --manifest-path src-tauri/Cargo.toml --features
 llm-llamacpp-cuda,everyday-eval --test model_tool_eval --no-run`.
 - [x] T003 Confirm that every model file of research R10 is in the models folder (Qwen3.5 2B, 4B, 9B, Qwen3 1.7B,
@@ -142,14 +142,14 @@ tool.confirms_itself())`, the same order as `plan_calls`. Factor that order into
 - [x] T017 [US1] Run the lib tests of `chat::eval` and `chat::tools`, clippy for desktop and Android, and
       `pnpm typecheck:scripts`. Strip trailing spaces from the ts-rs bindings as the CI does if `cargo test`
       rewrote them.
-- [ ] T018 [US1] Baselines (FR-004, SC-001), with `HOLZI_EVAL_ROUTING` unset (no routing exists yet):
+- [x] T018 [US1] Baselines (FR-004, SC-001), with `HOLZI_EVAL_ROUTING` unset (no routing exists yet):
   - Run the everyday set with the `desktop` profile for Qwen3.5 2B, 4B and 9B, Gemma 4 E2B, E4B and 12B, and
     Hermes 4 14B.
   - Run Qwen3 1.7B with both the `phone` and the `desktop` profile.
   - Run the three hosted models through the subscription.
   - Use overnight runs for the long ones, in the 10 GB scope, one at a time.
   - Store each report under `specs/081-agent-harness/runs/baseline/<model>.json`.
-- [ ] T019 [US1] Write the baseline section of `specs/081-agent-harness/results.md`:
+- [x] T019 [US1] Write the baseline section of `specs/081-agent-harness/results.md`:
   - Per model: pass rate, `executedUnasked`, `changedUnasked`, `stopped`, `turnedAway`, `askedForId`, the
     categories, and `gateDistance`.
   - The comparison with spec 078's numbers of 2026-11-04, with the reason for each difference (dialog played,

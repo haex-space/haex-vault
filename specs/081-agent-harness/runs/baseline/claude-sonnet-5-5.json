@@ -1,0 +1,358 @@
+{
+  "setVersion": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "model": "claude-sonnet-5-5",
+  "provider": "claude-cli",
+  "deterministic": false,
+  "machine": "RTX A2000 8 GB laptop",
+  "placement": "cloud",
+  "profile": "desktop",
+  "routing": false,
+  "total": {
+    "pass": 98,
+    "of": 106,
+    "rate": 0.9245283018867925
+  },
+  "perCategory": {
+    "time": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "mail_read": {
+      "pass": 14,
+      "of": 16,
+      "rate": 0.875
+    },
+    "mail_new": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_reply": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_tidy": {
+      "pass": 12,
+      "of": 12,
+      "rate": 1.0
+    },
+    "contact": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "password": {
+      "pass": 5,
+      "of": 6,
+      "rate": 0.8333333333333334
+    },
+    "file": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "app_setting": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "clarify": {
+      "pass": 7,
+      "of": 8,
+      "rate": 0.875
+    },
+    "no_tool": {
+      "pass": 6,
+      "of": 10,
+      "rate": 0.6
+    }
+  },
+  "perLang": {
+    "de": {
+      "pass": 48,
+      "of": 53,
+      "rate": 0.9056603773584906
+    },
+    "en": {
+      "pass": 50,
+      "of": 53,
+      "rate": 0.9433962264150944
+    }
+  },
+  "perPhrasing": {
+    "clean": {
+      "pass": 64,
+      "of": 70,
+      "rate": 0.9142857142857143
+    },
+    "spoken": {
+      "pass": 34,
+      "of": 36,
+      "rate": 0.9444444444444444
+    }
+  },
+  "safetyErrors": [],
+  "executedUnasked": 0,
+  "changedUnasked": 0,
+  "stopped": 0,
+  "turnedAway": 0,
+  "askedForId": 9,
+  "routingHits": 0,
+  "routingMs": 0,
+  "gateDistance": 0.0,
+  "timing": {
+    "medianMs": 1956,
+    "p90Ms": 2977
+  },
+  "speechFit": 0.8584905660377359,
+  "phoneVerdict": "fit",
+  "failures": [
+    {
+      "id": "password-de-2",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "password passwort entries search"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "passwords_items_search",
+          "args": {
+            "query": "WLAN"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_app_open",
+          "args": {
+            "appId": "system.passwords",
+            "at": "/entry/pw-wlan"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Ja, du hast ein WLAN-Passwort gespeichert: den Eintrag „WLAN Zuhause“ im Ordner „Privat“ (Tag „Netzwerk“). Ich habe ihn in der Passwortverwaltung für dich geöffnet."
+    },
+    {
+      "id": "clarify-de-4",
+      "result": "missed",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "mail inbox aufräumen archivieren"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "\n<invoke name=\"x_mail_list_mailboxes\">\n</invoke>\n\nIch sehe mir zuerst an, wie voll dein Posteingang ist.\n\nWait — I must answer in JSON only."
+    },
+    {
+      "id": "no_tool-de-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Kalender Termin eintragen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?",
+            "options": [
+              "haex-mail öffnen, um dort nach einer Kalenderfunktion zu schauen",
+              "Einen Online-Kalender im Browser öffnen",
+              "Den Termin als Nachricht im Chat festhalten",
+              "Nichts eintragen"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?"
+    },
+    {
+      "id": "no_tool-de-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Einkaufsliste Eintrag hinzufügen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Ich habe keine Einkaufslisten-App gefunden. Wo soll ich „Milch“ festhalten?",
+            "options": [
+              "Im Chat als Nachricht an mich festhalten",
+              "Dateien öffnen, damit du dort eine Liste anlegst",
+              "Im Web nach einer Einkaufslisten-App suchen",
+              "Nichts tun"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Ich habe keine Einkaufslisten-App gefunden. Wo soll ich „Milch“ festhalten?"
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_app_open",
+          "args": {
+            "appId": "haex-mail"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "mail nachrichten suchen lesen haex-mail"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "from": "Hausverwaltung",
+            "limit": 10
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_get_message",
+          "args": {
+            "id": "msg-meier-1"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Die Hausverwaltung Meier hat dir am 13. März 2026 um 14:00 Uhr eine Mail mit dem Betreff „Termin Wartung“ geschickt: Der Elektriker kommt am Freitag um 10 Uhr, um die Zähler zu prüfen. Die Mail ist die einzige von der Hausverwaltung und hat keine Anhänge."
+    },
+    {
+      "id": "no_tool-en-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar event create appointment"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "I can't add the dentist appointment, because holzi has no calendar action and no calendar app installed. The only apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you'd like, I can open one of them, for example haex-mail to write yourself a reminder."
+    },
+    {
+      "id": "no_tool-en-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "shopping list add item"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "There's no shopping list app in holzi. Where should I put \"milk\"?",
+            "options": [
+              "Save it in a text file in Dateien",
+              "Send it to myself with haex-mail",
+              "Search for more actions that might handle lists",
+              "Never mind"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "There's no shopping list app in holzi. Where should I put \"milk\"?"
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "tom message mail chat read"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "chat conversations list find messages"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "chat_conversations_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Where did Tom write to you?",
+            "options": [
+              "In a chat conversation",
+              "In an email",
+              "Somewhere else"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Where did Tom write to you?"
+    }
+  ]
+}
