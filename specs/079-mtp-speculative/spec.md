@@ -204,7 +204,9 @@ that the next answer uses it.
   its size. holzi MUST NOT download a drafter without the user asking.
 - **FR-011**: The model list MUST show whether an installed model has its speed-up.
 - **FR-012**: The rules for the GPU that a drafter needs (one attention acceleration off) MUST apply only while a
-  drafter is in use. Without a drafter, the model MUST run with the settings it uses today.
+  drafter is in use. Without a drafter, the model MUST run with the settings it uses today. If the drafter stops
+  working during an answer, the rest of that answer MAY keep the drafter's settings. Later answers MUST run without
+  the drafter and with today's settings until the model is loaded again.
 - **FR-013**: The measurement tool of spec 078 MUST be able to run a model with and without its drafter, and MUST
   record tokens per second for both in its report.
 - **FR-014**: Qwen3.5 4B, or any model whose drafter is built into the model file, MUST get a drafter only in a

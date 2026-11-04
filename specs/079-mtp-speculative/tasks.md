@@ -63,10 +63,12 @@ open point of research R6 before any engine code is written.
 **Purpose**: the catalog knows each drafter, and one module knows where a drafter lives and whether it is there.
 
 - [ ] T004 [P] In `src-tauri/src/catalog/mod.rs`, add `CatalogDrafter { hf_repo, hf_revision, hf_filename,
-size_bytes, sha256, architecture }` (serde, `Clone`, `Serialize`) and `CatalogEntry.drafter:
+size_bytes, sha256, architecture, measured_partly_on_gpu }` (serde, `Clone`, `Serialize`; the bool with
+      `#[serde(default)]`) and `CatalogEntry.drafter:
 Option<CatalogDrafter>` with `#[serde(default, skip_serializing_if = "Option::is_none")]`.
 - [ ] T005 Put the three drafters of research R2 into `src-tauri/src/catalog/model_catalog.json`: E2B, E4B and 12B
-      with repo, commit, file, bytes, SHA-256, and `"architecture": "gemma4-assistant"`.
+      with repo, commit, file, bytes, SHA-256, and `"architecture": "gemma4-assistant"`. None of them gets
+      `measured_partly_on_gpu` yet; T031 decides it for the 12B.
 - [ ] T006 [P] In `src-tauri/src/catalog/catalog_tests.rs`, test that every drafter is well formed:
   - `hf_revision` is 40 hex characters and `sha256` is 64;
   - `hf_filename` ends in `.gguf` and contains no `/` and no `..`;
@@ -78,13 +80,13 @@ Option<CatalogDrafter>` with `#[serde(default, skip_serializing_if = "Option::is
   - `state(models_root, slug, &CatalogDrafter) -> DrafterState { Installed, Missing }`: installed means the file
     exists with exactly `size_bytes`;
   - `path_for_load(models_root, slug, &CatalogDrafter) -> Option<PathBuf>`: an installed file whose SHA-256, computed
-    with `models::hash::sha256_file` on the blocking pool, equals the pin. A mismatch is logged and returns `None`
-    (spec FR-008, data-model InstalledDrafter).
+    with `models::hash::sha256_file` on the blocking pool, equals the pin. A mismatch is logged, removes the
+    `drafter/` folder, and returns `None` (spec FR-008, data-model InstalledDrafter).
   - A slug that does not pass `models::paths`' slug checks is refused.
 - [ ] T008 [P] Tests in `src-tauri/src/models/drafter_tests.rs`, on a temporary directory:
   - the path layout;
   - `Missing` for no file and for a file of the wrong size, `Installed` for the right size;
-  - `path_for_load` is `None` for a wrong hash and `Some` for the right one;
+  - `path_for_load` is `None` for a wrong hash, and the `drafter/` folder is gone afterwards; `Some` for the right one;
   - a hostile slug (`../x`) is refused;
   - `paths::canonical_model_file` still finds the model with a `drafter/` folder next to it.
 
@@ -230,15 +232,19 @@ no file remains (quickstart "In the app").
       decode, trim the target cache to `n_past`, log the reason once, and finish the answer with the plain token loop on
       the same target context. Extract the plain per-token step of `generate.rs` into a function both loops call, rather
       than copying it.
+  - The rest of that answer keeps flash attention off (research R6 step 5).
+  - Mark the loaded model's drafter as failed (an `AtomicBool` on `LoadedModel`). `generate.rs` (T014) then takes the
+    plain path with today's context settings until the model is loaded again (spec FR-012).
 - [ ] T027 [P] [US3] In `src-tauri/tests/model_tool_eval.rs`, add the ignored test `mtp_fallbacks`, with the real E2B
       file. Every case must answer, and each model load must succeed:
   - no drafter;
   - a drafter path that does not exist;
-  - the E4B drafter given to E2B (wrong model; the architecture or size check refuses it);
+  - the E4B drafter given to E2B (wrong model). Creating its context or the first draft fails and the answer falls
+    back, or it only proposes tokens the model rejects. Either way the answer comes (research R2, pairing);
   - a drafter whose `MtpSpeculative` is forced to fail after the first round, through a test-only hook of
     `speculative.rs` behind `#[cfg(test)]` or an env switch read only in tests.
 - [ ] T028 [P] [US3] In `src-tauri/src/models/drafter_tests.rs`, test that `path_for_load` returns `None` for a missing
-      file, a wrong size and a wrong hash, and never panics.
+      file, a wrong size and a wrong hash, never panics, and removes the `drafter/` folder only for the wrong hash.
 
 **Checkpoint**: SC-004 holds; the plain path is unchanged for models without a drafter.
 
@@ -246,19 +252,25 @@ no file remains (quickstart "In the app").
 
 ## Phase 6: User Story 4 - The memory planner counts the drafter (P2)
 
-**Goal**: a model that fits the GPU only partly still gets the drafter, placed so the load cannot fail (the 12B case,
-measured 1.66×).
+**Goal**: a model that fits the GPU only partly gets the drafter only where its catalog drafter says
+`measured_partly_on_gpu`. It is placed so the load cannot fail. Research R1 measured the 12B at a fixed 24 layers;
+T031 measures it in the app's own placement.
 
 **Independent Test**: load Gemma 4 12B with its drafter on the reference laptop ten times (SC-006).
 
 - [ ] T029 [US4] In `src-tauri/src/llm/llamacpp/memory_tests.rs`, test rule 3 of research R7:
-  - for a model that fits only partly, the drafter's bytes and cache come off the device budget first;
+  - without `measured_partly_on_gpu`, a model that fits only partly gets `drafter: false` and the old placement;
+  - with it, the drafter's bytes and cache come off the device budget first;
   - the model's layers are planned in the rest, and `drafter: true`;
   - if the drafter alone does not fit the device, `drafter: false` and the old placement.
 - [ ] T030 [US4] Implement rule 3 in `src-tauri/src/llm/llamacpp/memory.rs` `plan`.
 - [ ] T031 [US4] In `src-tauri/tests/model_tool_eval.rs`, add the ignored test `mtp_load_12b`: ten loads of
       `HOLZI_TEST_GGUF` (12B) with its drafter through the app's own placement, each followed by one short answer
-      (SC-006). Then run `mtp_speed` for 12B and record the gain.
+      (SC-006).
+  - Run `mtp_speed` for the 12B with the app's placement with the drafter against its placement without.
+  - Only if the drafter is faster, set `measured_partly_on_gpu: true` on the 12B drafter in
+    `src-tauri/src/catalog/model_catalog.json`.
+  - Record both figures in `results.md` (T036).
 
 **Checkpoint**: 12B with drafter loads every time and is faster.
 

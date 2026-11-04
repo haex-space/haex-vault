@@ -24,6 +24,9 @@ Changes visible to the frontend and to the catalog file. Everything not named he
 `architecture` is the drafter's `general.architecture`, read from the three files on 2026-11-04: `gemma4-assistant`
 (with a hyphen). The load checks that the file says the same before using it.
 
+`measured_partly_on_gpu` (optional, default `false`) allows the drafter when the model fits the GPU only partly
+(research R7 rule 3). No entry sets it until task T031 has measured the 12B.
+
 ## `list_catalog` (unchanged command, extended entry)
 
 Each `CatalogEntryWithFit` carries the optional `drafter` object above. The frontend shows

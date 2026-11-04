@@ -47,6 +47,17 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   - Resolving `main` at download time like the model. Rejected, because a drafter must match its model, and `main`
     can move.
   - A hash column in the synced `models` table. Rejected: a migration of a CRDT table for a per-device file.
+- **Pairing with the model**: the drafter belongs to the base model of its catalog entry (for example Gemma 4 E4B
+  it), not to one upload of its quantisation. The model file still resolves `main` at download, and the model's
+  revision is not pinned:
+  - a drafter works with any quantisation of its own model (spec Edge Cases);
+  - the model's sampler decides every token (R6), so a pairing that drifts can only lower the share of accepted
+    proposals, never change an answer;
+  - the app never pairs a drafter with another model, because it takes the drafter from the model's own catalog
+    entry.
+
+  At load, the drafter's `general.architecture` must be `gemma4-assistant`. A drafter that still does not fit fails
+  when its context is created or at the first draft, and the answer falls back (R6 step 5, spec FR-008).
 
 ## R3 Where the drafter lives
 
@@ -115,6 +126,10 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   5. **Failures**: any `MtpSpeculativeError`, or a failed decode of a draft batch, switches the rest of the answer to
      the plain loop on the same target context, after the cache is trimmed to `n_past` (spec FR-008). The reason is
      logged once.
+     - **Flash attention**: the rest of that answer runs on the context created for the drafter, so with flash
+       attention off. That answer is at most about 5 % slower (R1).
+     - **Later answers**: the loaded model stops using the drafter until it is loaded again, so every later answer
+       runs with today's settings (spec FR-012).
 - **Rationale**:
   - **The decision stays with the model**: the sampler decides every token, and a draft token only saves a decode
     step when the sampler would have picked it anyway (spec FR-002).
@@ -137,8 +152,13 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   1. If the model plus drafter plus both caches fit the GPU whole, both go on the GPU and the drafter is used.
   2. If the model alone fits whole but not with the drafter, it loads without the drafter (spec FR-009: the planner
      cannot tell which is faster).
-  3. If the model fits only partly in any case, the drafter goes on the GPU first and the model's layers are
-     planned in the remaining memory. The 12B measurement shows this case gaining 1.66×.
+  3. If the model fits only partly in any case, the drafter is used only where the catalog's drafter says
+     `measured_partly_on_gpu`. Then the drafter goes on the GPU first, and the model's layers are planned in the
+     remaining memory. Without the flag, the model loads without the drafter, as in rule 2.
+     - **What R1 covered**: the 12B kept its 24 GPU layers in both runs.
+     - **What the planner does**: it fills the GPU, so a drafter there costs the model some layers.
+     - **The flag**: whether the 12B still gains with fewer layers is measured in the app's own placement (task
+       T031), and the flag is set only if it does (spec FR-009).
   4. Without a GPU, no drafter. A processor-only gain is unmeasured (spec Assumptions, FR-009).
 - **Rationale**: ggml aborts the process on a failed GPU allocation, so the drafter has to be in the plan before
   anything loads (spec FR-007). The rules keep every case the measurement covered and leave out every case it did
@@ -148,6 +168,8 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
 
 - **Decision**: flash attention is switched off on both contexts only while a drafter is used. Without one, the
   context keeps llama.cpp's default (spec FR-012).
+- **After a failure**: a drafter that fails during an answer leaves the rest of that one answer with flash attention
+  off (R6 step 5). Later answers run without the drafter and with the default.
 - **Rationale**: the drafter's documentation states that it aborts in the CUDA flash-attention kernel. Without a
   drafter, flash attention was worth about 5 % (R1).
 

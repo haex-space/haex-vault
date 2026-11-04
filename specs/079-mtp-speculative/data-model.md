@@ -7,14 +7,15 @@ file system (what is there), like an installed model since migration 0012 (resea
 
 An optional `drafter` object on a catalog entry.
 
-| Field          | Type             | Rule                                                                                    |
-| -------------- | ---------------- | --------------------------------------------------------------------------------------- |
-| `hf_repo`      | string           | Hugging Face repository                                                                 |
-| `hf_revision`  | string, 40 hex   | Full commit SHA; never a branch (research R2)                                           |
-| `hf_filename`  | string, `*.gguf` | File in the repository, without a directory                                             |
-| `size_bytes`   | integer > 0      | Exact size; a download of another size is refused                                       |
-| `sha256`       | string, 64 hex   | Exact hash; a download with another hash is discarded                                   |
-| `architecture` | string           | `general.architecture` of the drafter (`gemma4-assistant` for Gemma 4); checked at load |
+| Field                    | Type                  | Rule                                                                                                  |
+| ------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `hf_repo`                | string                | Hugging Face repository                                                                               |
+| `hf_revision`            | string, 40 hex        | Full commit SHA; never a branch (research R2)                                                         |
+| `hf_filename`            | string, `*.gguf`      | File in the repository, without a directory                                                           |
+| `size_bytes`             | integer > 0           | Exact size; a download of another size is refused                                                     |
+| `sha256`                 | string, 64 hex        | Exact hash; a download with another hash is discarded                                                 |
+| `architecture`           | string                | `general.architecture` of the drafter (`gemma4-assistant` for Gemma 4); checked at load               |
+| `measured_partly_on_gpu` | bool, default `false` | Drafter allowed with the model partly on the GPU (research R7 rule 3); set only after a measured gain |
 
 A catalog test checks every drafter: the revision is 40 hex characters, the hash 64, the file name ends in
 `.gguf` and has no `/`, and the size is positive.
@@ -38,8 +39,13 @@ For an installed model whose catalog entry names a drafter:
 | `missing`   | otherwise; the model list offers the download (spec FR-010)               |
 
 The hash is checked when a drafter is downloaded and again when a model loads with it (research R4, R6). A drafter
-that fails the check at load is not used, and the reason is logged (spec FR-008). It is not deleted, so the model
-list keeps showing it as installed; `download_model_drafter` replaces it.
+that fails the check at load:
+
+- is not used, and the reason is logged (spec FR-008);
+- has its `drafter/` folder removed.
+
+The model list then shows it as `missing` and offers the download, so a damaged file never shows as an active
+speed-up.
 
 ## InstalledModelPayload (extended)
 
