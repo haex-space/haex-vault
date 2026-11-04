@@ -4079,6 +4079,26 @@
       "ipc": "Program on this device",
       "http": "Local address on this device"
     },
+    "rights": {
+      "groups": {
+        "wm": {
+          "title": "Windows and workspaces",
+          "description": "See workspaces, windows and tabs, open apps, arrange everything"
+        },
+        "chat": {
+          "title": "Chat",
+          "description": "Read conversations and write messages"
+        },
+        "settings": {
+          "title": "Settings",
+          "description": "See and change the settings of holzi and this device"
+        },
+        "models": {
+          "title": "Models",
+          "description": "See, download and delete installed models"
+        }
+      }
+    },
     "level": {
       "none": "Nothing",
       "read": "Read",
@@ -4225,8 +4245,7 @@
     },
     "passwords": {
       "title": "Passwords",
-      "enabled": "Password manager",
-      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries below",
+      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries chosen below",
       "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
     },
     "commands": {

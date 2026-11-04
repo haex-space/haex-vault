@@ -51,6 +51,50 @@ export type OperateScope = (typeof OPERATE_SCOPES)[number]
 export type Level = OperateLevel | 'none'
 export type Levels = Record<OperateScope, Level>
 
+/**
+ * What the window shows of "holzi bedienen": one row per topic, not per scope. The row's level
+ * stands for every scope of the group, so "Chat" with "Lesen und ändern" is `chat.read` and
+ * `chat.write` at `write`. The stored rights stay per scope; Rust knows no groups.
+ */
+export const OPERATE_GROUPS = [
+  { id: 'wm', scopes: ['wm.read', 'wm.navigation', 'wm.layout'] },
+  { id: 'chat', scopes: ['chat.read', 'chat.write'] },
+  { id: 'settings', scopes: ['settings.read', 'settings.device'] },
+  { id: 'models', scopes: ['settings.models'] },
+] as const satisfies ReadonlyArray<{
+  id: string
+  scopes: readonly OperateScope[]
+}>
+
+export type OperateGroup = (typeof OPERATE_GROUPS)[number]
+
+const LEVEL_ORDER: Record<Level, number> = { none: 0, read: 1, write: 2 }
+
+/** The level a group shows: the widest of its scopes, so nothing granted stays hidden. Rights
+ * edited per scope before the groups can differ inside one group until the user picks a level. */
+export function groupLevel(
+  levels: Partial<Record<OperateScope, Level>>,
+  group: OperateGroup,
+): Level {
+  let widest: Level = 'none'
+  for (const scope of group.scopes) {
+    const level = levels[scope] ?? 'none'
+    if (LEVEL_ORDER[level] > LEVEL_ORDER[widest]) widest = level
+  }
+  return widest
+}
+
+/** The levels with every scope of the group set to `level`. */
+export function withGroupLevel(
+  levels: Levels,
+  group: OperateGroup,
+  level: Level,
+): Levels {
+  const next = { ...levels }
+  for (const scope of group.scopes) next[scope] = level
+  return next
+}
+
 /** One level per scope; a scope the rights leave out is "none". */
 export function levelsOf(rights: Rights | null | undefined): Levels {
   return Object.fromEntries(
@@ -129,9 +173,12 @@ export function siteOf(text: string): string | null {
   return url.origin
 }
 
-/** How many scopes an agent may read and how many it may change, for a summary. */
+/** How many topics (`OPERATE_GROUPS`) an agent may read and how many it may change, for a
+ * summary. */
 export function rightsCount(rights: Rights): { read: number; write: number } {
-  const levels = Object.values(rights.operate)
+  const levels = OPERATE_GROUPS.map((group) =>
+    groupLevel(rights.operate as Partial<Record<OperateScope, Level>>, group),
+  )
   return {
     read: levels.filter((level) => level === 'read').length,
     write: levels.filter((level) => level === 'write').length,

@@ -92,7 +92,7 @@ export function loadScriptSetup<T>(
 
   const vue = nodeRequire('vue') as {
     ref: unknown
-    computed: unknown
+    computed: <V>(getter: () => V) => unknown
     watch: unknown
     reactive: <V extends object>(v: V) => V
   }
@@ -111,6 +111,8 @@ export function loadScriptSetup<T>(
     defineProps: () => reactiveProps,
     defineEmits: () => globals.emit ?? (() => {}),
     useI18n: () => ({ t: (key: string) => key }),
+    // The choices of an agent's right are plain texts; no case looks at them.
+    useRightLevelOptions: () => vue.computed(() => []),
     useRoute: () => ({ params: globals.params ?? { instance: 'vault' } }),
     useInstance: globals.useInstance ?? notProvided('useInstance'),
     useColorScheme: globals.useColorScheme ?? notProvided('useColorScheme'),
