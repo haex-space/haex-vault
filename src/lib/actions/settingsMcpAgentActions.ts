@@ -11,6 +11,7 @@ const STATUS = {
   properties: {
     enabled: { type: 'boolean' },
     state: { type: 'string' },
+    httpPort: { type: 'integer', nullable: true },
   },
   required: ['enabled', 'state'],
 } as const
