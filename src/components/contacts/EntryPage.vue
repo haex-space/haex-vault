@@ -160,7 +160,7 @@ async function removePhotoAsync() {
 
 <template>
   <div class="flex min-h-0 flex-col gap-4 p-3" data-testid="contacts-entry">
-    <div class="flex items-center gap-1">
+    <div class="flex items-start gap-1">
       <UiButton
         variant="ghost"
         size="icon"
@@ -171,8 +171,11 @@ async function removePhotoAsync() {
       >
         <Icon name="lucide:arrow-left" class="size-4" />
       </UiButton>
-      <div class="flex-1" />
-      <template v-if="contact">
+      <!-- In a narrow pane the buttons wrap instead of pushing the pane wider than its window. -->
+      <div
+        v-if="contact"
+        class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1"
+      >
         <UiButton
           variant="outline"
           data-testid="contacts-edit"
@@ -211,7 +214,7 @@ async function removePhotoAsync() {
         >
           <Icon name="lucide:trash-2" class="size-4 text-destructive" />
         </UiButton>
-      </template>
+      </div>
     </div>
 
     <p

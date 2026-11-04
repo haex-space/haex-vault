@@ -281,7 +281,10 @@
       "deleteCancelFailed": "The running turn could not be safely stopped. The session was kept.",
       "renameFailed": "The title could not be saved.",
       "titleRequired": "Please enter a title.",
-      "titleTooLong": "The title can contain at most 120 characters."
+      "titleTooLong": "The title can contain at most 120 characters.",
+      "searchTranscripts": "Search transcripts",
+      "noHits": "Nothing found",
+      "moreHits": "More results"
     },
     "close": "Close",
     "send": "Send",
@@ -475,6 +478,14 @@
       "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
       "blockTitle": "Block {name}?",
       "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
+    },
+    "search": {
+      "placeholder": "Search chats",
+      "noNames": "No conversation found",
+      "messages": "Messages",
+      "noMessages": "No message found",
+      "more": "More hits – narrow the search",
+      "error": "The search failed: {error}"
     }
   },
   "settings": {
@@ -483,8 +494,7 @@
       "description": "An image behind every workspace, on all devices of the vault.",
       "choose": "Choose image …",
       "remove": "Remove",
-      "failed": "Could not set the background",
-      "saved": "Saved."
+      "failed": "Could not set the background"
     },
     "password": {
       "current": "Current password",
@@ -501,29 +511,24 @@
     },
     "language": {
       "label": "Language",
-      "saved": "Saved.",
       "failed": "Could not save the language"
     },
     "alias": {
       "label": "Device name",
-      "saved": "Saved.",
       "required": "Please enter a name."
     },
     "sessionRestore": {
       "title": "Restore session",
-      "saved": "Saved.",
       "failed": "The setting could not be changed",
       "description": "Bring back open windows and tabs when the vault opens"
     },
     "screenCapture": {
       "title": "Screen protection",
       "description": "No screenshots or recordings, an empty preview among the recent apps",
-      "saved": "Saved.",
       "failed": "The setting could not be changed"
     },
     "sttModel": {
       "modelLabel": "Model",
-      "saved": "Switched.",
       "downloading": "Downloading…",
       "downloadFailed": "Download failed",
       "notInstalled": "Default (not installed)",
@@ -556,7 +561,6 @@
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
       "ungatedDescription": "The delegate runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
       "gated_permissiveDescription": "The delegate can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
-      "saved": "Saved.",
       "saveFailed": "Failed to save the autonomy default.",
       "loadFailed": "Failed to load the autonomy default."
     },
@@ -567,7 +571,6 @@
       "network_accessDescription": "Block actions that reach the network.",
       "credential_paths": "Credential paths",
       "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …).",
-      "saved": "Saved.",
       "saveFailed": "Failed to save deny rules.",
       "loadFailed": "Failed to load deny rules."
     },
@@ -651,11 +654,6 @@
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
           "keywords": "speech recognition voice input Whisper microphone dictation STT",
-          "voice": {
-            "title": "Voice",
-            "description": "How the voice assistant sounds, for each language.",
-            "keywords": "voice speech output read aloud voice assistant TTS speaking rate sample listen"
-          },
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
@@ -663,8 +661,8 @@
           },
           "assistant": {
             "title": "Voice assistant",
-            "description": "Talk to haex before the wake word arrives: by shortcut or from the indicator.",
-            "keywords": "voice assistant conversation talk preview shortcut indicator transcript"
+            "description": "Talk to haex: preview, conversation language, pause and voice.",
+            "keywords": "voice assistant conversation talk preview language pause voice speech output read aloud TTS speaking rate sample transcript"
           }
         },
         "providers": {
@@ -812,7 +810,6 @@
     "iconSet": {
       "label": "Icon set for files",
       "description": "Applies to the folders and files in the file browser, on every device of this vault.",
-      "saved": "Saved.",
       "failed": "The icon set could not be saved",
       "reset": "Reset",
       "states": {
@@ -854,7 +851,6 @@
       "light": "Light",
       "dark": "Dark",
       "system": "System",
-      "saved": "Saved.",
       "failed": "The color scheme could not be saved"
     },
     "deviceOnly": "Applies to this device only",
@@ -914,7 +910,6 @@
       "deviceAccess": {
         "title": "File access from devices",
         "description": "The other devices of this vault may open this device's files. Shares to contacts keep working.",
-        "saved": "Saved.",
         "failed": "The setting could not be changed"
       }
     },
@@ -1021,7 +1016,6 @@
       "exportFile": "Export",
       "imported": "Appearance imported.",
       "exported": "Appearance saved.",
-      "saved": "Saved.",
       "invalid": "Invalid choice: {field}",
       "failed": "The appearance could not be saved.",
       "import": {
@@ -1466,7 +1460,8 @@
     },
     "localModels": {
       "onDevice": "On this device",
-      "download": "Download"
+      "download": "Download",
+      "model": "Model"
     },
     "assistant": {
       "labels": {
@@ -1485,7 +1480,8 @@
         "headphones": "Headphones",
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
-        "preview": "Voice assistant (preview)"
+        "preview": "Voice assistant (preview)",
+        "language": "Conversation language"
       }
     },
     "voice": {
@@ -1494,20 +1490,16 @@
       "preview": "Sample",
       "previewOf": "Sample of {name}",
       "previewFailed": "Sample failed: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "model": {
         "downloading": "Downloading …",
-        "name": "Speech model {language}",
-        "title": "Speech model",
-        "ready": "Downloaded. Every voice of this language uses it.",
         "available": "{size} · {fit}",
         "download": "Download",
         "downloadFailed": "Download failed: {reason}"
       },
-      "languages": "Languages",
-      "voicesLabel": "Voices",
-      "needsModel": "Download the speech model first to hear a sample."
+      "voicesOf": "Voices · {language}",
+      "downloadOf": "Download {name}",
+      "downloadName": "Voice {name} ({language})"
     },
     "tones": {
       "always": "Always sounds, even with tones off.",
@@ -1517,7 +1509,6 @@
       "listen": "Listen",
       "listenTo": "Listen to {name}",
       "previewFailed": "Could not play: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "names": {
         "listening": "Listening",
@@ -1565,7 +1556,6 @@
       "delete": "Delete",
       "deleteConfirm": "Delete on all devices",
       "deleteOf": "Delete {name}",
-      "imported": "Added “{name}”.",
       "importFailed": "Not added: {reason}",
       "reasons": {
         "tooLarge": "The file is larger than 20 MB.",
@@ -1579,19 +1569,10 @@
     "assistantPage": {
       "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
-      "saved": "Saved",
-      "readiness": "Still missing",
-      "ready": "All set: you can start a conversation.",
-      "missing": {
-        "sttModel": "Speech recognition model",
-        "vadModel": "Pause detection",
-        "wakeWordModel": "Wake word (comes with a later version)",
-        "voice": "Voice model for this language",
-        "chatModel": "AI model",
-        "microphone": "Microphone"
-      },
       "seconds": "{value} s",
-      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only."
+      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
+      "languageUi": "Same as the interface ({language})",
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language."
     }
   },
   "models": {
@@ -1684,9 +1665,10 @@
         "unknown": "Unchecked"
       },
       "delete": "Remove",
-      "deleteConfirm": "Really remove this model? Only the local file is deleted.",
+      "deleteConfirm": "Really remove this model? Only the local file is deleted. If it is active, it is unloaded first.",
       "deleteFailed": "Failed to remove.",
-      "load": "Load",
+      "activate": "Activate",
+      "unload": "Unload",
       "active": "Active",
       "catalogLink": "View catalog entry"
     },
@@ -1815,7 +1797,8 @@
       "notFound": "The extension does not exist (anymore).",
       "disabled": "The extension is disabled.",
       "notReady": "The extension is not ready on this device yet."
-    }
+    },
+    "operationBusy": "haex is still busy with another request. Try again in a moment."
   },
   "actions": {
     "wm": {
@@ -3074,7 +3057,10 @@
       "drives": "Drives",
       "free": "{size} free",
       "used": "{size} used",
-      "freeOf": "{free} free of {total}",
+      "spaceOf": "Space of {name}",
+      "spaceUsed": "Used",
+      "spaceFree": "Free",
+      "spaceTotal": "Total",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",
@@ -4168,7 +4154,13 @@
       "invalid": "This is not an https or http website.",
       "hint": "A website over unencrypted http can only be read. Other websites ask before they open.",
       "forgetFill": "Forget login",
-      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time."
+      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time.",
+      "requestRule": "Requests to {site}",
+      "requestHint": "Requests the pages send to this website, without asking.",
+      "request": {
+        "allow": "Sent",
+        "deny": "Refused"
+      }
     },
     "extensions": {
       "title": "Extensions",
@@ -4217,7 +4209,10 @@
       "agent": "Agent",
       "site": {
         "title": "Open this website?",
-        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent."
+        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent.",
+        "remember": "Remember for this website",
+        "site-operate": "Allow operating",
+        "site-read": "Read only"
       },
       "action": {
         "title": "Allow this browser action?",
@@ -4226,7 +4221,13 @@
       "submit": {
         "title": "Send to the website?",
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
-        "fields": "What would be sent"
+        "fields": "What would be sent",
+        "body": "Content"
+      },
+      "request": {
+        "title": "Send the page's request?",
+        "hint": "The page itself wants to send something to this website, such as a measurement or a form. Nothing is sent without your consent.",
+        "remember": "Remember for this website"
       },
       "newTab": {
         "title": "Open a new tab?",
@@ -4248,7 +4249,6 @@
       "fill": {
         "title": "Fill in login details?",
         "hint": "The agent wants to log in on this website. holzi fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” holzi fills here without asking from now on, as long as only one entry matches.",
-        "allow": "Only this time",
         "remember": "Remember for this website",
         "choose": "Which entry?",
         "entry": "Entry",
@@ -4274,9 +4274,6 @@
       "more": "{count} more questions wait after this one.",
       "deny": "Decline",
       "allow": "Allow",
-      "allowOnce": "Only this time",
-      "rememberRead": "Remember: read",
-      "rememberOperate": "Remember: operate",
       "siteLabel": "Website",
       "actionLabel": "Action",
       "switchOn": {
@@ -4321,6 +4318,35 @@
     "on": "Voice assistant: on",
     "off": "Voice assistant: off",
     "name": "Voice assistant",
-    "failed": "Voice assistant: {reason}"
+    "failed": "Voice assistant: {reason}",
+    "transcript": {
+      "title": "Transcript",
+      "empty": "Nothing has been said in this session yet.",
+      "unspoken": "not read out",
+      "loadFailed": "Could not load the transcript: {reason}"
+    },
+    "speaker": {
+      "user": "You",
+      "haex": "haex"
+    },
+    "kind": {
+      "announcement": "Announcement",
+      "progress": "Progress",
+      "report": "Report",
+      "approvalQuestion": "Approval",
+      "approvalAnswer": "Approval answer",
+      "choiceQuestion": "Question",
+      "choiceAnswer": "Answer to question",
+      "stop": "Stop",
+      "closing": "Closing",
+      "notUnderstood": "not understood",
+      "secretNote": "read out"
+    },
+    "outcome": {
+      "approved": "approved",
+      "declined": "declined",
+      "open": "open",
+      "cancelled": "cancelled"
+    }
   }
 }

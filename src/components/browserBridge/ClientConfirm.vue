@@ -3,6 +3,7 @@
  * The confirmation before a browser extension is revoked or unblocked (spec 049, US5, FR-011): a
  * revoked one is disconnected at once, and both are asked again on their next connect.
  */
+import { toast } from 'vue-sonner'
 import type { BridgeClientView } from '~/types/bindings/BridgeClientView'
 
 const props = defineProps<{
@@ -19,7 +20,6 @@ const { errString } = useErrorString()
 const revoke = useActionOrThrow('settings.browserBridge.client.revoke')
 const unblock = useActionOrThrow('settings.browserBridge.client.unblock')
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 const name = computed(
   () => props.client.clientName || t('browserBridge.client.noName'),
@@ -27,13 +27,12 @@ const name = computed(
 
 async function confirmAsync() {
   busy.value = true
-  failure.value = null
   try {
     const run = props.kind === 'revoke' ? revoke : unblock
     await run({ clientId: props.client.clientId })
     emit('close')
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -54,9 +53,6 @@ async function confirmAsync() {
           {{ t(`browserBridge.clients.${kind}Body`, { name }) }}
         </ShadcnAlertDialogDescription>
       </ShadcnAlertDialogHeader>
-      <p v-if="failure" class="text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>
           {{ t('browserBridge.clients.cancel') }}

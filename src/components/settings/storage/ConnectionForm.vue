@@ -14,6 +14,7 @@
  * chooses another entry.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { Addressing } from '@bindings/Addressing'
 import type { ConnectionInput } from '@bindings/ConnectionInput'
 import type { ConnectionView } from '@bindings/ConnectionView'
@@ -62,7 +63,6 @@ const shown = ref<{ key: ShownHostKey; changed: boolean } | null>(null)
 const confirmedKey = ref<string | undefined>()
 const replaceCredentials = ref(false)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 /** The last test found the folder missing; the user may let holzi make it (FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => draft.protocol !== 's3')
@@ -160,14 +160,13 @@ function typedCredentials(): ConnectionInput['credentials'] {
 async function saveAsync(createFolder = false) {
   if (busy.value) return
   busy.value = true
-  failure.value = null
   folderMissing.value = false
   if (
     withCredentials.value &&
     credentials.value.source === 'entry' &&
     !credentials.value.entryId
   ) {
-    failure.value = t('settings.storage.entryPicker.required')
+    toast.error(t('settings.storage.entryPicker.required'))
     busy.value = false
     return
   }
@@ -200,13 +199,13 @@ async function saveAsync(createFolder = false) {
       } catch (error) {
         // The connection stands; the storage can be added from the list.
         router.replace(`/storage/connections/${saved.id}`)
-        failure.value = storageError(error)
+        toast.error(storageError(error))
         return
       }
     }
     router.back()
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
     folderMissing.value = tree.value && isFolderMissing(error)
     shown.value = shownHostKey(error)
   } finally {
@@ -227,7 +226,7 @@ async function confirmHostKeyAsync() {
         hostKey: key.key.key,
       })
     } catch (error) {
-      failure.value = storageError(error)
+      toast.error(storageError(error))
       return
     }
   } else {
@@ -430,14 +429,6 @@ async function confirmHostKeyAsync() {
         </li>
       </SettingsGroup>
 
-      <p
-        v-if="failure"
-        class="px-1 text-sm text-destructive"
-        role="alert"
-        data-testid="storage-failure"
-      >
-        {{ failure }}
-      </p>
       <HostKeyConfirm
         v-if="shown"
         :shown="shown.key"

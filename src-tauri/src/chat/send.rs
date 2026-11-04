@@ -22,6 +22,7 @@ use uuid::Uuid;
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
+use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
 use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
@@ -59,6 +60,9 @@ pub struct StartTurn {
     /// The window's offset from UTC in minutes, so the model is told the user's local date and
     /// time; `None` tells it the time in UTC.
     pub utc_offset_minutes: Option<i32>,
+    /// The language a spoken turn is answered in: the one its conversation is held in. `None`
+    /// takes the interface language (spec 066 FR-002a).
+    pub reply_language: Option<ReplyLanguage>,
     /// Cap on generated tokens; `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
     /// Autonomy posture for a `cli_delegate` backend (spec 009); ignored by other adapters.
@@ -404,6 +408,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         current_turn_message.attachments = read_attachments;
     }
 
+    // The language the agent answers in (spec 066 FR-002a): a spoken turn brings the language its
+    // conversation is held in, a typed one takes the interface language. Without one the model
+    // follows the user, so a failed read must not stop the turn.
+    let reply_language = match turn.reply_language {
+        Some(language) => Some(language),
+        None => db.read(|r| read_typed(r)).await.unwrap_or_else(|error| {
+            log::warn!("chat: could not read the reply language: {error}");
+            None
+        }),
+    };
     let request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,
@@ -412,6 +426,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             turn.system_prompt.as_deref(),
             &tools,
             Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
+            reply_language,
         ),
         messages,
         reasoning_requested,

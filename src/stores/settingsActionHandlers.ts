@@ -313,6 +313,32 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await models.deleteAsync(String(input.modelId))
     return done
   })
+  // The models store calls `useI18n()` in its setup, which only works inside a component setup:
+  // resolve it per call (the workspace page has created it by then), never at registration.
+  on('settings.models.activate', async ({ input }) => {
+    const store = useModelsStore()
+    store.lastError = null
+    store.integrityActionError = null
+    const modelId = String(input.modelId)
+    await store.activateLocalModel(modelId)
+    const error = store.lastError ?? store.integrityActionError
+    if (error) throw new Error(error)
+    // A failed integrity check opens the decision dialog and sets no error: the model is not
+    // active yet, and only the person decides there.
+    if (store.integrityDialog?.modelId === modelId) {
+      throw new Error(
+        'The integrity check of the model failed; the person has to decide in the integrity dialog.',
+      )
+    }
+    return done
+  })
+  on('settings.models.deactivate', async () => {
+    const store = useModelsStore()
+    store.lastError = null
+    await store.deactivateLocalModel()
+    if (store.lastError) throw new Error(store.lastError)
+    return done
+  })
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
     return done

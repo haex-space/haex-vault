@@ -74,10 +74,7 @@ use chat::commands::{
     abort_current_generation, inspect_attachment, respond_tool_permission, send_message,
 };
 use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
-use chat::model_loading::{
-    active_model_info, load_model, load_model_with_integrity_override, select_model,
-    unload_local_model,
-};
+use chat::model_loading::{active_model_info, load_model, select_model};
 use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
     chat_conversation_open_note, chat_conversations_list,
@@ -88,6 +85,7 @@ use chat::peer::commands::messages::{
     chat_peer_send,
 };
 use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
+use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -796,8 +794,10 @@ pub fn run() {
             install_huggingface_update,
             check_huggingface_model_updates,
             load_model,
-            load_model_with_integrity_override,
-            unload_local_model,
+            chat::local_model::activate_local_model,
+            chat::local_model::activate_local_model_with_integrity_override,
+            chat::local_model::deactivate_local_model,
+            chat::local_model::active_local_model_info,
             active_model_info,
             model_load_status,
             resolve_default_model,
@@ -826,6 +826,7 @@ pub fn run() {
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,
+            chat_search,
             chat_conversation_read,
             chat_conversation_viewing,
             current_device_info,
@@ -872,6 +873,7 @@ pub fn run() {
             assistant::commands::assistant_end_conversation,
             assistant::commands::assistant_set_muted,
             assistant::transcript::assistant_transcript_list,
+            assistant::transcript::assistant_transcript_search,
             assistant::tones::assistant_tone_preview,
             assistant::custom_tones::assistant_tones_list,
             assistant::custom_tones::assistant_tone_import,

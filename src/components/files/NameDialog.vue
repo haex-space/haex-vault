@@ -3,6 +3,7 @@
  * A new folder, or a new name for an entry (spec 044 FR-017), or a new encrypted folder (spec 048
  * FR-001): a name that is taken or not allowed is refused with the reason, and the dialog stays open.
  */
+import { toast } from 'vue-sonner'
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import { asFilesError } from '~/composables/useFiles'
@@ -26,6 +27,7 @@ const { createFolderAsync, createEncryptedFolderAsync, renameAsync } =
   useFiles()
 
 const name = ref('')
+/** Why the typed name is refused (taken or not allowed); other failures show as a toast. */
 const error = ref<string | null>(null)
 const saving = ref(false)
 
@@ -37,6 +39,7 @@ watch(open, (isOpen) => {
 
 async function saveAsync() {
   saving.value = true
+  error.value = null
   try {
     const entry = props.entry
       ? await renameAsync(props.source, props.entry.path, name.value)
@@ -51,7 +54,9 @@ async function saveAsync() {
     emit('done', entry)
   } catch (cause) {
     const code = asFilesError(cause)?.code
-    error.value = code ? t(`files.error.${code}`) : String(cause)
+    if (code === 'exists' || code === 'invalidName')
+      error.value = t(`files.error.${code}`)
+    else toast.error(code ? t(`files.error.${code}`) : String(cause))
   } finally {
     saving.value = false
   }

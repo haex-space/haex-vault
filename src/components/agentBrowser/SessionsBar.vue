@@ -7,13 +7,13 @@
  * marker in the browser tab is the convenient way. The agent's name is its own claim, a tab's
  * title comes from the website.
  */
+import { toast } from 'vue-sonner'
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import type { BrowserSessionView } from '~/types/bindings/BrowserSessionView'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useAgentBrowserStore()
-const failure = ref<string | null>(null)
 
 function agentName(session: BrowserSessionView): string {
   if (session.builtin) return t('agentBrowser.prompt.builtinAgent')
@@ -46,11 +46,10 @@ function pauseText(session: BrowserSessionView): string | null {
 }
 
 async function runAsync(action: () => Promise<void>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -140,9 +139,6 @@ function steerAsync(session: BrowserSessionView) {
           {{ t('agentBrowser.sessions.stop') }}
         </UiButton>
       </div>
-      <p v-if="failure" class="text-xs text-destructive" role="alert">
-        {{ failure }}
-      </p>
     </section>
   </div>
 </template>

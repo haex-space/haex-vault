@@ -15,6 +15,7 @@
  * built-in agent; their actions serve only it.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { AgentFilePermissionView } from '@bindings/AgentFilePermissionView'
 import type { AgentView } from '@bindings/AgentView'
 import type { ContactGroup } from '@bindings/ContactGroup'
@@ -39,8 +40,6 @@ const groups = ref<ContactGroup[]>([])
 /** Other own devices and received shares, as storages (spec 056). */
 const remote = ref<{ id: string; name: string }[]>([])
 const busy = ref(false)
-const loadError = ref<string | null>(null)
-const opError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
@@ -51,9 +50,8 @@ async function reloadAsync() {
     // Without the other devices the settings still show the rest.
     const sources = await invoke<Sources>('files_sources').catch(() => null)
     remote.value = sources ? remoteStorages(sources) : []
-    loadError.value = null
   } catch (error: unknown) {
-    loadError.value = errString(error)
+    toast.error(`${t('settings.agentFiles.loadFailed')}: ${errString(error)}`)
   }
 }
 
@@ -153,11 +151,10 @@ async function saveAsync(
   status: string,
 ) {
   busy.value = true
-  opError.value = null
   try {
     await setPermission({ agentId, kind, target, status })
   } catch (error: unknown) {
-    opError.value = errString(error)
+    toast.error(`${t('settings.agentFiles.failed')}: ${errString(error)}`)
   } finally {
     busy.value = false
     await reloadAsync()
@@ -170,11 +167,10 @@ async function revokeAsync(
   kind: 'encryptedFolder' | 'contacts' = 'encryptedFolder',
 ) {
   busy.value = true
-  opError.value = null
   try {
     await removePermission({ agentId, kind, target })
   } catch (error: unknown) {
-    opError.value = errString(error)
+    toast.error(`${t('settings.agentFiles.failed')}: ${errString(error)}`)
   } finally {
     busy.value = false
     await reloadAsync()
@@ -195,10 +191,6 @@ function onStorage(agentId: string, storageId: string, next: string) {
 
 <template>
   <section class="flex flex-col gap-6">
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('settings.agentFiles.loadFailed') }}: {{ loadError }}
-    </p>
-
     <SettingsGroup
       v-for="agent in agents"
       :key="agent.agentId"
@@ -350,9 +342,5 @@ function onStorage(agentId: string, storageId: string, next: string) {
         </UiButton>
       </SettingsRow>
     </SettingsGroup>
-
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.agentFiles.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>

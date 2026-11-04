@@ -14,7 +14,6 @@ import type { Sources } from '@bindings/Sources'
 import type { FilesPin } from '~/lib/files/pins'
 import { isCurrentDrive } from '~/lib/files/drives'
 import type { StorageSpace } from '@bindings/StorageSpace'
-import { formatSpace } from '~/lib/files/space'
 import { formatFileSize } from '~/lib/passwords/format'
 
 const props = defineProps<{
@@ -47,7 +46,7 @@ const emit = defineEmits<{
   queryContact: [contactId: string]
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const { nameOf } = useFilesDriveActions()
 const { storageSpaceAsync } = useFiles()
 const { overview } = useStorageOverview()
@@ -72,12 +71,6 @@ watch(
   },
   { immediate: true },
 )
-
-/** `12,3/100 GB` of a storage, or `undefined` while nothing is known. */
-function storageSpaceText(id: string): string | undefined {
-  const space = spaces.value[id]
-  return space ? formatSpace(space.used, space.total, locale.value) : undefined
-}
 
 function driveIcon(drive: Drive): string {
   if (props.busy.has(drive.id)) return 'lucide:loader-circle'
@@ -166,22 +159,9 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
             <span
               v-if="
                 drive.state === 'mounted' &&
-                drive.total !== null &&
-                drive.free !== null
+                drive.free !== null &&
+                drive.total === null
               "
-              class="shrink-0 text-xs text-muted-foreground"
-              :title="
-                t('files.sidebar.freeOf', {
-                  free: formatSpace(drive.free, null, locale),
-                  total: formatSpace(drive.total, null, locale),
-                })
-              "
-              :data-testid="`files-drive-space-${drive.id}`"
-            >
-              {{ formatSpace(drive.total - drive.free, drive.total, locale) }}
-            </span>
-            <span
-              v-else-if="drive.state === 'mounted' && drive.free !== null"
               class="shrink-0 text-xs text-muted-foreground"
             >
               {{
@@ -189,6 +169,17 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
               }}
             </span>
           </button>
+          <FilesSpaceDonut
+            v-if="
+              drive.state === 'mounted' &&
+              drive.total !== null &&
+              drive.free !== null
+            "
+            :name="nameOf(drive)"
+            :used="drive.total - drive.free"
+            :total="drive.total"
+            :data-testid="`files-drive-space-${drive.id}`"
+          />
           <button
             v-if="drive.release !== 'none' && !busy.has(drive.id)"
             type="button"
@@ -339,10 +330,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
         </UiButton>
       </div>
       <ul>
-        <li v-for="storage in sources.storages" :key="storage.id">
+        <li
+          v-for="storage in sources.storages"
+          :key="storage.id"
+          class="flex items-center"
+        >
           <button
             type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
             :class="
               currentStorage === storage.id ? 'bg-accent font-medium' : ''
             "
@@ -350,16 +345,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
             @click="emit('pickStorage', storage.id)"
           >
             <Icon name="lucide:cloud" class="size-4 shrink-0" />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate">{{ storage.name }}</span>
-              <span
-                v-if="storageSpaceText(storage.id)"
-                class="block truncate text-xs text-muted-foreground"
-                :data-testid="`files-storage-space-${storage.name}`"
-              >
-                {{ storageSpaceText(storage.id) }}
-              </span>
-            </span>
+            <span class="min-w-0 flex-1 truncate">{{ storage.name }}</span>
             <span
               v-if="protocolOf(storage.id)"
               class="shrink-0 rounded border px-1 text-[10px] leading-4 font-medium text-muted-foreground"
@@ -368,6 +354,13 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
               {{ t(`settings.storage.protocols.${protocolOf(storage.id)}`) }}
             </span>
           </button>
+          <FilesSpaceDonut
+            v-if="spaces[storage.id]"
+            :name="storage.name"
+            :used="spaces[storage.id]!.used"
+            :total="spaces[storage.id]!.total"
+            :data-testid="`files-storage-space-${storage.name}`"
+          />
         </li>
       </ul>
     </section>

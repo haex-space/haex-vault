@@ -1,15 +1,26 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import type { TierRecommendation, Tier } from '~/composables/useCatalog'
 import type { SttCatalogEntry } from '~/composables/useSttCatalog'
 import { humanBytes } from '~/lib/models/format'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   tiers: TierRecommendation<SttCatalogEntry>[]
   downloadingId: string | null
+  /** Shown as a toast. */
   downloadError: string | null
 }>()
+
+watch(
+  () => props.downloadError,
+  (message) => {
+    if (message)
+      toast.error(`${t('onboarding.sttModel.downloadFailed')}: ${message}`)
+  },
+  { immediate: true },
+)
 
 const emit = defineEmits<{
   choose: [tier: TierRecommendation<SttCatalogEntry>]
@@ -83,9 +94,6 @@ function confirmed() {
 
     <p v-if="downloadingId" class="text-sm text-muted-foreground" role="status">
       {{ t('onboarding.sttModel.downloading') }} ({{ downloadingId }})
-    </p>
-    <p v-if="downloadError" class="text-sm text-destructive" role="alert">
-      {{ t('onboarding.sttModel.downloadFailed') }}: {{ downloadError }}
     </p>
 
     <ModelsDownloadConfirmStep

@@ -10,8 +10,10 @@ import {
   ref,
   nextTick,
   useTemplateRef,
+  watch,
 } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
@@ -163,6 +165,7 @@ const {
   editingThreadId,
   draftTitle,
   editTitleError,
+  renameError,
   renamingThreadId,
   deleteCandidate,
   deleteError,
@@ -189,6 +192,40 @@ const activeMessages = computed<Message[]>(() => {
   return messagesByThread.value[activeThreadId.value] ?? []
 })
 
+// Spec 066 T127: a spoken session can show its transcript instead of its messages. A search hit
+// in "Verlauf" opens the session with the transcript at that entry; another session starts with
+// its messages.
+const transcriptOpen = ref(false)
+// `request` counts the selections, so choosing the same hit again scrolls to it again.
+const transcriptFocus = ref<{ id: string; request: number } | null>(null)
+let focusRequests = 0
+let pendingTranscript: { threadId: string; id: string } | null = null
+const activeIsVoice = computed(
+  () =>
+    threads.value.find((thread) => thread.id === activeThreadId.value)
+      ?.origin === 'voice',
+)
+watch(activeThreadId, (threadId) => {
+  const pending = pendingTranscript
+  pendingTranscript = null
+  const hit = pending?.threadId === threadId ? pending : null
+  transcriptOpen.value = hit !== null
+  transcriptFocus.value = hit ? { id: hit.id, request: ++focusRequests } : null
+})
+// Closing the transcript returns to the newest message.
+watch(transcriptOpen, (isOpen) => {
+  if (!isOpen) void scrollToBottom({ force: true })
+})
+function openTranscript(hit: { threadId: string; id: string }) {
+  if (hit.threadId === activeThreadId.value) {
+    transcriptOpen.value = true
+    transcriptFocus.value = { id: hit.id, request: ++focusRequests }
+    return
+  }
+  pendingTranscript = hit
+  void ui.openConversation(hit.threadId)
+}
+
 /** Whether the viewport follows new content: true while the reader is at its end, false once
  * they scrolled up to read earlier messages. */
 let followsBottom = true
@@ -208,6 +245,8 @@ function onMessagesScroll() {
  * read. `force` is for what the reader just did themselves, sending a message or opening a thread.
  */
 async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
+  // The transcript shares this viewport; it must stay where a search hit scrolled it.
+  if (transcriptOpen.value && activeIsVoice.value) return
   if (!force && !followsBottom) return
   await nextTick()
   const el = messagesScroll.value
@@ -299,6 +338,13 @@ const { syncFromLocation, ui } = useChatTab({
   peer: { ...peers, parkShare: useShareInboxStore().park },
 })
 
+/** A message hit of the sidebar's search (spec 076 FR-012): its conversation, for the agent the
+ * session holding the message. */
+function openHit(hit: ChatSearchHit) {
+  if (hit.kind === 'agent') ui.openConversation(hit.threadId)
+  else ui.openPeerConversation(hit.threadId)
+}
+
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
 // must appear here without reloading. While a turn runs here its own events and its turn-complete
 // reload keep the transcript current, so messages are left alone until it is over.
@@ -389,6 +435,7 @@ onBeforeUnmount(() => {
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
         @new-conversation="newContactOpen = true"
         @toggle="toggle"
+        @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
 
@@ -404,6 +451,7 @@ onBeforeUnmount(() => {
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
       <ChatAgentHeader
+        v-model:transcript="transcriptOpen"
         :threads="threads"
         :active-thread-id="activeThreadId"
         :busy="busy"
@@ -415,6 +463,7 @@ onBeforeUnmount(() => {
           :editing-thread-id="editingThreadId"
           :draft-title="draftTitle"
           :edit-title-error="editTitleError"
+          :rename-error="renameError"
           :renaming-thread-id="renamingThreadId"
           :delete-candidate="deleteCandidate"
           :delete-error="deleteError"
@@ -429,6 +478,7 @@ onBeforeUnmount(() => {
           @request-delete="requestDelete"
           @close-delete-dialog="closeDeleteDialog"
           @confirm-delete="ui.confirmDelete"
+          @open-transcript="openTranscript"
         />
       </ChatAgentHeader>
       <ChatStatusBanners
@@ -454,7 +504,13 @@ onBeforeUnmount(() => {
           class="flex-1 min-h-0 overflow-y-auto px-4 py-6 md:px-8"
           @scroll.passive="onMessagesScroll"
         >
+          <ChatVoiceTranscript
+            v-if="transcriptOpen && activeIsVoice && activeThreadId"
+            :thread-id="activeThreadId"
+            :focus="transcriptFocus"
+          />
           <ChatMessageList
+            v-else
             :active-messages="activeMessages"
             :show-model-selection="showModelSelection"
             :active-model-name="activeModel?.name"

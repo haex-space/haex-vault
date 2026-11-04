@@ -15,6 +15,7 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.sensitivity',
   'assistant.pauseMs',
   'assistant.continueMins',
+  'assistant.language',
   'assistant.voice.<sprache>',
   'assistant.speechRate',
   'assistant.ttsProvider',
@@ -34,6 +35,32 @@ export function assistantLabelKey(key: AssistantSettingKey): string {
     .replace(/\.<sprache>$/, '')
     .replace(/\.(\w)/g, (_, first: string) => first.toUpperCase())
   return `settings.assistant.labels.${name}`
+}
+
+/** The language of spoken conversations on this device (FR-002a, operator 2026-11-03): `'ui'`
+ * follows the interface; another one lets the user practise a language. Typed chats always answer
+ * in the interface language. */
+export const CONVERSATION_LANGUAGE_KEY = 'assistant.language'
+export const CONVERSATION_LANGUAGES = ['ui', ...SPEECH_LANGUAGES] as const
+export type ConversationLanguage = (typeof CONVERSATION_LANGUAGES)[number]
+
+/** A stored choice; anything else follows the interface, as `reply_language::resolve` does. */
+export function parseConversationLanguage(
+  value: string | null,
+): ConversationLanguage {
+  return (CONVERSATION_LANGUAGES as readonly string[]).includes(value ?? '')
+    ? (value as ConversationLanguage)
+    : 'ui'
+}
+
+/** The language a conversation is held in: the choice, else the interface language when haex
+ * speaks it, else English. */
+export function spokenLanguage(
+  choice: ConversationLanguage,
+  interfaceLocale: string,
+): SpeechLanguage {
+  if (choice !== 'ui') return choice
+  return SPEECH_LANGUAGES.find((l) => interfaceLocale.startsWith(l)) ?? 'en'
 }
 
 /** The device preference holding the voice of `language`, a `VoiceRef`. */

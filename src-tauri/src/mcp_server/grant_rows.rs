@@ -5,7 +5,9 @@
 //!
 //! - `operate`: one row per scope of "holzi bedienen", keyed by the scope.
 //! - `browser` (spec 065): a switch row with an empty key, a row `user-browser` and one row per
-//!   website; a website whose credential fill is remembered carries the tags `["fill"]`.
+//!   website; a website whose credential fill is remembered carries the tags `["fill"]`; a rule
+//!   for the requests a page sends to a website is a row `request:<website>` at `allow` or `deny`
+//!   (an older build cannot read the key as a website and skips it).
 //! - `passwords`: one row keyed by the tag new entries get (empty for none); its tags are a JSON
 //!   array of tag names, none for every entry.
 //! - `extension`: one row per extension, keyed by its id.
@@ -14,7 +16,8 @@
 use uuid::Uuid;
 
 use super::grants::{
-    BrowserRights, OperateLevel, PasswordLevel, PasswordRights, Rights, SiteGrant, SiteLevel,
+    BrowserRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant,
+    SiteLevel,
 };
 use crate::agent_browser::sites::Site;
 
@@ -30,6 +33,8 @@ const ON: &str = "on";
 const BROWSER_ON: &str = "";
 /// The key of the row that allows the user's own browser.
 const USER_BROWSER: &str = "user-browser";
+/// The start of the key of a rule for page requests (FR-044).
+const REQUEST_PREFIX: &str = "request:";
 /// The scope tags of a website whose credential fill is remembered.
 const FILL_TAGS: &str = r#"["fill"]"#;
 
@@ -116,6 +121,13 @@ fn browser_rows(browser: &BrowserRights) -> Vec<GrantRow> {
         let tags = grant.fill_remembered.then(|| FILL_TAGS.to_owned());
         GrantRow::new(GROUP_BROWSER, site.to_string(), grant.level.as_str()).tagged(tags)
     }));
+    rows.extend(browser.requests.iter().map(|(site, rule)| {
+        GrantRow::new(
+            GROUP_BROWSER,
+            format!("{REQUEST_PREFIX}{site}"),
+            rule.as_str(),
+        )
+    }));
     rows
 }
 
@@ -130,6 +142,12 @@ fn browser_of(rows: &[GrantRow]) -> Option<BrowserRights> {
         }
         if row.key == USER_BROWSER {
             browser.user_browser = row.level == ON;
+            continue;
+        }
+        if let Some(site) = row.key.strip_prefix(REQUEST_PREFIX) {
+            if let (Ok(site), Some(rule)) = (Site::parse(site), RequestRule::parse(&row.level)) {
+                browser.requests.insert(site, rule);
+            }
             continue;
         }
         let (Ok(site), Some(level)) = (Site::parse(&row.key), SiteLevel::parse(&row.level)) else {

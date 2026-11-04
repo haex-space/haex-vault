@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { toast } from 'vue-sonner'
 
 /**
  * Voice dictation controls (spec 008-voice-control-stt, T014).
@@ -45,7 +46,6 @@ const { getPrefAsync } = usePreferences()
 
 const state = ref<RecordingState>('idle')
 const autoSend = ref(true)
-const errorMessage = ref<string | null>(null)
 const noSpeechDetected = ref(false)
 
 const finishLabel = computed(() =>
@@ -148,7 +148,6 @@ async function startRecording() {
     (state.value !== 'idle' && state.value !== 'error')
   )
     return
-  errorMessage.value = null
   noSpeechDetected.value = false
   startPending = true
   try {
@@ -163,7 +162,7 @@ async function startRecording() {
   } catch (e) {
     if (!disposed) {
       state.value = 'error'
-      errorMessage.value = describeError(e)
+      toast.error(describeError(e))
     }
   } finally {
     startPending = false
@@ -181,7 +180,7 @@ async function finishRecording(result?: TranscriptionResult | null) {
     if (disposed) return
     if (transcription === null) {
       state.value = 'error'
-      errorMessage.value = t('voiceControl.error.generic')
+      toast.error(t('voiceControl.error.generic'))
       return
     }
     state.value = 'idle'
@@ -194,7 +193,7 @@ async function finishRecording(result?: TranscriptionResult | null) {
   } catch (e) {
     if (disposed) return
     state.value = 'error'
-    errorMessage.value = describeError(e)
+    toast.error(describeError(e))
   }
 }
 
@@ -286,14 +285,6 @@ async function cancelRecording() {
       role="status"
     >
       {{ t('voiceControl.noSpeechDetected') }}
-    </span>
-    <span
-      v-if="errorMessage"
-      class="text-xs text-destructive"
-      role="alert"
-      data-testid="voice-error"
-    >
-      {{ errorMessage }}
     </span>
   </div>
 </template>

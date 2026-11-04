@@ -13,6 +13,7 @@ import { createEntry, overview as passwords } from '../lib/passwords.ts'
 import { choose, KEY } from '../lib/settings.ts'
 import { listTree, startWebdav } from '../lib/webdav.ts'
 import type { Page } from '../lib/page.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const FOLDER = 'Erweiterung'
 
@@ -35,12 +36,6 @@ async function begin(
 function answer(page: Page, probe: InstalledExtension): Promise<BridgeAnswer> {
   return inFrame<BridgeAnswer>(page, probe, `return window.answer`)
 }
-
-const textOf = (page: Page, hook: string) =>
-  page.exec<string>(
-    `return document.querySelector('[data-testid="' + arguments[0] + '"]').textContent.trim()`,
-    [hook],
-  )
 
 async function replaceText(page: Page, hook: string, text: string) {
   await page.type(hook, `${KEY.control}a${KEY.release}${KEY.backspace}`)
@@ -120,17 +115,22 @@ scenario(
     await page.type('storage-username', webdav.username)
     await page.type('storage-password', 'not-the-password')
     await page.type('storage-password', KEY.enter)
-    await page.waitForDisplayed('storage-credentials-failure', 20_000)
-    assert.match(
-      await textOf(page, 'storage-credentials-failure'),
-      /Zugangsdaten falsch|Credentials wrong/,
+    await ctx.waitFor(
+      'the error toast for the wrong password',
+      async () =>
+        (await errorToasts(page)).some((text) =>
+          /Zugangsdaten falsch|Credentials wrong/.test(text),
+        ),
+      { timeoutMs: 20_000 },
     )
     await replaceText(page, 'storage-password', webdav.password)
     await page.type('storage-password', KEY.enter)
     await page.waitForDisplayed('storage-credentials-create-folder', 20_000)
-    assert.match(
-      await textOf(page, 'storage-credentials-failure'),
-      /Ordner fehlt|Folder missing/,
+    assert.ok(
+      (await errorToasts(page)).some((text) =>
+        /Ordner fehlt|Folder missing/.test(text),
+      ),
+      'the missing folder is named in an error toast',
     )
     assert.ok(
       !(await listTree(webdav, '/')).includes(`${FOLDER}/`),

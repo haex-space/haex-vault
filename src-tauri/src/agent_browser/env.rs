@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 
 use super::error::BrowserError;
@@ -24,7 +24,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::permissions::{self, BUILTIN_AGENT};
 use crate::files::state::FilesState;
 use crate::mcp_server::grants::{
-    validate, BrowserRights, PasswordRights, Rights, SiteGrant, SiteLevel,
+    validate, BrowserRights, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
 };
 use crate::mcp_server::registry;
 use crate::passwords::service::PasswordsService;
@@ -47,7 +47,7 @@ pub const BUILTIN_PASSWORDS_KEY: &str = "agent_browser.builtin_passwords";
 const TABLE: &str = "haex_agent_browser_no_sync";
 
 /// The open vault's device.
-async fn device<R: Runtime>(app: &AppHandle<R>) -> Result<Uuid, String> {
+pub(super) async fn device<R: Runtime>(app: &AppHandle<R>) -> Result<Uuid, String> {
     let state = app.state::<AppState>();
     crate::mcp_server::commands::open_device(app, &state)
         .await
@@ -245,40 +245,12 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             level,
             fill_remembered: false,
         };
-        match caller {
-            Caller::BuiltinAgent => {
-                let mut rights = builtin_rights(&self.app)
-                    .await
-                    .ok_or("the browser is off for the built-in agent")?;
-                rights.sites.insert(site.clone(), grant);
-                set_builtin_rights(&self.app, Some(rights)).await
-            }
-            Caller::ExternalAgent { id } => {
-                let agent = Uuid::parse_str(id).map_err(|error| error.to_string())?;
-                let device = device(&self.app).await?;
-                let db = self
-                    .app
-                    .state::<AppState>()
-                    .database()
-                    .map_err(|error| error.to_string())?;
-                let site = site.clone();
-                db.write(move |tx| {
-                    let mut rights = registry::load_rights(tx, device, agent)?;
-                    if let Some(browser) = rights.browser.as_mut() {
-                        browser.sites.insert(site, grant);
-                        registry::save_rights(tx, device, agent, &rights)?;
-                    }
-                    Ok(())
-                })
-                .await
-                .map_err(|error| error.to_string())?;
-                let _ = self
-                    .app
-                    .emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
-                Ok(())
-            }
-            _ => Err("not an agent".to_owned()),
-        }
+        let site = site.clone();
+        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
+            rights.sites.insert(site, grant);
+            true
+        })
+        .await
     }
 
     async fn agent_name(&self, caller: &Caller) -> String {
@@ -369,54 +341,32 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
     }
 
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
-        let remembered = |rights: &mut BrowserRights| match rights.sites.get_mut(site) {
-            // Only a website the agent may operate keeps a fill (data-model.md).
-            Some(grant) if grant.level == SiteLevel::Operate => {
-                grant.fill_remembered = true;
-                true
-            }
-            _ => false,
-        };
-        match caller {
-            Caller::BuiltinAgent => {
-                let mut rights = builtin_rights(&self.app)
-                    .await
-                    .ok_or("the browser is off for the built-in agent")?;
-                if remembered(&mut rights) {
-                    set_builtin_rights(&self.app, Some(rights)).await?;
+        let site = site.clone();
+        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
+            match rights.sites.get_mut(&site) {
+                // Only a website the agent may operate keeps a fill (data-model.md).
+                Some(grant) if grant.level == SiteLevel::Operate => {
+                    grant.fill_remembered = true;
+                    true
                 }
-                Ok(())
+                _ => false,
             }
-            Caller::ExternalAgent { id } => {
-                let agent = Uuid::parse_str(id).map_err(|error| error.to_string())?;
-                let device = device(&self.app).await?;
-                let db = self
-                    .app
-                    .state::<AppState>()
-                    .database()
-                    .map_err(|error| error.to_string())?;
-                let site = site.clone();
-                db.write(move |tx| {
-                    let mut rights = registry::load_rights(tx, device, agent)?;
-                    if let Some(browser) = rights.browser.as_mut() {
-                        if let Some(grant) = browser.sites.get_mut(&site) {
-                            if grant.level == SiteLevel::Operate {
-                                grant.fill_remembered = true;
-                                registry::save_rights(tx, device, agent, &rights)?;
-                            }
-                        }
-                    }
-                    Ok(())
-                })
-                .await
-                .map_err(|error| error.to_string())?;
-                let _ = self
-                    .app
-                    .emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
-                Ok(())
-            }
-            _ => Err("not an agent".to_owned()),
-        }
+        })
+        .await
+    }
+
+    async fn remember_request(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        rule: RequestRule,
+    ) -> Result<(), String> {
+        let site = site.clone();
+        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
+            rights.requests.insert(site, rule);
+            true
+        })
+        .await
     }
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {

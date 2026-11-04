@@ -170,6 +170,8 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
     assistantMessageId: 'answer',
   }),
   active_model_info: () => ({ modelId: 'model' }),
+  // No local model is active by default; the chat's own model above is a provider's.
+  active_local_model_info: () => null,
   model_load_status: () => ({ status: 'idle', vaultGeneration: 0 }),
   get_pref: () => null,
   list_installed_models: () => [],
@@ -194,7 +196,7 @@ const RETURN_STATEMENT = `
       handleChoiceRequest: chatTranscript.handleChoiceRequest,
       threads, messagesByThread, activeThreadId,
       input, busy, activeModel, modelLoadPending, draftTitle,
-      editingThreadId, editTitleError, deleteCandidate, deleteError,
+      editingThreadId, editTitleError, renameError, deleteCandidate, deleteError,
       composerInputDisabled, sendDisabled, pendingPrompts, streamingMessageId,
       streamingThreadId, lastError,
       updatePermissionMode, permissionMode, permissionModeSaving, syncFromLocation,

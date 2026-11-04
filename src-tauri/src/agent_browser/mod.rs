@@ -12,6 +12,7 @@ pub mod cdp;
 pub mod commands;
 pub mod downloads;
 pub mod env;
+mod env_rights;
 pub mod error;
 pub mod executor;
 pub mod locate;

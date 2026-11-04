@@ -6,6 +6,7 @@
  * outside its bounds is refused with the reason and the stored value comes back.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { ExtensionLimits } from '@bindings/ExtensionLimits'
 import type { ExtensionLimitsView } from '@bindings/ExtensionLimitsView'
 
@@ -29,7 +30,6 @@ const FIELDS: Field[] = [
 const view = ref<ExtensionLimitsView | null>(null)
 const stored = computed(() => view.value?.values ?? null)
 const draft = reactive<Partial<Record<Field, string>>>({})
-const failure = ref<string | null>(null)
 const busy = ref(false)
 
 function showStored() {
@@ -44,7 +44,7 @@ async function loadAsync() {
       extensionId: props.extensionId,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   showStored()
 }
@@ -57,7 +57,6 @@ async function commitAsync(key: Field) {
   // An emptied field or no whole number is not a limit: the stored one comes back.
   if (text === '' || !Number.isSafeInteger(value)) {
     draft[key] = String(current[key])
-    failure.value = null
     return
   }
   if (value === current[key]) return
@@ -67,9 +66,8 @@ async function commitAsync(key: Field) {
       extensionId: props.extensionId,
       limits: { ...current, [key]: value },
     })
-    failure.value = null
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -109,8 +107,5 @@ onMounted(loadAsync)
         />
       </div>
     </SettingsRow>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </li>
   </SettingsGroup>
 </template>

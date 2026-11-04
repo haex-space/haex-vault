@@ -14,6 +14,7 @@ import type { SyncRuleDeleteMode } from '@bindings/SyncRuleDeleteMode'
 import type { SyncRuleDirection } from '@bindings/SyncRuleDirection'
 import type { SyncRule } from '@bindings/SyncRule'
 import type { SyncRuleDraft } from '@bindings/SyncRuleDraft'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import {
   canSave,
@@ -52,7 +53,6 @@ const deleteMode = ref<SyncRuleDeleteMode>(defaultDeleteMode('aToB'))
 const minutes = ref(String(DEFAULT_INTERVAL_MINUTES))
 const consent = ref(false)
 const saving = ref(false)
-const error = ref<string | null>(null)
 const autoName = ref('')
 
 /** A fresh dialog each time it opens, or the rule to change. */
@@ -68,7 +68,6 @@ watch(open, (isOpen) => {
     ? String(Math.round(rule.intervalSecs / 60))
     : String(DEFAULT_INTERVAL_MINUTES)
   consent.value = false
-  error.value = null
   autoName.value = ''
 })
 
@@ -220,9 +219,9 @@ async function saveAsync() {
     emit('saved')
   } catch (cause) {
     const code = asSyncRuleError(cause)?.code
-    error.value = code
-      ? t(`files.syncRules.error.${code}`)
-      : t('files.syncRules.failed')
+    toast.error(
+      code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+    )
   } finally {
     saving.value = false
   }
@@ -324,14 +323,6 @@ async function saveAsync() {
           />
           <span>{{ decryptConsentText }}</span>
         </label>
-        <p
-          v-if="error"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="files-sync-rule-error"
-        >
-          {{ error }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton type="button" variant="outline" @click="open = false">{{
             t('files.cancel')

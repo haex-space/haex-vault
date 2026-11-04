@@ -12,6 +12,7 @@
  * form refuses a login (FR-027).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { CredentialsEntry } from '@bindings/CredentialsEntry'
 import type { MarketplaceAuthType } from '@bindings/MarketplaceAuthType'
 import type { MarketplaceInput } from '@bindings/MarketplaceInput'
@@ -46,7 +47,6 @@ const loaded = ref(false)
 const missing = ref(false)
 const busy = ref(false)
 const result = ref<MarketplaceTestResult | null>(null)
-const failure = ref<string | null>(null)
 const deleting = ref(false)
 /** The login of the saved row; the form keeps it unless the user asks for another. */
 const kept = ref<KeptLogin | null>(null)
@@ -76,7 +76,6 @@ async function loadAsync() {
   loaded.value = false
   missing.value = false
   result.value = null
-  failure.value = null
   if (isNew.value) {
     name.value = ''
     baseUrl.value = ''
@@ -107,7 +106,7 @@ async function loadAsync() {
     }
   } catch (error) {
     if (mine !== loadSequence) return
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   loaded.value = true
 }
@@ -148,13 +147,12 @@ function backToList() {
 
 async function saveAsync() {
   busy.value = true
-  failure.value = null
   try {
     await invoke<MarketplaceView>('marketplace_save', { input: input.value })
     clearLoginSecrets(login)
     backToList()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -165,14 +163,13 @@ async function saveAsync() {
 async function testAndSaveAsync() {
   if (!complete.value || busy.value) return
   busy.value = true
-  failure.value = null
   result.value = null
   try {
     result.value = await invoke<MarketplaceTestResult>('marketplace_test', {
       input: input.value,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     busy.value = false
     return
   }
@@ -188,7 +185,7 @@ async function deleteAsync() {
     deleting.value = false
     backToList()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -372,9 +369,6 @@ async function deleteAsync() {
                 ),
               })
         }}
-      </p>
-      <p v-if="failure" class="text-sm text-destructive" role="alert">
-        {{ failure }}
       </p>
 
       <div class="flex flex-wrap justify-end gap-2">

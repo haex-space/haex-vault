@@ -158,9 +158,14 @@ impl LocalWhisperAdapter {
     }
 }
 
-#[async_trait]
-impl SttAdapter for LocalWhisperAdapter {
-    async fn transcribe(&self, audio_in: &CanonicalPcm) -> Result<String, SttError> {
+impl LocalWhisperAdapter {
+    /// Runs the model; `language` fixes the spoken language, `None` detects it among
+    /// [`supported_languages`].
+    async fn run(
+        &self,
+        audio_in: &CanonicalPcm,
+        language: Option<String>,
+    ) -> Result<String, SttError> {
         let inner = Arc::clone(&self.inner);
         // Candle inference is synchronous/CPU-bound; `samples` is cloned so
         // the closure can be `'static` for `spawn_blocking` (matches this
@@ -171,7 +176,7 @@ impl SttAdapter for LocalWhisperAdapter {
             let mut inner = inner.lock().map_err(|e| SttError::Failed {
                 reason: format!("whisper state poisoned: {e}"),
             })?;
-            transcribe_samples(&mut inner, &samples)
+            transcribe_samples(&mut inner, &samples, language.as_deref())
         })
         .await
         .map_err(|e| SttError::Failed {
@@ -180,7 +185,26 @@ impl SttAdapter for LocalWhisperAdapter {
     }
 }
 
-fn transcribe_samples(inner: &mut Inner, samples: &[f32]) -> Result<String, SttError> {
+#[async_trait]
+impl SttAdapter for LocalWhisperAdapter {
+    async fn transcribe(&self, audio_in: &CanonicalPcm) -> Result<String, SttError> {
+        self.run(audio_in, None).await
+    }
+
+    async fn transcribe_in(
+        &self,
+        audio_in: &CanonicalPcm,
+        language: &str,
+    ) -> Result<String, SttError> {
+        self.run(audio_in, Some(language.to_owned())).await
+    }
+}
+
+fn transcribe_samples(
+    inner: &mut Inner,
+    samples: &[f32],
+    language: Option<&str>,
+) -> Result<String, SttError> {
     let num_mel_bins = inner.model.config.num_mel_bins;
     let mel = audio::pcm_to_mel(&inner.model.config, samples, &inner.mel_filters);
     let mel_len = mel.len();
@@ -210,7 +234,10 @@ fn transcribe_samples(inner: &mut Inner, samples: &[f32]) -> Result<String, SttE
             .encoder
             .forward(&mel_chunk, true)
             .map_err(tensor_err)?;
-        let language_token = detect_language(inner, &audio_features, sot_token)?;
+        let language_token = match language {
+            Some(code) => token_id(&inner.tokenizer, &format!("<|{code}|>"))?,
+            None => detect_language(inner, &audio_features, sot_token)?,
+        };
 
         let mut tokens = vec![
             sot_token,

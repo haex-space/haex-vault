@@ -34,6 +34,9 @@ pub enum BrowserPromptKind {
     Action,
     /// May the agent send this to the website (FR-011, FR-012)?
     Submit,
+    /// May a page send this request to the website (FR-044)? The request is the page's own, not an
+    /// action of the agent; the answer can be remembered for the website the request goes to.
+    Request,
     /// May a page of an agent tab open this new tab for the agent (research R9)?
     NewTab,
     /// The agent asks the user to take over (FR-018), with its reason.
@@ -162,6 +165,9 @@ pub enum Remember {
     SiteOperate,
     /// "Für diese Website merken" of a fill (FR-021).
     Fill,
+    /// "Für diese Website merken" of a page request (FR-044): the answer becomes a rule for the
+    /// website the request goes to.
+    Request,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]

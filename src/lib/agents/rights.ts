@@ -12,6 +12,8 @@ import type { SiteLevel } from '../../types/bindings/SiteLevel.ts'
 export type BrowserRights = {
   userBrowser: boolean
   sites: { [site in string]: { level: SiteLevel; fillRemembered: boolean } }
+  /** Rules for the requests a page sends to a website (spec 065 FR-044). */
+  requests: { [site in string]: 'allow' | 'deny' }
 }
 
 /** `PasswordRights` of the bindings; `tags: null` reaches every entry. */

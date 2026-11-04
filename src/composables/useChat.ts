@@ -393,28 +393,47 @@ export function useChat() {
   }
 
   /**
-   * Loads a model into the chat session. Accepts either a local
-   * catalog id (`"llama-3.1-8b"`) or a composite api_key id
-   * (`"<provider_uuid>:claude-opus-5"`); the backend routes on the
-   * colon.
+   * Loads a model into the chat session. Accepts a composite api_key id
+   * (`"<provider_uuid>:claude-opus-5"`) or the id of the active local model, which is already in
+   * memory; the chat never loads a local model itself (`activateLocalModelAsync` does).
    */
   async function loadModelAsync(modelId: string): Promise<LoadedModelInfo> {
     return await invoke<LoadedModelInfo>('load_model', { modelId })
   }
 
   /**
-   * Explicit, confirmation-gated bypass of the pre-load integrity check
-   * (spec 005 §"load_model und lokale Integritätsprüfung") — the
-   * `load_untrusted` action of the integrity dialog. Marks the model
-   * `untrusted` and loads the file currently on disk as-is; never touches
-   * the expected `fileSha256`.
+   * Loads the installed local model into memory and makes it the active one; the one that was
+   * active is unloaded. Runs the pre-load integrity check (spec 005 §"load_model und lokale
+   * Integritätsprüfung"). Has nothing to do with the model the chat session uses.
    */
-  async function loadModelWithIntegrityOverrideAsync(
+  async function activateLocalModelAsync(
     modelId: string,
   ): Promise<LoadedModelInfo> {
-    return await invoke<LoadedModelInfo>('load_model_with_integrity_override', {
-      modelId,
-    })
+    return await invoke<LoadedModelInfo>('activate_local_model', { modelId })
+  }
+
+  /**
+   * Explicit, confirmation-gated bypass of the pre-load integrity check — the `load_untrusted`
+   * action of the integrity dialog. Marks the model `untrusted` and activates the file currently
+   * on disk as-is; never touches the expected `fileSha256`.
+   */
+  async function activateLocalModelWithIntegrityOverrideAsync(
+    modelId: string,
+  ): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>(
+      'activate_local_model_with_integrity_override',
+      { modelId },
+    )
+  }
+
+  /** Unloads the active local model; a chat session that ran it ends with it. */
+  async function deactivateLocalModelAsync(): Promise<void> {
+    await invoke('deactivate_local_model')
+  }
+
+  /** The active local model, or `null` when none is loaded. */
+  async function activeLocalModelInfoAsync(): Promise<LoadedModelInfo | null> {
+    return await invoke<LoadedModelInfo | null>('active_local_model_info')
   }
 
   /**
@@ -435,11 +454,6 @@ export function useChat() {
     })
     sessionModelQueue = pending.catch(() => {})
     await pending
-  }
-
-  /** Unloads the model currently held by the chat session. */
-  async function unloadModelAsync(): Promise<void> {
-    await invoke('unload_local_model')
   }
 
   /** Returns metadata for the loaded model, or `null` when none is loaded. */
@@ -609,8 +623,10 @@ export function useChat() {
     loadModelAsync,
     selectModelAsync,
     useSessionModelAsync,
-    loadModelWithIntegrityOverrideAsync,
-    unloadModelAsync,
+    activateLocalModelAsync,
+    activateLocalModelWithIntegrityOverrideAsync,
+    deactivateLocalModelAsync,
+    activeLocalModelInfoAsync,
     activeModelInfoAsync,
     onToken,
     onMessageComplete,

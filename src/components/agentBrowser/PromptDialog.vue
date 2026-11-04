@@ -8,15 +8,17 @@
  * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
  * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
  * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
- * gets it (`download`, FR-031), with its name from the website and its size. Closing the dialog
- * declines. A login fill (`fill`) shows the entries that match, by title, for the user only; the
+ * gets it (`download`, FR-031), with its name from the website and its size. Only the dialog's
+ * buttons answer (FR-042). A login fill (`fill`) shows the entries that match, by title, for the user only; the
  * user picks one and may remember the website for later fills (FR-021). An entry fill
  * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
  * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
- * A new login
+ * A request the page sends (`request`, FR-044) shows the website it goes to and
+ * what it sends; one checkbox "Für diese Website merken" turns the answer into a rule. A new login
  * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
  * holzi generated and already entered, "Ablehnen" empties the fields again.
  */
+import { toast } from 'vue-sonner'
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
 import { formatFileSize } from '~/lib/passwords/format'
 import type { Remember } from '~/types/bindings/Remember'
@@ -27,7 +29,6 @@ const store = useAgentBrowserStore()
 
 const shown = computed(() => store.shown)
 const question = computed(() => shown.value?.question ?? null)
-const failure = ref<string | null>(null)
 const waiting = computed(() => Math.max(store.prompts.length - 1, 0))
 const plainHttp = computed(
   () => question.value?.site?.startsWith('http://') === true,
@@ -37,6 +38,37 @@ const toolTitle = computed(() => {
   const def = BROWSER_ACTIONS.find((action) => action.id === tool)
   return def ? t(def.titleKey) : tool
 })
+/** "Für diese Website merken": one checkbox in every dialog that can remember (FR-007, FR-021, FR-044). */
+const remember = ref(false)
+/** What a remembered website may do (FR-007); `http` can only be read (research R9). */
+const rememberLevel = ref<'site-read' | 'site-operate'>('site-operate')
+/** Only a question with its website can remember anything for that website. */
+const canRemember = computed(
+  () =>
+    !!question.value?.site &&
+    ['site', 'fill', 'request'].includes(question.value.kind),
+)
+/**
+ * What an answer remembers. A website and a login fill remember only an allowance; a page request
+ * remembers either answer as a rule for the website it goes to.
+ */
+function remembered(allow: boolean): Remember | undefined {
+  if (!canRemember.value || !remember.value) return undefined
+  switch (question.value?.kind) {
+    case 'request':
+      return 'request'
+    case 'fill':
+      return allow ? 'fill' : undefined
+    case 'site':
+      return allow
+        ? plainHttp.value
+          ? 'site-read'
+          : rememberLevel.value
+        : undefined
+    default:
+      return undefined
+  }
+}
 const chosenEntry = ref<string | null>(null)
 /** The rows of an entry fill the user deselected. */
 const skipped = ref<Set<string>>(new Set())
@@ -66,9 +98,9 @@ function toggleRow(id: string, keep: boolean) {
 const allowLabel = computed(() => {
   switch (question.value?.kind) {
     case 'fill':
-      return t('agentBrowser.prompt.fill.allow')
+      return t('agentBrowser.prompt.allow')
     case 'site':
-      return t('agentBrowser.prompt.allowOnce')
+      return t('agentBrowser.prompt.allow')
     case 'newTab':
       return t('agentBrowser.prompt.newTab.allow')
     case 'takeover':
@@ -92,15 +124,17 @@ const agentName = computed(
 watch(
   () => shown.value?.requestId,
   () => {
-    failure.value = null
     const entries = question.value?.entries ?? []
     chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
     skipped.value = new Set()
+    remember.value = false
+    rememberLevel.value = plainHttp.value ? 'site-read' : 'site-operate'
   },
   { immediate: true },
 )
 
-async function answerAsync(allow: boolean, remember?: Remember) {
+/** Answers with the dialog's buttons; the checkbox says what the answer remembers. */
+async function answerAsync(allow: boolean, remembering?: Remember) {
   const asked = shown.value
   if (!asked) return
   const kind = asked.question.kind
@@ -116,17 +150,13 @@ async function answerAsync(allow: boolean, remember?: Remember) {
     await store.answerAsync(
       asked.requestId,
       allow ? 'allow' : 'deny',
-      remember,
+      remembering,
       entry ?? undefined,
       skip,
     )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -135,7 +165,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t(`agentBrowser.prompt.${question.kind}.title`)"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div
@@ -289,19 +319,48 @@ function onUpdateOpen(open: boolean) {
             data-testid="agent-browser-prompt-fields"
           >
             <template v-for="(field, index) in question.fields" :key="index">
-              <dt class="break-all text-muted-foreground">{{ field.name }}</dt>
-              <dd class="min-w-0 break-all">{{ field.value }}</dd>
+              <dt class="break-all text-muted-foreground">
+                {{ field.name || t('agentBrowser.prompt.submit.body') }}
+              </dt>
+              <dd class="min-w-0 whitespace-pre-wrap break-all">
+                {{ field.value }}
+              </dd>
             </template>
           </dl>
+        </div>
+        <div v-if="canRemember" class="space-y-1">
+          <label class="flex items-center gap-2 text-sm">
+            <ShadcnCheckbox
+              v-model="remember"
+              data-testid="agent-browser-prompt-remember"
+            />
+            {{ t(`agentBrowser.prompt.${question.kind}.remember`) }}
+          </label>
+          <fieldset
+            v-if="question.kind === 'site' && remember && !plainHttp"
+            class="space-y-1 pl-6"
+            data-testid="agent-browser-prompt-remember-level"
+          >
+            <label
+              v-for="level in ['site-operate', 'site-read'] as const"
+              :key="level"
+              class="flex items-center gap-2 text-sm"
+            >
+              <input
+                v-model="rememberLevel"
+                type="radio"
+                name="agent-browser-remember-level"
+                :value="level"
+              />
+              {{ t(`agentBrowser.prompt.site.${level}`) }}
+            </label>
+          </fieldset>
         </div>
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
         </p>
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('agentBrowser.prompt.more', { count: waiting }) }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>
@@ -312,48 +371,16 @@ function onUpdateOpen(open: boolean) {
           size="sm"
           variant="outline"
           data-testid="agent-browser-prompt-deny"
-          @click="answerAsync(false)"
+          @click="answerAsync(false, remembered(false))"
         >
           {{ t('agentBrowser.prompt.deny') }}
-        </UiButton>
-        <template v-if="question.kind === 'site'">
-          <UiButton
-            type="button"
-            size="sm"
-            variant="outline"
-            data-testid="agent-browser-prompt-remember-read"
-            @click="answerAsync(true, 'site-read')"
-          >
-            {{ t('agentBrowser.prompt.rememberRead') }}
-          </UiButton>
-          <UiButton
-            v-if="!plainHttp"
-            type="button"
-            size="sm"
-            variant="outline"
-            data-testid="agent-browser-prompt-remember-operate"
-            @click="answerAsync(true, 'site-operate')"
-          >
-            {{ t('agentBrowser.prompt.rememberOperate') }}
-          </UiButton>
-        </template>
-        <UiButton
-          v-if="question.kind === 'fill'"
-          type="button"
-          size="sm"
-          variant="outline"
-          :disabled="!chosenEntry"
-          data-testid="agent-browser-prompt-remember-fill"
-          @click="answerAsync(true, 'fill')"
-        >
-          {{ t('agentBrowser.prompt.fill.remember') }}
         </UiButton>
         <UiButton
           type="button"
           size="sm"
           :disabled="choosesEntry && !chosenEntry"
           data-testid="agent-browser-prompt-allow"
-          @click="answerAsync(true)"
+          @click="answerAsync(true, remembered(true))"
         >
           {{ allowLabel }}
         </UiButton>

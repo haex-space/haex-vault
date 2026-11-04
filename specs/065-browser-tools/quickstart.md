@@ -19,7 +19,8 @@ einmal je Lieferung durchgeht.
    zeigt der Agenten-Browser eine Warnung: mit „Eingreifen“ den Tab übernehmen, „Erweitert → Weiter
    zu …“ wählen und zurückgeben. Das Zertifikat nicht als Zertifizierungsstelle importieren: sein
    Schlüssel liegt im Repository.
-4. In KI → Agenten → Claude Code: Rechtegruppe Browser an, `https://127.0.0.1:8443` mit „bedienen“.
+4. In KI → Agenten → Claude Code: Rechtegruppe Browser an, „Alle Websites“ auf „Keine“ (M2 braucht
+   die Rückfrage, FR-043), `https://127.0.0.1:8443` mit „bedienen“.
 
 ## M1 Lesen (US1)
 
@@ -31,8 +32,8 @@ einmal je Lieferung durchgeht.
 
 - „Öffne https://localhost:8443/partner.html.“ (eine zweite Website) oder `/framed.html`, das einen
   Rahmen dieser Website enthält
-- Erwartet: Rückfrage vor dem Laden mit „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer
-  erlauben (bedienen)“, „Ablehnen“; „Ablehnen“ → der Agent meldet `site_not_allowed`, die Seite
+- Erwartet: Rückfrage vor dem Laden mit „Erlauben“, „Ablehnen“ und dem Häkchen „Für diese
+  Website merken“ (mit Wahl „Lesen“ oder „Bedienen“); „Ablehnen“ → der Agent meldet `site_not_allowed`, die Seite
   lädt nicht.
 
 ## M3 Formular und Absenden (US2)
@@ -107,6 +108,37 @@ einmal je Lieferung durchgeht.
 - Die Kartennummer liegt in einem Rahmen des Partners: solange er nur gelesen werden darf, fehlt
   ihre Zeile. Mit „bedienen“ für den Partner erscheint sie mit „(Rahmen von https://localhost:8443)“;
   nach „Eintragen“ meldet die Seite „Karte: gefüllt“, der Agent bekommt `in_frames: 1`.
+
+## M10 Dialogs stay open (FR-042)
+
+- Open a question of the agent browser (M3), send holzi to the background, bring it back with a
+  click into the window, click next to the dialog, press Escape: the dialog stays and nothing is
+  declined. There is no X; only "Erlauben" and "Ablehnen" answer. The same with a permission
+  question in the chat, the registration of a new agent (Spec 021, quickstart M1) and an approval
+  of the browser extension (049).
+
+## M11 All websites and page requests (FR-043, FR-044)
+
+- Switch the browser rights group on anew: "Alle Websites: Bedienen" is set, any website opens
+  without a question. A bank with "Lesen" as an exception: no clicks there.
+- A page that sends something on its own ("Merken" on `/form.html` sends `POST /api`): the
+  question "Anfrage der Seite senden?" with the website, the request and its content (nested JSON
+  as text, secrets as `•••`). "Ablehnen" with
+  "Für diese Website merken": the same request is no longer asked but refused (`request_denied`);
+  the rule is listed in "KI → Browser" and can be removed.
+
+## M12 Trackers (FR-045)
+
+- First start with an empty cache: the browser waits at most 10 seconds for the lists. A page with
+  a known tracker (for example `https://bam.nr-data.net`) loads, the tracker is blocked and never
+  asks. In "KI → Browser": the default lists of uBlock Origin with time and number of rules; add an
+  own list by address, switch it off, remove it. A list whose address is not `https` is refused.
+
+## M13 Viewing the profile (FR-046)
+
+- "KI → Browser → Profil" after a login on a test page: the website with its cookies, the value
+  only after a click. Change value and expiry, delete one cookie and then a whole website, then
+  let the page reload: the change holds. The agent sees none of it.
 
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 

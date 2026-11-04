@@ -27,6 +27,7 @@ use crate::chat::events::{
     EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT, EVENT_CHAT_TURN_COMPLETE, EVENT_CHOICE_REQUEST,
     EVENT_TOOL_PERMISSION_REQUEST,
 };
+use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::send::{start_turn, SendMessageResult, StartTurn};
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
@@ -276,6 +277,7 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
             idempotency_key: Uuid::new_v4().to_string(),
             system_prompt: None,
             utc_offset_minutes: Some(turn.clock.utc_offset_minutes),
+            reply_language: ReplyLanguage::from_code(&turn.language),
             max_new_tokens: None,
             autonomy_mode: None,
             reasoning_option: None,

@@ -34,14 +34,14 @@ async function saveAsync() {
     error.value = t('contacts.groups.nameRequired')
     return
   }
+  error.value = null
   saving.value = true
   try {
     await groupSaveAsync(name.value, props.group?.id)
     await store.quietReloadAsync()
     open.value = false
   } catch (cause) {
-    error.value = errString(cause)
-    toast.error(error.value)
+    toast.error(errString(cause))
   } finally {
     saving.value = false
   }

@@ -7,8 +7,8 @@
  *
  * In `confirm` mode (spec 060 FR-029 to FR-032) an agent wants to share the contact: the dialog opens
  * with the agent's proposal chosen and the options it was given, shows no text, and answers with the
- * choice the person left standing ("Freigeben") or none ("Ablehnen"). The owner of the request
- * closes the dialog by dropping the request; closing it any other way is its to treat as a "no".
+ * choice the person left standing ("Freigeben") or none ("Ablehnen"). Only these buttons close it
+ * (spec 065 FR-042); the owner of the request closes the dialog by dropping the request.
  */
 import { toast } from 'vue-sonner'
 import type { ContactShareOptions } from '@bindings/ContactShareOptions'
@@ -52,7 +52,6 @@ const { listVaultDevicesAsync } = useDevice()
 const options = ref<ContactShareOptions | null>(null)
 const selection = ref<ShareSelection | null>(null)
 const output = ref<ContactShareOutput | null>(null)
-const error = ref<string | null>(null)
 const devices = ref<VaultDevice[]>([])
 let generation = 0
 
@@ -72,7 +71,6 @@ watch(
     options.value = null
     selection.value = null
     output.value = null
-    error.value = null
     if (!isOpen) return
     const mine = generation
     try {
@@ -90,7 +88,7 @@ watch(
           ? toArgs(props.proposed)
           : selectAll(loaded)
     } catch (cause) {
-      if (mine === generation) error.value = errString(cause)
+      if (mine === generation) toast.error(errString(cause))
     }
   },
   { immediate: true },
@@ -115,7 +113,6 @@ watch(
     generation += 1
     const mine = generation
     output.value = null
-    error.value = null
     if (!buildable.value) return
     try {
       const built = await shareBuildAsync(
@@ -124,7 +121,7 @@ watch(
       )
       if (mine === generation) output.value = built
     } catch (cause) {
-      if (mine === generation) error.value = errString(cause)
+      if (mine === generation) toast.error(errString(cause))
     }
   },
   { deep: true },
@@ -150,6 +147,7 @@ async function copyAsync() {
 <template>
   <UiDrawerModal
     v-model:open="open"
+    :dismissible="!confirming"
     :title="
       confirming ? t('contacts.share.confirm.title') : t('contacts.share.title')
     "
@@ -213,15 +211,6 @@ async function copyAsync() {
             {{ t('contacts.share.nothing') }}
           </p>
         </template>
-
-        <p
-          v-if="error"
-          class="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-          role="alert"
-          data-testid="contacts-share-error"
-        >
-          {{ error }}
-        </p>
 
         <div
           v-if="output"

@@ -8,6 +8,7 @@
  * cannot tell a new installation about them, so the form takes them: the built-in ones are listed
  * and can be switched off, added ones switched off or removed, as in the settings.
  */
+import { toast } from 'vue-sonner'
 import {
   serverEntries,
   withEnabled,
@@ -44,7 +45,6 @@ const disabledRelays = ref<string[]>([])
 const defaultNostrRelays = ref<string[]>([])
 const defaultIrohRelays = ref<string[]>([])
 const submitting = ref(false)
-const error = ref<string | null>(null)
 /** `null` while the form is shown. */
 const state = ref<LinkJoinState | null>(null)
 
@@ -75,7 +75,6 @@ function reset() {
   nostrRelays.value = []
   irohRelays.value = []
   disabledRelays.value = []
-  error.value = null
   state.value = null
 }
 
@@ -127,7 +126,6 @@ const canSubmit = computed(
 async function onSubmit() {
   if (!canSubmit.value) return
   submitting.value = true
-  error.value = null
   // Shown from the first moment, so an event that arrives before `joinStartAsync` returns is not lost.
   state.value = { state: 'searching' }
   try {
@@ -165,10 +163,11 @@ async function onSubmit() {
       ? kind.charAt(0).toLowerCase() + kind.slice(1)
       : 'openFailed'
     // An invalid server says which one; every other kind has its own text.
-    error.value =
+    toast.error(
       kind === 'InvalidInput' && reason
         ? reason
-        : t(`errors.${key}`, t('errors.openFailed'))
+        : t(`errors.${key}`, t('errors.openFailed')),
+    )
   } finally {
     submitting.value = false
   }
@@ -202,7 +201,6 @@ function onRemoveRelay(kind: Kind, url: string) {
 /** Back to the form after a failure. */
 function onRetry() {
   state.value = null
-  error.value = null
 }
 
 function onOpenVault() {
@@ -298,9 +296,6 @@ function onOpenVault() {
           @toggle="onToggleRelay"
           @remove="onRemoveRelay('iroh', $event)"
         />
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
       </form>
 
       <div

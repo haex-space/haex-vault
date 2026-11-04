@@ -4,7 +4,8 @@
  * research R11): it names the rule with its places, direction, delete mode and interval, and for a
  * change the old value next to each new one. A rule that would store files of an encrypted place
  * decrypted says so. Only "Erlauben" lets it through; there is nothing to remember, and without an
- * answer in 120 s Rust refuses. Confirmations that arrive together wait in line.
+ * answer in 120 s Rust refuses. Confirmations that arrive together wait in line. Only its buttons
+ * answer it; Escape does nothing (spec 065 FR-042).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -113,6 +114,7 @@ const rows = computed(() => {
     <ShadcnAlertDialogContent
       v-if="current"
       data-testid="files-sync-rule-confirm"
+      @escape-key-down.prevent
     >
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>

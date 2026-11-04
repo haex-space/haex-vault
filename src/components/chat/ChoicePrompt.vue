@@ -56,14 +56,10 @@ function confirm() {
 function cancel() {
   emit('answer', props.prompt.requestId, { kind: 'cancel' })
 }
-
-function onUpdateOpen(open: boolean) {
-  if (!open) cancel()
-}
 </script>
 
 <template>
-  <UiDrawerModal :open="true" :title="title" @update:open="onUpdateOpen">
+  <UiDrawerModal :open="true" :title="title" :dismissible="false">
     <template #content>
       <div class="space-y-3">
         <p

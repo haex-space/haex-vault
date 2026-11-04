@@ -27,7 +27,8 @@ const { historyListAsync, historyGetAsync, historyRestoreAsync } =
 
 const states = ref<SnapshotHeader[]>([])
 const selected = ref<SnapshotView | null>(null)
-const error = ref<string | null>(null)
+/** Whether the states could not be loaded; the message went out as a toast. */
+const loadFailed = ref(false)
 const loading = ref(true)
 const restoring = ref(false)
 const confirming = ref(false)
@@ -51,11 +52,12 @@ async function selectAsync(snapshotId: string) {
 async function loadAsync() {
   try {
     states.value = await historyListAsync(props.itemId)
-    error.value = null
+    loadFailed.value = false
     const newest = states.value[0]
     if (newest) await selectAsync(newest.id)
   } catch (cause) {
-    error.value = errString(cause)
+    loadFailed.value = true
+    toast.error(errString(cause))
   } finally {
     loading.value = false
   }
@@ -100,17 +102,14 @@ onMounted(loadAsync)
 
 <template>
   <div class="flex flex-col gap-4" data-testid="entry-history">
-    <p v-if="error" class="text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
     <div
-      v-else-if="loading"
+      v-if="loading"
       class="flex justify-center py-10 text-muted-foreground"
       role="status"
     >
       <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
     </div>
-    <template v-else>
+    <template v-else-if="!loadFailed">
       <p
         v-if="states.length <= 1"
         class="text-sm text-muted-foreground"

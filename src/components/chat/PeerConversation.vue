@@ -7,6 +7,7 @@
  * the message appears at once as _waiting_ and moves on as the delivery goes. A request (US5) shows
  * its answers in place of the composer: nothing is sent to its sender before it is accepted.
  */
+import { toast } from 'vue-sonner'
 import type { PeerConversationEntry } from '~/composables/useConversations'
 import {
   MAX_TEXT_CHARS,
@@ -36,12 +37,15 @@ const { errString } = useErrorString()
 const draft = ref('')
 const confirmDelete = ref(false)
 const sending = ref(false)
-const sendError = ref<string | null>(null)
 /** One key per message: a retry of the same draft sends it once (contracts/ipc.md). */
 let idempotencyKey = crypto.randomUUID()
 
 const threadId = computed(() => props.conversation?.id ?? null)
 const peer = usePeerConversation(threadId, errString)
+// A failed load or read mark of the conversation shows as a toast.
+watch(peer.error, (message) => {
+  if (message) toast.error(message)
+})
 
 const length = computed(() => [...draft.value].length)
 const tooLong = computed(() => length.value > MAX_TEXT_CHARS)
@@ -60,7 +64,7 @@ async function submit() {
   sending.value = true
   const error = await props.send(id, text, idempotencyKey)
   sending.value = false
-  sendError.value = error
+  if (error !== null) toast.error(error)
   if (threadId.value !== id) return
   // Text typed or dictated while the send ran is a new message: it stays in the field and gets
   // its own key, so neither a success clears it nor a retry sends it under the old key.
@@ -78,7 +82,8 @@ function onTranscript(text: string, autoSend: boolean) {
 }
 
 async function resendMessage(messageId: string) {
-  sendError.value = await props.resend(messageId)
+  const error = await props.resend(messageId)
+  if (error !== null) toast.error(error)
 }
 
 function deleteConversation() {
@@ -91,7 +96,6 @@ watch(
   () => props.conversation?.id,
   () => {
     draft.value = ''
-    sendError.value = null
     idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
   },
@@ -207,14 +211,6 @@ watch(
           >
             <Icon name="lucide:info" class="mt-0.5 h-3 w-3 shrink-0" />
             {{ t('chat.peer.ownRelaysInstead') }}
-          </p>
-          <p
-            v-if="sendError ?? peer.error.value"
-            class="mb-2 text-xs text-destructive"
-            role="alert"
-            data-testid="chat-peer-error"
-          >
-            {{ sendError ?? peer.error.value }}
           </p>
         </template>
         <template #below>

@@ -18,6 +18,7 @@ bei Auswahl.
 | `assistant.sensitivity`                              | `"low"` \| `"medium"` \| `"high"`      | `"medium"`                 | FR-009         |
 | `assistant.pauseMs`                                  | int 500–3000                           | `1500`                     | FR-012         |
 | `assistant.continueMins`                             | int 0–60                               | `5`                        | FR-015         |
+| `assistant.language`                                 | `"ui"` \| de, en, fr, es, it, pt       | `"ui"` = Oberfläche        | FR-002a        |
 | `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                     | Standardstimme der Sprache | FR-029, FR-053 |
 | `assistant.speechRate`                               | float 0.75–1.5                         | `1.0`                      | FR-030         |
 | `assistant.ttsProvider`                              | Anbieter-Id \| null                    | null = lokal               | FR-031         |

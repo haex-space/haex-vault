@@ -4,8 +4,9 @@
  * ADR-0015). Shows the extension (its name as its own claim), the site, the origin and the account;
  * for a new passkey the entry it goes to ("Neuer Eintrag" first), for a sign-in the passkey when
  * several fit. A site that requires user verification also gets the vault password. There is no
- * "remember": every ceremony asks again. Closing the dialog declines.
+ * "remember": every ceremony asks again. It closes only through its own buttons (spec 065 FR-042).
  */
+import { toast } from 'vue-sonner'
 import type { PresenceChoice } from '~/types/bindings/PresenceChoice'
 import type { PresenceQuestion } from '~/types/bindings/PresenceQuestion'
 
@@ -19,7 +20,6 @@ const question = computed<PresenceQuestion | null>(() =>
 )
 const picked = ref('0')
 const passphrase = ref('')
-const failure = ref<string | null>(null)
 const now = ref(Date.now())
 let ticker: ReturnType<typeof setInterval> | undefined
 
@@ -28,7 +28,6 @@ watch(
   () => {
     picked.value = '0'
     passphrase.value = ''
-    failure.value = null
   },
   { immediate: true },
 )
@@ -74,14 +73,10 @@ async function answerAsync(confirm: boolean) {
       passphrase: confirm && asked.requireUv ? passphrase.value : null,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     passphrase.value = ''
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -90,7 +85,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t(`browserBridge.presence.title.${question.ceremony}`)"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <form
@@ -172,9 +167,6 @@ function onUpdateOpen(open: boolean) {
         />
         <p class="text-xs text-muted-foreground">
           {{ t('browserBridge.presence.expires', { seconds: secondsLeft }) }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </form>
     </template>

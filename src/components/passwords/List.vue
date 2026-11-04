@@ -10,6 +10,7 @@
  * entries; the context menus of the rows and of the empty area; one tab stop that the arrow keys
  * move; and the list shortcuts, which the frame hands over while the list shows.
  */
+import { toast } from 'vue-sonner'
 import type { GroupRow } from '@bindings/GroupRow'
 import type { CopyRequest } from '~/composables/usePasswordsActions'
 import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
@@ -26,6 +27,13 @@ import {
 const { t } = useI18n()
 const router = useTabRouter()
 const store = usePasswordsStore()
+// A failed (quiet) reload of the overview shows as a toast, once for all open lists.
+watch(
+  () => store.lastError,
+  (message) => {
+    if (message) toast.error(message, { id: 'passwords-load-failed' })
+  },
+)
 const selection = usePasswordsSelectionStore()
 const clipboard = usePasswordsClipboardStore()
 const actions = usePasswordsActions()
@@ -329,9 +337,6 @@ watch(focusedId, (id) => {
           :can-paste="pasteHere"
           @paste="actions.pasteAsync(folderId, openCopy)"
         />
-        <p v-if="store.lastError" class="text-sm text-destructive" role="alert">
-          {{ store.lastError }}
-        </p>
         <div
           v-if="!store.hasLoadedOnce"
           class="flex justify-center py-10 text-muted-foreground"

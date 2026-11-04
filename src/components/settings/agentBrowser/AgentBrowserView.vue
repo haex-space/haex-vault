@@ -7,6 +7,7 @@
  * own pages under "Externe Agenten".
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { AgentBrowserStatus } from '~/types/bindings/AgentBrowserStatus'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
 import type { PasswordRights } from '~/lib/agents/rights'
@@ -22,27 +23,31 @@ const clearProfile = useActionOrThrow('settings.agentBrowser.profile.clear')
 
 const status = ref<AgentBrowserStatus | null>(null)
 const pathDraft = ref('')
-const failure = ref<string | null>(null)
 const confirmClear = ref(false)
 const cleared = ref(false)
 
-async function reloadAsync() {
+/** Reads the status again; `false` when that failed (shown as a toast). */
+async function reloadAsync(): Promise<boolean> {
   try {
     status.value = await invoke<AgentBrowserStatus>('agent_browser_status')
     pathDraft.value = status.value.chosenPath ?? ''
+    return true
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
+    return false
   }
 }
 
-async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
+/** Runs one action and reloads; `false` when either failed (shown as a toast). */
+async function runAsync(action: () => Promise<unknown>): Promise<boolean> {
+  let ok = true
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
+    ok = false
   }
-  await reloadAsync()
+  return (await reloadAsync()) && ok
 }
 
 function onBuiltin(rights: BrowserRights | null) {
@@ -66,8 +71,7 @@ function resetPath() {
 
 async function clearAsync() {
   confirmClear.value = false
-  await runAsync(() => clearProfile({}))
-  cleared.value = failure.value === null
+  cleared.value = await runAsync(() => clearProfile({}))
 }
 
 onMounted(reloadAsync)
@@ -191,8 +195,5 @@ onMounted(reloadAsync)
         </div>
       </SettingsGroup>
     </template>
-    <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </p>
   </section>
 </template>

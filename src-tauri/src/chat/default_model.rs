@@ -22,9 +22,10 @@ use crate::vault_gate::VaultGate;
 
 use super::commands::PREF_LAST_ACTIVE_MODEL;
 use super::events::emit_load_error;
+use super::local_model::PREF_ACTIVE_LOCAL_MODEL;
 use super::model_loading::{
-    load_api_key_model, load_model, load_model_inner, resolve_display_name, LoadIdentity,
-    LoadOutcome,
+    load_api_key_model, load_model, load_model_inner, resolve_display_name, LoadIdentity, LoadMode,
+    LoadOptions, LoadOutcome,
 };
 use super::session::{ChatState, ModelLoadStatus};
 
@@ -54,23 +55,24 @@ pub struct ResolveDefaultModelResult {
 /// `None` and the person chooses.
 #[tauri::command]
 pub async fn resolve_default_model(
-    app: AppHandle,
     state: State<'_, AppState>,
+    chat: State<'_, ChatState>,
 ) -> Result<ResolveDefaultModelResult> {
-    resolve_model(&app, &state, None).await
+    resolve_model(&state, &chat, None).await
 }
 
 /// The model a session uses: the one `thread_id` used last, while it can still load; otherwise,
 /// and for a new session, the chain of [`resolve_default_model`] (the last model picked in the
-/// model menu first). Whether the agent is driven by text or voice makes no difference.
+/// model menu first). A local model counts only while it is the active one. Whether the agent is
+/// driven by text or voice makes no difference.
 pub(crate) async fn resolve_model(
-    app: &AppHandle,
     state: &State<'_, AppState>,
+    chat: &ChatState,
     thread_id: Option<Uuid>,
 ) -> Result<ResolveDefaultModelResult> {
     let db = active_database(state)?;
     let this_device = db.device_id();
-    let (session, last_active, known_local) = db
+    let (session, last_active) = db
         .read(move |r| {
             // 0. the model the continued session used last.
             let session = match thread_id {
@@ -80,25 +82,14 @@ pub(crate) async fn resolve_model(
             // 1. last_active on this device.
             let last_active =
                 preferences::get(r, PrefScope::Device(this_device), PREF_LAST_ACTIVE_MODEL)?;
-            // The local models known to this vault; the file is checked outside the DB call so
-            // `paths::canonical_model_file` can use the AppHandle.
-            let known_local = models_store::list_all_models(r)?
-                .into_iter()
-                .filter(|row| !row.id.contains(':'))
-                .map(|row| row.id)
-                .collect::<Vec<_>>();
             let candidate_pref = |value: Option<String>| value.filter(|s| !s.is_empty());
-            Ok::<_, haex_crdt::Error>((
-                candidate_pref(session),
-                candidate_pref(last_active),
-                known_local,
-            ))
+            Ok::<_, haex_crdt::Error>((candidate_pref(session), candidate_pref(last_active)))
         })
         .await?;
 
     // Only a model somebody chose can be the answer, so only these are checked for loadability.
     // An API-key candidate goes through the same provider-row, model-row, credential,
-    // legacy-repair, and adapter checks used by load_model; a local one needs its file on disk.
+    // legacy-repair, and adapter checks used by load_model; a local one must be the active model.
     let mut loadable_local: Vec<String> = Vec::new();
     let mut loadable_api_key_ids = Vec::new();
     for composite_id in [&session, &last_active].into_iter().flatten() {
@@ -109,9 +100,7 @@ pub(crate) async fn resolve_model(
             {
                 loadable_api_key_ids.push(composite_id.clone());
             }
-        } else if known_local.contains(composite_id)
-            && matches!(paths::canonical_model_file(app, composite_id), Ok(Some(_)))
-        {
+        } else if chat.session_for_local_model(composite_id).is_some() {
             loadable_local.push(composite_id.clone());
         }
     }
@@ -159,7 +148,7 @@ pub async fn use_session_model(
     chat: State<'_, ChatState>,
     thread_id: Option<Uuid>,
 ) -> Result<ResolveDefaultModelResult> {
-    let resolved = resolve_model(&app, &state, thread_id).await?;
+    let resolved = resolve_model(&state, &chat, thread_id).await?;
     let Some(wanted) = resolved.model_id.clone() else {
         return Ok(resolved);
     };
@@ -177,37 +166,37 @@ pub async fn use_session_model(
     Ok(resolved)
 }
 
-/// The model for the background Vault-open preload: the last model picked on this device, when it
-/// is a local one that can load. Provider models are skipped, and nothing else is loaded on the
-/// person's behalf.
+/// The model for the background Vault-open preload: the active local model of this device, when
+/// its file is there. Nothing else is loaded on the person's behalf.
 async fn resolve_preload_model(
     app: &AppHandle,
     state: &State<'_, AppState>,
 ) -> Result<Option<String>> {
     let db = active_database(state)?;
     let this_device = db.device_id();
-    let (last_active, known_local) = db
+    let (active, known_local) = db
         .read(move |r| {
-            let last_active =
-                preferences::get(r, PrefScope::Device(this_device), PREF_LAST_ACTIVE_MODEL)?;
+            let active =
+                preferences::get(r, PrefScope::Device(this_device), PREF_ACTIVE_LOCAL_MODEL)?;
             let known_local = models_store::list_all_models(r)?
                 .into_iter()
                 .filter(|row| !row.id.contains(':'))
                 .map(|row| row.id)
                 .collect::<Vec<_>>();
-            Ok::<_, haex_crdt::Error>((last_active, known_local))
+            Ok::<_, haex_crdt::Error>((active, known_local))
         })
         .await?;
-    let Some(last) = last_active.filter(|id| known_local.contains(id)) else {
+    let Some(last) = active.filter(|id| known_local.contains(id)) else {
         return Ok(None);
     };
     let on_disk = matches!(paths::canonical_model_file(app, &last), Ok(Some(_)));
     Ok(on_disk.then_some(last))
 }
 
-/// Starts the single background preload for the currently-published Vault.
-/// The task owns no operation mutex, so a Vault switch can cancel it promptly.
-pub fn start_default_model_preload(app: AppHandle, chat: ChatState) {
+/// Starts the single background preload for the currently-published Vault: it loads the active
+/// local model into its slot, apart from the chat. The task owns no operation mutex, so a Vault
+/// switch can cancel it promptly.
+pub fn start_active_model_preload(app: AppHandle, chat: ChatState) {
     let cancel = CancellationToken::new();
     let task_cancel = cancel.clone();
     let task_chat = chat.clone();
@@ -236,7 +225,7 @@ pub fn start_default_model_preload(app: AppHandle, chat: ChatState) {
             &model_id,
             identity,
             Some(&task_cancel),
-            false,
+            LoadOptions::new(LoadMode::Activate),
         )
         .await
         {

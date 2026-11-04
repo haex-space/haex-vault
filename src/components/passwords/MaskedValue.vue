@@ -6,6 +6,8 @@
  * entry or place is left, or when the entry changes. It is never written to the store, the title or
  * the history.
  */
+import { toast } from 'vue-sonner'
+
 const props = defineProps<{
   /** Fetches the value for the moment the user asks (one backend call; nothing is cached). */
   fetch: () => Promise<string>
@@ -22,7 +24,6 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 
 const value = ref<string | null>(null)
-const error = ref<string | null>(null)
 let token = 0
 
 function hide() {
@@ -36,9 +37,8 @@ async function showAsync() {
     const revealed = await props.fetch()
     // A later hide or show outran this one.
     if (mine === token) value.value = revealed
-    error.value = null
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -134,8 +134,5 @@ onBeforeUnmount(hide)
         class="size-4"
       />
     </UiButton>
-    <span v-if="error" class="text-xs text-destructive" role="alert">{{
-      error
-    }}</span>
   </span>
 </template>

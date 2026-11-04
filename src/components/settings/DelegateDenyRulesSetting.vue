@@ -3,6 +3,7 @@
  * Delegate deny rules on this device (spec 009). Each checkbox saves on change (spec 023
  * FR-021); a failure restores the stored selection.
  */
+import { toast } from 'vue-sonner'
 
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
@@ -26,9 +27,6 @@ const VALID_CATEGORIES = new Set<string>(CATEGORIES)
 const selected = ref<Set<string>>(new Set())
 const loading = ref(true)
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
-const loadError = ref<string | null>(null)
 
 /**
  * Reloads and validates the vault's deny-rule selection (spec 023 FR-024). A `quiet` reload
@@ -36,7 +34,6 @@ const loadError = ref<string | null>(null)
  */
 async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
-  loadError.value = null
   try {
     const raw = await getPrefAsync({ kind: 'vault' }, PREF_KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : []
@@ -48,7 +45,7 @@ async function reloadAsync(quiet = false) {
       : []
     selected.value = new Set(validItems)
   } catch (e) {
-    loadError.value = errString(e)
+    toast.error(`${t('settings.denyRules.loadFailed')}: ${errString(e)}`)
   } finally {
     loading.value = false
   }
@@ -62,13 +59,10 @@ async function toggleAsync(category: string, checked: boolean) {
   else next.delete(category)
   selected.value = next
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await setDenyRules({ rules: [...next] })
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.denyRules.saveFailed')}: ${errString(e)}`)
     selected.value = previous
   } finally {
     busy.value = false
@@ -88,10 +82,6 @@ onVaultTablesChanged(['preferences'], () => {
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
 
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('settings.denyRules.loadFailed') }}: {{ loadError }}
-    </p>
-
     <template v-if="!loading">
       <fieldset :aria-label="t('settings.locations.ai.denyRules.title')">
         <SettingsGroup>
@@ -108,13 +98,6 @@ onVaultTablesChanged(['preferences'], () => {
           />
         </SettingsGroup>
       </fieldset>
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.denyRules.saved') }}
-      </p>
-      <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-        {{ t('settings.denyRules.saveFailed') }}: {{ opError }}
-      </p>
     </template>
   </section>
 </template>
