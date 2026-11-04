@@ -2758,7 +2758,6 @@
     "frame": {
       "title": "Extension",
       "loading": "Loading extension …",
-      "failed": "The extension could not be started.",
       "timeout": "The extension does not respond.",
       "reload": "Reload",
       "closeGuard": "The extension has unsaved changes."

@@ -260,12 +260,7 @@ async function deleteAsync() {
             data-testid="settings-marketplace-auth"
           />
         </SettingsRow>
-      </SettingsGroup>
-
-      <SettingsGroup
-        v-if="login.authType !== 'none'"
-        :label="t('settings.extensions.marketplaces.form.login.group')"
-      >
+        <!-- A wrong input: a login over http:// is refused (FR-027), under the choice of the login. -->
         <li
           v-if="problem === 'insecure'"
           class="px-4 py-3 text-sm text-destructive"
@@ -274,6 +269,12 @@ async function deleteAsync() {
         >
           {{ t('settings.extensions.marketplaces.form.login.insecure') }}
         </li>
+      </SettingsGroup>
+
+      <SettingsGroup
+        v-if="login.authType !== 'none'"
+        :label="t('settings.extensions.marketplaces.form.login.group')"
+      >
         <li
           v-if="kept?.credentialsItemId && !keptEntry && !asksForLogin"
           class="px-4 py-3 text-sm text-muted-foreground"

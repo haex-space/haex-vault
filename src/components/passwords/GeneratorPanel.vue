@@ -2,7 +2,7 @@
 /**
  * The password generator (spec 034, US3, FR-013, FR-014): length, character classes, excluded
  * characters or a pattern, a live result, and saved presets with exactly one default that is
- * preselected. A choice that allows no output shows what to change instead of a value. Used in a
+ * preselected. A choice that allows no output shows what to change under the field it concerns. Used in a
  * drawer of the editor (`embedded`, with "Übernehmen") and as the place `/generator`. The password
  * comes from the crate haex-passgen in Rust (the one generator, shared with haex-pass-browser) and
  * is kept only in this component and, on "Übernehmen", in the draft of the editor.
@@ -89,6 +89,22 @@ const errorText = computed(() =>
     ? t(`passwords.generator.errors.${output.value.error}`)
     : null,
 )
+
+/** The field whose value has to change, under which the hint shows (`output` for a code not known here). */
+const FIELD_OF: Record<string, 'pattern' | 'length' | 'classes' | 'exclude'> = {
+  pattern_empty: 'pattern',
+  length_range: 'length',
+  length_below_classes: 'length',
+  no_class: 'classes',
+  class_empty: 'exclude',
+}
+const errorField = computed(() => {
+  if (!('error' in output.value)) return null
+  const field = FIELD_OF[output.value.error]
+  // A field that is not shown in the current mode cannot carry the hint.
+  if (!field || config.usePattern !== (field === 'pattern')) return 'output'
+  return field
+})
 
 function apply(preset: Preset | undefined) {
   Object.assign(
@@ -183,7 +199,7 @@ onMounted(loadAsync)
       >
         <template v-if="'value' in output">{{ output.value }}</template>
         <span
-          v-else
+          v-else-if="errorField === 'output'"
           class="text-sm text-destructive"
           role="alert"
           data-testid="passwords-generator-error"
@@ -249,6 +265,14 @@ onMounted(loadAsync)
           spellcheck="false"
           data-testid="passwords-generator-pattern"
         />
+        <p
+          v-if="errorField === 'pattern'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
         <p class="text-xs text-muted-foreground">
           {{ t('passwords.generator.patternHelp') }}
         </p>
@@ -268,36 +292,54 @@ onMounted(loadAsync)
           class="accent-primary"
           data-testid="passwords-generator-length"
         />
+        <p
+          v-if="errorField === 'length'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
-      <div class="grid gap-2 @sm:grid-cols-2">
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.uppercase"
-            @update:model-value="config.uppercase = $event === true"
-          />
-          <span>{{ t('passwords.generator.uppercase') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.lowercase"
-            @update:model-value="config.lowercase = $event === true"
-          />
-          <span>{{ t('passwords.generator.lowercase') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.numbers"
-            @update:model-value="config.numbers = $event === true"
-          />
-          <span>{{ t('passwords.generator.numbers') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.symbols"
-            @update:model-value="config.symbols = $event === true"
-          />
-          <span>{{ t('passwords.generator.symbols') }}</span>
-        </label>
+      <div class="flex flex-col gap-1.5">
+        <div class="grid gap-2 @sm:grid-cols-2">
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.uppercase"
+              @update:model-value="config.uppercase = $event === true"
+            />
+            <span>{{ t('passwords.generator.uppercase') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.lowercase"
+              @update:model-value="config.lowercase = $event === true"
+            />
+            <span>{{ t('passwords.generator.lowercase') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.numbers"
+              @update:model-value="config.numbers = $event === true"
+            />
+            <span>{{ t('passwords.generator.numbers') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.symbols"
+              @update:model-value="config.symbols = $event === true"
+            />
+            <span>{{ t('passwords.generator.symbols') }}</span>
+          </label>
+        </div>
+        <p
+          v-if="errorField === 'classes'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
       <div class="flex flex-col gap-1.5">
         <UiInput
@@ -308,6 +350,14 @@ onMounted(loadAsync)
           spellcheck="false"
           data-testid="passwords-generator-exclude"
         />
+        <p
+          v-if="errorField === 'exclude'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
     </template>
 

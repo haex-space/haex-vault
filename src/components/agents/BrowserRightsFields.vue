@@ -21,6 +21,10 @@ const fieldLabels = useFieldLabels()
 
 const draft = ref('')
 const problem = ref(false)
+// The hint under the field goes away as soon as the typed address is valid (or the field empty).
+watch(draft, (value) => {
+  if (problem.value) problem.value = !!value.trim() && siteOf(value) === null
+})
 
 const sites = computed(() =>
   Object.entries(props.modelValue?.sites ?? {}).sort(([a], [b]) =>

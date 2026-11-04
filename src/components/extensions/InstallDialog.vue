@@ -6,7 +6,8 @@
  * permissions hold in the whole vault, a shell permission only on this device; the dialog says so.
  * An update lists only the new permissions and warns before a downgrade; a bundle of a version the
  * vault already holds with other content replaces it only after a confirmation. Nothing is written
- * before "Installieren".
+ * before "Installieren". A bundle or project holzi refuses says why in a toast, and the dialog
+ * closes.
  *
  * The permissions are grouped by kind, each group an accordion that starts closed (spec 017 FR-067);
  * a group with a wildcard carries a warning triangle in its header.
@@ -130,6 +131,15 @@ async function chooseAsync() {
         })
     for (const permission of shown.value)
       choices.value[key(permission)] = { granted: true }
+    // A refused bundle or project: why is a toast, and there is nothing left to decide here.
+    if (!usable.value) {
+      const refusal = preview.value?.error
+      toast.error(
+        t(`extensions.install.errors.${refusal?.kind}`),
+        refusal?.path ? { description: refusal.path } : undefined,
+      )
+      open.value = false
+    }
   } catch (error) {
     toast.error(errString(error))
   } finally {
@@ -184,18 +194,6 @@ watch(open, (isOpen) => {
         <p v-if="busy && !preview" class="text-sm text-muted-foreground">
           {{ t('extensions.install.checking') }}
         </p>
-
-        <div
-          v-if="preview && !usable"
-          class="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          role="alert"
-          data-testid="extensions-install-refused"
-        >
-          <p>{{ t(`extensions.install.errors.${preview.error?.kind}`) }}</p>
-          <p v-if="preview.error?.path" class="mt-1 font-mono text-xs">
-            {{ preview.error.path }}
-          </p>
-        </div>
 
         <template v-if="preview && usable">
           <p v-if="dev" class="rounded-xl bg-warning/15 px-4 py-3 text-sm">

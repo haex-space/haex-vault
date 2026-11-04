@@ -132,6 +132,11 @@ watch(() => bridgeStore.changes, reloadAsync)
           @blur="savePort"
           @keydown.enter.prevent="savePort"
         />
+        <template v-if="port && !portValid" #below>
+          <p class="text-xs text-destructive" role="alert">
+            {{ t('browserBridge.settings.portInvalid') }}
+          </p>
+        </template>
       </SettingsRow>
       <SettingsRow
         :title="t('browserBridge.settings.state')"
@@ -167,13 +172,6 @@ watch(() => bridgeStore.changes, reloadAsync)
       >
         {{ t('browserBridge.settings.changePort') }}
       </UiButton>
-    </p>
-    <p
-      v-if="port && !portValid"
-      class="px-1 text-xs text-destructive"
-      role="alert"
-    >
-      {{ t('browserBridge.settings.portInvalid') }}
     </p>
 
     <template v-if="overview && available">
