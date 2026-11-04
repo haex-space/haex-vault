@@ -1,5 +1,9 @@
 //! The allowlist of bridge methods (contracts/bridge.md §Methoden): every method an extension frame
 //! can call, with its handler. [`super::dispatch::call`] runs nothing else.
+//!
+//! Over 500 lines on purpose: one flat table, one entry per method, read in one place. When it
+//! grows further, split it into one table per area (mail, storage, model jobs) that
+//! `dispatch::call` and the tests look up in turn.
 
 use super::dispatch::Method;
 use super::{database, methods, model_jobs, openers, permissions};

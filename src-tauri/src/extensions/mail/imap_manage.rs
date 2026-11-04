@@ -1,6 +1,6 @@
 //! IMAP operations that look for, create or remove: search a mailbox, create, delete or rename
-//! one, delete messages for good (spec 019, `contracts/host-mail-commands.md`). Like `imap.rs`, each one logs in, does
-//! its work and logs out.
+//! one, delete messages for good (spec 019, `contracts/host-mail-commands.md`). Like `imap.rs`,
+//! each one logs in, does its work and logs out.
 
 use futures::TryStreamExt;
 
