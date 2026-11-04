@@ -3,10 +3,9 @@
  * The rights group "Passwörter" of an agent (spec 021 US5, FR-019): rows for a `SettingsGroup`
  * of the rights list. The row has the same levels as every other right (nothing, reading,
  * reading and changing); nothing is the default. Once it is on, one dropdown names the entries it
- * reaches: all of them (the default) or those with one tag of the vault. "Lesen und ändern" lets
- * the agent browser save new logins (spec 065 FR-036); within a tag they get that tag. Every
- * secret still asks on each call. Rights stored with several tags, from before the dropdown, stay
- * as they are and show as one more choice until another is picked.
+ * reaches: all of them (the default) or those with the chosen tags of the vault. "Lesen und
+ * ändern" lets the agent browser save new logins (spec 065 FR-036); within tags they get one of
+ * them, which the user picks when there are several. Every secret still asks on each call.
  */
 import type { Level, PasswordRights } from '~/lib/agents/rights'
 
@@ -22,11 +21,6 @@ onMounted(() => {
   if (!passwords.hasLoadedOnce) void passwords.reloadAsync()
 })
 
-/** The choice "Alle"; no tag has an empty name. */
-const ALL = ''
-/** The choice that stands for the several tags of rights stored earlier. */
-const SEVERAL = '\u0000several'
-
 const level = computed<Level>(() =>
   !props.modelValue
     ? 'none'
@@ -35,26 +29,12 @@ const level = computed<Level>(() =>
       : 'read',
 )
 
-const tags = computed(() => props.modelValue?.tags ?? null)
-const several = computed(() => (tags.value?.length ?? 0) > 1)
+const tags = computed(() => props.modelValue?.tags ?? [])
 
-const scope = computed(() => {
-  if (!tags.value) return ALL
-  return several.value ? SEVERAL : (tags.value[0] ?? ALL)
-})
-
-const scopeOptions = computed(() => {
+const tagChoices = computed(() => {
   const names = new Set(passwords.displayTags.map((tag) => tag.name))
-  for (const tag of tags.value ?? []) names.add(tag)
-  return [
-    { value: ALL, label: t('mcpAgents.passwords.all') },
-    ...(several.value
-      ? [{ value: SEVERAL, label: (tags.value ?? []).join(', ') }]
-      : []),
-    ...[...names]
-      .sort((a, b) => a.localeCompare(b))
-      .map((name) => ({ value: name, label: name })),
-  ]
+  for (const tag of tags.value) names.add(tag)
+  return [...names].sort((a, b) => a.localeCompare(b))
 })
 
 /** The rights with the tag for new entries: within tags one of them, else the stored one. */
@@ -86,14 +66,23 @@ function setLevel(value: string) {
   )
 }
 
-function setScope(value: string) {
+/** The chosen tags; none is all entries. */
+function setTags(chosen: string[]) {
   const current = props.modelValue
-  if (!current || value === SEVERAL) return
-  const scopeTags = value === ALL ? null : [value]
+  if (!current) return
+  // All entries: new entries get no tag any more.
   emit(
     'update:modelValue',
-    withAccess(current.level, scopeTags, scopeTags ? value : null),
+    chosen.length > 0
+      ? withAccess(current.level, chosen, current.defaultTag)
+      : withAccess(current.level, null, null),
   )
+}
+
+function setDefaultTag(tag: string) {
+  const current = props.modelValue
+  if (!current) return
+  emit('update:modelValue', withAccess(current.level, current.tags, tag))
 }
 </script>
 
@@ -120,20 +109,36 @@ function setScope(value: string) {
     <label class="text-sm font-medium" for="mcp-passwords-tag">
       {{ t('mcpAgents.passwords.scope') }}
     </label>
-    <SettingsSelect
+    <SettingsMultiSelect
       id="mcp-passwords-tag"
-      :model-value="scope"
+      :model-value="tags"
       class="w-full"
-      :options="scopeOptions"
+      :options="tagChoices"
+      :all-label="t('mcpAgents.passwords.all')"
       data-testid="mcp-passwords-tag"
-      @update:model-value="setScope"
+      @update:model-value="setTags"
     />
-    <p
-      v-if="modelValue.level === 'readWrite' && tags"
-      class="text-xs text-muted-foreground"
-    >
-      {{ t('mcpAgents.passwords.newEntriesTag') }}
-    </p>
+    <template v-if="modelValue.level === 'readWrite' && tags.length === 1">
+      <p class="text-xs text-muted-foreground">
+        {{ t('mcpAgents.passwords.newEntriesTag') }}
+      </p>
+    </template>
+    <template v-else-if="modelValue.level === 'readWrite' && tags.length > 1">
+      <label class="pt-2 text-sm font-medium" for="mcp-passwords-default-tag">
+        {{ t('mcpAgents.passwords.defaultTag') }}
+      </label>
+      <SettingsSelect
+        id="mcp-passwords-default-tag"
+        :model-value="modelValue.defaultTag ?? ''"
+        class="w-full"
+        :options="tags.map((tag) => ({ value: tag, label: tag }))"
+        data-testid="mcp-passwords-default-tag"
+        @update:model-value="setDefaultTag"
+      />
+      <p class="text-xs text-muted-foreground">
+        {{ t('mcpAgents.passwords.newEntriesTag') }}
+      </p>
+    </template>
     <p class="pt-1 text-xs text-muted-foreground">
       {{ t('mcpAgents.passwords.secretHint') }}
     </p>

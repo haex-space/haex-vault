@@ -4249,6 +4249,7 @@
       "all": "All",
       "scope": "Scope",
       "newEntriesTag": "Entries the agent creates get this tag.",
+      "defaultTag": "Tag for new entries",
       "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
     },
     "commands": {

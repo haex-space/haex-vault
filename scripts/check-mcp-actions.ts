@@ -281,11 +281,12 @@ function passwordRow(modelValue: PasswordRights | null) {
   const updates: Array<PasswordRights | null> = []
   const row = loadScriptSetup<{
     setLevel: (level: string) => void
-    setScope: (scope: string) => void
-    scopeOptions: { value: Array<{ value: string; label: string }> }
+    setTags: (tags: string[]) => void
+    setDefaultTag: (tag: string) => void
+    tagChoices: { value: string[] }
   }>(
     'src/components/agents/PasswordRightsFields.vue',
-    ['setLevel', 'setScope', 'scopeOptions'],
+    ['setLevel', 'setTags', 'setDefaultTag', 'tagChoices'],
     {
       props: { modelValue },
       ...vaultTags,
@@ -312,60 +313,73 @@ test('the password row has the levels of every other row (spec 021 US5)', () => 
   assert.deepEqual(onUpdates.at(-1), { level: 'read', tags: ['dev'] })
 })
 
-test('one dropdown names the entries: all, or the entries of one tag (065 FR-036)', () => {
+test('one dropdown names the entries: all, or those with the chosen tags (065 FR-036)', () => {
   const { row, updates } = passwordRow({ level: 'read', tags: null })
   assert.deepEqual(
-    row.scopeOptions.value.map((option) => option.value),
-    ['', 'dev', 'shop'],
-    'all comes first, then the tags of the vault',
+    row.tagChoices.value,
+    ['dev', 'shop'],
+    'the tags of the vault',
   )
-  row.setScope('shop')
+  row.setTags(['shop'])
   assert.deepEqual(updates.at(-1), { level: 'read', tags: ['shop'] })
+  row.setTags(['shop', 'dev'])
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: ['shop', 'dev'] })
   const { row: writing, updates: writes } = passwordRow({
     level: 'readWrite',
     tags: null,
   })
-  // Within a tag new entries get that tag, so the rights are complete.
-  writing.setScope('dev')
+  // Within tags new entries get one of them, so the rights are complete.
+  writing.setTags(['dev'])
   assert.deepEqual(writes.at(-1), {
     level: 'readWrite',
     tags: ['dev'],
     defaultTag: 'dev',
   })
   assert.equal(passwordsComplete(writes.at(-1) ?? null), true)
-  writing.setScope('')
+  writing.setTags([])
   assert.deepEqual(writes.at(-1), {
     level: 'readWrite',
     tags: null,
     defaultTag: null,
   })
-  // Reading becomes reading and changing within the tag.
+  // Reading becomes reading and changing within the tags.
   const { row: tagged, updates: tagUpdates } = passwordRow({
     level: 'read',
-    tags: ['shop'],
+    tags: ['shop', 'dev'],
   })
   tagged.setLevel('write')
   assert.deepEqual(tagUpdates.at(-1), {
     level: 'readWrite',
-    tags: ['shop'],
+    tags: ['shop', 'dev'],
     defaultTag: 'shop',
   })
 })
 
-test('rights stored with several tags stay until another choice is picked', () => {
-  const stored = {
-    level: 'readWrite' as const,
+test('the tag for new entries is one of the chosen tags and follows the choice', () => {
+  const { row, updates } = passwordRow({
+    level: 'readWrite',
     tags: ['dev', 'shop'],
     defaultTag: 'shop',
-  }
-  const { row, updates } = passwordRow(stored)
-  assert.ok(
-    row.scopeOptions.value.some((option) => option.label === 'dev, shop'),
-  )
-  row.setScope('\u0000several')
-  assert.equal(updates.length, 0, 'picking the shown choice changes nothing')
-  row.setLevel('read')
-  assert.deepEqual(updates.at(-1), { level: 'read', tags: ['dev', 'shop'] })
+  })
+  row.setDefaultTag('dev')
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: 'dev',
+  })
+  // Dropping the tag new entries get moves it to another chosen tag.
+  const { row: dropping, updates: dropped } = passwordRow({
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: 'shop',
+  })
+  dropping.setTags(['dev'])
+  assert.deepEqual(dropped.at(-1), {
+    level: 'readWrite',
+    tags: ['dev'],
+    defaultTag: 'dev',
+  })
+  assert.equal(passwordsComplete(dropped.at(-1) ?? null), true)
 })
 
 test('registration cannot approve an incomplete password tag draft', async () => {
