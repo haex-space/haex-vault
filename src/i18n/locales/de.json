@@ -1959,7 +1959,10 @@
         "downloadCatalog": "Modell aus dem Katalog herunterladen",
         "downloadFromHf": "Modell von HuggingFace herunterladen",
         "installUpdate": "Modell-Update installieren",
-        "delete": "Modell löschen"
+        "delete": "Modell löschen",
+        "cancelDownload": "Modell-Download abbrechen",
+        "activate": "Modell aktivieren",
+        "deactivate": "Modell deaktivieren"
       },
       "device": {
         "setAlias": "Gerätename ändern"

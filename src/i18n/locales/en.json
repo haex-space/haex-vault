@@ -1959,7 +1959,10 @@
         "downloadCatalog": "Download catalog model",
         "downloadFromHf": "Download model from HuggingFace",
         "installUpdate": "Install model update",
-        "delete": "Delete model"
+        "delete": "Delete model",
+        "cancelDownload": "Cancel model download",
+        "activate": "Activate model",
+        "deactivate": "Deactivate model"
       },
       "device": {
         "setAlias": "Rename device"
