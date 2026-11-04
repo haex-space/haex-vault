@@ -73,8 +73,12 @@ after a listening comparison of nine variants.)
   without llama.cpp (070 FR-005) offers Pocket TTS only.
 - [`010-stt-model-choice`](../010-stt-model-choice/spec.md): the choice of speech model follows the same
   pattern as the choice of speech recognition model: size, fit for the device, download on demand.
-- [`080-prompt-cache`](../080-prompt-cache/spec.md) and the local chat model: Qwen3-TTS and a local chat
-  model can share one graphics card; FR-009 governs who gets it.
+- [`080-prompt-cache`](../080-prompt-cache/spec.md) and
+  [`079-mtp-speculative`](../079-mtp-speculative/spec.md) (parked, PR #807): both make the local chat model
+  answer faster and both change how much graphics memory it holds. 080 keeps the model's reading in memory
+  between answers and counts it in the memory planner (080 FR-008); 079 adds a drafter that only runs when it
+  fits next to the model. Qwen3-TTS is a third occupant of the same graphics card. There MUST be one memory
+  plan for all of them, not a second one for speech (FR-009a). FR-009 governs who gets the card.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -274,6 +278,10 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
 - **FR-009**: When a local chat model and Qwen3-TTS both want the graphics card and its memory does not
   hold both, the chat model MUST keep it, and Qwen3-TTS MUST run on the processor for that time. When
   neither fits, haex MUST speak with Pocket TTS rather than delay the answer.
+- **FR-009a**: The memory planner of the local chat model (070, 080 FR-008, 079) MUST count Qwen3-TTS
+  while it is loaded, and Qwen3-TTS MUST be placed on the graphics card only through that planner. No load
+  of a chat model or of Qwen3-TTS may fail or abort haex for lack of graphics memory; when the plan does not
+  hold both, FR-009 decides.
 - **FR-010**: Before text reaches Qwen3-TTS, haex MUST split every sentence longer than 20 words into
   parts of at most 20 words, at the most natural break available: first at punctuation inside the
   sentence, then before a conjunction, otherwise between words. A split MUST NOT fall inside a word, inside
