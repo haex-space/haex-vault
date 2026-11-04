@@ -28,6 +28,14 @@ with text inside itself. The visible state is the confirmation; a failure is a t
 - An error of a load, a save or any other action MUST show as a toast (`toast.error` from
   `vue-sonner`), in pages and dialogs alike, never as an inline `text-destructive` or
   `role="alert"` line. The only inline error is a wrong input, directly under its field.
+- An error that ends a flow and offers actions (retry, reload the model, try another source)
+  MUST show its message as a toast; its buttons MUST stay in the component, without a message
+  line, for as long as the error lasts.
+- A standing state that is not the result of the last action is not a message and MAY stay
+  inline: a confirmation question (install an older version, download despite too little space,
+  trust a changed host key), a denied permission with the way to allow it, an insecure-source
+  warning, missing credentials, an entry deleted on another device, or the stored status of a
+  background run.
 
 ## Operating protocol
 
@@ -36,12 +44,10 @@ with text inside itself. The visible state is the confirmation; a failure is a t
 2. Route every caught action error to `toast.error(...)` with the localized message. Keep a
    boolean only where the failure also changes what the page renders (an empty-state notice that
    must not claim "no entries" after a failed load).
-3. One kind of error stays inline: a wrong input MUST show directly under the input field it
-   concerns, while the user types, and disappear once the value is valid. Standing states that
-   are not the result of the last action (a denied permission, an insecure source warning, a
-   confirmation question) are not messages and stay as well.
-4. An error that ends a flow and offers actions (retry, reload the model, try another source)
-   shows its message as a toast; the buttons stay in the component without a message line.
+3. A wrong input shows directly under the input field it concerns, while the user types, and
+   disappears once the value is valid.
+4. Toast each new error once: give a toast a fixed `id` when several open windows or tabs watch
+   the same store error, and do not toast a stored status again on every render.
 5. End-to-end tests read error toasts with the shared helper (`scripts/e2e/lib/toasts.ts`) and
    check a saved value by reading it back, not by waiting for a confirmation line.
 6. When a component imports `vue-sonner` and is loaded by `scripts/lib/script-setup-sandbox.ts`
