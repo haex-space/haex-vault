@@ -34,6 +34,9 @@ pub use super::{RATE_DEFAULT, RATE_MAX, RATE_MIN};
 const VOICE_CACHE: i32 = 8;
 /// Pocket samples its output; 0.7 is Kyutai's default and what the spike measured.
 const TEMPERATURE: &str = "0.7";
+/// The longest reference sherpa reads, in seconds: the whole of every reference
+/// ([`super::clone::MAX_REFERENCE_SECS`]; the built-in voices are 8–15 s).
+pub(crate) const MAX_REFERENCE_LEN: &str = "30";
 /// How often the worker looks for a close while it waits.
 const POLL: Duration = Duration::from_millis(50);
 /// The device still plays its own buffer after the mixer handed a sentence on; a sentence counts
@@ -114,9 +117,17 @@ impl Engine for PocketModel {
             reference_sample_rate: i32::try_from(reference.sample_rate).unwrap_or(i32::MAX),
             num_steps: 1,
             extra: Some(
-                [("temperature".to_owned(), json!(TEMPERATURE))]
-                    .into_iter()
-                    .collect(),
+                [
+                    ("temperature".to_owned(), json!(TEMPERATURE)),
+                    // sherpa reads only the first 10 s by default and cuts mid-word; Kyutai reads
+                    // up to 30 s, and every reference ends on a pause within that (`tts::clone`).
+                    (
+                        "max_reference_audio_len".to_owned(),
+                        json!(MAX_REFERENCE_LEN),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
             ),
             ..Default::default()
         };

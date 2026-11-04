@@ -31,8 +31,8 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `download_tts_voice`          | `{voiceId}`                                                     | – (Fortschritt als Ereignis)                             | FR-005, FR-029  |
 | `tts_clone_record_start`      | –                                                               | `{sessionId}`                                            | FR-049          |
 | `tts_clone_record_stop`       | `{sessionId}`                                                   | `CloneCheck`                                             | FR-049          |
-| `tts_clone_from_file`         | `{path}`                                                        | `CloneCheck`                                             | FR-049          |
-| `tts_clone_preview`           | `{sessionId, language}`                                         | –                                                        | FR-049          |
+| `tts_clone_from_file`         | `{file}`                                                        | `CloneCheck`                                             | FR-049          |
+| `tts_clone_preview`           | `{sessionId, language, rate?}`                                  | –                                                        | FR-049          |
 | `tts_clone_save`              | `{sessionId, name, language, consent: true}`                    | `VoiceOption`                                            | FR-050          |
 | `tts_voice_delete`            | `{voice: VoiceRef}`                                             | –                                                        | FR-050, FR-051  |
 | `tts_model_inspect`           | `{source: ModelSource}`                                         | `ModelInspection`                                        | FR-051          |
@@ -109,6 +109,10 @@ ModelInspection = { ok: true, engine, languages: string[], speakers: {id, label}
 EnrollStep = { recorded: 1..4, ok: bool, problem: "tooShort"|"noisy"|null }
 EnrollResult = { ok: true } | { ok: false, problem: "inconsistent"|"tooShort"|"confusable", similar?: string }
 ```
+
+`tts_clone_from_file` nimmt die gewählte Datei (`PickedFile`, wie der Import eigener Töne), damit
+auch Android-Inhalts-URIs gehen. `CloneCheck.problems` meldet `tooLong` nie: Sprache über 30 s wird
+abgeschnitten (R20). `tts_clone_preview` spricht mit `rate` (Standard 1,0).
 
 Stimmen nachbilden und Modelle importieren gibt es nur über die Oberfläche: Die Commands sind
 keine Aktionen und für Agenten (eingebaut, 021, Erweiterungen) nicht aufrufbar, weil sie eine

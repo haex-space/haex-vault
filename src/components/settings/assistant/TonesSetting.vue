@@ -48,13 +48,11 @@ const loading = ref(true)
 /** The settings could not be read (shown as a toast); the page then shows no controls. */
 const loadFailed = ref(false)
 const saving = ref(false)
-const savedFlash = ref(false)
 /** The tone (or own tone id) whose sample sounds. */
 const playing = ref<string | null>(null)
 const custom = ref<CustomTone[]>([])
 const assigned = ref<Partial<Record<ToneId, string>>>({})
 const importing = ref(false)
-const importNote = ref<string | null>(null)
 /** The own tone whose delete waits for a second click. */
 const confirmingDelete = ref<string | null>(null)
 
@@ -140,11 +138,9 @@ async function reloadAsync(quiet = false) {
 
 async function saveAsync(key: string, value: string) {
   saving.value = true
-  savedFlash.value = false
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
-    savedFlash.value = true
   } catch (e) {
     toast.error(t('settings.tones.saveFailed', { reason: errString(e) }))
   } finally {
@@ -175,7 +171,6 @@ async function playAsync(tone: ToneId, customId: string | null = null) {
 
 /** Picks an audio file and imports it; returns the new tone, or `null` when nothing was added. */
 async function importAsync(): Promise<CustomTone | null> {
-  importNote.value = null
   const file = await pickOneAsync([
     {
       name: t('settings.tones.fileTypes'),
@@ -189,7 +184,6 @@ async function importAsync(): Promise<CustomTone | null> {
     custom.value = [...custom.value, tone].sort((a, b) =>
       a.name.localeCompare(b.name),
     )
-    importNote.value = t('settings.tones.imported', { name: tone.name })
     return tone
   } catch (e) {
     toast.error(t('settings.tones.importFailed', { reason: reasonText(e) }))
@@ -207,7 +201,6 @@ async function chooseAsync(tone: ToneId, value: string) {
     customId = added.id
   }
   saving.value = true
-  savedFlash.value = false
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await toneAssignAsync(tone, customId)
@@ -215,9 +208,12 @@ async function chooseAsync(tone: ToneId, value: string) {
       Object.entries(assigned.value).filter(([occasion]) => occasion !== tone),
     )
     assigned.value = customId ? { ...rest, [tone]: customId } : rest
-    savedFlash.value = true
   } catch (e) {
-    toast.error(t('settings.tones.saveFailed', { reason: reasonText(e, tone) }))
+    toast.error(
+      t('settings.tones.saveFailed', {
+        reason: reasonText(e, tone),
+      }),
+    )
   } finally {
     saving.value = false
   }
@@ -388,13 +384,6 @@ onVaultTablesChanged(['preferences', 'haex_assistant_tones'], () => {
           </UiButton>
         </SettingsRow>
       </SettingsGroup>
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.tones.saved') }}
-      </p>
-      <p v-if="importNote" class="px-1 text-xs text-success" role="status">
-        {{ importNote }}
-      </p>
     </template>
   </section>
 </template>

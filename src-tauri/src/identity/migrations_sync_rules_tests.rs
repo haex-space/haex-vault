@@ -31,8 +31,8 @@ fn count(db: &Database, table: &str) -> i64 {
 }
 
 /// One rule of `device` with a state row, a pending deletion, a run and a run item, under the names
-/// before `0052_sync_rules_source_target` (spec 075): for a vault whose schema is older.
-pub(super) fn fill_before_0052(db: &Database, device: &str) {
+/// before `0053_sync_rules_source_target` (spec 075): for a vault whose schema is older.
+pub(super) fn fill_before_0053(db: &Database, device: &str) {
     db.with_connection(|conn| {
         conn.execute(
             "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
@@ -65,11 +65,11 @@ pub(super) fn fill_before_0052(db: &Database, device: &str) {
         )?;
         Ok(())
     })
-    .expect("fill before 0052");
+    .expect("fill before 0053");
 }
 
 /// One rule of `device` with a state row, a pending deletion, a run and a run item, for a vault at the
-/// current schema (`0052` renamed the columns and the stored values).
+/// current schema (`0053` renamed the columns and the stored values).
 fn fill(db: &Database, device: &str) {
     db.with_connection(|conn| {
         conn.execute(
@@ -216,7 +216,7 @@ async fn migration_0046_adds_the_decrypt_switch_off_for_existing_rules() {
             migration_source_before("0046_sync_rules_decrypt"),
         );
         let device = device_of(&old, dir.path()).to_string();
-        fill_before_0052(&old, &device);
+        fill_before_0053(&old, &device);
         drop(old);
         let db = open(
             dir.path(),

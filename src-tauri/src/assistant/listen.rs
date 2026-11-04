@@ -112,12 +112,20 @@ pub fn listen(
 
 /// What `utterance` said, through the selected speech recognition model (Whisper or Parakeet).
 /// The model is the warm one of `VoiceState` that push-to-talk uses too, never a second copy.
-pub async fn transcribe(app: &AppHandle, utterance: Utterance) -> Result<String, SttError> {
+/// The utterance is taken as speech in `language`, the one the conversation is held in.
+pub async fn transcribe(
+    app: &AppHandle,
+    utterance: Utterance,
+    language: &str,
+) -> Result<String, SttError> {
     let adapter = app.state::<VoiceState>().stt_adapter(app).await?;
     let text = adapter
-        .transcribe(&CanonicalPcm {
-            samples: utterance.samples,
-        })
+        .transcribe_in(
+            &CanonicalPcm {
+                samples: utterance.samples,
+            },
+            language,
+        )
         .await?;
     Ok(text.trim().to_owned())
 }

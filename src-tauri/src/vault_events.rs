@@ -79,6 +79,10 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
     let changes = state.vault_changes().clone();
     if let Err(error) = gate.spawn(run(received, gate.token(), move |tables| {
         publish(&changes, &tables);
+        // Spec 066 FR-050: the voice lists follow own voices made or deleted on any device.
+        if tables.iter().any(|table| table == "haex_tts_voices") {
+            let _ = app.emit(crate::tts::EVENT_VOICES_CHANGED, ());
+        }
         if let Err(error) = app.emit(VAULT_DATA_CHANGED, VaultDataChanged { tables }) {
             log::warn!("vault events: emit {VAULT_DATA_CHANGED} failed: {error}");
         }

@@ -9,6 +9,10 @@ import {
   ALWAYS_AUDIBLE_TONES,
   ASSISTANT_SETTING_KEYS,
   assistantLabelKey,
+  CONVERSATION_LANGUAGE_KEY,
+  CONVERSATION_LANGUAGES,
+  parseConversationLanguage,
+  spokenLanguage,
   PAUSE_MS,
   parsePause,
   parsePreview,
@@ -27,6 +31,11 @@ import {
   toggleShown,
 } from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
+import {
+  nextReadAloud,
+  READ_ALOUD_TEXTS,
+  READ_ALOUD_WORDS,
+} from '../src/lib/assistant/readAloud.ts'
 import { VOICE_THREAD_ICON } from '../src/lib/chat/threadOrigin.ts'
 import {
   LABELLED_KINDS,
@@ -90,12 +99,13 @@ const PAGES = [
   {
     id: 'ai.speech.assistant',
     view: 'src/components/settings/assistant/AssistantSetting.vue',
-    prefs: ['assistant.preview', 'assistant.pauseMs'],
-  },
-  {
-    id: 'ai.speech.voice',
-    view: 'src/components/settings/assistant/VoiceSetting.vue',
-    prefs: ['assistant.voice.<sprache>', 'assistant.speechRate'],
+    prefs: [
+      'assistant.preview',
+      'assistant.language',
+      'assistant.pauseMs',
+      'assistant.voice.<sprache>',
+      'assistant.speechRate',
+    ],
   },
   {
     id: 'ai.speech.tones',
@@ -133,9 +143,33 @@ test('the pages save on selection, as device settings, without a save button', (
     assert.match(view, /kind: 'device'/, page.view)
     assert.doesNotMatch(view, /common\.save|\.save'\)/, page.view)
   }
+  // "Stimme" is part of the assistant page (operator 2026-11-03), opened at the conversation language.
+  assert.match(
+    read('src/components/settings/assistant/AssistantSetting.vue'),
+    /<SettingsAssistantVoiceSetting\s+:language="spokenLanguage\(conversationLanguage, locale\)"/,
+  )
   const voice = read('src/components/settings/assistant/VoiceSetting.vue')
+  assert.match(voice, /kind: 'device'/)
+  // Each voice is its own row with its own download; no language tabs, no speech model row.
+  assert.doesNotMatch(voice, /ShadcnTabs/)
+  assert.match(voice, /v-for="voice in shownVoices"/)
+  assert.match(voice, /settings-voice-download-\$\{voice\.ref\}/)
+  assert.match(voice, /<ModelsDownloadBar :model-id="voice\.modelId" \/>/)
+  // The voices stand where the list of what is missing was; that list is gone (operator
+  // 2026-11-03), and a voice that is not here stays choosable, asking for its download.
+  assert.ok(
+    voice.indexOf('v-for="voice in shownVoices"') <
+      voice.indexOf("assistantLabelKey('assistant.speechRate')"),
+    'the voices come before the speaking rate',
+  )
+  assert.doesNotMatch(voice, /:disabled="!voice\.installed"/)
   assert.match(voice, /voicePrefKey\(language\)/)
   assert.match(voice, /SPEECH_RATE_KEY/)
+  const assistantPage = read(
+    'src/components/settings/assistant/AssistantSetting.vue',
+  )
+  assert.match(assistantPage, /CONVERSATION_LANGUAGE_KEY/)
+  assert.doesNotMatch(assistantPage, /assistant_readiness/)
   const tones = read('src/components/settings/assistant/TonesSetting.vue')
   assert.match(tones, /TONES_ENABLED_KEY/)
   assert.match(tones, /TONES_VOLUME_KEY/)
@@ -481,5 +515,138 @@ test('the chat shows the transcript of a spoken session and searches transcripts
     read('src/components/chat/AgentSessionsPopover.vue').includes(
       'useTranscriptSearch()',
     ),
+  )
+})
+
+test('conversations take the interface language unless this device picks another (FR-002a)', () => {
+  assert.deepEqual([...CONVERSATION_LANGUAGES], ['ui', ...SPEECH_LANGUAGES])
+  assert.equal(parseConversationLanguage(null), 'ui')
+  assert.equal(parseConversationLanguage('klingonisch'), 'ui')
+  assert.equal(parseConversationLanguage('fr'), 'fr')
+  assert.equal(spokenLanguage('ui', 'de'), 'de')
+  assert.equal(spokenLanguage('ui', 'en-US'), 'en')
+  assert.equal(spokenLanguage('fr', 'de'), 'fr')
+  // The Rust side reads the same key and the same codes.
+  const rust = read('src-tauri/src/chat/reply_language.rs')
+  assert.ok(rust.includes(`"${CONVERSATION_LANGUAGE_KEY}"`))
+  for (const code of SPEECH_LANGUAGES)
+    assert.ok(rust.includes(`"${code}" => Self::`), code)
+  for (const locale of ['de', 'en'] as const) {
+    assert.equal(
+      typeof localeText(locale, 'settings.assistantPage.languageUi'),
+      'string',
+    )
+    assert.equal(
+      typeof localeText(locale, 'settings.assistantPage.languageHint'),
+      'string',
+    )
+  }
+})
+
+test('own voices are made, heard and deleted on the assistant page (T149)', () => {
+  const voice = read('src/components/settings/assistant/VoiceSetting.vue')
+  assert.match(voice, /<SettingsAssistantVoiceCloneDialog/)
+  assert.match(voice, /data-testid="settings-voice-clone"/)
+  assert.match(voice, /listen\('tts-voices-changed'/)
+  assert.match(voice, /v-if="voice\.kind === 'clone'"/)
+  const dialog = read('src/components/settings/assistant/VoiceCloneDialog.vue')
+  // Saving needs a passed check, the consent and a name (FR-050).
+  assert.match(
+    dialog,
+    /check\.value\?\.ok === true &&\s+consent\.value &&\s+name\.value\.trim\(\) !== ''/,
+  )
+  assert.match(dialog, /data-testid="voice-clone-consent"/)
+  assert.match(dialog, /'tts-clone-level'/)
+  const rust = read('src-tauri/src/tts/clone.rs')
+  const problems = [...rust.matchAll(/^\s{4}(Too\w+|Clipped|Noisy),$/gm)].map(
+    (m) => m[1]!.charAt(0).toLowerCase() + m[1]!.slice(1),
+  )
+  assert.deepEqual(problems, [
+    'tooShort',
+    'tooLong',
+    'tooQuiet',
+    'clipped',
+    'noisy',
+  ])
+  const reasons = [
+    ...read('src-tauri/src/tts/clone_commands.rs').matchAll(
+      /(?:invalid\(|Err\()"([a-z][A-Za-z]+)"\)/g,
+    ),
+  ].map((m) => m[1]!)
+  assert.ok(
+    reasons.includes('consentRequired'),
+    'reasons read from the commands',
+  )
+  for (const locale of ['de', 'en'] as const) {
+    for (const problem of problems)
+      assert.equal(
+        typeof localeText(locale, `settings.voice.clone.problems.${problem}`),
+        'string',
+        `${locale} ${problem}`,
+      )
+    for (const reason of reasons.filter(
+      (r) => r !== 'builtinVoice' && r !== 'unknownVoice',
+    ))
+      assert.equal(
+        typeof localeText(locale, `settings.voice.clone.errors.${reason}`),
+        'string',
+        `${locale} ${reason}`,
+      )
+  }
+})
+
+test('the assistant pages save silently and show failures as toasts (operator 2026-11-03)', () => {
+  for (const file of [
+    'src/components/settings/assistant/AssistantSetting.vue',
+    'src/components/settings/assistant/VoiceSetting.vue',
+    'src/components/settings/assistant/TonesSetting.vue',
+    'src/components/settings/assistant/VoiceCloneDialog.vue',
+  ]) {
+    const source = read(file)
+    assert.doesNotMatch(source, /savedFlash|role="status"/, file)
+    assert.match(source, /toast\.error\(/, file)
+  }
+  // The dialog has no page to load: none of its failures stays in it.
+  assert.doesNotMatch(
+    read('src/components/settings/assistant/VoiceCloneDialog.vue'),
+    /role="alert"/,
+  )
+})
+
+test('an own voice offers a text to read aloud in every language (operator 2026-11-03)', () => {
+  for (const language of SPEECH_LANGUAGES) {
+    const texts = READ_ALOUD_TEXTS[language]
+    assert.ok(texts.length >= 5, `${language}: at least five texts`)
+    assert.equal(
+      new Set(texts).size,
+      texts.length,
+      `${language}: no text twice`,
+    )
+    for (const text of texts) {
+      const words = text.split(/\s+/).filter(Boolean).length
+      assert.ok(
+        words >= READ_ALOUD_WORDS.min && words <= READ_ALOUD_WORDS.max,
+        `${language}: ${words} words in "${text.slice(0, 30)}…"`,
+      )
+    }
+  }
+  // "Anderer Text" never offers the same text again.
+  for (let current = 0; current < 5; current++)
+    for (const draw of [0, 0.3, 0.6, 0.99])
+      assert.notEqual(
+        nextReadAloud('de', current, () => draw),
+        current,
+      )
+  assert.equal(
+    nextReadAloud('de', null, () => 0.99),
+    4,
+  )
+  const dialog = read('src/components/settings/assistant/VoiceCloneDialog.vue')
+  assert.ok(
+    dialog.indexOf('data-testid="voice-clone-language"') <
+      dialog.indexOf('data-testid="voice-clone-text"') &&
+      dialog.indexOf('data-testid="voice-clone-text"') <
+        dialog.indexOf('data-testid="voice-clone-record"'),
+    'language, then the text, then recording',
   )
 })

@@ -1,15 +1,19 @@
 <script setup lang="ts">
 /**
- * "Stimme" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030): the speaking rate, then one
- * tab per language. A tab shows the speech model of that language, with the same download row as
- * the chat and speech recognition models (button, question before the download, progress behind
- * the row, "x of y" line), and below it the voices of the language with a sample each. A sample
- * needs the speech model, so it waits until the model is here; downloading is its own action
- * (clarification 2026-09-26 of spec 023). Both choices are device preferences, saved on selection
+ * The voice part of "Sprachassistent" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030;
+ * one page since operator 2026-11-03): the voices of the language of conversations (`language`),
+ * each its own row, then the speaking rate (operator 2026-11-03: no tabs, no separate speech
+ * model row). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
+ * and "Laden", with the same question before the download and the progress behind its row as the
+ * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
+ * sharing a speech model are ready together. Both choices are device preferences, saved on selection
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
- * rate.
+ * rate. "Eigene Stimme anlegen" opens `VoiceCloneDialog` (FR-049); own voices are rows like the
+ * others, with a delete that asks first and works on every device (FR-050). The list follows
+ * `tts-voices-changed`, so a voice made or deleted on another device shows up at once.
  */
 import { toast } from 'vue-sonner'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
   assistantLabelKey,
   parseSpeechRate,
@@ -23,10 +27,16 @@ import { humanBytes } from '~/lib/models/format'
 import type { VoiceOption } from '~/composables/useTtsVoices'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
+const props = defineProps<{
+  /** The language of conversations, whose voices are shown. */
+  language: SpeechLanguage
+}>()
+
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { getPrefAsync, setPrefAsync } = usePreferences()
-const { listAsync, previewAsync, downloadModelAsync } = useTtsVoices()
+const { listAsync, previewAsync, downloadModelAsync, voiceDeleteAsync } =
+  useTtsVoices()
 const downloads = useModelDownloadsStore()
 const device = useSettingsDevice()
 
@@ -39,17 +49,13 @@ const voices = ref<VoiceOption[]>([])
 /** The chosen `VoiceRef` per language; a missing or unknown preference shows the default. */
 const chosen = ref<Partial<Record<SpeechLanguage, string>>>({})
 const rate = ref<number>(SPEECH_RATE.default)
-/** The open tab: the interface language when haex speaks it, otherwise the first language. */
-const tab = ref<SpeechLanguage>(
-  SPEECH_LANGUAGES.find((l) => locale.value.startsWith(l)) ??
-    SPEECH_LANGUAGES[0],
-)
+/** The voices shown: those of the language of conversations. */
+const shownVoices = computed(() => voicesOf(props.language))
 
 const loading = ref(true)
 /** The settings could not be read (shown as a toast); the page then shows no controls. */
 const loadFailed = ref(false)
 const saving = ref(false)
-const savedFlash = ref(false)
 /** The voice whose sample is being prepared or plays. */
 const previewing = ref<string | null>(null)
 /** The speech model being downloaded from this page. */
@@ -58,14 +64,6 @@ const downloadingId = ref<string | null>(null)
 function voicesOf(language: SpeechLanguage): VoiceOption[] {
   return voices.value.filter((voice) => voice.language === language)
 }
-
-/** The speech model of a language, as its voices describe it (they all share one). */
-function modelOf(language: SpeechLanguage): VoiceOption | undefined {
-  return voicesOf(language)[0]
-}
-
-/** The speech model of the open tab. */
-const model = computed(() => modelOf(tab.value))
 
 /** The language in the words of the interface language ("Französisch", "French"). */
 function languageName(language: SpeechLanguage): string {
@@ -83,16 +81,27 @@ const rateLabel = computed(() =>
   }),
 )
 
-/** Size and fit of a speech model that is not here yet. */
-function availableLine(entry: VoiceOption): string {
-  return t('settings.voice.model.available', {
-    size: humanBytes(entry.sizeBytes),
-    fit: t(`models.filePicker.fit.${entry.fit}`),
-  })
+/** What a voice row says under its name: default or not, and size and fit while it is not here. */
+function voiceLine(voice: VoiceOption): string {
+  const parts: string[] = []
+  if (voice.isDefault) parts.push(t('settings.voice.default'))
+  if (voice.kind === 'clone') parts.push(t('settings.voice.own'))
+  if (!voice.installed)
+    parts.push(
+      t('settings.voice.model.available', {
+        size: humanBytes(voice.sizeBytes),
+        fit: t(`models.filePicker.fit.${voice.fit}`),
+      }),
+    )
+  return parts.join(' · ')
 }
+
+/** Counts reloads, so an answer overtaken by a newer reload is dropped. */
+let reloads = 0
 
 /** A `quiet` reload (after a change from elsewhere) keeps the shown values until the new ones are read. */
 async function reloadAsync(quiet = false) {
+  const current = ++reloads
   if (!quiet) loading.value = true
   loadFailed.value = false
   try {
@@ -103,6 +112,7 @@ async function reloadAsync(quiet = false) {
         getPrefAsync(scope.value, voicePrefKey(language)),
       ),
     ])
+    if (current !== reloads) return
     voices.value = list
     rate.value = parseSpeechRate(storedRate)
     chosen.value = Object.fromEntries(
@@ -116,31 +126,43 @@ async function reloadAsync(quiet = false) {
       }),
     )
   } catch (e) {
-    loadFailed.value = true
-    toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
+    if (current === reloads) {
+      loadFailed.value = true
+      toast.error(`${t('errors.prefLoadFailed')}: ${errString(e)}`)
+    }
   } finally {
-    loading.value = false
+    if (current === reloads) loading.value = false
   }
 }
 
-async function saveAsync(key: string, value: string) {
+/** Saves a preference; `false` when it failed (shown as a toast). */
+async function saveAsync(key: string, value: string): Promise<boolean> {
   saving.value = true
-  savedFlash.value = false
   try {
     // action-exempt: how the assistant sounds is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, key, value)
-    savedFlash.value = true
+    return true
   } catch (e) {
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
+    return false
   } finally {
     saving.value = false
   }
 }
 
+/** Choosing a voice that is not here yet also asks to download it. A failed save shows the voice
+ * that is still stored. */
 async function chooseVoiceAsync(language: SpeechLanguage, ref: string) {
-  if (chosen.value[language] === ref) return
+  const previous = chosen.value[language]
+  if (previous === ref) return
   chosen.value = { ...chosen.value, [language]: ref }
-  await saveAsync(voicePrefKey(language), ref)
+  if (!(await saveAsync(voicePrefKey(language), ref))) {
+    chosen.value = { ...chosen.value, [language]: previous }
+    return
+  }
+  const voice = voices.value.find((candidate) => candidate.ref === ref)
+  if (voice && !voice.installed && downloadingId.value === null)
+    confirming.value = voice
 }
 
 async function saveRateAsync() {
@@ -174,7 +196,9 @@ async function fetchModelAsync(entry: VoiceOption) {
     await reloadAsync(true)
   } catch (e) {
     toast.error(
-      t('settings.voice.model.downloadFailed', { reason: errString(e) }),
+      t('settings.voice.model.downloadFailed', {
+        reason: errString(e),
+      }),
     )
   } finally {
     downloadingId.value = null
@@ -187,6 +211,45 @@ function confirmed() {
   confirming.value = null
   if (entry) void fetchModelAsync(entry)
 }
+
+/** "Eigene Stimme anlegen" is open. */
+const cloneOpen = ref(false)
+
+/** A new own voice becomes the voice of its language on this device. */
+async function clonedAsync(voice: VoiceOption) {
+  await reloadAsync(true)
+  await chooseVoiceAsync(voice.language, voice.ref)
+}
+
+/** The own voice whose delete waits for the question. */
+const deleteCandidate = ref<VoiceOption | null>(null)
+const deleting = ref(false)
+
+async function confirmDeleteAsync() {
+  const voice = deleteCandidate.value
+  if (!voice) return
+  deleting.value = true
+  try {
+    await voiceDeleteAsync(voice.ref)
+    deleteCandidate.value = null
+    await reloadAsync(true)
+  } catch (e) {
+    toast.error(t('settings.voice.deleteFailed', { reason: errString(e) }))
+  } finally {
+    deleting.value = false
+  }
+}
+
+let unlistenVoices: UnlistenFn | null = null
+let disposed = false
+void listen('tts-voices-changed', () => reloadAsync(true)).then((stop) => {
+  if (disposed) stop()
+  else unlistenVoices = stop
+})
+onBeforeUnmount(() => {
+  disposed = true
+  unlistenVoices?.()
+})
 
 onMounted(async () => {
   await downloads.watchDownloads()
@@ -204,6 +267,86 @@ onVaultTablesChanged(['preferences'], () => {
     </div>
 
     <template v-if="!loading && !loadFailed">
+      <SettingsGroup
+        radio
+        :label="
+          t('settings.voice.voicesOf', { language: languageName(language) })
+        "
+        :model-value="chosen[language]"
+        :disabled="saving"
+        :data-testid="`settings-voice-${language}`"
+        @update:model-value="chooseVoiceAsync(language, String($event))"
+      >
+        <SettingsOptionRow
+          v-for="voice in shownVoices"
+          :key="voice.ref"
+          type="radio"
+          :value="voice.ref"
+          :title="voice.name"
+          :data-testid="`settings-voice-option-${voice.ref}`"
+        >
+          <template #backdrop>
+            <ModelsDownloadBar :model-id="voice.modelId" />
+          </template>
+          <template #description>
+            <span class="flex flex-col">
+              <span v-if="voiceLine(voice)">{{ voiceLine(voice) }}</span>
+              <ModelsDownloadStatus :model-id="voice.modelId" />
+            </span>
+          </template>
+          <template #trailing>
+            <UiButton
+              v-if="voice.kind === 'clone'"
+              type="button"
+              variant="ghost"
+              size="icon"
+              :aria-label="t('settings.voice.deleteOf', { name: voice.name })"
+              :title="t('settings.voice.deleteOf', { name: voice.name })"
+              :data-testid="`settings-voice-delete-${voice.ref}`"
+              @click.stop.prevent="deleteCandidate = voice"
+            >
+              <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
+            </UiButton>
+            <UiButton
+              v-if="voice.installed"
+              type="button"
+              variant="outline"
+              size="sm"
+              :loading="previewing === voice.ref"
+              :aria-label="t('settings.voice.previewOf', { name: voice.name })"
+              :data-testid="`settings-voice-preview-${voice.ref}`"
+              @click.stop.prevent="playAsync(voice)"
+            >
+              {{ t('settings.voice.preview') }}
+            </UiButton>
+            <UiButton
+              v-else
+              type="button"
+              variant="outline"
+              size="sm"
+              :loading="downloadingId === voice.modelId"
+              :disabled="downloadingId !== null"
+              :aria-label="t('settings.voice.downloadOf', { name: voice.name })"
+              :data-testid="`settings-voice-download-${voice.ref}`"
+              @click.stop.prevent="confirming = voice"
+            >
+              {{
+                downloadingId === voice.modelId
+                  ? t('settings.voice.model.downloading')
+                  : t('settings.voice.model.download')
+              }}
+            </UiButton>
+          </template>
+        </SettingsOptionRow>
+        <SettingsRow
+          :title="t('settings.voice.clone.open')"
+          icon="lucide:plus"
+          navigates
+          data-testid="settings-voice-clone"
+          @select="cloneOpen = true"
+        />
+      </SettingsGroup>
+
       <SettingsGroup>
         <SettingsRow
           :title="t(assistantLabelKey('assistant.speechRate'))"
@@ -230,129 +373,68 @@ onVaultTablesChanged(['preferences'], () => {
         </SettingsRow>
       </SettingsGroup>
 
-      <ShadcnTabs
-        :model-value="tab"
-        @update:model-value="tab = $event as SpeechLanguage"
-      >
-        <div class="overflow-x-auto">
-          <ShadcnTabsList :aria-label="t('settings.voice.languages')">
-            <ShadcnTabsTrigger
-              v-for="language in SPEECH_LANGUAGES"
-              :key="language"
-              :value="language"
-              :data-testid="`settings-voice-tab-${language}`"
-            >
-              {{ languageName(language) }}
-            </ShadcnTabsTrigger>
-          </ShadcnTabsList>
-        </div>
-      </ShadcnTabs>
+      <SettingsAssistantVoiceCloneDialog
+        v-model:open="cloneOpen"
+        :language="language"
+        :rate="rate"
+        @saved="clonedAsync"
+      />
 
-      <div
-        v-if="model"
-        :key="tab"
-        class="flex flex-col gap-6"
-        :data-testid="`settings-voice-${tab}`"
+      <UiDrawerModal
+        v-if="deleteCandidate"
+        :open="deleteCandidate !== null"
+        :title="t('settings.voice.deleteTitle')"
+        @update:open="
+          (isOpen) => (isOpen || deleting ? null : (deleteCandidate = null))
+        "
       >
-        <SettingsGroup>
-          <SettingsRow
-            :title="t('settings.voice.model.title')"
-            :data-testid="`settings-voice-model-${tab}`"
-          >
-            <template #backdrop>
-              <ModelsDownloadBar :model-id="model.modelId" />
-            </template>
-            <template #description>
-              <span class="flex flex-col">
-                <span>
-                  {{
-                    model.installed
-                      ? t('settings.voice.model.ready')
-                      : availableLine(model)
-                  }}
-                </span>
-                <ModelsDownloadStatus :model-id="model.modelId" />
-              </span>
-            </template>
+        <template #content>
+          <div class="space-y-3 px-6 py-2">
+            <p class="text-sm">
+              {{
+                t('settings.voice.deleteConfirm', {
+                  name: deleteCandidate.name,
+                })
+              }}
+            </p>
+          </div>
+        </template>
+        <template #footer>
+          <div class="flex justify-end gap-2">
             <UiButton
-              v-if="!model.installed"
               type="button"
               variant="outline"
-              size="sm"
-              :loading="downloadingId === model.modelId"
-              :disabled="downloadingId !== null"
-              :data-testid="`settings-voice-download-${tab}`"
-              @click="confirming = model"
+              :disabled="deleting"
+              @click="deleteCandidate = null"
             >
-              {{
-                downloadingId === model.modelId
-                  ? t('settings.voice.model.downloading')
-                  : t('settings.voice.model.download')
-              }}
+              {{ t('settings.voice.clone.cancel') }}
             </UiButton>
-          </SettingsRow>
-        </SettingsGroup>
-
-        <SettingsGroup
-          radio
-          :label="t('settings.voice.voicesLabel')"
-          :model-value="chosen[tab]"
-          :disabled="saving"
-          @update:model-value="chooseVoiceAsync(tab, String($event))"
-        >
-          <SettingsOptionRow
-            v-for="voice in voicesOf(tab)"
-            :key="voice.ref"
-            type="radio"
-            :value="voice.ref"
-            :title="voice.name"
-            :description="
-              voice.isDefault ? t('settings.voice.default') : undefined
-            "
-            :data-testid="`settings-voice-option-${voice.ref}`"
-          >
-            <template #trailing>
-              <UiButton
-                type="button"
-                variant="outline"
-                size="sm"
-                :loading="previewing === voice.ref"
-                :disabled="!voice.installed"
-                :title="
-                  voice.installed ? undefined : t('settings.voice.needsModel')
-                "
-                :aria-label="
-                  t('settings.voice.previewOf', { name: voice.name })
-                "
-                :data-testid="`settings-voice-preview-${voice.ref}`"
-                @click.stop.prevent="playAsync(voice)"
-              >
-                {{ t('settings.voice.preview') }}
-              </UiButton>
-            </template>
-          </SettingsOptionRow>
-        </SettingsGroup>
-        <p v-if="!model.installed" class="px-1 text-xs text-muted-foreground">
-          {{ t('settings.voice.needsModel') }}
-        </p>
-      </div>
+            <UiButton
+              type="button"
+              variant="destructive"
+              :loading="deleting"
+              data-testid="settings-voice-delete-confirm"
+              @click="confirmDeleteAsync"
+            >
+              {{ t('settings.voice.deleteButton') }}
+            </UiButton>
+          </div>
+        </template>
+      </UiDrawerModal>
 
       <ModelsDownloadConfirmStep
         v-model:open="confirmOpen"
         :target="confirming && { kind: 'tts', id: confirming.modelId }"
         :name="
           confirming
-            ? t('settings.voice.model.name', {
+            ? t('settings.voice.downloadName', {
+                name: confirming.name,
                 language: languageName(confirming.language),
               })
             : ''
         "
         @confirm="confirmed"
       />
-
-      <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-        {{ t('settings.voice.saved') }}
-      </p>
     </template>
   </section>
 </template>

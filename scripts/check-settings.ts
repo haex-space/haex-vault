@@ -62,7 +62,6 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.local.repo': '/ai/local/repo/Qwen/Qwen2.5-GGUF',
   'ai.speech': '/ai/speech',
   'ai.speech.assistant': '/ai/speech/assistant',
-  'ai.speech.voice': '/ai/speech/voice',
   'ai.speech.tones': '/ai/speech/tones',
   'ai.autonomy': '/ai/autonomy',
   'ai.denyRules': '/ai/deny-rules',
@@ -167,7 +166,6 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.local',
     'ai.speech',
     'ai.speech.assistant',
-    'ai.speech.voice',
     'ai.speech.tones',
     'ai.autonomy',
     'ai.denyRules',
@@ -190,15 +188,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
     [
       ['chat', ['ai.providers']],
       ['local', ['ai.local']],
-      [
-        'speech',
-        [
-          'ai.speech',
-          'ai.speech.assistant',
-          'ai.speech.voice',
-          'ai.speech.tones',
-        ],
-      ],
+      ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
       [
         'agents',
         ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],

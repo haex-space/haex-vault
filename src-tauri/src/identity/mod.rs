@@ -81,6 +81,9 @@ mod migrations_sync_rules_source_target_tests;
 mod migrations_sync_rules_tests;
 #[cfg(test)]
 mod migrations_tests;
+mod migrations_tts_voices;
+#[cfg(test)]
+mod migrations_tts_voices_tests;
 mod migrations_voice;
 #[cfg(test)]
 mod migrations_voice_tests;

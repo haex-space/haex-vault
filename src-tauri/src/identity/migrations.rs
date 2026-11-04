@@ -60,7 +60,8 @@ use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
-use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0052;
+use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0053;
+use super::migrations_tts_voices::TTS_VOICES_0052;
 use super::migrations_voice::VOICE_0050;
 
 /// CRDT trigger-schema version holzi installs on open.
@@ -127,7 +128,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 32: `0050_voice_conversations` (spec 066) added `origin` to the CRDT-tracked `chat_threads`
 ///   and the CRDT-tracked `voice_transcript_entries`.
 /// - 33: `0051_assistant_tones` (spec 066 FR-045a) added the CRDT-tracked `haex_assistant_tones`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 33;
+/// - 34: `0052_tts_voices` (spec 066 FR-049, FR-050) added the CRDT-tracked `haex_tts_voices` and
+///   `haex_tts_voices_binaries`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 34;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -766,10 +769,15 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
         MigrationName::from("0051_assistant_tones"),
         ASSISTANT_TONES_0051.to_owned(),
     );
+    // Spec 066 FR-049, FR-050: the user's own voices and their recordings.
+    m.insert(
+        MigrationName::from("0052_tts_voices"),
+        TTS_VOICES_0052.to_owned(),
+    );
     // Spec 075: the two places of a sync rule are source and target; columns and stored values follow.
     m.insert(
-        MigrationName::from("0052_sync_rules_source_target"),
-        SYNC_RULES_SOURCE_TARGET_0052.to_owned(),
+        MigrationName::from("0053_sync_rules_source_target"),
+        SYNC_RULES_SOURCE_TARGET_0053.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

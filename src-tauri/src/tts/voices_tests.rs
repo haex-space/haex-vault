@@ -211,7 +211,7 @@ fn a_sample_is_asked_for_a_listed_voice_at_a_speaking_rate() {
 fn every_voice_is_offered_with_the_model_it_needs() {
     let all = builtin().expect("parses");
     let installed = vec!["pocket-de".to_owned()];
-    let options = voice_options(all, &installed, &hw()).expect("options");
+    let options = voice_options(all, &[], &installed, &hw()).expect("options");
     assert_eq!(options.len(), all.len());
     for (option, voice) in options.iter().zip(all) {
         assert_eq!(option.voice_ref, format!("builtin:{}", voice.id));
@@ -285,4 +285,88 @@ fn builtin_voices_speak() {
             println!("{}: {seconds:.1} s", voice.id);
         }
     }
+}
+
+#[test]
+fn an_own_voice_speaks_while_it_is_in_the_vault_and_in_its_language() {
+    use super::voices::{choose, own_id, preview_choice, Chosen};
+    let own = || Some(("de".to_owned(), b"RIFF".to_vec()));
+    assert_eq!(own_id(Some("clone:anna")).as_deref(), Some("anna"));
+    assert_eq!(own_id(Some("builtin:de-lena")), None);
+    assert!(matches!(
+        choose(Some("clone:anna"), "de", own()).expect("chosen"),
+        Chosen::Own { ref id, .. } if id == "anna"
+    ));
+    // Deleted (no recording) or of another language: the default of the language.
+    for (language, recording) in [("de", None), ("en", own())] {
+        let chosen = choose(Some("clone:anna"), language, recording).expect("chosen");
+        match chosen {
+            Chosen::Builtin(voice) => assert!(voice.default && voice.language == language),
+            Chosen::Own { .. } => panic!("{language} must not speak with a German own voice"),
+        }
+    }
+    assert!(matches!(
+        preview_choice("clone:anna", own()).expect("sample"),
+        Chosen::Own { .. }
+    ));
+    assert!(matches!(
+        preview_choice("clone:anna", None),
+        Err(TtsError::Invalid { .. })
+    ));
+    assert!(matches!(
+        preview_choice("builtin:de-lena", None).expect("sample"),
+        Chosen::Builtin(_)
+    ));
+}
+
+#[cfg(feature = "voice")]
+#[test]
+fn an_own_voice_speaks_with_its_own_recording() {
+    use super::voices::{choose, Chosen};
+    use crate::assistant::custom_tones::{encode_wav, Sound};
+    let wav = encode_wav(&Sound {
+        samples: vec![0.0, 0.5, -0.5, 0.25],
+        sample_rate: 24_000,
+    });
+    let chosen = choose(Some("clone:anna"), "de", Some(("de".to_owned(), wav))).expect("chosen");
+    assert!(matches!(chosen, Chosen::Own { .. }));
+    let reference = chosen.reference().expect("reference");
+    assert_eq!(reference.sample_rate, 24_000);
+    assert_eq!(reference.samples.len(), 4);
+    for (got, want) in reference.samples.iter().zip([0.0, 0.5, -0.5, 0.25]) {
+        assert!((got - want).abs() < 1e-3, "{got} vs {want}");
+    }
+}
+
+#[test]
+fn own_voices_follow_the_built_in_ones_with_the_model_of_their_language() {
+    use crate::storage::tts_voices::OwnVoice;
+    let own = |language: &str| OwnVoice {
+        id: uuid::Uuid::nil(),
+        name: "Anna".into(),
+        language: language.into(),
+        engine: "pocket".into(),
+        reference_hash: "h".into(),
+        sample_rate: 16_000,
+        consent_confirmed_at: 1,
+        created_at: 1,
+    };
+    let all = builtin().expect("parses");
+    let options = voice_options(
+        all,
+        &[own("de"), own("pl")],
+        &["pocket-de".to_owned()],
+        &hw(),
+    )
+    .expect("options");
+    assert_eq!(
+        options.len(),
+        all.len() + 1,
+        "a language haex does not speak is left out"
+    );
+    let anna = options.last().expect("own voice");
+    assert_eq!(anna.voice_ref, format!("clone:{}", uuid::Uuid::nil()));
+    assert_eq!(anna.kind, VoiceKind::Clone);
+    assert_eq!(anna.model_id, "pocket-de");
+    assert!(anna.installed && !anna.is_default);
 }

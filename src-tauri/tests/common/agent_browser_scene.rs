@@ -233,6 +233,53 @@ impl Scene {
 }
 
 /// The scene with the fixture site over `http`, allowed for reading.
+/// Runs the browser once to its end before the first scene of a test process. The first start of
+/// Chromium on a CI runner whose page cache the build emptied reads the browser from disk: in the
+/// failed runs its first log line came 11 to 18 seconds after the start, and it did not answer
+/// within the 30 seconds a start gets. A run of its own loads it into the cache, so the tests
+/// measure holzi and not the runner's disk. Only on Linux, where the tests run headless.
+fn warm_up(executable: &Path) {
+    static WARM: std::sync::Once = std::sync::Once::new();
+    if !cfg!(target_os = "linux") {
+        return;
+    }
+    WARM.call_once(|| {
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+
+        let Ok(profile) = tempfile::tempdir() else {
+            return;
+        };
+        let mut user_data = std::ffi::OsString::from("--user-data-dir=");
+        user_data.push(profile.path());
+        let started = Instant::now();
+        let Ok(mut child) = Command::new(executable)
+            .args(["--headless=new", "--no-sandbox", "--no-first-run"])
+            .arg(user_data)
+            .args(["--dump-dom", "about:blank"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            return;
+        };
+        let until = started + Duration::from_secs(120);
+        loop {
+            match child.try_wait() {
+                Ok(None) if Instant::now() < until => std::thread::sleep(Duration::from_millis(50)),
+                Ok(Some(_)) => break,
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break;
+                }
+            }
+        }
+        eprintln!("warmed the browser up in {:?}", started.elapsed());
+    });
+}
+
 pub async fn scene() -> Option<Scene> {
     scene_with(false, SiteLevel::Read).await
 }
@@ -245,6 +292,12 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         eprintln!("skipped: no Chromium-based browser on this machine");
         return None;
     };
+    {
+        let executable = executable.clone();
+        tokio::task::spawn_blocking(move || warm_up(&executable))
+            .await
+            .unwrap();
+    }
     let site = if tls {
         agent_browser_fixture::start_tls().await
     } else {

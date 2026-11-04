@@ -20,6 +20,26 @@ export interface VoiceOption {
   isDefault: boolean
 }
 
+/** What is wrong with a recording for an own voice (spec 066 FR-049, `CloneCheck.problems`). */
+export type CloneProblem =
+  'tooShort' | 'tooLong' | 'tooQuiet' | 'clipped' | 'noisy'
+
+/** The check of a recording for an own voice (`CloneCheck`). */
+export interface CloneCheck {
+  sessionId: string
+  speechSecs: number
+  ok: boolean
+  problems: CloneProblem[]
+}
+
+/** Payload of `tts-clone-level` while a voice is recorded. */
+export interface CloneLevel {
+  sessionId: string
+  /** 0 (silence) to 1 (full scale). */
+  level: number
+  speechSecs: number
+}
+
 /** One entry of the page "Lizenzen" for voices and speech models (spec 066 T032). */
 export interface SpeechCredit {
   kind: 'voice' | 'speechModel' | 'recognitionModel'
@@ -94,6 +114,53 @@ export function useTtsVoices() {
     await invoke('assistant_tone_delete', { customId })
   }
 
+  /** Starts recording an own voice; the level arrives as `tts-clone-level` (FR-049). */
+  async function cloneRecordStartAsync(): Promise<string> {
+    const { sessionId } = await invoke<{ sessionId: string }>(
+      'tts_clone_record_start',
+    )
+    return sessionId
+  }
+
+  async function cloneRecordStopAsync(sessionId: string): Promise<CloneCheck> {
+    return await invoke<CloneCheck>('tts_clone_record_stop', { sessionId })
+  }
+
+  /** Reads an own voice from a chosen audio file and checks it. */
+  async function cloneFromFileAsync(file: PickedFile): Promise<CloneCheck> {
+    return await invoke<CloneCheck>('tts_clone_from_file', { file })
+  }
+
+  /** Speaks a sample with the checked recording of `sessionId`. */
+  async function clonePreviewAsync(
+    sessionId: string,
+    language: SpeechLanguage,
+    rate: number,
+  ): Promise<void> {
+    await invoke('tts_clone_preview', { sessionId, language, rate })
+  }
+
+  /** Keeps the checked recording as an own voice of the vault; `consent` is the user's
+   * confirmation that it is their voice or the speaker consented (FR-050). */
+  async function cloneSaveAsync(
+    sessionId: string,
+    name: string,
+    language: SpeechLanguage,
+    consent: boolean,
+  ): Promise<VoiceOption> {
+    return await invoke<VoiceOption>('tts_clone_save', {
+      sessionId,
+      name,
+      language,
+      consent,
+    })
+  }
+
+  /** Deletes an own voice on every device. */
+  async function voiceDeleteAsync(voice: string): Promise<void> {
+    await invoke('tts_voice_delete', { voice })
+  }
+
   async function creditsAsync(): Promise<SpeechCredit[]> {
     return await invoke<SpeechCredit[]>('speech_credits')
   }
@@ -107,6 +174,12 @@ export function useTtsVoices() {
     toneImportAsync,
     toneAssignAsync,
     toneDeleteAsync,
+    cloneRecordStartAsync,
+    cloneRecordStopAsync,
+    cloneFromFileAsync,
+    clonePreviewAsync,
+    cloneSaveAsync,
+    voiceDeleteAsync,
     creditsAsync,
   }
 }

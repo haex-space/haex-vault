@@ -83,6 +83,19 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   setzt die letzte fort (FR-015). Die Nachhörzeit (`assistant.followUpSecs`) und die Position der
   Anzeige (`assistant.bubble.position`) entfallen.
 
+### Session 2026-11-03
+
+- Q: In welcher Sprache antwortet der Agent? → A: Standardmäßig in der Sprache der Oberfläche, egal
+  in welcher Sprache der Nutzer schreibt oder spricht. Für Gespräche lässt sich auf der Seite
+  „Sprachassistent“ pro Gerät eine andere Sprache wählen, etwa um eine Sprache zu üben; haex hört,
+  versteht und antwortet dann in dieser Sprache (FR-002a). Getippte Chats bleiben bei der Sprache
+  der Oberfläche.
+- Q: Wie hilft haex beim Aufnehmen einer eigenen Stimme? → A: Der Dialog zeigt einen kurzen,
+  lockeren Vorlesetext in der gewählten Sprache (etwa 20–30 Sekunden), auf Wunsch einen anderen;
+  wer nicht aufnehmen will, wählt eine Audiodatei (FR-049).
+- Q: Braucht es den Import von Sprachmodellen, etwa aus Hugging Face (FR-051)? → A: Vorerst nicht:
+  Eine Aufnahme von 10–30 Sekunden reicht für eine eigene Stimme. FR-051 ist zurückgestellt.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -539,8 +552,11 @@ Modus aus.
   Plan erstellt hat.
 - **Kopfhörer**: Mit Kopfhörern hört das Mikrofon die eigene Stimme nicht; Dazwischenreden
   funktioniert genauso.
-- **Andere Sprache als die Oberfläche**: Erkennung und Antwort folgen der Sprache, in der der Nutzer
-  spricht, sofern es dafür eine Stimme gibt; sonst antwortet haex in der Sprache der Oberfläche.
+- **Andere Sprache als die Oberfläche**: Spricht der Nutzer eine andere Sprache als die des
+  Gesprächs, erkennt haex sie schlechter und antwortet trotzdem in der Sprache des Gesprächs
+  (FR-002a); wer in einer anderen Sprache sprechen will, stellt sie auf der Seite „Sprachassistent“
+  ein. Fehlt für die gewählte Sprache ein Modell oder eine Stimme, nennt die Seite das wie bei der
+  Oberflächensprache.
 
 ## Requirements _(mandatory)_
 
@@ -554,6 +570,13 @@ Modus aus.
   Sprache.
 - **FR-002**: Der Modus MUST pro Gerät gelten und MUST nach einem Neustart und Entsperren auf diesem
   Gerät wieder so stehen, wie der Nutzer ihn verlassen hat. Andere Geräte MUST NOT ihn übernehmen.
+- **FR-002a**: Der Agent MUST in der Sprache der Oberfläche antworten, auch wenn der Nutzer in einer
+  anderen schreibt oder spricht. Für Gespräche MUST sich auf der Seite „Sprachassistent“ pro Gerät
+  eine andere der Sprachen wählen lassen, die haex spricht (Deutsch, Englisch, Französisch, Spanisch,
+  Italienisch, Portugiesisch), Standard „Wie die Oberfläche“; Erkennung, Wortliste, Stimme und
+  Antwort eines Gesprächs MUST dieser Sprache folgen. Whisper bekommt die Sprache vorgegeben und
+  erkennt sie nicht selbst; ein Modell, dem sich keine Sprache vorgeben lässt (Parakeet), erkennt
+  sie weiter selbst. Getippte Chats MUST bei der Sprache der Oberfläche bleiben.
 - **FR-003**: Solange der Modus an ist, MUST der Schalter im Dock den Zustand zeigen (bereit, hört
   zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich
@@ -744,15 +767,20 @@ Modus aus.
 #### Eigene Stimmen und Sprachen
 
 - **FR-049**: Der Nutzer MUST eine Stimme aus einer Aufnahme in haex oder einer Audiodatei
-  (10–30 Sekunden) nachbilden können, mit Name und Sprache. haex MUST die Aufnahme vor dem Speichern
+  (10–30 Sekunden) nachbilden können, mit Name und Sprache. Für die Aufnahme MUST haex einen
+  Vorlesetext in der gewählten Sprache anbieten, der etwa 20–30 Sekunden dauert, und auf Wunsch einen
+  anderen. haex MUST die Aufnahme vor dem Speichern
   prüfen (Länge, Lautstärke, Übersteuerung, Rauschen) und eine Probe abspielen. Die Nachbildung MUST
-  ganz auf dem Gerät geschehen.
+  ganz auf dem Gerät geschehen. Das Sprachmodell ahmt auch den Klang der Referenz nach; sie MUST
+  deshalb ohne Verlust ankommen: aufgenommen mit der Abtastrate des Mikrofons, nur mit Tiefpass
+  heruntergerechnet, höchstens 30 Sekunden lang und am Ende in einer Sprechpause abgeschnitten,
+  und das Sprachmodell MUST die ganze Referenz lesen (Betreiber 2026-11-03).
 - **FR-050**: Vor dem Speichern MUST der Nutzer bestätigen, dass es seine eigene Stimme ist oder die
   sprechende Person eingewilligt hat; der Zeitpunkt der Bestätigung MUST gespeichert werden.
   Nachgebildete Stimmen MUST verschlüsselt im Vault liegen, mit ihm synchronisiert werden und sich
   löschen lassen; das Löschen MUST auf allen Geräten wirken, die dann auf die Standardstimme der
   Sprache zurückfallen.
-- **FR-051**: Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
+- **FR-051** (zurückgestellt, Betreiber 2026-11-03): Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
   Modell-Repository importieren können. haex MUST die Modellart an den Dateien erkennen und nicht
   unterstützte Dateien mit Grund ablehnen. Name, Sprachen und Lizenzangabe MUST angegeben und das
   Nutzungsrecht bestätigt werden. Importierte Modelle MUST nur auf diesem Gerät liegen, MUST keinen

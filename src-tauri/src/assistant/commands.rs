@@ -311,8 +311,12 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let engine: Arc<dyn Engine> = voice_state
         .speech_model(&entry.id, dir, &ports.gate)
         .await?;
-    let voice = voices::resolve(settings.voice.as_deref(), language)?;
-    let reference = Arc::new(voices::reference(voice)?);
+    // An own voice (spec 066 FR-049) speaks while it is in the vault; otherwise the built-in
+    // default of the language.
+    let own =
+        tts::commands::own_recording(&app.state::<AppState>(), settings.voice.as_deref()).await?;
+    let voice = voices::choose(settings.voice.as_deref(), language, own)?;
+    let reference = Arc::new(voice.reference()?);
 
     crate::voice::ensure_microphone(&app).await?;
     let gate = ports.gate.clone();
@@ -391,8 +395,9 @@ impl RealPorts {
     fn transcribe(&self, listener: u64, utterance: Utterance) {
         let app = self.app.clone();
         let inbox = self.inbox.clone();
+        let language = self.language.clone();
         let spawned = self.gate.spawn(async move {
-            let text = match listen::transcribe(&app, utterance).await {
+            let text = match listen::transcribe(&app, utterance, &language).await {
                 Ok(text) => text,
                 Err(error) => {
                     log::warn!("assistant: transcription failed: {error}");
@@ -655,10 +660,12 @@ pub async fn assistant_get_state(driver: State<'_, AssistantDriver>) -> Result<S
     Ok(driver.state())
 }
 
-/// The toggle of the assistant (FR-001, operator 2026-11-02). On loads the models of `language`
-/// (the window's language; nothing is downloaded) and opens the microphone; off ends a
-/// conversation, aborts a running round and closes the microphone. `utc_offset_minutes` is the
-/// window's offset from UTC, for dates and times spoken in local time.
+/// The toggle of the assistant (FR-001, operator 2026-11-02). On loads the models of the
+/// conversation language (FR-002a: the one chosen on this device's assistant page, else the
+/// vault's interface language; `language`, the window's, only when neither is known; nothing is
+/// downloaded) and opens the microphone;
+/// off ends a conversation, aborts a running round and closes the microphone.
+/// `utc_offset_minutes` is the window's offset from UTC, for dates and times spoken in local time.
 #[tauri::command]
 pub async fn assistant_set_enabled(
     app: AppHandle,
@@ -669,6 +676,24 @@ pub async fn assistant_set_enabled(
     utc_offset_minutes: i32,
 ) -> Result<StateWire> {
     let gate = state.gate().clone();
+    let language = if enabled {
+        let db = crate::state_utils::active_database(&state)?;
+        let device = crate::device::commands::resolve_vault_device_uuid(&app, &db).await?;
+        // A failed read falls back to the window's language like a typed turn does
+        // (`chat::send`), so it never keeps the assistant from starting.
+        match db
+            .read(move |r| crate::chat::reply_language::read_spoken(r, device))
+            .await
+        {
+            Ok(fixed) => fixed.map_or(language, |fixed| fixed.code().to_owned()),
+            Err(error) => {
+                log::warn!("assistant: could not read the conversation language: {error}");
+                language
+            }
+        }
+    } else {
+        language
+    };
     let (reply, replied) = oneshot::channel();
     driver.send(
         &app,
