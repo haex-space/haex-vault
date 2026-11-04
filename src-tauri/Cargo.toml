@@ -91,6 +91,10 @@ e2e = ["nostr-sdk/local-relay"]
 # does nothing unless `HOLZI_PROBE=1` (desktop) or `debug.holzi.probe=1` (Android) asks for it, and
 # release bundles never enable it.
 platform-probe = []
+# Spec 078: the everyday voice measurement (`chat::eval::everyday`) that `tests/model_tool_eval.rs`
+# runs as `measure_everyday_voice`. Test code with its set and fixture world, so no app build compiles
+# it; the library's own tests build it without the feature.
+everyday-eval = []
 
 [dependencies]
 tauri = { version = "2.12.0", features = [] }
