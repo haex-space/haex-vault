@@ -7,7 +7,7 @@
 //! one JSON object naming its tool calls; the report says it is not deterministic.
 
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -17,6 +17,7 @@ use holzi_lib::adapters::{
     StreamChunk, StreamError,
 };
 use serde_json::{json, Value};
+use tokio::process::Command;
 use tokio::sync::mpsc;
 
 const PROTOCOL: &str = "\n\n## How to answer\n\
@@ -24,6 +25,10 @@ The app passes your tool calls on and runs them. Answer with exactly one JSON ob
 else: {\"text\": \"what you say to the user (may be empty)\", \"calls\": [{\"name\": \"tool name\", \
 \"arguments\": {}}]}. Use \"calls\": [] when you call no tool. Call only tools from the list below, \
 with arguments that match their schema.\n\n## Tools\n";
+
+#[cfg(test)]
+#[path = "claude_cli_tests.rs"]
+mod claude_cli_tests;
 
 pub struct ClaudeCli {
     pub workdir: PathBuf,
@@ -51,7 +56,8 @@ fn transcript(req: &ChatRequest) -> String {
 }
 
 /// The first complete JSON object in `result`, tolerating a code fence or text around it: Claude
-/// once wrote a second, corrected object after the first.
+/// once wrote a second, corrected object after the first. A call without a name stays, with an
+/// empty one, so the runner scores it as an unknown tool instead of losing it.
 fn parse_answer(result: &str) -> (String, Vec<ToolCall>) {
     let object = result.find('{').and_then(|start| {
         serde_json::Deserializer::from_str(&result[start..])
@@ -74,12 +80,14 @@ fn parse_answer(result: &str) -> (String, Vec<ToolCall>) {
             calls
                 .iter()
                 .enumerate()
-                .filter_map(|(i, c)| {
-                    Some(ToolCall {
-                        id: format!("call_{i}"),
-                        name: c.get("name")?.as_str()?.to_owned(),
-                        input: c.get("arguments").cloned().unwrap_or_else(|| json!({})),
-                    })
+                .map(|(i, c)| ToolCall {
+                    id: format!("call_{i}"),
+                    name: c
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                    input: c.get("arguments").cloned().unwrap_or_else(|| json!({})),
                 })
                 .collect()
         })
@@ -108,33 +116,40 @@ impl ProviderAdapter for ClaudeCli {
         let model = req.model_id.clone();
         let workdir = self.workdir.clone();
         let (tx, rx) = mpsc::unbounded_channel();
-        let task = tokio::task::spawn_blocking(move || {
+        // Dropping the stream aborts this task; `kill_on_drop` then ends the `claude` process too.
+        let task = tokio::spawn(async move {
             let start = Instant::now();
             let system_file = workdir.join(format!("system-{}.txt", uuid::Uuid::new_v4()));
-            std::fs::write(&system_file, &system).expect("write system prompt");
-            let out = Command::new("claude")
-                .args([
-                    "-p",
-                    "--model",
-                    &model,
-                    "--tools",
-                    "",
-                    "--strict-mcp-config",
-                ])
-                .args(["--no-session-persistence", "--setting-sources", "local"])
-                .args([
-                    "--settings",
-                    "{\"disableAllHooks\": true}",
-                    "--output-format",
-                    "json",
-                ])
-                .arg("--system-prompt-file")
-                .arg(&system_file)
-                .arg(&prompt)
-                .current_dir(&workdir)
-                .stdin(Stdio::null())
-                .output();
-            let _ = std::fs::remove_file(&system_file);
+            let out = match tokio::fs::write(&system_file, &system).await {
+                Ok(()) => {
+                    Command::new("claude")
+                        .args([
+                            "-p",
+                            "--model",
+                            &model,
+                            "--tools",
+                            "",
+                            "--strict-mcp-config",
+                        ])
+                        .args(["--no-session-persistence", "--setting-sources", "local"])
+                        .args([
+                            "--settings",
+                            "{\"disableAllHooks\": true}",
+                            "--output-format",
+                            "json",
+                        ])
+                        .arg("--system-prompt-file")
+                        .arg(&system_file)
+                        .arg(&prompt)
+                        .current_dir(&workdir)
+                        .stdin(Stdio::null())
+                        .kill_on_drop(true)
+                        .output()
+                        .await
+                }
+                Err(e) => Err(e),
+            };
+            let _ = tokio::fs::remove_file(&system_file).await;
             let result = match out {
                 Ok(o) if o.status.success() => serde_json::from_slice::<Value>(&o.stdout)
                     .ok()
