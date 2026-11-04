@@ -24,9 +24,10 @@ export default defineNuxtConfig({
   // Keep this on or after the haextension merge commit of #173 (UiProgress);
   // it also carries #96: a closed context menu trigger no longer catches
   // clicks meant for what lies above it, and #177: `UiDrawerModal` `dismissible`, which the dialogs
-  // that wait for an answer turn off (a click that only brings the window forward must not decline).
+  // that wait for an answer turn off (a click that only brings the window forward must not decline),
+  // and #178: the focus ring of fields is no longer half transparent (it read as disabled).
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#39c499801157b8e71a68a198a27591ce1a581769',
+    'github:haex-space/haextension/packages/haex-ui#83202dbee95f49b83cdc1b238b58991d29c69f01',
   ],
   build: {
     transpile: ['reka-ui'],
