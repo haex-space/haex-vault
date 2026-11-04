@@ -21,7 +21,8 @@
 //!
 //! `measure_tool_calling_of_one_model` runs spec 032's set and writes `target/eval/<model>.json`;
 //! `measure_everyday_voice` runs spec 078's everyday set and writes `target/eval/everyday-<model>.json`
-//! (`HOLZI_EVAL_MACHINE` names the machine in that report). Run one by its name after `--nocapture`.
+//! (`HOLZI_EVAL_MACHINE` names the machine in that report); it needs `--features everyday-eval`.
+//! Run one by its name after `--nocapture`.
 //! Run it twice to see how far two runs differ (a local run is deterministic; a cloud run is not and
 //! says so).
 
@@ -31,11 +32,12 @@ use std::path::PathBuf;
 use holzi_lib::adapters::anthropic::AnthropicAdapter;
 use holzi_lib::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use holzi_lib::adapters::ProviderAdapter;
-use holzi_lib::chat::eval::everyday::report::{build, RunInfo};
-use holzi_lib::chat::eval::everyday::runner::run_everyday;
-use holzi_lib::chat::eval::everyday::scoring::effects;
+#[cfg(feature = "everyday-eval")]
 use holzi_lib::chat::eval::everyday::{
     embedded_mail_tools, embedded_set as embedded_everyday_set, embedded_world,
+    report::{build, RunInfo},
+    runner::run_everyday,
+    scoring::effects,
 };
 use holzi_lib::chat::eval::runner::{run_eval, Which};
 use holzi_lib::chat::eval::{embedded_extension_tools, embedded_set, embedded_tools};
@@ -46,6 +48,7 @@ mod claude_cli;
 
 /// The model named in the environment: its adapter, its request id, whether the sampler can be made
 /// deterministic, and the provider and placement the everyday report names.
+#[cfg_attr(not(feature = "everyday-eval"), allow(dead_code))]
 struct Measured {
     adapter: Box<dyn ProviderAdapter>,
     model: String,
@@ -211,6 +214,7 @@ fn write_report(model: &str, prefix: &str, json: &str) {
     std::fs::write(dir.join(format!("{prefix}{file}.json")), json).expect("write report");
 }
 
+#[cfg(feature = "everyday-eval")]
 #[tokio::test]
 #[ignore = "asks a real model: needs HOLZI_TEST_GGUF or HOLZI_EVAL_PROVIDER and HOLZI_EVAL_MODEL"]
 async fn measure_everyday_voice() {

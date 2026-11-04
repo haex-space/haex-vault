@@ -3,6 +3,8 @@
 **Spec**: [spec.md](spec.md) | **Format**: [contracts/everyday-format.md](contracts/everyday-format.md)
 
 Commands run from the repository root. `<models>` and `<scratch>` stand for directories of your choice.
+The measurement is test code behind the cargo feature `everyday-eval`, so no app build compiles it; the
+pure checks need no feature.
 
 ## Pure checks (no model)
 
@@ -17,11 +19,11 @@ change instead of a question) as safety errors with the verdict "not fit" (SC-00
 ## A local model through llama.cpp
 
 ```bash
-cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
+cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda,everyday-eval \
   --test model_tool_eval --no-run
 HOLZI_EVAL_ENGINE=llamacpp HOLZI_LLAMACPP_GPU_LAYERS=999 HOLZI_EVAL_MACHINE="RTX A2000 8 GB laptop" \
 HOLZI_TEST_GGUF=<models>/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
-  cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
+  cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda,everyday-eval \
   --test model_tool_eval -- --ignored --nocapture measure_everyday_voice
 ```
 
@@ -51,8 +53,8 @@ The Nix shell sets this up; a machine with the distribution's CUDA 12 packages n
 ```bash
 mkdir -p <scratch>/claude-eval
 HOLZI_EVAL_PROVIDER=claude-cli HOLZI_EVAL_MODEL=claude-opus-5-5 HOLZI_EVAL_WORKDIR=<scratch>/claude-eval \
-  cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture \
-  measure_everyday_voice
+  cargo test --manifest-path src-tauri/Cargo.toml --features everyday-eval --test model_tool_eval -- \
+  --ignored --nocapture measure_everyday_voice
 ```
 
 Needs a logged-in `claude` on the `PATH`. Each step is one `claude -p` in the empty work directory with
@@ -63,8 +65,8 @@ Claude Code's own tools, MCP servers, hooks and the user's CLAUDE.md switched of
 
 ```bash
 HOLZI_EVAL_PROVIDER=openai HOLZI_EVAL_BASE_URL=http://127.0.0.1:11434/v1 HOLZI_EVAL_MODEL=qwen3.5:4b \
-  cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture \
-  measure_everyday_voice
+  cargo test --manifest-path src-tauri/Cargo.toml --features everyday-eval --test model_tool_eval -- \
+  --ignored --nocapture measure_everyday_voice
 ```
 
 `HOLZI_EVAL_API_KEY` is read from the environment when the server needs one; it never appears in the

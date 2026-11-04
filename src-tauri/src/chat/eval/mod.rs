@@ -3,6 +3,7 @@
 //! full measurement (`tests/model_tool_eval.rs`) both go through here. Needs no vault and never
 //! runs an action (FR-021, FR-022).
 
+#[cfg(any(test, feature = "everyday-eval"))]
 pub mod everyday;
 pub mod runner;
 pub mod scoring;
