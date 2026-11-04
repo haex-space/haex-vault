@@ -62,31 +62,31 @@ that no longer exist. Commit it together with T008 (`store.rs`).
 - [x] T003 [P] Write the migration test in `src-tauri/src/identity/migrations_sync_rules_source_target_tests.rs`, built
       like `migrations_sync_rules_tests.rs` (`migration_source_before`, `open`, the `fill()` pattern, the `#![allow(clippy::disallowed_methods)]`
       header it uses for raw SQL): an existing vault with a rule (direction `aToB`), a state row, a pending deletion on
-      side `b`, a run and a run item on side `b` → after `0052` read the rows with the **new** column names and assert
+      side `b`, a run and a run item on side `b` → after `0053` read the rows with the **new** column names and assert
       equal counts per table, `sourceToTarget`, the state numbers in `source_*`/`target_*`, the pending deletion and the run
       item on `target`; a pending deletion on `a` ends on `source`; a `side` value `x` stays `x`; a fresh vault has the
       new columns and no `place_a_source`, `a_size`; opening the migrated vault a second time with `holzi_migration_source()` succeeds and
       changes nothing (the migration runs once); the rows keep their order: assert the `seq` of the run items and the primary keys of
       the state and pending rows before and after. (Reader and zero-step tests come in Phase 4.)
 - [x] T004 Create `src-tauri/src/identity/migrations_sync_rules_source_target.rs` with the constant
-      `SYNC_RULES_SOURCE_TARGET_0052`: the eleven statements of [contracts/storage-migration.md](./contracts/storage-migration.md),
+      `SYNC_RULES_SOURCE_TARGET_0053`: the eleven statements of [contracts/storage-migration.md](./contracts/storage-migration.md),
       separated by `--> statement-breakpoint`, with a module doc in the style of `migrations_sync_rules_decrypt.rs`
       (spec 075, tables are `_no_sync`, `HOLZI_TRIGGER_VERSION` stays).
 - [x] T005 Register it: in `src-tauri/src/identity/mod.rs` add `mod migrations_sync_rules_source_target;` and
       `#[cfg(test)] mod migrations_sync_rules_source_target_tests;` next to the `migrations_sync_rules` lines (72–75); in
       `src-tauri/src/identity/migrations.rs` add the `use` and an
-      `m.insert(MigrationName::from("0052_sync_rules_source_target"), …)` after `0050_voice_conversations`, with a comment in
+      `m.insert(MigrationName::from("0053_sync_rules_source_target"), …)` after `0052_tts_voices`, with a comment in
       the style of its neighbours ("Spec 075: …"). Verify that the migration runner accepts `RENAME COLUMN` on these `_no_sync`
       tables (T003 passes).
 
-- [x] T006 Keep the existing 0044 tests working after `0052`: in `src-tauri/src/identity/migrations_sync_rules_tests.rs` the helper `fill()`
+- [x] T006 Keep the existing 0044 tests working after `0053`: in `src-tauri/src/identity/migrations_sync_rules_tests.rs` the helper `fill()`
       inserts with the old names (`place_a_source`, `place_a_path`, `place_b_*`, `a_size`, `a_mtime_ms`, `b_*`, direction `'aToB'`, sides
-      `'b'`). Rename the current helper to `fill_before_0052` and keep it for `migration_0046_adds_the_decrypt_switch_off_for_existing_rules`,
+      `'b'`). Rename the current helper to `fill_before_0053` and keep it for `migration_0046_adds_the_decrypt_switch_off_for_existing_rules`,
       which fills a vault at the schema before 0046 (old names are right there) and then upgrades it through every later migration. Give
       `fill()` the new names (`source_location`, `source_path`, `target_location`, `target_path`, `source_size`, `source_mtime_ms`,
       `target_size`, `target_mtime_ms`, `'sourceToTarget'`, sides `'target'`) for `deleting_a_rule_takes_its_state_pending_and_log_along` and
       `deleting_the_device_takes_its_rules_along`, which run on the fully migrated vault. No assertion changes (SC-002); the applied
-      migration `migrations_sync_rules.rs` stays untouched. This file keeps old names on purpose (`fill_before_0052`), as T035 expects.
+      migration `migrations_sync_rules.rs` stays untouched. This file keeps old names on purpose (`fill_before_0053`), as T035 expects.
 
 **Checkpoint**: T003 and T006 pass against the new migration. They need the library test build, so ask the operator for the scope first (see the working notes); run only the two migration test modules (`migrations_sync_rules_source_target` and `migrations_sync_rules`).
 
@@ -180,16 +180,16 @@ that no longer exist. Commit it together with T008 (`store.rs`).
 **Independent Test**: the migration tests pass, and the by-hand check M1 shows the same rules, the same pending deletion
 and a plan of 0 steps for a rule that had nothing to do.
 
-- [x] T027 [US2] Read the vault back through the Rust readers after `0052`: `store::rules`, `store::pending`, `store::state` and
+- [x] T027 [US2] Read the vault back through the Rust readers after `0053`: `store::rules`, `store::pending`, `store::state` and
       `run_log::items` and assert the rows come back (a dropped row, `parse` returning `None`, fails here), with the rule's
       `source`/`target` places, `SourceToTarget`, the pending deletion on `SyncRuleSide::Target`, the run item on `Target`. These readers
       take `&mut impl Query`, which only `CrdtTransaction` and `Reader` implement (`storage/query.rs`), so the migration tests' raw
       `with_connection` is not enough: first look at how `file_sync/store_tests.rs` gets its `Query` (`vault()` from
-      `remote_storage::test_support`, `VaultDb`) and use the same access. The pre-0052 vault is made by opening once with
-      `migration_source_before("0052_sync_rules_source_target")`, filling with `fill_before_0052` (T006), and reopening with
+      `remote_storage::test_support`, `VaultDb`) and use the same access. The pre-0053 vault is made by opening once with
+      `migration_source_before("0053_sync_rules_source_target")`, filling with `fill_before_0053` (T006), and reopening with
       `holzi_migration_source()`, as the 0046 test does. If `vault()` cannot start from an older migration source, put this test in
       `migrations_sync_rules_source_target_tests.rs` and read through a `Reader` of its `Database`.
-- [x] T028 [US2] In the test module of T027 (same access to the vault): a rule whose files are equal on both sides, with the state rows read after `0052`, gives a
+- [x] T028 [US2] In the test module of T027 (same access to the vault): a rule whose files are equal on both sides, with the state rows read after `0053`, gives a
       plan with no step (`plan::build(&Inputs)` with matching listings and the migrated state; FR-005, SC-003 "plans 0 steps"). Build the
       listings from the same sizes and times as the state rows.
 - [ ] T029 [US2] **By hand, operator** (quickstart §4, M1): open a vault made by the previous build (a one-way rule, a two-way
@@ -255,7 +255,7 @@ the rule list is unchanged.
   In Phase 5 only T032 and T033 need Phase 3; T030 and T031 are TypeScript-only and need nothing but Phase 1.
 - T008 needs T004–T005 (the new column names exist). T009–T018 need T007 and T008, and are parallel with each other.
 - T019 needs T009–T018. T020 needs T019 (it needs a compiling test build). T021–T025 need T020. T026 needs T021–T025.
-- T027–T028 need T007–T010 and T013 (and T006 for `fill_before_0052`). T030–T031 need nothing from Phase 3; T032 needs T018; T033 needs
+- T027–T028 need T007–T010 and T013 (and T006 for `fill_before_0053`). T030–T031 need nothing from Phase 3; T032 needs T018; T033 needs
   T023 (the confirm dialog's test ids) and T030.
 - US1 is the MVP: with US1 and the migration the rename is complete; US2's extra tests and US3's schema are what make it safe
   to merge, so all three ship together.

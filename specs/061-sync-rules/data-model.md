@@ -1,7 +1,7 @@
 # Datenmodell: Sync-Regeln
 
 Alle Tabellen kommen mit der Migration `0044_sync_rules` (Nummer siehe research.md R7, Risiko 3); die Migration
-`0052_sync_rules_source_target` (Spec 075) gibt den Spalten die Namen unten. Sie liegen in der
+`0053_sync_rules_source_target` (Spec 075) gibt den Spalten die Namen unten. Sie liegen in der
 Vault-Datenbank, enden auf `_no_sync` (kein Sync-Paket, keine Trigger-Version) und tragen
 `vault_device_uuid NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE`, damit eine kopierte
 Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001, letzter Punkt; ADR 0018).
