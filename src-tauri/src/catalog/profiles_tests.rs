@@ -76,11 +76,12 @@ fn a_phone_with_little_memory_gets_the_low_memory_profile() {
 
 #[test]
 fn a_desktop_still_chooses_from_the_whole_catalog() {
-    // The suggestion on a roomy desktop is the largest model of the build's catalog. With llama.cpp that is
-    // the desktop profile, Qwen3.5 4B (spec 070 US5). A build without local inference filters nothing (it
-    // runs no model at all), so it lists Qwen3.5 as well.
+    // The suggestion on a roomy desktop is the largest model of the build's catalog that is not only there
+    // to try. With llama.cpp that is the desktop profile, Qwen3.5 4B (spec 070 US5). A build without local
+    // inference filters nothing (it runs no model at all), so it lists Qwen3.5 as well.
     let largest = crate::catalog::entries()
         .iter()
+        .filter(|e| !e.trial)
         .max_by_key(|e| (e.approx_size_bytes, e.id.as_str()))
         .expect("a catalog")
         .id
@@ -89,5 +90,26 @@ fn a_desktop_still_chooses_from_the_whole_catalog() {
     #[cfg(feature = "llm-llamacpp")]
     if crate::llm::llamacpp::cpu::missing_features().is_empty() {
         assert_eq!(largest, profiles().desktop);
+    }
+}
+
+#[test]
+fn onboarding_never_suggests_a_model_that_is_only_there_to_try() {
+    let trial: Vec<&str> = crate::catalog::entries()
+        .iter()
+        .filter(|e| e.trial)
+        .map(|e| e.id.as_str())
+        .collect();
+    for available in [2 * GIB, 8 * GIB, 64 * GIB] {
+        for presets in [ModelPresets::Desktop, ModelPresets::Phone] {
+            let tiers = recommend_tiers(&cpu(available), presets).expect("non-empty catalog");
+            for rec in &tiers {
+                assert!(
+                    !trial.contains(&rec.entry.id.as_str()),
+                    "{} suggested",
+                    rec.entry.id
+                );
+            }
+        }
     }
 }
