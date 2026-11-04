@@ -155,6 +155,7 @@ fn a_later_extension_of_the_same_slug_does_not_rename_the_first() {
     mail.installed_at = Some(10);
     let alone = names(&tool_defs(vec![mail.clone()])).join(",");
     assert_eq!(alone, "x_haexmail_list_mailboxes");
+    assert_eq!(tool_defs(vec![mail.clone()])[0].namesake_key, None);
 
     let mut fork = source(
         "haexmail",
@@ -164,6 +165,9 @@ fn a_later_extension_of_the_same_slug_does_not_rename_the_first() {
     fork.installed_at = Some(20);
     fork.public_key = "9f8e7d".repeat(10) + "0000";
     let both = tool_defs(vec![fork.clone(), mail.clone()]);
+    // Both name the start of their key, the one with the bare slug too.
+    assert_eq!(both[0].namesake_key.as_deref(), Some("9f8e7d"));
+    assert_eq!(both[1].namesake_key.as_deref(), Some(&mail.public_key[..6]));
     assert_eq!(
         names(&both),
         [
@@ -196,10 +200,10 @@ fn an_extension_that_offers_nothing_here_keeps_its_name() {
     );
     fork.installed_at = Some(20);
     fork.public_key = "9f8e7d".repeat(10) + "0000";
-    assert_eq!(
-        names(&tool_defs(vec![mail, fork])),
-        ["x_haexmail9f8e7d_list_mailboxes"]
-    );
+    let defs = tool_defs(vec![mail, fork]);
+    assert_eq!(names(&defs), ["x_haexmail9f8e7d_list_mailboxes"]);
+    // The switched-off one is nothing the model could mix up, so no namesake is named.
+    assert_eq!(defs[0].namesake_key, None);
 }
 
 /// A development version of an installed extension shares its slug and its key: the installed

@@ -40,6 +40,7 @@ fn def(model_name: &str) -> ExtensionToolDef {
         model_name: model_name.to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     }
 }
 

@@ -27,6 +27,10 @@ pub struct ExtensionToolDef {
     pub always_ask: bool,
     /// A development version (US4).
     pub dev: bool,
+    /// The first characters of the extension's public key when another offered extension makes
+    /// the same slug: named in the description, the results and the confirmation, so the model
+    /// and the user can tell the two apart.
+    pub namesake_key: Option<String>,
 }
 
 /// One `agentTool` row of an extension.
@@ -73,12 +77,19 @@ fn seniority(source: &ExtensionSource) -> (bool, i64, &str, Uuid) {
     )
 }
 
+/// How [`prefixes`] names one source: its slug, its model-facing prefix, and the start of its key.
+struct Naming {
+    slug: String,
+    prefix: String,
+    key: String,
+}
+
 /// The model-facing prefix of every source (research R8): its slug, and for all but the senior
 /// source of a slug the first characters of its public key. The names of an extension stay as
 /// they are when another one with the same slug is installed later. A suffix that is still taken
 /// (a development version signed with the same key as an installed one, say) falls back to the
 /// first characters of the extension id.
-fn prefixes(sources: &[ExtensionSource]) -> HashMap<Uuid, String> {
+fn prefixes(sources: &[ExtensionSource]) -> HashMap<Uuid, Naming> {
     let mut order: Vec<&ExtensionSource> = sources.iter().collect();
     order.sort_by(|a, b| seniority(a).cmp(&seniority(b)));
     let mut taken = HashSet::new();
@@ -98,7 +109,7 @@ fn prefixes(sources: &[ExtensionSource]) -> HashMap<Uuid, String> {
             .find(|candidate| !taken.contains(candidate))
             .unwrap_or_else(|| format!("{slug}{id}"));
         taken.insert(prefix.clone());
-        prefixes.insert(source.id, prefix);
+        prefixes.insert(source.id, Naming { slug, prefix, key });
     }
     prefixes
 }
@@ -152,7 +163,7 @@ pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
         {
             continue;
         }
-        let prefix = &prefixes[&source.id];
+        let naming = &prefixes[&source.id];
         for tool in &source.tools {
             let Some(always_ask) = confirmation(tool, &source.rows) else {
                 continue;
@@ -160,11 +171,32 @@ pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
             defs.push(ExtensionToolDef {
                 extension_id: source.id,
                 extension_title: source.title.clone(),
-                model_name: format!("x_{prefix}_{}", tool.name),
+                model_name: format!("x_{}_{}", naming.prefix, tool.name),
                 tool: tool.clone(),
                 always_ask,
                 dev: source.dev,
+                namesake_key: None,
             });
+        }
+    }
+    // Only extensions that offer something here are namesakes: a switched-off one keeps its name
+    // but is nothing the model could mix up.
+    let mut offering: HashMap<&str, HashSet<Uuid>> = HashMap::new();
+    for def in &defs {
+        offering
+            .entry(prefixes[&def.extension_id].slug.as_str())
+            .or_default()
+            .insert(def.extension_id);
+    }
+    let shared: HashSet<Uuid> = offering
+        .values()
+        .filter(|ids| ids.len() > 1)
+        .flatten()
+        .copied()
+        .collect();
+    for def in &mut defs {
+        if shared.contains(&def.extension_id) {
+            def.namesake_key = Some(prefixes[&def.extension_id].key.clone());
         }
     }
     defs

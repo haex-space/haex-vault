@@ -48,6 +48,7 @@ async fn an_extension_that_cannot_be_reached_is_unavailable() {
         model_name: "x_mail_count".to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     };
     let tool = ExtensionTool::new(def, Arc::new(NoFrame));
     let (result, outcome) =
