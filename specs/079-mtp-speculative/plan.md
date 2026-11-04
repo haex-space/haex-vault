@@ -21,10 +21,14 @@ Gemma 4 E2B, E4B and 12B get their published MTP drafter.
 
 **Language/Version**: Rust (edition and MSRV of `src-tauri/Cargo.toml`); TypeScript/Vue for the settings line
 
-**Primary Dependencies**: existing only.
+**Primary Dependencies**: existing crates; one feature of an existing crate on desktops.
 
 - `llama-cpp-2` =0.1.160 (`speculative::MtpSpeculative`, `LlamaContextType::Mtp`, `new_context_with_ctx_other`,
   `with_flash_attention_policy`, `with_swa_full`, `clear_kv_cache_seq`).
+- `speculative::MtpSpeculative` sits behind the binding's `common` feature, which builds llama.cpp's libcommon.
+  Spec 070 left it off (its research R2 on the memory plan). The operator chose on 2026-11-04 to switch it on
+  for the desktop targets only (Linux, Windows, macOS): phones never use a drafter (research R10), so Android
+  and iOS build without libcommon, and `llm/llamacpp/speculative.rs` is compiled for desktops only.
 - `reqwest` through `models::download`.
 - `sha2` through `models::hash`.
 

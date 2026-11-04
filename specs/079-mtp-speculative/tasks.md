@@ -4,6 +4,15 @@ description: 'Task list for spec 079, faster local answers with multi-token pred
 
 # Tasks: Faster local answers with multi-token prediction
 
+**Parked on 2026-11-04** (operator) after T016: the prompt cache comes first (research R11). Done: T001 to T016,
+and of T026 the shared token writer (`generate::Writer`). Deviations from the text below:
+
+- The MTP tests live in `src-tauri/tests/mtp_eval.rs`, not in `model_tool_eval.rs`, which keeps only
+  `HOLZI_LLAMACPP_DRAFTER` (T015); the file would otherwise pass 500 lines.
+- `speculative.rs` and the binding's `common` feature exist on desktops only (plan, Primary Dependencies).
+- The drafter check of T012 also compares `embedding_length_out` with the model's embedding width (research R2).
+- `mtp_speed` asserts 1.3× (spec SC-001); E2B measured 1.20×, E4B 1.39× (research R11).
+
 **Input**: Design documents from `specs/079-mtp-speculative/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/models-and-catalog.md, quickstart.md
@@ -38,13 +47,13 @@ partly offloaded model) is P2, and US5 (drafter for models installed earlier) is
 **Purpose**: a branch that already has the Gemma 4 catalog entries, a knowledge graph, and the spike that settles the
 open point of research R6 before any engine code is written.
 
-- [ ] T001 Bring the Gemma 4 catalog entries into `079-mtp-speculative`: if #806 is merged, merge `origin/main`;
+- [x] T001 Bring the Gemma 4 catalog entries into `079-mtp-speculative`: if #806 is merged, merge `origin/main`;
       otherwise merge `origin/gemma-4-catalog` and note in the PR that it depends on #806. Never rebase: the branch is
       pushed. Check
       `src-tauri/src/catalog/model_catalog.json` has the three `gemma-4-*` entries with `"trial": true`.
-- [ ] T002 Run `graphify update .` in the worktree root (no `graphify-out/` exists yet), so the later
+- [x] T002 Run `graphify update .` in the worktree root (no `graphify-out/` exists yet), so the later
       `graphify query` calls see the current tree.
-- [ ] T003 Spike: add the ignored test `mtp_spike` to `src-tauri/tests/model_tool_eval.rs`. Steps:
+- [x] T003 Spike: add the ignored test `mtp_spike` to `src-tauri/tests/model_tool_eval.rs`. Steps:
   - Load `HOLZI_TEST_GGUF` (Gemma 4 E2B) through `llama_cpp_2`. Create a target context with flash attention
     disabled (`with_flash_attention_policy`), the drafter from `HOLZI_LLAMACPP_DRAFTER` with
     `LlamaContextType::Mtp`, and `new_context_with_ctx_other`.
@@ -64,20 +73,20 @@ open point of research R6 before any engine code is written.
 
 **Purpose**: the catalog knows each drafter, and one module knows where a drafter lives and whether it is there.
 
-- [ ] T004 [P] In `src-tauri/src/catalog/mod.rs`:
+- [x] T004 [P] In `src-tauri/src/catalog/mod.rs`:
   - add `CatalogDrafter { hf_repo, hf_revision, hf_filename, size_bytes, sha256, architecture,
 measured_partly_on_gpu }` (serde, `Clone`, `Serialize`; the bool with `#[serde(default)]`);
   - add `CatalogEntry.drafter: Option<CatalogDrafter>` with
     `#[serde(default, skip_serializing_if = "Option::is_none")]`.
-- [ ] T005 Put the three drafters of research R2 into `src-tauri/src/catalog/model_catalog.json`: E2B, E4B and 12B
+- [x] T005 Put the three drafters of research R2 into `src-tauri/src/catalog/model_catalog.json`: E2B, E4B and 12B
       with repo, commit, file, bytes, SHA-256, and `"architecture": "gemma4-assistant"`. None of them gets
       `measured_partly_on_gpu` yet; T031 decides it for the 12B.
-- [ ] T006 [P] In `src-tauri/src/catalog/catalog_tests.rs`, test that every drafter is well formed:
+- [x] T006 [P] In `src-tauri/src/catalog/catalog_tests.rs`, test that every drafter is well formed:
   - `hf_revision` is 40 hex characters and `sha256` is 64;
   - `hf_filename` ends in `.gguf` and contains no `/` and no `..`;
   - `size_bytes > 0`;
   - exactly the three Gemma 4 entries have a drafter.
-- [ ] T007 Create `src-tauri/src/models/drafter.rs`, declared in `src-tauri/src/models/mod.rs`. It holds:
+- [x] T007 Create `src-tauri/src/models/drafter.rs`, declared in `src-tauri/src/models/mod.rs`. It holds:
   - `drafter_dir(models_root, slug) -> PathBuf` for `models/<slug>/drafter/`;
   - `drafter_file(…)` for `drafter/<hf_filename>`;
   - `state(models_root, slug, &CatalogDrafter) -> DrafterState { Installed, Missing }`: installed means the file
@@ -86,7 +95,7 @@ measured_partly_on_gpu }` (serde, `Clone`, `Serialize`; the bool with `#[serde(d
     with `models::hash::sha256_file` on the blocking pool, equals the pin. A mismatch is logged, removes the
     `drafter/` folder, and returns `None` (spec FR-008, data-model InstalledDrafter).
   - A slug that does not pass `models::paths`' slug checks is refused.
-- [ ] T008 [P] Tests in `src-tauri/src/models/drafter_tests.rs`, on a temporary directory:
+- [x] T008 [P] Tests in `src-tauri/src/models/drafter_tests.rs`, on a temporary directory:
   - the path layout;
   - `Missing` for no file and for a file of the wrong size, `Installed` for the right size;
   - `path_for_load` is `None` for a wrong hash, and the `drafter/` folder is gone afterwards; `Some` for the right one;
@@ -106,7 +115,7 @@ and the same tool calls with greedy decoding.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] In `src-tauri/src/llm/llamacpp/memory_tests.rs`, test the drafter rules of research R7:
+- [x] T009 [P] [US1] In `src-tauri/src/llm/llamacpp/memory_tests.rs`, test the drafter rules of research R7:
   - the model plus drafter fit the GPU whole → `drafter: true`, all layers on the GPU;
   - only the model fits whole → `drafter: false` and the same placement as without a drafter;
   - no GPU → `drafter: false`;
@@ -114,7 +123,7 @@ and the same tool calls with greedy decoding.
 
   Rule 3 (partly offloaded) belongs to US4; until then the planner returns `drafter: false` for that case.
 
-- [ ] T010 [P] [US1] In `src-tauri/src/llm/llamacpp/speculative_tests.rs`, test the acceptance step as a pure
+- [x] T010 [P] [US1] In `src-tauri/src/llm/llamacpp/speculative_tests.rs`, test the acceptance step as a pure
       function, `accepted(draft, sampled) -> (n_accepted, next_token)`, independent of llama.cpp:
   - all proposals agree;
   - the first one disagrees;
@@ -124,20 +133,20 @@ and the same tool calls with greedy decoding.
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] In `src-tauri/src/llm/llamacpp/memory.rs`:
+- [x] T011 [US1] In `src-tauri/src/llm/llamacpp/memory.rs`:
   - add `DrafterShape { file_bytes, kv_bytes_per_token }`, `ModelShape.drafter: Option<DrafterShape>` and
     `Placement.drafter: bool`;
   - implement rules 1, 2 and 4 of research R7 in `plan`, with a `ponytail:` comment naming the ceiling: no
     per-device speed probe, rules from one measurement;
   - `DrafterShape` is read from the drafter's GGUF header with the same `ModelShape::from_header` arithmetic.
-- [ ] T012 [US1] Extend the load options:
+- [x] T012 [US1] Extend the load options:
   - in `src-tauri/src/llm/llamacpp/model.rs`: `LoadOptions.drafter: Option<PathBuf>` (the struct loses `Copy`;
     adjust callers), and `LoadedModel.drafter: Option<LlamaModel>`;
   - `placement_for` reads the drafter's header too;
   - when `Placement.drafter` is true, load the drafter with all its layers on the GPU, and check that its
     `general.architecture` is `gemma4-assistant`. A failed drafter load is logged, and the model loads without it
     (spec FR-008).
-- [ ] T013 [US1] Write `src-tauri/src/llm/llamacpp/speculative.rs`, the loop of research R6 (with the outcome of
+- [x] T013 [US1] Write `src-tauri/src/llm/llamacpp/speculative.rs`, the loop of research R6 (with the outcome of
       T003):
   - contexts: target with flash attention off, plus `swa_full` if T003 needs it; drafter context `Mtp` with
     `ctx_other`;
@@ -150,16 +159,16 @@ and the same tool calls with greedy decoding.
 
   Keep the file under 500 lines. Register it in `src-tauri/src/llm/llamacpp/mod.rs`.
 
-- [ ] T014 [US1] In `src-tauri/src/llm/llamacpp/generate.rs`, call `speculative::generate_speculative` when
+- [x] T014 [US1] In `src-tauri/src/llm/llamacpp/generate.rs`, call `speculative::generate_speculative` when
       `loaded.placement.drafter` and `loaded.drafter` are set and the drafter is not marked failed (T026); otherwise the plain loop, which stays byte-for-byte as it
       is (spec FR-012).
-- [ ] T015 [US1] In `src-tauri/tests/model_tool_eval.rs`:
+- [x] T015 [US1] In `src-tauri/tests/model_tool_eval.rs`:
   - read `HOLZI_LLAMACPP_DRAFTER` into `LoadOptions.drafter`;
   - add the ignored test `mtp_speed`. It runs the four requests of research R1 (200 tokens, greedy) with and without
     the drafter, prints tokens per second for both, and asserts:
     - a gain of at least 1.4× (SC-001);
     - equal tool calls for the JSON request (SC-003).
-- [ ] T016 [US1] Wire the app's load path:
+- [x] T016 [US1] Wire the app's load path:
   - `src-tauri/src/llm/engine.rs`: `LoadRequest.drafter: Option<&Path>` passed into `LoadOptions.drafter`;
   - `src-tauri/src/chat/model_loading.rs` `resolve_local_model_metadata`: call `models::drafter::path_for_load` for a
     catalog model whose entry names a drafter. One call site; the logic stays in `drafter.rs`, because the file is

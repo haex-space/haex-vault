@@ -56,8 +56,13 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   - the app never pairs a drafter with another model, because it takes the drafter from the model's own catalog
     entry.
 
-  At load, the drafter's `general.architecture` must be `gemma4-assistant`. A drafter that still does not fit fails
-  when its context is created or at the first draft, and the answer falls back (R6 step 5, spec FR-008).
+  At load, two checks from the drafter's header refuse a drafter of another model:
+  - its `general.architecture` is the model's with `-assistant` (`gemma4-assistant`);
+  - its `embedding_length_out` equals the model's `embedding_length`: the drafter reads the model's embeddings
+    (E2B 1536, E4B 2560, 12B 3840 in the three files), so the E4B drafter is refused for E2B.
+
+  A drafter that passes both and still does not fit fails when its context is created or at the first draft,
+  and the answer falls back (R6 step 5, spec FR-008).
 
 ## R3 Where the drafter lives
 
@@ -109,6 +114,8 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
 
 - **Decision**: a new module `llm/llamacpp/speculative.rs` follows llama.cpp's own reference loop
   (`examples/speculative-simple`, `common_speculative_*`), through `llama_cpp_2::speculative::MtpSpeculative`.
+  That module of the binding needs its `common` feature (plan, Primary Dependencies), so the loop exists on
+  desktops only.
   1. **Contexts**: the target context as today, plus flash attention off (`with_flash_attention_policy`). The
      drafter context comes from the drafter model, with `LlamaContextType::Mtp`, the target's `n_ctx`, and the
      target as `ctx_other` (`new_context_with_ctx_other`, which Gemma 4's assistant needs).
@@ -135,11 +142,15 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
     step when the sampler would have picked it anyway (spec FR-002).
   - **Rounding**: with greedy settings the answer can differ only where batched arithmetic rounds differently
     (spec SC-003).
-- **Open point, settled in the first task**: removing the rejected tail from the cache must work on Gemma 4's
-  sliding-window cache. llama.cpp probes this with `common_context_can_seq_rm`. If a partial removal is refused,
-  the target context is created with `with_swa_full(true)`. That costs cache memory, which the planner then counts
-  (R7). The task is an ignored test with the real E2B file: generate greedily with and without the drafter and
-  compare.
+- **Settled by the spike (`mtp_spike`, 2026-11-04)**: Gemma 4's sliding-window cache drops a rejected tail as it
+  is; every partial removal succeeded without `with_swa_full`. The drafter context is created with
+  `new_context_with_ctx_other`, and greedy answers matched the plain loop in three of four requests (the fourth
+  parted after 207 characters, a rounding difference).
+- **Changes against the reference loop**, both measured:
+  - **First token**: the whole prompt is decoded and the first token sampled as in the plain loop, before the first
+    draft. The reference drafts from the prompt's last token, which made the first token about 15 ms later.
+  - **Drafter batch**: the drafter context gets a batch of 8 instead of 512. It shares the model's cache and never
+    decodes the prompt; the batch of 512 cost about 1 GiB of compute buffers on the GPU.
 - **Alternatives considered**:
   - The C++ server's loop through FFI. Rejected: the binding already wraps `common_speculative`.
   - Checkpoint-based rollback (`ckpt.update_tgt`). Not exposed by the binding; needed only for caches that cannot
@@ -172,6 +183,9 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   off (R6 step 5). Later answers run without the drafter and with the default.
 - **Rationale**: the drafter's documentation states that it aborts in the CUDA flash-attention kernel. Without a
   drafter, flash attention was worth about 5 % (R1).
+- **Measured 2026-11-04**: flash attention on for the model's context only, off for the drafter's, does not abort.
+  Reading the prompt is then as fast as without a drafter, but writing takes twice as long (E2B 0.52×, E4B 0.56×):
+  the drafter reads the model's cache. Both contexts keep flash attention off.
 
 ## R9 Measuring in the app's own code
 
@@ -186,3 +200,28 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
 - **Decision**: the same code on Android. The planner's rule 4 (R7) keeps the drafter off where the model runs on
   the processor only, which is how holzi runs on Android today.
 - **Rationale**: a phone gain is unmeasured, and the spec allows the drafter only where it is faster.
+
+## R11 Measured in holzi's own loop, and why the feature is parked
+
+- **Measured 2026-11-04** with `mtp_speed` (holzi's loader, planner and token loop, the four requests of R1 rendered
+  through the model's chat template with thinking off, greedy, debug build; RTX A2000 8 GB):
+
+  | Model | Writing, tok/s      | First token, short prompts | First token after 4153 prompt tokens | Tool call |
+  | ----- | ------------------- | -------------------------- | ------------------------------------ | --------- |
+  | E2B   | 80.7 → 96.9 (1.20×) | 75 → 57 ms                 | 1462 → 1716 ms (+17 %)               | same      |
+  | E4B   | 45.4 → 63.3 (1.39×) | 98 → 82 ms                 | 2512 → 2810 ms (+12 %)               | same      |
+
+- **Cross-check**: `llama-server` (R1's build) on the same four chat prompts with thinking off gives E4B
+  46.1 → 62.4 tok/s, 1.35×: holzi's loop is as fast as the reference. R1's 1.44× to 1.66× came from answers with
+  thinking, which the drafter predicts better; the app's short voice answers gain less.
+- **The prompt**: holzi decodes the whole prompt for every answer and every tool step (one context per generation,
+  spec 070 plan D5). With the drafter, that happens with flash attention off (R8), 12 to 17 % slower. For a chat
+  prompt of about 4000 tokens and an answer of 40 tokens, E2B takes 2104 ms with the drafter against 1949 ms
+  without, and E4B is even (3411 against 3377 ms). The drafter pays off only from about 110 answer tokens on E2B
+  and 45 on E4B.
+- **Decision (operator, 2026-11-04)**: the feature is parked. Keeping the context and its cache between the steps
+  and answers of a conversation comes first, as its own spec: it speeds up every local model, and afterwards the
+  drafter's slower prompt reading only applies to the new part of a prompt. Then MTP is measured again.
+- **State of the code at parking**: tasks T001 to T016 (and the shared token writer of T026) are implemented and
+  tested; the catalog pins, the `drafter/` folder, the planner rules and the speculative loop work. Downloading the
+  drafter (US2), the fallback (US3), partial placement (US4) and the settings line (US5) are not built.

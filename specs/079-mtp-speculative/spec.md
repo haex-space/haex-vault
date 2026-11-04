@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-04
 
-**Status**: Draft
+**Status**: Parked on 2026-11-04 (operator). The prompt cache comes first; see research R11.
 
 **Input**: User description: "Can we add MTP for faster token generation?" (operator, 2026-11-04) After the measurement:
 "You can start on it now." The measurement and the scope are in the Background below.
@@ -227,8 +227,10 @@ that the next answer uses it.
 
 ### Measurable Outcomes
 
-- **SC-001**: On the reference desktop, holzi generates answers with Gemma 4 E2B, E4B and 12B at least 1.4 times as
-  many tokens per second with the drafter as without, over the four measured request types. For a model that fits
+- **SC-001**: On the reference desktop, holzi writes answers with Gemma 4 E2B, E4B and 12B at least 1.3 times as
+  many tokens per second with the drafter as without, over the four measured request types, rendered through the
+  model's chat template as the app does (operator, 2026-11-04: the 1.4 of the first draft came from thinking
+  answers, research R11). For a model that fits
   the GPU only partly (the 12B on the reference desktop), this is measured in holzi's own placement. If it is not
   reached there, that model loads without the drafter (FR-009), and the result records the criterion as not reached
   for it.
