@@ -1,5 +1,6 @@
-//! Search, create, delete and rename mailbox, and delete messages (spec 019, `contracts/host-mail-commands.md`) through
-//! the bridge, against the test server of `test_server.rs` on this device.
+//! Search, create, delete and rename a mailbox, and delete messages (spec 019,
+//! `contracts/host-mail-commands.md`) through the bridge, against the test server of
+//! `test_server.rs` on this device.
 
 use serde_json::{json, Value};
 
