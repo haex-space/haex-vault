@@ -30,7 +30,8 @@ Changes visible to the frontend and to the catalog file. Everything not named he
 ## `list_catalog` (unchanged command, extended entry)
 
 Each `CatalogEntryWithFit` carries the optional `drafter` object above. The frontend shows
-`approx_size_bytes + drafter.size_bytes` as the model's size. The `fit` is classified on that sum.
+`approx_size_bytes + drafter.size_bytes` as the model's size. The `fit` stays classified on the model's own size: a drafter that does not fit is left out at load (research
+R7 rule 2), so it never makes a model too big.
 
 ## `model_download_check` (unchanged command)
 
