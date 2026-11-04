@@ -42,7 +42,10 @@ after spec 079 was parked for this.)
 - **Same answers, only sooner**: reusing what was read changes when the answer starts, never what the model
   decides.
 - **One model, one memory of what it read**: chat, voice assistant and model jobs that use the same loaded model
-  take turns with it; each turn reuses what matches and reads the rest.
+  take turns with it; each turn reuses what matches and reads the rest. A model job of an extension never reuses
+  what another caller left.
+- **Only in memory**: what the model has read holds conversation and vault content. It stays in the memory of the
+  running app, is never written to a file, and ends with the model or the vault session.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -85,8 +88,9 @@ time to the first word of the follow-up with and without the feature.
 1. **Given** a finished turn in a conversation, **When** the user asks a follow-up two minutes later, **Then** the
    model reads at most the part of the prompt that changed since the last turn plus the new question, and the
    first word comes at least twice as soon as today.
-2. **Given** the date and time in the prompt changed since the last turn, **When** the follow-up starts, **Then**
-   the system prompt and the tool descriptions before and after the changed time are not read again.
+2. **Given** the date and time changed since the last turn, **When** the follow-up starts, **Then** nothing before
+   the new question is read again (the system prompt, the tool descriptions and the earlier turns), apart from
+   what the chat template writes differently for an earlier turn (edge case "Thinking that is not shown again").
 3. **Given** the change that makes this possible, **When** the model is asked about the current time, **Then** it
    still knows the date and time to the minute, and the everyday voice set of spec 078 passes as often as before.
 
@@ -113,6 +117,8 @@ half-way, and check every answer against the same run without the feature.
    nothing from before is reused.
 5. **Given** a model job runs on the model the chat uses, **When** the chat asks next, **Then** the chat's answer
    is correct; the chat may lose the time advantage, never the correctness.
+6. **Given** the chat has just answered, **When** a model job of an extension runs on the same model, **Then** the
+   job reads its whole prompt; nothing the chat left is reused, so the job's timing tells nothing about the chat.
 
 ---
 
@@ -189,9 +195,9 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
 - **FR-006**: For a model whose kept reading cannot be cut back to an arbitrary point (the desktop default Qwen3.5
   4B), holzi MUST still reuse the beginnings a conversation repeats: the whole previous prompt of a tool chain, and
   the system prompt with the tool descriptions apart from at most 1024 tokens before their end.
-- **FR-007**: The part of the prompt that changes from turn to turn (the current date and time) MUST NOT stop the
-  unchanged system prompt and tool descriptions from being reused. The model MUST still be told the date and time
-  to the minute.
+- **FR-007**: The date and time MUST NOT stop the unchanged system prompt, tool descriptions and earlier turns
+  from being reused: the prompt of a turn MUST only grow at its end compared with the previous turn. The model
+  MUST still be told the current date and time to the minute.
 - **FR-008**: The memory planner MUST count the kept reading. A model that loads today MUST still load, and MUST
   NOT get a shorter context than today.
 - **FR-009**: The mistralrs engine and the hosted providers MUST NOT change, apart from where the date and time
@@ -199,11 +205,17 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
 - **FR-010**: The measurement tool of spec 078 MUST record, per request, the time to the first word and how much of
   the prompt was reused, and MUST be able to run with the reuse switched off for comparison.
 - **FR-011**: The user MUST see no difference other than speed: no setting, no message, no change in the chat.
+- **FR-012**: The kept reading MUST live only in the memory of the running app (main memory or graphics memory),
+  MUST NEVER be written to a file, and MUST end with the loaded model and at the latest with the vault session,
+  which ends the process (spec 013).
+- **FR-013**: A request of a model job (spec 055) MUST NOT reuse kept reading that another request left; it reads
+  its prompt from the start. The chat, the voice assistant and the evaluations reuse among themselves.
 
 ### Key Entities
 
 - **Kept reading**: what one loaded model has read and written so far, as the token sequence and the model's
-  memory of it. It belongs to the loaded model, not to a conversation, and ends with the model.
+  memory of it. It belongs to the loaded model, not to a conversation, lives only in memory and ends with the
+  model.
 - **Prompt**: the full text a request gives the model; its beginning may match the kept reading.
 - **Reused part**: the longest matching beginning; its length is what the measurement records.
 
@@ -215,11 +227,12 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
   three times sooner than today, with Qwen3.5 4B, Gemma 4 E2B and Gemma 4 E4B.
 - **SC-002**: On the reference laptop, a follow-up question two minutes after the first in the same conversation
   starts its first word at least twice as soon as today, with the same three models.
-- **SC-003**: The everyday voice set of spec 078 passes at least as many requests as today with every catalog model
-  that runs on the llama.cpp engine (Qwen3.5 4B, Qwen3 1.7B, Gemma 4 E2B, E4B and 12B), with no additional safety
-  error, and takes at least 30 % less time in total.
-- **SC-004**: With deterministic settings, at least 95 % of the everyday requests name the same tool calls with the
-  same arguments with and without reuse.
+- **SC-003**: The everyday voice set of spec 078 passes at least as many requests as today with every catalog model,
+  all of which run on the llama.cpp engine (Qwen3 0.6B, 1.7B and 4B, Qwen3.5 4B, Gemma 4 E2B, E4B and 12B), with no
+  additional safety error, and takes at least 30 % less time in total.
+- **SC-004**: With deterministic settings, every everyday request names the same tool calls with the same arguments
+  with and without reuse. A request that differs counts as a failure unless the same prompt, read in the same
+  pieces into a fresh context, differs the same way (rounding, not reuse; edge case "Deterministic settings").
 - **SC-005**: In tests that alternate conversations, model jobs, cancelled answers, failed answers and reloads,
   every answer equals the answer of the same request without reuse (apart from rounding differences in wording).
 - **SC-006**: Every catalog model that loads on the reference laptop today still loads, with the same context
@@ -232,7 +245,8 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
   from the cache of attention models (shown for Gemma 4 in spec 079), and save and restore the state of models
   whose memory cannot be cut back. The plan confirms the last point with a spike.
 - **Prompts grow at the end**: holzi builds the prompt of a turn from the system prompt, the tools and the history
-  in a fixed order, and a tool chain appends to it. Templates that rewrite earlier turns (dropped thinking) reuse
+  in a fixed order, and a tool chain appends to it. Every user message carries the time it was sent, so a turn
+  that becomes history keeps its text (research R8). Templates that rewrite earlier turns (dropped thinking) reuse
   less, never wrongly.
 - **One model, taking turns**: one answer runs at a time per loaded model (spec 070); a model job and the chat on
   the same model take turns and may each lose the other's reuse.

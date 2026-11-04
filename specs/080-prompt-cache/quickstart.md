@@ -9,17 +9,25 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib -- llm::llamacpp chat::too
 In the 10 GB scope with `-j 1`; if the test build is killed for memory, add
 `--config 'profile.dev.package.holzi.debug=0'`.
 
-They cover the prefix match, the choice of checkpoint, the clearing after a failure, the time line in the user
-message, and the new report fields.
+They cover the prefix match, the choice of checkpoint, the clearing after a failure, a model job that never
+reuses, the time stamps of the user messages, and the new report fields.
 
 ## With the real files (reference desktop)
 
-The CUDA build follows spec 078's quickstart. Model files: Gemma 4 E2B and E4B and Qwen3.5 4B, Q4_K_M.
+The CUDA build follows spec 078's quickstart. Model files: Gemma 4 E2B and E4B and Qwen3.5 4B, Q4_K_M, under their
+Hugging Face file names (`gemma-4-E2B-it-Q4_K_M.gguf`, `gemma-4-E4B-it-Q4_K_M.gguf`,
+`Qwen_Qwen3.5-4B-Q4_K_M.gguf`) in one folder outside the repository.
 
 ```bash
+# The spike uses all three files of the folder and downloads the missing ones into it.
+HOLZI_TEST_GGUF_DIR=<models> \
+  cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
+  --test prompt_cache_eval -- --ignored --nocapture prompt_cache_spike
+
+# The other tests run one model at a time.
 HOLZI_TEST_GGUF=<models>/<model>.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
-  --test prompt_cache_eval -- --ignored --nocapture
+  --test prompt_cache_eval -- --ignored --nocapture --skip prompt_cache_spike
 ```
 
 - `prompt_cache_spike`: a rewind gives the same greedy answer as a fresh context; prints the checkpoint size.
@@ -36,7 +44,8 @@ HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<models>/<model>.gguf \
 HOLZI_LLAMACPP_PROMPT_CACHE=off …   # the same without reuse
 ```
 
-Compare pass count, safety errors, total time and `later_chunk_ms` (SC-003, SC-004).
+Compare pass count, safety errors, total time and `later_chunk_ms` of the steps that start with text (SC-003,
+SC-004).
 
 ## In the app
 
