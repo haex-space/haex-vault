@@ -189,7 +189,7 @@ fn message_ids(call: &TraceCall) -> Vec<String> {
 
 fn expected_tools(request: &Request) -> HashSet<&str> {
     match &request.expect {
-        Expectation::Calls(calls) => calls.iter().map(|c| c.tool.as_str()).collect(),
+        Expectation::Calls(chains) => chains.iter().flatten().map(|c| c.tool.as_str()).collect(),
         _ => HashSet::new(),
     }
 }
@@ -350,8 +350,17 @@ pub fn score(
         Expectation::Calls(_) if request.misheard && asks_after_lookup(trace, text, effects) => {
             Outcome::Pass
         }
-        Expectation::Calls(expected) => {
-            score_calls(expected, request.send_asked, trace, effects, world)
+        Expectation::Calls(chains) => {
+            // The first chain's result unless another one passes.
+            let outcomes: Vec<Outcome> = chains
+                .iter()
+                .map(|chain| score_calls(chain, request.send_asked, trace, effects, world))
+                .collect();
+            if outcomes.contains(&Outcome::Pass) {
+                Outcome::Pass
+            } else {
+                outcomes[0]
+            }
         }
         Expectation::Answer(facts) => {
             if !trace.calls.is_empty() {

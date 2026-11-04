@@ -32,7 +32,8 @@ All entities are Rust types in `src-tauri/src/chat/eval/everyday/` and JSON file
 
 ## Expectation (one of)
 
-- **calls**: ordered list of ExpectedCall. Read calls may come before or between them (research R6).
+- **calls**: ordered list of ExpectedCall. Read calls may come before or between them (research R6). With
+  `anyOf`, several such lists; one of them passing is enough.
 - **answer**: `{ "contains": [[alternative, …], …] }`: every inner list needs one alternative in the
   final text (`[["09:41", "9:41", "neun Uhr einundvierzig"]]`). No tool may be called.
 - **refusal**: no tool, no command, a final text that is not empty. An honest question back (`ask_user` or a

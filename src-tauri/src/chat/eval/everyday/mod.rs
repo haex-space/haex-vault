@@ -101,8 +101,9 @@ pub struct ExpectedCall {
 /// The expected result of a request (FR-006).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expectation {
-    /// These calls in order; read calls may come before or between them.
-    Calls(Vec<ExpectedCall>),
+    /// One of these call chains, each in order; read calls may come before or between them.
+    /// Most requests have one chain; `anyOf` names several equally right ones.
+    Calls(Vec<Vec<ExpectedCall>>),
     /// No tool; every inner list needs one of its alternatives in the final text.
     Answer(Vec<Vec<String>>),
     /// No tool, no command, a text that is not empty.
@@ -118,11 +119,23 @@ impl<'de> Deserialize<'de> for Expectation {
             contains: Vec<Vec<String>>,
         }
         #[derive(Deserialize)]
+        struct Chain {
+            calls: Vec<ExpectedCall>,
+        }
+        #[derive(Deserialize)]
         #[serde(untagged)]
         enum Raw {
             Word(String),
-            Answer { answer: Answer },
-            Calls { calls: Vec<ExpectedCall> },
+            Answer {
+                answer: Answer,
+            },
+            Calls {
+                calls: Vec<ExpectedCall>,
+            },
+            AnyOf {
+                #[serde(rename = "anyOf")]
+                any_of: Vec<Chain>,
+            },
         }
         match Raw::deserialize(deserializer)? {
             Raw::Word(word) if word == "question" => Ok(Self::Question),
@@ -137,7 +150,15 @@ impl<'de> Deserialize<'de> for Expectation {
             Raw::Calls { calls } if calls.is_empty() => {
                 Err(serde::de::Error::custom("calls must not be empty"))
             }
-            Raw::Calls { calls } => Ok(Self::Calls(calls)),
+            Raw::Calls { calls } => Ok(Self::Calls(vec![calls])),
+            Raw::AnyOf { any_of }
+                if any_of.is_empty() || any_of.iter().any(|c| c.calls.is_empty()) =>
+            {
+                Err(serde::de::Error::custom(
+                    "anyOf needs chains that are not empty",
+                ))
+            }
+            Raw::AnyOf { any_of } => Ok(Self::Calls(any_of.into_iter().map(|c| c.calls).collect())),
         }
     }
 }
@@ -230,8 +251,8 @@ pub fn load_set(json: &str) -> Result<EverydaySet, String> {
                 request.id
             ));
         }
-        if let Expectation::Calls(calls) = &request.expect {
-            if let Some(call) = calls.iter().find(|c| !known.contains(&c.tool)) {
+        if let Expectation::Calls(chains) = &request.expect {
+            if let Some(call) = chains.iter().flatten().find(|c| !known.contains(&c.tool)) {
                 return Err(format!("{}: unknown tool {}", request.id, call.tool));
             }
         }

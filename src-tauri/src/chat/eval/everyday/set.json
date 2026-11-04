@@ -158,9 +158,23 @@
       "phrasing": "clean",
       "text": "Habe ich neue Mails?",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -172,9 +186,23 @@
       "phrasing": "clean",
       "text": "Wie viele ungelesene Mails habe ich?",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -386,6 +414,17 @@
             "args": {
               "query": {
                 "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
               }
             }
           }
@@ -701,9 +740,23 @@
       "twinOf": "mail_new-de-1",
       "text": "hab ich neue mails",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -836,6 +889,17 @@
             "args": {
               "query": {
                 "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
               }
             }
           }
@@ -1085,9 +1149,23 @@
       "phrasing": "clean",
       "text": "Do I have new mail?",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -1099,9 +1177,23 @@
       "phrasing": "clean",
       "text": "How many unread emails do I have?",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -1313,6 +1405,17 @@
             "args": {
               "query": {
                 "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
               }
             }
           }
@@ -1621,9 +1724,23 @@
       "twinOf": "mail_new-en-1",
       "text": "do i have new mail",
       "expect": {
-        "calls": [
+        "anyOf": [
           {
-            "tool": "x_mail_list_mailboxes"
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -1756,6 +1873,17 @@
             "args": {
               "query": {
                 "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
               }
             }
           }

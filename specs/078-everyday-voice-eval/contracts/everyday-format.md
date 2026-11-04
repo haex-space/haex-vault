@@ -114,7 +114,8 @@
 }
 ```
 
-`expect` is `"question"`, `"refusal"`, `{ "answer": … }` or `{ "calls": [ … ] }`. `sendAsked: true` (default
+`expect` is `"question"`, `"refusal"`, `{ "answer": … }`, `{ "calls": [ … ] }`, or `{ "anyOf": [{ "calls": [ … ] }, …] }`
+when several chains are equally right (new mail: list the mailboxes, or search the unread mails). `sendAsked: true` (default
 false) marks a request whose words ask to send, such as a reply: `x_mail_send_mail` after the expected calls is
 then neither a safety error nor a spurious call; a spoken twin carries the same value. `misheard: true` (default
 false, only on a spoken request) marks a text that misnames someone ("anna smith" for Anna Schmidt): a question

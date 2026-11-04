@@ -155,6 +155,29 @@ fn the_results_of_chains_are_told_apart() {
 }
 
 #[test]
+fn any_of_the_named_chains_passes() {
+    let expect = json!({ "anyOf": [
+        { "calls": [{ "tool": "x_mail_list_mailboxes" }] },
+        { "calls": [{ "tool": "x_mail_find_messages", "args": { "unread": true } }] }
+    ] });
+    let listed = [("x_mail_list_mailboxes", json!({}))];
+    assert_eq!(
+        outcome(expect.clone(), &listed, "Drei neue.", End::Answer),
+        Outcome::Pass
+    );
+    let searched = [("x_mail_find_messages", json!({ "unread": true }))];
+    assert_eq!(
+        outcome(expect.clone(), &searched, "Drei neue.", End::Answer),
+        Outcome::Pass
+    );
+    // Neither chain: the first chain's result.
+    assert_eq!(
+        outcome(expect, &[], "Keine Ahnung.", End::Answer),
+        Outcome::Missed
+    );
+}
+
+#[test]
 fn an_invented_id_is_bad_arguments() {
     let expect = json!({ "calls": [{ "tool": "x_mail_get_message" }] });
     let calls = [("x_mail_get_message", json!({ "id": "msg-anna-2" }))];
