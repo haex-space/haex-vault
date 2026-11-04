@@ -4,7 +4,7 @@
 // `scripts/check-files-sync-rules.ts` checks it; no bindings with nested imports (typecheck:scripts).
 
 /** One way from the source to the target, or both ways. */
-export type SyncDirection = 'aToB' | 'both'
+export type SyncDirection = 'sourceToTarget' | 'both'
 export type SyncDeleteMode = 'mirror' | 'keep' | 'ask'
 export type SyncState =
   'active' | 'running' | 'waiting' | 'error' | 'paused' | 'inactive'
@@ -17,7 +17,7 @@ export const MAX_INTERVAL_MINUTES = 1440
 
 /** A place of a rule (`SyncRulePlace` of the bindings). */
 export type PlaceRef = {
-  source: { kind: 'device' } | { kind: 'storage'; storageId: string }
+  location: { kind: 'device' } | { kind: 'storage'; storageId: string }
   path: string
 }
 
@@ -34,8 +34,8 @@ export function placeLabel(
   sources: PlaceSources | null,
   unknown: string,
 ): string {
-  if (place.source.kind === 'device') return place.path
-  const id = place.source.storageId
+  if (place.location.kind === 'device') return place.path
+  const id = place.location.storageId
   const named =
     sources?.storages.find((storage) => storage.id === id)?.name ??
     sources?.devices.find((device) => device.id === id)?.name ??
@@ -91,8 +91,8 @@ export function progressShare(progress: {
 }
 
 /** The places a rule copies into: its target, or both places of a two-way rule (FR-011). */
-export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
-  return direction === 'both' ? ['a', 'b'] : ['b']
+export function targetSides(direction: SyncDirection): ('source' | 'target')[] {
+  return direction === 'both' ? ['source', 'target'] : ['target']
 }
 
 /** The columns of the rules list the user sorts by. */
@@ -208,16 +208,16 @@ export function lastName(path: string): string {
 /** Whether the dialog may save: a name, two places, consent where needed. */
 export function canSave(input: {
   name: string
-  hasA: boolean
-  hasB: boolean
+  hasSource: boolean
+  hasTarget: boolean
   needsConsent: boolean
   consent: boolean
 }): boolean {
   return (
     input.name.trim().length > 0 &&
     input.name.trim().length <= 80 &&
-    input.hasA &&
-    input.hasB &&
+    input.hasSource &&
+    input.hasTarget &&
     (!input.needsConsent || input.consent)
   )
 }

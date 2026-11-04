@@ -168,11 +168,16 @@ impl Scene {
     }
 
     /// A rule stored by the user, without the agent.
-    async fn stored(&self, a: &str, b: &str) -> String {
-        commands::create(&self.db, DEVICE, &OwnPlaces::new(vec![]), draft(a, b))
-            .await
-            .expect("stored")
-            .id
+    async fn stored(&self, source: &str, target: &str) -> String {
+        commands::create(
+            &self.db,
+            DEVICE,
+            &OwnPlaces::new(vec![]),
+            draft(source, target),
+        )
+        .await
+        .expect("stored")
+        .id
     }
 
     async fn rules(&self) -> Vec<String> {
@@ -193,16 +198,16 @@ impl Scene {
     }
 }
 
-fn draft(a: &str, b: &str) -> SyncRuleDraft {
+fn draft(source: &str, target: &str) -> SyncRuleDraft {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: place(a),
-        place_b: place(b),
-        direction: SyncRuleDirection::AToB,
+        source: place(source),
+        target: place(target),
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -256,7 +261,7 @@ async fn rules_and_their_status_are_read_without_a_question() {
         .run("syncRules.status", json!({ "id": id }))
         .await
         .expect("status");
-    assert_eq!(one["rule"]["placeA"]["path"], "/home/a");
+    assert_eq!(one["rule"]["source"]["path"], "/home/a");
     let missing = scene
         .run("syncRules.status", json!({ "id": "nope" }))
         .await
@@ -297,8 +302,8 @@ async fn a_rule_comes_into_being_only_after_the_user_confirms_it() {
     let request = &asked[1];
     assert_eq!(request.action, SyncRuleConfirmAction::Create);
     assert_eq!(request.agent_id, permissions::BUILTIN_AGENT);
-    assert_eq!(request.rule.place_a.path, "/home/a");
-    assert_eq!(request.rule.place_b.path, "/home/b");
+    assert_eq!(request.rule.source.path, "/home/a");
+    assert_eq!(request.rule.target.path, "/home/b");
     assert_eq!(request.rule.direction, SyncRuleDirection::Both);
     assert_eq!(request.rule.delete_mode, SyncRuleDeleteMode::Mirror);
     assert_eq!(request.rule.interval_secs, 3600);
@@ -339,7 +344,7 @@ async fn a_change_shows_the_old_values_and_waits_for_the_user() {
     assert_eq!(request.rule.delete_mode, SyncRuleDeleteMode::Mirror);
     let before = request.before.as_ref().expect("the old values");
     assert_eq!(before.delete_mode, SyncRuleDeleteMode::Keep);
-    assert_eq!(before.place_a.path, "/home/a");
+    assert_eq!(before.source.path, "/home/a");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -364,7 +369,7 @@ async fn a_rule_goes_only_after_the_user_confirms() {
     let request = &scene.asked()[1];
     assert_eq!(request.action, SyncRuleConfirmAction::Delete);
     assert_eq!(request.rule.name, "Fotos");
-    assert_eq!(request.rule.place_b.path, "/home/b");
+    assert_eq!(request.rule.target.path, "/home/b");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -439,8 +444,8 @@ async fn holzis_own_places_and_contacts_shares_are_refused_before_asking() {
     scene.permit(AgentFileStatus::Granted);
     let own = draft(&format!("{OWN}/vaults"), "/home/b");
     let share = SyncRuleDraft {
-        place_b: SyncRulePlace {
-            source: SourceRef::Storage {
+        target: SyncRulePlace {
+            location: SourceRef::Storage {
                 storage_id: "share:abc".to_owned(),
             },
             path: "/".to_owned(),
@@ -485,4 +490,36 @@ async fn a_rule_that_cannot_be_stored_is_refused_before_asking() {
         .expect_err("not a rule");
     assert_eq!(bad.code, "invalid_input");
     assert!(scene.asked().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_call_with_the_old_place_names_is_refused_and_changes_nothing() {
+    // Spec 075 FR-006: no alias for the names before source and target. The draft is complete, so
+    // the missing `source` and `target` refuse the call before anything is asked or stored.
+    let scene = Scene::new();
+    scene.permit(AgentFileStatus::Granted);
+    let mut old = json_of(&draft("/home/a", "/home/b"));
+    let fields = old.as_object_mut().expect("a draft is an object");
+    let (first, second) = (fields.remove("source"), fields.remove("target"));
+    fields.insert("placeA".to_owned(), first.expect("source"));
+    fields.insert("placeB".to_owned(), second.expect("target"));
+    fields.insert("direction".to_owned(), json!("aToB"));
+
+    let refused = scene
+        .run("syncRules.create", old.clone())
+        .await
+        .expect_err("old names");
+    assert_eq!(refused.code, "invalid_input");
+    let id = scene.stored("/home/a", "/home/b").await;
+    let refused = scene
+        .run("syncRules.update", json!({ "id": id, "draft": old }))
+        .await
+        .expect_err("old names");
+    assert_eq!(refused.code, "invalid_input");
+    assert!(scene.asked().is_empty(), "nobody was asked");
+    assert_eq!(
+        scene.rules().await,
+        ["Fotos"],
+        "only the stored rule exists"
+    );
 }

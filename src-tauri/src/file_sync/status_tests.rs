@@ -7,15 +7,15 @@ use crate::files::SourceRef;
 
 fn rule(enabled: bool, outcome: Option<SyncRuleOutcome>) -> SyncRule {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRule {
         id: "r".to_owned(),
         name: "r".to_owned(),
-        place_a: place("/a"),
-        place_b: place("/b"),
-        direction: SyncRuleDirection::AToB,
+        source: place("/a"),
+        target: place("/b"),
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled,
@@ -72,7 +72,7 @@ fn the_last_run_fills_errors_and_counters() {
         failures: vec![("x.txt".to_owned(), "locked".to_owned())],
         skipped: Vec::new(),
         ignore_errors: vec![crate::file_sync::ignore::LineError {
-            side: crate::file_sync::model::SyncRuleSide::A,
+            side: crate::file_sync::model::SyncRuleSide::Source,
             line: 3,
             text: "[z-a".to_owned(),
         }],

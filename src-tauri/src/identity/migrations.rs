@@ -60,6 +60,7 @@ use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
+use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0053;
 use super::migrations_tts_voices::TTS_VOICES_0052;
 use super::migrations_voice::VOICE_0050;
 
@@ -772,6 +773,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0052_tts_voices"),
         TTS_VOICES_0052.to_owned(),
+    );
+    // Spec 075: the two places of a sync rule are source and target; columns and stored values follow.
+    m.insert(
+        MigrationName::from("0053_sync_rules_source_target"),
+        SYNC_RULES_SOURCE_TARGET_0053.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

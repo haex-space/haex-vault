@@ -10,7 +10,7 @@ const PLACE: JsonSchema = {
   description:
     "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
   properties: {
-    source: {
+    location: {
       type: 'object',
       properties: {
         kind: { type: 'string', enum: ['device', 'storage'] },
@@ -20,24 +20,24 @@ const PLACE: JsonSchema = {
     },
     path: { type: 'string' },
   },
-  required: ['source', 'path'],
+  required: ['location', 'path'],
 }
 
 const DRAFT: JsonSchema = {
   type: 'object',
   properties: {
     name: { type: 'string', description: '1 to 80 characters.' },
-    placeA: {
+    source: {
       ...PLACE,
       description:
         'The source. Its .haex-ignore file holds the exclusions of the rule.',
     },
-    placeB: { ...PLACE, description: 'The target.' },
+    target: { ...PLACE, description: 'The target.' },
     direction: {
       type: 'string',
-      enum: ['aToB', 'both'],
+      enum: ['sourceToTarget', 'both'],
       description:
-        'aToB: one way from the source (placeA) to the target (placeB); both: both ways.',
+        'sourceToTarget: one way from the source to the target; both: both ways.',
     },
     deleteMode: {
       type: 'string',
@@ -58,8 +58,8 @@ const DRAFT: JsonSchema = {
   },
   required: [
     'name',
-    'placeA',
-    'placeB',
+    'source',
+    'target',
     'direction',
     'deleteMode',
     'intervalSecs',
@@ -76,8 +76,8 @@ const VIEW: JsonSchema = {
       properties: {
         id: { type: 'string' },
         name: { type: 'string' },
-        placeA: PLACE,
-        placeB: PLACE,
+        source: PLACE,
+        target: PLACE,
         direction: { type: 'string' },
         deleteMode: { type: 'string' },
         intervalSecs: { type: 'integer' },

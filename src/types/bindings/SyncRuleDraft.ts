@@ -10,11 +10,11 @@ export type SyncRuleDraft = { name: string,
 /**
  * The source; its `.haex-ignore` holds the exclusions.
  */
-placeA: SyncRulePlace,
+source: SyncRulePlace,
 /**
  * The target.
  */
-placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
+target: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
 /**
  * The user agreed that files of an encrypted source are stored decrypted in the target
  * (FR-030a).
