@@ -305,7 +305,8 @@
       "unknown": "unbekannt"
     },
     "catalog": {
-      "meta": "~{size} · Kontext {context} · {license} · {fit}"
+      "meta": "~{size} · Kontext {context} · {license} · {fit}",
+      "trial": "Zum Ausprobieren"
     },
     "empty": {
       "title": "Woran möchtest du arbeiten?",
