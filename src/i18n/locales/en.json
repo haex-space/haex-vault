@@ -4245,6 +4245,9 @@
     "passwords": {
       "title": "Passwords",
       "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries chosen below",
+      "all": "All",
+      "scope": "Scope",
+      "newEntriesTag": "Entries the agent creates get this tag.",
       "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
     },
     "commands": {

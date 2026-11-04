@@ -4,7 +4,7 @@
 // guardrails of the MCP access must never reach any agent (FR-016).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { nextTick, reactive } from 'vue'
+import { reactive } from 'vue'
 
 import {
   TOOL_NAME_PATTERN,
@@ -28,7 +28,6 @@ import {
   type PasswordRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
-import { draftOf, type GrantDraft } from '../src/lib/browserBridgeGrant.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -270,122 +269,103 @@ test('a row sets every scope of its topic and shows the widest of them', () => {
   )
 })
 
-test('the password row has the levels of every other row (spec 021 US5)', () => {
-  const updates: Array<PasswordRights | null> = []
-  const editor = loadScriptSetup<{
-    setLevel: (level: string) => void
-    draft: { value: GrantDraft }
-  }>('src/components/agents/PasswordRightsFields.vue', ['setLevel', 'draft'], {
-    props: { modelValue: null },
-    imports: { '~/lib/browserBridgeGrant': { draftOf } },
-    emit: (_event, value) => updates.push(value as PasswordRights | null),
-  })
-  editor.setLevel('read')
-  assert.deepEqual(updates.at(-1), { level: 'read', tags: null })
-  editor.setLevel('write')
-  assert.deepEqual(updates.at(-1), { level: 'readWrite', tags: null })
-  editor.props.modelValue = { level: 'read', tags: ['dev', 'shop'] }
-  // The draft follows the stored rights on the next tick; set it as the watcher does.
-  editor.draft.value = draftOf('read', ['dev', 'shop'], null)
-  editor.setLevel('write')
-  assert.deepEqual(updates.at(-1), {
-    level: 'readWrite',
-    tags: ['dev', 'shop'],
-    defaultTag: 'dev',
-  })
-  assert.equal(passwordsComplete(updates.at(-1) ?? null), true)
-  editor.setLevel('none')
-  assert.equal(updates.at(-1), null)
-})
+const vaultTags = {
+  usePasswordsStore: () => ({
+    hasLoadedOnce: true,
+    displayTags: [{ name: 'shop' }, { name: 'dev' }],
+  }),
+}
 
-test('the password editor emits restricted drafts and keeps empty tags editable', async () => {
+/** The password row with the given stored rights, and every update it emits. */
+function passwordRow(modelValue: PasswordRights | null) {
   const updates: Array<PasswordRights | null> = []
-  const passwordsOf = (passwords: PasswordRights | null | undefined) =>
-    rightsOf(draft({}, { passwords: passwords ?? null })).passwords
-  const editor = loadScriptSetup<{
-    onDraft: (draft: GrantDraft) => void
+  const row = loadScriptSetup<{
     setLevel: (level: string) => void
-    draft: { value: GrantDraft }
+    setScope: (scope: string) => void
+    scopeOptions: { value: Array<{ value: string; label: string }> }
   }>(
     'src/components/agents/PasswordRightsFields.vue',
-    ['onDraft', 'setLevel', 'draft'],
+    ['setLevel', 'setScope', 'scopeOptions'],
     {
-      props: { modelValue: { level: 'read', tags: null } },
-      imports: { '~/lib/browserBridgeGrant': { draftOf } },
-      emit: (event, value) => {
-        assert.equal(event, 'update:modelValue')
-        updates.push(value as PasswordRights | null)
-      },
+      props: { modelValue },
+      ...vaultTags,
+      emit: (_event, value) => updates.push(value as PasswordRights | null),
     },
   )
-  // Selecting the tag scope must publish a revocation, even before a tag is chosen.
-  editor.onDraft(draftOf('read', [], null))
-  assert.deepEqual(updates.at(-1), { level: 'read', tags: [] })
-  assert.equal(passwordsOf(updates.at(-1)), undefined)
-  editor.props.modelValue = updates.at(-1)
-  await nextTick()
-  assert.equal(editor.draft.value.scope, 'tags')
-  assert.deepEqual(editor.draft.value.tags, [])
+  return { row, updates }
+}
 
-  editor.onDraft(draftOf('read', ['dev'], null))
-  assert.deepEqual(passwordsOf(updates.at(-1)), {
-    level: 'read',
+test('the password row has the levels of every other row (spec 021 US5)', () => {
+  const { row, updates } = passwordRow(null)
+  row.setLevel('read')
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: null })
+  row.setLevel('write')
+  assert.deepEqual(updates.at(-1), { level: 'readWrite', tags: null })
+  const { row: on, updates: onUpdates } = passwordRow({
+    level: 'readWrite',
     tags: ['dev'],
+    defaultTag: 'dev',
   })
-  editor.props.modelValue = updates.at(-1)
-  await nextTick()
-  // Removing the last tag revokes the saved grant as well.
-  editor.onDraft(draftOf('read', [], null))
-  assert.equal(passwordsOf(updates.at(-1)), undefined)
-  editor.setLevel('none')
-  assert.equal(updates.at(-1), null)
-  // A different agent's actual rights replace the old draft.
-  editor.props.modelValue = { level: 'read', tags: ['bank'] }
-  await nextTick()
-  assert.deepEqual(editor.draft.value.tags, ['bank'])
+  on.setLevel('none')
+  assert.equal(onUpdates.at(-1), null)
+  on.setLevel('read')
+  assert.deepEqual(onUpdates.at(-1), { level: 'read', tags: ['dev'] })
 })
 
-test('writing within chosen tags needs the tag new entries get (065 FR-036)', async () => {
-  const updates: Array<PasswordRights | null> = []
-  const editor = loadScriptSetup<{
-    onDraft: (draft: GrantDraft) => void
-    draft: { value: GrantDraft }
-  }>('src/components/agents/PasswordRightsFields.vue', ['onDraft', 'draft'], {
-    props: { modelValue: { level: 'read', tags: null } },
-    imports: { '~/lib/browserBridgeGrant': { draftOf } },
-    emit: (_event, value) => updates.push(value as PasswordRights | null),
-  })
-  editor.onDraft({
-    ...draftOf('readWrite', ['dev', 'shop'], null),
-    defaultTag: '',
-  })
-  assert.deepEqual(updates.at(-1), {
+test('one dropdown names the entries: all, or the entries of one tag (065 FR-036)', () => {
+  const { row, updates } = passwordRow({ level: 'read', tags: null })
+  assert.deepEqual(
+    row.scopeOptions.value.map((option) => option.value),
+    ['', 'dev', 'shop'],
+    'all comes first, then the tags of the vault',
+  )
+  row.setScope('shop')
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: ['shop'] })
+  const { row: writing, updates: writes } = passwordRow({
     level: 'readWrite',
-    tags: ['dev', 'shop'],
+    tags: null,
+  })
+  // Within a tag new entries get that tag, so the rights are complete.
+  writing.setScope('dev')
+  assert.deepEqual(writes.at(-1), {
+    level: 'readWrite',
+    tags: ['dev'],
+    defaultTag: 'dev',
+  })
+  assert.equal(passwordsComplete(writes.at(-1) ?? null), true)
+  writing.setScope('')
+  assert.deepEqual(writes.at(-1), {
+    level: 'readWrite',
+    tags: null,
     defaultTag: null,
   })
-  assert.equal(passwordsComplete(updates.at(-1) ?? null), false)
-  editor.onDraft(draftOf('readWrite', ['dev', 'shop'], 'shop'))
-  assert.deepEqual(updates.at(-1), {
+  // Reading becomes reading and changing within the tag.
+  const { row: tagged, updates: tagUpdates } = passwordRow({
+    level: 'read',
+    tags: ['shop'],
+  })
+  tagged.setLevel('write')
+  assert.deepEqual(tagUpdates.at(-1), {
     level: 'readWrite',
-    tags: ['dev', 'shop'],
+    tags: ['shop'],
     defaultTag: 'shop',
   })
-  assert.equal(passwordsComplete(updates.at(-1) ?? null), true)
-  assert.equal(
-    passwordsComplete({ level: 'readWrite', tags: ['dev'], defaultTag: 'x' }),
-    false,
-  )
-  assert.equal(passwordsComplete({ level: 'readWrite', tags: null }), true)
-  // Stored rights come back into the editor with their tag for new entries.
-  editor.props.modelValue = {
-    level: 'readWrite',
-    tags: ['bank'],
-    defaultTag: 'bank',
+})
+
+test('rights stored with several tags stay until another choice is picked', () => {
+  const stored = {
+    level: 'readWrite' as const,
+    tags: ['dev', 'shop'],
+    defaultTag: 'shop',
   }
-  await nextTick()
-  assert.equal(editor.draft.value.access, 'readWrite')
-  assert.equal(editor.draft.value.defaultTag, 'bank')
+  const { row, updates } = passwordRow(stored)
+  assert.ok(
+    row.scopeOptions.value.some((option) => option.label === 'dev, shop'),
+  )
+  row.setScope('\u0000several')
+  assert.equal(updates.length, 0, 'picking the shown choice changes nothing')
+  row.setLevel('read')
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: ['dev', 'shop'] })
 })
 
 test('registration cannot approve an incomplete password tag draft', async () => {
