@@ -137,16 +137,18 @@ async fn llamacpp_from_env() -> Measured {
     )
     .await
     .expect("llama.cpp load");
+    // What the memory plan gave, not what was asked: it halves the context before it moves layers
+    // to the host, and how far depends on the memory free at load time (spec 082 T032).
+    let placed = adapter.model().placement();
+    let asked = context_window
+        .filter(|&c| c != placed.context)
+        .map_or_else(String::new, |c| format!(" (asked {c})"));
     Measured {
         adapter: Box::new(adapter),
         model: name,
         deterministic: true,
         provider: "llamacpp",
-        placement: format!(
-            "{}{}",
-            gpu_layers.map_or_else(|| "auto".to_owned(), |l| format!("gpu:{l}")),
-            context_window.map_or_else(String::new, |c: u32| format!(" ctx:{c}"))
-        ),
+        placement: format!("gpu:{} ctx:{}{asked}", placed.gpu_layers, placed.context),
     }
 }
 

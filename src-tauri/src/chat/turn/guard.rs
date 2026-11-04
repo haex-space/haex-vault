@@ -17,16 +17,23 @@ const WINDOW_DOMAIN: &str = "wm";
 /// At most this many names in an answer to an unknown tool.
 const MAX_CLOSEST: usize = 3;
 
-/// What the model has seen and may take ids from: every user message and every tool result of the
-/// conversation. Wider than the turn (FR-011 says the turn) so that "and delete it" in the next
-/// turn keeps the id the earlier turn found.
+/// What the model has seen and may take ids from: every user message and every successful tool
+/// result of the conversation. Wider than the turn so that "and delete it" in the next turn keeps
+/// the id the earlier turn found. An error result proves no id: it may only repeat the model's own
+/// input, as a turned-away call's answer does.
 pub fn seen_text(messages: &[ChatMessage]) -> String {
     let mut seen = String::new();
     for message in messages {
         let text = match &message.role {
             ChatRole::User => message.content.as_str(),
-            ChatRole::ToolResult { content, .. } => content.as_str(),
-            ChatRole::Assistant | ChatRole::ToolCall { .. } => continue,
+            ChatRole::ToolResult {
+                content,
+                is_error: false,
+                ..
+            } => content.as_str(),
+            ChatRole::ToolResult { .. } | ChatRole::Assistant | ChatRole::ToolCall { .. } => {
+                continue
+            }
         };
         seen.push_str(text);
         seen.push('\n');

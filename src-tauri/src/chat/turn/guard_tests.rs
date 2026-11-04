@@ -121,6 +121,24 @@ fn the_model_s_own_text_and_calls_do_not_count_as_seen() {
 }
 
 #[test]
+fn an_error_result_proves_no_id() {
+    // A turned-away call's answer repeats the made-up id; the second try must not pass with it.
+    let refusal = message(
+        ChatRole::ToolResult {
+            call_id: "c".to_owned(),
+            content:
+                "turned away: no earlier result and nothing the user said names the id mail_id."
+                    .to_owned(),
+            is_error: true,
+        },
+        "",
+    );
+    let seen = seen_text(&[message(ChatRole::User, "Lösche Bernds Mail"), refusal]);
+    let ids = unknown_ids(&json!({ "id": "mail_id" }), delete_mail().as_ref(), &seen);
+    assert_eq!(ids, ["mail_id"]);
+}
+
+#[test]
 fn an_id_the_tool_s_schema_names_passes() {
     let schema = json!({
         "type": "object",
