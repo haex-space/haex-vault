@@ -25,7 +25,8 @@ pub enum CreditKind {
 pub struct SpeechCredit {
     pub kind: CreditKind,
     pub name: String,
-    /// ISO 639-1 code for voices and speech models; absent for recognition models.
+    /// ISO 639-1 code for voices and single-language speech models; absent for recognition models
+    /// and for a speech model of every language.
     pub language: Option<String>,
     /// SPDX identifier.
     pub license: String,
@@ -55,13 +56,19 @@ pub fn credits() -> Result<Vec<SpeechCredit>, TtsError> {
     let models = catalog::entries()?.iter().map(|entry| SpeechCredit {
         kind: CreditKind::SpeechModel,
         name: entry.name.clone(),
-        language: Some(entry.language.clone()),
+        // One language for a Pocket model; a model of every language (Qwen3-TTS) names none.
+        language: match entry.languages.as_slice() {
+            [only] => Some(only.clone()),
+            _ => None,
+        },
         license: entry.license.clone(),
         attribution: entry.attribution.clone(),
         source: format!(
             "https://huggingface.co/{}/tree/{}/{}",
             entry.hf_repo, entry.hf_revision, entry.hf_folder
-        ),
+        )
+        .trim_end_matches('/')
+        .to_owned(),
     });
     let recognition = crate::stt::catalog::entries()
         .map_err(|e| TtsError::Failed {

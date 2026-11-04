@@ -103,14 +103,18 @@ pub async fn assistant_readiness(
     language: String,
 ) -> Result<Readiness> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
-    let voice = tts::catalog::default_for(voice_language(&language))?;
+    let voice = Some(
+        tts::commands::resolve_speech_model(&app, voice_language(&language))
+            .await?
+            .speaking,
+    );
     let app_for_disk = app.clone();
     let (stt_model, voice, vad_model) = tauri::async_runtime::spawn_blocking(move || {
         let stt_model = crate::stt::files::resolve_model_dir(&app_for_disk, stt)
             .is_ok_and(|dir| crate::stt::files::is_complete_model(&dir, stt.engine));
         let voice = voice.is_some_and(|entry| {
             tts::files::resolve_model_dir(&app_for_disk, entry)
-                .is_ok_and(|dir| tts::files::is_complete_model(&dir, entry.engine))
+                .is_ok_and(|dir| tts::files::is_complete_model(&dir, entry))
         });
         (stt_model, voice, vad_model_path(&app_for_disk).is_ok())
     })
@@ -145,11 +149,13 @@ pub async fn download_assistant_assets(
 ) -> Result<()> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
     crate::stt::commands::download_stt_model(app.clone(), state.clone(), stt.id.clone()).await?;
-    if let Some(voice) = tts::catalog::default_for(voice_language(&language))? {
-        state
-            .gate()
-            .run(tts::commands::ensure_installed(&app, &state, voice))
-            .await??;
-    }
+    // The chosen speech model, else the language's Pocket model: a 2 GB model is only fetched
+    // when the user chose it (spec 081 US5).
+    let resolved = tts::commands::resolve_speech_model(&app, voice_language(&language)).await?;
+    let voice = resolved.chosen.unwrap_or(resolved.speaking);
+    state
+        .gate()
+        .run(tts::commands::ensure_installed(&app, &state, voice))
+        .await??;
     Ok(())
 }

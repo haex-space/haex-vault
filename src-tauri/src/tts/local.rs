@@ -26,13 +26,15 @@ use crate::audio::stream::AudioStream;
 use crate::audio::stretch::stretch;
 use crate::vault_gate::VaultGate;
 
+use super::catalog::TtsCatalogEntry;
 use super::files;
 use super::TtsError;
 
 pub use super::{RATE_DEFAULT, RATE_MAX, RATE_MIN};
 /// Reference embeddings sherpa keeps, one per voice used recently.
 const VOICE_CACHE: i32 = 8;
-/// Pocket samples its output; 0.7 is Kyutai's default and what the spike measured.
+/// Pocket's sampling temperature when a catalog entry names none: what the spike measured (spec
+/// 066). Entries carry their own since spec 081 FR-015.
 const TEMPERATURE: &str = "0.7";
 /// The longest reference sherpa reads, in seconds: the whole of every reference
 /// ([`super::clone::MAX_REFERENCE_SECS`]; the built-in voices are 8–15 s).
@@ -43,16 +45,39 @@ const POLL: Duration = Duration::from_millis(50);
 /// as played this much after its samples ran out.
 const PLAYOUT: Duration = Duration::from_millis(150);
 
-/// A voice's reference recording, mono at any rate.
+/// A voice's reference recording, mono at any rate, and the language the voice speaks.
 pub struct Reference {
     pub samples: Vec<f32>,
     pub sample_rate: u32,
+    /// The voice's language; a model that speaks several (Qwen3-TTS, spec 081) speaks in it.
+    pub language: String,
 }
 
 /// Something that turns one sentence into mono samples at [`Engine::sample_rate`].
 pub trait Engine: Send + Sync {
     fn sample_rate(&self) -> u32;
     fn generate(&self, text: &str, reference: &Reference, rate: f32) -> Result<Vec<f32>, TtsError>;
+
+    /// The most words one call should speak; the speaker splits longer sentences into parts
+    /// (spec 081 FR-010). `None`: whole sentences.
+    fn part_words(&self) -> Option<usize> {
+        None
+    }
+
+    /// [`Engine::generate`] that gives up as soon as `cancelled` says so; an engine that cannot
+    /// stop inside a call checks it only before it starts.
+    fn generate_cancellable(
+        &self,
+        text: &str,
+        reference: &Reference,
+        rate: f32,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<f32>, TtsError> {
+        if cancelled() {
+            return Ok(Vec::new());
+        }
+        self.generate(text, reference, rate)
+    }
 }
 
 /// A loaded Pocket model.
@@ -61,12 +86,20 @@ pub struct PocketModel {
     sample_rate: u32,
     /// The language the model speaks; its sentences are written out in it (`tts::spoken`).
     language: String,
+    /// Sampling temperature of the catalog entry (spec 081 FR-015).
+    temperature: String,
 }
 
 impl PocketModel {
-    /// Loads the model in `dir`, which speaks `language` (files as `files::files_for(Pocket)` names them). Takes about a
-    /// second on a desktop, so callers load off the async runtime.
-    pub fn load(dir: &Path, language: &str) -> Result<Self, TtsError> {
+    /// Loads the model of `entry` from `dir` (files as `files::files_for` names them). Takes about
+    /// a second on a desktop, so callers load off the async runtime.
+    pub fn load(dir: &Path, entry: &TtsCatalogEntry) -> Result<Self, TtsError> {
+        let language = entry
+            .languages
+            .first()
+            .ok_or_else(|| TtsError::Unavailable {
+                reason: format!("{} names no language", entry.id),
+            })?;
         let path = |name: &str| -> Result<Option<String>, TtsError> {
             dir.join(name)
                 .to_str()
@@ -103,7 +136,11 @@ impl PocketModel {
         Ok(Self {
             tts,
             sample_rate,
-            language: language.to_owned(),
+            language: language.clone(),
+            temperature: entry
+                .temperature
+                .clone()
+                .unwrap_or_else(|| TEMPERATURE.to_owned()),
         })
     }
 }
@@ -125,7 +162,7 @@ impl Engine for PocketModel {
             num_steps: 1,
             extra: Some(
                 [
-                    ("temperature".to_owned(), json!(TEMPERATURE)),
+                    ("temperature".to_owned(), json!(self.temperature)),
                     // sherpa reads only the first 10 s by default and cuts mid-word; Kyutai reads
                     // up to 30 s, and every reference ends on a pause within that (`tts::clone`).
                     (

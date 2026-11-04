@@ -20,7 +20,7 @@ use crate::voice::VoiceState;
 
 use super::local::{Engine, Reference};
 use super::voices::Chosen;
-use super::{catalog, commands, files, TtsError};
+use super::{commands, files, TtsError};
 
 /// Silence between the two sentences.
 const GAP: Duration = Duration::from_millis(300);
@@ -121,9 +121,10 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
     let speech = app.state::<VoiceState>();
     let cancel = speech.begin_preview(&state.gate().token());
     let language = voice.language().to_owned();
-    let entry = catalog::default_for(&language)?.ok_or_else(|| TtsError::Unavailable {
-        reason: format!("no speech model speaks {language}"),
-    })?;
+    // The model chosen for the language, downloaded first if needed (spec 081 US2); without a
+    // choice the one that speaks now.
+    let resolved = commands::resolve_speech_model(app, &language).await?;
+    let entry = resolved.chosen.unwrap_or(resolved.speaking);
     commands::ensure_installed(app, state, entry).await?;
     let app_for_dir = app.clone();
     let dir =
@@ -132,9 +133,7 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
-    let model = speech
-        .speech_model(&entry.id, &entry.language, dir, state.gate())
-        .await?;
+    let model = speech.speech_model(entry, dir, state.gate()).await?;
     let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();

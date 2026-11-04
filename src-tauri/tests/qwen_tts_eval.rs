@@ -1,0 +1,150 @@
+//! Qwen3-TTS with the real model files (spec 081 T020, T021). Skipped by default (`#[ignore]`):
+//! they need the two GGUF files of research R2 in one folder.
+//!
+//!   QWEN_TTS_DIR=<folder with the GGUF files> QWEN_TTS_OUT=<folder for WAVs and timings> \
+//!     cargo test -j 4 --release --test qwen_tts_eval \
+//!       --no-default-features --features llm-llamacpp,voice,voice-qwen -- --ignored --nocapture
+//!
+//! `QWEN_TTS_QUANT=Q4_K_M` speaks with the Q4_K_M backbone instead of Q8_0 (research R2, the file
+//! must be in the folder). The voice is the shipped `de-lena`.
+
+#![cfg(feature = "voice-qwen")]
+
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+use holzi_lib::tts::catalog::{get, CatalogFile, TtsCatalogEntry};
+use holzi_lib::tts::local::{Engine, Reference};
+use holzi_lib::tts::qwen::{Placement, QwenModel};
+use holzi_lib::tts::voices::{builtin, reference};
+
+/// The six sentences of the spec 066 R23 listening comparison.
+const R23: [&str; 6] = [
+    "Dein Termin beim Zahnarzt ist morgen um 14:30 Uhr in der Bahnhofstraße 12.",
+    "Die Rechnung über 1.249,90 € ist am 04.11.2026 fällig, das sind 3,5 % mehr als im Vorjahr.",
+    "Jonas Müller hat dir geschrieben: Er kommt am Samstag mit Sophie und Kevin zum Grillen.",
+    "Ich habe drei neue E-Mails von GitHub, Amazon und der Deutschen Bahn für dich gefunden.",
+    "Das Wetter in München: heute bis 18 °C, morgen Regen mit 80 % Wahrscheinlichkeit.",
+    "Soll ich die Präsentation an Frau Dr. Schneider schicken, oder lieber erst morgen früh?",
+];
+
+fn dir() -> PathBuf {
+    PathBuf::from(std::env::var("QWEN_TTS_DIR").expect("QWEN_TTS_DIR names the model folder"))
+}
+
+/// The catalog entry, or the same entry with the Q4_K_M backbone (`QWEN_TTS_QUANT`).
+fn entry() -> TtsCatalogEntry {
+    let mut entry = get("qwen3-tts-1.7b").expect("in the catalog").clone();
+    if std::env::var("QWEN_TTS_QUANT").as_deref() == Ok("Q4_K_M") {
+        let files = entry.files.as_mut().expect("pinned files");
+        files[0] = CatalogFile {
+            name: "Qwen3-TTS-12Hz-1.7B-Base-Q4_K_M.gguf".to_owned(),
+            bytes: 1_035_965_280,
+            sha256: "8d18c94acb2addd042f97da63c98be144eafa76d0d9495177eab65130cf85129".to_owned(),
+        };
+    }
+    entry
+}
+
+fn lena() -> Reference {
+    let voice = builtin()
+        .expect("voices")
+        .iter()
+        .find(|v| v.id == "de-lena")
+        .expect("Lena is shipped");
+    reference(voice).expect("Lena's recording")
+}
+
+fn load(placement: Placement) -> QwenModel {
+    let started = Instant::now();
+    let model = QwenModel::load(&dir(), &entry(), placement).expect("model loads");
+    eprintln!("loaded in {:.1} s", started.elapsed().as_secs_f64());
+    model
+}
+
+/// Speaks the R23 sentences, writes `<tag>-<n>.wav` and `timing-<tag>.txt` to `QWEN_TTS_OUT` and
+/// returns computing time and audio length per sentence.
+fn speak_r23(model: &QwenModel, tag: &str) -> Vec<(Duration, f64)> {
+    let out = std::env::var("QWEN_TTS_OUT").ok().map(PathBuf::from);
+    let voice = lena();
+    let mut timings = Vec::new();
+    let mut report = String::new();
+    for (i, sentence) in R23.iter().enumerate() {
+        let started = Instant::now();
+        let samples = model.generate(sentence, &voice, 1.0).expect("speaks");
+        let took = started.elapsed();
+        let audio = samples.len() as f64 / f64::from(model.sample_rate());
+        eprintln!(
+            "{tag} {}: {:.2} s for {audio:.2} s of speech ({:.2})",
+            i + 1,
+            took.as_secs_f64(),
+            took.as_secs_f64() / audio
+        );
+        report.push_str(&format!(
+            "{tag} {} {:.2} {audio:.2}\n",
+            i + 1,
+            took.as_secs_f64()
+        ));
+        if let Some(out) = &out {
+            let path = out.join(format!("{tag}-{}.wav", i + 1));
+            sherpa_onnx::write(
+                path.to_str().expect("UTF-8"),
+                &samples,
+                model.sample_rate() as i32,
+            );
+        }
+        timings.push((took, audio));
+    }
+    if let Some(out) = &out {
+        std::fs::write(out.join(format!("timing-{tag}.txt")), report).expect("timing");
+    }
+    timings
+}
+
+fn ratio(timings: &[(Duration, f64)]) -> f64 {
+    let took: f64 = timings.iter().map(|(t, _)| t.as_secs_f64()).sum();
+    let audio: f64 = timings.iter().map(|(_, a)| a).sum();
+    took / audio
+}
+
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc"]
+fn loads_and_reports_its_sample_rate() {
+    let model = load(Placement::Cpu);
+    assert_eq!(model.sample_rate(), 24_000);
+    assert_eq!(model.part_words(), Some(20));
+}
+
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc"]
+fn speaks_r23_sentences() {
+    let model = load(Placement::Cpu);
+    let tag = std::env::var("QWEN_TTS_QUANT").unwrap_or_else(|_| "Q8_0".to_owned());
+    let timings = speak_r23(&model, &format!("qwen-{tag}-cpu"));
+    for (sentence, (_, audio)) in R23.iter().zip(&timings) {
+        // At least 0.035 s per character: nothing ended after a few words (research R6).
+        assert!(
+            *audio > 0.035 * sentence.chars().count() as f64,
+            "{sentence}"
+        );
+    }
+    eprintln!("ratio {:.2}", ratio(&timings));
+}
+
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc"]
+fn cancel_stops_at_once() {
+    let model = load(Placement::Cpu);
+    let started = Instant::now();
+    let samples = model
+        .generate_cancellable(R23[1], &lena(), 1.0, &|| {
+            started.elapsed() > Duration::from_millis(300)
+        })
+        .expect("stops cleanly");
+    assert!(samples.is_empty());
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+}

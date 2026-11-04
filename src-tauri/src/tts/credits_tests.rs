@@ -43,18 +43,18 @@ fn every_credit_names_its_licence_author_and_source() {
         assert!(!credit.attribution.trim().is_empty(), "{}", credit.name);
         assert!(credit.source.starts_with("https://"), "{}", credit.name);
         assert!(
-            ["CC0-1.0", "CC-BY-4.0"].contains(&credit.license.as_str())
+            ["CC0-1.0", "CC-BY-4.0", "Apache-2.0"].contains(&credit.license.as_str())
                 || credit.kind == CreditKind::RecognitionModel,
             "{}: {}",
             credit.name,
             credit.license
         );
-        assert_eq!(
-            credit.language.is_some(),
-            credit.kind != CreditKind::RecognitionModel,
-            "{}",
-            credit.name
-        );
+        if credit.kind == CreditKind::Voice {
+            assert!(credit.language.is_some(), "{}", credit.name);
+        }
+        if credit.kind == CreditKind::RecognitionModel {
+            assert!(credit.language.is_none(), "{}", credit.name);
+        }
     }
     let wire = serde_json::to_value(&credits().expect("credits")[0]).expect("serializes");
     for key in [
@@ -68,4 +68,20 @@ fn every_credit_names_its_licence_author_and_source() {
         assert!(wire.get(key).is_some(), "{key}");
     }
     assert_eq!(wire["kind"], "voice");
+}
+
+/// Spec 081 FR-003: Qwen3-TTS is credited with its licence and origin, for every language at once.
+#[test]
+fn qwen3_tts_is_credited_with_its_licence_and_origin() {
+    let qwen = credits()
+        .expect("credits")
+        .into_iter()
+        .find(|c| c.name == "Qwen3-TTS 1.7B")
+        .expect("credited");
+    assert_eq!(qwen.license, "Apache-2.0");
+    assert!(qwen.attribution.contains("Qwen") && qwen.attribution.contains("ggml-org"));
+    assert!(qwen
+        .source
+        .starts_with("https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/tree/"));
+    assert!(qwen.language.is_none());
 }
