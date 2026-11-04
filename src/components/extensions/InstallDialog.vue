@@ -6,8 +6,8 @@
  * permissions hold in the whole vault, a shell permission only on this device; the dialog says so.
  * An update lists only the new permissions and warns before a downgrade; a bundle of a version the
  * vault already holds with other content replaces it only after a confirmation. Nothing is written
- * before "Installieren". A bundle or project holzi refuses says why in a toast; the dialog then
- * offers only "Abbrechen".
+ * before "Installieren". A bundle or project holzi refuses says why in a toast, and the dialog
+ * closes.
  *
  * The permissions are grouped by kind, each group an accordion that starts closed (spec 017 FR-067);
  * a group with a wildcard carries a warning triangle in its header.

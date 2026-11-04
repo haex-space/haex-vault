@@ -22,6 +22,12 @@ const draft = ref('')
 const invalid = ref(false)
 const busy = ref(false)
 
+/** Typing a valid depth takes the hint under the field away (the fallback value is no typing). */
+function onInput(value: string | number | null | undefined) {
+  if (invalid.value && parseLogDepth(String(value ?? '')) !== null)
+    invalid.value = false
+}
+
 async function loadAsync() {
   try {
     stored.value = await logDepthGetAsync()
@@ -84,6 +90,7 @@ watch(open, (isOpen) => {
           :labels="fieldLabels.input.value"
           :disabled="busy || stored === null"
           data-testid="files-sync-rules-log-depth"
+          @update:model-value="onInput"
           @blur="commitAsync"
           @keydown.enter.prevent="commitAsync"
         />

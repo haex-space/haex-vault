@@ -21,6 +21,11 @@ const name = ref('')
 const error = ref<string | null>(null)
 const deleting = ref<TagRow | null>(null)
 
+// The hint refers to the name that was refused: it goes away once the name is changed.
+watch(name, () => {
+  error.value = null
+})
+
 function start(tag: TagRow) {
   editing.value = tag.id
   name.value = tag.name
