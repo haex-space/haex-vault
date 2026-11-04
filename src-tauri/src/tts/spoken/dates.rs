@@ -4,6 +4,19 @@ use super::{Number, Reader};
 use crate::assistant::calendar_words::{month_name, time_phrase};
 use crate::assistant::number_words::{cardinal, ordinal_en, ordinal_stem_de, year_words};
 
+/// German words after which an ordinal takes "-en": "am dritten", "seit dem zweiten".
+const DATIVE_DE: &[&str] = &[
+    "am", "vom", "zum", "zur", "im", "beim", "dem", "den", "des", "seit",
+];
+/// German words after which an ordinal takes "-e": "der zweite Platz".
+const NOMINATIVE_DE: &[&str] = &["der", "die", "das", "jeder", "jede", "jedes"];
+/// English words after which four digits are a year.
+const YEAR_BEFORE_EN: &[&str] = &[
+    "in", "since", "until", "till", "by", "from", "year", "of", "before", "after", "around",
+    "circa", "to", "through", "during", "early", "late", "mid", "summer", "winter", "spring",
+    "fall", "autumn",
+];
+
 impl Reader<'_> {
     /// Two digits at `i` as a number.
     pub(super) fn two_digits(&self, i: usize) -> Option<u32> {
@@ -88,7 +101,14 @@ impl Reader<'_> {
             None => base,
         };
         match self.language {
-            "de" => with_year(format!("{}en {name}", ordinal_stem_de(day)), " "),
+            "de" => {
+                // "der vierte November", otherwise "am/vom/bis zum vierten November".
+                let after_der = self
+                    .previous_word()
+                    .is_some_and(|w| w.eq_ignore_ascii_case("der"));
+                let ending = if after_der { "e" } else { "en" };
+                with_year(format!("{}{ending} {name}", ordinal_stem_de(day)), " ")
+            }
             "fr" => {
                 let d = if day == 1 {
                     "premier".to_owned()
@@ -140,7 +160,9 @@ impl Reader<'_> {
             },
             _ => return None,
         };
-        if hour > 23 || minute > 59 || self.is_digit(end) {
+        // "24:00 Uhr" is said in German; elsewhere it is midnight written another way.
+        let midnight = hour == 24 && minute == 0 && self.language == "de";
+        if (hour > 23 && !midnight) || minute > 59 || self.is_digit(end) {
             return None;
         }
         // Seconds are not said.
@@ -159,7 +181,10 @@ impl Reader<'_> {
             }
             "en" => {
                 if let Some((pm, after)) = self.meridiem(end) {
-                    hour = to_24(hour, pm);
+                    // "13:30 pm" is already afternoon.
+                    if (1..=12).contains(&hour) {
+                        hour = to_24(hour, pm);
+                    }
                     end = after;
                 }
             }
@@ -195,25 +220,7 @@ impl Reader<'_> {
         }
         let n: u32 = number.int.parse().ok()?;
         match self.language {
-            "de" => {
-                // "am 3. Oktober", "der 2. Platz": a period, a space and a word.
-                if self.char(end) != Some('.')
-                    || self.char(end + 1) != Some(' ')
-                    || !self.char(end + 2).is_some_and(char::is_alphabetic)
-                {
-                    return None;
-                }
-                let dative = self.previous_word().is_some_and(|w| {
-                    [
-                        "am", "vom", "zum", "im", "beim", "dem", "den", "des", "seit",
-                    ]
-                    .contains(&w.to_lowercase().as_str())
-                });
-                let ending = if dative { "en" } else { "e" };
-                self.out
-                    .push_str(&format!("{}{ending}", ordinal_stem_de(n)));
-                Some(end + 1)
-            }
+            "de" => self.ordinal_de_at(n, end),
             "en" => {
                 for suffix in ["st", "nd", "rd", "th"] {
                     if self.followed_by(end, suffix) && self.ends_token(end + 2) {
@@ -255,6 +262,55 @@ impl Reader<'_> {
             }
             _ => None,
         }
+    }
+
+    /// "am 3. Oktober", "der 2. Platz", "3. geworden": a period, a space and a word, where the
+    /// period does not end the sentence. "Das sind 42. Danach …" stays a count.
+    fn ordinal_de_at(&mut self, n: u32, end: usize) -> Option<usize> {
+        if self.char(end) != Some('.') || self.char(end + 1) != Some(' ') {
+            return None;
+        }
+        let next: String = self.chars[end + 2..]
+            .iter()
+            .take_while(|c| c.is_alphabetic())
+            .collect();
+        let first = next.chars().next()?;
+        let previous = self.previous_word().map(str::to_lowercase);
+        let previous = previous.as_deref().unwrap_or("");
+        let dative = DATIVE_DE.contains(&previous);
+        let is_ordinal = dative
+            || NOMINATIVE_DE.contains(&previous)
+            || first.is_lowercase()
+            || (1..=12).any(|m| month_name("de", m) == next);
+        if !is_ordinal {
+            return None;
+        }
+        let ending = if dative { "en" } else { "e" };
+        self.out
+            .push_str(&format!("{}{ending}", ordinal_stem_de(n)));
+        Some(end + 1)
+    }
+
+    /// Whether the four digits that ended before `end` are said as a year. English says counts
+    /// and years differently ("twelve thirty-four files"), so there a year needs a word that
+    /// announces it ("in", "since", a month), the start of a sentence, or no word after it; the
+    /// other languages say both alike.
+    pub(super) fn reads_as_year(&self, end: usize) -> bool {
+        if self.language != "en" {
+            return true;
+        }
+        let previous = self.previous_word().map(str::to_lowercase);
+        let announced = match previous.as_deref() {
+            None => true,
+            Some(w) if w.ends_with(['.', '!', '?', ':']) => true,
+            Some(w) => {
+                let w = w.trim_matches(|c: char| !c.is_alphanumeric());
+                YEAR_BEFORE_EN.contains(&w)
+                    || (1..=12).any(|m| month_name("en", m).eq_ignore_ascii_case(w))
+            }
+        };
+        let gap = usize::from(self.char(end) == Some(' '));
+        announced || !self.char(end + gap).is_some_and(char::is_alphabetic)
     }
 }
 
