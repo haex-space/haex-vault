@@ -4246,6 +4246,9 @@
     "passwords": {
       "title": "Passwörter",
       "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen, die du darunter wählst",
+      "all": "Alle",
+      "scope": "Bereich",
+      "newEntriesTag": "Einträge, die der Agent anlegt, bekommen dieses Tag.",
       "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     },
     "commands": {
