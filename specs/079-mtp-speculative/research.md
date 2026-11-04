@@ -179,9 +179,7 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   `LoadOptions`. Its report gets the generated tokens and the generation time per request, and the tokens per
   second over the run (spec FR-013).
 - **Rationale**: SC-001 to SC-003 must hold for holzi's own loop, not only for `llama-server`.
-- **Dependency**: the everyday measurement is spec 078 (#803). If #803 is not merged when this lands, the speed
-  test still runs on its own (an ignored test with the four requests of R1), and the everyday comparison follows
-  after the merge.
+- **Dependency**: the everyday measurement is spec 078 (#803, merged on 2026-11-04).
 
 ## R10 Phones
 

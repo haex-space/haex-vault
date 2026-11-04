@@ -125,13 +125,14 @@ drafter, so loading with a drafter never fails or crashes where loading without 
 **Why this priority**: the inference library aborts the whole process when GPU memory runs out, so a forgotten
 drafter could crash the app; but it matters only on devices near their memory limit.
 
-**Independent Test**: on the reference laptop, load Gemma 4 12B with its drafter; it loads, and the placement leaves
-room for the drafter.
+**Independent Test**: on the reference laptop, load Gemma 4 12B with its drafter ten times; every load succeeds. The
+drafter is used for a partly placed model only where a measurement in holzi's own placement showed a gain.
 
 **Acceptance Scenarios**:
 
-1. **Given** a model that fits the GPU only partly, **When** it loads with its drafter, **Then** the placement
-   leaves room for the drafter and the load succeeds.
+1. **Given** a model that fits the GPU only partly and whose drafter was measured faster in that placement, **When**
+   it loads with its drafter, **Then** the placement leaves room for the drafter and the load succeeds. Without such
+   a measurement, it loads without the drafter (FR-009).
 2. **Given** a device where the model fits but the model plus drafter does not, **When** the model loads, **Then**
    holzi chooses between fewer layers on the GPU with the drafter and the same layers without it, and takes the one
    that is faster on that device. If the planner cannot tell, it loads without the drafter.
@@ -184,7 +185,7 @@ that the next answer uses it.
 - **FR-002**: The drafter MUST NOT change what the model decides. Sampling settings, prompt, offered tools and
   stop rules MUST stay the same with and without a drafter.
 - **FR-003**: The catalog MUST be able to name a drafter for a model: where it is published, its file, its
-  approximate size, and the model it belongs to. The first delivery names drafters for Gemma 4 E2B, E4B and 12B.
+  size, and the model it belongs to. The first delivery names drafters for Gemma 4 E2B, E4B and 12B.
 - **FR-004**: Downloading a catalog model that has a drafter MUST download the drafter as part of the same action.
   The size shown before the download and the progress MUST include the drafter.
 - **FR-005**: Cancelling a download, deleting a model, and the size shown for an installed model MUST treat the
@@ -227,7 +228,10 @@ that the next answer uses it.
 ### Measurable Outcomes
 
 - **SC-001**: On the reference desktop, holzi generates answers with Gemma 4 E2B, E4B and 12B at least 1.4 times as
-  many tokens per second with the drafter as without, over the four measured request types.
+  many tokens per second with the drafter as without, over the four measured request types. For a model that fits
+  the GPU only partly (the 12B on the reference desktop), this is measured in holzi's own placement. If it is not
+  reached there, that model loads without the drafter (FR-009), and the result records the criterion as not reached
+  for it.
 - **SC-002**: On the everyday voice set of spec 078, every Gemma 4 model passes at least as many requests with the
   drafter as without, and has no additional safety error.
 - **SC-003**: With deterministic settings, at least 95 % of the everyday requests name the same tool calls with the
@@ -247,8 +251,8 @@ that the next answer uses it.
   which models are suggested.
 - **No switch for the user**: the drafter is used wherever it helps. A settings switch to turn it off is out of
   scope, because the answers do not change.
-- **Phones**: Android uses the same path if the inference library runs there with a drafter. Whether it is faster on
-  a phone is measured during the implementation; FR-009 keeps it off where it is not.
+- **Phones**: Android builds the same code. holzi runs models there on the processor only, and FR-009 keeps the
+  drafter off without a GPU. Measuring a phone is left to a later delivery.
 - **Rare differences in wording**: checking several proposed words at once uses slightly different arithmetic than
   writing one word at a time. In rare cases a deterministic answer can therefore differ in wording; SC-003 allows
   for that, and the tool calls are what matter.

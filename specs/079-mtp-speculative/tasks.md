@@ -38,8 +38,9 @@ partly offloaded model) is P2, and US5 (drafter for models installed earlier) is
 **Purpose**: a branch that already has the Gemma 4 catalog entries, a knowledge graph, and the spike that settles the
 open point of research R6 before any engine code is written.
 
-- [ ] T001 Bring the Gemma 4 catalog entries into `079-mtp-speculative`: if #806 is merged, rebase onto
-      `origin/main`; otherwise rebase onto `origin/gemma-4-catalog` and note in the PR that it depends on #806. Check
+- [ ] T001 Bring the Gemma 4 catalog entries into `079-mtp-speculative`: if #806 is merged, merge `origin/main`;
+      otherwise merge `origin/gemma-4-catalog` and note in the PR that it depends on #806. Never rebase: the branch is
+      pushed. Check
       `src-tauri/src/catalog/model_catalog.json` has the three `gemma-4-*` entries with `"trial": true`.
 - [ ] T002 Run `graphify update .` in the worktree root (no `graphify-out/` exists yet), so the later
       `graphify query` calls see the current tree.
@@ -48,7 +49,8 @@ open point of research R6 before any engine code is written.
     disabled (`with_flash_attention_policy`), the drafter from `HOLZI_LLAMACPP_DRAFTER` with
     `LlamaContextType::Mtp`, and `new_context_with_ctx_other`.
   - Run `MtpSpeculative` for one greedy 200-token answer to the R1 mail-summary prompt, then generate the same
-    prompt without the drafter, and assert both texts are equal.
+    prompt without the drafter. Assert both answers are non-empty, and log whether the texts are equal and where
+    they first differ (spec Assumptions: rare wording differences are allowed).
   - Log whether `clear_kv_cache_seq(Some(0), Some(n_past), None)` returns true after a partial acceptance.
   - If it returns false, repeat with `with_swa_full(true)` and record which setting works.
   - Write the outcome (removal works with or without `swa_full`, the drafter context is created, the answers are
@@ -62,10 +64,11 @@ open point of research R6 before any engine code is written.
 
 **Purpose**: the catalog knows each drafter, and one module knows where a drafter lives and whether it is there.
 
-- [ ] T004 [P] In `src-tauri/src/catalog/mod.rs`, add `CatalogDrafter { hf_repo, hf_revision, hf_filename,
-size_bytes, sha256, architecture, measured_partly_on_gpu }` (serde, `Clone`, `Serialize`; the bool with
-      `#[serde(default)]`) and `CatalogEntry.drafter:
-Option<CatalogDrafter>` with `#[serde(default, skip_serializing_if = "Option::is_none")]`.
+- [ ] T004 [P] In `src-tauri/src/catalog/mod.rs`:
+  - add `CatalogDrafter { hf_repo, hf_revision, hf_filename, size_bytes, sha256, architecture,
+measured_partly_on_gpu }` (serde, `Clone`, `Serialize`; the bool with `#[serde(default)]`);
+  - add `CatalogEntry.drafter: Option<CatalogDrafter>` with
+    `#[serde(default, skip_serializing_if = "Option::is_none")]`.
 - [ ] T005 Put the three drafters of research R2 into `src-tauri/src/catalog/model_catalog.json`: E2B, E4B and 12B
       with repo, commit, file, bytes, SHA-256, and `"architecture": "gemma4-assistant"`. None of them gets
       `measured_partly_on_gpu` yet; T031 decides it for the 12B.
@@ -148,7 +151,7 @@ and the same tool calls with greedy decoding.
   Keep the file under 500 lines. Register it in `src-tauri/src/llm/llamacpp/mod.rs`.
 
 - [ ] T014 [US1] In `src-tauri/src/llm/llamacpp/generate.rs`, call `speculative::generate_speculative` when
-      `loaded.placement.drafter` and `loaded.drafter` are set; otherwise the plain loop, which stays byte-for-byte as it
+      `loaded.placement.drafter` and `loaded.drafter` are set and the drafter is not marked failed (T026); otherwise the plain loop, which stays byte-for-byte as it
       is (spec FR-012).
 - [ ] T015 [US1] In `src-tauri/tests/model_tool_eval.rs`:
   - read `HOLZI_LLAMACPP_DRAFTER` into `LoadOptions.drafter`;
@@ -272,7 +275,8 @@ T031 measures it in the app's own placement.
     `src-tauri/src/catalog/model_catalog.json`.
   - Record both figures in `results.md` (T036).
 
-**Checkpoint**: 12B with drafter loads every time and is faster.
+**Checkpoint**: the 12B with its drafter loads every time. It uses the drafter only if T031 measured a gain;
+otherwise it loads without, and `results.md` records SC-001 for the 12B as not reached.
 
 ---
 
@@ -313,10 +317,10 @@ next answer uses the drafter.
   - date, commit and machine;
   - tokens per second with and without the drafter, and the acceptance rate;
   - the comparison to research R1.
-- [ ] T037 If #803 is merged: extend its everyday report with generated tokens and generation time per request
+- [ ] T037 Extend its everyday report with generated tokens and generation time per request
       (research R9), and run `measure_everyday_voice` for each Gemma 4 model with and without
       `HOLZI_LLAMACPP_DRAFTER`. Record pass counts, safety errors and the time to the first chunk in `results.md`
-      (SC-002, SC-003, SC-007). If #803 is not merged, record that the comparison is pending.
+      (SC-002, SC-003, SC-007).
 - [ ] T038 [P] Checks:
   - `cargo fmt --check`;
   - `cargo clippy --all-targets -D warnings` without features, with `llm-llamacpp`, and for
@@ -340,7 +344,7 @@ next answer uses the drafter.
 - **US3 (T026–T028)** needs T013–T014.
 - **US4 (T029–T031)** needs T011.
 - **US5 (T032–T035)** needs US2's `stage` and `publish` (T019).
-- **Polish (T036–T039)** last; T037 also needs #803.
+- **Polish (T036–T039)** last.
 
 ## Parallel Example: User Story 1
 
