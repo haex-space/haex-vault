@@ -182,6 +182,26 @@ fn a_later_extension_of_the_same_slug_does_not_rename_the_first() {
     );
 }
 
+/// An installed extension that is switched off or not ready on this device offers nothing but
+/// still holds its name: a later extension of the same slug keeps its key suffix meanwhile, so a
+/// call meant for the first one never reaches the other.
+#[test]
+fn an_extension_that_offers_nothing_here_keeps_its_name() {
+    let mut mail = source("haex-mail", vec![], vec![]);
+    mail.installed_at = Some(10);
+    let mut fork = source(
+        "haexmail",
+        vec![tool("list_mailboxes", ToolEffect::Read)],
+        vec![row("read", "list_mailboxes", "granted")],
+    );
+    fork.installed_at = Some(20);
+    fork.public_key = "9f8e7d".repeat(10) + "0000";
+    assert_eq!(
+        names(&tool_defs(vec![mail, fork])),
+        ["x_haexmail9f8e7d_list_mailboxes"]
+    );
+}
+
 /// A development version of an installed extension shares its slug and its key: the installed
 /// one keeps the bare slug, the development version takes the key suffix, and a second
 /// development version with the same key falls back to its id.

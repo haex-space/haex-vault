@@ -48,6 +48,8 @@ pub struct ExtensionSource {
     /// When the extension was installed (ms); `None` for a development version.
     pub installed_at: Option<i64>,
     pub title: String,
+    /// Empty for an extension that is installed but not offered here (switched off, or not
+    /// ready on this device): it offers nothing, but still holds its name (research R8).
     pub tools: Vec<ManifestTool>,
     pub rows: Vec<ToolRow>,
     pub dev: bool,
@@ -221,13 +223,16 @@ fn dev_sources(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSource>>
 
 /// The offerable tools of the vault on `device`: installed, enabled extensions whose state here
 /// lets them start (not yet started, or ready), and the development versions of this device.
+/// Installed extensions that are switched off or not ready here offer nothing but keep their
+/// names, so another extension of the same slug never takes them over in the meantime.
 pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
     let rows = q.query_map(
-        "SELECT e.id, e.public_key, e.installed_at FROM extensions e \
+        "SELECT e.id, e.public_key, e.installed_at, \
+           e.enabled = 1 AND (s.status IS NULL OR s.status = 'ready') \
+         FROM extensions e \
          LEFT JOIN extension_device_status s \
            ON s.extension_id = e.id AND s.vault_device_uuid = ?1 \
-         WHERE e.state = 'installed' AND e.enabled = 1 \
-           AND (s.status IS NULL OR s.status = 'ready') \
+         WHERE e.state = 'installed' \
          ORDER BY e.name",
         &[&device.to_string()],
         |r| {
@@ -235,11 +240,12 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, i64>(2)?,
+                r.get::<_, bool>(3)?,
             ))
         },
     )?;
     let mut sources = Vec::new();
-    for (id, public_key, installed_at) in rows {
+    for (id, public_key, installed_at, offered) in rows {
         let Ok(id) = Uuid::parse_str(&id) else {
             continue;
         };
@@ -249,14 +255,21 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
         if manifest.tools.is_empty() {
             continue;
         }
+        let name = manifest.name.as_str().to_owned();
+        let title = manifest.title().to_owned();
+        let (tools, rows) = if offered {
+            (manifest.tools, tool_rows(q, id)?)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         sources.push(ExtensionSource {
             id,
             public_key,
-            name: manifest.name.as_str().to_owned(),
+            name,
             installed_at: Some(installed_at),
-            title: manifest.title().to_owned(),
-            rows: tool_rows(q, id)?,
-            tools: manifest.tools,
+            title,
+            rows,
+            tools,
             dev: false,
         });
     }
