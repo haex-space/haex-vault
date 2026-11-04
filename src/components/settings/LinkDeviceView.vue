@@ -144,10 +144,14 @@ async function onConfirm() {
 
 async function onReject() {
   busy.value = true
+  // The backend may emit the cleared status before rejectAsync resolves; mark the choice first so
+  // that event cannot be mistaken for an unexpected end of the link.
+  phase.value = 'declined'
   try {
     await rejectAsync()
     finish('declined')
   } catch (e) {
+    phase.value = 'confirm'
     toast.error(errString(e))
   } finally {
     busy.value = false
