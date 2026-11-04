@@ -53,7 +53,7 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   assert.match(name, /e2e-agent/)
   ctx.step('asked with the reported name')
 
-  await choose(instance, '[data-testid="mcp-right-wm.layout"]', 'write')
+  await choose(instance, '[data-testid="mcp-right-wm"]', 'write')
   await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')

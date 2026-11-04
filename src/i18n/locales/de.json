@@ -4078,6 +4078,26 @@
       "ipc": "Programm auf diesem Gerät",
       "http": "Lokale Adresse auf diesem Gerät"
     },
+    "rights": {
+      "groups": {
+        "wm": {
+          "title": "Fenster und Arbeitsbereiche",
+          "description": "Arbeitsbereiche, Fenster und Tabs ansehen, Apps öffnen, alles anordnen"
+        },
+        "chat": {
+          "title": "Chat",
+          "description": "Unterhaltungen lesen und Nachrichten schreiben"
+        },
+        "settings": {
+          "title": "Einstellungen",
+          "description": "Einstellungen von holzi und diesem Gerät ansehen und ändern"
+        },
+        "models": {
+          "title": "Modelle",
+          "description": "Installierte Modelle ansehen, laden und löschen"
+        }
+      }
+    },
     "level": {
       "none": "Nichts",
       "read": "Lesen",
@@ -4224,8 +4244,7 @@
     },
     "passwords": {
       "title": "Passwörter",
-      "enabled": "Passwortmanager",
-      "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen unten",
+      "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen, die du darunter wählst",
       "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     },
     "commands": {

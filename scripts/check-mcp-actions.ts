@@ -16,10 +16,15 @@ import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 import { validate } from '../src/lib/actions/schema.ts'
 import { ACTION_SCOPE_IDS } from '../src/lib/actions/scopes.ts'
 import {
+  OPERATE_GROUPS,
+  OPERATE_SCOPES,
+  groupLevel,
   passwordsComplete,
+  rightsCount,
   rightsDraftOf,
   rightsOf,
   siteOf,
+  withGroupLevel,
   type PasswordRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
@@ -233,17 +238,77 @@ test('an incomplete password tag selection revokes access instead of retaining a
   }
 })
 
+test('every scope of "holzi bedienen" is in exactly one row of the rights list', () => {
+  const grouped = OPERATE_GROUPS.flatMap((group) => [...group.scopes])
+  assert.deepEqual([...grouped].sort(), [...OPERATE_SCOPES].sort())
+})
+
+test('a row sets every scope of its topic and shows the widest of them', () => {
+  const chat = OPERATE_GROUPS.find((group) => group.id === 'chat')!
+  const none = rightsDraftOf(null).levels
+  const written = withGroupLevel(none, chat, 'write')
+  assert.equal(written['chat.read'], 'write')
+  assert.equal(written['chat.write'], 'write')
+  assert.equal(written['wm.read'], 'none', 'other topics stay as they are')
+  assert.equal(groupLevel(written, chat), 'write')
+  // Rights from before the rows can differ inside a topic; the row shows what is granted most.
+  const mixed = { ...none, 'chat.read': 'read', 'chat.write': 'write' } as const
+  assert.equal(groupLevel(mixed, chat), 'write')
+  assert.deepEqual(rightsOf({ ...draft({}), levels: written }).operate, {
+    'chat.read': 'write',
+    'chat.write': 'write',
+  })
+  assert.deepEqual(
+    rightsCount({
+      operate: {
+        'chat.read': 'read',
+        'chat.write': 'read',
+        'wm.layout': 'write',
+      },
+    }),
+    { read: 1, write: 1 },
+  )
+})
+
+test('the password row has the levels of every other row (spec 021 US5)', () => {
+  const updates: Array<PasswordRights | null> = []
+  const editor = loadScriptSetup<{
+    setLevel: (level: string) => void
+    draft: { value: GrantDraft }
+  }>('src/components/agents/PasswordRightsFields.vue', ['setLevel', 'draft'], {
+    props: { modelValue: null },
+    imports: { '~/lib/browserBridgeGrant': { draftOf } },
+    emit: (_event, value) => updates.push(value as PasswordRights | null),
+  })
+  editor.setLevel('read')
+  assert.deepEqual(updates.at(-1), { level: 'read', tags: null })
+  editor.setLevel('write')
+  assert.deepEqual(updates.at(-1), { level: 'readWrite', tags: null })
+  editor.props.modelValue = { level: 'read', tags: ['dev', 'shop'] }
+  // The draft follows the stored rights on the next tick; set it as the watcher does.
+  editor.draft.value = draftOf('read', ['dev', 'shop'], null)
+  editor.setLevel('write')
+  assert.deepEqual(updates.at(-1), {
+    level: 'readWrite',
+    tags: ['dev', 'shop'],
+    defaultTag: 'dev',
+  })
+  assert.equal(passwordsComplete(updates.at(-1) ?? null), true)
+  editor.setLevel('none')
+  assert.equal(updates.at(-1), null)
+})
+
 test('the password editor emits restricted drafts and keeps empty tags editable', async () => {
   const updates: Array<PasswordRights | null> = []
   const passwordsOf = (passwords: PasswordRights | null | undefined) =>
     rightsOf(draft({}, { passwords: passwords ?? null })).passwords
   const editor = loadScriptSetup<{
     onDraft: (draft: GrantDraft) => void
-    toggle: (on: boolean) => void
+    setLevel: (level: string) => void
     draft: { value: GrantDraft }
   }>(
     'src/components/agents/PasswordRightsFields.vue',
-    ['onDraft', 'toggle', 'draft'],
+    ['onDraft', 'setLevel', 'draft'],
     {
       props: { modelValue: { level: 'read', tags: null } },
       imports: { '~/lib/browserBridgeGrant': { draftOf } },
@@ -272,7 +337,7 @@ test('the password editor emits restricted drafts and keeps empty tags editable'
   // Removing the last tag revokes the saved grant as well.
   editor.onDraft(draftOf('read', [], null))
   assert.equal(passwordsOf(updates.at(-1)), undefined)
-  editor.toggle(false)
+  editor.setLevel('none')
   assert.equal(updates.at(-1), null)
   // A different agent's actual rights replace the old draft.
   editor.props.modelValue = { level: 'read', tags: ['bank'] }
