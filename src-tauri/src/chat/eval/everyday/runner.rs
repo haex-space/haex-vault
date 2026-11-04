@@ -28,8 +28,8 @@ use crate::chat::tools::offer::{first_offer, found_tools, widen_offer};
 use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::{RiskClass, ToolRegistry};
-use crate::chat::turn::guard::{check_ids, seen_text};
-use crate::chat::turn::{callable, unknown_tool_answer, DENIED_BY_USER, MAX_TOOL_ROUNDS};
+use crate::chat::turn::guard::{seen_text, turn_away};
+use crate::chat::turn::{callable, denied_answer, unknown_tool_answer, MAX_TOOL_ROUNDS};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
 use crate::vault_gate::ChildRegistry;
@@ -279,7 +279,7 @@ pub async fn run_everyday(
                     let refusal = match &tool {
                         None => Some((unknown_tool_answer(&call.name, &offer), false)),
                         Some(tool) => {
-                            check_ids(&call.input, tool.as_ref(), &seen, &registry, &offer)
+                            turn_away(&call.input, tool.as_ref(), &seen, &registry, &offer)
                                 .map(|answer| (answer, tool.risk_class() == RiskClass::Risky))
                         }
                     };
@@ -332,7 +332,7 @@ pub async fn run_everyday(
                 }
                 let answer = if played.ending == CallEnding::Stopped {
                     Answer {
-                        content: DENIED_BY_USER.to_owned(),
+                        content: denied_answer(),
                         is_error: true,
                     }
                 } else if call.name == FIND_ACTIONS_TOOL_NAME {

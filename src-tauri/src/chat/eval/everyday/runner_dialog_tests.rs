@@ -10,13 +10,13 @@ use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
 use crate::chat::tools::availability::ToolAvailability;
 use crate::chat::tools::offer::first_offer;
-use crate::chat::turn::DENIED_BY_USER;
+use crate::chat::turn::denied_answer;
 
 #[tokio::test]
 async fn each_call_ends_as_the_played_dialog_decides() {
-    // Spec 081 US1's independent test: a deletion asked for, a send nobody asked for (the dialog
-    // stops it), a mark of an id no result named and a tool that does not exist (the guard turns
-    // both away before the dialog, US4).
+    // Spec 081 US1's independent test: a deletion asked for, a draft (a change Auto mode lets
+    // through), its send nobody asked for (the dialog stops it), a mark of an id no result named and
+    // a tool that does not exist (the guard turns both away before the dialog, US4).
     let model = Scripted::new(|req| match tool_results(req).len() {
         0 => vec![calls(vec![(
             "x_mail_find_messages",
@@ -28,8 +28,14 @@ async fn each_call_ends_as_the_played_dialog_decides() {
                 json!({ "messages": [{ "id": "msg-bernd-1" }] }),
             ),
             (
+                "x_mail_create_draft",
+                json!({ "account": "acc-private", "body": "b" }),
+            ),
+        ])],
+        3 => vec![calls(vec![
+            (
                 "x_mail_send_mail",
-                json!({ "to": ["bernd@example.org"], "subject": "s", "body": "b" }),
+                json!({ "draftId": "draft-1", "to": ["bernd@example.org"], "subject": "s", "body": "b" }),
             ),
             (
                 "x_mail_mark_messages",
@@ -66,17 +72,18 @@ async fn each_call_ends_as_the_played_dialog_decides() {
         [
             CallEnding::Ran,
             CallEnding::Ran,
+            CallEnding::Ran,
             CallEnding::Stopped,
             CallEnding::TurnedAway,
             CallEnding::TurnedAway
         ]
     );
     assert!(calls.iter().all(|c| c.unasked.is_none()));
-    assert!(calls[1].risky);
+    assert!(calls[1].risky && calls[3].risky);
     // The model reads the app's own answers: the declined send, the made-up id, the unknown tool.
     let seen = model.seen.lock().unwrap();
-    let answers = tool_results(&seen[2]);
-    assert!(answers.contains(&DENIED_BY_USER.to_owned()));
+    let answers = tool_results(&seen[3]);
+    assert!(answers.contains(&denied_answer()));
     assert!(answers
         .iter()
         .any(|a| a.starts_with("turned away") && a.contains("msg-made-up")));

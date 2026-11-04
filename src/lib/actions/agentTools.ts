@@ -144,6 +144,7 @@ export type ActionOutcomeWire =
       code: string
       field?: string
       message: string
+      next?: string
       options?: ChoiceOption[]
     }
 
@@ -158,6 +159,7 @@ export function toOutcomeWire(outcome: ActionOutcome): ActionOutcomeWire {
     code: outcome.code,
     ...(outcome.field === undefined ? {} : { field: outcome.field }),
     message: outcome.message,
+    ...(outcome.next === undefined ? {} : { next: outcome.next }),
     ...(outcome.options === undefined ? {} : { options: outcome.options }),
   }
 }

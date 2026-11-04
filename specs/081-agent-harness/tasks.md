@@ -225,25 +225,32 @@ Each answer names a next step.
 
 ### Tests for User Story 5
 
-- [ ] T027 [P] [US5] Add tests to `chat/turn/guard_tests.rs` for `next_step`:
+- [x] T027 [P] [US5] Add tests to `chat/turn/guard_tests.rs` for `next_step`:
   - A missing required argument names the argument and its schema description.
   - An unknown id names the reading tools.
   - An empty search says to tell the user or to try other words once.
   - An unknown tool names the closest tools.
-- [ ] T028 [P] [US5] Add tests to the existing tests of `src/lib/actions/runner.ts` (or a new `runner.test.ts` next
+- [x] T028 [P] [US5] Add tests to the existing tests of `src/lib/actions/runner.ts` (or a new `runner.test.ts` next
       to it, following the repository's TypeScript test pattern): each `ActionErrorCode` outcome (`unknown_action`,
       `invalid_input` with `field`, `target_required`, `target_not_found`, `app_unavailable`, `failed`) carries a
       closing sentence. `needs_choice` keeps its options unchanged.
 
 ### Implementation for User Story 5
 
-- [ ] T029 [US5] Add `next_step` to `chat/turn/guard.rs`, and append its sentence in `chat/turn/tool_round.rs` to:
+- [x] T029 [US5] Add `next_step` to `chat/turn/guard.rs`, and append its sentence in `chat/turn/tool_round.rs` to:
   - every error answer the harness itself writes (turned away, unknown tool, denied, failed argument check);
   - the empty result of `find_actions` in `chat/tools/find_actions.rs`.
     Messages from the tools themselves are left as they are.
-- [ ] T030 [US5] Add the closing sentence per error code in `src/lib/actions/runner.ts`, beside the `message` of
+  - Done: `next_step(Failure)` in `guard.rs`; the guard also turns away a call that leaves out a top-level
+    `required` argument, naming it with its schema description. `denied_by_user` stays the first word of the
+    declined answer. The empty `find_actions` result already ended with a next step ("Try other keywords once
+    … tell the user"); it is tested, not changed. Plan mode's `blocked_by_plan_mode` is left as it is.
+- [x] T030 [US5] Add the closing sentence per error code in `src/lib/actions/runner.ts`, beside the `message` of
       each failed `ActionOutcome`. Keep the code and the message shape the same for other callers.
-- [ ] T031 [US5] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts` and the TypeScript tests.
+  - Done: an optional `next` beside `message`, carried by `ActionOutcomeWire` and `ActionReply::Err` into the
+    model's error JSON (`error.next`); tests in `scripts/check-action-next-steps.ts` (part of
+    `pnpm check:agent-actions`), the contract in spec 032's `tauri-commands.md`.
+- [x] T031 [US5] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts` and the TypeScript tests.
 - [ ] T032 [US5] Measure the guard step (plan step 2):
   - Run the everyday set for every local model of T018 except Hermes, with routing off.
   - Store the reports under `specs/081-agent-harness/runs/guard/`.

@@ -4,12 +4,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-use super::{check_ids, closest_tools, seen_text, unknown_ids};
+use super::{check_ids, check_required, closest_tools, seen_text, turn_away, unknown_ids};
 use crate::adapters::types::{ChatMessage, ChatRole, ToolSpec};
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
+use crate::chat::tools::find_actions::FindActionsTool;
 use crate::chat::tools::offer::tool_spec;
 use crate::chat::tools::{RiskClass, Tool, ToolOrigin, ToolRegistry, ToolResult};
+use crate::chat::turn::{denied_answer, unknown_tool_answer};
 
 fn action(action_id: &str, effect: &str, schema: Value) -> Arc<dyn Tool> {
     let def: AgentActionDef = serde_json::from_value(json!({
@@ -271,4 +273,123 @@ fn an_unknown_tool_gets_up_to_three_offered_names_by_shared_words() {
         "x_mail_find_messages"
     );
     assert!(closest_tools("calendar_add", &offered).is_empty());
+}
+
+// Spec 081 US5: every answer holzi writes for a failed call ends with what to do next.
+
+fn draft_tool() -> Arc<dyn Tool> {
+    action(
+        "notes.create",
+        "write",
+        json!({
+            "type": "object",
+            "properties": {
+                "title": { "type": "string", "description": "The note's title, a few words." },
+                "body": { "type": "string" }
+            },
+            "required": ["title", "body"]
+        }),
+    )
+}
+
+#[test]
+fn a_missing_required_argument_names_it_and_its_description() {
+    let tool = draft_tool();
+    let answer = check_required(&json!({ "body": "x" }), tool.as_ref()).expect("turned away");
+    assert!(answer.contains("`title`"), "{answer}");
+    assert!(
+        answer.contains("The note's title, a few words."),
+        "{answer}"
+    );
+    // Null is as good as missing; without a description the name is enough.
+    let answer = check_required(&json!({ "title": "t", "body": null }), tool.as_ref()).unwrap();
+    assert!(answer.ends_with("Call it again with `body`."), "{answer}");
+    assert_eq!(
+        check_required(&json!({ "title": "t", "body": "b" }), tool.as_ref()),
+        None
+    );
+}
+
+#[test]
+fn the_guard_names_a_missing_argument_before_an_unknown_id() {
+    let tool = action(
+        "contacts.update",
+        "write",
+        json!({ "type": "object", "required": ["name"] }),
+    );
+    let answer = turn_away(
+        &json!({ "id": "12345" }),
+        tool.as_ref(),
+        "",
+        &ToolRegistry::new(),
+        &[],
+    )
+    .unwrap();
+    assert!(answer.contains("`name`"), "{answer}");
+}
+
+#[test]
+fn an_unknown_id_names_the_reading_tools_and_not_the_user() {
+    let mut registry = ToolRegistry::new();
+    registry.register(delete_mail());
+    registry.register(extension("x_mail_find_messages", RiskClass::Safe));
+    let answer = check_ids(
+        &json!({ "ids": ["12345"] }),
+        delete_mail().as_ref(),
+        "",
+        &registry,
+        &[],
+    )
+    .unwrap();
+    assert!(
+        answer.ends_with(
+            "Find the right one first with x_mail_find_messages; never ask the user for an id."
+        ),
+        "{answer}"
+    );
+}
+
+#[test]
+fn an_unknown_tool_names_the_closest_tools_or_the_search() {
+    let offered = [spec("x_mail_find_messages"), spec("find_actions")];
+    let answer = unknown_tool_answer("x_mail_list_messages", &offered);
+    assert_eq!(
+        answer,
+        "unknown tool: x_mail_list_messages. Call one of the closest offered tools instead: \
+         x_mail_find_messages."
+    );
+    let answer = unknown_tool_answer("calendar_add", &offered);
+    assert!(
+        answer.ends_with("find_actions finds holzi's other actions."),
+        "{answer}"
+    );
+}
+
+#[test]
+fn a_declined_call_keeps_the_marker_and_says_not_to_repeat_it() {
+    let answer = denied_answer();
+    assert!(answer.starts_with("denied_by_user: "), "{answer}");
+    assert!(answer.contains("Do not propose it again"), "{answer}");
+}
+
+#[tokio::test]
+async fn an_empty_search_says_to_try_other_words_once_or_tell_the_user() {
+    let search = FindActionsTool::new(Vec::new());
+    let result = search
+        .execute(
+            json!({ "query": "kalender termin" }),
+            CancellationToken::new(),
+        )
+        .await;
+    assert!(!result.is_error);
+    assert!(
+        result.content.contains("Try other keywords once"),
+        "{}",
+        result.content
+    );
+    assert!(
+        result.content.contains("tell the user"),
+        "{}",
+        result.content
+    );
 }

@@ -1,5 +1,7 @@
 //! Turns away calls holzi can tell are wrong before the permission dialog (spec 081 FR-011, FR-012,
-//! research R6/R7): an id nobody named, and a tool that does not exist. The user is not asked.
+//! research R6/R7): an id nobody named, a required argument left out, and a tool that does not
+//! exist. The user is not asked. Every answer holzi writes for a failed call ends with what to do
+//! next (FR-014).
 
 use serde_json::Value;
 
@@ -143,6 +145,51 @@ fn readers(tool: &dyn Tool, registry: &ToolRegistry, offered: &[ToolSpec]) -> Ve
         .collect()
 }
 
+/// Why holzi did not run a call, for the sentence on what to do next (FR-014, research R7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure<'a> {
+    /// Ids nobody named; the reading tools of the domain find the right ones.
+    UnknownIds { readers: &'a [String] },
+    /// A required argument left out, with its description from the schema.
+    MissingArgument {
+        name: &'a str,
+        description: Option<&'a str>,
+    },
+    /// A tool that does not exist, with the offered tools whose names come closest.
+    UnknownTool { closest: &'a [String] },
+    /// The user declined the call in the dialog.
+    Denied,
+}
+
+/// One sentence on what the model should do after `failure`.
+pub fn next_step(failure: Failure<'_>) -> String {
+    match failure {
+        Failure::UnknownIds { readers: [] } => {
+            "Search for the right one with find_actions first; never ask the user for an id."
+                .to_owned()
+        }
+        Failure::UnknownIds { readers } => format!(
+            "Find the right one first with {}; never ask the user for an id.",
+            readers.join(" or ")
+        ),
+        Failure::MissingArgument {
+            name,
+            description: Some(description),
+        } => format!("Call it again with `{name}`: {description}"),
+        Failure::MissingArgument { name, .. } => format!("Call it again with `{name}`."),
+        Failure::UnknownTool { closest: [] } => {
+            "Call only the offered tools; find_actions finds holzi's other actions.".to_owned()
+        }
+        Failure::UnknownTool { closest } => format!(
+            "Call one of the closest offered tools instead: {}.",
+            closest.join(", ")
+        ),
+        Failure::Denied => "Do not propose it again: answer with what you have, or ask the user \
+                            how to go on."
+            .to_owned(),
+    }
+}
+
 /// The answer to a call of `tool` with ids nobody named, or `None` when every id is known.
 pub fn check_ids(
     input: &Value,
@@ -156,15 +203,41 @@ pub fn check_ids(
         return None;
     }
     let readers = readers(tool, registry, offered);
-    let find = if readers.is_empty() {
-        "Search for the right one with find_actions first.".to_owned()
-    } else {
-        format!("Find the right one first with {}.", readers.join(" or "))
-    };
     Some(format!(
-        "turned away: no earlier result and nothing the user said names the id {}. {find}",
-        unknown.join(", ")
+        "turned away: no earlier result and nothing the user said names the id {}. {}",
+        unknown.join(", "),
+        next_step(Failure::UnknownIds { readers: &readers })
     ))
+}
+
+/// The answer to a call of `tool` that leaves out a required argument (a top-level `required`
+/// property that is absent or null), or `None`.
+pub fn check_required(input: &Value, tool: &dyn Tool) -> Option<String> {
+    let schema = tool.input_schema();
+    let missing = schema["required"]
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .find(|name| input.get(*name).is_none_or(Value::is_null))?;
+    let description = schema["properties"][missing]["description"].as_str();
+    Some(format!(
+        "turned away: the required argument `{missing}` is missing. {}",
+        next_step(Failure::MissingArgument {
+            name: missing,
+            description,
+        })
+    ))
+}
+
+/// The guard before the dialog: the answer to a call holzi turns away, or `None` to go on.
+pub fn turn_away(
+    input: &Value,
+    tool: &dyn Tool,
+    seen: &str,
+    registry: &ToolRegistry,
+    offered: &[ToolSpec],
+) -> Option<String> {
+    check_required(input, tool).or_else(|| check_ids(input, tool, seen, registry, offered))
 }
 
 /// Up to three offered tools whose names share the most words with `name`, best first.

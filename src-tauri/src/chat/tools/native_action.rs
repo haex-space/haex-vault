@@ -263,6 +263,7 @@ impl Tool for NativeActionTool {
                 &error.code,
                 error.field.as_deref(),
                 &error.message,
+                None,
             )),
         }
     }

@@ -164,7 +164,13 @@ fn into_tool_result(reply: ActionReply, input: &Value) -> ToolResult {
             code,
             field,
             message,
-        } => ToolResult::error(error_content(&code, field.as_deref(), &message)),
+            next,
+        } => ToolResult::error(error_content(
+            &code,
+            field.as_deref(),
+            &message,
+            next.as_deref(),
+        )),
         // The tool round asks the user; the JSON is what a caller without a chat would see.
         ActionReply::NeedsChoice {
             field,
@@ -197,10 +203,18 @@ fn into_tool_result(reply: ActionReply, input: &Value) -> ToolResult {
 }
 
 /// What the model sees of a failed action: `{"error": {code, message, field?}}`.
-pub(super) fn error_content(code: &str, field: Option<&str>, message: &str) -> String {
+pub(super) fn error_content(
+    code: &str,
+    field: Option<&str>,
+    message: &str,
+    next: Option<&str>,
+) -> String {
     let mut error = json!({ "code": code, "message": message });
     if let Some(field) = field {
         error["field"] = Value::String(field.to_owned());
+    }
+    if let Some(next) = next {
+        error["next"] = Value::String(next.to_owned());
     }
     json!({ "error": error }).to_string()
 }

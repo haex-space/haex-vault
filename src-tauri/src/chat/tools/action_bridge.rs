@@ -42,6 +42,8 @@ pub enum ActionReply {
         code: String,
         field: Option<String>,
         message: String,
+        /// What the model should do next, as the runner words it (spec 081 FR-014).
+        next: Option<String>,
     },
     /// The action could not resolve `field` and offers candidates (`needs_choice`, spec 046).
     NeedsChoice {
@@ -58,12 +60,13 @@ impl ActionReply {
             code: code.to_owned(),
             field: None,
             message: message.to_owned(),
+            next: None,
         }
     }
 }
 
 /// The answer as it travels over the command (contracts/tauri-commands.md
-/// `ActionOutcomeWire`): `{ ok: true, result }` or `{ ok: false, code, field?, message }`.
+/// `ActionOutcomeWire`): `{ ok: true, result }` or `{ ok: false, code, field?, message, next? }`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionOutcomeWire {
@@ -76,6 +79,9 @@ pub struct ActionOutcomeWire {
     pub field: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
+    /// The runner's sentence on what to do next (spec 081 FR-014).
+    #[serde(default)]
+    pub next: Option<String>,
     /// The candidates of `needs_choice`.
     #[serde(default)]
     pub options: Option<Vec<ChoiceOption>>,
@@ -111,6 +117,7 @@ impl From<ActionOutcomeWire> for ActionReply {
             code,
             field: wire.field,
             message,
+            next: wire.next,
         }
     }
 }

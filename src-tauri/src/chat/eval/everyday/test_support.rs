@@ -13,7 +13,7 @@ use crate::adapters::types::{ChatRequest, ChatRole};
 use crate::chat::eval::embedded_tools;
 use crate::chat::tools::permission::{decide, Decision, PermissionMode};
 use crate::chat::tools::RiskClass;
-use crate::chat::turn::DENIED_BY_USER;
+use crate::chat::turn::denied_answer;
 
 pub(super) fn request(expect: Value) -> Request {
     request_in("de", expect)
@@ -68,7 +68,7 @@ pub(super) fn dialog(request: &Request, trace: &Trace, effects: &HashMap<String,
         call.risky = risk == RiskClass::Risky;
         if played.ending == CallEnding::Stopped {
             call.result = Some(Answer {
-                content: DENIED_BY_USER.to_owned(),
+                content: denied_answer(),
                 is_error: true,
             });
         }

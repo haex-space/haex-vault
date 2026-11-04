@@ -13,24 +13,29 @@ use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::permission;
 use crate::chat::tools::{ApprovalDecision, Tool};
 
-use super::guard::{check_ids, closest_tools, seen_text};
+use super::guard::{closest_tools, next_step, seen_text, turn_away, Failure};
 use super::TurnRunner;
 
 /// The answer to a call the user declined in the dialog; a fixed marker the frontend translates.
 pub const DENIED_BY_USER: &str = "denied_by_user";
 
+/// The answer to a call the user declined: the marker first, then what to do next (spec 081
+/// FR-014).
+pub fn denied_answer() -> String {
+    format!(
+        "{DENIED_BY_USER}: the user declined this call. {}",
+        next_step(Failure::Denied)
+    )
+}
+
 /// The answer to a call of a tool that is not [`callable`], with the offered tools whose names come
 /// closest (spec 081 FR-012).
 pub fn unknown_tool_answer(name: &str, offered: &[ToolSpec]) -> String {
     let closest = closest_tools(name, offered);
-    if closest.is_empty() {
-        format!("unknown tool: {name}")
-    } else {
-        format!(
-            "unknown tool: {name}. The closest offered tools are {}.",
-            closest.join(", ")
-        )
-    }
+    format!(
+        "unknown tool: {name}. {}",
+        next_step(Failure::UnknownTool { closest: &closest })
+    )
 }
 
 /// Whether a registered `tool` may run for a call in a step that offered `offered`. The registry is
@@ -84,7 +89,7 @@ impl TurnRunner<'_> {
                     .get(&call.name)
                     .filter(|tool| callable(tool.as_ref(), &self.request.tools));
                 let turned_away = tool.as_ref().and_then(|tool| {
-                    check_ids(
+                    turn_away(
                         &call.input,
                         tool.as_ref(),
                         &seen,

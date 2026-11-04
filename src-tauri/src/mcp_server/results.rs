@@ -79,6 +79,7 @@ pub fn into_result(reply: ActionReply) -> (CallToolResult, Outcome) {
             code,
             field,
             message,
+            ..
         } => match code.as_str() {
             // The runner refused the caller: the same answer as missing rights.
             "forbidden_for_agents" | "unknown_action" => (not_allowed(), Outcome::DeniedRights),

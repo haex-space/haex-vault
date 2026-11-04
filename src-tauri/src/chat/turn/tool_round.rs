@@ -25,7 +25,7 @@ use super::images;
 use super::persist::{
     empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
 };
-use super::plan_calls::{ToolPlan, DENIED_BY_USER};
+use super::plan_calls::{denied_answer, ToolPlan};
 use super::step::StepResult;
 use super::TurnRunner;
 
@@ -179,7 +179,7 @@ impl TurnRunner<'_> {
                             }
                             Ok(ApprovalDecision::Deny) => {
                                 let source = CallSource::of(tool.as_ref());
-                                (call, ToolExecResult::error(DENIED_BY_USER), source)
+                                (call, ToolExecResult::error(denied_answer()), source)
                             }
                             Err(_) => {
                                 let mut pending = chat_state

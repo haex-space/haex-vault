@@ -35,14 +35,16 @@ Antwort des Frontends auf `action-call-request`.
 ```text
 args:   { requestId: Uuid, outcome: ActionOutcomeWire }
         ActionOutcomeWire = { ok: true, result: any }
-                          | { ok: false, code: string, field?: string, message: string }
+                          | { ok: false, code: string, field?: string, message: string, next?: string }
 result: ()
 errors: nie für eine unbekannte oder späte requestId (stilles Nichts)
 ```
 
-Das Frontend sendet nur `code`, `field` und `message` des Runners. Das Feld
+Das Frontend sendet nur `code`, `field`, `message` und `next` des Runners. Das Feld
 `error` (roher Fehler) wird nicht übertragen (FR-006). Bei `code == "failed"`
-ersetzt Rust die `message` durch den festen Text `"The action failed."`.
+ersetzt Rust die `message` durch den festen Text `"The action failed."`. `next` ist ein Satz,
+was das Modell als Nächstes tun soll (Spec 081 FR-014); Rust gibt ihn im Fehler-JSON als
+`error.next` weiter.
 
 ## Ereignisse (Rust → Frontend)
 
