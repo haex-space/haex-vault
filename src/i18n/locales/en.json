@@ -1349,7 +1349,7 @@
       "createFolder": "Create folder",
       "createFolderAndSave": "Create folder and save",
       "warnings": {
-        "nestedFolder": "Saved. Note: another cloud storage of this connection lies in this folder, or the other way round."
+        "nestedFolder": "Note: another cloud storage of this connection lies in this folder, or the other way round."
       },
       "authMethods": {
         "password": "Password",
