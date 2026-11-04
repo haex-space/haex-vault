@@ -73,8 +73,7 @@ after a listening comparison of nine variants.)
   without llama.cpp (070 FR-005) offers Pocket TTS only.
 - [`010-stt-model-choice`](../010-stt-model-choice/spec.md): the choice of speech model follows the same
   pattern as the choice of speech recognition model: size, fit for the device, download on demand.
-- [`080-prompt-cache`](../080-prompt-cache/spec.md) and
-  [`079-mtp-speculative`](../079-mtp-speculative/spec.md) (parked, PR #807): both make the local chat model
+- [`080-prompt-cache`](../080-prompt-cache/spec.md) and 079 (parked, PR #807): both make the local chat model
   answer faster and both change how much graphics memory it holds. 080 keeps the model's reading in memory
   between answers and counts it in the memory planner (080 FR-008); 079 adds a drafter that only runs when it
   fits next to the model. Qwen3-TTS is a third occupant of the same graphics card. There MUST be one memory
