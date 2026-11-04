@@ -745,8 +745,11 @@ impl HfClient {
             // are bert, gpt2 and the like, which would leave nothing of a page of ten.
             query_pairs.append_pair("filter", "gguf");
             if query.is_none() {
-                // The query-less list is the chat-model discovery view.
-                query_pairs.append_pair("pipeline_tag", "text-generation");
+                // The query-less list is the chat-model discovery view. The Hub tags every repo
+                // with a chat template `conversational`; `pipeline_tag=text-generation` would
+                // drop the multimodal chat models (Gemma 4, Qwen3.8: `image-text-to-text`),
+                // which are most of the top GGUF chat downloads. Several `filter`s must all hold.
+                query_pairs.append_pair("filter", "conversational");
             }
             if let Some(cursor) = cursor {
                 query_pairs.append_pair("cursor", cursor);

@@ -332,7 +332,7 @@ async fn search_asks_the_hub_for_gguf_and_for_chat_models_only_without_a_query()
     Mock::given(method("GET"))
         .and(path("/api/models"))
         .and(query_param("filter", "gguf"))
-        .and(query_param("pipeline_tag", "text-generation"))
+        .and(query_param("filter", "conversational"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(serde_json::json!([model_json(
                 "owner/top",
@@ -363,7 +363,7 @@ async fn search_asks_the_hub_for_gguf_and_for_chat_models_only_without_a_query()
     assert!(!requests[1]
         .url
         .query_pairs()
-        .any(|(key, _)| key == "pipeline_tag"));
+        .any(|(key, value)| key == "filter" && value == "conversational"));
 }
 
 #[tokio::test]
@@ -409,4 +409,32 @@ async fn search_hands_out_the_next_cursor_and_sends_it_back() {
         .expect("page 2");
     assert_eq!(second.results[0].repo_id, "owner/second");
     assert_eq!(second.next_cursor, None);
+}
+
+#[tokio::test]
+async fn search_ends_the_list_without_a_next_link() {
+    for link in [
+        "<https://huggingface.co/api/models?cursor=old>; rel=\"prev\"",
+        "not a link header",
+        "<not a url>; rel=\"next\"",
+    ] {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("link", link)
+                    .set_body_json(serde_json::json!([model_json(
+                        "owner/only",
+                        &"a".repeat(40),
+                        &["model.gguf"]
+                    )])),
+            )
+            .mount(&server)
+            .await;
+        let hf = HfClient::new(server.uri()).expect("client");
+        let page = search_models(&hf, None, None, None).await.expect("page");
+        assert_eq!(page.results.len(), 1);
+        assert_eq!(page.next_cursor, None, "{link}");
+    }
 }
