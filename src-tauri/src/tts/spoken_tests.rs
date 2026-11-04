@@ -2,7 +2,7 @@
 //! units, ranges, ordinals and abbreviations as words of the voice's language.
 
 use super::spoken::spoken;
-use crate::assistant::speakable::cardinal;
+use crate::assistant::number_words::cardinal;
 
 fn check(language: &str, cases: &[(&str, &str)]) {
     for (written, said) in cases {

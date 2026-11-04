@@ -1,9 +1,9 @@
 //! Spec 066 T053: spoken answers carry no formatting, point to the chat for tables, code and links,
 //! say dates and times as words and are cut when long.
 
-use super::speakable::{
-    cardinal, day_phrase, speak_all, time_phrase, Civil, Clock, Speakable, Speech,
-};
+use super::calendar_words::{day_phrase, time_phrase};
+use super::number_words::cardinal;
+use super::speakable::{speak_all, Civil, Clock, Speakable, Speech};
 
 /// Wednesday, 28 October 2026, 15:00, one hour ahead of UTC.
 fn clock() -> Clock {
