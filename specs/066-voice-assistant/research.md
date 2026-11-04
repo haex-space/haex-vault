@@ -592,3 +592,19 @@ Modell auswerten (SC-009).
   nicht“ statt „wird nicht synchronisiert“.
 - **FR-011**: Tastenkürzel lassen sich heute noch nicht umbelegen; die Spec nennt eine
   Standardbelegung, die mit der späteren Kürzel-Spec umbelegbar wird.
+
+## R23 — Text front end and other speech models (2026-11-04)
+
+**Decision**: haex writes numbers, times, dates, amounts, units and abbreviations out itself
+(FR-022b, `tts::spoken`), between the text and the speech model, so it holds for every chat model.
+Pocket TTS has no text front end; complete TTS systems put such a step before their model (Piper
+uses espeak-ng). None of the free models compared below documents German text normalization, so
+the step stays necessary whichever model haex uses.
+
+**Other models (research 2026-11-04, not listened to)**: Pocket TTS itself was retrained for
+German in Kyutai's releases v3.3.0 and v4.0.0 (Sept/Oct 2026); haex's German export is probably
+the April one, so a new export is the cheapest gain. Qwen3-TTS (Apache-2.0, all six languages,
+cloning from about 3 s, llama.cpp support) sounds best but runs only about real time on a CPU.
+Supertonic 3 (sherpa-onnx, fast) has OpenRAIL-M weights and no open cloning. Piper's code is
+GPL-3.0 and sherpa-onnx 2.x has no phonemizer for it. F5-TTS, XTTS-v2 and others are
+non-commercial. Proper names stay hard for every model; a pronunciation list is the usual answer.
