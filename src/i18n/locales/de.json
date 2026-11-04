@@ -551,11 +551,9 @@
       "enterCodePrompt": "Gib diesen Code auf der Seite ein:",
       "codeInputLabel": "Autorisierungscode",
       "submitCode": "Code einreichen",
-      "success": "Verbunden.",
       "error": "Verbindung fehlgeschlagen",
       "refreshModels": "Modelle aktualisieren",
       "refreshing": "Wird aktualisiert…",
-      "refreshed": "Modelle aktualisiert.",
       "refreshFailed": "Modelle konnten nicht aktualisiert werden"
     },
     "autonomyMode": {
@@ -1073,7 +1071,6 @@
           }
         },
         "test": {
-          "ok": "Erreichbar, {count} Erweiterungen.",
           "failed": "Nicht nutzbar: {cause}"
         },
         "testError": {
@@ -1352,7 +1349,7 @@
       "createFolder": "Ordner anlegen",
       "createFolderAndSave": "Ordner anlegen und speichern",
       "warnings": {
-        "nestedFolder": "Gespeichert. Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
+        "nestedFolder": "Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
       },
       "authMethods": {
         "password": "Passwort",
@@ -1627,7 +1624,8 @@
       "placeholder": "z. B. llama gguf",
       "submit": "Suchen",
       "loading": "Suche läuft …",
-      "top": "Top 10 der meistgeladenen Modelle",
+      "top": "Meistgeladene Modelle",
+      "more": "Mehr laden",
       "empty": "Keine Treffer.",
       "tooShort": "Bitte mindestens 2 Zeichen eingeben.",
       "error": "Suche fehlgeschlagen.",
@@ -1950,6 +1948,11 @@
       "peer": {
         "send": "Nachricht an Kontakt senden",
         "resend": "Nachricht erneut senden"
+      },
+      "request": {
+        "accept": "Anfrage annehmen",
+        "decline": "Anfrage ablehnen",
+        "block": "Absender einer Anfrage blockieren"
       }
     },
     "settings": {
@@ -1961,7 +1964,10 @@
         "downloadCatalog": "Modell aus dem Katalog herunterladen",
         "downloadFromHf": "Modell von HuggingFace herunterladen",
         "installUpdate": "Modell-Update installieren",
-        "delete": "Modell löschen"
+        "delete": "Modell löschen",
+        "cancelDownload": "Modell-Download abbrechen",
+        "activate": "Modell aktivieren",
+        "deactivate": "Modell deaktivieren"
       },
       "device": {
         "setAlias": "Gerätename ändern"
@@ -1977,7 +1983,8 @@
       },
       "agents": {
         "files": {
-          "set": "Dateirechte eines Agents setzen"
+          "set": "Dateirechte eines Agents setzen",
+          "remove": "Dateirecht eines Agents entfernen"
         },
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
@@ -3355,7 +3362,6 @@
         "lineError": "Zeile {line} wird übersprungen: {text}",
         "ignoredNow": "Die Ausnahmen lassen gerade nichts aus. | Die Ausnahmen lassen gerade eine Datei oder einen Ordner aus. | Die Ausnahmen lassen gerade {count} Dateien und Ordner aus.",
         "fixed": "Feste Ausnahmen",
-        "saved": "Gespeichert. Die Regel gleicht gleich damit ab.",
         "save": "Speichern"
       },
       "log": {

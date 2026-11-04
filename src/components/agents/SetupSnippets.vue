@@ -3,6 +3,7 @@
  * The setup snippets of one way to reach holzi (spec 021 FR-005, T095): one row per client with a
  * copy button. Shown only when the snippets are loaded.
  */
+import { toast } from 'vue-sonner'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
 
 const props = defineProps<{
@@ -14,7 +15,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const copied = ref<SnippetClient | null>(null)
+const { errString } = useErrorString()
 const clients = computed(() => Object.keys(props.snippets) as SnippetClient[])
 const prefix = computed(() =>
   props.way ? `mcp-copy-${props.way}-` : 'mcp-copy-',
@@ -25,9 +26,9 @@ async function copyAsync(client: SnippetClient) {
   if (!text) return
   try {
     await navigator.clipboard.writeText(text)
-    copied.value = client
-  } catch {
-    copied.value = null
+    toast.success(t('mcpAgents.setup.copied'))
+  } catch (error) {
+    toast.error(errString(error))
   }
 }
 </script>
@@ -54,11 +55,7 @@ async function copyAsync(client: SnippetClient) {
         :data-testid="`${prefix}${client}`"
         @click="copyAsync(client)"
       >
-        {{
-          copied === client
-            ? t('mcpAgents.setup.copied')
-            : t('mcpAgents.setup.copy')
-        }}
+        {{ t('mcpAgents.setup.copy') }}
       </UiButton>
     </SettingsRow>
   </SettingsGroup>

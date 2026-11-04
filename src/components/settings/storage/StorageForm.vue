@@ -40,7 +40,6 @@ const missing = computed(
 
 const draft = reactive({ name: '', bucket: '' })
 const busy = ref(false)
-const tested = ref<string | null>(null)
 /** The last save or test found the folder missing (WebDAV, SFTP; FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => parent.value?.protocol !== 's3')
@@ -69,10 +68,10 @@ async function saveAsync(createFolder = false) {
   }
   try {
     const saved = await invoke<StorageView>('storage_save', { input })
+    // Saved; the list is the confirmation. A warning (spec 050 FR-003) is a toast like every
+    // other message of an action.
     if (saved.warning) {
-      // Saved; the warning stays until the user leaves (FR-003).
-      tested.value = t(`settings.storage.warnings.${saved.warning}`)
-      return
+      toast.warning(t(`settings.storage.warnings.${saved.warning}`))
     }
     router.back()
   } catch (error) {
@@ -111,7 +110,7 @@ function show(result: TestResult) {
   const message = result.leftoverKey
     ? `${text}. ${t('settings.storage.leftover', { key: result.leftoverKey })}`
     : text
-  if (result.outcome === 'passed') tested.value = message
+  if (result.outcome === 'passed') toast.success(message)
   else toast.error(message)
   folderMissing.value = tree.value && result.outcome === 'folderMissing'
   changedKey.value =
@@ -138,7 +137,6 @@ async function acceptHostKeyAsync() {
 async function testAsync() {
   if (busy.value || isNew.value) return
   busy.value = true
-  tested.value = null
   try {
     show(
       await invoke<TestResult>('storage_test', {
@@ -199,14 +197,6 @@ async function testAsync() {
         </li>
       </SettingsGroup>
 
-      <p
-        v-if="tested"
-        class="px-1 text-sm text-muted-foreground"
-        role="status"
-        data-testid="storage-test-passed"
-      >
-        {{ tested }}
-      </p>
       <HostKeyConfirm
         v-if="changedKey"
         :shown="changedKey"

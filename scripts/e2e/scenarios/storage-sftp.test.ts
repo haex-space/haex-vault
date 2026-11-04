@@ -4,6 +4,7 @@ import { unwrap } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
 import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import { prepareSftp } from '../lib/sftp.ts'
+import { successToasts } from '../lib/toasts.ts'
 
 const FOLDER = 'Ablage'
 
@@ -111,7 +112,11 @@ scenario(
       sftp.fingerprint,
     )
     await laptop.click('storage-host-key-confirm')
-    await laptop.waitForDisplayed('storage-test-passed', 30_000)
+    await ctx.waitFor(
+      'the test to pass with the new key',
+      async () => (await successToasts(laptop)).length > 0,
+      { timeoutMs: 30_000 },
+    )
     ctx.step('a changed host key is named with both fingerprints and taken')
 
     const storageId = saved.storages[0]!.id

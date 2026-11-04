@@ -309,7 +309,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
         reason: format!("the speech model for {language} is not downloaded"),
     })?;
     let engine: Arc<dyn Engine> = voice_state
-        .speech_model(&entry.id, dir, &ports.gate)
+        .speech_model(&entry.id, &entry.language, dir, &ports.gate)
         .await?;
     // An own voice (spec 066 FR-049) speaks while it is in the vault; otherwise the built-in
     // default of the language.

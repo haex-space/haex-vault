@@ -158,8 +158,8 @@ async function saveAsync() {
   }
 }
 
-/** Tries the address; a marketplace that answers is saved at once, one that does not is shown
- * with its cause and can still be saved. */
+/** Tries the address; a marketplace that answers is saved at once, one that does not shows its
+ * cause as a toast and can still be saved. */
 async function testAndSaveAsync() {
   if (!complete.value || busy.value) return
   busy.value = true
@@ -174,7 +174,18 @@ async function testAndSaveAsync() {
     return
   }
   busy.value = false
-  if (result.value.ok) await saveAsync()
+  if (result.value.ok) {
+    await saveAsync()
+    return
+  }
+  // A marketplace that does not answer is a toast with its cause; "save anyway" stays.
+  toast.error(
+    t('settings.extensions.marketplaces.test.failed', {
+      cause: t(
+        `settings.extensions.marketplaces.testError.${result.value.error}`,
+      ),
+    }),
+  )
 }
 
 // action-exempt: marketplace sources affect extension-install trust; only the user-confirmed form may remove one.
@@ -348,28 +359,6 @@ async function deleteAsync() {
         label-key="settings.extensions.marketplaces.form.login.entryLabel"
         hint-key="settings.extensions.marketplaces.form.login.onlyFitting"
       />
-
-      <p
-        v-if="result"
-        :class="[
-          'rounded-xl px-4 py-3 text-sm',
-          result.ok ? 'bg-muted' : 'bg-destructive/10 text-destructive',
-        ]"
-        role="status"
-        data-testid="settings-marketplace-test-result"
-      >
-        {{
-          result.ok
-            ? t('settings.extensions.marketplaces.test.ok', {
-                count: result.count ?? 0,
-              })
-            : t('settings.extensions.marketplaces.test.failed', {
-                cause: t(
-                  `settings.extensions.marketplaces.testError.${result.error}`,
-                ),
-              })
-        }}
-      </p>
 
       <div class="flex flex-wrap justify-end gap-2">
         <UiButton

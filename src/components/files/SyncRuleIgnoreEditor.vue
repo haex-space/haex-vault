@@ -23,7 +23,6 @@ const shown = ref<SyncRuleIgnore | null>(null)
 const content = ref('')
 const loading = ref(false)
 const saving = ref(false)
-const saved = ref(false)
 
 function showError(cause: unknown) {
   const code = asSyncRuleError(cause)?.code
@@ -42,7 +41,6 @@ watch(open, async (isOpen) => {
   if (!isOpen || !view) return
   shown.value = null
   content.value = ''
-  saved.value = false
   loading.value = true
   try {
     take(await ignoreGetAsync(view.rule.id))
@@ -53,17 +51,14 @@ watch(open, async (isOpen) => {
   }
 })
 
-watch(content, () => {
-  saved.value = false
-})
-
 async function saveAsync() {
   const view = props.view
   if (!view || saving.value || !shown.value?.writable) return
   saving.value = true
   try {
     take(await ignoreSetAsync(view.rule.id, content.value))
-    saved.value = true
+    // Saved: the editor closes, which is the confirmation; the rule syncs with it right away.
+    open.value = false
   } catch (cause) {
     showError(cause)
   } finally {
@@ -150,13 +145,6 @@ async function saveAsync() {
             </ul>
           </div>
         </template>
-        <p
-          v-if="saved"
-          class="text-xs text-muted-foreground"
-          data-testid="files-sync-rule-ignore-saved"
-        >
-          {{ t('files.syncRules.ignore.saved') }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton type="button" variant="outline" @click="open = false">{{
             t('files.cancel')

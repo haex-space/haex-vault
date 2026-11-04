@@ -39,17 +39,9 @@ const codeInput = reactive<Record<DelegateVendor, string>>({
   claude: '',
   codex: '',
 })
-const successFlash = reactive<Record<DelegateVendor, boolean>>({
-  claude: false,
-  codex: false,
-})
 // "Refresh models" (spec 012 FR-022): re-fetches a connected provider's
 // models and their capabilities without a new sign-in.
 const refreshing = reactive<Record<DelegateVendor, boolean>>({
-  claude: false,
-  codex: false,
-})
-const refreshed = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
 })
@@ -88,8 +80,6 @@ function resetVendorState(vendor: DelegateVendor) {
   progressUrl[vendor] = null
   progressCode[vendor] = null
   codeInput[vendor] = ''
-  successFlash[vendor] = false
-  refreshed[vendor] = false
 }
 
 /**
@@ -101,11 +91,9 @@ function resetVendorState(vendor: DelegateVendor) {
 async function onRefreshModels(vendor: DelegateVendor) {
   const provider = connectedProvider(vendor)
   if (!provider) return
-  refreshed[vendor] = false
   refreshing[vendor] = true
   try {
     await refreshModels({ providerId: provider.id })
-    refreshed[vendor] = true
   } catch (e) {
     toast.error(`${t('settings.cliDelegate.refreshFailed')}: ${errString(e)}`)
   } finally {
@@ -124,7 +112,6 @@ async function onConnect(vendor: DelegateVendor) {
       awaitingCode[vendor] = true
     } else {
       await reloadAsync()
-      successFlash[vendor] = true
       connecting[vendor] = false
     }
   } catch (e) {
@@ -139,7 +126,6 @@ async function onSubmitCode(vendor: DelegateVendor) {
     await submitCode({ code: codeInput[vendor], name: vendorLabel(vendor) })
     await reloadAsync()
     awaitingCode[vendor] = false
-    successFlash[vendor] = true
     connecting[vendor] = false
   } catch (e) {
     // The backend keeps the flow open on failure (a rejected code commonly
@@ -165,7 +151,6 @@ onMounted(async () => {
       awaitingCode[event.vendor] = false
       connecting[event.vendor] = false
       await reloadAsync()
-      successFlash[event.vendor] = true
     } else if (event.status === 'error') {
       awaitingCode[event.vendor] = false
       if (event.message) connectFailed(event.message)
@@ -180,14 +165,10 @@ onBeforeUnmount(() => {
   unlisten?.()
 })
 
-/** Whether the row shows anything under its name: a running connect or a status line. */
+/** Whether the row shows anything under its name: a running connect. The new state is the
+ * confirmation of a connect or a refresh; there is no success line. */
 function hasDetails(vendor: DelegateVendor): boolean {
-  return Boolean(
-    awaitingCode[vendor] ||
-    connecting[vendor] ||
-    successFlash[vendor] ||
-    refreshed[vendor],
-  )
+  return Boolean(awaitingCode[vendor] || connecting[vendor])
 }
 </script>
 
@@ -293,20 +274,6 @@ function hasDetails(vendor: DelegateVendor): boolean {
                 </p>
               </template>
             </div>
-            <span
-              v-if="successFlash[vendor]"
-              class="text-xs text-success"
-              role="status"
-            >
-              {{ t('settings.cliDelegate.success') }}
-            </span>
-            <span
-              v-if="refreshed[vendor]"
-              class="text-xs text-success"
-              role="status"
-            >
-              {{ t('settings.cliDelegate.refreshed') }}
-            </span>
           </div>
         </template>
       </SettingsRow>

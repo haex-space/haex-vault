@@ -295,7 +295,7 @@ fn pocket_speaks_and_follows_the_rate() {
         samples: wave.samples().to_vec(),
         sample_rate: u32::try_from(wave.sample_rate()).expect("rate"),
     };
-    let model = PocketModel::load(&dir).expect("model loads");
+    let model = PocketModel::load(&dir, "de").expect("model loads");
     assert_eq!(model.sample_rate(), 24_000);
     let text = "Du hast morgen um halb zehn einen Termin beim Zahnarzt.";
     let seconds = |rate: f32| -> f64 {
