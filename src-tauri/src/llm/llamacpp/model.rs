@@ -213,7 +213,7 @@ fn placement_for(path: &Path, options: &LoadOptions) -> Result<Placement, LoadEr
     let file_bytes = std::fs::metadata(path)
         .map_err(|e| LoadError::Header(e.to_string()))?
         .len();
-    let Some(mut shape) = ModelShape::from_header(&summary, file_bytes) else {
+    let Some(shape) = ModelShape::from_header(&summary, file_bytes) else {
         // A file without a layer count cannot be sized; load it as asked and leave the rest to ggml.
         return Ok(Placement {
             gpu_layers: options.gpu_layers.unwrap_or(ALL_LAYERS),
@@ -222,9 +222,11 @@ fn placement_for(path: &Path, options: &LoadOptions) -> Result<Placement, LoadEr
         });
     };
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
+    let shape = {
+        let mut shape = shape;
         shape.drafter = options.drafter.as_deref().and_then(drafter_shape);
-    }
+        shape
+    };
     let mut placed = plan(&shape, free_memory(), options.context_window)?;
     if let Some(layers) = options.gpu_layers {
         // Whoever forces the layers decides about the drafter too, as the evaluation of a partly placed
