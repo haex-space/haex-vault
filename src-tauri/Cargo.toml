@@ -32,7 +32,7 @@ tauri-build = { version = "2.3.0", features = [] }
 # box. Set `--no-default-features` to skip the engines, candle and cpal entirely
 # while iterating on unrelated code. iOS builds `--no-default-features --features llm-cpu,voice`
 # until llama.cpp builds there (spec 070 T037).
-default = ["llm-llamacpp", "voice"]
+default = ["llm-llamacpp", "voice", "voice-qwen"]
 
 # Local inference via mistralrs 0.8.x (in-process, per plan §"Lokale Inferenz").
 # Also gates the local Whisper STT adapter (spec 008): it shares the same
@@ -79,6 +79,9 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
 voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
+# Spec 081: Qwen3-TTS as a second local speech model, run through llama.cpp's audio generation helper
+# (`mtmd`, research R1). It needs the llama.cpp engine and the voice pipeline.
+voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]
 # Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
 # using the sound card, so e2e scenarios can speak to it. Never part of a release build.
 e2e-audio = ["voice"]

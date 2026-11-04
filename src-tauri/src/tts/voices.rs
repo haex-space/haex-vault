@@ -223,16 +223,17 @@ impl Chosen {
         }
     }
 
-    /// The reference Pocket imitates.
+    /// The reference the speech model imitates.
     #[cfg(feature = "voice")]
     pub fn reference(&self) -> Result<super::local::Reference, TtsError> {
         match self {
             Self::Builtin(voice) => reference(voice),
-            Self::Own { wav, .. } => {
+            Self::Own { wav, language, .. } => {
                 let pcm = decode_wav(wav)?;
                 Ok(super::local::Reference {
                     samples: pcm.samples,
                     sample_rate: pcm.sample_rate,
+                    language: language.clone(),
                 })
             }
         }
@@ -349,7 +350,7 @@ pub fn decode_wav(bytes: &[u8]) -> Result<Pcm, TtsError> {
     })
 }
 
-/// The reference Pocket imitates for `voice`.
+/// The reference the speech model imitates for `voice`.
 #[cfg(feature = "voice")]
 pub fn reference(voice: &BuiltinVoice) -> Result<super::local::Reference, TtsError> {
     let bytes = audio(voice).ok_or_else(|| TtsError::Failed {
@@ -359,5 +360,6 @@ pub fn reference(voice: &BuiltinVoice) -> Result<super::local::Reference, TtsErr
     Ok(super::local::Reference {
         samples: pcm.samples,
         sample_rate: pcm.sample_rate,
+        language: voice.language.clone(),
     })
 }

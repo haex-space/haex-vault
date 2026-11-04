@@ -56,6 +56,7 @@ fn reference() -> Reference {
     Reference {
         samples: vec![0.0; RATE as usize],
         sample_rate: RATE,
+        language: "de".to_owned(),
     }
 }
 
