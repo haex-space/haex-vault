@@ -1348,7 +1348,7 @@
       "createFolder": "Ordner anlegen",
       "createFolderAndSave": "Ordner anlegen und speichern",
       "warnings": {
-        "nestedFolder": "Gespeichert. Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
+        "nestedFolder": "Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
       },
       "authMethods": {
         "password": "Passwort",
