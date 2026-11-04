@@ -48,10 +48,11 @@ would need its own conversion.
 
 ## R3 — Voices as voice prints
 
-**Decision**: the reference recording of a voice (`tts::voices::Reference`, at most 30 s, stored at up to 24 kHz)
+**Decision**: the reference recording of a voice (`tts::local::Reference`, at most 30 s, stored at up to 24 kHz)
 is resampled with `audio::resample::resample_filtered` to `mtmd_get_audio_sample_rate` and turned into an audio
-bitmap. `QwenModel` keeps up to 8 bitmaps keyed by the voice reference (same capacity as Pocket's voice cache).
-The helper computes the speaker embedding from the bitmap in `set_input`; the spike's prompt step (0.03–0.42 s)
+bitmap. `QwenModel` keeps up to 8 bitmaps keyed by a hash of the reference's samples and sample rate (same
+capacity as Pocket's voice cache), not by the reference's address: a freed reference's memory can be reused by
+another voice of the same length, which would then speak with the wrong voice print. The helper computes the speaker embedding from the bitmap in `set_input`; the spike's prompt step (0.03–0.42 s)
 includes it.
 
 **Rationale**: llama.cpp's Qwen3-TTS pipeline clones from the speaker embedding only and takes no reference
@@ -113,9 +114,11 @@ either way plus a start allowance. The VAD model is already shipped with the ass
 Every failed attempt is logged with model id, acceleration, part length in characters and the reason, never the
 text (FR-010a).
 
-**Rationale**: the operator's rule is that nothing is cut or lost. Step 4 only happens on a device that removed
+**Rationale**: the operator's rule is that nothing is cut or lost. Step 4 only happens on a device without
 Pocket TTS for the language; haex keeps the Pocket model of a language installed while it is the fallback (the
-settings page does not offer to delete it while Qwen3-TTS speaks that language).
+settings page does not offer to delete it while Qwen3-TTS speaks that language). Step 4 plays an attempt that
+failed its check, which FR-010a otherwise forbids; the spec does not cover a missing Pocket model, and this reading
+puts its "No part may be skipped" first. It needs the operator's confirmation before delivery step 2.
 
 ## R8 — One memory ledger for the graphics card
 

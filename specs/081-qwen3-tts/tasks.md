@@ -14,17 +14,20 @@ tests go in `*_tests.rs` next to their module; tests with the real model files a
 `src-tauri/tests/qwen_tts_eval.rs`; the settings page's pure logic is checked with `node --test` in
 `scripts/check-speech-model.ts`.
 
-**Organization**: phases follow the plan's delivery order (one PR per phase from Phase 3 on). Each task carries
-the user story of spec.md it serves. US1 and US2 are P1, US3 and US4 are P2, US5 is P3.
+**Organization**: phases follow the plan's delivery order. Phases 1–3 are delivery step 1 and land as one PR; from
+Phase 4 on each phase is its own PR: Phase 4 is step 2, Phase 5 the own-voice dialog part of US2 (step 1 already
+covers the preview), Phase 6 step 3, Phase 7 step 4, Phase 8 step 5 and Phase 9 step 6, with the `voice.rs` split
+(T053) as a separate PR. Each task carries the user story of spec.md it serves. US1 and US2 are P1, US3 and US4 are P2, US5 is P3.
 
 **Working rules for every task**:
 
 - **graphify first**: before a new named function, run `graphify query "<concept>"` and extend an existing
   candidate where one matches (spaex).
-- **Builds**: from `src-tauri`, `nix develop --command bash -c '../scripts/with-nix-host-bridge.sh cargo test -j 4
---lib --no-default-features --features llm-llamacpp,voice,voice-qwen -- <filters>'`; after a cargo test run
-  `git checkout -- src/types/bindings`. Clippy with `CARGO_BUILD_JOBS=4 pnpm lint:rust`. The CUDA build per the
-  spec 070 quickstart (`CUDAARCHS=86`, `CUDA_LIBRARY_PATH`), run through `cargo test`, never the bare binary.
+- **Builds**: from `src-tauri`,
+  `nix develop --command bash -c '../scripts/with-nix-host-bridge.sh cargo test -j 4 --lib --no-default-features --features llm-llamacpp,voice,voice-qwen -- <filters>'`;
+  after a cargo test run `git checkout -- src/types/bindings`. Clippy with `CARGO_BUILD_JOBS=4 pnpm lint:rust`. The
+  CUDA build per the spec 070 quickstart (`CUDAARCHS=86`, `CUDA_LIBRARY_PATH`), run through `cargo test`, never the
+  bare binary.
 - **Real files**: the two Q8_0 files of research R2 (and Q4_K_M for T021) in one folder outside the repository,
   read from `QWEN_TTS_DIR`; outputs to `QWEN_TTS_OUT`.
 - **Not your area**: `src-tauri/src/llm/llamacpp/` belongs to the chat engine work (specs 079, 080). Only Phase 7
@@ -57,13 +60,14 @@ the user story of spec.md it serves. US1 and US2 are P1, US3 and US4 are P2, US5
 **Purpose**: the catalog shape, the file check, the Engine trait and the speech model resolution that every story
 needs. No user-visible change yet: with only Pocket entries, everything behaves as today.
 
-- [ ] T004 [P] In `src-tauri/src/tts/catalog.rs` and `tts_catalog.json`: add `TtsEngine::Qwen3Tts`
-      (`"qwen3-tts"`); replace `language` by `languages: Vec<String>` (data-model.md, "at least one of the six
-      languages"); add `quality_rank: u32` (Pocket 10), `files: Option<Vec<CatalogFile { name, bytes, sha256 }>>`,
-      `temperature: Option<String>` (Pocket entries `"0.7"`). Rename `default_for` to `pocket_for(language)`
-      (standard before 24l). Update every caller (`grep -rn "default_for\|\.language" src-tauri/src/tts
-    src-tauri/src/assistant`) and `catalog_tests.rs`: every entry has a full-commit `hf_revision`, at least one
-      language of `LANGUAGES`, and `files` sums to `approx_size_bytes` when present.
+- [ ] T004 [P] In `src-tauri/src/tts/catalog.rs` and `tts_catalog.json`: add `TtsEngine::Qwen3Tts` (`"qwen3-tts"`);
+      replace `language` by `languages: Vec<String>` (data-model.md, "at least one of the six languages"); add
+      `quality_rank: u32` (Pocket 10), `files: Option<Vec<CatalogFile { name, bytes, sha256 }>>`,
+      `temperature: Option<String>` (Pocket entries `"0.7"`). Rename `default_for` to `pocket_for(language)` (standard
+      before 24l). Update every caller
+      (`grep -rn "default_for\|\.language" src-tauri/src/tts src-tauri/src/assistant`) and `catalog_tests.rs`: every
+      entry has a full-commit `hf_revision`, at least one language of `LANGUAGES`, and `files` sums to
+      `approx_size_bytes` when present.
 - [ ] T005 [P] In `src-tauri/src/tts/files.rs`: `files_for(entry)` returns the names of `entry.files` when set, the
       Pocket list otherwise; `ensure_model_files` downloads `entry.files` and, after each file, checks its SHA-256
       once, writing `<file>.sha256` beside it; a mismatch deletes the file and returns
@@ -75,11 +79,11 @@ needs. No user-visible change yet: with only Pocket entries, everything behaves 
       calls `generate`). `PocketModel` reads its temperature from its catalog entry (passed to `load`) instead of
       the constant `TEMPERATURE` (FR-015). Update `local_tests.rs`.
 - [ ] T007 Create `src-tauri/src/tts/choice.rs` (+ `choice_tests.rs`, registered in `tts/mod.rs`):
-      `pub fn resolve(language, preference: Option<&str>, installed: &[String], hw, speeds) -> Resolved { chosen:
-    Option<&Entry>, proposed: &Entry, speaking: &Entry }`. `proposed` = highest `quality_rank` among entries of
-      the language that keep up (measured) or are presumed to (Pocket always; Qwen3-TTS only with a GPU of at least
-      3 GB free, FR-012); `speaking` = the chosen entry when installed and enabled, else the installed Pocket entry
-      of the language. Pure, no `AppHandle`; `speeds` is a trait object so tests pass fixed values.
+      `pub fn resolve(language, preference: Option<&str>, installed: &[String], hw, speeds) -> Resolved` with
+      `Resolved { chosen: Option<&Entry>, proposed: &Entry, speaking: &Entry }`. `proposed` = highest `quality_rank`
+      among entries of the language that keep up (measured) or are presumed to (Pocket always; Qwen3-TTS only with a
+      GPU of at least 3 GB free, FR-012); `speaking` = the chosen entry when installed and enabled, else the installed
+      Pocket entry of the language. Pure, no `AppHandle`; `speeds` is a trait object so tests pass fixed values.
 - [ ] T008 In `src-tauri/src/voice.rs`: the speech slot becomes `Option<(SpeechKey, Arc<dyn Engine>)>` with
       `SpeechKey { model_id, acceleration }` (data-model.md "Speech slot"); `speech_model` takes the entry and
       dispatches on `entry.engine` (Pocket today; Qwen3-TTS from T018). Behaviour unchanged for Pocket.
@@ -131,9 +135,10 @@ claim).
       `TtsError::Unavailable`), reads the sample rate from it; holds the FFI owners in a `Mutex`; `impl Engine`
       (`part_words` = `Some(20)`; `generate_cancellable` applies `tts::spoken` then `generate.rs`, then
       `audio::stretch` for the rate, research R13).
-- [ ] T017 [US1] Voice bitmaps: in `qwen/mod.rs`, a cache of up to 8 bitmaps keyed by the reference's identity
-      (pointer of the `Arc<Reference>` plus length), built with `audio::resample::resample_filtered` to
-      `mtmd_get_audio_sample_rate` (research R3). Test: two calls with the same reference build one bitmap.
+- [ ] T017 [US1] Voice bitmaps: in `qwen/mod.rs`, a cache of up to 8 bitmaps keyed by a hash of the reference's
+      samples and sample rate (not its address, which a later voice can reuse), built with
+      `audio::resample::resample_filtered` to `mtmd_get_audio_sample_rate` (research R3). Tests: two calls with the
+      same reference build one bitmap; two different references of the same length build two.
 - [ ] T018 [US1] In `src-tauri/src/voice.rs::speech_model`: `TtsEngine::Qwen3Tts` loads `QwenModel` on CPU
       (Placement CPU until Phase 7) under `VaultGate::spawn_blocking`; the slot key carries `acceleration: Cpu`.
 - [ ] T019 [US1] Secrets: check that the spelled secret of 066 FR-026 reaches only the local engine with Qwen3-TTS
@@ -159,20 +164,21 @@ delivery step 2).
 is regenerated and never heard (quickstart M3, SC-006).
 
 - [ ] T022 [P] [US1] Make `src-tauri/src/tts/spoken.rs` return the spans it wrote out (one span per number, time,
-      date, amount or unit expansion) next to the text: `spoken_with_spans(text, language) -> (String,
-    Vec<Range<usize>>)`; `spoken()` stays as a wrapper. Tests in `spoken_tests.rs` for a time, an amount with
-      unit and a date.
+      date, amount or unit expansion) next to the text:
+      `spoken_with_spans(text, language) -> (String, Vec<Range<usize>>)`; `spoken()` stays as a wrapper. Tests in
+      `spoken_tests.rs` for a time, an amount with unit and a date.
 - [ ] T023 [P] [US1] Conjunction lists per language for the break rule (research R5), next to the `tts::spoken`
       word lists (`src-tauri/src/tts/spoken/`), six languages, with a test that each list is non-empty and
       lower-case.
-- [ ] T024 [US1] Create `src-tauri/src/tts/parts.rs` (+ `parts_tests.rs`): `split(text, spans, protected:
-    &[Range<usize>], language, max_words) -> Vec<String>`. Break order punctuation → before a conjunction →
-      between words; never inside a span or a protected range; balanced parts (30 words → 15 + 15); `ponytail:` on 20. Tests: short sentence unchanged; 45 words with commas; no punctuation; a time and an amount at the break
-      point stay whole; a spelled secret is one part even above 20 words.
-- [ ] T025 [US1] Create `src-tauri/src/tts/check.rs` (+ `check_tests.rs`): `frame_cap(chars)` = `(1.5 + 0.16 ×
-    chars) × 12.5`; `judge(samples, rate, chars, vad) -> Verdict { Ok, TooLong, TooShort, NoSpeech }` with the
-      bounds of research R6 (`ponytail:` constants). The VAD is a trait so tests use a fake; the real one wraps
-      Silero from `assistant::assets::vad_model_path` at 16 kHz (resample with `resample_filtered`). Tests per
+- [ ] T024 [US1] Create `src-tauri/src/tts/parts.rs` (+ `parts_tests.rs`):
+      `split(text, spans, protected: &[Range<usize>], language, max_words) -> Vec<String>`. Break order punctuation →
+      before a conjunction → between words; never inside a span or a protected range; balanced parts (30 words → 15 +
+      15); `ponytail:` on 20. Tests: short sentence unchanged; 45 words with commas; no punctuation; a time and an
+      amount at the break point stay whole; a spelled secret is one part even above 20 words.
+- [ ] T025 [US1] Create `src-tauri/src/tts/check.rs` (+ `check_tests.rs`): `frame_cap(chars)` =
+      `(1.5 + 0.16 × chars) × 12.5`; `judge(samples, rate, chars, vad) -> Verdict { Ok, TooLong, TooShort, NoSpeech }`
+      with the bounds of research R6 (`ponytail:` constants). The VAD is a trait so tests use a fake; the real one
+      wraps Silero from `assistant::assets::vad_model_path` at 16 kHz (resample with `resample_filtered`). Tests per
       verdict with synthetic audio and the fake VAD.
 - [ ] T026 [US1] Create `src-tauri/src/tts/speaker.rs` and move the worker of `tts/local.rs` there (keeping
       `Speaker`'s public API and ticket semantics). Per job: `parts = engine.part_words()` → `parts::split`, else
@@ -232,13 +238,14 @@ step 3).
       answer. Pocket answers are measured too.
 - [ ] T035 [US3] The hint (FR-011): when `slowStreak` reaches 3 for the chosen model and `choice::resolve` names a
       different model that keeps up or is presumed to, emit `tts-speech-model-hint` (contracts/tauri-commands.md)
-      unless `assistant.speechModelHint` is `dismissed`; emitted at most once per app run.
+      unless `assistant.speechModelHint` is `dismissed`; emitted at most once per app run. Closing the toast writes
+      `dismissed` too (T039), so the hint shows once per device.
 - [ ] T036 [US3] Fill `speed`, `ratio`, `acceleration`, `chosen`, `proposed` in `tts_speech_models` from
       `speed.rs` and `choice.rs`; tests in `commands` tests with fixed speeds.
-- [ ] T037 [P] [US3] Create `src/lib/assistant/speechModel.ts`: `speedLabelKey(option)` (`hält mit` / `langsamer als
-    Echtzeit` / `noch nicht gemessen`), `soundPhraseKey(engine)` ("klingt am natürlichsten" for Qwen3-TTS, "klein
-      und schnell" for Pocket), `hintActions()`; `scripts/check-speech-model.ts` with `node --test`, added to the
-      `check:settings` script in `package.json`.
+- [ ] T037 [P] [US3] Create `src/lib/assistant/speechModel.ts`: `speedLabelKey(option)` (`hält mit` /
+      `langsamer als Echtzeit` / `noch nicht gemessen`), `soundPhraseKey(engine)` ("klingt am natürlichsten" for
+      Qwen3-TTS, "klein und schnell" for Pocket), `hintActions()`; `scripts/check-speech-model.ts` with `node --test`,
+      added to the `check:settings` script in `package.json`.
 - [ ] T038 [US3] Create `src/components/settings/assistant/SpeechModelRow.vue` and use it in `VoiceSetting.vue`
       above the voices: one option per `SpeechModelOption` with name, size, licence, languages, sound phrase and
       speed mark; "Automatisch" first with the proposed model's name; choosing writes the preference on selection

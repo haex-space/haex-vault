@@ -26,7 +26,7 @@ interface SpeechModelOption {
 ```
 
 - Exactly one entry has `proposed: true` per language; at most one has `chosen: true`.
-- `speed` is `unknown` with fewer than 3 measured parts; for Qwen3-TTS without a measurement, `proposed` follows
+- `speed` is `unknown` with fewer than 3 measured sentences (data-model.md); for Qwen3-TTS without a measurement, `proposed` follows
   the presumption of FR-012 (GPU with at least 3 GB free).
 - The settings page writes the choice with the existing `set_pref` (device scope), key
   `assistant.speechModel.<language>`, saved on selection; choosing a model that is not installed starts the same
