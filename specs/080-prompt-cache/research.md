@@ -75,7 +75,13 @@ Some(n), None)`) and the tokens from `n` on are read. If the removal returns `fa
 LlamaStateSeqFlags::PARTIAL_ONLY)`:
   - **When**: at the end of every prompt before the first answer token, and after every 1024 tokens while a prompt
     is read.
-  - **How many**: at most 4; the oldest goes first. A checkpoint beyond the reused point is dropped.
+  - **How many**: at most 4 of those; the oldest goes first. A checkpoint beyond the reused point is dropped.
+  - **The head**: one more checkpoint at the end of the head, the part before the first user message (system
+    prompt and tool descriptions), saved when the head is read and outside the oldest-first rule; it is replaced
+    only when the head changes. Its position is the longest common beginning of the prompt's tokens and the tokens
+    of the rendered prompt up to the first user message's text. Without it, a long tool chain pushes all four
+    checkpoints past the head, and switching to another conversation or a changed tool offer reads everything
+    again (FR-006).
   - **Rewind**: the checkpoint with the most tokens that is not beyond the reused point is restored
     (`state_seq_set`), the attention cache from its position on is removed, and the tokens from there are read.
     Without such a checkpoint, the cache is cleared and the prompt read from the start.
@@ -88,8 +94,9 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
   - The end of a prompt is the point a tool chain returns to: the next step repeats the previous prompt and appends
     the answer and the tool result. The 1024-token checkpoints cover a follow-up question, whose prompt departs
     from the previous one inside the history (R8).
-  - The checkpoints live in the computer's memory. Their size is measured by the spike; the planner counts four of
-    them on the host side (FR-008).
+  - The end of the head is the point another conversation, a model job and a changed tool offer return to.
+  - The checkpoints live in the computer's memory. Their size is measured by the spike; the planner counts five of
+    them (four and the head) on the host side (FR-008).
 - **Alternatives considered**: `with_n_rs_seq` (bounded rollback snapshots the binding offers for speculative
   decoding). Rejected: it rolls back a few tokens, not to a point thousands of tokens back.
 
@@ -102,23 +109,43 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
   - **Reload or another model**: the kept context belongs to the `LoadedModel` and ends with it.
   - **Other users**: chat, voice assistant and model jobs that share a `LoadedModel` take turns at the gate; each
     reuses only what matches its own prompt (R3).
-- **Rationale**: FR-004 and FR-005; the exact comparison of R3 makes reuse across conversations safe.
+  - **Model jobs**: a new `ChatRequest.reuse_prompt: bool` is `true` for the chat, the voice assistant and the
+    evaluations, and `false` for a model job (`model_jobs/runner.rs`, spec 055). The llama.cpp adapter clears the
+    kept context before it reads a request with `false` (FR-013); every other adapter ignores the field.
+  - **Where it lives**: the kept context, its tokens and its checkpoints are memory of the process (main memory and
+    graphics memory). Nothing is written to a file: no `state_save_file`, no session file. It ends with the
+    `LoadedModel`, at the latest when the vault session ends the process (spec 013) (FR-012).
+- **Rationale**:
+  - FR-004 and FR-005; the exact comparison of R3 makes reuse across conversations safe.
+  - A reused beginning answers sooner. An extension that could reuse what the chat left could learn from the
+    timing of its job whether its prompt starts like the chat's last one. A model job sets its own system prompt
+    (`step.instruction`), so that is not far-fetched; reading a job from the start closes it. Jobs gain little
+    from reuse anyway, since every step has its own instruction.
+  - Today a context lives for one generation; kept, the same content stays in memory while the model is loaded.
+    The process ends with the vault (spec 013), so it never outlives the vault session.
 
 ## R8 The date and time in the prompt
 
-- **Decision**: the line with the current date and time moves from the end of the system prompt to the start of
-  the current turn's user message, for every provider. `chat::tools::prompt::system_prompt` no longer takes the
-  clock; a new helper puts `now_line` in front of the last user message of a request. Both callers that pass a
-  clock today (`chat/send.rs`, `chat/eval/everyday/runner.rs`) use it.
+- **Decision**: the line with the current date and time leaves the system prompt, for every provider. Instead,
+  every user message starts with a stamp of the local date and time it was sent, from its `created_at` and the
+  turn's UTC offset; the current message's stamp is the current time. The system prompt gets one fixed sentence
+  saying that every user message starts with the date and time it was sent, so the last one is now.
+  `chat::tools::prompt::system_prompt` no longer takes the clock; a new helper writes the stamp
+  (`chat::tools::prompt::sent_line`, the format of today's `now_line`). The places that build a request's messages
+  use it: `history_to_messages` in `chat/send.rs` and the everyday runner (`chat/eval/everyday/runner.rs`).
 - **Rationale**:
   - The chat templates render the system prompt before the tool descriptions, so a line that changes every minute
     cuts the reuse off before the tools (spec FR-007).
-  - In the user message of the current turn, the line stays the same for all steps of a tool chain and is the
-    first thing that changes in the next turn. The earlier user messages come from the history, which never had
-    the line.
+  - A stamp that stays with its message keeps the prompt growing only at its end: the next turn's prompt is the
+    previous one plus the answer and the new question. A line on the current message only would leave the
+    previous message when it becomes history, so the next turn would differ from that message on, read the whole
+    last turn again (with its tool results), and on a hybrid model often find no checkpoint before it (R6).
   - One placement for every provider keeps one prompt shape; hosted providers with their own prompt caching gain
     as well. This is the only change for them (spec FR-009 is amended accordingly).
+  - The stamps tell the model when earlier messages were written, which a question like "what did I ask this
+    morning?" can use.
 - **Alternatives considered**:
+  - The line on the current user message only (the first draft). Rejected: see the second point above.
   - A per-request field that each adapter places itself. Rejected: every adapter and every `ChatRequest` would
     change for one line.
   - The time to the hour. Rejected by FR-007 (to the minute).
@@ -136,9 +163,11 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
   - A new `StreamChunk::PromptCache { reused_tokens }`, sent once per answer before `Done` by the llama.cpp adapter
     only. A field on `Done` was rejected: every adapter builds `Done`, and two of them (`cli_delegate/claude.rs`,
     `cli_delegate/codex.rs`) are over the spaex 500-LoC boundary.
-  - The everyday runner (spec 078) records per request the time to the first chunk of every step and the reused
-    tokens of every step; the report shows the time to the first chunk of the first and of the later steps, and
-    the share reused.
+  - The everyday runner (spec 078) records per request the time to the first chunk of every step, whether that
+    chunk was text or a tool call, and the reused tokens of every step. The first text chunk is FR-010's first
+    word; a step that starts with a tool call sends its first chunk only when the whole call is parsed, so it
+    measures reading and writing the call. The report shows the median of the later steps that start with text
+    (SC-001, SC-002) apart from those that start with a tool call, and the share reused.
   - `LoadOptions.prompt_cache: bool` (default `true`); the evaluation reads `HOLZI_LLAMACPP_PROMPT_CACHE=off` to
     measure without reuse (FR-010).
   - A new ignored test measures User Stories 1 and 2 directly with the real files (quickstart).
@@ -153,4 +182,5 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
 ## R12 Spec 079
 
 - **Decision**: none in this feature. When spec 079 resumes, its speculative loop must read and write through the
-  kept context instead of creating its own.
+  kept context instead of creating its own. The kept context is created at load, so whether flash attention is
+  off for the drafter (spec 079 research R8) is decided at load, too.

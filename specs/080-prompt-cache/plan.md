@@ -12,9 +12,12 @@ The llama.cpp engine keeps one context per loaded model instead of one per answe
   longest common beginning is reused and only the rest is read.
 - **Rewinding**: attention caches (Gemma 4 with its sliding-window cache kept whole) are cut back to the reused
   point. Hybrid models (Qwen3.5 4B) restore a saved checkpoint of their recurrent state.
-- **The prompt**: the date and time move from the system prompt to the current user message, so the system prompt
-  and the tool descriptions stay identical from turn to turn.
-- **Safety**: a failure clears the kept context; nothing that does not match exactly is reused.
+- **The prompt**: the date and time leave the system prompt; every user message carries the time it was sent, so
+  a turn's prompt only grows at its end.
+- **Safety**: a failure clears the kept context; nothing that does not match exactly is reused; a model job of an
+  extension never reuses what another request left.
+- **Privacy**: the kept context holds conversation and vault content in process memory only, never in a file, and
+  ends with the model or the vault session (spec 013).
 
 ## Technical Context
 
@@ -26,12 +29,12 @@ The llama.cpp engine keeps one context per loaded model instead of one per answe
   `LlamaStateSeqFlags::PARTIAL_ONLY`, `LlamaModel::is_hybrid`/`is_recurrent`.
 - `self_cell` 1.3: declared as a direct dependency; already in `Cargo.lock` through another crate (research R2).
 
-**Storage**: none; the kept context lives in memory with the loaded model.
+**Storage**: none; the kept context lives in memory with the loaded model and is never written to a file.
 
 **Testing**:
 
-- `cargo test --lib`: the prefix match, the checkpoint choice, the time line in the user message, the report
-  fields.
+- `cargo test --lib`: the prefix match, the checkpoint choice, the stamp of the user messages, a model job that
+  never reuses, the report fields.
 - Ignored tests with the real files in a new `src-tauri/tests/prompt_cache_eval.rs` (spike, equality, speed).
 - `measure_everyday_voice` with and without `HOLZI_LLAMACPP_PROMPT_CACHE=off` (SC-003, SC-004).
 
@@ -100,10 +103,10 @@ src-tauri/src/llm/llamacpp/
 ├── generate.rs            # reads through the kept context; reused tokens in Outcome
 ├── adapter.rs             # sends StreamChunk::PromptCache
 └── *_tests.rs
-src-tauri/src/adapters/types.rs           # StreamChunk::PromptCache
-src-tauri/src/chat/turn/step.rs, model_jobs/runner.rs   # ignore the new chunk
-src-tauri/src/chat/tools/prompt.rs        # system_prompt without the clock; now_line in the user message
-src-tauri/src/chat/send.rs                # one call
+src-tauri/src/adapters/types.rs           # StreamChunk::PromptCache, ChatRequest.reuse_prompt
+src-tauri/src/chat/turn/step.rs, model_jobs/runner.rs   # ignore the new chunk; a job sets reuse_prompt false
+src-tauri/src/chat/tools/prompt.rs        # system_prompt without the clock; the stamp of every user message
+src-tauri/src/chat/send.rs                # one call in history_to_messages
 src-tauri/src/chat/eval/everyday/{runner,scoring,report}.rs   # per-step first chunk, reused tokens
 src-tauri/tests/model_tool_eval.rs        # HOLZI_LLAMACPP_PROMPT_CACHE
 src-tauri/tests/prompt_cache_eval.rs      # new: spike, equality, US1/US2 timing
@@ -120,7 +123,7 @@ new engine, provider, command or table.
    against the plan (research R1).
 2. **Kept context for attention models** (`kept.rs`, `model.rs`, `generate.rs`), with the failure rules of R7.
 3. **Checkpoints for hybrid models** (R6) and the planner's host budget.
-4. **The time line** in the user message (R8).
+4. **The time stamps** of the user messages (R8).
 5. **Measurement**: the stream chunk, the everyday report, the switch, and the runs for SC-001 to SC-004
    (`specs/080-prompt-cache/results.md`).
 
