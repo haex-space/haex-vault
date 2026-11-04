@@ -212,7 +212,7 @@ async fn a_runner_error_reaches_the_model_with_code_field_and_message() {
     assert_eq!(parsed["error"]["code"], "invalid_input");
     assert_eq!(parsed["error"]["field"], "text");
     assert_eq!(parsed["error"]["message"], "text must be a string");
-    // The runner's next step reaches the model beside the message (spec 081 FR-014).
+    // The runner's next step reaches the model beside the message (spec 082 FR-014).
     assert_eq!(
         parsed["error"]["next"],
         "Correct `text` as the message says and call again."

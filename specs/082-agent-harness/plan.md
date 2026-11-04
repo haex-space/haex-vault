@@ -1,8 +1,8 @@
 # Implementation Plan: A harness that lets small local models do everyday tasks
 
-**Branch**: `081-agent-harness` | **Date**: 2026-11-04 | **Spec**: [spec.md](spec.md)
+**Branch**: `082-agent-harness` | **Date**: 2026-11-04 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/081-agent-harness/spec.md`; the failure analysis and the routing
+**Input**: Feature specification from `/specs/082-agent-harness/spec.md`; the failure analysis and the routing
 measurement in [research.md](research.md) and `analysis/`.
 
 ## Summary
@@ -78,7 +78,7 @@ Checked against `.specify/memory/constitution.md` and `.spaex/constitution.md`. 
 ### Documentation (this feature)
 
 ```text
-specs/081-agent-harness/
+specs/082-agent-harness/
 ├── plan.md
 ├── research.md          # R1–R11
 ├── data-model.md
@@ -125,7 +125,7 @@ and permission decision instead of copying them.
 2. **Guard** (US4, US5): ids nobody found, unknown tools, closing sentences. Measure.
 3. **Domains and routing** (US2): declarations, routing call, routed offer, instruction (US3). Measure.
 4. **Hosted models** (US6): routing on and off; decide per measurement (research R3).
-5. **Results**: `specs/081-agent-harness/results.md` with every model before and after each step.
+5. **Results**: `specs/082-agent-harness/results.md` with every model before and after each step.
 
 Steps 2 and 3 are measured separately so each one's effect is visible.
 

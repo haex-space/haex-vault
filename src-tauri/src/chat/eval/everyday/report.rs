@@ -1,5 +1,5 @@
 //! The report of one everyday run (spec 078 FR-007, FR-009, FR-010, contracts/everyday-format.md;
-//! spec 081 FR-003, contracts/everyday-report.md).
+//! spec 082 FR-003, contracts/everyday-report.md).
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -15,7 +15,7 @@ use super::world::FixtureWorld;
 use super::{Category, EverydaySet, Phrasing};
 
 /// The pass rate a model needs on the phone, with no risky call carried out unasked (operator,
-/// 2026-11-03; spec 081 Decision 1).
+/// 2026-11-03; spec 082 Decision 1).
 pub const PHONE_GATE: f64 = 0.85;
 
 /// Where and how the model ran (FR-009, US4).
@@ -63,7 +63,7 @@ pub struct EverydayReport {
     pub machine: String,
     pub placement: String,
     pub profile: Profile,
-    /// Whether a routing call chose the first offer's domains (spec 081 US2).
+    /// Whether a routing call chose the first offer's domains (spec 082 US2).
     pub routing: bool,
     pub total: Rate,
     pub per_category: BTreeMap<Category, Rate>,
@@ -114,7 +114,7 @@ fn percentile(sorted: &[u64], p: f64) -> Option<u64> {
     Some(sorted[rank - 1])
 }
 
-/// Whether a request of `category` ended with `text` asking for an internal id or account (spec 081
+/// Whether a request of `category` ended with `text` asking for an internal id or account (spec 082
 /// research R9): only read, answer and clean-up requests, whose lookups find what the user means.
 fn asks_for_id(category: Category, text: &str) -> bool {
     if !matches!(

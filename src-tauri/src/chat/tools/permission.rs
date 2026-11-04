@@ -84,7 +84,7 @@ pub fn decide(mode: PermissionMode, risk: RiskClass) -> Decision {
     }
 }
 
-/// The decision for one call of `tool`, in the order a chat turn makes it (spec 081 research R2,
+/// The decision for one call of `tool`, in the order a chat turn makes it (spec 082 research R2,
 /// shared with the everyday measurement): `ask_user` changes nothing and is itself a question to
 /// the user, so asking for an approval first would ask twice (spec 046 FR-015); an extension
 /// permission with status `ask` is stronger than the global mode, since the user confirmed that the

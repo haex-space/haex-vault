@@ -46,7 +46,7 @@ export const TARGET_FIELD = {
 
 type FailureCode = Exclude<ActionErrorCode, 'needs_choice'>
 
-/** What an agent should do after each error (spec 081 FR-014, research R7): one sentence beside
+/** What an agent should do after each error (spec 082 FR-014, research R7): one sentence beside
  * the message, which stays as it is for other callers. */
 export function nextStep(code: FailureCode, field?: string): string {
   const named = field === undefined ? 'the input' : `\`${field}\``

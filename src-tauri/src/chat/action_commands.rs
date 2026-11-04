@@ -127,7 +127,7 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
 /// Registers the `actions` the built-in agent may call into `registry`, each as `tool_of` makes it,
 /// then the search over them and over the extensions of `search_over`, and `ask_user`; returns how
 /// many actions it registered. Shared with the everyday measurement, so it holds the tools a chat
-/// holds (spec 081 FR-001).
+/// holds (spec 082 FR-001).
 pub(crate) fn register_action_tools(
     registry: &mut ToolRegistry,
     actions: &[AgentActionDef],

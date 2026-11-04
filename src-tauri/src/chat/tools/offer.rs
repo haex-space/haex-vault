@@ -116,7 +116,7 @@ pub fn extend_offer(
 
 /// After a successful search, widens `request_tools` with the `found` tools as a chat turn does: the
 /// registry's actions and extension tools are searchable, the tools of the turn's `first_offer`
-/// stay (spec 081 research R2: shared with the everyday measurement).
+/// stay (spec 082 research R2: shared with the everyday measurement).
 pub fn widen_offer(
     registry: &ToolRegistry,
     request_tools: &mut Vec<ToolSpec>,

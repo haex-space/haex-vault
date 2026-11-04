@@ -42,7 +42,7 @@ pub enum ActionReply {
         code: String,
         field: Option<String>,
         message: String,
-        /// What the model should do next, as the runner words it (spec 081 FR-014).
+        /// What the model should do next, as the runner words it (spec 082 FR-014).
         next: Option<String>,
     },
     /// The action could not resolve `field` and offers candidates (`needs_choice`, spec 046).
@@ -79,7 +79,7 @@ pub struct ActionOutcomeWire {
     pub field: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
-    /// The runner's sentence on what to do next (spec 081 FR-014).
+    /// The runner's sentence on what to do next (spec 082 FR-014).
     #[serde(default)]
     pub next: Option<String>,
     /// The candidates of `needs_choice`.

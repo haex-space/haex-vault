@@ -1,4 +1,4 @@
-// Part of `pnpm check:agent-actions` (spec 081 US5, T028): every failed `runAction` outcome
+// Part of `pnpm check:agent-actions` (spec 082 US5, T028): every failed `runAction` outcome
 // carries one sentence on what an agent should do next, beside its unchanged message; a
 // `needs_choice` keeps its candidates and has none.
 import assert from 'node:assert/strict'

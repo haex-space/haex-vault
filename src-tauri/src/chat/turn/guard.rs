@@ -1,4 +1,4 @@
-//! Turns away calls holzi can tell are wrong before the permission dialog (spec 081 FR-011, FR-012,
+//! Turns away calls holzi can tell are wrong before the permission dialog (spec 082 FR-011, FR-012,
 //! research R6/R7): an id nobody named, a required argument left out, and a tool that does not
 //! exist. The user is not asked. Every answer holzi writes for a failed call ends with what to do
 //! next (FR-014).

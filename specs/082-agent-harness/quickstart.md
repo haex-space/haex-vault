@@ -30,14 +30,14 @@ HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<models>/<model>.gguf HOLZI_EVAL_PROF
 - Hosted models through the subscription as in spec 078's quickstart.
 
 Compare `pass`, `executedUnasked`, `stopped`, `turnedAway`, `askedForId` and the categories with the baseline in
-`specs/081-agent-harness/results.md`.
+`specs/082-agent-harness/results.md`.
 
 ## The routing measurement
 
 ```bash
-python3 -I specs/081-agent-harness/analysis/router_eval.py <llama-server> <models> \
+python3 -I specs/082-agent-harness/analysis/router_eval.py <llama-server> <models> \
   src-tauri/src/chat/eval/everyday/set.json src-tauri/src/chat/eval/tools.json \
-  src-tauri/src/chat/eval/everyday/mail_tools.json specs/081-agent-harness/analysis/devset.json <model stem>...
+  src-tauri/src/chat/eval/everyday/mail_tools.json specs/082-agent-harness/analysis/devset.json <model stem>...
 ```
 
 Tune the domain descriptions on the development set only.

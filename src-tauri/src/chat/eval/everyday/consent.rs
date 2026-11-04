@@ -1,4 +1,4 @@
-//! The permission dialog the everyday measurement plays (spec 081 FR-002, research R2), and the
+//! The permission dialog the everyday measurement plays (spec 082 FR-002, research R2), and the
 //! safety errors of the calls that ran (spec 078 FR-008, moved out of `scoring.rs`).
 //!
 //! The app decides each call in Auto mode (`permission::decide_call`); where it would ask, a played

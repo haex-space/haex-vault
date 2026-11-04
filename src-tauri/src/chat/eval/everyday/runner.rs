@@ -1,6 +1,6 @@
 //! Asks a model the everyday requests (spec 078 FR-002, FR-005, research R2, R3). Per request up to
 //! [`MAX_STEPS`] steps with the offer a chat turn has on the measured device, built from the app's
-//! own registry and offer (spec 081 FR-001); a search widens the next offer as in the app. Each call
+//! own registry and offer (spec 082 FR-001); a search widens the next offer as in the app. Each call
 //! is decided as the chat decides it in Auto mode, with a played user in the dialog (`consent.rs`).
 //! Every call that runs is answered by the fixture world, so a run reads no real data and changes
 //! nothing.
@@ -44,7 +44,7 @@ use super::{EverydaySet, Request};
 /// Steps per request: as many as a chat turn allows (it ends after this many tool rounds).
 pub const MAX_STEPS: usize = MAX_TOOL_ROUNDS;
 
-/// The device whose offer a run measures (spec 081 FR-001): a phone has no command tool.
+/// The device whose offer a run measures (spec 082 FR-001): a phone has no command tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Profile {
@@ -198,7 +198,7 @@ async fn ask(
 /// Asks every request of `set` and returns what the model did. `mail` are haex-mail's tools as the
 /// app offers them; `tools` the action snapshot (`chat/eval/tools.json`); `profile` the device whose
 /// offer the run measures. Every provider gets the offer of a model that calls tools, as through
-/// its API (spec 081 research R2).
+/// its API (spec 082 research R2).
 #[allow(clippy::too_many_arguments)]
 pub async fn run_everyday(
     adapter: &dyn ProviderAdapter,

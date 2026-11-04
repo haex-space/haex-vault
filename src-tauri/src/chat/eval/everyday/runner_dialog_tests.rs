@@ -14,7 +14,7 @@ use crate::chat::turn::denied_answer;
 
 #[tokio::test]
 async fn each_call_ends_as_the_played_dialog_decides() {
-    // Spec 081 US1's independent test: a deletion asked for, a draft (a change Auto mode lets
+    // Spec 082 US1's independent test: a deletion asked for, a draft (a change Auto mode lets
     // through), its send nobody asked for (the dialog stops it), a mark of an id no result named and
     // a tool that does not exist (the guard turns both away before the dialog, US4).
     let model = Scripted::new(|req| match tool_results(req).len() {

@@ -1,6 +1,6 @@
 # Tasks: A harness that lets small local models do everyday tasks
 
-**Input**: Design documents from `specs/081-agent-harness/`
+**Input**: Design documents from `specs/082-agent-harness/`
 
 **Prerequisites**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md),
 [contracts/](contracts/), [quickstart.md](quickstart.md)
@@ -42,7 +42,7 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 llm-llamacpp-cuda,everyday-eval --test model_tool_eval --no-run`.
 - [x] T003 Confirm that every model file of research R10 is in the models folder (Qwen3.5 2B, 4B, 9B, Qwen3 1.7B,
       Gemma 4 E2B, E4B, 12B, Hermes 4 14B), and that the hosted runs of spec 078's quickstart still start. Write the
-      list with file names and sizes into `specs/081-agent-harness/results.md` under "Models".
+      list with file names and sizes into `specs/082-agent-harness/results.md` under "Models".
 
 ---
 
@@ -148,8 +148,8 @@ tool.confirms_itself())`, the same order as `plan_calls`. Factor that order into
   - Run Qwen3 1.7B with both the `phone` and the `desktop` profile.
   - Run the three hosted models through the subscription.
   - Use overnight runs for the long ones, in the 10 GB scope, one at a time.
-  - Store each report under `specs/081-agent-harness/runs/baseline/<model>.json`.
-- [x] T019 [US1] Write the baseline section of `specs/081-agent-harness/results.md`:
+  - Store each report under `specs/082-agent-harness/runs/baseline/<model>.json`.
+- [x] T019 [US1] Write the baseline section of `specs/082-agent-harness/results.md`:
   - Per model: pass rate, `executedUnasked`, `changedUnasked`, `stopped`, `turnedAway`, `askedForId`, the
     categories, and `gateDistance`.
   - The comparison with spec 078's numbers of 2026-11-04, with the reason for each difference (dialog played,
@@ -253,7 +253,7 @@ Each answer names a next step.
 - [x] T031 [US5] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts` and the TypeScript tests.
 - [ ] T032 [US5] Measure the guard step (plan step 2):
   - Run the everyday set for every local model of T018 except Hermes, with routing off.
-  - Store the reports under `specs/081-agent-harness/runs/guard/`.
+  - Store the reports under `specs/082-agent-harness/runs/guard/`.
   - Add a "Guard" section to `results.md` with the change against the baseline per model.
 
 **Checkpoint**: the guard's effect is measured on its own.
@@ -367,7 +367,7 @@ first tool of every expected chain, without a model.
       match, ask which one by their titles."
 - [ ] T051 [US3] Measure the offer step (plan step 3):
   - Run the everyday set for every local model except Hermes, with routing on.
-  - Store the reports under `specs/081-agent-harness/runs/offer/`.
+  - Store the reports under `specs/082-agent-harness/runs/offer/`.
   - Add an "Offer" section to `results.md` with the change against the guard step: pass rate, `askedForId`,
     `stopped`, `changedUnasked`, `routingHits`, `routingMs`, and the domain categories (SC-002, SC-004, SC-006,
     SC-007).
@@ -385,7 +385,7 @@ measurement.
 **Independent Test**: the everyday set with the three hosted models, compared with T018.
 
 - [ ] T052 [US6] Run the three hosted models twice, with routing on and with `HOLZI_EVAL_ROUTING=off`. Store the
-      reports under `specs/081-agent-harness/runs/hosted/`.
+      reports under `specs/082-agent-harness/runs/hosted/`.
 - [ ] T053 [US6] Decide per the measurement (FR-016):
   - If routing does not raise a hosted model's pass rate, the hosted adapters skip the routing call. Do this with one
     rule in `chat/tools/route.rs` (the adapter's provider kind), marked `ponytail:` with the numbers, and a test in
@@ -400,15 +400,15 @@ measurement.
 ## Phase 9: Polish & cross-cutting
 
 - [ ] T055 Final runs with the decided setting for every model of T018, Hermes 4 14B included, and Qwen3 1.7B with
-      the `phone` profile. Store them under `specs/081-agent-harness/runs/final/`.
-- [ ] T056 Complete `specs/081-agent-harness/results.md`:
+      the `phone` profile. Store them under `specs/082-agent-harness/runs/final/`.
+- [ ] T056 Complete `specs/082-agent-harness/results.md`:
   - Every model before and after each step.
   - SC-001 to SC-008, each marked met or not met, with the number.
   - Each model's distance to the 85 % phone gate, and Qwen3 1.7B's results (SC-008).
   - The remaining failures by cause, with the method of `analysis/failures.py`.
 - [ ] T057 [P] Check every changed Rust file against the 500-line limit (`wc -l`), and confirm that every new
       module has its `*_tests.rs` file. Check that the committed reports under `runs/` contain no absolute path
-      (`grep -r "/home/" specs/081-agent-harness/runs` finds nothing; constitution II).
+      (`grep -r "/home/" specs/082-agent-harness/runs` finds nothing; constitution II).
 - [ ] T058 [P] Update the spec 078 documentation that describes the everyday report and its safety count
       (`specs/078-*/contracts/` or `quickstart.md`, whichever names `safetyErrors`). Point it to
       `contracts/everyday-report.md` of this spec.

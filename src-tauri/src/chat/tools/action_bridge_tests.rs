@@ -260,7 +260,7 @@ fn a_failed_handler_message_is_replaced_but_a_validation_message_stays() {
             next: None,
         }
     );
-    // The runner's next step travels on (spec 081 FR-014).
+    // The runner's next step travels on (spec 082 FR-014).
     assert_eq!(
         wire(json!({
             "ok": false, "code": "target_not_found", "field": "tabId", "message": "no tab t-9",

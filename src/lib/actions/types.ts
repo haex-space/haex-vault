@@ -93,7 +93,7 @@ export type ActionOutcome =
       code: ActionErrorCode
       message: string
       field?: string
-      /** One sentence on what an agent should do next (spec 081 FR-014); absent for
+      /** One sentence on what an agent should do next (spec 082 FR-014); absent for
        * `needs_choice`, whose candidates are the next step. */
       next?: string
       /** The candidates of a `needs_choice` outcome. */

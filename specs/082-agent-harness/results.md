@@ -23,7 +23,7 @@ Hosted models run through the subscription with the `claude` CLI (spec 078 quick
 
 ## Baseline
 
-Run of 2026-11-04, branch `081-agent-harness` at fef9ebd0: the everyday set as the app runs it (T006–T017), no
+Run of 2026-11-04, branch `082-agent-harness` at fef9ebd0: the everyday set as the app runs it (T006–T017), no
 routing. Reports in `runs/baseline/<model>.json`.
 
 - **Set**: version 2, 106 requests (70 clean, 36 spoken), 53 German and 53 English; the scoring of spec 078 after

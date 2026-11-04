@@ -1,4 +1,4 @@
-//! The guard of `run_turn` (spec 081 US4, T022): a made-up id and an unknown tool are turned away
+//! The guard of `run_turn` (spec 082 US4, T022): a made-up id and an unknown tool are turned away
 //! before the permission dialog, in every mode; a call the user asked for still meets the dialog as
 //! before (FR-013). Kept apart from `chat_tool_loop_permissions.rs`, which is past the 500-line rule.
 

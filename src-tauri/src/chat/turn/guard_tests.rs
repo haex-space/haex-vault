@@ -275,7 +275,7 @@ fn an_unknown_tool_gets_up_to_three_offered_names_by_shared_words() {
     assert!(closest_tools("calendar_add", &offered).is_empty());
 }
 
-// Spec 081 US5: every answer holzi writes for a failed call ends with what to do next.
+// Spec 082 US5: every answer holzi writes for a failed call ends with what to do next.
 
 fn draft_tool() -> Arc<dyn Tool> {
     action(

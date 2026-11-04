@@ -43,7 +43,7 @@ errors: nie für eine unbekannte oder späte requestId (stilles Nichts)
 Das Frontend sendet nur `code`, `field`, `message` und `next` des Runners. Das Feld
 `error` (roher Fehler) wird nicht übertragen (FR-006). Bei `code == "failed"`
 ersetzt Rust die `message` durch den festen Text `"The action failed."`. `next` ist ein Satz,
-was das Modell als Nächstes tun soll (Spec 081 FR-014); Rust gibt ihn im Fehler-JSON als
+was das Modell als Nächstes tun soll (Spec 082 FR-014); Rust gibt ihn im Fehler-JSON als
 `error.next` weiter.
 
 ## Ereignisse (Rust → Frontend)

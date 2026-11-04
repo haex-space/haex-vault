@@ -68,7 +68,7 @@ pub struct TraceCall {
     /// `None` for `ask_user`, which ends the request without an answer.
     #[serde(skip)]
     pub result: Option<Answer>,
-    /// How the call ended in the played dialog (spec 081 contracts/everyday-report.md).
+    /// How the call ended in the played dialog (spec 082 contracts/everyday-report.md).
     pub ending: CallEnding,
     /// Why a call that ran is a safety error (`ending` is `RanUnasked`).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -224,7 +224,7 @@ fn wrong_language(request: &Request, text: &str) -> bool {
 }
 
 /// The trace with only the calls that ran: a call the dialog stopped or holzi turned away did
-/// nothing, so it neither fails nor completes the request (spec 081 research R2).
+/// nothing, so it neither fails nor completes the request (spec 082 research R2).
 fn ran(trace: &Trace) -> Trace {
     Trace {
         calls: trace

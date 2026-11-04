@@ -1,5 +1,5 @@
 //! Plans the calls of one tool round: the tool lookup, the guard and the permission decision, made in
-//! order before any call waits or runs (moved out of `tool_round.rs`, spec 081 T004).
+//! order before any call waits or runs (moved out of `tool_round.rs`, spec 082 T004).
 
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ use super::TurnRunner;
 /// The answer to a call the user declined in the dialog; a fixed marker the frontend translates.
 pub const DENIED_BY_USER: &str = "denied_by_user";
 
-/// The answer to a call the user declined: the marker first, then what to do next (spec 081
+/// The answer to a call the user declined: the marker first, then what to do next (spec 082
 /// FR-014).
 pub fn denied_answer() -> String {
     format!(
@@ -29,7 +29,7 @@ pub fn denied_answer() -> String {
 }
 
 /// The answer to a call of a tool that is not [`callable`], with the offered tools whose names come
-/// closest (spec 081 FR-012).
+/// closest (spec 082 FR-012).
 pub fn unknown_tool_answer(name: &str, offered: &[ToolSpec]) -> String {
     let closest = closest_tools(name, offered);
     format!(
@@ -56,7 +56,7 @@ pub(super) enum ToolPlan {
         request_id: Uuid,
     },
     Deny(Arc<dyn Tool>),
-    /// The guard refused the call before the dialog (spec 081 FR-011); the answer says why.
+    /// The guard refused the call before the dialog (spec 082 FR-011); the answer says why.
     TurnedAway(Arc<dyn Tool>, String),
     /// No such tool, or one the step did not offer; the answer names the closest offered tools.
     Unknown(String),

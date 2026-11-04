@@ -1,6 +1,6 @@
 # Feature Specification: A harness that lets small local models do everyday tasks
 
-**Feature Branch**: `081-agent-harness`
+**Feature Branch**: `082-agent-harness`
 
 **Created**: 2026-11-04
 
