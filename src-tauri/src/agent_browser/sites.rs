@@ -92,7 +92,7 @@ pub enum Verdict {
     Go,
     /// Ask the user whether the agent may open this website (FR-007).
     Ask(Site),
-    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`).
+    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`, `site_blocked`).
     Refuse(&'static str),
 }
 
@@ -100,8 +100,8 @@ pub enum Verdict {
 const BLANK: [&str; 2] = ["about:blank", "about:srcdoc"];
 
 /// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
-/// `sites`, one allowed once in this session, or any website when `all` allows reading or
-/// operating (FR-043) loads; any other website asks, or is refused in Plan (`ask` false); other
+/// `sites` that is not blocked, one allowed once in this session, or any website when `all` allows
+/// reading or operating (FR-043) loads; a blocked website (FR-047) never does; any other website asks, or is refused in Plan (`ask` false); other
 /// schemes, internal pages and addresses with user info never load.
 pub fn check_document(
     address: &str,
@@ -120,7 +120,12 @@ pub fn check_document(
         Ok(site) => site,
         Err(_) => return Verdict::Refuse("blocked_address"),
     };
-    if sites.contains_key(&site) || once.contains(&site) || all.is_some() {
+    // A blocked website never loads, not even when the user allowed it once (FR-047).
+    if sites.get(&site).is_some_and(|grant| !grant.level.opens()) {
+        return Verdict::Refuse("site_blocked");
+    }
+    let all_opens = all.is_some_and(SiteLevel::opens);
+    if sites.contains_key(&site) || once.contains(&site) || all_opens {
         Verdict::Go
     } else if ask {
         Verdict::Ask(site)

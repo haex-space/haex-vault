@@ -1,10 +1,14 @@
 <script setup lang="ts">
 /**
- * The rights group "Browser" of an agent (spec 065 FR-005, data-model.md): off by default; when on,
- * the level for all websites not listed (FR-043) and the websites that are exceptions, each with
- * "Lesen" or "Bedienen". A website over plain http can
- * only be read (research R9). A website where the user chose "Für diese Website merken" for a
- * login fill shows it and can forget it (FR-021). Rust checks every change again.
+ * The rights group "Browser" of an agent (spec 065 FR-005, data-model.md): rows for a
+ * `SettingsGroup` of the rights list. The row has the levels of every other right and picks what
+ * the agent may do on every website: nothing (the group is off), read, or operate (FR-043);
+ * "Fragt bei neuen Websites" is the group on without a level for all websites, where only listed
+ * websites open without a question. Once it is on, the exceptions follow inside the same list:
+ * websites that are blocked, read only or operated whatever the level for all says (FR-047), each
+ * with its own level. A website over plain http can only be read (research R9). A website where
+ * the user chose "Für diese Website merken" for a login fill shows it and can forget it
+ * (FR-021). Rust checks every change again.
  */
 import { siteOf } from '~/lib/agents/rights'
 import type { BrowserRights } from '~/types/bindings/BrowserRights'
@@ -28,28 +32,50 @@ const sites = computed(() =>
   ),
 )
 
-const levelOptions = computed(() =>
-  (['read', 'operate'] as const).map((value) => ({
+type BrowserChoice = 'none' | 'ask' | 'read' | 'write'
+
+const choices = computed(() =>
+  (['none', 'ask', 'read', 'write'] as const).map((value) => ({
+    value,
+    label:
+      value === 'ask'
+        ? t('mcpAgents.browser.ask')
+        : t(`mcpAgents.level.${value}`),
+  })),
+)
+
+const choice = computed<BrowserChoice>(() => {
+  const rights = props.modelValue
+  if (!rights) return 'none'
+  if (!rights.all) return 'ask'
+  return rights.all === 'operate' ? 'write' : 'read'
+})
+
+const siteLevels = computed(() =>
+  (['blocked', 'read', 'operate'] as const).map((value) => ({
     value,
     label: t(`mcpAgents.browser.level.${value}`),
   })),
 )
 
-const allOptions = computed(() => [
-  { value: 'none', label: t('mcpAgents.browser.levelNone') },
-  ...levelOptions.value,
-])
+/** A website over plain http can only be blocked or read (research R9). */
+const plainLevels = computed(() =>
+  siteLevels.value.filter((option) => option.value !== 'operate'),
+)
 
-/** A group switched on now may operate every website (FR-043). */
-function toggle(on: boolean) {
-  emit(
-    'update:modelValue',
-    on ? { userBrowser: false, sites: {}, requests: {}, all: 'operate' } : null,
-  )
-}
-
-function setAll(level: string) {
-  change({ all: level === 'none' ? null : (level as SiteLevel) })
+function setChoice(value: string) {
+  if (value === 'none') {
+    emit('update:modelValue', null)
+    return
+  }
+  const all: SiteLevel | null =
+    value === 'ask' ? null : value === 'write' ? 'operate' : 'read'
+  const current = props.modelValue ?? {
+    userBrowser: false,
+    sites: {},
+    requests: {},
+  }
+  emit('update:modelValue', { ...current, all })
 }
 
 function change(next: Partial<BrowserRights>) {
@@ -95,11 +121,12 @@ function remove(site: string) {
   change({ sites: rest })
 }
 
+/** A website typed here is blocked; its level can change in its row. */
 function add() {
   const site = siteOf(draft.value)
   problem.value = site === null
   if (!site) return
-  const level: SiteLevel = 'read'
+  const level: SiteLevel = 'blocked'
   change({
     sites: {
       ...props.modelValue?.sites,
@@ -115,35 +142,23 @@ function plain(site: string): boolean {
 </script>
 
 <template>
-  <SettingsGroup :label="t('mcpAgents.browser.title')">
-    <SettingsRow
-      :title="t('mcpAgents.browser.enabled')"
-      :description="t('mcpAgents.browser.enabledHint')"
-      label-for="mcp-browser-switch"
-    >
-      <ShadcnSwitch
-        id="mcp-browser-switch"
-        :model-value="modelValue !== null"
-        :disabled="disabled"
-        data-testid="mcp-browser-switch"
-        @update:model-value="toggle($event === true)"
-      />
-    </SettingsRow>
-    <template v-if="modelValue">
-      <SettingsRow
-        :title="t('mcpAgents.browser.allTitle')"
-        :description="t('mcpAgents.browser.allHint')"
-        data-testid="mcp-browser-all"
-      >
-        <SettingsSelect
-          :model-value="modelValue.all ?? 'none'"
-          class="w-40"
-          :options="allOptions"
-          :disabled="disabled"
-          data-testid="mcp-browser-all-level"
-          @update:model-value="setAll($event)"
-        />
-      </SettingsRow>
+  <SettingsRow
+    :title="t('mcpAgents.browser.title')"
+    :description="t('mcpAgents.browser.enabledHint')"
+    label-for="mcp-browser-level"
+  >
+    <SettingsSelect
+      id="mcp-browser-level"
+      :model-value="choice"
+      class="w-52"
+      :options="choices"
+      :disabled="disabled"
+      data-testid="mcp-browser-level"
+      @update:model-value="setChoice"
+    />
+  </SettingsRow>
+  <AgentsRightsInset v-if="modelValue" data-testid="mcp-browser-exceptions">
+    <SettingsGroup :label="t('mcpAgents.browser.exceptions')">
       <SettingsRow
         v-for="[site, grant] in sites"
         :key="site"
@@ -165,10 +180,12 @@ function plain(site: string): boolean {
             {{ t('mcpAgents.browser.forgetFill') }}
           </UiButton>
           <SettingsSelect
-            :model-value="plain(site) ? 'read' : grant.level"
-            class="w-40"
-            :options="levelOptions"
-            :disabled="disabled || plain(site)"
+            :model-value="
+              plain(site) && grant.level === 'operate' ? 'read' : grant.level
+            "
+            class="w-48"
+            :options="plain(site) ? plainLevels : siteLevels"
+            :disabled="disabled"
             :data-testid="`mcp-browser-level-${site}`"
             @update:model-value="setLevel(site, $event)"
           />
@@ -212,38 +229,42 @@ function plain(site: string): boolean {
           </UiButton>
         </div>
       </SettingsRow>
-      <div class="flex flex-col gap-1 p-4">
-        <div class="flex items-end gap-2">
-          <UiInput
-            id="mcp-browser-site"
-            v-model="draft"
-            class="flex-1"
-            :label="t('mcpAgents.browser.add')"
-            :labels="fieldLabels.input.value"
-            label-bg="var(--muted)"
-            type="url"
-            autocomplete="off"
-            placeholder="https://shop.example.de"
-            :disabled="disabled"
-            data-testid="mcp-browser-new-site"
-            @keydown.enter.prevent="add"
-          />
-          <UiButton
-            type="button"
-            :disabled="disabled || !draft.trim()"
-            data-testid="mcp-browser-add"
-            @click="add"
-          >
-            {{ t('mcpAgents.browser.addShort') }}
-          </UiButton>
-        </div>
-        <p v-if="problem" class="text-xs text-destructive" role="alert">
-          {{ t('mcpAgents.browser.invalid') }}
-        </p>
-        <p v-else class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.browser.hint') }}
-        </p>
+    </SettingsGroup>
+    <div class="flex flex-col gap-1">
+      <div class="flex items-end gap-2">
+        <UiInput
+          id="mcp-browser-site"
+          v-model="draft"
+          class="flex-1"
+          :label="t('mcpAgents.browser.add')"
+          :labels="fieldLabels.input.value"
+          label-bg="var(--background)"
+          type="url"
+          autocomplete="off"
+          placeholder="https://shop.example.de"
+          :disabled="disabled"
+          data-testid="mcp-browser-new-site"
+          @keydown.enter.prevent="add"
+        />
+        <UiButton
+          type="button"
+          :disabled="disabled || !draft.trim()"
+          data-testid="mcp-browser-add"
+          @click="add"
+        >
+          {{ t('mcpAgents.browser.addShort') }}
+        </UiButton>
       </div>
-    </template>
-  </SettingsGroup>
+      <p v-if="problem" class="text-xs text-destructive" role="alert">
+        {{ t('mcpAgents.browser.invalid') }}
+      </p>
+      <p v-else class="text-xs text-muted-foreground">
+        {{
+          choice === 'ask'
+            ? t('mcpAgents.browser.hintAsk')
+            : t('mcpAgents.browser.hint')
+        }}
+      </p>
+    </div>
+  </AgentsRightsInset>
 </template>

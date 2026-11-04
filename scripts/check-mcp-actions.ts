@@ -26,6 +26,7 @@ import {
   siteOf,
   withGroupLevel,
   type PasswordRights,
+  type BrowserRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
@@ -295,6 +296,79 @@ function passwordRow(modelValue: PasswordRights | null) {
   )
   return { row, updates }
 }
+
+/** The browser row with the given stored rights, and every update it emits. */
+function browserRow(modelValue: BrowserRights | null) {
+  const updates: Array<BrowserRights | null> = []
+  const row = loadScriptSetup<{
+    setChoice: (choice: string) => void
+    setLevel: (site: string, level: string) => void
+    add: () => void
+    draft: { value: string }
+  }>(
+    'src/components/agents/BrowserRightsFields.vue',
+    ['setChoice', 'setLevel', 'add', 'draft'],
+    {
+      props: { modelValue },
+      imports: { '~/lib/agents/rights': { siteOf } },
+      useFieldLabels: () => ({ input: { value: {} } }),
+      emit: (_event, value) => updates.push(value as BrowserRights | null),
+    },
+  )
+  return { row, updates }
+}
+
+/** What the settings action of the built-in agent takes: every field the row sends is known. */
+function builtinTakes(rights: BrowserRights | null) {
+  const action = ALL_ACTIONS.find(
+    (candidate) => candidate.id === 'settings.agentBrowser.builtin.set',
+  )
+  assert.ok(action)
+  return validate(action.input, { rights })
+}
+
+test('the browser row has the levels of every other row, and what it sends the action takes (spec 065)', () => {
+  const { row, updates } = browserRow(null)
+  row.setChoice('write')
+  assert.deepEqual(updates.at(-1), {
+    userBrowser: false,
+    sites: {},
+    requests: {},
+    all: 'operate',
+  })
+  assert.deepEqual(builtinTakes(updates.at(-1) ?? null), { ok: true })
+  row.setChoice('read')
+  assert.equal(updates.at(-1)?.all, 'read')
+  row.setChoice('ask')
+  assert.equal(updates.at(-1)?.all, null)
+  assert.deepEqual(builtinTakes(updates.at(-1) ?? null), { ok: true })
+  row.setChoice('none')
+  assert.equal(updates.at(-1), null)
+  assert.deepEqual(builtinTakes(null), { ok: true })
+})
+
+test('a website typed in the browser block is blocked, and its level changes in its row (FR-047)', () => {
+  const { row, updates } = browserRow({
+    userBrowser: false,
+    sites: {},
+    requests: {},
+    all: 'operate',
+  })
+  row.draft.value = 'bank.example'
+  row.add()
+  const blocked = updates.at(-1)
+  assert.deepEqual(blocked?.sites, {
+    'https://bank.example': { level: 'blocked', fillRemembered: false },
+  })
+  assert.deepEqual(builtinTakes(blocked ?? null), { ok: true })
+  assert.equal(blocked?.all, 'operate', 'the level for all stays')
+  const { row: listed, updates: listedUpdates } = browserRow(blocked ?? null)
+  listed.setLevel('https://bank.example', 'read')
+  assert.equal(
+    listedUpdates.at(-1)?.sites['https://bank.example']?.level,
+    'read',
+  )
+})
 
 test('the password row has the levels of every other row (spec 021 US5)', () => {
   const { row, updates } = passwordRow(null)

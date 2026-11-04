@@ -16,7 +16,8 @@ userBrowser: boolean, sites: { [key in string]: SiteGrant },
  */
 requests: { [key in string]: RequestRule },
 /**
- * What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing.
- * A website of `sites` is an exception and wins; `http` never gets more than reading (R9).
+ * What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing,
+ * and `Blocked` is no valid level here (`validate`, FR-047). A website of `sites` is an
+ * exception and wins, also as a blocked one; `http` never gets more than reading (R9).
  */
 all?: SiteLevel | null, };

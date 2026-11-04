@@ -140,6 +140,13 @@ einmal je Lieferung durchgeht.
   only after a click. Change value and expiry, delete one cookie and then a whole website, then
   let the page reload: the change holds. The agent sees none of it.
 
+## M14 Block list (FR-047)
+
+- In the rights list of an agent: Browser at "Read and change", add a website under the
+  exceptions: it shows as blocked. The agent opens another website, then the blocked one: it
+  answers `site_blocked`, also by a link and a redirect. Set the website to "Read": it opens.
+  In "KI → Browser" the same for the built-in agent; changing the dropdown saves without an error.
+
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 
 - Erweiterung nach 049 zugelassen, Recht „Browser des Nutzers“ an. Einen Tab in der Erweiterung
