@@ -45,6 +45,24 @@ fn find_messages_filters_by_subject_text_day_and_unread() {
 }
 
 #[test]
+fn find_messages_pages_with_offset_and_says_whether_more_follow() {
+    let world = embedded_world();
+    let page = |input: Value| -> Value {
+        serde_json::from_str(&world.answer("x_mail_find_messages", &input).content).unwrap()
+    };
+    let first = page(json!({ "from": "anna", "limit": 1 }));
+    assert_eq!(first["messages"][0]["id"], "msg-anna-2");
+    assert_eq!(first["total"], 2);
+    assert_eq!(first["hasMore"], true);
+    let second = page(json!({ "from": "anna", "limit": 1, "offset": 1 }));
+    assert_eq!(second["messages"][0]["id"], "msg-anna-1");
+    assert_eq!(second["hasMore"], false);
+    let past = page(json!({ "from": "anna", "offset": 5 }));
+    assert_eq!(past["messages"], json!([]));
+    assert_eq!(past["hasMore"], false);
+}
+
+#[test]
 fn get_message_returns_the_text_and_an_unknown_id_is_an_error() {
     let world = embedded_world();
     let answer = world.answer("x_mail_get_message", &json!({ "id": "msg-anna-2" }));

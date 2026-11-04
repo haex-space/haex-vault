@@ -74,7 +74,7 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
 }
 
 #[tokio::test]
-async fn the_system_prompt_carries_the_fixed_clock() {
+async fn the_system_prompt_carries_the_fixed_clock_and_the_request_s_language() {
     let model = Scripted::new(|_| {
         vec![StreamChunk::Delta {
             content: "9:41".to_owned(),
@@ -99,6 +99,7 @@ async fn the_system_prompt_carries_the_fixed_clock() {
         prompt.contains("Wednesday, 2026-03-18 09:41 (UTC+01:00)"),
         "{prompt}"
     );
+    assert!(prompt.contains("Always reply in German"), "{prompt}");
 }
 
 #[tokio::test]
@@ -153,6 +154,102 @@ async fn ask_user_ends_the_request_with_its_question() {
     .unwrap();
     assert_eq!(runs[0].trace.end, End::Question);
     assert_eq!(runs[0].trace.text, "Farbschema oder Helligkeit?");
+}
+
+#[tokio::test]
+async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
+    let model = Scripted::new(|_| {
+        vec![calls(vec![
+            (
+                "ask_user",
+                json!({ "question": "Wirklich löschen?", "options": ["Ja", "Nein"] }),
+            ),
+            (
+                "x_mail_delete_messages",
+                json!({ "messages": [{ "id": "msg-bernd-1", "subject": "Rechnung Fahrradreparatur" }] }),
+            ),
+        ])]
+    });
+    let runs = run_everyday(
+        &model,
+        "m",
+        true,
+        &one_request("Lösch die Mail von Bernd."),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let trace = &runs[0].trace;
+    assert_eq!(trace.end, End::Question);
+    assert_eq!(trace.text, "Wirklich löschen?");
+    assert_eq!(trace.calls.len(), 2);
+    assert_eq!(trace.calls[1].tool, "x_mail_delete_messages");
+    assert!(trace.calls[1].result.is_some());
+    assert_eq!(model.seen.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
+    // `contacts_search` is registered but not offered before `find_actions` found it.
+    let model = Scripted::new(|req| match tool_results(req).len() {
+        0 => vec![calls(vec![("contacts_search", json!({ "query": "Anna" }))])],
+        _ => vec![StreamChunk::Delta {
+            content: "Keine Nummer gefunden.".to_owned(),
+            reasoning: None,
+        }],
+    });
+    let runs = run_everyday(
+        &model,
+        "m",
+        true,
+        &one_request("Was ist die Handynummer von Anna?"),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let call = &runs[0].trace.calls[0];
+    assert!(!call.known);
+    assert_eq!(
+        call.result.as_ref().unwrap().content,
+        "unknown tool: contacts_search"
+    );
+}
+
+#[tokio::test]
+async fn a_mail_tool_the_message_did_not_match_still_runs() {
+    let model = Scripted::new(|req| match tool_results(req).len() {
+        0 => vec![calls(vec![("x_mail_list_accounts", json!({}))])],
+        _ => vec![StreamChunk::Delta {
+            content: "ok".to_owned(),
+            reasoning: None,
+        }],
+    });
+    let runs = run_everyday(
+        &model,
+        "m",
+        true,
+        &one_request("Wie spät ist es?"),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let seen = model.seen.lock().unwrap();
+    assert!(!seen[0]
+        .tools
+        .iter()
+        .any(|t| t.name == "x_mail_list_accounts"));
+    let call = &runs[0].trace.calls[0];
+    assert!(call.known);
+    assert!(!call.result.as_ref().unwrap().is_error);
 }
 
 #[tokio::test]
@@ -221,6 +318,46 @@ impl crate::adapters::ProviderAdapter for Failing {
             reason: "the prompt does not fit the context".to_owned(),
         })
     }
+}
+
+/// A server that accepted the request and never answers.
+struct Stalled;
+
+#[async_trait::async_trait]
+impl crate::adapters::ProviderAdapter for Stalled {
+    async fn list_models(
+        &self,
+    ) -> Result<Vec<crate::adapters::ProviderModel>, crate::adapters::AdapterError> {
+        Ok(Vec::new())
+    }
+
+    async fn stream_chat(
+        &self,
+        _req: crate::adapters::types::ChatRequest,
+    ) -> Result<crate::adapters::types::AdapterStream, crate::adapters::AdapterError> {
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn a_cancel_ends_a_stream_that_never_opens() {
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    let result = run_everyday(
+        &Stalled,
+        "m",
+        true,
+        &one_request("Wie spät ist es?"),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        &cancel,
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Err(crate::chat::eval::runner::EvalError::Cancelled)
+    ));
 }
 
 #[tokio::test]

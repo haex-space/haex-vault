@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
   "requests": [
     {
@@ -107,6 +107,9 @@
             "args": {
               "since": {
                 "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
               }
             }
           }
@@ -726,6 +729,9 @@
             "args": {
               "since": {
                 "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
               }
             }
           }
@@ -1097,6 +1103,9 @@
             "args": {
               "since": {
                 "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
               }
             }
           }
@@ -1710,6 +1719,9 @@
             "args": {
               "since": {
                 "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
               }
             }
           }
