@@ -38,7 +38,12 @@ The automatic choice is in `tts::choice`.
   "runs": {
     "gpu": {
       "sentences": [
-        { "parts": [[1.21, 3.4], [0.22, 0.8]] },
+        {
+          "parts": [
+            [1.21, 3.4],
+            [0.22, 0.8]
+          ]
+        },
         { "parts": [[0.88, 2.5]] }
       ],
       "slowStreak": 0,

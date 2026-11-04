@@ -28,7 +28,7 @@ QWEN_TTS_DIR=… cargo test -j 4 --release --test qwen_tts_eval \
 QWEN_TTS_DIR=… cargo test -j 4 --release --test qwen_tts_eval \
   --no-default-features --features llm-llamacpp,voice,voice-qwen -- --ignored two_hundred_sentences
 
-pnpm lint:rust && pnpm test -- SpeechModelRow
+pnpm lint:rust && pnpm check:settings
 ```
 
 Expected: the R23 run reports a ratio near 1.35 on 8 threads and near 0.36 on the GPU; the 200-sentence run
