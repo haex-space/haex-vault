@@ -145,7 +145,8 @@ onMounted(reloadAsync)
           <span class="flex flex-col text-xs">
             <span
               >{{ entry.parameters }} · {{ entry.quantization }} ·
-              {{ t(`models.filePicker.fit.${entry.fit}`) }}</span
+              {{ t(`models.filePicker.fit.${entry.fit}`)
+              }}{{ entry.trial ? ` · ${t('chat.catalog.trial')}` : '' }}</span
             >
             <ModelsDownloadStatus :model-id="entry.id" />
           </span>

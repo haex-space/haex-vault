@@ -20,14 +20,14 @@ const sleep = (ms: number) =>
 
 const draft = (
   name: string,
-  a: string,
-  b: string,
+  sourcePath: string,
+  targetPath: string,
   direction: string,
   deleteMode = direction === 'both' ? 'mirror' : 'keep',
 ) => ({
   name,
-  placeA: { source: { kind: 'device' }, path: a },
-  placeB: { source: { kind: 'device' }, path: b },
+  source: { location: { kind: 'device' }, path: sourcePath },
+  target: { location: { kind: 'device' }, path: targetPath },
   direction,
   deleteMode,
   intervalSecs: 900,
@@ -61,7 +61,12 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     unwrap(
       'sync_rules_create',
       await instance.invoke('sync_rules_create', {
-        draft: draft('Sicherung', source.folder, target.folder, 'aToB'),
+        draft: draft(
+          'Sicherung',
+          source.folder,
+          target.folder,
+          'sourceToTarget',
+        ),
       }),
     )
     const twoWay = unwrap<{ rule: { id: string } }>(
@@ -74,7 +79,13 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     unwrap(
       'sync_rules_create',
       await instance.invoke('sync_rules_create', {
-        draft: draft('Nachfrage', askFrom.folder, askTo.folder, 'aToB', 'ask'),
+        draft: draft(
+          'Nachfrage',
+          askFrom.folder,
+          askTo.folder,
+          'sourceToTarget',
+          'ask',
+        ),
       }),
     )
 
@@ -272,8 +283,8 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     if (runsBefore < 3) throw new Error(`only ${runsBefore} runs logged`)
     // The dialog offers both pickers.
     await instance.click('files-sync-rules-new')
-    await instance.waitForDisplayed('files-picker-a-root')
-    await instance.waitForDisplayed('files-picker-b-root')
+    await instance.waitForDisplayed('files-picker-source-root')
+    await instance.waitForDisplayed('files-picker-target-root')
     await closeModal()
 
     // The log depth from the settings button of the panel: the older runs go at once.

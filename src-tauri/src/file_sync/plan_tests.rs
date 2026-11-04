@@ -8,15 +8,15 @@ use crate::files::SourceRef;
 
 fn rule(delete_mode: SyncRuleDeleteMode) -> SyncRule {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRule {
         id: "r".to_owned(),
         name: "r".to_owned(),
-        place_a: place("/a"),
-        place_b: place("/b"),
-        direction: SyncRuleDirection::AToB,
+        source: place("/a"),
+        target: place("/b"),
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode,
         interval_secs: 900,
         enabled: true,
@@ -51,11 +51,11 @@ fn seen(size: u64, mtime_ms: i64) -> Option<Seen> {
     Some(Seen { size, mtime_ms })
 }
 
-fn row(path: &str, a: Option<Seen>, b: Option<Seen>) -> StateRow {
+fn row(path: &str, source: Option<Seen>, target: Option<Seen>) -> StateRow {
     StateRow {
         path: path.to_owned(),
-        a,
-        b,
+        source,
+        target,
         kept: false,
         hash: None,
     }
@@ -63,19 +63,19 @@ fn row(path: &str, a: Option<Seen>, b: Option<Seen>) -> StateRow {
 
 struct Case {
     rule: SyncRule,
-    a: Listing,
-    b: Listing,
+    source: Listing,
+    target: Listing,
     state: Vec<StateRow>,
     hashes: Hashes,
     ignore: Option<&'static str>,
 }
 
 impl Case {
-    fn new(a: Listing, b: Listing, state: Vec<StateRow>) -> Self {
+    fn new(source: Listing, target: Listing, state: Vec<StateRow>) -> Self {
         Self {
             rule: rule(SyncRuleDeleteMode::Keep),
-            a,
-            b,
+            source,
+            target,
             state,
             hashes: Hashes::new(),
             ignore: None,
@@ -102,8 +102,8 @@ impl Case {
         let exclusions = Exclusions::new(self.ignore, None).unwrap();
         build(&Inputs {
             rule: &self.rule,
-            a: &self.a,
-            b: &self.b,
+            source: &self.source,
+            target: &self.target,
             state: &self.state,
             exclusions: &exclusions,
             hashes: &self.hashes,
@@ -116,7 +116,7 @@ impl Case {
 }
 
 fn copy(path: &str, replaces: bool) -> Step {
-    copy_from(SyncRuleSide::A, path, replaces)
+    copy_from(SyncRuleSide::Source, path, replaces)
 }
 
 fn copy_from(from: SyncRuleSide, path: &str, replaces: bool) -> Step {
@@ -205,7 +205,7 @@ fn changed_on_both_sides_the_target_version_goes_aside() {
         plan.steps,
         [
             Step::Aside {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "x".to_owned(),
                 to: "x.conflict".to_owned(),
             },
@@ -235,14 +235,14 @@ fn deleted_at_the_source_follows_the_delete_mode() {
     assert_eq!(
         case(SyncRuleDeleteMode::Mirror),
         [Step::Delete {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             path: "x".to_owned()
         }]
     );
     assert_eq!(
         case(SyncRuleDeleteMode::Ask),
         [Step::Pending {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             path: "x".to_owned()
         }]
     );
@@ -294,13 +294,13 @@ fn a_first_meeting_adopts_equal_files_and_asks_for_hashes_before() {
     assert_eq!(
         first.hash_reads,
         [
-            (SyncRuleSide::A, "x".to_owned()),
-            (SyncRuleSide::B, "x".to_owned())
+            (SyncRuleSide::Source, "x".to_owned()),
+            (SyncRuleSide::Target, "x".to_owned())
         ]
     );
     let equal = case
-        .hash(SyncRuleSide::A, "x", "h1")
-        .hash(SyncRuleSide::B, "x", "h1")
+        .hash(SyncRuleSide::Source, "x", "h1")
+        .hash(SyncRuleSide::Target, "x", "h1")
         .plan();
     assert_eq!(
         equal.steps,
@@ -315,8 +315,8 @@ fn a_first_meeting_adopts_equal_files_and_asks_for_hashes_before() {
 #[test]
 fn a_first_meeting_with_other_content_makes_a_conflict_copy() {
     let differs = Case::new(listing(&[("x", 4, 1)]), listing(&[("x", 4, 9)]), vec![])
-        .hash(SyncRuleSide::A, "x", "h1")
-        .hash(SyncRuleSide::B, "x", "h2")
+        .hash(SyncRuleSide::Source, "x", "h1")
+        .hash(SyncRuleSide::Target, "x", "h2")
         .plan();
     assert_eq!(differs.steps.len(), 2, "aside and copy");
     let other_size = Case::new(listing(&[("x", 4, 1)]), listing(&[("x", 5, 9)]), vec![]).plan();
@@ -335,13 +335,13 @@ fn a_move_with_confirmed_content_moves_at_the_target() {
     );
     assert_eq!(
         case.plan().hash_reads,
-        [(SyncRuleSide::A, "new".to_owned())]
+        [(SyncRuleSide::Source, "new".to_owned())]
     );
-    let moved = case.hash(SyncRuleSide::A, "new", "h7").plan();
+    let moved = case.hash(SyncRuleSide::Source, "new", "h7").plan();
     assert_eq!(
         moved.steps,
         [Step::Move {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             from: "old".to_owned(),
             to: "new".to_owned(),
         }]
@@ -377,7 +377,7 @@ fn a_move_whose_content_differs_is_no_move() {
         listing(&[("old", 7, 9)]),
         vec![known],
     )
-    .hash(SyncRuleSide::A, "new", "other")
+    .hash(SyncRuleSide::Source, "new", "other")
     .plan();
     assert_eq!(plan.steps[0], copy("new", false));
 }
@@ -416,11 +416,11 @@ fn a_file_excluded_after_the_first_run_is_left_alone_and_forgotten() {
 
 #[test]
 fn folders_come_first_and_deletions_last() {
-    let mut a = listing(&[("d/x", 1, 1)]);
-    a.folders.insert("d".to_owned());
-    a.folders.insert("empty".to_owned());
+    let mut source = listing(&[("d/x", 1, 1)]);
+    source.folders.insert("d".to_owned());
+    source.folders.insert("empty".to_owned());
     let plan = Case::new(
-        a,
+        source,
         listing(&[("gone", 1, 9)]),
         vec![row("gone", seen(1, 1), seen(1, 9))],
     )
@@ -430,16 +430,16 @@ fn folders_come_first_and_deletions_last() {
         plan.steps,
         [
             Step::Folder {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "d".to_owned()
             },
             Step::Folder {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "empty".to_owned()
             },
             copy("d/x", false),
             Step::Delete {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "gone".to_owned()
             },
         ]
@@ -454,8 +454,8 @@ fn two_way_new_files_go_to_the_other_side() {
     assert_eq!(
         plan.steps,
         [
-            copy_from(SyncRuleSide::A, "a", false),
-            copy_from(SyncRuleSide::B, "b", false)
+            copy_from(SyncRuleSide::Source, "a", false),
+            copy_from(SyncRuleSide::Target, "b", false)
         ]
     );
 }
@@ -476,8 +476,8 @@ fn two_way_the_changed_side_wins() {
     assert_eq!(
         plan.steps,
         [
-            copy_from(SyncRuleSide::A, "x", true),
-            copy_from(SyncRuleSide::B, "y", true)
+            copy_from(SyncRuleSide::Source, "x", true),
+            copy_from(SyncRuleSide::Target, "y", true)
         ]
     );
 }
@@ -497,7 +497,7 @@ fn two_way_both_changed_the_newer_keeps_the_name() {
         b_newer.steps,
         [Step::Conflict {
             path: "x".to_owned(),
-            keep: SyncRuleSide::B,
+            keep: SyncRuleSide::Target,
             aside: "x.conflict".to_owned(),
         }]
     );
@@ -507,7 +507,7 @@ fn two_way_both_changed_the_newer_keeps_the_name() {
     assert!(matches!(
         a_newer.steps[0],
         Step::Conflict {
-            keep: SyncRuleSide::A,
+            keep: SyncRuleSide::Source,
             ..
         }
     ));
@@ -519,11 +519,14 @@ fn two_way_deleted_against_changed_copies_the_change_back() {
     let plan = Case::new(listing(&[]), listing(&[("x", 2, 10)]), state.clone())
         .both()
         .plan();
-    assert_eq!(plan.steps, [copy_from(SyncRuleSide::B, "x", false)]);
+    assert_eq!(plan.steps, [copy_from(SyncRuleSide::Target, "x", false)]);
     let other_way = Case::new(listing(&[("x", 2, 2)]), listing(&[]), state)
         .both()
         .plan();
-    assert_eq!(other_way.steps, [copy_from(SyncRuleSide::A, "x", false)]);
+    assert_eq!(
+        other_way.steps,
+        [copy_from(SyncRuleSide::Source, "x", false)]
+    );
 }
 
 #[test]
@@ -533,14 +536,14 @@ fn two_way_a_deletion_follows_the_delete_mode_on_the_other_side() {
     assert_eq!(
         deleted_on_b.plan().steps,
         [Step::Delete {
-            side: SyncRuleSide::A,
+            side: SyncRuleSide::Source,
             path: "x".to_owned()
         }]
     );
     assert_eq!(
         deleted_on_b.mode(SyncRuleDeleteMode::Ask).plan().steps,
         [Step::Pending {
-            side: SyncRuleSide::A,
+            side: SyncRuleSide::Source,
             path: "x".to_owned()
         }]
     );
@@ -594,15 +597,15 @@ fn two_way_a_move_on_either_side_moves_on_the_other() {
     .both();
     assert_eq!(
         moved_on_b.plan().hash_reads,
-        [(SyncRuleSide::B, "sub/new".to_owned())]
+        [(SyncRuleSide::Target, "sub/new".to_owned())]
     );
     assert_eq!(
         moved_on_b
-            .hash(SyncRuleSide::B, "sub/new", "h7")
+            .hash(SyncRuleSide::Target, "sub/new", "h7")
             .plan()
             .steps,
         [Step::Move {
-            side: SyncRuleSide::A,
+            side: SyncRuleSide::Source,
             from: "old".to_owned(),
             to: "sub/new".to_owned(),
         }]
@@ -613,12 +616,12 @@ fn two_way_a_move_on_either_side_moves_on_the_other() {
         vec![known],
     )
     .both()
-    .hash(SyncRuleSide::A, "new", "h7")
+    .hash(SyncRuleSide::Source, "new", "h7")
     .plan();
     assert_eq!(
         moved_on_a.steps,
         [Step::Move {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             from: "old".to_owned(),
             to: "new".to_owned(),
         }]
@@ -638,23 +641,23 @@ fn two_way_two_move_candidates_are_told_apart_by_the_hash() {
     assert_eq!(
         case.plan().hash_reads,
         [
-            (SyncRuleSide::A, "one".to_owned()),
-            (SyncRuleSide::A, "two".to_owned())
+            (SyncRuleSide::Source, "one".to_owned()),
+            (SyncRuleSide::Source, "two".to_owned())
         ]
     );
     let plan = case
-        .hash(SyncRuleSide::A, "one", "other")
-        .hash(SyncRuleSide::A, "two", "h7")
+        .hash(SyncRuleSide::Source, "one", "other")
+        .hash(SyncRuleSide::Source, "two", "h7")
         .plan();
     assert_eq!(
         plan.steps,
         [
             Step::Move {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 from: "old".to_owned(),
                 to: "two".to_owned(),
             },
-            copy_from(SyncRuleSide::A, "one", false),
+            copy_from(SyncRuleSide::Source, "one", false),
         ]
     );
 }
@@ -670,22 +673,22 @@ fn two_way_first_meeting_adopts_equal_and_conflicts_on_other_content() {
     let first = case.plan();
     assert_eq!(first.hash_reads.len(), 4, "same and other, both sides");
     let plan = case
-        .hash(SyncRuleSide::A, "same", "h")
-        .hash(SyncRuleSide::B, "same", "h")
-        .hash(SyncRuleSide::A, "other", "h1")
-        .hash(SyncRuleSide::B, "other", "h2")
+        .hash(SyncRuleSide::Source, "same", "h")
+        .hash(SyncRuleSide::Target, "same", "h")
+        .hash(SyncRuleSide::Source, "other", "h1")
+        .hash(SyncRuleSide::Target, "other", "h2")
         .plan();
     assert_eq!(
         plan.steps,
         [
             Step::Conflict {
                 path: "other".to_owned(),
-                keep: SyncRuleSide::B,
+                keep: SyncRuleSide::Target,
                 aside: "other.conflict".to_owned(),
             },
             Step::Conflict {
                 path: "size".to_owned(),
-                keep: SyncRuleSide::B,
+                keep: SyncRuleSide::Target,
                 aside: "size.conflict".to_owned(),
             },
             Step::Adopt {
@@ -708,26 +711,27 @@ fn two_way_differing_exclusion_files_merge() {
     assert_eq!(
         plan.steps,
         [Step::MergeIgnore {
-            aside_a: ".haex-ignore.conflict".to_owned(),
-            aside_b: ".haex-ignore.conflict2".to_owned(),
+            aside_source: ".haex-ignore.conflict".to_owned(),
+            aside_target: ".haex-ignore.conflict2".to_owned(),
         }]
     );
 }
 
 #[test]
 fn two_way_copies_create_their_folders_but_empty_folders_stay() {
-    let mut b = listing(&[("d/e/x", 1, 1)]);
-    b.folders
+    let mut target = listing(&[("d/e/x", 1, 1)]);
+    target
+        .folders
         .extend(["d".to_owned(), "d/e".to_owned(), "empty".to_owned()]);
-    let plan = Case::new(listing(&[]), b, vec![]).both().plan();
+    let plan = Case::new(listing(&[]), target, vec![]).both().plan();
     assert_eq!(
         plan.steps,
         [
             Step::Folder {
-                side: SyncRuleSide::A,
+                side: SyncRuleSide::Source,
                 path: "d/e".to_owned()
             },
-            copy_from(SyncRuleSide::B, "d/e/x", false),
+            copy_from(SyncRuleSide::Target, "d/e/x", false),
         ]
     );
 }

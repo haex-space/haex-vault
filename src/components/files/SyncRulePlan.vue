@@ -14,7 +14,7 @@ const props = defineProps<{
   /** A stored rule, a new draft, or both for a change; `null` while closed. */
   target: { id?: string; draft?: SyncRuleDraft } | null
   /** The names of both places. */
-  labels: { a: string; b: string }
+  labels: { source: string; target: string }
 }>()
 
 const open = defineModel<boolean>('open', { required: true })

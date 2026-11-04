@@ -7,7 +7,9 @@
 //! - `browser` (spec 065): a switch row with an empty key, a row `user-browser` and one row per
 //!   website; a website whose credential fill is remembered carries the tags `["fill"]`; a rule
 //!   for the requests a page sends to a website is a row `request:<website>` at `allow` or `deny`
-//!   (an older build cannot read the key as a website and skips it).
+//!   (an older build cannot read the key as a website and skips it); the level for every other
+//!   website is a row `*` at `read` or `operate` (FR-043; no row is none, and an older build skips
+//!   it too).
 //! - `passwords`: one row keyed by the tag new entries get (empty for none); its tags are a JSON
 //!   array of tag names, none for every entry.
 //! - `extension`: one row per extension, keyed by its id.
@@ -33,6 +35,8 @@ const ON: &str = "on";
 const BROWSER_ON: &str = "";
 /// The key of the row that allows the user's own browser.
 const USER_BROWSER: &str = "user-browser";
+/// The key of the row with the level for all websites not listed (FR-043).
+const ALL_SITES: &str = "*";
 /// The start of the key of a rule for page requests (FR-044).
 const REQUEST_PREFIX: &str = "request:";
 /// The scope tags of a website whose credential fill is remembered.
@@ -117,6 +121,9 @@ fn browser_rows(browser: &BrowserRights) -> Vec<GrantRow> {
     if browser.user_browser {
         rows.push(GrantRow::new(GROUP_BROWSER, USER_BROWSER, ON));
     }
+    if let Some(level) = browser.all {
+        rows.push(GrantRow::new(GROUP_BROWSER, ALL_SITES, level.as_str()));
+    }
     rows.extend(browser.sites.iter().map(|(site, grant)| {
         let tags = grant.fill_remembered.then(|| FILL_TAGS.to_owned());
         GrantRow::new(GROUP_BROWSER, site.to_string(), grant.level.as_str()).tagged(tags)
@@ -142,6 +149,10 @@ fn browser_of(rows: &[GrantRow]) -> Option<BrowserRights> {
         }
         if row.key == USER_BROWSER {
             browser.user_browser = row.level == ON;
+            continue;
+        }
+        if row.key == ALL_SITES {
+            browser.all = SiteLevel::parse(&row.level);
             continue;
         }
         if let Some(site) = row.key.strip_prefix(REQUEST_PREFIX) {

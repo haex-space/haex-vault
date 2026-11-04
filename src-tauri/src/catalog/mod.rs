@@ -190,7 +190,7 @@ pub struct TierRecommendation {
 ///
 /// Under the phone presets the candidates are only the two phone profiles
 /// (`profiles.rs`, spec 043 FR-027); the fit to the memory chooses between
-/// them.
+/// them. An entry marked `trial` is never a candidate.
 ///
 /// Returns `None` only when the catalog is empty (which never happens
 /// in production because `entries()` reads the built-in JSON blob).

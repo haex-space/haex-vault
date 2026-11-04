@@ -20,7 +20,7 @@ struct Renamed {
     keep_current: bool,
 }
 
-const RENAMED: [Renamed; 3] = [
+const RENAMED: [Renamed; 4] = [
     // The chat-message tool-origin migration landed first and took `0035`.
     Renamed {
         legacy: "0035_file_icon_sets",
@@ -37,6 +37,13 @@ const RENAMED: [Renamed; 3] = [
     Renamed {
         legacy: "0045_sync_rules_decrypt",
         current: "0046_sync_rules_decrypt",
+        keep_current: false,
+    },
+    // The own-voices migration took `0052` (spec 066) while spec 075 was open; renaming the
+    // columns must not run twice.
+    Renamed {
+        legacy: "0052_sync_rules_source_target",
+        current: "0053_sync_rules_source_target",
         keep_current: false,
     },
 ];

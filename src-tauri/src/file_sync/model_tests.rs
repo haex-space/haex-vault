@@ -5,13 +5,13 @@ use super::*;
 
 #[test]
 fn enums_store_their_serde_names_and_read_them_back() {
-    assert_eq!(stored(&SyncRuleDirection::AToB), "aToB");
+    assert_eq!(stored(&SyncRuleDirection::SourceToTarget), "sourceToTarget");
     assert_eq!(stored(&SyncRuleDirection::Both), "both");
     assert_eq!(stored(&SyncRuleDeleteMode::Ask), "ask");
     assert_eq!(stored(&SyncRuleOutcome::Partial), "partial");
-    assert_eq!(stored(&SyncRuleSide::B), "b");
+    assert_eq!(stored(&SyncRuleSide::Target), "target");
     assert_eq!(
-        parse::<SyncRuleDirection>("bToA"),
+        parse::<SyncRuleDirection>("targetToSource"),
         None,
         "one way is always from the source"
     );
@@ -50,6 +50,6 @@ fn contact_shares_are_recognized() {
 
 #[test]
 fn the_other_side() {
-    assert_eq!(SyncRuleSide::A.other(), SyncRuleSide::B);
-    assert_eq!(SyncRuleSide::B.other(), SyncRuleSide::A);
+    assert_eq!(SyncRuleSide::Source.other(), SyncRuleSide::Target);
+    assert_eq!(SyncRuleSide::Target.other(), SyncRuleSide::Source);
 }

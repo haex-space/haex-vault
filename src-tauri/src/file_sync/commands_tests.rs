@@ -36,16 +36,16 @@ fn own() -> OwnPlaces {
     OwnPlaces::new(vec![PathBuf::from("/data/holzi")])
 }
 
-fn draft(a: &str, b: &str) -> SyncRuleDraft {
+fn draft(source: &str, target: &str) -> SyncRuleDraft {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: place(a),
-        place_b: place(b),
-        direction: SyncRuleDirection::AToB,
+        source: place(source),
+        target: place(target),
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -68,7 +68,7 @@ async fn create_checks_and_stores_a_rule() {
     let rule = create(&db, DEVICE, &own(), draft("/home/a/", "/home/b"))
         .await
         .unwrap();
-    assert_eq!(rule.place_a.path, "/home/a", "normalised");
+    assert_eq!(rule.source.path, "/home/a", "normalised");
     let overlap = create(&db, DEVICE, &own(), draft("/home/a/sub", "/home/z"))
         .await
         .unwrap_err();
@@ -83,7 +83,7 @@ async fn a_two_way_rule_is_stored_as_it_is() {
     let rule = create(&db, DEVICE, &own(), both).await.unwrap();
     assert_eq!(rule.direction, SyncRuleDirection::Both);
     assert_eq!(
-        rule.place_a.path, "/home/a",
+        rule.source.path, "/home/a",
         "the places stay in their order"
     );
 }
@@ -167,8 +167,8 @@ async fn a_preview_keeps_the_state_unless_the_draft_moves_the_places() {
         .unwrap();
     let row = store::StateRow {
         path: "x.txt".to_owned(),
-        a: None,
-        b: None,
+        source: None,
+        target: None,
         kept: false,
         hash: None,
     };

@@ -270,6 +270,7 @@ impl BrowserTools {
             let verdict = check_document(
                 address,
                 &rights.sites,
+                rights.all,
                 &session.once_allowed_sites(),
                 call.mode != PermissionMode::Plan,
             );
@@ -348,7 +349,12 @@ impl BrowserTools {
                 };
                 // Following a link operates the page (FR-008).
                 let here = link["url"].as_str().unwrap_or_default();
-                if !may_operate(here, &rights.sites, &session.once_allowed_sites()) {
+                if !may_operate(
+                    here,
+                    &rights.sites,
+                    rights.all,
+                    &session.once_allowed_sites(),
+                ) {
                     return Err(NativeError::new(
                         "read_only_site",
                         "The agent may only read this website, not operate it.",

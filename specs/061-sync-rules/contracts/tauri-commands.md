@@ -7,10 +7,11 @@ message }` für Regelfehler, `FilesError` für Fehler eines Orts.
 ## Typen (Auszug)
 
 ```text
-SyncRulePlace      { source: SourceRef, path: string }          // SourceRef wie in files/mod.rs
-SyncRuleDirection  'aToB' | 'both'                             // aToB: Quellort → Zielort
+SyncRulePlace      { location: SourceRef, path: string }        // SourceRef wie in files/mod.rs
+SyncRuleDirection  'sourceToTarget' | 'both'                   // sourceToTarget: Quellort → Zielort
+SyncRuleSide       'source' | 'target'                         // eine der beiden Seiten einer Regel
 SyncRuleDeleteMode 'mirror' | 'keep' | 'ask'
-SyncRuleDraft      { name, placeA, placeB, direction, deleteMode, intervalSecs, enabled }
+SyncRuleDraft      { name, source, target, direction, deleteMode, intervalSecs, enabled }
 SyncRule           SyncRuleDraft + { id, createdAt, updatedAt, status, lastRunAt, lastError }
 SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused'|'inactive', reason?, pendingDeletes,
                      conflicts, conflictCopies: string[], errors: { path, reason }[], ignored,

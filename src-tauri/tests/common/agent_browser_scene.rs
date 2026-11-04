@@ -19,7 +19,7 @@ use holzi_lib::agent_browser::profile::Workdir;
 use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
 use holzi_lib::agent_browser::prompts::{new_browser_prompts, BrowserPrompts, BrowserQuestion};
 use holzi_lib::agent_browser::sessions::BrowserSessions;
-use holzi_lib::agent_browser::sites::Site;
+use holzi_lib::agent_browser::sites::{remember_fill, Site};
 use holzi_lib::agent_browser::{AgentBrowser, StartConfig};
 use holzi_lib::caller::Caller;
 use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
@@ -154,9 +154,7 @@ impl BrowserEnv for Env {
     }
 
     async fn remember_fill(&self, _caller: &Caller, site: &Site) -> Result<(), String> {
-        if let Some(grant) = self.rights.lock().unwrap().sites.get_mut(site) {
-            grant.fill_remembered = true;
-        }
+        remember_fill(&mut self.rights.lock().unwrap(), site);
         Ok(())
     }
 

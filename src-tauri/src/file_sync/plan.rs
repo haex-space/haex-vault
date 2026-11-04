@@ -59,7 +59,10 @@ pub enum Step {
     },
     /// The exclusion files of a two-way rule differ (FR-039): both go aside as conflict copies on
     /// both sides, and the union of their patterns becomes the exclusion file of both.
-    MergeIgnore { aside_a: String, aside_b: String },
+    MergeIgnore {
+        aside_source: String,
+        aside_target: String,
+    },
     /// Equal on both sides; only the state is written (FR-012a).
     Adopt { path: String, hash: String },
     /// Deleted on the other side; mirrored into a trash (FR-019).
@@ -99,8 +102,8 @@ pub struct Plan {
 /// What a plan is built from.
 pub struct Inputs<'a> {
     pub rule: &'a SyncRule,
-    pub a: &'a Listing,
-    pub b: &'a Listing,
+    pub source: &'a Listing,
+    pub target: &'a Listing,
     pub state: &'a [StateRow],
     pub exclusions: &'a Exclusions,
     pub hashes: &'a Hashes,
@@ -118,7 +121,7 @@ pub fn build(inputs: &Inputs<'_>) -> Plan {
     let mut planner = Planner::new(inputs, &mut plan);
     match inputs.rule.direction {
         SyncRuleDirection::Both => planner.two_way(),
-        SyncRuleDirection::AToB => planner.one_way(),
+        SyncRuleDirection::SourceToTarget => planner.one_way(),
     }
     plan.steps.sort_by_key(Step::rank);
     plan.hash_reads.sort();
@@ -127,12 +130,12 @@ pub fn build(inputs: &Inputs<'_>) -> Plan {
 }
 
 fn ignored(inputs: &Inputs<'_>) -> usize {
-    excluded_count(inputs.exclusions, inputs.a, inputs.b)
+    excluded_count(inputs.exclusions, inputs.source, inputs.target)
 }
 
 /// How many files and folders of both listings `exclusions` leave out (FR-042).
-pub fn excluded_count(exclusions: &Exclusions, a: &Listing, b: &Listing) -> usize {
-    [a, b]
+pub fn excluded_count(exclusions: &Exclusions, source: &Listing, target: &Listing) -> usize {
+    [source, target]
         .iter()
         .flat_map(|listing| {
             listing
@@ -163,7 +166,7 @@ enum Was {
     Never,
 }
 
-/// Plans a rule: from the source A to the target B (FR-010) or both ways (FR-011).
+/// Plans a rule: from the source to the target (FR-010) or both ways (FR-011).
 struct Planner<'i, 'p> {
     inputs: &'i Inputs<'i>,
     plan: &'p mut Plan,
@@ -193,8 +196,8 @@ impl<'i, 'p> Planner<'i, 'p> {
 
     fn listing(&self, side: SyncRuleSide) -> &'i Listing {
         match side {
-            SyncRuleSide::A => self.inputs.a,
-            SyncRuleSide::B => self.inputs.b,
+            SyncRuleSide::Source => self.inputs.source,
+            SyncRuleSide::Target => self.inputs.target,
         }
     }
 
@@ -224,10 +227,10 @@ impl<'i, 'p> Planner<'i, 'p> {
     fn paths(&self) -> BTreeSet<&'i str> {
         let inputs = self.inputs;
         inputs
-            .a
+            .source
             .files
             .keys()
-            .chain(inputs.b.files.keys())
+            .chain(inputs.target.files.keys())
             .map(String::as_str)
             .chain(self.state.keys().copied())
             .filter(|path| !self.excluded(path))
@@ -237,7 +240,7 @@ impl<'i, 'p> Planner<'i, 'p> {
     fn one_way(&mut self) {
         self.forget_excluded();
         self.folders();
-        self.moves(SyncRuleSide::A);
+        self.moves(SyncRuleSide::Source);
         for path in self.paths() {
             if !self.done.contains(path) {
                 self.file(path);
@@ -247,8 +250,8 @@ impl<'i, 'p> Planner<'i, 'p> {
 
     fn two_way(&mut self) {
         self.forget_excluded();
-        self.moves(SyncRuleSide::A);
-        self.moves(SyncRuleSide::B);
+        self.moves(SyncRuleSide::Source);
+        self.moves(SyncRuleSide::Target);
         for path in self.paths() {
             if !self.done.contains(path) {
                 self.both_ways(path);
@@ -271,13 +274,14 @@ impl<'i, 'p> Planner<'i, 'p> {
         }
     }
 
-    /// Folders of A that B lacks, also empty ones (research R3).
+    /// Folders of the source that the target lacks, also empty ones (research R3).
     fn folders(&mut self) {
         let inputs = self.inputs;
-        for folder in &inputs.a.folders {
-            if !inputs.exclusions.excludes(folder, true) && !inputs.b.folders.contains(folder) {
+        for folder in &inputs.source.folders {
+            if !inputs.exclusions.excludes(folder, true) && !inputs.target.folders.contains(folder)
+            {
                 self.push(Step::Folder {
-                    side: SyncRuleSide::B,
+                    side: SyncRuleSide::Target,
                     path: folder.clone(),
                 });
             }
@@ -346,20 +350,20 @@ impl<'i, 'p> Planner<'i, 'p> {
 
     fn file(&mut self, path: &str) {
         let inputs = self.inputs;
-        let source = inputs.a.files.get(path);
-        let target = inputs.b.files.get(path);
+        let source = inputs.source.files.get(path);
+        let target = inputs.target.files.get(path);
         let row = self.state.get(path).copied();
-        let known_a = row.and_then(|row| row.a);
-        let known_b = row.and_then(|row| row.b);
-        let target_same = match (target, known_b) {
+        let known_source = row.and_then(|row| row.source);
+        let known_target = row.and_then(|row| row.target);
+        let target_same = match (target, known_target) {
             (Some(facts), Some(seen)) => same(facts, seen),
             _ => false,
         };
-        match (source, known_a) {
-            // New at A, or only known at B so far.
+        match (source, known_source) {
+            // New at the source, or only known at the target so far.
             (Some(_), None) => match target {
                 None => self.push(Step::Copy {
-                    from: SyncRuleSide::A,
+                    from: SyncRuleSide::Source,
                     path: path.to_owned(),
                     replaces: false,
                 }),
@@ -368,12 +372,12 @@ impl<'i, 'p> Planner<'i, 'p> {
             (Some(facts), Some(seen)) => {
                 if same(facts, seen) {
                     match target {
-                        None if known_b.is_some() => self.push(Step::Report {
+                        None if known_target.is_some() => self.push(Step::Report {
                             path: path.to_owned(),
                             what: Deviation::Deleted,
                         }),
                         None => self.push(Step::Copy {
-                            from: SyncRuleSide::A,
+                            from: SyncRuleSide::Source,
                             path: path.to_owned(),
                             replaces: false,
                         }),
@@ -386,12 +390,12 @@ impl<'i, 'p> Planner<'i, 'p> {
                 } else {
                     match target {
                         None => self.push(Step::Copy {
-                            from: SyncRuleSide::A,
+                            from: SyncRuleSide::Source,
                             path: path.to_owned(),
                             replaces: false,
                         }),
                         Some(_) if target_same => self.push(Step::Copy {
-                            from: SyncRuleSide::A,
+                            from: SyncRuleSide::Source,
                             path: path.to_owned(),
                             replaces: true,
                         }),
@@ -430,7 +434,8 @@ impl<'i, 'p> Planner<'i, 'p> {
     /// other content makes a conflict copy.
     fn first_meeting(&mut self, path: &str) {
         let inputs = self.inputs;
-        let (Some(source), Some(target)) = (inputs.a.files.get(path), inputs.b.files.get(path))
+        let (Some(source), Some(target)) =
+            (inputs.source.files.get(path), inputs.target.files.get(path))
         else {
             return;
         };
@@ -438,13 +443,15 @@ impl<'i, 'p> Planner<'i, 'p> {
             self.conflict(path);
             return;
         }
-        let a = self.need_hash(SyncRuleSide::A, path);
-        let b = self.need_hash(SyncRuleSide::B, path);
-        match (a, b) {
-            (Some(a), Some(b)) if a == b => self.push(Step::Adopt {
-                path: path.to_owned(),
-                hash: a,
-            }),
+        let source_hash = self.need_hash(SyncRuleSide::Source, path);
+        let target_hash = self.need_hash(SyncRuleSide::Target, path);
+        match (source_hash, target_hash) {
+            (Some(source_hash), Some(target_hash)) if source_hash == target_hash => {
+                self.push(Step::Adopt {
+                    path: path.to_owned(),
+                    hash: source_hash,
+                })
+            }
             (Some(_), Some(_)) => self.conflict(path),
             // The run reads the hashes and plans again.
             _ => {}
@@ -465,19 +472,19 @@ impl<'i, 'p> Planner<'i, 'p> {
     fn aside_and_copy(&mut self, path: &str) {
         let aside = (self.inputs.conflict_name)(path, &[]);
         self.push(Step::Aside {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             path: path.to_owned(),
             to: aside,
         });
         self.push(Step::Copy {
-            from: SyncRuleSide::A,
+            from: SyncRuleSide::Source,
             path: path.to_owned(),
             replaces: false,
         });
     }
 
     fn deleted_at_source(&mut self, path: &str) {
-        self.deleted(SyncRuleSide::B, path);
+        self.deleted(SyncRuleSide::Target, path);
     }
 
     /// Deleted on the other side of `side`, unchanged on `side`: the delete mode decides (FR-019 to
@@ -512,26 +519,29 @@ impl<'i, 'p> Planner<'i, 'p> {
 
     /// One path of a two-way rule (FR-011 to FR-013).
     fn both_ways(&mut self, path: &str) {
-        use SyncRuleSide::{A, B};
+        use SyncRuleSide::{Source, Target};
         use Was::{Changed, Gone, Never, New, Same};
         let row = self.state.get(path).copied();
-        let (a, b) = (self.was(A, path, row), self.was(B, path, row));
+        let (source, target) = (self.was(Source, path, row), self.was(Target, path, row));
         // "Keep" left it on one side on purpose; it is not copied back (FR-020).
         if row.is_some_and(|row| row.kept)
-            && matches!((a, b), (Gone, Same | Changed) | (Same | Changed, Gone))
+            && matches!(
+                (source, target),
+                (Gone, Same | Changed) | (Same | Changed, Gone)
+            )
         {
             return;
         }
-        match (a, b) {
+        match (source, target) {
             (Same, Same) => {}
-            (Changed, Same) => self.copy(A, path, true),
-            (Same, Changed) => self.copy(B, path, true),
+            (Changed, Same) => self.copy(Source, path, true),
+            (Same, Changed) => self.copy(Target, path, true),
             (Changed, Changed) => self.both_changed(path),
             // Only on one side, or deleted on one and changed on the other (FR-013).
-            (Same | Changed | New, Never) | (Changed | New, Gone) => self.copy(A, path, false),
-            (Never, Same | Changed | New) | (Gone, Changed | New) => self.copy(B, path, false),
-            (Same, Gone) => self.deleted(A, path),
-            (Gone, Same) => self.deleted(B, path),
+            (Same | Changed | New, Never) | (Changed | New, Gone) => self.copy(Source, path, false),
+            (Never, Same | Changed | New) | (Gone, Changed | New) => self.copy(Target, path, false),
+            (Same, Gone) => self.deleted(Source, path),
+            (Gone, Same) => self.deleted(Target, path),
             (Gone | Never, Gone | Never) => self.push(Step::Forget {
                 path: path.to_owned(),
             }),
@@ -545,19 +555,24 @@ impl<'i, 'p> Planner<'i, 'p> {
     fn both_changed(&mut self, path: &str) {
         let conflict_name = self.inputs.conflict_name;
         if path == IGNORE_FILE {
-            let aside_a = conflict_name(path, &[]);
-            let aside_b = conflict_name(path, std::slice::from_ref(&aside_a));
-            self.push(Step::MergeIgnore { aside_a, aside_b });
+            let aside_source = conflict_name(path, &[]);
+            let aside_target = conflict_name(path, std::slice::from_ref(&aside_source));
+            self.push(Step::MergeIgnore {
+                aside_source,
+                aside_target,
+            });
             return;
         }
-        let (Some(a), Some(b)) = (self.inputs.a.files.get(path), self.inputs.b.files.get(path))
-        else {
+        let (Some(source), Some(target)) = (
+            self.inputs.source.files.get(path),
+            self.inputs.target.files.get(path),
+        ) else {
             return;
         };
-        let keep = if b.mtime_ms > a.mtime_ms {
-            SyncRuleSide::B
+        let keep = if target.mtime_ms > source.mtime_ms {
+            SyncRuleSide::Target
         } else {
-            SyncRuleSide::A
+            SyncRuleSide::Source
         };
         self.push(Step::Conflict {
             path: path.to_owned(),

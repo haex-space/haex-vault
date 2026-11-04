@@ -73,8 +73,8 @@ async function answerAsync(confirmed: boolean) {
 function shown(draft: SyncRuleDraft) {
   const unknown = t('files.syncRules.unknownSource')
   return {
-    placeA: placeLabel(draft.placeA, sources.value, unknown),
-    placeB: placeLabel(draft.placeB, sources.value, unknown),
+    source: placeLabel(draft.source, sources.value, unknown),
+    target: placeLabel(draft.target, sources.value, unknown),
     direction: t(`files.syncRules.direction.${draft.direction}`),
     deleteMode: t(`files.syncRules.deleteMode.${draft.deleteMode}`),
     interval: t(
@@ -85,8 +85,8 @@ function shown(draft: SyncRuleDraft) {
 }
 
 const FIELDS = [
-  ['placeA', 'files.syncRules.placeA'],
-  ['placeB', 'files.syncRules.placeB'],
+  ['source', 'files.syncRules.source'],
+  ['target', 'files.syncRules.target'],
   ['direction', 'files.syncRules.direction.label'],
   ['deleteMode', 'files.syncRules.deleteMode.label'],
   ['interval', 'files.syncRules.confirm.interval'],

@@ -45,7 +45,8 @@ pub trait BrowserEnv: Send + Sync + 'static {
         site: &Site,
         rule: RequestRule,
     ) -> Result<(), String>;
-    /// Switches the rights group `browser` of `caller` on, without any website (FR-040).
+    /// Switches the rights group `browser` of `caller` on, with no website listed and every
+    /// website at operating (FR-040, FR-043).
     async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
         Err("the browser cannot be switched on here".to_owned())
     }
