@@ -1947,6 +1947,11 @@
       "peer": {
         "send": "Nachricht an Kontakt senden",
         "resend": "Nachricht erneut senden"
+      },
+      "request": {
+        "accept": "Anfrage annehmen",
+        "decline": "Anfrage ablehnen",
+        "block": "Absender einer Anfrage blockieren"
       }
     },
     "settings": {
@@ -1977,7 +1982,8 @@
       },
       "agents": {
         "files": {
-          "set": "Dateirechte eines Agents setzen"
+          "set": "Dateirechte eines Agents setzen",
+          "remove": "Dateirecht eines Agents entfernen"
         },
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
