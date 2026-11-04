@@ -93,6 +93,8 @@ pub struct LoadRequest<'a> {
     pub tokenizer_repo: Option<&'a str>,
     /// The context the catalog wants, in tokens.
     pub context_window: Option<u32>,
+    /// The model's installed MTP drafter (spec 079); only the llama.cpp engine uses it.
+    pub drafter: Option<&'a Path>,
 }
 
 /// Loads `path` with the engine its architecture selects. Slow: seconds to a minute.
@@ -121,6 +123,7 @@ pub async fn load_local(
                     context_window: request.context_window,
                     gpu_layers: None,
                     threads: None,
+                    drafter: request.drafter.map(Path::to_path_buf),
                 },
             )
             .await?;

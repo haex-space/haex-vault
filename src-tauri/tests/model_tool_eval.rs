@@ -118,11 +118,14 @@ async fn llamacpp_from_env() -> Measured {
     let context_window = env::var("HOLZI_LLAMACPP_CONTEXT")
         .ok()
         .and_then(|v| v.parse().ok());
+    // `HOLZI_LLAMACPP_DRAFTER` loads the model's MTP drafter with it (spec 079 FR-013).
+    let drafter = env::var_os("HOLZI_LLAMACPP_DRAFTER").map(PathBuf::from);
     let name = format!(
-        "llamacpp-{}",
+        "llamacpp-{}{}",
         path.file_stem()
             .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default()
+            .unwrap_or_default(),
+        if drafter.is_some() { "-mtp" } else { "" }
     );
     let adapter = LlamaCppAdapter::load(
         &path,
@@ -130,6 +133,7 @@ async fn llamacpp_from_env() -> Measured {
             context_window,
             gpu_layers,
             threads: None,
+            drafter: drafter.clone(),
         },
     )
     .await
@@ -140,9 +144,10 @@ async fn llamacpp_from_env() -> Measured {
         deterministic: true,
         provider: "llamacpp",
         placement: format!(
-            "{}{}",
+            "{}{}{}",
             gpu_layers.map_or_else(|| "auto".to_owned(), |l| format!("gpu:{l}")),
-            context_window.map_or_else(String::new, |c: u32| format!(" ctx:{c}"))
+            context_window.map_or_else(String::new, |c: u32| format!(" ctx:{c}")),
+            if drafter.is_some() { " mtp" } else { "" }
         ),
     }
 }

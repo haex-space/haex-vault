@@ -6,13 +6,15 @@ use std::num::NonZeroU32;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::token::LlamaToken;
+use llama_cpp_2::vocab::LlamaVocab;
 use tokio_util::sync::CancellationToken;
 
 use super::model::{backend, LoadError, LoadedModel};
 
 /// Prompt tokens decoded per call. The cancel flag is looked at between batches, so this bounds how long
 /// a cancel during a long prompt can wait.
-const BATCH: usize = 512;
+pub(super) const BATCH: usize = 512;
 /// The sampler of a normal chat (the evaluation uses greedy decoding).
 const TOP_K: i32 = 20;
 const TOP_P: f32 = 0.95;
@@ -54,11 +56,11 @@ pub enum GenerateError {
     Backend(#[from] LoadError),
 }
 
-fn ggml(error: impl std::fmt::Display) -> GenerateError {
+pub(super) fn ggml(error: impl std::fmt::Display) -> GenerateError {
     GenerateError::Ggml(error.to_string())
 }
 
-fn sampler(deterministic: bool) -> LlamaSampler {
+pub(super) fn sampler(deterministic: bool) -> LlamaSampler {
     if deterministic {
         return LlamaSampler::greedy();
     }
@@ -79,7 +81,7 @@ pub fn generate(
     loaded: &LoadedModel,
     job: &Job<'_>,
     cancel: &CancellationToken,
-    mut on_text: impl FnMut(&str) -> bool,
+    on_text: impl FnMut(&str) -> bool,
 ) -> Result<Outcome, GenerateError> {
     let backend = backend()?;
     let model = &loaded.model;
@@ -97,6 +99,17 @@ pub fn generate(
     let room = limit as usize - tokens.len();
     let max_new = job.max_new_tokens.min(room);
     let n_ctx = (tokens.len() + max_new).max(BATCH);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some(drafter) = loaded
+        .drafter
+        .as_ref()
+        .filter(|_| loaded.placement.drafter && max_new > 0)
+    {
+        let writer = Writer::new(vocab, max_new, on_text);
+        return super::speculative::generate_speculative(
+            loaded, drafter, &tokens, n_ctx, job, cancel, writer,
+        );
+    }
     let params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(n_ctx as u32))
         .with_n_batch(BATCH as u32)
@@ -126,40 +139,75 @@ pub fn generate(
     }
 
     let mut sampler = sampler(job.deterministic);
-    let mut pending: Vec<u8> = Vec::new();
-    let mut new_tokens = 0;
+    let mut writer = Writer::new(vocab, max_new, on_text);
     let ended = loop {
         if cancel.is_cancelled() {
             break Ended::Cancelled;
         }
-        if new_tokens >= max_new {
+        if writer.new_tokens >= max_new {
             break Ended::Length;
         }
         let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-        if vocab.is_eog(token) {
-            break Ended::Stop;
-        }
-        new_tokens += 1;
-        pending.extend(vocab.token_to_piece(token, true, None));
-        if let Some(text) = take_complete_utf8(&mut pending) {
-            if !on_text(&text) {
-                break Ended::Cancelled;
-            }
+        if let Some(ended) = writer.take(token) {
+            break ended;
         }
         batch.clear();
         batch.add(token, position, &[0], true).map_err(ggml)?;
         ctx.decode(&mut batch).map_err(ggml)?;
         position += 1;
     };
-    if ended != Ended::Cancelled && !pending.is_empty() {
-        // Bytes that never completed a character: show them as the replacement character.
-        on_text(&String::from_utf8_lossy(&pending));
+    Ok(writer.finish(tokens.len(), ended))
+}
+
+/// Turns sampled tokens into text for `on_text`, the step both token loops share.
+pub(super) struct Writer<'a, F> {
+    vocab: LlamaVocab<'a>,
+    on_text: F,
+    /// Bytes of a character the next token completes.
+    pending: Vec<u8>,
+    pub(super) new_tokens: usize,
+    max_new: usize,
+}
+
+impl<'a, F: FnMut(&str) -> bool> Writer<'a, F> {
+    pub(super) fn new(vocab: LlamaVocab<'a>, max_new: usize, on_text: F) -> Self {
+        Self {
+            vocab,
+            on_text,
+            pending: Vec::new(),
+            new_tokens: 0,
+            max_new,
+        }
     }
-    Ok(Outcome {
-        prompt_tokens: tokens.len(),
-        new_tokens,
-        ended,
-    })
+
+    /// Takes one sampled token; `Some` when the generation ends with it.
+    pub(super) fn take(&mut self, token: LlamaToken) -> Option<Ended> {
+        if self.vocab.is_eog(token) {
+            return Some(Ended::Stop);
+        }
+        self.new_tokens += 1;
+        self.pending
+            .extend(self.vocab.token_to_piece(token, true, None));
+        if let Some(text) = take_complete_utf8(&mut self.pending) {
+            if !(self.on_text)(&text) {
+                return Some(Ended::Cancelled);
+            }
+        }
+        (self.new_tokens >= self.max_new).then_some(Ended::Length)
+    }
+
+    /// Ends the generation: bytes that never completed a character are shown as the replacement
+    /// character, unless nobody listens any more.
+    pub(super) fn finish(mut self, prompt_tokens: usize, ended: Ended) -> Outcome {
+        if ended != Ended::Cancelled && !self.pending.is_empty() {
+            (self.on_text)(&String::from_utf8_lossy(&self.pending));
+        }
+        Outcome {
+            prompt_tokens,
+            new_tokens: self.new_tokens,
+            ended,
+        }
+    }
 }
 
 /// Removes and returns the longest valid UTF-8 prefix of `bytes`; a character cut in two by the token
