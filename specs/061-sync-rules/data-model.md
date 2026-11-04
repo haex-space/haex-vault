@@ -102,7 +102,7 @@ Vorgabe 10 wenn fehlend.
 
 ## Typen für das Frontend (ts-rs, Präfix `SyncRule`)
 
-`SyncRule`, `SyncRuleDraft`, `SyncRulePlace { source: SourceRef | { kind: 'storage', storageId }, path }`,
+`SyncRule`, `SyncRuleDraft`, `SyncRulePlace { location: SourceRef | { kind: 'storage', storageId }, path }`,
 `SyncRuleDirection`, `SyncRuleDeleteMode`, `SyncRuleStatus`, `SyncRulePlan`, `SyncRulePlanStep`,
 `SyncRulePending`, `SyncRuleRun`, `SyncRuleRunItem`, `SyncRuleIgnore`, `SyncRuleError`. Das Präfix verhindert
 die stille Überschreibung fremder Bindings (Namensregel für `#[ts(export)]`).

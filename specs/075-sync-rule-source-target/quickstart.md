@@ -57,6 +57,7 @@ nothing to do shows a plan of 0 steps.
 
 ## 5. Agent (US3)
 
-In `agent-sync-rules` the draft uses `source` and `target`; a second call with `placeA` and `placeB` is refused with an
-invalid-input error and the list of rules is unchanged. E2E runs on `main` only, so dispatch
+In `agent-sync-rules` the draft uses `source` and `target`. The scenario sends no call with the old names: the refusal
+of `placeA` and `placeB` (invalid-input error, the list of rules unchanged) is checked by the Rust test
+`a_call_with_the_old_place_names_is_refused_and_changes_nothing` in `src-tauri/src/file_sync/agent_tests.rs`. E2E runs on `main` only, so dispatch
 `gh workflow run ci.yml --ref 075-sync-rule-source-target` before the merge.

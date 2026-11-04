@@ -148,7 +148,9 @@ names (works) and with the old ones (refused).
 - **SC-003**: A vault with sync rules, state, pending deletions and run log from before the change opens with
   100% of its rows present and every rule showing the same values; a rule that had nothing to do plans 0
   steps.
-- **SC-004**: An agent call with the old field names is refused in 100% of cases and changes no rule.
+- **SC-004**: An agent call that names the places with the old field names instead of `source` and `target` is
+  refused in 100% of cases and changes no rule. Like any unknown field, an old name sent next to a complete `source`
+  and `target` is ignored; there is no check for the old names (research R5).
 
 ## Assumptions
 
