@@ -155,8 +155,10 @@ Zeichen ihres Public Keys, damit sich die Namen der ersten nicht ändern und das
 Erweiterungs-Id übersteht (2026-11-03); ist auch das vergeben (Entwicklungsversion mit demselben
 Key), die ersten Zeichen der Erweiterungs-Id. Eine installierte Erweiterung, die ausgeschaltet oder
 auf diesem Gerät nicht bereit ist, bietet nichts an, behält ihren Namen aber, damit eine andere
-desselben Slugs ihn nicht übernimmt; insgesamt ≤ 64 Zeichen (`is_valid_tool_name`). `Tool` bekommt
-eine Methode
+desselben Slugs ihn nicht übernimmt; insgesamt ≤ 64 Zeichen (`is_valid_tool_name`). Bieten zwei
+Erweiterungen desselben Slugs Werkzeuge an, nennen Beschreibung, Ergebnis und Rückfrage beider den
+Key-Anfang hinter dem Titel (`haex-mail (ab12cd…)`), und die Beschreibung sagt dem Modell, nur
+Werkzeuge mit demselben Präfix zu kombinieren. `Tool` bekommt eine Methode
 `origin() -> Option<ToolOrigin>` (Erweiterungs-Id, Anzeigename, Werkzeugtitel de/en, Entwicklungsversion);
 `source()` bleibt `"haextension"`. Das Freigabe-Event `tool-permission-request` und die Werkzeugzeile
 im Verlauf bekommen das optionale Feld `toolOrigin`; neue Spalte `tool_origin TEXT` (JSON) in
