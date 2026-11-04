@@ -96,7 +96,7 @@ test('the switch answers with the status Rust sends, the HTTP port included', ()
   assert.ok(action, 'settings.agents.mcp.enable is in the catalog')
   const running = { enabled: true, state: 'running', httpPort: 41234 }
   assert.deepEqual(validate(action.result, running), { ok: true })
-  const stopped = { enabled: false, state: 'stopped', httpPort: null }
+  const stopped = { enabled: false, state: 'off', httpPort: null }
   assert.deepEqual(validate(action.result, stopped), { ok: true })
 })
 
