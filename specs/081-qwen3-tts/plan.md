@@ -45,7 +45,7 @@ page.
 **Storage**:
 
 - Model files in the shared models directory (`models::paths::slug_dir`), as for Pocket TTS.
-- Device preferences `assistant.speechModel.<sprache>` and `assistant.speechModelHint` (`PrefScope::Device`).
+- Device preferences `assistant.speechModel.<language>` and `assistant.speechModelHint` (`PrefScope::Device`).
 - Speed measurements in a JSON file beside the model files, never in the vault (R10).
 
 **Testing**:
@@ -156,7 +156,7 @@ Each step is its own PR. Steps 1–3 and 5 do not touch `llm/llamacpp/`; step 4 
 and is coordinated with whoever builds 080 (contracts/gpu-ledger.md).
 
 1. **Engine on the processor** (US1, US2): Cargo feature, `tts/qwen/`, catalog entry with hashes, download with the
-   SHA-256 check, the Engine trait's cancel, the preference `assistant.speechModel.<sprache>` read by
+   SHA-256 check, the Engine trait's cancel, the preference `assistant.speechModel.<language>` read by
    `open_audio` and the preview, credits. Ignored eval test: load, speak R23, Q8_0 against Q4_K_M (R2). Android
    build check with `mtmd` (R12).
 2. **Parts and checks** (FR-010, FR-010a): `parts.rs`, `check.rs`, `speaker.rs`, Pocket fallback per part; the

@@ -25,10 +25,10 @@ The automatic choice is in `tts::choice`.
 
 ## Device preferences (`PrefScope::Device`, saved on selection)
 
-| Key                               | Value                           | Rule                                                                                                      |
-| --------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `assistant.speechModel.<sprache>` | catalog id, absent = automatic  | Must name an entry whose `languages` contains `<sprache>`; an unknown or disabled id counts as automatic. |
-| `assistant.speechModelHint`       | `dismissed`, absent = not shown | One per device; once dismissed the hint of FR-011 never shows again on this device.                       |
+| Key                                | Value                           | Rule                                                                                                       |
+| ---------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `assistant.speechModel.<language>` | catalog id, absent = automatic  | Must name an entry whose `languages` contains `<language>`; an unknown or disabled id counts as automatic. |
+| `assistant.speechModelHint`        | `dismissed`, absent = not shown | One per device; once dismissed the hint of FR-011 never shows again on this device.                        |
 
 ## Speed measurement (`models/<slug>/speed.json`, device local)
 

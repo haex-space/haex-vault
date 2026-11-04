@@ -36,14 +36,14 @@ reports no part that was played unchecked and at most 2 second attempts.
 
 ## Manual checks (dev app)
 
-| #   | Story | Steps                                                                                                   | Expected                                                                                           |
-| --- | ----- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| M1  | US1   | Settings → KI → Sprachassistent → Stimme: open the speech model row                                     | Qwen3-TTS once, with size, licence, six languages and a speed mark                                 |
-| M2  | US1   | Choose Qwen3-TTS, confirm the download, ask the assistant "Wie spät ist es und was kostet 3,50 €?"      | Spoken by Qwen3-TTS in the chosen voice, numbers as words, first words as soon as with Pocket      |
-| M3  | US1   | Ask for an answer with a sentence of more than 40 words                                                 | Heard in full, breaks like at a comma, no repeated or missing words                                |
-| M4  | US2   | With Qwen3-TTS chosen, press "Probe" on an own voice created before; create a new own voice from a file | Both samples spoken by Qwen3-TTS, no new recording needed                                          |
-| M5  | US3   | Run on a machine or build without GPU support                                                           | Mark "langsamer als Echtzeit" after 3 parts; long answer complete; hint after 3 slow answers, once |
-| M6  | US3   | Load a large local chat model on the GPU while Qwen3-TTS is on the GPU                                  | Chat model gets the GPU, speech continues on the CPU, no crash                                     |
-| M7  | US4   | Start with the old German Pocket model installed                                                        | Download offered for the new model; old one speaks until it is done, then its folder is gone       |
-| M8  | US5   | Fresh vault on the reference laptop and on an Android phone, turn on the assistant                      | Laptop proposes Qwen3-TTS, phone proposes Pocket TTS, both show the size before downloading        |
-| M9  | edge  | Interrupt the assistant while Qwen3-TTS speaks a long answer                                            | Silence at once; no part of that answer plays later                                                |
+| #   | Story | Steps                                                                                                   | Expected                                                                                               |
+| --- | ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| M1  | US1   | Settings → KI → Sprachassistent → Stimme: open the speech model row                                     | Qwen3-TTS once, with size, licence, six languages and a speed mark                                     |
+| M2  | US1   | Choose Qwen3-TTS, confirm the download, ask the assistant "Wie spät ist es und was kostet 3,50 €?"      | Spoken by Qwen3-TTS in the chosen voice, numbers as words, first words as soon as with Pocket          |
+| M3  | US1   | Ask for an answer with a sentence of more than 40 words                                                 | Heard in full, breaks like at a comma, no repeated or missing words                                    |
+| M4  | US2   | With Qwen3-TTS chosen, press "Probe" on an own voice created before; create a new own voice from a file | Both samples spoken by Qwen3-TTS, no new recording needed                                              |
+| M5  | US3   | Run on a machine or build without GPU support                                                           | Mark "langsamer als Echtzeit" after 3 sentences; long answer complete; hint after 3 slow answers, once |
+| M6  | US3   | Load a large local chat model on the GPU while Qwen3-TTS is on the GPU                                  | Chat model gets the GPU, speech continues on the CPU, no crash                                         |
+| M7  | US4   | Start with the old German Pocket model installed                                                        | Download offered for the new model; old one speaks until it is done, then its folder is gone           |
+| M8  | US5   | Fresh vault on the reference laptop and on an Android phone, turn on the assistant                      | Laptop proposes Qwen3-TTS, phone proposes Pocket TTS, both show the size before downloading            |
+| M9  | edge  | Interrupt the assistant while Qwen3-TTS speaks a long answer                                            | Silence at once; no part of that answer plays later                                                    |
