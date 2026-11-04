@@ -25,7 +25,8 @@ Regeln:
 - Revision 2026-11-03: no row `*` means no level for all (`none`); `Site::parse` reads neither
   `*` nor `request:…`, so an older build skips both rows and only grants less (021 FR-008). The
   key `request:<Website>` holds the website the request goes to, not the tab's. `http` under `*`
-  is only `read`.
+  is only `read`. "Für diese Website merken" of a fill on a website operated only through `*`
+  lists that website at `operate` with `["fill"]`, so the fill stays when `*` is lowered later.
 - In Rust: `Rights.browser: Option<BrowserRights>` mit `user_browser: bool` und
   `sites: BTreeMap<Site, SiteGrant { level, fill_remembered }>`, `all: Option<SiteLevel>` und
   `requests: BTreeMap<Site, RequestRule>` (`allow` | `deny`). `grants::validate` weist fremde

@@ -343,14 +343,7 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
     async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
         let site = site.clone();
         super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            match rights.sites.get_mut(&site) {
-                // Only a website the agent may operate keeps a fill (data-model.md).
-                Some(grant) if grant.level == SiteLevel::Operate => {
-                    grant.fill_remembered = true;
-                    true
-                }
-                _ => false,
-            }
+            super::sites::remember_fill(rights, &site)
         })
         .await
     }
