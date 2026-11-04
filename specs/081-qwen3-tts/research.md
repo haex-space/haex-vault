@@ -43,6 +43,10 @@ conversion by ggml-org.
 both. If Q4_K_M is at least 20 % faster on the processor and the operator hears no difference, the entry switches
 to it (about 1.5 GB instead of 2.3 GB). Otherwise Q8_0 stays, as measured.
 
+**Result (2026-11-05, `qwen_tts_eval`, processor, `cpu::default_threads()` = 16)**: Q8_0 needs 1.49 s and
+Q4_K_M 1.29 s of computing per second of speech on the R23 sentences; loading takes 2.4 s and 2.2 s. Q4_K_M is
+13 % faster, below the 20 % threshold, so the entry stays on Q8_0.
+
 **Not available**: ggml-org publishes no 0.6B GGUF at the time of writing; the 0.6B follow-up (spec Assumptions)
 would need its own conversion.
 
@@ -150,6 +154,10 @@ threads, the same number the chat model may use (FR-008). Never all logical core
 
 **Rationale**: the spike measured 1.65 at 4 threads and 1.35 at 8 threads; more threads help, but speech and a
 local chat model can run at the same time and must not starve the UI.
+
+**Open point (2026-11-05)**: `default_threads()` counts physical cores, 16 on the reference laptop including its
+efficiency cores. The spike was faster with 8 threads (1.35) than the app with 16 (1.49). Phase 7 measures 8 against
+16 and, if 8 wins clearly, caps the speech model's threads at the performance cores.
 
 ## R10 — Measuring speed
 
