@@ -21,7 +21,8 @@
 //!
 //! `measure_tool_calling_of_one_model` runs spec 032's set and writes `target/eval/<model>.json`;
 //! `measure_everyday_voice` runs spec 078's everyday set and writes `target/eval/everyday-<model>.json`
-//! (`HOLZI_EVAL_MACHINE` names the machine in that report); it needs `--features everyday-eval`.
+//! (`HOLZI_EVAL_MACHINE` names the machine in that report; `HOLZI_EVAL_PROFILE=phone` measures a
+//! phone's offer, without the command tool); it needs `--features everyday-eval`.
 //! Run one by its name after `--nocapture`.
 //! Run it twice to see how far two runs differ (a local run is deterministic; a cloud run is not and
 //! says so).
@@ -32,6 +33,8 @@ use std::path::PathBuf;
 use holzi_lib::adapters::anthropic::AnthropicAdapter;
 use holzi_lib::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use holzi_lib::adapters::ProviderAdapter;
+#[cfg(feature = "everyday-eval")]
+use holzi_lib::chat::eval::everyday::runner::Profile;
 #[cfg(feature = "everyday-eval")]
 use holzi_lib::chat::eval::everyday::{
     embedded_mail_tools, embedded_set as embedded_everyday_set, embedded_world,
@@ -223,6 +226,10 @@ async fn measure_everyday_voice() {
     let tools = embedded_tools();
     let mail = embedded_mail_tools();
     let world = embedded_world();
+    let profile = match env::var("HOLZI_EVAL_PROFILE") {
+        Ok(name) => Profile::parse(&name).expect("HOLZI_EVAL_PROFILE is desktop or phone"),
+        Err(_) => Profile::Desktop,
+    };
     let runs = run_everyday(
         measured.adapter.as_ref(),
         &measured.model,
@@ -231,6 +238,7 @@ async fn measure_everyday_voice() {
         &tools,
         &mail,
         &world,
+        profile,
         &CancellationToken::new(),
     )
     .await
@@ -246,6 +254,7 @@ async fn measure_everyday_voice() {
             deterministic: measured.deterministic,
             machine: env::var("HOLZI_EVAL_MACHINE").unwrap_or_default(),
             placement: measured.placement,
+            profile,
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");

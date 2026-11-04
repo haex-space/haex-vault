@@ -1,34 +1,14 @@
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use super::runner::{run_everyday, MAX_STEPS};
+use super::consent::CallEnding;
+use super::runner::{run_everyday, Profile, MAX_STEPS};
 use super::scoring::End;
+use super::test_support::{one_request, tool_results};
 use super::{embedded_mail_tools, embedded_world, load_set, MAIL_TOOLS_SOURCE};
-use crate::adapters::types::{ChatRole, StreamChunk};
+use crate::adapters::types::StreamChunk;
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
-
-fn one_request(text: &str) -> super::EverydaySet {
-    load_set(
-        &json!({
-            "version": 1,
-            "mailTools": MAIL_TOOLS_SOURCE,
-            "requests": [{ "id": "r", "lang": "de", "category": "mail_read", "phrasing": "clean", "text": text, "expect": "refusal" }]
-        })
-        .to_string(),
-    )
-    .unwrap()
-}
-
-fn tool_results(req: &crate::adapters::types::ChatRequest) -> Vec<String> {
-    req.messages
-        .iter()
-        .filter_map(|m| match &m.role {
-            ChatRole::ToolResult { content, .. } => Some(content.clone()),
-            _ => None,
-        })
-        .collect()
-}
 
 #[tokio::test]
 async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
@@ -54,6 +34,7 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -61,7 +42,7 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
     let trace = &runs[0].trace;
     assert_eq!(trace.end, End::Answer);
     assert_eq!(trace.calls.len(), 2);
-    assert!(trace.calls.iter().all(|c| c.known));
+    assert!(trace.calls.iter().all(|c| c.ending == CallEnding::Ran));
     assert!(trace.calls[1]
         .result
         .as_ref()
@@ -89,6 +70,7 @@ async fn the_system_prompt_carries_the_fixed_clock_and_the_request_s_language() 
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -122,6 +104,7 @@ async fn a_search_widens_the_next_offer() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -148,6 +131,7 @@ async fn ask_user_ends_the_request_with_its_question() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -178,6 +162,7 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -209,12 +194,13 @@ async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
     .unwrap();
     let call = &runs[0].trace.calls[0];
-    assert!(!call.known);
+    assert_eq!(call.ending, CallEnding::TurnedAway);
     assert_eq!(
         call.result.as_ref().unwrap().content,
         "unknown tool: contacts_search"
@@ -238,6 +224,7 @@ async fn a_mail_tool_the_message_did_not_match_still_runs() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -248,7 +235,7 @@ async fn a_mail_tool_the_message_did_not_match_still_runs() {
         .iter()
         .any(|t| t.name == "x_mail_list_accounts"));
     let call = &runs[0].trace.calls[0];
-    assert!(call.known);
+    assert_eq!(call.ending, CallEnding::Ran);
     assert!(!call.result.as_ref().unwrap().is_error);
 }
 
@@ -263,6 +250,7 @@ async fn a_model_that_keeps_calling_stops_at_the_step_limit() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
@@ -289,12 +277,13 @@ async fn an_unknown_tool_gets_the_chat_s_error_and_is_marked() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await
     .unwrap();
     let call = &runs[0].trace.calls[0];
-    assert!(!call.known);
+    assert_eq!(call.ending, CallEnding::TurnedAway);
     let result = call.result.as_ref().unwrap();
     assert!(result.is_error);
     assert_eq!(result.content, "unknown tool: x_alarm_set");
@@ -351,6 +340,7 @@ async fn a_cancel_ends_a_stream_that_never_opens() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &cancel,
     )
     .await;
@@ -382,6 +372,7 @@ async fn a_model_error_ends_only_its_request() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
         &CancellationToken::new(),
     )
     .await

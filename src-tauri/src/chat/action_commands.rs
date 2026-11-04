@@ -3,7 +3,7 @@
 //! bridge sends out. Both need an open vault: they are not on the gate's app-scoped list.
 
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -17,7 +17,7 @@ use super::tools::action_tool::{
 use super::tools::ask_user::{AskUserTool, ASK_USER_TOOL_NAME};
 use super::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
 use super::tools::native_action::NativeActionTool;
-use super::tools::Tool;
+use super::tools::{Tool, ToolRegistry};
 use crate::error::{HolziError, Result};
 
 /// The scope no agent may ever call (spec 020 FR-032).
@@ -108,32 +108,49 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     registry.remove_source(ACTION_SOURCE);
+    let count = register_action_tools(
+        &mut registry,
+        &actions,
+        &chat.tool_registry,
+        |def| match chat.native_actions.get(&def.action_id) {
+            Some(executor) if def.runner == Some(ActionRunner::Native) => Arc::new(
+                NativeActionTool::new(def, executor, chat.native_actions.clone()),
+            ),
+            _ => Arc::new(ActionTool::new(def, chat.action_bridge.clone())),
+        },
+    );
+    drop(registry);
+    chat.action_catalog.replace(actions);
+    Ok(count)
+}
+
+/// Registers the `actions` the built-in agent may call into `registry`, each as `tool_of` makes it,
+/// then the search over them and over the extensions of `search_over`, and `ask_user`; returns how
+/// many actions it registered. Shared with the everyday measurement, so it holds the tools a chat
+/// holds (spec 081 FR-001).
+pub(crate) fn register_action_tools(
+    registry: &mut ToolRegistry,
+    actions: &[AgentActionDef],
+    search_over: &Arc<Mutex<ToolRegistry>>,
+    tool_of: impl Fn(AgentActionDef) -> Arc<dyn Tool>,
+) -> usize {
     let builtin: Vec<AgentActionDef> = actions
         .iter()
         .filter(|def| def.builtin_agent_callable)
         .cloned()
         .collect();
     let count = builtin.len();
-    let search_defs = builtin.clone();
-    for def in builtin {
-        let tool: Arc<dyn Tool> = match chat.native_actions.get(&def.action_id) {
-            Some(executor) if def.runner == Some(ActionRunner::Native) => Arc::new(
-                NativeActionTool::new(def, executor, chat.native_actions.clone()),
-            ),
-            _ => Arc::new(ActionTool::new(def, chat.action_bridge.clone())),
-        };
-        registry.register(tool);
+    for def in builtin.iter().cloned() {
+        registry.register(tool_of(def));
     }
-    if !search_defs.is_empty() {
+    if !builtin.is_empty() {
         registry.register(Arc::new(FindActionsTool::with_extensions(
-            search_defs,
-            &chat.tool_registry,
+            builtin,
+            search_over,
         )));
         registry.register(Arc::new(AskUserTool));
     }
-    drop(registry);
-    chat.action_catalog.replace(actions);
-    Ok(count)
+    count
 }
 
 /// Offers the actions the frontend lists to the built-in agent as tools.

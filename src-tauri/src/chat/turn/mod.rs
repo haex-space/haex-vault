@@ -20,9 +20,11 @@ mod call_source;
 mod choices;
 mod images;
 mod persist;
+mod plan_calls;
 mod step;
 mod tool_round;
 
+pub use plan_calls::{callable, unknown_tool_answer, DENIED_BY_USER};
 pub use step::MAX_RETRY_ATTEMPTS;
 pub(crate) use step::{start_step_stream, StreamStartError};
 pub use tool_round::MAX_TOOL_ROUNDS;

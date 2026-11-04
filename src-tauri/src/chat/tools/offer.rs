@@ -114,6 +114,26 @@ pub fn extend_offer(
     }
 }
 
+/// After a successful search, widens `request_tools` with the `found` tools as a chat turn does: the
+/// registry's actions and extension tools are searchable, the tools of the turn's `first_offer`
+/// stay (spec 081 research R2: shared with the everyday measurement).
+pub fn widen_offer(
+    registry: &ToolRegistry,
+    request_tools: &mut Vec<ToolSpec>,
+    found: &[ToolSpec],
+    first_offer: &HashSet<String>,
+) {
+    let scope = ExtensionScope {
+        names: registry
+            .match_entries()
+            .into_iter()
+            .map(|entry| entry.tool_name)
+            .collect(),
+        pinned: first_offer.clone(),
+    };
+    extend_offer(request_tools, found, &registry.action_defs(), &scope);
+}
+
 /// Extracts the `find_actions` result into adapter tool specs for the next
 /// request. Invalid results are ignored so the prior offer remains available.
 pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
