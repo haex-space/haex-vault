@@ -13,11 +13,9 @@ use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOp
 
 use super::cpu::{default_threads, missing_features};
 use super::formats::{detect, ChatFormat};
-use super::memory::{
-    plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
-};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use super::memory::DrafterShape;
+use super::memory::{plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT};
 use crate::llm::local::gguf_header::read_summary;
 
 /// More layers than any model has: everything goes on the GPU.
