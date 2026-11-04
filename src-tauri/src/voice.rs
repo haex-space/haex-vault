@@ -85,6 +85,7 @@ mod imp {
         pub(crate) async fn speech_model(
             &self,
             id: &str,
+            language: &str,
             dir: std::path::PathBuf,
             gate: &VaultGate,
         ) -> Result<Arc<crate::tts::local::PocketModel>> {
@@ -96,8 +97,9 @@ mod imp {
             }
             // Free the old model before the new one takes its memory.
             *slot = None;
+            let language = language.to_owned();
             let model = gate
-                .spawn_blocking(move || crate::tts::local::PocketModel::load(&dir))?
+                .spawn_blocking(move || crate::tts::local::PocketModel::load(&dir, &language))?
                 .await
                 .map_err(|e| HolziError::SpeechFailed {
                     reason: format!("load the speech model: {e}"),

@@ -848,8 +848,8 @@
     "effect": "write",
     "core": false,
     "titles": {
-      "de": "actions.settings.models.cancelDownload",
-      "en": "actions.settings.models.cancelDownload"
+      "de": "Modell-Download abbrechen",
+      "en": "Cancel model download"
     }
   },
   {

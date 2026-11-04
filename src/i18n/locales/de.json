@@ -1624,7 +1624,8 @@
       "placeholder": "z. B. llama gguf",
       "submit": "Suchen",
       "loading": "Suche läuft …",
-      "top": "Top 10 der meistgeladenen Modelle",
+      "top": "Meistgeladene Modelle",
+      "more": "Mehr laden",
       "empty": "Keine Treffer.",
       "tooShort": "Bitte mindestens 2 Zeichen eingeben.",
       "error": "Suche fehlgeschlagen.",
@@ -1947,6 +1948,11 @@
       "peer": {
         "send": "Nachricht an Kontakt senden",
         "resend": "Nachricht erneut senden"
+      },
+      "request": {
+        "accept": "Anfrage annehmen",
+        "decline": "Anfrage ablehnen",
+        "block": "Absender einer Anfrage blockieren"
       }
     },
     "settings": {
@@ -1958,7 +1964,10 @@
         "downloadCatalog": "Modell aus dem Katalog herunterladen",
         "downloadFromHf": "Modell von HuggingFace herunterladen",
         "installUpdate": "Modell-Update installieren",
-        "delete": "Modell löschen"
+        "delete": "Modell löschen",
+        "cancelDownload": "Modell-Download abbrechen",
+        "activate": "Modell aktivieren",
+        "deactivate": "Modell deaktivieren"
       },
       "device": {
         "setAlias": "Gerätename ändern"
@@ -1974,7 +1983,8 @@
       },
       "agents": {
         "files": {
-          "set": "Dateirechte eines Agents setzen"
+          "set": "Dateirechte eines Agents setzen",
+          "remove": "Dateirecht eines Agents entfernen"
         },
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",

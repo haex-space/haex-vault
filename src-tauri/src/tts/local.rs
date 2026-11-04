@@ -59,12 +59,14 @@ pub trait Engine: Send + Sync {
 pub struct PocketModel {
     tts: OfflineTts,
     sample_rate: u32,
+    /// The language the model speaks; its sentences are written out in it (`tts::spoken`).
+    language: String,
 }
 
 impl PocketModel {
-    /// Loads the model in `dir` (files as `files::files_for(Pocket)` names them). Takes about a
+    /// Loads the model in `dir`, which speaks `language` (files as `files::files_for(Pocket)` names them). Takes about a
     /// second on a desktop, so callers load off the async runtime.
-    pub fn load(dir: &Path) -> Result<Self, TtsError> {
+    pub fn load(dir: &Path, language: &str) -> Result<Self, TtsError> {
         let path = |name: &str| -> Result<Option<String>, TtsError> {
             dir.join(name)
                 .to_str()
@@ -98,7 +100,11 @@ impl PocketModel {
         let sample_rate = u32::try_from(tts.sample_rate()).map_err(|_| TtsError::Unavailable {
             reason: "the speech model reports no sample rate".to_owned(),
         })?;
-        Ok(Self { tts, sample_rate })
+        Ok(Self {
+            tts,
+            sample_rate,
+            language: language.to_owned(),
+        })
     }
 }
 
@@ -108,7 +114,8 @@ impl Engine for PocketModel {
     }
 
     fn generate(&self, text: &str, reference: &Reference, rate: f32) -> Result<Vec<f32>, TtsError> {
-        let text = speakable_text(text);
+        // Numbers, times and abbreviations as words: the model reads only letters well.
+        let text = super::spoken::spoken(&speakable_text(text), &self.language);
         if text.is_empty() {
             return Ok(Vec::new());
         }

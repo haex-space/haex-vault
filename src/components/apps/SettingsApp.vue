@@ -179,7 +179,7 @@ onMounted(() => {
         class="flex min-w-0 flex-1 flex-col"
         :inert="(menuOpen && !wide) || undefined"
       >
-        <div class="shrink-0 px-6 pt-1 pb-4">
+        <div class="shrink-0 px-6 pt-1 pb-3">
           <div class="mx-auto flex w-full max-w-3xl min-w-0 items-center gap-2">
             <UiButton
               v-if="parentPath"
@@ -211,7 +211,7 @@ onMounted(() => {
           </div>
         </div>
         <div
-          class="min-h-0 flex-1 overflow-y-auto px-6 pb-6"
+          class="min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-6"
           :style="{ scrollPaddingBottom: '4rem' }"
         >
           <div class="mx-auto w-full max-w-3xl">

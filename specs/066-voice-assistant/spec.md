@@ -645,6 +645,10 @@ Modus aus.
 - **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen. Formatierungszeichen MUST NOT
   gesprochen werden; Tabellen, Links und Code MUST durch eine kurze Beschreibung mit Verweis auf die
   Mitschrift ersetzt werden; Zahlen, Daten und Uhrzeiten MUST natürlich gesprochen werden.
+- **FR-022b**: Before a sentence reaches the speech model, haex MUST write numbers, clock times,
+  dates, amounts, percentages, units, ranges, ordinals and common abbreviations out as words of the
+  voice's language, for every sentence haex speaks, whatever the chat model wrote. What haex cannot
+  read safely (a version number, an address) MUST stay as written (operator 2026-11-04).
 - **FR-023**: Dauert eine Runde länger als 4 Sekunden ohne gesprochene Antwort, MUST haex eine kurze
   Ansage im Sinne des Begriffs „Kurze Ansage“ sagen, woran der Agent gerade arbeitet.
 

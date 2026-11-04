@@ -4,6 +4,7 @@
 pub mod assets;
 #[cfg(test)]
 mod assets_tests;
+pub mod calendar_words;
 pub mod commands;
 pub mod conversation;
 #[cfg(test)]
@@ -20,6 +21,7 @@ mod lexicon_tests;
 pub mod listen;
 #[cfg(test)]
 mod listen_tests;
+pub mod number_words;
 pub mod phrases;
 #[cfg(test)]
 mod phrases_tests;

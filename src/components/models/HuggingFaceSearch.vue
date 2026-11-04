@@ -25,6 +25,10 @@ const loading = ref(false)
 /** Whether the last search failed; its message went out as a toast with "retry". */
 const failed = ref(false)
 const hasSearched = ref(false)
+/** The term the listed results are for; empty for the most downloaded models. */
+const shownQuery = ref('')
+/** Cursor of the page after the listed results; null when the list ends. */
+const nextCursor = ref<string | null>(null)
 const quantizationFilter = ref(initial.quant ?? 'all')
 const sizeLimitFilter = ref(initial.size ?? 'all')
 const fitFilter = ref<'all' | HardwareFit>(
@@ -39,47 +43,90 @@ const queryTooShort = computed(
   () => trimmedQuery.value.length > 0 && trimmedQuery.value.length < 2,
 )
 
-/** Loads repositories and enriches them with file-level size/fit metadata. */
-async function loadResultsAsync(searchQuery?: string) {
-  if (loading.value) return
+/** Adds file-level size/fit metadata to search hits. */
+async function enrichAsync(
+  searchResults: HuggingFaceModelResult[],
+): Promise<HuggingFaceModelResult[]> {
+  // The search endpoint intentionally stays cheap and returns repository
+  // siblings without file sizes. Enrich each hit at the resolved search
+  // revision so size and hardware filters use real GGUF metadata.
+  return await Promise.all(
+    searchResults.map(async (result) => {
+      try {
+        return await detailsAsync(
+          result.repoId,
+          result.sourceRevision ?? undefined,
+        )
+      } catch {
+        // A single repository's detail endpoint may disappear or be rate
+        // limited after the search. Keep that hit usable with its normalized
+        // search metadata; unknown-size/fit filters will handle it safely.
+        return result
+      }
+    }),
+  )
+}
+
+/** The term of the latest first-page load, listed or still loading. */
+let wantedQuery = ''
+/** Counts first-page loads; a load that is no longer the latest drops its result. */
+let generation = 0
+
+/**
+ * Loads the first page of a search (no term: the most downloaded models) or, with `more`, the
+ * page after the one shown. A new first page supersedes a load still running; a failed page keeps
+ * what is already listed.
+ */
+async function loadResultsAsync(searchQuery?: string, more = false) {
   const key = searchQuery ?? ''
-  const cached = cachedSearchResults(key)
-  if (cached) {
-    results.value = cached
-    hasSearched.value = true
+  if (more) {
+    if (loading.value || key !== shownQuery.value) return
+  } else if (loading.value && key === wantedQuery) {
     return
+  }
+  const run = more ? generation : ++generation
+  if (!more) {
+    wantedQuery = key
+    const cached = cachedSearchResults(key)
+    if (cached) {
+      results.value = cached.results
+      nextCursor.value = cached.nextCursor
+      shownQuery.value = key
+      hasSearched.value = true
+      failed.value = false
+      loading.value = false
+      return
+    }
   }
   loading.value = true
   failed.value = false
   try {
-    const searchResults = await searchAsync(searchQuery)
-    // The search endpoint intentionally stays cheap and returns repository
-    // siblings without file sizes. Enrich each hit at the resolved search
-    // revision so size and hardware filters use real GGUF metadata.
-    results.value = await Promise.all(
-      searchResults.map(async (result) => {
-        try {
-          return await detailsAsync(
-            result.repoId,
-            result.sourceRevision ?? undefined,
-          )
-        } catch {
-          // A single repository's detail endpoint may disappear or be rate
-          // limited after the search. Keep that hit usable with its normalized
-          // search metadata; unknown-size/fit filters will handle it safely.
-          return result
-        }
-      }),
+    const page = await searchAsync(
+      searchQuery,
+      more ? (nextCursor.value ?? undefined) : undefined,
     )
-    rememberSearchResults(key, results.value)
+    const enriched = await enrichAsync(page.results)
+    if (run !== generation) return
+    const known = new Set(more ? results.value.map((r) => r.repoId) : [])
+    results.value = [
+      ...(more ? results.value : []),
+      ...enriched.filter((r) => !known.has(r.repoId)),
+    ]
+    nextCursor.value = page.nextCursor
+    shownQuery.value = key
+    rememberSearchResults(key, results.value, nextCursor.value)
     hasSearched.value = true
   } catch (e) {
+    if (run !== generation) return
     failed.value = true
     toast.error(t(hfErrorKey(e)), {
-      action: { label: t('models.search.retry'), onClick: retryAsync },
+      action: {
+        label: t('models.search.retry'),
+        onClick: () => void retryAsync(key, more),
+      },
     })
   } finally {
-    loading.value = false
+    if (run === generation) loading.value = false
   }
 }
 
@@ -90,21 +137,34 @@ async function loadResultsAsync(searchQuery?: string) {
  * already looking at.
  */
 async function onSubmit() {
-  if (queryTooShort.value || trimmedQuery.value.length === 0 || loading.value)
-    return
+  if (queryTooShort.value || trimmedQuery.value.length === 0) return
   router.setQuery({ q: trimmedQuery.value })
   await loadResultsAsync(trimmedQuery.value)
 }
 
-async function retryAsync() {
-  if (loading.value) return
-  forgetSearchResults()
-  if (trimmedQuery.value.length > 0) {
-    await loadResultsAsync(trimmedQuery.value)
-  } else {
-    await loadResultsAsync()
+/** Repeats the load that failed: the same term, and for `more` the same next page. */
+async function retryAsync(key: string, more: boolean) {
+  if (!more) {
+    forgetSearchResults()
+    query.value = key
+    router.setQuery({ q: key || null })
   }
+  await loadResultsAsync(key || undefined, more)
 }
+
+/** Loads the next page of the list that is shown, whatever the field says by now. */
+async function onLoadMore() {
+  await loadResultsAsync(shownQuery.value || undefined, true)
+}
+
+// Emptying the field (e.g. with its clear button) goes back to the most downloaded models, also
+// while a search is still loading.
+watch(trimmedQuery, (value) => {
+  if (value.length === 0 && wantedQuery.length > 0) {
+    router.setQuery({ q: null })
+    void loadResultsAsync()
+  }
+})
 
 /** The filter selects' entries; "Alle" is `all`, like the location query (spec 023). */
 const quantizationOptions = computed<SettingsSelectOption[]>(() => [
@@ -243,7 +303,7 @@ onMounted(() => {
     </p>
 
     <p
-      v-if="hasSearched && trimmedQuery.length === 0 && !failed"
+      v-if="hasSearched && shownQuery.length === 0"
       class="text-sm text-muted-foreground"
     >
       {{ t('models.search.top') }}
@@ -304,5 +364,16 @@ onMounted(() => {
         @select="openResult"
       />
     </SettingsGroup>
+
+    <div v-if="nextCursor && results.length > 0" class="flex justify-center">
+      <UiButton
+        type="button"
+        variant="outline"
+        :loading="loading"
+        @click="onLoadMore"
+      >
+        {{ t('models.search.more') }}
+      </UiButton>
+    </div>
   </section>
 </template>

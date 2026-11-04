@@ -91,6 +91,15 @@ test('the actions of the MCP access are guardrails no agent can call (FR-016)', 
   }
 })
 
+test('the switch answers with the status Rust sends, the HTTP port included', () => {
+  const action = ALL_ACTIONS.find((a) => a.id === 'settings.agents.mcp.enable')
+  assert.ok(action, 'settings.agents.mcp.enable is in the catalog')
+  const running = { enabled: true, state: 'running', httpPort: 41234 }
+  assert.deepEqual(validate(action.result, running), { ok: true })
+  const stopped = { enabled: false, state: 'off', httpPort: null }
+  assert.deepEqual(validate(action.result, stopped), { ok: true })
+})
+
 test('the scope for one secret of a password entry exists (research R13)', () => {
   assert.ok(ACTION_SCOPE_IDS.includes('passwords.secret'))
 })

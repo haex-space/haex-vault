@@ -46,7 +46,7 @@ async fn search_rejects_a_too_short_query_without_any_http_call() {
     // "no matching mock" and surface as a different error kind, proving
     // the short-circuit happened before any request was sent.
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("x"), None)
+    let err = search_models(&hf, Some("x"), None, None)
         .await
         .expect_err("too short");
     assert!(matches!(err, HolziError::InvalidInput { .. }));
@@ -72,9 +72,10 @@ async fn search_filters_out_repos_without_gguf_and_normalizes_hits() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("llama"), None)
+    let results = search_models(&hf, Some("llama"), None, None)
         .await
-        .expect("search ok");
+        .expect("search ok")
+        .results;
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].repo_id, "owner/has-gguf");
     assert_eq!(results[0].files.len(), 1);
@@ -92,9 +93,10 @@ async fn search_returns_an_empty_list_for_no_hits() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("nothing matches"), None)
+    let results = search_models(&hf, Some("nothing matches"), None, None)
         .await
-        .expect("search ok");
+        .expect("search ok")
+        .results;
     assert!(results.is_empty());
 }
 
@@ -117,9 +119,10 @@ async fn search_caps_results_at_the_default_limit_of_20() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("many"), None)
+    let results = search_models(&hf, Some("many"), None, None)
         .await
-        .expect("search ok");
+        .expect("search ok")
+        .results;
     assert_eq!(results.len(), DEFAULT_LIMIT);
 }
 
@@ -144,15 +147,17 @@ async fn search_without_query_returns_the_top_ten_downloaded_gguf_repositories()
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, None, None)
+    let results = search_models(&hf, None, None, None)
         .await
-        .expect("top-model search ok");
+        .expect("top-model search ok")
+        .results;
     assert_eq!(results.len(), DEFAULT_TOP_LIMIT);
     assert_eq!(results[0].repo_id, "owner/top-11");
 
-    let results = search_models(&hf, None, Some(DEFAULT_LIMIT))
+    let results = search_models(&hf, None, Some(DEFAULT_LIMIT), None)
         .await
-        .expect("top-model search remains capped");
+        .expect("top-model search remains capped")
+        .results;
     assert_eq!(results.len(), DEFAULT_TOP_LIMIT);
 }
 
@@ -165,7 +170,7 @@ async fn search_maps_http_error_status_and_rate_limit() {
         .mount(&server)
         .await;
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("llama"), None)
+    let err = search_models(&hf, Some("llama"), None, None)
         .await
         .expect_err("503");
     assert!(matches!(err, HolziError::HttpStatus { status: 503, .. }));
@@ -180,7 +185,7 @@ async fn search_maps_429_to_rate_limited() {
         .mount(&server)
         .await;
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("llama"), None)
+    let err = search_models(&hf, Some("llama"), None, None)
         .await
         .expect_err("429");
     match err {
@@ -319,4 +324,117 @@ async fn details_returns_exact_catalog_match_annotation() {
         details.files[0].catalog_entry_id.as_deref(),
         Some(entry.id.as_str())
     );
+}
+
+#[tokio::test]
+async fn search_asks_the_hub_for_gguf_and_for_chat_models_only_without_a_query() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/models"))
+        .and(query_param("filter", "gguf"))
+        .and(query_param("filter", "conversational"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([model_json(
+                "owner/top",
+                &"a".repeat(40),
+                &["model.gguf"]
+            )])),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/models"))
+        .and(query_param("filter", "gguf"))
+        .and(query_param("search", "llama"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let hf = HfClient::new(server.uri()).expect("client");
+    let top = search_models(&hf, None, None, None).await.expect("top ok");
+    assert_eq!(top.results.len(), 1);
+    // A search with a term does not narrow to chat models.
+    search_models(&hf, Some("llama"), None, None)
+        .await
+        .expect("search ok");
+    let requests = server.received_requests().await.expect("requests");
+    assert!(!requests[1]
+        .url
+        .query_pairs()
+        .any(|(key, value)| key == "filter" && value == "conversational"));
+}
+
+#[tokio::test]
+async fn search_hands_out_the_next_cursor_and_sends_it_back() {
+    let server = MockServer::start().await;
+    let next = format!(
+        "<{}/api/models?filter=gguf&cursor=abc%3D%3D&limit=10>; rel=\"next\"",
+        server.uri()
+    );
+    Mock::given(method("GET"))
+        .and(path("/api/models"))
+        .and(query_param("cursor", "abc=="))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([model_json(
+                "owner/second",
+                &"b".repeat(40),
+                &["model.gguf"]
+            )])),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/models"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("link", next.as_str())
+                .set_body_json(serde_json::json!([model_json(
+                    "owner/first",
+                    &"a".repeat(40),
+                    &["model.gguf"]
+                )])),
+        )
+        .mount(&server)
+        .await;
+
+    let hf = HfClient::new(server.uri()).expect("client");
+    let first = search_models(&hf, None, None, None).await.expect("page 1");
+    assert_eq!(first.results[0].repo_id, "owner/first");
+    assert_eq!(first.next_cursor.as_deref(), Some("abc=="));
+
+    let second = search_models(&hf, None, None, first.next_cursor.as_deref())
+        .await
+        .expect("page 2");
+    assert_eq!(second.results[0].repo_id, "owner/second");
+    assert_eq!(second.next_cursor, None);
+}
+
+#[tokio::test]
+async fn search_ends_the_list_without_a_next_link() {
+    for link in [
+        "<https://huggingface.co/api/models?cursor=old>; rel=\"prev\"",
+        "not a link header",
+        "<not a url>; rel=\"next\"",
+    ] {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("link", link)
+                    .set_body_json(serde_json::json!([model_json(
+                        "owner/only",
+                        &"a".repeat(40),
+                        &["model.gguf"]
+                    )])),
+            )
+            .mount(&server)
+            .await;
+        let hf = HfClient::new(server.uri()).expect("client");
+        let page = search_models(&hf, None, None, None).await.expect("page");
+        assert_eq!(page.results.len(), 1);
+        assert_eq!(page.next_cursor, None, "{link}");
+    }
 }

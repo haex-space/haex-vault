@@ -1624,7 +1624,8 @@
       "placeholder": "e.g. llama gguf",
       "submit": "Search",
       "loading": "Searching …",
-      "top": "Top 10 most downloaded models",
+      "top": "Most downloaded models",
+      "more": "Load more",
       "empty": "No results.",
       "tooShort": "Please enter at least 2 characters.",
       "error": "Search failed.",
@@ -1947,6 +1948,11 @@
       "peer": {
         "send": "Send message to contact",
         "resend": "Send message again"
+      },
+      "request": {
+        "accept": "Accept a request",
+        "decline": "Decline a request",
+        "block": "Block the sender of a request"
       }
     },
     "settings": {
@@ -1958,7 +1964,10 @@
         "downloadCatalog": "Download catalog model",
         "downloadFromHf": "Download model from HuggingFace",
         "installUpdate": "Install model update",
-        "delete": "Delete model"
+        "delete": "Delete model",
+        "cancelDownload": "Cancel model download",
+        "activate": "Activate model",
+        "deactivate": "Deactivate model"
       },
       "device": {
         "setAlias": "Rename device"
@@ -1974,7 +1983,8 @@
       },
       "agents": {
         "files": {
-          "set": "Set an agent's file permission"
+          "set": "Set an agent's file permission",
+          "remove": "Remove an agent's file permission"
         },
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
