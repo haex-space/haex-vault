@@ -37,15 +37,15 @@ The automatic choice is in `tts::choice`.
   "version": 1,
   "runs": {
     "gpu": {
-      "parts": [
-        [1.21, 3.4],
-        [0.88, 2.5]
+      "sentences": [
+        { "parts": [[1.21, 3.4], [0.22, 0.8]] },
+        { "parts": [[0.88, 2.5]] }
       ],
       "slowStreak": 0,
       "measuredAt": "2026-11-05T09:12:00Z"
     },
     "cpu": {
-      "parts": [[4.6, 3.4]],
+      "sentences": [{ "parts": [[4.6, 3.4]] }],
       "slowStreak": 2,
       "measuredAt": "2026-11-04T21:00:00Z"
     }
@@ -53,9 +53,11 @@ The automatic choice is in `tts::choice`.
 }
 ```
 
-- `parts`: the last 10 parts as `[compute seconds, audio seconds]`, newest last.
-- **Ratio** = sum of compute / sum of audio over `parts`; **keeps up** when ratio < 1.0 and at least 3 parts exist;
-  fewer parts means "noch nicht gemessen".
+- `sentences`: the last 10 sentences, newest last; each sentence holds its generated parts as
+  `[compute seconds, audio seconds]` pairs, including retries.
+- **Ratio** = sum of compute / sum of audio across all parts in `sentences`; **keeps up** when ratio < 1.0 and at
+  least 3 sentences exist;
+  fewer sentences means "noch nicht gemessen".
 - `slowStreak`: consecutive answers whose own ratio was ≥ 1.0; reset by an answer below 1.0. At 3, the hint fires
   once (FR-011).
 - Unknown versions or unreadable files count as empty. The file is deleted with the model.

@@ -151,9 +151,11 @@ local chat model can run at the same time and must not starve the UI.
 ## R10 — Measuring speed
 
 **Decision**: the speaker records, per generated part, the computing time (from `set_input` to `get_output`, retries
-included) and the audio length. `tts/speed.rs` keeps the last 10 parts per (model id, acceleration) and the streak
-of consecutive answers whose ratio was 1.0 or more. They are stored in `speed.json` in the model's directory
-(`models/<slug>/speed.json`), written at most once per answer.
+included) and the audio length. `tts/speed.rs` groups the parts of each sentence and measures the ratio over the
+last 10 sentences per (model id, acceleration): the sum of their computing time divided by the sum of their audio
+length. This matches FR-007 and prevents a long sentence split into several parts from outweighing other sentences.
+The slow streak counts consecutive answers whose aggregate ratio is 1.0 or more. These measurements are stored in
+`speed.json` in the model's directory (`models/<slug>/speed.json`), written at most once per answer.
 
 **Rationale**: speed is a property of the device and the model, not of the vault: a JSON file beside the model
 files is device local by construction, needs no migration and causes no sync traffic (a device-scoped preference
