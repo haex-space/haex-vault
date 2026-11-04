@@ -4248,6 +4248,7 @@
       "all": "Alle",
       "scope": "Bereich",
       "newEntriesTag": "Einträge, die der Agent anlegt, bekommen dieses Tag.",
+      "defaultTag": "Tag für neue Einträge",
       "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     },
     "commands": {
