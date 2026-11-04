@@ -6,7 +6,8 @@ step's offer and the routing measurement are reproducible with the scripts in `a
 ## R1 What the failure analysis rests on
 
 - **Decision**: the spec's figures come from the reports of spec 078's runs on 2026-11-04 (six local models) and a
-  probe of `matched_offer` for all 106 requests (`analysis/offer-probe.txt`).
+  probe of `matched_offer` for all 106 requests (`analysis/offer-probe.txt`); its second tab-separated field is
+  the matched extension tools, with `-` for no matches.
 - **Method**: `analysis/failures.py` counts each failed request once, by its first cause: no call; never the right
   tool after a window detour, after a tool search, or after a web search or command; the right tool with a detour;
   a safety error; or the scoring outcome.
