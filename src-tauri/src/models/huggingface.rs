@@ -721,6 +721,7 @@ impl HfClient {
     async fn search(
         &self,
         query: Option<&str>,
+        author: Option<&str>,
         limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<RawModelInfo>, Option<String>)> {
@@ -744,8 +745,11 @@ impl HfClient {
             // dropping the rest afterwards) keeps pages full: the most downloaded models of all
             // are bert, gpt2 and the like, which would leave nothing of a page of ten.
             query_pairs.append_pair("filter", "gguf");
-            if query.is_none() {
-                // The query-less list is the chat-model discovery view. The Hub tags every repo
+            if let Some(author) = author {
+                query_pairs.append_pair("author", author);
+            }
+            if query.is_none() && author.is_none() {
+                // The unrestricted list is the chat-model discovery view. The Hub tags every repo
                 // with a chat template `conversational`; `pipeline_tag=text-generation` would
                 // drop the multimodal chat models (Gemma 4, Qwen3.8: `image-text-to-text`),
                 // which are most of the top GGUF chat downloads. Several `filter`s must all hold.
@@ -915,6 +919,23 @@ fn validate_search_query(query: Option<&str>) -> Result<Option<String>> {
     Ok(Some(trimmed.to_string()))
 }
 
+/// An author (a user or organization on the Hub) to restrict the list to; blank means none.
+fn validate_author(author: Option<&str>) -> Result<Option<String>> {
+    let Some(trimmed) = author.map(str::trim).filter(|a| !a.is_empty()) else {
+        return Ok(None);
+    };
+    if trimmed.len() > MAX_REPO_SEGMENT_LEN
+        || !trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(HolziError::InvalidInput {
+            reason: format!("invalid Hugging Face author: {trimmed:?}"),
+        });
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
 /// The `cursor` of the `rel="next"` entry of the Hub's `Link` header, the way the Hub paginates
 /// its model list (`<https://…/api/models?…&cursor=…>; rel="next"`).
 fn next_cursor_from_link_header(link: Option<&str>) -> Option<String> {
@@ -1008,23 +1029,28 @@ pub struct HuggingFaceSearchPage {
 /// from the Hub, normalizes every hit, then deduplicates and deterministically
 /// sorts the page. Without a query the Hub's download sort supplies the default
 /// top-model view of chat models, ten per page; explicit searches page by twenty.
+/// `author` restricts the list to one user or organization of the Hub.
 /// `cursor` continues a list with the `next_cursor` of the previous page.
 pub async fn search_models(
     hf: &HfClient,
     query: Option<&str>,
+    author: Option<&str>,
     limit: Option<usize>,
     cursor: Option<&str>,
 ) -> Result<HuggingFaceSearchPage> {
     let query = validate_search_query(query)?;
+    let author = validate_author(author)?;
     // The cap doubles as the default, so an explicit search gets twenty
-    // results and the query-less discovery view ten.
-    let max_limit = if query.is_some() {
+    // results and the unrestricted discovery view ten.
+    let max_limit = if query.is_some() || author.is_some() {
         DEFAULT_LIMIT
     } else {
         DEFAULT_TOP_LIMIT
     };
     let capped = limit.unwrap_or(max_limit).clamp(1, max_limit);
-    let (hits, next_cursor) = hf.search(query.as_deref(), capped, cursor).await?;
+    let (hits, next_cursor) = hf
+        .search(query.as_deref(), author.as_deref(), capped, cursor)
+        .await?;
     let mut results: Vec<HuggingFaceModelResult> =
         hits.into_iter().filter_map(normalize_search_hit).collect();
     dedupe_and_sort(&mut results);

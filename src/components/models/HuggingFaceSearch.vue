@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * HuggingFace search, the location `/ai/local/search` (spec 005, spec 023 research R1).
- * The submitted term and the filters live in the tab location's query (`q`, `quant`, `size`,
+ * The submitted term, the author and the filters live in the tab location's query (`q`, `author`, `quant`, `size`,
  * `fit`, replaced in place), so back from a repository returns to the same results. A result opens
  * its repository as a new location, passing the files that matched the filters.
  */
@@ -20,13 +20,15 @@ const { searchAsync, detailsAsync } = useHuggingFace()
 
 const initial = router.route.query
 const query = ref(initial.q ?? '')
+/** Restricts the Hub search to one user or organization; sent along with the term. */
+const author = ref(initial.author ?? '')
 const results = ref<HuggingFaceModelResult[]>([])
 const loading = ref(false)
 /** Whether the last search failed; its message went out as a toast with "retry". */
 const failed = ref(false)
 const hasSearched = ref(false)
-/** The term the listed results are for; empty for the most downloaded models. */
-const shownQuery = ref('')
+/** The term and author the listed results are for; both empty for the most downloaded models. */
+const shown = ref({ q: '', author: '' })
 /** Cursor of the page after the listed results; null when the list ends. */
 const nextCursor = ref<string | null>(null)
 const quantizationFilter = ref(initial.quant ?? 'all')
@@ -38,9 +40,22 @@ const fitFilter = ref<'all' | HardwareFit>(
 const fitOptions: HardwareFit[] = ['fits', 'tight', 'too_big', 'unknown']
 const sizeLimitOptions = [2, 4, 8, 16]
 
+interface Search {
+  q: string
+  author: string
+}
+const EMPTY_SEARCH: Search = { q: '', author: '' }
+const searchKey = (search: Search) => JSON.stringify([search.author, search.q])
+
 const trimmedQuery = computed(() => query.value.trim())
+const trimmedAuthor = computed(() => author.value.trim())
 const queryTooShort = computed(
   () => trimmedQuery.value.length > 0 && trimmedQuery.value.length < 2,
+)
+const canSubmit = computed(
+  () =>
+    !queryTooShort.value &&
+    (trimmedQuery.value.length > 0 || trimmedAuthor.value.length > 0),
 )
 
 /** Adds file-level size/fit metadata to search hits. */
@@ -67,31 +82,31 @@ async function enrichAsync(
   )
 }
 
-/** The term of the latest first-page load, listed or still loading. */
-let wantedQuery = ''
+/** The search of the latest first-page load, listed or still loading, as `searchKey`. */
+let wantedKey = ''
 /** Counts first-page loads; a load that is no longer the latest drops its result. */
 let generation = 0
 
 /**
- * Loads the first page of a search (no term: the most downloaded models) or, with `more`, the
- * page after the one shown. A new first page supersedes a load still running; a failed page keeps
- * what is already listed.
+ * Loads the first page of a search (no term and no author: the most downloaded models) or, with
+ * `more`, the page after the one shown. A new first page supersedes a load still running; a
+ * failed page keeps what is already listed.
  */
-async function loadResultsAsync(searchQuery?: string, more = false) {
-  const key = searchQuery ?? ''
+async function loadResultsAsync(search: Search = EMPTY_SEARCH, more = false) {
+  const key = searchKey(search)
   if (more) {
-    if (loading.value || key !== shownQuery.value) return
-  } else if (loading.value && key === wantedQuery) {
+    if (loading.value || key !== searchKey(shown.value)) return
+  } else if (loading.value && key === wantedKey) {
     return
   }
   const run = more ? generation : ++generation
   if (!more) {
-    wantedQuery = key
+    wantedKey = key
     const cached = cachedSearchResults(key)
     if (cached) {
       results.value = cached.results
       nextCursor.value = cached.nextCursor
-      shownQuery.value = key
+      shown.value = search
       hasSearched.value = true
       failed.value = false
       loading.value = false
@@ -102,7 +117,8 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
   failed.value = false
   try {
     const page = await searchAsync(
-      searchQuery,
+      search.q || undefined,
+      search.author || undefined,
       more ? (nextCursor.value ?? undefined) : undefined,
     )
     const enriched = await enrichAsync(page.results)
@@ -113,7 +129,7 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
       ...enriched.filter((r) => !known.has(r.repoId)),
     ]
     nextCursor.value = page.nextCursor
-    shownQuery.value = key
+    shown.value = search
     rememberSearchResults(key, results.value, nextCursor.value)
     hasSearched.value = true
   } catch (e) {
@@ -122,7 +138,7 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
     toast.error(t(hfErrorKey(e)), {
       action: {
         label: t('models.search.retry'),
-        onClick: () => void retryAsync(key, more),
+        onClick: () => void retryAsync(search, more),
       },
     })
   } finally {
@@ -137,31 +153,38 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
  * already looking at.
  */
 async function onSubmit() {
-  if (queryTooShort.value || trimmedQuery.value.length === 0) return
-  router.setQuery({ q: trimmedQuery.value })
-  await loadResultsAsync(trimmedQuery.value)
+  if (!canSubmit.value) return
+  const search = { q: trimmedQuery.value, author: trimmedAuthor.value }
+  router.setQuery({ q: search.q || null, author: search.author || null })
+  await loadResultsAsync(search)
 }
 
-/** Repeats the load that failed: the same term, and for `more` the same next page. */
-async function retryAsync(key: string, more: boolean) {
+/** Repeats the load that failed: the same search, and for `more` the same next page. */
+async function retryAsync(search: Search, more: boolean) {
   if (!more) {
     forgetSearchResults()
-    query.value = key
-    router.setQuery({ q: key || null })
+    query.value = search.q
+    author.value = search.author
+    router.setQuery({ q: search.q || null, author: search.author || null })
   }
-  await loadResultsAsync(key || undefined, more)
+  await loadResultsAsync(search, more)
 }
 
-/** Loads the next page of the list that is shown, whatever the field says by now. */
+/** Loads the next page of the list that is shown, whatever the fields say by now. */
 async function onLoadMore() {
-  await loadResultsAsync(shownQuery.value || undefined, true)
+  await loadResultsAsync(shown.value, true)
 }
 
-// Emptying the field (e.g. with its clear button) goes back to the most downloaded models, also
+// Emptying both fields (e.g. with the clear buttons) goes back to the most downloaded models, also
 // while a search is still loading.
-watch(trimmedQuery, (value) => {
-  if (value.length === 0 && wantedQuery.length > 0) {
-    router.setQuery({ q: null })
+watch([trimmedQuery, trimmedAuthor], ([q, a]) => {
+  if (
+    q.length === 0 &&
+    a.length === 0 &&
+    wantedKey !== '' &&
+    wantedKey !== searchKey(EMPTY_SEARCH)
+  ) {
+    router.setQuery({ q: null, author: null })
     void loadResultsAsync()
   }
 })
@@ -270,26 +293,33 @@ function openResult(result: HuggingFaceModelResult) {
 }
 
 onMounted(() => {
-  void loadResultsAsync(router.route.query.q || undefined)
+  void loadResultsAsync({
+    q: router.route.query.q ?? '',
+    author: router.route.query.author ?? '',
+  })
 })
 </script>
 
 <template>
   <section class="flex flex-col gap-3">
-    <form class="flex gap-2" @submit.prevent="onSubmit">
+    <form class="flex flex-wrap gap-2" @submit.prevent="onSubmit">
       <UiInput
         v-model="query"
         :placeholder="t('models.search.placeholder')"
         :aria-label="t('models.search.title')"
         :labels="fieldLabels.input.value"
         clearable
-        class="flex-1"
+        class="min-w-48 flex-1"
       />
-      <UiButton
-        type="submit"
-        :loading="loading"
-        :disabled="trimmedQuery.length === 0 || queryTooShort"
-      >
+      <UiInput
+        v-model="author"
+        :placeholder="t('models.search.authorPlaceholder')"
+        :aria-label="t('models.search.filters.author')"
+        :labels="fieldLabels.input.value"
+        clearable
+        class="min-w-40 flex-1 sm:max-w-56"
+      />
+      <UiButton type="submit" :loading="loading" :disabled="!canSubmit">
         {{ t('models.search.submit') }}
       </UiButton>
     </form>
@@ -303,10 +333,14 @@ onMounted(() => {
     </p>
 
     <p
-      v-if="hasSearched && shownQuery.length === 0"
+      v-if="hasSearched && shown.q.length === 0"
       class="text-sm text-muted-foreground"
     >
-      {{ t('models.search.top') }}
+      {{
+        shown.author
+          ? t('models.search.topByAuthor', { author: shown.author })
+          : t('models.search.top')
+      }}
     </p>
 
     <div

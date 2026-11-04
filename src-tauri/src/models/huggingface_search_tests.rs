@@ -46,7 +46,7 @@ async fn search_rejects_a_too_short_query_without_any_http_call() {
     // "no matching mock" and surface as a different error kind, proving
     // the short-circuit happened before any request was sent.
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("x"), None, None)
+    let err = search_models(&hf, Some("x"), None, None, None)
         .await
         .expect_err("too short");
     assert!(matches!(err, HolziError::InvalidInput { .. }));
@@ -72,7 +72,7 @@ async fn search_filters_out_repos_without_gguf_and_normalizes_hits() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("llama"), None, None)
+    let results = search_models(&hf, Some("llama"), None, None, None)
         .await
         .expect("search ok")
         .results;
@@ -93,7 +93,7 @@ async fn search_returns_an_empty_list_for_no_hits() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("nothing matches"), None, None)
+    let results = search_models(&hf, Some("nothing matches"), None, None, None)
         .await
         .expect("search ok")
         .results;
@@ -119,7 +119,7 @@ async fn search_caps_results_at_the_default_limit_of_20() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, Some("many"), None, None)
+    let results = search_models(&hf, Some("many"), None, None, None)
         .await
         .expect("search ok")
         .results;
@@ -147,14 +147,14 @@ async fn search_without_query_returns_the_top_ten_downloaded_gguf_repositories()
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let results = search_models(&hf, None, None, None)
+    let results = search_models(&hf, None, None, None, None)
         .await
         .expect("top-model search ok")
         .results;
     assert_eq!(results.len(), DEFAULT_TOP_LIMIT);
     assert_eq!(results[0].repo_id, "owner/top-11");
 
-    let results = search_models(&hf, None, Some(DEFAULT_LIMIT), None)
+    let results = search_models(&hf, None, None, Some(DEFAULT_LIMIT), None)
         .await
         .expect("top-model search remains capped")
         .results;
@@ -170,7 +170,7 @@ async fn search_maps_http_error_status_and_rate_limit() {
         .mount(&server)
         .await;
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("llama"), None, None)
+    let err = search_models(&hf, Some("llama"), None, None, None)
         .await
         .expect_err("503");
     assert!(matches!(err, HolziError::HttpStatus { status: 503, .. }));
@@ -185,7 +185,7 @@ async fn search_maps_429_to_rate_limited() {
         .mount(&server)
         .await;
     let hf = HfClient::new(server.uri()).expect("client");
-    let err = search_models(&hf, Some("llama"), None, None)
+    let err = search_models(&hf, Some("llama"), None, None, None)
         .await
         .expect_err("429");
     match err {
@@ -353,10 +353,12 @@ async fn search_asks_the_hub_for_gguf_and_for_chat_models_only_without_a_query()
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let top = search_models(&hf, None, None, None).await.expect("top ok");
+    let top = search_models(&hf, None, None, None, None)
+        .await
+        .expect("top ok");
     assert_eq!(top.results.len(), 1);
     // A search with a term does not narrow to chat models.
-    search_models(&hf, Some("llama"), None, None)
+    search_models(&hf, Some("llama"), None, None, None)
         .await
         .expect("search ok");
     let requests = server.received_requests().await.expect("requests");
@@ -400,11 +402,13 @@ async fn search_hands_out_the_next_cursor_and_sends_it_back() {
         .await;
 
     let hf = HfClient::new(server.uri()).expect("client");
-    let first = search_models(&hf, None, None, None).await.expect("page 1");
+    let first = search_models(&hf, None, None, None, None)
+        .await
+        .expect("page 1");
     assert_eq!(first.results[0].repo_id, "owner/first");
     assert_eq!(first.next_cursor.as_deref(), Some("abc=="));
 
-    let second = search_models(&hf, None, None, first.next_cursor.as_deref())
+    let second = search_models(&hf, None, None, None, first.next_cursor.as_deref())
         .await
         .expect("page 2");
     assert_eq!(second.results[0].repo_id, "owner/second");
@@ -433,8 +437,49 @@ async fn search_ends_the_list_without_a_next_link() {
             .mount(&server)
             .await;
         let hf = HfClient::new(server.uri()).expect("client");
-        let page = search_models(&hf, None, None, None).await.expect("page");
+        let page = search_models(&hf, None, None, None, None)
+            .await
+            .expect("page");
         assert_eq!(page.results.len(), 1);
         assert_eq!(page.next_cursor, None, "{link}");
     }
+}
+
+#[tokio::test]
+async fn search_restricts_to_an_author_and_keeps_the_list_open_to_every_model_type() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/models"))
+        .and(query_param("author", "unsloth"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([model_json(
+                "unsloth/some-model",
+                &"a".repeat(40),
+                &["model.gguf"]
+            )])),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let hf = HfClient::new(server.uri()).expect("client");
+    let page = search_models(&hf, None, Some("  unsloth "), None, None)
+        .await
+        .expect("author search ok");
+    assert_eq!(page.results[0].repo_id, "unsloth/some-model");
+    let requests = server.received_requests().await.expect("requests");
+    assert!(!requests[0]
+        .url
+        .query_pairs()
+        .any(|(key, value)| key == "filter" && value == "conversational"));
+}
+
+#[tokio::test]
+async fn search_rejects_an_author_that_is_no_hub_name_without_any_http_call() {
+    let server = MockServer::start().await;
+    let hf = HfClient::new(server.uri()).expect("client");
+    let err = search_models(&hf, None, Some("a b/c"), None, None)
+        .await
+        .expect_err("invalid author");
+    assert!(matches!(err, HolziError::InvalidInput { .. }));
 }

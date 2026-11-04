@@ -113,15 +113,18 @@ export interface HuggingFaceUpdateStatus {
  */
 export function useHuggingFace() {
   /**
-   * Public repository search; an omitted query returns the default top-model view. Pass the
-   * `nextCursor` of a page as `cursor` to get the page after it.
+   * Public repository search; an omitted query and author return the default top-model view.
+   * `author` restricts the list to one user or organization of the Hub. Pass the `nextCursor` of
+   * a page as `cursor` to get the page after it.
    */
   async function searchAsync(
     query?: string,
+    author?: string,
     cursor?: string,
   ): Promise<HuggingFaceSearchPage> {
-    const args: { query?: string; cursor?: string } = {}
+    const args: { query?: string; author?: string; cursor?: string } = {}
     if (query !== undefined) args.query = query
+    if (author !== undefined) args.author = author
     if (cursor !== undefined) args.cursor = cursor
     return await invoke<HuggingFaceSearchPage>(
       'search_huggingface_models',

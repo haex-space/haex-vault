@@ -1628,6 +1628,8 @@
       "loading": "Searching …",
       "top": "Most downloaded models",
       "more": "Load more",
+      "authorPlaceholder": "Author, e.g. unsloth",
+      "topByAuthor": "Most downloaded models by {author}",
       "empty": "No results.",
       "tooShort": "Please enter at least 2 characters.",
       "error": "Search failed.",
@@ -1635,6 +1637,7 @@
       "offline": "Could not reach Hugging Face — previous results stay visible.",
       "filters": {
         "title": "Filter results",
+        "author": "Author",
         "all": "All",
         "quantization": "Quantization",
         "maxSize": "Maximum file size",

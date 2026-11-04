@@ -1628,6 +1628,8 @@
       "loading": "Suche läuft …",
       "top": "Meistgeladene Modelle",
       "more": "Mehr laden",
+      "authorPlaceholder": "Autor, z. B. unsloth",
+      "topByAuthor": "Meistgeladene Modelle von {author}",
       "empty": "Keine Treffer.",
       "tooShort": "Bitte mindestens 2 Zeichen eingeben.",
       "error": "Suche fehlgeschlagen.",
@@ -1635,6 +1637,7 @@
       "offline": "Keine Verbindung zu Hugging Face — vorherige Treffer bleiben sichtbar.",
       "filters": {
         "title": "Treffer filtern",
+        "author": "Autor",
         "all": "Alle",
         "quantization": "Quantisierung",
         "maxSize": "Maximale Dateigröße",

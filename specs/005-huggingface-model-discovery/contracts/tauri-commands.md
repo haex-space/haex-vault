@@ -10,6 +10,7 @@ und Fehlercodes bzw. Parameter, keine lokalisierten UI-Texte.
 ```typescript
 {
   query?: string,
+  author?: string,
   cursor?: string,
   limit?: number
 }
@@ -25,7 +26,9 @@ validiert. Wenn `query` fehlt, liefert das Backend die meistgeladenen
 wird dafür mit `filter=gguf` und `filter=conversational` (Repositories mit
 Chat-Template, auch multimodale) nach Downloads absteigend sortiert angefragt. Eine Seite hat höchstens 20 Treffer bei einer
 Suche und 10 in der Entdeckungsansicht; der Cursor stammt aus dem `Link`-Header
-des Hubs.
+des Hubs. `author` (ein Hub-Name, getrimmt) beschränkt die Liste auf einen Nutzer
+oder eine Organisation, mit oder ohne `query`; dann entfällt der Chat-Filter der
+Entdeckungsansicht.
 Beide Varianten werden deterministisch sortiert. Treffer ohne installierbare
 GGUF-Datei werden nicht zurückgegeben; falls Datei-Details einen zweiten
 Request benötigen, liefert der Command zunächst normalisierte Repository-

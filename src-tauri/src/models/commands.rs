@@ -156,6 +156,7 @@ pub struct HuggingFaceUpdateStatusPayload {
 #[tauri::command]
 pub async fn search_huggingface_models(
     query: Option<String>,
+    author: Option<String>,
     cursor: Option<String>,
     limit: Option<u32>,
 ) -> Result<huggingface::HuggingFaceSearchPage> {
@@ -163,6 +164,7 @@ pub async fn search_huggingface_models(
     huggingface::search_models(
         &hf,
         query.as_deref(),
+        author.as_deref(),
         limit.map(|l| l as usize),
         cursor.as_deref(),
     )
