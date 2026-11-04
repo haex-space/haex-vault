@@ -54,7 +54,9 @@ page.
   fake engine, the auto choice and the ledger.
 - Ignored tests with the real files in a new `src-tauri/tests/qwen_tts_eval.rs` (`QWEN_TTS_DIR`): load, speak the
   R23 sentences, speed on CPU and GPU, parts, the 200-sentence robustness run of SC-006.
-- Vitest for the speech model row; the e2e voice settings scenario of spec 066 extended by the new row.
+- `node --test` for the settings page's pure logic (`scripts/check-speech-model.ts` in `check:settings`); there is
+  no e2e scenario for the assistant yet, and a 2.3 GB model does not fit CI, so the UI is checked manually
+  (quickstart M1–M9).
 
 **Target Platform**: desktop (Linux, Windows, macOS) and Android wherever the build has the llama.cpp engine;
 iOS not on the roadmap.
