@@ -259,7 +259,7 @@ fn builtin_voices_speak() {
     let var = |key: &str| PathBuf::from(std::env::var(key).expect(key));
     let (models, save) = (var("HOLZI_TTS_MODELS"), var("HOLZI_TTS_SAVE_DIR"));
     for language in LANGUAGES {
-        let model = PocketModel::load(&models.join(language)).expect("model loads");
+        let model = PocketModel::load(&models.join(language), language).expect("model loads");
         for voice in builtin()
             .expect("parses")
             .iter()

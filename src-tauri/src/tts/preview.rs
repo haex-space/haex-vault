@@ -132,7 +132,9 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
-    let model = speech.speech_model(&entry.id, dir, state.gate()).await?;
+    let model = speech
+        .speech_model(&entry.id, &entry.language, dir, state.gate())
+        .await?;
     let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();

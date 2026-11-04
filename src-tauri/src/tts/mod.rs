@@ -22,6 +22,10 @@ mod local_tests;
 pub mod preview;
 #[cfg(all(test, feature = "voice"))]
 mod preview_tests;
+#[cfg(feature = "voice")]
+pub mod spoken;
+#[cfg(all(test, feature = "voice"))]
+mod spoken_tests;
 pub mod voices;
 #[cfg(test)]
 mod voices_tests;

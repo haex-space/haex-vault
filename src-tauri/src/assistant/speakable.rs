@@ -880,11 +880,282 @@ pub fn time_phrase(language: &str, hour: u32, minute: u32, with_preposition: boo
     }
 }
 
-/// Cardinal number words for 0–99; larger numbers stay digits.
+/// Cardinal number words in `language`, up to the billions (spec 066 FR-022b). Groups of thousands
+/// are separate words ("zweitausend dreihundertvierundfünfzig"), which the speech model reads more
+/// steadily than one long compound.
 pub fn cardinal(language: &str, n: u32) -> String {
-    if n > 99 {
-        return n.to_string();
+    if n < 100 {
+        return below_hundred(language, n);
     }
+    let billions = n / 1_000_000_000;
+    let millions = n / 1_000_000 % 1_000;
+    let thousands = n / 1_000 % 1_000;
+    let rest = n % 1_000;
+    let mut parts: Vec<String> = Vec::new();
+    match language {
+        "de" => {
+            let big = |count: u32, one: &str, many: &str| {
+                if count == 1 {
+                    format!("eine {one}")
+                } else {
+                    format!("{} {many}", hundreds_de(count, true))
+                }
+            };
+            if billions > 0 {
+                parts.push(big(billions, "Milliarde", "Milliarden"));
+            }
+            if millions > 0 {
+                parts.push(big(millions, "Million", "Millionen"));
+            }
+            if thousands > 0 {
+                parts.push(format!("{}tausend", hundreds_de(thousands, false)));
+            }
+            if rest > 0 {
+                parts.push(hundreds_de(rest, true));
+            }
+        }
+        "fr" => {
+            let big = |count: u32, one: &str, many: &str| {
+                if count == 1 {
+                    format!("un {one}")
+                } else {
+                    format!("{} {many}", hundreds_fr(count, true))
+                }
+            };
+            if billions > 0 {
+                parts.push(big(billions, "milliard", "milliards"));
+            }
+            if millions > 0 {
+                parts.push(big(millions, "million", "millions"));
+            }
+            match thousands {
+                0 => {}
+                1 => parts.push("mille".to_owned()),
+                t => parts.push(format!("{} mille", hundreds_fr(t, false))),
+            }
+            if rest > 0 {
+                parts.push(hundreds_fr(rest, true));
+            }
+        }
+        "es" => {
+            // Spanish counts the billions as "mil millones".
+            let all_millions = n / 1_000_000;
+            match all_millions {
+                0 => {}
+                1 => parts.push("un millón".to_owned()),
+                m => parts.push(format!("{} millones", apocope_es(&cardinal("es", m)))),
+            }
+            match thousands {
+                0 => {}
+                1 => parts.push("mil".to_owned()),
+                t => parts.push(format!("{} mil", apocope_es(&hundreds_es(t)))),
+            }
+            if rest > 0 {
+                parts.push(hundreds_es(rest));
+            }
+        }
+        "it" => {
+            let big = |count: u32, one: &str, many: &str| {
+                if count == 1 {
+                    format!("un {one}")
+                } else {
+                    format!("{} {many}", hundreds_it(count))
+                }
+            };
+            if billions > 0 {
+                parts.push(big(billions, "miliardo", "miliardi"));
+            }
+            if millions > 0 {
+                parts.push(big(millions, "milione", "milioni"));
+            }
+            match thousands {
+                0 => {}
+                1 => parts.push("mille".to_owned()),
+                t => parts.push(format!("{}mila", hundreds_it(t))),
+            }
+            if rest > 0 {
+                parts.push(hundreds_it(rest));
+            }
+        }
+        "pt" => {
+            let big = |count: u32, one: &str, many: &str| {
+                if count == 1 {
+                    format!("um {one}")
+                } else {
+                    format!("{} {many}", hundreds_pt(count))
+                }
+            };
+            if billions > 0 {
+                parts.push(big(billions, "bilhão", "bilhões"));
+            }
+            if millions > 0 {
+                parts.push(big(millions, "milhão", "milhões"));
+            }
+            match thousands {
+                0 => {}
+                1 => parts.push("mil".to_owned()),
+                t => parts.push(format!("{} mil", hundreds_pt(t))),
+            }
+            if rest > 0 {
+                // "mil e cem", "dois mil e vinte", but "mil duzentos e trinta".
+                let joined = hundreds_pt(rest);
+                if !parts.is_empty() && (rest < 100 || rest.is_multiple_of(100)) {
+                    parts.push(format!("e {joined}"));
+                } else {
+                    parts.push(joined);
+                }
+            }
+        }
+        _ => {
+            let groups = [
+                (billions, " billion"),
+                (millions, " million"),
+                (thousands, " thousand"),
+                (rest, ""),
+            ];
+            for (count, name) in groups {
+                if count > 0 {
+                    parts.push(format!("{}{name}", hundreds_en(count)));
+                }
+            }
+        }
+    }
+    parts.join(" ")
+}
+
+/// German 1–999; `last` says whether the number ends here ("hunderteins") or a word follows
+/// ("hundertein…tausend").
+fn hundreds_de(n: u32, last: bool) -> String {
+    let (h, r) = (n / 100, n % 100);
+    let mut out = String::new();
+    if h > 0 {
+        out.push_str(if h == 1 { "ein" } else { "" });
+        if h > 1 {
+            out.push_str(&below_hundred("de", h));
+        }
+        out.push_str("hundert");
+    }
+    match r {
+        0 => {}
+        1 if !last => out.push_str("ein"),
+        r => out.push_str(&below_hundred("de", r)),
+    }
+    out
+}
+
+/// French 1–999; `last` keeps the plural "s" of "deux cents" and "quatre-vingts", which a
+/// following "mille" or noun drops.
+fn hundreds_fr(n: u32, last: bool) -> String {
+    let (h, r) = (n / 100, n % 100);
+    let tail = match r {
+        0 => String::new(),
+        80 if !last => "quatre-vingt".to_owned(),
+        r => below_hundred("fr", r),
+    };
+    let head = match h {
+        0 => return tail,
+        1 => "cent".to_owned(),
+        h if r == 0 && last => format!("{} cents", below_hundred("fr", h)),
+        h => format!("{} cent", below_hundred("fr", h)),
+    };
+    if tail.is_empty() {
+        head
+    } else {
+        format!("{head} {tail}")
+    }
+}
+
+/// Spanish 1–999.
+fn hundreds_es(n: u32) -> String {
+    const HUNDREDS: [&str; 10] = [
+        "",
+        "ciento",
+        "doscientos",
+        "trescientos",
+        "cuatrocientos",
+        "quinientos",
+        "seiscientos",
+        "setecientos",
+        "ochocientos",
+        "novecientos",
+    ];
+    let (h, r) = (n / 100, n % 100);
+    match (h, r) {
+        (0, r) => below_hundred("es", r),
+        (1, 0) => "cien".to_owned(),
+        (h, 0) => HUNDREDS[h as usize].to_owned(),
+        (h, r) => format!("{} {}", HUNDREDS[h as usize], below_hundred("es", r)),
+    }
+}
+
+/// "uno" becomes "un" before "mil" and "millones" ("veintiún mil", "un millón").
+fn apocope_es(words: &str) -> String {
+    if let Some(stem) = words.strip_suffix("veintiuno") {
+        format!("{stem}veintiún")
+    } else if let Some(stem) = words.strip_suffix("uno") {
+        format!("{stem}un")
+    } else {
+        words.to_owned()
+    }
+}
+
+/// Italian 1–999, one word: "centotto", "duecentoventi".
+fn hundreds_it(n: u32) -> String {
+    let (h, r) = (n / 100, n % 100);
+    let mut out = match h {
+        0 => String::new(),
+        1 => "cento".to_owned(),
+        h => format!("{}cento", below_hundred("it", h)),
+    };
+    if r > 0 {
+        // "cento" + "otto"/"ottanta" loses its last vowel.
+        if h > 0 && (r == 8 || (80..=89).contains(&r)) {
+            out.pop();
+        }
+        out.push_str(&below_hundred("it", r));
+    }
+    out
+}
+
+/// Portuguese 1–999.
+fn hundreds_pt(n: u32) -> String {
+    const HUNDREDS: [&str; 10] = [
+        "",
+        "cento",
+        "duzentos",
+        "trezentos",
+        "quatrocentos",
+        "quinhentos",
+        "seiscentos",
+        "setecentos",
+        "oitocentos",
+        "novecentos",
+    ];
+    let (h, r) = (n / 100, n % 100);
+    match (h, r) {
+        (0, r) => below_hundred("pt", r),
+        (1, 0) => "cem".to_owned(),
+        (h, 0) => HUNDREDS[h as usize].to_owned(),
+        (h, r) => format!("{} e {}", HUNDREDS[h as usize], below_hundred("pt", r)),
+    }
+}
+
+/// English 1–999.
+fn hundreds_en(n: u32) -> String {
+    let (h, r) = (n / 100, n % 100);
+    match (h, r) {
+        (0, r) => below_hundred("en", r),
+        (h, 0) => format!("{} hundred", below_hundred("en", h)),
+        (h, r) => format!(
+            "{} hundred {}",
+            below_hundred("en", h),
+            below_hundred("en", r)
+        ),
+    }
+}
+
+/// Cardinal number words for 0–99.
+fn below_hundred(language: &str, n: u32) -> String {
     let n = n as usize;
     match language {
         "de" => {
@@ -1125,17 +1396,42 @@ pub fn cardinal(language: &str, n: u32) -> String {
 
 /// "am …ten": the German dative ordinal of a day of the month.
 fn ordinal_de(d: u32) -> String {
-    match d {
-        1 => "ersten".to_owned(),
-        3 => "dritten".to_owned(),
-        7 => "siebten".to_owned(),
-        8 => "achten".to_owned(),
-        2..=19 => format!("{}ten", cardinal("de", d)),
-        _ => format!("{}sten", cardinal("de", d)),
+    format!("{}en", ordinal_stem_de(d))
+}
+
+/// The name of `month` (1–12) in `language`.
+pub fn month_name(language: &str, month: u32) -> &'static str {
+    table(&MONTHS, language)[(month.clamp(1, 12) - 1) as usize]
+}
+
+/// The stem of a German ordinal, to which "e", "en", "er" are added: "erst", "dritt",
+/// "zwanzigst", "einhundertst".
+pub fn ordinal_stem_de(n: u32) -> String {
+    match n % 100 {
+        _ if n >= 100 && n.is_multiple_of(100) => format!("{}st", cardinal("de", n)),
+        r if n >= 100 => {
+            let head = cardinal("de", n - r);
+            let head = head.replace(' ', "");
+            format!("{head}{}", ordinal_stem_de(r))
+        }
+        1 => "erst".to_owned(),
+        3 => "dritt".to_owned(),
+        7 => "siebt".to_owned(),
+        8 => "acht".to_owned(),
+        2..=19 => format!("{}t", cardinal("de", n)),
+        _ => format!("{}st", cardinal("de", n)),
     }
 }
 
-fn ordinal_en(d: u32) -> String {
+pub fn ordinal_en(d: u32) -> String {
+    if d >= 100 {
+        let r = d % 100;
+        return if r == 0 {
+            format!("{}th", cardinal("en", d))
+        } else {
+            format!("{} {}", cardinal("en", d - r), ordinal_en(r))
+        };
+    }
     fn small(n: u32) -> String {
         match n {
             1 => "first".to_owned(),
@@ -1155,26 +1451,35 @@ fn ordinal_en(d: u32) -> String {
     }
 }
 
-/// A year of this century in words; other years stay digits.
-fn year_words(language: &str, year: i32) -> String {
-    if !(2000..=2099).contains(&year) {
+/// A year in words: German and English say the years before 2000 in hundreds
+/// ("neunzehnhundertneunundneunzig", "nineteen ninety-nine"); the others count them.
+pub fn year_words(language: &str, year: i32) -> String {
+    let Ok(y) = u32::try_from(year) else {
         return year.to_string();
-    }
-    let x = (year - 2000) as u32;
-    match (language, x) {
-        ("de", 0) => "zweitausend".to_owned(),
-        ("de", _) => format!("zweitausend{}", cardinal("de", x)),
-        ("fr", 0) => "deux mille".to_owned(),
-        ("fr", _) => format!("deux mille {}", cardinal("fr", x)),
-        ("es", 0) => "dos mil".to_owned(),
-        ("es", _) => format!("dos mil {}", cardinal("es", x)),
-        ("it", 0) => "duemila".to_owned(),
-        ("it", _) => format!("duemila{}", cardinal("it", x)),
-        ("pt", 0) => "dois mil".to_owned(),
-        ("pt", _) => format!("dois mil e {}", cardinal("pt", x)),
-        (_, 0) => "two thousand".to_owned(),
-        (_, 1..=9) => format!("two thousand {}", cardinal("en", x)),
-        _ => format!("twenty {}", cardinal("en", x)),
+    };
+    match (language, y) {
+        ("de", 1100..=1999) => {
+            let r = y % 100;
+            let rest = if r == 0 {
+                String::new()
+            } else {
+                cardinal("de", r)
+            };
+            format!("{}hundert{rest}", cardinal("de", y / 100))
+        }
+        ("de", 2000..=2099) => format!("zweitausend{}", hundreds_de(y - 2000, true)),
+        ("en", 1100..=1999) | ("en", 2010..=2099) => {
+            let r = y % 100;
+            let rest = match r {
+                0 => " hundred".to_owned(),
+                1..=9 => format!(" oh {}", cardinal("en", r)),
+                _ => format!(" {}", cardinal("en", r)),
+            };
+            format!("{}{rest}", cardinal("en", y / 100))
+        }
+        ("pt", 2001..=2099) => format!("dois mil e {}", cardinal("pt", y - 2000)),
+        ("it", 2001..=2099) => format!("duemila{}", cardinal("it", y - 2000)),
+        _ => cardinal(language, y),
     }
 }
 
