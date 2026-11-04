@@ -366,6 +366,16 @@ pub static METHODS: &[Method] = &[
         module: mail::commands::MODULE,
     },
     Method {
+        name: "extension_mail_delete_mailbox",
+        handler: mail::commands::delete_mailbox,
+        module: mail::commands::MODULE,
+    },
+    Method {
+        name: "extension_mail_rename_mailbox",
+        handler: mail::commands::rename_mailbox,
+        module: mail::commands::MODULE,
+    },
+    Method {
         name: "extension_mail_delete_messages",
         handler: mail::commands::delete_messages,
         module: mail::commands::MODULE,
