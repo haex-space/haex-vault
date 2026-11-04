@@ -7,6 +7,9 @@ dieselben Regeln wie dort: Zugangsdaten kommen mit jedem Aufruf (`imap`), IMAP v
 (`check_mailbox`), Fehler nennen weder Passwort noch Benutzername, jede Antwort über der Grenze der
 Erweiterung ist 7000.
 
+Später ergänzt: `extension_mail_delete_mailbox` und `extension_mail_rename_mailbox` (Ordner löschen und
+umbenennen, `imap_manage.rs`), im vault-sdk `MAIL_COMMANDS.deleteMailbox`, `.renameMailbox`.
+
 Implementiert in `src-tauri/src/extensions/mail/commands.rs` und dem neuen `imap_manage.rs`, eingetragen in
 `src-tauri/src/extensions/bridge/allowlist.rs` (`module: mail::commands::MODULE`), im vault-sdk als
 `MAIL_COMMANDS.search`, `.createMailbox`, `.deleteMessages` (`src/commands/mail.ts`).
@@ -48,6 +51,23 @@ Antwort: `{ created: boolean }`. Existiert der Ordner schon, ist `created` `fals
 Der Name darf das Trennzeichen des Servers enthalten (verschachtelter Ordner); ob der Server fehlende
 Elternordner anlegt, bestimmt er. Server-Ablehnung (Name ungültig, Berechtigung) ist 2005 ohne
 Serverdetails über das hinaus, was `MailError::Imap` heute nennt.
+
+## `extension_mail_delete_mailbox`
+
+Parameter: `{ imap, mailbox }`
+
+Antwort: `null`. Löscht den Ordner samt Mails (IMAP `DELETE`). `INBOX` (ohne Beachtung der Groß-/Kleinschreibung)
+wird nie gelöscht: 3001, ohne den Server zu fragen. Ablehnung durch den Server (Ordner fehlt, hat Kinder,
+Berechtigung) ist 2005.
+
+## `extension_mail_rename_mailbox`
+
+Parameter: `{ imap, from, to }`
+
+Antwort: `null`. Benennt den Ordner um (IMAP `RENAME`), die Mails bleiben im Ordner. `to` darf das Trennzeichen
+des Servers enthalten (verschiebt den Ordner in der Hierarchie); `*` und `%` in `to` sind 3001. `INBOX` als
+`from` oder `to` ist 3001 (ein RENAME von `INBOX` würde nur dessen Mails in einen neuen Ordner verschieben),
+ebenso `from == to`. Ablehnung durch den Server (Ordner fehlt, Ziel existiert, Berechtigung) ist 2005.
 
 ## `extension_mail_delete_messages`
 

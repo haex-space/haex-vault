@@ -1,6 +1,7 @@
 //! A small IMAP and SMTP server on this device for the mail tests (no TLS, which holzi allows only
 //! towards this device). It knows what the tests need: LOGIN, LIST, STATUS, SELECT, CREATE,
-//! UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE, APPEND, LOGOUT;
+//! DELETE, RENAME, UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE,
+//! APPEND, LOGOUT;
 //! EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.
 
 use std::collections::BTreeMap;
@@ -273,6 +274,35 @@ async fn imap_session(stream: TcpStream, state: Shared) {
                 if exists {
                     let refusal = format!("{tag} NO [ALREADYEXISTS] Mailbox already exists\r\n");
                     let _ = write.write_all(refusal.as_bytes()).await;
+                    continue;
+                }
+            }
+            "DELETE" => {
+                let name = words(args).remove(0);
+                if state.lock().unwrap().boxes.remove(&name).is_none() {
+                    let refusal = format!("{tag} NO [NONEXISTENT] Mailbox does not exist\r\n");
+                    let _ = write.write_all(refusal.as_bytes()).await;
+                    continue;
+                }
+            }
+            "RENAME" => {
+                let w = words(args);
+                let refusal = {
+                    let mut s = state.lock().unwrap();
+                    if !s.boxes.contains_key(&w[0]) {
+                        Some("NO [NONEXISTENT] Mailbox does not exist")
+                    } else if s.boxes.contains_key(&w[1]) {
+                        Some("NO [ALREADYEXISTS] Mailbox already exists")
+                    } else {
+                        let messages = s.boxes.remove(&w[0]).unwrap_or_default();
+                        s.boxes.insert(w[1].clone(), messages);
+                        None
+                    }
+                };
+                if let Some(refusal) = refusal {
+                    let _ = write
+                        .write_all(format!("{tag} {refusal}\r\n").as_bytes())
+                        .await;
                     continue;
                 }
             }
