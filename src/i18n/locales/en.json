@@ -4166,7 +4166,7 @@
         "operate": "Operate"
       },
       "allTitle": "All other websites",
-      "allHint": "Applies to every website that is not in the list. With “Not allowed” the agent asks before opening one. Over http it stays at reading.",
+      "allHint": "Applies to every website that is not in the list. With “Not allowed” HaexVault asks before opening one. Over http it stays at reading.",
       "levelNone": "Not allowed",
       "none": "No exception listed yet",
       "add": "Allow a website",
@@ -4300,7 +4300,7 @@
       "actionLabel": "Action",
       "switchOn": {
         "title": "Switch the browser on for the agent?",
-        "hint": "The built-in agent wants to search the web or open a page. With “Switch on” it may use the agent browser; every website still asks on its first visit. You can switch it off under Settings → AI → Browser.",
+        "hint": "The built-in agent wants to search the web or open a page. With “Switch on” it may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You can limit single websites under Settings → AI → Browser. You can also switch it off there.",
         "allow": "Switch on"
       }
     },

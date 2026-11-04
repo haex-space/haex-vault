@@ -9,7 +9,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::mcp_server::grants::{SiteGrant, SiteLevel};
+use crate::mcp_server::grants::{BrowserRights, SiteGrant, SiteLevel};
 
 /// One website. Ordered and compared by its written form.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -149,4 +149,21 @@ pub fn may_operate(
         Some(grant) => grant.level == SiteLevel::Operate,
         None => once.contains(&site) || all == Some(SiteLevel::Operate),
     }
+}
+
+/// "Für diese Website merken" of a fill (FR-021): only a website the agent may operate keeps a
+/// fill (data-model.md). One it operates through the level for all websites (FR-043) becomes an
+/// exception of its own at operating, so the remembered fill stays whatever `all` becomes later.
+/// Whether `rights` changed.
+pub fn remember_fill(rights: &mut BrowserRights, site: &Site) -> bool {
+    if !may_operate(site.as_str(), &rights.sites, rights.all, &BTreeSet::new()) {
+        return false;
+    }
+    let grant = rights.sites.entry(site.clone()).or_insert(SiteGrant {
+        level: SiteLevel::Operate,
+        fill_remembered: false,
+    });
+    let changed = !grant.fill_remembered;
+    grant.fill_remembered = true;
+    changed
 }

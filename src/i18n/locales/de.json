@@ -4166,7 +4166,7 @@
         "operate": "Bedienen"
       },
       "allTitle": "Alle anderen Websites",
-      "allHint": "Gilt für jede Website, die nicht in der Liste steht. Bei „Nicht erlaubt“ fragt der Agent vor dem Öffnen. Über http bleibt es beim Lesen.",
+      "allHint": "Gilt für jede Website, die nicht in der Liste steht. Bei „Nicht erlaubt“ fragt HaexVault vor dem Öffnen. Über http bleibt es beim Lesen.",
       "levelNone": "Nicht erlaubt",
       "none": "Noch keine Ausnahme eingetragen",
       "add": "Website erlauben",
@@ -4300,7 +4300,7 @@
       "actionLabel": "Handlung",
       "switchOn": {
         "title": "Browser für den Agenten einschalten?",
-        "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen; jede Website fragt beim ersten Besuch trotzdem einzeln. Ausschalten kannst du ihn unter Einstellungen → KI → Browser.",
+        "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen und jede Website öffnen und bedienen; vor dem Absenden fragt HaexVault weiterhin nach. Einzelne Websites schränkst du unter Einstellungen → KI → Browser ein. Dort schaltest du ihn auch wieder aus.",
         "allow": "Einschalten"
       }
     },

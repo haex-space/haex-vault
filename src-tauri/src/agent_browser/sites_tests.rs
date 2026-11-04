@@ -234,3 +234,78 @@ mod documents {
         ));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Remembering a fill (FR-021) under the level for all websites (FR-043)
+// ---------------------------------------------------------------------------
+
+mod fill {
+    use super::super::sites::{remember_fill, Site};
+    use crate::mcp_server::grants::{BrowserRights, SiteGrant, SiteLevel};
+
+    fn site(address: &str) -> Site {
+        Site::parse(address).unwrap()
+    }
+
+    fn grant(level: SiteLevel, fill_remembered: bool) -> SiteGrant {
+        SiteGrant {
+            level,
+            fill_remembered,
+        }
+    }
+
+    /// A website operated through the level for all becomes an exception at operating that keeps
+    /// the fill, so lowering the level later does not lose it.
+    #[test]
+    fn a_fill_on_a_website_operated_through_the_level_for_all_is_kept() {
+        let mut rights = BrowserRights::switched_on();
+        let shop = site("https://shop.example");
+        assert!(remember_fill(&mut rights, &shop));
+        assert_eq!(
+            rights.sites.get(&shop),
+            Some(&grant(SiteLevel::Operate, true))
+        );
+        assert!(!remember_fill(&mut rights, &shop), "already remembered");
+    }
+
+    #[test]
+    fn a_fill_is_never_kept_where_the_agent_may_not_operate() {
+        let news = site("https://news.example");
+        let mut rights = BrowserRights::switched_on();
+        rights
+            .sites
+            .insert(news.clone(), grant(SiteLevel::Read, false));
+        assert!(!remember_fill(&mut rights, &news), "listed for reading");
+        assert!(
+            !remember_fill(&mut rights, &site("http://plain.example")),
+            "plain http"
+        );
+        for all in [None, Some(SiteLevel::Read)] {
+            let mut rights = BrowserRights {
+                all,
+                ..BrowserRights::default()
+            };
+            assert!(!remember_fill(&mut rights, &site("https://shop.example")));
+            assert!(rights.sites.is_empty(), "{all:?} adds no website");
+        }
+        assert_eq!(
+            rights.sites.get(&news),
+            Some(&grant(SiteLevel::Read, false))
+        );
+        assert_eq!(rights.sites.len(), 1);
+    }
+
+    #[test]
+    fn a_listed_website_at_operating_keeps_its_fill() {
+        let bank = site("https://bank.example");
+        let mut rights = BrowserRights::default();
+        rights
+            .sites
+            .insert(bank.clone(), grant(SiteLevel::Operate, false));
+        assert!(remember_fill(&mut rights, &bank));
+        assert_eq!(
+            rights.sites.get(&bank),
+            Some(&grant(SiteLevel::Operate, true))
+        );
+    }
+}
