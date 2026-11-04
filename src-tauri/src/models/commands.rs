@@ -150,24 +150,23 @@ pub struct HuggingFaceUpdateStatusPayload {
     pub error_code: Option<String>,
 }
 
-/// `search_huggingface_models` (contracts/tauri-commands.md). `page` is
-/// accepted for contract-shape compatibility but not yet wired to a real
-/// Hub pagination cursor — research.md Entscheidung 10 scopes the MVP to a
-/// single capped page of results. An omitted query returns the ten most
-/// downloaded public GGUF repositories as the default discovery view.
+/// `search_huggingface_models` (contracts/tauri-commands.md). Returns one page and the cursor of
+/// the next; pass that back as `cursor` to continue. An omitted query lists the most downloaded
+/// public GGUF chat models as the default discovery view.
 #[tauri::command]
 pub async fn search_huggingface_models(
     query: Option<String>,
-    page: Option<u32>,
+    cursor: Option<String>,
     limit: Option<u32>,
-) -> Result<Vec<huggingface::HuggingFaceModelResult>> {
-    if page.is_some_and(|p| p == 0) {
-        return Err(HolziError::InvalidInput {
-            reason: "page must be positive".into(),
-        });
-    }
+) -> Result<huggingface::HuggingFaceSearchPage> {
     let hf = huggingface::HfClient::production()?;
-    huggingface::search_models(&hf, query.as_deref(), limit.map(|l| l as usize)).await
+    huggingface::search_models(
+        &hf,
+        query.as_deref(),
+        limit.map(|l| l as usize),
+        cursor.as_deref(),
+    )
+    .await
 }
 
 /// `get_huggingface_model_details` (contracts/tauri-commands.md).
