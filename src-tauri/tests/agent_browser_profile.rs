@@ -2,7 +2,7 @@
 //! the agent browser; after stopping, the working directory is gone and only the encrypted folder
 //! is left; the browser was steered over the pipe, never a debugging port; another vault on the
 //! same device starts without the cookie. Without a Chromium-based browser on the machine the
-//! test says so and stops.
+//! test says so and stops. A browser that does not end in order saves nothing and says so.
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -206,4 +206,46 @@ async fn a_cookie_survives_a_restart_and_nothing_readable_stays_behind() {
         .expect("starts for ben");
     assert!(cookies(&connection).await.is_empty());
     browser.stop().await.unwrap();
+}
+
+/// A stand-in browser on the pipe: it answers every call, and ends with an error on
+/// `Browser.close`, as a browser does that did not end in order.
+#[cfg(unix)]
+const ENDS_WITH_AN_ERROR: &str = r#"#!/usr/bin/env bash
+while IFS= read -r -d '' message <&3; do
+  [[ $message =~ \"id\":([0-9]+) ]] || continue
+  [[ $message == *'"Browser.close"'* ]] && exit 3
+  printf '{"id":%s,"result":{"product":"Chrome/200.0.0.0"}}\0' "${BASH_REMATCH[1]}" >&4
+done
+"#;
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_browser_that_does_not_end_in_order_saves_nothing_and_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let bin = tempfile::tempdir().unwrap();
+    let executable = bin.path().join("browser");
+    std::fs::write(&executable, ENDS_WITH_AN_ERROR).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let scene = Scene {
+        os: Os::current().expect("a desktop"),
+        executable,
+        data: tempfile::tempdir().unwrap(),
+        run_root: tempfile::tempdir().unwrap(),
+    };
+    let db = vault(scene.data.path(), "anna");
+    let browser = AgentBrowser::default();
+    browser
+        .ensure(|| Ok(scene.config(&db, "anna")))
+        .await
+        .expect("the stand-in starts");
+
+    let error = browser.stop().await.expect_err("not an orderly end");
+    assert!(error.to_string().contains("ended with an error"), "{error}");
+    assert!(
+        !dir(scene.data.path(), "anna").exists(),
+        "nothing was saved"
+    );
+    assert!(!Workdir::of(scene.run_root.path(), "anna").dir.exists());
 }
