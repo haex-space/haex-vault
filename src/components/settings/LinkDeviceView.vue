@@ -40,7 +40,6 @@ const newDeviceName = ref('')
 const asMain = ref(false)
 const busy = ref(false)
 const now = ref(Date.now())
-const copied = ref(false)
 let devicesChanged = false
 
 const qrSource = computed(() =>
@@ -98,7 +97,6 @@ async function onShowCode() {
   busy.value = true
   try {
     code.value = await createCodeAsync()
-    copied.value = false
     phase.value = 'code'
   } catch (e) {
     const kind = (e as { kind?: string })?.kind
@@ -150,9 +148,9 @@ async function onCopy() {
   if (!code.value) return
   try {
     await navigator.clipboard.writeText(code.value.code)
-    copied.value = true
-  } catch {
-    copied.value = false
+    toast.success(t('settings.link.copied'))
+  } catch (e) {
+    toast.error(errString(e))
   }
 }
 
@@ -205,7 +203,7 @@ function onAgain() {
           </p>
           <div class="flex gap-2">
             <UiButton variant="outline" @click="onCopy">
-              {{ copied ? t('settings.link.copied') : t('settings.link.copy') }}
+              {{ t('settings.link.copy') }}
             </UiButton>
             <UiButton variant="outline" @click="onCancel">
               {{ t('settings.link.cancel') }}

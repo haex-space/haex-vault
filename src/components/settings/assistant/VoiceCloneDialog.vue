@@ -6,9 +6,9 @@
  * user's own voice or the speaker consented. Without that confirmation nothing is saved. The
  * microphone runs only while recording here; closing the dialog ends a recording. The language
  * comes first; for a recording the dialog offers a text in that language to read aloud, about
- * 20–30 seconds long, and another one on request (operator 2026-11-03). Failures show as toasts;
- * the check's findings stay in the dialog. A start, stop or file check that answers after the
- * dialog was closed or opened again is dropped, and a recording it started is stopped.
+ * 20–30 seconds long, and another one on request (operator 2026-11-03). Failures and the
+ * check's verdict show as toasts (operator 2026-11-04). A start, stop or file check that answers
+ * after the dialog was closed or opened again is dropped, and a recording it started is stopped.
  */
 import { toast } from 'vue-sonner'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -105,6 +105,27 @@ function fail(error: unknown) {
   toast.error(failureText(error))
 }
 
+/** Takes the check of a recording or a file; its verdict is a toast, the preview stays here. */
+function report(result: CloneCheck) {
+  check.value = result
+  if (result.ok) {
+    toast.success(
+      t('settings.voice.clone.ok', { seconds: seconds(result.speechSecs) }),
+    )
+    return
+  }
+  toast.error(
+    [
+      t('settings.voice.clone.again'),
+      ...result.problems.map((problem) =>
+        t(`settings.voice.clone.problems.${problem}`, {
+          seconds: seconds(result.speechSecs),
+        }),
+      ),
+    ].join(' '),
+  )
+}
+
 let unlisten: UnlistenFn | null = null
 let disposed = false
 void listen<CloneLevel>('tts-clone-level', (event) => {
@@ -161,7 +182,7 @@ async function stopAsync() {
   checking.value = true
   try {
     const result = await cloneRecordStopAsync(id)
-    if (current === opening) check.value = result
+    if (current === opening) report(result)
   } catch (error) {
     if (current === opening) fail(error)
   } finally {
@@ -189,7 +210,7 @@ async function chooseFileAsync() {
   check.value = null
   try {
     const result = await cloneFromFileAsync(file)
-    if (current === opening) check.value = result
+    if (current === opening) report(result)
   } catch (error) {
     if (current === opening) fail(error)
   } finally {
@@ -364,35 +385,6 @@ onBeforeUnmount(() => {
           class="flex flex-col gap-2"
           data-testid="voice-clone-check"
         >
-          <p
-            v-if="check.ok"
-            class="text-sm text-success"
-            data-testid="voice-clone-ok"
-          >
-            {{
-              t('settings.voice.clone.ok', {
-                seconds: seconds(check.speechSecs),
-              })
-            }}
-          </p>
-          <template v-else>
-            <p class="text-sm text-destructive">
-              {{ t('settings.voice.clone.again') }}
-            </p>
-            <ul class="list-disc pl-5 text-sm text-destructive">
-              <li
-                v-for="problem in check.problems"
-                :key="problem"
-                :data-testid="`voice-clone-problem-${problem}`"
-              >
-                {{
-                  t(`settings.voice.clone.problems.${problem}`, {
-                    seconds: seconds(check.speechSecs),
-                  })
-                }}
-              </li>
-            </ul>
-          </template>
           <div>
             <UiButton
               type="button"

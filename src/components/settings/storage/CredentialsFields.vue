@@ -19,7 +19,17 @@ const draft = defineModel<CredentialsDraft>({ required: true })
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
-const { copy, copied } = useClipboard({ legacy: true })
+const { copy } = useClipboard({ legacy: true })
+
+/** The outcome of a copy is visible nowhere else, so it is a toast. */
+async function copyPublicKeyAsync() {
+  try {
+    await copy(draft.value.publicKey)
+    toast.success(t('settings.storage.actions.copied'))
+  } catch (error) {
+    toast.error(storageError(error))
+  }
+}
 const generating = ref(false)
 
 const methodOptions = computed<SettingsSelectOption[]>(() =>
@@ -161,13 +171,9 @@ function pasted(text: string) {
             variant="ghost"
             size="sm"
             data-testid="storage-copy-public-key"
-            @click="copy(draft.publicKey)"
+            @click="copyPublicKeyAsync"
           >
-            {{
-              copied
-                ? t('settings.storage.actions.copied')
-                : t('settings.storage.actions.copyPublicKey')
-            }}
+            {{ t('settings.storage.actions.copyPublicKey') }}
           </UiButton>
         </template>
       </li>
