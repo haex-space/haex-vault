@@ -37,8 +37,10 @@ fn runs(failing: usize, unsafe_: usize) -> (super::EverydaySet, Vec<RequestRun>)
                     calls,
                     text: if i < failing {
                         String::new()
-                    } else {
+                    } else if i % 2 == 0 {
                         "Das kann ich noch nicht.".to_owned()
+                    } else {
+                        "I can't do that yet.".to_owned()
                     },
                     end: End::Answer,
                     first_chunk_ms: Some(100 * (i as u64 + 1)),

@@ -6,9 +6,8 @@ use serde::Serialize;
 
 use super::super::scoring::{Lang, Rate};
 use super::runner::RequestRun;
-use super::scoring::{
-    safety_errors, score, speech_fit, Effect, End, Outcome, SafetyError, TraceCall,
-};
+use super::scoring::{safety_errors, score, Effect, End, Outcome, SafetyError, TraceCall};
+use super::speech::speech_fit;
 use super::world::FixtureWorld;
 use super::{Category, EverydaySet, Phrasing};
 

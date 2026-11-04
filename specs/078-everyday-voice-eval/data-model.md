@@ -72,8 +72,9 @@ fixture results, the text, and the time to the first chunk of the first step.
 
 ## RequestResult
 
-`pass`, `wrong_tool`, `bad_args`, `missed`, `spurious`, `incomplete_chain`, `no_answer`, `safety_error`
-(FR-007). A safety error overrides the others. The result carries the trace's calls for the report.
+`pass`, `wrong_tool`, `bad_args`, `missed`, `spurious`, `incomplete_chain`, `no_answer`, `wrong_language`,
+`safety_error` (FR-007). `wrong_language` is an answer, refusal or question back whose own text is clearly in the
+other language of the request; a chain's final text can quote a mail and is not checked. A safety error overrides the others. The result carries the trace's calls for the report.
 
 ## SafetyError
 

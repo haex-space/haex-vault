@@ -13,6 +13,7 @@ use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
+use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::tools::action_tool::AgentActionDef;
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 use crate::chat::tools::extension_offer::matched_offer;
@@ -24,7 +25,8 @@ use crate::chat::turn::MAX_TOOL_ROUNDS;
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
 
-use super::super::runner::{core_offer, extension_registry, EvalError, MAX_NEW_TOKENS};
+use super::super::runner::{core_offer, extension_registry, is_command, EvalError, MAX_NEW_TOKENS};
+use super::super::scoring::Lang;
 use super::scoring::{End, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
 use super::{EverydaySet, Request};
@@ -47,18 +49,29 @@ fn message(role: ChatRole, content: &str) -> ChatMessage {
     }
 }
 
+/// The language a spoken turn is held in: the request's own, as for a user whose conversation
+/// language is the one they speak.
+fn reply_language(lang: Lang) -> ReplyLanguage {
+    match lang {
+        Lang::De => ReplyLanguage::De,
+        Lang::En => ReplyLanguage::En,
+    }
+}
+
 fn request(
     model: &str,
     messages: Vec<ChatMessage>,
     tools: Vec<ToolSpec>,
     deterministic: bool,
     clock: Clock,
+    lang: Lang,
 ) -> ChatRequest {
     ChatRequest {
         model_id: model.to_owned(),
         thread_id: None,
-        // What a voice turn sends today: no given prompt, the tool instruction and the clock (R3).
-        system_prompt: system_prompt(None, &tools, Some(clock)),
+        // What a voice turn sends today: no given prompt, the tool instruction, the reply language
+        // and the clock (R3).
+        system_prompt: system_prompt(None, &tools, Some(clock), Some(reply_language(lang))),
         messages,
         reasoning_requested: false,
         max_new_tokens: Some(MAX_NEW_TOKENS),
@@ -91,10 +104,12 @@ async fn ask(
         reason,
     };
     let start = Instant::now();
-    let mut stream = adapter
-        .stream_chat(req)
-        .await
-        .map_err(|e| model_error(e.to_string()))?;
+    // A server can accept the connection and then stall before its first byte.
+    let mut stream = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(EvalError::Cancelled),
+        opened = adapter.stream_chat(req) => opened.map_err(|e| model_error(e.to_string()))?,
+    };
     let mut step = Step {
         calls: Vec::new(),
         text: String::new(),
@@ -150,10 +165,6 @@ pub async fn run_everyday(
         (specs, registry.match_entries())
     };
     let all_names: HashSet<String> = mail_specs.iter().map(|s| s.name.clone()).collect();
-    // What the app's registry holds: every core action, every mail tool, the search and ask_user.
-    let mut known: HashSet<String> = tools.iter().map(|d| d.tool_name.clone()).collect();
-    known.extend(all_names.iter().cloned());
-    known.extend([FIND_ACTIONS_TOOL_NAME, ASK_USER_TOOL_NAME].map(str::to_owned));
     let clock = world.clock();
     let mut runs = Vec::new();
 
@@ -178,10 +189,17 @@ pub async fn run_everyday(
             first_chunk_ms: None,
         };
 
-        'steps: for number in 0..MAX_STEPS {
+        for number in 0..MAX_STEPS {
             let step = match ask(
                 adapter,
-                request(model, history.clone(), offer.clone(), deterministic, clock),
+                request(
+                    model,
+                    history.clone(),
+                    offer.clone(),
+                    deterministic,
+                    clock,
+                    item.lang,
+                ),
                 &item.id,
                 cancel,
             )
@@ -207,23 +225,30 @@ pub async fn run_everyday(
             }
             let mut next = offer.clone();
             let mut results = Vec::new();
+            let mut question = None;
             for call in &step.calls {
-                let is_known = known.contains(&call.name);
-                if call.name == ASK_USER_TOOL_NAME {
+                // As `chat/turn/tool_round.rs` plans a call: one of holzi's actions runs only when
+                // this step offered it, an extension tool whenever it is registered. A command
+                // never runs here, and the world fakes no shell.
+                let is_known = !is_command(&call.name)
+                    && (offer.iter().any(|s| s.name == call.name)
+                        || all_names.contains(&call.name));
+                if call.name == ASK_USER_TOOL_NAME && is_known {
+                    // The question back; the rest of the batch still runs, as in the chat.
                     trace.calls.push(TraceCall {
                         tool: call.name.clone(),
                         args: call.input.clone(),
                         result: None,
-                        known: is_known,
+                        known: true,
                     });
-                    trace.text = call
-                        .input
-                        .get("question")
-                        .and_then(|q| q.as_str())
-                        .unwrap_or_default()
-                        .to_owned();
-                    trace.end = End::Question;
-                    break 'steps;
+                    question.get_or_insert_with(|| {
+                        call.input
+                            .get("question")
+                            .and_then(|q| q.as_str())
+                            .unwrap_or_default()
+                            .to_owned()
+                    });
+                    continue;
                 }
                 let answer = if !is_known {
                     // As the chat's tool round answers a name it does not know.
@@ -250,6 +275,11 @@ pub async fn run_everyday(
                     known: is_known,
                 });
                 results.push((call, answer));
+            }
+            if let Some(question) = question {
+                trace.text = question;
+                trace.end = End::Question;
+                break;
             }
             // As the chat history holds them: the calls of a step, then their results.
             for (call, _) in &results {

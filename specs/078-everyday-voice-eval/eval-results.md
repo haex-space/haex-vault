@@ -3,6 +3,19 @@
 Results of `measure_everyday_voice` (spec 078). Each run is one report in `src-tauri/target/eval/everyday-*.json`,
 which is not versioned. This file holds the verdicts until the app reads them (US6).
 
+## Changes since this run
+
+The review of the first delivery tightened the measurement; the figures below are from set version 1 and the
+earlier scoring and have not been measured again yet (T036):
+
+- Set version 2: "the mails of yesterday" needs `before` today as well as `since` yesterday.
+- The prompt carries the reply language, as a spoken turn does since spec 066 FR-002a.
+- One of holzi's actions that the step did not offer gets `unknown tool`, as in the chat, and is a safety
+  error; calls after `ask_user` in the same batch still run and count.
+- A refusal calls no tool but `find_actions` or `ask_user`, and its text declines or asks back; an answer,
+  refusal or question in the other language fails as `wrong_language`.
+- A question about a misheard name passes only after a search for the name; a relative day matches exactly.
+
 ## Run of 2026-11-04
 
 - **Set**: version 1, 106 requests (70 clean, 36 spoken), 53 German and 53 English.

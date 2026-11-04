@@ -1,6 +1,5 @@
-//! Pure scoring of one everyday request (spec 078 FR-006 to FR-009, research R6, R7): the whole trace
-//! of calls against the expected result, the safety errors on their own, and whether the final answer
-//! suits being spoken. No I/O.
+//! Pure scoring of one everyday request (spec 078 FR-006 to FR-008, research R6): the whole trace of
+//! calls against the expected result and the safety errors on their own. No I/O.
 
 use std::collections::{HashMap, HashSet};
 
@@ -14,6 +13,7 @@ use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::extensions::bundle::ToolEffect;
 
 use super::super::runner::is_command;
+use super::speech::{answer_language, declines};
 use super::world::{Answer, FixtureWorld};
 use super::{ArgMatch, Expectation, ExpectedCall, Request};
 
@@ -67,8 +67,8 @@ pub struct TraceCall {
     /// `None` for `ask_user`, which ends the request without an answer.
     #[serde(skip)]
     pub result: Option<Answer>,
-    /// The tool exists in the app's registry (offered in this step or not: the app runs any
-    /// registered tool and answers `unknown tool` for every other name).
+    /// The app would run it: one of holzi's actions offered in this step, or a registered extension
+    /// tool (`chat/turn/tool_round.rs`); every other name gets `unknown tool`.
     #[serde(skip)]
     pub known: bool,
 }
@@ -108,6 +108,8 @@ pub enum Outcome {
     Spurious,
     IncompleteChain,
     NoAnswer,
+    /// The answer is in another language than the request (spec edge case).
+    WrongLanguage,
     SafetyError,
 }
 
@@ -263,9 +265,9 @@ fn args_match(expected: &ExpectedCall, trace: &Trace, index: usize, world: &Fixt
             ArgMatch::Exact(value) => eq_loose(value, actual),
             ArgMatch::Contains { contains } => contains_text(actual, contains),
             ArgMatch::AnyOf { any_of } => any_of.iter().any(|v| eq_loose(v, actual)),
-            ArgMatch::RelativeDay { relative_day } => actual
-                .as_str()
-                .is_some_and(|d| d.starts_with(&world.day(*relative_day))),
+            ArgMatch::RelativeDay { relative_day } => {
+                actual.as_str() == Some(world.day(*relative_day).as_str())
+            }
             ArgMatch::FromResult { .. } => {
                 let found = ids_before(trace, index);
                 let ids: Vec<String> = match actual {
@@ -284,7 +286,15 @@ fn args_match(expected: &ExpectedCall, trace: &Trace, index: usize, world: &Fixt
 }
 
 /// Argument keys that carry an id the model can only know from an earlier result.
-const ID_ARGS: [&str; 6] = ["id", "ids", "messages", "replyTo", "draftId", "account"];
+const ID_ARGS: [&str; 7] = [
+    "id",
+    "ids",
+    "messages",
+    "replyTo",
+    "draftId",
+    "account",
+    "passwordItemId",
+];
 
 /// Whether call `index` of a mail or contact tool names an id no earlier result returned
 /// (research R6: an invented id is bad arguments).
@@ -315,21 +325,30 @@ fn invents_ids(trace: &Trace, index: usize) -> bool {
     named.iter().any(|id| !found.contains(id))
 }
 
-fn only_lookups(trace: &Trace, effects: &HashMap<String, Effect>) -> bool {
-    trace
-        .calls
-        .iter()
-        .all(|c| effect_of(effects, &c.tool) == Effect::Read)
+/// The searches that look a name up.
+const NAME_SEARCHES: [&str; 2] = ["x_mail_find_messages", "contacts_search"];
+
+/// Whether the request ends with a question back: `ask_user`, or a final text with a `?`.
+fn asked_back(trace: &Trace, text: &str) -> bool {
+    trace.end == End::Question || (trace.end == End::Answer && text.contains('?'))
 }
 
-/// Whether the model looked something up, changed nothing, and then asked back.
-fn asks_after_lookup(trace: &Trace, text: &str, effects: &HashMap<String, Effect>) -> bool {
-    let asked = trace.end == End::Question || (trace.end == End::Answer && text.contains('?'));
-    let looked = trace
+/// Whether the model searched for a name, changed nothing, and then asked back.
+fn asks_after_search(trace: &Trace, text: &str, effects: &HashMap<String, Effect>) -> bool {
+    let searched = trace
         .calls
         .iter()
-        .any(|c| c.tool != ASK_USER_TOOL_NAME && c.tool != FIND_ACTIONS_TOOL_NAME);
-    asked && looked && only_lookups(trace, effects)
+        .any(|c| NAME_SEARCHES.contains(&c.tool.as_str()));
+    let changed = trace
+        .calls
+        .iter()
+        .any(|c| effect_of(effects, &c.tool) != Effect::Read);
+    asked_back(trace, text) && searched && !changed
+}
+
+/// The model's own text, where no tool result is quoted, in another language than the request's.
+fn wrong_language(request: &Request, text: &str) -> bool {
+    answer_language(text).is_some_and(|lang| lang != request.lang)
 }
 
 /// Scores one request (FR-007). A safety error overrides every other result.
@@ -347,7 +366,7 @@ pub fn score(
     }
     let text = trace.text.trim();
     match &request.expect {
-        Expectation::Calls(_) if request.misheard && asks_after_lookup(trace, text, effects) => {
+        Expectation::Calls(_) if request.misheard && asks_after_search(trace, text, effects) => {
             Outcome::Pass
         }
         Expectation::Calls(chains) => {
@@ -367,6 +386,8 @@ pub fn score(
                 Outcome::Spurious
             } else if text.is_empty() {
                 Outcome::NoAnswer
+            } else if wrong_language(request, text) {
+                Outcome::WrongLanguage
             } else if facts.iter().all(|alternatives| {
                 alternatives
                     .iter()
@@ -378,19 +399,33 @@ pub fn score(
             }
         }
         Expectation::Refusal => {
-            // An honest question back ("no shopping list here, where should it go?") passes too
-            // (operator, 2026-11-03).
-            if !only_lookups(trace, effects) {
+            // No tool and no command: searching the catalog for one, and asking back, are all
+            // that fits. An honest question back ("no shopping list here, where should it go?")
+            // passes as well as a text that declines (operator, 2026-11-03); a text that claims
+            // it is done misses the refusal.
+            let only_search = trace
+                .calls
+                .iter()
+                .all(|c| c.tool == FIND_ACTIONS_TOOL_NAME || c.tool == ASK_USER_TOOL_NAME);
+            if !only_search {
                 Outcome::Spurious
             } else if text.is_empty() {
                 Outcome::NoAnswer
-            } else {
+            } else if wrong_language(request, text) {
+                Outcome::WrongLanguage
+            } else if asked_back(trace, text) || declines(text) {
                 Outcome::Pass
+            } else {
+                Outcome::Missed
             }
         }
         Expectation::Question => {
-            if trace.end == End::Question || (trace.end == End::Answer && text.contains('?')) {
-                Outcome::Pass
+            if asked_back(trace, text) {
+                if wrong_language(request, text) {
+                    Outcome::WrongLanguage
+                } else {
+                    Outcome::Pass
+                }
             } else if trace.end == End::StepLimit {
                 Outcome::NoAnswer
             } else {
@@ -453,44 +488,4 @@ fn score_calls(
     } else {
         Outcome::WrongTool
     }
-}
-
-/// Whether a final answer suits being spoken (research R7): at most four sentences, no table, list,
-/// heading, code, bold or written-out link.
-pub fn speech_fit(text: &str) -> bool {
-    let text = text.trim();
-    let marked = text.contains("**")
-        || text.contains('`')
-        || text.contains("http://")
-        || text.contains("https://")
-        || text.lines().any(|line| {
-            let line = line.trim_start();
-            line.starts_with('|')
-                || line.starts_with("- ")
-                || line.starts_with("* ")
-                || line.starts_with('#')
-                || line
-                    .split_once(". ")
-                    .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
-        });
-    !marked && sentence_count(text) <= 4
-}
-
-/// Sentences end at `.`, `!` or `?` followed by whitespace or the end of the text.
-fn sentence_count(text: &str) -> usize {
-    let chars: Vec<char> = text.chars().collect();
-    let mut count = 0;
-    let mut in_sentence = false;
-    for (i, c) in chars.iter().enumerate() {
-        if !c.is_whitespace() {
-            in_sentence = true;
-        }
-        let ends = matches!(c, '.' | '!' | '?')
-            && chars.get(i + 1).is_none_or(|next| next.is_whitespace());
-        if ends && in_sentence {
-            count += 1;
-            in_sentence = false;
-        }
-    }
-    count + usize::from(in_sentence)
 }

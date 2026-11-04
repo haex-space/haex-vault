@@ -287,11 +287,13 @@ impl FixtureWorld {
         let mailbox = str_arg(input, "mailbox").unwrap_or("inbox");
         let since = str_arg(input, "since");
         let before = str_arg(input, "before");
+        // One page as the manifest says: 25 when omitted, at most 50, after `offset` hits.
         let limit = input
             .get("limit")
             .and_then(Value::as_u64)
-            .unwrap_or(20)
+            .unwrap_or(25)
             .min(50) as usize;
+        let offset = input.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
         let mut hits: Vec<&Message> = self
             .messages
             .iter()
@@ -320,6 +322,7 @@ impl FixtureWorld {
         let total = hits.len();
         let messages: Vec<Value> = hits
             .into_iter()
+            .skip(offset)
             .take(limit)
             .map(|m| {
                 json!({
@@ -328,7 +331,8 @@ impl FixtureWorld {
                 })
             })
             .collect();
-        ok(json!({ "messages": messages, "total": total }))
+        let has_more = offset.saturating_add(messages.len()) < total;
+        ok(json!({ "messages": messages, "total": total, "hasMore": has_more }))
     }
 
     fn get_message(&self, input: &Value) -> Answer {

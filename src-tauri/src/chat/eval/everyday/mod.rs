@@ -6,6 +6,7 @@
 pub mod report;
 pub mod runner;
 pub mod scoring;
+pub mod speech;
 pub mod world;
 
 #[cfg(test)]
@@ -20,6 +21,9 @@ mod runner_tests;
 #[cfg(test)]
 #[path = "scoring_tests.rs"]
 mod scoring_tests;
+#[cfg(test)]
+#[path = "speech_tests.rs"]
+mod speech_tests;
 #[cfg(test)]
 #[path = "world_tests.rs"]
 mod world_tests;
