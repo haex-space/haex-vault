@@ -44,8 +44,8 @@ covers the preview), Phase 6 step 3, Phase 7 step 4, Phase 8 step 5 and Phase 9 
 
 **Purpose**: the knowledge graph, the build feature, and the platform check of research R12.
 
-- [ ] T001 Run `graphify update .` in the worktree root, so later `graphify query` calls see the current tree.
-- [ ] T002 Add the feature `voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]` to
+- [x] T001 Run `graphify update .` in the worktree root, so later `graphify query` calls see the current tree.
+- [x] T002 Add the feature `voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]` to
       `src-tauri/Cargo.toml` with a comment citing spec 081 research R1, and add it to `default`
       (`["llm-llamacpp", "voice", "voice-qwen"]`). Check that `cargo tree -e features -i llama-cpp-sys-2` shows
       `mtmd` and that `Cargo.lock` gains no new package.
@@ -60,7 +60,7 @@ covers the preview), Phase 6 step 3, Phase 7 step 4, Phase 8 step 5 and Phase 9 
 **Purpose**: the catalog shape, the file check, the Engine trait and the speech model resolution that every story
 needs. No user-visible change yet: with only Pocket entries, everything behaves as today.
 
-- [ ] T004 [P] In `src-tauri/src/tts/catalog.rs` and `tts_catalog.json`: add `TtsEngine::Qwen3Tts` (`"qwen3-tts"`);
+- [x] T004 [P] In `src-tauri/src/tts/catalog.rs` and `tts_catalog.json`: add `TtsEngine::Qwen3Tts` (`"qwen3-tts"`);
       replace `language` by `languages: Vec<String>` (data-model.md, "at least one of the six languages"); add
       `quality_rank: u32` (Pocket 10), `files: Option<Vec<CatalogFile { name, bytes, sha256 }>>`,
       `temperature: Option<String>` (Pocket entries `"0.7"`). Rename `default_for` to `pocket_for(language)` (standard
@@ -68,17 +68,17 @@ needs. No user-visible change yet: with only Pocket entries, everything behaves 
       (`grep -rn "default_for\|\.language" src-tauri/src/tts src-tauri/src/assistant`) and `catalog_tests.rs`: every
       entry has a full-commit `hf_revision`, at least one language of `LANGUAGES`, and `files` sums to
       `approx_size_bytes` when present.
-- [ ] T005 [P] In `src-tauri/src/tts/files.rs`: `files_for(entry)` returns the names of `entry.files` when set, the
+- [x] T005 [P] In `src-tauri/src/tts/files.rs`: `files_for(entry)` returns the names of `entry.files` when set, the
       Pocket list otherwise; `ensure_model_files` downloads `entry.files` and, after each file, checks its SHA-256
       once, writing `<file>.sha256` beside it; a mismatch deletes the file and returns
       `TtsError::Unavailable { reason: "die Datei … ist beschädigt" }`. `is_complete_model` requires the marker for
       hashed files. Allow an empty `hf_folder` in `file_url`. Tests in `files_tests.rs` with a small temp file and
       its known hash.
-- [ ] T006 In `src-tauri/src/tts/local.rs`: extend `Engine` with `fn part_words(&self) -> Option<usize>` (default
+- [x] T006 In `src-tauri/src/tts/local.rs`: extend `Engine` with `fn part_words(&self) -> Option<usize>` (default
       `None`) and `fn generate_cancellable(&self, text, reference, rate, cancelled: &dyn Fn() -> bool)` (default:
       calls `generate`). `PocketModel` reads its temperature from its catalog entry (passed to `load`) instead of
       the constant `TEMPERATURE` (FR-015). Update `local_tests.rs`.
-- [ ] T007 Create `src-tauri/src/tts/choice.rs` (+ `choice_tests.rs`, registered in `tts/mod.rs`):
+- [x] T007 Create `src-tauri/src/tts/choice.rs` (+ `choice_tests.rs`, registered in `tts/mod.rs`):
       `pub fn resolve(language, preference: Option<&str>, installed: &[String], hw, speeds) -> Resolved` with
       `Resolved { chosen: Option<&Entry>, proposed: &Entry, speaking: &Entry }`. `proposed` = highest `quality_rank`
       among entries of the language that keep up (measured) or are presumed to (Pocket always; Qwen3-TTS only with a
@@ -87,7 +87,8 @@ needs. No user-visible change yet: with only Pocket entries, everything behaves 
 - [ ] T008 In `src-tauri/src/voice.rs`: the speech slot becomes `Option<(SpeechKey, Arc<dyn Engine>)>` with
       `SpeechKey { model_id, acceleration }` (data-model.md "Speech slot"); `speech_model` takes the entry and
       dispatches on `entry.engine` (Pocket today; Qwen3-TTS from T018). Behaviour unchanged for Pocket.
-- [ ] T009 Wire the resolution: `assistant/commands.rs::open_audio`, `tts/preview.rs` and
+      Done in #826 without the acceleration in the key: the slot is keyed by model id; `SpeechKey` with the acceleration comes with the GPU in T044.
+- [x] T009 Wire the resolution: `assistant/commands.rs::open_audio`, `tts/preview.rs` and
       `tts/commands.rs::voice_options` read `assistant.speechModel.<language>` (device scope) and use
       `choice::resolve(..).speaking` instead of the language default. Add the key to
       `src/lib/assistant/settings.ts` next to `voicePrefKey`. Tests: `voice_options` names the chosen model;
@@ -109,15 +110,17 @@ engine.
 time and an amount is spoken by Qwen3-TTS in the chosen voice, numbers as words (quickstart M2 without the speed
 claim).
 
-- [ ] T011 [P] [US1] Add the entry `qwen3-tts-1.7b` to `src-tauri/src/tts/tts_catalog.json`: engine `qwen3-tts`,
+      Moved to Phase 6 with the speech model row (T036), which is its only user.
+
+- [x] T011 [P] [US1] Add the entry `qwen3-tts-1.7b` to `src-tauri/src/tts/tts_catalog.json`: engine `qwen3-tts`,
       six languages, `quality_rank` 20, `hf_repo` `ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF`, `hf_revision`
       `ca27d74bc954b73dadab5b71ca265d87fc861a7c`, `hf_folder` `""`, the two Q8_0 files with bytes and SHA-256 of
       research R2, licence `Apache-2.0`, attribution of data-model.md, `sample_rate` 24000. Update `_meta.note`.
-- [ ] T012 [P] [US1] Credits: `src-tauri/src/tts/credits.rs` lists Qwen3-TTS with licence and origin (FR-003);
+- [x] T012 [P] [US1] Credits: `src-tauri/src/tts/credits.rs` lists Qwen3-TTS with licence and origin (FR-003);
       `credits_tests.rs` checks it is there; `src/components/settings/LicensesView.vue` needs no change if it
       renders the list generically (check).
-- [ ] T013 [US1] `engine_enabled` in `src-tauri/src/tts/commands.rs`: `Qwen3Tts => cfg!(feature = "voice-qwen")`.
-- [ ] T014 [US1] Create `src-tauri/src/tts/qwen/ffi.rs` (module doc: the only `unsafe` of spec 081, research R1):
+- [x] T013 [US1] `engine_enabled` in `src-tauri/src/tts/commands.rs`: `Qwen3Tts => cfg!(feature = "voice-qwen")`.
+- [x] T014 [US1] Create `src-tauri/src/tts/qwen/ffi.rs` (module doc: the only `unsafe` of spec 081, research R1):
       RAII owners for `llama_model` (load with `n_gpu_layers` from a `Placement` argument, CPU = 0), `llama_context`
       (`n_ctx` 4096, `n_batch` 512, `embeddings = true`, `n_threads` = `n_threads_batch` =
       `llm::llamacpp::cpu::default_threads()`), `mtmd_context` (`use_gpu` per placement), the gen-audio helper,
@@ -125,30 +128,31 @@ claim).
       min-p 0.05, temp 0.8, dist with a seed; research R4). Call `llm::llamacpp::model::backend()` before the first
       load. `ffi_tests.rs`: the owners free in reverse order (drop-order test with a counter behind
       `#[cfg(test)]` hooks) and a missing file returns an error, not a crash.
-- [ ] T015 [US1] Create `src-tauri/src/tts/qwen/generate.rs`: one part → PCM. `set_input` (seq 0, prompt, voice
+- [x] T015 [US1] Create `src-tauri/src/tts/qwen/generate.rs`: one part → PCM. `set_input` (seq 0, prompt, voice
       bitmap, `lang` = the voice's language, top-k/top-p/seed of R4, `out_type` PCM), `step_prompt(512)` until 0,
       then the frame loop `sample → step_gen` until stop, `cancelled()` or the frame cap passed in (R6), then
       `get_output`; `llama_memory_clear` and `mtmd_helper_gen_audio_reset` before each part. Returns samples and
       the computing time. Seed: hash of the part text for the first attempt, caller-supplied otherwise.
-- [ ] T016 [US1] Create `src-tauri/src/tts/qwen/mod.rs` (`#[cfg(feature = "voice-qwen")]` in `tts/mod.rs`):
+- [x] T016 [US1] Create `src-tauri/src/tts/qwen/mod.rs` (`#[cfg(feature = "voice-qwen")]` in `tts/mod.rs`):
       `QwenModel::load(dir, entry, placement)` checks `mtmd_gen_audio_get_info` reports `QWEN3TTS` (else
       `TtsError::Unavailable`), reads the sample rate from it; holds the FFI owners in a `Mutex`; `impl Engine`
       (`part_words` = `Some(20)`; `generate_cancellable` applies `tts::spoken` then `generate.rs`, then
       `audio::stretch` for the rate, research R13).
-- [ ] T017 [US1] Voice bitmaps: in `qwen/mod.rs`, a cache of up to 8 bitmaps keyed by a hash of the reference's
+- [x] T017 [US1] Voice bitmaps: in `qwen/mod.rs`, a cache of up to 8 bitmaps keyed by a hash of the reference's
       samples and sample rate (not its address, which a later voice can reuse), built with
       `audio::resample::resample_filtered` to `mtmd_get_audio_sample_rate` (research R3). Tests: two calls with the
       same reference build one bitmap; two different references of the same length build two.
-- [ ] T018 [US1] In `src-tauri/src/voice.rs::speech_model`: `TtsEngine::Qwen3Tts` loads `QwenModel` on CPU
+- [x] T018 [US1] In `src-tauri/src/voice.rs::speech_model`: `TtsEngine::Qwen3Tts` loads `QwenModel` on CPU
       (Placement CPU until Phase 7) under `VaultGate::spawn_blocking`; the slot key carries `acceleration: Cpu`.
-- [ ] T019 [US1] Secrets: check that the spelled secret of 066 FR-026 reaches only the local engine with Qwen3-TTS
+- [x] T019 [US1] Secrets: check that the spelled secret of 066 FR-026 reaches only the local engine with Qwen3-TTS
       selected (the `assistant/` secret path is engine-agnostic; read it and note the result in the PR). That a
       spelled secret stays one part is tested in T024.
-- [ ] T020 [US1] Create `src-tauri/tests/qwen_tts_eval.rs` (`#![cfg(feature = "voice-qwen")]`, module doc with the
+      066 US6 (reading secrets) is not built yet; when it is, it speaks through the same `Speaker` and engine as every other sentence, so nothing leaves the device.
+- [x] T020 [US1] Create `src-tauri/tests/qwen_tts_eval.rs` (`#![cfg(feature = "voice-qwen")]`, module doc with the
       quickstart commands), ignored tests: `loads_and_reports_qwen3tts`; `speaks_r23_sentences` (the six German
       sentences of spec 066 R23 with the shipped voice `de-lena`, WAVs and a timing table to `QWEN_TTS_OUT`);
       `cancel_stops_within_one_frame`.
-- [ ] T021 [US1] Measurement for research R2: run `speaks_r23_sentences` with Q8_0 and with Q4_K_M on 8 threads,
+- [x] T021 [US1] Measurement for research R2: run `speaks_r23_sentences` with Q8_0 and with Q4_K_M on 8 threads,
       give the operator both WAV sets (a listening page like the 066 comparison) and record ratio and verdict in
       research R2. Switch the catalog entry to Q4_K_M only if it is at least 20 % faster and the operator hears no
       difference.
@@ -162,6 +166,8 @@ delivery step 2).
 
 **Independent Test**: a 45-word sentence is spoken completely in balanced parts; a forced failure (test engine)
 is regenerated and never heard (quickstart M3, SC-006).
+
+      Result 2026-11-05 (research R2): Q8_0 1.49, Q4_K_M 1.29 on the reference laptop's processor; 13 % faster, below the 20 % threshold, so the entry stays on Q8_0.
 
 - [ ] T022 [P] [US1] Make `src-tauri/src/tts/spoken.rs` return the spans it wrote out (one span per number, time,
       date, amount or unit expansion) next to the text:
