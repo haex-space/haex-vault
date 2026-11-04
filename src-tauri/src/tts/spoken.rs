@@ -15,10 +15,11 @@
 //! language and the abbreviations are in `words`.
 
 mod dates;
+mod digits;
 mod units;
 mod words;
 
-use crate::assistant::number_words::{cardinal, year_words};
+use crate::assistant::number_words::{cardinal, cardinal_large, year_words};
 use words::{expand_abbreviations, words, Words};
 
 const LANGUAGES: [&str; 6] = ["de", "en", "fr", "es", "it", "pt"];
@@ -165,19 +166,17 @@ impl<'a> Reader<'a> {
         if let Some(end) = self.time_at(i) {
             return self.maybe_range(end);
         }
+        if let Some(end) = self.digit_groups_at(i) {
+            return end;
+        }
         let Some((number, end)) = self.parse_number(i) else {
             // "1.2.3", "192.168.0.1": not a number haex can say; keep it whole.
-            let mut end = i;
-            while self
-                .char(end)
-                .is_some_and(|c| c.is_ascii_digit() || c == '.')
-                && !(self.char(end) == Some('.') && !self.is_digit(end + 1))
-            {
-                end += 1;
-            }
-            self.out.extend(&self.chars[i..end]);
-            return end;
+            return self.keep_as_written(i);
         };
+        // "2:1", "1/2", "11/04/2026": no reading of the whole, and half of it read is worse.
+        if matches!(self.char(end), Some(':' | '/')) && self.is_digit(end + 1) {
+            return self.keep_as_written(i);
+        }
         if let Some(after) = self.ordinal_at(&number, end) {
             return after;
         }
@@ -214,10 +213,10 @@ impl<'a> Reader<'a> {
         }
         let phrase = self.plain(&number, end);
         self.out.push_str(&phrase);
-        if phrase.chars().any(char::is_alphabetic) && number.int.len() < 6 {
-            self.maybe_range(end)
-        } else {
+        if said_digit_by_digit(&number) {
             end
+        } else {
+            self.maybe_range(end)
         }
     }
 
@@ -240,7 +239,8 @@ impl<'a> Reader<'a> {
         while self.char(k) == Some(' ') {
             k += 1;
         }
-        if !self.is_digit(k) {
+        // "10-05" is no range; "0711-123456" never gets here (`digit_groups_at`).
+        if !self.is_digit(k) || (self.char(k) == Some('0') && self.is_digit(k + 1)) {
             return end;
         }
         self.out.push(' ');
@@ -359,11 +359,12 @@ impl<'a> Reader<'a> {
             }
             if int.len() == 4 {
                 if let Ok(year @ 1100..=2099) = int.parse::<i32>() {
-                    return year_words(self.language, year);
+                    if self.reads_as_year(end) {
+                        return year_words(self.language, year);
+                    }
                 }
             }
-            // Telephone numbers, IDs and anything with a leading zero: digit by digit.
-            if int.len() >= 6 || (int.len() > 1 && int.starts_with('0')) {
+            if said_digit_by_digit(number) {
                 return self.digit_by_digit(int);
             }
         }
@@ -372,9 +373,14 @@ impl<'a> Reader<'a> {
 
     /// A count with its decimal part: "drei Komma eins vier".
     fn number_words(&self, number: &Number) -> String {
-        let int = match number.int.parse::<u32>() {
-            Ok(n) => cardinal(self.language, n),
-            Err(_) => self.digit_by_digit(&number.int),
+        let words = number
+            .int
+            .parse::<u64>()
+            .ok()
+            .and_then(|n| cardinal_large(self.language, n));
+        let int = match words {
+            Some(words) => words,
+            None => self.digit_by_digit(&number.int),
         };
         match &number.frac {
             Some(frac) => format!("{int} {} {}", self.words.decimal, self.digit_by_digit(frac)),
@@ -390,4 +396,12 @@ impl<'a> Reader<'a> {
             .collect::<Vec<_>>()
             .join(" ")
     }
+}
+
+/// Telephone numbers, IDs and anything with a leading zero are said digit by digit.
+fn said_digit_by_digit(number: &Number) -> bool {
+    let int = &number.int;
+    number.frac.is_none()
+        && !number.grouped
+        && (int.len() >= 6 || (int.len() > 1 && int.starts_with('0')))
 }

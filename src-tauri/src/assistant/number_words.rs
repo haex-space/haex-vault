@@ -279,6 +279,42 @@ fn hundreds_en(n: u32) -> String {
     }
 }
 
+/// [`cardinal`] for counts up to 999 billion ("5.000.000.000"); `None` above.
+pub fn cardinal_large(language: &str, n: u64) -> Option<String> {
+    if let Ok(small) = u32::try_from(n) {
+        return Some(cardinal(language, small));
+    }
+    if n >= 1_000_000_000_000 {
+        return None;
+    }
+    if language == "es" {
+        // "cinco mil millones": Spanish counts the billions in millions.
+        let millions = u32::try_from(n / 1_000_000).ok()?;
+        let rest = u32::try_from(n % 1_000_000).ok()?;
+        let head = format!("{} millones", apocope_es(&cardinal("es", millions)));
+        return Some(with_rest(head, language, rest));
+    }
+    // More than four billion: always the plural.
+    let billions = u32::try_from(n / 1_000_000_000).ok()?;
+    let rest = u32::try_from(n % 1_000_000_000).ok()?;
+    let head = match language {
+        "de" => format!("{} Milliarden", hundreds_de(billions, true)),
+        "fr" => format!("{} milliards", hundreds_fr(billions, true)),
+        "it" => format!("{} miliardi", hundreds_it(billions)),
+        "pt" => format!("{} bilhões", hundreds_pt(billions)),
+        _ => format!("{} billion", hundreds_en(billions)),
+    };
+    Some(with_rest(head, language, rest))
+}
+
+fn with_rest(head: String, language: &str, rest: u32) -> String {
+    if rest == 0 {
+        head
+    } else {
+        format!("{head} {}", cardinal(language, rest))
+    }
+}
+
 /// The stem of a German ordinal, to which "e", "en", "er" are added: "erst", "dritt",
 /// "zwanzigst", "einhundertst".
 pub fn ordinal_stem_de(n: u32) -> String {
