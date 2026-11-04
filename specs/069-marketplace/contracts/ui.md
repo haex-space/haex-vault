@@ -60,8 +60,9 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   preset, whose form has no delete button.
 - **Form** (deliberately confirmed, FR-021): name, address (with a hint for `http://`), auth type
   (Keine/Bearer/Basic), credentials entry (`CredentialsEntryPicker` with `source = marketplace_*`,
-  newly entered values are stored as a visible entry, spec 052), "Testen und speichern" shows the result
-  (reachable, N extensions / cause of the error) and still allows saving. "Löschen" with
+  newly entered values are stored as a visible entry, spec 052), "Testen und speichern" saves a
+  marketplace that answers at once and names the cause of a failure as an error toast, then still
+  allows saving ("Trotzdem speichern"). "Löschen" with
   confirmation (own marketplaces only).
 - Test IDs: `settings-marketplaces`, `settings-marketplace-row-<id>`, `settings-marketplace-toggle-<id>`,
   `settings-marketplace-up-<id>`, `settings-marketplace-down-<id>`, `settings-marketplace-form`,
@@ -69,7 +70,7 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   `settings-marketplace-save-anyway`, `settings-marketplace-delete-confirm`, `settings-marketplaces-empty`,
   `settings-marketplace-http-hint`, `settings-marketplace-credentials-<id>`, `extensions-marketplaces`,
   `marketplace-all-off-settings`, `settings-marketplace-auth`,
-  `settings-marketplace-test-result`, `settings-marketplace-save`, `settings-marketplace-delete`.
+  `settings-marketplace-save`, `settings-marketplace-delete`.
 
 ## List of installed extensions
 

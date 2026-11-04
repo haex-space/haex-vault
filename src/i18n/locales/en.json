@@ -305,7 +305,8 @@
       "unknown": "unknown"
     },
     "catalog": {
-      "meta": "~{size} · Context {context} · {license} · {fit}"
+      "meta": "~{size} · Context {context} · {license} · {fit}",
+      "trial": "To try"
     },
     "empty": {
       "title": "What would you like to work on?",
@@ -1348,7 +1349,7 @@
       "createFolder": "Create folder",
       "createFolderAndSave": "Create folder and save",
       "warnings": {
-        "nestedFolder": "Saved. Note: another cloud storage of this connection lies in this folder, or the other way round."
+        "nestedFolder": "Note: another cloud storage of this connection lies in this folder, or the other way round."
       },
       "authMethods": {
         "password": "Password",
@@ -3284,8 +3285,8 @@
       "title": "Sync rules",
       "empty": "No sync rule on this device yet.",
       "failed": "The sync rules could not be loaded or changed.",
-      "placeA": "Source",
-      "placeB": "Target",
+      "source": "Source",
+      "target": "Target",
       "name": "Name",
       "interval": "Sync remote places every … minutes",
       "cloudHint": "{place} is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
@@ -3414,7 +3415,7 @@
       },
       "direction": {
         "label": "Direction",
-        "aToB": "Source → target",
+        "sourceToTarget": "Source → target",
         "both": "Both ways"
       },
       "deleteMode": {

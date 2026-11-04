@@ -69,8 +69,11 @@ function placeLabel(place: SyncRulePlace): string {
 
 function labelsOf(view: SyncRuleView | null) {
   return view
-    ? { a: placeLabel(view.rule.placeA), b: placeLabel(view.rule.placeB) }
-    : { a: '', b: '' }
+    ? {
+        source: placeLabel(view.rule.source),
+        target: placeLabel(view.rule.target),
+      }
+    : { source: '', target: '' }
 }
 
 function openNew() {
@@ -90,10 +93,10 @@ function openShown(view: SyncRuleView, which: 'preview' | 'ignore' | 'log') {
   logging.value = which === 'log'
 }
 
-const ARROWS = { aToB: '→', both: '↔' } as const
+const ARROWS = { sourceToTarget: '→', both: '↔' } as const
 
 function placesOf(view: SyncRuleView): string {
-  return `${placeLabel(view.rule.placeA)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.placeB)}`
+  return `${placeLabel(view.rule.source)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.target)}`
 }
 
 type Row = RuleRow & { view: SyncRuleView }

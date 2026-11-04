@@ -16,13 +16,12 @@ pub const DEFAULT_INTERVAL_SECS: u32 = 900;
 /// The longest rule name in characters.
 pub const MAX_NAME_CHARS: usize = 80;
 
-/// Which way a rule copies (FR-001): one way from the source (`place_a`) to the target (`place_b`),
-/// or both ways.
+/// Which way a rule copies (FR-001): one way from the source to the target, or both ways.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleDirection {
-    AToB,
+    SourceToTarget,
     Both,
 }
 
@@ -58,27 +57,27 @@ pub enum SyncRuleOutcome {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleSide {
-    A,
-    B,
+    Source,
+    Target,
 }
 
 impl SyncRuleSide {
     /// The other side.
     pub fn other(self) -> Self {
         match self {
-            Self::A => Self::B,
-            Self::B => Self::A,
+            Self::Source => Self::Target,
+            Self::Target => Self::Source,
         }
     }
 }
 
-/// A folder of a file browser source as the window names it (research R1): the source and the
-/// window path, also through an encrypted folder.
+/// A folder of a file browser source as the window names it (research R1): its location (the device
+/// or a storage) and the window path, also through an encrypted folder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct SyncRulePlace {
-    pub source: SourceRef,
+    pub location: SourceRef,
     pub path: String,
 }
 
@@ -89,9 +88,9 @@ pub struct SyncRulePlace {
 pub struct SyncRuleDraft {
     pub name: String,
     /// The source; its `.haex-ignore` holds the exclusions.
-    pub place_a: SyncRulePlace,
+    pub source: SyncRulePlace,
     /// The target.
-    pub place_b: SyncRulePlace,
+    pub target: SyncRulePlace,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -108,8 +107,8 @@ pub struct SyncRuleDraft {
 pub struct SyncRule {
     pub id: String,
     pub name: String,
-    pub place_a: SyncRulePlace,
-    pub place_b: SyncRulePlace,
+    pub source: SyncRulePlace,
+    pub target: SyncRulePlace,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -127,8 +126,8 @@ impl SyncRule {
     pub fn draft(&self) -> SyncRuleDraft {
         SyncRuleDraft {
             name: self.name.clone(),
-            place_a: self.place_a.clone(),
-            place_b: self.place_b.clone(),
+            source: self.source.clone(),
+            target: self.target.clone(),
             direction: self.direction,
             delete_mode: self.delete_mode,
             interval_secs: self.interval_secs,
@@ -140,8 +139,8 @@ impl SyncRule {
     /// The place of `side`.
     pub fn place(&self, side: SyncRuleSide) -> &SyncRulePlace {
         match side {
-            SyncRuleSide::A => &self.place_a,
-            SyncRuleSide::B => &self.place_b,
+            SyncRuleSide::Source => &self.source,
+            SyncRuleSide::Target => &self.target,
         }
     }
 }

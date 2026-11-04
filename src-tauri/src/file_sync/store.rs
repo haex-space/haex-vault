@@ -12,8 +12,8 @@ use super::model::{
 use crate::error::Result;
 use crate::storage::query::Query;
 
-const RULE_COLUMNS: &str = "id, name, enabled, place_a_source, place_a_path, place_b_source, \
-     place_b_path, direction, delete_mode, interval_secs, created_at, updated_at, last_run_at, \
+const RULE_COLUMNS: &str = "id, name, enabled, source_location, source_path, target_location, \
+     target_path, direction, delete_mode, interval_secs, created_at, updated_at, last_run_at, \
      last_outcome, last_error, allow_decrypted";
 
 /// Size and modification time of a file on one side.
@@ -28,8 +28,8 @@ pub struct Seen {
 pub struct StateRow {
     /// Relative to the place, `/` between names.
     pub path: String,
-    pub a: Option<Seen>,
-    pub b: Option<Seen>,
+    pub source: Option<Seen>,
+    pub target: Option<Seen>,
     /// The delete mode "keep" left it on purpose; it is not copied back.
     pub kept: bool,
     /// SHA-256 of the content (hex), once known.
@@ -40,8 +40,8 @@ impl StateRow {
     /// What the row knows of `side`.
     pub fn seen(&self, side: SyncRuleSide) -> Option<Seen> {
         match side {
-            SyncRuleSide::A => self.a,
-            SyncRuleSide::B => self.b,
+            SyncRuleSide::Source => self.source,
+            SyncRuleSide::Target => self.target,
         }
     }
 }
@@ -65,7 +65,7 @@ pub fn insert_rule(
 ) -> Result<()> {
     tx.execute(
         "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
-         place_a_source, place_a_path, place_b_source, place_b_path, direction, delete_mode, \
+         source_location, source_path, target_location, target_path, direction, delete_mode, \
          interval_secs, created_at, updated_at, allow_decrypted) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)",
         params![
@@ -73,10 +73,10 @@ pub fn insert_rule(
             device,
             draft.name,
             i64::from(draft.enabled),
-            source_text(&draft.place_a.source),
-            draft.place_a.path,
-            source_text(&draft.place_b.source),
-            draft.place_b.path,
+            source_text(&draft.source.location),
+            draft.source.path,
+            source_text(&draft.target.location),
+            draft.target.path,
             stored(&draft.direction),
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
@@ -100,8 +100,8 @@ pub fn update_rule(
         return Ok(false);
     };
     tx.execute(
-        "UPDATE haex_sync_rules_no_sync SET name = ?3, enabled = ?4, place_a_source = ?5, \
-         place_a_path = ?6, place_b_source = ?7, place_b_path = ?8, direction = ?9, \
+        "UPDATE haex_sync_rules_no_sync SET name = ?3, enabled = ?4, source_location = ?5, \
+         source_path = ?6, target_location = ?7, target_path = ?8, direction = ?9, \
          delete_mode = ?10, interval_secs = ?11, updated_at = ?12, allow_decrypted = ?13 \
          WHERE id = ?1 AND vault_device_uuid = ?2",
         params![
@@ -109,10 +109,10 @@ pub fn update_rule(
             device,
             draft.name,
             i64::from(draft.enabled),
-            source_text(&draft.place_a.source),
-            draft.place_a.path,
-            source_text(&draft.place_b.source),
-            draft.place_b.path,
+            source_text(&draft.source.location),
+            draft.source.path,
+            source_text(&draft.target.location),
+            draft.target.path,
             stored(&draft.direction),
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
@@ -120,8 +120,8 @@ pub fn update_rule(
             i64::from(draft.allow_decrypted)
         ],
     )?;
-    let moved = before.place_a != draft.place_a
-        || before.place_b != draft.place_b
+    let moved = before.source != draft.source
+        || before.target != draft.target
         || before.direction != draft.direction;
     if moved {
         clear_state(tx, device, id)?;
@@ -203,15 +203,15 @@ pub fn rule(q: &mut impl Query, device: &str, id: &str) -> Result<Option<SyncRul
 /// The state of every file of a rule.
 pub fn state(q: &mut impl Query, device: &str, rule_id: &str) -> Result<Vec<StateRow>> {
     Ok(q.query_map(
-        "SELECT path, a_size, a_mtime_ms, b_size, b_mtime_ms, kept, hash \
+        "SELECT path, source_size, source_mtime_ms, target_size, target_mtime_ms, kept, hash \
          FROM haex_sync_rule_files_no_sync WHERE rule_id = ?1 AND vault_device_uuid = ?2 \
          ORDER BY path",
         &[&rule_id, &device],
         |r| {
             Ok(StateRow {
                 path: r.get(0)?,
-                a: seen_of(r.get(1)?, r.get(2)?),
-                b: seen_of(r.get(3)?, r.get(4)?),
+                source: seen_of(r.get(1)?, r.get(2)?),
+                target: seen_of(r.get(3)?, r.get(4)?),
                 kept: r.get::<_, i64>(5)? != 0,
                 hash: r.get(6)?,
             })
@@ -228,19 +228,20 @@ pub fn put_state(
 ) -> Result<()> {
     let size = |seen: Option<Seen>| seen.map(|s| i64::try_from(s.size).unwrap_or(i64::MAX));
     tx.execute(
-        "INSERT INTO haex_sync_rule_files_no_sync (rule_id, vault_device_uuid, path, a_size, \
-         a_mtime_ms, b_size, b_mtime_ms, kept, hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
-         ON CONFLICT(rule_id, path) DO UPDATE SET a_size = excluded.a_size, \
-         a_mtime_ms = excluded.a_mtime_ms, b_size = excluded.b_size, \
-         b_mtime_ms = excluded.b_mtime_ms, kept = excluded.kept, hash = excluded.hash",
+        "INSERT INTO haex_sync_rule_files_no_sync (rule_id, vault_device_uuid, path, source_size, \
+         source_mtime_ms, target_size, target_mtime_ms, kept, hash) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+         ON CONFLICT(rule_id, path) DO UPDATE SET source_size = excluded.source_size, \
+         source_mtime_ms = excluded.source_mtime_ms, target_size = excluded.target_size, \
+         target_mtime_ms = excluded.target_mtime_ms, kept = excluded.kept, hash = excluded.hash",
         params![
             rule_id,
             device,
             row.path,
-            size(row.a),
-            row.a.map(|s| s.mtime_ms),
-            size(row.b),
-            row.b.map(|s| s.mtime_ms),
+            size(row.source),
+            row.source.map(|s| s.mtime_ms),
+            size(row.target),
+            row.target.map(|s| s.mtime_ms),
             i64::from(row.kept),
             row.hash
         ],
@@ -362,10 +363,10 @@ fn seen_of(size: Option<i64>, mtime_ms: Option<i64>) -> Option<Seen> {
 
 /// A rule from its row; `None` for one a newer version wrote.
 fn rule_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<SyncRule>> {
-    let place = |source: String, path: String| {
-        source_of(&source).map(|source| SyncRulePlace { source, path })
+    let place = |location: String, path: String| {
+        source_of(&location).map(|location| SyncRulePlace { location, path })
     };
-    let (Some(place_a), Some(place_b), Some(direction), Some(delete_mode)) = (
+    let (Some(source), Some(target), Some(direction), Some(delete_mode)) = (
         place(r.get(3)?, r.get(4)?),
         place(r.get(5)?, r.get(6)?),
         parse(&r.get::<_, String>(7)?),
@@ -377,8 +378,8 @@ fn rule_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<SyncRule>> {
         id: r.get(0)?,
         name: r.get(1)?,
         enabled: r.get::<_, i64>(2)? != 0,
-        place_a,
-        place_b,
+        source,
+        target,
         direction,
         delete_mode,
         interval_secs: u32::try_from(r.get::<_, i64>(9)?)

@@ -53,6 +53,10 @@ pub struct CatalogEntry {
     /// Measured once for a curated model (spec 032); absent until the first evaluation run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_use: Option<crate::model_capabilities::ToolSupport>,
+    /// Offered to try: listed and downloadable, but onboarding never suggests it (operator, 2026-11-04,
+    /// for Gemma 4 next to the measured profiles).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trial: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -165,7 +169,7 @@ pub struct TierRecommendation {
 ///
 /// Under the phone presets the candidates are only the two phone profiles
 /// (`profiles.rs`, spec 043 FR-027); the fit to the memory chooses between
-/// them.
+/// them. An entry marked `trial` is never a candidate.
 ///
 /// Returns `None` only when the catalog is empty (which never happens
 /// in production because `entries()` reads the built-in JSON blob).
@@ -176,6 +180,7 @@ pub fn recommend_tiers(
     let allowed = profiles::profiles().candidates(presets);
     let candidates: Vec<(CatalogEntry, Fit)> = entries()
         .iter()
+        .filter(|entry| !entry.trial)
         .filter(|entry| allowed.is_none_or(|ids| ids.contains(&entry.id.as_str())))
         .cloned()
         .map(|entry| {

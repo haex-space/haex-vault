@@ -305,7 +305,8 @@
       "unknown": "unbekannt"
     },
     "catalog": {
-      "meta": "~{size} · Kontext {context} · {license} · {fit}"
+      "meta": "~{size} · Kontext {context} · {license} · {fit}",
+      "trial": "Zum Ausprobieren"
     },
     "empty": {
       "title": "Woran möchtest du arbeiten?",
@@ -1348,7 +1349,7 @@
       "createFolder": "Ordner anlegen",
       "createFolderAndSave": "Ordner anlegen und speichern",
       "warnings": {
-        "nestedFolder": "Gespeichert. Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
+        "nestedFolder": "Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
       },
       "authMethods": {
         "password": "Passwort",
@@ -3284,8 +3285,8 @@
       "title": "Sync-Regeln",
       "empty": "Noch keine Sync-Regel auf diesem Gerät.",
       "failed": "Die Sync-Regeln konnten nicht geladen oder geändert werden.",
-      "placeA": "Quelle",
-      "placeB": "Ziel",
+      "source": "Quelle",
+      "target": "Ziel",
       "name": "Name",
       "interval": "Abgleich entfernter Orte alle … Minuten",
       "cloudHint": "{place} ist ein Speicher ohne Verschlüsselung. Wähle einen verschlüsselten Ordner, wenn der Anbieter den Inhalt nicht sehen soll.",
@@ -3414,7 +3415,7 @@
       },
       "direction": {
         "label": "Richtung",
-        "aToB": "Quelle → Ziel",
+        "sourceToTarget": "Quelle → Ziel",
         "both": "Beidseitig"
       },
       "deleteMode": {

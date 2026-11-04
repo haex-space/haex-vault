@@ -3,4 +3,4 @@
 /**
  * One of the two places of a rule.
  */
-export type SyncRuleSide = "a" | "b";
+export type SyncRuleSide = "source" | "target";
