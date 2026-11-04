@@ -86,10 +86,17 @@ fn catalog_contains_the_selected_qwen3_profiles() {
 
 #[test]
 fn tool_use_is_optional_and_only_measured_entries_carry_it() {
-    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools) and so was
-    // Qwen3.5-4B (spec 070: 60 of 83 sentences); the smaller models were not, so the self-test finds
-    // out at their first load.
-    const MEASURED: [&str; 2] = ["qwen3-4b-instruct-q4_k_m", "qwen3.5-4b-instruct-q4_k_m"];
+    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools), and so were
+    // Qwen3.5-4B (spec 070: 60 of 83 sentences) and Gemma 4 E2B, E4B and 12B (spec 078: 44, 57 and 65
+    // of 106 everyday requests); the smaller Qwen models were not, so the self-test finds out at their
+    // first load.
+    const MEASURED: [&str; 5] = [
+        "qwen3-4b-instruct-q4_k_m",
+        "qwen3.5-4b-instruct-q4_k_m",
+        "gemma-4-e2b-instruct-q4_k_m",
+        "gemma-4-e4b-instruct-q4_k_m",
+        "gemma-4-12b-instruct-q4_k_m",
+    ];
     for entry in entries() {
         let expected = MEASURED
             .contains(&entry.id.as_str())
