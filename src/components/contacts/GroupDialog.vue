@@ -28,6 +28,10 @@ watch(open, (isOpen) => {
   name.value = props.group?.name ?? ''
   error.value = null
 })
+// The hint under the field goes away once a name is typed.
+watch(name, (value) => {
+  if (error.value && value.trim()) error.value = null
+})
 
 async function saveAsync() {
   if (!name.value.trim()) {

@@ -90,6 +90,13 @@ async function confirmDeleteAsync() {
                   @keydown.enter.prevent="renameAsync(tag)"
                   @keydown.esc.prevent="editing = null"
                 />
+                <p
+                  v-if="error"
+                  class="mt-1 text-sm text-destructive"
+                  role="alert"
+                >
+                  {{ error }}
+                </p>
               </div>
               <UiButton size="sm" @click="renameAsync(tag)">{{
                 t('passwords.save')
@@ -149,13 +156,6 @@ async function confirmDeleteAsync() {
               "
             />
           </ShadcnRadioGroup>
-          <p
-            v-if="editing === tag.id && error"
-            class="text-sm text-destructive"
-            role="alert"
-          >
-            {{ error }}
-          </p>
         </li>
       </SettingsGroup>
     </template>

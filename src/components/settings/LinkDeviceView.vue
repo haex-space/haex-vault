@@ -7,7 +7,7 @@
  *
  * The backend says whether a link succeeded only through `sync-devices-changed`, which it sends
  * right before the status returns to `null`; a `null` without it means the link ended without a
- * new device.
+ * new device. How a link ended is a toast; the view then offers only to start again.
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'vue-sonner'
@@ -87,10 +87,20 @@ function onStatus(status: LinkingStatus | null) {
   }
   if (status?.stage === 'code_shown') return
   if (phase.value === 'sending') {
-    phase.value = devicesChanged ? 'done' : 'failed'
+    finish(devicesChanged ? 'done' : 'failed')
   } else if (phase.value === 'code' || phase.value === 'confirm') {
-    phase.value = 'ended'
+    finish('ended')
   }
+}
+
+/** The end of a link: its outcome is a toast, the view keeps only the button to start again. */
+function finish(next: 'done' | 'ended' | 'failed' | 'declined') {
+  phase.value = next
+  if (next === 'done')
+    toast.success(t('settings.link.done', { name: newDeviceName.value }))
+  // The user's own decision: neither a success nor an error.
+  else if (next === 'declined') toast.info(t('settings.link.declined'))
+  else toast.error(t(`settings.link.${next}`))
 }
 
 async function onShowCode() {
@@ -136,7 +146,7 @@ async function onReject() {
   busy.value = true
   try {
     await rejectAsync()
-    phase.value = 'declined'
+    finish('declined')
   } catch (e) {
     toast.error(errString(e))
   } finally {
@@ -265,24 +275,18 @@ function onAgain() {
           {{ t('settings.link.sending', { name: newDeviceName }) }}
         </p>
       </template>
-      <template v-else-if="phase === 'done'">
-        <Icon name="lucide:circle-check" class="size-8 text-primary" />
-        <p class="font-medium">
-          {{ t('settings.link.done', { name: newDeviceName }) }}
-        </p>
-        <UiButton variant="outline" data-testid="link-again" @click="onAgain">
-          {{ t('settings.link.another') }}
-        </UiButton>
-      </template>
-      <template v-else>
-        <Icon name="lucide:circle-alert" class="size-8 text-muted-foreground" />
-        <p class="font-medium">
-          {{ t(`settings.link.${phase}`) }}
-        </p>
-        <UiButton variant="outline" data-testid="link-again" @click="onAgain">
-          {{ t('settings.link.again') }}
-        </UiButton>
-      </template>
+      <UiButton
+        v-else
+        variant="outline"
+        data-testid="link-again"
+        @click="onAgain"
+      >
+        {{
+          phase === 'done'
+            ? t('settings.link.another')
+            : t('settings.link.again')
+        }}
+      </UiButton>
     </div>
   </section>
 </template>

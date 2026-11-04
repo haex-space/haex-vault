@@ -87,6 +87,9 @@ watch(open, (isOpen) => {
           @blur="commitAsync"
           @keydown.enter.prevent="commitAsync"
         />
+        <p v-if="invalid" class="text-sm text-destructive" role="alert">
+          {{ t('files.syncRules.settings.invalid') }}
+        </p>
         <p class="text-xs text-muted-foreground">
           {{ t('files.syncRules.settings.hint') }}
         </p>
@@ -95,9 +98,6 @@ watch(open, (isOpen) => {
         </p>
         <p class="text-xs text-muted-foreground">
           {{ t('files.syncRules.settings.scope') }}
-        </p>
-        <p v-if="invalid" class="text-sm text-destructive" role="alert">
-          {{ t('files.syncRules.settings.invalid') }}
         </p>
       </div>
     </template>

@@ -66,6 +66,18 @@ const failureReason = computed(() => {
   return current?.state === 'failed' ? current.reason : 'openFailed'
 })
 
+// The end of a link shows as a toast; the sheet keeps the button that goes on from there.
+watch(stateKind, (kind) => {
+  if (kind === 'failed')
+    toast.error(t(`onboarding.link.failed.${failureReason.value}`), {
+      description: t('onboarding.link.failedHint'),
+    })
+  else if (kind === 'done')
+    toast.success(t('onboarding.link.done', { name: doneVaultName.value }), {
+      description: t('onboarding.link.doneHint'),
+    })
+})
+
 function reset() {
   code.value = ''
   vaultName.value = ''
@@ -319,21 +331,9 @@ function onOpenVault() {
         </template>
         <template v-else-if="stateKind === 'done'">
           <Icon name="lucide:circle-check" class="size-8 text-primary" />
-          <p class="font-medium">
-            {{ t('onboarding.link.done', { name: doneVaultName }) }}
-          </p>
-          <p class="text-sm text-muted-foreground">
-            {{ t('onboarding.link.doneHint') }}
-          </p>
         </template>
         <template v-else-if="stateKind === 'failed'">
           <Icon name="lucide:circle-alert" class="size-8 text-destructive" />
-          <p class="font-medium" role="alert">
-            {{ t(`onboarding.link.failed.${failureReason}`) }}
-          </p>
-          <p class="text-sm text-muted-foreground">
-            {{ t('onboarding.link.failedHint') }}
-          </p>
         </template>
       </div>
     </template>
