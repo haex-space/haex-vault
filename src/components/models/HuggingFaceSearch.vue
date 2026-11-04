@@ -67,20 +67,34 @@ async function enrichAsync(
   )
 }
 
+/** The term of the latest first-page load, listed or still loading. */
+let wantedQuery = ''
+/** Counts first-page loads; a load that is no longer the latest drops its result. */
+let generation = 0
+
 /**
  * Loads the first page of a search (no term: the most downloaded models) or, with `more`, the
- * page after the one shown. A failed page keeps what is already listed.
+ * page after the one shown. A new first page supersedes a load still running; a failed page keeps
+ * what is already listed.
  */
 async function loadResultsAsync(searchQuery?: string, more = false) {
-  if (loading.value) return
   const key = searchQuery ?? ''
+  if (more) {
+    if (loading.value || key !== shownQuery.value) return
+  } else if (loading.value && key === wantedQuery) {
+    return
+  }
+  const run = more ? generation : ++generation
   if (!more) {
+    wantedQuery = key
     const cached = cachedSearchResults(key)
     if (cached) {
       results.value = cached.results
       nextCursor.value = cached.nextCursor
       shownQuery.value = key
       hasSearched.value = true
+      failed.value = false
+      loading.value = false
       return
     }
   }
@@ -92,6 +106,7 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
       more ? (nextCursor.value ?? undefined) : undefined,
     )
     const enriched = await enrichAsync(page.results)
+    if (run !== generation) return
     const known = new Set(more ? results.value.map((r) => r.repoId) : [])
     results.value = [
       ...(more ? results.value : []),
@@ -102,15 +117,16 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
     rememberSearchResults(key, results.value, nextCursor.value)
     hasSearched.value = true
   } catch (e) {
+    if (run !== generation) return
     failed.value = true
     toast.error(t(hfErrorKey(e)), {
       action: {
         label: t('models.search.retry'),
-        onClick: () => void retryAsync(more),
+        onClick: () => void retryAsync(key, more),
       },
     })
   } finally {
-    loading.value = false
+    if (run === generation) loading.value = false
   }
 }
 
@@ -121,16 +137,19 @@ async function loadResultsAsync(searchQuery?: string, more = false) {
  * already looking at.
  */
 async function onSubmit() {
-  if (queryTooShort.value || trimmedQuery.value.length === 0 || loading.value)
-    return
+  if (queryTooShort.value || trimmedQuery.value.length === 0) return
   router.setQuery({ q: trimmedQuery.value })
   await loadResultsAsync(trimmedQuery.value)
 }
 
-async function retryAsync(more = false) {
-  if (loading.value) return
-  if (!more) forgetSearchResults()
-  await loadResultsAsync(shownQuery.value || undefined, more)
+/** Repeats the load that failed: the same term, and for `more` the same next page. */
+async function retryAsync(key: string, more: boolean) {
+  if (!more) {
+    forgetSearchResults()
+    query.value = key
+    router.setQuery({ q: key || null })
+  }
+  await loadResultsAsync(key || undefined, more)
 }
 
 /** Loads the next page of the list that is shown, whatever the field says by now. */
@@ -138,9 +157,10 @@ async function onLoadMore() {
   await loadResultsAsync(shownQuery.value || undefined, true)
 }
 
-// Emptying the field (e.g. with its clear button) goes back to the most downloaded models.
+// Emptying the field (e.g. with its clear button) goes back to the most downloaded models, also
+// while a search is still loading.
 watch(trimmedQuery, (value) => {
-  if (value.length === 0 && shownQuery.value.length > 0) {
+  if (value.length === 0 && wantedQuery.length > 0) {
     router.setQuery({ q: null })
     void loadResultsAsync()
   }
