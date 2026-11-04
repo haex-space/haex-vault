@@ -328,8 +328,10 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
 ### Measurable Outcomes
 
 - **SC-001**: On the reference laptop with graphics card acceleration, Qwen3-TTS needs at most 0.5 seconds
-  of computing time per second of speech, and the first audio of an answer starts no later than 0.5 seconds
-  after its first sentence is complete.
+  of computing time per second of speech, and the first audio of an answer starts no later than Pocket
+  TTS speaking the same first sentence in the same voice on that laptop. Measure both from the point when
+  the first sentence is complete; include Qwen3-TTS's required generation and validation of the first
+  part before playback.
 - **SC-002**: In a blind listening test of the six German sentences of research R23 (066), at least 4 of 5
   German native speakers prefer Qwen3-TTS over Pocket TTS for the same voice.
 - **SC-003**: For each of the six languages, at least 4 of 5 native speakers judge Qwen3-TTS free of a
