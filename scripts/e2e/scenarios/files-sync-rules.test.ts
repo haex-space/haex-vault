@@ -206,11 +206,18 @@ scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
     await instance.click('files-sync-rule-ignore-Sicherung')
     await instance.type('files-sync-rule-ignore-text', '*.tmp')
     await instance.click('files-sync-rule-ignore-save')
-    await instance.waitForDisplayed('files-sync-rule-ignore-saved', 15_000)
-    if (source.read('.haex-ignore') !== '*.tmp') {
-      throw new Error('the editor did not write .haex-ignore in place A')
-    }
-    await closeModal()
+    // A save closes the editor; the written file is the check.
+    await ctx.waitFor(
+      'the editor to write .haex-ignore in place A',
+      () => {
+        try {
+          return source.read('.haex-ignore') === '*.tmp'
+        } catch {
+          return false
+        }
+      },
+      { timeoutMs: 15_000 },
+    )
     source.write('neu.txt', 'N')
     source.write('cache.tmp', 'T')
     await instance.click('files-sync-rule-more-Sicherung')
