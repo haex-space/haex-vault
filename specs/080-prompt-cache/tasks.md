@@ -84,8 +84,9 @@ reused tokens.
   - `head_end(prompt, head)`: the longest common beginning of the prompt's tokens and the tokens of the rendered
     prompt up to the first user message's text; 0 without a user message.
 - [ ] T005 Create `src-tauri/src/llm/llamacpp/kept.rs`, declared in `src-tauri/src/llm/llamacpp/mod.rs`, with:
-  - `KeptContext<'m> { context: LlamaContext<'m>, tokens: Vec<LlamaToken>, checkpoints: Vec<Checkpoint>, head:
-Option<Checkpoint>, hybrid: bool, enabled: bool }` and `Checkpoint { n_tokens: usize, state: SeqState }`;
+  - `KeptContext<'m>` with the fields `context: LlamaContext<'m>`, `tokens: Vec<LlamaToken>`,
+    `checkpoints: Vec<Checkpoint>`, `head: Option<Checkpoint>`, `hybrid: bool` and `enabled: bool`, and
+    `Checkpoint { n_tokens: usize, state: SeqState }`;
   - the pure functions of T004;
   - `fn clear(&mut self)`: empties the cache (`clear_kv_cache`), `tokens`, `checkpoints` and `head`.
   - Nothing of it is ever written to a file (spec FR-012); no `state_save_file` or session file.
@@ -94,15 +95,16 @@ Option<Checkpoint>, hybrid: bool, enabled: bool }` and `Checkpoint { n_tokens: u
 - [ ] T006 In `src-tauri/src/llm/llamacpp/model.rs`:
   - wrap model and kept context with `self_cell!` (owner `LlamaModel`, dependent `Mutex<KeptContext<'_>>`,
     `#[not_covariant]`), stored in `LoadedModel` in place of the bare `model` field; give the module's users
-    `fn model(&self) -> &LlamaModel` and `fn with_kept<R>(&self, f: impl FnOnce(&LlamaModel, &mut KeptContext) ->
-R) -> R`;
+    `fn model(&self) -> &LlamaModel` and
+    `fn with_kept<R>(&self, f: impl FnOnce(&LlamaModel, &mut KeptContext) -> R) -> R`;
   - create the kept context at load with `Placement.context`, batch 512, the load's threads and
     `with_swa_full(true)`; `hybrid = model.is_hybrid() || model.is_recurrent()`;
   - add `LoadOptions.prompt_cache: bool`, default `true` (implement `Default` by hand), stored as `enabled`;
   - adjust every reader of `loaded.model` in `src-tauri/src/llm/llamacpp/` (`adapter.rs`, `generate.rs`, tests).
-- [ ] T007 [P] In `src-tauri/src/adapters/types.rs`, add the variant `StreamChunk::PromptCache { reused_tokens:
-  usize }` (contract). Ignore it in every exhaustive match the compiler names (at least `chat/turn/step.rs` and
-      `model_jobs/runner.rs`); no other adapter changes (research R10).
+- [ ] T007 [P] In `src-tauri/src/adapters/types.rs`, add the variant
+      `StreamChunk::PromptCache { reused_tokens: usize }` (contract). Ignore it in every exhaustive match the
+      compiler names (at least `chat/turn/step.rs` and `model_jobs/runner.rs`); no other adapter changes (research
+      R10).
 - [ ] T007a In `src-tauri/src/adapters/types.rs`, add `ChatRequest.reuse_prompt: bool` (contract, research R7):
       `true` at every construction except `model_jobs/runner.rs::request`, which sets `false`; a test in
       `src-tauri/src/model_jobs/runner_tests.rs` checks that a job's request never reuses.
@@ -120,12 +122,12 @@ least three times sooner than with `prompt_cache: false`, and the answers are eq
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] In `src-tauri/src/llm/llamacpp/kept_tests.rs`, test `KeptContext::plan_read(&prompt) ->
-Read { reuse: usize, rewind: Rewind }` as a pure decision (no context): nothing kept → reuse 0; matching
-      beginning on an attention model → `Rewind::Cut(n)`; `enabled == false` or a request with
-      `reuse_prompt == false` → reuse 0 and `Rewind::Clear`; kept
-      tokens that fill the whole context and a new prompt sharing only a beginning → `Cut` to that beginning, so the
-      new prompt and its answer fit (spec edge case "A prompt that fills the context").
+- [ ] T008 [P] [US1] In `src-tauri/src/llm/llamacpp/kept_tests.rs`, test
+      `KeptContext::plan_read(&prompt, reuse_prompt) -> Read { reuse: usize, rewind: Rewind }` as a pure decision
+      (no context): nothing kept → reuse 0; matching beginning on an attention model → `Rewind::Cut(n)`;
+      `enabled == false` or `reuse_prompt == false` → reuse 0 and `Rewind::Clear`; kept tokens that fill the whole
+      context and a new prompt sharing only a beginning → `Cut` to that beginning, so the new prompt and its answer
+      fit (spec edge case "A prompt that fills the context").
 
 ### Implementation for User Story 1
 
