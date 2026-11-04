@@ -41,6 +41,7 @@ async fn load() -> LlamaCppAdapter {
             context_window: None,
             gpu_layers: number("HOLZI_LLAMACPP_GPU_LAYERS"),
             threads: number("HOLZI_LLAMACPP_THREADS"),
+            drafter: None,
         },
     )
     .await
@@ -360,6 +361,7 @@ async fn load_local_picks_the_engine_from_the_file_and_answers() {
         LoadRequest {
             tokenizer_repo: Some(&tokenizer),
             context_window: Some(8192),
+            drafter: None,
         },
     )
     .await
