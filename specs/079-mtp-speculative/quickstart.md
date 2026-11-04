@@ -31,7 +31,7 @@ both and fails if:
 - the gain is below 1.4× (SC-001);
 - a greedy answer names different tool calls (SC-003).
 
-With spec 078 merged, `measure_everyday_voice` with `HOLZI_LLAMACPP_DRAFTER` set records tokens per second in its
+`measure_everyday_voice` of spec 078 with `HOLZI_LLAMACPP_DRAFTER` set records tokens per second in its
 report, and the everyday figures can be compared (SC-002).
 
 ## In the app

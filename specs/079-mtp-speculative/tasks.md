@@ -213,8 +213,9 @@ no file remains (quickstart "In the app").
       of each slug (T018).
 - [ ] T023 [P] [US2] In `src-tauri/src/models/download_check.rs`, add the drafter's size for a catalog target, and
       test it in its `_tests.rs`.
-- [ ] T024 [P] [US2] In `src-tauri/src/catalog/mod.rs` `list_catalog` and `recommend_tiers`, classify the fit on
-      `approx_size_bytes + drafter.size_bytes` (contract `list_catalog`); test in `catalog_tests.rs`.
+- [ ] T024 [P] [US2] No code change in `src-tauri/src/catalog/mod.rs`: `list_catalog` and `recommend_tiers` keep
+      classifying the fit on `approx_size_bytes` alone, because a drafter that does not fit is left out at load
+      (contract `list_catalog`, research R7 rule 2). Only the shown size adds the drafter (T025).
 - [ ] T025 [P] [US2] In the frontend, show model sizes with the drafter:
   - `src/composables/useCatalog.ts`: `drafter?: { size_bytes: number }` on `CatalogEntry`;
   - `src/composables/useModels.ts`: `drafter?: { installed: boolean; sizeBytes: number }` on `InstalledModel`;
@@ -239,7 +240,8 @@ no file remains (quickstart "In the app").
   - Mark the loaded model's drafter as failed (an `AtomicBool` on `LoadedModel`). `generate.rs` (T014) then takes the
     plain path with today's context settings until the model is loaded again (spec FR-012).
 - [ ] T027 [P] [US3] In `src-tauri/tests/model_tool_eval.rs`, add the ignored test `mtp_fallbacks`, with the real E2B
-      file. Every case must answer, and each model load must succeed:
+      file. Every case must answer, and each model load must succeed. In the forced-failure case, the text emitted
+      before the failure must appear exactly once, followed by the rest of the answer:
   - no drafter;
   - a drafter path that does not exist;
   - the E4B drafter given to E2B (wrong model). Creating its context or the first draft fails and the answer falls
@@ -297,7 +299,8 @@ next answer uses the drafter.
       local stand-in: success, model not installed, no drafter in the catalog, wrong hash.
 - [ ] T034 [US5] The next load uses a newly downloaded drafter without an app restart: if the model is loaded,
       `download_model_drafter` reloads it through the existing deactivate-and-load path
-      (`chat::local_model::deactivate_local_model`, which `delete_installed_model` already uses, then the normal load).
+      (`chat::local_model::deactivate`, the in-app side of the `deactivate_local_model` command, which
+      `delete_installed_model` already uses; then `activate_local_model`'s load).
 - [ ] T035 [US5] In the frontend:
   - `src/composables/useModels.ts`: `downloadDrafterAsync(modelId)`;
   - `src/components/settings/InstalledModels.vue`: in the details of the selected model, "Beschleunigung: aktiv" /
@@ -324,7 +327,7 @@ next answer uses the drafter.
 - [ ] T038 [P] Checks:
   - `cargo fmt --check`;
   - `cargo clippy --all-targets -D warnings` without features, with `llm-llamacpp`, and for
-    `aarch64-linux-android` (memory "Android clippy locally");
+    `aarch64-linux-android` (in the Android devShell, with the NDK's clang as `CC_aarch64_linux_android`);
   - `cargo test --lib` for `catalog`, `models::` and `llm::`;
   - `pnpm typecheck`, `pnpm typecheck:scripts` and `pnpm check:agent-actions`;
   - prettier on the changed Markdown, JSON and Vue files;
