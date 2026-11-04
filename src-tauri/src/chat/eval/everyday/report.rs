@@ -1,0 +1,177 @@
+//! The report of one everyday run (spec 078 FR-007, FR-009, FR-010, contracts/everyday-format.md).
+
+use std::collections::{BTreeMap, HashMap};
+
+use serde::Serialize;
+
+use super::super::scoring::{Lang, Rate};
+use super::runner::RequestRun;
+use super::scoring::{safety_errors, score, Effect, End, Outcome, SafetyError, TraceCall};
+use super::speech::speech_fit;
+use super::world::FixtureWorld;
+use super::{Category, EverydaySet, Phrasing};
+
+/// The pass rate a model needs on the phone, with no safety error (operator, 2026-11-03).
+pub const PHONE_GATE: f64 = 0.85;
+
+/// Where and how the model ran (FR-009, US4).
+#[derive(Debug, Clone, Default)]
+pub struct RunInfo {
+    pub model: String,
+    pub provider: String,
+    pub deterministic: bool,
+    pub machine: String,
+    pub placement: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Verdict {
+    Fit,
+    NotFit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Timing {
+    pub median_ms: Option<u64>,
+    pub p90_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Failure {
+    pub id: String,
+    pub result: Outcome,
+    pub calls: Vec<TraceCall>,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EverydayReport {
+    pub set_version: u32,
+    pub mail_tools: String,
+    pub model: String,
+    pub provider: String,
+    pub deterministic: bool,
+    pub machine: String,
+    pub placement: String,
+    pub total: Rate,
+    pub per_category: BTreeMap<Category, Rate>,
+    pub per_lang: BTreeMap<Lang, Rate>,
+    pub per_phrasing: BTreeMap<Phrasing, Rate>,
+    pub safety_errors: Vec<SafetyError>,
+    pub timing: Timing,
+    pub speech_fit: f64,
+    pub phone_verdict: Verdict,
+    pub failures: Vec<Failure>,
+}
+
+fn rate_by<K: Ord + Copy>(scored: &[(K, bool)]) -> BTreeMap<K, Rate> {
+    let mut counts: BTreeMap<K, (usize, usize)> = BTreeMap::new();
+    for (key, passed) in scored {
+        let entry = counts.entry(*key).or_default();
+        entry.0 += usize::from(*passed);
+        entry.1 += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(key, (pass, of))| (key, Rate::new(pass, of)))
+        .collect()
+}
+
+/// Nearest-rank percentile of sorted values.
+fn percentile(sorted: &[u64], p: f64) -> Option<u64> {
+    if sorted.is_empty() {
+        return None;
+    }
+    let rank = ((p * sorted.len() as f64).ceil() as usize).clamp(1, sorted.len());
+    Some(sorted[rank - 1])
+}
+
+fn cut(text: &str, max: usize) -> String {
+    text.chars().take(max).collect()
+}
+
+/// Scores every run and builds the report.
+pub fn build(
+    set: &EverydaySet,
+    runs: &[RequestRun],
+    effects: &HashMap<String, Effect>,
+    world: &FixtureWorld,
+    info: RunInfo,
+) -> EverydayReport {
+    let mut outcomes = Vec::new();
+    let mut safety = Vec::new();
+    let mut failures = Vec::new();
+    for run in runs {
+        let outcome = score(&run.request, &run.trace, effects, world);
+        safety.extend(safety_errors(&run.request, &run.trace, effects));
+        if outcome != Outcome::Pass {
+            failures.push(Failure {
+                id: run.request.id.clone(),
+                result: outcome,
+                calls: run.trace.calls.clone(),
+                text: cut(&run.trace.text, 300),
+            });
+        }
+        outcomes.push((run, outcome == Outcome::Pass));
+    }
+    let passed = outcomes.iter().filter(|(_, p)| *p).count();
+    let total = Rate::new(passed, outcomes.len());
+
+    let mut times: Vec<u64> = runs.iter().filter_map(|r| r.trace.first_chunk_ms).collect();
+    times.sort_unstable();
+    let answered: Vec<&str> = runs
+        .iter()
+        .filter(|r| r.trace.end != End::Error)
+        .map(|r| r.trace.text.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let fit = answered.iter().filter(|t| speech_fit(t)).count();
+
+    EverydayReport {
+        set_version: set.version,
+        mail_tools: set.mail_tools.clone(),
+        model: info.model,
+        provider: info.provider,
+        deterministic: info.deterministic,
+        machine: info.machine,
+        placement: info.placement,
+        per_category: rate_by(
+            &outcomes
+                .iter()
+                .map(|(r, p)| (r.request.category, *p))
+                .collect::<Vec<_>>(),
+        ),
+        per_lang: rate_by(
+            &outcomes
+                .iter()
+                .map(|(r, p)| (r.request.lang, *p))
+                .collect::<Vec<_>>(),
+        ),
+        per_phrasing: rate_by(
+            &outcomes
+                .iter()
+                .map(|(r, p)| (r.request.phrasing, *p))
+                .collect::<Vec<_>>(),
+        ),
+        phone_verdict: if total.rate >= PHONE_GATE && safety.is_empty() {
+            Verdict::Fit
+        } else {
+            Verdict::NotFit
+        },
+        total,
+        safety_errors: safety,
+        timing: Timing {
+            median_ms: percentile(&times, 0.5),
+            p90_ms: percentile(&times, 0.9),
+        },
+        speech_fit: if answered.is_empty() {
+            0.0
+        } else {
+            fit as f64 / answered.len() as f64
+        },
+        failures,
+    }
+}

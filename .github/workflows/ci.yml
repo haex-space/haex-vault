@@ -269,8 +269,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `everyday-eval` only adds test code: the integration test of spec 078's measurement.
           - features: default
-            flags: ''
+            flags: '--features everyday-eval'
           - features: no-default
             flags: '--no-default-features'
     env:

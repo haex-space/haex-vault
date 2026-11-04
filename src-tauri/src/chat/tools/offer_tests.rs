@@ -229,7 +229,9 @@ async fn find_actions_hint_says_a_miss_is_about_actions_not_data() {
     let value: serde_json::Value = serde_json::from_str(&result.content).expect("JSON result");
     let hint = value["hint"].as_str().expect("hint");
     assert!(hint.contains("not about the user's data"), "{hint}");
-    assert!(hint.contains("omit query"), "{hint}");
+    // A second miss ends the search: no paging through the whole catalog (spec 078).
+    assert!(hint.contains("tell the user so"), "{hint}");
+    assert!(!hint.contains("omit query"), "{hint}");
 }
 
 #[test]

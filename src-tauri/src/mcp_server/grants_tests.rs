@@ -295,6 +295,7 @@ fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
         model_name: model_name.to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     };
     Arc::new(ExtensionTool::new(def, Arc::new(NoFrame)))
 }

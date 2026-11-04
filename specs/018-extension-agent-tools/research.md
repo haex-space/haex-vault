@@ -149,8 +149,16 @@ gefundene Werkzeuge an. Gleiche Bewertung wie bisher (`search_score`), Beispiels
 ## R8 — Werkzeugname, Herkunft und Anzeige (FR-009, FR-011)
 
 **Decision**: Der Name für das Modell ist `x_<slug>_<tool>`: `slug` = Manifest-`name` in Kleinbuchstaben,
-nur `[a-z0-9]`, gekürzt; bei Kollision zweier Erweiterungen ein Suffix aus den ersten Zeichen der
-Erweiterungs-Id; insgesamt ≤ 64 Zeichen (`is_valid_tool_name`). `Tool` bekommt eine Methode
+nur `[a-z0-9]`, gekürzt; bei Kollision zweier Erweiterungen behält die zuerst installierte den
+Slug (installierte vor Entwicklungsversionen), jede weitere bekommt ein Suffix aus den ersten sechs
+Zeichen ihres Public Keys, damit sich die Namen der ersten nicht ändern und das Suffix eine neue
+Erweiterungs-Id übersteht (2026-11-03); ist auch das vergeben (Entwicklungsversion mit demselben
+Key), die ersten Zeichen der Erweiterungs-Id. Eine installierte Erweiterung, die ausgeschaltet oder
+auf diesem Gerät nicht bereit ist, bietet nichts an, behält ihren Namen aber, damit eine andere
+desselben Slugs ihn nicht übernimmt; insgesamt ≤ 64 Zeichen (`is_valid_tool_name`). Bieten zwei
+Erweiterungen desselben Slugs Werkzeuge an, nennen Beschreibung, Ergebnis und Rückfrage beider den
+Key-Anfang hinter dem Titel (`haex-mail (ab12cd…)`), und die Beschreibung sagt dem Modell, nur
+Werkzeuge mit demselben Präfix zu kombinieren. `Tool` bekommt eine Methode
 `origin() -> Option<ToolOrigin>` (Erweiterungs-Id, Anzeigename, Werkzeugtitel de/en, Entwicklungsversion);
 `source()` bleibt `"haextension"`. Das Freigabe-Event `tool-permission-request` und die Werkzeugzeile
 im Verlauf bekommen das optionale Feld `toolOrigin`; neue Spalte `tool_origin TEXT` (JSON) in
