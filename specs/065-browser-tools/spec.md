@@ -587,9 +587,9 @@ Steuerung.
   every dialog of the agent browser.
 - **FR-045**: holzi MUST block requests of the agent browser's pages that filter lists block, as
   uBlock Origin does, before FR-011 holds or asks, so a blocked tracker never raises a question.
-  The default lists are those uBlock Origin enables: uBlock filters (with its badware, privacy,
-  resource abuse and unbreak lists), EasyList, EasyPrivacy, Peter Lowe's ad and tracking server
-  list and the URLhaus malicious URL list. The user MUST be able to switch each list off and to
+  The default lists are those uBlock Origin enables (its `assets.json`): uBlock filters (Ads,
+  Badware risks, Privacy, Unbreak and Quick fixes), EasyList, EasyPrivacy, Peter Lowe's ad and
+  tracking server list and the URLhaus malicious URL list. The user MUST be able to switch each list off and to
   add lists by their `https` address (with an optional name), change and remove them. Only the
   network filters of a list count; cosmetic filters, scriptlets and redirects are ignored, so a
   list can only stop requests. Lists are downloaded from their publishers, not shipped, stored on

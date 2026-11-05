@@ -15,6 +15,9 @@ pub mod env;
 mod env_rights;
 pub mod error;
 pub mod executor;
+pub mod filter_fetch;
+pub mod filter_lists;
+pub mod filters;
 pub mod locate;
 pub mod marker;
 mod new_tab;
@@ -408,6 +411,10 @@ mod credentials_tests;
 mod downloads_tests;
 #[cfg(test)]
 mod entry_fill_tests;
+#[cfg(test)]
+mod filter_lists_tests;
+#[cfg(test)]
+mod filters_tests;
 #[cfg(test)]
 mod locate_tests;
 #[cfg(test)]

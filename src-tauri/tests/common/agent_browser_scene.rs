@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use holzi_lib::agent_browser::error::BrowserError;
 use holzi_lib::agent_browser::executor::{BrowserEnv, BrowserTools};
+use holzi_lib::agent_browser::filters::TrackerFilter;
 use holzi_lib::agent_browser::locate::{find, Os, System};
 use holzi_lib::agent_browser::profile::Workdir;
 use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
@@ -70,10 +71,16 @@ pub struct Env {
     pub passwords: Mutex<Option<PasswordRights>>,
     /// The rights group `browser` is off until a question switches it on (FR-040).
     pub off: Mutex<bool>,
+    /// The tracker filters (FR-045); none until a test sets some.
+    pub filter: Mutex<Option<Arc<TrackerFilter>>>,
 }
 
 #[async_trait]
 impl BrowserEnv for Env {
+    async fn filter(&self) -> Option<Arc<TrackerFilter>> {
+        self.filter.lock().unwrap().clone()
+    }
+
     async fn rights(&self, _caller: &Caller) -> Option<BrowserRights> {
         if *self.off.lock().unwrap() {
             return None;
@@ -328,6 +335,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         files: Mutex::default(),
         passwords: Mutex::default(),
         off: Mutex::new(false),
+        filter: Mutex::default(),
     });
     let prompts: BrowserPrompts = new_browser_prompts();
     let asked = Arc::new(Mutex::new(Vec::new()));

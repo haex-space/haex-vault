@@ -9,10 +9,11 @@ use serde_json::Value;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
+use super::filters::{self, TrackerFilter};
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::submit;
-use super::tab::{Guard, IsPaused, OnSignal, OnTarget, Paused};
+use super::tab::{Guard, IsPaused, OnBlocked, OnSignal, OnTarget, Paused};
 
 /// What [`watch`] reports.
 #[derive(Clone)]
@@ -22,6 +23,9 @@ pub(super) struct Reports {
     pub paused: IsPaused,
     pub on_signal: OnSignal,
     pub on_target: OnTarget,
+    /// The tracker filters; a request they block never leaves the browser (research R16).
+    pub filter: Option<Arc<TrackerFilter>>,
+    pub on_blocked: OnBlocked,
 }
 
 /// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
@@ -48,9 +52,23 @@ pub(super) fn watch(
                         (Arc::clone(&connection), session.clone(), Arc::clone(&guard));
                     let main = is_main.then(|| Arc::clone(&refused));
                     let any = Arc::clone(&refused);
+                    let (filter, on_blocked) = (reports.filter.clone(), reports.on_blocked.clone());
                     tokio::spawn(async move {
                         let main = main.as_deref();
-                        decide(&connection, &session, &event.params, &guard, main, &any).await;
+                        let blocking = Blocking {
+                            filter: filter.as_deref(),
+                            on_blocked: &on_blocked,
+                        };
+                        decide(
+                            &connection,
+                            &session,
+                            &event.params,
+                            &guard,
+                            main,
+                            &any,
+                            &blocking,
+                        )
+                        .await;
                     });
                 }
                 "Target.attachedToTarget" => {
@@ -72,9 +90,10 @@ pub(super) fn watch(
                     ));
                     let connection = Arc::clone(&connection);
                     let texts = reports.texts.clone();
+                    let all = reports.filter.is_some();
                     tokio::spawn(async move {
                         // The frame waits for holzi; its documents are held before it may go on.
-                        let _ = fetch::hold_requests(&connection, &child).await;
+                        let _ = fetch::hold_requests(&connection, &child, all).await;
                         let _ = target::attach_frames(&connection, &child).await;
                         let _ = page::enable(&connection, &child).await;
                         let _ = marker::install(&connection, &child, &texts).await;
@@ -101,6 +120,12 @@ pub(super) fn watch(
     })
 }
 
+/// The tracker filters, as one paused request meets them.
+struct Blocking<'a> {
+    filter: Option<&'a TrackerFilter>,
+    on_blocked: &'a OnBlocked,
+}
+
 async fn decide(
     connection: &Connection,
     session: &str,
@@ -108,10 +133,25 @@ async fn decide(
     guard: &Guard,
     main: Option<&Mutex<Option<&'static str>>>,
     any: &Mutex<Option<&'static str>>,
+    blocking: &Blocking<'_>,
 ) {
     let Some(request) = params["requestId"].as_str() else {
         return;
     };
+    // The filter lists come first, so a blocked tracker never raises a question (FR-045).
+    if let Some(info) = blocking
+        .filter
+        .and(filters::request_info(params, main.is_some()))
+    {
+        if blocking.filter.is_some_and(|filter| filter.blocks(&info)) {
+            (blocking.on_blocked)(&info.url);
+            if let (Some(main), true) = (main, params["resourceType"] == "Document") {
+                *main.lock().unwrap_or_else(PoisonError::into_inner) = Some("blocked_by_filter");
+            }
+            let _ = fetch::block(connection, session, request).await;
+            return;
+        }
+    }
     let paused = Paused {
         url: params["request"]["url"]
             .as_str()
