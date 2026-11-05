@@ -384,7 +384,7 @@ first tool of every expected chain, without a model.
 - [x] T050 [US3] Add the sentence of research R8 to `TOOL_INSTRUCTION` in `chat/tools/prompt.rs`: "Look up what the
       user names (a person, a subject, a time) with the offered tools; never ask the user for ids. If several
       match, ask which one by their titles."
-- [ ] T051 [US3] Measure the offer step (plan step 3):
+- [x] T051 [US3] Measure the offer step (plan step 3):
   - Run the everyday set for every local model except Hermes, with routing on.
   - Store the reports under `specs/082-agent-harness/runs/offer/`.
   - Add an "Offer" section to `results.md` with the change against the guard step: pass rate, `askedForId`,

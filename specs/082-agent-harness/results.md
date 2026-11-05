@@ -183,3 +183,47 @@ No request that passed in the baseline fails with the guard; every change is a g
 A first guard run (same night, before 35e5c163) let a repeated made-up id through: the refusal named the id, and
 the next call found it in that answer. Since then only a successful result proves an id; the runs above are the
 second run.
+
+## Offer
+
+Run of 2026-11-05, branch `082-agent-harness` at 1828ed68: the guard step plus the routing call before the first
+step (US2) and the lookup sentence in the instruction (US3). Every local model of the baseline but Hermes, same
+machine and settings. Reports in `runs/offer/`.
+
+| Model            | Pass guard → offer | Rate       | Routing hits (78) | Routing median | First chunk median | changedUnasked | askedForId | Context |
+| ---------------- | ------------------ | ---------- | ----------------- | -------------- | ------------------ | -------------- | ---------- | ------- |
+| Gemma 4 12B      | 75 → 85            | 80 %       | 71                | 935 ms         | 5.5 → 6.2 s        | 3 → 1          | 3 → 4      | 4096    |
+| Gemma 4 E4B      | 58 → **82**        | **77 %**   | 70                | 232 ms         | 1.3 → 1.6 s        | 0 → 0          | 11 → 7     | 8192    |
+| Qwen3.5 9B       | 43 → 80            | 75 %       | 64                | 378 ms         | 2.2 → 3.1 s        | 4 → 2          | 12 → 7     | 4096    |
+| Qwen3.5 4B       | 42 → **79**        | **74.5 %** | 65                | 240 ms         | 1.7 → 2.1 s        | 7 → 4          | 8 → 5      | 8192    |
+| Gemma 4 E2B      | 45 → 57            | 54 %       | 65                | 146 ms         | 0.7 → 0.9 s        | 1 → 1          | 14 → 20    | 8192    |
+| Qwen3.5 2B       | 30 → 54            | 51 %       | 60                | 134 ms         | 0.8 → 1.0 s        | 0 → 0          | 11 → 8     | 8192    |
+| Qwen3 1.7B phone | 27 → 45            | 42 %       | 58                | 105 ms         | 0.4 → 0.7 s        | 2 → 4          | 13 → 14    | 8192    |
+| Qwen3 1.7B desk  | 26 → 42            | 40 %       | 58                | 106 ms         | 0.5 → 0.7 s        | 3 → 5          | 11 → 13    | 8192    |
+
+No risky call ran without consent in any run (`executedUnasked` 0 everywhere). Routing hits count the 78 requests
+with an expected call whose routed domains hold the domain of the expected first tool.
+
+### What the step shows
+
+- **The goal is reached for Gemma 4 E4B and, by a hair, missed for Qwen3.5 4B.** Gemma 4 E4B passes 82 of 106
+  (77 %); Qwen3.5 4B passes 79 (74.5 %), one request short of 75 % (SC-001). Qwen3.5 9B (80) and Gemma 4 12B (85,
+  80 %) gain as much; the phone gate (85 %) stays out of reach for every local model.
+- **The domains that failed now work.** Qwen3.5 4B: contacts 1 → 9 of 10, files 0 → 6 of 6, passwords 1 → 6 of 6,
+  mail read 1 → 8 of 16, mail clean-up 1 → 5 of 12, mail replies 0 → 3 of 6. Gemma 4 E4B: contacts 3 → 10, mail
+  read 6 → 12. Mail replies stay the weakest category (0–3 of 6 for every local model).
+- **Questions for ids fall** for the target models (`askedForId` Qwen3.5 4B 8 → 5, Gemma 4 E4B 11 → 7), not for the
+  phone models (SC-007).
+- **Routing costs more in holzi's engine than in llama-server.** The median routing call takes 232 ms (Gemma 4
+  E4B) and 240 ms (Qwen3.5 4B), against 111 and 123 ms in the measurement of research R3 with llama-server: holzi's
+  engine reads each prompt in a new context until spec 080 keeps one. The plan's goal of at most 200 ms is missed
+  for the target models; Gemma 4 12B, half on the CPU, takes 935 ms.
+- **The first chunk comes later**, by 0.3 to 0.4 s for the target models. Not measured separately; likely because
+  more requests now answer with a call first, and a call arrives whole at the end of the step, where a refusal
+  streamed its first words at once.
+- **New misses come from the wider offer.** Seven requests of the two target models that passed with the guard fail now (4 and 3),
+  all ambiguous or impossible ones: "Switch that over" routed to apps lets Qwen3.5 4B switch the workspace instead of asking
+  (`clarify` Gemma 4 E4B 8 → 5); an alarm or a shopping list routed to a domain makes the model search there instead
+  of declining (`no_tool` Qwen3.5 4B 7 → 5).
+- **Gemma 4 12B got 4096 tokens** in this run against 8192 in the guard run (the memory free at load); its 85 is
+  not directly comparable, and still its best figure.
