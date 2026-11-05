@@ -46,13 +46,16 @@ fn only_the_last_ten_sentences_count() {
 }
 
 #[test]
-fn three_slow_answers_in_a_row_reach_the_hint_once() {
+fn from_the_third_slow_answer_in_a_row_the_hint_is_due() {
     let mut run = Run::default();
     let slow = || vec![sentence(2.0, 1.0)];
     assert!(!run.add_answer(slow(), 1));
     assert!(!run.add_answer(slow(), 2));
     assert!(run.add_answer(slow(), 3), "the third slow answer");
-    assert!(!run.add_answer(slow(), 4), "only once per streak");
+    assert!(
+        run.add_answer(slow(), 4),
+        "asked again while the streak goes on, in case the hint was held back"
+    );
     assert_eq!(run.slow_streak, 4);
 }
 
@@ -94,6 +97,10 @@ fn the_meter_writes_once_per_answer_per_acceleration() {
         meter.add_sentence(sentence(0.4, 1.0));
     }
     meter.add_sentence(SentenceSpeed::default());
+    assert!(
+        !dir.path().join(speed::FILE_NAME).exists(),
+        "nothing is written before the answer is over"
+    );
     assert!(!meter.answer_over());
     let run = speed::of_model(dir.path(), "cpu");
     assert_eq!(run.sentences.len(), 3, "the empty sentence is left out");
@@ -101,4 +108,19 @@ fn the_meter_writes_once_per_answer_per_acceleration() {
     assert!(run.measured_at_ms > 0);
     assert_eq!(speed::of_model(dir.path(), "gpu"), Run::default());
     assert!(!dir.path().join("speed.json.tmp").exists());
+}
+
+#[test]
+fn the_sentences_of_an_answer_are_taken_before_the_next_answer_adds_its_own() {
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Meter::new(dir.path(), "cpu");
+    for _ in 0..3 {
+        meter.add_sentence(sentence(2.0, 1.0));
+    }
+    let first = meter.take_answer();
+    meter.add_sentence(sentence(0.1, 1.0));
+    assert_eq!(first.len(), 3, "the later sentence is not part of it");
+    assert!(!meter.store_answer(first));
+    assert_eq!(speed::of_model(dir.path(), "cpu").sentences.len(), 3);
+    assert_eq!(meter.take_answer().len(), 1, "it waits for its own answer");
 }
