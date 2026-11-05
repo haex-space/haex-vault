@@ -60,6 +60,8 @@ const saving = ref(false)
 const previewing = ref<string | null>(null)
 /** The speech model being downloaded from this page. */
 const downloadingId = ref<string | null>(null)
+/** The speech model row, reloaded when a voice download changed what is installed. */
+const speechModelRow = ref<{ reloadAsync: () => Promise<void> } | null>(null)
 
 function voicesOf(language: SpeechLanguage): VoiceOption[] {
   return voices.value.filter((voice) => voice.language === language)
@@ -203,6 +205,9 @@ async function fetchModelAsync(entry: VoiceOption) {
   } finally {
     downloadingId.value = null
     downloads.clearDownload(entry.modelId)
+    // The download installed the speech model and, for Qwen3-TTS, the Pocket reserve, even when
+    // it failed half way.
+    await speechModelRow.value?.reloadAsync()
   }
 }
 
@@ -268,6 +273,7 @@ onVaultTablesChanged(['preferences'], () => {
 
     <template v-if="!loading && !loadFailed">
       <SettingsAssistantSpeechModelRow
+        ref="speechModelRow"
         :language="language"
         @changed="reloadAsync(true)"
       />
